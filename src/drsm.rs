@@ -1,10 +1,6 @@
 use binrw::{args, binread, BinReaderExt, FilePtr32};
 use flate2::bufread::ZlibDecoder;
 
-// wismt/msrd format referece:
-// https://github.com/Turk645/Xenoblade-Switch-Model-Importer-Noesis/blob/main/fmt_wismt.py
-// https://github.com/BlockBuilder57/XB2AssetTool/blob/master/include/xb2at/structs/msrd.h
-// https://github.com/BlockBuilder57/XB2AssetTool/blob/master/src/core/readers/msrd_reader.cpp
 #[binread]
 #[derive(Debug)]
 #[br(magic(b"DRSM"))]
