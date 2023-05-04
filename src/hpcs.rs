@@ -62,7 +62,11 @@ pub struct ShaderProgram {
 
     // TODO: DECL_GBL_CALC can make the slct bigger?
     #[br(try)]
-    #[br(args { string_offset: base_offset + slct.string_offset as u64})]
+    #[br(args { 
+        string_offset: base_offset + slct.string_offset as u64,
+        attribute_count: slct.attribute_count as usize,
+        uniform_count: slct.uniform_count as usize,
+    })]
     pub nvsd: Option<Nvsd>,
 }
 
@@ -76,12 +80,17 @@ struct Slct {
     unk4: u32,
     unk5: u32,
     unk6: u32,
-    unk7: u32, // offset?
+    unk7: u32,          // offset?
     string_offset: u32, // base offset for strings relative to start of slct?
     unks1: [u32; 11],
-    unk_offset1: u32, // pointer to DECL_GBL_CALC
-    unk_offset2: u32, // pointer to after DECL_GBL_CALC
-    unks2: [u32; 28], // always 112 bytes?
+    unk_offset1: u32,     // pointer to DECL_GBL_CALC
+    unk_offset2: u32,     // pointer to after DECL_GBL_CALC
+    unks2: [u32; 20],     // always 112 bytes?
+    attribute_count: u32, // just inputs?
+    unk9: u32,
+    uniform_count: u32,
+    unk11: u32,
+    unks3: [u32; 4],
 }
 
 // TODO: figure out xv4 offsets and decompile with ryujinx
@@ -89,7 +98,11 @@ struct Slct {
 #[binread]
 #[derive(Debug)]
 #[br(magic(b"NVSD"))]
-#[br(import { string_offset: u64 })]
+#[br(import { 
+    string_offset: u64, 
+    attribute_count: usize, 
+    uniform_count: usize 
+})]
 pub struct Nvsd {
     version: u32,
     unk1: u32, // 0
@@ -99,31 +112,56 @@ pub struct Nvsd {
     unk5: u32, // 2176
     unk6: u32, // 1
 
-    // Does each NVSD have its own shader programs?
-    // i.e. flattening out the NVSD shaders gives us the list of xv4 sizes?
+    // Each NVSD has its own compiled shaders?
+    // Flattening out the NVSD sizes gives us the xV4 sizes at the end of the file?
+    // TODO: Which one of these is fragment/vertex?
     pub xv4_size1: u32, // xv4 size
     pub xv4_size2: u32, // xv4 size
 
     unk9: u32,  // 2176
     unk10: u32, // 2176
 
-    // This repeats how many times?
-    // offset to uniform buffer name
-    // uniform count?
-    // uniforms?
-    #[br(parse_with = parse_string_ptr, args(string_offset))]
-    unk11: String,
-    unk12: u32, // count?
-
-    // TODO: split this in two?
-    unks2: [[u32; 4]; 12],
-    // strings for uniforms, attributes, etc?
-    unks3: [[u32; 3]; 7],
-
+    // TODO: How to determine these counts?
     #[br(args { string_offset })]
-    unks4: [InputAttribute; 4],
+    unks2: [Unk2; 12],
+    #[br(args { string_offset })]
+    unks3: [Unk3; 7],
 
-    unks5: [[u32; 2]; 10],
+    #[br(args { count: attribute_count, inner: args! { string_offset } })]
+    attributes: Vec<InputAttribute>,
+
+    #[br(args { count: uniform_count, inner: args! { string_offset } })]
+    uniforms: Vec<Uniform>,
+}
+
+#[binread]
+#[derive(Debug)]
+#[br(import { string_offset: u64 })]
+struct Unk2 {
+    #[br(parse_with = parse_string_ptr, args(string_offset))]
+    name: String,
+    unk1: u32,
+    unk2: u32,
+    unk3: u32,
+}
+
+#[binread]
+#[derive(Debug)]
+#[br(import { string_offset: u64 })]
+struct Unk3 {
+    #[br(parse_with = parse_string_ptr, args(string_offset))]
+    name: String,
+    unk1: u32,
+    unk2: u32,
+}
+
+#[binread]
+#[derive(Debug)]
+#[br(import { string_offset: u64 })]
+struct Uniform {
+    #[br(parse_with = parse_string_ptr, args(string_offset))]
+    name: String,
+    unk1: u32,
 }
 
 #[binread]
