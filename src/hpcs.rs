@@ -66,6 +66,10 @@ pub struct ShaderProgram {
         string_offset: base_offset + slct.string_offset as u64,
         attribute_count: slct.attribute_count as usize,
         uniform_count: slct.uniform_count as usize,
+        // TODO: Why are there multiple count values?
+        // TODO: fragment + vertex counts?
+        buffer_count: slct.unk_count1 as usize + slct.unk_count3 as usize,
+        sampler_count: slct.unk_count5 as usize
     })]
     pub nvsd: Option<Nvsd>,
 }
@@ -81,11 +85,33 @@ struct Slct {
     unk5: u32,
     unk6: u32,
     unk7: u32,          // offset?
+    
     string_offset: u32, // base offset for strings relative to start of slct?
+
     unks1: [u32; 11],
+
     unk_offset1: u32,     // pointer to DECL_GBL_CALC
     unk_offset2: u32,     // pointer to after DECL_GBL_CALC
-    unks2: [u32; 20],     // always 112 bytes?
+
+    unks2: [u32; 8],
+
+    unk_count1: u16,
+    unk_count2: u16,
+
+    unk12: u32,
+    unk13: u32,
+
+    unk_count3: u16,
+    unk_count4: u16,
+
+    unk14: u32,
+    unk15: u32,
+
+    unk_count5: u16,
+    unk_count6: u16,
+
+    unks2_1: [u32; 5],
+
     attribute_count: u32, // just inputs?
     unk9: u32,
     uniform_count: u32,
@@ -93,21 +119,21 @@ struct Slct {
     unks3: [u32; 4],
 }
 
-// TODO: figure out xv4 offsets and decompile with ryujinx
-// This should make it easier to figure out the inputs
 #[binread]
 #[derive(Debug)]
 #[br(magic(b"NVSD"))]
 #[br(import { 
     string_offset: u64, 
     attribute_count: usize, 
-    uniform_count: usize 
+    uniform_count: usize,
+    buffer_count: usize,
+    sampler_count: usize,
 })]
 pub struct Nvsd {
     version: u32,
     unk1: u32, // 0
     unk2: u32, // 0
-    unk3: u32, // identical to xv4_size1?
+    unk3: u32, // identical to vertex_xv4_size?
     unk4: u32, // 0
     unk5: u32, // 2176
     unk6: u32, // 1
@@ -115,44 +141,49 @@ pub struct Nvsd {
     // Each NVSD has its own compiled shaders?
     // Flattening out the NVSD sizes gives us the xV4 sizes at the end of the file?
     // TODO: Which one of these is fragment/vertex?
-    pub xv4_size1: u32, // xv4 size
-    pub xv4_size2: u32, // xv4 size
+    // TODO: xV4 header should be stripped when decompiling?
+    pub vertex_xv4_size: u32,
+    pub fragment_xv4_size: u32,
 
     unk9: u32,  // 2176
     unk10: u32, // 2176
 
-    // TODO: How to determine these counts?
-    #[br(args { string_offset })]
-    unks2: [Unk2; 12],
-    #[br(args { string_offset })]
-    unks3: [Unk3; 7],
+    #[br(args { count: buffer_count, inner: args! { string_offset } })]
+    buffers: Vec<UniformBuffer>,
+    
+    #[br(args { count: sampler_count, inner: args! { string_offset } })]
+    samplers: Vec<Sampler>,
 
     #[br(args { count: attribute_count, inner: args! { string_offset } })]
     attributes: Vec<InputAttribute>,
 
     #[br(args { count: uniform_count, inner: args! { string_offset } })]
     uniforms: Vec<Uniform>,
+
+    unks4: [u16; 8]
 }
 
 #[binread]
 #[derive(Debug)]
 #[br(import { string_offset: u64 })]
-struct Unk2 {
+struct UniformBuffer {
     #[br(parse_with = parse_string_ptr, args(string_offset))]
     name: String,
-    unk1: u32,
-    unk2: u32,
+    uniform_count: u16,
+    uniform_start_index: u16,
     unk3: u32,
+    unk4: u16,
+    unk5: u16,
 }
 
 #[binread]
 #[derive(Debug)]
 #[br(import { string_offset: u64 })]
-struct Unk3 {
+struct Sampler {
     #[br(parse_with = parse_string_ptr, args(string_offset))]
     name: String,
-    unk1: u32,
-    unk2: u32,
+    unk1: u32, // binding * 112?
+    unk2: u32, // sampler type?
 }
 
 #[binread]
