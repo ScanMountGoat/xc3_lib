@@ -2,7 +2,10 @@ use ddsfile::Dds;
 
 use anyhow::Result;
 
-use crate::{lbim::ImageFormat, Libm};
+use crate::{
+    lbim::{ImageFormat, ViewDimension},
+    Libm,
+};
 
 // TODO: add a dds_from_surface() function to image_dds that takes a compressed surface?
 pub(crate) fn create_dds(mibl: &Libm) -> Result<Dds> {
@@ -20,7 +23,11 @@ pub(crate) fn create_dds(mibl: &Libm) -> Result<Dds> {
         } else {
             None
         },
-        array_layers: None, // TODO: cube maps?
+        array_layers: if mibl.footer.view_dimension == ViewDimension::Cube {
+            Some(6)
+        } else {
+            None
+        },
         caps2: None,
         is_cubemap: false,
         resource_dimension: if mibl.footer.depth > 1 {
@@ -40,7 +47,11 @@ pub(crate) fn create_dds(mibl: &Libm) -> Result<Dds> {
         None,
         mibl.footer.image_format.bytes_per_pixel(),
         mibl.footer.mipmap_count as usize,
-        1, // TODO: cube maps?
+        if mibl.footer.view_dimension == ViewDimension::Cube {
+            6
+        } else {
+            1
+        },
     )?;
 
     Ok(dds)
@@ -51,6 +62,7 @@ impl From<ImageFormat> for ddsfile::DxgiFormat {
         match value {
             ImageFormat::R8Unorm => Self::R8_UNorm,
             ImageFormat::R8G8B8A8Unorm => Self::R8G8B8A8_UNorm,
+            ImageFormat::R16G16B16A16Unorm => Self::R16G16B16A16_UNorm,
             ImageFormat::Bc1Unorm => Self::BC1_UNorm,
             ImageFormat::Bc3Unorm => Self::BC3_UNorm,
             ImageFormat::Bc4Unorm => Self::BC4_UNorm,

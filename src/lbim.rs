@@ -37,11 +37,11 @@ pub struct LibmFooter {
 
 #[binread]
 #[br(repr(u32))]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ViewDimension {
-    // TODO: Cube maps and 1D textures?
     D2 = 1,
     D3 = 2,
+    Cube = 8,
 }
 
 #[binread]
@@ -50,6 +50,7 @@ pub enum ViewDimension {
 pub enum ImageFormat {
     R8Unorm = 1, // TODO: srgb or unorm?
     R8G8B8A8Unorm = 37,
+    R16G16B16A16Unorm = 41,
     Bc1Unorm = 66,
     Bc3Unorm = 68,
     Bc4Unorm = 73,
@@ -62,6 +63,7 @@ impl ImageFormat {
         match self {
             ImageFormat::R8Unorm => BlockDim::uncompressed(),
             ImageFormat::R8G8B8A8Unorm => BlockDim::uncompressed(),
+            ImageFormat::R16G16B16A16Unorm => BlockDim::uncompressed(),
             ImageFormat::Bc1Unorm => BlockDim::block_4x4(),
             ImageFormat::Bc3Unorm => BlockDim::block_4x4(),
             ImageFormat::Bc4Unorm => BlockDim::block_4x4(),
@@ -74,6 +76,7 @@ impl ImageFormat {
         match self {
             ImageFormat::R8Unorm => 1,
             ImageFormat::R8G8B8A8Unorm => 4,
+            ImageFormat::R16G16B16A16Unorm => 8,
             ImageFormat::Bc1Unorm => 8,
             ImageFormat::Bc3Unorm => 16,
             ImageFormat::Bc4Unorm => 8,
