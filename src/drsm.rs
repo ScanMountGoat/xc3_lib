@@ -1,6 +1,6 @@
-use binrw::{args, binread, BinReaderExt, FilePtr32};
-use flate2::bufread::ZlibDecoder;
+use binrw::{args, binread, FilePtr32};
 
+/// .wismt files
 #[binread]
 #[derive(Debug)]
 #[br(magic(b"DRSM"))]

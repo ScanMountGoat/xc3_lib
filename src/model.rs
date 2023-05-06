@@ -1,5 +1,6 @@
 use std::io::SeekFrom;
 
+use crate::parse_array;
 use binrw::{binread, BinRead, BinResult, VecArgs};
 
 // wismt model data
@@ -90,33 +91,6 @@ pub struct IndexBuffer {
     unk1: u32,
     unk2: u32,
     unk3: u32,
-}
-
-// TODO: Make a type for this and just use temp to derive it?
-fn parse_array<T, R>(reader: &mut R, endian: binrw::Endian, _args: ()) -> BinResult<Vec<T>>
-where
-    for<'a> T: BinRead<Args<'a> = ()> + 'static,
-    R: std::io::Read + std::io::Seek,
-{
-    let offset = u32::read_options(reader, endian, ())?;
-    let count = u32::read_options(reader, endian, ())?;
-
-    let saved_pos = reader.stream_position()?;
-
-    reader.seek(SeekFrom::Start(offset as u64))?;
-
-    let values = Vec::<T>::read_options(
-        reader,
-        endian,
-        VecArgs {
-            count: count as usize,
-            inner: (),
-        },
-    )?;
-
-    reader.seek(SeekFrom::Start(saved_pos))?;
-
-    Ok(values)
 }
 
 // TODO: functions for accessing data.
