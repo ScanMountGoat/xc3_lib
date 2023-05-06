@@ -30,9 +30,9 @@ pub struct LibmFooter {
     pub image_format: ImageFormat,
     pub mipmap_count: u32,
     pub version: u32,
-    // TODO: magic b"LBIM"?
-    // TODO: use () and br(magic)?
-    pub magic: u32,
+
+    #[br(temp, magic(b"LBIM"))]
+    magic: (),
 }
 
 #[binread]

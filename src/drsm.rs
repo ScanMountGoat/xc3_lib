@@ -1,3 +1,4 @@
+use crate::parse_string_ptr;
 use binrw::{args, binread, FilePtr32};
 
 /// .wismt files
@@ -63,23 +64,32 @@ pub enum DataItemType {
 
 #[binread]
 #[derive(Debug)]
+#[br(stream = r)]
 pub struct TextureNameTable {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
     count: u32,
-    unk0: u32, // names offset relative to start of this struct?
+    unk0: u32,
     unk1: u32,
     unk2: u32,
-    // TODO: texture names?
-    #[br(count = count)]
+
+    // Same order as the data in the wimdo file?
+    #[br(args { count: count as usize, inner: (base_offset,) })]
     pub textures: Vec<TextureInfo>,
 }
 
 #[binread]
 #[derive(Debug)]
+#[br(import(base_offset: u64))]
 pub struct TextureInfo {
-    unk1: u32,
+    unk1: u16,
+    unk2: u16,
     pub size: u32,
     pub offset: u32,
-    name_offset: u32, // relative to start of TextureNameTable?
+    // Same as the file names in chr/tex/nx/m and chr/tex/nx/h?
+    #[br(parse_with = parse_string_ptr, args(base_offset))]
+    pub name: String,
 }
 
 #[binread]

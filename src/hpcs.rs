@@ -1,6 +1,9 @@
 use std::io::SeekFrom;
 
-use binrw::{args, binread, BinRead, BinResult, FilePtr32, FilePtr64, NullString, PosValue};
+use crate::parse_string_ptr;
+use binrw::{
+    args, binread, helpers::count_with, BinRead, BinResult, FilePtr32, FilePtr64, NullString,
+};
 
 #[binread]
 #[derive(Debug)]
@@ -8,7 +11,7 @@ use binrw::{args, binread, BinRead, BinResult, FilePtr32, FilePtr64, NullString,
 pub struct Hpcs {
     version: u32,
     unk1: u32,
-    count: u32, // shd{i} count?
+    count: u32,
     #[br(parse_with = FilePtr32::parse)]
     string_section: StringSection,
     unk4: u32,
@@ -17,10 +20,17 @@ pub struct Hpcs {
     slct_base_offset: u32,
 
     unk6: u32,
-    xv4_base_offset: u32, // pointer to first xV4 (shader binary)
-    unk8: u32,
-    unk9: u32,
-    unk10: u32,
+
+    // Compiled shader binaries.
+    xv4_base_offset: u32,
+    xv4_section_length: u32,
+
+    // data before the xV4 section
+    // same count as xV4 but with magic 0x34127698?
+    // each has length 2176 (referenced in shaders?)
+    unk_section_offset: u32,
+    unk_section_length: u32,
+
     #[br(pad_after = 20)]
     unk11: u32,
 
@@ -35,11 +45,12 @@ pub struct Hpcs {
 #[binread]
 #[derive(Debug)]
 struct StringSection {
-    count: u32, // same as header count?
+    #[br(temp)]
+    count: u32, // program count?
     unk12: u32,
     unk13: u32,
-    #[br(count = count)]
-    string_pointers: Vec<u32>, // string pointers?
+    #[br(parse_with = count_with(count as usize, parse_string_ptr))]
+    program_names: Vec<String>,
 }
 
 // TODO: Avoid creating another type for this?
@@ -135,7 +146,7 @@ pub struct Nvsd {
     unk2: u32, // 0
     unk3: u32, // identical to vertex_xv4_size?
     unk4: u32, // 0
-    unk5: u32, // 2176
+    unk5: u32, // identical to unk_size1?
     unk6: u32, // 1
 
     // Each NVSD has its own compiled shaders?
@@ -144,9 +155,9 @@ pub struct Nvsd {
     // TODO: xV4 header should be stripped when decompiling?
     pub vertex_xv4_size: u32,
     pub fragment_xv4_size: u32,
-
-    unk9: u32,  // 2176
-    unk10: u32, // 2176
+    // Corresponding unk entry size for the two shaders?
+    unk_size1: u32, // 2176
+    unk_size2: u32, // 2176
 
     #[br(args { count: buffer_count, inner: args! { string_offset } })]
     buffers: Vec<UniformBuffer>,
@@ -223,19 +234,4 @@ fn parse_unk_str<R: std::io::Read + std::io::Seek>(
     } else {
         Ok(None)
     }
-}
-
-fn parse_string_ptr<R: std::io::Read + std::io::Seek>(
-    reader: &mut R,
-    endian: binrw::Endian,
-    args: (u64,),
-) -> BinResult<String> {
-    let offset = u32::read_options(reader, endian, ())?;
-    let saved_pos = reader.stream_position()?;
-
-    reader.seek(SeekFrom::Start(args.0 + offset as u64))?;
-    let value = NullString::read_options(reader, endian, ())?;
-    reader.seek(SeekFrom::Start(saved_pos))?;
-
-    Ok(value.to_string())
 }
