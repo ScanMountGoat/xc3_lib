@@ -9,17 +9,46 @@ use drsm::{DataItemType, Drsm, Xbc1};
 use flate2::bufread::ZlibDecoder;
 use lbim::Libm;
 
-use crate::hpcs::Hpcs;
+use crate::{dds::create_dds, hpcs::Hpcs, mot::Sar1, model::ModelData};
 
 mod dds;
 // TODO: formats module.
+// TODO: consistent naming for magics/extensions?
+// mibl instead of lbim?
+// TODO: Is the pointer placement algorithm similar enough to SSBH?
 mod drsm;
 mod hpcs;
 mod lbim;
+mod mot;
+// TODO: naming for wismt vertex data?
+mod model;
 
+// TODO: xc3_test program to run against the dump using Rayon?
+// add basic tests like read/write, surface sizes, etc
+// TODO: separate binary project that can export to JSON, PNG, DDS, etc
 fn main() {
-    read_hpcs("shdr.bin");
+    // let start = std::time::Instant::now();
+    // read_hpcs("shdr.bin");
+    read_model("model.bin");
+    // read_wismt("ch01012013.wismt").unwrap();
+    // read_mot("ch01011000_wp01_reaction.mot");
+    // eprintln!("{:?}", start.elapsed());
 }
+
+// TODO: Create dedicated error types using thiserror instead of anyhow.
+
+fn read_mot<P: AsRef<Path>>(path: P) {
+    let mut reader = BufReader::new(std::fs::File::open(path).unwrap());
+    let sar1: Sar1 = reader.read_le().unwrap();
+    println!("{:#?}", sar1);
+}
+
+fn read_model<P: AsRef<Path>>(path: P) {
+    let mut reader = BufReader::new(std::fs::File::open(path).unwrap());
+    let hpcs: ModelData = reader.read_le().unwrap();
+    println!("{:#?}", hpcs);
+}
+
 
 fn read_hpcs<P: AsRef<Path>>(path: P) {
     let mut reader = BufReader::new(std::fs::File::open(path).unwrap());
@@ -39,14 +68,36 @@ fn process_chr_wismt<P: AsRef<Path>>(chr_ch: P) {
 }
 
 fn process_tex_nx_wismt<P: AsRef<Path>>(chr_tex_nx_m: P) {
-    // TODO: the h directory doesn't have mibl footers?
+    // TODO: the h directory doesn't have lbim footers?
     for e in std::fs::read_dir(chr_tex_nx_m).unwrap() {
         let path = e.unwrap().path();
         if path.extension().unwrap().to_str() == Some("wismt") {
-            let mibl = read_wismt_single_tex(&path);
-            println!("{:?},{:?}", path, mibl.footer);
+            let lbim = read_wismt_single_tex(&path);
+            println!("{:?},{:?}", path, lbim.footer);
         }
     }
+}
+
+fn process_monolib_shader_witex<P: AsRef<Path>>(monolib_shader: P) {
+    for entry in std::fs::read_dir(monolib_shader).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().as_ref().and_then(|e| e.to_str()) == Some("witex") {
+            match read_witex(&path) {
+                Ok(libm) => {
+                    let _dds = create_dds(&libm).unwrap();
+                    println!("{:?},{:?}", path, libm.footer);
+                }
+                Err(e) => eprintln!("Error reading {path:?}: {e}"),
+            }
+        }
+    }
+}
+
+fn read_witex<P: AsRef<Path>>(path: P) -> Result<Libm> {
+    let bytes = std::fs::read(path)?;
+    let len = bytes.len();
+    let mut reader = Cursor::new(bytes);
+    reader.read_le_args((len,)).map_err(Into::into)
 }
 
 fn read_wismt_single_tex<P: AsRef<Path>>(path: P) -> Libm {
@@ -77,9 +128,15 @@ fn read_wismt<P: AsRef<Path>>(path: P) -> Result<()> {
         match item.item_type {
             DataItemType::Model => {
                 // TODO
+                let stream = &toc_streams[item.toc_index as usize];
+                let data = &stream[item.offset as usize..item.offset as usize + item.size as usize];
+                std::fs::write("model.bin", data).unwrap();
             }
             DataItemType::ShaderBundle => {
                 // TODO: apply hpcs code
+                let stream = &toc_streams[item.toc_index as usize];
+                let data = &stream[item.offset as usize..item.offset as usize + item.size as usize];
+                std::fs::write("shdr.bin", data).unwrap();
             }
             DataItemType::CachedTexture => {
                 for info in &drsm.texture_name_table.textures {
@@ -90,49 +147,49 @@ fn read_wismt<P: AsRef<Path>>(path: P) -> Result<()> {
 
                     let size = info.size as usize;
 
-                    let mibl: Libm = reader.read_le_args((size,))?;
+                    let lbim: Libm = reader.read_le_args((size,))?;
 
                     let estimate = tegra_swizzle::surface::swizzled_surface_size(
-                        mibl.footer.width as usize,
-                        mibl.footer.height as usize,
-                        mibl.footer.depth as usize,
-                        mibl.footer.image_format.block_dim(),
+                        lbim.footer.width as usize,
+                        lbim.footer.height as usize,
+                        lbim.footer.depth as usize,
+                        lbim.footer.image_format.block_dim(),
                         None,
-                        mibl.footer.image_format.bytes_per_pixel(),
-                        mibl.footer.mipmap_count as usize,
+                        lbim.footer.image_format.bytes_per_pixel(),
+                        lbim.footer.mipmap_count as usize,
                         1, // TODO: cube maps?
                     );
                     let estimate_deswizzled = tegra_swizzle::surface::deswizzled_surface_size(
-                        mibl.footer.width as usize,
-                        mibl.footer.height as usize,
-                        mibl.footer.depth as usize,
-                        mibl.footer.image_format.block_dim(),
-                        mibl.footer.image_format.bytes_per_pixel(),
-                        mibl.footer.mipmap_count as usize,
+                        lbim.footer.width as usize,
+                        lbim.footer.height as usize,
+                        lbim.footer.depth as usize,
+                        lbim.footer.image_format.block_dim(),
+                        lbim.footer.image_format.bytes_per_pixel(),
+                        lbim.footer.mipmap_count as usize,
                         1, // TODO: cube maps?
                     );
 
                     // TODO: is this always rounded up to a multiple of 4096?
-                    if estimate != mibl.footer.image_size as usize {
+                    if estimate != lbim.footer.image_size as usize {
                         println!(
                             "{} != {}, {}, {:?}",
                             estimate,
-                            mibl.footer.image_size as usize,
+                            lbim.footer.image_size as usize,
                             estimate_deswizzled,
-                            mibl.footer
+                            lbim.footer
                         );
                     }
 
-                    if mibl.footer.depth > 1 {
-                        // println!("{:?},{:?}", mibl.footer, path);
+                    if lbim.footer.depth > 1 {
+                        // println!("{:?},{:?}", lbim.footer, path);
                         let name = format!(
                             "{}x{}x{}_{:?}.dds",
-                            mibl.footer.width,
-                            mibl.footer.height,
-                            mibl.footer.depth,
-                            mibl.footer.image_format
+                            lbim.footer.width,
+                            lbim.footer.height,
+                            lbim.footer.depth,
+                            lbim.footer.image_format
                         );
-                        let dds = dds::create_dds(&mibl).unwrap();
+                        let dds = dds::create_dds(&lbim).unwrap();
                         let mut writer = BufWriter::new(std::fs::File::create(name).unwrap());
                         dds.write(&mut writer).unwrap();
                     }
@@ -140,7 +197,7 @@ fn read_wismt<P: AsRef<Path>>(path: P) -> Result<()> {
                     // 0 to 526336 = 526336 bytes
                     // 532480 to 534528 = 2048 bytes
                     // 540672 to 542720 = 2048 bytes
-                    // println!("{} == {}", estimate, mibl.footer.image_size);
+                    // println!("{} == {}", estimate, lbim.footer.image_size);
                 }
             }
             DataItemType::Texture => {
@@ -154,7 +211,7 @@ fn read_wismt<P: AsRef<Path>>(path: P) -> Result<()> {
 
                 // TODO: No header?
                 // println!("not cached: {:?}", size);
-                // let _mibl: Mibl = reader.read_le_args((size,))?;
+                // let _lbim: lbim = reader.read_le_args((size,))?;
             }
         }
     }

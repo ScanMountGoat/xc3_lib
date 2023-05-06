@@ -58,11 +58,10 @@ pub struct ShaderProgram {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
+    #[br(args { base_offset })]
     slct: Slct,
 
-    // TODO: DECL_GBL_CALC can make the slct bigger?
-    #[br(try)]
-    #[br(args { 
+    #[br(args {
         string_offset: base_offset + slct.string_offset as u64,
         attribute_count: slct.attribute_count as usize,
         uniform_count: slct.uniform_count as usize,
@@ -71,12 +70,13 @@ pub struct ShaderProgram {
         buffer_count: slct.unk_count1 as usize + slct.unk_count3 as usize,
         sampler_count: slct.unk_count5 as usize
     })]
-    pub nvsd: Option<Nvsd>,
+    pub nvsd: Nvsd,
 }
 
 #[binread]
 #[derive(Debug)]
 #[br(magic(b"SLCT"))]
+#[br(import { base_offset: u64 })]
 struct Slct {
     unk1: u32,
     unk2: u32,
@@ -84,14 +84,14 @@ struct Slct {
     unk4: u32,
     unk5: u32,
     unk6: u32,
-    unk7: u32,          // offset?
-    
+    unk7: u32, // offset?
+
     string_offset: u32, // base offset for strings relative to start of slct?
 
     unks1: [u32; 11],
 
-    unk_offset1: u32,     // pointer to DECL_GBL_CALC
-    unk_offset2: u32,     // pointer to after DECL_GBL_CALC
+    #[br(parse_with = parse_unk_str, args(base_offset))]
+    unk_str: Option<String>, // DECL_GBL_CALC
 
     unks2: [u32; 8],
 
@@ -112,7 +112,7 @@ struct Slct {
 
     unks2_1: [u32; 5],
 
-    attribute_count: u32, // just inputs?
+    attribute_count: u32,
     unk9: u32,
     uniform_count: u32,
     unk11: u32,
@@ -122,9 +122,9 @@ struct Slct {
 #[binread]
 #[derive(Debug)]
 #[br(magic(b"NVSD"))]
-#[br(import { 
-    string_offset: u64, 
-    attribute_count: usize, 
+#[br(import {
+    string_offset: u64,
+    attribute_count: usize,
     uniform_count: usize,
     buffer_count: usize,
     sampler_count: usize,
@@ -150,7 +150,7 @@ pub struct Nvsd {
 
     #[br(args { count: buffer_count, inner: args! { string_offset } })]
     buffers: Vec<UniformBuffer>,
-    
+
     #[br(args { count: sampler_count, inner: args! { string_offset } })]
     samplers: Vec<Sampler>,
 
@@ -160,7 +160,8 @@ pub struct Nvsd {
     #[br(args { count: uniform_count, inner: args! { string_offset } })]
     uniforms: Vec<Uniform>,
 
-    unks4: [u16; 8]
+    // TODO: What controls this count?
+    unks4: [u16; 8],
 }
 
 #[binread]
@@ -171,9 +172,9 @@ struct UniformBuffer {
     name: String,
     uniform_count: u16,
     uniform_start_index: u16,
-    unk3: u32,
+    unk3: u32, // 470 + binding * 2?
     unk4: u16,
-    unk5: u16,
+    unk5: u16, 
 }
 
 #[binread]
@@ -202,6 +203,26 @@ struct InputAttribute {
     #[br(parse_with = parse_string_ptr, args(string_offset))]
     name: String,
     location: u32,
+}
+
+fn parse_unk_str<R: std::io::Read + std::io::Seek>(
+    reader: &mut R,
+    endian: binrw::Endian,
+    args: (u64,),
+) -> BinResult<Option<String>> {
+    let start_offset = u32::read_options(reader, endian, ())?;
+    let end_offset = u32::read_options(reader, endian, ())?;
+
+    if start_offset > 0 && end_offset > 0 {
+        reader.seek(SeekFrom::Start(args.0 + start_offset as u64))?;
+
+        let value = NullString::read_options(reader, endian, ())?;
+
+        reader.seek(SeekFrom::Start(args.0 + end_offset as u64))?;
+        Ok(Some(value.to_string()))
+    } else {
+        Ok(None)
+    }
 }
 
 fn parse_string_ptr<R: std::io::Read + std::io::Seek>(
