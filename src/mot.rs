@@ -47,9 +47,8 @@ pub struct Bc {
     unk2: u64,
     data_type: u32, // 4 anim, 7 ASMB
     #[br(args { data_type })]
-    data: Data
+    data: Data,
 }
-
 
 #[binread]
 #[derive(Debug)]
@@ -58,21 +57,15 @@ pub enum Data {
     #[br(pre_assert(data_type == 4))]
     Anim(Anim),
     #[br(pre_assert(data_type == 7))]
-    Asmb(Asmb)
+    Asmb(Asmb),
 }
-
 
 #[binread]
 #[derive(Debug)]
 #[br(magic(b"ANIM"))]
-pub struct Anim {
-
-}
-
+pub struct Anim {}
 
 #[binread]
 #[derive(Debug)]
 #[br(magic(b"ASMB"))]
-pub struct Asmb {
-
-}
+pub struct Asmb {}

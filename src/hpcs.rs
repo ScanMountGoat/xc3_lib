@@ -174,7 +174,7 @@ struct UniformBuffer {
     uniform_start_index: u16,
     unk3: u32, // 470 + binding * 2?
     unk4: u16,
-    unk5: u16, 
+    unk5: u16,
 }
 
 #[binread]

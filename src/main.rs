@@ -5,23 +5,11 @@ use std::{
 
 use anyhow::Result;
 use binrw::BinReaderExt;
-use drsm::{DataItemType, Drsm, Xbc1};
 use flate2::bufread::ZlibDecoder;
-use lbim::Libm;
+use xc3_lib::drsm::{DataItemType, Drsm, Xbc1};
+use xc3_lib::lbim::Libm;
 
-use crate::{dds::create_dds, hpcs::Hpcs, mot::Sar1, model::ModelData};
-
-mod dds;
-// TODO: formats module.
-// TODO: consistent naming for magics/extensions?
-// mibl instead of lbim?
-// TODO: Is the pointer placement algorithm similar enough to SSBH?
-mod drsm;
-mod hpcs;
-mod lbim;
-mod mot;
-// TODO: naming for wismt vertex data?
-mod model;
+use xc3_lib::{dds::create_dds, hpcs::Hpcs, model::ModelData, mot::Sar1};
 
 // TODO: xc3_test program to run against the dump using Rayon?
 // add basic tests like read/write, surface sizes, etc
@@ -30,8 +18,6 @@ fn main() {
     // let start = std::time::Instant::now();
     // read_hpcs("shdr.bin");
     read_model("model.bin");
-    // read_wismt("ch01012013.wismt").unwrap();
-    // read_mot("ch01011000_wp01_reaction.mot");
     // eprintln!("{:?}", start.elapsed());
 }
 
@@ -48,7 +34,6 @@ fn read_model<P: AsRef<Path>>(path: P) {
     let hpcs: ModelData = reader.read_le().unwrap();
     println!("{:#?}", hpcs);
 }
-
 
 fn read_hpcs<P: AsRef<Path>>(path: P) {
     let mut reader = BufReader::new(std::fs::File::open(path).unwrap());
@@ -189,7 +174,7 @@ fn read_wismt<P: AsRef<Path>>(path: P) -> Result<()> {
                             lbim.footer.depth,
                             lbim.footer.image_format
                         );
-                        let dds = dds::create_dds(&lbim).unwrap();
+                        let dds = xc3_lib::dds::create_dds(&lbim).unwrap();
                         let mut writer = BufWriter::new(std::fs::File::create(name).unwrap());
                         dds.write(&mut writer).unwrap();
                     }
