@@ -1,6 +1,6 @@
 use std::io::SeekFrom;
 
-use binrw::{args, binread, BinRead, BinResult, FilePtr32, NullString, VecArgs};
+use binrw::{binread, BinRead, BinResult, FilePtr32, NamedArgs, NullString};
 use serde::Serialize;
 
 /// .wimdo files
@@ -10,10 +10,10 @@ use serde::Serialize;
 pub struct Mxmd {
     version: u32,
 
-    mesh_offset: u32,
+    #[br(parse_with = FilePtr32::parse)]
+    mesh: Mesh,
 
     #[br(parse_with = FilePtr32::parse)]
-    #[serde(flatten)]
     materials: Materials,
 
     unk1: u32, // points after the texture names?
@@ -21,49 +21,23 @@ pub struct Mxmd {
     unk3: u32,
     unk4: u32,
     unk5: u32,
-    unk6: u32, // points after the material names
+    unk6: u32, // points after the material names?
 }
 
-// TODO: find a way to derive binread.
-#[derive(Debug, Serialize)]
-pub struct Materials {
-    materials: Vec<Material>,
-}
-
-// TODO: make this generic?
-impl BinRead for Materials {
-    type Args<'a> = ();
-
-    fn read_options<R: std::io::Read + std::io::Seek>(
-        reader: &mut R,
-        endian: binrw::Endian,
-        args: Self::Args<'_>,
-    ) -> BinResult<Self> {
-        let base_offset = reader.stream_position()?;
-
-        let offset = u32::read_options(reader, endian, ())?;
-        let count = u32::read_options(reader, endian, ())?;
-        let saved_pos = reader.stream_position()?;
-
-        reader.seek(SeekFrom::Start(base_offset + offset as u64))?;
-        let materials = <Vec<Material>>::read_options(
-            reader,
-            endian,
-            VecArgs {
-                count: count as usize,
-                inner: args! { base_offset },
-            },
-        )?;
-        reader.seek(SeekFrom::Start(saved_pos))?;
-
-        Ok(Self { materials })
-    }
-}
-
-/// 116 bytes?
 #[binread]
 #[derive(Debug, Serialize)]
-#[br(import { base_offset: u64 })]
+#[br(stream = r)]
+pub struct Materials {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(args { base_offset, inner: base_offset })]
+    materials: Container<Material>,
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(import_raw(base_offset: u64))]
 pub struct Material {
     #[br(parse_with = parse_string_ptr, args(base_offset))]
     name: String,
@@ -75,8 +49,8 @@ pub struct Material {
 
     unks1: [f32; 5],
 
-    #[br(parse_with = parse_relative_array, args(base_offset))]
-    textures: Vec<Texture>,
+    #[br(args { base_offset })]
+    textures: Container<Texture>,
 
     unks: [u32; 19],
 }
@@ -88,6 +62,56 @@ pub struct Texture {
     unk1: u16,
     unk2: u16,
     unk3: u16,
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(stream = r)]
+pub struct Mesh {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    unk1: u32,
+    floats: [f32; 6],
+
+    #[br(args { base_offset })]
+    items: Container<DataItem>,
+
+    unk2: u32,
+    bone_offset: u32, // relative to start of mesh
+}
+
+// TODO: Padding?
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(stream = r)]
+pub struct DataItem {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    unk1: u32,
+    #[br(args { base_offset })]
+    sub_items: Container<SubDataItem>,
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+pub struct SubDataItem {
+    unk1: u32,
+    flag: u32,
+    vertex_buffer_index: i16,
+    index_buffer_index: i16, // TODO: why is this sometimes invalid?
+    unk_index: i16,
+    material_index: i16,
+    unk2: i16,
+    unk3: i16,
+    unk4: i16,
+    unk5: i16,
+    unk6: i16,
+    unk7: i16,
+    unk8: i16,
+    unk9: i16,
+    unks: [i16; 8],
 }
 
 // TODO: type for this shared with hpcs?
@@ -106,33 +130,31 @@ fn parse_string_ptr<R: std::io::Read + std::io::Seek>(
     Ok(value.to_string())
 }
 
-// TODO: Make a type for this?
-// TODO: Add inner args?
-fn parse_relative_array<R, T>(
-    reader: &mut R,
-    endian: binrw::Endian,
-    args: (u64,),
-) -> BinResult<Vec<T>>
+/// A [u32] offset and [u32] count with an optional base offset.
+#[derive(Clone, NamedArgs)]
+struct ContainerArgs<Inner: Default> {
+    #[named_args(default = 0)]
+    base_offset: u64,
+    #[named_args(default = Inner::default())]
+    inner: Inner,
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(import_raw(args: ContainerArgs<T::Args<'_>>))]
+#[serde(transparent)]
+struct Container<T>
 where
-    R: std::io::Read + std::io::Seek,
-    for<'a> T: BinRead<Args<'a> = ()> + 'static,
+    T: BinRead + 'static,
+    for<'a> <T as BinRead>::Args<'a>: Clone + Default,
 {
-    let base_offset = args.0;
+    #[br(temp)]
+    offset: u32,
+    #[br(temp)]
+    count: u32,
 
-    let relative_offset = u32::read_options(reader, endian, ())?;
-    let count = u32::read_options(reader, endian, ())?;
-    let saved_pos = reader.stream_position()?;
-
-    reader.seek(SeekFrom::Start(base_offset + relative_offset as u64))?;
-    let values = <Vec<T>>::read_options(
-        reader,
-        endian,
-        VecArgs {
-            count: count as usize,
-            inner: (),
-        },
-    )?;
-    reader.seek(SeekFrom::Start(saved_pos))?;
-
-    Ok(values)
+    #[br(args { count: count as usize, inner: args.inner })]
+    #[br(seek_before = SeekFrom::Start(args.base_offset + offset as u64))]
+    #[br(restore_position)]
+    elements: Vec<T>,
 }
