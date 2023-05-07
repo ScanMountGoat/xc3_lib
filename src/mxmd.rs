@@ -11,7 +11,7 @@ pub struct Mxmd {
     version: u32,
     mesh_offset: u32,
     #[br(parse_with = FilePtr32::parse)]
-    material: MaterialStuff,
+    materials: Materials,
     unk1: u32, // points after the texture names?
     unk2: u32,
     unk3: u32,
@@ -22,12 +22,12 @@ pub struct Mxmd {
 
 // TODO: find a way to derive binread.
 #[derive(Debug)]
-pub struct MaterialStuff {
+pub struct Materials {
     materials: Vec<Material>,
 }
 
 // TODO: make this generic?
-impl BinRead for MaterialStuff {
+impl BinRead for Materials {
     type Args<'a> = ();
 
     fn read_options<R: std::io::Read + std::io::Seek>(
@@ -72,10 +72,18 @@ pub struct Material {
     unks1: [f32; 5],
 
     #[br(parse_with = parse_relative_array, args(base_offset))]
-    textures: Vec<u16>,
+    textures: Vec<Texture>,
 
-    // array of texture indices?
     unks: [u32; 19],
+}
+
+#[binread]
+#[derive(Debug)]
+pub struct Texture {
+    texture_index: u16,
+    unk1: u16,
+    unk2: u16,
+    unk3: u16,
 }
 
 // TODO: type for this shared with hpcs?

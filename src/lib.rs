@@ -5,7 +5,7 @@
 
 use std::io::SeekFrom;
 
-use binrw::{BinRead, BinResult, VecArgs, NullString};
+use binrw::{BinRead, BinResult, NullString, VecArgs};
 
 pub mod dds;
 pub mod drsm;
@@ -41,7 +41,6 @@ where
 
     Ok(values)
 }
-
 
 fn parse_string_ptr<R: std::io::Read + std::io::Seek>(
     reader: &mut R,
