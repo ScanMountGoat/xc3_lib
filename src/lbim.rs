@@ -1,10 +1,11 @@
 use std::io::SeekFrom;
 
 use binrw::binread;
+use serde::Serialize;
 use tegra_swizzle::surface::BlockDim;
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 #[br(import(length: usize))]
 pub struct Libm {
     // TODO: Does the footer actually overlap the image data?
@@ -18,7 +19,7 @@ pub struct Libm {
 const MIBL_FOOTER_SIZE: i64 = 40;
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct LibmFooter {
     /// Swizzled image size for the entire surface aligned to 4096 (0x1000).
     pub image_size: u32,
@@ -37,7 +38,7 @@ pub struct LibmFooter {
 
 #[binread]
 #[br(repr(u32))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum ViewDimension {
     D2 = 1,
     D3 = 2,
@@ -46,7 +47,7 @@ pub enum ViewDimension {
 
 #[binread]
 #[br(repr(u32))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum ImageFormat {
     R8Unorm = 1, // TODO: srgb or unorm?
     R8G8B8A8Unorm = 37,

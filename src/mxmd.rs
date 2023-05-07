@@ -1,17 +1,21 @@
 use std::io::SeekFrom;
 
-use crate::parse_array;
 use binrw::{args, binread, BinRead, BinResult, FilePtr32, NullString, VecArgs};
+use serde::Serialize;
 
 /// .wimdo files
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 #[br(magic(b"DMXM"))]
 pub struct Mxmd {
     version: u32,
+
     mesh_offset: u32,
+
     #[br(parse_with = FilePtr32::parse)]
+    #[serde(flatten)]
     materials: Materials,
+
     unk1: u32, // points after the texture names?
     unk2: u32,
     unk3: u32,
@@ -21,7 +25,7 @@ pub struct Mxmd {
 }
 
 // TODO: find a way to derive binread.
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Materials {
     materials: Vec<Material>,
 }
@@ -58,7 +62,7 @@ impl BinRead for Materials {
 
 /// 116 bytes?
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 #[br(import { base_offset: u64 })]
 pub struct Material {
     #[br(parse_with = parse_string_ptr, args(base_offset))]
@@ -78,7 +82,7 @@ pub struct Material {
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Texture {
     texture_index: u16,
     unk1: u16,

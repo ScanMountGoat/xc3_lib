@@ -1,7 +1,8 @@
 use binrw::{args, binread, FilePtr32, NullString};
+use serde::Serialize;
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 #[br(magic(b"1RAS"))]
 pub struct Sar1 {
     file_size: u32,
@@ -24,7 +25,7 @@ pub struct Sar1 {
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Entry {
     #[br(parse_with = FilePtr32::parse)]
     bc: Bc,
@@ -36,7 +37,7 @@ pub struct Entry {
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 #[br(magic(b"BC\x00\x00"))]
 pub struct Bc {
     unk0: u16,
@@ -51,7 +52,7 @@ pub struct Bc {
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 #[br(import { data_type: u32 })]
 pub enum Data {
     #[br(pre_assert(data_type == 4))]
@@ -61,11 +62,11 @@ pub enum Data {
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 #[br(magic(b"ANIM"))]
 pub struct Anim {}
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 #[br(magic(b"ASMB"))]
 pub struct Asmb {}

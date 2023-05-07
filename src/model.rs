@@ -2,12 +2,13 @@ use std::io::SeekFrom;
 
 use crate::parse_array;
 use binrw::{binread, BinRead, BinResult, VecArgs};
+use serde::Serialize;
 
 // wismt model data
 // are these buffers referenced by wimdo?
 // TODO: what to call this?
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct ModelData {
     #[br(parse_with = parse_array)]
     vertex_buffers: Vec<VertexBuffer>,
@@ -43,7 +44,7 @@ pub struct ModelData {
 
 // vertex buffer?
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct VertexBuffer {
     data_offset: u32,
     vertex_count: u32,
@@ -59,14 +60,14 @@ pub struct VertexBuffer {
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct VertexAttribute {
     data_type: DataType,
     data_size: u16,
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 #[br(repr(u16))]
 pub enum DataType {
     Position = 0,    // f32x3
@@ -82,7 +83,7 @@ pub enum DataType {
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct IndexBuffer {
     // is this data u16?
     data_offset: u32,

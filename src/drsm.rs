@@ -1,9 +1,10 @@
 use crate::parse_string_ptr;
 use binrw::{args, binread, FilePtr32};
+use serde::Serialize;
 
 /// .wismt files
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 #[br(magic(b"DRSM"))]
 pub struct Drsm {
     version: u32,
@@ -43,7 +44,7 @@ pub struct Drsm {
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct DataItem {
     pub offset: u32,
     pub size: u32,
@@ -54,7 +55,7 @@ pub struct DataItem {
 
 #[binread]
 #[br(repr(u16))]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum DataItemType {
     Model = 0,
     ShaderBundle = 1,
@@ -63,7 +64,7 @@ pub enum DataItemType {
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 #[br(stream = r)]
 pub struct TextureNameTable {
     #[br(temp, try_calc = r.stream_position())]
@@ -80,7 +81,7 @@ pub struct TextureNameTable {
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 #[br(import(base_offset: u64))]
 pub struct TextureInfo {
     unk1: u16,
@@ -93,7 +94,7 @@ pub struct TextureInfo {
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 #[br(magic(b"xbc1"))]
 pub struct Xbc1 {
     unk1: u32,
@@ -103,12 +104,13 @@ pub struct Xbc1 {
     #[br(pad_after = 24)]
     unk3: u32,
     #[br(count = comp_size)]
+    #[serde(skip)]
     pub deflate_stream: Vec<u8>,
 }
 
 // TODO: what does toc stand for?
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Toc {
     comp_size: u32,
     decomp_size: u32, // slightly larger than xbc1 decomp size?

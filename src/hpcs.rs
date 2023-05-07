@@ -4,9 +4,10 @@ use crate::parse_string_ptr;
 use binrw::{
     args, binread, helpers::count_with, BinRead, BinResult, FilePtr32, FilePtr64, NullString,
 };
+use serde::Serialize;
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 #[br(magic(b"HCPS"))]
 pub struct Hpcs {
     version: u32,
@@ -43,7 +44,7 @@ pub struct Hpcs {
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 struct StringSection {
     #[br(temp)]
     count: u32, // program count?
@@ -55,7 +56,7 @@ struct StringSection {
 
 // TODO: Avoid creating another type for this?
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 #[br(import { base_offset: u64 })]
 pub struct ShaderProgramOffset {
     #[br(parse_with = FilePtr64::parse, offset = base_offset)]
@@ -63,7 +64,7 @@ pub struct ShaderProgramOffset {
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 #[br(stream = r)]
 pub struct ShaderProgram {
     #[br(temp, try_calc = r.stream_position())]
@@ -85,7 +86,7 @@ pub struct ShaderProgram {
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 #[br(magic(b"SLCT"))]
 #[br(import { base_offset: u64 })]
 struct Slct {
@@ -131,7 +132,7 @@ struct Slct {
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 #[br(magic(b"NVSD"))]
 #[br(import {
     string_offset: u64,
@@ -176,7 +177,7 @@ pub struct Nvsd {
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 #[br(import { string_offset: u64 })]
 struct UniformBuffer {
     #[br(parse_with = parse_string_ptr, args(string_offset))]
@@ -189,7 +190,7 @@ struct UniformBuffer {
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 #[br(import { string_offset: u64 })]
 struct Sampler {
     #[br(parse_with = parse_string_ptr, args(string_offset))]
@@ -199,7 +200,7 @@ struct Sampler {
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 #[br(import { string_offset: u64 })]
 struct Uniform {
     #[br(parse_with = parse_string_ptr, args(string_offset))]
@@ -208,7 +209,7 @@ struct Uniform {
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 #[br(import { string_offset: u64 })]
 struct InputAttribute {
     #[br(parse_with = parse_string_ptr, args(string_offset))]
