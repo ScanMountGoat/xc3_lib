@@ -1,5 +1,12 @@
 # xc3_lib
-An experimental Rust library for reading various formats for Xenoblade Chronicles 3.
+An experimental Rust library for reading rendering related file formats for Xenoblade Chronicles 3.
+
+The initial focus is creating robust and readable parsing code for formats related to in game rendering. Writing support and higher level libraries may be added at a later date once the formats have been more thoroughly researched. Formats not directly related to rendering may be considered at a later date.
+
+## Usage
+This library is still highly experimental. When adding this project to the Cargo.toml, specify a specific git revision or commit the Cargo.lock file to source control. This locks the version and avoids any breaking changes. The debug or JSON output has not stabilized and should not be assumed to be the same between commits.
+
+`xc3_lib = { git = "https://github.com/ScanMountGoat/xc3_lib", rev = "commit_hash" }`  
 
 ## Building
 After installing the [Rust toolchain](https://www.rust-lang.org/tools/install), run `cargo build --release` in the repository directory.
