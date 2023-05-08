@@ -4,6 +4,8 @@ use binrw::binread;
 use serde::Serialize;
 use tegra_swizzle::surface::BlockDim;
 
+// .witex, .witx, embedded in .wismt files
+// TODO: also .wiltp?
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(import(length: usize))]
@@ -57,6 +59,7 @@ pub enum ImageFormat {
     Bc4Unorm = 73,
     Bc5Unorm = 75,
     Bc7Unorm = 77,
+    B8G8R8A8Unorm = 109,
 }
 
 impl ImageFormat {
@@ -70,6 +73,7 @@ impl ImageFormat {
             ImageFormat::Bc4Unorm => BlockDim::block_4x4(),
             ImageFormat::Bc5Unorm => BlockDim::block_4x4(),
             ImageFormat::Bc7Unorm => BlockDim::block_4x4(),
+            ImageFormat::B8G8R8A8Unorm => BlockDim::uncompressed(),
         }
     }
 
@@ -83,6 +87,7 @@ impl ImageFormat {
             ImageFormat::Bc4Unorm => 8,
             ImageFormat::Bc5Unorm => 16,
             ImageFormat::Bc7Unorm => 16,
+            ImageFormat::B8G8R8A8Unorm => 4,
         }
     }
 }

@@ -68,6 +68,7 @@ impl From<ImageFormat> for ddsfile::DxgiFormat {
             ImageFormat::Bc4Unorm => Self::BC4_UNorm,
             ImageFormat::Bc5Unorm => Self::BC5_UNorm,
             ImageFormat::Bc7Unorm => Self::BC7_UNorm,
+            ImageFormat::B8G8R8A8Unorm => Self::B8G8R8A8_UNorm,
         }
     }
 }
