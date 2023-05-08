@@ -1,6 +1,6 @@
 use std::io::SeekFrom;
 
-use binrw::{binread, BinRead, BinResult, FilePtr32, NamedArgs, NullString};
+use binrw::{args, binread, BinRead, BinResult, FilePtr32, NamedArgs, NullString};
 use serde::Serialize;
 
 /// .wimdo files
@@ -21,7 +21,10 @@ pub struct Mxmd {
     unk3: u32,
     unk4: u32,
     unk5: u32,
-    unk6: u32, // points after the material names?
+
+    // uncached textures?
+    #[br(parse_with = FilePtr32::parse)]
+    textures: Textures,
 }
 
 #[binread]
@@ -33,6 +36,25 @@ pub struct Materials {
 
     #[br(args { base_offset, inner: base_offset })]
     materials: Container<Material>,
+
+    unk1: u32,
+    unk2: u32,
+
+    #[br(args { base_offset })]
+    floats: Container<f32>,
+
+    #[br(args { base_offset })]
+    ints: Container<u32>,
+
+    // TODO: what type is this?
+    unk3: u32,
+    unk4: u32,
+
+    // TODO: How large is each element?
+    #[br(args { base_offset })]
+    unks: Container<[u16; 8]>,
+
+    unk: [u32; 16],
 }
 
 #[binread]
@@ -112,6 +134,49 @@ pub struct SubDataItem {
     unk8: i16,
     unk9: i16,
     unks: [i16; 8],
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(stream = r)]
+pub struct Textures {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    unks: [u32; 15],
+
+    #[br(parse_with = FilePtr32::parse, offset = base_offset)]
+    items: TextureItems,
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(stream = r)]
+pub struct TextureItems {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    count: u32,
+    unk1: u32,
+    unk2: u32,
+
+    // TODO: Why is the first element repeated?
+    #[br(args { count: count as usize + 1, inner: args! { base_offset } })]
+    textures: Vec<TextureItem>,
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(import { base_offset: u64 })]
+pub struct TextureItem {
+    #[br(parse_with = parse_string_ptr, args(base_offset))]
+    name: String,
+    unk1: u16,
+    unk2: u16,
+    unk3: u16,
+    unk4: u16,
+    unk5: u16,
+    unk6: u16,
 }
 
 // TODO: type for this shared with hpcs?
