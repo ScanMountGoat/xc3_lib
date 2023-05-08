@@ -71,10 +71,31 @@ pub struct Material {
 
     unks1: [f32; 5],
 
+    // Fills in bindings in order in shader?
+    // TODO: Some shader samplers use other textures?
+    // TODO: do these fill in s0, s1, etc in order?
+    // TODO: zprepass doesn't use these textures?
     #[br(args { base_offset })]
     textures: Container<Texture>,
 
-    unks: [u32; 19],
+    m_unks1: [u32; 8],
+
+    m_unk5: u32,
+
+    // always count 1?
+    #[br(args { base_offset })]
+    shader_programs: Container<ShaderProgram>,
+
+    m_unks2: [u32; 8],
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+pub struct ShaderProgram {
+    program_index: u32, // index into programs in wismt?
+    unk2: u16,
+    unk3: u16,
+    unk4: u32,
 }
 
 #[binread]
@@ -94,7 +115,9 @@ pub struct Mesh {
     base_offset: u64,
 
     unk1: u32,
-    floats: [f32; 6],
+
+    max_xyz: [f32; 3],
+    min_xyz: [f32; 3],
 
     #[br(args { base_offset })]
     items: Container<DataItem>,
