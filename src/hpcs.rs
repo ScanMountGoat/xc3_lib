@@ -108,10 +108,8 @@ pub struct Slct {
 
     unk_offset: u32,
 
-    // this is actually the inner offset and the string base offset?
     #[br(parse_with = FilePtr32::parse, offset = base_offset)]
-    inner: SlctInner, // base offset for strings relative to start of slct?
-    // inner: u32,
+    inner: SlctInner,
 
     unk_offset1: u32,
 
