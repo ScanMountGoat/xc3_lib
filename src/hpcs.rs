@@ -44,11 +44,11 @@ pub struct Hpcs {
     #[br(count = count)]
     #[br(args {
         inner: args! {
-            base_offset: slct_base_offset as u64,
+            slct_base_offset: slct_base_offset as u64,
             unk_base_offset: unk_section_offset as u64,
         }
     })]
-    shader_programs: Vec<ShaderProgramOffset>,
+    shader_programs: Vec<ShaderProgram>,
 }
 
 #[binread]
@@ -62,53 +62,54 @@ struct StringSection {
     program_names: Vec<String>,
 }
 
-// TODO: Avoid creating another type for this?
 #[binread]
 #[derive(Debug, Serialize)]
-#[br(import { base_offset: u64, unk_base_offset: u64 })]
-pub struct ShaderProgramOffset {
-    #[br(parse_with = FilePtr64::parse)]
-    #[br(args { offset: base_offset, inner: args! { unk_base_offset } })]
-    program: ShaderProgram,
-}
-
-#[binread]
-#[derive(Debug, Serialize)]
-#[br(stream = r)]
-#[br(import { unk_base_offset: u64 })]
+#[br(import { slct_base_offset: u64, unk_base_offset: u64 })]
 pub struct ShaderProgram {
-    #[br(temp, try_calc = r.stream_position())]
-    base_offset: u64,
-
-    #[br(args { base_offset, unk_base_offset })]
+    #[br(parse_with = FilePtr64::parse)]
+    #[br(args { offset: slct_base_offset, inner: args! { unk_base_offset } })]
     slct: Slct,
-
-    #[br(args {
-        string_offset: base_offset + slct.string_offset as u64,
-        attribute_count: slct.attribute_count as usize,
-        uniform_count: slct.uniform_count as usize,
-        // TODO: Why are there multiple count values?
-        // TODO: fragment + vertex counts?
-        buffer_count: slct.unk_count1 as usize + slct.unk_count3 as usize,
-        sampler_count: slct.unk_count5 as usize
-    })]
-    nvsd: Nvsd,
 }
 
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(magic(b"SLCT"))]
-#[br(import { base_offset: u64, unk_base_offset: u64, })]
+#[br(import { unk_base_offset: u64, })]
+#[br(stream = r)]
 pub struct Slct {
-    unk1: u32,
-    unk2: u32,
-    unk3: u32,
-    unk4: u32,
-    unk5: u32,
-    unk6: u32,
-    unk7: u32, // offset?
+    // Subtract the magic size.
+    #[br(temp, try_calc = r.stream_position().map(|p| p - 4))]
+    base_offset: u64,
 
-    string_offset: u32, // base offset for strings relative to start of slct?
+    unk1: u32,
+
+    #[br(temp)]
+    unk_strings_count: u32,
+
+    #[br(parse_with = FilePtr32::parse)]
+    #[br(args { 
+        offset: base_offset, 
+        inner: args! { 
+            count: unk_strings_count as usize,
+            inner: args! { base_offset }
+        }
+    })]
+    unk_strings: Vec<UnkString>,
+
+    #[br(temp)]
+    unk4_count: u32,
+
+    #[br(parse_with = FilePtr32::parse)]
+    #[br(args { offset: base_offset, inner: args! { count: unk4_count as usize }})]
+    unk4: Vec<(u32, u32)>,
+
+    unk6: u32,
+
+    unk_offset: u32,
+
+    // this is actually the inner offset and the string base offset?
+    #[br(parse_with = FilePtr32::parse, offset = base_offset)]
+    inner: SlctInner, // base offset for strings relative to start of slct?
 
     unk_offset1: u32,
 
@@ -117,13 +118,30 @@ pub struct Slct {
 
     unk_offset2: u32,
 
-    vertex_xv4_offset: u32,      // relative to xv4 base offset
-    next_vertex_xv4_offset: u32, // size of vertex + fragment?
+    vertex_xv4_offset: u32, // relative to xv4 base offset
+    xv4_total_size: u32,    // size of vertex + fragment?
 
-    unks1: [u32; 6],
+    unks1: [u32; 4],
+    // end of slct main header?
+}
 
-    #[br(parse_with = parse_unk_str, args(base_offset))]
-    unk_str: Option<String>, // DECL_GBL_CALC
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(import { base_offset: u64 })]
+struct UnkString {
+    unk1: u32,
+    unk2: u32,
+    #[br(parse_with = parse_string_ptr, args(base_offset))]
+    text: String
+}
+
+// always 112 bytes?
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(stream = r)]
+struct SlctInner {
+    #[br(try_calc = r.stream_position())]
+    base_offset: u64,
 
     unks2: [u32; 8],
 
@@ -149,6 +167,17 @@ pub struct Slct {
     uniform_count: u32,
     unk11: u32,
     unks3: [u32; 4],
+
+    #[br(args {
+        string_offset: base_offset as u64,
+        attribute_count: attribute_count as usize,
+        uniform_count: uniform_count as usize,
+        // TODO: Why are there multiple count values?
+        // TODO: fragment + vertex counts?
+        buffer_count: unk_count1 as usize + unk_count3 as usize,
+        sampler_count: unk_count5 as usize
+    })]
+    nvsd: Nvsd,
 }
 
 #[binread]
@@ -274,11 +303,11 @@ pub fn extract_shader_binaries<P: AsRef<Path>>(
         .iter()
         .zip(&hpcs.string_section.program_names)
     {
-        let base = hpcs.xv4_base_offset as usize + program.program.slct.vertex_xv4_offset as usize;
+        let base = hpcs.xv4_base_offset as usize + program.slct.vertex_xv4_offset as usize;
 
         // The first offset is the vertex shader.
         let vert_base = base;
-        let vert_size = program.program.nvsd.vertex_xv4_size as usize;
+        let vert_size = program.slct.inner.nvsd.vertex_xv4_size as usize;
         // Strip the xV4 header for easier decompilation.
         let vertex = &file_data[vert_base..vert_base + vert_size][48..];
 
@@ -287,7 +316,7 @@ pub fn extract_shader_binaries<P: AsRef<Path>>(
 
         // The fragment shader immediately follows the vertex shader.
         let frag_base = base + vert_size;
-        let frag_size = program.program.nvsd.fragment_xv4_size as usize;
+        let frag_size = program.slct.inner.nvsd.fragment_xv4_size as usize;
         let fragment = &file_data[frag_base..frag_base + frag_size][48..];
 
         let frag_file = output_folder.as_ref().join(&format!("{name}_FS.bin"));
