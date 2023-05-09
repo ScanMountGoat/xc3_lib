@@ -1,28 +1,26 @@
-use std::{
-    io::SeekFrom,
-    path::{Path, PathBuf},
-};
+use std::path::Path;
 
 use crate::parse_string_ptr;
 use binrw::{
-    args, binread, helpers::count_with, BinRead, BinResult, FilePtr32, FilePtr64, NullString,
+    args, binread, helpers::count_with, FilePtr32, FilePtr64,
 };
 use serde::Serialize;
 
-// embedded in .wismt files
-// TODO: also .wishp files?
+// .wishp, embedded in .wismt, embedded in .wimdo
+// TODO: mirror_ball.wimdo contains shaders?
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(magic(b"HCPS"))]
 pub struct Hpcs {
     version: u32,
-    unk1: u32,
-    count: u32,
-    #[br(parse_with = FilePtr32::parse)]
-    string_section: StringSection,
-    unk4: u32,
 
-    #[br(temp)]
+    unk1: u32, // programs offset?
+    count: u32,
+
+    // TODO: array of (u32, u32, u32)?
+    unk4_offset: u32,
+    unk4_count: u32,
+
     slct_base_offset: u32,
 
     unk6: u32,
@@ -38,9 +36,15 @@ pub struct Hpcs {
     unk_section_offset: u32,
     unk_section_length: u32,
 
-    #[br(pad_after = 20)]
-    unk11: u32,
+    #[br(parse_with = FilePtr32::parse)]
+    #[br(args { inner: args! { count: count as usize } })]
+    string_section: StringSection,
 
+    #[br(pad_after = 16)]
+    unk7: u32,
+    // end of header?
+
+    // TODO: why does this not work?
     #[br(count = count)]
     #[br(args {
         inner: args! {
@@ -53,12 +57,9 @@ pub struct Hpcs {
 
 #[binread]
 #[derive(Debug, Serialize)]
+#[br(import { count: usize })]
 struct StringSection {
-    #[br(temp)]
-    count: u32, // program count?
-    unk12: u32,
-    unk13: u32,
-    #[br(parse_with = count_with(count as usize, parse_string_ptr))]
+    #[br(parse_with = count_with(count, parse_string_ptr))]
     program_names: Vec<String>,
 }
 
@@ -110,6 +111,7 @@ pub struct Slct {
     // this is actually the inner offset and the string base offset?
     #[br(parse_with = FilePtr32::parse, offset = base_offset)]
     inner: SlctInner, // base offset for strings relative to start of slct?
+    // inner: u32,
 
     unk_offset1: u32,
 
@@ -270,26 +272,6 @@ struct InputAttribute {
     #[br(parse_with = parse_string_ptr, args(string_offset))]
     name: String,
     location: u32,
-}
-
-fn parse_unk_str<R: std::io::Read + std::io::Seek>(
-    reader: &mut R,
-    endian: binrw::Endian,
-    args: (u64,),
-) -> BinResult<Option<String>> {
-    let start_offset = u32::read_options(reader, endian, ())?;
-    let end_offset = u32::read_options(reader, endian, ())?;
-
-    if start_offset > 0 && end_offset > 0 {
-        reader.seek(SeekFrom::Start(args.0 + start_offset as u64))?;
-
-        let value = NullString::read_options(reader, endian, ())?;
-
-        reader.seek(SeekFrom::Start(args.0 + end_offset as u64))?;
-        Ok(Some(value.to_string()))
-    } else {
-        Ok(None)
-    }
 }
 
 pub fn extract_shader_binaries<P: AsRef<Path>>(
