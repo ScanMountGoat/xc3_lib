@@ -1,4 +1,4 @@
-use crate::parse_string_ptr;
+use crate::{parse_string_ptr, xcb1::Xbc1};
 use binrw::{args, binread, FilePtr32};
 use serde::Serialize;
 
@@ -91,21 +91,6 @@ pub struct TextureInfo {
     // Same as the file names in chr/tex/nx/m and chr/tex/nx/h?
     #[br(parse_with = parse_string_ptr, args(base_offset))]
     pub name: String,
-}
-
-#[binread]
-#[derive(Debug, Serialize)]
-#[br(magic(b"xbc1"))]
-pub struct Xbc1 {
-    unk1: u32,
-    pub decomp_size: u32,
-    pub comp_size: u32,
-    unk2: u32,
-    #[br(pad_after = 24)]
-    unk3: u32,
-    #[br(count = comp_size)]
-    #[serde(skip)]
-    pub deflate_stream: Vec<u8>,
 }
 
 // TODO: what does toc stand for?

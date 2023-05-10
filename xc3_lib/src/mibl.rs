@@ -34,7 +34,7 @@ impl Mibl {
 const MIBL_FOOTER_SIZE: i64 = 40;
 
 #[binread]
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct MiblFooter {
     /// Swizzled image size for the entire surface aligned to 4096 (0x1000).
     pub image_size: u32,
@@ -67,11 +67,11 @@ pub enum ImageFormat {
     R8Unorm = 1, // TODO: srgb or unorm?
     R8G8B8A8Unorm = 37,
     R16G16B16A16Unorm = 41,
-    Bc1Unorm = 66,
-    Bc3Unorm = 68,
-    Bc4Unorm = 73,
-    Bc5Unorm = 75,
-    Bc7Unorm = 77,
+    BC1Unorm = 66,
+    BC3Unorm = 68,
+    BC4Unorm = 73,
+    BC5Unorm = 75,
+    BC7Unorm = 77,
     B8G8R8A8Unorm = 109,
 }
 
@@ -81,11 +81,11 @@ impl ImageFormat {
             ImageFormat::R8Unorm => BlockDim::uncompressed(),
             ImageFormat::R8G8B8A8Unorm => BlockDim::uncompressed(),
             ImageFormat::R16G16B16A16Unorm => BlockDim::uncompressed(),
-            ImageFormat::Bc1Unorm => BlockDim::block_4x4(),
-            ImageFormat::Bc3Unorm => BlockDim::block_4x4(),
-            ImageFormat::Bc4Unorm => BlockDim::block_4x4(),
-            ImageFormat::Bc5Unorm => BlockDim::block_4x4(),
-            ImageFormat::Bc7Unorm => BlockDim::block_4x4(),
+            ImageFormat::BC1Unorm => BlockDim::block_4x4(),
+            ImageFormat::BC3Unorm => BlockDim::block_4x4(),
+            ImageFormat::BC4Unorm => BlockDim::block_4x4(),
+            ImageFormat::BC5Unorm => BlockDim::block_4x4(),
+            ImageFormat::BC7Unorm => BlockDim::block_4x4(),
             ImageFormat::B8G8R8A8Unorm => BlockDim::uncompressed(),
         }
     }
@@ -95,11 +95,11 @@ impl ImageFormat {
             ImageFormat::R8Unorm => 1,
             ImageFormat::R8G8B8A8Unorm => 4,
             ImageFormat::R16G16B16A16Unorm => 8,
-            ImageFormat::Bc1Unorm => 8,
-            ImageFormat::Bc3Unorm => 16,
-            ImageFormat::Bc4Unorm => 8,
-            ImageFormat::Bc5Unorm => 16,
-            ImageFormat::Bc7Unorm => 16,
+            ImageFormat::BC1Unorm => 8,
+            ImageFormat::BC3Unorm => 16,
+            ImageFormat::BC4Unorm => 8,
+            ImageFormat::BC5Unorm => 16,
+            ImageFormat::BC7Unorm => 16,
             ImageFormat::B8G8R8A8Unorm => 4,
         }
     }

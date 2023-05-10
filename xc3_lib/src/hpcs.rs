@@ -1,9 +1,7 @@
 use std::path::Path;
 
 use crate::parse_string_ptr;
-use binrw::{
-    args, binread, helpers::count_with, FilePtr32, FilePtr64,
-};
+use binrw::{args, binread, helpers::count_with, FilePtr32};
 use serde::Serialize;
 
 // .wishp, embedded in .wismt, embedded in .wimdo
@@ -43,7 +41,6 @@ pub struct Hpcs {
     #[br(pad_after = 16)]
     unk7: u32,
     // end of header?
-
     #[br(count = count)]
     #[br(args {
         inner: args! {
@@ -89,9 +86,9 @@ pub struct Slct {
     unk_strings_count: u32,
 
     #[br(parse_with = FilePtr32::parse)]
-    #[br(args { 
-        offset: base_offset, 
-        inner: args! { 
+    #[br(args {
+        offset: base_offset,
+        inner: args! {
             count: unk_strings_count as usize,
             inner: args! { base_offset }
         }
@@ -133,7 +130,7 @@ struct UnkString {
     unk1: u32,
     unk2: u32,
     #[br(parse_with = parse_string_ptr, args(base_offset))]
-    text: String
+    text: String,
 }
 
 // always 112 bytes?
@@ -219,7 +216,6 @@ pub struct Nvsd {
     unk_size1: u32, // 2176
     unk_size2: u32, // 2176
     // end of section?
-
     #[br(dbg)]
     #[br(args { count: buffer_count, inner: args! { string_offset } })]
     buffers: Vec<UniformBuffer>,

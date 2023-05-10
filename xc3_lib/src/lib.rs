@@ -14,6 +14,7 @@ pub mod mibl;
 pub mod model;
 pub mod mxmd;
 pub mod sar;
+pub mod xcb1;
 
 // TODO: Make a type for this and just use temp to derive it?
 fn parse_array<T, R>(reader: &mut R, endian: binrw::Endian, _args: ()) -> BinResult<Vec<T>>

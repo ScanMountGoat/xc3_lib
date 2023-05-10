@@ -24,7 +24,7 @@ fn main() {
 
     // Handle all conversions by using DDS as an intermediate format.
     let dds = match input.extension().unwrap().to_str().unwrap() {
-        "witex" => {
+        "witex" | "witx" => {
             let mibl = Mibl::from_file(input).unwrap();
             create_dds(&mibl).unwrap()
         }
@@ -39,6 +39,7 @@ fn main() {
         }
         _ => {
             // Assume other formats are image formats for now.
+            // TODO: properly flatten 3D images in image_dds.
             let image = image_dds::image_from_dds(&dds, 0).unwrap();
             image.save(output).unwrap();
         }
