@@ -1,6 +1,10 @@
-use std::io::SeekFrom;
+use std::{
+    error::Error,
+    io::{Cursor, SeekFrom},
+    path::Path,
+};
 
-use binrw::binread;
+use binrw::{binread, BinReaderExt};
 use serde::Serialize;
 use tegra_swizzle::surface::BlockDim;
 
@@ -16,6 +20,15 @@ pub struct Mibl {
     pub image_data: Vec<u8>,
     #[br(seek_before = SeekFrom::Current(-MIBL_FOOTER_SIZE))]
     pub footer: MiblFooter,
+}
+
+impl Mibl {
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn Error>> {
+        let bytes = std::fs::read(path)?;
+        let length = bytes.len();
+        let mut reader = Cursor::new(bytes);
+        reader.read_le_args((length,)).map_err(Into::into)
+    }
 }
 
 const MIBL_FOOTER_SIZE: i64 = 40;
