@@ -102,9 +102,8 @@ pub struct Slct {
     #[br(args { offset: base_offset, inner: args! { count: unk4_count as usize }})]
     unk4: Vec<(u32, u32)>,
 
-    unk6: u32,
-
-    unk_offset: u32,
+    unk5_count: u32,
+    unk5_offset: u32,
 
     #[br(parse_with = FilePtr32::parse, offset = base_offset)]
     inner: SlctInner,
@@ -138,46 +137,73 @@ struct UnkString {
 #[derive(Debug, Serialize)]
 #[br(stream = r)]
 struct SlctInner {
-    #[br(try_calc = r.stream_position())]
+    #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
     unks2: [u32; 8],
 
+    // always the same?
     unk_count1: u16,
     unk_count2: u16,
 
-    unk12: u32,
-    unk13: u32,
+    #[br(parse_with = FilePtr32::parse)]
+    #[br(args {
+        offset: base_offset,
+        inner: args! { count: unk_count1 as usize, inner: args! { base_offset } }
+    })]
+    buffers1: Vec<UniformBuffer>,
 
+    unk13: u32, // end of strings offset?
+
+    // always the same?
     unk_count3: u16,
     unk_count4: u16,
 
-    unk14: u32,
-    unk15: u32,
+    #[br(parse_with = FilePtr32::parse)]
+    #[br(args {
+        offset: base_offset,
+        inner: args! { count: unk_count3 as usize, inner: args! { base_offset } }
+    })]
+    buffers2: Vec<UniformBuffer>,
 
-    unk_count5: u16,
+    unk15: u32, // offset?
+
+    #[br(temp)]
+    sampler_count: u16,
+
     unk_count6: u16,
 
-    unks2_1: [u32; 5],
+    #[br(parse_with = FilePtr32::parse)]
+    #[br(args {
+        offset: base_offset,
+        inner: args! { count: sampler_count as usize, inner: args! { base_offset } }
+    })]
+    samplers: Vec<Sampler>,
 
+    unks2_1: [u32; 4],
+
+    #[br(temp)]
     attribute_count: u32,
 
-    unk9: u32,
+    #[br(parse_with = FilePtr32::parse)]
+    #[br(args {
+        offset: base_offset,
+        inner: args! { count: attribute_count as usize, inner: args! { base_offset } }
+    })]
+    attributes: Vec<InputAttribute>,
 
+    #[br(temp)]
     uniform_count: u32,
 
-    unk11: u32,
+    #[br(parse_with = FilePtr32::parse)]
+    #[br(args {
+        offset: base_offset,
+        inner: args! { count: uniform_count as usize, inner: args! { base_offset } }
+    })]
+    uniforms: Vec<Uniform>,
+
     unks3: [u32; 4],
 
-    #[br(args {
-        string_offset: base_offset as u64,
-        attribute_count: attribute_count as usize,
-        uniform_count: uniform_count as usize,
-        // TODO: Why are there multiple count values?
-        // TODO: fragment + vertex counts?
-        buffer_count: unk_count1 as usize + unk_count3 as usize,
-        sampler_count: unk_count5 as usize
-    })]
     nvsd: Nvsd,
 }
 
@@ -190,13 +216,6 @@ struct UnkItem {
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(magic(b"NVSD"))]
-#[br(import {
-    string_offset: u64,
-    attribute_count: usize,
-    uniform_count: usize,
-    buffer_count: usize,
-    sampler_count: usize,
-})]
 pub struct Nvsd {
     version: u32,
     unk1: u32, // 0
@@ -204,6 +223,7 @@ pub struct Nvsd {
     unk3: u32, // identical to vertex_xv4_size?
     unk4: u32, // 0
     unk5: u32, // identical to unk_size1?
+    // end of nvsd?
 
     // TODO: this section isn't always present?
     unk6: u32, // 1
@@ -215,20 +235,6 @@ pub struct Nvsd {
     // Corresponding unk entry size for the two shaders?
     unk_size1: u32, // 2176
     unk_size2: u32, // 2176
-    // end of section?
-    #[br(dbg)]
-    #[br(args { count: buffer_count, inner: args! { string_offset } })]
-    buffers: Vec<UniformBuffer>,
-
-    #[br(dbg)]
-    #[br(args { count: sampler_count, inner: args! { string_offset } })]
-    samplers: Vec<Sampler>,
-
-    #[br(args { count: attribute_count, inner: args! { string_offset } })]
-    attributes: Vec<InputAttribute>,
-
-    #[br(args { count: uniform_count, inner: args! { string_offset } })]
-    uniforms: Vec<Uniform>,
 
     // TODO: What controls this count?
     unks4: [u16; 8],
@@ -236,9 +242,9 @@ pub struct Nvsd {
 
 #[binread]
 #[derive(Debug, Serialize)]
-#[br(import { string_offset: u64 })]
+#[br(import { base_offset: u64 })]
 struct UniformBuffer {
-    #[br(parse_with = parse_string_ptr, args(string_offset))]
+    #[br(parse_with = parse_string_ptr, args(base_offset))]
     name: String,
     uniform_count: u16,
     uniform_start_index: u16,
@@ -249,9 +255,9 @@ struct UniformBuffer {
 
 #[binread]
 #[derive(Debug, Serialize)]
-#[br(import { string_offset: u64 })]
+#[br(import { base_offset: u64 })]
 struct Sampler {
-    #[br(parse_with = parse_string_ptr, args(string_offset))]
+    #[br(parse_with = parse_string_ptr, args(base_offset))]
     name: String,
     unk1: u32,
     unk2: u32, // handle = (unk2 - 256) * 2 + 8?
@@ -259,18 +265,18 @@ struct Sampler {
 
 #[binread]
 #[derive(Debug, Serialize)]
-#[br(import { string_offset: u64 })]
+#[br(import { base_offset: u64 })]
 struct Uniform {
-    #[br(parse_with = parse_string_ptr, args(string_offset))]
+    #[br(parse_with = parse_string_ptr, args(base_offset))]
     name: String,
     unk1: u32,
 }
 
 #[binread]
 #[derive(Debug, Serialize)]
-#[br(import { string_offset: u64 })]
+#[br(import { base_offset: u64 })]
 struct InputAttribute {
-    #[br(parse_with = parse_string_ptr, args(string_offset))]
+    #[br(parse_with = parse_string_ptr, args(base_offset))]
     name: String,
     location: u32,
 }
@@ -281,42 +287,42 @@ pub fn extract_shader_binaries<P: AsRef<Path>>(
     output_folder: P,
     ryujinx_shader_tools: Option<String>, // TODO: make this generic?
 ) {
-    // for (program, name) in hpcs
-    //     .shader_programs
-    //     .iter()
-    //     .zip(&hpcs.string_section.program_names)
-    // {
-    //     let base = hpcs.xv4_base_offset as usize + program.slct.vertex_xv4_offset as usize;
+    for (program, name) in hpcs
+        .shader_programs
+        .iter()
+        .zip(&hpcs.string_section.program_names)
+    {
+        let base = hpcs.xv4_base_offset as usize + program.slct.vertex_xv4_offset as usize;
 
-    //     // The first offset is the vertex shader.
-    //     let vert_base = base;
-    //     let vert_size = program.slct.inner.nvsd.vertex_xv4_size as usize;
-    //     // Strip the xV4 header for easier decompilation.
-    //     let vertex = &file_data[vert_base..vert_base + vert_size][48..];
+        // The first offset is the vertex shader.
+        let vert_base = base;
+        let vert_size = program.slct.inner.nvsd.vertex_xv4_size as usize;
+        // Strip the xV4 header for easier decompilation.
+        let vertex = &file_data[vert_base..vert_base + vert_size][48..];
 
-    //     let vert_file = output_folder.as_ref().join(&format!("{name}_VS.bin"));
-    //     std::fs::write(&vert_file, vertex).unwrap();
+        let vert_file = output_folder.as_ref().join(&format!("{name}_VS.bin"));
+        std::fs::write(&vert_file, vertex).unwrap();
 
-    //     // The fragment shader immediately follows the vertex shader.
-    //     let frag_base = base + vert_size;
-    //     let frag_size = program.slct.inner.nvsd.fragment_xv4_size as usize;
-    //     let fragment = &file_data[frag_base..frag_base + frag_size][48..];
+        // The fragment shader immediately follows the vertex shader.
+        let frag_base = base + vert_size;
+        let frag_size = program.slct.inner.nvsd.fragment_xv4_size as usize;
+        let fragment = &file_data[frag_base..frag_base + frag_size][48..];
 
-    //     let frag_file = output_folder.as_ref().join(&format!("{name}_FS.bin"));
-    //     std::fs::write(&frag_file, fragment).unwrap();
+        let frag_file = output_folder.as_ref().join(&format!("{name}_FS.bin"));
+        std::fs::write(&frag_file, fragment).unwrap();
 
-    //     // Decompile using Ryujinx.ShaderTools.exe.
-    //     // There isn't Rust code for this, so just take an exe path.
-    //     if let Some(shader_tools) = &ryujinx_shader_tools {
-    //         std::process::Command::new(shader_tools)
-    //             .args([&vert_file, &vert_file.with_extension("glsl")])
-    //             .output()
-    //             .unwrap();
+        // Decompile using Ryujinx.ShaderTools.exe.
+        // There isn't Rust code for this, so just take an exe path.
+        if let Some(shader_tools) = &ryujinx_shader_tools {
+            std::process::Command::new(shader_tools)
+                .args([&vert_file, &vert_file.with_extension("glsl")])
+                .output()
+                .unwrap();
 
-    //         std::process::Command::new(shader_tools)
-    //             .args([&frag_file, &frag_file.with_extension("glsl")])
-    //             .output()
-    //             .unwrap();
-    //     }
-    // }
+            std::process::Command::new(shader_tools)
+                .args([&frag_file, &frag_file.with_extension("glsl")])
+                .output()
+                .unwrap();
+        }
+    }
 }
