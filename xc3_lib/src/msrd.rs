@@ -6,7 +6,7 @@ use serde::Serialize;
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(magic(b"DRSM"))]
-pub struct Drsm {
+pub struct Msrd {
     version: u32,
     header_size: u32,
 

@@ -8,12 +8,14 @@ use rayon::prelude::*;
 use xc3_lib::{
     dds::{create_dds, create_mibl},
     mibl::Mibl,
+    msrd::Msrd,
     mxmd::Mxmd,
     xcb1::Xbc1,
 };
 
 fn check_wimdo<P: AsRef<Path>>(root: P) {
-    globwalk::GlobWalkerBuilder::from_patterns(root, &["*.wimdo"])
+    // The map folder is a different format?
+    globwalk::GlobWalkerBuilder::from_patterns(root, &["*.wimdo", "!map/**"])
         .build()
         .unwrap()
         .par_bridge()
@@ -21,7 +23,6 @@ fn check_wimdo<P: AsRef<Path>>(root: P) {
             let path = entry.as_ref().unwrap().path();
             let mut reader = BufReader::new(std::fs::File::open(path).unwrap());
             // TODO: How to validate this file?
-            // TODO: The map folder is a different format?
             match Mxmd::read_le(&mut reader) {
                 Ok(_) => (),
                 Err(e) => println!("Error reading {path:?}: {e}"),
@@ -30,10 +31,10 @@ fn check_wimdo<P: AsRef<Path>>(root: P) {
 }
 
 fn check_tex_nx_textures<P: AsRef<Path>>(root: P) {
-    let folder = root.as_ref().join("chr").join("tex").join("nx").join("m");
+    let folder = root.as_ref().join("chr").join("tex").join("nx");
 
-    // TODO: the h directory doesn't have mibl footers?
-    globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.wismt"])
+    // The h directory doesn't have mibl footers?
+    globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.wismt", "!h/**"])
         .build()
         .unwrap()
         .par_bridge()
@@ -55,6 +56,24 @@ fn check_monolib_shader_textures<P: AsRef<Path>>(root: P) {
             let path = entry.as_ref().unwrap().path();
             let mibl = Mibl::from_file(&path).unwrap();
             check_mibl(mibl);
+        });
+}
+
+fn check_chr_wismt<P: AsRef<Path>>(root: P) {
+    let folder = root.as_ref().join("chr");
+
+    // The .wismt in the tex folder are just for textures.
+    globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.wismt", "!tex/**"])
+        .build()
+        .unwrap()
+        .par_bridge()
+        .for_each(|entry| {
+            let path = entry.as_ref().unwrap().path();
+            let mut reader = BufReader::new(std::fs::File::open(path).unwrap());
+            match Msrd::read_le(&mut reader) {
+                Ok(_) => (),
+                Err(e) => println!("Error reading {path:?}: {e}"),
+            }
         });
 }
 
@@ -97,6 +116,9 @@ fn main() {
 
     println!("Checking *.wimdo ...");
     check_wimdo(root);
+
+    println!("Checking chr/*.wismt ...");
+    check_chr_wismt(root);
 
     println!("Finished in {:?}", start.elapsed());
 }

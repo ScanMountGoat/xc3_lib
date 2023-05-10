@@ -227,7 +227,6 @@ pub struct Nvsd {
 
     // TODO: this section isn't always present?
     unk6: u32, // 1
-    // TODO: xV4 header should be stripped when decompiling?
     /// The size of the vertex shader pointed to by the [Slct].
     vertex_xv4_size: u32,
     /// The size of the fragment shader pointed to by the [Slct].

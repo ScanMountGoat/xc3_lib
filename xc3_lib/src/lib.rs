@@ -8,7 +8,7 @@ use std::io::SeekFrom;
 use binrw::{BinRead, BinResult, NullString, VecArgs};
 
 pub mod dds;
-pub mod drsm;
+pub mod msrd;
 pub mod hpcs;
 pub mod mibl;
 pub mod model;
@@ -57,3 +57,5 @@ fn parse_string_ptr<R: std::io::Read + std::io::Seek>(
 
     Ok(value.to_string())
 }
+
+// TODO: macro to add read and from_file methods for top level types
