@@ -10,7 +10,7 @@ use binrw::{BinRead, BinResult, NullString, VecArgs};
 pub mod dds;
 pub mod drsm;
 pub mod hpcs;
-pub mod lbim;
+pub mod mibl;
 pub mod model;
 pub mod mxmd;
 pub mod sar;

@@ -3,12 +3,12 @@ use ddsfile::Dds;
 use anyhow::Result;
 
 use crate::{
-    lbim::Libm,
-    lbim::{ImageFormat, ViewDimension},
+    mibl::Mibl,
+    mibl::{ImageFormat, ViewDimension},
 };
 
 // TODO: add a dds_from_surface() function to image_dds that takes a compressed surface?
-pub fn create_dds(mibl: &Libm) -> Result<Dds> {
+pub fn create_dds(mibl: &Mibl) -> Result<Dds> {
     let mut dds = Dds::new_dxgi(ddsfile::NewDxgiParams {
         height: mibl.footer.height,
         width: mibl.footer.width,

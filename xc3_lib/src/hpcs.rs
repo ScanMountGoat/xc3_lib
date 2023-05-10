@@ -44,7 +44,6 @@ pub struct Hpcs {
     unk7: u32,
     // end of header?
 
-    // TODO: why does this not work?
     #[br(count = count)]
     #[br(args {
         inner: args! {
@@ -67,9 +66,11 @@ struct StringSection {
 #[derive(Debug, Serialize)]
 #[br(import { slct_base_offset: u64, unk_base_offset: u64 })]
 pub struct ShaderProgram {
-    #[br(parse_with = FilePtr64::parse)]
+    #[br(parse_with = FilePtr32::parse)]
     #[br(args { offset: slct_base_offset, inner: args! { unk_base_offset } })]
     slct: Slct,
+
+    unk1: u32,
 }
 
 #[binread]
@@ -163,8 +164,11 @@ struct SlctInner {
     unks2_1: [u32; 5],
 
     attribute_count: u32,
+
     unk9: u32,
+
     uniform_count: u32,
+
     unk11: u32,
     unks3: [u32; 4],
 
@@ -203,21 +207,24 @@ pub struct Nvsd {
     unk3: u32, // identical to vertex_xv4_size?
     unk4: u32, // 0
     unk5: u32, // identical to unk_size1?
-    unk6: u32, // 1
 
+    // TODO: this section isn't always present?
+    unk6: u32, // 1
     // TODO: xV4 header should be stripped when decompiling?
     /// The size of the vertex shader pointed to by the [Slct].
     vertex_xv4_size: u32,
     /// The size of the fragment shader pointed to by the [Slct].
     fragment_xv4_size: u32,
-
     // Corresponding unk entry size for the two shaders?
     unk_size1: u32, // 2176
     unk_size2: u32, // 2176
+    // end of section?
 
+    #[br(dbg)]
     #[br(args { count: buffer_count, inner: args! { string_offset } })]
     buffers: Vec<UniformBuffer>,
 
+    #[br(dbg)]
     #[br(args { count: sampler_count, inner: args! { string_offset } })]
     samplers: Vec<Sampler>,
 
@@ -278,42 +285,42 @@ pub fn extract_shader_binaries<P: AsRef<Path>>(
     output_folder: P,
     ryujinx_shader_tools: Option<String>, // TODO: make this generic?
 ) {
-    for (program, name) in hpcs
-        .shader_programs
-        .iter()
-        .zip(&hpcs.string_section.program_names)
-    {
-        let base = hpcs.xv4_base_offset as usize + program.slct.vertex_xv4_offset as usize;
+    // for (program, name) in hpcs
+    //     .shader_programs
+    //     .iter()
+    //     .zip(&hpcs.string_section.program_names)
+    // {
+    //     let base = hpcs.xv4_base_offset as usize + program.slct.vertex_xv4_offset as usize;
 
-        // The first offset is the vertex shader.
-        let vert_base = base;
-        let vert_size = program.slct.inner.nvsd.vertex_xv4_size as usize;
-        // Strip the xV4 header for easier decompilation.
-        let vertex = &file_data[vert_base..vert_base + vert_size][48..];
+    //     // The first offset is the vertex shader.
+    //     let vert_base = base;
+    //     let vert_size = program.slct.inner.nvsd.vertex_xv4_size as usize;
+    //     // Strip the xV4 header for easier decompilation.
+    //     let vertex = &file_data[vert_base..vert_base + vert_size][48..];
 
-        let vert_file = output_folder.as_ref().join(&format!("{name}_VS.bin"));
-        std::fs::write(&vert_file, vertex).unwrap();
+    //     let vert_file = output_folder.as_ref().join(&format!("{name}_VS.bin"));
+    //     std::fs::write(&vert_file, vertex).unwrap();
 
-        // The fragment shader immediately follows the vertex shader.
-        let frag_base = base + vert_size;
-        let frag_size = program.slct.inner.nvsd.fragment_xv4_size as usize;
-        let fragment = &file_data[frag_base..frag_base + frag_size][48..];
+    //     // The fragment shader immediately follows the vertex shader.
+    //     let frag_base = base + vert_size;
+    //     let frag_size = program.slct.inner.nvsd.fragment_xv4_size as usize;
+    //     let fragment = &file_data[frag_base..frag_base + frag_size][48..];
 
-        let frag_file = output_folder.as_ref().join(&format!("{name}_FS.bin"));
-        std::fs::write(&frag_file, fragment).unwrap();
+    //     let frag_file = output_folder.as_ref().join(&format!("{name}_FS.bin"));
+    //     std::fs::write(&frag_file, fragment).unwrap();
 
-        // Decompile using Ryujinx.ShaderTools.exe.
-        // There isn't Rust code for this, so just take an exe path.
-        if let Some(shader_tools) = &ryujinx_shader_tools {
-            std::process::Command::new(shader_tools)
-                .args([&vert_file, &vert_file.with_extension("glsl")])
-                .output()
-                .unwrap();
+    //     // Decompile using Ryujinx.ShaderTools.exe.
+    //     // There isn't Rust code for this, so just take an exe path.
+    //     if let Some(shader_tools) = &ryujinx_shader_tools {
+    //         std::process::Command::new(shader_tools)
+    //             .args([&vert_file, &vert_file.with_extension("glsl")])
+    //             .output()
+    //             .unwrap();
 
-            std::process::Command::new(shader_tools)
-                .args([&frag_file, &frag_file.with_extension("glsl")])
-                .output()
-                .unwrap();
-        }
-    }
+    //         std::process::Command::new(shader_tools)
+    //             .args([&frag_file, &frag_file.with_extension("glsl")])
+    //             .output()
+    //             .unwrap();
+    //     }
+    // }
 }

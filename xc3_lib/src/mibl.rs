@@ -5,24 +5,24 @@ use serde::Serialize;
 use tegra_swizzle::surface::BlockDim;
 
 // .witex, .witx, embedded in .wismt files
-// TODO: also .wiltp?
+// TODO: also .wiltp and .wilay?
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(import(length: usize))]
-pub struct Libm {
+pub struct Mibl {
     // TODO: Does the footer actually overlap the image data?
     // TODO: Is the actual image data size stored somewhere?
     #[br(count = length)]
     pub image_data: Vec<u8>,
     #[br(seek_before = SeekFrom::Current(-MIBL_FOOTER_SIZE))]
-    pub footer: LibmFooter,
+    pub footer: MiblFooter,
 }
 
 const MIBL_FOOTER_SIZE: i64 = 40;
 
 #[binread]
 #[derive(Debug, Serialize)]
-pub struct LibmFooter {
+pub struct MiblFooter {
     /// Swizzled image size for the entire surface aligned to 4096 (0x1000).
     pub image_size: u32,
     pub unk: u32, // is this actually 0x1000 for swizzled like with nutexb?
