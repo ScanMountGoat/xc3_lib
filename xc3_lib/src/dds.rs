@@ -59,7 +59,8 @@ pub fn create_dds(mibl: &Mibl) -> Result<Dds> {
 
 pub fn create_mibl(dds: &Dds) -> Result<Mibl> {
     // TODO: Avoid unwrap.
-    let image_format = dds_image_format(dds).unwrap();
+    let image_format =
+        dds_image_format(dds).expect(&format!("{:?}", dds.get_dxgi_format().unwrap()));
 
     let layer_count = layer_count(dds);
 
@@ -145,12 +146,13 @@ fn image_format_from_dxgi(format: DxgiFormat) -> Option<ImageFormat> {
     match format {
         DxgiFormat::R8_UNorm => Some(ImageFormat::R8Unorm),
         DxgiFormat::R8G8B8A8_UNorm => Some(ImageFormat::R8G8B8A8Unorm),
-        DxgiFormat::B8G8R8A8_UNorm => Some(ImageFormat::B8G8R8A8Unorm),
+        DxgiFormat::R16G16B16A16_UNorm => Some(ImageFormat::R16G16B16A16Unorm),
         DxgiFormat::BC1_UNorm => Some(ImageFormat::BC1Unorm),
         DxgiFormat::BC3_UNorm => Some(ImageFormat::BC3Unorm),
         DxgiFormat::BC4_UNorm => Some(ImageFormat::BC4Unorm),
         DxgiFormat::BC5_UNorm => Some(ImageFormat::BC5Unorm),
         DxgiFormat::BC7_UNorm => Some(ImageFormat::BC7Unorm),
+        DxgiFormat::B8G8R8A8_UNorm => Some(ImageFormat::B8G8R8A8Unorm),
         _ => None,
     }
 }
