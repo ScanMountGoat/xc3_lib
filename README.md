@@ -3,6 +3,17 @@ An experimental Rust library for reading rendering related file formats for Xeno
 
 The initial focus is creating robust and readable parsing code for formats related to in game rendering. Writing support and higher level libraries may be added at a later date once the formats have been more thoroughly researched. Formats not directly related to rendering may be considered at a later date.
 
+## xc3_lib
+The file format library and utilities.
+
+## xc3_tex
+A command line tool for converting texture files to DDS or image formats like PNG, TIFF, or JPEG.
+
+## xc3_test
+A command line tool for testing parsing and conversion code for all files in an extracted dump.
+Details for failed conversions will be printed to the console.  
+`cargo run -p xc3_test --release <path to extracted folder>`
+
 ## Usage
 This library is still highly experimental. When adding this project to the Cargo.toml, specify a specific git revision or commit the Cargo.lock file to source control. This locks the version and avoids any breaking changes. The debug or JSON output has not stabilized and should not be assumed to be the same between commits.
 
