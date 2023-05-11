@@ -119,44 +119,41 @@ pub struct Mesh {
     max_xyz: [f32; 3],
     min_xyz: [f32; 3],
 
-    #[br(args { base_offset })]
+    #[br(args { base_offset, inner: base_offset })]
     items: Container<DataItem>,
 
     unk2: u32,
-    bone_offset: u32, // relative to start of mesh
+    bone_offset: u32, // relative to start of model?
 }
 
-// TODO: Padding?
+// TODO: Better names for these types
 #[binread]
 #[derive(Debug, Serialize)]
-#[br(stream = r)]
+#[br(import_raw(base_offset: u64))]
 pub struct DataItem {
-    #[br(temp, try_calc = r.stream_position())]
-    base_offset: u64,
-
-    unk1: u32,
     #[br(args { base_offset })]
     sub_items: Container<SubDataItem>,
+    unk1: u32,
+    max_xyz: [f32; 3],
+    min_xyz: [f32; 3],
+    bounding_radius: f32,
+    unks: [u32; 7],
 }
 
 #[binread]
 #[derive(Debug, Serialize)]
 pub struct SubDataItem {
-    unk1: u32,
-    flag: u32,
-    vertex_buffer_index: i16,
-    index_buffer_index: i16, // TODO: why is this sometimes invalid?
-    unk_index: i16,
-    material_index: i16,
-    unk2: i16,
-    unk3: i16,
-    unk4: i16,
-    unk5: i16,
-    unk6: i16,
-    unk7: i16,
-    unk8: i16,
-    unk9: i16,
-    unks: [i16; 8],
+    flags1: u32,
+    flags2: u32,
+    vertex_buffer_index: u16,
+    index_buffer_index: u16,
+    unk_index: u16,
+    material_index: u16,
+    unk2: u32,
+    unk3: u32,
+    unk4: u32,
+    unk5: u32, // contains LOD?
+    unks6: [i32; 4],
 }
 
 #[binread]
