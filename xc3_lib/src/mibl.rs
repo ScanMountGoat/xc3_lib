@@ -44,9 +44,10 @@ pub struct MiblFooter {
     pub mipmap_count: u32,
     pub version: u32,
 
-    // TODO: make this a temp?
     #[brw(magic(b"LBIM"))]
-    pub magic: (),
+    #[br(temp)]
+    #[bw(ignore)]
+    magic: (),
 }
 
 #[binrw]

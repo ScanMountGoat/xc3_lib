@@ -99,7 +99,6 @@ pub fn create_mibl(dds: &Dds) -> Result<Mibl> {
             image_format,
             mipmap_count: dds.get_num_mipmap_levels(),
             version: 10001,
-            magic: (),
         },
     })
 }
