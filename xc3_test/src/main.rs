@@ -3,7 +3,7 @@ use std::{
     path::Path,
 };
 
-use binrw::{BinRead, BinReaderExt};
+use binrw::{BinRead, BinReaderExt, BinWrite};
 use rayon::prelude::*;
 use xc3_lib::{
     dds::{create_dds, create_mibl},
@@ -40,8 +40,8 @@ fn check_all_mibl<P: AsRef<Path>>(root: P) {
         .par_bridge()
         .for_each(|entry| {
             let path = entry.as_ref().unwrap().path();
-            let mibl = read_wismt_single_tex(&path);
-            check_mibl(mibl);
+            let (original_bytes, mibl) = read_wismt_single_tex(path);
+            check_mibl(original_bytes, mibl, path);
         });
 
     let folder = root.as_ref().join("monolib").join("shader");
@@ -51,8 +51,9 @@ fn check_all_mibl<P: AsRef<Path>>(root: P) {
         .par_bridge()
         .for_each(|entry| {
             let path = entry.as_ref().unwrap().path();
-            let mibl = Mibl::from_file(&path).unwrap();
-            check_mibl(mibl);
+            let original_bytes = std::fs::read(path).unwrap();
+            let mibl = Mibl::from_file(path).unwrap();
+            check_mibl(original_bytes, mibl, path);
         });
 }
 
@@ -94,30 +95,35 @@ fn check_all_msrd<P: AsRef<Path>>(root: P) {
         });
 }
 
-fn check_mibl(mibl: Mibl) {
-    // Check that the mibl can be reconstructed from the dds.
+fn check_mibl(original_bytes: Vec<u8>, mibl: Mibl, path: &Path) {
     let dds = create_dds(&mibl).unwrap();
     let new_mibl = create_mibl(&dds).unwrap();
 
-    // Check that the description of the image data remains unchanged.
-    if mibl.footer != new_mibl.footer {
-        println!("{:?} != {:?}", mibl.footer, new_mibl.footer);
-    };
+    let mut writer = Cursor::new(Vec::new());
+    new_mibl.write_le(&mut writer).unwrap();
 
-    // TODO: Why does this not work?
-    // assert_eq!(mibl.image_data.len(), new_mibl.image_data.len());
+    // DDS should support all MIBL image formats.
+    // Check that read -> MIBL -> DDS -> MIBL -> write is 1:1.
+    if original_bytes != writer.into_inner() {
+        println!("Read/write not 1:1 for {path:?}");
+    };
 }
 
-fn read_wismt_single_tex<P: AsRef<Path>>(path: P) -> Mibl {
+fn read_wismt_single_tex<P: AsRef<Path>>(path: P) -> (Vec<u8>, Mibl) {
     let mut reader = BufReader::new(std::fs::File::open(path).unwrap());
     let xbc1: Xbc1 = reader.read_le().unwrap();
 
     let decompressed = xbc1.decompress().unwrap();
-    let mut reader = Cursor::new(&decompressed);
-    reader.read_le_args((decompressed.len(),)).unwrap()
+    let mut reader = Cursor::new(decompressed.clone());
+    (decompressed, reader.read_le().unwrap())
 }
 
 fn main() {
+    // Create a CLI for conversion testing instead of unit tests.
+    // The main advantage is being able to avoid distributing assets.
+    // The user can specify the path instead of hardcoding it.
+    // It's also easier to apply optimizations like multithreading.
+
     // TODO: clap for args to enable/disable different tests?
     let args: Vec<_> = std::env::args().collect();
 
@@ -125,6 +131,7 @@ fn main() {
 
     let start = std::time::Instant::now();
 
+    // Check conversions for various file types.
     println!("Checking MIBL files ...");
     check_all_mibl(root);
 

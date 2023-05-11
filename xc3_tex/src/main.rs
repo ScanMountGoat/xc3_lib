@@ -1,7 +1,13 @@
-use std::{io::BufWriter, path::PathBuf};
+use std::{
+    io::{BufReader, BufWriter},
+    path::PathBuf,
+};
 
 use clap::Parser;
-use xc3_lib::{dds::create_dds, mibl::Mibl};
+use xc3_lib::{
+    dds::{create_dds, create_mibl},
+    mibl::Mibl,
+};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -28,15 +34,24 @@ fn main() {
             let mibl = Mibl::from_file(input).unwrap();
             create_dds(&mibl).unwrap()
         }
+        // TODO: image and single tex wismt
+        "dds" => {
+            let mut reader = BufReader::new(std::fs::File::open(input).unwrap());
+            ddsfile::Dds::read(&mut reader).unwrap()
+        }
         _ => todo!(),
     };
 
-    // TODO: Add support for saving textures back to in game formats.
     match output.extension().unwrap().to_str().unwrap() {
         "dds" => {
             let mut writer = BufWriter::new(std::fs::File::create(output).unwrap());
             dds.write(&mut writer).unwrap();
         }
+        "witex" | "witx" => {
+            let mibl = create_mibl(&dds).unwrap();
+            mibl.write_to_file(output).unwrap();
+        }
+        // TODO: single tex wismt
         _ => {
             // Assume other formats are image formats for now.
             // TODO: properly flatten 3D images in image_dds.

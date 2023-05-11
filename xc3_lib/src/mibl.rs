@@ -1,39 +1,36 @@
 use std::{
     error::Error,
-    io::{Cursor, SeekFrom},
+    io::{BufWriter, Cursor, SeekFrom},
     path::Path,
 };
 
-use binrw::{binread, BinReaderExt};
+use binrw::{binrw, BinRead, BinReaderExt, BinWrite};
 use serde::Serialize;
 use tegra_swizzle::surface::BlockDim;
 
 // .witex, .witx, embedded in .wismt files
 // TODO: also .wiltp and .wilay?
-#[binread]
-#[derive(Debug, Serialize)]
-#[br(import(length: usize))]
+#[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct Mibl {
-    // TODO: Does the footer actually overlap the image data?
-    // TODO: Is the actual image data size stored somewhere?
-    #[br(count = length)]
     pub image_data: Vec<u8>,
-    #[br(seek_before = SeekFrom::Current(-MIBL_FOOTER_SIZE))]
     pub footer: MiblFooter,
 }
 
 impl Mibl {
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn Error>> {
-        let bytes = std::fs::read(path)?;
-        let length = bytes.len();
-        let mut reader = Cursor::new(bytes);
-        reader.read_le_args((length,)).map_err(Into::into)
+        let mut reader = Cursor::new(std::fs::read(path)?);
+        reader.read_le().map_err(Into::into)
+    }
+
+    pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Box<dyn Error>> {
+        let mut writer = BufWriter::new(std::fs::File::create(path)?);
+        self.write_le(&mut writer).map_err(Into::into)
     }
 }
 
-const MIBL_FOOTER_SIZE: i64 = 40;
+const MIBL_FOOTER_SIZE: usize = 40;
 
-#[binread]
+#[binrw]
 #[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct MiblFooter {
     /// Swizzled image size for the entire surface aligned to 4096 (0x1000).
@@ -47,12 +44,13 @@ pub struct MiblFooter {
     pub mipmap_count: u32,
     pub version: u32,
 
-    #[br(temp, magic(b"LBIM"))]
-    magic: (),
+    // TODO: make this a temp?
+    #[brw(magic(b"LBIM"))]
+    pub magic: (),
 }
 
-#[binread]
-#[br(repr(u32))]
+#[binrw]
+#[brw(repr(u32))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum ViewDimension {
     D2 = 1,
@@ -60,8 +58,8 @@ pub enum ViewDimension {
     Cube = 8,
 }
 
-#[binread]
-#[br(repr(u32))]
+#[binrw]
+#[brw(repr(u32))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum ImageFormat {
     R8Unorm = 1, // TODO: srgb or unorm?
@@ -102,5 +100,69 @@ impl ImageFormat {
             ImageFormat::BC7Unorm => 16,
             ImageFormat::B8G8R8A8Unorm => 4,
         }
+    }
+}
+
+impl BinRead for Mibl {
+    type Args<'a> = ();
+
+    fn read_options<R: std::io::Read + std::io::Seek>(
+        reader: &mut R,
+        endian: binrw::Endian,
+        args: Self::Args<'_>,
+    ) -> binrw::BinResult<Self> {
+        // TODO: Don't assume the reader only contains the MIBL?
+        reader.seek(SeekFrom::End(-(MIBL_FOOTER_SIZE as i64)))?;
+        let footer = MiblFooter::read_options(reader, endian, args)?;
+
+        reader.seek(SeekFrom::Start(0))?;
+
+        let mut image_data = vec![0u8; footer.image_size as usize];
+        reader.read_exact(&mut image_data)?;
+
+        Ok(Mibl { image_data, footer })
+    }
+}
+
+impl BinWrite for Mibl {
+    type Args<'a> = ();
+
+    fn write_options<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        endian: binrw::Endian,
+        _args: Self::Args<'_>,
+    ) -> binrw::BinResult<()> {
+        let unaligned_size = tegra_swizzle::surface::swizzled_surface_size(
+            self.footer.width as usize,
+            self.footer.height as usize,
+            self.footer.depth as usize,
+            self.footer.image_format.block_dim(),
+            None,
+            self.footer.image_format.bytes_per_pixel(),
+            self.footer.mipmap_count as usize,
+            if self.footer.view_dimension == ViewDimension::Cube {
+                6
+            } else {
+                1
+            },
+        );
+
+        // Assume the data is already aligned to 4096.
+        // TODO: Better to just store unpadded data?
+        let aligned_size = self.image_data.len();
+
+        self.image_data.write_options(writer, endian, ())?;
+
+        // Fit the footer within the padding if possible.
+        // Otherwise, create another 4096 bytes for the footer.
+        if (aligned_size - unaligned_size) < MIBL_FOOTER_SIZE {
+            writer.write_all(&[0u8; 4096])?;
+        }
+
+        writer.seek(SeekFrom::End(-(MIBL_FOOTER_SIZE as i64)))?;
+        self.footer.write_options(writer, endian, ())?;
+
+        Ok(())
     }
 }
