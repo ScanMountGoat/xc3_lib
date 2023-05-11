@@ -10,7 +10,7 @@ use serde::Serialize;
 pub struct Xbc1 {
     unk1: u32,
     pub decomp_size: u32,
-    pub comp_size: u32,
+    comp_size: u32,
     unk2: u32,
     #[br(pad_after = 24)]
     unk3: u32,

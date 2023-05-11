@@ -1,6 +1,8 @@
 use binrw::{args, binread, FilePtr32, NullString};
 use serde::Serialize;
 
+// .chr files have skeletons?
+// .mot files have animations?
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(magic(b"1RAS"))]

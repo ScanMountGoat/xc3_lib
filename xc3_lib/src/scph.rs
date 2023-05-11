@@ -281,17 +281,17 @@ struct InputAttribute {
 }
 
 pub fn extract_shader_binaries<P: AsRef<Path>>(
-    hpcs: &Spch,
+    spch: &Spch,
     file_data: &[u8],
     output_folder: P,
     ryujinx_shader_tools: Option<String>, // TODO: make this generic?
 ) {
-    for (program, name) in hpcs
+    for (program, name) in spch
         .shader_programs
         .iter()
-        .zip(&hpcs.string_section.program_names)
+        .zip(&spch.string_section.program_names)
     {
-        let base = hpcs.xv4_base_offset as usize + program.slct.vertex_xv4_offset as usize;
+        let base = spch.xv4_base_offset as usize + program.slct.vertex_xv4_offset as usize;
 
         // The first offset is the vertex shader.
         let vert_base = base;
