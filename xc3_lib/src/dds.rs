@@ -107,7 +107,7 @@ impl From<ImageFormat> for ddsfile::DxgiFormat {
         match value {
             ImageFormat::R8Unorm => Self::R8_UNorm,
             ImageFormat::R8G8B8A8Unorm => Self::R8G8B8A8_UNorm,
-            ImageFormat::R16G16B16A16Unorm => Self::R16G16B16A16_UNorm,
+            ImageFormat::R16G16B16A16Float => Self::R16G16B16A16_Float,
             ImageFormat::BC1Unorm => Self::BC1_UNorm,
             ImageFormat::BC3Unorm => Self::BC3_UNorm,
             ImageFormat::BC4Unorm => Self::BC4_UNorm,
@@ -146,7 +146,7 @@ fn image_format_from_dxgi(format: DxgiFormat) -> Option<ImageFormat> {
     match format {
         DxgiFormat::R8_UNorm => Some(ImageFormat::R8Unorm),
         DxgiFormat::R8G8B8A8_UNorm => Some(ImageFormat::R8G8B8A8Unorm),
-        DxgiFormat::R16G16B16A16_UNorm => Some(ImageFormat::R16G16B16A16Unorm),
+        DxgiFormat::R16G16B16A16_Float => Some(ImageFormat::R16G16B16A16Float),
         DxgiFormat::BC1_UNorm => Some(ImageFormat::BC1Unorm),
         DxgiFormat::BC3_UNorm => Some(ImageFormat::BC3Unorm),
         DxgiFormat::BC4_UNorm => Some(ImageFormat::BC4Unorm),

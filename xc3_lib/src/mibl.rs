@@ -66,7 +66,7 @@ pub enum ViewDimension {
 pub enum ImageFormat {
     R8Unorm = 1, // TODO: srgb or unorm?
     R8G8B8A8Unorm = 37,
-    R16G16B16A16Unorm = 41,
+    R16G16B16A16Float = 41,
     BC1Unorm = 66,
     BC3Unorm = 68,
     BC4Unorm = 73,
@@ -80,7 +80,7 @@ impl ImageFormat {
         match self {
             ImageFormat::R8Unorm => BlockDim::uncompressed(),
             ImageFormat::R8G8B8A8Unorm => BlockDim::uncompressed(),
-            ImageFormat::R16G16B16A16Unorm => BlockDim::uncompressed(),
+            ImageFormat::R16G16B16A16Float => BlockDim::uncompressed(),
             ImageFormat::BC1Unorm => BlockDim::block_4x4(),
             ImageFormat::BC3Unorm => BlockDim::block_4x4(),
             ImageFormat::BC4Unorm => BlockDim::block_4x4(),
@@ -94,7 +94,7 @@ impl ImageFormat {
         match self {
             ImageFormat::R8Unorm => 1,
             ImageFormat::R8G8B8A8Unorm => 4,
-            ImageFormat::R16G16B16A16Unorm => 8,
+            ImageFormat::R16G16B16A16Float => 8,
             ImageFormat::BC1Unorm => 8,
             ImageFormat::BC3Unorm => 16,
             ImageFormat::BC4Unorm => 8,
