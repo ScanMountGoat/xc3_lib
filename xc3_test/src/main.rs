@@ -8,12 +8,13 @@ use rayon::prelude::*;
 use xc3_lib::{
     dds::{create_dds, create_mibl},
     mibl::Mibl,
-    msrd::Msrd,
+    msrd::{DataItemType, Msrd},
     mxmd::Mxmd,
+    scph::Spch,
     xcb1::Xbc1,
 };
 
-fn check_wimdo<P: AsRef<Path>>(root: P) {
+fn check_all_mxmd<P: AsRef<Path>>(root: P) {
     // The map folder is a different format?
     globwalk::GlobWalkerBuilder::from_patterns(root, &["*.wimdo", "!map/**"])
         .build()
@@ -30,10 +31,9 @@ fn check_wimdo<P: AsRef<Path>>(root: P) {
         });
 }
 
-fn check_tex_nx_textures<P: AsRef<Path>>(root: P) {
-    let folder = root.as_ref().join("chr").join("tex").join("nx");
-
+fn check_all_mibl<P: AsRef<Path>>(root: P) {
     // The h directory doesn't have mibl footers?
+    let folder = root.as_ref().join("chr").join("tex").join("nx");
     globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.wismt", "!h/**"])
         .build()
         .unwrap()
@@ -43,11 +43,8 @@ fn check_tex_nx_textures<P: AsRef<Path>>(root: P) {
             let mibl = read_wismt_single_tex(&path);
             check_mibl(mibl);
         });
-}
 
-fn check_monolib_shader_textures<P: AsRef<Path>>(root: P) {
     let folder = root.as_ref().join("monolib").join("shader");
-
     globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.{witex,witx}"])
         .build()
         .unwrap()
@@ -59,7 +56,7 @@ fn check_monolib_shader_textures<P: AsRef<Path>>(root: P) {
         });
 }
 
-fn check_chr_wismt<P: AsRef<Path>>(root: P) {
+fn check_all_msrd<P: AsRef<Path>>(root: P) {
     let folder = root.as_ref().join("chr");
 
     // The .wismt in the tex folder are just for textures.
@@ -71,7 +68,27 @@ fn check_chr_wismt<P: AsRef<Path>>(root: P) {
             let path = entry.as_ref().unwrap().path();
             let mut reader = BufReader::new(std::fs::File::open(path).unwrap());
             match Msrd::read_le(&mut reader) {
-                Ok(_) => (),
+                Ok(msrd) => {
+                    let toc_streams: Vec<_> = msrd
+                        .tocs
+                        .iter()
+                        .map(|toc| toc.xbc1.decompress().unwrap())
+                        .collect();
+
+                    // TODO: parse remaining embedded files as well
+                    for item in msrd.data_items {
+                        match item.item_type {
+                            DataItemType::ShaderBundle => {
+                                let stream = &toc_streams[item.toc_index as usize];
+                                let data = &stream[item.offset as usize
+                                    ..item.offset as usize + item.size as usize];
+
+                                Spch::read_le(&mut Cursor::new(data)).unwrap();
+                            }
+                            _ => (),
+                        }
+                    }
+                }
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }
         });
@@ -108,17 +125,16 @@ fn main() {
 
     let start = std::time::Instant::now();
 
-    println!("Checking chr/tex/nx/m textures ...");
-    check_tex_nx_textures(root);
+    println!("Checking MIBL files ...");
+    check_all_mibl(root);
 
-    println!("Checking monolib/shader textures ...");
-    check_monolib_shader_textures(root);
+    println!("Checking MXMD files ...");
+    check_all_mxmd(root);
 
-    println!("Checking *.wimdo ...");
-    check_wimdo(root);
+    println!("Checking MSRD files ...");
+    check_all_msrd(root);
 
-    println!("Checking chr/*.wismt ...");
-    check_chr_wismt(root);
+    // TODO: check shaders
 
     println!("Finished in {:?}", start.elapsed());
 }

@@ -8,12 +8,12 @@ use std::io::SeekFrom;
 use binrw::{BinRead, BinResult, NullString, VecArgs};
 
 pub mod dds;
-pub mod hpcs;
 pub mod mibl;
 pub mod model;
 pub mod msrd;
 pub mod mxmd;
 pub mod sar;
+pub mod scph;
 pub mod xcb1;
 
 // TODO: Make a type for this and just use temp to derive it?

@@ -39,8 +39,10 @@ pub struct Msrd {
     #[br(args { inner: args!(count: texture_id_count as usize) })]
     texture_ids: Vec<u16>,
 
+    // TODO: optional if pointer is 0?
+    #[br(if(texture_id_count > 0))]
     #[br(parse_with = FilePtr32::parse, offset = 16)]
-    pub texture_name_table: TextureNameTable,
+    pub texture_name_table: Option<TextureNameTable>,
 }
 
 #[binread]

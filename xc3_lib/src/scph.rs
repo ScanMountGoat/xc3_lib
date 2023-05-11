@@ -9,7 +9,7 @@ use serde::Serialize;
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(magic(b"HCPS"))]
-pub struct Hpcs {
+pub struct Spch {
     version: u32,
 
     unk1: u32, // programs offset?
@@ -281,7 +281,7 @@ struct InputAttribute {
 }
 
 pub fn extract_shader_binaries<P: AsRef<Path>>(
-    hpcs: &Hpcs,
+    hpcs: &Spch,
     file_data: &[u8],
     output_folder: P,
     ryujinx_shader_tools: Option<String>, // TODO: make this generic?
