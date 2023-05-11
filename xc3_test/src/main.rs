@@ -10,7 +10,7 @@ use xc3_lib::{
     mibl::Mibl,
     msrd::{DataItemType, Msrd},
     mxmd::Mxmd,
-    scph::Spch,
+    spch::Spch,
     xcb1::Xbc1,
 };
 

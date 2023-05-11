@@ -13,7 +13,7 @@ pub mod model;
 pub mod msrd;
 pub mod mxmd;
 pub mod sar1;
-pub mod scph;
+pub mod spch;
 pub mod xcb1;
 
 // TODO: Make a type for this and just use temp to derive it?
