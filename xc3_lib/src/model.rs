@@ -70,12 +70,16 @@ pub struct VertexAttribute {
 pub enum DataType {
     Position = 0,    // f32x3
     WeightIndex = 3, // u32
-    Uv1 = 5,         // f32x2
+    Unk4 = 4,
+    Uv1 = 5, // f32x2
     Uv2 = 6,
     Uv3 = 7,
+    Unk14 = 14,
     VertexColor = 17, // u8x4
     Normal = 28,      // i8x4?
     Unk29 = 29,       // i8x4? tangent?
+    Unk32 = 32,
+    Unk33 = 33,
     WeightShort = 41,
     BoneId2 = 42,
 }

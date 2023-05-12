@@ -9,6 +9,7 @@ use rayon::prelude::*;
 use xc3_lib::{
     dds::{create_dds, create_mibl},
     mibl::Mibl,
+    model::ModelData,
     msrd::{DataItemType, Msrd},
     mxmd::Mxmd,
     sar1::Sar1,
@@ -62,7 +63,7 @@ fn check_all_mibl<P: AsRef<Path>>(root: P) {
 fn check_all_msrd<P: AsRef<Path>>(root: P) {
     let folder = root.as_ref().join("chr");
 
-    // The .wismt in the tex folder are just for textures.
+    // Skip the .wismt textures in the tex folder.
     globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.wismt", "!tex/**"])
         .build()
         .unwrap()
@@ -72,29 +73,40 @@ fn check_all_msrd<P: AsRef<Path>>(root: P) {
             let mut reader = BufReader::new(std::fs::File::open(path).unwrap());
             match Msrd::read_le(&mut reader) {
                 Ok(msrd) => {
-                    let toc_streams: Vec<_> = msrd
-                        .tocs
-                        .iter()
-                        .map(|toc| toc.xbc1.decompress().unwrap())
-                        .collect();
-
-                    // TODO: parse remaining embedded files as well
-                    for item in msrd.data_items {
-                        match item.item_type {
-                            DataItemType::ShaderBundle => {
-                                let stream = &toc_streams[item.toc_index as usize];
-                                let data = &stream[item.offset as usize
-                                    ..item.offset as usize + item.size as usize];
-
-                                Spch::read_le(&mut Cursor::new(data)).unwrap();
-                            }
-                            _ => (),
-                        }
-                    }
+                    check_msrd(msrd);
                 }
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }
         });
+}
+
+fn check_msrd(msrd: Msrd) {
+    let toc_streams: Vec<_> = msrd
+        .tocs
+        .iter()
+        .map(|toc| toc.xbc1.decompress().unwrap())
+        .collect();
+
+    // Check parsing for any embedded files.
+    for item in msrd.data_items {
+        match item.item_type {
+            DataItemType::ShaderBundle => {
+                let stream = &toc_streams[item.toc_index as usize];
+                let data = &stream[item.offset as usize..item.offset as usize + item.size as usize];
+
+                Spch::read_le(&mut Cursor::new(data)).unwrap();
+            }
+            DataItemType::Model => {
+                let stream = &toc_streams[item.toc_index as usize];
+                let data = &stream[item.offset as usize..item.offset as usize + item.size as usize];
+
+                ModelData::read_le(&mut Cursor::new(data)).unwrap();
+            }
+            // TODO: check textures
+            DataItemType::CachedTexture => {}
+            DataItemType::Texture => {}
+        }
+    }
 }
 
 fn check_mibl(original_bytes: Vec<u8>, mibl: Mibl, path: &Path) {
