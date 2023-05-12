@@ -45,6 +45,7 @@ pub struct Entry {
 #[derive(Debug, Serialize)]
 pub enum EntryData {
     Bc(Bc),
+    ChCl(ChCl),
     Csvb(Csvb),
 }
 
@@ -85,6 +86,7 @@ pub enum BcData {
     Asmb(Asmb),
 }
 
+// skeleton dynamics?
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(magic(b"SKDY"))]
@@ -92,6 +94,7 @@ pub struct Skdy {
     unk1: u32,
 }
 
+// animation?
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(magic(b"ANIM"))]
@@ -176,6 +179,15 @@ pub struct Asmb {
     unk1: u32,
 }
 
+// character collision?
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(magic(b"CHCL"))]
+pub struct ChCl {
+    unk1: u32,
+}
+
+// "effpnt" or "effect" "point"?
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(magic(b"CSVB"))]

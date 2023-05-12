@@ -4,6 +4,7 @@ use std::{
 };
 
 use binrw::{BinRead, BinReaderExt, BinWrite};
+use clap::Parser;
 use rayon::prelude::*;
 use xc3_lib::{
     dds::{create_dds, create_mibl},
@@ -136,31 +137,64 @@ fn check_all_sar1<P: AsRef<Path>>(root: P) {
         });
 }
 
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+#[command(propagate_version = true)]
+struct Cli {
+    root_folder: String,
+
+    /// Process MIBL image files from .witex, .witx, .wismt
+    #[arg(long)]
+    mibl: bool,
+
+    /// Process MXMD model files from .wimdo
+    #[arg(long)]
+    mxmd: bool,
+
+    /// Process MSRD model files from .wismt
+    #[arg(long)]
+    msrd: bool,
+
+    /// Process SAR1 model files from .chr
+    #[arg(long)]
+    sar1: bool,
+
+    /// Process all file types
+    #[arg(long)]
+    all: bool,
+}
+
 fn main() {
     // Create a CLI for conversion testing instead of unit tests.
     // The main advantage is being able to avoid distributing assets.
     // The user can specify the path instead of hardcoding it.
     // It's also easier to apply optimizations like multithreading.
 
-    // TODO: clap for args to enable/disable different tests?
-    let args: Vec<_> = std::env::args().collect();
-
-    let root = Path::new(&args[1]);
+    let cli = Cli::parse();
+    let root = Path::new(&cli.root_folder);
 
     let start = std::time::Instant::now();
 
     // Check conversions for various file types.
-    println!("Checking MIBL files ...");
-    check_all_mibl(root);
+    if cli.mibl || cli.all {
+        println!("Checking MIBL files ...");
+        check_all_mibl(root);
+    }
 
-    println!("Checking MXMD files ...");
-    check_all_mxmd(root);
+    if cli.mxmd || cli.all {
+        println!("Checking MXMD files ...");
+        check_all_mxmd(root);
+    }
 
-    println!("Checking MSRD files ...");
-    check_all_msrd(root);
+    if cli.msrd || cli.all {
+        println!("Checking MSRD files ...");
+        check_all_msrd(root);
+    }
 
-    println!("Checking SAR1 files ...");
-    check_all_sar1(root);
+    if cli.sar1 || cli.all {
+        println!("Checking SAR1 files ...");
+        check_all_sar1(root);
+    }
 
     // TODO: check shaders
 
