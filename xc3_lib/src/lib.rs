@@ -43,7 +43,7 @@ where
     Ok(values)
 }
 
-fn parse_string_ptr<R: std::io::Read + std::io::Seek>(
+fn parse_string_ptr32<R: std::io::Read + std::io::Seek>(
     reader: &mut R,
     endian: binrw::Endian,
     args: (u64,),

@@ -10,6 +10,7 @@ use xc3_lib::{
     mibl::Mibl,
     msrd::{DataItemType, Msrd},
     mxmd::Mxmd,
+    sar1::Sar1,
     spch::Spch,
     xcb1::Xbc1,
 };
@@ -118,6 +119,23 @@ fn read_wismt_single_tex<P: AsRef<Path>>(path: P) -> (Vec<u8>, Mibl) {
     (decompressed, reader.read_le().unwrap())
 }
 
+fn check_all_sar1<P: AsRef<Path>>(root: P) {
+    let folder = root.as_ref().join("chr");
+    globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.chr"])
+        .build()
+        .unwrap()
+        .par_bridge()
+        .for_each(|entry| {
+            let path = entry.as_ref().unwrap().path();
+            let mut reader = BufReader::new(std::fs::File::open(path).unwrap());
+            // TODO: How to validate this file?
+            match Sar1::read_le(&mut reader) {
+                Ok(_) => (),
+                Err(e) => println!("Error reading {path:?}: {e}"),
+            }
+        });
+}
+
 fn main() {
     // Create a CLI for conversion testing instead of unit tests.
     // The main advantage is being able to avoid distributing assets.
@@ -140,6 +158,9 @@ fn main() {
 
     println!("Checking MSRD files ...");
     check_all_msrd(root);
+
+    println!("Checking SAR1 files ...");
+    check_all_sar1(root);
 
     // TODO: check shaders
 

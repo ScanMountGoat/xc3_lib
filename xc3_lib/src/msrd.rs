@@ -1,4 +1,4 @@
-use crate::{parse_string_ptr, xcb1::Xbc1};
+use crate::{parse_string_ptr32, xcb1::Xbc1};
 use binrw::{args, binread, FilePtr32};
 use serde::Serialize;
 
@@ -91,7 +91,7 @@ pub struct TextureInfo {
     pub size: u32,
     pub offset: u32,
     // Same as the file names in chr/tex/nx/m and chr/tex/nx/h?
-    #[br(parse_with = parse_string_ptr, args(base_offset))]
+    #[br(parse_with = parse_string_ptr32, args(base_offset))]
     pub name: String,
 }
 

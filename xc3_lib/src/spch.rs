@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::parse_string_ptr;
+use crate::parse_string_ptr32;
 use binrw::{args, binread, helpers::count_with, FilePtr32};
 use serde::Serialize;
 
@@ -55,7 +55,7 @@ pub struct Spch {
 #[derive(Debug, Serialize)]
 #[br(import { count: usize })]
 struct StringSection {
-    #[br(parse_with = count_with(count, parse_string_ptr))]
+    #[br(parse_with = count_with(count, parse_string_ptr32))]
     program_names: Vec<String>,
 }
 
@@ -128,7 +128,7 @@ pub struct Slct {
 struct UnkString {
     unk1: u32,
     unk2: u32,
-    #[br(parse_with = parse_string_ptr, args(base_offset))]
+    #[br(parse_with = parse_string_ptr32, args(base_offset))]
     text: String,
 }
 
@@ -243,7 +243,7 @@ pub struct Nvsd {
 #[derive(Debug, Serialize)]
 #[br(import { base_offset: u64 })]
 struct UniformBuffer {
-    #[br(parse_with = parse_string_ptr, args(base_offset))]
+    #[br(parse_with = parse_string_ptr32, args(base_offset))]
     name: String,
     uniform_count: u16,
     uniform_start_index: u16,
@@ -256,7 +256,7 @@ struct UniformBuffer {
 #[derive(Debug, Serialize)]
 #[br(import { base_offset: u64 })]
 struct Sampler {
-    #[br(parse_with = parse_string_ptr, args(base_offset))]
+    #[br(parse_with = parse_string_ptr32, args(base_offset))]
     name: String,
     unk1: u32,
     unk2: u32, // handle = (unk2 - 256) * 2 + 8?
@@ -266,7 +266,7 @@ struct Sampler {
 #[derive(Debug, Serialize)]
 #[br(import { base_offset: u64 })]
 struct Uniform {
-    #[br(parse_with = parse_string_ptr, args(base_offset))]
+    #[br(parse_with = parse_string_ptr32, args(base_offset))]
     name: String,
     unk1: u32,
 }
@@ -275,7 +275,7 @@ struct Uniform {
 #[derive(Debug, Serialize)]
 #[br(import { base_offset: u64 })]
 struct InputAttribute {
-    #[br(parse_with = parse_string_ptr, args(base_offset))]
+    #[br(parse_with = parse_string_ptr32, args(base_offset))]
     name: String,
     location: u32,
 }
