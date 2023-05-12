@@ -3,9 +3,13 @@
 // TODO: Is the pointer placement algorithm similar enough to SSBH?
 // TODO: naming for wismt vertex data?
 
-use std::io::SeekFrom;
+use std::{
+    error::Error,
+    io::{BufWriter, Cursor, Read, Seek, SeekFrom, Write},
+    path::Path,
+};
 
-use binrw::{BinRead, BinResult, NullString, VecArgs};
+use binrw::{BinRead, BinReaderExt, BinResult, BinWrite, NullString, VecArgs};
 
 pub mod dds;
 pub mod mibl;
@@ -14,7 +18,7 @@ pub mod msrd;
 pub mod mxmd;
 pub mod sar1;
 pub mod spch;
-pub mod xcb1;
+pub mod xbc1;
 
 // TODO: Make a type for this and just use temp to derive it?
 fn parse_array<T, R>(reader: &mut R, endian: binrw::Endian, _args: ()) -> BinResult<Vec<T>>
@@ -58,4 +62,57 @@ fn parse_string_ptr32<R: std::io::Read + std::io::Seek>(
     Ok(value.to_string())
 }
 
-// TODO: macro to add read and from_file methods for top level types
+// TODO: Dedicated error types?
+macro_rules! file_read_write_impl {
+    ($($type_name:path),*) => {
+        $(
+            impl $type_name {
+                pub fn read<R: Read + Seek>(reader: &mut R) -> Result<Self, Box<dyn Error>> {
+                    reader.read_le().map_err(Into::into)
+                }
+
+                pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn Error>> {
+                    let mut reader = Cursor::new(std::fs::read(path)?);
+                    reader.read_le().map_err(Into::into)
+                }
+
+                pub fn write<W: Write + Seek>(&self, writer: &mut W) -> Result<(), Box<dyn Error>> {
+                    self.write_le(writer).map_err(Into::into)
+                }
+
+                pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Box<dyn Error>> {
+                    let mut writer = BufWriter::new(std::fs::File::create(path)?);
+                    self.write_le(&mut writer).map_err(Into::into)
+                }
+            }
+        )*
+    };
+}
+
+file_read_write_impl!(mibl::Mibl);
+
+macro_rules! file_read_impl {
+    ($($type_name:path),*) => {
+        $(
+            impl $type_name {
+                pub fn read<R: Read + Seek>(reader: &mut R) -> Result<Self, Box<dyn Error>> {
+                    reader.read_le().map_err(Into::into)
+                }
+
+                pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn Error>> {
+                    let mut reader = Cursor::new(std::fs::read(path)?);
+                    reader.read_le().map_err(Into::into)
+                }
+            }
+        )*
+    };
+}
+
+file_read_impl!(
+    msrd::Msrd,
+    mxmd::Mxmd,
+    sar1::Sar1,
+    spch::Spch,
+    xbc1::Xbc1,
+    model::ModelData
+);

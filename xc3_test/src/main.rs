@@ -1,9 +1,5 @@
-use std::{
-    io::{BufReader, Cursor},
-    path::Path,
-};
+use std::{io::Cursor, path::Path};
 
-use binrw::{BinRead, BinReaderExt, BinWrite};
 use clap::Parser;
 use rayon::prelude::*;
 use xc3_lib::{
@@ -14,7 +10,7 @@ use xc3_lib::{
     mxmd::Mxmd,
     sar1::Sar1,
     spch::Spch,
-    xcb1::Xbc1,
+    xbc1::Xbc1,
 };
 
 fn check_all_mxmd<P: AsRef<Path>>(root: P) {
@@ -25,9 +21,8 @@ fn check_all_mxmd<P: AsRef<Path>>(root: P) {
         .par_bridge()
         .for_each(|entry| {
             let path = entry.as_ref().unwrap().path();
-            let mut reader = BufReader::new(std::fs::File::open(path).unwrap());
             // TODO: How to validate this file?
-            match Mxmd::read_le(&mut reader) {
+            match Mxmd::from_file(path) {
                 Ok(_) => (),
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }
@@ -70,8 +65,7 @@ fn check_all_msrd<P: AsRef<Path>>(root: P) {
         .par_bridge()
         .for_each(|entry| {
             let path = entry.as_ref().unwrap().path();
-            let mut reader = BufReader::new(std::fs::File::open(path).unwrap());
-            match Msrd::read_le(&mut reader) {
+            match Msrd::from_file(path) {
                 Ok(msrd) => {
                     check_msrd(msrd);
                 }
@@ -94,13 +88,13 @@ fn check_msrd(msrd: Msrd) {
                 let stream = &toc_streams[item.toc_index as usize];
                 let data = &stream[item.offset as usize..item.offset as usize + item.size as usize];
 
-                Spch::read_le(&mut Cursor::new(data)).unwrap();
+                Spch::read(&mut Cursor::new(data)).unwrap();
             }
             DataItemType::Model => {
                 let stream = &toc_streams[item.toc_index as usize];
                 let data = &stream[item.offset as usize..item.offset as usize + item.size as usize];
 
-                ModelData::read_le(&mut Cursor::new(data)).unwrap();
+                ModelData::read(&mut Cursor::new(data)).unwrap();
             }
             // TODO: check textures
             DataItemType::CachedTexture => {}
@@ -114,7 +108,7 @@ fn check_mibl(original_bytes: Vec<u8>, mibl: Mibl, path: &Path) {
     let new_mibl = create_mibl(&dds).unwrap();
 
     let mut writer = Cursor::new(Vec::new());
-    new_mibl.write_le(&mut writer).unwrap();
+    new_mibl.write(&mut writer).unwrap();
 
     // DDS should support all MIBL image formats.
     // Check that read -> MIBL -> DDS -> MIBL -> write is 1:1.
@@ -124,12 +118,11 @@ fn check_mibl(original_bytes: Vec<u8>, mibl: Mibl, path: &Path) {
 }
 
 fn read_wismt_single_tex<P: AsRef<Path>>(path: P) -> (Vec<u8>, Mibl) {
-    let mut reader = BufReader::new(std::fs::File::open(path).unwrap());
-    let xbc1: Xbc1 = reader.read_le().unwrap();
+    let xbc1 = Xbc1::from_file(path).unwrap();
 
     let decompressed = xbc1.decompress().unwrap();
     let mut reader = Cursor::new(decompressed.clone());
-    (decompressed, reader.read_le().unwrap())
+    (decompressed, Mibl::read(&mut reader).unwrap())
 }
 
 fn check_all_sar1<P: AsRef<Path>>(root: P) {
@@ -139,10 +132,9 @@ fn check_all_sar1<P: AsRef<Path>>(root: P) {
         .unwrap()
         .par_bridge()
         .for_each(|entry| {
-            let path = entry.as_ref().unwrap().path();
-            let mut reader = BufReader::new(std::fs::File::open(path).unwrap());
             // TODO: How to validate this file?
-            match Sar1::read_le(&mut reader) {
+            let path = entry.as_ref().unwrap().path();
+            match Sar1::from_file(path) {
                 Ok(_) => (),
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }

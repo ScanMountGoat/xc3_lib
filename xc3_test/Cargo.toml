@@ -5,7 +5,6 @@ edition = "2021"
 
 [dependencies]
 xc3_lib = { path = "../xc3_lib" }
-binrw = "0.11.1"
 rayon = "1.7.0"
 globwalk = "0.8.1"
 clap = { version = "4.2.7", features = ["derive"] }

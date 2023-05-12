@@ -1,4 +1,4 @@
-use crate::{parse_string_ptr32, xcb1::Xbc1};
+use crate::{parse_string_ptr32, xbc1::Xbc1};
 use binrw::{args, binread, FilePtr32};
 use serde::Serialize;
 

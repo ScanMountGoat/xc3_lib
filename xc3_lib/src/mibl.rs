@@ -1,10 +1,6 @@
-use std::{
-    error::Error,
-    io::{BufWriter, Cursor, SeekFrom},
-    path::Path,
-};
+use std::io::SeekFrom;
 
-use binrw::{binrw, BinRead, BinReaderExt, BinWrite};
+use binrw::{binrw, BinRead, BinWrite};
 use serde::Serialize;
 use tegra_swizzle::surface::BlockDim;
 
@@ -14,18 +10,6 @@ use tegra_swizzle::surface::BlockDim;
 pub struct Mibl {
     pub image_data: Vec<u8>,
     pub footer: MiblFooter,
-}
-
-impl Mibl {
-    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn Error>> {
-        let mut reader = Cursor::new(std::fs::read(path)?);
-        reader.read_le().map_err(Into::into)
-    }
-
-    pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Box<dyn Error>> {
-        let mut writer = BufWriter::new(std::fs::File::create(path)?);
-        self.write_le(&mut writer).map_err(Into::into)
-    }
 }
 
 const MIBL_FOOTER_SIZE: usize = 40;
