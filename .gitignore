@@ -16,8 +16,12 @@ Cargo.lock
 # Output files
 *.dds
 *.png
+*.bin
+*.glsl
 
 # Game files
 *.wismt
 *.wimdo
 *.mot
+*.witex
+*.witx
