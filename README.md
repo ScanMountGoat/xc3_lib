@@ -13,7 +13,7 @@ A command line tool for converting texture files to DDS or image formats like PN
 A command line tool for testing parsing and conversion code for all files in an extracted dump. Details for failed conversions will be printed to the console.  
 File types can all be enabled at once or enabled individually.  
 
-`cargo run -p xc3_test --release <path to extracted folder> --all`
+`cargo run -p xc3_test --release <path to extracted folder> --all`  
 `cargo run -p xc3_test --release <path to extracted folder> --mxmd --mibl`
 
 ## Usage
