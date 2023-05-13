@@ -145,6 +145,7 @@ fn check_all_sar1<P: AsRef<Path>>(root: P) {
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]
 struct Cli {
+    /// The root folder that contains folders like `chr/` and `monolib/`.
     root_folder: String,
 
     /// Process MIBL image files from .witex, .witx, .wismt

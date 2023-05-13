@@ -14,6 +14,7 @@ use binrw::{BinRead, BinReaderExt, BinResult, BinWrite, NullString, VecArgs};
 pub mod dds;
 pub mod mibl;
 pub mod model;
+pub mod msmd;
 pub mod msrd;
 pub mod mxmd;
 pub mod sar1;
