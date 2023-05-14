@@ -8,3 +8,6 @@ xc3_lib = { path = "../xc3_lib" }
 rayon = "1.7.0"
 globwalk = "0.8.1"
 clap = { version = "4.2.7", features = ["derive"] }
+
+[dev-dependencies]
+indoc = "2"

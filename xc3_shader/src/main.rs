@@ -5,6 +5,7 @@ use extract::extract_shader_binaries;
 use rayon::prelude::*;
 use xc3_lib::{msrd::Msrd, spch::Spch};
 
+mod annotation;
 mod extract;
 
 // TODO: subcommands for decompilation, annotation, etc
@@ -27,16 +28,15 @@ fn main() {
     // 5. optimize size/performance if needed
 
     let cli = Cli::parse();
-    extract_and_decompile_wismt_shaders(&cli.input_folder, &cli.output_folder, &cli.shader_tools);
 
-    // TODO: add an annotation option
+    // TODO: make annotation optional
+    extract_and_decompile_wismt_shaders(&cli.input_folder, &cli.output_folder, &cli.shader_tools);
 }
 
 fn extract_and_decompile_wismt_shaders(input: &str, output: &str, shader_tools: &str) {
     globwalk::GlobWalkerBuilder::from_patterns(input, &["*.wismt"])
         .build()
         .unwrap()
-        .take(1) // TODO: only do a few for now for performance reasons
         .par_bridge()
         .for_each(|entry| {
             let path = entry.as_ref().unwrap().path();
@@ -85,10 +85,6 @@ fn extract_and_decompile_shaders<P: AsRef<Path>>(msrd: Msrd, shader_tools: &str,
                     Some(shader_tools.to_string()),
                     false,
                 );
-
-                // TODO: Annotate the source for each generated shader.
-                // This relies on the naming conventions of the step above?
-                // TODO: add a separate module and tests for this in annotation.rs
             }
             _ => (),
         }

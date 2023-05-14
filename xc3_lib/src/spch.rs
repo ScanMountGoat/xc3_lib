@@ -97,8 +97,8 @@ pub struct Slct {
     nvsd_count: u32,
 
     #[br(parse_with = FilePtr32::parse)]
-    #[br(args { 
-        offset: base_offset, 
+    #[br(args {
+        offset: base_offset,
         inner: args! { count: nvsd_count as usize, inner: base_offset }
     })]
     pub nvsds: Vec<NvsdMetadataOffset>,
@@ -151,47 +151,47 @@ pub struct NvsdMetadata {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    unks2: [u32; 8],
+    pub unks2: [u32; 8],
 
     // always the same?
-    unk_count1: u16,
-    unk_count2: u16,
+    pub unk_count1: u16,
+    pub unk_count2: u16,
 
     #[br(parse_with = FilePtr32::parse)]
     #[br(args {
         offset: base_offset,
         inner: args! { count: unk_count1 as usize, inner: args! { base_offset } }
     })]
-    buffers1: Vec<UniformBuffer>,
+    pub buffers1: Vec<UniformBuffer>,
 
-    unk13: u32, // end of strings offset?
+    pub unk13: u32, // end of strings offset?
 
     // always the same?
-    unk_count3: u16,
-    unk_count4: u16,
+    pub unk_count3: u16,
+    pub unk_count4: u16,
 
     #[br(parse_with = FilePtr32::parse)]
     #[br(args {
         offset: base_offset,
         inner: args! { count: unk_count3 as usize, inner: args! { base_offset } }
     })]
-    buffers2: Vec<UniformBuffer>,
+    pub buffers2: Vec<UniformBuffer>,
 
-    unk15: u32, // offset?
+    pub unk15: u32, // offset?
 
     #[br(temp)]
     sampler_count: u16,
 
-    unk_count6: u16,
+    pub unk_count6: u16,
 
     #[br(parse_with = FilePtr32::parse)]
     #[br(args {
         offset: base_offset,
         inner: args! { count: sampler_count as usize, inner: args! { base_offset } }
     })]
-    samplers: Vec<Sampler>,
+    pub samplers: Vec<Sampler>,
 
-    unks2_1: [u32; 4],
+    pub unks2_1: [u32; 4],
 
     #[br(temp)]
     attribute_count: u32,
@@ -201,7 +201,7 @@ pub struct NvsdMetadata {
         offset: base_offset,
         inner: args! { count: attribute_count as usize, inner: args! { base_offset } }
     })]
-    attributes: Vec<InputAttribute>,
+    pub attributes: Vec<InputAttribute>,
 
     #[br(temp)]
     uniform_count: u32,
@@ -211,10 +211,11 @@ pub struct NvsdMetadata {
         offset: base_offset,
         inner: args! { count: uniform_count as usize, inner: args! { base_offset } }
     })]
-    uniforms: Vec<Uniform>,
+    pub uniforms: Vec<Uniform>,
 
-    unks3: [u32; 4],
+    pub unks3: [u32; 4],
 
+    // TODO: Separate this from the metadata type?
     pub nvsd: Nvsd,
 }
 
@@ -224,8 +225,9 @@ struct UnkItem {
     unk: [u32; 9],
 }
 
+// TODO: Create a more meaningful default?
 #[binread]
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Default)]
 #[br(magic(b"NVSD"))]
 pub struct Nvsd {
     version: u32,
@@ -253,39 +255,39 @@ pub struct Nvsd {
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(import { base_offset: u64 })]
-struct UniformBuffer {
+pub struct UniformBuffer {
     #[br(parse_with = parse_string_ptr32, args(base_offset))]
-    name: String,
-    uniform_count: u16,
-    uniform_start_index: u16,
-    unk3: u32, // 470 + handle * 2?
-    unk4: u16,
-    unk5: u16,
+    pub name: String,
+    pub uniform_count: u16,
+    pub uniform_start_index: u16,
+    pub unk3: u32, // 470 + handle * 2?
+    pub unk4: u16,
+    pub unk5: u16,
 }
 
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(import { base_offset: u64 })]
-struct Sampler {
+pub struct Sampler {
     #[br(parse_with = parse_string_ptr32, args(base_offset))]
-    name: String,
-    unk1: u32,
-    unk2: u32, // handle = (unk2 - 256) * 2 + 8?
+    pub name: String,
+    pub unk1: u32,
+    pub unk2: u32, // handle = (unk2 - 256) * 2 + 8?
 }
 
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(import { base_offset: u64 })]
-struct Uniform {
+pub struct Uniform {
     #[br(parse_with = parse_string_ptr32, args(base_offset))]
-    name: String,
-    unk1: u32,
+    pub name: String,
+    pub unk1: u32,
 }
 
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(import { base_offset: u64 })]
-struct InputAttribute {
+pub struct InputAttribute {
     #[br(parse_with = parse_string_ptr32, args(base_offset))]
     pub name: String,
     pub location: u32,
