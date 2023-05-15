@@ -22,8 +22,10 @@ This library is still highly experimental. When adding this project to the Cargo
 
 ## Building
 After installing the [Rust toolchain](https://www.rust-lang.org/tools/install), run `cargo build --release` in the repository directory.
-Compiling without `--release` will result in faster builds during development but dramatically worse performance. 
-The tools can be run using `cargo run --release <args>`.
+Running `cargo build` without the `--release` will result in faster compile times during development but dramatically worse runtime performance. The tools can be run using `cargo run --release -p <project> <args>`.
+
+## Tests
+Unit tests and doc tests can be run using `cargo test`. Most of the file processing and conversion code is tested by running the xc3_test executable against an extracted dump of the game.
 
 ## Credits
 This project makes use of a number of Rust crates that are useful for reverse engineering. For a full list of dependencies, see the Cargo.toml files.
