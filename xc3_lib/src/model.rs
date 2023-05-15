@@ -1,5 +1,5 @@
 use crate::parse_array;
-use binrw::binread;
+use binrw::{args, binread, FilePtr32};
 use serde::Serialize;
 
 // wismt model data
@@ -34,7 +34,8 @@ pub struct ModelData {
 
     unk6: u32,
 
-    weight_offset: u32,
+    #[br(parse_with = FilePtr32::parse)]
+    weights: Weights,
 
     unk7: u32,
     // padding?
@@ -48,6 +49,7 @@ pub struct VertexBuffer {
     vertex_count: u32,
     vertex_size: u32,
 
+    // Corresponds to attributes in vertex shader?
     #[br(parse_with = parse_array)]
     attributes: Vec<VertexAttribute>,
 
@@ -77,7 +79,7 @@ pub enum DataType {
     Unk14 = 14,
     VertexColor = 17, // u8x4
     Normal = 28,      // i8x4?
-    Unk29 = 29,       // i8x4? tangent?
+    Tangent = 29,     // i8x4? tangent?
     Unk32 = 32,
     Unk33 = 33,
     WeightShort = 41,
@@ -94,6 +96,37 @@ pub struct IndexBuffer {
     unk1: u32,
     unk2: u32,
     unk3: u32,
+}
+
+// TODO: How are weights assigned to vertices?
+// TODO: Skinning happens in the vertex shader?
+// TODO: Where are the skin weights in the vertex shader?
+#[binread]
+#[derive(Debug, Serialize)]
+pub struct Weights {
+    #[br(temp)]
+    count: u32,
+
+    // TODO: Find an easier way to write this?
+    #[br(parse_with = FilePtr32::parse)]
+    #[br(args { inner: args! { count: count as usize } })]
+    weights: Vec<Weight>,
+
+    unk1: u32,
+    unk2: u32, // offset to something?
+    unk3: u32,
+    unks4: [u32; 4], // padding?
+}
+
+// 40 bytes?
+#[binread]
+#[derive(Debug, Serialize)]
+pub struct Weight {
+    // offsets are just the sum of the previous counts?
+    unk1: u32, // offset?
+    unk2: u32, // offset?
+    unk3: u32, // count?
+    unks: [u32; 7],
 }
 
 // TODO: functions for accessing data.
