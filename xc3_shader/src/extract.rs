@@ -2,7 +2,7 @@ use std::path::Path;
 
 use xc3_lib::spch::{ShaderProgram, Spch};
 
-use crate::annotation::annotate_fragment;
+use crate::annotation::{annotate_fragment, annotate_vertex};
 
 pub fn extract_shader_binaries<P: AsRef<Path>>(
     spch: &Spch,
@@ -40,11 +40,18 @@ pub fn extract_shader_binaries<P: AsRef<Path>>(
                     .unwrap();
 
                 // Perform annotation here since we need to know the file names.
+                let mut vert_glsl =
+                    std::fs::read_to_string(vert_file.with_extension("glsl")).unwrap();
                 let mut frag_glsl =
                     std::fs::read_to_string(frag_file.with_extension("glsl")).unwrap();
-                // TODO: Handle the case where there are multiple nvsd?
-                let metadata = &program.slct.nvsds[0].inner;
-                frag_glsl = annotate_fragment(&frag_glsl, metadata);
+
+                // Each NVSD has separate metadata since the shaders are different.
+                let metadata = &program.slct.nvsds[i].inner;
+
+                vert_glsl = annotate_vertex(vert_glsl, metadata);
+                std::fs::write(vert_file.with_extension("glsl"), vert_glsl).unwrap();
+
+                frag_glsl = annotate_fragment(frag_glsl, metadata);
                 std::fs::write(frag_file.with_extension("glsl"), frag_glsl).unwrap();
             }
 

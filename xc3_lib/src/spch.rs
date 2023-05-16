@@ -260,7 +260,7 @@ pub struct UniformBuffer {
     pub name: String,
     pub uniform_count: u16,
     pub uniform_start_index: u16,
-    pub unk3: u32, // 470 + handle * 2?
+    pub unk3: u32, // ??? + handle * 2?
     pub unk4: u16,
     pub unk5: u16,
 }
