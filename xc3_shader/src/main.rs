@@ -1,22 +1,43 @@
 use std::{io::Cursor, path::Path};
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use extract::extract_shader_binaries;
+use gbuffer_database::create_shader_database;
 use rayon::prelude::*;
 use xc3_lib::{msrd::Msrd, spch::Spch};
 
 mod annotation;
+mod dependencies;
 mod extract;
+mod gbuffer_database;
 
 // TODO: subcommands for decompilation, annotation, etc
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]
 struct Cli {
-    input_folder: String,
-    output_folder: String,
-    /// The path to the Ryujinx.ShaderTools executable
-    shader_tools: String,
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Extract and decompile shaders into a folder for each .wismt file.
+    DecompileShaders {
+        /// The folder containing the .wismt files.
+        input_folder: String,
+        /// The output folder for the decompiled shaders.
+        output_folder: String,
+        /// The path to the Ryujinx.ShaderTools executable
+        shader_tools: String,
+    },
+    /// Create a JSON file containing textures used for fragment output attributes.
+    GBufferDatabase {
+        /// The output folder from decompiling shaders.
+        input_folder: String,
+        /// The output JSON file.
+        output_file: String,
+    },
 }
 
 fn main() {
@@ -29,8 +50,25 @@ fn main() {
 
     let cli = Cli::parse();
 
+    let start = std::time::Instant::now();
     // TODO: make annotation optional
-    extract_and_decompile_wismt_shaders(&cli.input_folder, &cli.output_folder, &cli.shader_tools);
+    match cli.command {
+        Commands::DecompileShaders {
+            input_folder,
+            output_folder,
+            shader_tools,
+        } => extract_and_decompile_wismt_shaders(&input_folder, &output_folder, &shader_tools),
+        Commands::GBufferDatabase {
+            input_folder,
+            output_file,
+        } => {
+            let files = create_shader_database(&input_folder);
+            let json = serde_json::to_string_pretty(&files).unwrap();
+            std::fs::write(output_file, json).unwrap()
+        }
+    }
+
+    println!("Finished in {:?}", start.elapsed());
 }
 
 fn extract_and_decompile_wismt_shaders(input: &str, output: &str, shader_tools: &str) {
@@ -40,10 +78,9 @@ fn extract_and_decompile_wismt_shaders(input: &str, output: &str, shader_tools: 
         .par_bridge()
         .for_each(|entry| {
             let path = entry.as_ref().unwrap().path();
-            // TODO: How to validate this file?
             match Msrd::from_file(path) {
                 Ok(msrd) => {
-                    // Get the shaders from the corresponding file.
+                    // Get the embedded shaders from the wismt file.
                     let output_folder = decompiled_output_folder(output, path);
                     std::fs::create_dir_all(&output_folder).unwrap();
 
