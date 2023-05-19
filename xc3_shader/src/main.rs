@@ -4,7 +4,10 @@ use clap::{Parser, Subcommand};
 use extract::extract_shader_binaries;
 use gbuffer_database::create_shader_database;
 use rayon::prelude::*;
-use xc3_lib::{msrd::Msrd, spch::Spch};
+use xc3_lib::{
+    msrd::{DataItemType, Msrd},
+    spch::Spch,
+};
 
 mod annotation;
 mod dependencies;
@@ -106,24 +109,21 @@ fn extract_and_decompile_shaders<P: AsRef<Path>>(msrd: Msrd, shader_tools: &str,
         .collect();
 
     for item in msrd.data_items {
-        match item.item_type {
-            xc3_lib::msrd::DataItemType::ShaderBundle => {
-                let stream = &toc_streams[item.toc_index as usize];
-                let data = &stream[item.offset as usize..item.offset as usize + item.size as usize];
+        if item.item_type == DataItemType::ShaderBundle {
+            let stream = &toc_streams[item.toc_index as usize];
+            let data = &stream[item.offset as usize..item.offset as usize + item.size as usize];
 
-                let spch = Spch::read(&mut Cursor::new(data)).unwrap();
+            let spch = Spch::read(&mut Cursor::new(data)).unwrap();
 
-                // TODO: Will shaders always have names like "shd0004"?
-                // TODO: Include the program index in the name to avoid ambiguities?
-                extract_shader_binaries(
-                    &spch,
-                    data,
-                    output_folder.as_ref(),
-                    Some(shader_tools.to_string()),
-                    false,
-                );
-            }
-            _ => (),
+            // TODO: Will shaders always have names like "shd0004"?
+            // TODO: Include the program index in the name to avoid ambiguities?
+            extract_shader_binaries(
+                &spch,
+                data,
+                output_folder.as_ref(),
+                Some(shader_tools.to_string()),
+                false,
+            );
         }
     }
 }
