@@ -9,10 +9,10 @@ use serde::Serialize;
 #[derive(Debug, Serialize)]
 pub struct ModelData {
     #[br(parse_with = parse_array)]
-    vertex_buffers: Vec<VertexBuffer>,
+    pub vertex_buffers: Vec<VertexBuffer>,
 
     #[br(parse_with = parse_array)]
-    index_buffers: Vec<IndexBuffer>,
+    pub index_buffers: Vec<IndexBuffer>,
 
     // padding?
     unk0: u32,
@@ -30,7 +30,7 @@ pub struct ModelData {
 
     unk5: u32,
 
-    data_base_offset: u32,
+    pub data_base_offset: u32,
 
     unk6: u32,
 
@@ -45,13 +45,13 @@ pub struct ModelData {
 #[binread]
 #[derive(Debug, Serialize)]
 pub struct VertexBuffer {
-    data_offset: u32,
-    vertex_count: u32,
-    vertex_size: u32,
+    pub data_offset: u32,
+    pub vertex_count: u32,
+    pub vertex_size: u32,
 
     // Corresponds to attributes in vertex shader?
     #[br(parse_with = parse_array)]
-    attributes: Vec<VertexAttribute>,
+    pub attributes: Vec<VertexAttribute>,
 
     // padding?
     unk1: u32,
@@ -62,36 +62,44 @@ pub struct VertexBuffer {
 #[binread]
 #[derive(Debug, Serialize)]
 pub struct VertexAttribute {
-    data_type: DataType,
-    data_size: u16,
+    pub data_type: DataType,
+    pub data_size: u16,
 }
 
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(repr(u16))]
 pub enum DataType {
-    Position = 0,    // f32x3
-    WeightIndex = 3, // u32
+    /// Float32x3 position.
+    Position = 0,
+    WeightIndex = 3, // bone indices?
     Unk4 = 4,
     Uv1 = 5, // f32x2
     Uv2 = 6,
     Uv3 = 7,
     Unk14 = 14,
-    VertexColor = 17, // u8x4
-    Normal = 28,      // i8x4?
-    Tangent = 29,     // i8x4? tangent?
+    /// Unorm8x4 vertex RGBA color.
+    VertexColor = 17,
+    /// Snorm8x4 normal vector.
+    Normal = 28,
+    /// Snorm8x4 tangent vector with bitangent sign in the fourth component.
+    Tangent = 29,
     Unk32 = 32,
     Unk33 = 33,
     WeightShort = 41,
+    // 4 bytes with each byte being used separately by vertex shader?
+    // one of the bytes selects some sort of group and
+    // one byte selects bones within a group?
+    // only the least significant byte matters?
     BoneId2 = 42,
 }
 
 #[binread]
 #[derive(Debug, Serialize)]
 pub struct IndexBuffer {
-    // is this data u16?
-    data_offset: u32,
-    data_length: u32,
+    // TODO: Is this data always u16?
+    pub data_offset: u32,
+    pub index_count: u32,
     // padding?
     unk1: u32,
     unk2: u32,

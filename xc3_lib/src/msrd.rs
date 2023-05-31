@@ -57,7 +57,7 @@ pub struct DataItem {
 
 #[binread]
 #[br(repr(u16))]
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq, Eq)]
 pub enum DataItemType {
     Model = 0,
     ShaderBundle = 1,

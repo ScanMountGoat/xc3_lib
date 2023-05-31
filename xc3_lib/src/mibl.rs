@@ -2,9 +2,10 @@ use std::io::SeekFrom;
 
 use binrw::{binrw, BinRead, BinWrite};
 use serde::Serialize;
-use tegra_swizzle::surface::BlockDim;
+use tegra_swizzle::{surface::BlockDim, SwizzleError};
 
-// .witex, .witx, embedded in .wismt files
+/// Image texture data.
+/// Used in `.witex` or `.witx` files or embedded in `.wismt` files.
 // TODO: also .wiltp and .wilay?
 #[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct Mibl {
@@ -47,7 +48,7 @@ pub enum ViewDimension {
 #[brw(repr(u32))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum ImageFormat {
-    R8Unorm = 1, // TODO: srgb or unorm?
+    R8Unorm = 1,
     R8G8B8A8Unorm = 37,
     R16G16B16A16Float = 41,
     BC1Unorm = 66,
@@ -149,5 +150,25 @@ impl BinWrite for Mibl {
         self.footer.write_options(writer, endian, ())?;
 
         Ok(())
+    }
+}
+
+impl Mibl {
+    pub fn deswizzled_image_data(&self) -> Result<Vec<u8>, SwizzleError> {
+        tegra_swizzle::surface::deswizzle_surface(
+            self.footer.width as usize,
+            self.footer.height as usize,
+            self.footer.depth as usize,
+            &self.image_data,
+            self.footer.image_format.block_dim(),
+            None,
+            self.footer.image_format.bytes_per_pixel(),
+            self.footer.mipmap_count as usize,
+            if self.footer.view_dimension == ViewDimension::Cube {
+                6
+            } else {
+                1
+            },
+        )
     }
 }

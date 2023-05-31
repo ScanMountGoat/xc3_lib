@@ -38,21 +38,7 @@ pub fn create_dds(mibl: &Mibl) -> Result<Dds> {
         alpha_mode: ddsfile::AlphaMode::Straight, // TODO: Does this matter?
     })?;
 
-    dds.data = tegra_swizzle::surface::deswizzle_surface(
-        mibl.footer.width as usize,
-        mibl.footer.height as usize,
-        mibl.footer.depth as usize,
-        &mibl.image_data,
-        mibl.footer.image_format.block_dim(),
-        None,
-        mibl.footer.image_format.bytes_per_pixel(),
-        mibl.footer.mipmap_count as usize,
-        if mibl.footer.view_dimension == ViewDimension::Cube {
-            6
-        } else {
-            1
-        },
-    )?;
+    dds.data = mibl.deswizzled_image_data()?;
 
     Ok(dds)
 }
