@@ -1,6 +1,6 @@
 // Ported from https://github.com/ScanMountGoat/Smush-Material-Research
 // TODO: make dependencies and annotation into a library?
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use glsl::{
     syntax::{ArraySpecifierDimension, Expr, FunIdentifier, SimpleStatement, TranslationUnit},
@@ -84,7 +84,7 @@ pub fn texture_dependencies(translation_unit: &TranslationUnit, var: &str) -> Ve
 
 fn actual_channels(
     i: usize,
-    dependencies: &[(usize, AssignmentDependency)],
+    dependencies: &BTreeMap<usize, AssignmentDependency>,
     channels: &str,
 ) -> String {
     // Track which channels are accessed later.
@@ -96,6 +96,9 @@ fn actual_channels(
     // Example: a = texture(tex, vec2(0.0)).zw; b = a.y;
     // This allows us to avoid complicated graph traversal.
     // TODO: Is it worth properly collecting and reducing all channel operations?
+
+    // TODO: We only need to search starting from index i?
+    // TODO: Is there a faster way to do this?
     for (_, second_channels) in dependencies.iter().flat_map(|d| {
         d.1.input_last_assignments
             .iter()
@@ -236,7 +239,7 @@ impl Visitor for AssignmentVisitor {
 fn source_dependencies(
     translation_unit: &TranslationUnit,
     var: &str,
-) -> Vec<(usize, AssignmentDependency)> {
+) -> BTreeMap<usize, AssignmentDependency> {
     // Visit each assignment to establish data dependencies.
     // This converts the code to a directed acyclic graph (DAG).
     let mut visitor = AssignmentVisitor::default();
@@ -250,21 +253,21 @@ fn source_dependencies(
         .rfind(|(_, a)| a.output == var)
     {
         // Follow data dependencies backwards to find all relevant lines.
-        let mut dependencies = vec![(assignment_index, assignment.clone())];
+        let mut dependencies = [(assignment_index, assignment.clone())].into();
         add_dependencies(&mut dependencies, assignment, &visitor.assignments);
 
         // Sort by line number and remove duplicates.
-        dependencies.sort_by_key(|(i, _)| *i);
-        dependencies.dedup_by_key(|(i, _)| *i);
+        // dependencies.sort_by_key(|(i, _)| *i);
+        // dependencies.dedup_by_key(|(i, _)| *i);
         dependencies
     } else {
         // Variables not part of the code should have no dependencies.
-        Vec::new()
+        BTreeMap::new()
     }
 }
 
 fn add_dependencies(
-    dependencies: &mut Vec<(usize, AssignmentDependency)>,
+    dependencies: &mut BTreeMap<usize, AssignmentDependency>,
     assignment: &AssignmentDependency,
     assignments: &[AssignmentDependency],
 ) {
@@ -273,7 +276,7 @@ fn add_dependencies(
         match assignment {
             LastAssignment::LineNumber(line) => {
                 let last_assignment = &assignments[*line];
-                dependencies.push((*line, last_assignment.clone()));
+                dependencies.insert(*line, last_assignment.clone());
 
                 add_dependencies(dependencies, last_assignment, assignments);
             }

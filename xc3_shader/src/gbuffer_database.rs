@@ -1,20 +1,29 @@
 use glsl::{parser::Parse, syntax::ShaderStage};
 use indexmap::IndexMap;
 use rayon::prelude::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::dependencies::texture_dependencies;
 
-#[derive(Debug, Serialize)]
+// TODO: Store a struct for the top level?
+#[derive(Debug, Serialize, Deserialize)]
 pub struct File {
-    file: String,
-    shaders: Vec<Shader>,
+    pub file: String,
+    pub shaders: Vec<Shader>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Shader {
-    name: String,
-    output_dependencies: IndexMap<String, Vec<String>>,
+    pub name: String,
+    pub output_dependencies: IndexMap<String, Vec<String>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Output {
+    pub x: Vec<String>,
+    pub y: Vec<String>,
+    pub z: Vec<String>,
+    pub w: Vec<String>,
 }
 
 impl Shader {
@@ -34,6 +43,7 @@ impl Shader {
                         // Make ordering consistent across channels if possible.
                         let mut dependencies = texture_dependencies(translation_unit, &name);
                         dependencies.sort();
+
                         (name, dependencies)
                     })
                 })
@@ -42,41 +52,35 @@ impl Shader {
     }
 }
 
-#[derive(Debug, Serialize)]
-pub struct Output {
-    x: Vec<String>,
-    y: Vec<String>,
-    z: Vec<String>,
-    w: Vec<String>,
-}
-
 /// Find the texture dependencies for each fragment output channel.
 pub fn create_shader_database(input: &str) -> Vec<File> {
     // TODO: process folders in parallel as well?
-    let mut files = Vec::new();
-    for entry in std::fs::read_dir(input).unwrap() {
-        let path = entry.unwrap().path();
+    let mut files: Vec<_> = std::fs::read_dir(input)
+        .unwrap()
+        .map(|entry| {
+            let path = entry.unwrap().path();
 
-        // Process all fragment shaders.
-        let mut shaders: Vec<_> = globwalk::GlobWalkerBuilder::from_patterns(&path, &["*FS*.glsl"])
-            .build()
-            .unwrap()
-            .par_bridge()
-            .map(|entry| {
-                let path = entry.as_ref().unwrap().path();
-                let name = path.file_name().unwrap().to_string_lossy().to_string();
-                let source = std::fs::read_to_string(path).unwrap();
-                Shader::from_glsl(name, &source)
-            })
-            .collect();
-        shaders.sort_by(|a, b| a.name.partial_cmp(&b.name).unwrap());
+            // Process all fragment shaders.
+            let mut shaders: Vec<_> =
+                globwalk::GlobWalkerBuilder::from_patterns(&path, &["*FS*.glsl"])
+                    .build()
+                    .unwrap()
+                    .par_bridge()
+                    .map(|entry| {
+                        let path = entry.as_ref().unwrap().path();
+                        let name = path.file_name().unwrap().to_string_lossy().to_string();
+                        let source = std::fs::read_to_string(path).unwrap();
+                        Shader::from_glsl(name, &source)
+                    })
+                    .collect();
+            shaders.sort_by(|a, b| a.name.partial_cmp(&b.name).unwrap());
 
-        let file = File {
-            file: path.file_name().unwrap().to_string_lossy().to_string(),
-            shaders,
-        };
-        files.push(file);
-    }
+            File {
+                file: path.file_name().unwrap().to_string_lossy().to_string(),
+                shaders,
+            }
+        })
+        .collect();
     files.sort_by(|a, b| a.file.partial_cmp(&b.file).unwrap());
 
     files

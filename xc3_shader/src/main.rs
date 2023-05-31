@@ -1,18 +1,13 @@
 use std::{io::Cursor, path::Path};
 
 use clap::{Parser, Subcommand};
-use extract::extract_shader_binaries;
-use gbuffer_database::create_shader_database;
 use rayon::prelude::*;
 use xc3_lib::{
     msrd::{DataItemType, Msrd},
     spch::Spch,
 };
-
-mod annotation;
-mod dependencies;
-mod extract;
-mod gbuffer_database;
+use xc3_shader::extract::extract_shader_binaries;
+use xc3_shader::gbuffer_database::create_shader_database;
 
 // TODO: subcommands for decompilation, annotation, etc
 #[derive(Parser)]
