@@ -1,6 +1,6 @@
 // Ported from https://github.com/ScanMountGoat/Smush-Material-Research
 // TODO: make dependencies and annotation into a library?
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeSet, HashMap};
 
 use glsl::{
     syntax::{ArraySpecifierDimension, Expr, FunIdentifier, SimpleStatement, TranslationUnit},
@@ -17,7 +17,7 @@ struct AssignmentVisitor {
 }
 
 impl AssignmentVisitor {
-    fn add_assignment(&mut self, output: String, input: &Expr, statement: &SimpleStatement) {
+    fn add_assignment(&mut self, output: String, input: &Expr) {
         let mut input_last_assignments = Vec::new();
         add_vars(
             input,
@@ -30,7 +30,6 @@ impl AssignmentVisitor {
             output,
             input_last_assignments,
             input_expr: input.clone(),
-            full_statement: statement.clone(),
         };
         // The visitor doesn't track line numbers.
         // We only need to look up the assignments, so use the index instead.
@@ -44,7 +43,6 @@ impl AssignmentVisitor {
 struct AssignmentDependency {
     output: String,
 
-    full_statement: SimpleStatement,
     input_expr: Expr,
 
     // Include where any inputs were last initialized.
@@ -60,51 +58,59 @@ enum LastAssignment {
 }
 
 pub fn texture_dependencies(translation_unit: &TranslationUnit, var: &str) -> Vec<String> {
-    let dependencies = source_dependencies(translation_unit, var);
+    source_dependencies(translation_unit, var)
+        .map(|(dependencies, assignments)| {
+            // TODO: Rework this later to make fewer assumptions about the code structure.
+            // TODO: Rework this to be cleaner and add more tests.
+            dependencies
+                .iter()
+                .filter_map(|d| {
+                    let assignment = &assignments[*d];
+                    texture_identifier_name(&assignment.input_expr).map(|tex| {
+                        // Get the initial channels used for the texture function call.
+                        // This defines the possible channels if we assume one access per texture.
+                        let mut channels = assignment.input_last_assignments[0]
+                            .1
+                            .as_ref()
+                            .unwrap()
+                            .clone();
+                        // If only a single channel is accessed initially, there's nothing more to do.
+                        if channels.len() > 1 {
+                            channels = actual_channels(*d, &dependencies, &assignments, &channels);
+                        }
 
-    // TODO: Rework this later to make fewer assumptions about the code structure.
-    // TODO: Rework this to be cleaner and add more tests.
-    dependencies
-        .iter()
-        .filter_map(|(i, d)| {
-            texture_identifier_name(&d.input_expr).map(|tex| {
-                // Get the initial channels used for the texture function call.
-                // This defines the possible channels if we assume one access per texture.
-                let mut channels = d.input_last_assignments[0].1.as_ref().unwrap().clone();
-                // If only a single channel is accessed initially, there's nothing more to do.
-                if channels.len() > 1 {
-                    channels = actual_channels(*i, &dependencies, &channels);
-                }
-
-                tex + "." + &channels
-            })
+                        tex + "." + &channels
+                    })
+                })
+                .collect()
         })
-        .collect()
+        .unwrap_or_default()
 }
 
 fn actual_channels(
     i: usize,
-    dependencies: &BTreeMap<usize, AssignmentDependency>,
+    dependencies: &BTreeSet<usize>,
+    assignments: &[AssignmentDependency],
     channels: &str,
 ) -> String {
     // Track which channels are accessed later.
     let mut has_channel = [false; 4];
 
-    // TODO: Find a simpler way to do this.
-    // Get the channels accessed on lines using this texture value.
-    // We'll assume that the next accesses are single channel for now.
-    // Example: a = texture(tex, vec2(0.0)).zw; b = a.y;
-    // This allows us to avoid complicated graph traversal.
+    // We're given a line like "a = texture(tex, vec2(0.0)).zw;".
+    // Find the next line using the value "a".
+    // This allows us to avoid tracking channels through the entire code graph.
     // TODO: Is it worth properly collecting and reducing all channel operations?
-
-    // TODO: We only need to search starting from index i?
-    // TODO: Is there a faster way to do this?
+    // TODO: Is there a faster or simpler way to do this?
     for (_, second_channels) in dependencies.iter().flat_map(|d| {
-        d.1.input_last_assignments
+        assignments[*d]
+            .input_last_assignments
             .iter()
             .filter(|a| matches!(a.0, LastAssignment::LineNumber(line) if line == i))
     }) {
         if let Some(second_channels) = second_channels {
+            // Get the channels accessed on lines using this texture value.
+            // We'll assume that the next accesses are single channel for now.
+            // Example:  b = a.y;
             for c in second_channels.chars() {
                 match c {
                     'x' => has_channel[0] = true,
@@ -117,9 +123,8 @@ fn actual_channels(
         }
     }
 
-    // Only include the channels that are used later.
-    // Each of the channels accesses one of the original channels.
-    // a.yz.x is accessing the first channel from yz.
+    // The second set of channels selects from the first set of channels.
+    // For example, a.yz.x is accessing the first channel from yz.
     channels
         .chars()
         .zip(has_channel)
@@ -219,14 +224,14 @@ impl Visitor for AssignmentVisitor {
         match statement {
             SimpleStatement::Expression(Some(glsl::syntax::Expr::Assignment(lh, _, rh))) => {
                 let output = print_expr(lh);
-                self.add_assignment(output, rh, statement);
+                self.add_assignment(output, rh);
                 Visit::Children
             }
             SimpleStatement::Declaration(glsl::syntax::Declaration::InitDeclaratorList(l)) => {
                 // TODO: is it worth handling complex initializers?
                 if let Some(glsl::syntax::Initializer::Simple(init)) = l.head.initializer.as_ref() {
                     let output = l.head.name.as_ref().unwrap().0.clone();
-                    self.add_assignment(output, init, statement);
+                    self.add_assignment(output, init);
                 }
 
                 Visit::Children
@@ -239,7 +244,7 @@ impl Visitor for AssignmentVisitor {
 fn source_dependencies(
     translation_unit: &TranslationUnit,
     var: &str,
-) -> BTreeMap<usize, AssignmentDependency> {
+) -> Option<(BTreeSet<usize>, Vec<AssignmentDependency>)> {
     // Visit each assignment to establish data dependencies.
     // This converts the code to a directed acyclic graph (DAG).
     let mut visitor = AssignmentVisitor::default();
@@ -252,22 +257,23 @@ fn source_dependencies(
         .enumerate()
         .rfind(|(_, a)| a.output == var)
     {
+        // Store the indices separate from the actual elements.
+        // This avoids redundant clones from the visitor's dependencies.
+        let mut dependencies = BTreeSet::new();
+        dependencies.insert(assignment_index);
+
         // Follow data dependencies backwards to find all relevant lines.
-        let mut dependencies = [(assignment_index, assignment.clone())].into();
         add_dependencies(&mut dependencies, assignment, &visitor.assignments);
 
-        // Sort by line number and remove duplicates.
-        // dependencies.sort_by_key(|(i, _)| *i);
-        // dependencies.dedup_by_key(|(i, _)| *i);
-        dependencies
+        Some((dependencies, visitor.assignments))
     } else {
         // Variables not part of the code should have no dependencies.
-        BTreeMap::new()
+        None
     }
 }
 
 fn add_dependencies(
-    dependencies: &mut BTreeMap<usize, AssignmentDependency>,
+    dependencies: &mut BTreeSet<usize>,
     assignment: &AssignmentDependency,
     assignments: &[AssignmentDependency],
 ) {
@@ -275,9 +281,9 @@ fn add_dependencies(
     for (assignment, _) in &assignment.input_last_assignments {
         match assignment {
             LastAssignment::LineNumber(line) => {
-                let last_assignment = &assignments[*line];
-                dependencies.insert(*line, last_assignment.clone());
+                dependencies.insert(*line);
 
+                let last_assignment = &assignments[*line];
                 add_dependencies(dependencies, last_assignment, assignments);
             }
             LastAssignment::Global(_) => {
@@ -291,27 +297,27 @@ fn add_dependencies(
 mod tests {
     use super::*;
 
-    use glsl::{parser::Parse, syntax::ShaderStage, transpiler::glsl::show_simple_statement};
+    use glsl::{parser::Parse, syntax::ShaderStage};
     use indoc::indoc;
-
-    fn print_statement(statement: &SimpleStatement) -> String {
-        // TODO: Find a way to pretty print instead?
-        let mut text = String::new();
-        show_simple_statement(&mut text, statement);
-        text
-    }
 
     fn source_dependencies_glsl(source: &str, var: &str) -> String {
         let translation_unit = ShaderStage::parse(source).unwrap();
-        let dependencies = source_dependencies(&translation_unit, var);
-
-        // Combine all the lines into source code again.
-        // These won't exactly match the originals due to formatting differences.
-        dependencies
-            .iter()
-            .map(|(_, d)| print_statement(&d.full_statement))
-            .collect::<Vec<_>>()
-            .join("")
+        source_dependencies(&translation_unit, var)
+            .map(|(dependencies, assignments)| {
+                // Combine all the lines into source code again.
+                // These won't exactly match the originals due to formatting differences.
+                // TODO: Just store the statement in string form?
+                dependencies
+                    .into_iter()
+                    .map(|d| {
+                        let a = &assignments[d];
+                        format!("{} = {};", a.output, print_expr(&a.input_expr))
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
+                    + "\n"
+            })
+            .unwrap_or_default()
     }
 
     #[test]
@@ -335,10 +341,10 @@ mod tests {
 
         assert_eq!(
             indoc! {"
-                float a = fp_c9_data[0].x;
-                float b = 2.;
-                float c = a*b;
-                float d = fma(a, b, c);
+                a = fp_c9_data[0].x;
+                b = 2.;
+                c = a*b;
+                d = fma(a, b, c);
                 d = d+1.;
                 OUT_Color.x = c+d;
             "},
@@ -362,8 +368,8 @@ mod tests {
 
         assert_eq!(
             indoc! {"
-                float b = 2.;
-                float c = 2*b;
+                b = 2.;
+                c = 2*b;
             "},
             source_dependencies_glsl(glsl, "c")
         );
@@ -383,9 +389,9 @@ mod tests {
 
         assert_eq!(
             indoc! {"
-                float a = 0.;
-                uint b = uint(a)>>2;
-                float c = data[int(b)];
+                a = 0.;
+                b = uint(a)>>2;
+                c = data[int(b)];
             "},
             source_dependencies_glsl(glsl, "c")
         );
@@ -416,9 +422,9 @@ mod tests {
 
         assert_eq!(
             indoc! {"
-                float a = 1.;
-                float b = texture(texture1, vec2(a+2., 1.)).x;
-                float c = data[int(b)];
+                a = 1.;
+                b = texture(texture1, vec2(a+2., 1.)).x;
+                c = data[int(b)];
             "},
             source_dependencies_glsl(glsl, "c")
         );

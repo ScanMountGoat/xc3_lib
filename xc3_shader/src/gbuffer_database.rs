@@ -57,6 +57,7 @@ pub fn create_shader_database(input: &str) -> Vec<File> {
     // TODO: process folders in parallel as well?
     let mut files: Vec<_> = std::fs::read_dir(input)
         .unwrap()
+        .par_bridge()
         .map(|entry| {
             let path = entry.unwrap().path();
 
