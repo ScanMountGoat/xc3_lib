@@ -1,0 +1,12 @@
+[package]
+name = "xc3_viewer"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+futures = "0.3.27"
+wgpu = "0.16.0"
+winit = "0.28.3"
+glam = "0.23.0"
+xc3_wgpu = { path = "../xc3_wgpu" }
+xc3_lib = { path = "../xc3_lib" }

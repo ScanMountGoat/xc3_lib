@@ -39,13 +39,6 @@ enum Commands {
 }
 
 fn main() {
-    // TODO: port dependency analysis from smush_materials
-    // 1. extract all shaders from wismt files in a folder
-    // 2. find fragment shaders using the wimdo material for each mesh
-    // 3. find the dependencies for each G-Buffer texture
-    // 4. store these dependencies into a JSON "database"
-    // 5. optimize size/performance if needed
-
     let cli = Cli::parse();
 
     let start = std::time::Instant::now();
