@@ -78,7 +78,11 @@ pub struct Material {
     #[br(args { base_offset })]
     pub textures: Container<Texture>,
 
-    m_unks1: [u32; 8],
+    // TODO: are these sampler parameters?
+    pub unk_flag1: [u8; 4],
+    pub unk_flag2: [u8; 4],
+
+    m_unks1: [u32; 6],
 
     m_unk5: u32,
 
@@ -102,9 +106,9 @@ pub struct ShaderProgram {
 #[derive(Debug, Serialize)]
 pub struct Texture {
     pub texture_index: u16,
-    unk1: u16,
-    unk2: u16,
-    unk3: u16,
+    pub unk1: u16,
+    pub unk2: u16,
+    pub unk3: u16,
 }
 
 #[binread]

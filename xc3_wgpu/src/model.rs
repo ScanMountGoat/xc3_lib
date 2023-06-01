@@ -4,6 +4,7 @@ use binrw::BinReaderExt;
 use glam::{vec4, Vec3, Vec4};
 use wgpu::util::DeviceExt;
 use xc3_lib::{
+    mibl::Mibl,
     model::ModelData,
     msrd::{DataItemType, Msrd},
     mxmd::Mxmd,
@@ -92,12 +93,23 @@ pub fn load_model(
         })
         .unwrap();
 
+    // TODO: Avoid unwrap.
+    // Load cached textures
+    let cached_textures = load_cached_textures(msrd, &toc_streams);
+
     let model_data = ModelData::read(&mut Cursor::new(&model_bytes)).unwrap();
 
     let vertex_buffers = vertex_buffers(device, &model_data, model_bytes);
     let index_buffers = index_buffers(device, &model_data, model_bytes);
 
-    let materials = materials(device, queue, mxmd, model_path, shader_database);
+    let materials = materials(
+        device,
+        queue,
+        mxmd,
+        &cached_textures,
+        model_path,
+        shader_database,
+    );
 
     let meshes = mxmd
         .mesh
@@ -120,6 +132,35 @@ pub fn load_model(
         vertex_buffers,
         index_buffers,
     }
+}
+
+fn load_cached_textures(msrd: &Msrd, toc_streams: &[Vec<u8>]) -> Vec<(String, Mibl)> {
+    let cached_texture_data = msrd
+        .data_items
+        .iter()
+        .find_map(|item| match &item.item_type {
+            DataItemType::CachedTexture => {
+                let stream = &toc_streams[item.toc_index as usize];
+                Some(&stream[item.offset as usize..item.offset as usize + item.size as usize])
+            }
+            _ => None,
+        })
+        .unwrap();
+
+    msrd.texture_name_table
+        .as_ref()
+        .unwrap()
+        .textures
+        .iter()
+        .map(|info| {
+            let data = &cached_texture_data
+                [info.offset as usize..info.offset as usize + info.size as usize];
+            (
+                info.name.clone(),
+                Mibl::read(&mut Cursor::new(&data)).unwrap(),
+            )
+        })
+        .collect()
 }
 
 fn index_buffers(
