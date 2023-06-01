@@ -281,10 +281,11 @@ fn add_dependencies(
     for (assignment, _) in &assignment.input_last_assignments {
         match assignment {
             LastAssignment::LineNumber(line) => {
-                dependencies.insert(*line);
-
-                let last_assignment = &assignments[*line];
-                add_dependencies(dependencies, last_assignment, assignments);
+                // Avoid processing the subtree rooted at a line more than once.
+                if dependencies.insert(*line) {
+                    let last_assignment = &assignments[*line];
+                    add_dependencies(dependencies, last_assignment, assignments);
+                }
             }
             LastAssignment::Global(_) => {
                 // TODO: How to handle this case?
