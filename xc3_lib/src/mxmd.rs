@@ -1,5 +1,6 @@
 use std::io::SeekFrom;
 
+use crate::parse_ptr32;
 use binrw::{args, binread, BinRead, BinResult, FilePtr32, NamedArgs, NullString};
 use serde::Serialize;
 
@@ -35,16 +36,16 @@ pub struct Materials {
     base_offset: u64,
 
     #[br(args { base_offset, inner: base_offset })]
-    pub materials: Container<Material>,
+    pub materials: List<Material>,
 
     unk1: u32,
     unk2: u32,
 
     #[br(args { base_offset })]
-    floats: Container<f32>,
+    floats: List<f32>,
 
     #[br(args { base_offset })]
-    ints: Container<u32>,
+    ints: List<u32>,
 
     // TODO: what type is this?
     unk3: u32,
@@ -52,7 +53,7 @@ pub struct Materials {
 
     // TODO: How large is each element?
     #[br(args { base_offset })]
-    unks: Container<[u16; 8]>,
+    unks: List<[u16; 8]>,
 
     unk: [u32; 16],
 }
@@ -76,7 +77,7 @@ pub struct Material {
     // TODO: do these fill in s0, s1, etc in order?
     // TODO: zprepass doesn't use these textures?
     #[br(args { base_offset })]
-    pub textures: Container<Texture>,
+    pub textures: List<Texture>,
 
     // TODO: are these sampler parameters?
     pub unk_flag1: [u8; 4],
@@ -88,7 +89,7 @@ pub struct Material {
 
     // always count 1?
     #[br(args { base_offset })]
-    pub shader_programs: Container<ShaderProgram>,
+    pub shader_programs: List<ShaderProgram>,
 
     m_unks2: [u32; 8],
 }
@@ -124,10 +125,15 @@ pub struct Mesh {
     min_xyz: [f32; 3],
 
     #[br(args { base_offset, inner: base_offset })]
-    pub items: Container<DataItem>,
+    pub items: List<DataItem>,
 
     unk2: u32,
     bone_offset: u32, // relative to start of model?
+
+    unks3: [u32; 24],
+
+    #[br(parse_with = parse_ptr32, args(base_offset))]
+    lod_data: Option<LodData>,
 }
 
 // TODO: Better names for these types
@@ -136,7 +142,7 @@ pub struct Mesh {
 #[br(import_raw(base_offset: u64))]
 pub struct DataItem {
     #[br(args { base_offset })]
-    pub sub_items: Container<SubDataItem>,
+    pub sub_items: List<SubDataItem>,
     unk1: u32,
     max_xyz: [f32; 3],
     min_xyz: [f32; 3],
@@ -144,6 +150,7 @@ pub struct DataItem {
     unks: [u32; 7],
 }
 
+// TODO: Better names for these types
 #[binread]
 #[derive(Debug, Serialize)]
 pub struct SubDataItem {
@@ -160,6 +167,23 @@ pub struct SubDataItem {
     pub lod: u16,
     // TODO: groups?
     unks6: [i32; 4],
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(stream = r)]
+pub struct LodData {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    unk1: u32,
+
+    // another list?
+    unk2: u32,
+    unk3: u32,
+
+    #[br(args { base_offset })]
+    items: List<(u16, u16)>,
 }
 
 #[binread]
@@ -224,7 +248,7 @@ fn parse_string_ptr32<R: std::io::Read + std::io::Seek>(
 
 /// A [u32] offset and [u32] count with an optional base offset.
 #[derive(Clone, NamedArgs)]
-pub struct ContainerArgs<Inner: Default> {
+pub struct ListArgs<Inner: Default> {
     #[named_args(default = 0)]
     base_offset: u64,
     #[named_args(default = Inner::default())]
@@ -233,9 +257,9 @@ pub struct ContainerArgs<Inner: Default> {
 
 #[binread]
 #[derive(Debug, Serialize)]
-#[br(import_raw(args: ContainerArgs<T::Args<'_>>))]
+#[br(import_raw(args: ListArgs<T::Args<'_>>))]
 #[serde(transparent)]
-pub struct Container<T>
+pub struct List<T>
 where
     T: BinRead + 'static,
     for<'a> <T as BinRead>::Args<'a>: Clone + Default,

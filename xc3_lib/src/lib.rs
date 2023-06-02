@@ -22,13 +22,40 @@ pub mod spch;
 pub mod xbc1;
 
 // TODO: Make a type for this and just use temp to derive it?
-fn parse_array<T, R>(reader: &mut R, endian: binrw::Endian, _args: ()) -> BinResult<Vec<T>>
+fn parse_offset_count<T, R>(reader: &mut R, endian: binrw::Endian, _args: ()) -> BinResult<Vec<T>>
 where
     for<'a> T: BinRead<Args<'a> = ()> + 'static,
     R: std::io::Read + std::io::Seek,
 {
     let offset = u32::read_options(reader, endian, ())?;
     let count = u32::read_options(reader, endian, ())?;
+
+    let saved_pos = reader.stream_position()?;
+
+    reader.seek(SeekFrom::Start(offset as u64))?;
+
+    let values = Vec::<T>::read_options(
+        reader,
+        endian,
+        VecArgs {
+            count: count as usize,
+            inner: (),
+        },
+    )?;
+
+    reader.seek(SeekFrom::Start(saved_pos))?;
+
+    Ok(values)
+}
+
+// TODO: Make a type for this and just use temp to derive it?
+fn parse_count_offset<T, R>(reader: &mut R, endian: binrw::Endian, _args: ()) -> BinResult<Vec<T>>
+where
+    for<'a> T: BinRead<Args<'a> = ()> + 'static,
+    R: std::io::Read + std::io::Seek,
+{
+    let count = u32::read_options(reader, endian, ())?;
+    let offset = u32::read_options(reader, endian, ())?;
 
     let saved_pos = reader.stream_position()?;
 
@@ -63,6 +90,25 @@ fn parse_string_ptr32<R: std::io::Read + std::io::Seek>(
     Ok(value.to_string())
 }
 
+fn parse_ptr32<T, R>(reader: &mut R, endian: binrw::Endian, args: (u64,)) -> BinResult<Option<T>>
+where
+    for<'a> T: BinRead<Args<'a> = ()> + 'static,
+    R: std::io::Read + std::io::Seek,
+{
+    // Read a value pointed to by a nullable relative offset.
+    let offset = u32::read_options(reader, endian, ())?;
+    if offset > 0 {
+        let saved_pos = reader.stream_position()?;
+
+        reader.seek(SeekFrom::Start(args.0 + offset as u64))?;
+        let value = T::read_options(reader, endian, ())?;
+        reader.seek(SeekFrom::Start(saved_pos))?;
+
+        Ok(Some(value))
+    } else {
+        Ok(None)
+    }
+}
 // TODO: Dedicated error types?
 macro_rules! file_read_write_impl {
     ($($type_name:path),*) => {

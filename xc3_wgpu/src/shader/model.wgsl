@@ -206,7 +206,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // TODO: Normalize vertex normals?
     let normal = apply_normal_map(normalize(in.normal.xyz), tangent, bitangent, normal_map);
 
-    // Basic lambertion diffuse and phong specular for testing purposes.
+    // Basic lambertian diffuse and phong specular for testing purposes.
     let diffuse_lighting = dot(view, normal) * 0.5 + 0.5;
     let reflection = reflect(-view, normal);
     let specular_lighting = pow(max(dot(view, reflection), 0.0), 8.0);

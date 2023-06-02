@@ -5,7 +5,7 @@ use glam::{vec4, Vec3, Vec4};
 use wgpu::util::DeviceExt;
 use xc3_lib::{
     mibl::Mibl,
-    model::ModelData,
+    model::{ModelData, VertexAnimationTarget},
     msrd::{DataItemType, Msrd},
     mxmd::Mxmd,
 };
@@ -41,14 +41,23 @@ struct IndexData {
 
 impl Model {
     pub fn draw<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
+        // TODO: Are these used for additional effects in game?
+        // TODO: Is this controlled by material name or some other flag?
+        let suffixes_to_skip = ["_outline", "_zpre", "_ope", "_trans"];
+
         for mesh in &self.meshes {
             // TODO: How does LOD selection work in game?
             let material = &self.materials[mesh.material_index];
 
-            material.bind_group1.set(render_pass);
-            material.bind_group2.set(render_pass);
+            // TODO: Why are there materials with no textures?
+            if !suffixes_to_skip.iter().any(|s| material.name.ends_with(s))
+                && material.texture_count > 0
+            {
+                material.bind_group1.set(render_pass);
+                material.bind_group2.set(render_pass);
 
-            self.draw_mesh(mesh, render_pass);
+                self.draw_mesh(mesh, render_pass);
+            }
         }
     }
 
@@ -208,73 +217,38 @@ fn vertex_buffers(
     model_data
         .vertex_buffers
         .iter()
-        .map(|info| {
+        .enumerate()
+        .map(|(i, info)| {
             // TODO: Dedicated vertex accessor module with tests?
             // Convert the buffers to a standardized format.
             // This still tests the vertex buffer layouts and avoids needing multiple shaders.
-            let mut reader = Cursor::new(&model_bytes[model_data.data_base_offset as usize..]);
 
-            let mut vertices = Vec::new();
-            for i in 0..info.vertex_count as u64 {
-                reader
-                    .seek(SeekFrom::Start(
-                        info.data_offset as u64 + i * info.vertex_size as u64,
-                    ))
-                    .unwrap();
-
-                // TODO: How to handle missing attributes.
-                let mut position = Vec3::ZERO;
-                let weight_index = 0;
-                let mut vertex_color = Vec4::ZERO;
-                let mut normal = Vec4::ZERO;
-                let mut tangent = Vec4::ZERO;
-                let mut uv1 = Vec4::ZERO;
-
-                // TODO: Document conversion formulas to float in xc3_lib.
-                // TODO: Is switching for each vertex the base way to do this?
-                for a in &info.attributes {
-                    match a.data_type {
-                        xc3_lib::model::DataType::Position => {
-                            let value: [f32; 3] = reader.read_le().unwrap();
-                            position = value.into();
-                        }
-                        xc3_lib::model::DataType::VertexColor => {
-                            let value: [u8; 4] = reader.read_le().unwrap();
-                            let u_to_f = |u| u as f32 / 255.0;
-                            vertex_color = value.map(u_to_f).into();
-                        }
-                        // TODO: How are these different?
-                        xc3_lib::model::DataType::Normal | xc3_lib::model::DataType::Unk32 => {
-                            let value: [i8; 4] = reader.read_le().unwrap();
-                            let i_to_f = |i| i as f32 / 255.0;
-                            normal = value.map(i_to_f).into();
-                        }
-                        xc3_lib::model::DataType::Tangent => {
-                            let value: [i8; 4] = reader.read_le().unwrap();
-                            let i_to_f = |i| i as f32 / 255.0;
-                            tangent = value.map(i_to_f).into();
-                        }
-                        xc3_lib::model::DataType::Uv1 => {
-                            let value: [f32; 2] = reader.read_le().unwrap();
-                            uv1 = vec4(value[0], value[1], 0.0, 0.0);
-                        }
-                        _ => {
-                            // Just skip unsupported attributes for now.
-                            reader.seek(SeekFrom::Current(a.data_size as i64)).unwrap();
-                        }
-                    }
-                }
-
-                // TODO: The last vertex buffer is just for weight data?
-                let vertex = shader::model::VertexInput {
-                    position,
-                    weight_index,
-                    uv1,
-                    vertex_color,
-                    normal,
-                    tangent,
+            // Start with default values for each attribute.
+            let mut vertices = vec![
+                shader::model::VertexInput {
+                    position: Vec3::ZERO,
+                    weight_index: 0,
+                    vertex_color: Vec4::ZERO,
+                    normal: Vec4::ZERO,
+                    tangent: Vec4::ZERO,
+                    uv1: Vec4::ZERO
                 };
-                vertices.push(vertex);
+                info.vertex_count as usize
+            ];
+
+            // The game renders attributes from both the vertex and optional animation buffer.
+            // Merge attributes into a single buffer to allow using the same shader.
+            // TODO: Which buffer takes priority?
+            assign_vertex_buffer_attributes(&mut vertices, model_data, model_bytes, info);
+
+            if let Some(base_target) = base_vertex_target(&model_data, i) {
+                assign_animation_buffer_attributes(
+                    &mut vertices,
+                    model_data,
+                    model_bytes,
+                    info,
+                    base_target,
+                );
             }
 
             let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -286,4 +260,108 @@ fn vertex_buffers(
             VertexData { vertex_buffer }
         })
         .collect()
+}
+
+fn assign_vertex_buffer_attributes(
+    vertices: &mut Vec<shader::model::VertexInput>,
+    model_data: &ModelData,
+    model_bytes: &[u8],
+    info: &xc3_lib::model::VertexBuffer,
+) {
+    let mut reader = Cursor::new(&model_bytes[model_data.data_base_offset as usize..]);
+
+    for i in 0..info.vertex_count as u64 {
+        reader
+            .seek(SeekFrom::Start(
+                info.data_offset as u64 + i * info.vertex_size as u64,
+            ))
+            .unwrap();
+
+        // TODO: How to handle missing attributes.
+        // TODO: Document conversion formulas to float in xc3_lib.
+        // TODO: Is switching for each vertex the base way to do this?
+        for a in &info.attributes {
+            match a.data_type {
+                xc3_lib::model::DataType::Position => {
+                    let value: [f32; 3] = reader.read_le().unwrap();
+                    vertices[i as usize].position = value.into();
+                }
+                xc3_lib::model::DataType::VertexColor => {
+                    let value: [u8; 4] = reader.read_le().unwrap();
+                    let u_to_f = |u| u as f32 / 255.0;
+                    vertices[i as usize].vertex_color = value.map(u_to_f).into();
+                }
+                // TODO: How are these different?
+                xc3_lib::model::DataType::Normal | xc3_lib::model::DataType::Unk32 => {
+                    vertices[i as usize].normal = read_snorm8x4(&mut reader);
+                }
+                xc3_lib::model::DataType::Tangent => {
+                    vertices[i as usize].tangent = read_snorm8x4(&mut reader);
+                }
+                xc3_lib::model::DataType::Uv1 => {
+                    let value: [f32; 2] = reader.read_le().unwrap();
+                    vertices[i as usize].uv1 = vec4(value[0], value[1], 0.0, 0.0);
+                }
+                _ => {
+                    // Just skip unsupported attributes for now.
+                    reader.seek(SeekFrom::Current(a.data_size as i64)).unwrap();
+                }
+            }
+        }
+    }
+}
+
+fn read_unorm8x4(reader: &mut Cursor<&[u8]>) -> Vec4 {
+    let value: [u8; 4] = reader.read_le().unwrap();
+    value.map(|u| u as f32 / 255.0).into()
+}
+
+fn read_snorm8x4(reader: &mut Cursor<&[u8]>) -> Vec4 {
+    let value: [i8; 4] = reader.read_le().unwrap();
+    value.map(|i| i as f32 / 255.0).into()
+}
+
+fn assign_animation_buffer_attributes(
+    vertices: &mut Vec<shader::model::VertexInput>,
+    model_data: &ModelData,
+    model_bytes: &[u8],
+    info: &xc3_lib::model::VertexBuffer,
+    base_target: &VertexAnimationTarget,
+) {
+    let mut reader = Cursor::new(&model_bytes[model_data.data_base_offset as usize..]);
+
+    for i in 0..info.vertex_count as u64 {
+        reader
+            .seek(SeekFrom::Start(
+                base_target.data_offset as u64 + i * base_target.vertex_size as u64,
+            ))
+            .unwrap();
+
+        // TODO: What are the attributes for these buffers?
+        // Values taken from RenderDoc until the attributes can be found.
+        let value: [f32; 3] = reader.read_le().unwrap();
+        vertices[i as usize].position = value.into();
+
+        // TODO: Does the vertex shader always apply this transform?
+        vertices[i as usize].normal = read_unorm8x4(&mut reader) * 2.0 - 1.0;
+
+        // Second position?
+        let _unk1: [f32; 3] = reader.read_le().unwrap();
+
+        // TODO: Does the vertex shader always apply this transform?
+        vertices[i as usize].tangent = read_unorm8x4(&mut reader) * 2.0 - 1.0;
+    }
+}
+
+fn base_vertex_target(
+    model_data: &ModelData,
+    vertex_buffer_index: usize,
+) -> Option<&VertexAnimationTarget> {
+    // TODO: Easier to loop over each descriptor and assign by vertex buffer index?
+    let vertex_animation = model_data.vertex_animation.as_ref()?;
+    vertex_animation
+        .descriptors
+        .iter()
+        .find(|d| d.vertex_buffer_index as usize == vertex_buffer_index)
+        .and_then(|d| vertex_animation.targets.get(d.target_start_index as usize))
 }

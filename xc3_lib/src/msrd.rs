@@ -1,4 +1,4 @@
-use crate::{parse_string_ptr32, xbc1::Xbc1};
+use crate::{parse_ptr32, parse_string_ptr32, xbc1::Xbc1};
 use binrw::{args, binread, FilePtr32};
 use serde::Serialize;
 
@@ -39,9 +39,7 @@ pub struct Msrd {
     #[br(args { inner: args!(count: texture_id_count as usize) })]
     texture_ids: Vec<u16>,
 
-    // TODO: optional if pointer is 0?
-    #[br(if(texture_id_count > 0))]
-    #[br(parse_with = FilePtr32::parse, offset = 16)]
+    #[br(parse_with = parse_ptr32, args(16))]
     pub texture_name_table: Option<TextureNameTable>,
 }
 

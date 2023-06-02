@@ -2,11 +2,7 @@ use std::{io::Cursor, path::Path};
 
 use glam::{ivec4, uvec4};
 use wgpu::util::DeviceExt;
-use xc3_lib::{
-    mibl::Mibl,
-    mxmd::Mxmd,
-    xbc1::Xbc1,
-};
+use xc3_lib::{mibl::Mibl, mxmd::Mxmd, xbc1::Xbc1};
 
 use crate::texture::{create_default_black_texture, create_texture};
 
@@ -14,6 +10,8 @@ pub struct Material {
     pub name: String,
     pub bind_group1: crate::shader::model::bind_groups::BindGroup1,
     pub bind_group2: crate::shader::model::bind_groups::BindGroup2,
+
+    pub texture_count: usize,
 }
 
 pub fn materials(
@@ -77,8 +75,6 @@ pub fn materials(
                 cached_textures,
             );
 
-            let shader = &shaders[material.shader_programs.elements[0].program_index as usize];
-
             // Bind all available textures and samplers.
             // Texture selection happens within the shader itself.
             // This simulates having a unique shader for each material.
@@ -99,7 +95,19 @@ pub fn materials(
                 },
             );
 
+            // TODO: Is it better to store these in a hashmap instead of a vec?
+            // TODO: Do all shaders have the naming convention "shd{program index}"?
+            // TODO: Store a list of shaders for each index/name?
+            let shader_name = format!(
+                "shd{:0>4}",
+                material.shader_programs.elements[0].program_index
+            );
+            let shader = shaders
+                .iter()
+                .find(|s| s.name.starts_with(&shader_name))
+                .unwrap();
             let assignments = gbuffer_assignments(shader);
+
             let gbuffer_assignments =
                 device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: Some("GBuffer Assignments"),
@@ -118,6 +126,7 @@ pub fn materials(
                 name: material.name.clone(),
                 bind_group1,
                 bind_group2,
+                texture_count: material.textures.elements.len(),
             }
         })
         .collect()

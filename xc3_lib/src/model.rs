@@ -1,17 +1,16 @@
-use crate::parse_array;
+use crate::{parse_count_offset, parse_offset_count, parse_ptr32};
 use binrw::{args, binread, FilePtr32};
 use serde::Serialize;
 
-// wismt model data
-// are these buffers referenced by wimdo?
+/// wismt model data
 // TODO: what to call this?
 #[binread]
 #[derive(Debug, Serialize)]
 pub struct ModelData {
-    #[br(parse_with = parse_array)]
+    #[br(parse_with = parse_offset_count)]
     pub vertex_buffers: Vec<VertexBuffer>,
 
-    #[br(parse_with = parse_array)]
+    #[br(parse_with = parse_offset_count)]
     pub index_buffers: Vec<IndexBuffer>,
 
     // padding?
@@ -26,7 +25,8 @@ pub struct ModelData {
     unk_offset1: u32,
     unk4: u32,
 
-    morph_offset: u32,
+    #[br(parse_with = parse_ptr32)]
+    pub vertex_animation: Option<VertexAnimation>,
 
     unk5: u32,
 
@@ -35,22 +35,22 @@ pub struct ModelData {
     unk6: u32,
 
     #[br(parse_with = FilePtr32::parse)]
-    weights: Weights,
+    pub weights: Weights,
 
     unk7: u32,
     // padding?
 }
 
-// vertex buffer?
 #[binread]
 #[derive(Debug, Serialize)]
 pub struct VertexBuffer {
+    /// Relative to [data_base_offset](struct.ModelData.html#structfield.data_base_offset)
     pub data_offset: u32,
     pub vertex_count: u32,
     pub vertex_size: u32,
 
     // Corresponds to attributes in vertex shader?
-    #[br(parse_with = parse_array)]
+    #[br(parse_with = parse_offset_count)]
     pub attributes: Vec<VertexAttribute>,
 
     // padding?
@@ -94,10 +94,11 @@ pub enum DataType {
     BoneId2 = 42,
 }
 
+// TODO: Is this data always u16?
 #[binread]
 #[derive(Debug, Serialize)]
 pub struct IndexBuffer {
-    // TODO: Is this data always u16?
+    /// Relative to [data_base_offset](struct.ModelData.html#structfield.data_base_offset)
     pub data_offset: u32,
     pub index_count: u32,
     // padding?
@@ -106,18 +107,50 @@ pub struct IndexBuffer {
     unk3: u32,
 }
 
+/// Vertex animation data often called "vertex morphs", "shape keys", or "blend shapes".
+#[binread]
+#[derive(Debug, Serialize)]
+pub struct VertexAnimation {
+    #[br(parse_with = parse_count_offset)]
+    pub descriptors: Vec<VertexAnimationDescriptor>,
+    #[br(parse_with = parse_count_offset)]
+    pub targets: Vec<VertexAnimationTarget>,
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+pub struct VertexAnimationDescriptor {
+    pub vertex_buffer_index: u32,
+    pub target_start_index: u32,
+    pub target_count: u32,
+    // pointer to u16 indices 0,1,2,...?
+    // start and ending frame for each target?
+    #[br(parse_with = FilePtr32::parse)]
+    #[br(args { inner: args! { count: target_count as usize * 2 }})]
+    pub unk1: Vec<u16>,
+
+    pub unk2: u32,
+}
+
+// TODO: vertex attributes for vertex animation data?
+/// A set of target vertex values similar to a keyframe in traditional animations.
+#[binread]
+#[derive(Debug, Serialize)]
+pub struct VertexAnimationTarget {
+    /// Relative to [data_base_offset](struct.ModelData.html#structfield.data_base_offset)
+    pub data_offset: u32,
+    pub vertex_count: u32,
+    pub vertex_size: u32,
+    pub unk1: u32,
+}
+
 // TODO: How are weights assigned to vertices?
 // TODO: Skinning happens in the vertex shader?
 // TODO: Where are the skin weights in the vertex shader?
 #[binread]
 #[derive(Debug, Serialize)]
 pub struct Weights {
-    #[br(temp)]
-    count: u32,
-
-    // TODO: Find an easier way to write this?
-    #[br(parse_with = FilePtr32::parse)]
-    #[br(args { inner: args! { count: count as usize } })]
+    #[br(parse_with = parse_count_offset)]
     weights: Vec<Weight>,
 
     unk1: u32,
@@ -136,5 +169,3 @@ pub struct Weight {
     unk3: u32, // count?
     unks: [u32; 7],
 }
-
-// TODO: functions for accessing data.
