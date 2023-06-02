@@ -4,7 +4,7 @@ use glam::{ivec4, uvec4};
 use wgpu::util::DeviceExt;
 use xc3_lib::{mibl::Mibl, mxmd::Mxmd, xbc1::Xbc1};
 
-use crate::texture::{create_default_black_texture, create_texture};
+use crate::texture::{create_default_black_texture, create_texture, create_texture_with_base_mip};
 
 pub struct Material {
     pub name: String,
@@ -33,6 +33,8 @@ pub fn materials(
     let default_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
         address_mode_u: wgpu::AddressMode::Repeat,
         address_mode_v: wgpu::AddressMode::Repeat,
+        min_filter: wgpu::FilterMode::Linear,
+        mag_filter: wgpu::FilterMode::Linear,
         ..Default::default()
     });
 
@@ -135,14 +137,14 @@ pub fn materials(
 fn load_textures(
     material: &xc3_lib::mxmd::Material,
     mxmd: &Mxmd,
-    texture_folder: &std::path::PathBuf,
+    m_texture_folder: &std::path::PathBuf,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     cached_textures: &[(String, Mibl)],
 ) -> Vec<wgpu::TextureView> {
     // TODO: Store wgpu texture instead?
     // TODO: Access by name instead of index?
-    let texture_views: Vec<_> = material
+    material
         .textures
         .elements
         .iter()
@@ -151,21 +153,21 @@ fn load_textures(
             // TODO: Also load high res textures from nx/h?
             // TODO: Why are the indices off by 1?
             let tex_name = &mxmd.textures.items.textures[t.texture_index as usize + 1].name;
-            let path = texture_folder.join(tex_name).with_extension("wismt");
+            let path = m_texture_folder.join(tex_name).with_extension("wismt");
 
-            let mibl = load_wismt_mibl(path);
-            let mibl = mibl.as_ref().unwrap_or_else(|| {
+            // TODO: Find a cleaner way of writing this.
+            load_wismt_mibl(device, queue, &path).unwrap_or_else(|| {
                 // Fall back to the cached textures if loading high res textures fails.
-                cached_textures
+                let mibl = cached_textures
                     .iter()
                     .find_map(|(name, mibl)| if name == tex_name { Some(mibl) } else { None })
-                    .unwrap()
-            });
-            create_texture(device, queue, &mibl)
-                .create_view(&wgpu::TextureViewDescriptor::default())
+                    .unwrap();
+
+                create_texture(device, queue, &mibl)
+                    .create_view(&wgpu::TextureViewDescriptor::default())
+            })
         })
-        .collect();
-    texture_views
+        .collect()
 }
 
 // TODO: Store this information already parsed in the JSON?
@@ -237,12 +239,33 @@ fn material_sampler_index(sampler: &str) -> Option<i32> {
     }
 }
 
-fn load_wismt_mibl(path: std::path::PathBuf) -> Option<Mibl> {
+// TODO: Split into two functions?
+fn load_wismt_mibl(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    path: &std::path::Path,
+) -> Option<wgpu::TextureView> {
     // TODO: Create a helper function in xc3_lib for this?
     // TODO: Why are some textures only in the cached textures?
     let xbc1 = Xbc1::from_file(&path).ok()?;
     let mut reader = Cursor::new(xbc1.decompress().unwrap());
-    Some(Mibl::read(&mut reader).unwrap())
+
+    let mibl = Mibl::read(&mut reader).unwrap();
+
+    // TODO: Will the base mip file always exist?
+    let tex_path_h = path
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("h")
+        .join(path.file_name().unwrap());
+    let base_mip_level = Xbc1::from_file(&tex_path_h).unwrap().decompress().unwrap();
+
+    Some(
+        create_texture_with_base_mip(device, queue, &mibl, &base_mip_level)
+            .create_view(&wgpu::TextureViewDescriptor::default()),
+    )
 }
 
 // TODO: Does this need to be public?

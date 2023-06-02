@@ -151,12 +151,11 @@ fn apply_normal_map(normal: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<f32>,
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let view = normalize(camera.position.xyz - in.position.xyz);
-
     // TODO: Normalize vectors?
     let tangent = normalize(in.tangent.xyz);
+    let vertex_normal = normalize(in.normal.xyz);
     // TODO: Flip the sign?
-    let bitangent = cross(normalize(in.normal.xyz), normalize(in.tangent.xyz)) * in.tangent.w;
+    let bitangent = cross(vertex_normal, tangent) * in.tangent.w;
 
     // TODO: Handle missing samplers?
     let s0_color = textureSample(s0, shared_sampler, in.uv1);
@@ -190,30 +189,34 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // TODO: How to properly handle missing assignments?
     let g0 = assign_gbuffer_texture(gbuffer_assignments[0], s_colors, vec4(0.0));
     let g1 = assign_gbuffer_texture(gbuffer_assignments[1], s_colors, vec4(0.0));
-    let g2 = assign_gbuffer_texture(gbuffer_assignments[2], s_colors, vec4(0.0));
+    let g2 = assign_gbuffer_texture(gbuffer_assignments[2], s_colors, vec4(0.5, 0.5, 1.0, 0.0));
     let g3 = assign_gbuffer_texture(gbuffer_assignments[3], s_colors, vec4(0.0));
     let g4 = assign_gbuffer_texture(gbuffer_assignments[4], s_colors, vec4(0.0));
     let g5 = assign_gbuffer_texture(gbuffer_assignments[5], s_colors, vec4(0.0));
 
-    // TODO: proper sRGB gamma conversion.
-    // Each G-Buffer texture and channel always has the same usage.
+    // Assume each G-Buffer texture and channel always has the same usage.
     let albedo = pow(g0.xyz, vec3(2.2));
     let metalness = g1.x;
     let normal_map = g2.xy;
     let ambient_occlusion = g2.z;
     let emission = g5.xyz;
 
-    // TODO: Normalize vertex normals?
-    let normal = apply_normal_map(normalize(in.normal.xyz), tangent, bitangent, normal_map);
+    // Not all materials and shaders use normal mapping.
+    // TODO: Is this a good way to check for this?
+    var normal = vertex_normal;
+    if (gbuffer_assignments[2].sampler_indices.x != -1 && gbuffer_assignments[2].sampler_indices.y != -1) {
+        normal = apply_normal_map(vertex_normal, tangent, bitangent, normal_map);
+    }
+    let view = normalize(camera.position.xyz - in.position.xyz);
+    let reflection = reflect(-view, normal);
 
     // Basic lambertian diffuse and phong specular for testing purposes.
     let diffuse_lighting = dot(view, normal) * 0.5 + 0.5;
-    let reflection = reflect(-view, normal);
     let specular_lighting = pow(max(dot(view, reflection), 0.0), 8.0);
 
     // TODO: Proper metalness.
     // TODO: Ambient occlusion can be set via material or constant?
-    var diffuse = albedo * diffuse_lighting * (1.0 - metalness * 0.5);
+    var diffuse = albedo * diffuse_lighting * ambient_occlusion * (1.0 - metalness * 0.5);
     var specular = specular_lighting * mix(vec3(0.25), albedo, metalness);
     var color = diffuse + specular;
 
