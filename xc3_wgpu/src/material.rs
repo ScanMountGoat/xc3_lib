@@ -12,6 +12,7 @@ pub struct Material {
     pub bind_group2: crate::shader::model::bind_groups::BindGroup2,
 
     pub texture_count: usize,
+    pub unk_type: xc3_lib::mxmd::ShaderUnkType
 }
 
 pub fn materials(
@@ -129,6 +130,7 @@ pub fn materials(
                 bind_group1,
                 bind_group2,
                 texture_count: material.textures.elements.len(),
+                unk_type: material.shader_programs.elements[0].unk_type
             }
         })
         .collect()

@@ -41,17 +41,13 @@ struct IndexData {
 
 impl Model {
     pub fn draw<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
-        // TODO: Are these used for additional effects in game?
-        // TODO: Is this controlled by material name or some other flag?
-        let suffixes_to_skip = ["_outline", "_zpre", "_ope", "_trans"];
-
         for mesh in &self.meshes {
             // TODO: How does LOD selection work in game?
             let material = &self.materials[mesh.material_index];
 
             // TODO: Why are there materials with no textures?
-            if !suffixes_to_skip.iter().any(|s| material.name.ends_with(s))
-                && material.texture_count > 0
+            // TODO: Group these into passes with separate shaders for each pass?
+            if material.unk_type == xc3_lib::mxmd::ShaderUnkType::Unk0 && material.texture_count > 0
             {
                 material.bind_group1.set(render_pass);
                 material.bind_group2.set(render_pass);

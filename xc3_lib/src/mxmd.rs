@@ -72,10 +72,8 @@ pub struct Material {
 
     unks1: [f32; 5],
 
-    // Fills in bindings in order in shader?
-    // TODO: Some shader samplers use other textures?
-    // TODO: do these fill in s0, s1, etc in order?
-    // TODO: zprepass doesn't use these textures?
+    // TODO: materials with zero textures?
+    /// Defines the shader's sampler bindings in order for s0, s1, s2, ...
     #[br(args { base_offset })]
     pub textures: List<Texture>,
 
@@ -98,9 +96,24 @@ pub struct Material {
 #[derive(Debug, Serialize)]
 pub struct ShaderProgram {
     pub program_index: u32, // index into programs in wismt?
-    unk2: u16,
-    unk3: u16,
-    unk4: u32,
+    pub unk_type: ShaderUnkType,
+    pub parent_material_index: u16, // index of the parent material?
+    pub unk4: u32,                  // always 1?
+}
+
+// Affects what pass the object renders in?
+// Each "pass" has different render targets?
+// _trans = 1,
+// _ope = 0,1,7
+// _zpre = 0
+// _outline = 0
+#[binread]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
+#[br(repr(u16))]
+pub enum ShaderUnkType {
+    Unk0 = 0, // main opaque + some transparent?
+    Unk1 = 1, // second layer transparent?
+    Unk7 = 7, // additional eye effect layer?
 }
 
 #[binread]
