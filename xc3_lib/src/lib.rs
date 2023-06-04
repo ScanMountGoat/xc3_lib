@@ -49,7 +49,7 @@ where
 }
 
 // TODO: Make a type for this and just use temp to derive it?
-fn parse_count_offset<T, R>(reader: &mut R, endian: binrw::Endian, _args: ()) -> BinResult<Vec<T>>
+fn parse_count_offset<T, R>(reader: &mut R, endian: binrw::Endian, args: u64) -> BinResult<Vec<T>>
 where
     for<'a> T: BinRead<Args<'a> = ()> + 'static,
     R: std::io::Read + std::io::Seek,
@@ -59,7 +59,7 @@ where
 
     let saved_pos = reader.stream_position()?;
 
-    reader.seek(SeekFrom::Start(offset as u64))?;
+    reader.seek(SeekFrom::Start(offset as u64 + args))?;
 
     let values = Vec::<T>::read_options(
         reader,
@@ -90,7 +90,7 @@ fn parse_string_ptr32<R: std::io::Read + std::io::Seek>(
     Ok(value.to_string())
 }
 
-fn parse_ptr32<T, R>(reader: &mut R, endian: binrw::Endian, args: (u64,)) -> BinResult<Option<T>>
+fn parse_ptr32<T, R>(reader: &mut R, endian: binrw::Endian, args: u64) -> BinResult<Option<T>>
 where
     for<'a> T: BinRead<Args<'a> = ()> + 'static,
     R: std::io::Read + std::io::Seek,
@@ -100,7 +100,7 @@ where
     if offset > 0 {
         let saved_pos = reader.stream_position()?;
 
-        reader.seek(SeekFrom::Start(args.0 + offset as u64))?;
+        reader.seek(SeekFrom::Start(offset as u64 + args))?;
         let value = T::read_options(reader, endian, ())?;
         reader.seek(SeekFrom::Start(saved_pos))?;
 

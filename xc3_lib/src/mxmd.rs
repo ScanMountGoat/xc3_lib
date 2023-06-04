@@ -1,6 +1,6 @@
 use std::io::SeekFrom;
 
-use crate::parse_ptr32;
+use crate::{parse_count_offset, parse_ptr32};
 use binrw::{args, binread, BinRead, BinResult, FilePtr32, NamedArgs, NullString};
 use serde::Serialize;
 
@@ -17,7 +17,8 @@ pub struct Mxmd {
     #[br(parse_with = FilePtr32::parse)]
     pub materials: Materials,
 
-    unk1: u32, // points after the texture names?
+    #[br(parse_with = parse_ptr32)]
+    unk1: Option<Unk1>,
     unk2: u32,
     unk3: u32,
     unk4: u32,
@@ -145,7 +146,7 @@ pub struct Mesh {
 
     unks3: [u32; 24],
 
-    #[br(parse_with = parse_ptr32, args(base_offset))]
+    #[br(parse_with = parse_ptr32, args_raw(base_offset))]
     lod_data: Option<LodData>,
 }
 
@@ -208,7 +209,7 @@ pub struct Textures {
 
     unks: [u32; 15],
 
-    #[br(parse_with = parse_ptr32, args(base_offset))]
+    #[br(parse_with = parse_ptr32, args_raw(base_offset))]
     pub items: Option<TextureItems>,
 }
 
@@ -241,6 +242,65 @@ pub struct TextureItem {
 
     #[br(parse_with = parse_string_ptr32, args(base_offset))]
     pub name: String,
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(stream = r)]
+pub struct Unk1 {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = parse_count_offset, args_raw(base_offset))]
+    unk1: Vec<Unk1Unk1>,
+
+    #[br(parse_with = parse_count_offset, args_raw(base_offset))]
+    unk2: Vec<Unk1Unk2>,
+
+    #[br(parse_with = parse_count_offset, args_raw(base_offset))]
+    unk3: Vec<Unk1Unk3>,
+
+    // angle values?
+    #[br(parse_with = parse_count_offset, args_raw(base_offset))]
+    unk4: Vec<Unk1Unk4>,
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+pub struct Unk1Unk1 {
+    index: u16,
+    unk2: u16, // 1
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+pub struct Unk1Unk2 {
+    unk1: u16, // 0
+    index: u16,
+    unk3: u16,
+    unk4: u16,
+    unk5: u32, // 0
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+pub struct Unk1Unk3 {
+    unk1: u16,
+    unk2: u16,
+    unk3: u32,
+    unk4: u16,
+    unk5: u16,
+    unk6: u16,
+    unk7: u16,
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+pub struct Unk1Unk4 {
+    unk1: f32,
+    unk2: f32,
+    unk3: f32,
+    unk4: u32,
 }
 
 // TODO: type for this shared with hpcs?

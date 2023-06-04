@@ -39,7 +39,7 @@ pub struct Msrd {
     #[br(args { inner: args!(count: texture_id_count as usize) })]
     texture_ids: Vec<u16>,
 
-    #[br(parse_with = parse_ptr32, args(16))]
+    #[br(parse_with = parse_ptr32, args_raw(16))]
     pub texture_name_table: Option<TextureNameTable>,
 }
 
