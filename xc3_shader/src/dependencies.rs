@@ -442,7 +442,7 @@ mod tests {
             }
         "};
 
-        let tu = TranslationUnit::parse(&glsl).unwrap();
+        let tu = TranslationUnit::parse(glsl).unwrap();
         assert_eq!(
             vec!["texture1.w".to_string()],
             texture_dependencies(&tu, "b")
@@ -460,7 +460,7 @@ mod tests {
             }
         "};
 
-        let tu = TranslationUnit::parse(&glsl).unwrap();
+        let tu = TranslationUnit::parse(glsl).unwrap();
         assert_eq!(
             vec!["texture1.z".to_string()],
             texture_dependencies(&tu, "b")
@@ -477,7 +477,7 @@ mod tests {
             }
         "};
 
-        let tu = TranslationUnit::parse(&glsl).unwrap();
+        let tu = TranslationUnit::parse(glsl).unwrap();
         assert_eq!(
             vec!["texture1.zw".to_string()],
             texture_dependencies(&tu, "b")

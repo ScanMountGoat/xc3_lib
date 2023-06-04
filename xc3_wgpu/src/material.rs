@@ -12,7 +12,7 @@ pub struct Material {
     pub bind_group2: crate::shader::model::bind_groups::BindGroup2,
 
     pub texture_count: usize,
-    pub unk_type: xc3_lib::mxmd::ShaderUnkType
+    pub unk_type: xc3_lib::mxmd::ShaderUnkType,
 }
 
 pub fn materials(
@@ -26,7 +26,7 @@ pub fn materials(
     // TODO: Is there a better way to handle missing textures?
     // TODO: Is it worth creating a separate shaders for each material?
     // TODO: Just use booleans to indicate which textures are present?
-    // TODO: How to handle some inputs using materials instead of textures?
+    // TODO: How to handle some inputs using buffer parameters instead of textures?
     let default_black = create_default_black_texture(device, queue)
         .create_view(&wgpu::TextureViewDescriptor::default());
 
@@ -55,14 +55,10 @@ pub fn materials(
 
     // "chr/en/file.wismt" -> "chr/tex/nx/m"
     // TODO: Don't assume model_path is in the chr/ch or chr/en folders.
-    let texture_folder = Path::new(model_path)
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("tex")
-        .join("nx")
-        .join("m");
+    let chr_folder = Path::new(model_path).parent().unwrap().parent().unwrap();
+    let m_tex_folder = chr_folder.join("tex").join("nx").join("m");
+
+    let h_tex_folder = chr_folder.join("tex").join("nx").join("h");
 
     mxmd.materials
         .materials
@@ -72,7 +68,8 @@ pub fn materials(
             let texture_views = load_textures(
                 material,
                 mxmd,
-                &texture_folder,
+                &m_tex_folder,
+                &h_tex_folder,
                 device,
                 queue,
                 cached_textures,
@@ -130,48 +127,13 @@ pub fn materials(
                 bind_group1,
                 bind_group2,
                 texture_count: material.textures.elements.len(),
-                unk_type: material.shader_programs.elements[0].unk_type
+                unk_type: material.shader_programs.elements[0].unk_type,
             }
         })
         .collect()
 }
 
-fn load_textures(
-    material: &xc3_lib::mxmd::Material,
-    mxmd: &Mxmd,
-    m_texture_folder: &std::path::PathBuf,
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    cached_textures: &[(String, Mibl)],
-) -> Vec<wgpu::TextureView> {
-    // TODO: Store wgpu texture instead?
-    // TODO: Access by name instead of index?
-    material
-        .textures
-        .elements
-        .iter()
-        .map(|t| {
-            // TODO: Are textures always in the tex folder?
-            // TODO: Also load high res textures from nx/h?
-            // TODO: Why are the indices off by 1?
-            let tex_name = &mxmd.textures.items.textures[t.texture_index as usize + 1].name;
-            let path = m_texture_folder.join(tex_name).with_extension("wismt");
-
-            // TODO: Find a cleaner way of writing this.
-            load_wismt_mibl(device, queue, &path).unwrap_or_else(|| {
-                // Fall back to the cached textures if loading high res textures fails.
-                let mibl = cached_textures
-                    .iter()
-                    .find_map(|(name, mibl)| if name == tex_name { Some(mibl) } else { None })
-                    .unwrap();
-
-                create_texture(device, queue, &mibl)
-                    .create_view(&wgpu::TextureViewDescriptor::default())
-            })
-        })
-        .collect()
-}
-
+// TODO: submodule for this?
 // TODO: Store this information already parsed in the JSON?
 // TODO: Test cases for this
 fn gbuffer_assignments(
@@ -241,37 +203,69 @@ fn material_sampler_index(sampler: &str) -> Option<i32> {
     }
 }
 
+// TODO: Does this need to be public?
+pub fn load_database<P: AsRef<Path>>(path: P) -> Vec<xc3_shader::gbuffer_database::File> {
+    let json = std::fs::read_to_string(path).unwrap();
+    serde_json::from_str(&json).unwrap()
+}
+
+fn load_textures(
+    material: &xc3_lib::mxmd::Material,
+    mxmd: &Mxmd,
+    m_texture_folder: &Path,
+    h_texture_folder: &Path,
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    cached_textures: &[(String, Mibl)],
+) -> Vec<wgpu::TextureView> {
+    // TODO: Store wgpu texture instead?
+    // TODO: Access by name instead of index?
+    material
+        .textures
+        .elements
+        .iter()
+        .map(|t| {
+            // TODO: Why are the indices off by 1?
+            let tex_name = &mxmd.textures.items.textures[t.texture_index as usize + 1].name;
+
+            load_wismt_mibl(device, queue, m_texture_folder, h_texture_folder, tex_name)
+                .unwrap_or_else(|| {
+                    // Not all textures have higher resolution versions in the tex folder.
+                    // Fall back to the cached textures if loading high res textures fails.
+                    let mibl = cached_textures
+                        .iter()
+                        .find_map(|(name, mibl)| if name == tex_name { Some(mibl) } else { None })
+                        .unwrap();
+
+                    create_texture(device, queue, mibl)
+                        .create_view(&wgpu::TextureViewDescriptor::default())
+                })
+        })
+        .collect()
+}
+
 // TODO: Split into two functions?
 fn load_wismt_mibl(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-    path: &std::path::Path,
+    m_texture_folder: &Path,
+    h_texture_folder: &Path,
+    texture_name: &str,
 ) -> Option<wgpu::TextureView> {
     // TODO: Create a helper function in xc3_lib for this?
-    // TODO: Why are some textures only in the cached textures?
-    let xbc1 = Xbc1::from_file(&path).ok()?;
+    let xbc1 = Xbc1::from_file(m_texture_folder.join(texture_name).with_extension("wismt")).ok()?;
     let mut reader = Cursor::new(xbc1.decompress().unwrap());
 
     let mibl = Mibl::read(&mut reader).unwrap();
 
-    // TODO: Will the base mip file always exist?
-    let tex_path_h = path
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("h")
-        .join(path.file_name().unwrap());
-    let base_mip_level = Xbc1::from_file(&tex_path_h).unwrap().decompress().unwrap();
+    let base_mip_level =
+        Xbc1::from_file(&h_texture_folder.join(texture_name).with_extension("wismt"))
+            .unwrap()
+            .decompress()
+            .unwrap();
 
     Some(
         create_texture_with_base_mip(device, queue, &mibl, &base_mip_level)
             .create_view(&wgpu::TextureViewDescriptor::default()),
     )
-}
-
-// TODO: Does this need to be public?
-pub fn load_database<P: AsRef<Path>>(path: P) -> Vec<xc3_shader::gbuffer_database::File> {
-    let json = std::fs::read_to_string(path).unwrap();
-    serde_json::from_str(&json).unwrap()
 }

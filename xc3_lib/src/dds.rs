@@ -47,7 +47,7 @@ pub fn create_dds(mibl: &Mibl) -> Result<Dds> {
 pub fn create_mibl(dds: &Dds) -> Result<Mibl> {
     // TODO: Avoid unwrap.
     let image_format =
-        dds_image_format(dds).expect(&format!("{:?}", dds.get_dxgi_format().unwrap()));
+        dds_image_format(dds).unwrap_or_else(|| panic!("{:?}", dds.get_dxgi_format().unwrap()));
 
     let layer_count = layer_count(dds);
 

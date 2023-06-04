@@ -237,7 +237,7 @@ fn vertex_buffers(
             // TODO: Which buffer takes priority?
             assign_vertex_buffer_attributes(&mut vertices, model_data, model_bytes, info);
 
-            if let Some(base_target) = base_vertex_target(&model_data, i) {
+            if let Some(base_target) = base_vertex_target(model_data, i) {
                 assign_animation_buffer_attributes(
                     &mut vertices,
                     model_data,
@@ -259,7 +259,7 @@ fn vertex_buffers(
 }
 
 fn assign_vertex_buffer_attributes(
-    vertices: &mut Vec<shader::model::VertexInput>,
+    vertices: &mut [shader::model::VertexInput],
     model_data: &ModelData,
     model_bytes: &[u8],
     info: &xc3_lib::model::VertexBuffer,
@@ -318,7 +318,7 @@ fn read_snorm8x4(reader: &mut Cursor<&[u8]>) -> Vec4 {
 }
 
 fn assign_animation_buffer_attributes(
-    vertices: &mut Vec<shader::model::VertexInput>,
+    vertices: &mut [shader::model::VertexInput],
     model_data: &ModelData,
     model_bytes: &[u8],
     info: &xc3_lib::model::VertexBuffer,

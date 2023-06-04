@@ -1,5 +1,5 @@
 use wgpu::util::DeviceExt;
-use xc3_lib::mibl::{ImageFormat, Mibl, MiblFooter, ViewDimension};
+use xc3_lib::mibl::{ImageFormat, Mibl, ViewDimension};
 
 pub fn create_texture(device: &wgpu::Device, queue: &wgpu::Queue, mibl: &Mibl) -> wgpu::Texture {
     let data = mibl.deswizzled_image_data().unwrap();
@@ -49,7 +49,8 @@ pub fn create_texture_with_base_mip(
         } else {
             1
         },
-    ).unwrap();
+    )
+    .unwrap();
 
     data_x2.extend_from_slice(&mibl.deswizzled_image_data().unwrap());
 
@@ -88,8 +89,8 @@ fn create_texture_from_footer_data(
         &wgpu::TextureDescriptor {
             label: None,
             size: wgpu::Extent3d {
-                width: width,
-                height: height,
+                width,
+                height,
                 depth_or_array_layers: std::cmp::max(layers, depth),
             },
             mip_level_count: mipmap_count,
