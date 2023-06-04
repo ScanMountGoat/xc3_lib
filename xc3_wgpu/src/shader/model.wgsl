@@ -216,9 +216,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     // TODO: Proper metalness.
     // TODO: Ambient occlusion can be set via material or constant?
-    var diffuse = albedo * diffuse_lighting * ambient_occlusion * (1.0 - metalness * 0.5);
+    var diffuse = albedo * diffuse_lighting * (1.0 - metalness * 0.5);
     var specular = specular_lighting * mix(vec3(0.25), albedo, metalness);
-    var color = diffuse + specular;
+    var color = diffuse + specular + emission;
 
     // TODO: alpha?
     return vec4(color, 1.0);

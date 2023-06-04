@@ -47,7 +47,13 @@ impl Model {
 
             // TODO: Why are there materials with no textures?
             // TODO: Group these into passes with separate shaders for each pass?
-            if material.unk_type == xc3_lib::mxmd::ShaderUnkType::Unk0 && material.texture_count > 0
+            // TODO: The main pass is shared with outline, ope, and zpre?
+            // TODO: How to handle transparency?
+            if material.unk_type == xc3_lib::mxmd::ShaderUnkType::Unk0
+                && material.texture_count > 0
+                && !material.name.ends_with("_outline")
+                && !material.name.ends_with("_ope")
+                && !material.name.ends_with("_zpre")
             {
                 material.bind_group1.set(render_pass);
                 material.bind_group2.set(render_pass);

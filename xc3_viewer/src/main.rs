@@ -205,6 +205,7 @@ impl State {
                     // The translation should not depend on the camera orientation.
                     // TODO: Avoid recalculating the matrix?
                     // TODO: Does ignoring rotation like this work in general?
+                    // TODO: Should this account for near and far clip distances?
                     let data =
                         calculate_camera_data(self.size, self.translation, self.rotation_xyz * 0.0);
 
