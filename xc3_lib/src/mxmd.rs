@@ -1,6 +1,6 @@
 use std::io::SeekFrom;
 
-use crate::{parse_count_offset, parse_ptr32};
+use crate::{parse_count_offset, parse_offset_count, parse_ptr32};
 use binrw::{args, binread, BinRead, BinResult, FilePtr32, NamedArgs, NullString};
 use serde::Serialize;
 
@@ -42,19 +42,19 @@ pub struct Materials {
     unk1: u32,
     unk2: u32,
 
-    #[br(args { base_offset })]
-    floats: List<f32>,
+    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    floats: Vec<f32>,
 
-    #[br(args { base_offset })]
-    ints: List<u32>,
+    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    ints: Vec<u32>,
 
     // TODO: what type is this?
     unk3: u32,
     unk4: u32,
 
     // TODO: How large is each element?
-    #[br(args { base_offset })]
-    unks: List<[u16; 8]>,
+    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    unks: Vec<[u16; 8]>,
 
     unk: [u32; 16],
 }
@@ -75,8 +75,8 @@ pub struct Material {
 
     // TODO: materials with zero textures?
     /// Defines the shader's sampler bindings in order for s0, s1, s2, ...
-    #[br(args { base_offset })]
-    pub textures: List<Texture>,
+    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    pub textures: Vec<Texture>,
 
     // TODO: are these sampler parameters?
     pub unk_flag1: [u8; 4],
@@ -87,8 +87,8 @@ pub struct Material {
     m_unk5: u32,
 
     // always count 1?
-    #[br(args { base_offset })]
-    pub shader_programs: List<ShaderProgram>,
+    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    pub shader_programs: Vec<ShaderProgram>,
 
     m_unks2: [u32; 8],
 }
@@ -155,8 +155,9 @@ pub struct Mesh {
 #[derive(Debug, Serialize)]
 #[br(import_raw(base_offset: u64))]
 pub struct DataItem {
-    #[br(args { base_offset })]
-    pub sub_items: List<SubDataItem>,
+    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    pub sub_items: Vec<SubDataItem>,
+
     unk1: u32,
     max_xyz: [f32; 3],
     min_xyz: [f32; 3],
@@ -196,8 +197,8 @@ pub struct LodData {
     unk2: u32,
     unk3: u32,
 
-    #[br(args { base_offset })]
-    items: List<(u16, u16)>,
+    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    items: Vec<(u16, u16)>,
 }
 
 #[binread]

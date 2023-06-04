@@ -6,7 +6,7 @@ use xc3_lib::{
     dds::{create_dds, create_mibl},
     mibl::Mibl,
     model::ModelData,
-    msrd::{DataItemType, Msrd},
+    msrd::{EntryType, Msrd},
     mxmd::Mxmd,
     sar1::Sar1,
     spch::Spch,
@@ -76,30 +76,36 @@ fn check_all_msrd<P: AsRef<Path>>(root: P) {
 }
 
 fn check_msrd(msrd: Msrd) {
-    let toc_streams: Vec<_> = msrd
-        .tocs
+    let decompressed_streams: Vec<_> = msrd
+        .streams
         .iter()
-        .map(|toc| toc.xbc1.decompress().unwrap())
+        .map(|stream| stream.xbc1.decompress().unwrap())
         .collect();
 
     // Check parsing for any embedded files.
-    for item in msrd.data_items {
+    for (i, item) in msrd.stream_entries.into_iter().enumerate() {
         match item.item_type {
-            DataItemType::ShaderBundle => {
-                let stream = &toc_streams[item.toc_index as usize];
+            EntryType::ShaderBundle => {
+                assert_eq!(i, msrd.shader_entry_index as usize);
+
+                let stream = &decompressed_streams[item.stream_index as usize];
                 let data = &stream[item.offset as usize..item.offset as usize + item.size as usize];
 
                 Spch::read(&mut Cursor::new(data)).unwrap();
             }
-            DataItemType::Model => {
-                let stream = &toc_streams[item.toc_index as usize];
+            EntryType::Model => {
+                assert_eq!(i, msrd.model_entry_index as usize);
+
+                let stream = &decompressed_streams[item.stream_index as usize];
                 let data = &stream[item.offset as usize..item.offset as usize + item.size as usize];
 
                 ModelData::read(&mut Cursor::new(data)).unwrap();
             }
-            // TODO: check textures
-            DataItemType::CachedTexture => {}
-            DataItemType::Texture => {}
+            // TODO: check texture parsing?
+            EntryType::CachedTexture => {
+                assert_eq!(i, msrd.texture_entry_index as usize);
+            }
+            EntryType::Texture => {}
         }
     }
 }

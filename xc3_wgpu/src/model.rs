@@ -6,7 +6,7 @@ use wgpu::util::DeviceExt;
 use xc3_lib::{
     mibl::Mibl,
     model::{ModelData, VertexAnimationTarget},
-    msrd::{DataItemType, Msrd},
+    msrd::Msrd,
     mxmd::Mxmd,
 };
 
@@ -85,28 +85,19 @@ pub fn load_model(
 ) -> Model {
     // TODO: add this to xc3_lib?
     // TODO: Only decompress the stream that's needed?
-    let toc_streams: Vec<_> = msrd
-        .tocs
+    let decompressed_streams: Vec<_> = msrd
+        .streams
         .iter()
-        .map(|toc| toc.xbc1.decompress().unwrap())
+        .map(|stream| stream.xbc1.decompress().unwrap())
         .collect();
 
-    let model_bytes = msrd
-        .data_items
-        .iter()
-        .find_map(|item| match &item.item_type {
-            DataItemType::Model => {
-                let stream = &toc_streams[item.toc_index as usize];
-                let data = &stream[item.offset as usize..item.offset as usize + item.size as usize];
-                Some(data)
-            }
-            _ => None,
-        })
-        .unwrap();
+    let item = &msrd.stream_entries[msrd.model_entry_index as usize];
+    let stream = &decompressed_streams[item.stream_index as usize];
+    let model_bytes = &stream[item.offset as usize..item.offset as usize + item.size as usize];
 
     // TODO: Avoid unwrap.
     // Load cached textures
-    let cached_textures = load_cached_textures(msrd, &toc_streams);
+    let cached_textures = load_cached_textures(msrd, &decompressed_streams);
 
     let model_data = ModelData::read(&mut Cursor::new(&model_bytes)).unwrap();
 
@@ -128,7 +119,7 @@ pub fn load_model(
         .elements
         .iter()
         .flat_map(|item| {
-            item.sub_items.elements.iter().map(|sub_item| Mesh {
+            item.sub_items.iter().map(|sub_item| Mesh {
                 vertex_buffer_index: sub_item.vertex_buffer_index as usize,
                 index_buffer_index: sub_item.index_buffer_index as usize,
                 material_index: sub_item.material_index as usize,
@@ -145,18 +136,10 @@ pub fn load_model(
     }
 }
 
-fn load_cached_textures(msrd: &Msrd, toc_streams: &[Vec<u8>]) -> Vec<(String, Mibl)> {
-    let cached_texture_data = msrd
-        .data_items
-        .iter()
-        .find_map(|item| match &item.item_type {
-            DataItemType::CachedTexture => {
-                let stream = &toc_streams[item.toc_index as usize];
-                Some(&stream[item.offset as usize..item.offset as usize + item.size as usize])
-            }
-            _ => None,
-        })
-        .unwrap();
+fn load_cached_textures(msrd: &Msrd, decompressed_streams: &[Vec<u8>]) -> Vec<(String, Mibl)> {
+    let item = &msrd.stream_entries[msrd.texture_entry_index as usize];
+    let stream = &decompressed_streams[item.stream_index as usize];
+    let texture_data = &stream[item.offset as usize..item.offset as usize + item.size as usize];
 
     msrd.texture_name_table
         .as_ref()
@@ -164,8 +147,8 @@ fn load_cached_textures(msrd: &Msrd, toc_streams: &[Vec<u8>]) -> Vec<(String, Mi
         .textures
         .iter()
         .map(|info| {
-            let data = &cached_texture_data
-                [info.offset as usize..info.offset as usize + info.size as usize];
+            let data =
+                &texture_data[info.offset as usize..info.offset as usize + info.size as usize];
             (
                 info.name.clone(),
                 Mibl::read(&mut Cursor::new(&data)).unwrap(),

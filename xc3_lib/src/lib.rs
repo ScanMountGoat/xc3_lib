@@ -22,7 +22,7 @@ pub mod spch;
 pub mod xbc1;
 
 // TODO: Make a type for this and just use temp to derive it?
-fn parse_offset_count<T, R>(reader: &mut R, endian: binrw::Endian, _args: ()) -> BinResult<Vec<T>>
+fn parse_offset_count<T, R>(reader: &mut R, endian: binrw::Endian, args: u64) -> BinResult<Vec<T>>
 where
     for<'a> T: BinRead<Args<'a> = ()> + 'static,
     R: std::io::Read + std::io::Seek,
@@ -32,7 +32,7 @@ where
 
     let saved_pos = reader.stream_position()?;
 
-    reader.seek(SeekFrom::Start(offset as u64))?;
+    reader.seek(SeekFrom::Start(offset as u64 + args))?;
 
     let values = Vec::<T>::read_options(
         reader,

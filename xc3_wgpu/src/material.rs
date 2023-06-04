@@ -98,10 +98,7 @@ pub fn materials(
             // TODO: Is it better to store these in a hashmap instead of a vec?
             // TODO: Do all shaders have the naming convention "shd{program index}"?
             // TODO: Store a list of shaders for each index/name?
-            let shader_name = format!(
-                "shd{:0>4}",
-                material.shader_programs.elements[0].program_index
-            );
+            let shader_name = format!("shd{:0>4}", material.shader_programs[0].program_index);
             let shader = shaders
                 .iter()
                 .find(|s| s.name.starts_with(&shader_name))
@@ -126,8 +123,8 @@ pub fn materials(
                 name: material.name.clone(),
                 bind_group1,
                 bind_group2,
-                texture_count: material.textures.elements.len(),
-                unk_type: material.shader_programs.elements[0].unk_type,
+                texture_count: material.textures.len(),
+                unk_type: material.shader_programs[0].unk_type,
             }
         })
         .collect()
@@ -222,7 +219,6 @@ fn load_textures(
     // TODO: Access by name instead of index?
     material
         .textures
-        .elements
         .iter()
         .map(|t| {
             let tex_name =

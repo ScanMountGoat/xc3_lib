@@ -1,8 +1,8 @@
-use crate::{parse_ptr32, parse_string_ptr32, xbc1::Xbc1};
-use binrw::{args, binread, FilePtr32};
+use crate::{parse_count_offset, parse_ptr32, parse_string_ptr32, xbc1::Xbc1};
+use binrw::{binread, FilePtr32};
 use serde::Serialize;
 
-/// .wismt files
+/// .wismt model files in `chr/bt`, `chr/ch/`, `chr/en`, `chr/oj`, and `chr/wp`.
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(magic(b"DRSM"))]
@@ -16,47 +16,38 @@ pub struct Msrd {
     tag: u32,
     revision: u32,
 
-    #[br(temp)]
-    data_items_count: u32,
+    #[br(parse_with = parse_count_offset, args_raw(offset as u64))]
+    pub stream_entries: Vec<StreamEntry>,
 
-    #[br(parse_with = FilePtr32::parse, offset = offset as u64)]
-    #[br(args { inner: args!(count: data_items_count as usize) })]
-    pub data_items: Vec<DataItem>,
+    #[br(parse_with = parse_count_offset, args_raw(offset as u64))]
+    pub streams: Vec<Stream>,
 
-    #[br(temp)]
-    toc_count: u32,
+    pub model_entry_index: u32,
+    pub shader_entry_index: u32,
+    pub texture_entry_index: u32,
+    unk1: [u32; 4],
 
-    #[br(parse_with = FilePtr32::parse, offset = 16)]
-    #[br(args { inner: args!(count: toc_count as usize) })]
-    pub tocs: Vec<Toc>,
-
-    unknown1: [u8; 28],
-
-    #[br(temp)]
-    texture_id_count: u32,
-
-    #[br(parse_with = FilePtr32::parse, offset = 16)]
-    #[br(args { inner: args!(count: texture_id_count as usize) })]
+    #[br(parse_with = parse_count_offset, args_raw(offset as u64))]
     texture_ids: Vec<u16>,
 
-    #[br(parse_with = parse_ptr32, args_raw(16))]
+    #[br(parse_with = parse_ptr32, args_raw(offset as u64))]
     pub texture_name_table: Option<TextureNameTable>,
 }
 
 #[binread]
 #[derive(Debug, Serialize)]
-pub struct DataItem {
+pub struct StreamEntry {
     pub offset: u32,
     pub size: u32,
-    pub toc_index: u16,
-    pub item_type: DataItemType,
+    pub stream_index: u16,
+    pub item_type: EntryType,
     unk: [u8; 8],
 }
 
 #[binread]
 #[br(repr(u16))]
 #[derive(Debug, Serialize, PartialEq, Eq)]
-pub enum DataItemType {
+pub enum EntryType {
     Model = 0,
     ShaderBundle = 1,
     CachedTexture = 2,
@@ -93,10 +84,9 @@ pub struct TextureInfo {
     pub name: String,
 }
 
-// TODO: what does toc stand for?
 #[binread]
 #[derive(Debug, Serialize)]
-pub struct Toc {
+pub struct Stream {
     comp_size: u32,
     decomp_size: u32, // slightly larger than xbc1 decomp size?
     #[br(parse_with = FilePtr32::parse)]

@@ -3,7 +3,7 @@ use std::{io::Cursor, path::Path};
 use clap::{Parser, Subcommand};
 use rayon::prelude::*;
 use xc3_lib::{
-    msrd::{DataItemType, Msrd},
+    msrd::{EntryType, Msrd},
     spch::Spch,
 };
 use xc3_shader::extract::extract_shader_binaries;
@@ -90,15 +90,15 @@ fn decompiled_output_folder(output_folder: &str, path: &Path) -> std::path::Path
 }
 
 fn extract_and_decompile_shaders<P: AsRef<Path>>(msrd: Msrd, shader_tools: &str, output_folder: P) {
-    let toc_streams: Vec<_> = msrd
-        .tocs
+    let decompressed_streams: Vec<_> = msrd
+        .streams
         .iter()
-        .map(|toc| toc.xbc1.decompress().unwrap())
+        .map(|stream| stream.xbc1.decompress().unwrap())
         .collect();
 
-    for item in msrd.data_items {
-        if item.item_type == DataItemType::ShaderBundle {
-            let stream = &toc_streams[item.toc_index as usize];
+    for item in msrd.stream_entries {
+        if item.item_type == EntryType::ShaderBundle {
+            let stream = &decompressed_streams[item.stream_index as usize];
             let data = &stream[item.offset as usize..item.offset as usize + item.size as usize];
 
             let spch = Spch::read(&mut Cursor::new(data)).unwrap();
