@@ -220,12 +220,11 @@ pub struct TextureItems {
     base_offset: u64,
 
     count: u32,
-    unk1: u32,
+    offset: u32,
     unk2: u32,
+    strings_offset: u32,
 
-    // TODO: Why is the first element repeated?
-    // TODO: The last item only has the name offset?
-    #[br(args { count: count as usize + 1, inner: args! { base_offset } })]
+    #[br(args { count: count as usize, inner: args! { base_offset } })]
     pub textures: Vec<TextureItem>,
 }
 
@@ -233,14 +232,15 @@ pub struct TextureItems {
 #[derive(Debug, Serialize)]
 #[br(import { base_offset: u64 })]
 pub struct TextureItem {
-    #[br(parse_with = parse_string_ptr32, args(base_offset))]
-    pub name: String,
     unk1: u16,
     unk2: u16,
-    unk3: u16,
+    unk3: u16, // size?
     unk4: u16,
-    unk5: u16,
+    unk5: u16, // some sort of offset (sum of previous unk3)?
     unk6: u16,
+
+    #[br(parse_with = parse_string_ptr32, args(base_offset))]
+    pub name: String,
 }
 
 // TODO: type for this shared with hpcs?

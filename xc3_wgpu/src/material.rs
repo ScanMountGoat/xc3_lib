@@ -225,9 +225,8 @@ fn load_textures(
         .elements
         .iter()
         .map(|t| {
-            // TODO: Why are the indices off by 1?
             let tex_name =
-                &mxmd.textures.items.as_ref().unwrap().textures[t.texture_index as usize + 1].name;
+                &mxmd.textures.items.as_ref().unwrap().textures[t.texture_index as usize].name;
 
             load_wismt_mibl(device, queue, m_texture_folder, h_texture_folder, tex_name)
                 .unwrap_or_else(|| {
