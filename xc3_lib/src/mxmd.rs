@@ -142,7 +142,9 @@ pub struct Mesh {
     pub items: List<DataItem>,
 
     unk2: u32,
-    bone_offset: u32, // relative to start of model?
+
+    #[br(parse_with = FilePtr32::parse, offset = base_offset)]
+    skeleton: Skeleton,
 
     unks3: [u32; 24],
 
@@ -248,6 +250,51 @@ pub struct TextureItem {
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(stream = r)]
+pub struct Skeleton {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    count1: u32,
+    count2: u32,
+
+    // TODO: Find a simpler way of writing this?
+    #[br(parse_with = FilePtr32::parse)]
+    #[br(args { 
+        offset: base_offset, 
+        inner: args! { 
+            count: count1 as usize,
+            inner: base_offset 
+        } 
+    })]
+    bones: Vec<Bone>,
+
+    // TODO: Create a matrix type?
+    #[br(parse_with = FilePtr32::parse)]
+    #[br(args { offset: base_offset, inner: args! { count: count1 as usize } })]
+    transforms: Vec<[[f32; 4]; 4]>,
+
+    unk_offset1: u32,
+    unk_offset2: u32,
+    count3: u32,
+    unk_offset3: u32,
+    unk_offset4: u32
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(import_raw(base_offset: u64))]
+pub struct Bone {
+    #[br(parse_with = parse_string_ptr32, args(base_offset))]
+    name: String,
+    unk1: f32,
+    unk_type: u32,
+    #[br(pad_after = 8)]
+    unk_index: u32,
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(stream = r)]
 pub struct Unk1 {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
@@ -304,7 +351,7 @@ pub struct Unk1Unk4 {
     unk4: u32,
 }
 
-// TODO: type for this shared with hpcs?
+// TODO: shared with hpcs?
 fn parse_string_ptr32<R: std::io::Read + std::io::Seek>(
     reader: &mut R,
     endian: binrw::Endian,
