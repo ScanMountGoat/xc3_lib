@@ -14,7 +14,8 @@ use xc3_lib::{
 };
 
 fn check_all_mxmd<P: AsRef<Path>>(root: P) {
-    // The map folder is a different format?
+    // TODO: The map folder .wimdo files are a different format?
+    // TODO: b"APMD" magic in "chr/oj/oj03010100.wimdo"?
     globwalk::GlobWalkerBuilder::from_patterns(root, &["*.wimdo", "!map/**"])
         .build()
         .unwrap()

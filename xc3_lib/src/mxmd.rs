@@ -208,8 +208,8 @@ pub struct Textures {
 
     unks: [u32; 15],
 
-    #[br(parse_with = FilePtr32::parse, offset = base_offset)]
-    pub items: TextureItems,
+    #[br(parse_with = parse_ptr32, args(base_offset))]
+    pub items: Option<TextureItems>,
 }
 
 #[binread]
