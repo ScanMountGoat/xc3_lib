@@ -8,7 +8,7 @@ pub fn extract_shader_binaries<P: AsRef<Path>>(
     spch: &Spch,
     file_data: &[u8],
     output_folder: P,
-    ryujinx_shader_tools: Option<String>, // TODO: make this generic?
+    ryujinx_shader_tools: Option<&str>,
     save_binaries: bool,
 ) {
     for (program, name) in spch
@@ -25,6 +25,10 @@ pub fn extract_shader_binaries<P: AsRef<Path>>(
 
             let frag_file = output_folder.as_ref().join(&format!("{name}_FS{i}.bin"));
             std::fs::write(&frag_file, fragment).unwrap();
+
+            let json_file = output_folder.as_ref().join(&format!("{name}.json"));
+            let json = serde_json::to_string_pretty(&program.slct.nvsds[i].inner).unwrap();
+            std::fs::write(json_file, json).unwrap();
 
             // Decompile using Ryujinx.ShaderTools.exe.
             // There isn't Rust code for this, so just take an exe path.

@@ -21,13 +21,14 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Extract and decompile shaders into a folder for each .wismt file.
+    /// JSON metadata for each program will also be saved in the output folder.
     DecompileShaders {
         /// The folder containing the .wismt files.
         input_folder: String,
         /// The output folder for the decompiled shaders.
         output_folder: String,
         /// The path to the Ryujinx.ShaderTools executable
-        shader_tools: String,
+        shader_tools: Option<String>,
     },
     /// Create a JSON file containing textures used for fragment output attributes.
     GBufferDatabase {
@@ -48,7 +49,11 @@ fn main() {
             input_folder,
             output_folder,
             shader_tools,
-        } => extract_and_decompile_wismt_shaders(&input_folder, &output_folder, &shader_tools),
+        } => extract_and_decompile_wismt_shaders(
+            &input_folder,
+            &output_folder,
+            shader_tools.as_ref().map(|s| s.as_str()),
+        ),
         Commands::GBufferDatabase {
             input_folder,
             output_file,
@@ -62,7 +67,7 @@ fn main() {
     println!("Finished in {:?}", start.elapsed());
 }
 
-fn extract_and_decompile_wismt_shaders(input: &str, output: &str, shader_tools: &str) {
+fn extract_and_decompile_wismt_shaders(input: &str, output: &str, shader_tools: Option<&str>) {
     globwalk::GlobWalkerBuilder::from_patterns(input, &["*.wismt"])
         .build()
         .unwrap()
@@ -89,7 +94,11 @@ fn decompiled_output_folder(output_folder: &str, path: &Path) -> std::path::Path
     Path::new(output_folder).join(name)
 }
 
-fn extract_and_decompile_shaders<P: AsRef<Path>>(msrd: Msrd, shader_tools: &str, output_folder: P) {
+fn extract_and_decompile_shaders<P: AsRef<Path>>(
+    msrd: Msrd,
+    shader_tools: Option<&str>,
+    output_folder: P,
+) {
     let decompressed_streams: Vec<_> = msrd
         .streams
         .iter()
@@ -105,13 +114,7 @@ fn extract_and_decompile_shaders<P: AsRef<Path>>(msrd: Msrd, shader_tools: &str,
 
             // TODO: Will shaders always have names like "shd0004"?
             // TODO: Include the program index in the name to avoid ambiguities?
-            extract_shader_binaries(
-                &spch,
-                data,
-                output_folder.as_ref(),
-                Some(shader_tools.to_string()),
-                false,
-            );
+            extract_shader_binaries(&spch, data, output_folder.as_ref(), shader_tools, false);
         }
     }
 }
