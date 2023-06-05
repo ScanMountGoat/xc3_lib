@@ -1,0 +1,14 @@
+Sampler Name, Monolib Shader File
+gTResidentTex01, kokuin_mska.witex
+gTResidentTex02, kokuin_mskb.witex
+gTResidentTex04, dirt_col.witex
+gTResidentTex05, dirt_mask.witex
+gTResidentTex06, dirtskin_col.witex
+gTResidentTex07, dirtskin_mask.witex
+gTResidentTex08, hat_a_ptmsk.witex
+gTResidentTex09, hatching_a_ptnrm.witex
+gTResidentTex11, a_armor_env.witex
+gTResidentTex43, eyepatch_ao.witex
+gTResidentTex44, eyepatch_col.witex
+gTResidentTex45, eyepatch_mask.witex
+gTResidentTex46, eyepatch_nrm.witex
