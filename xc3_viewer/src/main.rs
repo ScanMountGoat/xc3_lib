@@ -127,6 +127,10 @@ impl State {
         self.renderer.update_camera(&self.queue, &camera_data);
     }
 
+    fn update_debug_settings(&self, index: u32) {
+        self.renderer.update_debug_settings(&self.queue, index);
+    }
+
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
             // Update each resource that depends on window size.
@@ -171,6 +175,13 @@ impl State {
                         VirtualKeyCode::Right => self.translation.x -= 0.1,
                         VirtualKeyCode::Up => self.translation.y -= 0.1,
                         VirtualKeyCode::Down => self.translation.y += 0.1,
+                        // Debug a selected G-Buffer texture.
+                        VirtualKeyCode::Key1 => self.update_debug_settings(0),
+                        VirtualKeyCode::Key2 => self.update_debug_settings(1),
+                        VirtualKeyCode::Key3 => self.update_debug_settings(2),
+                        VirtualKeyCode::Key4 => self.update_debug_settings(3),
+                        VirtualKeyCode::Key5 => self.update_debug_settings(4),
+                        VirtualKeyCode::Key6 => self.update_debug_settings(5),
                         _ => (),
                     }
                 }

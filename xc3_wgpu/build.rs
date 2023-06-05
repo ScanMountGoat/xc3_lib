@@ -3,6 +3,11 @@ use std::fmt::Write;
 use wgsl_to_wgpu::{create_shader_module, MatrixVectorTypes, WriteOptions};
 
 fn main() {
+    write_shader(
+        "src/shader/deferred.wgsl",
+        "deferred.wgsl",
+        "src/shader/deferred.rs",
+    );
     write_shader("src/shader/model.wgsl", "model.wgsl", "src/shader/model.rs");
 }
 

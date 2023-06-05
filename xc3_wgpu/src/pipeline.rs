@@ -1,4 +1,4 @@
-use crate::{COLOR_FORMAT, DEPTH_FORMAT};
+use crate::{DEPTH_FORMAT, GBUFFER_COLOR_FORMAT};
 
 pub fn model_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
     let module = crate::shader::model::create_shader_module(device);
@@ -15,11 +15,16 @@ pub fn model_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
             module: &module,
             entry_point: crate::shader::model::ENTRY_FS_MAIN,
             // TODO: alpha blending?
-            targets: &[Some(wgpu::ColorTargetState {
-                format: COLOR_FORMAT,
-                blend: None,
-                write_mask: wgpu::ColorWrites::all(),
-            })],
+            // Create a target for each of the G-Buffer textures.
+            // TODO: check outputs in wgsl_to_wgpu?
+            targets: &vec![
+                Some(wgpu::ColorTargetState {
+                    format: GBUFFER_COLOR_FORMAT,
+                    blend: None,
+                    write_mask: wgpu::ColorWrites::all(),
+                });
+                7
+            ],
         }),
         primitive: wgpu::PrimitiveState {
             // TODO: Do all meshes using indexed triangle lists?

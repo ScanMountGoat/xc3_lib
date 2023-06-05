@@ -62,6 +62,16 @@ struct VertexOutput {
     @location(4) vertex_color: vec4<f32>,
 }
 
+struct FragmentOutput {
+    @location(0) g0: vec4<f32>,
+    @location(1) g1: vec4<f32>,
+    @location(2) g2: vec4<f32>,
+    @location(3) g3: vec4<f32>,
+    @location(4) g4: vec4<f32>,
+    @location(5) g5: vec4<f32>,
+    @location(6) g6: vec4<f32>,
+}
+
 // TODO: How to handle multiple inputs for each output channel?
 // Texture and channel input for each output channel.
 struct GBufferAssignment {
@@ -150,7 +160,7 @@ fn apply_normal_map(normal: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<f32>,
 }
 
 @fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+fn fs_main(in: VertexOutput) -> FragmentOutput {
     // TODO: Normalize vectors?
     let tangent = normalize(in.tangent.xyz);
     let vertex_normal = normalize(in.normal.xyz);
@@ -194,6 +204,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let g4 = assign_gbuffer_texture(gbuffer_assignments[4], s_colors, vec4(0.0));
     let g5 = assign_gbuffer_texture(gbuffer_assignments[5], s_colors, vec4(0.0));
 
+    // TODO: How much of this goes into deferred?
     // Assume each G-Buffer texture and channel always has the same usage.
     let albedo = pow(g0.xyz, vec3(2.2));
     let metalness = g1.x;
@@ -221,5 +232,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var color = diffuse + specular + emission;
 
     // TODO: alpha?
-    return vec4(color, 1.0);
+    // TODO: How much shading is done in this pass?
+    var out: FragmentOutput;
+    out.g0 = g0;
+    out.g1 = g1;
+    out.g2 = vec4(normal.xy * 0.5 + 0.5, g2.zw);
+    out.g3 = g3;
+    out.g4 = g4;
+    out.g5 = g5;
+    out.g6 = vec4(0.0);
+    return out;
 }

@@ -259,12 +259,12 @@ pub struct Skeleton {
 
     // TODO: Find a simpler way of writing this?
     #[br(parse_with = FilePtr32::parse)]
-    #[br(args { 
-        offset: base_offset, 
-        inner: args! { 
+    #[br(args {
+        offset: base_offset,
+        inner: args! {
             count: count1 as usize,
-            inner: base_offset 
-        } 
+            inner: base_offset
+        }
     })]
     bones: Vec<Bone>,
 
@@ -277,7 +277,7 @@ pub struct Skeleton {
     unk_offset2: u32,
     count3: u32,
     unk_offset3: u32,
-    unk_offset4: u32
+    unk_offset4: u32,
 }
 
 #[binread]
