@@ -136,7 +136,7 @@ macro_rules! file_read_write_impl {
     };
 }
 
-file_read_write_impl!(mibl::Mibl);
+file_read_write_impl!(mibl::Mibl, xbc1::Xbc1);
 
 macro_rules! file_read_impl {
     ($($type_name:path),*) => {
@@ -160,6 +160,5 @@ file_read_impl!(
     mxmd::Mxmd,
     sar1::Sar1,
     spch::Spch,
-    xbc1::Xbc1,
     model::ModelData
 );
