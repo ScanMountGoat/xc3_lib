@@ -18,14 +18,6 @@ pub struct Shader {
     pub output_dependencies: IndexMap<String, Vec<String>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Output {
-    pub x: Vec<String>,
-    pub y: Vec<String>,
-    pub z: Vec<String>,
-    pub w: Vec<String>,
-}
-
 impl Shader {
     fn from_glsl(name: String, source: &str) -> Self {
         // Only parse the source code once.
@@ -39,6 +31,11 @@ impl Shader {
             output_dependencies: (0..=5)
                 .flat_map(|i| {
                     "xyzw".chars().map(move |c| {
+                        // TODO: Handle cases like "out_attr1.w = 0.00823529344;"
+                        // TODO: Handle cases like "out_attr1.z = fp_c4_data[0].z;"
+                        // TODO: Handle cases with vertex color assignments.
+                        // TODO: Handle cases with multiple operations before assignment?
+                        // TODO: Tests for the above?
                         let name = format!("out_attr{i}.{c}");
                         // Make ordering consistent across channels if possible.
                         let mut dependencies = texture_dependencies(translation_unit, &name);

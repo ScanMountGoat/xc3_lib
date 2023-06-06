@@ -26,8 +26,15 @@ pub fn extract_shader_binaries<P: AsRef<Path>>(
             let frag_file = output_folder.as_ref().join(&format!("{name}_FS{i}.bin"));
             std::fs::write(&frag_file, fragment).unwrap();
 
+            // Each NVSD has separate metadata since the shaders are different.
+            let metadata = &program.slct.nvsds[i].inner;
+
+            for sampler in &metadata.samplers {
+                println!("{:?}", sampler.name);
+            }
+
             let json_file = output_folder.as_ref().join(&format!("{name}.json"));
-            let json = serde_json::to_string_pretty(&program.slct.nvsds[i].inner).unwrap();
+            let json = serde_json::to_string_pretty(&metadata).unwrap();
             std::fs::write(json_file, json).unwrap();
 
             // Decompile using Ryujinx.ShaderTools.exe.
@@ -48,9 +55,6 @@ pub fn extract_shader_binaries<P: AsRef<Path>>(
                     std::fs::read_to_string(vert_file.with_extension("glsl")).unwrap();
                 let mut frag_glsl =
                     std::fs::read_to_string(frag_file.with_extension("glsl")).unwrap();
-
-                // Each NVSD has separate metadata since the shaders are different.
-                let metadata = &program.slct.nvsds[i].inner;
 
                 vert_glsl = annotate_vertex(vert_glsl, metadata);
                 std::fs::write(vert_file.with_extension("glsl"), vert_glsl).unwrap();
