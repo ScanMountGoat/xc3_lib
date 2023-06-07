@@ -92,12 +92,14 @@ pub struct Material {
     #[br(parse_with = parse_offset_count, args_raw(base_offset))]
     pub textures: Vec<Texture>,
 
-    pub unk_flag1: [u8; 4],
-    // stencil stuff,
-    // 1 = enable stencil test?
-    // changes pass and shader, 0=no depth?, normal=1, ope=3?
-    // ???
-    pub unk_flag2: [u8; 4],
+    flag0: u8,
+    flag1: u8,
+    cull_mode: CullMode,
+    flag3: u8,
+    flag4: u8,
+    stencil_test: StencilTest,
+    depth_func: DepthFunc,
+    flag7: u8,
 
     m_unks1: [u32; 6],
 
@@ -108,6 +110,36 @@ pub struct Material {
     pub shader_programs: Vec<ShaderProgram>,
 
     m_unks2: [u16; 16],
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(repr(u8))]
+pub enum StencilTest {
+    Disabled = 0,
+    Enabled = 1,
+    Unk6 = 6,
+    Unk7 = 7,
+    Unk8 = 8,
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(repr(u8))]
+pub enum DepthFunc {
+    Disabled = 0,
+    LessEqual = 1,
+    Equal = 3,
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(repr(u8))]
+pub enum CullMode {
+    Back = 0,
+    Front = 1,
+    None = 2,
+    Unk3 = 3, // front + ???
 }
 
 #[binread]
