@@ -42,6 +42,7 @@ pub struct Materials {
     unk1: u32,
     unk2: u32,
 
+    // TODO: Materials have offsets into these arrays for parameter values?
     #[br(parse_with = parse_offset_count, args_raw(base_offset))]
     floats: Vec<f32>,
 
@@ -49,14 +50,24 @@ pub struct Materials {
     ints: Vec<u32>,
 
     // TODO: what type is this?
-    unk3: u32,
+    unk_offset1: u32, // offset?
     unk4: u32,
 
     // TODO: How large is each element?
     #[br(parse_with = parse_offset_count, args_raw(base_offset))]
     unks: Vec<[u16; 8]>,
 
-    unk: [u32; 16],
+    unks1: [u32; 2],
+
+    // array of (u32, u32)?
+    unk_count: u32,
+    unk_offset2: u32,
+
+    unks2: [u32; 7],
+
+    unk_offset3: u32,
+
+    unks3: [u32; 4],
 }
 
 #[binread]
@@ -71,15 +82,21 @@ pub struct Material {
     unk3: u16,
     unk4: u16,
 
-    unks1: [f32; 5],
+    /// Color multiplier value assigned to the `gMatCol` shader uniform.
+    pub color: [f32; 4],
+
+    unk_float: f32,
 
     // TODO: materials with zero textures?
     /// Defines the shader's sampler bindings in order for s0, s1, s2, ...
     #[br(parse_with = parse_offset_count, args_raw(base_offset))]
     pub textures: Vec<Texture>,
 
-    // TODO: are these sampler parameters?
     pub unk_flag1: [u8; 4],
+    // stencil stuff,
+    // 1 = enable stencil test?
+    // changes pass and shader, 0=no depth?, normal=1, ope=3?
+    // ???
     pub unk_flag2: [u8; 4],
 
     m_unks1: [u32; 6],
@@ -90,7 +107,7 @@ pub struct Material {
     #[br(parse_with = parse_offset_count, args_raw(base_offset))]
     pub shader_programs: Vec<ShaderProgram>,
 
-    m_unks2: [u32; 8],
+    m_unks2: [u16; 16],
 }
 
 #[binread]
@@ -121,7 +138,7 @@ pub enum ShaderUnkType {
 #[derive(Debug, Serialize)]
 pub struct Texture {
     pub texture_index: u16,
-    pub unk1: u16,
+    pub unk1: u16, // sampler index?
     pub unk2: u16,
     pub unk3: u16,
 }
@@ -143,10 +160,15 @@ pub struct Mesh {
 
     unk2: u32,
 
-    #[br(parse_with = FilePtr32::parse, offset = base_offset)]
-    skeleton: Skeleton,
+    #[br(parse_with = parse_ptr32, args_raw(base_offset))]
+    skeleton: Option<Skeleton>,
 
-    unks3: [u32; 24],
+    unks3: [u32; 22],
+
+    #[br(parse_with = parse_ptr32, args_raw(base_offset))]
+    pub unk_offset1: Option<MeshUnk1>,
+
+    unk_offset2: u32,
 
     #[br(parse_with = parse_ptr32, args_raw(base_offset))]
     lod_data: Option<LodData>,
@@ -189,6 +211,29 @@ pub struct SubDataItem {
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(stream = r)]
+pub struct MeshUnk1 {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = FilePtr32::parse)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    pub inner: MeshUnk1Inner,
+    unk1: [u32; 14],
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(import_raw(base_offset: u64))]
+pub struct MeshUnk1Inner {
+    #[br(parse_with = parse_string_ptr32, args(base_offset))]
+    pub unk1: String,
+
+    unk2: [f32; 9],
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(stream = r)]
 pub struct LodData {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
@@ -210,7 +255,14 @@ pub struct Textures {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    unks: [u32; 15],
+    unks: [u32; 5],
+
+    unk_offset: u32, // 292 bytes?
+
+    unks2: [u32; 8],
+
+    #[br(parse_with = FilePtr32::parse, offset = base_offset)]
+    unk2: [u32; 7],
 
     #[br(parse_with = parse_ptr32, args_raw(base_offset))]
     pub items: Option<TextureItems>,
