@@ -3,8 +3,11 @@ use indexmap::IndexMap;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::dependencies::texture_dependencies;
+use crate::dependencies::input_dependencies;
 
+// TODO: How much extra space does this take up?
+// TODO: Is it worth having a human readable version if it's only accessed through libraries?
+// TODO: Binary representation?
 // TODO: Store a struct for the top level?
 #[derive(Debug, Serialize, Deserialize)]
 pub struct File {
@@ -15,12 +18,17 @@ pub struct File {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Shader {
     pub name: String,
+    // TODO: Should dependencies be more strongly typed?
+    // It seems redundant to do string -> struct -> string on save.
+    // Applications will always want to parse this anyway.
+    // TODO: Add strings as an optional export option?
     pub output_dependencies: IndexMap<String, Vec<String>>,
 }
 
 impl Shader {
     fn from_glsl(name: String, source: &str) -> Self {
         // Only parse the source code once.
+        // TODO: Will naga's glsl frontend be faster or easier to use?
         let translation_unit = &ShaderStage::parse(source).unwrap();
 
         // Get the textures used to initialize each fragment output channel.
@@ -38,7 +46,10 @@ impl Shader {
                         // TODO: Tests for the above?
                         let name = format!("out_attr{i}.{c}");
                         // Make ordering consistent across channels if possible.
-                        let mut dependencies = texture_dependencies(translation_unit, &name);
+                        let mut dependencies: Vec<_> = input_dependencies(translation_unit, &name)
+                            .into_iter()
+                            .map(|d| d.to_string())
+                            .collect();
                         dependencies.sort();
 
                         (name, dependencies)

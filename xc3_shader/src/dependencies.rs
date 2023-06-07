@@ -57,47 +57,138 @@ enum LastAssignment {
     Global(String),
 }
 
-pub fn texture_dependencies(translation_unit: &TranslationUnit, var: &str) -> Vec<String> {
-    source_dependencies(translation_unit, var)
-        .map(|(dependencies, assignments)| {
+struct LineDependencies {
+    dependent_lines: BTreeSet<usize>,
+    assignments: Vec<AssignmentDependency>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum SourceInput {
+    Constant(f32),
+    Buffer {
+        name: String,
+        index: usize,
+        channels: String,
+    },
+    Texture {
+        name: String,
+        channels: String,
+    },
+}
+
+// TODO: Is it worth converting to string just to parse again in an application?
+impl std::fmt::Display for SourceInput {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SourceInput::Constant(c) => write!(f, "{c}"),
+            SourceInput::Buffer {
+                name,
+                index,
+                channels,
+            } => write!(f, "{name}[{index}].{channels}"),
+            SourceInput::Texture { name, channels } => write!(f, "{name}.{channels}"),
+        }
+    }
+}
+
+pub fn input_dependencies(translation_unit: &TranslationUnit, var: &str) -> Vec<SourceInput> {
+    line_dependencies(translation_unit, var)
+        .map(|line_dependencies| {
             // TODO: Rework this later to make fewer assumptions about the code structure.
             // TODO: Rework this to be cleaner and add more tests.
-            dependencies
-                .iter()
-                .filter_map(|d| {
-                    let assignment = &assignments[*d];
-                    texture_identifier_name(&assignment.input_expr).map(|tex| {
-                        // Get the initial channels used for the texture function call.
-                        // This defines the possible channels if we assume one access per texture.
-                        let mut channels = assignment.input_last_assignments[0]
-                            .1
-                            .as_ref()
-                            .unwrap()
-                            .clone();
-                        // If only a single channel is accessed initially, there's nothing more to do.
-                        if channels.len() > 1 {
-                            channels = actual_channels(*d, &dependencies, &assignments, &channels);
-                        }
+            let mut dependencies = texture_dependencies(&line_dependencies);
 
-                        tex + "." + &channels
-                    })
-                })
-                .collect()
+            // Check if anything is directly assigned to the output variable.
+            // The dependent lines are sorted, so the last element is the final assignment.
+            // There should be at least one assignment if the value above is some.
+            let d = line_dependencies.dependent_lines.last().unwrap();
+            let final_assignment = &line_dependencies.assignments[*d].input_expr;
+            add_final_assignment_dependencies(final_assignment, &mut dependencies);
+
+            dependencies
         })
         .unwrap_or_default()
+}
+
+fn add_final_assignment_dependencies(final_assignment: &Expr, dependencies: &mut Vec<SourceInput>) {
+    match final_assignment {
+        Expr::Variable(_) => (),
+        Expr::IntConst(_) => (),
+        Expr::UIntConst(_) => (),
+        Expr::BoolConst(_) => (),
+        Expr::FloatConst(f) => dependencies.push(SourceInput::Constant(*f)),
+        Expr::DoubleConst(_) => (),
+        Expr::Unary(_, _) => (),
+        Expr::Binary(_, _, _) => (),
+        Expr::Ternary(_, _, _) => (),
+        Expr::Assignment(_, _, _) => (),
+        Expr::Bracket(_, _) => (),
+        Expr::FunCall(_, _) => (),
+        Expr::Dot(e, channel) => {
+            // TODO: Is there a cleaner way of writing this?
+            if let Expr::Bracket(var, specifier) = e.as_ref() {
+                if let Expr::Variable(id) = var.as_ref() {
+                    if let ArraySpecifierDimension::ExplicitlySized(specifier) =
+                        &specifier.dimensions.0[0]
+                    {
+                        if let Expr::IntConst(index) = **specifier {
+                            dependencies.push(SourceInput::Buffer {
+                                name: id.0.clone(),
+                                index: index as usize,
+                                channels: channel.0.clone(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        Expr::PostInc(_) => (),
+        Expr::PostDec(_) => (),
+        Expr::Comma(_, _) => (),
+    }
+}
+
+fn texture_dependencies(dependencies: &LineDependencies) -> Vec<SourceInput> {
+    dependencies
+        .dependent_lines
+        .iter()
+        .filter_map(|d| {
+            let assignment = &dependencies.assignments[*d];
+            texture_identifier_name(&assignment.input_expr).map(|name| {
+                // Get the initial channels used for the texture function call.
+                // This defines the possible channels if we assume one access per texture.
+                let mut channels = assignment.input_last_assignments[0]
+                    .1
+                    .as_ref()
+                    .unwrap()
+                    .clone();
+                // If only a single channel is accessed initially, there's nothing more to do.
+                if channels.len() > 1 {
+                    channels = actual_channels(
+                        *d,
+                        &dependencies.dependent_lines,
+                        &dependencies.assignments,
+                        &channels,
+                    );
+                }
+
+                SourceInput::Texture { name, channels }
+            })
+        })
+        .collect()
 }
 
 fn actual_channels(
     i: usize,
     dependencies: &BTreeSet<usize>,
     assignments: &[AssignmentDependency],
-    channels: &str,
+    first_channels: &str,
 ) -> String {
-    // Track which channels are accessed later.
+    // Track which of the first accessed channels are accessed later.
     let mut has_channel = [false; 4];
 
     // We're given a line like "a = texture(tex, vec2(0.0)).zw;".
-    // Find the next line using the value "a".
+    // Find the next lines using the value "a".
     // This allows us to avoid tracking channels through the entire code graph.
     // TODO: Is it worth properly collecting and reducing all channel operations?
     // TODO: Is there a faster or simpler way to do this?
@@ -125,7 +216,7 @@ fn actual_channels(
 
     // The second set of channels selects from the first set of channels.
     // For example, a.yz.x is accessing the first channel from yz.
-    channels
+    first_channels
         .chars()
         .zip(has_channel)
         .filter_map(|(c, is_present)| is_present.then_some(c))
@@ -241,10 +332,7 @@ impl Visitor for AssignmentVisitor {
     }
 }
 
-fn source_dependencies(
-    translation_unit: &TranslationUnit,
-    var: &str,
-) -> Option<(BTreeSet<usize>, Vec<AssignmentDependency>)> {
+fn line_dependencies(translation_unit: &TranslationUnit, var: &str) -> Option<LineDependencies> {
     // Visit each assignment to establish data dependencies.
     // This converts the code to a directed acyclic graph (DAG).
     let mut visitor = AssignmentVisitor::default();
@@ -259,13 +347,16 @@ fn source_dependencies(
     {
         // Store the indices separate from the actual elements.
         // This avoids redundant clones from the visitor's dependencies.
-        let mut dependencies = BTreeSet::new();
-        dependencies.insert(assignment_index);
+        let mut dependent_lines = BTreeSet::new();
+        dependent_lines.insert(assignment_index);
 
         // Follow data dependencies backwards to find all relevant lines.
-        add_dependencies(&mut dependencies, assignment, &visitor.assignments);
+        add_dependencies(&mut dependent_lines, assignment, &visitor.assignments);
 
-        Some((dependencies, visitor.assignments))
+        Some(LineDependencies {
+            dependent_lines,
+            assignments: visitor.assignments,
+        })
     } else {
         // Variables not part of the code should have no dependencies.
         None
@@ -301,17 +392,18 @@ mod tests {
     use glsl::{parser::Parse, syntax::ShaderStage};
     use indoc::indoc;
 
-    fn source_dependencies_glsl(source: &str, var: &str) -> String {
+    fn line_dependencies_glsl(source: &str, var: &str) -> String {
         let translation_unit = ShaderStage::parse(source).unwrap();
-        source_dependencies(&translation_unit, var)
-            .map(|(dependencies, assignments)| {
+        line_dependencies(&translation_unit, var)
+            .map(|dependencies| {
                 // Combine all the lines into source code again.
                 // These won't exactly match the originals due to formatting differences.
                 // TODO: Just store the statement in string form?
                 dependencies
+                    .dependent_lines
                     .into_iter()
                     .map(|d| {
-                        let a = &assignments[d];
+                        let a = &dependencies.assignments[d];
                         format!("{} = {};", a.output, print_expr(&a.input_expr))
                     })
                     .collect::<Vec<_>>()
@@ -322,7 +414,7 @@ mod tests {
     }
 
     #[test]
-    fn source_dependencies_final_assignment() {
+    fn line_dependencies_final_assignment() {
         let glsl = indoc! {"
             layout (binding = 9, std140) uniform fp_c9
             {
@@ -349,12 +441,12 @@ mod tests {
                 d = d+1.;
                 OUT_Color.x = c+d;
             "},
-            source_dependencies_glsl(glsl, "OUT_Color.x")
+            line_dependencies_glsl(glsl, "OUT_Color.x")
         );
     }
 
     #[test]
-    fn source_dependencies_intermediate_assignment() {
+    fn line_dependencies_intermediate_assignment() {
         let glsl = indoc! {"
             void main() 
             {
@@ -372,12 +464,12 @@ mod tests {
                 b = 2.;
                 c = 2*b;
             "},
-            source_dependencies_glsl(glsl, "c")
+            line_dependencies_glsl(glsl, "c")
         );
     }
 
     #[test]
-    fn source_dependencies_type_casts() {
+    fn line_dependencies_type_casts() {
         let glsl = indoc! {"
             void main() 
             {
@@ -394,12 +486,12 @@ mod tests {
                 b = uint(a)>>2;
                 c = data[int(b)];
             "},
-            source_dependencies_glsl(glsl, "c")
+            line_dependencies_glsl(glsl, "c")
         );
     }
 
     #[test]
-    fn source_dependencies_missing() {
+    fn line_dependencies_missing() {
         let glsl = indoc! {"
             void main() 
             {
@@ -407,11 +499,11 @@ mod tests {
             }
         "};
 
-        assert_eq!("", source_dependencies_glsl(glsl, "d"));
+        assert_eq!("", line_dependencies_glsl(glsl, "d"));
     }
 
     #[test]
-    fn source_dependencies_textures() {
+    fn line_dependencies_textures() {
         let glsl = indoc! {"
             void main() 
             {
@@ -427,12 +519,12 @@ mod tests {
                 b = texture(texture1, vec2(a+2., 1.)).x;
                 c = data[int(b)];
             "},
-            source_dependencies_glsl(glsl, "c")
+            line_dependencies_glsl(glsl, "c")
         );
     }
 
     #[test]
-    fn texture_dependencies_single_channel() {
+    fn input_dependencies_single_channel() {
         let glsl = indoc! {"
             void main() 
             {
@@ -444,13 +536,16 @@ mod tests {
 
         let tu = TranslationUnit::parse(glsl).unwrap();
         assert_eq!(
-            vec!["texture1.w".to_string()],
-            texture_dependencies(&tu, "b")
+            vec![SourceInput::Texture {
+                name: "texture1".to_string(),
+                channels: "w".to_string()
+            }],
+            input_dependencies(&tu, "b")
         );
     }
 
     #[test]
-    fn texture_dependencies_single_channel_scalar() {
+    fn input_dependencies_single_channel_scalar() {
         let glsl = indoc! {"
             void main() 
             {
@@ -462,13 +557,16 @@ mod tests {
 
         let tu = TranslationUnit::parse(glsl).unwrap();
         assert_eq!(
-            vec!["texture1.z".to_string()],
-            texture_dependencies(&tu, "b")
+            vec![SourceInput::Texture {
+                name: "texture1".to_string(),
+                channels: "z".to_string()
+            }],
+            input_dependencies(&tu, "b")
         );
     }
 
     #[test]
-    fn texture_dependencies_multiple_channels() {
+    fn input_dependencies_multiple_channels() {
         let glsl = indoc! {"
             void main() 
             {
@@ -479,8 +577,56 @@ mod tests {
 
         let tu = TranslationUnit::parse(glsl).unwrap();
         assert_eq!(
-            vec!["texture1.zw".to_string()],
-            texture_dependencies(&tu, "b")
+            vec![SourceInput::Texture {
+                name: "texture1".to_string(),
+                channels: "zw".to_string()
+            }],
+            input_dependencies(&tu, "b")
+        );
+    }
+
+    #[test]
+    fn input_dependencies_buffers_constants_textures() {
+        // Only handle parameters and constants assigned directly to outputs for now.
+        // This also assumes buffers, constants, and textures are mutually exclusive.
+        let glsl = indoc! {"
+            void main() 
+            {
+                float a = texture(texture1, vec2(1.0)).x;
+                out_attr1.x = a;
+                out_attr1.y = fp_c4_data[1].w;
+                out_attr1.z = fp_c4_data[1].y;
+                out_attr1.w = 1.5;
+            }
+        "};
+
+        let tu = TranslationUnit::parse(glsl).unwrap();
+        assert_eq!(
+            vec![SourceInput::Texture {
+                name: "texture1".to_string(),
+                channels: "x".to_string()
+            }],
+            input_dependencies(&tu, "out_attr1.x")
+        );
+        assert_eq!(
+            vec![SourceInput::Buffer {
+                name: "fp_c4_data".to_string(),
+                index: 1,
+                channels: "w".to_string()
+            }],
+            input_dependencies(&tu, "out_attr1.y")
+        );
+        assert_eq!(
+            vec![SourceInput::Buffer {
+                name: "fp_c4_data".to_string(),
+                index: 1,
+                channels: "y".to_string()
+            }],
+            input_dependencies(&tu, "out_attr1.z")
+        );
+        assert_eq!(
+            vec![SourceInput::Constant(1.5)],
+            input_dependencies(&tu, "out_attr1.w")
         );
     }
 }
