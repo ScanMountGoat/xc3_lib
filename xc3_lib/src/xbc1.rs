@@ -1,7 +1,10 @@
 use std::io::Read;
 
 use binrw::{binrw, NullString};
-use flate2::{bufread::{ZlibDecoder, ZlibEncoder}, Compression};
+use flate2::{
+    bufread::{ZlibDecoder, ZlibEncoder},
+    Compression,
+};
 use serde::Serialize;
 
 // TODO: binwrite as well?

@@ -81,7 +81,7 @@ pub fn load_model(
     msrd: &Msrd,
     mxmd: &Mxmd,
     model_path: &str,
-    shader_database: &[xc3_shader::gbuffer_database::File],
+    shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
 ) -> Model {
     // TODO: add this to xc3_lib?
     // TODO: Only decompress the stream that's needed?

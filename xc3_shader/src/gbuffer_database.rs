@@ -5,28 +5,36 @@ use serde::{Deserialize, Serialize};
 
 use crate::dependencies::input_dependencies;
 
-// TODO: How much extra space does this take up?
+// TODO: How much extra space does JSON take up?
 // TODO: Is it worth having a human readable version if it's only accessed through libraries?
 // TODO: Binary representation?
-// TODO: Store a struct for the top level?
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GBufferDatabase {
+    /// The `.wismt` file name without the extension and shader data for each file.
+    pub files: IndexMap<String, File>,
+}
+
+/// The decompiled shader data for a single `.wismt` model file.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct File {
-    pub file: String,
-    pub shaders: Vec<Shader>,
+    pub shaders: IndexMap<String, Shader>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Shader {
-    pub name: String,
     // TODO: Should dependencies be more strongly typed?
     // It seems redundant to do string -> struct -> string on save.
     // Applications will always want to parse this anyway.
     // TODO: Add strings as an optional export option?
+    /// The buffer elements, textures, and constants used to initialize each fragment output.
+    ///
+    /// This assumes inputs are assigned directly to outputs without any modifications.
+    /// Fragment shaders typically only perform basic input and channel selection in practice.
     pub output_dependencies: IndexMap<String, Vec<String>>,
 }
 
 impl Shader {
-    fn from_glsl(name: String, source: &str) -> Self {
+    fn from_glsl(source: &str) -> Self {
         // Only parse the source code once.
         // TODO: Will naga's glsl frontend be faster or easier to use?
         let translation_unit = &ShaderStage::parse(source).unwrap();
@@ -34,7 +42,6 @@ impl Shader {
         // Get the textures used to initialize each fragment output channel.
         // Unused outputs will have an empty dependency list.
         Self {
-            name,
             // IndexMap gives consistent ordering for attribute names.
             output_dependencies: (0..=5)
                 .flat_map(|i| {
@@ -61,35 +68,33 @@ impl Shader {
 }
 
 /// Find the texture dependencies for each fragment output channel.
-pub fn create_shader_database(input: &str) -> Vec<File> {
-    let mut files: Vec<_> = std::fs::read_dir(input)
+pub fn create_shader_database(input: &str) -> GBufferDatabase {
+    // TODO: BTreeMap to sort?
+    let files = std::fs::read_dir(input)
         .unwrap()
         .par_bridge()
         .map(|entry| {
             let path = entry.unwrap().path();
 
             // Process all fragment shaders.
-            let mut shaders: Vec<_> =
-                globwalk::GlobWalkerBuilder::from_patterns(&path, &["*FS*.glsl"])
-                    .build()
-                    .unwrap()
-                    .par_bridge()
-                    .map(|entry| {
-                        let path = entry.as_ref().unwrap().path();
-                        let name = path.file_name().unwrap().to_string_lossy().to_string();
-                        let source = std::fs::read_to_string(path).unwrap();
-                        Shader::from_glsl(name, &source)
-                    })
-                    .collect();
-            shaders.sort_by(|a, b| a.name.partial_cmp(&b.name).unwrap());
+            let shaders = globwalk::GlobWalkerBuilder::from_patterns(&path, &["*FS*.glsl"])
+                .build()
+                .unwrap()
+                .par_bridge()
+                .map(|entry| {
+                    // TODO: Add FS0 and FS1 to the same parent entry?
+                    // TODO: Add shaders in order by index for easier access using mxmd data?
+                    let path = entry.as_ref().unwrap().path();
+                    let name = path.file_name().unwrap().to_string_lossy().to_string();
+                    let source = std::fs::read_to_string(path).unwrap();
+                    (name, Shader::from_glsl(&source))
+                })
+                .collect();
 
-            File {
-                file: path.file_name().unwrap().to_string_lossy().to_string(),
-                shaders,
-            }
+            let file = path.file_name().unwrap().to_string_lossy().to_string();
+            (file, File { shaders })
         })
         .collect();
-    files.sort_by(|a, b| a.file.partial_cmp(&b.file).unwrap());
 
-    files
+    GBufferDatabase { files }
 }

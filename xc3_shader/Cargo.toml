@@ -11,7 +11,7 @@ clap = { version = "4.2.7", features = ["derive"] }
 glsl = "6.0.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-indexmap = { version = "1.9.3", features = ["serde"] }
+indexmap = { version = "1.9.3", features = ["serde", "rayon"] }
 
 [dev-dependencies]
 indoc = "2"

@@ -21,7 +21,7 @@ pub fn materials(
     mxmd: &Mxmd,
     cached_textures: &[(String, Mibl)],
     model_path: &str,
-    shader_database: &[xc3_shader::gbuffer_database::File],
+    shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
 ) -> Vec<Material> {
     // TODO: Is there a better way to handle missing textures?
     // TODO: Is it worth creating a separate shaders for each material?
@@ -39,7 +39,7 @@ pub fn materials(
         ..Default::default()
     });
 
-    let name = Path::new(model_path)
+    let model_folder = Path::new(model_path)
         .with_extension("")
         .file_name()
         .unwrap()
@@ -47,11 +47,7 @@ pub fn materials(
         .to_string();
 
     // TODO: Make this a map instead of a vec?
-    let shaders = &shader_database
-        .iter()
-        .find(|f| f.file == name)
-        .unwrap()
-        .shaders;
+    let shaders = &shader_database.files[&model_folder].shaders;
 
     // "chr/en/file.wismt" -> "chr/tex/nx/m"
     // TODO: Don't assume model_path is in the chr/ch or chr/en folders.
@@ -98,11 +94,12 @@ pub fn materials(
             // TODO: Is it better to store these in a hashmap instead of a vec?
             // TODO: Do all shaders have the naming convention "shd{program index}"?
             // TODO: Store a list of shaders for each index/name?
-            let shader_name = format!("shd{:0>4}", material.shader_programs[0].program_index);
-            let shader = shaders
-                .iter()
-                .find(|s| s.name.starts_with(&shader_name))
-                .unwrap();
+            // TODO: How to choose between the two fragment shaders?
+            let shader_name = format!(
+                "shd{:0>4}_FS0.glsl",
+                material.shader_programs[0].program_index
+            );
+            let shader = &shaders[&shader_name];
             let assignments = gbuffer_assignments(shader);
 
             let gbuffer_assignments =
@@ -201,7 +198,7 @@ fn material_sampler_index(sampler: &str) -> Option<i32> {
 }
 
 // TODO: Does this need to be public?
-pub fn load_database<P: AsRef<Path>>(path: P) -> Vec<xc3_shader::gbuffer_database::File> {
+pub fn load_database<P: AsRef<Path>>(path: P) -> xc3_shader::gbuffer_database::GBufferDatabase {
     let json = std::fs::read_to_string(path).unwrap();
     serde_json::from_str(&json).unwrap()
 }
