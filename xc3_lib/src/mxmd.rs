@@ -92,17 +92,9 @@ pub struct Material {
     #[br(parse_with = parse_offset_count, args_raw(base_offset))]
     pub textures: Vec<Texture>,
 
-    flag0: u8,
-    flag1: u8,
-    cull_mode: CullMode,
-    flag3: u8,
-    flag4: u8,
-    stencil_test: StencilTest,
-    depth_func: DepthFunc,
-    flag7: u8,
+    pub flags: MaterialFlags,
 
     m_unks1: [u32; 6],
-
     m_unk5: u32,
 
     // always count 1?
@@ -110,6 +102,37 @@ pub struct Material {
     pub shader_programs: Vec<ShaderProgram>,
 
     m_unks2: [u16; 16],
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+pub struct MaterialFlags {
+    flag0: u8,
+    blend_state: BlendState,
+    cull_mode: CullMode,
+    flag3: u8,
+    flag4: u8,
+    stencil_test: StencilTest,
+    depth_func: DepthFunc,
+    flag7: u8,
+}
+
+// TODO: Convert these to equations for RGB and alpha for docs.
+// flag, col src, col dst, col op, alpha src, alpha dst, alpha op
+// 0 = disabled
+// 1, Src Alpha, 1 - Src Alpha, Add, Src Alpha, 1 - Src Alpha, Add
+// 2, Src Alpha, One, Add, Src Alpha, One, Add
+// 3, Zero, Src Col, Add, Zero, Src Col, Add
+// 6, disabled + ???
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(repr(u8))]
+pub enum BlendState {
+    Disabled = 0,
+    AlphaBlend1 = 1,
+    AlphaBlendPremultiplied2 = 2,
+    Multiplicative = 3,
+    Unk6 = 6, // also disabled?
 }
 
 #[binread]
@@ -138,7 +161,7 @@ pub enum DepthFunc {
 pub enum CullMode {
     Back = 0,
     Front = 1,
-    None = 2,
+    Disabled = 2,
     Unk3 = 3, // front + ???
 }
 
