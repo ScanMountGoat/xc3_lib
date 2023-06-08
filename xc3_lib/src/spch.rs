@@ -252,6 +252,7 @@ pub struct Nvsd {
     unks4: [u16; 8],
 }
 
+// TODO: Annotate uniforms and uniform buffers?
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(import { base_offset: u64 })]
@@ -275,13 +276,18 @@ pub struct Sampler {
     pub unk2: u32, // handle = (unk2 - 256) * 2 + 8?
 }
 
+/// A `vec4` parameter in a [UniformBuffer].
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(import { base_offset: u64 })]
 pub struct Uniform {
+    /// The name used to refer to the uniform like `gMatCol`.
     #[br(parse_with = parse_string_ptr32, args(base_offset))]
     pub name: String,
-    pub unk1: u32,
+
+    /// The offset into the parent buffer in bytes.
+    /// Usually a multiple of 16 since buffers are declared as `vec4 data[0x1000];`.
+    pub buffer_offset: u32,
 }
 
 #[binread]

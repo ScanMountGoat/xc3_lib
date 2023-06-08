@@ -31,7 +31,7 @@ pub struct Xbc1 {
 }
 
 impl Xbc1 {
-    pub fn from_decompressed(decompressed: &[u8]) -> Self {
+    pub fn from_decompressed(name: String, decompressed: &[u8]) -> Self {
         let mut encoder = ZlibEncoder::new(&decompressed[..], Compression::best());
         let mut deflate_stream = Vec::new();
         encoder.read_to_end(&mut deflate_stream).unwrap();
@@ -43,7 +43,7 @@ impl Xbc1 {
             // TODO: get from name and hash of name?
             // TODO: Is the "hash" important?
             unk2: 0xEFE353FC,
-            text: "b2062367_middle.witx".to_string(),
+            text: name,
             deflate_stream,
         }
     }
