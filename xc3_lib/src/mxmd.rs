@@ -111,8 +111,8 @@ pub struct MaterialFlags {
     blend_state: BlendState,
     cull_mode: CullMode,
     flag3: u8,
-    flag4: u8,
-    stencil_test: StencilTest,
+    stencil_state1: StencilState1,
+    stencil_state2: StencilState2,
     depth_func: DepthFunc,
     flag7: u8,
 }
@@ -129,16 +129,33 @@ pub struct MaterialFlags {
 #[br(repr(u8))]
 pub enum BlendState {
     Disabled = 0,
-    AlphaBlend1 = 1,
-    AlphaBlendPremultiplied2 = 2,
+    AlphaBlend = 1,
+    Additive = 2,
     Multiplicative = 3,
     Unk6 = 6, // also disabled?
 }
 
+// TODO: Get the actual stencil state from RenderDoc.
+// 0 = disables hair blur stencil stuff?
+// 4 = disables hair but different ref value?
+// 16 = enables hair blur stencil stuff?
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(repr(u8))]
-pub enum StencilTest {
+pub enum StencilState1 {
+    Always = 0,
+    Unk1 = 1,
+    Always2 = 4,
+    Unk8 = 8,
+    UnkHair = 16,
+    Unk20 = 20
+}
+
+// TODO: Does this flag actually disable stencil?
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(repr(u8))]
+pub enum StencilState2 {
     Disabled = 0,
     Enabled = 1,
     Unk6 = 6,
