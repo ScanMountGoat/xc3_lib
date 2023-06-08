@@ -2,14 +2,26 @@ use std::{io::Cursor, path::Path};
 
 use glam::{ivec4, uvec4};
 use wgpu::util::DeviceExt;
-use xc3_lib::{mibl::Mibl, mxmd::Mxmd, xbc1::Xbc1};
+use xc3_lib::{
+    mibl::Mibl,
+    mxmd::{Mxmd, ShaderUnkType},
+    xbc1::Xbc1,
+};
 
-use crate::texture::{create_default_black_texture, create_texture, create_texture_with_base_mip};
+use crate::{
+    pipeline::{model_pipeline, model_transparent_pipeline},
+    texture::{create_default_black_texture, create_texture, create_texture_with_base_mip},
+};
 
+// TODO: Don't make this public outside the crate?
+// TODO: Store material parameter values.
 pub struct Material {
     pub name: String,
     pub bind_group1: crate::shader::model::bind_groups::BindGroup1,
     pub bind_group2: crate::shader::model::bind_groups::BindGroup2,
+
+    // The material flags require a separate pipeline per material.
+    pub pipeline: wgpu::RenderPipeline,
 
     pub texture_count: usize,
     pub unk_type: xc3_lib::mxmd::ShaderUnkType,
@@ -116,10 +128,21 @@ pub fn materials(
                 },
             );
 
+            // TODO: How to make sure the pipeline outputs match the render pass?
+            // Each material only goes in exactly one pass?
+            // TODO: Is it redundant to also store the unk type?
+            // TODO: Cache the compiled shaders for faster loading times.
+            let pipeline = if material.shader_programs[0].unk_type == ShaderUnkType::Unk0 {
+                model_pipeline(device)
+            } else {
+                model_transparent_pipeline(device, &material.flags)
+            };
+
             Material {
                 name: material.name.clone(),
                 bind_group1,
                 bind_group2,
+                pipeline,
                 texture_count: material.textures.len(),
                 unk_type: material.shader_programs[0].unk_type,
             }
@@ -137,6 +160,7 @@ fn gbuffer_assignments(
         .map(|i| {
             // Each output channel may have a different input sampler and channel.
             // TODO: How to properly handle missing assignment information?
+            // TODO: How to encode constants and buffer values?
             let (s0, c0) = channel_assignment(shader, i, 'x').unwrap_or((-1, 0));
             let (s1, c1) = channel_assignment(shader, i, 'y').unwrap_or((-1, 0));
             let (s2, c2) = channel_assignment(shader, i, 'z').unwrap_or((-1, 0));

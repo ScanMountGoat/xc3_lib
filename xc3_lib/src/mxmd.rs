@@ -107,17 +107,18 @@ pub struct Material {
 #[binread]
 #[derive(Debug, Serialize)]
 pub struct MaterialFlags {
-    flag0: u8,
-    blend_state: BlendState,
-    cull_mode: CullMode,
-    flag3: u8,
-    stencil_state1: StencilState1,
-    stencil_state2: StencilState2,
-    depth_func: DepthFunc,
-    flag7: u8,
+    pub flag0: u8,
+    pub blend_state: BlendState,
+    pub cull_mode: CullMode,
+    pub flag3: u8,
+    pub stencil_state1: StencilState1,
+    pub stencil_state2: StencilState2,
+    pub depth_func: DepthFunc,
+    pub flag7: u8,
 }
 
 // TODO: Convert these to equations for RGB and alpha for docs.
+// TODO: Is it worth documenting this outside of xc3_wgpu?
 // flag, col src, col dst, col op, alpha src, alpha dst, alpha op
 // 0 = disabled
 // 1, Src Alpha, 1 - Src Alpha, Add, Src Alpha, 1 - Src Alpha, Add
@@ -125,7 +126,7 @@ pub struct MaterialFlags {
 // 3, Zero, Src Col, Add, Zero, Src Col, Add
 // 6, disabled + ???
 #[binread]
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[br(repr(u8))]
 pub enum BlendState {
     Disabled = 0,
@@ -140,7 +141,7 @@ pub enum BlendState {
 // 4 = disables hair but different ref value?
 // 16 = enables hair blur stencil stuff?
 #[binread]
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[br(repr(u8))]
 pub enum StencilState1 {
     Always = 0,
@@ -153,7 +154,7 @@ pub enum StencilState1 {
 
 // TODO: Does this flag actually disable stencil?
 #[binread]
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[br(repr(u8))]
 pub enum StencilState2 {
     Disabled = 0,
@@ -164,7 +165,7 @@ pub enum StencilState2 {
 }
 
 #[binread]
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[br(repr(u8))]
 pub enum DepthFunc {
     Disabled = 0,
@@ -173,7 +174,7 @@ pub enum DepthFunc {
 }
 
 #[binread]
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[br(repr(u8))]
 pub enum CullMode {
     Back = 0,

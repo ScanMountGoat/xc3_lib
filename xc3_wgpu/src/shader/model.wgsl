@@ -243,3 +243,36 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     out.g6 = vec4(0.0);
     return out;
 }
+
+@fragment
+fn fs_transparent(in: VertexOutput) ->  @location(0) vec4<f32> {
+    // TODO: Handle missing samplers?
+    let s0_color = textureSample(s0, shared_sampler, in.uv1);
+    let s1_color = textureSample(s1, shared_sampler, in.uv1);
+    let s2_color = textureSample(s2, shared_sampler, in.uv1);
+    let s3_color = textureSample(s3, shared_sampler, in.uv1);
+    let s4_color = textureSample(s4, shared_sampler, in.uv1);
+    let s5_color = textureSample(s5, shared_sampler, in.uv1);
+    let s6_color = textureSample(s6, shared_sampler, in.uv1);
+    let s7_color = textureSample(s7, shared_sampler, in.uv1);
+    let s8_color = textureSample(s8, shared_sampler, in.uv1);
+    let s9_color = textureSample(s9, shared_sampler, in.uv1);
+
+    let s_colors = array<vec4<f32>, 10>(
+        s0_color, 
+        s1_color, 
+        s2_color, 
+        s3_color, 
+        s4_color, 
+        s5_color,
+        s6_color,
+        s7_color,
+        s8_color,
+        s9_color,
+    );
+
+    // The transparent pass just writes to a single output.
+    // TODO: Is it ok to use the same assignment code as the main pass?
+    let g0 = assign_gbuffer_texture(gbuffer_assignments[0], s_colors, vec4(0.0));
+    return g0;
+}

@@ -7,7 +7,7 @@ use xc3_lib::{
     mibl::Mibl,
     model::{ModelData, VertexAnimationTarget},
     msrd::Msrd,
-    mxmd::Mxmd,
+    mxmd::{Mxmd, ShaderUnkType},
 };
 
 use crate::{
@@ -40,7 +40,11 @@ struct IndexData {
 }
 
 impl Model {
-    pub fn draw<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
+    // TODO: Separate render pass for the transparent stuff in Unk7.
+    // Only write to g0 and use the out_attr0 assignments.
+    // Create the necessary pipeline with blending for each material.
+    // TODO: How to handle Unk1?
+    pub fn draw<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, pass: ShaderUnkType) {
         for mesh in &self.meshes {
             // TODO: How does LOD selection work in game?
             let material = &self.materials[mesh.material_index];
@@ -49,12 +53,15 @@ impl Model {
             // TODO: Group these into passes with separate shaders for each pass?
             // TODO: The main pass is shared with outline, ope, and zpre?
             // TODO: How to handle transparency?
-            if material.unk_type == xc3_lib::mxmd::ShaderUnkType::Unk0
-                && material.texture_count > 0
-                && !material.name.ends_with("_outline")
-                && !material.name.ends_with("_ope")
-                && !material.name.ends_with("_zpre")
+            if material.unk_type == pass
+            // && material.texture_count > 0
+            && !material.name.ends_with("_outline")
+            && !material.name.ends_with("_ope")
+            && !material.name.ends_with("_zpre")
             {
+                // TODO: How to make sure the pipeline outputs match the render pass?
+                render_pass.set_pipeline(&material.pipeline);
+
                 material.bind_group1.set(render_pass);
                 material.bind_group2.set(render_pass);
 

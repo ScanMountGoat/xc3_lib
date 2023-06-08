@@ -1,13 +1,12 @@
 use glam::{uvec4, Mat4, Vec4};
 use wgpu::util::DeviceExt;
 
-use crate::{model::Model, pipeline::model_pipeline, COLOR_FORMAT, GBUFFER_COLOR_FORMAT};
+use crate::{model::Model, COLOR_FORMAT, GBUFFER_COLOR_FORMAT};
 
 pub struct Xc3Renderer {
     camera_buffer: wgpu::Buffer,
 
     model_bind_group0: crate::shader::model::bind_groups::BindGroup0,
-    model_pipeline: wgpu::RenderPipeline,
 
     deferred_pipeline: wgpu::RenderPipeline,
     deferred_bind_group0: crate::shader::deferred::bind_groups::BindGroup0,
@@ -42,7 +41,6 @@ impl Xc3Renderer {
             },
         );
 
-        let model_pipeline = model_pipeline(device);
         let deferred_pipeline = deferred_pipeline(device);
 
         let depth_view = create_depth_texture(device, width, height);
@@ -72,7 +70,6 @@ impl Xc3Renderer {
         Self {
             camera_buffer,
             model_bind_group0,
-            model_pipeline,
             deferred_pipeline,
             depth_view,
             deferred_bind_group0,
@@ -88,7 +85,10 @@ impl Xc3Renderer {
         encoder: &mut wgpu::CommandEncoder,
         model: &Model,
     ) {
+        // Deferred rendering requires a second forward pass for transparent meshes.
+        // TODO: Research more about how this is implemented in game.
         self.model_pass(encoder, model);
+        self.transparent_pass(encoder, model);
         self.deferred_pass(encoder, output_view);
     }
 
@@ -151,12 +151,42 @@ impl Xc3Renderer {
             }),
         });
 
-        render_pass.set_pipeline(&self.model_pipeline);
+        // render_pass.set_pipeline(&self.model_pipeline);
 
         // TODO: organize into per frame, per model, etc?
         self.model_bind_group0.set(&mut render_pass);
 
-        model.draw(&mut render_pass);
+        model.draw(&mut render_pass, xc3_lib::mxmd::ShaderUnkType::Unk0);
+    }
+
+    fn transparent_pass(&self, encoder: &mut wgpu::CommandEncoder, model: &Model) {
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Transparent Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &self.gbuffer_textures[0],
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    // TODO: Does in game actually use load?
+                    load: wgpu::LoadOp::Load,
+                    store: true,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.depth_view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    // TODO: Write to depth buffer?
+                    store: true,
+                }),
+                stencil_ops: None,
+            }),
+        });
+
+        // TODO: organize into per frame, per model, etc?
+        self.model_bind_group0.set(&mut render_pass);
+
+        // TODO: Is this the correct unk type?
+        model.draw(&mut render_pass, xc3_lib::mxmd::ShaderUnkType::Unk7);
     }
 
     fn deferred_pass(&self, encoder: &mut wgpu::CommandEncoder, output_view: &wgpu::TextureView) {
