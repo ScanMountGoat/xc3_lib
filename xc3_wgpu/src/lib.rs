@@ -5,6 +5,7 @@ pub mod pipeline;
 pub mod renderer;
 pub mod shader;
 pub mod texture;
+pub mod sampler;
 
 // TODO: How is sRGB gamma handled in game?
 pub const COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8Unorm;

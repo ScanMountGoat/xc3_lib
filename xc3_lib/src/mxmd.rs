@@ -1,6 +1,7 @@
 use std::io::SeekFrom;
 
 use crate::{parse_count_offset, parse_offset_count, parse_ptr32, parse_string_ptr32};
+use bilge::prelude::*;
 use binrw::{args, binread, BinRead, FilePtr32, NamedArgs};
 use serde::Serialize;
 
@@ -107,15 +108,38 @@ pub struct Samplers {
 #[binread]
 #[derive(Debug, Serialize)]
 pub struct Sampler {
-    // flag, wrap s, wrap t, wrap r
-    // 0 = clamp, clamp, clamp
-    // 3 = repeat, repeat, clamp
-    // 6 = mirror repeat, repeat, clamp
-    // 70 = mirror repeat, repeat, clamp
-    pub flags: u32,
+    // TODO: Serialize bitfields like structs?
+    #[br(map(|x: u32| x.into()))]
+    #[serde(skip_serializing)]
+    pub flags: SamplerFlags,
 
     // Is this actually a float?
     pub unk2: f32,
+}
+
+/// Texture sampler settings for addressing and filtering.
+#[bitsize(32)]
+#[derive(DebugBits, FromBits, Clone, Copy)]
+pub struct SamplerFlags {
+    /// Sets wrap U to repeat when `true`.
+    pub repeat_u: bool,
+    /// Sets wrap V to repeat when `true`.
+    pub repeat_v: bool,
+    /// Sets wrap U to mirrored repeat when `true` regardless of repeat U.
+    pub mirror_u: bool,
+    /// Sets wrap V to mirrored repeat when `true` regardless of repeat V.
+    pub mirror_v: bool,
+    /// Sets min and mag filter to nearest when `true`.
+    /// The min filter also depends on disable_mipmap_filter.
+    pub nearest: bool,
+    /// Sets all wrap modes to clamp and min and mag filter to linear.
+    /// Ignores the values of previous flags.
+    pub force_clamp: bool,
+    /// Removes the mipmap nearest from the min filter when `true`.
+    pub disable_mipmap_filter: bool,
+    unk1: bool,
+    unk3: bool,
+    unk: u23,
 }
 
 #[binread]
