@@ -69,7 +69,7 @@ pub struct Materials {
     unks3: [u32; 7],
 
     #[br(parse_with = FilePtr32::parse, offset = base_offset)]
-    samplers: Samplers,
+    pub samplers: Samplers,
 
     // padding?
     unks4: [u32; 4],
@@ -101,8 +101,7 @@ pub struct Samplers {
 
     // pointed to by above?
     #[br(count = unk1)]
-    #[br(dbg)]
-    samplers: Vec<Sampler>,
+    pub samplers: Vec<Sampler>,
 }
 
 #[binread]
@@ -113,10 +112,10 @@ pub struct Sampler {
     // 3 = repeat, repeat, clamp
     // 6 = mirror repeat, repeat, clamp
     // 70 = mirror repeat, repeat, clamp
-    unk1: u32,
+    pub flags: u32,
 
     // Is this actually a float?
-    unk2: f32,
+    pub unk2: f32,
 }
 
 #[binread]
@@ -260,7 +259,7 @@ pub enum ShaderUnkType {
 #[derive(Debug, Serialize)]
 pub struct Texture {
     pub texture_index: u16,
-    pub unk1: u16, // sampler index?
+    pub sampler_index: u16,
     pub unk2: u16,
     pub unk3: u16,
 }
