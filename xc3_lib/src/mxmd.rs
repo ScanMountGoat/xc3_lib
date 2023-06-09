@@ -39,6 +39,7 @@ pub struct Materials {
     #[br(args { base_offset, inner: base_offset })]
     pub materials: List<Material>,
 
+    // offset?
     unk1: u32,
     unk2: u32,
 
@@ -49,25 +50,73 @@ pub struct Materials {
     #[br(parse_with = parse_offset_count, args_raw(base_offset))]
     ints: Vec<u32>,
 
-    // TODO: what type is this?
-    unk_offset1: u32, // offset?
+    #[br(parse_with = FilePtr32::parse)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    unk_offset1: MaterialUnk1,
+
+    // is this ever not 0?
     unk4: u32,
 
     // TODO: How large is each element?
     #[br(parse_with = parse_offset_count, args_raw(base_offset))]
-    unks: Vec<[u16; 8]>,
+    unks: Vec<MaterialUnk>,
 
     unks1: [u32; 2],
 
-    // array of (u32, u32)?
-    unk_count: u32,
-    unk_offset2: u32,
+    #[br(parse_with = parse_count_offset, args_raw(base_offset))]
+    unks2: Vec<(u32, u32)>,
 
-    unks2: [u32; 7],
+    unks3: [u32; 7],
 
-    unk_offset3: u32,
+    #[br(parse_with = FilePtr32::parse, offset = base_offset)]
+    samplers: Samplers,
 
-    unks3: [u32; 4],
+    // padding?
+    unks4: [u32; 4],
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+pub struct MaterialUnk {
+    unk1: [u16; 8],
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(import_raw(base_offset: u64))]
+pub struct MaterialUnk1 {
+    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    unk1: Vec<u32>,
+    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    unk2: Vec<u16>,
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+pub struct Samplers {
+    unk1: u32, // count?
+    unk2: u32, // offset?
+    unk3: u32, // pad?
+    unk4: u32, // pad?
+
+    // pointed to by above?
+    #[br(count = unk1)]
+    #[br(dbg)]
+    samplers: Vec<Sampler>,
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+pub struct Sampler {
+    // flag, wrap s, wrap t, wrap r
+    // 0 = clamp, clamp, clamp
+    // 3 = repeat, repeat, clamp
+    // 6 = mirror repeat, repeat, clamp
+    // 70 = mirror repeat, repeat, clamp
+    unk1: u32,
+
+    // Is this actually a float?
+    unk2: f32,
 }
 
 #[binread]
