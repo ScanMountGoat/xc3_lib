@@ -3,27 +3,6 @@ An experimental Rust library for reading rendering related file formats for Xeno
 
 The initial focus is creating robust and readable parsing code for formats related to in game rendering. Writing support and higher level libraries may be added at a later date once the formats have been more thoroughly researched. Formats not directly related to rendering may be considered at a later date.
 
-## xc3_lib
-The file format library and utilities.
-
-## xc3_shader
-A library and command line tool for working with the game's compiled shader programs. Run `cargo run --release -p xc3_shader -- --help` for usage instructions. 
-
-## xc3_test
-A command line tool for testing parsing and conversion code for all files in an extracted dump. Details for failed conversions will be printed to the console. File types can all be enabled at once or enabled individually.  
-
-`cargo run -p xc3_test --release <path to extracted folder> --all`  
-`cargo run -p xc3_test --release <path to extracted folder> --mxmd --mibl`
-
-## xc3_tex
-A command line tool for converting texture files to and from DDS or image formats like PNG, TIFF, or JPEG.
-
-## xc3_viewer
-A simple winit desktop application for rendering model files using xc3_wgpu.
-
-## xc3_wgpu
-A wgpu based renderer for model files with an emphasis on portability and readability over perfect in game accuracy.
-
 ## Usage
 This library is still highly experimental. When adding this project to the Cargo.toml, specify a specific git revision or commit the Cargo.lock file to source control. This locks the version and avoids any breaking changes. The debug or JSON output has not stabilized and should not be assumed to be the same between commits.
 
@@ -37,7 +16,11 @@ Running `cargo build` without the `--release` will result in faster compile time
 The projects are not currently published to crates.io, so run `cargo doc -p xc3_lib --open` to generate and view the rustdoc output in the browser. Replace xc3_lib with the name of other packages to view the corresponding documentation.
 
 ## Tests
-Unit tests and doc tests can be run using `cargo test`. Most of the file processing and conversion code is tested by running the xc3_test executable against an extracted dump of the game.
+Unit tests and doc tests can be run using `cargo test`. 
+
+Most of the file processing and conversion code is tested by running the xc3_test executable against an extracted dump of the game. Details for failed conversions will be printed to the console. File types can all be enabled at once or enabled individually.  
+`cargo run -p xc3_test --release <path to extracted folder> --all`  
+`cargo run -p xc3_test --release <path to extracted folder> --mxmd --mibl`
 
 ## Credits
 This project makes use of a number of Rust crates that are useful for reverse engineering. For a full list of dependencies, see the Cargo.toml files.
