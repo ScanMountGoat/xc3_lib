@@ -30,6 +30,7 @@ pub struct ModelData {
 
     unk5: u32,
 
+    // TODO: Save as Vec<u8> at the end of the struct?
     pub data_base_offset: u32,
 
     unk6: u32,
@@ -53,10 +54,10 @@ pub struct VertexBuffer {
     #[br(parse_with = parse_offset_count)]
     pub attributes: Vec<VertexAttribute>,
 
-    // padding?
-    unk1: u32,
-    unk2: u32,
-    unk3: u32,
+    // TODO: padding?
+    pub unk1: u32,
+    pub unk2: u32,
+    pub unk3: u32,
 }
 
 #[binread]

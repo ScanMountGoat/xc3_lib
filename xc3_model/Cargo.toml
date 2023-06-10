@@ -1,0 +1,13 @@
+[package]
+name = "xc3_model"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+xc3_lib = { path = "../xc3_lib" }
+glam = "0.23.0"
+gltf = "1.2.0"
+binrw = "0.11.1"
+
+[dev-dependencies]
+hexlit = "0.5.5"
