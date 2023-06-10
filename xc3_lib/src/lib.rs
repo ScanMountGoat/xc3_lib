@@ -12,6 +12,7 @@ use std::{
 use binrw::{BinRead, BinReaderExt, BinResult, BinWrite, NullString, VecArgs};
 
 pub mod dds;
+pub mod map;
 pub mod mibl;
 pub mod model;
 pub mod msmd;
@@ -156,6 +157,7 @@ macro_rules! file_read_impl {
 }
 
 file_read_impl!(
+    msmd::Msmd,
     msrd::Msrd,
     mxmd::Mxmd,
     sar1::Sar1,

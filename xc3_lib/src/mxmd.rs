@@ -12,6 +12,7 @@ use serde::Serialize;
 pub struct Mxmd {
     version: u32,
 
+    // Are the following fields shared with maps?
     #[br(parse_with = FilePtr32::parse)]
     pub mesh: Mesh,
 
@@ -276,6 +277,7 @@ pub struct ShaderProgram {
 pub enum ShaderUnkType {
     Unk0 = 0, // main opaque + some transparent?
     Unk1 = 1, // second layer transparent?
+    Unk6 = 6, // used for maps?
     Unk7 = 7, // additional eye effect layer?
 }
 
