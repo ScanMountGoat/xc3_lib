@@ -3,7 +3,9 @@ use std::io::{Cursor, Seek, SeekFrom};
 use binrw::BinReaderExt;
 use bytemuck::{Pod, Zeroable};
 use glam::{vec4, Vec3, Vec4};
-use xc3_lib::model::{ModelData, VertexAnimationTarget, VertexBuffer};
+use xc3_lib::model::{
+    IndexBufferDescriptor, ModelData, VertexAnimationTarget, VertexBufferDescriptor,
+};
 
 // TODO: Switch to struct of arrays instead of array of structs.
 // This would better encode which attributes are actually present and is easier for applications.
@@ -19,15 +21,15 @@ pub struct Vertex {
     pub uv1: glam::Vec4,
 }
 
-pub fn read_indices(model_data: &ModelData, info: &xc3_lib::model::IndexBuffer) -> Vec<u16> {
+pub fn read_indices(model_data: &ModelData, descriptor: &IndexBufferDescriptor) -> Vec<u16> {
     // TODO: Are all index buffers using u16 for indices?
     let mut reader = Cursor::new(&model_data.buffer);
     reader
-        .seek(SeekFrom::Start(info.data_offset as u64))
+        .seek(SeekFrom::Start(descriptor.data_offset as u64))
         .unwrap();
 
     let mut indices = Vec::new();
-    for _ in 0..info.index_count {
+    for _ in 0..descriptor.index_count {
         let index: u16 = reader.read_le().unwrap();
         indices.push(index);
     }
@@ -37,7 +39,7 @@ pub fn read_indices(model_data: &ModelData, info: &xc3_lib::model::IndexBuffer) 
 // TODO: rename to VertexBufferDescriptor?
 /// Reads the vertex attributes for `buffer` at index `buffer_index`.
 pub fn read_vertices(
-    buffer: &VertexBuffer,
+    buffer: &VertexBufferDescriptor,
     buffer_index: usize,
     model_data: &ModelData,
 ) -> Vec<Vertex> {
@@ -69,21 +71,21 @@ pub fn read_vertices(
 fn assign_vertex_buffer_attributes(
     vertices: &mut [Vertex],
     bytes: &[u8],
-    info: &xc3_lib::model::VertexBuffer,
+    descriptor: &VertexBufferDescriptor,
 ) {
     let mut reader = Cursor::new(bytes);
 
-    for i in 0..info.vertex_count as u64 {
+    for i in 0..descriptor.vertex_count as u64 {
         reader
             .seek(SeekFrom::Start(
-                info.data_offset as u64 + i * info.vertex_size as u64,
+                descriptor.data_offset as u64 + i * descriptor.vertex_size as u64,
             ))
             .unwrap();
 
         // TODO: How to handle missing attributes.
         // TODO: Document conversion formulas to float in xc3_lib.
         // TODO: Is switching for each vertex the base way to do this?
-        for a in &info.attributes {
+        for a in &descriptor.attributes {
             match a.data_type {
                 xc3_lib::model::DataType::Position => {
                     let value: [f32; 3] = reader.read_le().unwrap();
@@ -127,12 +129,12 @@ fn read_snorm8x4(reader: &mut Cursor<&[u8]>) -> Vec4 {
 fn assign_animation_buffer_attributes(
     vertices: &mut [Vertex],
     model_bytes: &[u8],
-    info: &xc3_lib::model::VertexBuffer,
+    descriptor: &VertexBufferDescriptor,
     base_target: &VertexAnimationTarget,
 ) {
     let mut reader = Cursor::new(model_bytes);
 
-    for i in 0..info.vertex_count as u64 {
+    for i in 0..descriptor.vertex_count as u64 {
         reader
             .seek(SeekFrom::Start(
                 base_target.data_offset as u64 + i * base_target.vertex_size as u64,
@@ -197,7 +199,7 @@ mod tests {
             4f009e7f
         );
 
-        let info = VertexBuffer {
+        let descriptor = VertexBufferDescriptor {
             data_offset: 0,
             vertex_count: 2,
             vertex_size: 36,
@@ -233,7 +235,7 @@ mod tests {
         };
 
         let mut vertices = vec![Vertex::default(); 2];
-        assign_vertex_buffer_attributes(&mut vertices, &data, &info);
+        assign_vertex_buffer_attributes(&mut vertices, &data, &descriptor);
 
         // TODO: Use strict equality for float comparisons?
         assert_eq!(

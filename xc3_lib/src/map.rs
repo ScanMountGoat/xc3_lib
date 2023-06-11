@@ -12,10 +12,10 @@ use crate::{
 
 // TODO: Same as mxmd?
 // TODO: Link to appropriate fields with doc links.
-/// The data for [PropDef](crate::msmd::PropDef).
+/// The data for a [PropModel](crate::msmd::PropModel).
 #[binread]
 #[derive(Debug)]
-pub struct PropDefData {
+pub struct PropModelData {
     pub unk1: [u32; 3],
     // TODO: nullable pointers?
     #[br(parse_with = FilePtr32::parse)]
@@ -35,6 +35,29 @@ pub struct PropDefData {
     unk4: u32,
     unk5: u32,
     // 16 bytes of padding?
+}
+
+// TODO: Link to appropriate fields with doc links.
+/// The data for a [MapModel](crate::msmd::MapModel).
+#[binread]
+#[derive(Debug)]
+pub struct MapModelData {
+    unk1: [u32; 3],
+
+    // TODO: nullable pointers?
+    #[br(parse_with = FilePtr32::parse)]
+    pub mesh: Mesh,
+
+    #[br(parse_with = FilePtr32::parse)]
+    pub materials: Materials,
+
+    unk2: [u32; 6],
+
+    #[br(parse_with = FilePtr32::parse)]
+    pub spch: Spch,
+
+    unk3: [u32; 3]
+    // padding?
 }
 
 // TODO: Shared with other formats?

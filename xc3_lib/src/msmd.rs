@@ -10,22 +10,28 @@ use crate::parse_count_offset;
 #[br(magic(b"DMSM"))]
 pub struct Msmd {
     version: u32,
-    unk1: [u32; 6],
+    unk1: [u32; 4],
 
-    // TODO: Better name for this?
-    // Objects?
     #[br(parse_with = parse_count_offset)]
-    pub prop_defs: Vec<PropDef>,
+    pub map_models: Vec<MapModel>,
 
-    unk2: [u32; 12],
+    #[br(parse_with = parse_count_offset)]
+    pub prop_models: Vec<PropModel>,
+
+    unk2: [u32; 10],
+
+    /// References to [ModelData](crate::model::ModelData).
+    #[br(parse_with = parse_count_offset)]
+    pub prop_model_data: Vec<StreamEntry>,
 
     #[br(parse_with = parse_count_offset)]
     pub textures: Vec<Texture>,
+
     unk3: [u32; 27],
 
     /// References to [ModelData](crate::model::ModelData).
     #[br(parse_with = parse_count_offset)]
-    pub model_data: Vec<StreamEntry>,
+    pub map_model_data: Vec<StreamEntry>,
 }
 
 /// A reference to an [Xbc1](crate::xbc1::Xbc1) in the `.wismda` file.
@@ -49,10 +55,21 @@ pub struct Texture {
 // TODO: Better name for this?
 #[binread]
 #[derive(Debug)]
-pub struct PropDef {
+pub struct MapModel {
     pub bounds: BoundingBox,
     pub unk2: [f32; 4],
-    // TODO: What kind of data is this?
+    /// Reference to [MapDefData](crate::map::MapDefData).
+    pub entry: StreamEntry,
+    pub unk3: [f32; 4],
+}
+
+// TODO: Better name for this?
+#[binread]
+#[derive(Debug)]
+pub struct PropModel {
+    pub bounds: BoundingBox,
+    pub unk2: [f32; 4],
+    /// Reference to [PropDefData](crate::map::PropDefData).
     pub entry: StreamEntry,
     pub unk3: u32,
 }

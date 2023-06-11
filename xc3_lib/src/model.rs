@@ -10,10 +10,10 @@ use serde::Serialize;
 #[derive(Debug, Serialize)]
 pub struct ModelData {
     #[br(parse_with = parse_offset_count)]
-    pub vertex_buffers: Vec<VertexBuffer>,
+    pub vertex_buffers: Vec<VertexBufferDescriptor>,
 
     #[br(parse_with = parse_offset_count)]
-    pub index_buffers: Vec<IndexBuffer>,
+    pub index_buffers: Vec<IndexBufferDescriptor>,
 
     // padding?
     unk0: u32,
@@ -49,7 +49,7 @@ pub struct ModelData {
 
 #[binread]
 #[derive(Debug, Serialize)]
-pub struct VertexBuffer {
+pub struct VertexBufferDescriptor {
     /// Relative to [data_base_offset](struct.ModelData.html#structfield.data_base_offset)
     pub data_offset: u32,
     pub vertex_count: u32,
@@ -103,7 +103,7 @@ pub enum DataType {
 // TODO: Is this data always u16?
 #[binread]
 #[derive(Debug, Serialize)]
-pub struct IndexBuffer {
+pub struct IndexBufferDescriptor {
     /// Relative to [data_base_offset](struct.ModelData.html#structfield.data_base_offset)
     pub data_offset: u32,
     pub index_count: u32,
