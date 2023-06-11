@@ -6,7 +6,6 @@ use crate::annotation::{annotate_fragment, annotate_vertex};
 
 pub fn extract_shader_binaries<P: AsRef<Path>>(
     spch: &Spch,
-    file_data: &[u8],
     output_folder: P,
     ryujinx_shader_tools: Option<&str>,
     save_binaries: bool,
@@ -16,7 +15,7 @@ pub fn extract_shader_binaries<P: AsRef<Path>>(
         .iter()
         .zip(&spch.string_section.program_names)
     {
-        let binaries = vertex_fragment_binaries(spch, program, file_data);
+        let binaries = vertex_fragment_binaries(spch, program);
 
         for (i, (vertex, fragment)) in binaries.into_iter().enumerate() {
             // TODO: Only include i if above 0?
@@ -28,10 +27,6 @@ pub fn extract_shader_binaries<P: AsRef<Path>>(
 
             // Each NVSD has separate metadata since the shaders are different.
             let metadata = &program.slct.nvsds[i].inner;
-
-            for sampler in &metadata.samplers {
-                println!("{:?}", sampler.name);
-            }
 
             let json_file = output_folder.as_ref().join(&format!("{name}.json"));
             let json = serde_json::to_string_pretty(&metadata).unwrap();
@@ -74,11 +69,10 @@ pub fn extract_shader_binaries<P: AsRef<Path>>(
 }
 
 fn vertex_fragment_binaries<'a>(
-    spch: &Spch,
+    spch: &'a Spch,
     program: &ShaderProgram,
-    file_data: &'a [u8],
 ) -> Vec<(&'a [u8], &'a [u8])> {
-    let mut offset = spch.xv4_base_offset as usize + program.slct.xv4_offset as usize;
+    let mut offset = program.slct.xv4_offset as usize;
 
     // Each SLCT can have multiple NVSD.
     // Each NVSD has a vertex and fragment shader.
@@ -87,12 +81,12 @@ fn vertex_fragment_binaries<'a>(
         // The first offset is the vertex shader.
         let vert_size = nvsd.inner.nvsd.vertex_xv4_size as usize;
         // Strip the xV4 header for easier decompilation.
-        let vertex = &file_data[offset..offset + vert_size][48..];
+        let vertex = &spch.xv4_section[offset..offset + vert_size][48..];
 
         // The fragment shader immediately follows the vertex shader.
         offset += vert_size;
         let frag_size = nvsd.inner.nvsd.fragment_xv4_size as usize;
-        let fragment = &file_data[offset..offset + frag_size][48..];
+        let fragment = &spch.xv4_section[offset..offset + frag_size][48..];
         offset += frag_size;
 
         binaries.push((vertex, fragment))

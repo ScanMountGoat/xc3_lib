@@ -114,7 +114,7 @@ fn extract_and_decompile_shaders<P: AsRef<Path>>(
 
             // TODO: Will shaders always have names like "shd0004"?
             // TODO: Include the program index in the name to avoid ambiguities?
-            extract_shader_binaries(&spch, data, output_folder.as_ref(), shader_tools, false);
+            extract_shader_binaries(&spch, output_folder.as_ref(), shader_tools, false);
         }
     }
 }

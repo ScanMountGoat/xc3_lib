@@ -1,2 +1,2 @@
 [workspace]
-members = ["xc3_lib", "xc3_tex", "xc3_test", "xc3_shader", "xc3_wgpu", "xc3_viewer"]
+members = ["xc3_lib", "xc3_tex", "xc3_test", "xc3_shader", "xc3_wgpu", "xc3_viewer", "xc3_model"]

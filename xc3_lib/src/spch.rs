@@ -1,4 +1,4 @@
-use crate::parse_string_ptr32;
+use crate::{parse_offset_count, parse_string_ptr32};
 use binrw::{args, binread, helpers::count_with, FilePtr32};
 use serde::Serialize;
 
@@ -7,24 +7,32 @@ use serde::Serialize;
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(magic(b"HCPS"))]
+#[br(stream = r)]
 pub struct Spch {
+    // Subtract the magic size.
+    #[br(temp, try_calc = r.stream_position().map(|p| p - 4))]
+    base_offset: u64,
+
     version: u32,
 
-    unk1: u32, // programs offset?
-    count: u32,
+    #[br(temp)]
+    programs_offset: u32,
+    #[br(temp)]
+    programs_count: u32,
 
     // TODO: array of (u32, u32, u32)?
+    // Related to string section?
     unk4_offset: u32,
     unk4_count: u32,
 
+    // TODO: Save these as Vec<u8> to make later processing easier?
     slct_base_offset: u32,
+    slct_section_length: u32,
 
-    unk6: u32,
-
-    // Compiled shader binaries.
-    // Alternates between vertex and fragment shaders.
-    pub xv4_base_offset: u32,
-    xv4_section_length: u32,
+    /// Compiled shader binaries.
+    /// Alternates between vertex and fragment shaders.
+    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    pub xv4_section: Vec<u8>,
 
     // data before the xV4 section
     // same count as xV4 but with magic 0x34127698?
@@ -32,20 +40,23 @@ pub struct Spch {
     unk_section_offset: u32,
     unk_section_length: u32,
 
-    #[br(parse_with = FilePtr32::parse)]
-    #[br(args { inner: args! { count: count as usize } })]
+    #[br(parse_with = FilePtr32::parse, offset = base_offset)]
+    #[br(args { inner: args! { count: programs_count as usize } })]
     pub string_section: StringSection,
 
     #[br(pad_after = 16)]
     unk7: u32,
     // end of header?
-    #[br(count = count)]
+
+    // TODO: Move this earlier?
+    #[br(count = programs_count)]
     #[br(args {
         inner: args! {
-            slct_base_offset: slct_base_offset as u64,
-            unk_base_offset: unk_section_offset as u64,
+            slct_base_offset: base_offset + slct_base_offset as u64,
+            unk_base_offset: base_offset + unk_section_offset as u64,
         }
     })]
+    #[br(seek_before = std::io::SeekFrom::Start(base_offset + programs_offset as u64))]
     pub shader_programs: Vec<ShaderProgram>,
 }
 
