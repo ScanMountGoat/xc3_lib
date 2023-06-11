@@ -24,7 +24,7 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, msrd: &Msrd) {
     let index_bytes: &[u8] = bytemuck::cast_slice(&indices);
 
     let mut combined_buffer = vertex_bytes.to_vec();
-    combined_buffer.extend_from_slice(&index_bytes);
+    combined_buffer.extend_from_slice(index_bytes);
 
     let min: [f32; 3] = vertices
         .iter()

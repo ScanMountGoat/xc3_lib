@@ -6,7 +6,8 @@ use binrw::{binread, FilePtr32};
 
 use crate::{
     mxmd::{Materials, Mesh},
-    spch::Spch, parse_offset_count,
+    parse_offset_count,
+    spch::Spch,
 };
 
 // TODO: Same as mxmd?

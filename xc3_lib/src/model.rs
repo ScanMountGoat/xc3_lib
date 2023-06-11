@@ -42,7 +42,6 @@ pub struct ModelData {
 
     unk7: u32,
     // padding?
-
     /// The data buffer containing all the geometry data.
     #[br(parse_with = until_eof, seek_before = SeekFrom::Start(data_base_offset as u64))]
     pub buffer: Vec<u8>,

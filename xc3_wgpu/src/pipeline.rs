@@ -66,7 +66,7 @@ pub fn model_transparent_pipeline(
             // TODO: alpha blending?
             // Create a target for each of the G-Buffer textures.
             // TODO: check outputs in wgsl_to_wgpu?
-            targets: &vec![Some(wgpu::ColorTargetState {
+            targets: &[Some(wgpu::ColorTargetState {
                 format: GBUFFER_COLOR_FORMAT,
                 blend: blend_state(flags.blend_state),
                 write_mask: wgpu::ColorWrites::all(),

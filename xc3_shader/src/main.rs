@@ -1,11 +1,8 @@
-use std::{io::Cursor, path::Path};
+use std::path::Path;
 
 use clap::{Parser, Subcommand};
 use rayon::prelude::*;
-use xc3_lib::{
-    msrd::{EntryType, Msrd},
-    spch::Spch,
-};
+use xc3_lib::msrd::Msrd;
 use xc3_shader::extract::extract_shader_binaries;
 use xc3_shader::gbuffer_database::create_shader_database;
 
@@ -52,7 +49,7 @@ fn main() {
         } => extract_and_decompile_wismt_shaders(
             &input_folder,
             &output_folder,
-            shader_tools.as_ref().map(|s| s.as_str()),
+            shader_tools.as_deref(),
         ),
         Commands::GBufferDatabase {
             input_folder,
@@ -99,22 +96,10 @@ fn extract_and_decompile_shaders<P: AsRef<Path>>(
     shader_tools: Option<&str>,
     output_folder: P,
 ) {
-    let decompressed_streams: Vec<_> = msrd
-        .streams
-        .iter()
-        .map(|stream| stream.xbc1.decompress().unwrap())
-        .collect();
+    // Assume each msrd has only one shader item.
+    let spch = msrd.extract_shader_data();
 
-    for item in msrd.stream_entries {
-        if item.item_type == EntryType::ShaderBundle {
-            let stream = &decompressed_streams[item.stream_index as usize];
-            let data = &stream[item.offset as usize..item.offset as usize + item.size as usize];
-
-            let spch = Spch::read(&mut Cursor::new(data)).unwrap();
-
-            // TODO: Will shaders always have names like "shd0004"?
-            // TODO: Include the program index in the name to avoid ambiguities?
-            extract_shader_binaries(&spch, output_folder.as_ref(), shader_tools, false);
-        }
-    }
+    // TODO: Will shaders always have names like "shd0004"?
+    // TODO: Include the program index in the name to avoid ambiguities?
+    extract_shader_binaries(&spch, output_folder.as_ref(), shader_tools, false);
 }

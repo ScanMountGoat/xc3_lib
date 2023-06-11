@@ -85,7 +85,7 @@ fn check_msrd(msrd: Msrd) {
     // Check parsing for any embedded files.
     for (i, item) in msrd.stream_entries.into_iter().enumerate() {
         match item.item_type {
-            EntryType::ShaderBundle => {
+            EntryType::Shader => {
                 assert_eq!(i, msrd.shader_entry_index as usize);
 
                 let stream = &decompressed_streams[item.stream_index as usize];

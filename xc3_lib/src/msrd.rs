@@ -1,6 +1,8 @@
 use std::io::Cursor;
 
-use crate::{model::ModelData, parse_count_offset, parse_ptr32, parse_string_ptr32, xbc1::Xbc1};
+use crate::{
+    model::ModelData, parse_count_offset, parse_ptr32, parse_string_ptr32, spch::Spch, xbc1::Xbc1,
+};
 use binrw::{binread, FilePtr32};
 use serde::Serialize;
 
@@ -51,7 +53,7 @@ pub struct StreamEntry {
 #[derive(Debug, Serialize, PartialEq, Eq)]
 pub enum EntryType {
     Model = 0,
-    ShaderBundle = 1,
+    Shader = 1,
     CachedTexture = 2,
     Texture = 3,
 }
@@ -98,12 +100,17 @@ pub struct Stream {
 impl Msrd {
     // TODO: Avoid unwrap.
     pub fn extract_model_data(&self) -> ModelData {
-        let model_bytes = self.decompress_stream(self.model_entry_index);
-        ModelData::read(&mut Cursor::new(model_bytes)).unwrap()
+        let bytes = self.decompress_stream(self.model_entry_index);
+        ModelData::read(&mut Cursor::new(bytes)).unwrap()
     }
 
     pub fn extract_texture_data(&self) -> Vec<u8> {
         self.decompress_stream(self.texture_entry_index)
+    }
+
+    pub fn extract_shader_data(&self) -> Spch {
+        let bytes = self.decompress_stream(self.shader_entry_index);
+        Spch::read(&mut Cursor::new(bytes)).unwrap()
     }
 
     fn decompress_stream(&self, entry_index: u32) -> Vec<u8> {
