@@ -3,6 +3,20 @@ An experimental Rust library for reading rendering related file formats for Xeno
 
 The initial focus is creating robust and readable parsing code for formats related to in game rendering. Writing support and higher level libraries may be added at a later date once the formats have been more thoroughly researched. Formats not directly related to rendering may be considered at a later date.
 
+## Formats
+
+| Format | File Paths | Description |
+| --- | --- | --- |
+| Mibl | `chr/tex/nx/*/*.wismt`, `monolib/shader/*.{witex,witx}` | textures |
+| Msmd | `map/*.wismhd` | maps |
+| Msrd | `chr/{ch,en,oj,wp}/*.wismt` | models, textures, shaders |
+| Mxmd | `chr/{ch,en,oj,wp}/*.wimdo`, `monolib/shader/*.wimdo` | models, materials |
+| Sar1 | `chr/{ch,en,oj,wp}/*.{chr,mot}` | skeletons, animations |
+| Spch | `monolib/shader/*.wishp` | shaders |
+| Xbc1 | *embedded in files* | zlib compressed data |
+
+File formats and where to find them in a game dump are outlined above. Note that the same extension can be used for multiple formats. Some formats like `Msrd` contain files from other formats like `Spch` embedded as compressed `Xbc1` archives.
+
 ## Usage
 This library is still highly experimental. When adding this project to the Cargo.toml, specify a specific git revision or commit the Cargo.lock file to source control. This locks the version and avoids any breaking changes. The debug or JSON output has not stabilized and should not be assumed to be the same between commits.
 
