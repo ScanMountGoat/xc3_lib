@@ -1,19 +1,37 @@
 use std::io::{Cursor, Seek, SeekFrom};
 
 use binrw::BinReaderExt;
-use glam::{Vec2, Vec3, Vec4};
+use bytemuck::{Pod, Zeroable};
+use glam::{vec4, Vec3, Vec4};
 use xc3_lib::model::{ModelData, VertexAnimationTarget, VertexBuffer};
 
 // TODO: Switch to struct of arrays instead of array of structs.
 // This would better encode which attributes are actually present and is easier for applications.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Default, Pod, Zeroable)]
 pub struct Vertex {
     pub position: glam::Vec3,
     pub weight_index: u32,
     pub vertex_color: glam::Vec4,
     pub normal: glam::Vec4,
     pub tangent: glam::Vec4,
-    pub uv1: glam::Vec2,
+    // TODO: use vec2 for this?
+    pub uv1: glam::Vec4,
+}
+
+pub fn read_indices(model_data: &ModelData, info: &xc3_lib::model::IndexBuffer) -> Vec<u16> {
+    // TODO: Are all index buffers using u16 for indices?
+    let mut reader = Cursor::new(&model_data.buffer);
+    reader
+        .seek(SeekFrom::Start(info.data_offset as u64))
+        .unwrap();
+
+    let mut indices = Vec::new();
+    for _ in 0..info.index_count {
+        let index: u16 = reader.read_le().unwrap();
+        indices.push(index);
+    }
+    indices
 }
 
 // TODO: rename to VertexBufferDescriptor?
@@ -22,7 +40,6 @@ pub fn read_vertices(
     buffer: &VertexBuffer,
     buffer_index: usize,
     model_data: &ModelData,
-    model_bytes: &[u8],
 ) -> Vec<Vertex> {
     // Start with default values for each attribute.
     let mut vertices = vec![
@@ -32,20 +49,18 @@ pub fn read_vertices(
             vertex_color: Vec4::ZERO,
             normal: Vec4::ZERO,
             tangent: Vec4::ZERO,
-            uv1: Vec2::ZERO
+            uv1: Vec4::ZERO
         };
         buffer.vertex_count as usize
     ];
 
-    let bytes = &model_bytes[model_data.data_base_offset as usize..];
-
     // The game renders attributes from both the vertex and optional animation buffer.
     // Merge attributes into a single buffer to allow using the same shader.
     // TODO: Which buffer takes priority?
-    assign_vertex_buffer_attributes(&mut vertices, bytes, buffer);
+    assign_vertex_buffer_attributes(&mut vertices, &model_data.buffer, buffer);
 
     if let Some(base_target) = base_vertex_target(model_data, buffer_index) {
-        assign_animation_buffer_attributes(&mut vertices, bytes, buffer, base_target);
+        assign_animation_buffer_attributes(&mut vertices, &model_data.buffer, buffer, base_target);
     }
 
     vertices
@@ -88,7 +103,7 @@ fn assign_vertex_buffer_attributes(
                 }
                 xc3_lib::model::DataType::Uv1 => {
                     let value: [f32; 2] = reader.read_le().unwrap();
-                    vertices[i as usize].uv1 = value.into();
+                    vertices[i as usize].uv1 = vec4(value[0], value[1], 0.0, 0.0);
                 }
                 _ => {
                     // Just skip unsupported attributes for now.
@@ -157,7 +172,7 @@ fn base_vertex_target(
 mod tests {
     use super::*;
 
-    use glam::{vec2, vec3, vec4};
+    use glam::{vec3, vec4};
     use hexlit::hex;
     use xc3_lib::model::{DataType, VertexAttribute};
 
@@ -229,7 +244,7 @@ mod tests {
                     vertex_color: vec4(0.49803922, 0.0, 1.0, 1.0),
                     normal: vec4(0.12941177, -0.019607844, 0.47843137, 0.0),
                     tangent: vec4(0.47843137, 0.0, -0.12941177, 0.49803922),
-                    uv1: vec2(0.75997907, 0.6079358)
+                    uv1: vec4(0.75997907, 0.6079358, 0.0, 0.0)
                 },
                 Vertex {
                     position: vec3(0.14499485, 0.91730505, 0.050502136),
@@ -237,7 +252,7 @@ mod tests {
                     vertex_color: vec4(0.49803922, 0.0, 1.0, 1.0),
                     normal: vec4(0.38431373, 0.047058824, 0.30980393, 0.0),
                     tangent: vec4(0.30980393, 0.0, -0.38431373, 0.49803922),
-                    uv1: vec2(0.79126656, 0.6000591)
+                    uv1: vec4(0.79126656, 0.6000591, 0.0, 0.0)
                 }
             ],
             vertices

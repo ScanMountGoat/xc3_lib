@@ -5,9 +5,10 @@ edition = "2021"
 
 [dependencies]
 xc3_lib = { path = "../xc3_lib" }
-glam = "0.23.0"
+glam = { version = "0.23.0", features = ["bytemuck"] }
 gltf = "1.2.0"
 binrw = "0.11.1"
+bytemuck = { version = "1.13", features = [ "derive" ] }
 
 [dev-dependencies]
 hexlit = "0.5.5"

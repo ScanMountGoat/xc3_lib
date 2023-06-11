@@ -28,7 +28,6 @@ pub struct PropDefData {
 
     unk3: [u32; 7],
 
-    // TODO: spch currently assumes it's at the start of the file.
     #[br(parse_with = FilePtr32::parse)]
     pub spch: Spch,
 

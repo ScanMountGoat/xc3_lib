@@ -16,7 +16,7 @@ File data starts as an unstructured array of bytes in one or more binary files. 
 ### xc3_lib
 The file format library and utilities. The goal is to create the simplest possible API that can fully represent the data on disk. This means many buffers will not be decompressed, decoded, deswizzled, etc since this would make it harder to export a file binary identical with the original. 
 
-Operations like deswizzling and decompression are implemented as functions that users must explicitly call to return new data rather than modifying the types representing the data on disk. The deswizzing operation for `Mibl` textures returns a new .dds file, for example. Most decoding operations are implemented in higher level projects like xc3_wgpu or xc3_model.
+Operations like deswizzling and decompression are implemented as functions that users must explicitly call to return new data rather than modifying the types representing the data on disk. The deswizzing operation for `Mibl` textures returns a new .dds file, for example. More advanced decoding operations are implemented in higher level projects like xc3_wgpu or xc3_model.
 
 ### xc3_shader
 A library and command line tool for working with the game's compiled shader programs. Parameter names are applied to decompiled GLSL files in `annotation.rs`. Shaders are extracted and decompiled in `extract.rs`. `gbuffer_database.rs` creates a precomputed database of assignments from shader inputs to G-Buffer textures for determining input usage like albedo vs normal. This analysis is facilitated by parsing and converting the code to a directed graph representation in `dependencies.rs`.

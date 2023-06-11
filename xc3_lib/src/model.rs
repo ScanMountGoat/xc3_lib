@@ -1,5 +1,7 @@
+use std::io::SeekFrom;
+
 use crate::{parse_count_offset, parse_offset_count, parse_ptr32};
-use binrw::{args, binread, FilePtr32};
+use binrw::{args, binread, helpers::until_eof, FilePtr32};
 use serde::Serialize;
 
 /// wismt model data
@@ -30,8 +32,8 @@ pub struct ModelData {
 
     unk5: u32,
 
-    // TODO: Save as Vec<u8> at the end of the struct?
-    pub data_base_offset: u32,
+    #[br(temp)]
+    data_base_offset: u32,
 
     unk6: u32,
 
@@ -40,6 +42,10 @@ pub struct ModelData {
 
     unk7: u32,
     // padding?
+
+    /// The data buffer containing all the geometry data.
+    #[br(parse_with = until_eof, seek_before = SeekFrom::Start(data_base_offset as u64))]
+    pub buffer: Vec<u8>,
 }
 
 #[binread]

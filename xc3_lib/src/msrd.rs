@@ -1,4 +1,6 @@
-use crate::{parse_count_offset, parse_ptr32, parse_string_ptr32, xbc1::Xbc1};
+use std::io::Cursor;
+
+use crate::{model::ModelData, parse_count_offset, parse_ptr32, parse_string_ptr32, xbc1::Xbc1};
 use binrw::{binread, FilePtr32};
 use serde::Serialize;
 
@@ -91,4 +93,25 @@ pub struct Stream {
     decomp_size: u32, // slightly larger than xbc1 decomp size?
     #[br(parse_with = FilePtr32::parse)]
     pub xbc1: Xbc1,
+}
+
+impl Msrd {
+    // TODO: Avoid unwrap.
+    pub fn extract_model_data(&self) -> ModelData {
+        let model_bytes = self.decompress_stream(self.model_entry_index);
+        ModelData::read(&mut Cursor::new(model_bytes)).unwrap()
+    }
+
+    pub fn extract_texture_data(&self) -> Vec<u8> {
+        self.decompress_stream(self.texture_entry_index)
+    }
+
+    fn decompress_stream(&self, entry_index: u32) -> Vec<u8> {
+        let entry = &self.stream_entries[entry_index as usize];
+        let stream = &self.streams[entry.stream_index as usize]
+            .xbc1
+            .decompress()
+            .unwrap();
+        stream[entry.offset as usize..entry.offset as usize + entry.size as usize].to_vec()
+    }
 }

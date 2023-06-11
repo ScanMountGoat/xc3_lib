@@ -1,6 +1,5 @@
-use std::io::{Cursor, Seek, SeekFrom};
+use std::io::Cursor;
 
-use binrw::BinReaderExt;
 use glam::vec4;
 use wgpu::util::DeviceExt;
 use xc3_lib::{
@@ -9,7 +8,7 @@ use xc3_lib::{
     msrd::Msrd,
     mxmd::{Mxmd, ShaderUnkType},
 };
-use xc3_model::vertex::read_vertices;
+use xc3_model::vertex::{read_indices, read_vertices};
 
 use crate::{
     material::{materials, Material},
@@ -91,26 +90,14 @@ pub fn load_model(
     model_path: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
 ) -> Model {
-    // TODO: add this to xc3_lib?
-    // TODO: Only decompress the stream that's needed?
-    let decompressed_streams: Vec<_> = msrd
-        .streams
-        .iter()
-        .map(|stream| stream.xbc1.decompress().unwrap())
-        .collect();
-
-    let item = &msrd.stream_entries[msrd.model_entry_index as usize];
-    let stream = &decompressed_streams[item.stream_index as usize];
-    let model_bytes = &stream[item.offset as usize..item.offset as usize + item.size as usize];
+    let model_data = msrd.extract_model_data();
 
     // TODO: Avoid unwrap.
     // Load cached textures
-    let cached_textures = load_cached_textures(msrd, &decompressed_streams);
+    let cached_textures = load_cached_textures(msrd);
 
-    let model_data = ModelData::read(&mut Cursor::new(&model_bytes)).unwrap();
-
-    let vertex_buffers = vertex_buffers(device, &model_data, model_bytes);
-    let index_buffers = index_buffers(device, &model_data, model_bytes);
+    let vertex_buffers = vertex_buffers(device, &model_data);
+    let index_buffers = index_buffers(device, &model_data);
 
     let materials = materials(
         device,
@@ -144,10 +131,8 @@ pub fn load_model(
     }
 }
 
-fn load_cached_textures(msrd: &Msrd, decompressed_streams: &[Vec<u8>]) -> Vec<(String, Mibl)> {
-    let item = &msrd.stream_entries[msrd.texture_entry_index as usize];
-    let stream = &decompressed_streams[item.stream_index as usize];
-    let texture_data = &stream[item.offset as usize..item.offset as usize + item.size as usize];
+fn load_cached_textures(msrd: &Msrd) -> Vec<(String, Mibl)> {
+    let texture_data = msrd.extract_texture_data();
 
     msrd.texture_name_table
         .as_ref()
@@ -165,27 +150,12 @@ fn load_cached_textures(msrd: &Msrd, decompressed_streams: &[Vec<u8>]) -> Vec<(S
         .collect()
 }
 
-fn index_buffers(
-    device: &wgpu::Device,
-    model_data: &ModelData,
-    model_bytes: &[u8],
-) -> Vec<IndexData> {
+fn index_buffers(device: &wgpu::Device, model_data: &ModelData) -> Vec<IndexData> {
     model_data
         .index_buffers
         .iter()
         .map(|info| {
-            // TODO: Are all index buffers using u16 for indices?
-            let mut reader = Cursor::new(&model_bytes[model_data.data_base_offset as usize..]);
-            reader
-                .seek(SeekFrom::Start(info.data_offset as u64))
-                .unwrap();
-
-            let mut indices = Vec::new();
-            let vertex_index_count = info.index_count;
-            for _ in 0..vertex_index_count {
-                let index: u16 = reader.read_le().unwrap();
-                indices.push(index);
-            }
+            let indices = read_indices(model_data, info);
 
             let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("index buffer"),
@@ -195,23 +165,19 @@ fn index_buffers(
 
             IndexData {
                 index_buffer,
-                vertex_index_count,
+                vertex_index_count: indices.len() as u32,
             }
         })
         .collect()
 }
 
-fn vertex_buffers(
-    device: &wgpu::Device,
-    model_data: &ModelData,
-    model_bytes: &[u8],
-) -> Vec<VertexData> {
+fn vertex_buffers(device: &wgpu::Device, model_data: &ModelData) -> Vec<VertexData> {
     model_data
         .vertex_buffers
         .iter()
         .enumerate()
         .map(|(i, info)| {
-            let vertices = read_vertices(info, i, model_data, model_bytes);
+            let vertices = read_vertices(info, i, model_data);
 
             // Start with default values for each attribute.
             // Convert the buffers to a standardized format.
