@@ -5,10 +5,9 @@ use binrw::{args, binread, helpers::until_eof, FilePtr32};
 use serde::Serialize;
 
 /// wismt model data
-// TODO: what to call this?
 #[binread]
 #[derive(Debug, Serialize)]
-pub struct ModelData {
+pub struct VertexData {
     #[br(parse_with = parse_offset_count)]
     pub vertex_buffers: Vec<VertexBufferDescriptor>,
 

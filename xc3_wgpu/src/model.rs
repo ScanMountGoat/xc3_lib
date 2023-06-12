@@ -9,10 +9,10 @@ use wgpu::util::DeviceExt;
 use xc3_lib::{
     map::{MapModelData, PropModelData},
     mibl::Mibl,
-    model::ModelData,
     msmd::{Msmd, StreamEntry},
     msrd::Msrd,
     mxmd::{Mxmd, ShaderUnkType},
+    vertex::VertexData,
     xbc1::Xbc1,
 };
 use xc3_model::vertex::{read_indices, read_vertices};
@@ -26,23 +26,22 @@ use crate::{
 pub struct Model {
     meshes: Vec<Mesh>,
     materials: Vec<Material>,
-    vertex_buffers: Vec<VertexData>,
-    index_buffers: Vec<IndexData>,
+    vertex_buffers: Vec<VertexBuffer>,
+    index_buffers: Vec<IndexBuffer>,
 }
 
 struct Mesh {
     vertex_buffer_index: usize,
     index_buffer_index: usize,
     material_index: usize,
-    // TODO: How does this work?
-    lod: usize,
+    // TODO: lod?
 }
 
-struct VertexData {
+struct VertexBuffer {
     vertex_buffer: wgpu::Buffer,
 }
 
-struct IndexData {
+struct IndexBuffer {
     index_buffer: wgpu::Buffer,
     vertex_index_count: u32,
 }
@@ -100,7 +99,7 @@ pub fn load_model(
     model_path: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
 ) -> Model {
-    let model_data = msrd.extract_model_data();
+    let model_data = msrd.extract_vertex_data();
 
     // TODO: Avoid unwrap.
 
@@ -158,10 +157,11 @@ pub fn load_map_models<R: Read + Seek>(
         .collect();
 
     // TODO: Better way to combine models?
+    // TODO: How to select the VertexData?
     let mut combined_models: Vec<_> = msmd
         .map_models
         .iter()
-        .zip(msmd.map_model_data.iter())
+        .zip(msmd.map_vertex_data.iter())
         .map(|(map_model, model_data_entry)| {
             load_map_model(
                 wismda,
@@ -176,10 +176,11 @@ pub fn load_map_models<R: Read + Seek>(
         })
         .collect();
 
+    // TODO: How to select the VertexData?
     combined_models.extend(
         msmd.prop_models
             .iter()
-            .zip(msmd.prop_model_data.iter())
+            .zip(msmd.prop_vertex_data.iter())
             .map(|(prop_model, prop_model_entry)| {
                 load_prop_model(
                     wismda,
@@ -211,7 +212,7 @@ fn load_prop_model<R: Read + Seek>(
     let prop_model_data: PropModelData = Cursor::new(bytes).read_le().unwrap();
 
     let bytes = decompress_entry(wismda, &prop_model_entry);
-    let model_data: ModelData = Cursor::new(bytes).read_le().unwrap();
+    let model_data: VertexData = Cursor::new(bytes).read_le().unwrap();
 
     let vertex_buffers = vertex_buffers(device, &model_data);
     let index_buffers = index_buffers(device, &model_data);
@@ -265,7 +266,7 @@ fn load_map_model<R: Read + Seek>(
     let map_model_data: MapModelData = Cursor::new(bytes).read_le().unwrap();
 
     let bytes = decompress_entry(wismda, &map_model_data_entry);
-    let model_data: ModelData = Cursor::new(bytes).read_le().unwrap();
+    let model_data: VertexData = Cursor::new(bytes).read_le().unwrap();
 
     let vertex_buffers = vertex_buffers(device, &model_data);
     let index_buffers = index_buffers(device, &model_data);
@@ -313,7 +314,6 @@ fn meshes(mesh: &xc3_lib::mxmd::Mesh) -> Vec<Mesh> {
                 vertex_buffer_index: sub_item.vertex_buffer_index as usize,
                 index_buffer_index: sub_item.index_buffer_index as usize,
                 material_index: sub_item.material_index as usize,
-                lod: sub_item.lod as usize,
             })
         })
         .collect()
@@ -326,7 +326,7 @@ fn decompress_entry<R: Read + Seek>(reader: &mut R, entry: &StreamEntry) -> Vec<
     Xbc1::read(reader).unwrap().decompress().unwrap()
 }
 
-fn index_buffers(device: &wgpu::Device, model_data: &ModelData) -> Vec<IndexData> {
+fn index_buffers(device: &wgpu::Device, model_data: &VertexData) -> Vec<IndexBuffer> {
     model_data
         .index_buffers
         .iter()
@@ -339,7 +339,7 @@ fn index_buffers(device: &wgpu::Device, model_data: &ModelData) -> Vec<IndexData
                 usage: wgpu::BufferUsages::INDEX,
             });
 
-            IndexData {
+            IndexBuffer {
                 index_buffer,
                 vertex_index_count: indices.len() as u32,
             }
@@ -347,7 +347,7 @@ fn index_buffers(device: &wgpu::Device, model_data: &ModelData) -> Vec<IndexData
         .collect()
 }
 
-fn vertex_buffers(device: &wgpu::Device, model_data: &ModelData) -> Vec<VertexData> {
+fn vertex_buffers(device: &wgpu::Device, model_data: &VertexData) -> Vec<VertexBuffer> {
     model_data
         .vertex_buffers
         .iter()
@@ -376,7 +376,7 @@ fn vertex_buffers(device: &wgpu::Device, model_data: &ModelData) -> Vec<VertexDa
                 usage: wgpu::BufferUsages::VERTEX,
             });
 
-            VertexData { vertex_buffer }
+            VertexBuffer { vertex_buffer }
         })
         .collect()
 }

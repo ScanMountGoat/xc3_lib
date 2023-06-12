@@ -25,9 +25,9 @@ pub struct Msmd {
 
     unk2: [u32; 6],
 
-    /// References to [ModelData](crate::model::ModelData).
+    /// References to [VertexData](crate::vertex::VertexData).
     #[br(parse_with = parse_count_offset)]
-    pub prop_model_data: Vec<StreamEntry>,
+    pub prop_vertex_data: Vec<StreamEntry>,
 
     // TODO: What do these do?
     #[br(parse_with = parse_count_offset)]
@@ -51,9 +51,9 @@ pub struct Msmd {
 
     unk3_1: [u32; 13],
 
-    /// References to [ModelData](crate::model::ModelData).
+    /// References to [VertexData](crate::vertex::VertexData).
     #[br(parse_with = parse_count_offset)]
-    pub map_model_data: Vec<StreamEntry>,
+    pub map_vertex_data: Vec<StreamEntry>,
 }
 
 /// A reference to an [Xbc1](crate::xbc1::Xbc1) in the `.wismda` file.

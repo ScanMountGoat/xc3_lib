@@ -14,12 +14,12 @@ use binrw::{BinRead, BinReaderExt, BinResult, BinWrite, NullString, VecArgs};
 pub mod dds;
 pub mod map;
 pub mod mibl;
-pub mod model;
 pub mod msmd;
 pub mod msrd;
 pub mod mxmd;
 pub mod sar1;
 pub mod spch;
+pub mod vertex;
 pub mod xbc1;
 
 // TODO: Make a type for this and just use temp to derive it?
@@ -162,5 +162,5 @@ file_read_impl!(
     mxmd::Mxmd,
     sar1::Sar1,
     spch::Spch,
-    model::ModelData
+    vertex::VertexData
 );

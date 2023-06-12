@@ -10,12 +10,12 @@ use xc3_lib::{
     dds::{create_dds, create_mibl},
     map::{MapModelData, PropModelData},
     mibl::Mibl,
-    model::ModelData,
     msmd::Msmd,
     msrd::{EntryType, Msrd},
     mxmd::Mxmd,
     sar1::Sar1,
     spch::Spch,
+    vertex::VertexData,
     xbc1::Xbc1,
 };
 
@@ -147,7 +147,7 @@ fn check_msrd(msrd: Msrd) {
                 let stream = &decompressed_streams[item.stream_index as usize];
                 let data = &stream[item.offset as usize..item.offset as usize + item.size as usize];
 
-                ModelData::read(&mut Cursor::new(data)).unwrap();
+                VertexData::read(&mut Cursor::new(data)).unwrap();
             }
             // TODO: check texture parsing?
             EntryType::CachedTexture => {
@@ -199,18 +199,18 @@ fn check_msmd(msmd: Msmd, path: &Path) {
         let _: PropModelData = reader_inner.read_le().unwrap();
     }
 
-    for entry in msmd.map_model_data {
+    for entry in msmd.map_vertex_data {
         reader.seek(SeekFrom::Start(entry.offset as u64)).unwrap();
         let bytes = Xbc1::read(&mut reader).unwrap().decompress().unwrap();
         let mut reader_inner = Cursor::new(bytes);
-        let _: ModelData = reader_inner.read_le().unwrap();
+        let _: VertexData = reader_inner.read_le().unwrap();
     }
 
-    for entry in msmd.prop_model_data {
+    for entry in msmd.prop_vertex_data {
         reader.seek(SeekFrom::Start(entry.offset as u64)).unwrap();
         let bytes = Xbc1::read(&mut reader).unwrap().decompress().unwrap();
         let mut reader_inner = Cursor::new(bytes);
-        let _: ModelData = reader_inner.read_le().unwrap();
+        let _: VertexData = reader_inner.read_le().unwrap();
     }
 }
 

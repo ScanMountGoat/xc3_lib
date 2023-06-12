@@ -3,8 +3,8 @@ use std::io::{Cursor, Seek, SeekFrom};
 use binrw::BinReaderExt;
 use bytemuck::{Pod, Zeroable};
 use glam::{vec4, Vec3, Vec4};
-use xc3_lib::model::{
-    IndexBufferDescriptor, ModelData, VertexAnimationTarget, VertexBufferDescriptor,
+use xc3_lib::vertex::{
+    IndexBufferDescriptor, VertexAnimationTarget, VertexBufferDescriptor, VertexData,
 };
 
 // TODO: Switch to struct of arrays instead of array of structs.
@@ -21,7 +21,7 @@ pub struct Vertex {
     pub uv1: glam::Vec4,
 }
 
-pub fn read_indices(model_data: &ModelData, descriptor: &IndexBufferDescriptor) -> Vec<u16> {
+pub fn read_indices(model_data: &VertexData, descriptor: &IndexBufferDescriptor) -> Vec<u16> {
     // TODO: Are all index buffers using u16 for indices?
     let mut reader = Cursor::new(&model_data.buffer);
     reader
@@ -41,7 +41,7 @@ pub fn read_indices(model_data: &ModelData, descriptor: &IndexBufferDescriptor) 
 pub fn read_vertices(
     buffer: &VertexBufferDescriptor,
     buffer_index: usize,
-    model_data: &ModelData,
+    model_data: &VertexData,
 ) -> Vec<Vertex> {
     // Start with default values for each attribute.
     let mut vertices = vec![
@@ -87,23 +87,23 @@ fn assign_vertex_buffer_attributes(
         // TODO: Is switching for each vertex the base way to do this?
         for a in &descriptor.attributes {
             match a.data_type {
-                xc3_lib::model::DataType::Position => {
+                xc3_lib::vertex::DataType::Position => {
                     let value: [f32; 3] = reader.read_le().unwrap();
                     vertices[i as usize].position = value.into();
                 }
-                xc3_lib::model::DataType::VertexColor => {
+                xc3_lib::vertex::DataType::VertexColor => {
                     let value: [u8; 4] = reader.read_le().unwrap();
                     let u_to_f = |u| u as f32 / 255.0;
                     vertices[i as usize].vertex_color = value.map(u_to_f).into();
                 }
                 // TODO: How are these different?
-                xc3_lib::model::DataType::Normal | xc3_lib::model::DataType::Unk32 => {
+                xc3_lib::vertex::DataType::Normal | xc3_lib::vertex::DataType::Unk32 => {
                     vertices[i as usize].normal = read_snorm8x4(&mut reader);
                 }
-                xc3_lib::model::DataType::Tangent => {
+                xc3_lib::vertex::DataType::Tangent => {
                     vertices[i as usize].tangent = read_snorm8x4(&mut reader);
                 }
-                xc3_lib::model::DataType::Uv1 => {
+                xc3_lib::vertex::DataType::Uv1 => {
                     let value: [f32; 2] = reader.read_le().unwrap();
                     vertices[i as usize].uv1 = vec4(value[0], value[1], 0.0, 0.0);
                 }
@@ -158,7 +158,7 @@ fn assign_animation_buffer_attributes(
 }
 
 fn base_vertex_target(
-    model_data: &ModelData,
+    model_data: &VertexData,
     vertex_buffer_index: usize,
 ) -> Option<&VertexAnimationTarget> {
     // TODO: Easier to loop over each descriptor and assign by vertex buffer index?
@@ -176,7 +176,7 @@ mod tests {
 
     use glam::{vec3, vec4};
     use hexlit::hex;
-    use xc3_lib::model::{DataType, VertexAttribute};
+    use xc3_lib::vertex::{DataType, VertexAttribute};
 
     // TODO: Test weight buffers.
     #[test]

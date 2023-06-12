@@ -14,7 +14,7 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, msrd: &Msrd) {
         .to_string_lossy()
         .to_string();
 
-    let model_data = msrd.extract_model_data();
+    let model_data = msrd.extract_vertex_data();
 
     // TODO: Create nodes and meshes for each mesh in the mxmd.
     let vertices = read_vertices(&model_data.vertex_buffers[0], 0, &model_data);

@@ -29,7 +29,13 @@ pub struct PropModelData {
     #[br(parse_with = parse_offset_count)]
     pub textures: Vec<Texture>,
 
-    unk3: [u32; 7],
+    // TODO: lod def index -> prop_vertex_data_indices -> msmd prop_model_data
+    // elements index into msmd prop_model_data?
+    // something else indexes into this list?
+    #[br(parse_with = parse_offset_count)]
+    vertex_data_indices: Vec<u32>,
+
+    unk3: [u32; 5],
 
     #[br(parse_with = FilePtr32::parse)]
     pub spch: Spch,
@@ -63,7 +69,41 @@ pub struct MapModelData {
     #[br(parse_with = FilePtr32::parse)]
     pub spch: Spch,
 
-    unk4: [u32; 3], // padding?
+    // TODO: What does this do?
+    low_res_offset: u32,
+    low_res_count: u32,
+
+    #[br(parse_with = FilePtr32::parse)]
+    mapping: UnkMapping,
+    // padding?
+}
+
+// TODO: What to call this?
+#[binread]
+#[derive(Debug)]
+#[br(stream = r)]
+pub struct UnkMapping {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    pub groups: Vec<UnkGroup>,
+
+    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    unk2: Vec<u16>,
+}
+
+// Groups?
+#[binread]
+#[derive(Debug)]
+pub struct UnkGroup {
+    max: [f32; 3],
+    min: [f32; 3],
+    // index for msmd map_model_data?
+    pub model_data_index: u32,
+    unk2: u32,
+    unk3: u32,
+    unk4: u32,
 }
 
 // TODO: Link to appropriate fields with doc links.

@@ -151,8 +151,6 @@ impl Xc3Renderer {
             }),
         });
 
-        // render_pass.set_pipeline(&self.model_pipeline);
-
         // TODO: organize into per frame, per model, etc?
         self.model_bind_group0.set(&mut render_pass);
 
