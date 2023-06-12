@@ -1,12 +1,13 @@
 use std::{
-    io::{BufReader, BufWriter},
-    path::PathBuf,
+    io::{BufReader, BufWriter, Cursor},
+    path::{Path, PathBuf},
 };
 
 use clap::Parser;
 use xc3_lib::{
     dds::{create_dds, create_mibl},
     mibl::Mibl,
+    xbc1::Xbc1,
 };
 
 #[derive(Parser)]
@@ -39,6 +40,10 @@ fn main() {
             let mut reader = BufReader::new(std::fs::File::open(input).unwrap());
             ddsfile::Dds::read(&mut reader).unwrap()
         }
+        "wismt" => {
+            let mibl = read_wismt_single_tex(input);
+            create_dds(&mibl).unwrap()
+        }
         _ => todo!(),
     };
 
@@ -52,6 +57,12 @@ fn main() {
             mibl.write_to_file(output).unwrap();
         }
         // TODO: single tex wismt
+        // TODO: Also create base level?
+        "wismt" => {
+            let mibl = create_mibl(&dds).unwrap();
+            let xbc1 = create_wismt_single_tex(&mibl);
+            xbc1.write_to_file(output).unwrap();
+        }
         _ => {
             // Assume other formats are image formats for now.
             // TODO: properly flatten 3D images in image_dds.
@@ -59,4 +70,19 @@ fn main() {
             image.save(output).unwrap();
         }
     }
+}
+
+// TODO: Move this to xc3_lib?
+fn read_wismt_single_tex<P: AsRef<Path>>(path: P) -> Mibl {
+    let xbc1 = Xbc1::from_file(path).unwrap();
+
+    let decompressed = xbc1.decompress().unwrap();
+    let mut reader = Cursor::new(decompressed);
+    Mibl::read(&mut reader).unwrap()
+}
+
+fn create_wismt_single_tex(mibl: &Mibl) -> Xbc1 {
+    let mut writer = Cursor::new(Vec::new());
+    mibl.write(&mut writer).unwrap();
+    Xbc1::from_decompressed("b2062367_middle.witx".to_string(), &writer.into_inner())
 }
