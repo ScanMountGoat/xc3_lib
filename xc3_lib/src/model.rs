@@ -80,9 +80,11 @@ pub enum DataType {
     Position = 0,
     WeightIndex = 3, // bone indices?
     Unk4 = 4,
-    Uv1 = 5, // f32x2
+    /// Float32x2 UV coordinates.
+    Uv1 = 5,
     Uv2 = 6,
     Uv3 = 7,
+    Uv4 = 8,
     Unk14 = 14,
     /// Unorm8x4 vertex RGBA color.
     VertexColor = 17,
@@ -98,6 +100,7 @@ pub enum DataType {
     // one byte selects bones within a group?
     // only the least significant byte matters?
     BoneId2 = 42,
+    Unk52 = 52,
 }
 
 // TODO: Is this data always u16?

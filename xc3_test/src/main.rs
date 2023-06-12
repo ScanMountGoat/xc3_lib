@@ -1,17 +1,65 @@
-use std::{io::Cursor, path::Path};
+use std::{
+    io::{BufReader, Cursor, Seek, SeekFrom},
+    path::Path,
+};
 
+use binrw::BinReaderExt;
 use clap::Parser;
 use rayon::prelude::*;
 use xc3_lib::{
     dds::{create_dds, create_mibl},
+    map::{MapModelData, PropModelData},
     mibl::Mibl,
     model::ModelData,
+    msmd::Msmd,
     msrd::{EntryType, Msrd},
     mxmd::Mxmd,
     sar1::Sar1,
     spch::Spch,
     xbc1::Xbc1,
 };
+
+fn main() {
+    // Create a CLI for conversion testing instead of unit tests.
+    // The main advantage is being able to avoid distributing assets.
+    // The user can specify the path instead of hardcoding it.
+    // It's also easier to apply optimizations like multithreading.
+
+    let cli = Cli::parse();
+    let root = Path::new(&cli.root_folder);
+
+    let start = std::time::Instant::now();
+
+    // Check conversions for various file types.
+    if cli.mibl || cli.all {
+        println!("Checking MIBL files ...");
+        check_all_mibl(root);
+    }
+
+    if cli.mxmd || cli.all {
+        println!("Checking MXMD files ...");
+        check_all_mxmd(root);
+    }
+
+    if cli.msrd || cli.all {
+        println!("Checking MSRD files ...");
+        check_all_msrd(root);
+    }
+
+    if cli.msmd || cli.all {
+        println!("Checking MSMD files ...");
+        check_all_msmd(root);
+    }
+
+    if cli.sar1 || cli.all {
+        println!("Checking SAR1 files ...");
+        check_all_sar1(root);
+    }
+
+    // TODO: check standalone shaders
+
+    println!("Finished in {:?}", start.elapsed());
+}
 
 fn check_all_mxmd<P: AsRef<Path>>(root: P) {
     // TODO: The map folder .wimdo files are a different format?
@@ -110,6 +158,62 @@ fn check_msrd(msrd: Msrd) {
     }
 }
 
+fn check_all_msmd<P: AsRef<Path>>(root: P) {
+    let folder = root.as_ref().join("map");
+
+    globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.wismhd"])
+        .build()
+        .unwrap()
+        .par_bridge()
+        .for_each(|entry| {
+            let path = entry.as_ref().unwrap().path();
+            match Msmd::from_file(path) {
+                Ok(msmd) => {
+                    check_msmd(msmd, path);
+                }
+                Err(e) => println!("Error reading {path:?}: {e}"),
+            }
+        });
+}
+
+fn check_msmd(msmd: Msmd, path: &Path) {
+    // Parse all the data from the .wismda
+    let mut reader = BufReader::new(std::fs::File::open(path.with_extension("wismda")).unwrap());
+
+    // TODO: Move this functionality to xc3_lib?
+    for model in msmd.map_models {
+        reader
+            .seek(SeekFrom::Start(model.entry.offset as u64))
+            .unwrap();
+        let bytes = Xbc1::read(&mut reader).unwrap().decompress().unwrap();
+        let mut reader_inner = Cursor::new(bytes);
+        let _: MapModelData = reader_inner.read_le().unwrap();
+    }
+
+    for model in msmd.prop_models {
+        reader
+            .seek(SeekFrom::Start(model.entry.offset as u64))
+            .unwrap();
+        let bytes = Xbc1::read(&mut reader).unwrap().decompress().unwrap();
+        let mut reader_inner = Cursor::new(bytes);
+        let _: PropModelData = reader_inner.read_le().unwrap();
+    }
+
+    for entry in msmd.map_model_data {
+        reader.seek(SeekFrom::Start(entry.offset as u64)).unwrap();
+        let bytes = Xbc1::read(&mut reader).unwrap().decompress().unwrap();
+        let mut reader_inner = Cursor::new(bytes);
+        let _: ModelData = reader_inner.read_le().unwrap();
+    }
+
+    for entry in msmd.prop_model_data {
+        reader.seek(SeekFrom::Start(entry.offset as u64)).unwrap();
+        let bytes = Xbc1::read(&mut reader).unwrap().decompress().unwrap();
+        let mut reader_inner = Cursor::new(bytes);
+        let _: ModelData = reader_inner.read_le().unwrap();
+    }
+}
+
 fn check_mibl(original_bytes: Vec<u8>, mibl: Mibl, path: &Path) {
     let dds = create_dds(&mibl).unwrap();
     let new_mibl = create_mibl(&dds).unwrap();
@@ -167,6 +271,10 @@ struct Cli {
     #[arg(long)]
     msrd: bool,
 
+    /// Process MSMD map files from .wismhd
+    #[arg(long)]
+    msmd: bool,
+
     /// Process SAR1 model files from .chr
     #[arg(long)]
     sar1: bool,
@@ -174,41 +282,4 @@ struct Cli {
     /// Process all file types
     #[arg(long)]
     all: bool,
-}
-
-fn main() {
-    // Create a CLI for conversion testing instead of unit tests.
-    // The main advantage is being able to avoid distributing assets.
-    // The user can specify the path instead of hardcoding it.
-    // It's also easier to apply optimizations like multithreading.
-
-    let cli = Cli::parse();
-    let root = Path::new(&cli.root_folder);
-
-    let start = std::time::Instant::now();
-
-    // Check conversions for various file types.
-    if cli.mibl || cli.all {
-        println!("Checking MIBL files ...");
-        check_all_mibl(root);
-    }
-
-    if cli.mxmd || cli.all {
-        println!("Checking MXMD files ...");
-        check_all_mxmd(root);
-    }
-
-    if cli.msrd || cli.all {
-        println!("Checking MSRD files ...");
-        check_all_msrd(root);
-    }
-
-    if cli.sar1 || cli.all {
-        println!("Checking SAR1 files ...");
-        check_all_sar1(root);
-    }
-
-    // TODO: check shaders
-
-    println!("Finished in {:?}", start.elapsed());
 }

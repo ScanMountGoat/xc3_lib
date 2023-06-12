@@ -279,6 +279,7 @@ pub enum ShaderUnkType {
     Unk1 = 1, // second layer transparent?
     Unk6 = 6, // used for maps?
     Unk7 = 7, // additional eye effect layer?
+    Unk9 = 9, // used for maps?
 }
 
 #[binread]

@@ -56,8 +56,7 @@ pub struct MapModelData {
     #[br(parse_with = FilePtr32::parse)]
     pub spch: Spch,
 
-    unk3: [u32; 3]
-    // padding?
+    unk3: [u32; 3], // padding?
 }
 
 // TODO: Shared with other formats?
