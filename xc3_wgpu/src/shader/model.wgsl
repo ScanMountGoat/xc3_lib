@@ -197,7 +197,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     // The ordering here is the order of per material fragment shader outputs.
     // The input order for the deferred lighting pass is slightly different.
     // TODO: How to properly handle missing assignments?
-    let g0 = assign_gbuffer_texture(gbuffer_assignments[0], s_colors, vec4(0.0));
+    let g0 = assign_gbuffer_texture(gbuffer_assignments[0], s_colors, vec4(1.0));
     let g1 = assign_gbuffer_texture(gbuffer_assignments[1], s_colors, vec4(0.0));
     let g2 = assign_gbuffer_texture(gbuffer_assignments[2], s_colors, vec4(0.5, 0.5, 1.0, 0.0));
     let g3 = assign_gbuffer_texture(gbuffer_assignments[3], s_colors, vec4(0.0));

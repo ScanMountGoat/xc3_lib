@@ -83,23 +83,29 @@ fn create_texture_from_footer_data(
         _ => 1,
     };
 
+    let size = wgpu::Extent3d {
+        // TODO: How to handle not being a multiple of the block dimensions?
+        width: width.max(4),
+        height: height.max(4),
+        depth_or_array_layers: std::cmp::max(layers, depth),
+    };
+
+    let dimension = match view_dimension {
+        xc3_lib::mibl::ViewDimension::D2 => wgpu::TextureDimension::D2,
+        xc3_lib::mibl::ViewDimension::D3 => wgpu::TextureDimension::D3,
+        xc3_lib::mibl::ViewDimension::Cube => wgpu::TextureDimension::D2,
+    };
+
     // TODO: label?
     device.create_texture_with_data(
         queue,
         &wgpu::TextureDescriptor {
             label: None,
-            size: wgpu::Extent3d {
-                width,
-                height,
-                depth_or_array_layers: std::cmp::max(layers, depth),
-            },
-            mip_level_count: mipmap_count,
+            size,
+            // TODO: Why are some mipmap counts too high?
+            mip_level_count: mipmap_count.min(size.max_mips(dimension)),
             sample_count: 1,
-            dimension: match view_dimension {
-                xc3_lib::mibl::ViewDimension::D2 => wgpu::TextureDimension::D2,
-                xc3_lib::mibl::ViewDimension::D3 => wgpu::TextureDimension::D3,
-                xc3_lib::mibl::ViewDimension::Cube => wgpu::TextureDimension::D2,
-            },
+            dimension,
             format: texture_format(image_format),
             usage: wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],

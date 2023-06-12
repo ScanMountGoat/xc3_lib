@@ -17,13 +17,15 @@ use crate::{
 #[derive(Debug)]
 pub struct PropModelData {
     pub unk1: [u32; 3],
-    // TODO: nullable pointers?
+
     #[br(parse_with = FilePtr32::parse)]
     pub mesh: Mesh,
+
     #[br(parse_with = FilePtr32::parse)]
     pub materials: Materials,
     unk2: [u32; 3],
 
+    /// The textures referenced by [materials](#structfield.materials).
     #[br(parse_with = parse_offset_count)]
     pub textures: Vec<Texture>,
 
@@ -44,6 +46,31 @@ pub struct PropModelData {
 pub struct MapModelData {
     unk1: [u32; 3],
 
+    #[br(parse_with = FilePtr32::parse)]
+    pub mesh: Mesh,
+
+    #[br(parse_with = FilePtr32::parse)]
+    pub materials: Materials,
+
+    unk2: [u32; 2],
+
+    /// The textures referenced by [materials](#structfield.materials).
+    #[br(parse_with = parse_offset_count)]
+    pub textures: Vec<Texture>,
+
+    unk3: [u32; 2],
+
+    #[br(parse_with = FilePtr32::parse)]
+    pub spch: Spch,
+
+    unk4: [u32; 3], // padding?
+}
+
+// TODO: Link to appropriate fields with doc links.
+/// The data for a [SkyModel](crate::msmd::SkyModel).
+#[binread]
+#[derive(Debug)]
+pub struct SkyModelData {
     // TODO: nullable pointers?
     #[br(parse_with = FilePtr32::parse)]
     pub mesh: Mesh,
@@ -51,20 +78,23 @@ pub struct MapModelData {
     #[br(parse_with = FilePtr32::parse)]
     pub materials: Materials,
 
-    unk2: [u32; 6],
+    unk3: u32,
+    unk4: u32,
+    unk5: u32,
+    unk6: u32,
 
     #[br(parse_with = FilePtr32::parse)]
     pub spch: Spch,
-
-    unk3: [u32; 3], // padding?
+    // padding?
 }
 
 // TODO: Shared with other formats?
 #[binread]
 #[derive(Debug)]
 pub struct Texture {
-    low_texture_index: i16,
-    low_texture_container_index: i16,
-    texture_index: u16,
-    texture_type: u16,
+    // TODO: What do these index into?
+    pub low_texture_index: i16,
+    pub low_texture_container_index: i16,
+    pub texture_index: i16, // index into texture list in msmd?
+    pub texture_type: u16,
 }

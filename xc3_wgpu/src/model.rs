@@ -1,18 +1,26 @@
-use std::io::Cursor;
+use std::{
+    io::{Cursor, Read, Seek},
+    path::Path,
+};
 
+use binrw::BinReaderExt;
 use glam::vec4;
 use wgpu::util::DeviceExt;
 use xc3_lib::{
+    map::{MapModelData, PropModelData},
     mibl::Mibl,
     model::ModelData,
+    msmd::{Msmd, StreamEntry},
     msrd::Msrd,
     mxmd::{Mxmd, ShaderUnkType},
+    xbc1::Xbc1,
 };
 use xc3_model::vertex::{read_indices, read_vertices};
 
 use crate::{
     material::{materials, Material},
     shader,
+    texture::{create_texture, create_texture_with_base_mip},
 };
 
 pub struct Model {
@@ -75,7 +83,9 @@ impl Model {
         render_pass.set_vertex_buffer(0, vertex_data.vertex_buffer.slice(..));
 
         // TODO: Are all indices u16?
+        // TODO: Why do maps not always refer to a valid index buffer?
         let index_data = &self.index_buffers[mesh.index_buffer_index];
+        // let index_data = &self.index_buffers[mesh.index_buffer_index];
         render_pass.set_index_buffer(index_data.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
 
         render_pass.draw_indexed(0..index_data.vertex_index_count, 0, 0..1);
@@ -93,8 +103,16 @@ pub fn load_model(
     let model_data = msrd.extract_model_data();
 
     // TODO: Avoid unwrap.
-    // Load cached textures
-    let cached_textures = load_cached_textures(msrd);
+
+    // "chr/en/file.wismt" -> "chr/tex/nx/m"
+    // TODO: Don't assume model_path is in the chr/ch or chr/en folders.
+    let chr_folder = Path::new(model_path).parent().unwrap().parent().unwrap();
+    let m_tex_folder = chr_folder.join("tex").join("nx").join("m");
+    let h_tex_folder = chr_folder.join("tex").join("nx").join("h");
+
+    let textures = load_textures(mxmd, device, queue, m_tex_folder, h_tex_folder);
+
+    let cached_textures = load_cached_textures(device, queue, msrd);
 
     let vertex_buffers = vertex_buffers(device, &model_data);
     let index_buffers = index_buffers(device, &model_data);
@@ -102,15 +120,192 @@ pub fn load_model(
     let materials = materials(
         device,
         queue,
-        mxmd,
+        &mxmd.materials,
+        &textures,
         &cached_textures,
         model_path,
         shader_database,
     );
 
-    let meshes = mxmd
-        .mesh
-        .items
+    let meshes = meshes(&mxmd.mesh);
+
+    Model {
+        meshes,
+        materials,
+        vertex_buffers,
+        index_buffers,
+    }
+}
+
+// TODO: Separate module for this?
+// TODO: Better way to pass the wismda file?
+pub fn load_map_models<R: Read + Seek>(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    msmd: &Msmd,
+    wismda: &mut R,
+    model_path: &str,
+    shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
+) -> Vec<Model> {
+    // TODO: Are the msmd textures shared with all models?
+    let textures: Vec<_> = msmd
+        .textures
+        .iter()
+        .map(|texture| {
+            let bytes = decompress_entry(wismda, &texture.mid);
+            Mibl::read(&mut Cursor::new(&bytes)).unwrap()
+        })
+        .collect();
+
+    // TODO: Better way to combine models?
+    let mut combined_models: Vec<_> = msmd
+        .map_models
+        .iter()
+        .zip(msmd.map_model_data.iter())
+        .map(|(map_model, model_data_entry)| {
+            load_map_model(
+                wismda,
+                map_model,
+                model_data_entry,
+                &textures,
+                device,
+                queue,
+                model_path,
+                shader_database,
+            )
+        })
+        .collect();
+
+    combined_models.extend(
+        msmd.prop_models
+            .iter()
+            .zip(msmd.prop_model_data.iter())
+            .map(|(prop_model, prop_model_entry)| {
+                load_prop_model(
+                    wismda,
+                    prop_model,
+                    prop_model_entry,
+                    &textures,
+                    device,
+                    queue,
+                    model_path,
+                    shader_database,
+                )
+            }),
+    );
+
+    combined_models
+}
+
+fn load_prop_model<R: Read + Seek>(
+    wismda: &mut R,
+    prop_model: &xc3_lib::msmd::PropModel,
+    prop_model_entry: &xc3_lib::msmd::StreamEntry,
+    mibl_textures: &[Mibl],
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    model_path: &str,
+    shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
+) -> Model {
+    let bytes = decompress_entry(wismda, &prop_model.entry);
+    let prop_model_data: PropModelData = Cursor::new(bytes).read_le().unwrap();
+
+    let bytes = decompress_entry(wismda, &prop_model_entry);
+    let model_data: ModelData = Cursor::new(bytes).read_le().unwrap();
+
+    let vertex_buffers = vertex_buffers(device, &model_data);
+    let index_buffers = index_buffers(device, &model_data);
+
+    // Get the textures referenced by the materials in this model.
+    let textures: Vec<_> = prop_model_data
+        .textures
+        .iter()
+        .map(|item| {
+            // TODO: Handle texture index being -1?
+            let mibl = &mibl_textures[item.texture_index.max(0) as usize];
+            Some(
+                create_texture(device, queue, mibl)
+                    .create_view(&wgpu::TextureViewDescriptor::default()),
+            )
+        })
+        .collect();
+
+    // TODO: cached textures?
+    let materials = materials(
+        device,
+        queue,
+        &prop_model_data.materials,
+        &textures,
+        &[],
+        model_path,
+        shader_database,
+    );
+
+    let meshes = meshes(&prop_model_data.mesh);
+
+    Model {
+        meshes,
+        materials,
+        vertex_buffers,
+        index_buffers,
+    }
+}
+
+fn load_map_model<R: Read + Seek>(
+    wismda: &mut R,
+    map_model: &xc3_lib::msmd::MapModel,
+    map_model_data_entry: &xc3_lib::msmd::StreamEntry,
+    mibl_textures: &[Mibl],
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    model_path: &str,
+    shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
+) -> Model {
+    let bytes = decompress_entry(wismda, &map_model.entry);
+    let map_model_data: MapModelData = Cursor::new(bytes).read_le().unwrap();
+
+    let bytes = decompress_entry(wismda, &map_model_data_entry);
+    let model_data: ModelData = Cursor::new(bytes).read_le().unwrap();
+
+    let vertex_buffers = vertex_buffers(device, &model_data);
+    let index_buffers = index_buffers(device, &model_data);
+
+    // Get the textures referenced by the materials in this model.
+    let textures: Vec<_> = map_model_data
+        .textures
+        .iter()
+        .map(|item| {
+            // TODO: Handle texture index being -1?
+            let mibl = &mibl_textures[item.texture_index.max(0) as usize];
+            Some(
+                create_texture(device, queue, mibl)
+                    .create_view(&wgpu::TextureViewDescriptor::default()),
+            )
+        })
+        .collect();
+
+    let materials = materials(
+        device,
+        queue,
+        &map_model_data.materials,
+        &textures,
+        &[],
+        model_path,
+        shader_database,
+    );
+
+    let meshes = meshes(&map_model_data.mesh);
+
+    Model {
+        meshes,
+        materials,
+        vertex_buffers,
+        index_buffers,
+    }
+}
+
+fn meshes(mesh: &xc3_lib::mxmd::Mesh) -> Vec<Mesh> {
+    mesh.items
         .elements
         .iter()
         .flat_map(|item| {
@@ -121,33 +316,14 @@ pub fn load_model(
                 lod: sub_item.lod as usize,
             })
         })
-        .collect();
-
-    Model {
-        meshes,
-        materials,
-        vertex_buffers,
-        index_buffers,
-    }
+        .collect()
 }
 
-fn load_cached_textures(msrd: &Msrd) -> Vec<(String, Mibl)> {
-    let texture_data = msrd.extract_texture_data();
-
-    msrd.texture_name_table
-        .as_ref()
-        .unwrap()
-        .textures
-        .iter()
-        .map(|info| {
-            let data =
-                &texture_data[info.offset as usize..info.offset as usize + info.size as usize];
-            (
-                info.name.clone(),
-                Mibl::read(&mut Cursor::new(&data)).unwrap(),
-            )
-        })
-        .collect()
+fn decompress_entry<R: Read + Seek>(reader: &mut R, entry: &StreamEntry) -> Vec<u8> {
+    reader
+        .seek(std::io::SeekFrom::Start(entry.offset as u64))
+        .unwrap();
+    Xbc1::read(reader).unwrap().decompress().unwrap()
 }
 
 fn index_buffers(device: &wgpu::Device, model_data: &ModelData) -> Vec<IndexData> {
@@ -203,4 +379,72 @@ fn vertex_buffers(device: &wgpu::Device, model_data: &ModelData) -> Vec<VertexDa
             VertexData { vertex_buffer }
         })
         .collect()
+}
+
+fn load_textures(
+    mxmd: &Mxmd,
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    m_tex_folder: std::path::PathBuf,
+    h_tex_folder: std::path::PathBuf,
+) -> Vec<Option<wgpu::TextureView>> {
+    mxmd.textures
+        .items
+        .as_ref()
+        .unwrap()
+        .textures
+        .iter()
+        .map(|item| load_wismt_mibl(device, queue, &m_tex_folder, &h_tex_folder, &item.name))
+        .collect()
+}
+
+fn load_cached_textures(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    msrd: &Msrd,
+) -> Vec<(String, wgpu::TextureView)> {
+    let texture_data = msrd.extract_texture_data();
+
+    msrd.texture_name_table
+        .as_ref()
+        .unwrap()
+        .textures
+        .iter()
+        .map(|info| {
+            let data =
+                &texture_data[info.offset as usize..info.offset as usize + info.size as usize];
+            let mibl = Mibl::read(&mut Cursor::new(&data)).unwrap();
+            (
+                info.name.clone(),
+                create_texture(device, queue, &mibl)
+                    .create_view(&wgpu::TextureViewDescriptor::default()),
+            )
+        })
+        .collect()
+}
+
+// TODO: Split into two functions?
+fn load_wismt_mibl(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    m_texture_folder: &Path,
+    h_texture_folder: &Path,
+    texture_name: &str,
+) -> Option<wgpu::TextureView> {
+    // TODO: Create a helper function in xc3_lib for this?
+    let xbc1 = Xbc1::from_file(m_texture_folder.join(texture_name).with_extension("wismt")).ok()?;
+    let mut reader = Cursor::new(xbc1.decompress().unwrap());
+
+    let mibl = Mibl::read(&mut reader).unwrap();
+
+    let base_mip_level =
+        Xbc1::from_file(&h_texture_folder.join(texture_name).with_extension("wismt"))
+            .unwrap()
+            .decompress()
+            .unwrap();
+
+    Some(
+        create_texture_with_base_mip(device, queue, &mibl, &base_mip_level)
+            .create_view(&wgpu::TextureViewDescriptor::default()),
+    )
 }

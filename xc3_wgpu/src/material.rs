@@ -1,16 +1,12 @@
-use std::{io::Cursor, path::Path};
+use std::path::Path;
 
 use glam::{ivec4, uvec4};
 use wgpu::util::DeviceExt;
-use xc3_lib::{
-    mibl::Mibl,
-    mxmd::{Mxmd, ShaderUnkType},
-    xbc1::Xbc1,
-};
+use xc3_lib::mxmd::{Materials, ShaderUnkType};
 
 use crate::{
     pipeline::{model_pipeline, model_transparent_pipeline},
-    texture::{create_default_black_texture, create_texture, create_texture_with_base_mip},
+    texture::create_default_black_texture,
 };
 
 // TODO: Don't make this public outside the crate?
@@ -30,8 +26,9 @@ pub struct Material {
 pub fn materials(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-    mxmd: &Mxmd,
-    cached_textures: &[(String, Mibl)],
+    materials: &Materials,
+    textures: &[Option<wgpu::TextureView>],
+    cached_textures: &[(String, wgpu::TextureView)],
     model_path: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
 ) -> Vec<Material> {
@@ -59,29 +56,14 @@ pub fn materials(
         .to_string();
 
     // TODO: Make this a map instead of a vec?
-    let shaders = &shader_database.files[&model_folder].shaders;
+    let shaders = shader_database.files.get(&model_folder).map(|f| &f.shaders);
 
-    // "chr/en/file.wismt" -> "chr/tex/nx/m"
-    // TODO: Don't assume model_path is in the chr/ch or chr/en folders.
-    let chr_folder = Path::new(model_path).parent().unwrap().parent().unwrap();
-    let m_tex_folder = chr_folder.join("tex").join("nx").join("m");
-
-    let h_tex_folder = chr_folder.join("tex").join("nx").join("h");
-
-    mxmd.materials
+    materials
         .materials
         .elements
         .iter()
         .map(|material| {
-            let texture_views = load_textures(
-                material,
-                mxmd,
-                &m_tex_folder,
-                &h_tex_folder,
-                device,
-                queue,
-                cached_textures,
-            );
+            let texture_views = load_material_textures(material, textures, cached_textures);
 
             // Bind all available textures and samplers.
             // Texture selection happens within the shader itself.
@@ -89,16 +71,16 @@ pub fn materials(
             let bind_group1 = crate::shader::model::bind_groups::BindGroup1::from_bindings(
                 device,
                 crate::shader::model::bind_groups::BindGroupLayout1 {
-                    s0: texture_views.get(0).unwrap_or(&default_black),
-                    s1: texture_views.get(1).unwrap_or(&default_black),
-                    s2: texture_views.get(2).unwrap_or(&default_black),
-                    s3: texture_views.get(3).unwrap_or(&default_black),
-                    s4: texture_views.get(4).unwrap_or(&default_black),
-                    s5: texture_views.get(5).unwrap_or(&default_black),
-                    s6: texture_views.get(6).unwrap_or(&default_black),
-                    s7: texture_views.get(7).unwrap_or(&default_black),
-                    s8: texture_views.get(8).unwrap_or(&default_black),
-                    s9: texture_views.get(9).unwrap_or(&default_black),
+                    s0: texture_views.get(0).unwrap_or(&&default_black),
+                    s1: texture_views.get(1).unwrap_or(&&default_black),
+                    s2: texture_views.get(2).unwrap_or(&&default_black),
+                    s3: texture_views.get(3).unwrap_or(&&default_black),
+                    s4: texture_views.get(4).unwrap_or(&&default_black),
+                    s5: texture_views.get(5).unwrap_or(&&default_black),
+                    s6: texture_views.get(6).unwrap_or(&&default_black),
+                    s7: texture_views.get(7).unwrap_or(&&default_black),
+                    s8: texture_views.get(8).unwrap_or(&&default_black),
+                    s9: texture_views.get(9).unwrap_or(&&default_black),
                     shared_sampler: &default_sampler,
                 },
             );
@@ -111,8 +93,11 @@ pub fn materials(
                 "shd{:0>4}_FS0.glsl",
                 material.shader_programs[0].program_index
             );
-            let shader = &shaders[&shader_name];
-            let assignments = gbuffer_assignments(shader);
+            let shader = shaders.and_then(|shaders| shaders.get(&shader_name));
+            // TODO: Default assignments?
+            let assignments = shader
+                .map(gbuffer_assignments)
+                .unwrap_or_else(default_gbuffer_assignments);
 
             let gbuffer_assignments =
                 device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -227,62 +212,49 @@ pub fn load_database<P: AsRef<Path>>(path: P) -> xc3_shader::gbuffer_database::G
     serde_json::from_str(&json).unwrap()
 }
 
-fn load_textures(
+fn load_material_textures<'a>(
     material: &xc3_lib::mxmd::Material,
-    mxmd: &Mxmd,
-    m_texture_folder: &Path,
-    h_texture_folder: &Path,
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    cached_textures: &[(String, Mibl)],
-) -> Vec<wgpu::TextureView> {
-    // TODO: Store wgpu texture instead?
-    // TODO: Access by name instead of index?
+    textures: &'a [Option<wgpu::TextureView>],
+    cached_textures: &'a [(String, wgpu::TextureView)],
+) -> Vec<&'a wgpu::TextureView> {
     material
         .textures
         .iter()
         .map(|t| {
-            let tex_name =
-                &mxmd.textures.items.as_ref().unwrap().textures[t.texture_index as usize].name;
-
-            load_wismt_mibl(device, queue, m_texture_folder, h_texture_folder, tex_name)
-                .unwrap_or_else(|| {
-                    // Not all textures have higher resolution versions in the tex folder.
-                    // Fall back to the cached textures if loading high res textures fails.
-                    let mibl = cached_textures
-                        .iter()
-                        .find_map(|(name, mibl)| if name == tex_name { Some(mibl) } else { None })
-                        .unwrap();
-
-                    create_texture(device, queue, mibl)
-                        .create_view(&wgpu::TextureViewDescriptor::default())
-                })
+            textures
+                .get(t.texture_index as usize)
+                .and_then(|t| t.as_ref())
+                .unwrap_or_else(|| &cached_textures[t.texture_index as usize].1)
         })
         .collect()
 }
 
-// TODO: Split into two functions?
-fn load_wismt_mibl(
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    m_texture_folder: &Path,
-    h_texture_folder: &Path,
-    texture_name: &str,
-) -> Option<wgpu::TextureView> {
-    // TODO: Create a helper function in xc3_lib for this?
-    let xbc1 = Xbc1::from_file(m_texture_folder.join(texture_name).with_extension("wismt")).ok()?;
-    let mut reader = Cursor::new(xbc1.decompress().unwrap());
-
-    let mibl = Mibl::read(&mut reader).unwrap();
-
-    let base_mip_level =
-        Xbc1::from_file(&h_texture_folder.join(texture_name).with_extension("wismt"))
-            .unwrap()
-            .decompress()
-            .unwrap();
-
-    Some(
-        create_texture_with_base_mip(device, queue, &mibl, &base_mip_level)
-            .create_view(&wgpu::TextureViewDescriptor::default()),
-    )
+fn default_gbuffer_assignments() -> Vec<crate::shader::model::GBufferAssignment> {
+    // We can only assume that the first texture is probably albedo.
+    vec![
+        crate::shader::model::GBufferAssignment {
+            sampler_indices: ivec4(0, 0, 0, 0),
+            channel_indices: uvec4(0, 1, 2, 3),
+        },
+        crate::shader::model::GBufferAssignment {
+            sampler_indices: ivec4(-1, -1, -1, -1),
+            channel_indices: uvec4(0, 1, 2, 3),
+        },
+        crate::shader::model::GBufferAssignment {
+            sampler_indices: ivec4(-1, -1, -1, -1),
+            channel_indices: uvec4(0, 1, 2, 3),
+        },
+        crate::shader::model::GBufferAssignment {
+            sampler_indices: ivec4(-1, -1, -1, -1),
+            channel_indices: uvec4(0, 1, 2, 3),
+        },
+        crate::shader::model::GBufferAssignment {
+            sampler_indices: ivec4(-1, -1, -1, -1),
+            channel_indices: uvec4(0, 1, 2, 3),
+        },
+        crate::shader::model::GBufferAssignment {
+            sampler_indices: ivec4(-1, -1, -1, -1),
+            channel_indices: uvec4(0, 1, 2, 3),
+        },
+    ]
 }

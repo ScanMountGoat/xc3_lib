@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{io::BufReader, path::Path};
 
 use futures::executor::block_on;
 use glam::{vec3, Vec3};
@@ -8,15 +8,13 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
     window::{Window, WindowBuilder},
 };
-use xc3_lib::{msrd::Msrd, mxmd::Mxmd};
+use xc3_lib::{msmd::Msmd, msrd::Msrd, mxmd::Mxmd};
 use xc3_wgpu::{
     material::load_database,
-    model::Model,
+    model::{load_map_models, load_model, Model},
     renderer::{CameraData, Xc3Renderer},
     COLOR_FORMAT,
 };
-
-use xc3_wgpu::model::load_model;
 
 const FOV: f32 = 0.5;
 // TODO: Why does a near clip below 1.0 break panning?
@@ -35,7 +33,8 @@ struct State {
 
     renderer: Xc3Renderer,
 
-    model: Model,
+    // TODO: Better way to render multiple map models?
+    models: Vec<Model>,
 
     input_state: InputState,
 }
@@ -48,13 +47,7 @@ struct InputState {
 }
 
 impl State {
-    async fn new(
-        window: &Window,
-        msrd: &Msrd,
-        mxmd: &Mxmd,
-        model_path: &str,
-        database_path: &str,
-    ) -> Self {
+    async fn new(window: &Window, model_path: &Path, database_path: &str) -> Self {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
@@ -106,7 +99,44 @@ impl State {
 
         let shader_database = load_database(database_path);
 
-        let model = load_model(&device, &queue, msrd, mxmd, model_path, &shader_database);
+        // Infer the type of model to load based on the extension.
+        // TODO: Is it possible to render just a wimdo?
+        let start = std::time::Instant::now();
+
+        let models = match model_path.extension().unwrap().to_str().unwrap() {
+            "wismt" => {
+                let msrd = Msrd::from_file(model_path).unwrap();
+                let mxmd = Mxmd::from_file(model_path.with_extension("wimdo")).unwrap();
+                let model_name = model_path.to_string_lossy().to_string();
+
+                vec![load_model(
+                    &device,
+                    &queue,
+                    &msrd,
+                    &mxmd,
+                    &model_name,
+                    &shader_database,
+                )]
+            }
+            "wismhd" => {
+                let msmd = Msmd::from_file(model_path).unwrap();
+                let mut wismda = BufReader::new(
+                    std::fs::File::open(model_path.with_extension("wismda")).unwrap(),
+                );
+                let model_name = model_path.to_string_lossy().to_string();
+
+                load_map_models(
+                    &device,
+                    &queue,
+                    &msmd,
+                    &mut wismda,
+                    &model_name,
+                    &shader_database,
+                )
+            }
+            _ => todo!(),
+        };
+        println!("Load {:?} models: {:?}", models.len(), start.elapsed());
 
         Self {
             surface,
@@ -116,7 +146,7 @@ impl State {
             config,
             translation,
             rotation_xyz,
-            model,
+            models,
             renderer,
             input_state: Default::default(),
         }
@@ -156,8 +186,10 @@ impl State {
                 label: Some("Render Encoder"),
             });
 
-        self.renderer
-            .render_model(&output_view, &mut encoder, &self.model);
+        for model in &self.models {
+            self.renderer
+                .render_model(&output_view, &mut encoder, model);
+        }
 
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
@@ -302,10 +334,7 @@ fn calculate_camera_data(
 fn main() {
     let args: Vec<_> = std::env::args().collect();
 
-    // Just take a .wismt for now.
-    let msrd = Msrd::from_file(&args[1]).unwrap();
-    let mxmd = Mxmd::from_file(Path::new(&args[1]).with_extension("wimdo")).unwrap();
-    let model_name = &args[1];
+    let model_path = Path::new(&args[1]);
 
     let database_path = &args[2];
 
@@ -315,7 +344,7 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
-    let mut state = block_on(State::new(&window, &msrd, &mxmd, model_name, database_path));
+    let mut state = block_on(State::new(&window, model_path, database_path));
     event_loop.run(move |event, _, control_flow| match event {
         Event::WindowEvent {
             ref event,
