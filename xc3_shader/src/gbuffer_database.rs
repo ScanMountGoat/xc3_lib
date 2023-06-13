@@ -62,6 +62,7 @@ impl Shader {
                         (name, dependencies)
                     })
                 })
+                .filter(|(_, dependencies)| !dependencies.is_empty())
                 .collect(),
         }
     }

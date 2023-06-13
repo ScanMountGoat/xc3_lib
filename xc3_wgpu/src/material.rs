@@ -168,7 +168,9 @@ fn channel_assignment(
 
     // Find the first material referenced sampler like "s0" or "s1".
     let (sampler_index, channels) =
-        shader.output_dependencies[&output]
+        shader
+            .output_dependencies
+            .get(&output)?
             .iter()
             .find_map(|sampler_name| {
                 let (sampler, channels) = sampler_name.split_once('.')?;
