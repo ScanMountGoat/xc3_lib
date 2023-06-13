@@ -36,6 +36,25 @@ These tools often assume advanced knowledge of modern graphics APIs and hardware
 Consult the appropriate documentation for details and usage instructions. 
 
 ## In Game Testing
-The easiest way to test files is using an emulator like Ryujinx and the [xc3-file-loader](https://github.com/RoccoDev/xc3-file-loader) plugin for loading modded files.
+The easiest way to test files is using an emulator like Ryujinx and the [xc3-file-loader](https://github.com/RoccoDev/xc3-file-loader) plugin for loading modded files. Files can be extracted from a dump of the game by dumping the romfs from Ryujinx and then dumping the ard and arh archive files using [XbTool](https://github.com/AlexCSDev/XbTool/releases).
 
-## Debugging File Parsing - TODO
+## Debugging File Parsing
+The easiest way to test file parsing is by running xc3_test on an extracted game dump and note any errors printed to the console. The `binrw` library used to generate parsing code also supports debugging the location and values of specific fields by adding the `#[br(dbg)]` attribute like in the example below. This makes it easy to identify the offset to use when hex editing for in game tests.
+
+```rust
+#[binread]
+#[derive(Debug)]
+pub struct Data {
+    // Prints offset and value for field1 to stderr when parsing
+    #[br(dbg)]
+    field1: u32
+}
+```
+
+Values can also be pretty printed using the appropriate debug format specifier. The output will look similar to Rust syntax or JSON without quotation marks.
+```rust
+fn main() {
+   let value = xc3_lib::mxmd::Mxmd::from_file("ch01012013.wimdo");
+   println!("{:#?}", value);
+}
+```
