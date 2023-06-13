@@ -6,7 +6,7 @@ use binrw::{binread, FilePtr32};
 
 use crate::{
     mxmd::{Materials, Mesh},
-    parse_offset_count,
+    parse_count_offset, parse_offset_count,
     spch::Spch,
 };
 
@@ -23,7 +23,14 @@ pub struct PropModelData {
 
     #[br(parse_with = FilePtr32::parse)]
     pub materials: Materials,
-    unk2: [u32; 3],
+
+    unk2: u32,
+
+    // Is this the actual props in the scene?
+    #[br(parse_with = FilePtr32::parse)]
+    pub lods: PropLods,
+
+    unk3: u32,
 
     /// The textures referenced by [materials](#structfield.materials).
     #[br(parse_with = parse_offset_count)]
@@ -33,16 +40,43 @@ pub struct PropModelData {
     // elements index into msmd prop_model_data?
     // something else indexes into this list?
     #[br(parse_with = parse_offset_count)]
-    vertex_data_indices: Vec<u32>,
+    pub vertex_data_indices: Vec<u32>,
 
-    unk3: [u32; 5],
+    unk4: [u32; 5],
 
     #[br(parse_with = FilePtr32::parse)]
     pub spch: Spch,
 
-    unk4: u32,
     unk5: u32,
+    unk6: u32,
     // 16 bytes of padding?
+}
+
+// Similar to LOD data in mxmd?
+#[binread]
+#[derive(Debug)]
+#[br(stream = r)]
+pub struct PropLods {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    unk1: u32,
+
+    // Each of these is a single prop with all of its lods?
+    #[br(parse_with = parse_count_offset, args_raw(base_offset))]
+    pub props: Vec<PropLod>,
+    // TODO: lots of data after this?
+}
+
+#[binread]
+#[derive(Debug)]
+#[br(stream = r)]
+pub struct PropLod {
+    // start index into vertex_data_indices?
+    // also start index into mesh.items?
+    // TODO: Better name than mesh.items?
+    pub base_lod_index: u32,
+    pub lod_count: u32,
 }
 
 // TODO: Link to appropriate fields with doc links.
