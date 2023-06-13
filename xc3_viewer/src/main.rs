@@ -186,10 +186,8 @@ impl State {
                 label: Some("Render Encoder"),
             });
 
-        for model in &self.models {
-            self.renderer
-                .render_model(&output_view, &mut encoder, model);
-        }
+        self.renderer
+            .render_models(&output_view, &mut encoder, &self.models);
 
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();

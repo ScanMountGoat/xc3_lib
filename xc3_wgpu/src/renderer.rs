@@ -79,16 +79,16 @@ impl Xc3Renderer {
         }
     }
 
-    pub fn render_model(
+    pub fn render_models(
         &self,
         output_view: &wgpu::TextureView,
         encoder: &mut wgpu::CommandEncoder,
-        model: &Model,
+        models: &[Model],
     ) {
         // Deferred rendering requires a second forward pass for transparent meshes.
         // TODO: Research more about how this is implemented in game.
-        self.model_pass(encoder, model);
-        self.transparent_pass(encoder, model);
+        self.model_pass(encoder, models);
+        self.transparent_pass(encoder, models);
         self.deferred_pass(encoder, output_view);
     }
 
@@ -121,7 +121,7 @@ impl Xc3Renderer {
         );
     }
 
-    fn model_pass(&self, encoder: &mut wgpu::CommandEncoder, model: &Model) {
+    fn model_pass(&self, encoder: &mut wgpu::CommandEncoder, models: &[Model]) {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Model Pass"),
             color_attachments: &[
@@ -154,10 +154,12 @@ impl Xc3Renderer {
         // TODO: organize into per frame, per model, etc?
         self.model_bind_group0.set(&mut render_pass);
 
-        model.draw(&mut render_pass, xc3_lib::mxmd::ShaderUnkType::Unk0);
+        for model in models {
+            model.draw(&mut render_pass, xc3_lib::mxmd::ShaderUnkType::Unk0);
+        }
     }
 
-    fn transparent_pass(&self, encoder: &mut wgpu::CommandEncoder, model: &Model) {
+    fn transparent_pass(&self, encoder: &mut wgpu::CommandEncoder, models: &[Model]) {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Transparent Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -184,7 +186,9 @@ impl Xc3Renderer {
         self.model_bind_group0.set(&mut render_pass);
 
         // TODO: Is this the correct unk type?
-        model.draw(&mut render_pass, xc3_lib::mxmd::ShaderUnkType::Unk7);
+        for model in models {
+            model.draw(&mut render_pass, xc3_lib::mxmd::ShaderUnkType::Unk7);
+        }
     }
 
     fn deferred_pass(&self, encoder: &mut wgpu::CommandEncoder, output_view: &wgpu::TextureView) {

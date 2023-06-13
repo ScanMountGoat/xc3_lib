@@ -159,7 +159,6 @@ pub fn load_map_models<R: Read + Seek>(
 
     // TODO: Better way to combine models?
     // TODO: How to select the VertexData?
-    // let mut combined_models = Vec::new();
     let mut combined_models: Vec<_> = msmd
         .map_models
         .iter()
@@ -178,9 +177,8 @@ pub fn load_map_models<R: Read + Seek>(
         })
         .collect();
 
-    // TODO: How to select the VertexData?
-    combined_models.extend(msmd.prop_models.iter().take(1).map(|prop_model| {
-        load_prop_model(
+    for prop_model in &msmd.prop_models {
+        let new_models = load_prop_models(
             wismda,
             prop_model,
             &msmd.prop_vertex_data,
@@ -189,13 +187,14 @@ pub fn load_map_models<R: Read + Seek>(
             queue,
             model_path,
             shader_database,
-        )
-    }));
+        );
+        combined_models.extend(new_models);
+    }
 
     combined_models
 }
 
-fn load_prop_model<R: Read + Seek>(
+fn load_prop_models<R: Read + Seek>(
     wismda: &mut R,
     prop_model: &xc3_lib::msmd::PropModel,
     prop_vertex_data: &[StreamEntry],
@@ -204,34 +203,9 @@ fn load_prop_model<R: Read + Seek>(
     queue: &wgpu::Queue,
     model_path: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
-) -> Model {
+) -> Vec<Model> {
     let bytes = decompress_entry(wismda, &prop_model.entry);
     let prop_model_data: PropModelData = Cursor::new(bytes).read_le().unwrap();
-
-    // Select the appropriate vertex data file from the parent msmd.
-    // TODO: Should this return Vec<Model> since each prop can have separate buffers?
-
-    // TODO: Is this some sort of LOD selection?
-    // TODO: Make sure this is documented in xc3_lib.
-    let prop_index = 0;
-    let base_lod_index = prop_model_data.lods.props[prop_index].base_lod_index as usize;
-    let vertex_data_index = prop_model_data.vertex_data_indices[base_lod_index];
-
-    let prop_model_entry = &prop_vertex_data[vertex_data_index as usize];
-
-    let bytes = decompress_entry(wismda, prop_model_entry);
-    let vertex_data: VertexData = Cursor::new(bytes).read_le().unwrap();
-
-    let vertex_buffers = vertex_buffers(device, &vertex_data);
-    let index_buffers = index_buffers(device, &vertex_data);
-
-    let meshes = prop_model_data.mesh.items.elements[base_lod_index]
-        .sub_items
-        .iter()
-        .map(mesh_from_sub_item)
-        .collect();
-
-    dbg!(&meshes);
 
     // Get the textures referenced by the materials in this model.
     let textures: Vec<_> = prop_model_data
@@ -247,23 +221,52 @@ fn load_prop_model<R: Read + Seek>(
         })
         .collect();
 
-    // TODO: cached textures?
-    let materials = materials(
-        device,
-        queue,
-        &prop_model_data.materials,
-        &textures,
-        &[],
-        model_path,
-        shader_database,
-    );
+    // TODO: Create the materials and meshes only once?
+    // TODO: Create a separate data structure that indexes into the meshes?
 
-    Model {
-        meshes,
-        materials,
-        vertex_buffers,
-        index_buffers,
-    }
+    // Load the base LOD for each prop model.
+    // TODO: Make sure this is documented in xc3_lib.
+    prop_model_data
+        .lods
+        .props
+        .iter()
+        .map(|prop_lod| {
+            let base_lod_index = prop_lod.base_lod_index as usize;
+            let vertex_data_index = prop_model_data.vertex_data_indices[base_lod_index];
+
+            let prop_model_entry = &prop_vertex_data[vertex_data_index as usize];
+
+            let bytes = decompress_entry(wismda, prop_model_entry);
+            let vertex_data: VertexData = Cursor::new(bytes).read_le().unwrap();
+
+            let vertex_buffers = vertex_buffers(device, &vertex_data);
+            let index_buffers = index_buffers(device, &vertex_data);
+
+            let meshes = prop_model_data.mesh.items.elements[base_lod_index]
+                .sub_items
+                .iter()
+                .map(mesh_from_sub_item)
+                .collect();
+
+            // TODO: cached textures?
+            let materials = materials(
+                device,
+                queue,
+                &prop_model_data.materials,
+                &textures,
+                &[],
+                model_path,
+                shader_database,
+            );
+
+            Model {
+                meshes,
+                materials,
+                vertex_buffers,
+                index_buffers,
+            }
+        })
+        .collect()
 }
 
 fn load_map_model<R: Read + Seek>(
