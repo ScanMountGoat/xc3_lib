@@ -14,7 +14,7 @@ pub struct Mxmd {
 
     // Are the following fields shared with maps?
     #[br(parse_with = FilePtr32::parse)]
-    pub mesh: Mesh,
+    pub models: Models,
 
     #[br(parse_with = FilePtr32::parse)]
     pub materials: Materials,
@@ -294,7 +294,7 @@ pub struct Texture {
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(stream = r)]
-pub struct Mesh {
+pub struct Models {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
@@ -304,7 +304,7 @@ pub struct Mesh {
     min_xyz: [f32; 3],
 
     #[br(args { base_offset, inner: base_offset })]
-    pub items: List<DataItem>,
+    pub models: List<Model>,
 
     unk2: u32,
 
@@ -322,13 +322,15 @@ pub struct Mesh {
     lod_data: Option<LodData>,
 }
 
-// TODO: Better names for these types
+/// A collection of meshes where each [Mesh] represents one draw call.
+///
+/// Each [Model] has an associated [VertexData] containing vertex and index buffers.
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(import_raw(base_offset: u64))]
-pub struct DataItem {
+pub struct Model {
     #[br(parse_with = parse_offset_count, args_raw(base_offset))]
-    pub sub_items: Vec<SubDataItem>,
+    pub meshes: Vec<Mesh>,
 
     unk1: u32,
     max_xyz: [f32; 3],
@@ -337,10 +339,9 @@ pub struct DataItem {
     unks: [u32; 7],
 }
 
-// TODO: Better names for these types
 #[binread]
 #[derive(Debug, Serialize)]
-pub struct SubDataItem {
+pub struct Mesh {
     flags1: u32,
     flags2: u32,
     pub vertex_buffer_index: u16,

@@ -5,7 +5,7 @@
 use binrw::{binread, FilePtr32};
 
 use crate::{
-    mxmd::{Materials, Mesh},
+    mxmd::{Materials, Models},
     parse_count_offset, parse_offset_count,
     spch::Spch,
 };
@@ -19,7 +19,7 @@ pub struct PropModelData {
     pub unk1: [u32; 3],
 
     #[br(parse_with = FilePtr32::parse)]
-    pub mesh: Mesh,
+    pub models: Models,
 
     #[br(parse_with = FilePtr32::parse)]
     pub materials: Materials,
@@ -87,18 +87,18 @@ pub struct MapModelData {
     unk1: [u32; 3],
 
     #[br(parse_with = FilePtr32::parse)]
-    pub mesh: Mesh,
+    pub models: Models,
 
     #[br(parse_with = FilePtr32::parse)]
     pub materials: Materials,
 
-    unk2: [u32; 2],
+    m_unk2: [u32; 2],
 
     /// The textures referenced by [materials](#structfield.materials).
     #[br(parse_with = parse_offset_count)]
     pub textures: Vec<Texture>,
 
-    unk3: [u32; 2],
+    m_unk3: [u32; 2],
 
     #[br(parse_with = FilePtr32::parse)]
     pub spch: Spch,
@@ -108,7 +108,7 @@ pub struct MapModelData {
     low_res_count: u32,
 
     #[br(parse_with = FilePtr32::parse)]
-    mapping: UnkMapping,
+    pub mapping: UnkMapping,
     // padding?
 }
 
@@ -124,7 +124,7 @@ pub struct UnkMapping {
     pub groups: Vec<UnkGroup>,
 
     #[br(parse_with = parse_offset_count, args_raw(base_offset))]
-    unk2: Vec<u16>,
+    pub indices: Vec<u16>,
 }
 
 // Groups?
@@ -134,7 +134,7 @@ pub struct UnkGroup {
     max: [f32; 3],
     min: [f32; 3],
     // index for msmd map_model_data?
-    pub model_data_index: u32,
+    pub vertex_data_index: u32,
     unk2: u32,
     unk3: u32,
     unk4: u32,
@@ -145,9 +145,8 @@ pub struct UnkGroup {
 #[binread]
 #[derive(Debug)]
 pub struct SkyModelData {
-    // TODO: nullable pointers?
     #[br(parse_with = FilePtr32::parse)]
-    pub mesh: Mesh,
+    pub models: Models,
 
     #[br(parse_with = FilePtr32::parse)]
     pub materials: Materials,

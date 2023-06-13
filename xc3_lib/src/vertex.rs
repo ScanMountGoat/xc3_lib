@@ -4,7 +4,7 @@ use crate::{parse_count_offset, parse_offset_count, parse_ptr32};
 use binrw::{args, binread, helpers::until_eof, FilePtr32};
 use serde::Serialize;
 
-/// wismt model data
+/// Vertex and vertex index buffer data used by a [Model](crate::mxmd::Model).
 #[binread]
 #[derive(Debug, Serialize)]
 pub struct VertexData {

@@ -127,7 +127,7 @@ pub fn load_model(
         shader_database,
     );
 
-    let meshes = meshes(&mxmd.mesh);
+    let meshes = meshes(&mxmd.models);
 
     Model {
         meshes,
@@ -139,7 +139,7 @@ pub fn load_model(
 
 // TODO: Separate module for this?
 // TODO: Better way to pass the wismda file?
-pub fn load_map_models<R: Read + Seek>(
+pub fn load_map<R: Read + Seek>(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     msmd: &Msmd,
@@ -158,24 +158,20 @@ pub fn load_map_models<R: Read + Seek>(
         .collect();
 
     // TODO: Better way to combine models?
-    // TODO: How to select the VertexData?
-    let mut combined_models: Vec<_> = msmd
-        .map_models
-        .iter()
-        .zip(msmd.map_vertex_data.iter())
-        .map(|(map_model, model_data_entry)| {
-            load_map_model(
-                wismda,
-                map_model,
-                model_data_entry,
-                &textures,
-                device,
-                queue,
-                model_path,
-                shader_database,
-            )
-        })
-        .collect();
+    let mut combined_models = Vec::new();
+    for map_model in &msmd.map_models {
+        let new_models = load_map_models(
+            wismda,
+            map_model,
+            &msmd.map_vertex_data,
+            &textures,
+            device,
+            queue,
+            model_path,
+            shader_database,
+        );
+        combined_models.extend(new_models);
+    }
 
     for prop_model in &msmd.prop_models {
         let new_models = load_prop_models(
@@ -242,10 +238,10 @@ fn load_prop_models<R: Read + Seek>(
             let vertex_buffers = vertex_buffers(device, &vertex_data);
             let index_buffers = index_buffers(device, &vertex_data);
 
-            let meshes = prop_model_data.mesh.items.elements[base_lod_index]
-                .sub_items
+            let meshes = prop_model_data.models.models.elements[base_lod_index]
+                .meshes
                 .iter()
-                .map(mesh_from_sub_item)
+                .map(create_mesh)
                 .collect();
 
             // TODO: cached textures?
@@ -269,72 +265,106 @@ fn load_prop_models<R: Read + Seek>(
         .collect()
 }
 
-fn load_map_model<R: Read + Seek>(
+fn load_map_models<R: Read + Seek>(
     wismda: &mut R,
     map_model: &xc3_lib::msmd::MapModel,
-    map_model_data_entry: &xc3_lib::msmd::StreamEntry,
+    map_vertex_data: &[xc3_lib::msmd::StreamEntry],
     mibl_textures: &[Mibl],
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     model_path: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
-) -> Model {
+) -> Vec<Model> {
     let bytes = decompress_entry(wismda, &map_model.entry);
     let map_model_data: MapModelData = Cursor::new(bytes).read_le().unwrap();
 
-    let bytes = decompress_entry(wismda, &map_model_data_entry);
-    let model_data: VertexData = Cursor::new(bytes).read_le().unwrap();
-
-    let vertex_buffers = vertex_buffers(device, &model_data);
-    let index_buffers = index_buffers(device, &model_data);
-
-    // Get the textures referenced by the materials in this model.
-    let textures: Vec<_> = map_model_data
-        .textures
+    // TODO: The mapping.indices and models.models always have the same length?
+    // TODO: the mapping indices are in the range [0, 2*groups - 1]?
+    // TODO: Some mapping sections assign to twice as many groups as actual groups?
+    map_model_data
+        .mapping
+        .groups
         .iter()
-        .map(|item| {
-            // TODO: Handle texture index being -1?
-            let mibl = &mibl_textures[item.texture_index.max(0) as usize];
-            Some(
-                create_texture(device, queue, mibl)
-                    .create_view(&wgpu::TextureViewDescriptor::default()),
-            )
+        .enumerate()
+        .map(|(group_index, group)| {
+            // TODO: Load all groups?
+            let vertex_data_entry = &map_vertex_data[group.vertex_data_index as usize];
+            let bytes = decompress_entry(wismda, vertex_data_entry);
+            let model_data: VertexData = Cursor::new(bytes).read_le().unwrap();
+
+            let vertex_buffers = vertex_buffers(device, &model_data);
+            let index_buffers = index_buffers(device, &model_data);
+
+            // TODO: Select meshes based on the grouping?
+            // TODO: Does the list of indices in the grouping assign items here to groups?
+            // TODO: SHould we be creating multiple models in this step?
+            let meshes = map_model_data
+                .models
+                .models
+                .elements
+                .iter()
+                .zip(map_model_data.mapping.indices.iter())
+                .find_map(|(model, index)| {
+                    if *index as usize == group_index {
+                        Some(model)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap()
+                .meshes
+                .iter()
+                .map(create_mesh)
+                .collect();
+
+            // Get the textures referenced by the materials in this model.
+            let textures: Vec<_> = map_model_data
+                .textures
+                .iter()
+                .map(|item| {
+                    // TODO: Handle texture index being -1?
+                    let mibl = &mibl_textures[item.texture_index.max(0) as usize];
+                    Some(
+                        create_texture(device, queue, mibl)
+                            .create_view(&wgpu::TextureViewDescriptor::default()),
+                    )
+                })
+                .collect();
+
+            let materials = materials(
+                device,
+                queue,
+                &map_model_data.materials,
+                &textures,
+                &[],
+                model_path,
+                shader_database,
+            );
+
+            Model {
+                meshes,
+                materials,
+                vertex_buffers,
+                index_buffers,
+            }
         })
-        .collect();
-
-    let materials = materials(
-        device,
-        queue,
-        &map_model_data.materials,
-        &textures,
-        &[],
-        model_path,
-        shader_database,
-    );
-
-    let meshes = meshes(&map_model_data.mesh);
-
-    Model {
-        meshes,
-        materials,
-        vertex_buffers,
-        index_buffers,
-    }
-}
-
-fn meshes(mesh: &xc3_lib::mxmd::Mesh) -> Vec<Mesh> {
-    mesh.items
-        .elements
-        .iter()
-        .flat_map(|item| item.sub_items.iter().map(mesh_from_sub_item))
         .collect()
 }
 
-fn mesh_from_sub_item(sub_item: &xc3_lib::mxmd::SubDataItem) -> Mesh {
+fn meshes(models: &xc3_lib::mxmd::Models) -> Vec<Mesh> {
+    models
+        .models
+        .elements
+        .iter()
+        .flat_map(|model| model.meshes.iter().map(create_mesh))
+        .collect()
+}
+
+fn create_mesh(mesh: &xc3_lib::mxmd::Mesh) -> Mesh {
     Mesh {
-        vertex_buffer_index: sub_item.vertex_buffer_index as usize,
-        index_buffer_index: sub_item.index_buffer_index as usize,
-        material_index: sub_item.material_index as usize,
+        vertex_buffer_index: mesh.vertex_buffer_index as usize,
+        index_buffer_index: mesh.index_buffer_index as usize,
+        material_index: mesh.material_index as usize,
     }
 }
 

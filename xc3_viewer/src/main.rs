@@ -11,7 +11,7 @@ use winit::{
 use xc3_lib::{msmd::Msmd, msrd::Msrd, mxmd::Mxmd};
 use xc3_wgpu::{
     material::load_database,
-    model::{load_map_models, load_model, Model},
+    model::{load_map, load_model, Model},
     renderer::{CameraData, Xc3Renderer},
     COLOR_FORMAT,
 };
@@ -125,7 +125,7 @@ impl State {
                 );
                 let model_name = model_path.to_string_lossy().to_string();
 
-                load_map_models(
+                load_map(
                     &device,
                     &queue,
                     &msmd,
