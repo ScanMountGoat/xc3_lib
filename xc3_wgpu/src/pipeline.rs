@@ -2,20 +2,30 @@ use xc3_lib::mxmd::{BlendState, MaterialFlags};
 
 use crate::{DEPTH_FORMAT, GBUFFER_COLOR_FORMAT};
 
-// TODO: Always set depth and stencil state?
-pub fn model_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
-    let module = crate::shader::model::create_shader_module(device);
-    let render_pipeline_layout = crate::shader::model::create_pipeline_layout(device);
+pub struct ModelPipelineData {
+    module: wgpu::ShaderModule,
+    layout: wgpu::PipelineLayout,
+}
 
+impl ModelPipelineData {
+    pub fn new(device: &wgpu::Device) -> Self {
+        let module = crate::shader::model::create_shader_module(device);
+        let layout = crate::shader::model::create_pipeline_layout(device);
+        Self { module, layout }
+    }
+}
+
+// TODO: Always set depth and stencil state?
+pub fn model_pipeline(device: &wgpu::Device, data: &ModelPipelineData) -> wgpu::RenderPipeline {
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Model Pipeline"),
-        layout: Some(&render_pipeline_layout),
+        layout: Some(&data.layout),
         vertex: crate::shader::model::vertex_state(
-            &module,
+            &data.module,
             &crate::shader::model::vs_main_entry(wgpu::VertexStepMode::Vertex),
         ),
         fragment: Some(wgpu::FragmentState {
-            module: &module,
+            module: &data.module,
             entry_point: crate::shader::model::ENTRY_FS_MAIN,
             // TODO: Get output count from wgsl_to_wgpu?
             targets: &vec![
@@ -48,20 +58,18 @@ pub fn model_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
 
 pub fn model_transparent_pipeline(
     device: &wgpu::Device,
+    data: &ModelPipelineData,
     flags: &MaterialFlags,
 ) -> wgpu::RenderPipeline {
-    let module = crate::shader::model::create_shader_module(device);
-    let render_pipeline_layout = crate::shader::model::create_pipeline_layout(device);
-
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Model Transparent Pipeline"),
-        layout: Some(&render_pipeline_layout),
+        layout: Some(&data.layout),
         vertex: crate::shader::model::vertex_state(
-            &module,
+            &data.module,
             &crate::shader::model::vs_main_entry(wgpu::VertexStepMode::Vertex),
         ),
         fragment: Some(wgpu::FragmentState {
-            module: &module,
+            module: &data.module,
             entry_point: crate::shader::model::ENTRY_FS_TRANSPARENT,
             // TODO: alpha blending?
             // Create a target for each of the G-Buffer textures.

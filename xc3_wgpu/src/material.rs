@@ -5,7 +5,7 @@ use wgpu::util::DeviceExt;
 use xc3_lib::mxmd::{Materials, ShaderUnkType};
 
 use crate::{
-    pipeline::{model_pipeline, model_transparent_pipeline},
+    pipeline::{model_pipeline, model_transparent_pipeline, ModelPipelineData},
     texture::create_default_black_texture,
 };
 
@@ -26,6 +26,7 @@ pub struct Material {
 pub fn materials(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
+    pipeline_data: &ModelPipelineData,
     materials: &Materials,
     textures: &[Option<wgpu::TextureView>],
     cached_textures: &[(String, wgpu::TextureView)],
@@ -116,11 +117,10 @@ pub fn materials(
             // TODO: How to make sure the pipeline outputs match the render pass?
             // Each material only goes in exactly one pass?
             // TODO: Is it redundant to also store the unk type?
-            // TODO: Cache the compiled shaders for faster loading times.
             let pipeline = if material.shader_programs[0].unk_type == ShaderUnkType::Unk0 {
-                model_pipeline(device)
+                model_pipeline(device, pipeline_data)
             } else {
-                model_transparent_pipeline(device, &material.flags)
+                model_transparent_pipeline(device, pipeline_data, &material.flags)
             };
 
             Material {

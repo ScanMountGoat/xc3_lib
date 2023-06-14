@@ -19,6 +19,7 @@ use xc3_model::vertex::{read_indices, read_vertices};
 
 use crate::{
     material::{materials, Material},
+    pipeline::ModelPipelineData,
     shader,
     texture::{create_texture, create_texture_with_base_mip},
 };
@@ -100,9 +101,11 @@ pub fn load_model(
     model_path: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
 ) -> Model {
-    let model_data = msrd.extract_vertex_data();
+    // Compile shaders only once to improve loading times.
+    let pipeline_data = ModelPipelineData::new(device);
 
     // TODO: Avoid unwrap.
+    let model_data = msrd.extract_vertex_data();
 
     // "chr/en/file.wismt" -> "chr/tex/nx/m"
     // TODO: Don't assume model_path is in the chr/ch or chr/en folders.
@@ -120,6 +123,7 @@ pub fn load_model(
     let materials = materials(
         device,
         queue,
+        &pipeline_data,
         &mxmd.materials,
         &textures,
         &cached_textures,
@@ -147,6 +151,9 @@ pub fn load_map<R: Read + Seek>(
     model_path: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
 ) -> Vec<Model> {
+    // Compile shaders only once to improve loading times.
+    let pipeline_data = ModelPipelineData::new(device);
+
     // TODO: Are the msmd textures shared with all models?
     let textures: Vec<_> = msmd
         .textures
@@ -169,6 +176,7 @@ pub fn load_map<R: Read + Seek>(
             queue,
             model_path,
             shader_database,
+            &pipeline_data,
         );
         combined_models.extend(new_models);
     }
@@ -183,6 +191,7 @@ pub fn load_map<R: Read + Seek>(
             queue,
             model_path,
             shader_database,
+            &pipeline_data,
         );
         combined_models.extend(new_models);
     }
@@ -199,6 +208,7 @@ fn load_prop_models<R: Read + Seek>(
     queue: &wgpu::Queue,
     model_path: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
+    pipeline_data: &ModelPipelineData,
 ) -> Vec<Model> {
     let bytes = decompress_entry(wismda, &prop_model.entry);
     let prop_model_data: PropModelData = Cursor::new(bytes).read_le().unwrap();
@@ -248,6 +258,7 @@ fn load_prop_models<R: Read + Seek>(
             let materials = materials(
                 device,
                 queue,
+                &pipeline_data,
                 &prop_model_data.materials,
                 &textures,
                 &[],
@@ -274,6 +285,7 @@ fn load_map_models<R: Read + Seek>(
     queue: &wgpu::Queue,
     model_path: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
+    pipeline_data: &ModelPipelineData,
 ) -> Vec<Model> {
     let bytes = decompress_entry(wismda, &map_model.entry);
     let map_model_data: MapModelData = Cursor::new(bytes).read_le().unwrap();
@@ -334,6 +346,7 @@ fn load_map_models<R: Read + Seek>(
             let materials = materials(
                 device,
                 queue,
+                &pipeline_data,
                 &map_model_data.materials,
                 &textures,
                 &[],
