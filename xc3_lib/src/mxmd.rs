@@ -21,6 +21,7 @@ pub struct Mxmd {
 
     #[br(parse_with = parse_ptr32)]
     unk1: Option<Unk1>,
+
     unk2: u32,
     unk3: u32,
     unk4: u32,
@@ -56,12 +57,11 @@ pub struct Materials {
     #[br(args { offset: base_offset, inner: base_offset })]
     unk_offset1: MaterialUnk1,
 
-    // is this ever not 0?
+    // TODO: is this ever not 0?
     unk4: u32,
 
-    // TODO: How large is each element?
-    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
-    unks: Vec<MaterialUnk>,
+    #[br(args { base_offset, inner: base_offset })]
+    unks: List<MaterialUnk>,
 
     unks1: [u32; 2],
 
@@ -73,14 +73,36 @@ pub struct Materials {
     #[br(parse_with = FilePtr32::parse, offset = base_offset)]
     pub samplers: Samplers,
 
-    // padding?
+    // TODO: padding?
     unks4: [u32; 4],
 }
 
 #[binread]
 #[derive(Debug, Serialize)]
+#[br(import_raw(base_offset: u64))]
 pub struct MaterialUnk {
-    unk1: [u16; 8],
+    // count matches up with Material.unk_starting_index?
+    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    unk1: Vec<(u32, u32)>,
+
+    unk3: u32, // 0
+    unk4: u32, // 0
+
+    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    unk5: Vec<[u32; 6]>,
+
+    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    unk7: Vec<u16>,
+
+    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    unk9: Vec<(u16, u16)>,
+
+    unk11: u32,
+    unk12: u16, // counts up from 0?
+    unk13: u16, // unk11 + unk12?
+
+    // TODO: padding?
+    padding: [u32; 5],
 }
 
 #[binread]
@@ -88,7 +110,7 @@ pub struct MaterialUnk {
 #[br(import_raw(base_offset: u64))]
 pub struct MaterialUnk1 {
     #[br(parse_with = parse_offset_count, args_raw(base_offset))]
-    unk1: Vec<u32>,
+    unk1: Vec<(u16, u16)>,
     #[br(parse_with = parse_offset_count, args_raw(base_offset))]
     unk2: Vec<u16>,
 }
@@ -174,7 +196,12 @@ pub struct Material {
     #[br(parse_with = parse_offset_count, args_raw(base_offset))]
     pub shader_programs: Vec<ShaderProgram>,
 
-    m_unks2: [u16; 16],
+    unk5: u32,
+
+    unk_starting_index: u16, // sum of previous unk_count?
+    unk_count: u16,
+
+    m_unks2: [u16; 12],
 }
 
 #[binread]
@@ -493,6 +520,7 @@ pub struct Bone {
     unk_index: u32,
 }
 
+// TODO: pointer to decl_gbl_cac in ch001011011.wimdo?
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(stream = r)]
