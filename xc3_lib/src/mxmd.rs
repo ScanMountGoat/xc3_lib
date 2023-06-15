@@ -47,6 +47,7 @@ pub struct Materials {
     unk2: u32,
 
     // TODO: Materials have offsets into these arrays for parameter values?
+    // material body has a uniform at shader offset 64 but offset 48 in this floats buffer
     #[br(parse_with = parse_offset_count, args_raw(base_offset))]
     floats: Vec<f32>,
 
@@ -81,7 +82,6 @@ pub struct Materials {
 #[derive(Debug, Serialize)]
 #[br(import_raw(base_offset: u64))]
 pub struct MaterialUnk {
-    // count matches up with Material.unk_starting_index?
     #[br(parse_with = parse_offset_count, args_raw(base_offset))]
     unk1: Vec<(u32, u32)>,
 
@@ -109,8 +109,10 @@ pub struct MaterialUnk {
 #[derive(Debug, Serialize)]
 #[br(import_raw(base_offset: u64))]
 pub struct MaterialUnk1 {
+    // count matches up with Material.unk_start_index?
     #[br(parse_with = parse_offset_count, args_raw(base_offset))]
     unk1: Vec<(u16, u16)>,
+    // 0 1 2 ... count-1
     #[br(parse_with = parse_offset_count, args_raw(base_offset))]
     unk2: Vec<u16>,
 }
@@ -189,8 +191,14 @@ pub struct Material {
 
     pub flags: MaterialFlags,
 
-    m_unks1: [u32; 6],
-    m_unk5: u32,
+    // Parameters?
+    m_unks1_1: u32,
+    m_unks1_2: u32,
+    m_unks1_3: u32,
+    m_unks1_4: u32,
+    floats_start_index: u32,
+    ints_start_index: u32,
+    ints_count: u32,
 
     // always count 1?
     #[br(parse_with = parse_offset_count, args_raw(base_offset))]
@@ -198,7 +206,8 @@ pub struct Material {
 
     unk5: u32,
 
-    unk_starting_index: u16, // sum of previous unk_count?
+    // index for MaterialUnk1.unk1?
+    unk_start_index: u16, // sum of previous unk_count?
     unk_count: u16,
 
     m_unks2: [u16; 12],
