@@ -21,9 +21,9 @@ pub struct Vertex {
     pub uv1: glam::Vec4,
 }
 
-pub fn read_indices(model_data: &VertexData, descriptor: &IndexBufferDescriptor) -> Vec<u16> {
+pub fn read_indices(vertex_data: &VertexData, descriptor: &IndexBufferDescriptor) -> Vec<u16> {
     // TODO: Are all index buffers using u16 for indices?
-    let mut reader = Cursor::new(&model_data.buffer);
+    let mut reader = Cursor::new(&vertex_data.buffer);
     reader
         .seek(SeekFrom::Start(descriptor.data_offset as u64))
         .unwrap();
@@ -41,7 +41,7 @@ pub fn read_indices(model_data: &VertexData, descriptor: &IndexBufferDescriptor)
 pub fn read_vertices(
     buffer: &VertexBufferDescriptor,
     buffer_index: usize,
-    model_data: &VertexData,
+    vertex_data: &VertexData,
 ) -> Vec<Vertex> {
     // Start with default values for each attribute.
     let mut vertices = vec![
@@ -59,10 +59,10 @@ pub fn read_vertices(
     // The game renders attributes from both the vertex and optional animation buffer.
     // Merge attributes into a single buffer to allow using the same shader.
     // TODO: Which buffer takes priority?
-    assign_vertex_buffer_attributes(&mut vertices, &model_data.buffer, buffer);
+    assign_vertex_buffer_attributes(&mut vertices, &vertex_data.buffer, buffer);
 
-    if let Some(base_target) = base_vertex_target(model_data, buffer_index) {
-        assign_animation_buffer_attributes(&mut vertices, &model_data.buffer, buffer, base_target);
+    if let Some(base_target) = base_vertex_target(vertex_data, buffer_index) {
+        assign_animation_buffer_attributes(&mut vertices, &vertex_data.buffer, buffer, base_target);
     }
 
     vertices
@@ -158,11 +158,11 @@ fn assign_animation_buffer_attributes(
 }
 
 fn base_vertex_target(
-    model_data: &VertexData,
+    vertex_data: &VertexData,
     vertex_buffer_index: usize,
 ) -> Option<&VertexAnimationTarget> {
     // TODO: Easier to loop over each descriptor and assign by vertex buffer index?
-    let vertex_animation = model_data.vertex_animation.as_ref()?;
+    let vertex_animation = vertex_data.vertex_animation.as_ref()?;
     vertex_animation
         .descriptors
         .iter()

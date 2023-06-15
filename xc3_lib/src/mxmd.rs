@@ -324,7 +324,7 @@ pub struct Models {
 
 /// A collection of meshes where each [Mesh] represents one draw call.
 ///
-/// Each [Model] has an associated [VertexData] containing vertex and index buffers.
+/// Each [Model] has an associated [VertexData](crate::vertex::VertexData) containing vertex and index buffers.
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(import_raw(base_offset: u64))]

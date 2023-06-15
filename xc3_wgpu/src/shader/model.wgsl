@@ -82,17 +82,23 @@ struct GBufferAssignment {
 @group(2) @binding(0)
 var<uniform> gbuffer_assignments: array<GBufferAssignment, 6>;
 
+// TODO: Sort by frequency like pass, model, mesh, etc.
+@group(3) @binding(0)
+var<uniform> per_model: PerModel;
+
+struct PerModel {
+    matrix: mat4x4<f32>
+}
+
 @vertex
-fn vs_main(
-    in: VertexInput,
-) -> VertexOutput {
+fn vs_main(vertex: VertexInput) -> VertexOutput {
     var out: VertexOutput;
-    out.clip_position = camera.view_projection * vec4<f32>(in.position.xyz, 1.0);
-    out.position = in.position.xyz;
-    out.uv1 = in.uv1.xy;
-    out.normal = in.normal.xyz;
-    out.tangent = in.tangent;
-    out.vertex_color = in.vertex_color;
+    out.clip_position = camera.view_projection * per_model.matrix * vec4(vertex.position.xyz, 1.0);
+    out.position = vertex.position.xyz;
+    out.uv1 = vertex.uv1.xy;
+    out.normal = vertex.normal.xyz;
+    out.tangent = vertex.tangent;
+    out.vertex_color = vertex.vertex_color;
     return out;
 }
 

@@ -45,6 +45,18 @@ const _: () = assert!(
     memoffset::offset_of!(GBufferAssignment, channel_indices) == 16,
     "offset of GBufferAssignment.channel_indices does not match WGSL"
 );
+#[repr(C)]
+#[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct PerModel {
+    pub matrix: glam::Mat4,
+}
+const _: () = assert!(
+    std::mem::size_of:: < PerModel > () == 64, "size of PerModel does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(PerModel, matrix) == 0,
+    "offset of PerModel.matrix does not match WGSL"
+);
 pub mod bind_groups {
     pub struct BindGroup0(wgpu::BindGroup);
     pub struct BindGroupLayout0<'a> {
@@ -348,10 +360,55 @@ pub mod bind_groups {
             render_pass.set_bind_group(2, &self.0, &[]);
         }
     }
+    pub struct BindGroup3(wgpu::BindGroup);
+    pub struct BindGroupLayout3<'a> {
+        pub per_model: wgpu::BufferBinding<'a>,
+    }
+    const LAYOUT_DESCRIPTOR3: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
+        label: None,
+        entries: &[
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+        ],
+    };
+    impl BindGroup3 {
+        pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+            device.create_bind_group_layout(&LAYOUT_DESCRIPTOR3)
+        }
+        pub fn from_bindings(device: &wgpu::Device, bindings: BindGroupLayout3) -> Self {
+            let bind_group_layout = device.create_bind_group_layout(&LAYOUT_DESCRIPTOR3);
+            let bind_group = device
+                .create_bind_group(
+                    &wgpu::BindGroupDescriptor {
+                        layout: &bind_group_layout,
+                        entries: &[
+                            wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: wgpu::BindingResource::Buffer(bindings.per_model),
+                            },
+                        ],
+                        label: None,
+                    },
+                );
+            Self(bind_group)
+        }
+        pub fn set<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
+            render_pass.set_bind_group(3, &self.0, &[]);
+        }
+    }
     pub struct BindGroups<'a> {
         pub bind_group0: &'a BindGroup0,
         pub bind_group1: &'a BindGroup1,
         pub bind_group2: &'a BindGroup2,
+        pub bind_group3: &'a BindGroup3,
     }
     pub fn set_bind_groups<'a>(
         pass: &mut wgpu::RenderPass<'a>,
@@ -360,6 +417,7 @@ pub mod bind_groups {
         bind_groups.bind_group0.set(pass);
         bind_groups.bind_group1.set(pass);
         bind_groups.bind_group2.set(pass);
+        bind_groups.bind_group3.set(pass);
     }
 }
 pub mod vertex {
@@ -447,6 +505,7 @@ pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
                     &bind_groups::BindGroup0::get_bind_group_layout(device),
                     &bind_groups::BindGroup1::get_bind_group_layout(device),
                     &bind_groups::BindGroup2::get_bind_group_layout(device),
+                    &bind_groups::BindGroup3::get_bind_group_layout(device),
                 ],
                 push_constant_ranges: &[],
             },

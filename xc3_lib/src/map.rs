@@ -10,7 +10,7 @@ use crate::{
     spch::Spch,
 };
 
-// TODO: Same as mxmd?
+// TODO: Improve docs.
 // TODO: Link to appropriate fields with doc links.
 /// The data for a [PropModel](crate::msmd::PropModel).
 #[binread]
@@ -65,7 +65,21 @@ pub struct PropLods {
     // Each of these is a single prop with all of its lods?
     #[br(parse_with = parse_count_offset, args_raw(base_offset))]
     pub props: Vec<PropLod>,
-    // TODO: lots of data after this?
+
+    count1: u32,
+    offset1: u32,
+
+    /// Instance information for [props](#structfield.props).
+    #[br(parse_with = parse_count_offset, args_raw(base_offset))]
+    pub instances: Vec<PropInstance>,
+
+    count2: u32,
+    offset2: u32,
+
+    #[br(parse_with = parse_count_offset, args_raw(base_offset))]
+    pub unk3: Vec<PropUnk3>,
+
+    unks: [u32; 13],
 }
 
 #[binread]
@@ -77,6 +91,30 @@ pub struct PropLod {
     // TODO: Better name than mesh.items?
     pub base_lod_index: u32,
     pub lod_count: u32,
+}
+
+#[binread]
+#[derive(Debug)]
+pub struct PropInstance {
+    /// The transform of the instance as a 4x4 column-major matrix.
+    pub transform: [[f32; 4]; 4],
+
+    unk2: [f32; 4],
+    unk3: [f32; 3],
+
+    // TODO: fix this doc link
+    /// The index into [props](struct.PropLods.html#structfield.props).
+    pub prop_index: u32,
+
+    // padding?
+    unk4: [u32; 4],
+}
+
+#[binread]
+#[derive(Debug)]
+pub struct PropUnk3 {
+    unk1: [f32; 5],
+    unk2: [u32; 3],
 }
 
 // TODO: Link to appropriate fields with doc links.
@@ -134,6 +172,7 @@ pub struct UnkGroup {
     max: [f32; 3],
     min: [f32; 3],
     // index for msmd map_model_data?
+    // TODO: Sometimes out of bounds?
     pub vertex_data_index: u32,
     unk2: u32,
     unk3: u32,

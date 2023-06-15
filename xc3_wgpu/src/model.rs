@@ -29,6 +29,8 @@ pub struct Model {
     materials: Vec<Material>,
     vertex_buffers: Vec<VertexBuffer>,
     index_buffers: Vec<IndexBuffer>,
+    // Use a collection to support "instancing" for map props.
+    per_models: Vec<crate::shader::model::bind_groups::BindGroup3>,
 }
 
 #[derive(Debug)]
@@ -49,32 +51,34 @@ struct IndexBuffer {
 }
 
 impl Model {
-    // TODO: Separate render pass for the transparent stuff in Unk7.
-    // Only write to g0 and use the out_attr0 assignments.
-    // Create the necessary pipeline with blending for each material.
-    // TODO: How to handle Unk1?
+    // TODO: How to handle other unk types?
     pub fn draw<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, pass: ShaderUnkType) {
-        for mesh in &self.meshes {
-            // TODO: How does LOD selection work in game?
-            let material = &self.materials[mesh.material_index];
+        // TODO: Is this the best way to "instance" models?
+        for per_model in &self.per_models {
+            per_model.set(render_pass);
 
-            // TODO: Why are there materials with no textures?
-            // TODO: Group these into passes with separate shaders for each pass?
-            // TODO: The main pass is shared with outline, ope, and zpre?
-            // TODO: How to handle transparency?
-            if material.unk_type == pass
-            // && material.texture_count > 0
-            && !material.name.ends_with("_outline")
-            && !material.name.ends_with("_ope")
-            && !material.name.ends_with("_zpre")
-            {
-                // TODO: How to make sure the pipeline outputs match the render pass?
-                render_pass.set_pipeline(&material.pipeline);
+            for mesh in &self.meshes {
+                // TODO: How does LOD selection work in game?
+                let material = &self.materials[mesh.material_index];
 
-                material.bind_group1.set(render_pass);
-                material.bind_group2.set(render_pass);
+                // TODO: Why are there materials with no textures?
+                // TODO: Group these into passes with separate shaders for each pass?
+                // TODO: The main pass is shared with outline, ope, and zpre?
+                // TODO: How to handle transparency?
+                if material.unk_type == pass
+                // && material.texture_count > 0
+                && !material.name.ends_with("_outline")
+                && !material.name.ends_with("_ope")
+                && !material.name.ends_with("_zpre")
+                {
+                    // TODO: How to make sure the pipeline outputs match the render pass?
+                    render_pass.set_pipeline(&material.pipeline);
 
-                self.draw_mesh(mesh, render_pass);
+                    material.bind_group1.set(render_pass);
+                    material.bind_group2.set(render_pass);
+
+                    self.draw_mesh(mesh, render_pass);
+                }
             }
         }
     }
@@ -133,11 +137,14 @@ pub fn load_model(
 
     let meshes = meshes(&mxmd.models);
 
+    let per_model = per_model_bind_group(device, glam::Mat4::IDENTITY);
+
     Model {
         meshes,
         materials,
         vertex_buffers,
         index_buffers,
+        per_models: vec![per_model],
     }
 }
 
@@ -236,7 +243,8 @@ fn load_prop_models<R: Read + Seek>(
         .lods
         .props
         .iter()
-        .map(|prop_lod| {
+        .enumerate()
+        .map(|(i, prop_lod)| {
             let base_lod_index = prop_lod.base_lod_index as usize;
             let vertex_data_index = prop_model_data.vertex_data_indices[base_lod_index];
 
@@ -258,7 +266,7 @@ fn load_prop_models<R: Read + Seek>(
             let materials = materials(
                 device,
                 queue,
-                &pipeline_data,
+                pipeline_data,
                 &prop_model_data.materials,
                 &textures,
                 &[],
@@ -266,11 +274,26 @@ fn load_prop_models<R: Read + Seek>(
                 shader_database,
             );
 
+            // Find all the instances referencing this prop.
+            // TODO: Will all props be referenced?
+            let per_models = prop_model_data
+                .lods
+                .instances
+                .iter()
+                .filter(|instance| instance.prop_index as usize == i)
+                .map(|instance| {
+                    // TODO: Does this correctly handle rotation?
+                    let transform = glam::Mat4::from_cols_array_2d(&instance.transform);
+                    per_model_bind_group(device, transform)
+                })
+                .collect();
+
             Model {
                 meshes,
                 materials,
                 vertex_buffers,
                 index_buffers,
+                per_models,
             }
         })
         .collect()
@@ -302,14 +325,14 @@ fn load_map_models<R: Read + Seek>(
             // TODO: Load all groups?
             let vertex_data_entry = &map_vertex_data[group.vertex_data_index as usize];
             let bytes = decompress_entry(wismda, vertex_data_entry);
-            let model_data: VertexData = Cursor::new(bytes).read_le().unwrap();
+            let vertex_data: VertexData = Cursor::new(bytes).read_le().unwrap();
 
-            let vertex_buffers = vertex_buffers(device, &model_data);
-            let index_buffers = index_buffers(device, &model_data);
+            let vertex_buffers = vertex_buffers(device, &vertex_data);
+            let index_buffers = index_buffers(device, &vertex_data);
 
             // TODO: Select meshes based on the grouping?
             // TODO: Does the list of indices in the grouping assign items here to groups?
-            // TODO: SHould we be creating multiple models in this step?
+            // TODO: Should we be creating multiple models in this step?
             let meshes = map_model_data
                 .models
                 .models
@@ -346,7 +369,7 @@ fn load_map_models<R: Read + Seek>(
             let materials = materials(
                 device,
                 queue,
-                &pipeline_data,
+                pipeline_data,
                 &map_model_data.materials,
                 &textures,
                 &[],
@@ -354,11 +377,14 @@ fn load_map_models<R: Read + Seek>(
                 shader_database,
             );
 
+            let per_model = per_model_bind_group(device, glam::Mat4::IDENTITY);
+
             Model {
                 meshes,
                 materials,
                 vertex_buffers,
                 index_buffers,
+                per_models: vec![per_model],
             }
         })
         .collect()
@@ -388,12 +414,12 @@ fn decompress_entry<R: Read + Seek>(reader: &mut R, entry: &StreamEntry) -> Vec<
     Xbc1::read(reader).unwrap().decompress().unwrap()
 }
 
-fn index_buffers(device: &wgpu::Device, model_data: &VertexData) -> Vec<IndexBuffer> {
-    model_data
+fn index_buffers(device: &wgpu::Device, vertex_data: &VertexData) -> Vec<IndexBuffer> {
+    vertex_data
         .index_buffers
         .iter()
         .map(|info| {
-            let indices = read_indices(model_data, info);
+            let indices = read_indices(vertex_data, info);
 
             let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("index buffer"),
@@ -409,13 +435,13 @@ fn index_buffers(device: &wgpu::Device, model_data: &VertexData) -> Vec<IndexBuf
         .collect()
 }
 
-fn vertex_buffers(device: &wgpu::Device, model_data: &VertexData) -> Vec<VertexBuffer> {
-    model_data
+fn vertex_buffers(device: &wgpu::Device, vertex_data: &VertexData) -> Vec<VertexBuffer> {
+    vertex_data
         .vertex_buffers
         .iter()
         .enumerate()
         .map(|(i, info)| {
-            let vertices = read_vertices(info, i, model_data);
+            let vertices = read_vertices(info, i, vertex_data);
 
             // Start with default values for each attribute.
             // Convert the buffers to a standardized format.
@@ -508,5 +534,23 @@ fn load_wismt_mibl(
     Some(
         create_texture_with_base_mip(device, queue, &mibl, &base_mip_level)
             .create_view(&wgpu::TextureViewDescriptor::default()),
+    )
+}
+
+fn per_model_bind_group(
+    device: &wgpu::Device,
+    transform: glam::Mat4,
+) -> shader::model::bind_groups::BindGroup3 {
+    let per_model_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("per model buffer"),
+        contents: bytemuck::cast_slice(&[crate::shader::model::PerModel { matrix: transform }]),
+        usage: wgpu::BufferUsages::UNIFORM,
+    });
+
+    crate::shader::model::bind_groups::BindGroup3::from_bindings(
+        device,
+        crate::shader::model::bind_groups::BindGroupLayout3 {
+            per_model: per_model_buffer.as_entire_buffer_binding(),
+        },
     )
 }

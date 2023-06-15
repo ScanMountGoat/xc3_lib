@@ -81,7 +81,7 @@ pub struct MapModel {
     pub bounds: BoundingBox,
     // bounding sphere?
     pub unk2: [f32; 4],
-    /// Reference to [MapDefData](crate::map::MapDefData).
+    /// Reference to [MapModelData](crate::map::MapModelData).
     pub entry: StreamEntry,
     pub unk3: [f32; 4],
 }
@@ -93,7 +93,7 @@ pub struct PropModel {
     pub bounds: BoundingBox,
     // bounding sphere?
     pub unk2: [f32; 4],
-    /// Reference to [PropDefData](crate::map::PropDefData).
+    /// Reference to [PropModelData](crate::map::PropModelData).
     pub entry: StreamEntry,
     pub unk3: u32,
 }
