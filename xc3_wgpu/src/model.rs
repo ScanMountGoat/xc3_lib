@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     io::{Cursor, Read, Seek},
     path::Path,
 };
@@ -19,7 +20,7 @@ use xc3_model::vertex::{read_indices, read_vertices};
 
 use crate::{
     material::{materials, Material},
-    pipeline::ModelPipelineData,
+    pipeline::{ModelPipelineData, PipelineKey},
     shader,
     texture::{create_texture, create_texture_with_base_mip},
 };
@@ -31,6 +32,8 @@ pub struct Model {
     index_buffers: Vec<IndexBuffer>,
     // Use a collection to support "instancing" for map props.
     per_models: Vec<crate::shader::model::bind_groups::BindGroup3>,
+    // Cache pipelines by their creation parameters.
+    pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
 }
 
 #[derive(Debug)]
@@ -72,7 +75,8 @@ impl Model {
                 && !material.name.ends_with("_zpre")
                 {
                     // TODO: How to make sure the pipeline outputs match the render pass?
-                    render_pass.set_pipeline(&material.pipeline);
+                    let pipeline = &self.pipelines[&material.pipeline_key];
+                    render_pass.set_pipeline(pipeline);
 
                     material.bind_group1.set(render_pass);
                     material.bind_group2.set(render_pass);
@@ -124,7 +128,7 @@ pub fn load_model(
     let vertex_buffers = vertex_buffers(device, &model_data);
     let index_buffers = index_buffers(device, &model_data);
 
-    let materials = materials(
+    let (materials, pipelines) = materials(
         device,
         queue,
         &pipeline_data,
@@ -145,6 +149,7 @@ pub fn load_model(
         vertex_buffers,
         index_buffers,
         per_models: vec![per_model],
+        pipelines,
     }
 }
 
@@ -263,7 +268,7 @@ fn load_prop_models<R: Read + Seek>(
                 .collect();
 
             // TODO: cached textures?
-            let materials = materials(
+            let (materials, pipelines) = materials(
                 device,
                 queue,
                 pipeline_data,
@@ -294,6 +299,7 @@ fn load_prop_models<R: Read + Seek>(
                 vertex_buffers,
                 index_buffers,
                 per_models,
+                pipelines,
             }
         })
         .collect()
@@ -366,7 +372,7 @@ fn load_map_models<R: Read + Seek>(
                 })
                 .collect();
 
-            let materials = materials(
+            let (materials, pipelines) = materials(
                 device,
                 queue,
                 pipeline_data,
@@ -384,6 +390,7 @@ fn load_map_models<R: Read + Seek>(
                 materials,
                 vertex_buffers,
                 index_buffers,
+                pipelines,
                 per_models: vec![per_model],
             }
         })

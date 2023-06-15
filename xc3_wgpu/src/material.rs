@@ -1,11 +1,11 @@
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
 use glam::{ivec4, uvec4};
 use wgpu::util::DeviceExt;
 use xc3_lib::mxmd::{Materials, ShaderUnkType};
 
 use crate::{
-    pipeline::{model_pipeline, model_transparent_pipeline, ModelPipelineData},
+    pipeline::{model_pipeline, ModelPipelineData, PipelineKey},
     texture::create_default_black_texture,
 };
 
@@ -16,8 +16,9 @@ pub struct Material {
     pub bind_group1: crate::shader::model::bind_groups::BindGroup1,
     pub bind_group2: crate::shader::model::bind_groups::BindGroup2,
 
-    // The material flags require a separate pipeline per material.
-    pub pipeline: wgpu::RenderPipeline,
+    // The material flags may require a separate pipeline per material.
+    // We only store a key here to allow caching.
+    pub pipeline_key: PipelineKey,
 
     pub texture_count: usize,
     pub unk_type: xc3_lib::mxmd::ShaderUnkType,
@@ -32,7 +33,7 @@ pub fn materials(
     cached_textures: &[(String, wgpu::TextureView)],
     model_path: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
-) -> Vec<Material> {
+) -> (Vec<Material>, HashMap<PipelineKey, wgpu::RenderPipeline>) {
     // TODO: Is there a better way to handle missing textures?
     // TODO: Is it worth creating a separate shaders for each material?
     // TODO: Just use booleans to indicate which textures are present?
@@ -59,7 +60,9 @@ pub fn materials(
     // TODO: Make this a map instead of a vec?
     let shaders = shader_database.files.get(&model_folder).map(|f| &f.shaders);
 
-    materials
+    let mut pipelines = HashMap::new();
+
+    let materials = materials
         .materials
         .elements
         .iter()
@@ -117,22 +120,27 @@ pub fn materials(
             // TODO: How to make sure the pipeline outputs match the render pass?
             // Each material only goes in exactly one pass?
             // TODO: Is it redundant to also store the unk type?
-            let pipeline = if material.shader_programs[0].unk_type == ShaderUnkType::Unk0 {
-                model_pipeline(device, pipeline_data)
-            } else {
-                model_transparent_pipeline(device, pipeline_data, &material.flags)
+            let pipeline_key = PipelineKey {
+                write_to_all_outputs: material.shader_programs[0].unk_type == ShaderUnkType::Unk0,
+                flags: material.flags,
             };
+            pipelines
+                .entry(pipeline_key)
+                .or_insert_with(|| model_pipeline(device, pipeline_data, &pipeline_key));
 
             Material {
                 name: material.name.clone(),
                 bind_group1,
                 bind_group2,
-                pipeline,
+                pipeline_key,
                 texture_count: material.textures.len(),
                 unk_type: material.shader_programs[0].unk_type,
             }
         })
-        .collect()
+        .collect();
+
+    // TODO: is this the best place to cache pipelines?
+    (materials, pipelines)
 }
 
 // TODO: submodule for this?

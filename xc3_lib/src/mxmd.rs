@@ -214,7 +214,7 @@ pub struct Material {
 }
 
 #[binread]
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 pub struct MaterialFlags {
     pub flag0: u8,
     pub blend_state: BlendState,
@@ -235,7 +235,7 @@ pub struct MaterialFlags {
 // 3, Zero, Src Col, Add, Zero, Src Col, Add
 // 6, disabled + ???
 #[binread]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 #[br(repr(u8))]
 pub enum BlendState {
     Disabled = 0,
@@ -250,7 +250,7 @@ pub enum BlendState {
 // 4 = disables hair but different ref value?
 // 16 = enables hair blur stencil stuff?
 #[binread]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 #[br(repr(u8))]
 pub enum StencilState1 {
     Always = 0,
@@ -263,7 +263,7 @@ pub enum StencilState1 {
 
 // TODO: Does this flag actually disable stencil?
 #[binread]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 #[br(repr(u8))]
 pub enum StencilState2 {
     Disabled = 0,
@@ -274,7 +274,7 @@ pub enum StencilState2 {
 }
 
 #[binread]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 #[br(repr(u8))]
 pub enum DepthFunc {
     Disabled = 0,
@@ -283,7 +283,7 @@ pub enum DepthFunc {
 }
 
 #[binread]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 #[br(repr(u8))]
 pub enum CullMode {
     Back = 0,
