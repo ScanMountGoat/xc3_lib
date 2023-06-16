@@ -5,7 +5,7 @@
 use binrw::{binread, FilePtr32};
 
 use crate::{
-    mxmd::{Materials, Models},
+    mxmd::{Materials, Models, TextureItems},
     parse_count_offset, parse_offset_count,
     spch::Spch,
 };
@@ -150,6 +150,17 @@ pub struct MapModelData {
     // padding?
 }
 
+// TODO: Shared with other formats?
+#[binread]
+#[derive(Debug)]
+pub struct Texture {
+    // TODO: What do these index into?
+    pub low_texture_index: i16,
+    pub low_texture_container_index: i16,
+    pub texture_index: i16, // index into texture list in msmd?
+    pub texture_type: u16,
+}
+
 // TODO: What to call this?
 #[binread]
 #[derive(Debug)]
@@ -176,9 +187,9 @@ pub struct UnkGroup {
     pub vertex_data_index: u32,
     unk2: u32,
     unk3: u32,
-    unk4: u32,
 }
 
+// TODO: Where is the VertexData?
 // TODO: Link to appropriate fields with doc links.
 /// The data for a [SkyModel](crate::msmd::SkyModel).
 #[binread]
@@ -190,23 +201,18 @@ pub struct SkyModelData {
     #[br(parse_with = FilePtr32::parse)]
     pub materials: Materials,
 
-    unk3: u32,
-    unk4: u32,
-    unk5: u32,
+    // TODO: Pointers to MIBL files?
+
+    unk_offset1: u32,
+    unk_offset2: u32,
+
+    #[br(parse_with = FilePtr32::parse)]
+    textures: TextureItems,
+
+    // TODO: always 0?
     unk6: u32,
 
     #[br(parse_with = FilePtr32::parse)]
     pub spch: Spch,
     // padding?
-}
-
-// TODO: Shared with other formats?
-#[binread]
-#[derive(Debug)]
-pub struct Texture {
-    // TODO: What do these index into?
-    pub low_texture_index: i16,
-    pub low_texture_container_index: i16,
-    pub texture_index: i16, // index into texture list in msmd?
-    pub texture_type: u16,
 }
