@@ -59,7 +59,7 @@ pub fn model_pipeline(
         ),
         fragment: Some(wgpu::FragmentState {
             module: &data.module,
-            entry_point: crate::shader::model::ENTRY_FS_TRANSPARENT,
+            entry_point: crate::shader::model::ENTRY_FS_MAIN,
             targets: &targets,
         }),
         primitive: wgpu::PrimitiveState {
