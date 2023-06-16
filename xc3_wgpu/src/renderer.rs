@@ -1,7 +1,7 @@
 use glam::{uvec4, Mat4, Vec4};
 use wgpu::util::DeviceExt;
 
-use crate::{model::Model, COLOR_FORMAT, GBUFFER_COLOR_FORMAT};
+use crate::{model::ModelGroup, COLOR_FORMAT, GBUFFER_COLOR_FORMAT};
 
 pub struct Xc3Renderer {
     camera_buffer: wgpu::Buffer,
@@ -83,7 +83,7 @@ impl Xc3Renderer {
         &self,
         output_view: &wgpu::TextureView,
         encoder: &mut wgpu::CommandEncoder,
-        models: &[Model],
+        models: &[ModelGroup],
     ) {
         // Deferred rendering requires a second forward pass for transparent meshes.
         // TODO: Research more about how this is implemented in game.
@@ -121,7 +121,7 @@ impl Xc3Renderer {
         );
     }
 
-    fn model_pass(&self, encoder: &mut wgpu::CommandEncoder, models: &[Model]) {
+    fn model_pass(&self, encoder: &mut wgpu::CommandEncoder, models: &[ModelGroup]) {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Model Pass"),
             color_attachments: &[
@@ -159,7 +159,7 @@ impl Xc3Renderer {
         }
     }
 
-    fn transparent_pass(&self, encoder: &mut wgpu::CommandEncoder, models: &[Model]) {
+    fn transparent_pass(&self, encoder: &mut wgpu::CommandEncoder, models: &[ModelGroup]) {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Transparent Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {

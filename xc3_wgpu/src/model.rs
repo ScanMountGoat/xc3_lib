@@ -25,18 +25,29 @@ use crate::{
     texture::{create_texture, create_texture_with_base_mip},
 };
 
-pub struct Model {
-    meshes: Vec<Mesh>,
+// Organize the model data to ensure shared resources are created only once.
+pub struct ModelGroup {
+    models: Vec<Model>,
     materials: Vec<Material>,
-    vertex_buffers: Vec<VertexBuffer>,
-    index_buffers: Vec<IndexBuffer>,
-    // Use a collection to support "instancing" for map props.
-    per_models: Vec<crate::shader::model::bind_groups::BindGroup3>,
     // Cache pipelines by their creation parameters.
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
 }
 
-#[derive(Debug)]
+// TODO: Come up with a better name for this?
+pub struct Model {
+    vertex_buffers: Vec<VertexBuffer>,
+    index_buffers: Vec<IndexBuffer>,
+    // Use a collection to support "instancing" for map props.
+    instances: Vec<ModelInstance>,
+}
+
+pub struct ModelInstance {
+    meshes: Vec<Mesh>,
+    // TODO: Also make this a vec?
+    per_model: crate::shader::model::bind_groups::BindGroup3,
+}
+
+#[derive(Debug, Clone, Copy)]
 struct Mesh {
     vertex_buffer_index: usize,
     index_buffer_index: usize,
@@ -53,47 +64,54 @@ struct IndexBuffer {
     vertex_index_count: u32,
 }
 
-impl Model {
+impl ModelGroup {
     // TODO: How to handle other unk types?
     pub fn draw<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, pass: ShaderUnkType) {
         // TODO: Is this the best way to "instance" models?
-        for per_model in &self.per_models {
-            per_model.set(render_pass);
+        for model in &self.models {
+            for instance in &model.instances {
+                instance.per_model.set(render_pass);
 
-            for mesh in &self.meshes {
-                // TODO: How does LOD selection work in game?
-                let material = &self.materials[mesh.material_index];
+                for mesh in &instance.meshes {
+                    // TODO: How does LOD selection work in game?
+                    let material = &self.materials[mesh.material_index];
 
-                // TODO: Why are there materials with no textures?
-                // TODO: Group these into passes with separate shaders for each pass?
-                // TODO: The main pass is shared with outline, ope, and zpre?
-                // TODO: How to handle transparency?
-                if material.unk_type == pass
+                    // TODO: Why are there materials with no textures?
+                    // TODO: Group these into passes with separate shaders for each pass?
+                    // TODO: The main pass is shared with outline, ope, and zpre?
+                    // TODO: How to handle transparency?
+                    if material.unk_type == pass
                 // && material.texture_count > 0
                 && !material.name.ends_with("_outline")
                 && !material.name.ends_with("_ope")
                 && !material.name.ends_with("_zpre")
-                {
-                    // TODO: How to make sure the pipeline outputs match the render pass?
-                    let pipeline = &self.pipelines[&material.pipeline_key];
-                    render_pass.set_pipeline(pipeline);
+                    {
+                        // TODO: How to make sure the pipeline outputs match the render pass?
+                        let pipeline = &self.pipelines[&material.pipeline_key];
+                        render_pass.set_pipeline(pipeline);
 
-                    material.bind_group1.set(render_pass);
-                    material.bind_group2.set(render_pass);
+                        material.bind_group1.set(render_pass);
+                        material.bind_group2.set(render_pass);
 
-                    self.draw_mesh(mesh, render_pass);
+                        self.draw_mesh(model, mesh, render_pass);
+                    }
                 }
             }
         }
     }
 
-    fn draw_mesh<'a>(&'a self, mesh: &Mesh, render_pass: &mut wgpu::RenderPass<'a>) {
-        let vertex_data = &self.vertex_buffers[mesh.vertex_buffer_index];
+    fn draw_mesh<'a>(
+        &'a self,
+        model: &'a Model,
+        mesh: &Mesh,
+        render_pass: &mut wgpu::RenderPass<'a>,
+    ) {
+        let vertex_data = &model.vertex_buffers[mesh.vertex_buffer_index];
         render_pass.set_vertex_buffer(0, vertex_data.vertex_buffer.slice(..));
 
         // TODO: Are all indices u16?
         // TODO: Why do maps not always refer to a valid index buffer?
-        let index_data = &self.index_buffers[mesh.index_buffer_index];
+        let index_data = &model.index_buffers[mesh.index_buffer_index];
         // let index_data = &self.index_buffers[mesh.index_buffer_index];
         render_pass.set_index_buffer(index_data.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
 
@@ -108,7 +126,7 @@ pub fn load_model(
     mxmd: &Mxmd,
     model_path: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
-) -> Model {
+) -> ModelGroup {
     // Compile shaders only once to improve loading times.
     let pipeline_data = ModelPipelineData::new(device);
 
@@ -143,13 +161,14 @@ pub fn load_model(
 
     let per_model = per_model_bind_group(device, glam::Mat4::IDENTITY);
 
-    Model {
-        meshes,
+    ModelGroup {
         materials,
-        vertex_buffers,
-        index_buffers,
-        per_models: vec![per_model],
         pipelines,
+        models: vec![Model {
+            vertex_buffers,
+            index_buffers,
+            instances: vec![ModelInstance { meshes, per_model }],
+        }],
     }
 }
 
@@ -162,7 +181,7 @@ pub fn load_map<R: Read + Seek>(
     wismda: &mut R,
     model_path: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
-) -> Vec<Model> {
+) -> Vec<ModelGroup> {
     // Compile shaders only once to improve loading times.
     let pipeline_data = ModelPipelineData::new(device);
 
@@ -179,7 +198,7 @@ pub fn load_map<R: Read + Seek>(
     // TODO: Better way to combine models?
     let mut combined_models = Vec::new();
     for map_model in &msmd.map_models {
-        let new_models = load_map_models(
+        let new_model = load_map_models(
             wismda,
             map_model,
             &msmd.map_vertex_data,
@@ -190,11 +209,11 @@ pub fn load_map<R: Read + Seek>(
             shader_database,
             &pipeline_data,
         );
-        combined_models.extend(new_models);
+        combined_models.push(new_model);
     }
 
     for prop_model in &msmd.prop_models {
-        let new_models = load_prop_models(
+        let new_model = load_prop_models(
             wismda,
             prop_model,
             &msmd.prop_vertex_data,
@@ -205,7 +224,7 @@ pub fn load_map<R: Read + Seek>(
             shader_database,
             &pipeline_data,
         );
-        combined_models.extend(new_models);
+        combined_models.push(new_model);
     }
 
     combined_models
@@ -221,7 +240,7 @@ fn load_prop_models<R: Read + Seek>(
     model_path: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
     pipeline_data: &ModelPipelineData,
-) -> Vec<Model> {
+) -> ModelGroup {
     let bytes = decompress_entry(wismda, &prop_model.entry);
     let prop_model_data: PropModelData = Cursor::new(bytes).read_le().unwrap();
 
@@ -239,12 +258,22 @@ fn load_prop_models<R: Read + Seek>(
         })
         .collect();
 
-    // TODO: Create the materials and meshes only once?
-    // TODO: Create a separate data structure that indexes into the meshes?
+    // TODO: cached textures?
+    let (materials, pipelines) = materials(
+        device,
+        queue,
+        pipeline_data,
+        &prop_model_data.materials,
+        &textures,
+        &[],
+        model_path,
+        shader_database,
+    );
 
     // Load the base LOD for each prop model.
     // TODO: Make sure this is documented in xc3_lib.
-    prop_model_data
+    // TODO: Also cache vertex and index buffer creation?
+    let models = prop_model_data
         .lods
         .props
         .iter()
@@ -261,48 +290,45 @@ fn load_prop_models<R: Read + Seek>(
             let vertex_buffers = vertex_buffers(device, &vertex_data);
             let index_buffers = index_buffers(device, &vertex_data);
 
-            let meshes = prop_model_data.models.models.elements[base_lod_index]
+            // Meshes are technically shared between all instancs.
+            let meshes: Vec<_> = prop_model_data.models.models.elements[base_lod_index]
                 .meshes
                 .iter()
                 .map(create_mesh)
                 .collect();
 
-            // TODO: cached textures?
-            let (materials, pipelines) = materials(
-                device,
-                queue,
-                pipeline_data,
-                &prop_model_data.materials,
-                &textures,
-                &[],
-                model_path,
-                shader_database,
-            );
-
             // Find all the instances referencing this prop.
             // TODO: Will all props be referenced?
-            let per_models = prop_model_data
+            let instances = prop_model_data
                 .lods
                 .instances
                 .iter()
                 .filter(|instance| instance.prop_index as usize == i)
                 .map(|instance| {
-                    // TODO: Does this correctly handle rotation?
                     let transform = glam::Mat4::from_cols_array_2d(&instance.transform);
-                    per_model_bind_group(device, transform)
+                    let per_model = per_model_bind_group(device, transform);
+
+                    // Meshes just hold indices, so it's cheap to recreate them here.
+                    ModelInstance {
+                        meshes: meshes.clone(),
+                        per_model,
+                    }
                 })
                 .collect();
 
             Model {
-                meshes,
-                materials,
                 vertex_buffers,
                 index_buffers,
-                per_models,
-                pipelines,
+                instances,
             }
         })
-        .collect()
+        .collect();
+
+    ModelGroup {
+        materials,
+        pipelines,
+        models,
+    }
 }
 
 fn load_map_models<R: Read + Seek>(
@@ -315,14 +341,39 @@ fn load_map_models<R: Read + Seek>(
     model_path: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
     pipeline_data: &ModelPipelineData,
-) -> Vec<Model> {
+) -> ModelGroup {
     let bytes = decompress_entry(wismda, &map_model.entry);
     let map_model_data: MapModelData = Cursor::new(bytes).read_le().unwrap();
+
+    // Get the textures referenced by the materials in this model.
+    let textures: Vec<_> = map_model_data
+        .textures
+        .iter()
+        .map(|item| {
+            // TODO: Handle texture index being -1?
+            let mibl = &mibl_textures[item.texture_index.max(0) as usize];
+            Some(
+                create_texture(device, queue, mibl)
+                    .create_view(&wgpu::TextureViewDescriptor::default()),
+            )
+        })
+        .collect();
+
+    let (materials, pipelines) = materials(
+        device,
+        queue,
+        pipeline_data,
+        &map_model_data.materials,
+        &textures,
+        &[],
+        model_path,
+        shader_database,
+    );
 
     // TODO: The mapping.indices and models.models always have the same length?
     // TODO: the mapping indices are in the range [0, 2*groups - 1]?
     // TODO: Some mapping sections assign to twice as many groups as actual groups?
-    map_model_data
+    let models = map_model_data
         .mapping
         .groups
         .iter()
@@ -358,43 +409,21 @@ fn load_map_models<R: Read + Seek>(
                 .map(create_mesh)
                 .collect();
 
-            // Get the textures referenced by the materials in this model.
-            let textures: Vec<_> = map_model_data
-                .textures
-                .iter()
-                .map(|item| {
-                    // TODO: Handle texture index being -1?
-                    let mibl = &mibl_textures[item.texture_index.max(0) as usize];
-                    Some(
-                        create_texture(device, queue, mibl)
-                            .create_view(&wgpu::TextureViewDescriptor::default()),
-                    )
-                })
-                .collect();
-
-            let (materials, pipelines) = materials(
-                device,
-                queue,
-                pipeline_data,
-                &map_model_data.materials,
-                &textures,
-                &[],
-                model_path,
-                shader_database,
-            );
-
             let per_model = per_model_bind_group(device, glam::Mat4::IDENTITY);
 
             Model {
-                meshes,
-                materials,
                 vertex_buffers,
                 index_buffers,
-                pipelines,
-                per_models: vec![per_model],
+                instances: vec![ModelInstance { meshes, per_model }],
             }
         })
-        .collect()
+        .collect();
+
+    ModelGroup {
+        materials,
+        pipelines,
+        models,
+    }
 }
 
 fn meshes(models: &xc3_lib::mxmd::Models) -> Vec<Mesh> {

@@ -11,7 +11,7 @@ use winit::{
 use xc3_lib::{msmd::Msmd, msrd::Msrd, mxmd::Mxmd};
 use xc3_wgpu::{
     material::load_database,
-    model::{load_map, load_model, Model},
+    model::{load_map, load_model, ModelGroup},
     renderer::{CameraData, Xc3Renderer},
     COLOR_FORMAT,
 };
@@ -34,7 +34,7 @@ struct State {
     renderer: Xc3Renderer,
 
     // TODO: Better way to render multiple map models?
-    models: Vec<Model>,
+    models: Vec<ModelGroup>,
 
     input_state: InputState,
 }
