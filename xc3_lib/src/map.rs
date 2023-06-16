@@ -202,7 +202,6 @@ pub struct SkyModelData {
     pub materials: Materials,
 
     // TODO: Pointers to MIBL files?
-
     unk_offset1: u32,
     unk_offset2: u32,
 

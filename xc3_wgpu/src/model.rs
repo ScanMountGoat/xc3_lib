@@ -33,8 +33,8 @@ pub struct ModelGroup {
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
 }
 
-// TODO: Come up with a better name for this?
 pub struct Model {
+    meshes: Vec<Mesh>,
     vertex_buffers: Vec<VertexBuffer>,
     index_buffers: Vec<IndexBuffer>,
     // Use a collection to support "instancing" for map props.
@@ -42,8 +42,6 @@ pub struct Model {
 }
 
 pub struct ModelInstance {
-    meshes: Vec<Mesh>,
-    // TODO: Also make this a vec?
     per_model: crate::shader::model::bind_groups::BindGroup3,
 }
 
@@ -72,7 +70,8 @@ impl ModelGroup {
             for instance in &model.instances {
                 instance.per_model.set(render_pass);
 
-                for mesh in &instance.meshes {
+                // Each "instance" repeats the same meshes with different transforms.
+                for mesh in &model.meshes {
                     // TODO: How does LOD selection work in game?
                     let material = &self.materials[mesh.material_index];
 
@@ -139,7 +138,7 @@ pub fn load_model(
     let m_tex_folder = chr_folder.join("tex").join("nx").join("m");
     let h_tex_folder = chr_folder.join("tex").join("nx").join("h");
 
-    let textures = load_textures(mxmd, device, queue, m_tex_folder, h_tex_folder);
+    let textures = load_textures(device, queue, mxmd, m_tex_folder, h_tex_folder);
 
     let cached_textures = load_cached_textures(device, queue, msrd);
 
@@ -167,7 +166,8 @@ pub fn load_model(
         models: vec![Model {
             vertex_buffers,
             index_buffers,
-            instances: vec![ModelInstance { meshes, per_model }],
+            meshes,
+            instances: vec![ModelInstance { per_model }],
         }],
     }
 }
@@ -186,6 +186,7 @@ pub fn load_map<R: Read + Seek>(
     let pipeline_data = ModelPipelineData::new(device);
 
     // TODO: Are the msmd textures shared with all models?
+    // TODO: Load high resolution textures?
     let textures: Vec<_> = msmd
         .textures
         .iter()
@@ -198,45 +199,45 @@ pub fn load_map<R: Read + Seek>(
     // TODO: Better way to combine models?
     let mut combined_models = Vec::new();
     for map_model in &msmd.map_models {
-        let new_model = load_map_models(
+        let model = load_map_model_group(
+            device,
+            queue,
             wismda,
             map_model,
             &msmd.map_vertex_data,
             &textures,
-            device,
-            queue,
             model_path,
             shader_database,
             &pipeline_data,
         );
-        combined_models.push(new_model);
+        combined_models.push(model);
     }
 
     for prop_model in &msmd.prop_models {
-        let new_model = load_prop_models(
+        let model = load_prop_model_group(
+            device,
+            queue,
             wismda,
             prop_model,
             &msmd.prop_vertex_data,
             &textures,
-            device,
-            queue,
             model_path,
             shader_database,
             &pipeline_data,
         );
-        combined_models.push(new_model);
+        combined_models.push(model);
     }
 
     combined_models
 }
 
-fn load_prop_models<R: Read + Seek>(
+fn load_prop_model_group<R: Read + Seek>(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
     wismda: &mut R,
     prop_model: &xc3_lib::msmd::PropModel,
     prop_vertex_data: &[StreamEntry],
     mibl_textures: &[Mibl],
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
     model_path: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
     pipeline_data: &ModelPipelineData,
@@ -245,18 +246,7 @@ fn load_prop_models<R: Read + Seek>(
     let prop_model_data: PropModelData = Cursor::new(bytes).read_le().unwrap();
 
     // Get the textures referenced by the materials in this model.
-    let textures: Vec<_> = prop_model_data
-        .textures
-        .iter()
-        .map(|item| {
-            // TODO: Handle texture index being -1?
-            let mibl = &mibl_textures[item.texture_index.max(0) as usize];
-            Some(
-                create_texture(device, queue, mibl)
-                    .create_view(&wgpu::TextureViewDescriptor::default()),
-            )
-        })
-        .collect();
+    let textures = load_map_textures(device, queue, &prop_model_data.textures, mibl_textures);
 
     // TODO: cached textures?
     let (materials, pipelines) = materials(
@@ -271,7 +261,6 @@ fn load_prop_models<R: Read + Seek>(
     );
 
     // Load the base LOD for each prop model.
-    // TODO: Make sure this is documented in xc3_lib.
     // TODO: Also cache vertex and index buffer creation?
     let models = prop_model_data
         .lods
@@ -290,7 +279,6 @@ fn load_prop_models<R: Read + Seek>(
             let vertex_buffers = vertex_buffers(device, &vertex_data);
             let index_buffers = index_buffers(device, &vertex_data);
 
-            // Meshes are technically shared between all instancs.
             let meshes: Vec<_> = prop_model_data.models.models.elements[base_lod_index]
                 .meshes
                 .iter()
@@ -308,17 +296,14 @@ fn load_prop_models<R: Read + Seek>(
                     let transform = glam::Mat4::from_cols_array_2d(&instance.transform);
                     let per_model = per_model_bind_group(device, transform);
 
-                    // Meshes just hold indices, so it's cheap to recreate them here.
-                    ModelInstance {
-                        meshes: meshes.clone(),
-                        per_model,
-                    }
+                    ModelInstance { per_model }
                 })
                 .collect();
 
             Model {
                 vertex_buffers,
                 index_buffers,
+                meshes,
                 instances,
             }
         })
@@ -331,13 +316,13 @@ fn load_prop_models<R: Read + Seek>(
     }
 }
 
-fn load_map_models<R: Read + Seek>(
+fn load_map_model_group<R: Read + Seek>(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
     wismda: &mut R,
     map_model: &xc3_lib::msmd::MapModel,
     map_vertex_data: &[xc3_lib::msmd::StreamEntry],
     mibl_textures: &[Mibl],
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
     model_path: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
     pipeline_data: &ModelPipelineData,
@@ -346,18 +331,7 @@ fn load_map_models<R: Read + Seek>(
     let map_model_data: MapModelData = Cursor::new(bytes).read_le().unwrap();
 
     // Get the textures referenced by the materials in this model.
-    let textures: Vec<_> = map_model_data
-        .textures
-        .iter()
-        .map(|item| {
-            // TODO: Handle texture index being -1?
-            let mibl = &mibl_textures[item.texture_index.max(0) as usize];
-            Some(
-                create_texture(device, queue, mibl)
-                    .create_view(&wgpu::TextureViewDescriptor::default()),
-            )
-        })
-        .collect();
+    let textures = load_map_textures(device, queue, &map_model_data.textures, mibl_textures);
 
     let (materials, pipelines) = materials(
         device,
@@ -414,7 +388,8 @@ fn load_map_models<R: Read + Seek>(
             Model {
                 vertex_buffers,
                 index_buffers,
-                instances: vec![ModelInstance { meshes, per_model }],
+                meshes,
+                instances: vec![ModelInstance { per_model }],
             }
         })
         .collect();
@@ -424,6 +399,25 @@ fn load_map_models<R: Read + Seek>(
         pipelines,
         models,
     }
+}
+
+fn load_map_textures(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    textures: &[xc3_lib::map::Texture],
+    mibl_textures: &[Mibl],
+) -> Vec<Option<wgpu::TextureView>> {
+    textures
+        .iter()
+        .map(|item| {
+            // TODO: Handle texture index being -1?
+            let mibl = &mibl_textures[item.texture_index.max(0) as usize];
+            Some(
+                create_texture(device, queue, mibl)
+                    .create_view(&wgpu::TextureViewDescriptor::default()),
+            )
+        })
+        .collect()
 }
 
 fn meshes(models: &xc3_lib::mxmd::Models) -> Vec<Mesh> {
@@ -506,9 +500,9 @@ fn vertex_buffers(device: &wgpu::Device, vertex_data: &VertexData) -> Vec<Vertex
 }
 
 fn load_textures(
-    mxmd: &Mxmd,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
+    mxmd: &Mxmd,
     m_tex_folder: std::path::PathBuf,
     h_tex_folder: std::path::PathBuf,
 ) -> Vec<Option<wgpu::TextureView>> {
