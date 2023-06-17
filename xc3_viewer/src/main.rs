@@ -136,7 +136,22 @@ impl State {
             }
             _ => todo!(),
         };
-        println!("Load {:?} models: {:?}", models.len(), start.elapsed());
+
+        let mesh_count: usize = models
+            .iter()
+            .map(|m| {
+                m.models
+                    .iter()
+                    .map(|model| model.meshes.len() * model.instances.len())
+                    .sum::<usize>()
+            })
+            .sum();
+        println!(
+            "Load {:?} models and {:?} meshes: {:?}",
+            models.len(),
+            mesh_count,
+            start.elapsed()
+        );
 
         Self {
             surface,

@@ -27,26 +27,26 @@ use crate::{
 
 // Organize the model data to ensure shared resources are created only once.
 pub struct ModelGroup {
-    models: Vec<Model>,
+    pub models: Vec<Model>,
     materials: Vec<Material>,
     // Cache pipelines by their creation parameters.
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
 }
 
 pub struct Model {
-    meshes: Vec<Mesh>,
+    pub meshes: Vec<Mesh>,
     vertex_buffers: Vec<VertexBuffer>,
     index_buffers: Vec<IndexBuffer>,
     // Use a collection to support "instancing" for map props.
-    instances: Vec<ModelInstance>,
+    pub instances: Vec<ModelInstance>,
 }
 
 pub struct ModelInstance {
     per_model: crate::shader::model::bind_groups::BindGroup3,
 }
 
-#[derive(Debug, Clone, Copy)]
-struct Mesh {
+#[derive(Debug)]
+pub struct Mesh {
     vertex_buffer_index: usize,
     index_buffer_index: usize,
     material_index: usize,
