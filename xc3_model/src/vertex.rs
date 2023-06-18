@@ -9,6 +9,8 @@ use xc3_lib::vertex::{
 
 // TODO: Switch to struct of arrays instead of array of structs.
 // This would better encode which attributes are actually present and is easier for applications.
+// TODO: Add array of structs as an option for realtime rendering?
+// TODO: Share code between these two representations?
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Default, Pod, Zeroable)]
 pub struct Vertex {

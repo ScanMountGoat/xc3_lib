@@ -11,7 +11,7 @@ use crate::{
 };
 
 // TODO: Improve docs.
-// TODO: Link to appropriate fields with doc links.
+// TODO: Link to appropriate stream field with doc links.
 /// The data for a [PropModel](crate::msmd::PropModel).
 #[binread]
 #[derive(Debug)]
@@ -117,7 +117,7 @@ pub struct PropUnk3 {
     unk2: [u32; 3],
 }
 
-// TODO: Link to appropriate fields with doc links.
+// TODO: Link to appropriate stream field with doc links.
 /// The data for a [MapModel](crate::msmd::MapModel).
 #[binread]
 #[derive(Debug)]

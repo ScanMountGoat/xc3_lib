@@ -76,6 +76,33 @@ where
     Ok(values)
 }
 
+// TODO: Find a way to avoid duplicating the function for new inner args.
+fn parse_count_offset2<T, R>(reader: &mut R, endian: binrw::Endian, args: u64) -> BinResult<Vec<T>>
+where
+    for<'a> T: BinRead<Args<'a> = u64> + 'static,
+    R: std::io::Read + std::io::Seek,
+{
+    let count = u32::read_options(reader, endian, ())?;
+    let offset = u32::read_options(reader, endian, ())?;
+
+    let saved_pos = reader.stream_position()?;
+
+    reader.seek(SeekFrom::Start(offset as u64 + args))?;
+
+    let values = Vec::<T>::read_options(
+        reader,
+        endian,
+        VecArgs {
+            count: count as usize,
+            inner: args,
+        },
+    )?;
+
+    reader.seek(SeekFrom::Start(saved_pos))?;
+
+    Ok(values)
+}
+
 fn parse_string_ptr32<R: std::io::Read + std::io::Seek>(
     reader: &mut R,
     endian: binrw::Endian,
