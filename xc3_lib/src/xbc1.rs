@@ -23,9 +23,10 @@ pub struct Xbc1 {
     #[br(map = |x: NullString| x.to_string())]
     #[bw(map = |x: &String| NullString::from(x.as_str()))]
     #[brw(pad_size_to = 28)]
-    text: String,
+    pub text: String,
 
     #[br(count = comp_size)]
+    #[br(align_after = 16)]
     #[serde(skip)]
     pub deflate_stream: Vec<u8>,
 }
