@@ -1,8 +1,8 @@
 //! `.wismhd` files for map data that points to data in a corresponding `.wismda` files
 
-use binrw::binread;
+use binrw::{binread, FilePtr32};
 
-use crate::{parse_count_offset, parse_string_ptr32};
+use crate::{parse_count_offset, parse_count_offset2, parse_string_ptr32};
 
 // TODO: Is it worth implementing serialize?
 #[binread]
@@ -23,7 +23,8 @@ pub struct Msmd {
     #[br(parse_with = parse_count_offset)]
     pub unk_models: Vec<SkyModel>,
 
-    unk2: [u32; 6],
+    unk_offset: u32,
+    unk2: [u32; 5],
 
     /// References to [VertexData](crate::vertex::VertexData).
     #[br(parse_with = parse_count_offset)]
@@ -33,6 +34,7 @@ pub struct Msmd {
     #[br(parse_with = parse_count_offset)]
     pub textures: Vec<Texture>,
 
+    // TODO: This section can have multiple strings?
     #[br(parse_with = parse_string_ptr32)]
     name: String,
 
@@ -54,6 +56,18 @@ pub struct Msmd {
     /// References to [VertexData](crate::vertex::VertexData).
     #[br(parse_with = parse_count_offset)]
     pub map_vertex_data: Vec<StreamEntry>,
+
+    #[br(parse_with = FilePtr32::parse)]
+    nerd: Nerd,
+
+    unk4: [u32; 3],
+
+    // some section before the map name?
+    #[br(parse_with = FilePtr32::parse)]
+    unk_offset2: Unk2,
+
+    // padding?
+    unk5: [u32; 14],
 }
 
 /// A reference to an [Xbc1](crate::xbc1::Xbc1) in the `.wismda` file.
@@ -114,4 +128,61 @@ pub struct BoundingBox {
     max: [f32; 3],
     min: [f32; 3],
     center: [f32; 3],
+}
+
+#[binread]
+#[derive(Debug)]
+#[br(magic(b"DREN"))]
+pub struct Nerd {
+    version: u32,
+    unk1: u32,
+    unk2: u32,
+    unk3: u32,
+    unk4: u32,
+    unk5: u32,
+    // padding?
+    unk6: [u32; 6],
+}
+
+#[binread]
+#[derive(Debug)]
+#[br(stream = r)]
+pub struct Unk2 {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = parse_count_offset2, args_raw(base_offset))]
+    unk1: Vec<Unk2Inner>,
+
+    unk3: u32,
+    unk4: u32,
+    unk5: u32,
+    unk6: u32,
+}
+
+#[binread]
+#[derive(Debug)]
+#[br(import_raw(base_offset: u64))]
+pub struct Unk2Inner {
+    unk1: u32, // 0?
+    #[br(parse_with = parse_string_ptr32, args(base_offset))]
+    map_name: String,
+    #[br(parse_with = FilePtr32::parse, offset = base_offset)]
+    gibl: Gibl,
+    unk4: u32, // gibl section length?
+    // padding?
+    unk5: [u32; 6],
+}
+
+#[binread]
+#[derive(Debug)]
+#[br(magic(b"GIBL"))]
+pub struct Gibl {
+    unk1: u32,
+    unk2: u32,
+    unk3: u32,
+    unk4: u32, // offset to mibl?
+    unk5: u32,
+    // TODO: padding?
+    unk6: [u32; 6],
 }
