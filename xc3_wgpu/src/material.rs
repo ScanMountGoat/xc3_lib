@@ -29,8 +29,7 @@ pub fn materials(
     queue: &wgpu::Queue,
     pipeline_data: &ModelPipelineData,
     materials: &Materials,
-    textures: &[Option<wgpu::TextureView>],
-    cached_textures: &[(String, wgpu::TextureView)],
+    textures: &[wgpu::TextureView],
     model_path: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
 ) -> (Vec<Material>, HashMap<PipelineKey, wgpu::RenderPipeline>) {
@@ -67,24 +66,22 @@ pub fn materials(
         .elements
         .iter()
         .map(|material| {
-            let texture_views = load_material_textures(material, textures, cached_textures);
-
             // Bind all available textures and samplers.
             // Texture selection happens within the shader itself.
             // This simulates having a unique shader for each material.
             let bind_group1 = crate::shader::model::bind_groups::BindGroup1::from_bindings(
                 device,
                 crate::shader::model::bind_groups::BindGroupLayout1 {
-                    s0: texture_views.get(0).unwrap_or(&&default_black),
-                    s1: texture_views.get(1).unwrap_or(&&default_black),
-                    s2: texture_views.get(2).unwrap_or(&&default_black),
-                    s3: texture_views.get(3).unwrap_or(&&default_black),
-                    s4: texture_views.get(4).unwrap_or(&&default_black),
-                    s5: texture_views.get(5).unwrap_or(&&default_black),
-                    s6: texture_views.get(6).unwrap_or(&&default_black),
-                    s7: texture_views.get(7).unwrap_or(&&default_black),
-                    s8: texture_views.get(8).unwrap_or(&&default_black),
-                    s9: texture_views.get(9).unwrap_or(&&default_black),
+                    s0: material_texture(material, textures, 0).unwrap_or(&default_black),
+                    s1: material_texture(material, textures, 1).unwrap_or(&default_black),
+                    s2: material_texture(material, textures, 2).unwrap_or(&default_black),
+                    s3: material_texture(material, textures, 3).unwrap_or(&default_black),
+                    s4: material_texture(material, textures, 4).unwrap_or(&default_black),
+                    s5: material_texture(material, textures, 5).unwrap_or(&default_black),
+                    s6: material_texture(material, textures, 6).unwrap_or(&default_black),
+                    s7: material_texture(material, textures, 7).unwrap_or(&default_black),
+                    s8: material_texture(material, textures, 8).unwrap_or(&default_black),
+                    s9: material_texture(material, textures, 9).unwrap_or(&default_black),
                     shared_sampler: &default_sampler,
                 },
             );
@@ -222,21 +219,15 @@ pub fn load_database<P: AsRef<Path>>(path: P) -> xc3_shader::gbuffer_database::G
     serde_json::from_str(&json).unwrap()
 }
 
-fn load_material_textures<'a>(
+fn material_texture<'a>(
     material: &xc3_lib::mxmd::Material,
-    textures: &'a [Option<wgpu::TextureView>],
-    cached_textures: &'a [(String, wgpu::TextureView)],
-) -> Vec<&'a wgpu::TextureView> {
+    textures: &'a [wgpu::TextureView],
+    index: usize,
+) -> Option<&'a wgpu::TextureView> {
     material
         .textures
-        .iter()
-        .map(|t| {
-            textures
-                .get(t.texture_index as usize)
-                .and_then(|t| t.as_ref())
-                .unwrap_or_else(|| &cached_textures[t.texture_index as usize].1)
-        })
-        .collect()
+        .get(index)
+        .map(|texture| &textures[texture.texture_index as usize])
 }
 
 fn default_gbuffer_assignments() -> Vec<crate::shader::model::GBufferAssignment> {

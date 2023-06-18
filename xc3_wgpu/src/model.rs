@@ -138,9 +138,7 @@ pub fn load_model(
     let m_tex_folder = chr_folder.join("tex").join("nx").join("m");
     let h_tex_folder = chr_folder.join("tex").join("nx").join("h");
 
-    let textures = load_textures(device, queue, mxmd, m_tex_folder, h_tex_folder);
-
-    let cached_textures = load_cached_textures(device, queue, msrd);
+    let textures = load_textures(device, queue, msrd, mxmd, m_tex_folder, h_tex_folder);
 
     let vertex_buffers = vertex_buffers(device, &model_data);
     let index_buffers = index_buffers(device, &model_data);
@@ -151,7 +149,6 @@ pub fn load_model(
         &pipeline_data,
         &mxmd.materials,
         &textures,
-        &cached_textures,
         model_path,
         shader_database,
     );
@@ -255,7 +252,6 @@ fn load_prop_model_group<R: Read + Seek>(
         pipeline_data,
         &prop_model_data.materials,
         &textures,
-        &[],
         model_path,
         shader_database,
     );
@@ -339,7 +335,6 @@ fn load_map_model_group<R: Read + Seek>(
         pipeline_data,
         &map_model_data.materials,
         &textures,
-        &[],
         model_path,
         shader_database,
     );
@@ -406,16 +401,13 @@ fn load_map_textures(
     queue: &wgpu::Queue,
     textures: &[xc3_lib::map::Texture],
     mibl_textures: &[Mibl],
-) -> Vec<Option<wgpu::TextureView>> {
+) -> Vec<wgpu::TextureView> {
     textures
         .iter()
         .map(|item| {
             // TODO: Handle texture index being -1?
             let mibl = &mibl_textures[item.texture_index.max(0) as usize];
-            Some(
-                create_texture(device, queue, mibl)
-                    .create_view(&wgpu::TextureViewDescriptor::default()),
-            )
+            create_texture(device, queue, mibl).create_view(&wgpu::TextureViewDescriptor::default())
         })
         .collect()
 }
@@ -502,47 +494,46 @@ fn vertex_buffers(device: &wgpu::Device, vertex_data: &VertexData) -> Vec<Vertex
 fn load_textures(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
+    msrd: &Msrd,
     mxmd: &Mxmd,
     m_tex_folder: std::path::PathBuf,
     h_tex_folder: std::path::PathBuf,
-) -> Vec<Option<wgpu::TextureView>> {
+) -> Vec<wgpu::TextureView> {
+    let cached_texture_data = msrd.extract_texture_data();
+
+    // Assume the cached and non cached textures have the same ordering.
     mxmd.textures
         .items
         .as_ref()
         .unwrap()
         .textures
         .iter()
-        .map(|item| load_wismt_mibl(device, queue, &m_tex_folder, &h_tex_folder, &item.name))
-        .collect()
-}
-
-fn load_cached_textures(
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    msrd: &Msrd,
-) -> Vec<(String, wgpu::TextureView)> {
-    let texture_data = msrd.extract_texture_data();
-
-    msrd.texture_name_table
-        .as_ref()
-        .unwrap()
-        .textures
-        .iter()
-        .map(|info| {
-            let data =
-                &texture_data[info.offset as usize..info.offset as usize + info.size as usize];
-            let mibl = Mibl::read(&mut Cursor::new(&data)).unwrap();
-            (
-                info.name.clone(),
-                create_texture(device, queue, &mibl)
-                    .create_view(&wgpu::TextureViewDescriptor::default()),
-            )
+        .zip(msrd.texture_name_table.as_ref().unwrap().textures.iter())
+        .map(|(item, cached_item)| {
+            load_wismt_texture(device, queue, &m_tex_folder, &h_tex_folder, &item.name)
+                .unwrap_or_else(|| {
+                    // Some textures only appear in the cache and have no high res version.
+                    load_cached_texture(device, queue, &cached_texture_data, cached_item)
+                })
         })
         .collect()
 }
 
+fn load_cached_texture(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    cached_texture_data: &[u8],
+    cached_item: &xc3_lib::msrd::TextureInfo,
+) -> wgpu::TextureView {
+    let data = &cached_texture_data
+        [cached_item.offset as usize..cached_item.offset as usize + cached_item.size as usize];
+    let mibl = Mibl::read(&mut Cursor::new(&data)).unwrap();
+
+    create_texture(device, queue, &mibl).create_view(&wgpu::TextureViewDescriptor::default())
+}
+
 // TODO: Split into two functions?
-fn load_wismt_mibl(
+fn load_wismt_texture(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     m_texture_folder: &Path,
