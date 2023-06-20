@@ -57,7 +57,10 @@ pub fn materials(
         .to_string();
 
     // TODO: Make this a map instead of a vec?
-    let shaders = shader_database.files.get(&model_folder).map(|f| &f.shaders);
+    let programs = shader_database
+        .files
+        .get(&model_folder)
+        .map(|f| &f.programs);
 
     let mut pipelines = HashMap::new();
 
@@ -86,15 +89,12 @@ pub fn materials(
                 },
             );
 
-            // TODO: Is it better to store these in a hashmap instead of a vec?
-            // TODO: Do all shaders have the naming convention "shd{program index}"?
-            // TODO: Store a list of shaders for each index/name?
             // TODO: How to choose between the two fragment shaders?
-            let shader_name = format!(
-                "shd{:0>4}_FS0.glsl",
-                material.shader_programs[0].program_index
-            );
-            let shader = shaders.and_then(|shaders| shaders.get(&shader_name));
+            let program_index = material.shader_programs[0].program_index as usize;
+            let shader = programs
+                .and_then(|programs| programs.get(program_index))
+                .map(|program| &program.shaders[0]);
+
             // TODO: Default assignments?
             let assignments = shader
                 .map(gbuffer_assignments)

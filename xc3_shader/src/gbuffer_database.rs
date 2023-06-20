@@ -17,15 +17,19 @@ pub struct GBufferDatabase {
 /// The decompiled shader data for a single `.wismt` model file.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct File {
-    pub shaders: IndexMap<String, Shader>,
+    pub programs: Vec<ShaderProgram>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct ShaderProgram {
+    // TODO: Is it worth including the program name?
+    /// Some shaders have multiple NVSD sections, so the length may be greater than 1.
+    pub shaders: Vec<Shader>,
+}
+
+// TODO: Should dependencies be more strongly typed?
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Shader {
-    // TODO: Should dependencies be more strongly typed?
-    // It seems redundant to do string -> struct -> string on save.
-    // Applications will always want to parse this anyway.
-    // TODO: Add strings as an optional export option?
     /// The buffer elements, textures, and constants used to initialize each fragment output.
     ///
     /// This assumes inputs are assigned directly to outputs without any modifications.
@@ -110,22 +114,23 @@ pub fn create_shader_database(input: &str) -> GBufferDatabase {
             let path = entry.unwrap().path();
 
             // Process all fragment shaders.
-            let shaders = globwalk::GlobWalkerBuilder::from_patterns(&path, &["*FS*.glsl"])
+            let programs = globwalk::GlobWalkerBuilder::from_patterns(&path, &["*FS0.glsl"])
                 .build()
                 .unwrap()
                 .par_bridge()
                 .map(|entry| {
-                    // TODO: Add FS0 and FS1 to the same parent entry?
-                    // TODO: Add shaders in order by index for easier access using mxmd data?
                     let path = entry.as_ref().unwrap().path();
-                    let name = path.file_name().unwrap().to_string_lossy().to_string();
                     let source = std::fs::read_to_string(path).unwrap();
-                    (name, Shader::from_glsl(&source))
+
+                    // TODO: Add FS0 and FS1 to the same program?
+                    ShaderProgram {
+                        shaders: vec![Shader::from_glsl(&source)],
+                    }
                 })
                 .collect();
 
             let file = path.file_name().unwrap().to_string_lossy().to_string();
-            (file, File { shaders })
+            (file, File { programs })
         })
         .collect();
 

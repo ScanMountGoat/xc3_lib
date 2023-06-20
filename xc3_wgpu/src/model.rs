@@ -138,7 +138,7 @@ pub fn load_model(
     let m_tex_folder = chr_folder.join("tex").join("nx").join("m");
     let h_tex_folder = chr_folder.join("tex").join("nx").join("h");
 
-    let textures = load_textures(device, queue, msrd, mxmd, m_tex_folder, h_tex_folder);
+    let textures = load_textures(device, queue, msrd, mxmd, &m_tex_folder, &h_tex_folder);
 
     let vertex_buffers = vertex_buffers(device, &model_data);
     let index_buffers = index_buffers(device, &model_data);
@@ -496,8 +496,8 @@ fn load_textures(
     queue: &wgpu::Queue,
     msrd: &Msrd,
     mxmd: &Mxmd,
-    m_tex_folder: std::path::PathBuf,
-    h_tex_folder: std::path::PathBuf,
+    m_tex_folder: &Path,
+    h_tex_folder: &Path,
 ) -> Vec<wgpu::TextureView> {
     let mibls = xc3_model::texture::load_textures(msrd, mxmd, m_tex_folder, h_tex_folder);
     mibls

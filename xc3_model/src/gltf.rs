@@ -1,4 +1,4 @@
-use std::{io::BufWriter, path::Path};
+use std::path::Path;
 
 use crate::{
     texture::load_textures,
@@ -36,16 +36,11 @@ pub fn export_gltf<P: AsRef<Path>>(
     h_tex_folder: &Path,
     database: &GBufferDatabase,
 ) {
-    let mibls = load_textures(
-        msrd,
-        mxmd,
-        m_tex_folder,
-        h_tex_folder,
-    );
+    let mibls = load_textures(msrd, mxmd, m_tex_folder, h_tex_folder);
     // TODO: Is it worth giving images their in game names?
     for (i, mibl) in mibls.iter().enumerate() {
         // Convert to PNG since DDS is not well supported.
-        let dds = create_dds(&mibl).unwrap();
+        let dds = create_dds(mibl).unwrap();
         let image = image_dds::image_from_dds(&dds, 0).unwrap();
         image.save(format!("model{i}.png")).unwrap();
     }
@@ -77,13 +72,11 @@ pub fn export_gltf<P: AsRef<Path>>(
         .elements
         .iter()
         .map(|material| {
-            // TODO: Rework the database to properly find shaders by index and not name.
-            let shaders = database.files.get(model_name).map(|f| &f.shaders);
-            let shader_name = format!(
-                "shd{:0>4}_FS0.glsl",
-                material.shader_programs[0].program_index
-            );
-            let shader = shaders.and_then(|shaders| shaders.get(&shader_name));
+            let program_index = material.shader_programs[0].program_index as usize;
+            let programs = database.files.get(model_name).map(|f| &f.programs);
+            let shader = programs
+                .and_then(|programs| programs.get(program_index))
+                .map(|program| &program.shaders[0]);
 
             // TODO: A proper solution will construct each channel individually.
             // Assume the texture is used for all channels for now.
