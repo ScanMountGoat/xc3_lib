@@ -22,7 +22,7 @@ use crate::{
     material::{materials, Material},
     pipeline::{ModelPipelineData, PipelineKey},
     shader,
-    texture::{create_texture, create_texture_with_base_mip},
+    texture::create_texture,
 };
 
 // Organize the model data to ensure shared resources are created only once.
@@ -499,63 +499,13 @@ fn load_textures(
     m_tex_folder: std::path::PathBuf,
     h_tex_folder: std::path::PathBuf,
 ) -> Vec<wgpu::TextureView> {
-    let cached_texture_data = msrd.extract_texture_data();
-
-    // Assume the cached and non cached textures have the same ordering.
-    mxmd.textures
-        .items
-        .as_ref()
-        .unwrap()
-        .textures
+    let mibls = xc3_model::texture::load_textures(msrd, mxmd, m_tex_folder, h_tex_folder);
+    mibls
         .iter()
-        .zip(msrd.texture_name_table.as_ref().unwrap().textures.iter())
-        .map(|(item, cached_item)| {
-            load_wismt_texture(device, queue, &m_tex_folder, &h_tex_folder, &item.name)
-                .unwrap_or_else(|| {
-                    // Some textures only appear in the cache and have no high res version.
-                    load_cached_texture(device, queue, &cached_texture_data, cached_item)
-                })
+        .map(|mibl| {
+            create_texture(device, queue, mibl).create_view(&wgpu::TextureViewDescriptor::default())
         })
         .collect()
-}
-
-fn load_cached_texture(
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    cached_texture_data: &[u8],
-    cached_item: &xc3_lib::msrd::TextureInfo,
-) -> wgpu::TextureView {
-    let data = &cached_texture_data
-        [cached_item.offset as usize..cached_item.offset as usize + cached_item.size as usize];
-    let mibl = Mibl::read(&mut Cursor::new(&data)).unwrap();
-
-    create_texture(device, queue, &mibl).create_view(&wgpu::TextureViewDescriptor::default())
-}
-
-// TODO: Split into two functions?
-fn load_wismt_texture(
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    m_texture_folder: &Path,
-    h_texture_folder: &Path,
-    texture_name: &str,
-) -> Option<wgpu::TextureView> {
-    // TODO: Create a helper function in xc3_lib for this?
-    let xbc1 = Xbc1::from_file(m_texture_folder.join(texture_name).with_extension("wismt")).ok()?;
-    let mut reader = Cursor::new(xbc1.decompress().unwrap());
-
-    let mibl = Mibl::read(&mut reader).unwrap();
-
-    let base_mip_level =
-        Xbc1::from_file(&h_texture_folder.join(texture_name).with_extension("wismt"))
-            .unwrap()
-            .decompress()
-            .unwrap();
-
-    Some(
-        create_texture_with_base_mip(device, queue, &mibl, &base_mip_level)
-            .create_view(&wgpu::TextureViewDescriptor::default()),
-    )
 }
 
 fn per_model_bind_group(

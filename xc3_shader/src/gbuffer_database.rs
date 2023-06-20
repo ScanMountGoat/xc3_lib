@@ -66,6 +66,38 @@ impl Shader {
                 .collect(),
         }
     }
+
+    /// Find the sampler and channel index of the first material sampler like "s0" or "s3" assigned to the output.
+    pub fn material_channel_assignment(
+        &self,
+        output_index: usize,
+        channel: char,
+    ) -> Option<(u32, u32)> {
+        let output = format!("out_attr{output_index}.{channel}");
+
+        // Find the first material referenced sampler like "s0" or "s1".
+        let (sampler_index, channels) =
+            self.output_dependencies
+                .get(&output)?
+                .iter()
+                .find_map(|sampler_name| {
+                    let (sampler, channels) = sampler_name.split_once('.')?;
+                    let sampler_index = material_sampler_index(sampler)?;
+
+                    Some((sampler_index, channels))
+                })?;
+
+        // Textures may have multiple accessed channels like normal maps.
+        // First check if the current channel is used.
+        // TODO: Does this always work as intended?
+        let c = if channels.contains(channel) {
+            channel
+        } else {
+            channels.chars().next().unwrap()
+        };
+        let channel_index = "xyzw".find(c).unwrap() as u32;
+        Some((sampler_index, channel_index))
+    }
 }
 
 /// Find the texture dependencies for each fragment output channel.
@@ -98,4 +130,59 @@ pub fn create_shader_database(input: &str) -> GBufferDatabase {
         .collect();
 
     GBufferDatabase { files }
+}
+
+fn material_sampler_index(sampler: &str) -> Option<u32> {
+    // TODO: Just parse int?
+    match sampler {
+        "s0" => Some(0),
+        "s1" => Some(1),
+        "s2" => Some(2),
+        "s3" => Some(3),
+        "s4" => Some(4),
+        "s5" => Some(5),
+        "s6" => Some(6),
+        "s7" => Some(7),
+        "s8" => Some(8),
+        "s9" => Some(9),
+        // TODO: How to handle this case?
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn material_channel_assignment_empty() {
+        let shader = Shader {
+            output_dependencies: IndexMap::new(),
+        };
+        assert_eq!(None, shader.material_channel_assignment(0, 'x'));
+    }
+
+    #[test]
+    fn material_channel_assignment_single_output_no_assignment() {
+        let shader = Shader {
+            output_dependencies: [("out_attr0.x".to_string(), Vec::new())].into(),
+        };
+        assert_eq!(None, shader.material_channel_assignment(0, 'x'));
+    }
+
+    #[test]
+    fn material_channel_assignment_multiple_output_assignment() {
+        let shader = Shader {
+            output_dependencies: [
+                ("out_attr0.x".to_string(), vec!["s0.y".to_string()]),
+                (
+                    "out_attr0.y".to_string(),
+                    vec!["tex.xyz".to_string(), "s2.z".to_string()],
+                ),
+                ("out_attr1.x".to_string(), vec!["s3.xyz".to_string()]),
+            ]
+            .into(),
+        };
+        assert_eq!(Some((2, 2)), shader.material_channel_assignment(0, 'y'));
+    }
 }

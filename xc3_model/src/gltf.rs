@@ -1,8 +1,12 @@
-use std::path::Path;
+use std::{io::BufWriter, path::Path};
 
-use crate::vertex::{read_indices, read_vertices, Vertex};
+use crate::{
+    texture::load_textures,
+    vertex::{read_indices, read_vertices, Vertex},
+};
 use gltf::json::validation::Checked::Valid;
-use xc3_lib::{msrd::Msrd, mxmd::Mxmd};
+use xc3_lib::{dds::create_dds, msrd::Msrd, mxmd::Mxmd};
+use xc3_shader::gbuffer_database::GBufferDatabase;
 
 /// Data associated with a [VertexData](xc3_lib::vertex::VertexData).
 struct Buffers {
@@ -23,24 +27,91 @@ struct VertexAccessors {
 }
 
 // TODO: Take models, materials, and vertex data directly?
-pub fn export_gltf<P: AsRef<Path>>(path: P, mxmd: &Mxmd, msrd: &Msrd) {
+pub fn export_gltf<P: AsRef<Path>>(
+    path: P,
+    mxmd: &Mxmd,
+    msrd: &Msrd,
+    model_name: &str,
+    m_tex_folder: &Path,
+    h_tex_folder: &Path,
+    database: &GBufferDatabase,
+) {
+    let mibls = load_textures(
+        msrd,
+        mxmd,
+        m_tex_folder,
+        h_tex_folder,
+    );
+    // TODO: Is it worth giving images their in game names?
+    for (i, mibl) in mibls.iter().enumerate() {
+        // Convert to PNG since DDS is not well supported.
+        let dds = create_dds(&mibl).unwrap();
+        let image = image_dds::image_from_dds(&dds, 0).unwrap();
+        image.save(format!("model{i}.png")).unwrap();
+    }
+
+    let textures = (0..mibls.len())
+        .map(|i| gltf::json::Texture {
+            name: None,
+            sampler: None,
+            source: gltf::json::Index::new(i as u32),
+            extensions: None,
+            extras: Default::default(),
+        })
+        .collect();
+
+    let images = (0..mibls.len())
+        .map(|i| gltf::json::Image {
+            buffer_view: None,
+            mime_type: None,
+            name: None,
+            uri: Some(format!("model{i}.png")),
+            extensions: None,
+            extras: Default::default(),
+        })
+        .collect();
+
     let materials = mxmd
         .materials
         .materials
         .elements
         .iter()
-        .map(|material|
-            // TODO: Assign textures using gbuffer database.
-            // TODO: Can texture assignment code be shared with xc3_wgpu?
-            // TODO: database -> shader -> sampler name -> sampler index -> texture file name.
-            // TODO: Automatically handle channels by decoding to PNG?
+        .map(|material| {
+            // TODO: Rework the database to properly find shaders by index and not name.
+            let shaders = database.files.get(model_name).map(|f| &f.shaders);
+            let shader_name = format!(
+                "shd{:0>4}_FS0.glsl",
+                material.shader_programs[0].program_index
+            );
+            let shader = shaders.and_then(|shaders| shaders.get(&shader_name));
+
+            // TODO: A proper solution will construct each channel individually.
+            // Assume the texture is used for all channels for now.
+            let albedo_index = texture_index(shader, material, 0, 'x');
+            // TODO: Reconstruct the Z channel?
+            let normal_index = texture_index(shader, material, 2, 'x');
+
             gltf::json::Material {
-            name: Some(material.name.clone()),
-            pbr_metallic_roughness: gltf::json::material::PbrMetallicRoughness {
+                name: Some(material.name.clone()),
+                pbr_metallic_roughness: gltf::json::material::PbrMetallicRoughness {
+                    base_color_texture: albedo_index.map(|i| gltf::json::texture::Info {
+                        index: gltf::json::Index::new(i),
+                        tex_coord: 0,
+                        extensions: None,
+                        extras: Default::default(),
+                    }),
+
+                    ..Default::default()
+                },
+                normal_texture: normal_index.map(|i| gltf::json::material::NormalTexture {
+                    index: gltf::json::Index::new(i),
+                    scale: 1.0,
+                    tex_coord: 0,
+                    extensions: None,
+                    extras: Default::default(),
+                }),
                 ..Default::default()
-            },
-            normal_texture: None,
-            ..Default::default()
+            }
         })
         .collect();
 
@@ -154,6 +225,8 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, mxmd: &Mxmd, msrd: &Msrd) {
             nodes: scene_nodes,
         }],
         materials,
+        textures,
+        images,
         ..Default::default()
     };
 
@@ -162,6 +235,26 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, mxmd: &Mxmd, msrd: &Msrd) {
     gltf::json::serialize::to_writer_pretty(writer, &root).unwrap();
 
     std::fs::write(path.as_ref().with_file_name(buffer_name), buffer_bytes).unwrap();
+}
+
+fn texture_index(
+    shader: Option<&xc3_shader::gbuffer_database::Shader>,
+    material: &xc3_lib::mxmd::Material,
+    gbuffer_index: usize,
+    channel: char,
+) -> Option<u32> {
+    // Find the sampler from the material.
+    let material_texture_index = shader
+        .and_then(|shader| shader.material_channel_assignment(gbuffer_index, channel))
+        .map(|(s, _)| s);
+
+    // Find the texture referenced by this sampler.
+    material_texture_index.and_then(|s| {
+        material
+            .textures
+            .get(s as usize)
+            .map(|t| t.texture_index as u32)
+    })
 }
 
 fn create_buffers(vertex_data: xc3_lib::vertex::VertexData, buffer_name: String) -> Buffers {
@@ -210,6 +303,7 @@ fn create_buffers(vertex_data: xc3_lib::vertex::VertexData, buffer_name: String)
         let position_index = accessors.len();
         accessors.push(positions);
 
+        // TODO: This doesn't work properly?
         let normals = gltf::json::Accessor {
             buffer_view: Some(gltf::json::Index::new(buffer_views.len() as u32)),
             byte_offset: 32,

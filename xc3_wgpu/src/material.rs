@@ -151,10 +151,25 @@ fn gbuffer_assignments(
             // Each output channel may have a different input sampler and channel.
             // TODO: How to properly handle missing assignment information?
             // TODO: How to encode constants and buffer values?
-            let (s0, c0) = channel_assignment(shader, i, 'x').unwrap_or((-1, 0));
-            let (s1, c1) = channel_assignment(shader, i, 'y').unwrap_or((-1, 0));
-            let (s2, c2) = channel_assignment(shader, i, 'z').unwrap_or((-1, 0));
-            let (s3, c3) = channel_assignment(shader, i, 'w').unwrap_or((-1, 0));
+            let (s0, c0) = shader
+                .material_channel_assignment(i, 'x')
+                .map(|(s, c)| (s as i32, c))
+                .unwrap_or((-1, 0));
+
+            let (s1, c1) = shader
+                .material_channel_assignment(i, 'y')
+                .map(|(s, c)| (s as i32, c))
+                .unwrap_or((-1, 0));
+
+            let (s2, c2) = shader
+                .material_channel_assignment(i, 'z')
+                .map(|(s, c)| (s as i32, c))
+                .unwrap_or((-1, 0));
+
+            let (s3, c3) = shader
+                .material_channel_assignment(i, 'w')
+                .map(|(s, c)| (s as i32, c))
+                .unwrap_or((-1, 0));
 
             crate::shader::model::GBufferAssignment {
                 sampler_indices: ivec4(s0, s1, s2, s3),
@@ -162,55 +177,6 @@ fn gbuffer_assignments(
             }
         })
         .collect()
-}
-
-fn channel_assignment(
-    shader: &xc3_shader::gbuffer_database::Shader,
-    index: usize,
-    channel: char,
-) -> Option<(i32, u32)> {
-    let output = format!("out_attr{index}.{channel}");
-
-    // Find the first material referenced sampler like "s0" or "s1".
-    let (sampler_index, channels) =
-        shader
-            .output_dependencies
-            .get(&output)?
-            .iter()
-            .find_map(|sampler_name| {
-                let (sampler, channels) = sampler_name.split_once('.')?;
-                let sampler_index = material_sampler_index(sampler)?;
-
-                Some((sampler_index, channels))
-            })?;
-
-    // Textures may have multiple accessed channels like normal maps.
-    // First check if the current channel is used.
-    // TODO: Does this always work as intended?
-    let c = if channels.contains(channel) {
-        channel
-    } else {
-        channels.chars().next().unwrap()
-    };
-    let channel_index = "xyzw".find(c).unwrap() as u32;
-    Some((sampler_index, channel_index))
-}
-
-fn material_sampler_index(sampler: &str) -> Option<i32> {
-    match sampler {
-        "s0" => Some(0),
-        "s1" => Some(1),
-        "s2" => Some(2),
-        "s3" => Some(3),
-        "s4" => Some(4),
-        "s5" => Some(5),
-        "s6" => Some(6),
-        "s7" => Some(7),
-        "s8" => Some(8),
-        "s9" => Some(9),
-        // TODO: How to handle this case?
-        _ => None,
-    }
 }
 
 // TODO: Does this need to be public?
