@@ -5,8 +5,8 @@
 use binrw::{binread, FilePtr32};
 
 use crate::{
-    mxmd::{Materials, Models, TextureItems},
-    parse_count_offset, parse_offset_count,
+    mxmd::{List, Materials, Models, TextureItems},
+    parse_count_offset, parse_offset_count, parse_string_ptr32,
     spch::Spch,
 };
 
@@ -214,4 +214,55 @@ pub struct SkyModelData {
     #[br(parse_with = FilePtr32::parse)]
     pub spch: Spch,
     // padding?
+}
+
+// TODO: Where is the VertexData?
+// TODO: Link to appropriate fields with doc links.
+/// The data for a [FoliageModel](crate::msmd::FoliageModel).
+#[binread]
+#[derive(Debug)]
+pub struct FoliageModelData {
+    #[br(parse_with = FilePtr32::parse)]
+    pub models: Models,
+
+    #[br(parse_with = FilePtr32::parse)]
+    pub materials: FoliageMaterials,
+
+    unk1: u32,
+    unk2: u32,
+    unk3: u32,
+    unk4: [u32; 11], // padding?
+}
+
+#[binread]
+#[derive(Debug)]
+#[br(stream = r)]
+pub struct FoliageMaterials {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(args { base_offset, inner: base_offset })]
+    pub materials: List<FoliageMaterial>,
+
+    unk1: u32,
+    unk2: u32,
+    unk3: u32,
+    unk4: u32,
+    unk5: u32,
+}
+
+#[binread]
+#[derive(Debug)]
+#[br(import_raw(base_offset: u64))]
+pub struct FoliageMaterial {
+    #[br(parse_with = parse_string_ptr32, args(base_offset))]
+    pub name: String,
+
+    unk1: u32,
+    unk2: u32,
+    unk3: u32, // textures?
+    unk4: u32,
+    unk5: u32,
+    unk6: u32,
+    unk7: u32,
 }
