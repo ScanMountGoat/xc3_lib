@@ -49,6 +49,7 @@ pub struct VertexBufferDescriptor {
     /// The offset into [buffer](struct.VertexData.html#structfield.buffer).
     pub data_offset: u32,
     pub vertex_count: u32,
+    /// The size or stride of the vertex in bytes.
     pub vertex_size: u32,
 
     // Corresponds to attributes in vertex shader?
@@ -88,7 +89,8 @@ pub enum DataType {
     Normal = 28,
     /// Snorm8x4 tangent vector with bitangent sign in the fourth component.
     Tangent = 29,
-    Unk32 = 32,
+    /// Snorm8x4 normal vector.
+    Normal2 = 32,
     Unk33 = 33,
     WeightShort = 41,
     // 4 bytes with each byte being used separately by vertex shader?

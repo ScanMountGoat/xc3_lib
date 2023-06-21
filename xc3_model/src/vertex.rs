@@ -1,10 +1,21 @@
+//! Utilities for working with vertex buffer data.
+//!
+//! The main type for representing vertex data is [AttributeData].
+//! Storing the values separately like this is often called a "struct of arrays" layout.
+//! This makes editing individual attributes cache friendly and makes it easy to define different attributes.
+//! This approach is often preferred for 3D modeling applications and some file formats.
+//!
+//! The vertex buffers in game use an interleaved or "array of structs" approach.
+//! This makes rendering each vertex cache friendly.
+//! A collection of [AttributeData] can always be packed into an interleaved form for rendering.
 use std::io::{Cursor, Seek, SeekFrom};
 
 use binrw::BinReaderExt;
 use bytemuck::{Pod, Zeroable};
-use glam::{vec4, Vec3, Vec4};
+use glam::{vec4, Vec2, Vec3, Vec4};
 use xc3_lib::vertex::{
-    IndexBufferDescriptor, VertexAnimationTarget, VertexBufferDescriptor, VertexData,
+    DataType, IndexBufferDescriptor, VertexAnimationTarget, VertexAttribute,
+    VertexBufferDescriptor, VertexData,
 };
 
 // TODO: Switch to struct of arrays instead of array of structs.
@@ -19,8 +30,22 @@ pub struct Vertex {
     pub vertex_color: glam::Vec4,
     pub normal: glam::Vec4,
     pub tangent: glam::Vec4,
-    // TODO: use vec2 for this?
-    pub uv1: glam::Vec4,
+    pub uv1: glam::Vec2,
+    pub uv2: glam::Vec2,
+}
+
+// TODO: Add an option to convert a collection of these to the vertex above?
+// TODO: How to handle normalized attributes?
+// TODO: Link to appropriate xc3_lib types and fields.
+/// The per vertex values for a vertex attribute.
+pub enum VertexAttributes {
+    Position(Vec<Vec3>),
+    Normal(Vec<Vec4>),
+    Tangent(Vec<Vec4>),
+    Uv1(Vec<Vec2>),
+    Uv2(Vec<Vec2>),
+    VertexColor(Vec<Vec4>), // TODO: [u8; 4]?
+    WeightIndex(Vec<u32>),  // TODO: [u8; 4]?
 }
 
 pub fn read_indices(vertex_data: &VertexData, descriptor: &IndexBufferDescriptor) -> Vec<u16> {
@@ -38,11 +63,103 @@ pub fn read_indices(vertex_data: &VertexData, descriptor: &IndexBufferDescriptor
     indices
 }
 
+fn read_vertex_attributes(
+    descriptor: &VertexBufferDescriptor,
+    buffer: &[u8],
+) -> Vec<VertexAttributes> {
+    let mut offset = 0;
+    descriptor
+        .attributes
+        .iter()
+        .filter_map(|a| {
+            let data = read_attribute(a, descriptor, offset, buffer);
+            offset += a.data_size as u64;
+
+            data
+        })
+        .collect()
+}
+
+fn read_attribute(
+    a: &VertexAttribute,
+    d: &VertexBufferDescriptor,
+    offset: u64,
+    buffer: &[u8],
+) -> Option<VertexAttributes> {
+    match a.data_type {
+        DataType::Position => Some(VertexAttributes::Position(read_data(
+            d, offset, buffer, read_f32x3,
+        ))),
+        DataType::WeightIndex => Some(VertexAttributes::WeightIndex(read_data(
+            d, offset, buffer, read_u8x4,
+        ))),
+        DataType::Unk4 => None,
+        DataType::Uv1 => Some(VertexAttributes::Uv1(read_data(
+            d, offset, buffer, read_f32x2,
+        ))),
+        DataType::Uv2 => Some(VertexAttributes::Uv2(read_data(
+            d, offset, buffer, read_f32x2,
+        ))),
+        DataType::Uv3 => None,
+        DataType::Uv4 => None,
+        DataType::Unk14 => None,
+        DataType::VertexColor => Some(VertexAttributes::VertexColor(read_data(
+            d,
+            offset,
+            buffer,
+            read_unorm8x4,
+        ))),
+        DataType::Normal => Some(VertexAttributes::Normal(read_data(
+            d,
+            offset,
+            buffer,
+            read_snorm8x4,
+        ))),
+        DataType::Tangent => Some(VertexAttributes::Tangent(read_data(
+            d,
+            offset,
+            buffer,
+            read_snorm8x4,
+        ))),
+        DataType::Normal2 => Some(VertexAttributes::Normal(read_data(
+            d,
+            offset,
+            buffer,
+            read_snorm8x4,
+        ))),
+        DataType::Unk33 => None,
+        DataType::WeightShort => None,
+        DataType::BoneId2 => None,
+        DataType::Unk52 => None,
+    }
+}
+
+fn read_data<T, F>(
+    descriptor: &VertexBufferDescriptor,
+    offset: u64,
+    buffer: &[u8],
+    read_item: F,
+) -> Vec<T>
+where
+    F: Fn(&mut Cursor<&[u8]>) -> T,
+{
+    let mut reader = Cursor::new(buffer);
+
+    let mut values = Vec::new();
+    for i in 0..descriptor.vertex_count as u64 {
+        let offset = descriptor.data_offset as u64 + i * descriptor.vertex_size as u64 + offset;
+        reader.seek(SeekFrom::Start(offset)).unwrap();
+
+        values.push(read_item(&mut reader));
+    }
+    values
+}
+
 // TODO: rename to VertexBufferDescriptor?
-/// Reads the vertex attributes for `buffer` at index `buffer_index`.
+/// Reads the vertex attributes for `descriptor` at index `descriptor_index`.
 pub fn read_vertices(
-    buffer: &VertexBufferDescriptor,
-    buffer_index: usize,
+    descriptor: &VertexBufferDescriptor,
+    descriptor_index: usize,
     vertex_data: &VertexData,
 ) -> Vec<Vertex> {
     // Start with default values for each attribute.
@@ -53,18 +170,24 @@ pub fn read_vertices(
             vertex_color: Vec4::ZERO,
             normal: Vec4::ZERO,
             tangent: Vec4::ZERO,
-            uv1: Vec4::ZERO
+            uv1: Vec2::ZERO,
+            uv2: Vec2::ZERO
         };
-        buffer.vertex_count as usize
+        descriptor.vertex_count as usize
     ];
 
     // The game renders attributes from both the vertex and optional animation buffer.
     // Merge attributes into a single buffer to allow using the same shader.
     // TODO: Which buffer takes priority?
-    assign_vertex_buffer_attributes(&mut vertices, &vertex_data.buffer, buffer);
+    assign_vertex_buffer_attributes(&mut vertices, &vertex_data.buffer, descriptor);
 
-    if let Some(base_target) = base_vertex_target(vertex_data, buffer_index) {
-        assign_animation_buffer_attributes(&mut vertices, &vertex_data.buffer, buffer, base_target);
+    if let Some(base_target) = base_vertex_target(vertex_data, descriptor_index) {
+        assign_animation_buffer_attributes(
+            &mut vertices,
+            &vertex_data.buffer,
+            descriptor,
+            base_target,
+        );
     }
 
     vertices
@@ -75,47 +198,60 @@ fn assign_vertex_buffer_attributes(
     bytes: &[u8],
     descriptor: &VertexBufferDescriptor,
 ) {
-    let mut reader = Cursor::new(bytes);
-
-    for i in 0..descriptor.vertex_count as u64 {
-        reader
-            .seek(SeekFrom::Start(
-                descriptor.data_offset as u64 + i * descriptor.vertex_size as u64,
-            ))
-            .unwrap();
-
-        // TODO: How to handle missing attributes.
-        // TODO: Document conversion formulas to float in xc3_lib.
-        // TODO: Is switching for each vertex the base way to do this?
-        for a in &descriptor.attributes {
-            match a.data_type {
-                xc3_lib::vertex::DataType::Position => {
-                    let value: [f32; 3] = reader.read_le().unwrap();
-                    vertices[i as usize].position = value.into();
+    for attribute in read_vertex_attributes(descriptor, bytes) {
+        match attribute {
+            // TODO: Reduce repeated code?
+            VertexAttributes::Position(values) => {
+                for (vertex, value) in vertices.iter_mut().zip(values) {
+                    vertex.position = value;
                 }
-                xc3_lib::vertex::DataType::VertexColor => {
-                    let value: [u8; 4] = reader.read_le().unwrap();
-                    let u_to_f = |u| u as f32 / 255.0;
-                    vertices[i as usize].vertex_color = value.map(u_to_f).into();
+            }
+            VertexAttributes::Normal(values) => {
+                for (vertex, value) in vertices.iter_mut().zip(values) {
+                    vertex.normal = value;
                 }
-                // TODO: How are these different?
-                xc3_lib::vertex::DataType::Normal | xc3_lib::vertex::DataType::Unk32 => {
-                    vertices[i as usize].normal = read_snorm8x4(&mut reader);
+            }
+            VertexAttributes::Tangent(values) => {
+                for (vertex, value) in vertices.iter_mut().zip(values) {
+                    vertex.tangent = value;
                 }
-                xc3_lib::vertex::DataType::Tangent => {
-                    vertices[i as usize].tangent = read_snorm8x4(&mut reader);
+            }
+            VertexAttributes::Uv1(values) => {
+                for (vertex, value) in vertices.iter_mut().zip(values) {
+                    vertex.uv1 = value.into();
                 }
-                xc3_lib::vertex::DataType::Uv1 => {
-                    let value: [f32; 2] = reader.read_le().unwrap();
-                    vertices[i as usize].uv1 = vec4(value[0], value[1], 0.0, 0.0);
+            }
+            VertexAttributes::Uv2(values) => {
+                for (vertex, value) in vertices.iter_mut().zip(values) {
+                    vertex.uv2 = value.into();
                 }
-                _ => {
-                    // Just skip unsupported attributes for now.
-                    reader.seek(SeekFrom::Current(a.data_size as i64)).unwrap();
+            }
+            VertexAttributes::VertexColor(values) => {
+                for (vertex, value) in vertices.iter_mut().zip(values) {
+                    vertex.vertex_color = value;
+                }
+            }
+            VertexAttributes::WeightIndex(values) => {
+                for (vertex, value) in vertices.iter_mut().zip(values) {
+                    vertex.weight_index = value;
                 }
             }
         }
     }
+}
+
+fn read_u8x4(reader: &mut Cursor<&[u8]>) -> u32 {
+    reader.read_le().unwrap()
+}
+
+fn read_f32x2(reader: &mut Cursor<&[u8]>) -> Vec2 {
+    let value: [f32; 2] = reader.read_le().unwrap();
+    value.into()
+}
+
+fn read_f32x3(reader: &mut Cursor<&[u8]>) -> Vec3 {
+    let value: [f32; 3] = reader.read_le().unwrap();
+    value.into()
 }
 
 fn read_unorm8x4(reader: &mut Cursor<&[u8]>) -> Vec4 {
@@ -176,7 +312,7 @@ fn base_vertex_target(
 mod tests {
     use super::*;
 
-    use glam::{vec3, vec4};
+    use glam::{vec2, vec3, vec4};
     use hexlit::hex;
     use xc3_lib::vertex::{DataType, VertexAttribute};
 
@@ -244,19 +380,21 @@ mod tests {
             vec![
                 Vertex {
                     position: vec3(0.10039953, 0.9038166, 0.07162084),
-                    weight_index: 0,
+                    weight_index: 275,
                     vertex_color: vec4(0.49803922, 0.0, 1.0, 1.0),
                     normal: vec4(0.12941177, -0.019607844, 0.47843137, 0.0),
                     tangent: vec4(0.47843137, 0.0, -0.12941177, 0.49803922),
-                    uv1: vec4(0.75997907, 0.6079358, 0.0, 0.0)
+                    uv1: vec2(0.75997907, 0.6079358),
+                    uv2: vec2(0.0, 0.0),
                 },
                 Vertex {
                     position: vec3(0.14499485, 0.91730505, 0.050502136),
-                    weight_index: 0,
+                    weight_index: 276,
                     vertex_color: vec4(0.49803922, 0.0, 1.0, 1.0),
                     normal: vec4(0.38431373, 0.047058824, 0.30980393, 0.0),
                     tangent: vec4(0.30980393, 0.0, -0.38431373, 0.49803922),
-                    uv1: vec4(0.79126656, 0.6000591, 0.0, 0.0)
+                    uv1: vec2(0.79126656, 0.6000591),
+                    uv2: vec2(0.0, 0.0),
                 }
             ],
             vertices

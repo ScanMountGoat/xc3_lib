@@ -93,7 +93,7 @@ pub fn export_gltf<P: AsRef<Path>>(
                         extensions: None,
                         extras: Default::default(),
                     }),
-
+                    // TODO: metalness in B channel and roughness in G channel?
                     ..Default::default()
                 },
                 normal_texture: normal_index.map(|i| gltf::json::material::NormalTexture {
@@ -259,7 +259,12 @@ fn create_buffers(vertex_data: xc3_lib::vertex::VertexData, buffer_name: String)
 
     // TODO: Handle the weight buffers separately?
     for (i, vertex_buffer) in vertex_data.vertex_buffers.iter().enumerate() {
-        let vertices = read_vertices(vertex_buffer, i, &vertex_data);
+        let mut vertices = read_vertices(vertex_buffer, i, &vertex_data);
+        // Not all applications will normalize the vertex normals.
+        for v in &mut vertices {
+            v.normal = v.normal.normalize();
+        }
+
         let vertex_bytes: &[u8] = bytemuck::cast_slice(&vertices);
 
         // Assume everything uses the same buffer for now.
