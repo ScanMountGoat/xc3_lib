@@ -1,7 +1,5 @@
-use std::io::SeekFrom;
-
 use crate::{parse_count_offset, parse_offset_count, parse_ptr32};
-use binrw::{args, binread, helpers::until_eof, FilePtr32};
+use binrw::{args, binread, FilePtr32};
 use serde::Serialize;
 
 /// Vertex and vertex index buffer data used by a [Model](crate::mxmd::Model).
@@ -29,10 +27,12 @@ pub struct VertexData {
     #[br(parse_with = parse_ptr32)]
     pub vertex_animation: Option<VertexAnimation>,
 
-    unk5: u32,
-
     #[br(temp)]
-    data_base_offset: u32,
+    buffer_length: u32,
+
+    /// The data buffer containing all the geometry data.
+    #[br(parse_with = FilePtr32::parse, args { inner: args! { count: buffer_length as usize } })]
+    pub buffer: Vec<u8>,
 
     unk6: u32,
 
@@ -41,15 +41,12 @@ pub struct VertexData {
 
     unk7: u32,
     // padding?
-    /// The data buffer containing all the geometry data.
-    #[br(parse_with = until_eof, seek_before = SeekFrom::Start(data_base_offset as u64))]
-    pub buffer: Vec<u8>,
 }
 
 #[binread]
 #[derive(Debug, Serialize)]
 pub struct VertexBufferDescriptor {
-    /// Relative to [data_base_offset](struct.ModelData.html#structfield.data_base_offset)
+    /// The offset into [buffer](struct.VertexData.html#structfield.buffer).
     pub data_offset: u32,
     pub vertex_count: u32,
     pub vertex_size: u32,
@@ -106,13 +103,29 @@ pub enum DataType {
 #[binread]
 #[derive(Debug, Serialize)]
 pub struct IndexBufferDescriptor {
-    /// Relative to [data_base_offset](struct.ModelData.html#structfield.data_base_offset)
+    /// The offset into [buffer](struct.VertexData.html#structfield.buffer).
     pub data_offset: u32,
     pub index_count: u32,
-    // padding?
-    unk1: u32,
-    unk2: u32,
+    pub unk1: Unk1, // TODO: primitive type?
+    pub unk2: Unk2, // TODO: index format?
+    // TODO: padding?
     unk3: u32,
+    unk4: u32,
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(repr(u16))]
+pub enum Unk1 {
+    Unk0 = 0,
+    Unk3 = 3,
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(repr(u16))]
+pub enum Unk2 {
+    Unk0 = 0,
 }
 
 /// Vertex animation data often called "vertex morphs", "shape keys", or "blend shapes".
@@ -159,12 +172,16 @@ pub struct VertexAnimationTarget {
 #[derive(Debug, Serialize)]
 pub struct Weights {
     #[br(parse_with = parse_count_offset)]
-    weights: Vec<Weight>,
+    pub weights: Vec<Weight>,
 
-    unk1: u32,
-    unk2: u32, // offset to something?
-    unk3: u32,
-    unks4: [u32; 4], // padding?
+    /// The descriptor in [vertex_buffers](struct.VertexData.html#structfield.vertex_buffer) containing the weight data.
+    /// This is typically the last element.
+    pub vertex_buffer_index: u16,
+
+    count: u16,
+    offset: u32, // offset to something?
+    unk4: u32,
+    unks5: [u32; 4], // padding?
 }
 
 // 40 bytes?
