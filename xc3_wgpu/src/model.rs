@@ -1,20 +1,18 @@
 use std::{
     collections::HashMap,
-    io::{Cursor, Read, Seek},
+    io::{Read, Seek},
     path::Path,
 };
 
-use binrw::BinReaderExt;
 use glam::vec4;
 use wgpu::util::DeviceExt;
 use xc3_lib::{
-    map::{MapModelData, PropModelData},
+    map::MapModelData,
     mibl::Mibl,
     msmd::{Msmd, StreamEntry},
     msrd::Msrd,
     mxmd::{Mxmd, ShaderUnkType},
     vertex::VertexData,
-    xbc1::Xbc1,
 };
 use xc3_model::vertex::{read_indices, read_vertices};
 
@@ -187,10 +185,7 @@ pub fn load_map<R: Read + Seek>(
     let textures: Vec<_> = msmd
         .textures
         .iter()
-        .map(|texture| {
-            let bytes = decompress_entry(wismda, &texture.mid);
-            Mibl::read(&mut Cursor::new(&bytes)).unwrap()
-        })
+        .map(|texture| texture.mid.extract(wismda))
         .collect();
 
     // TODO: Better way to combine models?
@@ -233,14 +228,13 @@ fn load_prop_model_group<R: Read + Seek>(
     queue: &wgpu::Queue,
     wismda: &mut R,
     prop_model: &xc3_lib::msmd::PropModel,
-    prop_vertex_data: &[StreamEntry],
+    prop_vertex_data: &[StreamEntry<VertexData>],
     mibl_textures: &[Mibl],
     model_path: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
     pipeline_data: &ModelPipelineData,
 ) -> ModelGroup {
-    let bytes = decompress_entry(wismda, &prop_model.entry);
-    let prop_model_data: PropModelData = Cursor::new(bytes).read_le().unwrap();
+    let prop_model_data = prop_model.entry.extract(wismda);
 
     // Get the textures referenced by the materials in this model.
     let textures = load_map_textures(device, queue, &prop_model_data.textures, mibl_textures);
@@ -267,10 +261,7 @@ fn load_prop_model_group<R: Read + Seek>(
             let base_lod_index = prop_lod.base_lod_index as usize;
             let vertex_data_index = prop_model_data.vertex_data_indices[base_lod_index];
 
-            let prop_model_entry = &prop_vertex_data[vertex_data_index as usize];
-
-            let bytes = decompress_entry(wismda, prop_model_entry);
-            let vertex_data: VertexData = Cursor::new(bytes).read_le().unwrap();
+            let vertex_data = prop_vertex_data[vertex_data_index as usize].extract(wismda);
 
             let vertex_buffers = vertex_buffers(device, &vertex_data);
             let index_buffers = index_buffers(device, &vertex_data);
@@ -317,14 +308,13 @@ fn load_map_model_group<R: Read + Seek>(
     queue: &wgpu::Queue,
     wismda: &mut R,
     map_model: &xc3_lib::msmd::MapModel,
-    map_vertex_data: &[xc3_lib::msmd::StreamEntry],
+    map_vertex_data: &[xc3_lib::msmd::StreamEntry<VertexData>],
     mibl_textures: &[Mibl],
     model_path: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
     pipeline_data: &ModelPipelineData,
 ) -> ModelGroup {
-    let bytes = decompress_entry(wismda, &map_model.entry);
-    let map_model_data: MapModelData = Cursor::new(bytes).read_le().unwrap();
+    let map_model_data: MapModelData = map_model.entry.extract(wismda);
 
     // Get the textures referenced by the materials in this model.
     let textures = load_map_textures(device, queue, &map_model_data.textures, mibl_textures);
@@ -349,9 +339,7 @@ fn load_map_model_group<R: Read + Seek>(
         .enumerate()
         .map(|(group_index, group)| {
             // TODO: Load all groups?
-            let vertex_data_entry = &map_vertex_data[group.vertex_data_index as usize];
-            let bytes = decompress_entry(wismda, vertex_data_entry);
-            let vertex_data: VertexData = Cursor::new(bytes).read_le().unwrap();
+            let vertex_data = map_vertex_data[group.vertex_data_index as usize].extract(wismda);
 
             let vertex_buffers = vertex_buffers(device, &vertex_data);
             let index_buffers = index_buffers(device, &vertex_data);
@@ -427,13 +415,6 @@ fn create_mesh(mesh: &xc3_lib::mxmd::Mesh) -> Mesh {
         index_buffer_index: mesh.index_buffer_index as usize,
         material_index: mesh.material_index as usize,
     }
-}
-
-fn decompress_entry<R: Read + Seek>(reader: &mut R, entry: &StreamEntry) -> Vec<u8> {
-    reader
-        .seek(std::io::SeekFrom::Start(entry.offset as u64))
-        .unwrap();
-    Xbc1::read(reader).unwrap().decompress().unwrap()
 }
 
 fn index_buffers(device: &wgpu::Device, vertex_data: &VertexData) -> Vec<IndexBuffer> {

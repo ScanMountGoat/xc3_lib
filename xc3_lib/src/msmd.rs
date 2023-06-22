@@ -1,8 +1,18 @@
 //! `.wismhd` files for map data that points to data in a corresponding `.wismda` files
+use std::{
+    io::{Cursor, Read, Seek, SeekFrom},
+    marker::PhantomData,
+};
 
-use binrw::{binread, FilePtr32};
+use binrw::{binread, BinRead, FilePtr32};
 
-use crate::{parse_count_offset, parse_count_offset2, parse_ptr32, parse_string_ptr32};
+use crate::{
+    map::{FoliageModelData, MapModelData, PropModelData, SkyModelData},
+    mibl::Mibl,
+    parse_count_offset, parse_count_offset2, parse_ptr32, parse_string_ptr32,
+    vertex::VertexData,
+    xbc1::Xbc1,
+};
 
 // TODO: Is it worth implementing serialize?
 #[binread]
@@ -37,7 +47,7 @@ pub struct Msmd {
     /// References to [VertexData](crate::vertex::VertexData).
     // TODO: xbc1 names like "/seamwork/inst/mdl/00003.te"
     #[br(parse_with = parse_count_offset)]
-    pub prop_vertex_data: Vec<StreamEntry>,
+    pub prop_vertex_data: Vec<StreamEntry<VertexData>>,
 
     // TODO: What do these do?
     #[br(parse_with = parse_count_offset)]
@@ -51,35 +61,35 @@ pub struct Msmd {
     // Prop positions?
     /// TODO: xbc1 names like "/seamwork/inst/pos/00000.et"
     #[br(parse_with = parse_count_offset)]
-    pub prop_positions: Vec<StreamEntry>,
+    pub prop_positions: Vec<StreamEntry<()>>, // TODO: type for this?
 
     // TODO: xbc1 names like "/seamwork/mpfmap/poli//0022"?
     // TODO: Buffers of floats but not structured like VertexData?
     #[br(parse_with = parse_count_offset)]
-    pub foliage_data: Vec<StreamEntry>,
+    pub foliage_data: Vec<StreamEntry<()>>, // TODO: type for this?
 
     unk3: [u32; 5],
 
     // low resolution texture?
     #[br(parse_with = parse_count_offset)]
-    pub low_textures: Vec<StreamEntry>,
+    pub low_textures: Vec<StreamEntry<()>>, // TODO: type for this?
 
     unk3_1: [u32; 8],
 
     #[br(parse_with = parse_count_offset)]
-    unk_models2: Vec<UnkModel2>,
+    pub unk_models2: Vec<UnkModel2>,
 
     unk3_2: u32,
 
     // TODO: xbc1 names like "/seamwork/mpfmap/poli//0000"?
     // TODO: Small buffers with offsets ands counts?
     #[br(parse_with = parse_count_offset)]
-    pub unk_foliage_data: Vec<StreamEntry>,
+    pub unk_foliage_data: Vec<StreamEntry<()>>,
 
     /// References to [VertexData](crate::vertex::VertexData).
     // TODO: xbc1 names like "/seamwork/basemap/poli//000"
     #[br(parse_with = parse_count_offset)]
-    pub map_vertex_data: Vec<StreamEntry>,
+    pub map_vertex_data: Vec<StreamEntry<VertexData>>,
 
     #[br(parse_with = FilePtr32::parse)]
     nerd: Nerd,
@@ -103,21 +113,12 @@ pub struct Msmd {
     unk6: [u32; 8],
 }
 
-/// A reference to an [Xbc1](crate::xbc1::Xbc1) in the `.wismda` file.
-#[binread]
-#[derive(Debug)]
-pub struct StreamEntry {
-    /// The offset of the [Xbc1](crate::xbc1::Xbc1) in the `.wismda` file.
-    pub offset: u32,
-    pub decompressed_size: u32,
-}
-
 /// References to medium and high resolution [Mibl](crate::mibl::Mibl) textures.
 #[binread]
 #[derive(Debug)]
 pub struct Texture {
-    pub mid: StreamEntry,
-    pub high: StreamEntry,
+    pub mid: StreamEntry<Mibl>,
+    pub high: StreamEntry<Mibl>,
     unk1: u32,
 }
 
@@ -130,7 +131,7 @@ pub struct MapModel {
     pub unk2: [f32; 4],
     /// Reference to [MapModelData](crate::map::MapModelData).
     // TODO: xbc1 names like "bina_basefix.temp_wi"?
-    pub entry: StreamEntry,
+    pub entry: StreamEntry<MapModelData>,
     pub unk3: [f32; 4],
 }
 
@@ -143,7 +144,7 @@ pub struct PropModel {
     pub unk2: [f32; 4],
     /// Reference to [PropModelData](crate::map::PropModelData).
     // TODO: xbc1 names like "/seamwork/inst/out/00000.te"?
-    pub entry: StreamEntry,
+    pub entry: StreamEntry<PropModelData>,
     pub unk3: u32,
 }
 
@@ -154,7 +155,7 @@ pub struct SkyModel {
     // bounding sphere?
     pub unk2: [f32; 4],
     // TODO: xbc1 names like "/seamwork/envmap/ma00a/bina"
-    pub entry: StreamEntry,
+    pub entry: StreamEntry<SkyModelData>,
 }
 
 // TODO: also in mxmd but without the center?
@@ -171,7 +172,7 @@ pub struct BoundingBox {
 pub struct UnkModel2 {
     unk1: [f32; 10],
     // TODO: xbc1 names like "/seamwork/lowmap/ma11a/bina"
-    entry: StreamEntry,
+    pub entry: StreamEntry<()>, // TODO: type for this?
     unk2: u32,
     // TODO: padding?
     unk: [u32; 5],
@@ -184,7 +185,7 @@ pub struct FoliageModel {
     unk: [u32; 3],
     unk2: f32,
     // TODO: xbc1 names like "/seamwork/mpfmap/ma11a/bina"
-    pub entry: StreamEntry,
+    pub entry: StreamEntry<FoliageModelData>,
 }
 
 #[binread]
@@ -301,4 +302,27 @@ pub struct Doce {
     version: u32,
     offset: u32,
     count: u32,
+}
+
+// TODO: Make this generic over the data like MapModelData?
+/// A reference to an [Xbc1](crate::xbc1::Xbc1) in the `.wismda` file.
+#[binread]
+#[derive(Debug)]
+pub struct StreamEntry<T> {
+    /// The offset of the [Xbc1](crate::xbc1::Xbc1) in the `.wismda` file.
+    pub offset: u32,
+    pub decompressed_size: u32,
+    phantom: PhantomData<T>,
+}
+
+impl<T> StreamEntry<T>
+where
+    for<'a> T: BinRead<Args<'a> = ()>,
+{
+    /// Decompress and read the data from a reader for a `.wismda` file.
+    pub fn extract<R: Read + Seek>(&self, reader: &mut R) -> T {
+        reader.seek(SeekFrom::Start(self.offset as u64)).unwrap();
+        let bytes = Xbc1::read(reader).unwrap().decompress().unwrap();
+        T::read_le(&mut Cursor::new(bytes)).unwrap()
+    }
 }

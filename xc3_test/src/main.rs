@@ -1,14 +1,12 @@
 use std::{
-    io::{BufReader, Cursor, Seek, SeekFrom},
+    io::{BufReader, Cursor},
     path::Path,
 };
 
-use binrw::BinReaderExt;
 use clap::Parser;
 use rayon::prelude::*;
 use xc3_lib::{
     dds::{create_dds, create_mibl},
-    map::{MapModelData, PropModelData},
     mibl::Mibl,
     msmd::Msmd,
     msrd::{EntryType, Msrd},
@@ -18,6 +16,42 @@ use xc3_lib::{
     vertex::VertexData,
     xbc1::Xbc1,
 };
+
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+#[command(propagate_version = true)]
+struct Cli {
+    /// The root folder that contains folders like `map/` and `monolib/`.
+    root_folder: String,
+
+    /// Process MIBL image files from .witex, .witx, .wismt
+    #[arg(long)]
+    mibl: bool,
+
+    /// Process MXMD model files from .wimdo
+    #[arg(long)]
+    mxmd: bool,
+
+    /// Process MSRD model files from .wismt
+    #[arg(long)]
+    msrd: bool,
+
+    /// Process MSMD map files from .wismhd
+    #[arg(long)]
+    msmd: bool,
+
+    /// Process SAR1 model files from .chr
+    #[arg(long)]
+    sar1: bool,
+
+    /// Process all file types
+    #[arg(long)]
+    all: bool,
+
+    /// Process a Xenoblade Chronicles 2 dump.
+    #[arg(long)]
+    xc2: bool,
+}
 
 fn main() {
     // Create a CLI for conversion testing instead of unit tests.
@@ -180,37 +214,50 @@ fn check_msmd(msmd: Msmd, path: &Path) {
     // Parse all the data from the .wismda
     let mut reader = BufReader::new(std::fs::File::open(path.with_extension("wismda")).unwrap());
 
-    // TODO: Move this functionality to xc3_lib?
     for model in msmd.map_models {
-        reader
-            .seek(SeekFrom::Start(model.entry.offset as u64))
-            .unwrap();
-        let bytes = Xbc1::read(&mut reader).unwrap().decompress().unwrap();
-        let mut reader_inner = Cursor::new(bytes);
-        let _: MapModelData = reader_inner.read_le().unwrap();
+        model.entry.extract(&mut reader);
     }
 
     for model in msmd.prop_models {
-        reader
-            .seek(SeekFrom::Start(model.entry.offset as u64))
-            .unwrap();
-        let bytes = Xbc1::read(&mut reader).unwrap().decompress().unwrap();
-        let mut reader_inner = Cursor::new(bytes);
-        let _: PropModelData = reader_inner.read_le().unwrap();
+        model.entry.extract(&mut reader);
     }
 
-    for entry in msmd.map_vertex_data {
-        reader.seek(SeekFrom::Start(entry.offset as u64)).unwrap();
-        let bytes = Xbc1::read(&mut reader).unwrap().decompress().unwrap();
-        let mut reader_inner = Cursor::new(bytes);
-        let _: VertexData = reader_inner.read_le().unwrap();
+    for model in msmd.unk_models {
+        model.entry.extract(&mut reader);
     }
 
     for entry in msmd.prop_vertex_data {
-        reader.seek(SeekFrom::Start(entry.offset as u64)).unwrap();
-        let bytes = Xbc1::read(&mut reader).unwrap().decompress().unwrap();
-        let mut reader_inner = Cursor::new(bytes);
-        let _: VertexData = reader_inner.read_le().unwrap();
+        entry.extract(&mut reader);
+    }
+
+    for texture in msmd.textures {
+        // TODO: Test combining med and high files?
+        texture.mid.extract(&mut reader);
+        // texture.high.extract(&mut reader);
+    }
+
+    for model in msmd.foliage_models {
+        model.entry.extract(&mut reader);
+    }
+
+    for entry in msmd.prop_positions {
+        entry.extract(&mut reader);
+    }
+
+    for entry in msmd.low_textures {
+        entry.extract(&mut reader);
+    }
+
+    for model in msmd.unk_models2 {
+        model.entry.extract(&mut reader);
+    }
+
+    for entry in msmd.unk_foliage_data {
+        entry.extract(&mut reader);
+    }
+
+    for entry in msmd.map_vertex_data {
+        entry.extract(&mut reader);
     }
 }
 
@@ -250,36 +297,4 @@ fn check_all_sar1<P: AsRef<Path>>(root: P) {
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }
         });
-}
-
-#[derive(Parser)]
-#[command(author, version, about, long_about = None)]
-#[command(propagate_version = true)]
-struct Cli {
-    /// The root folder that contains folders like `chr/` and `monolib/`.
-    root_folder: String,
-
-    /// Process MIBL image files from .witex, .witx, .wismt
-    #[arg(long)]
-    mibl: bool,
-
-    /// Process MXMD model files from .wimdo
-    #[arg(long)]
-    mxmd: bool,
-
-    /// Process MSRD model files from .wismt
-    #[arg(long)]
-    msrd: bool,
-
-    /// Process MSMD map files from .wismhd
-    #[arg(long)]
-    msmd: bool,
-
-    /// Process SAR1 model files from .chr
-    #[arg(long)]
-    sar1: bool,
-
-    /// Process all file types
-    #[arg(long)]
-    all: bool,
 }
