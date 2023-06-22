@@ -71,8 +71,8 @@ pub struct Materials {
 
     unks3: [u32; 7],
 
-    #[br(parse_with = FilePtr32::parse, offset = base_offset)]
-    pub samplers: Samplers,
+    #[br(parse_with = parse_ptr32, args_raw(base_offset))]
+    pub samplers: Option<Samplers>,
 
     // TODO: padding?
     unks4: [u32; 4],
@@ -256,7 +256,9 @@ pub enum StencilState1 {
     Always = 0,
     Unk1 = 1,
     Always2 = 4,
+    Unk5 = 5,
     Unk8 = 8,
+    Unk9 = 9,
     UnkHair = 16,
     Unk20 = 20,
 }
@@ -268,6 +270,7 @@ pub enum StencilState1 {
 pub enum StencilState2 {
     Disabled = 0,
     Enabled = 1,
+    Unk2 = 2,
     Unk6 = 6,
     Unk7 = 7,
     Unk8 = 8,
@@ -440,14 +443,14 @@ pub struct Textures {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
+    // TODO: The fields change depending on some sort of flag?
     unks: [u32; 5],
 
     unk_offset: u32, // 292 bytes?
 
     unks2: [u32; 8],
 
-    #[br(parse_with = FilePtr32::parse, offset = base_offset)]
-    unk2: [u32; 7],
+    unk2: u32,
 
     #[br(parse_with = parse_ptr32, args_raw(base_offset))]
     pub items: Option<TextureItems>,

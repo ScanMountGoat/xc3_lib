@@ -22,35 +22,36 @@ use xc3_lib::{
 #[command(propagate_version = true)]
 struct Cli {
     /// The root folder that contains folders like `map/` and `monolib/`.
+    /// Supports Xenoblade 2 and Xenoblade 3.
     root_folder: String,
 
-    /// Process MIBL image files from .witex, .witx, .wismt
+    /// Process LIBM image files from .witex, .witx, .wismt
     #[arg(long)]
     mibl: bool,
 
-    /// Process MXMD model files from .wimdo
+    /// Process DMXM model files from .wimdo
     #[arg(long)]
     mxmd: bool,
 
-    /// Process MSRD model files from .wismt
+    /// Process DRSM model files from .wismt
     #[arg(long)]
     msrd: bool,
 
-    /// Process MSMD map files from .wismhd
+    /// Process DMSM map files from .wismhd
     #[arg(long)]
     msmd: bool,
 
-    /// Process SAR1 model files from .chr
+    /// Process 1RAS model files from .chr
     #[arg(long)]
     sar1: bool,
+
+    /// Process HCPS shader files from .wishp
+    #[arg(long)]
+    spch: bool,
 
     /// Process all file types
     #[arg(long)]
     all: bool,
-
-    /// Process a Xenoblade Chronicles 2 dump.
-    #[arg(long)]
-    xc2: bool,
 }
 
 fn main() {
@@ -64,7 +65,7 @@ fn main() {
 
     let start = std::time::Instant::now();
 
-    // Check conversions for various file types.
+    // Check parsing and conversions for various file types.
     if cli.mibl || cli.all {
         println!("Checking MIBL files ...");
         check_all_mibl(root);
@@ -90,13 +91,18 @@ fn main() {
         check_all_sar1(root);
     }
 
+    if cli.spch || cli.all {
+        println!("Checking SPCH files ...");
+        check_all_spch(root);
+    }
+
     // TODO: check standalone shaders
 
     println!("Finished in {:?}", start.elapsed());
 }
 
 fn check_all_mxmd<P: AsRef<Path>>(root: P) {
-    // TODO: The map folder .wimdo files are a different format?
+    // TODO: The map folder .wimdo files for XC3 are a different format?
     // TODO: b"APMD" magic in "chr/oj/oj03010100.wimdo"?
     globwalk::GlobWalkerBuilder::from_patterns(root, &["*.wimdo", "!map/**"])
         .build()
@@ -139,10 +145,10 @@ fn check_all_mibl<P: AsRef<Path>>(root: P) {
 }
 
 fn check_all_msrd<P: AsRef<Path>>(root: P) {
-    let folder = root.as_ref().join("chr");
+    let folder = root.as_ref();
 
-    // Skip the .wismt textures in the tex folder.
-    globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.wismt", "!tex/**"])
+    // Skip the .wismt textures in the XC3 tex folder.
+    globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.wismt", "!**/tex/**"])
         .build()
         .unwrap()
         .par_bridge()
@@ -293,6 +299,22 @@ fn check_all_sar1<P: AsRef<Path>>(root: P) {
             // TODO: How to validate this file?
             let path = entry.as_ref().unwrap().path();
             match Sar1::from_file(path) {
+                Ok(_) => (),
+                Err(e) => println!("Error reading {path:?}: {e}"),
+            }
+        });
+}
+
+fn check_all_spch<P: AsRef<Path>>(root: P) {
+    let folder = root.as_ref();
+    globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.wishp"])
+        .build()
+        .unwrap()
+        .par_bridge()
+        .for_each(|entry| {
+            // TODO: How to validate this file?
+            let path = entry.as_ref().unwrap().path();
+            match Spch::from_file(path) {
                 Ok(_) => (),
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }

@@ -304,7 +304,6 @@ pub struct Doce {
     count: u32,
 }
 
-// TODO: Make this generic over the data like MapModelData?
 /// A reference to an [Xbc1](crate::xbc1::Xbc1) in the `.wismda` file.
 #[binread]
 #[derive(Debug)]
