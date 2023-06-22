@@ -14,7 +14,7 @@ pub fn load_textures(
     m_tex_folder: &Path,
     h_tex_folder: &Path,
 ) -> Vec<Mibl> {
-    let cached_texture_data = msrd.extract_texture_data();
+    let cached_texture_data = msrd.extract_low_texture_data();
 
     // Assume the cached and non cached textures have the same ordering.
     mxmd.textures
@@ -23,7 +23,7 @@ pub fn load_textures(
         .unwrap()
         .textures
         .iter()
-        .zip(msrd.texture_name_table.as_ref().unwrap().textures.iter())
+        .zip(msrd.textures.as_ref().unwrap().textures.iter())
         .map(|(item, cached_item)| {
             load_wismt_texture(m_tex_folder, h_tex_folder, &item.name).unwrap_or_else(|| {
                 // Some textures only appear in the cache and have no high res version.

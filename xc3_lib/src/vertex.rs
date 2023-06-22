@@ -1,15 +1,19 @@
-use crate::{parse_count_offset, parse_offset_count, parse_ptr32};
+use crate::{parse_count_offset, parse_offset_count, parse_offset_count2, parse_ptr32};
 use binrw::{args, binread, FilePtr32};
 use serde::Serialize;
 
 /// Vertex and vertex index buffer data used by a [Model](crate::mxmd::Model).
 #[binread]
 #[derive(Debug, Serialize)]
+#[br(stream = r)]
 pub struct VertexData {
-    #[br(parse_with = parse_offset_count)]
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = parse_offset_count2, args_raw(base_offset))]
     pub vertex_buffers: Vec<VertexBufferDescriptor>,
 
-    #[br(parse_with = parse_offset_count)]
+    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
     pub index_buffers: Vec<IndexBufferDescriptor>,
 
     // padding?
@@ -24,19 +28,22 @@ pub struct VertexData {
     unk_offset1: u32,
     unk4: u32,
 
-    #[br(parse_with = parse_ptr32)]
+    #[br(parse_with = parse_ptr32, args_raw(base_offset))]
     pub vertex_animation: Option<VertexAnimation>,
 
     #[br(temp)]
     buffer_length: u32,
 
     /// The data buffer containing all the geometry data.
-    #[br(parse_with = FilePtr32::parse, args { inner: args! { count: buffer_length as usize } })]
+    #[br(parse_with = FilePtr32::parse, args {
+        offset: base_offset,
+        inner: args! { count: buffer_length as usize }
+    })]
     pub buffer: Vec<u8>,
 
     unk6: u32,
 
-    #[br(parse_with = FilePtr32::parse)]
+    #[br(parse_with = FilePtr32::parse, offset = base_offset)]
     pub weights: Weights,
 
     unk7: u32,
@@ -45,6 +52,7 @@ pub struct VertexData {
 
 #[binread]
 #[derive(Debug, Serialize)]
+#[br(import_raw(base_offset: u64))]
 pub struct VertexBufferDescriptor {
     /// The offset into [buffer](struct.VertexData.html#structfield.buffer).
     pub data_offset: u32,
@@ -53,7 +61,7 @@ pub struct VertexBufferDescriptor {
     pub vertex_size: u32,
 
     // Corresponds to attributes in vertex shader?
-    #[br(parse_with = parse_offset_count)]
+    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
     pub attributes: Vec<VertexAttribute>,
 
     // TODO: padding?
@@ -75,6 +83,8 @@ pub struct VertexAttribute {
 pub enum DataType {
     /// Float32x3 position.
     Position = 0,
+    Unk1 = 1,
+    Unk2 = 2,
     WeightIndex = 3, // bone indices?
     Unk4 = 4,
     /// Float32x2 UV coordinates.

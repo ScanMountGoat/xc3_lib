@@ -3,7 +3,6 @@ use binrw::{args, binread, helpers::count_with, FilePtr32};
 use serde::Serialize;
 
 // .wishp, embedded in .wismt, embedded in .wimdo
-// TODO: mirror_ball.wimdo contains shaders?
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(magic(b"HCPS"))]

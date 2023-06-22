@@ -9,11 +9,10 @@ use xc3_lib::{
     dds::{create_dds, create_mibl},
     mibl::Mibl,
     msmd::Msmd,
-    msrd::{EntryType, Msrd},
+    msrd::Msrd,
     mxmd::Mxmd,
     sar1::Sar1,
     spch::Spch,
-    vertex::VertexData,
     xbc1::Xbc1,
 };
 
@@ -119,17 +118,20 @@ fn check_all_mxmd<P: AsRef<Path>>(root: P) {
 }
 
 fn check_all_mibl<P: AsRef<Path>>(root: P) {
-    // The h directory doesn't have mibl footers?
+    // Only XC3 has a dedicated tex directory.
+    // TODO: Test joining the medium and low textures?
     let folder = root.as_ref().join("chr").join("tex").join("nx");
-    globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.wismt", "!h/**"])
-        .build()
-        .unwrap()
-        .par_bridge()
-        .for_each(|entry| {
-            let path = entry.as_ref().unwrap().path();
-            let (original_bytes, mibl) = read_wismt_single_tex(path);
-            check_mibl(original_bytes, mibl, path);
-        });
+    if folder.exists() {
+        globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.wismt", "!h/**"])
+            .build()
+            .unwrap()
+            .par_bridge()
+            .for_each(|entry| {
+                let path = entry.as_ref().unwrap().path();
+                let (original_bytes, mibl) = read_wismt_single_tex(path);
+                check_mibl(original_bytes, mibl, path);
+            });
+    }
 
     let folder = root.as_ref().join("monolib").join("shader");
     globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.{witex,witx}"])
@@ -156,46 +158,18 @@ fn check_all_msrd<P: AsRef<Path>>(root: P) {
             let path = entry.as_ref().unwrap().path();
             match Msrd::from_file(path) {
                 Ok(msrd) => {
-                    check_msrd(msrd);
+                    check_msrd(msrd, path);
                 }
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }
         });
 }
 
-fn check_msrd(msrd: Msrd) {
-    let decompressed_streams: Vec<_> = msrd
-        .streams
-        .iter()
-        .map(|stream| stream.xbc1.decompress().unwrap())
-        .collect();
-
-    // Check parsing for any embedded files.
-    for (i, item) in msrd.stream_entries.into_iter().enumerate() {
-        match item.item_type {
-            EntryType::Shader => {
-                assert_eq!(i, msrd.shader_entry_index as usize);
-
-                let stream = &decompressed_streams[item.stream_index as usize];
-                let data = &stream[item.offset as usize..item.offset as usize + item.size as usize];
-
-                Spch::read(&mut Cursor::new(data)).unwrap();
-            }
-            EntryType::Model => {
-                assert_eq!(i, msrd.model_entry_index as usize);
-
-                let stream = &decompressed_streams[item.stream_index as usize];
-                let data = &stream[item.offset as usize..item.offset as usize + item.size as usize];
-
-                VertexData::read(&mut Cursor::new(data)).unwrap();
-            }
-            // TODO: check texture parsing?
-            EntryType::CachedTexture => {
-                assert_eq!(i, msrd.texture_entry_index as usize);
-            }
-            EntryType::Texture => {}
-        }
-    }
+fn check_msrd(msrd: Msrd, path: &Path) {
+    msrd.extract_shader_data();
+    msrd.extract_vertex_data();
+    msrd.extract_low_texture_data();
+    // TODO: High textures?
 }
 
 fn check_all_msmd<P: AsRef<Path>>(root: P) {

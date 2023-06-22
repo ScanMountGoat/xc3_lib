@@ -90,6 +90,8 @@ fn read_attribute(
         DataType::Position => Some(VertexAttributes::Position(read_data(
             d, offset, buffer, read_f32x3,
         ))),
+        DataType::Unk1 => None,
+        DataType::Unk2 => None,
         DataType::WeightIndex => Some(VertexAttributes::WeightIndex(read_data(
             d, offset, buffer, read_u8x4,
         ))),

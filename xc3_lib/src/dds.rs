@@ -7,6 +7,8 @@ use crate::{
     mibl::{ImageFormat, MiblFooter, ViewDimension},
 };
 
+// TODO: Create a write_dds and save_dds helper functions or trait?
+
 // TODO: add a dds_from_surface() function to image_dds that takes a compressed surface?
 pub fn create_dds(mibl: &Mibl) -> Result<Dds> {
     let mut dds = Dds::new_dxgi(ddsfile::NewDxgiParams {

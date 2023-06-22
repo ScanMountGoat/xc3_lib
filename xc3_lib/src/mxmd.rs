@@ -1,6 +1,9 @@
 use std::io::SeekFrom;
 
-use crate::{parse_count_offset, parse_offset_count, parse_ptr32, parse_string_ptr32};
+use crate::{
+    parse_count_offset, parse_offset_count, parse_ptr32, parse_string_ptr32, spch::Spch,
+    vertex::VertexData,
+};
 use bilge::prelude::*;
 use binrw::{args, binread, BinRead, FilePtr32, NamedArgs};
 use serde::Serialize;
@@ -22,8 +25,14 @@ pub struct Mxmd {
     #[br(parse_with = parse_ptr32)]
     unk1: Option<Unk1>,
 
-    unk2: u32,
-    unk3: u32,
+    /// Embedded vertex data for .wimdo only models with no .wismt.
+    #[br(parse_with = parse_ptr32)]
+    pub vertex_data: Option<VertexData>,
+
+    /// Embedded shader data for .wimdo only models with no .wismt.
+    #[br(parse_with = parse_ptr32)]
+    pub spch: Option<Spch>,
+
     unk4: u32,
     unk5: u32,
 

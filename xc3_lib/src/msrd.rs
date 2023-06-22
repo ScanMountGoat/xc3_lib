@@ -1,7 +1,8 @@
 use std::io::Cursor;
 
 use crate::{
-    parse_count_offset, parse_ptr32, parse_string_ptr32, spch::Spch, vertex::VertexData, xbc1::Xbc1,
+    mibl::Mibl, parse_count_offset, parse_ptr32, parse_string_ptr32, spch::Spch,
+    vertex::VertexData, xbc1::Xbc1,
 };
 use binrw::{binread, FilePtr32};
 use serde::Serialize;
@@ -28,14 +29,17 @@ pub struct Msrd {
 
     pub model_entry_index: u32,
     pub shader_entry_index: u32,
-    pub texture_entry_index: u32,
-    unk1: [u32; 4],
+    pub low_textures_entry_index: u32,
+    pub low_textures_stream_index: u32,
+    pub middle_textures_stream_index: u32,
+    pub middle_textures_stream_entry_start_index: u32,
+    pub middle_textures_stream_entry_count: u32,
 
     #[br(parse_with = parse_count_offset, args_raw(offset as u64))]
     texture_ids: Vec<u16>,
 
     #[br(parse_with = parse_ptr32, args_raw(offset as u64))]
-    pub texture_name_table: Option<TextureNameTable>,
+    pub textures: Option<Textures>,
 }
 
 #[binread]
@@ -43,8 +47,9 @@ pub struct Msrd {
 pub struct StreamEntry {
     pub offset: u32,
     pub size: u32,
-    pub stream_index: u16,
+    pub unk_index: u16, // TODO: what does this do?
     pub item_type: EntryType,
+    // TODO: padding?
     unk: [u8; 8],
 }
 
@@ -61,7 +66,7 @@ pub enum EntryType {
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(stream = r)]
-pub struct TextureNameTable {
+pub struct Textures {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
@@ -92,7 +97,7 @@ pub struct TextureInfo {
 #[derive(Debug, Serialize)]
 pub struct Stream {
     comp_size: u32,
-    decomp_size: u32, // slightly larger than xbc1 decomp size?
+    decomp_size: u32, // TODO: slightly larger than xbc1 decomp size?
     #[br(parse_with = FilePtr32::parse)]
     pub xbc1: Xbc1,
 }
@@ -100,22 +105,48 @@ pub struct Stream {
 impl Msrd {
     // TODO: Avoid unwrap.
     pub fn extract_vertex_data(&self) -> VertexData {
-        let bytes = self.decompress_stream(self.model_entry_index);
+        // TODO: is this always in the first stream?
+        let bytes = self.decompress_stream(0, self.model_entry_index);
         VertexData::read(&mut Cursor::new(bytes)).unwrap()
     }
 
-    pub fn extract_texture_data(&self) -> Vec<u8> {
-        self.decompress_stream(self.texture_entry_index)
+    // TODO: Return mibl instead?
+    pub fn extract_low_texture_data(&self) -> Vec<u8> {
+        self.decompress_stream(
+            self.low_textures_stream_index,
+            self.low_textures_entry_index,
+        )
+    }
+
+    pub fn extract_middle_textures(&self) -> Vec<Mibl> {
+        // The middle textures are packed into a single stream.
+        // TODO: Where are the high textures?
+        let stream = &self.streams[self.middle_textures_stream_index as usize]
+            .xbc1
+            .decompress()
+            .unwrap();
+
+        let start = self.middle_textures_stream_entry_start_index as usize;
+        let count = self.middle_textures_stream_entry_count as usize;
+        self.stream_entries[start..start + count]
+            .iter()
+            .map(|entry| {
+                let bytes =
+                    &stream[entry.offset as usize..entry.offset as usize + entry.size as usize];
+                Mibl::read(&mut Cursor::new(bytes)).unwrap()
+            })
+            .collect()
     }
 
     pub fn extract_shader_data(&self) -> Spch {
-        let bytes = self.decompress_stream(self.shader_entry_index);
+        // TODO: is this always in the first stream?
+        let bytes = self.decompress_stream(0, self.shader_entry_index);
         Spch::read(&mut Cursor::new(bytes)).unwrap()
     }
 
-    fn decompress_stream(&self, entry_index: u32) -> Vec<u8> {
+    fn decompress_stream(&self, stream_index: u32, entry_index: u32) -> Vec<u8> {
         let entry = &self.stream_entries[entry_index as usize];
-        let stream = &self.streams[entry.stream_index as usize]
+        let stream = &self.streams[stream_index as usize]
             .xbc1
             .decompress()
             .unwrap();
