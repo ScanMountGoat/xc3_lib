@@ -72,7 +72,6 @@ pub fn export_gltf<P: AsRef<Path>>(
     let materials: Vec<_> = mxmd
         .materials
         .materials
-        .elements
         .iter()
         .map(|material| {
             let program_index = material.shader_programs[0].program_index as usize;
@@ -110,6 +109,8 @@ pub fn export_gltf<P: AsRef<Path>>(
                         extensions: None,
                         extras: Default::default(),
                     }),
+                    metallic_factor: gltf::json::material::StrengthFactor(0.0),
+                    roughness_factor: gltf::json::material::StrengthFactor(0.5),
                     // TODO: metalness in B channel and roughness in G channel?
                     ..Default::default()
                 },
@@ -151,7 +152,6 @@ pub fn export_gltf<P: AsRef<Path>>(
     let meshes: Vec<_> = mxmd
         .models
         .models
-        .elements
         .iter()
         .flat_map(|model| {
             model.meshes.iter().map(|mesh| {

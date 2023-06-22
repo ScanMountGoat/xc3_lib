@@ -266,7 +266,7 @@ fn load_prop_model_group<R: Read + Seek>(
             let vertex_buffers = vertex_buffers(device, &vertex_data);
             let index_buffers = index_buffers(device, &vertex_data);
 
-            let meshes: Vec<_> = prop_model_data.models.models.elements[base_lod_index]
+            let meshes: Vec<_> = prop_model_data.models.models[base_lod_index]
                 .meshes
                 .iter()
                 .map(create_mesh)
@@ -350,7 +350,6 @@ fn load_map_model_group<R: Read + Seek>(
             let meshes = map_model_data
                 .models
                 .models
-                .elements
                 .iter()
                 .zip(map_model_data.mapping.indices.iter())
                 .find_map(|(model, index)| {
@@ -403,7 +402,6 @@ fn load_map_textures(
 fn meshes(models: &xc3_lib::mxmd::Models) -> Vec<Mesh> {
     models
         .models
-        .elements
         .iter()
         .flat_map(|model| model.meshes.iter().map(create_mesh))
         .collect()

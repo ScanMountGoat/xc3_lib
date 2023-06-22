@@ -5,8 +5,8 @@
 use binrw::{binread, FilePtr32};
 
 use crate::{
-    mxmd::{List, Materials, Models, TextureItems},
-    parse_count_offset, parse_offset_count, parse_string_ptr32,
+    mxmd::{Materials, Models, TextureItems},
+    parse_count_offset, parse_offset_count, parse_offset_count2, parse_string_ptr32,
     spch::Spch,
 };
 
@@ -241,8 +241,8 @@ pub struct FoliageMaterials {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    #[br(args { base_offset, inner: base_offset })]
-    pub materials: List<FoliageMaterial>,
+    #[br(parse_with = parse_offset_count2, args_raw(base_offset))]
+    pub materials: Vec<FoliageMaterial>,
 
     unk1: u32,
     unk2: u32,

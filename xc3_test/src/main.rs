@@ -158,14 +158,14 @@ fn check_all_msrd<P: AsRef<Path>>(root: P) {
             let path = entry.as_ref().unwrap().path();
             match Msrd::from_file(path) {
                 Ok(msrd) => {
-                    check_msrd(msrd, path);
+                    check_msrd(msrd);
                 }
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }
         });
 }
 
-fn check_msrd(msrd: Msrd, path: &Path) {
+fn check_msrd(msrd: Msrd) {
     msrd.extract_shader_data();
     msrd.extract_vertex_data();
     msrd.extract_low_texture_data();

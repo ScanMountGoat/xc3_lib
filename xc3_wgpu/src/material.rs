@@ -66,7 +66,6 @@ pub fn materials(
 
     let materials = materials
         .materials
-        .elements
         .iter()
         .map(|material| {
             // Bind all available textures and samplers.

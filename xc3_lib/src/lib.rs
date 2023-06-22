@@ -1,8 +1,3 @@
-// TODO: consistent naming for magics/extensions?
-// mibl instead of lbim?
-// TODO: Is the pointer placement algorithm similar enough to SSBH?
-// TODO: naming for wismt vertex data?
-
 use std::{
     error::Error,
     io::{BufWriter, Cursor, Read, Seek, SeekFrom, Write},
@@ -22,7 +17,6 @@ pub mod spch;
 pub mod vertex;
 pub mod xbc1;
 
-// TODO: Make a type for this and just use temp to derive it?
 fn parse_offset_count<T, R>(reader: &mut R, endian: binrw::Endian, args: u64) -> BinResult<Vec<T>>
 where
     for<'a> T: BinRead<Args<'a> = ()> + 'static,
@@ -76,7 +70,6 @@ where
     Ok(values)
 }
 
-// TODO: Make a type for this and just use temp to derive it?
 fn parse_count_offset<T, R>(reader: &mut R, endian: binrw::Endian, args: u64) -> BinResult<Vec<T>>
 where
     for<'a> T: BinRead<Args<'a> = ()> + 'static,

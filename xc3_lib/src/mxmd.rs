@@ -1,11 +1,9 @@
-use std::io::SeekFrom;
-
 use crate::{
-    parse_count_offset, parse_offset_count, parse_ptr32, parse_string_ptr32, spch::Spch,
-    vertex::VertexData,
+    parse_count_offset, parse_offset_count, parse_offset_count2, parse_ptr32, parse_string_ptr32,
+    spch::Spch, vertex::VertexData,
 };
 use bilge::prelude::*;
-use binrw::{args, binread, BinRead, FilePtr32, NamedArgs};
+use binrw::{args, binread, FilePtr32};
 use serde::Serialize;
 
 /// .wimdo files
@@ -48,8 +46,8 @@ pub struct Materials {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    #[br(args { base_offset, inner: base_offset })]
-    pub materials: List<Material>,
+    #[br(parse_with = parse_offset_count2, args_raw(base_offset))]
+    pub materials: Vec<Material>,
 
     // offset?
     unk1: u32,
@@ -70,8 +68,8 @@ pub struct Materials {
     // TODO: is this ever not 0?
     unk4: u32,
 
-    #[br(args { base_offset, inner: base_offset })]
-    unks: List<MaterialUnk>,
+    #[br(parse_with = parse_offset_count2, args_raw(base_offset))]
+    unks: Vec<MaterialUnk>,
 
     unks1: [u32; 2],
 
@@ -351,8 +349,8 @@ pub struct Models {
     max_xyz: [f32; 3],
     min_xyz: [f32; 3],
 
-    #[br(args { base_offset, inner: base_offset })]
-    pub models: List<Model>,
+    #[br(parse_with = parse_offset_count2, args_raw(base_offset))]
+    pub models: Vec<Model>,
 
     unk2: u32,
 
@@ -599,33 +597,4 @@ pub struct Unk1Unk4 {
     unk2: f32,
     unk3: f32,
     unk4: u32,
-}
-
-/// A [u32] offset and [u32] count with an optional base offset.
-#[derive(Clone, NamedArgs)]
-pub struct ListArgs<Inner: Default> {
-    #[named_args(default = 0)]
-    base_offset: u64,
-    #[named_args(default = Inner::default())]
-    inner: Inner,
-}
-
-#[binread]
-#[derive(Debug, Serialize)]
-#[br(import_raw(args: ListArgs<T::Args<'_>>))]
-#[serde(transparent)]
-pub struct List<T>
-where
-    T: BinRead + 'static,
-    for<'a> <T as BinRead>::Args<'a>: Clone + Default,
-{
-    #[br(temp)]
-    offset: u32,
-    #[br(temp)]
-    count: u32,
-
-    #[br(args { count: count as usize, inner: args.inner })]
-    #[br(seek_before = SeekFrom::Start(args.base_offset + offset as u64))]
-    #[br(restore_position)]
-    pub elements: Vec<T>,
 }
