@@ -38,12 +38,14 @@ pub fn export_gltf<P: AsRef<Path>>(
 ) {
     let mibls = load_textures(msrd, mxmd, m_tex_folder, h_tex_folder);
     // TODO: Is it worth giving images their in game names?
-    for (i, mibl) in mibls.iter().enumerate() {
-        // Convert to PNG since DDS is not well supported.
-        let dds = create_dds(mibl).unwrap();
-        let image = image_dds::image_from_dds(&dds, 0).unwrap();
-        image.save(format!("model{i}.png")).unwrap();
-    }
+    let mut png_images: Vec<_> = mibls
+        .iter()
+        .map(|mibl| {
+            // Convert to PNG since DDS is not well supported.
+            let dds = create_dds(mibl).unwrap();
+            image_dds::image_from_dds(&dds, 0).unwrap()
+        })
+        .collect();
 
     let textures = (0..mibls.len())
         .map(|i| gltf::json::Texture {
@@ -55,6 +57,7 @@ pub fn export_gltf<P: AsRef<Path>>(
         })
         .collect();
 
+    // TODO: These need to be made while creating
     let images = (0..mibls.len())
         .map(|i| gltf::json::Image {
             buffer_view: None,
@@ -66,7 +69,7 @@ pub fn export_gltf<P: AsRef<Path>>(
         })
         .collect();
 
-    let materials = mxmd
+    let materials: Vec<_> = mxmd
         .materials
         .materials
         .elements
@@ -80,9 +83,23 @@ pub fn export_gltf<P: AsRef<Path>>(
 
             // TODO: A proper solution will construct each channel individually.
             // Assume the texture is used for all channels for now.
+            // TODO: Create consts for the gbuffer texture indices?
             let albedo_index = texture_index(shader, material, 0, 'x');
-            // TODO: Reconstruct the Z channel?
             let normal_index = texture_index(shader, material, 2, 'x');
+
+            // Reconstruct the normal map Z channel.
+            // TODO: Cache already processed textures?
+            // TODO: Cache by program index, usage (albedo vs normal), input samplers and channels?
+            // TODO: handle the case where each channel has a different resolution?
+            if let Some(index) = normal_index {
+                for pixel in png_images[index as usize].pixels_mut() {
+                    // x^y + y^2 + z^2 = 1 for unit vectors.
+                    let x = (pixel[0] as f32 / 255.0) * 2.0 - 1.0;
+                    let y = (pixel[1] as f32 / 255.0) * 2.0 - 1.0;
+                    let z = 1.0 - x * x - y * y;
+                    pixel[2] = (z * 255.0) as u8;
+                }
+            }
 
             gltf::json::Material {
                 name: Some(material.name.clone()),
@@ -168,10 +185,11 @@ pub fn export_gltf<P: AsRef<Path>>(
                 };
 
                 // Assign one primitive per mesh to create distinct objects in applications.
+                // In game meshes aren't named, so just use the material name.
                 gltf::json::Mesh {
                     extensions: Default::default(),
                     extras: Default::default(),
-                    name: None,
+                    name: materials[mesh.material_index as usize].name.clone(),
                     primitives: vec![primitive],
                     weights: None,
                 }
@@ -228,6 +246,10 @@ pub fn export_gltf<P: AsRef<Path>>(
     gltf::json::serialize::to_writer_pretty(writer, &root).unwrap();
 
     std::fs::write(path.as_ref().with_file_name(buffer_name), buffer_bytes).unwrap();
+
+    for (i, image) in png_images.iter().enumerate() {
+        image.save(format!("model{i}.png")).unwrap();
+    }
 }
 
 fn texture_index(
@@ -237,17 +259,13 @@ fn texture_index(
     channel: char,
 ) -> Option<u32> {
     // Find the sampler from the material.
-    let material_texture_index = shader
-        .and_then(|shader| shader.material_channel_assignment(gbuffer_index, channel))
-        .map(|(s, _)| s);
+    let (sampler_index, _) = shader?.material_channel_assignment(gbuffer_index, channel)?;
 
     // Find the texture referenced by this sampler.
-    material_texture_index.and_then(|s| {
-        material
-            .textures
-            .get(s as usize)
-            .map(|t| t.texture_index as u32)
-    })
+    material
+        .textures
+        .get(sampler_index as usize)
+        .map(|t| t.texture_index as u32)
 }
 
 fn create_buffers(vertex_data: xc3_lib::vertex::VertexData, buffer_name: String) -> Buffers {

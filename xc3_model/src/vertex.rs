@@ -12,7 +12,7 @@ use std::io::{Cursor, Seek, SeekFrom};
 
 use binrw::BinReaderExt;
 use bytemuck::{Pod, Zeroable};
-use glam::{vec4, Vec2, Vec3, Vec4};
+use glam::{Vec2, Vec3, Vec4};
 use xc3_lib::vertex::{
     DataType, IndexBufferDescriptor, VertexAnimationTarget, VertexAttribute,
     VertexBufferDescriptor, VertexData,
@@ -218,12 +218,12 @@ fn assign_vertex_buffer_attributes(
             }
             VertexAttributes::Uv1(values) => {
                 for (vertex, value) in vertices.iter_mut().zip(values) {
-                    vertex.uv1 = value.into();
+                    vertex.uv1 = value;
                 }
             }
             VertexAttributes::Uv2(values) => {
                 for (vertex, value) in vertices.iter_mut().zip(values) {
-                    vertex.uv2 = value.into();
+                    vertex.uv2 = value;
                 }
             }
             VertexAttributes::VertexColor(values) => {
