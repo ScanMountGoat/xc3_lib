@@ -64,6 +64,7 @@ pub struct Spch {
 #[derive(Debug, Serialize)]
 #[br(import { count: usize })]
 pub struct StringSection {
+    // TODO: This needs to have the base offset set for maps.
     #[br(parse_with = count_with(count, parse_string_ptr32))]
     pub program_names: Vec<String>,
 }

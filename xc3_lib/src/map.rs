@@ -266,3 +266,25 @@ pub struct FoliageMaterial {
     unk6: u32,
     unk7: u32,
 }
+
+/// The data for a [UnkModel2](crate::msmd::UnkModel2).
+#[binread]
+#[derive(Debug)]
+pub struct MapLowModelData {
+    unk1: u32,
+    unk2: u32,
+
+    #[br(parse_with = FilePtr32::parse)]
+    pub models: Models,
+
+    #[br(parse_with = FilePtr32::parse)]
+    pub materials: Materials,
+
+    unk5: u32,
+    unk6: u32,
+    unk7: u32,
+    unk8: u32,
+
+    #[br(parse_with = FilePtr32::parse)]
+    pub spch: Spch,
+}

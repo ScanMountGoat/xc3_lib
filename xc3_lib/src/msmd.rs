@@ -7,7 +7,7 @@ use std::{
 use binrw::{binread, BinRead, FilePtr32};
 
 use crate::{
-    map::{FoliageModelData, MapModelData, PropModelData, SkyModelData},
+    map::{FoliageModelData, MapLowModelData, MapModelData, PropModelData, SkyModelData},
     mibl::Mibl,
     parse_count_offset, parse_count_offset2, parse_ptr32, parse_string_ptr32,
     vertex::VertexData,
@@ -68,18 +68,25 @@ pub struct Msmd {
     #[br(parse_with = parse_count_offset)]
     pub foliage_data: Vec<StreamEntry<()>>, // TODO: type for this?
 
-    unk3: [u32; 5],
+    unk3_1: u32,
+    unk3_2: u32,
+
+    #[br(parse_with = FilePtr32::parse)]
+    tgld: Tgld,
+
+    #[br(parse_with = parse_count_offset)]
+    pub unk_lights: Vec<UnkLight>,
 
     // low resolution packed textures?
     #[br(parse_with = parse_count_offset)]
     pub low_textures: Vec<StreamEntry<LowTextures>>,
 
-    unk3_1: [u32; 8],
+    unk4: [u32; 8],
 
     #[br(parse_with = parse_count_offset)]
-    pub unk_models2: Vec<UnkModel2>,
+    pub low_models: Vec<MapLowModel>,
 
-    unk3_2: u32,
+    unk5: u32,
 
     // TODO: xbc1 names like "/seamwork/mpfmap/poli//0000"?
     // TODO: Small buffers with offsets ands counts?
@@ -94,12 +101,14 @@ pub struct Msmd {
     #[br(parse_with = FilePtr32::parse)]
     nerd: Nerd,
 
-    unk4: [u32; 3],
+    unk6: [u32; 3],
 
     #[br(parse_with = FilePtr32::parse)]
     ibl: Ibl,
 
-    unk5_1: u32,
+    #[br(parse_with = FilePtr32::parse)]
+    cmld: Cmld,
+
     unk5_2: u32,
     unk5_3: u32,
 
@@ -110,7 +119,7 @@ pub struct Msmd {
     unk5_6: u32,
 
     // padding?
-    unk6: [u32; 8],
+    unk7: [u32; 8],
 }
 
 /// References to medium and high resolution [Mibl](crate::mibl::Mibl) textures.
@@ -169,10 +178,10 @@ pub struct BoundingBox {
 
 #[binread]
 #[derive(Debug)]
-pub struct UnkModel2 {
+pub struct MapLowModel {
     unk1: [f32; 10],
     // TODO: xbc1 names like "/seamwork/lowmap/ma11a/bina"
-    pub entry: StreamEntry<()>, // TODO: type for this?
+    pub entry: StreamEntry<MapLowModelData>,
     unk2: u32,
     // TODO: padding?
     unk: [u32; 5],
@@ -200,6 +209,24 @@ pub struct Nerd {
     unk5: u32,
     // padding?
     unk6: [u32; 6],
+}
+
+// TODO: cloud data?
+#[binread]
+#[derive(Debug)]
+#[br(magic(b"CMLD"))]
+pub struct Cmld {
+    version: u32,
+}
+
+// TODO: Lighting data?
+#[binread]
+#[derive(Debug)]
+#[br(magic(b"DLGT"))]
+pub struct Tgld {
+    version: u32,
+    unk1: u32,
+    unk2: u32,
 }
 
 #[binread]
@@ -323,6 +350,18 @@ pub struct LowTexture {
     unk2: i32,
 }
 
+#[binread]
+#[derive(Debug)]
+pub struct UnkLight {
+    max: [f32; 3],
+    min: [f32; 3],
+    // TODO: xbc1 names like "/seamwork/lgt/bina/00000.wi"?
+    pub entry: StreamEntry<Tgld>,
+    unk3: u32,
+    // TODO: padding?
+    unk4: [u32; 5],
+}
+
 /// A reference to an [Xbc1](crate::xbc1::Xbc1) in the `.wismda` file.
 #[binread]
 #[derive(Debug)]
@@ -339,8 +378,13 @@ where
 {
     /// Decompress and read the data from a reader for a `.wismda` file.
     pub fn extract<R: Read + Seek>(&self, reader: &mut R) -> T {
-        reader.seek(SeekFrom::Start(self.offset as u64)).unwrap();
-        let bytes = Xbc1::read(reader).unwrap().decompress().unwrap();
+        let bytes = self.decompress(reader);
         T::read_le(&mut Cursor::new(bytes)).unwrap()
+    }
+
+    /// Decompress the data from a reader for a `.wismda` file.
+    pub fn decompress<R: Read + Seek>(&self, reader: &mut R) -> Vec<u8> {
+        reader.seek(SeekFrom::Start(self.offset as u64)).unwrap();
+        Xbc1::read(reader).unwrap().decompress().unwrap()
     }
 }
