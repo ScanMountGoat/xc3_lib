@@ -31,14 +31,9 @@ pub struct VertexData {
     #[br(parse_with = parse_ptr32, args_raw(base_offset))]
     pub vertex_animation: Option<VertexAnimation>,
 
-    #[br(temp)]
-    buffer_length: u32,
-
     /// The data buffer containing all the geometry data.
-    #[br(parse_with = FilePtr32::parse, args {
-        offset: base_offset,
-        inner: args! { count: buffer_length as usize }
-    })]
+    // TODO: Optimized function for reading bytes?
+    #[br(parse_with = parse_count_offset, args_raw(base_offset))]
     pub buffer: Vec<u8>,
 
     unk6: u32,

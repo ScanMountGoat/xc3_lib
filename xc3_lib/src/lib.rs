@@ -157,7 +157,9 @@ where
         Ok(None)
     }
 }
+
 // TODO: Dedicated error types?
+// TODO: Add a from_bytes helper that reads using a Cursor?
 macro_rules! file_read_write_impl {
     ($($type_name:path),*) => {
         $(

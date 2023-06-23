@@ -1,6 +1,6 @@
 use std::io::SeekFrom;
 
-use crate::parse_string_ptr32;
+use crate::{parse_count_offset, parse_string_ptr32};
 use binrw::{args, binread, BinRead, FilePtr32, NamedArgs, NullString};
 use serde::Serialize;
 
@@ -13,11 +13,7 @@ pub struct Sar1 {
     file_size: u32,
     version: u32,
 
-    #[br(temp)]
-    count: u32,
-
-    #[br(parse_with = FilePtr32::parse)]
-    #[br(args { inner: args!(count: count as usize) })]
+    #[br(parse_with = parse_count_offset)]
     entries: Vec<Entry>,
 
     unk_offset: u32, // pointer to start of data?
