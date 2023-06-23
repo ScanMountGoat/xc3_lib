@@ -70,9 +70,9 @@ pub struct Msmd {
 
     unk3: [u32; 5],
 
-    // low resolution texture?
+    // low resolution packed textures?
     #[br(parse_with = parse_count_offset)]
-    pub low_textures: Vec<StreamEntry<()>>, // TODO: type for this?
+    pub low_textures: Vec<StreamEntry<LowTextures>>,
 
     unk3_1: [u32; 8],
 
@@ -302,6 +302,25 @@ pub struct Doce {
     version: u32,
     offset: u32,
     count: u32,
+}
+
+#[binread]
+#[derive(Debug)]
+pub struct LowTextures {
+    #[br(parse_with = parse_count_offset)]
+    pub textures: Vec<LowTexture>,
+    // TODO: Padding?
+    unk: [u32; 5],
+}
+
+#[binread]
+#[derive(Debug)]
+pub struct LowTexture {
+    unk1: u32,
+    // TODO: Optimized function for reading bytes?
+    #[br(parse_with = parse_count_offset)]
+    pub mibl_data: Vec<u8>,
+    unk2: i32,
 }
 
 /// A reference to an [Xbc1](crate::xbc1::Xbc1) in the `.wismda` file.
