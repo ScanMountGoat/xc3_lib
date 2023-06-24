@@ -18,6 +18,7 @@ use crate::{
 pub struct PropModelData {
     pub unk1: [u32; 3],
 
+    /// Each model has a corresponding element in [vertex_data_indices](#structfield.vertex_data_indices).
     #[br(parse_with = FilePtr32::parse)]
     pub models: Models,
 
@@ -36,9 +37,9 @@ pub struct PropModelData {
     #[br(parse_with = parse_offset_count)]
     pub textures: Vec<Texture>,
 
-    // TODO: lod def index -> prop_vertex_data_indices -> msmd prop_model_data
-    // elements index into msmd prop_model_data?
-    // something else indexes into this list?
+    /// The index of the [VertexData](crate::vertex::VertexData)
+    /// in [prop_vertex_data](../msmd/struct.Msmd.html#structfield.prop_vertex_data)
+    /// for each of the models in [models](#structfield.models).
     #[br(parse_with = parse_offset_count)]
     pub vertex_data_indices: Vec<u32>,
 
@@ -62,12 +63,13 @@ pub struct PropLods {
 
     unk1: u32,
 
+    // model groups?
     // Each of these is a single prop with all of its lods?
     #[br(parse_with = parse_count_offset, args_raw(base_offset))]
     pub props: Vec<PropLod>,
 
-    count1: u32,
-    offset1: u32,
+    #[br(parse_with = parse_count_offset, args_raw(base_offset))]
+    pub lods: Vec<PropModelLod>,
 
     /// Instance information for [props](#structfield.props).
     #[br(parse_with = parse_count_offset, args_raw(base_offset))]
@@ -86,11 +88,19 @@ pub struct PropLods {
 #[derive(Debug)]
 #[br(stream = r)]
 pub struct PropLod {
-    // start index into vertex_data_indices?
-    // also start index into mesh.items?
-    // TODO: Better name than mesh.items?
+    /// The index of the base LOD (highest quality) [Model](crate::mxmd::Model)
+    /// in [models](struct.PropModelData.html#structfield.models).
     pub base_lod_index: u32,
+    /// The number of LOD models with higher indices having lower quality.
     pub lod_count: u32,
+}
+
+#[binread]
+#[derive(Debug)]
+pub struct PropModelLod {
+    radius: f32,
+    distance: f32,
+    index: u32,
 }
 
 #[binread]
@@ -98,16 +108,20 @@ pub struct PropLod {
 pub struct PropInstance {
     /// The transform of the instance as a 4x4 column-major matrix.
     pub transform: [[f32; 4]; 4],
-
-    unk2: [f32; 4],
-    unk3: [f32; 3],
+    position: [f32; 3],
+    radius: f32,
+    center: [f32; 3],
 
     // TODO: fix this doc link
     /// The index into [props](struct.PropLods.html#structfield.props).
     pub prop_index: u32,
 
-    // padding?
-    unk4: [u32; 4],
+    unk1: u16,
+    unk2: u16,
+    unk3: u16,
+    unk4: u16,
+    // TODO: padding?
+    unks: [u32; 2],
 }
 
 #[binread]
@@ -146,7 +160,7 @@ pub struct MapModelData {
     low_res_count: u32,
 
     #[br(parse_with = FilePtr32::parse)]
-    pub mapping: UnkMapping,
+    pub groups: MapModelGroups,
     // padding?
 }
 
@@ -165,13 +179,14 @@ pub struct Texture {
 #[binread]
 #[derive(Debug)]
 #[br(stream = r)]
-pub struct UnkMapping {
+pub struct MapModelGroups {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
     #[br(parse_with = parse_offset_count, args_raw(base_offset))]
-    pub groups: Vec<UnkGroup>,
+    pub groups: Vec<MapModelGroup>,
 
+    // TODO: How do these work?
     #[br(parse_with = parse_offset_count, args_raw(base_offset))]
     pub indices: Vec<u16>,
 }
@@ -179,12 +194,15 @@ pub struct UnkMapping {
 // Groups?
 #[binread]
 #[derive(Debug)]
-pub struct UnkGroup {
+pub struct MapModelGroup {
     max: [f32; 3],
     min: [f32; 3],
-    // index for msmd map_model_data?
+
     // TODO: Sometimes out of bounds?
+    /// The index of the [VertexData](crate::vertex::VertexData)
+    /// in [map_vertex_data](../msmd/struct.Msmd.html#structfield.map_vertex_data).
     pub vertex_data_index: u32,
+    // TODO: lod vertex data index?
     unk2: u32,
     unk3: u32,
 }
@@ -305,7 +323,7 @@ pub struct FoliageUnkData {
     unk3: [u32; 8],
 }
 
-/// The data for a [UnkModel2](crate::msmd::UnkModel2).
+/// The data for a [MapLowModel](crate::msmd::MapLowModel).
 #[binread]
 #[derive(Debug)]
 pub struct MapLowModelData {
@@ -333,7 +351,7 @@ pub struct MapLowModelData {
 #[derive(Debug)]
 pub struct PropPositions {
     #[br(parse_with = parse_count_offset)]
-    instances: Vec<Instance>,
+    instances: Vec<PropInstance>,
     unk1: u32,
     unk2: u32,
     #[br(parse_with = parse_count_offset)]
@@ -346,22 +364,6 @@ pub struct PropPositions {
     tree_offset: u32,
     unk6: u32,
     // TODO: more fields?
-}
-
-#[binread]
-#[derive(Debug)]
-pub struct Instance {
-    matrix: [[f32; 4]; 4],
-    positions: [f32; 3],
-    radius: f32,
-    center: [f32; 3],
-    index: u32,
-    unk1: u16,
-    unk2: u16,
-    unk3: u16,
-    unk4: u16,
-    // TODO: padding?
-    unk: [u32; 2],
 }
 
 #[binread]

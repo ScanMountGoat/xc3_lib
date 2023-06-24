@@ -329,11 +329,11 @@ fn load_map_model_group<R: Read + Seek>(
         shader_database,
     );
 
-    // TODO: The mapping.indices and models.models always have the same length?
+    // TODO: The indices and models.models always have the same length?
     // TODO: the mapping indices are in the range [0, 2*groups - 1]?
     // TODO: Some mapping sections assign to twice as many groups as actual groups?
     let models = map_model_data
-        .mapping
+        .groups
         .groups
         .iter()
         .enumerate()
@@ -351,7 +351,7 @@ fn load_map_model_group<R: Read + Seek>(
                 .models
                 .models
                 .iter()
-                .zip(map_model_data.mapping.indices.iter())
+                .zip(map_model_data.groups.indices.iter())
                 .find_map(|(model, index)| {
                     if *index as usize == group_index {
                         Some(model)
