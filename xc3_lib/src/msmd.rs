@@ -7,7 +7,10 @@ use std::{
 use binrw::{binread, BinRead, FilePtr32};
 
 use crate::{
-    map::{FoliageModelData, MapLowModelData, MapModelData, PropModelData, SkyModelData},
+    map::{
+        FoliageModelData, FoliageUnkData, FoliageVertexData, MapLowModelData, MapModelData,
+        PropModelData, PropPositions, SkyModelData,
+    },
     mibl::Mibl,
     parse_count_offset, parse_count_offset2, parse_ptr32, parse_string_ptr32,
     vertex::VertexData,
@@ -61,12 +64,12 @@ pub struct Msmd {
     // Prop positions?
     /// TODO: xbc1 names like "/seamwork/inst/pos/00000.et"
     #[br(parse_with = parse_count_offset)]
-    pub prop_positions: Vec<StreamEntry<()>>, // TODO: type for this?
+    pub prop_positions: Vec<StreamEntry<PropPositions>>,
 
     // TODO: xbc1 names like "/seamwork/mpfmap/poli//0022"?
     // TODO: Buffers of floats but not structured like VertexData?
     #[br(parse_with = parse_count_offset)]
-    pub foliage_data: Vec<StreamEntry<()>>, // TODO: type for this?
+    pub foliage_data: Vec<StreamEntry<FoliageVertexData>>,
 
     unk3_1: u32,
     unk3_2: u32,
@@ -91,7 +94,7 @@ pub struct Msmd {
     // TODO: xbc1 names like "/seamwork/mpfmap/poli//0000"?
     // TODO: Small buffers with offsets ands counts?
     #[br(parse_with = parse_count_offset)]
-    pub unk_foliage_data: Vec<StreamEntry<()>>,
+    pub unk_foliage_data: Vec<StreamEntry<FoliageUnkData>>,
 
     /// References to [VertexData](crate::vertex::VertexData).
     // TODO: xbc1 names like "/seamwork/basemap/poli//000"

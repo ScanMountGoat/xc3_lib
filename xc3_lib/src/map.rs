@@ -267,6 +267,44 @@ pub struct FoliageMaterial {
     unk7: u32,
 }
 
+#[binread]
+#[derive(Debug)]
+pub struct FoliageVertexData {
+    #[br(parse_with = parse_count_offset)]
+    unk1: Vec<FoliageVertex1>,
+    #[br(parse_with = parse_count_offset)]
+    unk2: Vec<FoliageVertex2>,
+    unk3: u32,
+    // TODO: padding?
+    unks: [u32; 7],
+}
+
+#[binread]
+#[derive(Debug)]
+pub struct FoliageVertex1 {
+    unk1: (f32, f32, f32),
+    unk2: [u8; 4],
+}
+
+#[binread]
+#[derive(Debug)]
+pub struct FoliageVertex2 {
+    unk1: (f32, f32, f32, f32),
+    unk2: u32, // offset?
+    unk3: u32, // offset?
+    unk4: u32,
+    unk5: u32,
+}
+
+#[binread]
+#[derive(Debug)]
+pub struct FoliageUnkData {
+    unk1: [u32; 9], // length of the file repeated?
+    unk2: [f32; 4],
+    // TODO: padding?
+    unk3: [u32; 8],
+}
+
 /// The data for a [UnkModel2](crate::msmd::UnkModel2).
 #[binread]
 #[derive(Debug)]
@@ -287,4 +325,52 @@ pub struct MapLowModelData {
 
     #[br(parse_with = FilePtr32::parse)]
     pub spch: Spch,
+}
+
+// TODO: Is this documented correctly?
+// TODO: https://github.com/atnavon/xc2f/wiki/map-instance-chunk#extrainstancepack
+#[binread]
+#[derive(Debug)]
+pub struct PropPositions {
+    #[br(parse_with = parse_count_offset)]
+    instances: Vec<Instance>,
+    unk1: u32,
+    unk2: u32,
+    #[br(parse_with = parse_count_offset)]
+    nodes: Vec<RenderNode>,
+    unk3: u32,
+    unk4: u32,
+    unk5: u32,
+    animated_parts_start_index: u32,
+    animated_parts_count: u32,
+    tree_offset: u32,
+    unk6: u32,
+    // TODO: more fields?
+}
+
+#[binread]
+#[derive(Debug)]
+pub struct Instance {
+    matrix: [[f32; 4]; 4],
+    positions: [f32; 3],
+    radius: f32,
+    center: [f32; 3],
+    index: u32,
+    unk1: u16,
+    unk2: u16,
+    unk3: u16,
+    unk4: u16,
+    // TODO: padding?
+    unk: [u32; 2],
+}
+
+#[binread]
+#[derive(Debug)]
+pub struct RenderNode {
+    center: [f32; 3],
+    radius: f32,
+    unk1: f32,
+    unk2: u32,
+    unk3: u32,
+    unk4: u32,
 }
