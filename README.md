@@ -46,6 +46,6 @@ This project is based on previous reverse engineering work, including work done 
 Special thanks go to members of the World Tree Research discord (formerly the World of Alrest discord) for their assistance.
 * [Xenoblade Data Hub](https://xenobladedata.github.io/)
 * [XenoLib](https://github.com/PredatorCZ/XenoLib)
-* [XB2AssetTool](https://github.com/BlockBuilder57/XB2AssetTool)
+* [xc2f wiki](https://github.com/atnavon/xc2f/wiki)
 * [Xenoblade-Switch-Model-Importer-Noesis](https://github.com/Turk645/Xenoblade-Switch-Model-Importer-Noesis)
 * [XbTool](https://github.com/AlexCSDev/XbTool)
