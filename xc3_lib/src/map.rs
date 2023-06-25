@@ -41,7 +41,7 @@ pub struct PropModelData {
     /// in [prop_vertex_data](../msmd/struct.Msmd.html#structfield.prop_vertex_data)
     /// for each of the models in [models](#structfield.models).
     #[br(parse_with = parse_offset_count)]
-    pub vertex_data_indices: Vec<u32>,
+    pub model_vertex_data_indices: Vec<u32>,
 
     unk4: [u32; 5],
 
@@ -186,9 +186,11 @@ pub struct MapModelGroups {
     #[br(parse_with = parse_offset_count, args_raw(base_offset))]
     pub groups: Vec<MapModelGroup>,
 
-    // TODO: How do these work?
+    /// The index of the [VertexData](crate::vertex::VertexData)
+    /// in [map_vertex_data](../msmd/struct.Msmd.html#structfield.map_vertex_data)
+    /// for each of the models in [models](struct.MapModelData.html#structfield.models).
     #[br(parse_with = parse_offset_count, args_raw(base_offset))]
-    pub indices: Vec<u16>,
+    pub model_vertex_data_indices: Vec<u16>,
 }
 
 // Groups?
@@ -198,12 +200,12 @@ pub struct MapModelGroup {
     max: [f32; 3],
     min: [f32; 3],
 
-    // TODO: Sometimes out of bounds?
     /// The index of the [VertexData](crate::vertex::VertexData)
     /// in [map_vertex_data](../msmd/struct.Msmd.html#structfield.map_vertex_data).
     pub vertex_data_index: u32,
     // TODO: lod vertex data index?
-    unk2: u32,
+    // TODO: This is also used in indices?
+    pub unk_vertex_data_index: u32,
     unk3: u32,
 }
 

@@ -1,7 +1,7 @@
 use std::io::SeekFrom;
 
 use crate::{parse_count_offset, parse_string_ptr32};
-use binrw::{args, binread, BinRead, FilePtr32, NamedArgs, NullString};
+use binrw::{binread, BinRead, FilePtr32, NamedArgs, NullString};
 use serde::Serialize;
 
 // .chr files have skeletons?

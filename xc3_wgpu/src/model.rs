@@ -259,7 +259,7 @@ fn load_prop_model_group<R: Read + Seek>(
         .enumerate()
         .map(|(i, prop_lod)| {
             let base_lod_index = prop_lod.base_lod_index as usize;
-            let vertex_data_index = prop_model_data.vertex_data_indices[base_lod_index];
+            let vertex_data_index = prop_model_data.model_vertex_data_indices[base_lod_index];
 
             let vertex_data = prop_vertex_data[vertex_data_index as usize].extract(wismda);
 
@@ -329,39 +329,27 @@ fn load_map_model_group<R: Read + Seek>(
         shader_database,
     );
 
-    // TODO: The indices and models.models always have the same length?
-    // TODO: the mapping indices are in the range [0, 2*groups - 1]?
-    // TODO: Some mapping sections assign to twice as many groups as actual groups?
     let models = map_model_data
         .groups
         .groups
         .iter()
-        .enumerate()
-        .map(|(group_index, group)| {
-            // TODO: Load all groups?
-            let vertex_data = map_vertex_data[group.vertex_data_index as usize].extract(wismda);
+        .map(|group| {
+            let vertex_data_index = group.vertex_data_index as usize;
+            let vertex_data = map_vertex_data[vertex_data_index].extract(wismda);
 
             let vertex_buffers = vertex_buffers(device, &vertex_data);
             let index_buffers = index_buffers(device, &vertex_data);
 
-            // TODO: Select meshes based on the grouping?
-            // TODO: Does the list of indices in the grouping assign items here to groups?
-            // TODO: Should we be creating multiple models in this step?
+            // Each group has a base and low detail vertex data index.
+            // Each model has an assigned vertex data index.
+            // Find all the base detail models and meshes for each group.
             let meshes = map_model_data
                 .models
                 .models
                 .iter()
-                .zip(map_model_data.groups.indices.iter())
-                .find_map(|(model, index)| {
-                    if *index as usize == group_index {
-                        Some(model)
-                    } else {
-                        None
-                    }
-                })
-                .unwrap()
-                .meshes
-                .iter()
+                .zip(map_model_data.groups.model_vertex_data_indices.iter())
+                .filter(|(_, index)| **index as usize == vertex_data_index)
+                .flat_map(|(model, _)| &model.meshes)
                 .map(create_mesh)
                 .collect();
 

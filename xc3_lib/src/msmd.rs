@@ -66,6 +66,7 @@ pub struct Msmd {
     pub prop_positions: Vec<StreamEntry<PropPositions>>,
 
     /// The `.wismda` data with names like `/seamwork/mpfmap/poli//0022`.
+    // TODO: Not all of these are used by prop_models?
     #[br(parse_with = parse_count_offset)]
     pub foliage_data: Vec<StreamEntry<FoliageVertexData>>,
 
@@ -105,8 +106,8 @@ pub struct Msmd {
     #[br(parse_with = FilePtr32::parse)]
     ibl: Ibl,
 
-    #[br(parse_with = FilePtr32::parse)]
-    cmld: Cmld,
+    #[br(parse_with = parse_ptr32)]
+    cmld: Option<Cmld>,
 
     unk5_2: u32,
     unk5_3: u32,
