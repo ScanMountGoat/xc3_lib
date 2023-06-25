@@ -66,7 +66,6 @@ pub struct Msmd {
     pub prop_positions: Vec<StreamEntry<PropPositions>>,
 
     /// The `.wismda` data with names like `/seamwork/mpfmap/poli//0022`.
-    // TODO: Not all of these are used by prop_models?
     #[br(parse_with = parse_count_offset)]
     pub foliage_data: Vec<StreamEntry<FoliageVertexData>>,
 
@@ -94,7 +93,10 @@ pub struct Msmd {
     #[br(parse_with = parse_count_offset)]
     pub unk_foliage_data: Vec<StreamEntry<FoliageUnkData>>,
 
-    /// The `.wismda` data with names like `/seamwork/basemap/poli//000`.
+    /// The `.wismda` data with names like `/seamwork/basemap/poli//000`
+    /// or `/seamwork/basemap/poli//001`.
+    // TODO: Are all of these referenced by map models?
+    // TODO: What references "poli/001"?
     #[br(parse_with = parse_count_offset)]
     pub map_vertex_data: Vec<StreamEntry<VertexData>>,
 
