@@ -1,6 +1,6 @@
 use crate::{
-    parse_count_offset, parse_offset_count, parse_offset_count2, parse_ptr32, parse_string_ptr32,
-    spch::Spch, vertex::VertexData,
+    parse_count_offset, parse_count_offset2, parse_offset_count, parse_offset_count2, parse_ptr32,
+    parse_string_ptr32, spch::Spch, vertex::VertexData,
 };
 use bilge::prelude::*;
 use binrw::{args, binread, FilePtr32};
@@ -470,25 +470,22 @@ pub struct TextureItems {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    count: u32,
-    offset: u32,
+    #[br(parse_with = parse_count_offset2, args_raw(base_offset))]
+    pub textures: Vec<TextureItem>,
+
     unk2: u32,
     strings_offset: u32,
-
-    #[br(args { count: count as usize, inner: args! { base_offset } })]
-    pub textures: Vec<TextureItem>,
 }
 
 #[binread]
 #[derive(Debug, Serialize)]
-#[br(import { base_offset: u64 })]
+#[br(import_raw(base_offset: u64))]
 pub struct TextureItem {
-    unk1: u16,
-    unk2: u16,
-    unk3: u16, // size?
-    unk4: u16,
-    unk5: u16, // some sort of offset (sum of previous unk3)?
-    unk6: u16,
+    unk1: u32,
+
+    // TODO: These offsets are for different places for maps and characters?
+    pub mibl_length: u32,
+    pub mibl_offset: u32,
 
     #[br(parse_with = parse_string_ptr32, args(base_offset))]
     pub name: String,

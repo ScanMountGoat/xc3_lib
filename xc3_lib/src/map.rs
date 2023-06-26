@@ -8,6 +8,7 @@ use crate::{
     mxmd::{Materials, Models, TextureItems},
     parse_count_offset, parse_offset_count, parse_offset_count2, parse_string_ptr32,
     spch::Spch,
+    vertex::VertexData,
 };
 
 // TODO: Improve docs.
@@ -211,10 +212,10 @@ pub struct MapModelGroup {
 
 // TODO: Where is the VertexData?
 // TODO: Link to appropriate fields with doc links.
-/// The data for a [SkyModel](crate::msmd::SkyModel).
+/// The data for a [EnvModel](crate::msmd::EnvModel).
 #[binread]
 #[derive(Debug)]
-pub struct SkyModelData {
+pub struct EnvModelData {
     #[br(parse_with = FilePtr32::parse)]
     pub models: Models,
 
@@ -223,10 +224,12 @@ pub struct SkyModelData {
 
     // TODO: Pointers to MIBL files?
     unk_offset1: u32,
-    unk_offset2: u32,
 
     #[br(parse_with = FilePtr32::parse)]
-    textures: TextureItems,
+    pub vertex_data: VertexData,
+
+    #[br(parse_with = FilePtr32::parse)]
+    pub textures: TextureItems,
 
     // TODO: always 0?
     unk6: u32,
@@ -340,11 +343,15 @@ pub struct MapLowModelData {
 
     unk5: u32,
     unk6: u32,
-    unk7: u32,
+
+    #[br(parse_with = FilePtr32::parse)]
+    pub vertex_data: VertexData,
+
     unk8: u32,
 
     #[br(parse_with = FilePtr32::parse)]
     pub spch: Spch,
+    // TODO: more fields?
 }
 
 // TODO: Is this documented correctly?

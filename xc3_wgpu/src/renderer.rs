@@ -155,7 +155,7 @@ impl Xc3Renderer {
         self.model_bind_group0.set(&mut render_pass);
 
         for model in models {
-            model.draw(&mut render_pass, xc3_lib::mxmd::ShaderUnkType::Unk0);
+            model.draw(&mut render_pass, false);
         }
     }
 
@@ -187,7 +187,7 @@ impl Xc3Renderer {
 
         // TODO: Is this the correct unk type?
         for model in models {
-            model.draw(&mut render_pass, xc3_lib::mxmd::ShaderUnkType::Unk7);
+            model.draw(&mut render_pass, true);
         }
     }
 

@@ -1,17 +1,16 @@
 use std::{
     collections::HashMap,
-    io::{Read, Seek},
+    io::{Cursor, Read, Seek},
     path::Path,
 };
 
 use glam::vec4;
 use wgpu::util::DeviceExt;
 use xc3_lib::{
-    map::MapModelData,
     mibl::Mibl,
     msmd::{Msmd, StreamEntry},
     msrd::Msrd,
-    mxmd::{Mxmd, ShaderUnkType},
+    mxmd::Mxmd,
     vertex::VertexData,
 };
 use xc3_model::vertex::{read_indices, read_vertices};
@@ -62,7 +61,7 @@ struct IndexBuffer {
 
 impl ModelGroup {
     // TODO: How to handle other unk types?
-    pub fn draw<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, pass: ShaderUnkType) {
+    pub fn draw<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, is_transparent: bool) {
         // TODO: Is this the best way to "instance" models?
         for model in &self.models {
             for instance in &model.instances {
@@ -77,11 +76,11 @@ impl ModelGroup {
                     // TODO: Group these into passes with separate shaders for each pass?
                     // TODO: The main pass is shared with outline, ope, and zpre?
                     // TODO: How to handle transparency?
-                    if material.unk_type == pass
-                // && material.texture_count > 0
-                && !material.name.ends_with("_outline")
-                && !material.name.ends_with("_ope")
-                && !material.name.ends_with("_zpre")
+                    // TODO: Characters render as solid white?
+                    if (is_transparent != material.pipeline_key.write_to_all_outputs)
+                        && !material.name.ends_with("_outline")
+                        && !material.name.ends_with("_ope")
+                        && !material.name.ends_with("_zpre")
                     {
                         // TODO: How to make sure the pipeline outputs match the render pass?
                         let pipeline = &self.pipelines[&material.pipeline_key];
@@ -190,6 +189,19 @@ pub fn load_map<R: Read + Seek>(
 
     // TODO: Better way to combine models?
     let mut combined_models = Vec::new();
+    for env_model in &msmd.env_models {
+        let model = load_env_model(
+            device,
+            queue,
+            wismda,
+            env_model,
+            model_path,
+            shader_database,
+            &pipeline_data,
+        );
+        combined_models.push(model);
+    }
+
     for map_model in &msmd.map_models {
         let model = load_map_model_group(
             device,
@@ -307,35 +319,35 @@ fn load_map_model_group<R: Read + Seek>(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     wismda: &mut R,
-    map_model: &xc3_lib::msmd::MapModel,
-    map_vertex_data: &[xc3_lib::msmd::StreamEntry<VertexData>],
+    model: &xc3_lib::msmd::MapModel,
+    vertex_data: &[xc3_lib::msmd::StreamEntry<VertexData>],
     mibl_textures: &[Mibl],
     model_path: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
     pipeline_data: &ModelPipelineData,
 ) -> ModelGroup {
-    let map_model_data: MapModelData = map_model.entry.extract(wismda);
+    let model_data = model.entry.extract(wismda);
 
     // Get the textures referenced by the materials in this model.
-    let textures = load_map_textures(device, queue, &map_model_data.textures, mibl_textures);
+    let textures = load_map_textures(device, queue, &model_data.textures, mibl_textures);
 
     let (materials, pipelines) = materials(
         device,
         queue,
         pipeline_data,
-        &map_model_data.materials,
+        &model_data.materials,
         &textures,
         model_path,
         shader_database,
     );
 
-    let models = map_model_data
+    let models = model_data
         .groups
         .groups
         .iter()
         .map(|group| {
             let vertex_data_index = group.vertex_data_index as usize;
-            let vertex_data = map_vertex_data[vertex_data_index].extract(wismda);
+            let vertex_data = vertex_data[vertex_data_index].extract(wismda);
 
             let vertex_buffers = vertex_buffers(device, &vertex_data);
             let index_buffers = index_buffers(device, &vertex_data);
@@ -343,16 +355,83 @@ fn load_map_model_group<R: Read + Seek>(
             // Each group has a base and low detail vertex data index.
             // Each model has an assigned vertex data index.
             // Find all the base detail models and meshes for each group.
-            let meshes = map_model_data
+            let meshes = model_data
                 .models
                 .models
                 .iter()
-                .zip(map_model_data.groups.model_vertex_data_indices.iter())
+                .zip(model_data.groups.model_vertex_data_indices.iter())
                 .filter(|(_, index)| **index as usize == vertex_data_index)
                 .flat_map(|(model, _)| &model.meshes)
                 .map(create_mesh)
                 .collect();
 
+            let per_model = per_model_bind_group(device, glam::Mat4::IDENTITY);
+
+            Model {
+                vertex_buffers,
+                index_buffers,
+                meshes,
+                instances: vec![ModelInstance { per_model }],
+            }
+        })
+        .collect();
+
+    ModelGroup {
+        materials,
+        pipelines,
+        models,
+    }
+}
+
+fn load_env_model<R: Read + Seek>(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    wismda: &mut R,
+    model: &xc3_lib::msmd::EnvModel,
+    model_path: &str,
+    shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
+    pipeline_data: &ModelPipelineData,
+) -> ModelGroup {
+    let model_data = model.entry.extract(wismda);
+
+    // Environment models embed their own textures instead of using the MSMD.
+    let textures: Vec<_> = model_data
+        .textures
+        .textures
+        .iter()
+        .map(|texture| {
+            wismda
+                .seek(std::io::SeekFrom::Start(texture.mibl_offset as u64))
+                .unwrap();
+            let mut mibl_data = vec![0u8; texture.mibl_length as usize];
+            wismda.read_exact(&mut mibl_data).unwrap();
+
+            let mibl = Mibl::read(&mut Cursor::new(mibl_data)).unwrap();
+            create_texture(device, queue, &mibl)
+                .create_view(&wgpu::TextureViewDescriptor::default())
+        })
+        .collect();
+
+    let (materials, pipelines) = materials(
+        device,
+        queue,
+        pipeline_data,
+        &model_data.materials,
+        &textures,
+        model_path,
+        shader_database,
+    );
+
+    let models = model_data
+        .models
+        .models
+        .iter()
+        .map(|model| {
+            // TODO: Avoid creating these more than once?
+            let vertex_buffers = vertex_buffers(device, &model_data.vertex_data);
+            let index_buffers = index_buffers(device, &model_data.vertex_data);
+
+            let meshes = model.meshes.iter().map(create_mesh).collect();
             let per_model = per_model_bind_group(device, glam::Mat4::IDENTITY);
 
             Model {

@@ -21,7 +21,6 @@ pub struct Material {
     pub pipeline_key: PipelineKey,
 
     pub texture_count: usize,
-    pub unk_type: xc3_lib::mxmd::ShaderUnkType,
 }
 
 pub fn materials(
@@ -130,7 +129,6 @@ pub fn materials(
                 bind_group2,
                 pipeline_key,
                 texture_count: material.textures.len(),
-                unk_type: material.shader_programs[0].unk_type,
             }
         })
         .collect();

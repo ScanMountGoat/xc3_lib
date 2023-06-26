@@ -202,7 +202,7 @@ fn check_msmd(msmd: Msmd, path: &Path) {
         model.entry.extract(&mut reader);
     }
 
-    for model in msmd.unk_models {
+    for model in msmd.env_models {
         model.entry.extract(&mut reader);
     }
 
@@ -228,7 +228,7 @@ fn check_msmd(msmd: Msmd, path: &Path) {
         entry.extract(&mut reader);
     }
 
-    for model in msmd.unk_models2 {
+    for model in msmd.low_models {
         model.entry.extract(&mut reader);
     }
 

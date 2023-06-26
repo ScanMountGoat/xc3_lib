@@ -8,8 +8,8 @@ use binrw::{binread, BinRead, FilePtr32};
 
 use crate::{
     map::{
-        FoliageModelData, FoliageUnkData, FoliageVertexData, MapLowModelData, MapModelData,
-        PropModelData, PropPositions, SkyModelData,
+        EnvModelData, FoliageModelData, FoliageUnkData, FoliageVertexData, MapLowModelData,
+        MapModelData, PropModelData, PropPositions,
     },
     mibl::Mibl,
     parse_count_offset, parse_count_offset2, parse_ptr32, parse_string_ptr32,
@@ -36,7 +36,7 @@ pub struct Msmd {
     unk1_1: [u32; 2],
 
     #[br(parse_with = parse_count_offset)]
-    pub unk_models: Vec<SkyModel>,
+    pub env_models: Vec<EnvModel>,
 
     #[br(parse_with = FilePtr32::parse)]
     unk_offset: Unk,
@@ -48,7 +48,7 @@ pub struct Msmd {
 
     unk2: [u32; 3],
 
-    /// The `.wismda` data with names like `/seamwork/inst/mdl/00003.te`.
+    /// `.wismda` data with names like `/seamwork/inst/mdl/00003.te`.
     #[br(parse_with = parse_count_offset)]
     pub prop_vertex_data: Vec<StreamEntry<VertexData>>,
 
@@ -61,11 +61,11 @@ pub struct Msmd {
     #[br(parse_with = parse_count_offset)]
     pub foliage_models: Vec<FoliageModel>,
 
-    /// The `.wismda` data with names like `/seamwork/inst/pos/00000.et`.
+    /// `.wismda` data with names like `/seamwork/inst/pos/00000.et`.
     #[br(parse_with = parse_count_offset)]
     pub prop_positions: Vec<StreamEntry<PropPositions>>,
 
-    /// The `.wismda` data with names like `/seamwork/mpfmap/poli//0022`.
+    /// `.wismda` data with names like `/seamwork/mpfmap/poli//0022`.
     #[br(parse_with = parse_count_offset)]
     pub foliage_data: Vec<StreamEntry<FoliageVertexData>>,
 
@@ -79,27 +79,30 @@ pub struct Msmd {
     pub unk_lights: Vec<UnkLight>,
 
     // low resolution packed textures?
+    /// `.wismda` data with names like `/seamwork/texture/00000_wi`.
     #[br(parse_with = parse_count_offset)]
     pub low_textures: Vec<StreamEntry<LowTextures>>,
 
+    // TODO: Document more of these fields.
     unk4: [u32; 8],
 
     #[br(parse_with = parse_count_offset)]
     pub low_models: Vec<MapLowModel>,
 
-    unk5: u32,
+    unk_flags: u32,
 
-    /// The `.wismda` data with names like `/seamwork/mpfmap/poli//0000`.
+    /// `.wismda` data with names like `/seamwork/mpfmap/poli//0000`.
     #[br(parse_with = parse_count_offset)]
     pub unk_foliage_data: Vec<StreamEntry<FoliageUnkData>>,
 
-    /// The `.wismda` data with names like `/seamwork/basemap/poli//000`
+    /// `.wismda` data with names like `/seamwork/basemap/poli//000`
     /// or `/seamwork/basemap/poli//001`.
     // TODO: Are all of these referenced by map models?
     // TODO: What references "poli/001"?
     #[br(parse_with = parse_count_offset)]
     pub map_vertex_data: Vec<StreamEntry<VertexData>>,
 
+    // TODO: only nerd if flags is 2?
     #[br(parse_with = FilePtr32::parse)]
     nerd: Nerd,
 
@@ -140,7 +143,7 @@ pub struct MapModel {
     pub bounds: BoundingBox,
     // bounding sphere?
     pub unk2: [f32; 4],
-    /// The `.wismda` data with names like `bina_basefix.temp_wi`.
+    /// `.wismda` data with names like `bina_basefix.temp_wi`.
     pub entry: StreamEntry<MapModelData>,
     pub unk3: [f32; 4],
 }
@@ -152,19 +155,19 @@ pub struct PropModel {
     pub bounds: BoundingBox,
     // bounding sphere?
     pub unk2: [f32; 4],
-    /// The `.wismda` data with names like `/seamwork/inst/out/00000.te`.
+    /// `.wismda` data with names like `/seamwork/inst/out/00000.te`.
     pub entry: StreamEntry<PropModelData>,
     pub unk3: u32,
 }
 
 #[binread]
 #[derive(Debug)]
-pub struct SkyModel {
+pub struct EnvModel {
     pub bounds: BoundingBox,
     // bounding sphere?
     pub unk2: [f32; 4],
-    /// The `.wismda` data with names like `/seamwork/envmap/ma00a/bina`.
-    pub entry: StreamEntry<SkyModelData>,
+    /// `.wismda` data with names like `/seamwork/envmap/ma00a/bina`.
+    pub entry: StreamEntry<EnvModelData>,
 }
 
 // TODO: also in mxmd but without the center?
@@ -179,10 +182,12 @@ pub struct BoundingBox {
 #[binread]
 #[derive(Debug)]
 pub struct MapLowModel {
-    unk1: [f32; 10],
-    /// The `.wismda` data with names like `/seamwork/lowmap/ma11a/bina`.
+    pub bounds: BoundingBox,
+    unk1: f32,
+    /// `.wismda` data with names like `/seamwork/lowmap/ma11a/bina`.
     pub entry: StreamEntry<MapLowModelData>,
-    unk2: u32,
+    unk2: u16,
+    unk3: u16,
     // TODO: padding?
     unk: [u32; 5],
 }
@@ -193,7 +198,7 @@ pub struct FoliageModel {
     unk1: [f32; 9],
     unk: [u32; 3],
     unk2: f32,
-    /// The `.wismda` data with names like `/seamwork/mpfmap/ma11a/bina`.
+    /// `.wismda` data with names like `/seamwork/mpfmap/ma11a/bina`.
     pub entry: StreamEntry<FoliageModelData>,
 }
 
@@ -355,18 +360,18 @@ pub struct LowTexture {
 pub struct UnkLight {
     max: [f32; 3],
     min: [f32; 3],
-    /// The `.wismda` data with names like `/seamwork/lgt/bina/00000.wi`.
+    /// `.wismda` data with names like `/seamwork/lgt/bina/00000.wi`.
     pub entry: StreamEntry<Tgld>,
     unk3: u32,
     // TODO: padding?
     unk4: [u32; 5],
 }
 
-/// A reference to an [Xbc1](crate::xbc1::Xbc1) in the `.wismda` file.
+/// A reference to an [Xbc1](crate::xbc1::Xbc1) in `.wismda` file.
 #[binread]
 #[derive(Debug)]
 pub struct StreamEntry<T> {
-    /// The offset of the [Xbc1](crate::xbc1::Xbc1) in the `.wismda` file.
+    /// The offset of the [Xbc1](crate::xbc1::Xbc1) in `.wismda` file.
     pub offset: u32,
     pub decompressed_size: u32,
     phantom: PhantomData<T>,
