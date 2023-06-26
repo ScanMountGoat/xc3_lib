@@ -400,13 +400,7 @@ fn load_env_model<R: Read + Seek>(
         .textures
         .iter()
         .map(|texture| {
-            wismda
-                .seek(std::io::SeekFrom::Start(texture.mibl_offset as u64))
-                .unwrap();
-            let mut mibl_data = vec![0u8; texture.mibl_length as usize];
-            wismda.read_exact(&mut mibl_data).unwrap();
-
-            let mibl = Mibl::read(&mut Cursor::new(mibl_data)).unwrap();
+            let mibl = Mibl::read(&mut Cursor::new(&texture.mibl_data)).unwrap();
             create_texture(device, queue, &mibl)
                 .create_view(&wgpu::TextureViewDescriptor::default())
         })

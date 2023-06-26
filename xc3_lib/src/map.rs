@@ -5,8 +5,9 @@
 use binrw::{binread, FilePtr32};
 
 use crate::{
-    mxmd::{Materials, Models, TextureItems},
-    parse_count_offset, parse_offset_count, parse_offset_count2, parse_string_ptr32,
+    mxmd::{Materials, Models},
+    parse_count_offset, parse_count_offset2, parse_offset_count, parse_offset_count2,
+    parse_string_ptr32,
     spch::Spch,
     vertex::VertexData,
 };
@@ -237,6 +238,35 @@ pub struct EnvModelData {
     #[br(parse_with = FilePtr32::parse)]
     pub spch: Spch,
     // padding?
+}
+
+// TODO: Shared with Mxmd?
+#[binread]
+#[derive(Debug)]
+#[br(stream = r)]
+pub struct TextureItems {
+    #[br(try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = parse_count_offset2, args_raw(base_offset))]
+    pub textures: Vec<TextureItem>,
+
+    unk2: u32,
+    strings_offset: u32,
+}
+
+#[binread]
+#[derive(Debug)]
+#[br(import_raw(base_offset: u64))]
+pub struct TextureItem {
+    unk1: u32,
+
+    // TODO: Optimized function for reading bytes?
+    #[br(parse_with = parse_count_offset, args_raw(base_offset))]
+    pub mibl_data: Vec<u8>,
+
+    #[br(parse_with = parse_string_ptr32, args(base_offset))]
+    pub name: String,
 }
 
 // TODO: Where is the VertexData?
