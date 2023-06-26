@@ -16,7 +16,7 @@ use xc3_lib::{
 use xc3_model::vertex::{read_indices, read_vertices};
 
 use crate::{
-    material::{materials, Material},
+    material::{materials, Material, foliage_materials},
     pipeline::{ModelPipelineData, PipelineKey},
     shader,
     texture::create_texture,
@@ -195,6 +195,19 @@ pub fn load_map<R: Read + Seek>(
             queue,
             wismda,
             env_model,
+            model_path,
+            shader_database,
+            &pipeline_data,
+        );
+        combined_models.push(model);
+    }
+
+    for foliage_model in &msmd.foliage_models {
+        let model = load_foliage_model(
+            device,
+            queue,
+            wismda,
+            foliage_model,
             model_path,
             shader_database,
             &pipeline_data,
@@ -416,6 +429,69 @@ fn load_env_model<R: Read + Seek>(
         shader_database,
     );
 
+    let models = model_data
+        .models
+        .models
+        .iter()
+        .map(|model| {
+            // TODO: Avoid creating these more than once?
+            let vertex_buffers = vertex_buffers(device, &model_data.vertex_data);
+            let index_buffers = index_buffers(device, &model_data.vertex_data);
+
+            let meshes = model.meshes.iter().map(create_mesh).collect();
+            let per_model = per_model_bind_group(device, glam::Mat4::IDENTITY);
+
+            Model {
+                vertex_buffers,
+                index_buffers,
+                meshes,
+                instances: vec![ModelInstance { per_model }],
+            }
+        })
+        .collect();
+
+    ModelGroup {
+        materials,
+        pipelines,
+        models,
+    }
+}
+
+
+fn load_foliage_model<R: Read + Seek>(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    wismda: &mut R,
+    model: &xc3_lib::msmd::FoliageModel,
+    model_path: &str,
+    shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
+    pipeline_data: &ModelPipelineData,
+) -> ModelGroup {
+    let model_data = model.entry.extract(wismda);
+
+    // Foliage models embed their own textures instead of using the MSMD.
+    let textures: Vec<_> = model_data
+        .textures
+        .textures
+        .iter()
+        .map(|texture| {
+            let mibl = Mibl::read(&mut Cursor::new(&texture.mibl_data)).unwrap();
+            create_texture(device, queue, &mibl)
+                .create_view(&wgpu::TextureViewDescriptor::default())
+        })
+        .collect();
+
+    let (materials, pipelines) = foliage_materials(
+        device,
+        queue,
+        pipeline_data,
+        &model_data.materials,
+        &textures,
+        model_path,
+        shader_database,
+    );
+
+    // TODO: foliage models are instanced somehow for grass clumps?
     let models = model_data
         .models
         .models

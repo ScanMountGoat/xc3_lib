@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::Path};
 
 use glam::{ivec4, uvec4};
 use wgpu::util::DeviceExt;
-use xc3_lib::mxmd::{Materials, ShaderUnkType};
+use xc3_lib::{mxmd::{Materials, ShaderUnkType, MaterialFlags}, map::FoliageMaterials};
 
 use crate::{
     pipeline::{model_pipeline, ModelPipelineData, PipelineKey},
@@ -129,6 +129,117 @@ pub fn materials(
                 bind_group2,
                 pipeline_key,
                 texture_count: material.textures.len(),
+            }
+        })
+        .collect();
+
+    // TODO: is this the best place to cache pipelines?
+    (materials, pipelines)
+}
+
+
+pub fn foliage_materials(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    pipeline_data: &ModelPipelineData,
+    materials: &FoliageMaterials,
+    textures: &[wgpu::TextureView],
+    model_path: &str,
+    shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
+) -> (Vec<Material>, HashMap<PipelineKey, wgpu::RenderPipeline>) {
+    // TODO: Is there a better way to handle missing textures?
+    // TODO: Is it worth creating a separate shaders for each material?
+    // TODO: Just use booleans to indicate which textures are present?
+    // TODO: How to handle some inputs using buffer parameters instead of textures?
+    let default_black = create_default_black_texture(device, queue)
+        .create_view(&wgpu::TextureViewDescriptor::default());
+
+    // TODO: Does each texture in the material have its own sampler parameters?
+    let default_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+        address_mode_u: wgpu::AddressMode::Repeat,
+        address_mode_v: wgpu::AddressMode::Repeat,
+        min_filter: wgpu::FilterMode::Linear,
+        mag_filter: wgpu::FilterMode::Linear,
+        ..Default::default()
+    });
+
+    let model_folder = Path::new(model_path)
+        .with_extension("")
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .to_string();
+
+    let mut pipelines = HashMap::new();
+
+    let materials = materials
+        .materials
+        .iter()
+        .map(|material| {
+            // TODO: Where are the textures?
+            let bind_group1 = crate::shader::model::bind_groups::BindGroup1::from_bindings(
+                device,
+                crate::shader::model::bind_groups::BindGroupLayout1 {
+                    s0: &textures[0],
+                    s1: &default_black,
+                    s2: &default_black,
+                    s3: &default_black,
+                    s4: &default_black,
+                    s5: &default_black,
+                    s6: &default_black,
+                    s7: &default_black,
+                    s8: &default_black,
+                    s9: &default_black,
+                    shared_sampler: &default_sampler,
+                },
+            );
+
+            // TODO: Foliage shaders?
+            let shader = None;
+
+            // TODO: Default assignments?
+            let assignments = shader
+                .map(gbuffer_assignments)
+                .unwrap_or_else(default_gbuffer_assignments);
+
+            let gbuffer_assignments =
+                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("GBuffer Assignments"),
+                    contents: bytemuck::cast_slice(&assignments),
+                    usage: wgpu::BufferUsages::UNIFORM,
+                });
+
+            let bind_group2 = crate::shader::model::bind_groups::BindGroup2::from_bindings(
+                device,
+                crate::shader::model::bind_groups::BindGroupLayout2 {
+                    gbuffer_assignments: gbuffer_assignments.as_entire_buffer_binding(),
+                },
+            );
+
+            // TODO: Flags?
+            let pipeline_key = PipelineKey {
+                write_to_all_outputs: true,
+                flags: MaterialFlags {
+                    flag0: 0,
+                    blend_state: xc3_lib::mxmd::BlendState::Disabled,
+                    cull_mode: xc3_lib::mxmd::CullMode::Disabled,
+                    flag3: 0,
+                    stencil_state1: xc3_lib::mxmd::StencilState1::Always,
+                    stencil_state2: xc3_lib::mxmd::StencilState2::Disabled,
+                    depth_func: xc3_lib::mxmd::DepthFunc::LessEqual,
+                    flag7: 0,
+                },
+            };
+            pipelines
+                .entry(pipeline_key)
+                .or_insert_with(|| model_pipeline(device, pipeline_data, &pipeline_key));
+
+            Material {
+                name: material.name.clone(),
+                bind_group1,
+                bind_group2,
+                pipeline_key,
+                texture_count: 0,
             }
         })
         .collect();

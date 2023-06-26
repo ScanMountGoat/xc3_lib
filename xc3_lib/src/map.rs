@@ -282,8 +282,13 @@ pub struct FoliageModelData {
     pub materials: FoliageMaterials,
 
     unk1: u32,
-    unk2: u32,
-    unk3: u32,
+
+    #[br(parse_with = FilePtr32::parse)]
+    pub vertex_data: VertexData,
+
+    #[br(parse_with = FilePtr32::parse)]
+    pub textures: TextureItems,
+    
     unk4: [u32; 11], // padding?
 }
 
@@ -311,13 +316,20 @@ pub struct FoliageMaterial {
     #[br(parse_with = parse_string_ptr32, args(base_offset))]
     pub name: String,
 
-    unk1: u32,
-    unk2: u32,
-    unk3: u32, // textures?
-    unk4: u32,
-    unk5: u32,
-    unk6: u32,
-    unk7: u32,
+    unk1: u16,
+    unk2: u16,
+    unk3: u16,
+    unk4: u16,
+    unk5: u16,
+    unk6: u16,
+    unk7: u16,
+    unk8: u16,
+    unk9: u16,
+    unk10: u16,
+    unk11: u16,
+    unk12: u16,
+    unk13: u16,
+    unk14: u16,
 }
 
 #[binread]

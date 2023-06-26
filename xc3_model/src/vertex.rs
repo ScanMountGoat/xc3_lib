@@ -105,12 +105,15 @@ fn read_attribute(
         DataType::Uv3 => None,
         DataType::Uv4 => None,
         DataType::Unk14 => None,
+        DataType::Unk15 => None,
+        DataType::Unk16 => None,
         DataType::VertexColor => Some(VertexAttributes::VertexColor(read_data(
             d,
             offset,
             buffer,
             read_unorm8x4,
         ))),
+        DataType::Unk18 => None,
         DataType::Normal => Some(VertexAttributes::Normal(read_data(
             d,
             offset,

@@ -88,8 +88,11 @@ pub enum DataType {
     Uv3 = 7,
     Uv4 = 8,
     Unk14 = 14,
+    Unk15 = 15,
+    Unk16 = 16,
     /// Unorm8x4 vertex RGBA color.
     VertexColor = 17,
+    Unk18 = 18,
     /// Snorm8x4 normal vector.
     Normal = 28,
     /// Snorm8x4 tangent vector with bitangent sign in the fourth component.
