@@ -77,13 +77,24 @@ pub struct PropLods {
     #[br(parse_with = parse_count_offset, args_raw(base_offset))]
     pub instances: Vec<PropInstance>,
 
+    // render tree node indices?
     count2: u32,
     offset2: u32,
 
+    // render tree nodes?
     #[br(parse_with = parse_count_offset, args_raw(base_offset))]
     pub unk3: Vec<PropUnk3>,
 
-    unks: [u32; 13],
+    unk2: u32,
+
+    unks: [u32; 10],
+
+    // TODO: indices into animated map parts in msmd that then index into props?
+    pub animated_parts_start_index: u32,
+    pub animated_parts_count: u32,
+    // TODO: indices into map parts in msmd?
+    pub static_parts_start_index: u32,
+    pub static_parts_count: u32,
 }
 
 #[binread]
@@ -119,7 +130,11 @@ pub struct PropInstance {
     pub prop_index: u32,
 
     unk1: u16,
-    unk2: u16,
+
+    // TODO: ID of MapPart?
+    // TODO: Do PropModels still reference map parts?
+    part_id: u16,
+
     unk3: u16,
     unk4: u16,
     // TODO: padding?

@@ -8,7 +8,7 @@ use glam::vec4;
 use wgpu::util::DeviceExt;
 use xc3_lib::{
     mibl::Mibl,
-    msmd::{Msmd, StreamEntry},
+    msmd::{MapParts, Msmd, StreamEntry},
     msrd::Msrd,
     mxmd::Mxmd,
     vertex::VertexData,
@@ -16,7 +16,7 @@ use xc3_lib::{
 use xc3_model::vertex::{read_indices, read_vertices};
 
 use crate::{
-    material::{materials, Material, foliage_materials},
+    material::{foliage_materials, materials, Material},
     pipeline::{ModelPipelineData, PipelineKey},
     shader,
     texture::create_texture,
@@ -238,6 +238,7 @@ pub fn load_map<R: Read + Seek>(
             prop_model,
             &msmd.prop_vertex_data,
             &textures,
+            msmd.parts.as_ref(),
             model_path,
             shader_database,
             &pipeline_data,
@@ -255,6 +256,7 @@ fn load_prop_model_group<R: Read + Seek>(
     prop_model: &xc3_lib::msmd::PropModel,
     prop_vertex_data: &[StreamEntry<VertexData>],
     mibl_textures: &[Mibl],
+    parts: Option<&MapParts>,
     model_path: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
     pipeline_data: &ModelPipelineData,
@@ -275,9 +277,8 @@ fn load_prop_model_group<R: Read + Seek>(
         shader_database,
     );
 
-    // Load the base LOD for each prop model.
-    // TODO: Also cache vertex and index buffer creation?
-    let models = prop_model_data
+    // Load the base LOD model for each prop model.
+    let mut models: Vec<_> = prop_model_data
         .lods
         .props
         .iter()
@@ -286,6 +287,7 @@ fn load_prop_model_group<R: Read + Seek>(
             let base_lod_index = prop_lod.base_lod_index as usize;
             let vertex_data_index = prop_model_data.model_vertex_data_indices[base_lod_index];
 
+            // TODO: Also cache vertex and index buffer creation?
             let vertex_data = prop_vertex_data[vertex_data_index as usize].extract(wismda);
 
             let vertex_buffers = vertex_buffers(device, &vertex_data);
@@ -305,6 +307,7 @@ fn load_prop_model_group<R: Read + Seek>(
                 .iter()
                 .filter(|instance| instance.prop_index as usize == i)
                 .map(|instance| {
+                    // TODO: Get the transform of the referenced MapPart?
                     let transform = glam::Mat4::from_cols_array_2d(&instance.transform);
                     let per_model = per_model_bind_group(device, transform);
 
@@ -320,6 +323,24 @@ fn load_prop_model_group<R: Read + Seek>(
             }
         })
         .collect();
+
+    // TODO: Is this the correct way to handle animated props?
+    // TODO: Document how this works in xc3_lib.
+    // Add additional animated prop instances to the appropriate models.
+    if let Some(parts) = parts {
+        let start = prop_model_data.lods.animated_parts_start_index as usize;
+        let count = prop_model_data.lods.animated_parts_count as usize;
+        for instance in &parts.animated_parts[start..start + count] {
+            // TODO: These transforms aren't always correct?
+            let transform = glam::Mat4::from_cols_array_2d(&instance.transform);
+            let per_model = per_model_bind_group(device, transform);
+            let model_instance = ModelInstance { per_model };
+
+            models[instance.prop_index as usize]
+                .instances
+                .push(model_instance);
+        }
+    }
 
     ModelGroup {
         materials,
@@ -456,7 +477,6 @@ fn load_env_model<R: Read + Seek>(
         models,
     }
 }
-
 
 fn load_foliage_model<R: Read + Seek>(
     device: &wgpu::Device,

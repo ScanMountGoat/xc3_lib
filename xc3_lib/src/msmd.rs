@@ -9,10 +9,11 @@ use binrw::{binread, BinRead, FilePtr32};
 use crate::{
     map::{
         EnvModelData, FoliageModelData, FoliageUnkData, FoliageVertexData, MapLowModelData,
-        MapModelData, PropModelData, PropPositions,
+        MapModelData, PropInstance, PropModelData, PropPositions,
     },
     mibl::Mibl,
-    parse_count_offset, parse_count_offset2, parse_ptr32, parse_string_ptr32,
+    parse_count_offset, parse_count_offset2, parse_offset_count2, parse_ptr32,
+    parse_string_ptr32,
     vertex::VertexData,
     xbc1::Xbc1,
 };
@@ -84,7 +85,12 @@ pub struct Msmd {
     pub low_textures: Vec<StreamEntry<LowTextures>>,
 
     // TODO: Document more of these fields.
-    unk4: [u32; 8],
+    unk4: [u32; 6],
+
+    #[br(parse_with = parse_ptr32)]
+    pub parts: Option<MapParts>,
+
+    unk4_2: u32,
 
     #[br(parse_with = parse_count_offset)]
     pub low_models: Vec<MapLowModel>,
@@ -365,6 +371,38 @@ pub struct UnkLight {
     unk3: u32,
     // TODO: padding?
     unk4: [u32; 5],
+}
+
+#[binread]
+#[derive(Debug)]
+#[br(stream = r)]
+pub struct MapParts {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    // TODO: Where do static parts index?
+    #[br(parse_with = parse_offset_count2, args_raw(base_offset))]
+    pub parts: Vec<MapPart>,
+
+    // TODO: How to select the appropriate prop model?
+    #[br(parse_with = parse_count_offset, args_raw(base_offset))]
+    pub animated_parts: Vec<PropInstance>,
+
+    // TODO: Transforms?
+}
+
+#[binread]
+#[derive(Debug)]
+#[br(import_raw(base_offset: u64))]
+pub struct MapPart {
+    #[br(parse_with = parse_string_ptr32, args(base_offset))]
+    name: String,
+    instance_index: u32, // TODO: What does this index into?
+    part_id: u16,
+    unk2: u16,
+    unk3: u32,
+    unk4: u32,
+    unk5: u32,
 }
 
 /// A reference to an [Xbc1](crate::xbc1::Xbc1) in `.wismda` file.
