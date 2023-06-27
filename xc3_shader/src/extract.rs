@@ -1,8 +1,7 @@
 use std::path::Path;
 
-use xc3_lib::spch::{ShaderProgram, Spch};
-
 use crate::annotation::{annotate_fragment, annotate_vertex};
+use xc3_lib::spch::{Slct, Spch};
 
 pub fn extract_shader_binaries<P: AsRef<Path>>(
     spch: &Spch,
@@ -15,7 +14,9 @@ pub fn extract_shader_binaries<P: AsRef<Path>>(
         .iter()
         .zip(&spch.string_section.program_names)
     {
-        let binaries = vertex_fragment_binaries(spch, program);
+        let slct = program.read_slct(&spch.slct_section);
+
+        let binaries = vertex_fragment_binaries(spch, &slct);
 
         for (i, (vertex, fragment)) in binaries.into_iter().enumerate() {
             // TODO: Only include i if above 0?
@@ -26,7 +27,7 @@ pub fn extract_shader_binaries<P: AsRef<Path>>(
             std::fs::write(&frag_file, fragment).unwrap();
 
             // Each NVSD has separate metadata since the shaders are different.
-            let metadata = &program.slct.nvsds[i].inner;
+            let metadata = &slct.nvsds[i].inner;
 
             let json_file = output_folder.as_ref().join(&format!("{name}.json"));
             let json = serde_json::to_string_pretty(&metadata).unwrap();
@@ -68,16 +69,13 @@ pub fn extract_shader_binaries<P: AsRef<Path>>(
     }
 }
 
-fn vertex_fragment_binaries<'a>(
-    spch: &'a Spch,
-    program: &ShaderProgram,
-) -> Vec<(&'a [u8], &'a [u8])> {
-    let mut offset = program.slct.xv4_offset as usize;
+fn vertex_fragment_binaries<'a>(spch: &'a Spch, slct: &Slct) -> Vec<(&'a [u8], &'a [u8])> {
+    let mut offset = slct.xv4_offset as usize;
 
     // Each SLCT can have multiple NVSD.
     // Each NVSD has a vertex and fragment shader.
     let mut binaries = Vec::new();
-    for nvsd in &program.slct.nvsds {
+    for nvsd in &slct.nvsds {
         // The first offset is the vertex shader.
         let vert_size = nvsd.inner.nvsd.vertex_xv4_size as usize;
         // Strip the xV4 header for easier decompilation.

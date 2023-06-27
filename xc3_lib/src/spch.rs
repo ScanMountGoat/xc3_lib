@@ -1,5 +1,7 @@
+use std::io::{Cursor, Seek, SeekFrom};
+
 use crate::{parse_count_offset2, parse_offset_count, parse_string_ptr32};
-use binrw::{args, binread, BinRead, FilePtr32};
+use binrw::{args, binread, BinRead, BinReaderExt, FilePtr32};
 use serde::Serialize;
 
 /// .wishp, embedded in .wismt and .wimdo
@@ -14,18 +16,16 @@ pub struct Spch {
 
     version: u32,
 
-    #[br(temp)]
-    programs_offset: u32,
-    #[br(temp)]
-    programs_count: u32,
+    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    pub shader_programs: Vec<ShaderProgram>,
 
     // TODO: Related to string section?
     #[br(parse_with = parse_offset_count, args_raw(base_offset))]
     pub unk4s: Vec<(u32, u32, u32)>,
 
-    // TODO: Save these as Vec<u8> to make later processing easier?
-    slct_base_offset: u32,
-    slct_section_length: u32,
+    /// A collection of [Slct].
+    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    pub slct_section: Vec<u8>,
 
     /// Compiled shader binaries.
     /// Alternates between vertex and fragment shaders.
@@ -36,28 +36,19 @@ pub struct Spch {
     // data before the xV4 section
     // same count as xV4 but with magic 0x34127698?
     // each has length 2176 (referenced in shaders?)
-    unk_section_offset: u32,
-    unk_section_length: u32,
+    // TODO: Optimized function for reading bytes?
+    /// A collection of [UnkItem].
+    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    pub unk_section: Vec<u8>,
 
     // TODO: Does this actually need the program count?
     #[br(parse_with = FilePtr32::parse, offset = base_offset)]
-    #[br(args { inner: (base_offset, programs_count as usize) })]
+    #[br(args { inner: (base_offset, shader_programs.len()) })]
     pub string_section: StringSection,
 
     #[br(pad_after = 16)]
     unk7: u32,
     // end of header?
-
-    // TODO: Move this earlier?
-    #[br(args {
-        count: programs_count as usize,
-        inner: args! {
-            slct_base_offset: base_offset + slct_base_offset as u64,
-            unk_base_offset: base_offset + unk_section_offset as u64,
-        }
-    })]
-    #[br(seek_before = std::io::SeekFrom::Start(base_offset + programs_offset as u64))]
-    pub shader_programs: Vec<ShaderProgram>,
 }
 
 #[derive(Debug, Serialize)]
@@ -88,19 +79,14 @@ impl BinRead for StringSection {
 
 #[binread]
 #[derive(Debug, Serialize)]
-#[br(import { slct_base_offset: u64, unk_base_offset: u64 })]
 pub struct ShaderProgram {
-    #[br(parse_with = FilePtr32::parse)]
-    #[br(args { offset: slct_base_offset, inner: args! { unk_base_offset } })]
-    pub slct: Slct,
-
+    pub slct_offset: u32,
     unk1: u32,
 }
 
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(magic(b"SLCT"))]
-#[br(import { unk_base_offset: u64, })]
 #[br(stream = r)]
 pub struct Slct {
     // Subtract the magic size.
@@ -122,8 +108,8 @@ pub struct Slct {
 
     unk_offset1: u32,
 
-    #[br(parse_with = FilePtr32::parse, offset = unk_base_offset)]
-    unk_item: UnkItem,
+    /// The offset into [unk_section](struct.Spch.html#structfield.unk_section).
+    pub unk_item_offset: u32,
 
     unk_offset2: u32,
 
@@ -218,7 +204,7 @@ pub struct NvsdMetadata {
 
 #[binread]
 #[derive(Debug, Serialize)]
-struct UnkItem {
+pub struct UnkItem {
     unk: [u32; 9],
 }
 
@@ -294,4 +280,12 @@ pub struct InputAttribute {
     #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
     pub name: String,
     pub location: u32,
+}
+
+impl ShaderProgram {
+    pub fn read_slct(&self, slct_section: &[u8]) -> Slct {
+        let mut reader = Cursor::new(slct_section);
+        reader.seek(SeekFrom::Start(self.slct_offset as u64));
+        reader.read_le().unwrap()
+    }
 }

@@ -32,7 +32,7 @@ pub fn materials(
     pipeline_data: &ModelPipelineData,
     materials: &Materials,
     textures: &[wgpu::TextureView],
-    spch: Option<&xc3_shader::gbuffer_database::Spch>
+    spch: Option<&xc3_shader::gbuffer_database::Spch>,
 ) -> (Vec<Material>, HashMap<PipelineKey, wgpu::RenderPipeline>) {
     // TODO: Is there a better way to handle missing textures?
     // TODO: Is it worth creating a separate shaders for each material?
