@@ -32,8 +32,7 @@ pub fn materials(
     pipeline_data: &ModelPipelineData,
     materials: &Materials,
     textures: &[wgpu::TextureView],
-    model_path: &str,
-    shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
+    spch: Option<&xc3_shader::gbuffer_database::Spch>
 ) -> (Vec<Material>, HashMap<PipelineKey, wgpu::RenderPipeline>) {
     // TODO: Is there a better way to handle missing textures?
     // TODO: Is it worth creating a separate shaders for each material?
@@ -50,19 +49,6 @@ pub fn materials(
         mag_filter: wgpu::FilterMode::Linear,
         ..Default::default()
     });
-
-    let model_folder = Path::new(model_path)
-        .with_extension("")
-        .file_name()
-        .unwrap()
-        .to_string_lossy()
-        .to_string();
-
-    // TODO: Make this a map instead of a vec?
-    let programs = shader_database
-        .files
-        .get(&model_folder)
-        .map(|f| &f.programs);
 
     let mut pipelines = HashMap::new();
 
@@ -92,8 +78,8 @@ pub fn materials(
 
             // TODO: How to choose between the two fragment shaders?
             let program_index = material.shader_programs[0].program_index as usize;
-            let shader = programs
-                .and_then(|programs| programs.get(program_index))
+            let shader = spch
+                .and_then(|spch| spch.programs.get(program_index))
                 .map(|program| &program.shaders[0]);
 
             // TODO: Default assignments?

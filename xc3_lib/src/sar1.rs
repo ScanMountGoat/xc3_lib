@@ -163,7 +163,7 @@ pub struct Transform {
 #[derive(Debug, Serialize)]
 #[br(import_raw(base_offset: u64))]
 pub struct BoneName {
-    #[br(parse_with = parse_string_ptr32, args(base_offset))]
+    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
     #[br(pad_after = 12)]
     name: String,
 }

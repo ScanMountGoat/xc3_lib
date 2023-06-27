@@ -89,7 +89,7 @@ pub struct TextureInfo {
     pub size: u32,
     pub offset: u32,
     // Same as the file names in chr/tex/nx/m and chr/tex/nx/h?
-    #[br(parse_with = parse_string_ptr32, args(base_offset))]
+    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
     pub name: String,
 }
 

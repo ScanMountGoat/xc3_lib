@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use glsl::{parser::Parse, syntax::ShaderStage};
 use indexmap::IndexMap;
 use rayon::prelude::*;
@@ -11,12 +13,21 @@ use crate::dependencies::input_dependencies;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GBufferDatabase {
     /// The `.wismt` file name without the extension and shader data for each file.
-    pub files: IndexMap<String, File>,
+    pub files: IndexMap<String, Spch>,
+    // TODO: Put maps here?
+    pub map_files: IndexMap<String, Map>,
 }
 
-/// The decompiled shader data for a single `.wismt` model file.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct File {
+pub struct Map {
+    pub map_models: Vec<Spch>,
+    pub prop_models: Vec<Spch>,
+    pub env_models: Vec<Spch>,
+}
+
+/// The decompiled shader data for a single shader container file.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Spch {
     pub programs: Vec<ShaderProgram>,
 }
 
@@ -106,35 +117,82 @@ impl Shader {
 
 /// Find the texture dependencies for each fragment output channel.
 pub fn create_shader_database(input: &str) -> GBufferDatabase {
-    // TODO: BTreeMap to sort?
     let files = std::fs::read_dir(input)
         .unwrap()
         .par_bridge()
-        .map(|entry| {
+        .filter_map(|entry| {
             let path = entry.unwrap().path();
+            // TODO: Find a better way to detect maps.
+            if !path.join("map").exists() {
+                let programs = create_shader_programs(&path);
 
-            // Process all fragment shaders.
-            let programs = globwalk::GlobWalkerBuilder::from_patterns(&path, &["*FS0.glsl"])
-                .build()
-                .unwrap()
-                .par_bridge()
-                .map(|entry| {
-                    let path = entry.as_ref().unwrap().path();
-                    let source = std::fs::read_to_string(path).unwrap();
-
-                    // TODO: Add FS0 and FS1 to the same program?
-                    ShaderProgram {
-                        shaders: vec![Shader::from_glsl(&source)],
-                    }
-                })
-                .collect();
-
-            let file = path.file_name().unwrap().to_string_lossy().to_string();
-            (file, File { programs })
+                let file = path.file_name().unwrap().to_string_lossy().to_string();
+                Some((file, Spch { programs }))
+            } else {
+                None
+            }
         })
         .collect();
 
-    GBufferDatabase { files }
+    let map_files = std::fs::read_dir(input)
+        .unwrap()
+        .par_bridge()
+        .filter_map(|entry| {
+            let path = entry.unwrap().path();
+            // TODO: Find a better way to detect maps.
+            if path.join("map").exists() {
+                let map_models = create_map_spchs(&path.join("map"));
+                let prop_models = create_map_spchs(&path.join("prop"));
+                let env_models = create_map_spchs(&path.join("env"));
+
+                let file = path.file_name().unwrap().to_string_lossy().to_string();
+                Some((
+                    file,
+                    Map {
+                        map_models,
+                        prop_models,
+                        env_models,
+                    },
+                ))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    GBufferDatabase { files, map_files }
+}
+
+fn create_map_spchs(folder: &Path) -> Vec<Spch> {
+    // TODO: Not all maps have env or prop models?
+    std::fs::read_dir(folder)
+        .map(|dir| {
+            dir.into_iter()
+                .map(|entry| Spch {
+                    programs: create_shader_programs(&entry.unwrap().path()),
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn create_shader_programs(folder: &Path) -> Vec<ShaderProgram> {
+    // Process all fragment shaders.
+    // TODO: Will this always process shaders in the right order?
+    globwalk::GlobWalkerBuilder::from_patterns(folder, &["*FS0.glsl"])
+        .build()
+        .unwrap()
+        .par_bridge()
+        .map(|entry| {
+            let path = entry.as_ref().unwrap().path();
+            let source = std::fs::read_to_string(path).unwrap();
+
+            // TODO: Add FS0 and FS1 to the same program?
+            ShaderProgram {
+                shaders: vec![Shader::from_glsl(&source)],
+            }
+        })
+        .collect()
 }
 
 fn material_sampler_index(sampler: &str) -> Option<u32> {

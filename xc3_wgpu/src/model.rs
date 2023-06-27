@@ -140,14 +140,22 @@ pub fn load_model(
     let vertex_buffers = vertex_buffers(device, &model_data);
     let index_buffers = index_buffers(device, &model_data);
 
+    let model_folder = Path::new(model_path)
+        .with_extension("")
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .to_string();
+
+    let spch = shader_database.files.get(&model_folder);
+
     let (materials, pipelines) = materials(
         device,
         queue,
         &pipeline_data,
         &mxmd.materials,
         &textures,
-        model_path,
-        shader_database,
+        spch,
     );
 
     let meshes = meshes(&mxmd.models);
@@ -189,12 +197,13 @@ pub fn load_map<R: Read + Seek>(
 
     // TODO: Better way to combine models?
     let mut combined_models = Vec::new();
-    for env_model in &msmd.env_models {
+    for (i, env_model) in msmd.env_models.iter().enumerate() {
         let model = load_env_model(
             device,
             queue,
             wismda,
             env_model,
+            i,
             model_path,
             shader_database,
             &pipeline_data,
@@ -215,12 +224,13 @@ pub fn load_map<R: Read + Seek>(
         combined_models.push(model);
     }
 
-    for map_model in &msmd.map_models {
+    for (i, map_model) in msmd.map_models.iter().enumerate() {
         let model = load_map_model_group(
             device,
             queue,
             wismda,
             map_model,
+            i,
             &msmd.map_vertex_data,
             &textures,
             model_path,
@@ -230,12 +240,13 @@ pub fn load_map<R: Read + Seek>(
         combined_models.push(model);
     }
 
-    for prop_model in &msmd.prop_models {
+    for (i, prop_model) in msmd.prop_models.iter().enumerate() {
         let model = load_prop_model_group(
             device,
             queue,
             wismda,
             prop_model,
+            i,
             &msmd.prop_vertex_data,
             &textures,
             msmd.parts.as_ref(),
@@ -254,6 +265,7 @@ fn load_prop_model_group<R: Read + Seek>(
     queue: &wgpu::Queue,
     wismda: &mut R,
     prop_model: &xc3_lib::msmd::PropModel,
+    model_index: usize,
     prop_vertex_data: &[StreamEntry<VertexData>],
     mibl_textures: &[Mibl],
     parts: Option<&MapParts>,
@@ -266,6 +278,18 @@ fn load_prop_model_group<R: Read + Seek>(
     // Get the textures referenced by the materials in this model.
     let textures = load_map_textures(device, queue, &prop_model_data.textures, mibl_textures);
 
+    let model_folder = Path::new(model_path)
+        .with_extension("")
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .to_string();
+
+    let spch = shader_database
+        .map_files
+        .get(&model_folder)
+        .and_then(|map| map.prop_models.get(model_index));
+
     // TODO: cached textures?
     let (materials, pipelines) = materials(
         device,
@@ -273,8 +297,7 @@ fn load_prop_model_group<R: Read + Seek>(
         pipeline_data,
         &prop_model_data.materials,
         &textures,
-        model_path,
-        shader_database,
+        spch,
     );
 
     // Load the base LOD model for each prop model.
@@ -354,6 +377,7 @@ fn load_map_model_group<R: Read + Seek>(
     queue: &wgpu::Queue,
     wismda: &mut R,
     model: &xc3_lib::msmd::MapModel,
+    model_index: usize,
     vertex_data: &[xc3_lib::msmd::StreamEntry<VertexData>],
     mibl_textures: &[Mibl],
     model_path: &str,
@@ -365,14 +389,25 @@ fn load_map_model_group<R: Read + Seek>(
     // Get the textures referenced by the materials in this model.
     let textures = load_map_textures(device, queue, &model_data.textures, mibl_textures);
 
+    let model_folder = Path::new(model_path)
+        .with_extension("")
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .to_string();
+
+    let spch = shader_database
+        .map_files
+        .get(&model_folder)
+        .and_then(|map| map.map_models.get(model_index));
+
     let (materials, pipelines) = materials(
         device,
         queue,
         pipeline_data,
         &model_data.materials,
         &textures,
-        model_path,
-        shader_database,
+        spch,
     );
 
     let models = model_data
@@ -422,6 +457,7 @@ fn load_env_model<R: Read + Seek>(
     queue: &wgpu::Queue,
     wismda: &mut R,
     model: &xc3_lib::msmd::EnvModel,
+    model_index: usize,
     model_path: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
     pipeline_data: &ModelPipelineData,
@@ -440,14 +476,25 @@ fn load_env_model<R: Read + Seek>(
         })
         .collect();
 
+    let model_folder = Path::new(model_path)
+        .with_extension("")
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .to_string();
+
+    let spch = shader_database
+        .map_files
+        .get(&model_folder)
+        .and_then(|map| map.env_models.get(model_index));
+
     let (materials, pipelines) = materials(
         device,
         queue,
         pipeline_data,
         &model_data.materials,
         &textures,
-        model_path,
-        shader_database,
+        spch,
     );
 
     let models = model_data

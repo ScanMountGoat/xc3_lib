@@ -178,7 +178,7 @@ pub struct SamplerFlags {
 #[derive(Debug, Serialize)]
 #[br(import_raw(base_offset: u64))]
 pub struct Material {
-    #[br(parse_with = parse_string_ptr32, args(base_offset))]
+    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
     pub name: String,
 
     unk1: u16,
@@ -420,7 +420,7 @@ pub struct MeshUnk1 {
 #[derive(Debug, Serialize)]
 #[br(import_raw(base_offset: u64))]
 pub struct MeshUnk1Inner {
-    #[br(parse_with = parse_string_ptr32, args(base_offset))]
+    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
     pub unk1: String,
 
     unk2: [f32; 9],
@@ -487,7 +487,7 @@ pub struct TextureItem {
     pub mibl_length: u32,
     pub mibl_offset: u32,
 
-    #[br(parse_with = parse_string_ptr32, args(base_offset))]
+    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
     pub name: String,
 }
 
@@ -528,7 +528,7 @@ pub struct Skeleton {
 #[derive(Debug, Serialize)]
 #[br(import_raw(base_offset: u64))]
 pub struct Bone {
-    #[br(parse_with = parse_string_ptr32, args(base_offset))]
+    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
     name: String,
     unk1: f32,
     unk_type: u32,

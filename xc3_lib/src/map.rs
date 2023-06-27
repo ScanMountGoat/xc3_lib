@@ -280,7 +280,7 @@ pub struct TextureItem {
     #[br(parse_with = parse_count_offset, args_raw(base_offset))]
     pub mibl_data: Vec<u8>,
 
-    #[br(parse_with = parse_string_ptr32, args(base_offset))]
+    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
     pub name: String,
 }
 
@@ -303,7 +303,7 @@ pub struct FoliageModelData {
 
     #[br(parse_with = FilePtr32::parse)]
     pub textures: TextureItems,
-    
+
     unk4: [u32; 11], // padding?
 }
 
@@ -328,7 +328,7 @@ pub struct FoliageMaterials {
 #[derive(Debug)]
 #[br(import_raw(base_offset: u64))]
 pub struct FoliageMaterial {
-    #[br(parse_with = parse_string_ptr32, args(base_offset))]
+    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
     pub name: String,
 
     unk1: u16,
@@ -417,7 +417,7 @@ pub struct MapLowModelData {
 #[derive(Debug)]
 pub struct PropPositions {
     #[br(parse_with = parse_count_offset)]
-    instances: Vec<PropInstance>,
+    pub instances: Vec<PropInstance>,
     unk1: u32,
     unk2: u32,
     #[br(parse_with = parse_count_offset)]

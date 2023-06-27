@@ -1,7 +1,9 @@
+use std::io::BufReader;
 use std::path::Path;
 
 use clap::{Parser, Subcommand};
 use rayon::prelude::*;
+use xc3_lib::msmd::Msmd;
 use xc3_lib::msrd::Msrd;
 use xc3_shader::extract::extract_shader_binaries;
 use xc3_shader::gbuffer_database::create_shader_database;
@@ -20,7 +22,7 @@ enum Commands {
     /// Extract and decompile shaders into a folder for each .wismt file.
     /// JSON metadata for each program will also be saved in the output folder.
     DecompileShaders {
-        /// The folder containing the .wismt files.
+        /// The dump root folder.
         input_folder: String,
         /// The output folder for the decompiled shaders.
         output_folder: String,
@@ -46,11 +48,7 @@ fn main() {
             input_folder,
             output_folder,
             shader_tools,
-        } => extract_and_decompile_wismt_shaders(
-            &input_folder,
-            &output_folder,
-            shader_tools.as_deref(),
-        ),
+        } => extract_and_decompile_shaders(&input_folder, &output_folder, shader_tools.as_deref()),
         Commands::GBufferDatabase {
             input_folder,
             output_file,
@@ -64,8 +62,10 @@ fn main() {
     println!("Finished in {:?}", start.elapsed());
 }
 
-fn extract_and_decompile_wismt_shaders(input: &str, output: &str, shader_tools: Option<&str>) {
-    globwalk::GlobWalkerBuilder::from_patterns(input, &["*.wismt"])
+fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Option<&str>) {
+    // TODO: Also dump en,oj,wp?
+    let chr_folder = Path::new(input).join("chr").join("ch");
+    globwalk::GlobWalkerBuilder::from_patterns(chr_folder, &["*.wismt"])
         .build()
         .unwrap()
         .par_bridge()
@@ -77,7 +77,26 @@ fn extract_and_decompile_wismt_shaders(input: &str, output: &str, shader_tools: 
                     let output_folder = decompiled_output_folder(output, path);
                     std::fs::create_dir_all(&output_folder).unwrap();
 
-                    extract_and_decompile_shaders(msrd, shader_tools, output_folder);
+                    extract_and_decompile_msrd_shaders(msrd, shader_tools, output_folder);
+                }
+                Err(e) => println!("Error reading {path:?}: {e}"),
+            }
+        });
+
+    let map_folder = Path::new(input).join("map");
+    globwalk::GlobWalkerBuilder::from_patterns(map_folder, &["*.wismhd"])
+        .build()
+        .unwrap()
+        .par_bridge()
+        .for_each(|entry| {
+            let path = entry.as_ref().unwrap().path();
+            match Msmd::from_file(path) {
+                Ok(msmd) => {
+                    // Get the embedded shaders from the map files.
+                    let output_folder = decompiled_output_folder(output, path);
+                    std::fs::create_dir_all(&output_folder).unwrap();
+
+                    extract_and_decompile_msmd_shaders(path, msmd, output_folder, shader_tools);
                 }
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }
@@ -91,7 +110,43 @@ fn decompiled_output_folder(output_folder: &str, path: &Path) -> std::path::Path
     Path::new(output_folder).join(name)
 }
 
-fn extract_and_decompile_shaders<P: AsRef<Path>>(
+fn extract_and_decompile_msmd_shaders(
+    path: &Path,
+    msmd: Msmd,
+    output_folder: std::path::PathBuf,
+    shader_tools: Option<&str>,
+) {
+    let mut wismda = BufReader::new(std::fs::File::open(path.with_extension("wismda")).unwrap());
+
+    for (i, model) in msmd.map_models.iter().enumerate() {
+        let data = model.entry.extract(&mut wismda);
+
+        let model_folder = output_folder.join("map").join(i.to_string());
+        std::fs::create_dir_all(&model_folder).unwrap();
+
+        extract_shader_binaries(&data.spch, &model_folder, shader_tools, false);
+    }
+
+    for (i, model) in msmd.prop_models.iter().enumerate() {
+        let data = model.entry.extract(&mut wismda);
+
+        let model_folder = output_folder.join("prop").join(i.to_string());
+        std::fs::create_dir_all(&model_folder).unwrap();
+
+        extract_shader_binaries(&data.spch, &model_folder, shader_tools, false);
+    }
+
+    for (i, model) in msmd.env_models.iter().enumerate() {
+        let data = model.entry.extract(&mut wismda);
+
+        let model_folder = output_folder.join("env").join(i.to_string());
+        std::fs::create_dir_all(&model_folder).unwrap();
+
+        extract_shader_binaries(&data.spch, &model_folder, shader_tools, false);
+    }
+}
+
+fn extract_and_decompile_msrd_shaders<P: AsRef<Path>>(
     msrd: Msrd,
     shader_tools: Option<&str>,
     output_folder: P,

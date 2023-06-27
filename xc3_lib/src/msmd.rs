@@ -4,7 +4,7 @@ use std::{
     marker::PhantomData,
 };
 
-use binrw::{binread, BinRead, FilePtr32};
+use binrw::{args, binread, BinRead, FilePtr32};
 
 use crate::{
     map::{
@@ -12,7 +12,7 @@ use crate::{
         MapModelData, PropInstance, PropModelData, PropPositions,
     },
     mibl::Mibl,
-    parse_count_offset, parse_count_offset2, parse_offset_count2, parse_ptr32,
+    parse_count_offset, parse_count_offset2, parse_offset_count, parse_offset_count2, parse_ptr32,
     parse_string_ptr32,
     vertex::VertexData,
     xbc1::Xbc1,
@@ -261,7 +261,7 @@ pub struct Ibl {
 #[br(import_raw(base_offset: u64))]
 pub struct IblInner {
     unk1: u32, // 0?
-    #[br(parse_with = parse_string_ptr32, args(base_offset))]
+    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
     map_name: String,
     #[br(parse_with = FilePtr32::parse, offset = base_offset)]
     gibl: Gibl,
@@ -310,7 +310,7 @@ pub struct Effect {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    #[br(parse_with = parse_string_ptr32, args(base_offset))]
+    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
     unk1: String,
 
     #[br(parse_with = parse_count_offset, args_raw(base_offset))]
@@ -388,21 +388,64 @@ pub struct MapParts {
     #[br(parse_with = parse_count_offset, args_raw(base_offset))]
     pub animated_parts: Vec<PropInstance>,
 
+    #[br(parse_with = FilePtr32::parse)]
+    #[br(args { offset: base_offset, inner: args! { count: animated_parts.len(), inner: base_offset }})]
+    pub animations: Vec<MapPartInstanceAnimation>,
+
+    unk2: u32,
+    unk3: u32,
+    unk4: u32,
+    unk5: u32,
+    unk6: u32,
+    unk7: u32,
+
+    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    transforms: Vec<[[f32; 4]; 4]>,
     // TODO: Transforms?
 }
 
 #[binread]
 #[derive(Debug)]
 #[br(import_raw(base_offset: u64))]
+pub struct MapPartInstanceAnimation {
+    translation: [f32; 3],
+    rotation: [f32; 3],
+    scale: [f32; 3],
+    unk1: u32,
+    unk2: u32,
+    unk3: u32,
+    flags: u32,
+    channels_offset: u32,
+    channels_count: u32,
+    time_min: u16,
+    time_max: u16,
+    // TODO: padding?
+    unks: [u32; 5],
+}
+
+#[binread]
+#[derive(Debug)]
+#[br(import_raw(base_offset: u64))]
 pub struct MapPart {
-    #[br(parse_with = parse_string_ptr32, args(base_offset))]
+    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
     name: String,
     instance_index: u32, // TODO: What does this index into?
+
+    // TODO: matches with PropInstance part id?
+    // TODO: Multiple MapPart can have the same ID?
     part_id: u16,
-    unk2: u16,
-    unk3: u32,
-    unk4: u32,
-    unk5: u32,
+
+    flags: u16,
+    animation_start: u8,
+    animation_speed: u8,
+
+    /// The transform from [transforms](struct.MapParts.html#structfield.transforms).
+    pub transform_index: u16,
+
+    node_animation_index: u16,
+    instance_animation_index: u16,
+    switch_group_index: u16,
+    unk: u16,
 }
 
 /// A reference to an [Xbc1](crate::xbc1::Xbc1) in `.wismda` file.
@@ -420,14 +463,14 @@ where
     for<'a> T: BinRead<Args<'a> = ()>,
 {
     /// Decompress and read the data from a reader for a `.wismda` file.
-    pub fn extract<R: Read + Seek>(&self, reader: &mut R) -> T {
-        let bytes = self.decompress(reader);
+    pub fn extract<R: Read + Seek>(&self, wismda: &mut R) -> T {
+        let bytes = self.decompress(wismda);
         T::read_le(&mut Cursor::new(bytes)).unwrap()
     }
 
     /// Decompress the data from a reader for a `.wismda` file.
-    pub fn decompress<R: Read + Seek>(&self, reader: &mut R) -> Vec<u8> {
-        reader.seek(SeekFrom::Start(self.offset as u64)).unwrap();
-        Xbc1::read(reader).unwrap().decompress().unwrap()
+    pub fn decompress<R: Read + Seek>(&self, wismda: &mut R) -> Vec<u8> {
+        wismda.seek(SeekFrom::Start(self.offset as u64)).unwrap();
+        Xbc1::read(wismda).unwrap().decompress().unwrap()
     }
 }

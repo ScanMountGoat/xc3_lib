@@ -1,5 +1,5 @@
 use crate::{parse_count_offset2, parse_offset_count, parse_string_ptr32};
-use binrw::{args, binread, helpers::count_with, FilePtr32};
+use binrw::{args, binread, BinRead, FilePtr32};
 use serde::Serialize;
 
 /// .wishp, embedded in .wismt and .wimdo
@@ -41,7 +41,7 @@ pub struct Spch {
 
     // TODO: Does this actually need the program count?
     #[br(parse_with = FilePtr32::parse, offset = base_offset)]
-    #[br(args { inner: args! { count: programs_count as usize } })]
+    #[br(args { inner: (base_offset, programs_count as usize) })]
     pub string_section: StringSection,
 
     #[br(pad_after = 16)]
@@ -60,13 +60,30 @@ pub struct Spch {
     pub shader_programs: Vec<ShaderProgram>,
 }
 
-#[binread]
 #[derive(Debug, Serialize)]
-#[br(import { count: usize })]
 pub struct StringSection {
-    // TODO: This needs to have the base offset set for maps.
-    #[br(parse_with = count_with(count, parse_string_ptr32))]
     pub program_names: Vec<String>,
+}
+
+// TODO: Derive this?
+impl BinRead for StringSection {
+    type Args<'a> = (u64, usize);
+
+    fn read_options<R: std::io::Read + std::io::Seek>(
+        reader: &mut R,
+        endian: binrw::Endian,
+        args: Self::Args<'_>,
+    ) -> binrw::BinResult<Self> {
+        let (base_offset, count) = args;
+
+        let mut program_names = Vec::new();
+        for _ in 0..count {
+            let name = parse_string_ptr32(reader, endian, base_offset)?;
+            program_names.push(name);
+        }
+
+        Ok(StringSection { program_names })
+    }
 }
 
 #[binread]
@@ -125,7 +142,7 @@ pub struct Slct {
 struct UnkString {
     unk1: u32,
     unk2: u32,
-    #[br(parse_with = parse_string_ptr32, args(base_offset))]
+    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
     text: String,
 }
 
@@ -237,7 +254,7 @@ pub struct Nvsd {
 #[derive(Debug, Serialize)]
 #[br(import { base_offset: u64 })]
 pub struct UniformBuffer {
-    #[br(parse_with = parse_string_ptr32, args(base_offset))]
+    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
     pub name: String,
     pub uniform_count: u16,
     pub uniform_start_index: u16,
@@ -250,7 +267,7 @@ pub struct UniformBuffer {
 #[derive(Debug, Serialize)]
 #[br(import { base_offset: u64 })]
 pub struct Sampler {
-    #[br(parse_with = parse_string_ptr32, args(base_offset))]
+    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
     pub name: String,
     pub unk1: u32,
     pub unk2: u32, // handle = (unk2 - 256) * 2 + 8?
@@ -262,7 +279,7 @@ pub struct Sampler {
 #[br(import_raw(base_offset: u64))]
 pub struct Uniform {
     /// The name used to refer to the uniform like `gMatCol`.
-    #[br(parse_with = parse_string_ptr32, args(base_offset))]
+    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
     pub name: String,
 
     /// The offset into the parent buffer in bytes.
@@ -274,7 +291,7 @@ pub struct Uniform {
 #[derive(Debug, Serialize)]
 #[br(import_raw(base_offset: u64))]
 pub struct InputAttribute {
-    #[br(parse_with = parse_string_ptr32, args(base_offset))]
+    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
     pub name: String,
     pub location: u32,
 }
