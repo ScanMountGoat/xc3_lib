@@ -2,7 +2,10 @@ use std::{collections::HashMap, path::Path};
 
 use glam::{ivec4, uvec4};
 use wgpu::util::DeviceExt;
-use xc3_lib::{mxmd::{Materials, ShaderUnkType, MaterialFlags}, map::FoliageMaterials};
+use xc3_lib::{
+    map::FoliageMaterials,
+    mxmd::{MaterialFlags, Materials, ShaderUnkType},
+};
 
 use crate::{
     pipeline::{model_pipeline, ModelPipelineData, PipelineKey},
@@ -136,7 +139,6 @@ pub fn materials(
     // TODO: is this the best place to cache pipelines?
     (materials, pipelines)
 }
-
 
 pub fn foliage_materials(
     device: &wgpu::Device,

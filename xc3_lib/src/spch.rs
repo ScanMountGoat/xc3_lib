@@ -49,8 +49,8 @@ pub struct Spch {
     // end of header?
 
     // TODO: Move this earlier?
-    #[br(count = programs_count)]
     #[br(args {
+        count: programs_count as usize,
         inner: args! {
             slct_base_offset: base_offset + slct_base_offset as u64,
             unk_base_offset: base_offset + unk_section_offset as u64,

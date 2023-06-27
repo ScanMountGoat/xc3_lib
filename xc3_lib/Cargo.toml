@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-binrw = "0.11.1"
+binrw = "0.11.2"
 flate2 = "1.0"
 anyhow = "1.0"
 tegra_swizzle = "0.3.1"

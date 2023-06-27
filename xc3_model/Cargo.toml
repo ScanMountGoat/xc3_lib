@@ -8,7 +8,7 @@ xc3_lib = { path = "../xc3_lib" }
 xc3_shader = { path = "../xc3_shader" }
 glam = { version = "0.23.0", features = ["bytemuck"] }
 gltf = "1.2.0"
-binrw = "0.11.1"
+binrw = "0.11.2"
 bytemuck = { version = "1.13", features = [ "derive" ] }
 serde_json = "1.0"
 image_dds = "0.1.1"
