@@ -1,4 +1,5 @@
 struct Camera {
+    view: mat4x4<f32>,
     view_projection: mat4x4<f32>,
     position: vec4<f32>
 }
@@ -96,9 +97,10 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
     out.clip_position = camera.view_projection * per_model.matrix * vec4(vertex.position.xyz, 1.0);
     out.position = vertex.position.xyz;
     out.uv1 = vertex.uv1.xy;
-    out.normal = vertex.normal.xyz;
-    out.tangent = vertex.tangent;
     out.vertex_color = vertex.vertex_color;
+    // Transform any direction vectors by the instance transform.
+    out.normal = (per_model.matrix * vec4(vertex.normal.xyz, 0.0)).xyz;
+    out.tangent = vec4((per_model.matrix * vec4(vertex.tangent.xyz, 0.0)).xyz, vertex.tangent.w);
     return out;
 }
 
@@ -156,8 +158,7 @@ fn apply_normal_map(normal: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<f32>,
     let y = 2.0 * normal_map.y - 1.0;
 
     // Calculate z based on the fact that x*x + y*y + z*z = 1.
-    // Clamp to ensure z is positive.
-    let z = sqrt(max(1.0 - (x * x) + (y * y), 0.0));
+    let z = sqrt(abs(1.0 - (x * x) + (y * y)));
 
     // Normal mapping is a change of basis using the TBN vectors.
     let nor = vec3(x, y, z);
@@ -212,11 +213,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
 
     // TODO: How much of this goes into deferred?
     // Assume each G-Buffer texture and channel always has the same usage.
-    let albedo = pow(g0.xyz, vec3(2.2));
-    let metalness = g1.x;
     let normal_map = g2.xy;
-    let ambient_occlusion = g2.z;
-    let emission = g5.xyz;
 
     // Not all materials and shaders use normal mapping.
     // TODO: Is this a good way to check for this?
@@ -224,25 +221,16 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     if (gbuffer_assignments[2].sampler_indices.x != -1 && gbuffer_assignments[2].sampler_indices.y != -1) {
         normal = apply_normal_map(vertex_normal, tangent, bitangent, normal_map);
     }
-    let view = normalize(camera.position.xyz - in.position.xyz);
-    let reflection = reflect(-view, normal);
 
-    // Basic lambertian diffuse and phong specular for testing purposes.
-    let diffuse_lighting = dot(view, normal) * 0.5 + 0.5;
-    let specular_lighting = pow(max(dot(view, reflection), 0.0), 8.0);
-
-    // TODO: Proper metalness.
-    // TODO: Ambient occlusion can be set via material or constant?
-    var diffuse = albedo * diffuse_lighting * (1.0 - metalness * 0.5);
-    var specular = specular_lighting * mix(vec3(0.25), albedo, metalness);
-    var color = diffuse + specular + emission;
+    // TODO: Are in game normals in view space?
+    let view_normal = camera.view * vec4(normal.xyz, 0.0);
 
     // TODO: alpha?
     // TODO: How much shading is done in this pass?
     var out: FragmentOutput;
     out.g0 = g0;
     out.g1 = g1;
-    out.g2 = vec4(normal.xy * 0.5 + 0.5, g2.zw);
+    out.g2 = vec4(normalize(view_normal).xy * 0.5 + 0.5, g2.zw);
     out.g3 = g3;
     out.g4 = g4;
     out.g5 = g5;

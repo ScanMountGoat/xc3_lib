@@ -19,6 +19,7 @@ pub struct Xc3Renderer {
 }
 
 pub struct CameraData {
+    pub view: Mat4,
     pub view_projection: Mat4,
     pub position: Vec4,
 }
@@ -28,6 +29,7 @@ impl Xc3Renderer {
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("camera buffer"),
             contents: bytemuck::cast_slice(&[crate::shader::model::Camera {
+                view: Mat4::IDENTITY,
                 view_projection: Mat4::IDENTITY,
                 position: Vec4::ZERO,
             }]),
@@ -63,6 +65,7 @@ impl Xc3Renderer {
             device,
             crate::shader::deferred::bind_groups::BindGroupLayout1 {
                 shared_sampler: &shared_sampler,
+                camera: camera_buffer.as_entire_buffer_binding(),
                 debug_settings: debug_settings_buffer.as_entire_buffer_binding(),
             },
         );
@@ -97,6 +100,7 @@ impl Xc3Renderer {
             &self.camera_buffer,
             0,
             bytemuck::cast_slice(&[crate::shader::model::Camera {
+                view: camera_data.view,
                 view_projection: camera_data.view_projection,
                 position: camera_data.position,
             }]),

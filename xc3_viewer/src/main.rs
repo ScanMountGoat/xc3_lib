@@ -221,12 +221,13 @@ impl State {
                         VirtualKeyCode::Up => self.translation.y -= 0.1,
                         VirtualKeyCode::Down => self.translation.y += 0.1,
                         // Debug a selected G-Buffer texture.
-                        VirtualKeyCode::Key1 => self.update_debug_settings(0),
-                        VirtualKeyCode::Key2 => self.update_debug_settings(1),
-                        VirtualKeyCode::Key3 => self.update_debug_settings(2),
-                        VirtualKeyCode::Key4 => self.update_debug_settings(3),
-                        VirtualKeyCode::Key5 => self.update_debug_settings(4),
-                        VirtualKeyCode::Key6 => self.update_debug_settings(5),
+                        VirtualKeyCode::Key0 => self.update_debug_settings(0),
+                        VirtualKeyCode::Key1 => self.update_debug_settings(1),
+                        VirtualKeyCode::Key2 => self.update_debug_settings(2),
+                        VirtualKeyCode::Key3 => self.update_debug_settings(3),
+                        VirtualKeyCode::Key4 => self.update_debug_settings(4),
+                        VirtualKeyCode::Key5 => self.update_debug_settings(5),
+                        VirtualKeyCode::Key6 => self.update_debug_settings(6),
                         _ => (),
                     }
                 }
@@ -339,6 +340,7 @@ fn calculate_camera_data(
     let position = view.inverse().col(3);
 
     CameraData {
+        view,
         view_projection,
         position,
     }

@@ -26,7 +26,16 @@ struct DebugSettings {
     index: vec4<u32>
 }
 
+struct Camera {
+    view: mat4x4<f32>,
+    view_projection: mat4x4<f32>,
+    position: vec4<f32>
+}
+
 @group(1) @binding(1)
+var<uniform> camera: Camera;
+
+@group(1) @binding(2)
 var<uniform> debug_settings: DebugSettings;
 
 struct VertexOutput {
@@ -54,27 +63,53 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let g4 = textureSample(g4, shared_sampler, in.uv);
     let g5 = textureSample(g5, shared_sampler, in.uv);
 
+    let albedo = g0.rgb;
+
+    let metalness = g1.r;
+
+    let ambient_occlusion = g2.z;
+
+    // Unpack the view space normals.
+    let normal_x = g2.x * 2.0 - 1.0;
+    let normal_y = g2.y * 2.0 - 1.0;
+    let normal_z = sqrt(abs(1.0 - normal_x * normal_x - normal_y * normal_y));
+    let normal = vec3(normal_x, normal_y, normal_z);
+
+    var output = vec3(0.0);
+
+    // Normals are in view space, so the view vector is simple.
+    let view = vec3(0.0, 0.0, 1.0);
+    let reflection = reflect(view, normal);
+
+    // Basic lambertian diffuse and phong specular for testing purposes.
+    let diffuse_lighting = max(dot(view, normal), 0.0);
+    let specular_lighting = pow(max(dot(view, reflection), 0.0), 8.0);
+
+    let specular_color = mix(albedo, vec3(0.25), metalness);
+
+    output = albedo * diffuse_lighting + specular_lighting * specular_color;
+
     switch (debug_settings.index.x) {
-        case 0u: {
+        case 1u: {
             return g0;
         }
-        case 1u: {
+        case 2u: {
             return g1;
         }
-        case 2u: {
+        case 3u: {
             return g2;
         }
-        case 3u: {
+        case 4u: {
             return g3;
         }
-        case 4u: {
+        case 5u: {
             return g4;
         }
-        case 5u: {
+        case 6u: {
             return g5;
         }
         default: {
-            return g0;
+            return vec4(output, 1.0);
         }
     }
 }

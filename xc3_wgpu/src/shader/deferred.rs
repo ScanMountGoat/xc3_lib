@@ -13,6 +13,27 @@ const _: () = assert!(
     memoffset::offset_of!(DebugSettings, index) == 0,
     "offset of DebugSettings.index does not match WGSL"
 );
+#[repr(C)]
+#[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct Camera {
+    pub view: glam::Mat4,
+    pub view_projection: glam::Mat4,
+    pub position: glam::Vec4,
+}
+const _: () = assert!(
+    std::mem::size_of:: < Camera > () == 144, "size of Camera does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(Camera, view) == 0, "offset of Camera.view does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(Camera, view_projection) == 64,
+    "offset of Camera.view_projection does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(Camera, position) == 128,
+    "offset of Camera.position does not match WGSL"
+);
 pub mod bind_groups {
     pub struct BindGroup0(wgpu::BindGroup);
     pub struct BindGroupLayout0<'a> {
@@ -165,6 +186,7 @@ pub mod bind_groups {
     pub struct BindGroup1(wgpu::BindGroup);
     pub struct BindGroupLayout1<'a> {
         pub shared_sampler: &'a wgpu::Sampler,
+        pub camera: wgpu::BufferBinding<'a>,
         pub debug_settings: wgpu::BufferBinding<'a>,
     }
     const LAYOUT_DESCRIPTOR1: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
@@ -178,6 +200,16 @@ pub mod bind_groups {
             },
             wgpu::BindGroupLayoutEntry {
                 binding: 1,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 2,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Uniform,
@@ -207,6 +239,10 @@ pub mod bind_groups {
                             },
                             wgpu::BindGroupEntry {
                                 binding: 1,
+                                resource: wgpu::BindingResource::Buffer(bindings.camera),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 2,
                                 resource: wgpu::BindingResource::Buffer(
                                     bindings.debug_settings,
                                 ),
