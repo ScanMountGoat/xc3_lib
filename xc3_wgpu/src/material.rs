@@ -132,8 +132,6 @@ pub fn foliage_materials(
     pipeline_data: &ModelPipelineData,
     materials: &FoliageMaterials,
     textures: &[wgpu::TextureView],
-    model_path: &str,
-    shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
 ) -> (Vec<Material>, HashMap<PipelineKey, wgpu::RenderPipeline>) {
     // TODO: Is there a better way to handle missing textures?
     // TODO: Is it worth creating a separate shaders for each material?
@@ -150,13 +148,6 @@ pub fn foliage_materials(
         mag_filter: wgpu::FilterMode::Linear,
         ..Default::default()
     });
-
-    let model_folder = Path::new(model_path)
-        .with_extension("")
-        .file_name()
-        .unwrap()
-        .to_string_lossy()
-        .to_string();
 
     let mut pipelines = HashMap::new();
 

@@ -4,11 +4,11 @@ use std::{
     path::Path,
 };
 
-use glam::{vec4, Mat4};
+use glam::{vec4, Mat4, Vec3};
 use wgpu::util::DeviceExt;
 use xc3_lib::{
     mibl::Mibl,
-    msmd::{MapParts, Msmd, StreamEntry},
+    msmd::{ChannelType, MapParts, Msmd, StreamEntry},
     msrd::Msrd,
     mxmd::Mxmd,
     vertex::VertexData,
@@ -212,15 +212,7 @@ pub fn load_map<R: Read + Seek>(
     }
 
     for foliage_model in &msmd.foliage_models {
-        let model = load_foliage_model(
-            device,
-            queue,
-            wismda,
-            foliage_model,
-            model_path,
-            shader_database,
-            &pipeline_data,
-        );
+        let model = load_foliage_model(device, queue, wismda, foliage_model, &pipeline_data);
         combined_models.push(model);
     }
 
@@ -323,7 +315,6 @@ fn load_prop_model_group<R: Read + Seek>(
                 .collect();
 
             // Find all the instances referencing this prop.
-            // TODO: Will all props be referenced?
             let instances = prop_model_data
                 .lods
                 .instances
@@ -351,38 +342,76 @@ fn load_prop_model_group<R: Read + Seek>(
     // TODO: Document how this works in xc3_lib.
     // Add additional animated prop instances to the appropriate models.
     if let Some(parts) = parts {
-        let start = prop_model_data.lods.animated_parts_start_index as usize;
-        let count = prop_model_data.lods.animated_parts_count as usize;
-        for instance in &parts.animated_parts[start..start + count] {
-            // TODO: These transforms aren't always correct?
-            let mut transform = glam::Mat4::from_cols_array_2d(&instance.transform);
-
-            // TODO: How to handle the case where multiple parts have the same ID?
-            // TODO: How to use the instance index of the map part?
-            // TODO: This doesn't work ma50a doors?
-            if let Some(part) = parts.parts.iter().find(|p| p.part_id == instance.part_id) {
-                let part_transform = if !parts.transforms.is_empty() {
-                    Mat4::from_cols_array_2d(&parts.transforms[part.transform_index as usize])
-                } else {
-                    Mat4::IDENTITY
-                };
-
-                transform = transform * part_transform;
-            }
-
-            let per_model = per_model_bind_group(device, transform);
-            let model_instance = ModelInstance { per_model };
-
-            models[instance.prop_index as usize]
-                .instances
-                .push(model_instance);
-        }
+        add_animated_part_instances(device, &mut models, &prop_model_data, parts);
     }
 
     ModelGroup {
         materials,
         pipelines,
         models,
+    }
+}
+
+fn add_animated_part_instances(
+    device: &wgpu::Device,
+    models: &mut [Model],
+    prop_model_data: &xc3_lib::map::PropModelData,
+    parts: &MapParts,
+) {
+    let start = prop_model_data.lods.animated_parts_start_index as usize;
+    let count = prop_model_data.lods.animated_parts_count as usize;
+
+    for i in start..start + count {
+        let instance = &parts.animated_instances[i];
+        let animation = &parts.instance_animations[i];
+
+        // Each instance has a base transform as well as animation data.
+        let mut transform = Mat4::from_cols_array_2d(&instance.transform);
+
+        // Get the first frame of the animation channels.
+        let mut translation: Vec3 = animation.translation.into();
+
+        // TODO: Do these add to or replace the base values?
+        for channel in &animation.channels {
+            match channel.channel_type {
+                ChannelType::TranslationX => {
+                    translation.x += channel
+                        .keyframes
+                        .get(0)
+                        .map(|f| f.value)
+                        .unwrap_or_default()
+                }
+                ChannelType::TranslationY => {
+                    translation.y += channel
+                        .keyframes
+                        .get(0)
+                        .map(|f| f.value)
+                        .unwrap_or_default()
+                }
+                ChannelType::TranslationZ => {
+                    translation.z += channel
+                        .keyframes
+                        .get(0)
+                        .map(|f| f.value)
+                        .unwrap_or_default()
+                }
+                ChannelType::RotationX => (),
+                ChannelType::RotationY => (),
+                ChannelType::RotationZ => (),
+                ChannelType::ScaleX => (),
+                ChannelType::ScaleY => (),
+                ChannelType::ScaleZ => (),
+            }
+        }
+        // TODO: transform order?
+        transform = Mat4::from_translation(translation) * transform;
+
+        let per_model = per_model_bind_group(device, transform);
+        let model_instance = ModelInstance { per_model };
+
+        models[instance.prop_index as usize]
+            .instances
+            .push(model_instance);
     }
 }
 
@@ -544,8 +573,6 @@ fn load_foliage_model<R: Read + Seek>(
     queue: &wgpu::Queue,
     wismda: &mut R,
     model: &xc3_lib::msmd::FoliageModel,
-    model_path: &str,
-    shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
     pipeline_data: &ModelPipelineData,
 ) -> ModelGroup {
     let model_data = model.entry.extract(wismda);
@@ -568,8 +595,6 @@ fn load_foliage_model<R: Read + Seek>(
         pipeline_data,
         &model_data.materials,
         &textures,
-        model_path,
-        shader_database,
     );
 
     // TODO: foliage models are instanced somehow for grass clumps?

@@ -4,7 +4,7 @@ use std::{
     marker::PhantomData,
 };
 
-use binrw::{args, binread, BinRead, FilePtr32};
+use binrw::{binread, BinRead, FilePtr32};
 
 use crate::{
     map::{
@@ -384,16 +384,30 @@ pub struct MapParts {
     #[br(parse_with = parse_offset_count2, args_raw(base_offset))]
     pub parts: Vec<MapPart>,
 
-    // TODO: How to select the appropriate prop model?
-    #[br(parse_with = parse_count_offset, args_raw(base_offset))]
-    pub animated_parts: Vec<PropInstance>,
+    unk_count: u32,
 
-    #[br(parse_with = FilePtr32::parse)]
-    #[br(args { offset: base_offset, inner: args! { count: animated_parts.len(), inner: base_offset }})]
-    pub animations: Vec<MapPartInstanceAnimation>,
+    #[br(temp)]
+    animated_parts_offset: u32,
+
+    #[br(temp)]
+    instance_animations_offset: u32,
 
     unk2: u32,
-    unk3: u32,
+
+    #[br(temp)]
+    instance_animations_count: u32,
+
+    #[br(seek_before = std::io::SeekFrom::Start(base_offset + animated_parts_offset as u64))]
+    #[br(args { count: instance_animations_count as usize })]
+    #[br(restore_position)]
+    pub animated_instances: Vec<PropInstance>,
+
+    // TODO: Find a cleaner way of writing this?
+    #[br(seek_before = std::io::SeekFrom::Start(base_offset + instance_animations_offset as u64))]
+    #[br(args { count: instance_animations_count as usize, inner: base_offset })]
+    #[br(restore_position)]
+    pub instance_animations: Vec<MapPartInstanceAnimation>,
+
     unk4: u32,
     unk5: u32,
     unk6: u32,
@@ -407,19 +421,63 @@ pub struct MapParts {
 #[derive(Debug)]
 #[br(import_raw(base_offset: u64))]
 pub struct MapPartInstanceAnimation {
-    translation: [f32; 3],
-    rotation: [f32; 3],
-    scale: [f32; 3],
+    pub translation: [f32; 3],
+    pub rotation: [f32; 3],
+    pub scale: [f32; 3],
     unk1: u32,
     unk2: u32,
     unk3: u32,
     flags: u32,
-    channels_offset: u32,
-    channels_count: u32,
+
+    #[br(parse_with = parse_offset_count2, args_raw(base_offset))]
+    pub channels: Vec<MapPartInstanceAnimationChannel>,
+
     time_min: u16,
     time_max: u16,
     // TODO: padding?
     unks: [u32; 5],
+}
+
+#[binread]
+#[derive(Debug)]
+#[br(import_raw(base_offset: u64))]
+pub struct MapPartInstanceAnimationChannel {
+    // TODO: Group this together into a single type?
+    keyframes_offset: u32,
+    pub channel_type: ChannelType,
+    keyframe_count: u16,
+
+    time_min: u16,
+    time_max: u16,
+
+    #[br(seek_before = std::io::SeekFrom::Start(base_offset + keyframes_offset as u64))]
+    #[br(count = keyframe_count)]
+    pub keyframes: Vec<MapPartInstanceAnimationKeyframe>,
+}
+
+#[binread]
+#[derive(Debug)]
+#[br(repr(u16))]
+pub enum ChannelType {
+    TranslationX = 0,
+    TranslationY = 1,
+    TranslationZ = 2,
+    RotationX = 3,
+    RotationY = 4,
+    RotationZ = 5,
+    ScaleX = 6,
+    ScaleY = 7,
+    ScaleZ = 8,
+}
+
+#[binread]
+#[derive(Debug)]
+pub struct MapPartInstanceAnimationKeyframe {
+    pub slope_out: f32,
+    pub slope_in: f32,
+    pub value: f32,
+    pub time: u16,
+    pub flags: u16,
 }
 
 #[binread]
