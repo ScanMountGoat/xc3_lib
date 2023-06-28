@@ -56,6 +56,7 @@ pub struct PropModelData {
 }
 
 // Similar to LOD data in mxmd?
+// TODO: Better names for these types
 #[binread]
 #[derive(Debug)]
 #[br(stream = r)]
@@ -101,6 +102,7 @@ pub struct PropLods {
 #[derive(Debug)]
 #[br(stream = r)]
 pub struct PropLod {
+    // TODO: Do these actually index into the PropModelLod?
     /// The index of the base LOD (highest quality) [Model](crate::mxmd::Model)
     /// in [models](struct.PropModelData.html#structfield.models).
     pub base_lod_index: u32,
@@ -113,6 +115,7 @@ pub struct PropLod {
 pub struct PropModelLod {
     radius: f32,
     distance: f32,
+    // TODO: Index into PropModelData.models?
     index: u32,
 }
 
@@ -131,9 +134,9 @@ pub struct PropInstance {
 
     unk1: u16,
 
-    // TODO: ID of MapPart?
-    // TODO: Do PropModels still reference map parts?
-    part_id: u16,
+    // TODO: part_id of MapPart?
+    // TODO: Does a value of 0 indicate no parent MapPart?
+    pub part_id: u16,
 
     unk3: u16,
     unk4: u16,

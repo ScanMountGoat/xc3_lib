@@ -4,7 +4,7 @@ use std::{
     path::Path,
 };
 
-use glam::vec4;
+use glam::{vec4, Mat4};
 use wgpu::util::DeviceExt;
 use xc3_lib::{
     mibl::Mibl,
@@ -355,7 +355,21 @@ fn load_prop_model_group<R: Read + Seek>(
         let count = prop_model_data.lods.animated_parts_count as usize;
         for instance in &parts.animated_parts[start..start + count] {
             // TODO: These transforms aren't always correct?
-            let transform = glam::Mat4::from_cols_array_2d(&instance.transform);
+            let mut transform = glam::Mat4::from_cols_array_2d(&instance.transform);
+
+            // TODO: How to handle the case where multiple parts have the same ID?
+            // TODO: How to use the instance index of the map part?
+            // TODO: This doesn't work ma50a doors?
+            if let Some(part) = parts.parts.iter().find(|p| p.part_id == instance.part_id) {
+                let part_transform = if !parts.transforms.is_empty() {
+                    Mat4::from_cols_array_2d(&parts.transforms[part.transform_index as usize])
+                } else {
+                    Mat4::IDENTITY
+                };
+
+                transform = transform * part_transform;
+            }
+
             let per_model = per_model_bind_group(device, transform);
             let model_instance = ModelInstance { per_model };
 

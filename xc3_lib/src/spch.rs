@@ -285,7 +285,9 @@ pub struct InputAttribute {
 impl ShaderProgram {
     pub fn read_slct(&self, slct_section: &[u8]) -> Slct {
         let mut reader = Cursor::new(slct_section);
-        reader.seek(SeekFrom::Start(self.slct_offset as u64));
+        reader
+            .seek(SeekFrom::Start(self.slct_offset as u64))
+            .unwrap();
         reader.read_le().unwrap()
     }
 }

@@ -400,8 +400,7 @@ pub struct MapParts {
     unk7: u32,
 
     #[br(parse_with = parse_offset_count, args_raw(base_offset))]
-    transforms: Vec<[[f32; 4]; 4]>,
-    // TODO: Transforms?
+    pub transforms: Vec<[[f32; 4]; 4]>,
 }
 
 #[binread]
@@ -428,12 +427,14 @@ pub struct MapPartInstanceAnimation {
 #[br(import_raw(base_offset: u64))]
 pub struct MapPart {
     #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
-    name: String,
-    instance_index: u32, // TODO: What does this index into?
+    pub name: String,
+
+    // TODO: The index of the instance in PropLods.instances?
+    pub instance_index: u32,
 
     // TODO: matches with PropInstance part id?
     // TODO: Multiple MapPart can have the same ID?
-    part_id: u16,
+    pub part_id: u16,
 
     flags: u16,
     animation_start: u8,
