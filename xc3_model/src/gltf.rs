@@ -5,7 +5,7 @@ use crate::{
     vertex::{read_indices, read_vertices, Vertex},
 };
 use gltf::json::validation::Checked::Valid;
-use xc3_lib::{dds::create_dds, msrd::Msrd, mxmd::Mxmd};
+use xc3_lib::{msrd::Msrd, mxmd::Mxmd};
 use xc3_shader::gbuffer_database::GBufferDatabase;
 
 /// Data associated with a [VertexData](xc3_lib::vertex::VertexData).
@@ -26,7 +26,7 @@ struct VertexAccessors {
     uv1_index: usize,
 }
 
-// TODO: Take models, materials, and vertex data directly?
+// TODO: Take xc3_model types directly?
 pub fn export_gltf<P: AsRef<Path>>(
     path: P,
     mxmd: &Mxmd,
@@ -40,9 +40,9 @@ pub fn export_gltf<P: AsRef<Path>>(
     // TODO: Is it worth giving images their in game names?
     let mut png_images: Vec<_> = mibls
         .iter()
-        .map(|mibl| {
+        .map(|texture| {
             // Convert to PNG since DDS is not well supported.
-            let dds = create_dds(mibl).unwrap();
+            let dds = texture.to_dds().unwrap();
             image_dds::image_from_dds(&dds, 0).unwrap()
         })
         .collect();

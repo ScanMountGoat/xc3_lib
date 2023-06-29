@@ -140,7 +140,7 @@ pub struct Texture {
     pub mid: StreamEntry<Mibl>,
     // TODO: This is just vec<u8>?
     pub high: StreamEntry<Mibl>,
-    unk1: u32,
+    pub flags: u32,
 }
 
 // TODO: Better name for this?

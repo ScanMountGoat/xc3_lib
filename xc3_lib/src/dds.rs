@@ -9,7 +9,8 @@ use crate::{
 
 // TODO: Create a write_dds and save_dds helper functions or trait?
 
-// TODO: add a dds_from_surface() function to image_dds that takes a compressed surface?
+// TODO: Publicly export ddsfile from image_dds?
+// TODO: add conversions to and from dds for surface to image_dds?
 pub fn create_dds(mibl: &Mibl) -> Result<Dds> {
     let mut dds = Dds::new_dxgi(ddsfile::NewDxgiParams {
         height: mibl.footer.height,

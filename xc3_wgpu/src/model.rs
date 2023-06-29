@@ -14,7 +14,7 @@ use xc3_lib::{
     vertex::VertexData,
 };
 use xc3_model::{
-    texture::merge_mibl,
+    texture::{merge_mibl, ImageTexture},
     vertex::{read_indices, read_vertices},
 };
 
@@ -202,10 +202,11 @@ pub fn load_map<R: Read + Seek>(
         .iter()
         .map(|texture| {
             // Load high resolution textures.
-            // TODO: This doesn't always work?
+            // TODO: Merging doesn't always work?
             let base_mip_level = texture.high.decompress(wismda);
             let mibl_m = texture.mid.extract(wismda);
-            merge_mibl(base_mip_level, mibl_m)
+            // merge_mibl(base_mip_level, mibl_m)
+            mibl_m.try_into().unwrap()
         })
         .collect();
 
@@ -273,7 +274,7 @@ fn load_prop_model_group<R: Read + Seek>(
     prop_model: &xc3_lib::msmd::PropModel,
     model_index: usize,
     prop_vertex_data: &[StreamEntry<VertexData>],
-    mibl_textures: &[Mibl],
+    image_textures: &[ImageTexture],
     parts: Option<&MapParts>,
     model_folder: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
@@ -282,7 +283,7 @@ fn load_prop_model_group<R: Read + Seek>(
     let prop_model_data = prop_model.entry.extract(wismda);
 
     // Get the textures referenced by the materials in this model.
-    let textures = load_map_textures(device, queue, &prop_model_data.textures, mibl_textures);
+    let textures = load_map_textures(device, queue, &prop_model_data.textures, image_textures);
 
     let spch = shader_database
         .map_files
@@ -429,7 +430,7 @@ fn load_map_model_group<R: Read + Seek>(
     model: &xc3_lib::msmd::MapModel,
     model_index: usize,
     vertex_data: &[xc3_lib::msmd::StreamEntry<VertexData>],
-    mibl_textures: &[Mibl],
+    textures: &[ImageTexture],
     model_folder: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
     pipeline_data: &ModelPipelineData,
@@ -437,7 +438,7 @@ fn load_map_model_group<R: Read + Seek>(
     let model_data = model.entry.extract(wismda);
 
     // Get the textures referenced by the materials in this model.
-    let textures = load_map_textures(device, queue, &model_data.textures, mibl_textures);
+    let textures = load_map_textures(device, queue, &model_data.textures, textures);
 
     let spch = shader_database
         .map_files
@@ -513,8 +514,11 @@ fn load_env_model<R: Read + Seek>(
         .textures
         .iter()
         .map(|texture| {
-            let mibl = Mibl::read(&mut Cursor::new(&texture.mibl_data)).unwrap();
-            create_texture(device, queue, &mibl)
+            let texture = Mibl::read(&mut Cursor::new(&texture.mibl_data))
+                .unwrap()
+                .try_into()
+                .unwrap();
+            create_texture(device, queue, &texture)
                 .create_view(&wgpu::TextureViewDescriptor::default())
         })
         .collect();
@@ -576,8 +580,11 @@ fn load_foliage_model<R: Read + Seek>(
         .textures
         .iter()
         .map(|texture| {
-            let mibl = Mibl::read(&mut Cursor::new(&texture.mibl_data)).unwrap();
-            create_texture(device, queue, &mibl)
+            let texture = Mibl::read(&mut Cursor::new(&texture.mibl_data))
+                .unwrap()
+                .try_into()
+                .unwrap();
+            create_texture(device, queue, &texture)
                 .create_view(&wgpu::TextureViewDescriptor::default())
         })
         .collect();
@@ -623,14 +630,15 @@ fn load_map_textures(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     textures: &[xc3_lib::map::Texture],
-    mibl_textures: &[Mibl],
+    image_textures: &[ImageTexture],
 ) -> Vec<wgpu::TextureView> {
     textures
         .iter()
         .map(|item| {
             // TODO: Handle texture index being -1?
-            let mibl = &mibl_textures[item.texture_index.max(0) as usize];
-            create_texture(device, queue, mibl).create_view(&wgpu::TextureViewDescriptor::default())
+            let texture = &image_textures[item.texture_index.max(0) as usize];
+            create_texture(device, queue, texture)
+                .create_view(&wgpu::TextureViewDescriptor::default())
         })
         .collect()
 }
@@ -714,11 +722,12 @@ fn load_textures(
     m_tex_folder: &Path,
     h_tex_folder: &Path,
 ) -> Vec<wgpu::TextureView> {
-    let mibls = xc3_model::texture::load_textures(msrd, mxmd, m_tex_folder, h_tex_folder);
-    mibls
+    let textures = xc3_model::texture::load_textures(msrd, mxmd, m_tex_folder, h_tex_folder);
+    textures
         .iter()
-        .map(|mibl| {
-            create_texture(device, queue, mibl).create_view(&wgpu::TextureViewDescriptor::default())
+        .map(|texture| {
+            create_texture(device, queue, texture)
+                .create_view(&wgpu::TextureViewDescriptor::default())
         })
         .collect()
 }

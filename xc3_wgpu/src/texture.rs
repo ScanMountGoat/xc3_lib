@@ -1,15 +1,18 @@
 use wgpu::util::DeviceExt;
-use xc3_lib::mibl::{ImageFormat, Mibl};
+use xc3_lib::mibl::ImageFormat;
+use xc3_model::texture::ImageTexture;
 
-pub fn create_texture(device: &wgpu::Device, queue: &wgpu::Queue, mibl: &Mibl) -> wgpu::Texture {
-    let data = mibl.deswizzled_image_data().unwrap();
-
-    let width = mibl.footer.width;
-    let height = mibl.footer.height;
-    let depth = mibl.footer.depth;
-    let view_dimension = mibl.footer.view_dimension;
-    let image_format = mibl.footer.image_format;
-    let mipmap_count = mibl.footer.mipmap_count;
+pub fn create_texture(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    texture: &ImageTexture,
+) -> wgpu::Texture {
+    let width = texture.width;
+    let height = texture.height;
+    let depth = texture.depth;
+    let view_dimension = texture.view_dimension;
+    let image_format = texture.image_format;
+    let mipmap_count = texture.mipmap_count;
     let layers = match view_dimension {
         xc3_lib::mibl::ViewDimension::Cube => 6,
         _ => 1,
@@ -42,7 +45,7 @@ pub fn create_texture(device: &wgpu::Device, queue: &wgpu::Queue, mibl: &Mibl) -
             usage: wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         },
-        &data,
+        &texture.image_data,
     )
 }
 
