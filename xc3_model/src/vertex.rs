@@ -38,6 +38,7 @@ pub struct Vertex {
 // TODO: How to handle normalized attributes?
 // TODO: Link to appropriate xc3_lib types and fields.
 /// The per vertex values for a vertex attribute.
+#[derive(Debug)]
 pub enum VertexAttributes {
     Position(Vec<Vec3>),
     Normal(Vec<Vec4>),
@@ -48,9 +49,9 @@ pub enum VertexAttributes {
     WeightIndex(Vec<u32>),  // TODO: [u8; 4]?
 }
 
-pub fn read_indices(vertex_data: &VertexData, descriptor: &IndexBufferDescriptor) -> Vec<u16> {
+pub fn read_indices(descriptor: &IndexBufferDescriptor, buffer: &[u8]) -> Vec<u16> {
     // TODO: Are all index buffers using u16 for indices?
-    let mut reader = Cursor::new(&vertex_data.buffer);
+    let mut reader = Cursor::new(buffer);
     reader
         .seek(SeekFrom::Start(descriptor.data_offset as u64))
         .unwrap();
@@ -63,7 +64,7 @@ pub fn read_indices(vertex_data: &VertexData, descriptor: &IndexBufferDescriptor
     indices
 }
 
-fn read_vertex_attributes(
+pub fn read_vertex_attributes(
     descriptor: &VertexBufferDescriptor,
     buffer: &[u8],
 ) -> Vec<VertexAttributes> {

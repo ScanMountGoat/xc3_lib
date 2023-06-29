@@ -138,6 +138,7 @@ pub struct Msmd {
 #[derive(Debug)]
 pub struct Texture {
     pub mid: StreamEntry<Mibl>,
+    // TODO: This is just vec<u8>?
     pub high: StreamEntry<Mibl>,
     unk1: u32,
 }

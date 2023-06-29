@@ -53,19 +53,26 @@ fn load_wismt_texture(
 
     let mibl_m = Mibl::read(&mut reader).unwrap();
 
-    let mut base_mip_level =
+    let base_mip_level =
         Xbc1::from_file(&h_texture_folder.join(texture_name).with_extension("wismt"))
             .unwrap()
             .decompress()
             .unwrap();
+
+    Some(merge_mibl(base_mip_level, mibl_m))
+}
+
+// TODO: make merging mibl part of xc3_lib?
+// TODO: Deswizzle both separately and combine to avoid alignment issues.
+pub fn merge_mibl(base_mip_level: Vec<u8>, mibl_m: Mibl) -> Mibl {
     // TODO: Will this correctly handle alignment?
+    let mut base_mip_level = base_mip_level;
     base_mip_level.extend_from_slice(&mibl_m.image_data);
 
     // TODO: Is this the correct size calculation?
     let image_size = base_mip_level.len() as u32;
 
-    // TODO: make merging mibl part of xc3_lib?
-    Some(Mibl {
+    Mibl {
         image_data: base_mip_level,
         footer: MiblFooter {
             image_size,
@@ -75,5 +82,5 @@ fn load_wismt_texture(
             mipmap_count: mibl_m.footer.mipmap_count + 1,
             ..mibl_m.footer
         },
-    })
+    }
 }

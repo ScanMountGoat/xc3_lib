@@ -371,7 +371,7 @@ fn create_buffers(vertex_data: xc3_lib::vertex::VertexData, buffer_name: String)
     // Place indices after the vertices to use a single buffer.
     // TODO: Alignment?
     for index_buffer in &vertex_data.index_buffers {
-        let indices = read_indices(&vertex_data, index_buffer);
+        let indices = read_indices(index_buffer, &vertex_data.buffer);
         let index_bytes: &[u8] = bytemuck::cast_slice(&indices);
 
         // Assume everything uses the same buffer for now.

@@ -13,7 +13,10 @@ use xc3_lib::{
     mxmd::Mxmd,
     vertex::VertexData,
 };
-use xc3_model::vertex::{read_indices, read_vertices};
+use xc3_model::{
+    texture::merge_mibl,
+    vertex::{read_indices, read_vertices},
+};
 
 use crate::{
     material::{foliage_materials, materials, Material},
@@ -127,7 +130,7 @@ pub fn load_model(
     let pipeline_data = ModelPipelineData::new(device);
 
     // TODO: Avoid unwrap.
-    let model_data = msrd.extract_vertex_data();
+    let vertex_data = msrd.extract_vertex_data();
 
     // "chr/en/file.wismt" -> "chr/tex/nx/m"
     // TODO: Don't assume model_path is in the chr/ch or chr/en folders.
@@ -137,15 +140,10 @@ pub fn load_model(
 
     let textures = load_textures(device, queue, msrd, mxmd, &m_tex_folder, &h_tex_folder);
 
-    let vertex_buffers = vertex_buffers(device, &model_data);
-    let index_buffers = index_buffers(device, &model_data);
+    let vertex_buffers = vertex_buffers(device, &vertex_data);
+    let index_buffers = index_buffers(device, &vertex_data);
 
-    let model_folder = Path::new(model_path)
-        .with_extension("")
-        .file_name()
-        .unwrap()
-        .to_string_lossy()
-        .to_string();
+    let model_folder = model_folder(model_path);
 
     let spch = shader_database.files.get(&model_folder);
 
@@ -174,6 +172,16 @@ pub fn load_model(
     }
 }
 
+// TODO: Move this to xc3_shader?
+fn model_folder(model_path: &str) -> String {
+    Path::new(model_path)
+        .with_extension("")
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .to_string()
+}
+
 // TODO: Separate module for this?
 // TODO: Better way to pass the wismda file?
 pub fn load_map<R: Read + Seek>(
@@ -184,15 +192,21 @@ pub fn load_map<R: Read + Seek>(
     model_path: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
 ) -> Vec<ModelGroup> {
+    let model_folder = model_folder(model_path);
+
     // Compile shaders only once to improve loading times.
     let pipeline_data = ModelPipelineData::new(device);
 
-    // TODO: Are the msmd textures shared with all models?
-    // TODO: Load high resolution textures?
     let textures: Vec<_> = msmd
         .textures
         .iter()
-        .map(|texture| texture.mid.extract(wismda))
+        .map(|texture| {
+            // Load high resolution textures.
+            // TODO: This doesn't always work?
+            let base_mip_level = texture.high.decompress(wismda);
+            let mibl_m = texture.mid.extract(wismda);
+            merge_mibl(base_mip_level, mibl_m)
+        })
         .collect();
 
     // TODO: Better way to combine models?
@@ -204,7 +218,7 @@ pub fn load_map<R: Read + Seek>(
             wismda,
             env_model,
             i,
-            model_path,
+            &model_folder,
             shader_database,
             &pipeline_data,
         );
@@ -225,7 +239,7 @@ pub fn load_map<R: Read + Seek>(
             i,
             &msmd.map_vertex_data,
             &textures,
-            model_path,
+            &model_folder,
             shader_database,
             &pipeline_data,
         );
@@ -242,7 +256,7 @@ pub fn load_map<R: Read + Seek>(
             &msmd.prop_vertex_data,
             &textures,
             msmd.parts.as_ref(),
-            model_path,
+            &model_folder,
             shader_database,
             &pipeline_data,
         );
@@ -261,7 +275,7 @@ fn load_prop_model_group<R: Read + Seek>(
     prop_vertex_data: &[StreamEntry<VertexData>],
     mibl_textures: &[Mibl],
     parts: Option<&MapParts>,
-    model_path: &str,
+    model_folder: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
     pipeline_data: &ModelPipelineData,
 ) -> ModelGroup {
@@ -270,16 +284,9 @@ fn load_prop_model_group<R: Read + Seek>(
     // Get the textures referenced by the materials in this model.
     let textures = load_map_textures(device, queue, &prop_model_data.textures, mibl_textures);
 
-    let model_folder = Path::new(model_path)
-        .with_extension("")
-        .file_name()
-        .unwrap()
-        .to_string_lossy()
-        .to_string();
-
     let spch = shader_database
         .map_files
-        .get(&model_folder)
+        .get(model_folder)
         .and_then(|map| map.prop_models.get(model_index));
 
     // TODO: cached textures?
@@ -423,7 +430,7 @@ fn load_map_model_group<R: Read + Seek>(
     model_index: usize,
     vertex_data: &[xc3_lib::msmd::StreamEntry<VertexData>],
     mibl_textures: &[Mibl],
-    model_path: &str,
+    model_folder: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
     pipeline_data: &ModelPipelineData,
 ) -> ModelGroup {
@@ -432,16 +439,9 @@ fn load_map_model_group<R: Read + Seek>(
     // Get the textures referenced by the materials in this model.
     let textures = load_map_textures(device, queue, &model_data.textures, mibl_textures);
 
-    let model_folder = Path::new(model_path)
-        .with_extension("")
-        .file_name()
-        .unwrap()
-        .to_string_lossy()
-        .to_string();
-
     let spch = shader_database
         .map_files
-        .get(&model_folder)
+        .get(model_folder)
         .and_then(|map| map.map_models.get(model_index));
 
     let (materials, pipelines) = materials(
@@ -501,7 +501,7 @@ fn load_env_model<R: Read + Seek>(
     wismda: &mut R,
     model: &xc3_lib::msmd::EnvModel,
     model_index: usize,
-    model_path: &str,
+    model_folder: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
     pipeline_data: &ModelPipelineData,
 ) -> ModelGroup {
@@ -519,16 +519,9 @@ fn load_env_model<R: Read + Seek>(
         })
         .collect();
 
-    let model_folder = Path::new(model_path)
-        .with_extension("")
-        .file_name()
-        .unwrap()
-        .to_string_lossy()
-        .to_string();
-
     let spch = shader_database
         .map_files
-        .get(&model_folder)
+        .get(model_folder)
         .and_then(|map| map.env_models.get(model_index));
 
     let (materials, pipelines) = materials(
@@ -662,8 +655,8 @@ fn index_buffers(device: &wgpu::Device, vertex_data: &VertexData) -> Vec<IndexBu
     vertex_data
         .index_buffers
         .iter()
-        .map(|info| {
-            let indices = read_indices(vertex_data, info);
+        .map(|descriptor| {
+            let indices = read_indices(descriptor, &vertex_data.buffer);
 
             let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("index buffer"),
