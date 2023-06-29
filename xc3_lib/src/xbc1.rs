@@ -1,11 +1,9 @@
 use std::io::Read;
 
 use binrw::{binrw, NullString};
-use flate2::{
-    bufread::{ZlibDecoder, ZlibEncoder},
-    Compression,
-};
+use flate2::{bufread::ZlibEncoder, Compression};
 use serde::Serialize;
+use zune_inflate::{errors::InflateDecodeErrors, DeflateDecoder, DeflateOptions};
 
 // TODO: binwrite as well?
 // TODO: test read + write
@@ -25,6 +23,8 @@ pub struct Xbc1 {
     #[brw(pad_size_to = 28)]
     pub text: String,
 
+    /// A zlib encoded compressed stream.
+    /// The decompressed or "inflated" stream will have size [decomp_size](#structfield.decomp_size).
     #[br(count = comp_size)]
     #[br(align_after = 16)]
     #[serde(skip)]
@@ -33,6 +33,7 @@ pub struct Xbc1 {
 
 impl Xbc1 {
     pub fn from_decompressed(name: String, decompressed: &[u8]) -> Self {
+        // TODO: Benchmark this?
         let mut encoder = ZlibEncoder::new(decompressed, Compression::best());
         let mut deflate_stream = Vec::new();
         encoder.read_to_end(&mut deflate_stream).unwrap();
@@ -49,11 +50,11 @@ impl Xbc1 {
         }
     }
 
-    pub fn decompress(&self) -> Result<Vec<u8>, std::io::Error> {
-        let mut decoder = ZlibDecoder::new(&self.deflate_stream[..]);
-        let mut decompressed = vec![0u8; self.decomp_size as usize];
-        decoder.read_exact(&mut decompressed)?;
-
-        Ok(decompressed)
+    pub fn decompress(&self) -> Result<Vec<u8>, InflateDecodeErrors> {
+        let mut decoder = DeflateDecoder::new_with_options(
+            &self.deflate_stream,
+            DeflateOptions::default().set_size_hint(self.decomp_size as usize),
+        );
+        decoder.decode_zlib()
     }
 }
