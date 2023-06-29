@@ -1,12 +1,18 @@
-use std::path::Path;
+use std::{collections::BTreeMap, path::Path};
 
 use crate::{
     texture::load_textures,
-    vertex::{read_indices, read_vertices, Vertex},
+    vertex::{read_indices, read_vertex_buffers, AttributeData},
 };
+use glam::Vec4Swizzles;
 use gltf::json::validation::Checked::Valid;
 use xc3_lib::{msrd::Msrd, mxmd::Mxmd};
 use xc3_shader::gbuffer_database::GBufferDatabase;
+
+type GltfAttributes = BTreeMap<
+    gltf::json::validation::Checked<gltf::Semantic>,
+    gltf::json::Index<gltf::json::Accessor>,
+>;
 
 /// Data associated with a [VertexData](xc3_lib::vertex::VertexData).
 struct Buffers {
@@ -15,15 +21,9 @@ struct Buffers {
     buffer_views: Vec<gltf::json::buffer::View>,
     accessors: Vec<gltf::json::Accessor>,
 
-    // Mapping from buffer indices to accessor indices.
-    vertex_buffer_accessors: Vec<VertexAccessors>,
+    vertex_buffer_attributes: Vec<GltfAttributes>,
+    // Mapping from buffer index to accessor index.
     index_buffer_accessors: Vec<usize>,
-}
-
-struct VertexAccessors {
-    position_index: usize,
-    normal_index: usize,
-    uv1_index: usize,
 }
 
 // TODO: Take xc3_model types directly?
@@ -144,7 +144,7 @@ pub fn export_gltf<P: AsRef<Path>>(
         buffer_bytes,
         buffer_views,
         accessors,
-        vertex_buffer_accessors,
+        vertex_buffer_attributes,
         index_buffer_accessors,
     } = create_buffers(vertex_data, buffer_name.clone());
 
@@ -155,27 +155,15 @@ pub fn export_gltf<P: AsRef<Path>>(
         .iter()
         .flat_map(|model| {
             model.meshes.iter().map(|mesh| {
-                let vertex_accessors = &vertex_buffer_accessors[mesh.vertex_buffer_index as usize];
+                let attributes =
+                    vertex_buffer_attributes[mesh.vertex_buffer_index as usize].clone();
 
                 let index_accessor =
                     index_buffer_accessors[mesh.index_buffer_index as usize] as u32;
 
                 let primitive = gltf::json::mesh::Primitive {
-                    attributes: [
-                        (
-                            Valid(gltf::json::mesh::Semantic::Positions),
-                            gltf::json::Index::new(vertex_accessors.position_index as u32),
-                        ),
-                        (
-                            Valid(gltf::json::mesh::Semantic::Normals),
-                            gltf::json::Index::new(vertex_accessors.normal_index as u32),
-                        ),
-                        (
-                            Valid(gltf::json::mesh::Semantic::TexCoords(0)),
-                            gltf::json::Index::new(vertex_accessors.uv1_index as u32),
-                        ),
-                    ]
-                    .into(),
+                    // TODO: Store this with the buffers?
+                    attributes,
                     extensions: Default::default(),
                     extras: Default::default(),
                     indices: Some(gltf::json::Index::new(index_accessor)),
@@ -272,100 +260,91 @@ fn create_buffers(vertex_data: xc3_lib::vertex::VertexData, buffer_name: String)
     let mut buffer_bytes = Vec::new();
     let mut buffer_views = Vec::new();
     let mut accessors = Vec::new();
-    let mut vertex_buffer_accessors = Vec::new();
+    let mut vertex_buffer_attributes = Vec::new();
     let mut index_buffer_accessors = Vec::new();
 
     // TODO: Handle the weight buffers separately?
-    for (i, vertex_buffer) in vertex_data.vertex_buffers.iter().enumerate() {
-        let mut vertices = read_vertices(vertex_buffer, i, &vertex_data);
-        // Not all applications will normalize the vertex normals.
-        for v in &mut vertices {
-            v.normal = v.normal.normalize();
+    let vertex_buffers = read_vertex_buffers(&vertex_data);
+
+    for vertex_buffer in vertex_buffers {
+        let mut attributes = BTreeMap::new();
+        for attribute in &vertex_buffer.attributes {
+            match attribute {
+                AttributeData::Position(values) => {
+                    add_attribute_values(
+                        values,
+                        gltf::Semantic::Positions,
+                        gltf::json::accessor::Type::Vec3,
+                        &mut buffer_bytes,
+                        &mut buffer_views,
+                        &mut attributes,
+                        &mut accessors,
+                    );
+                }
+                AttributeData::Normal(values) => {
+                    // Not all applications will normalize the vertex normals.
+                    // Use Vec3 instead of Vec4 since it's better supported.
+                    let values: Vec<_> = values.into_iter().map(|v| v.xyz().normalize()).collect();
+                    add_attribute_values(
+                        &values,
+                        gltf::Semantic::Normals,
+                        gltf::json::accessor::Type::Vec3,
+                        &mut buffer_bytes,
+                        &mut buffer_views,
+                        &mut attributes,
+                        &mut accessors,
+                    );
+                }
+                AttributeData::Tangent(values) => {
+                    // TODO: do these values need to be scaled/normalized?
+                    add_attribute_values(
+                        values,
+                        gltf::Semantic::Tangents,
+                        gltf::json::accessor::Type::Vec4,
+                        &mut buffer_bytes,
+                        &mut buffer_views,
+                        &mut attributes,
+                        &mut accessors,
+                    );
+                }
+                AttributeData::Uv1(values) => {
+                    add_attribute_values(
+                        values,
+                        gltf::Semantic::TexCoords(0),
+                        gltf::json::accessor::Type::Vec2,
+                        &mut buffer_bytes,
+                        &mut buffer_views,
+                        &mut attributes,
+                        &mut accessors,
+                    );
+                }
+                AttributeData::Uv2(values) => {
+                    add_attribute_values(
+                        values,
+                        gltf::Semantic::TexCoords(1),
+                        gltf::json::accessor::Type::Vec2,
+                        &mut buffer_bytes,
+                        &mut buffer_views,
+                        &mut attributes,
+                        &mut accessors,
+                    );
+                }
+                AttributeData::VertexColor(values) => {
+                    add_attribute_values(
+                        values,
+                        gltf::Semantic::Colors(0),
+                        gltf::json::accessor::Type::Vec4,
+                        &mut buffer_bytes,
+                        &mut buffer_views,
+                        &mut attributes,
+                        &mut accessors,
+                    );
+                }
+                AttributeData::WeightIndex(_) => (),
+            }
         }
 
-        let vertex_bytes: &[u8] = bytemuck::cast_slice(&vertices);
-
-        // Assume everything uses the same buffer for now.
-        // TODO: Stride can be greater than length?
-        let view = gltf::json::buffer::View {
-            buffer: gltf::json::Index::new(0),
-            byte_length: vertex_bytes.len() as u32,
-            byte_offset: Some(buffer_bytes.len() as u32),
-            byte_stride: Some(std::mem::size_of::<Vertex>() as u32),
-            extensions: Default::default(),
-            extras: Default::default(),
-            name: None,
-            target: Some(Valid(gltf::json::buffer::Target::ArrayBuffer)),
-        };
-
-        // Vertices are already in a unified format, so the offsets are known.
-        // TODO: use memoffset here?
-        let positions = gltf::json::Accessor {
-            buffer_view: Some(gltf::json::Index::new(buffer_views.len() as u32)),
-            byte_offset: 0,
-            count: vertices.len() as u32,
-            component_type: Valid(gltf::json::accessor::GenericComponentType(
-                gltf::json::accessor::ComponentType::F32,
-            )),
-            extensions: Default::default(),
-            extras: Default::default(),
-            type_: Valid(gltf::json::accessor::Type::Vec3),
-            min: None,
-            max: None,
-            name: None,
-            normalized: false,
-            sparse: None,
-        };
-        let position_index = accessors.len();
-        accessors.push(positions);
-
-        // TODO: This doesn't work properly?
-        let normals = gltf::json::Accessor {
-            buffer_view: Some(gltf::json::Index::new(buffer_views.len() as u32)),
-            byte_offset: 32,
-            count: vertices.len() as u32,
-            component_type: Valid(gltf::json::accessor::GenericComponentType(
-                gltf::json::accessor::ComponentType::F32,
-            )),
-            extensions: Default::default(),
-            extras: Default::default(),
-            type_: Valid(gltf::json::accessor::Type::Vec3),
-            min: None,
-            max: None,
-            name: None,
-            normalized: false,
-            sparse: None,
-        };
-        let normal_index = accessors.len();
-        accessors.push(normals);
-
-        let uv1 = gltf::json::Accessor {
-            buffer_view: Some(gltf::json::Index::new(buffer_views.len() as u32)),
-            byte_offset: 64,
-            count: vertices.len() as u32,
-            component_type: Valid(gltf::json::accessor::GenericComponentType(
-                gltf::json::accessor::ComponentType::F32,
-            )),
-            extensions: Default::default(),
-            extras: Default::default(),
-            type_: Valid(gltf::json::accessor::Type::Vec2),
-            min: None,
-            max: None,
-            name: None,
-            normalized: false,
-            sparse: None,
-        };
-        let uv1_index = accessors.len();
-        accessors.push(uv1);
-
-        vertex_buffer_accessors.push(VertexAccessors {
-            position_index,
-            normal_index,
-            uv1_index,
-        });
-
-        buffer_views.push(view);
-        buffer_bytes.extend_from_slice(vertex_bytes);
+        vertex_buffer_attributes.push(attributes);
     }
 
     // Place indices after the vertices to use a single buffer.
@@ -422,7 +401,59 @@ fn create_buffers(vertex_data: xc3_lib::vertex::VertexData, buffer_name: String)
         buffer_bytes,
         buffer_views,
         accessors,
-        vertex_buffer_accessors,
+        vertex_buffer_attributes,
         index_buffer_accessors,
     }
+}
+
+fn add_attribute_values<T: bytemuck::Pod>(
+    values: &[T],
+    semantic: gltf::Semantic,
+    components: gltf::json::accessor::Type,
+    buffer_bytes: &mut Vec<u8>,
+    buffer_views: &mut Vec<gltf::json::buffer::View>,
+    attributes: &mut GltfAttributes,
+    accessors: &mut Vec<gltf::json::Accessor>,
+) {
+    // TODO: Make this a generic function?
+    let attribute_bytes = bytemuck::cast_slice(values);
+
+    // Assume everything uses the same buffer for now.
+    // Each attribute is in its own section and thus has its own view.
+    let view = gltf::json::buffer::View {
+        buffer: gltf::json::Index::new(0),
+        byte_length: attribute_bytes.len() as u32,
+        byte_offset: Some(buffer_bytes.len() as u32),
+        byte_stride: Some(std::mem::size_of::<T>() as u32),
+        extensions: Default::default(),
+        extras: Default::default(),
+        name: None,
+        target: Some(Valid(gltf::json::buffer::Target::ArrayBuffer)),
+    };
+    buffer_bytes.extend_from_slice(&attribute_bytes);
+    // TODO: Alignment after each attribute?
+
+    let accessor = gltf::json::Accessor {
+        buffer_view: Some(gltf::json::Index::new(buffer_views.len() as u32)),
+        byte_offset: 0,
+        count: values.len() as u32,
+        component_type: Valid(gltf::json::accessor::GenericComponentType(
+            gltf::json::accessor::ComponentType::F32,
+        )),
+        extensions: Default::default(),
+        extras: Default::default(),
+        type_: Valid(components),
+        min: None,
+        max: None,
+        name: None,
+        normalized: false,
+        sparse: None,
+    };
+    // Assume the buffer has only one of each attribute semantic.
+    attributes.insert(
+        Valid(semantic),
+        gltf::json::Index::new(accessors.len() as u32),
+    );
+    accessors.push(accessor);
+    buffer_views.push(view);
 }

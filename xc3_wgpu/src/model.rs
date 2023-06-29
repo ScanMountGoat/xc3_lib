@@ -4,7 +4,7 @@ use std::{
     path::Path,
 };
 
-use glam::{vec4, Mat4, Vec3};
+use glam::{vec4, Mat4, Vec3, Vec4};
 use wgpu::util::DeviceExt;
 use xc3_lib::{
     mibl::Mibl,
@@ -15,7 +15,7 @@ use xc3_lib::{
 };
 use xc3_model::{
     texture::{merge_mibl, ImageTexture},
-    vertex::{read_indices, read_vertices},
+    vertex::AttributeData,
 };
 
 use crate::{
@@ -140,11 +140,11 @@ pub fn load_model(
 
     let textures = load_textures(device, queue, msrd, mxmd, &m_tex_folder, &h_tex_folder);
 
-    let vertex_buffers = vertex_buffers(device, &vertex_data);
-    let index_buffers = index_buffers(device, &vertex_data);
+    // TODO: Don't assume there is only one model?
+    let model =
+        xc3_model::Model::from_model(&mxmd.models.models[0], &vertex_data, vec![Mat4::IDENTITY]);
 
     let model_folder = model_folder(model_path);
-
     let spch = shader_database.files.get(&model_folder);
 
     let (materials, pipelines) = materials(
@@ -156,19 +156,10 @@ pub fn load_model(
         spch,
     );
 
-    let meshes = meshes(&mxmd.models);
-
-    let per_model = per_model_bind_group(device, glam::Mat4::IDENTITY);
-
     ModelGroup {
         materials,
         pipelines,
-        models: vec![Model {
-            vertex_buffers,
-            index_buffers,
-            meshes,
-            instances: vec![ModelInstance { per_model }],
-        }],
+        models: vec![create_model(device, &model)],
     }
 }
 
@@ -205,8 +196,7 @@ pub fn load_map<R: Read + Seek>(
             // TODO: Merging doesn't always work?
             let base_mip_level = texture.high.decompress(wismda);
             let mibl_m = texture.mid.extract(wismda);
-            // merge_mibl(base_mip_level, mibl_m)
-            mibl_m.try_into().unwrap()
+            merge_mibl(base_mip_level, mibl_m)
         })
         .collect();
 
@@ -313,36 +303,21 @@ fn load_prop_model_group<R: Read + Seek>(
             // TODO: Also cache vertex and index buffer creation?
             let vertex_data = prop_vertex_data[vertex_data_index as usize].extract(wismda);
 
-            let vertex_buffers = vertex_buffers(device, &vertex_data);
-            let index_buffers = index_buffers(device, &vertex_data);
-
-            let meshes: Vec<_> = prop_model_data.models.models[base_lod_index]
-                .meshes
-                .iter()
-                .map(create_mesh)
-                .collect();
-
             // Find all the instances referencing this prop.
             let instances = prop_model_data
                 .lods
                 .instances
                 .iter()
                 .filter(|instance| instance.prop_index as usize == i)
-                .map(|instance| {
-                    // TODO: Get the transform of the referenced MapPart?
-                    let transform = glam::Mat4::from_cols_array_2d(&instance.transform);
-                    let per_model = per_model_bind_group(device, transform);
-
-                    ModelInstance { per_model }
-                })
+                .map(|instance| Mat4::from_cols_array_2d(&instance.transform))
                 .collect();
 
-            Model {
-                vertex_buffers,
-                index_buffers,
-                meshes,
+            let model = xc3_model::Model::from_model(
+                &prop_model_data.models.models[base_lod_index],
+                &vertex_data,
                 instances,
-            }
+            );
+            create_model(device, &model)
         })
         .collect();
 
@@ -454,40 +429,27 @@ fn load_map_model_group<R: Read + Seek>(
         spch,
     );
 
-    let models = model_data
-        .groups
-        .groups
-        .iter()
-        .map(|group| {
-            let vertex_data_index = group.vertex_data_index as usize;
-            let vertex_data = vertex_data[vertex_data_index].extract(wismda);
+    let mut models = Vec::new();
 
-            let vertex_buffers = vertex_buffers(device, &vertex_data);
-            let index_buffers = index_buffers(device, &vertex_data);
+    for group in model_data.groups.groups {
+        let vertex_data_index = group.vertex_data_index as usize;
+        let vertex_data = vertex_data[vertex_data_index].extract(wismda);
 
-            // Each group has a base and low detail vertex data index.
-            // Each model has an assigned vertex data index.
-            // Find all the base detail models and meshes for each group.
-            let meshes = model_data
-                .models
-                .models
-                .iter()
-                .zip(model_data.groups.model_vertex_data_indices.iter())
-                .filter(|(_, index)| **index as usize == vertex_data_index)
-                .flat_map(|(model, _)| &model.meshes)
-                .map(create_mesh)
-                .collect();
-
-            let per_model = per_model_bind_group(device, glam::Mat4::IDENTITY);
-
-            Model {
-                vertex_buffers,
-                index_buffers,
-                meshes,
-                instances: vec![ModelInstance { per_model }],
+        // Each group has a base and low detail vertex data index.
+        // Each model has an assigned vertex data index.
+        // Find all the base detail models and meshes for each group.
+        for (model, index) in model_data
+            .models
+            .models
+            .iter()
+            .zip(model_data.groups.model_vertex_data_indices.iter())
+        {
+            if *index as usize == vertex_data_index {
+                let model = xc3_model::Model::from_model(model, &vertex_data, vec![Mat4::IDENTITY]);
+                models.push(create_model(device, &model));
             }
-        })
-        .collect();
+        }
+    }
 
     ModelGroup {
         materials,
@@ -542,19 +504,10 @@ fn load_env_model<R: Read + Seek>(
         .models
         .iter()
         .map(|model| {
-            // TODO: Avoid creating these more than once?
-            let vertex_buffers = vertex_buffers(device, &model_data.vertex_data);
-            let index_buffers = index_buffers(device, &model_data.vertex_data);
-
-            let meshes = model.meshes.iter().map(create_mesh).collect();
-            let per_model = per_model_bind_group(device, glam::Mat4::IDENTITY);
-
-            Model {
-                vertex_buffers,
-                index_buffers,
-                meshes,
-                instances: vec![ModelInstance { per_model }],
-            }
+            // TODO: Avoid creating vertex buffers more than once?
+            let model =
+                xc3_model::Model::from_model(model, &model_data.vertex_data, vec![Mat4::IDENTITY]);
+            create_model(device, &model)
         })
         .collect();
 
@@ -603,19 +556,10 @@ fn load_foliage_model<R: Read + Seek>(
         .models
         .iter()
         .map(|model| {
-            // TODO: Avoid creating these more than once?
-            let vertex_buffers = vertex_buffers(device, &model_data.vertex_data);
-            let index_buffers = index_buffers(device, &model_data.vertex_data);
-
-            let meshes = model.meshes.iter().map(create_mesh).collect();
-            let per_model = per_model_bind_group(device, glam::Mat4::IDENTITY);
-
-            Model {
-                vertex_buffers,
-                index_buffers,
-                meshes,
-                instances: vec![ModelInstance { per_model }],
-            }
+            // TODO: Avoid creating vertex buffers more than once?
+            let model =
+                xc3_model::Model::from_model(model, &model_data.vertex_data, vec![Mat4::IDENTITY]);
+            create_model(device, &model)
         })
         .collect();
 
@@ -643,73 +587,21 @@ fn load_map_textures(
         .collect()
 }
 
-fn meshes(models: &xc3_lib::mxmd::Models) -> Vec<Mesh> {
-    models
-        .models
-        .iter()
-        .flat_map(|model| model.meshes.iter().map(create_mesh))
-        .collect()
-}
-
-fn create_mesh(mesh: &xc3_lib::mxmd::Mesh) -> Mesh {
-    Mesh {
-        vertex_buffer_index: mesh.vertex_buffer_index as usize,
-        index_buffer_index: mesh.index_buffer_index as usize,
-        material_index: mesh.material_index as usize,
-    }
-}
-
-fn index_buffers(device: &wgpu::Device, vertex_data: &VertexData) -> Vec<IndexBuffer> {
-    vertex_data
+fn model_index_buffers(device: &wgpu::Device, model: &xc3_model::Model) -> Vec<IndexBuffer> {
+    model
         .index_buffers
         .iter()
-        .map(|descriptor| {
-            let indices = read_indices(descriptor, &vertex_data.buffer);
-
+        .map(|buffer| {
             let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("index buffer"),
-                contents: bytemuck::cast_slice(&indices),
+                contents: bytemuck::cast_slice(&buffer.indices),
                 usage: wgpu::BufferUsages::INDEX,
             });
 
             IndexBuffer {
                 index_buffer,
-                vertex_index_count: indices.len() as u32,
+                vertex_index_count: buffer.indices.len() as u32,
             }
-        })
-        .collect()
-}
-
-fn vertex_buffers(device: &wgpu::Device, vertex_data: &VertexData) -> Vec<VertexBuffer> {
-    vertex_data
-        .vertex_buffers
-        .iter()
-        .enumerate()
-        .map(|(i, info)| {
-            let vertices = read_vertices(info, i, vertex_data);
-
-            // Start with default values for each attribute.
-            // Convert the buffers to a standardized format.
-            // This still tests the vertex buffer layouts and avoids needing multiple shaders.
-            let buffer_vertices: Vec<_> = vertices
-                .into_iter()
-                .map(|v| shader::model::VertexInput {
-                    position: v.position,
-                    weight_index: v.weight_index,
-                    vertex_color: v.vertex_color,
-                    normal: v.normal,
-                    tangent: v.tangent,
-                    uv1: vec4(v.uv1.x, v.uv1.y, 0.0, 0.0),
-                })
-                .collect();
-
-            let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("vertex buffer"),
-                contents: bytemuck::cast_slice(&buffer_vertices),
-                usage: wgpu::BufferUsages::VERTEX,
-            });
-
-            VertexBuffer { vertex_buffer }
         })
         .collect()
 }
@@ -730,6 +622,107 @@ fn load_textures(
                 .create_view(&wgpu::TextureViewDescriptor::default())
         })
         .collect()
+}
+
+fn create_model(device: &wgpu::Device, model: &xc3_model::Model) -> Model {
+    let vertex_buffers = model_vertex_buffers(device, model);
+    let index_buffers = model_index_buffers(device, model);
+
+    let meshes = model
+        .meshes
+        .iter()
+        .map(|mesh| Mesh {
+            vertex_buffer_index: mesh.vertex_buffer_index,
+            index_buffer_index: mesh.index_buffer_index,
+            material_index: mesh.material_index,
+        })
+        .collect();
+
+    let instances = model
+        .instances
+        .iter()
+        .map(|t| {
+            let per_model = per_model_bind_group(device, *t);
+
+            ModelInstance { per_model }
+        })
+        .collect();
+
+    Model {
+        vertex_buffers,
+        index_buffers,
+        meshes,
+        instances,
+    }
+}
+
+fn model_vertex_buffers(device: &wgpu::Device, model: &xc3_model::Model) -> Vec<VertexBuffer> {
+    model
+        .vertex_buffers
+        .iter()
+        .map(|buffer| {
+            let vertex_count = buffer
+                .attributes
+                .first()
+                .map(|a| a.len())
+                .unwrap_or_default();
+
+            let mut vertices = vec![
+                shader::model::VertexInput {
+                    position: Vec3::ZERO,
+                    weight_index: 0,
+                    vertex_color: Vec4::ZERO,
+                    normal: Vec4::ZERO,
+                    tangent: Vec4::ZERO,
+                    uv1: Vec4::ZERO,
+                };
+                vertex_count
+            ];
+
+            // Convert the attributes back to an interleaved representation for rendering.
+            // Unused attributes will use the default values defined above.
+            // Using a single vertex representation reduces the number of shaders.
+            set_attributes(&mut vertices, buffer);
+
+            let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("vertex buffer"),
+                contents: bytemuck::cast_slice(&vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+
+            VertexBuffer { vertex_buffer }
+        })
+        .collect()
+}
+
+fn set_attributes(verts: &mut [shader::model::VertexInput], buffer: &xc3_model::VertexBuffer) {
+    for attribute in &buffer.attributes {
+        match attribute {
+            AttributeData::Position(vals) => set_attribute(verts, vals, |v, t| v.position = t),
+            AttributeData::Normal(vals) => set_attribute(verts, vals, |v, t| v.normal = t),
+            AttributeData::Tangent(vals) => set_attribute(verts, vals, |v, t| v.tangent = t),
+            AttributeData::Uv1(vals) => {
+                set_attribute(verts, vals, |v, t| v.uv1 = vec4(t.x, t.y, 0.0, 0.0))
+            }
+            AttributeData::Uv2(_) => (),
+            AttributeData::VertexColor(vals) => {
+                set_attribute(verts, vals, |v, t| v.vertex_color = t)
+            }
+            AttributeData::WeightIndex(vals) => {
+                set_attribute(verts, vals, |v, t| v.weight_index = t)
+            }
+        }
+    }
+}
+
+fn set_attribute<T, F>(vertices: &mut [shader::model::VertexInput], values: &[T], assign: F)
+where
+    T: Copy,
+    F: Fn(&mut shader::model::VertexInput, T),
+{
+    for (vertex, value) in vertices.iter_mut().zip(values) {
+        assign(vertex, *value);
+    }
 }
 
 fn per_model_bind_group(
