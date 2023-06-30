@@ -45,6 +45,10 @@ impl AttributeData {
             AttributeData::WeightIndex(v) => v.len(),
         }
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 pub fn read_vertex_buffers(vertex_data: &xc3_lib::vertex::VertexData) -> Vec<VertexBuffer> {

@@ -284,7 +284,7 @@ fn create_buffers(vertex_data: xc3_lib::vertex::VertexData, buffer_name: String)
                 AttributeData::Normal(values) => {
                     // Not all applications will normalize the vertex normals.
                     // Use Vec3 instead of Vec4 since it's better supported.
-                    let values: Vec<_> = values.into_iter().map(|v| v.xyz().normalize()).collect();
+                    let values: Vec<_> = values.iter().map(|v| v.xyz().normalize()).collect();
                     add_attribute_values(
                         &values,
                         gltf::Semantic::Normals,
@@ -430,7 +430,7 @@ fn add_attribute_values<T: bytemuck::Pod>(
         name: None,
         target: Some(Valid(gltf::json::buffer::Target::ArrayBuffer)),
     };
-    buffer_bytes.extend_from_slice(&attribute_bytes);
+    buffer_bytes.extend_from_slice(attribute_bytes);
     // TODO: Alignment after each attribute?
 
     let accessor = gltf::json::Accessor {

@@ -1,11 +1,19 @@
 //! # xc3_model
 //! xc3_model provides high level data access for the files that make up a model.
 
+use std::path::Path;
+
 use glam::Mat4;
-use texture::ImageTexture;
+use texture::{load_textures, ImageTexture};
 use vertex::{read_index_buffers, read_vertex_buffers, AttributeData};
+use xc3_lib::{
+    msrd::Msrd,
+    mxmd::{MaterialFlags, Materials, Mxmd, ShaderUnkType},
+};
+use xc3_shader::gbuffer_database::{GBufferDatabase, Shader};
 
 pub mod gltf;
+pub mod map;
 pub mod texture;
 pub mod vertex;
 
@@ -13,12 +21,9 @@ pub mod vertex;
 pub struct ModelGroup {
     pub models: Vec<Model>,
     pub materials: Vec<Material>,
-    pub textures: Vec<ImageTexture>,
+    pub image_textures: Vec<ImageTexture>,
 }
 
-// Start using this for xc3_wgpu loading?
-// TODO: create a map module for loading Vec<Model> from props, maps, etc?
-// TODO: Handle materials later?
 #[derive(Debug)]
 pub struct Model {
     pub meshes: Vec<Mesh>,
@@ -38,8 +43,21 @@ pub struct Mesh {
 #[derive(Debug)]
 
 pub struct Material {
-    name: String,
-    // TODO: What to store here?
+    pub name: String,
+    pub flags: MaterialFlags,
+    pub textures: Vec<Texture>,
+    /// Precomputed metadata from the decompiled shader source
+    /// or [None] if the database does not contain this model.
+    pub shader: Option<Shader>,
+    // TODO: include with shader?
+    pub unk_type: ShaderUnkType,
+}
+
+// TODO: sampler index or sampler flags?
+#[derive(Debug)]
+
+pub struct Texture {
+    pub image_texture_index: usize,
 }
 
 #[derive(Debug)]
@@ -79,4 +97,81 @@ impl Model {
             instances,
         }
     }
+}
+
+/// Load a character (ch), object (oj), weapon (wp), or enemy (en) model.
+pub fn load_model(
+    msrd: &Msrd,
+    mxmd: &Mxmd,
+    model_path: &str, // TODO: &Path?
+    shader_database: &GBufferDatabase,
+) -> ModelGroup {
+    // TODO: Avoid unwrap.
+    let vertex_data = msrd.extract_vertex_data();
+
+    // "chr/en/file.wismt" -> "chr/tex/nx/m"
+    // TODO: Don't assume model_path is in the chr/ch or chr/en folders.
+    let chr_folder = Path::new(model_path).parent().unwrap().parent().unwrap();
+    let m_tex_folder = chr_folder.join("tex").join("nx").join("m");
+    let h_tex_folder = chr_folder.join("tex").join("nx").join("h");
+
+    let image_textures = load_textures(msrd, mxmd, &m_tex_folder, &h_tex_folder);
+
+    let model_folder = model_folder_name(model_path);
+    let spch = shader_database.files.get(&model_folder);
+
+    let materials = materials(&mxmd.materials, spch);
+
+    // TODO: Don't assume there is only one model?
+    let model = Model::from_model(&mxmd.models.models[0], &vertex_data, vec![Mat4::IDENTITY]);
+
+    ModelGroup {
+        materials,
+        models: vec![model],
+        image_textures,
+    }
+}
+
+fn materials(
+    materials: &Materials,
+    spch: Option<&xc3_shader::gbuffer_database::Spch>,
+) -> Vec<Material> {
+    materials
+        .materials
+        .iter()
+        .map(|material| {
+            // TODO: How to choose between the two fragment shaders?
+            let program_index = material.shader_programs[0].program_index as usize;
+            let shader = spch
+                .and_then(|spch| spch.programs.get(program_index))
+                .map(|program| &program.shaders[0])
+                .cloned();
+
+            let textures = material
+                .textures
+                .iter()
+                .map(|texture| Texture {
+                    image_texture_index: texture.texture_index as usize,
+                })
+                .collect();
+
+            Material {
+                name: material.name.clone(),
+                flags: material.flags,
+                textures,
+                shader,
+                unk_type: material.shader_programs[0].unk_type,
+            }
+        })
+        .collect()
+}
+
+// TODO: Move this to xc3_shader?
+fn model_folder_name(model_path: &str) -> String {
+    Path::new(model_path)
+        .with_extension("")
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .to_string()
 }

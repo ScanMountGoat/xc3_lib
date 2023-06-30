@@ -4,7 +4,7 @@ use glam::{ivec4, uvec4};
 use wgpu::util::DeviceExt;
 use xc3_lib::{
     map::FoliageMaterials,
-    mxmd::{MaterialFlags, Materials, ShaderUnkType},
+    mxmd::{MaterialFlags, ShaderUnkType},
 };
 
 use crate::{
@@ -30,9 +30,8 @@ pub fn materials(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     pipeline_data: &ModelPipelineData,
-    materials: &Materials,
+    materials: &[xc3_model::Material],
     textures: &[wgpu::TextureView],
-    spch: Option<&xc3_shader::gbuffer_database::Spch>,
 ) -> (Vec<Material>, HashMap<PipelineKey, wgpu::RenderPipeline>) {
     // TODO: Is there a better way to handle missing textures?
     // TODO: Is it worth creating a separate shaders for each material?
@@ -53,7 +52,6 @@ pub fn materials(
     let mut pipelines = HashMap::new();
 
     let materials = materials
-        .materials
         .iter()
         .map(|material| {
             // Bind all available textures and samplers.
@@ -76,14 +74,10 @@ pub fn materials(
                 },
             );
 
-            // TODO: How to choose between the two fragment shaders?
-            let program_index = material.shader_programs[0].program_index as usize;
-            let shader = spch
-                .and_then(|spch| spch.programs.get(program_index))
-                .map(|program| &program.shaders[0]);
-
             // TODO: Default assignments?
-            let assignments = shader
+            let assignments = material
+                .shader
+                .as_ref()
                 .map(gbuffer_assignments)
                 .unwrap_or_else(default_gbuffer_assignments);
 
@@ -105,7 +99,7 @@ pub fn materials(
             // Each material only goes in exactly one pass?
             // TODO: Is it redundant to also store the unk type?
             let pipeline_key = PipelineKey {
-                write_to_all_outputs: material.shader_programs[0].unk_type == ShaderUnkType::Unk0,
+                write_to_all_outputs: material.unk_type == ShaderUnkType::Unk0,
                 flags: material.flags,
             };
             pipelines
@@ -273,14 +267,14 @@ pub fn load_database<P: AsRef<Path>>(path: P) -> xc3_shader::gbuffer_database::G
 }
 
 fn material_texture<'a>(
-    material: &xc3_lib::mxmd::Material,
+    material: &xc3_model::Material,
     textures: &'a [wgpu::TextureView],
     index: usize,
 ) -> Option<&'a wgpu::TextureView> {
     material
         .textures
         .get(index)
-        .map(|texture| &textures[texture.texture_index as usize])
+        .map(|texture| &textures[texture.image_texture_index])
 }
 
 fn default_gbuffer_assignments() -> Vec<crate::shader::model::GBufferAssignment> {

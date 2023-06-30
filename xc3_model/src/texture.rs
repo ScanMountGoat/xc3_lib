@@ -10,7 +10,7 @@ use xc3_lib::{
 
 // TODO: Store a texture name as well?
 /// A non swizzled version of an [Mibl] texture.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 
 pub struct ImageTexture {
     pub width: u32,

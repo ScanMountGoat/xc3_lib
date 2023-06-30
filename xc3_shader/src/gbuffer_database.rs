@@ -10,7 +10,7 @@ use crate::dependencies::input_dependencies;
 // TODO: How much extra space does JSON take up?
 // TODO: Is it worth having a human readable version if it's only accessed through libraries?
 // TODO: Binary representation?
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct GBufferDatabase {
     /// The `.wismt` file name without the extension and shader data for each file.
     pub files: IndexMap<String, Spch>,
@@ -18,7 +18,7 @@ pub struct GBufferDatabase {
     pub map_files: IndexMap<String, Map>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Map {
     pub map_models: Vec<Spch>,
     pub prop_models: Vec<Spch>,
@@ -26,12 +26,12 @@ pub struct Map {
 }
 
 /// The decompiled shader data for a single shader container file.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Spch {
     pub programs: Vec<ShaderProgram>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct ShaderProgram {
     // TODO: Is it worth including the program name?
     /// Some shaders have multiple NVSD sections, so the length may be greater than 1.
@@ -39,7 +39,7 @@ pub struct ShaderProgram {
 }
 
 // TODO: Should dependencies be more strongly typed?
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Shader {
     /// The buffer elements, textures, and constants used to initialize each fragment output.
     ///

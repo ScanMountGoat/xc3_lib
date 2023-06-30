@@ -1,25 +1,15 @@
 use std::{
     collections::HashMap,
-    io::{Cursor, Read, Seek},
-    path::Path,
+    io::{Read, Seek},
 };
 
-use glam::{vec4, Mat4, Vec3, Vec4};
+use glam::{vec4, Vec3, Vec4};
 use wgpu::util::DeviceExt;
-use xc3_lib::{
-    mibl::Mibl,
-    msmd::{ChannelType, MapParts, Msmd, StreamEntry},
-    msrd::Msrd,
-    mxmd::Mxmd,
-    vertex::VertexData,
-};
-use xc3_model::{
-    texture::{merge_mibl, ImageTexture},
-    vertex::AttributeData,
-};
+use xc3_lib::{msmd::Msmd, msrd::Msrd, mxmd::Mxmd};
+use xc3_model::vertex::AttributeData;
 
 use crate::{
-    material::{foliage_materials, materials, Material},
+    material::{materials, Material},
     pipeline::{ModelPipelineData, PipelineKey},
     shader,
     texture::create_texture,
@@ -126,51 +116,44 @@ pub fn load_model(
     model_path: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
 ) -> ModelGroup {
+    let group = xc3_model::load_model(msrd, mxmd, model_path, shader_database);
+
     // Compile shaders only once to improve loading times.
     let pipeline_data = ModelPipelineData::new(device);
 
-    // TODO: Avoid unwrap.
-    let vertex_data = msrd.extract_vertex_data();
+    create_model_group(device, queue, &group, &pipeline_data)
+}
 
-    // "chr/en/file.wismt" -> "chr/tex/nx/m"
-    // TODO: Don't assume model_path is in the chr/ch or chr/en folders.
-    let chr_folder = Path::new(model_path).parent().unwrap().parent().unwrap();
-    let m_tex_folder = chr_folder.join("tex").join("nx").join("m");
-    let h_tex_folder = chr_folder.join("tex").join("nx").join("h");
+// TODO: Make this a method?
+fn create_model_group(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    group: &xc3_model::ModelGroup,
+    pipeline_data: &ModelPipelineData,
+) -> ModelGroup {
+    let textures: Vec<_> = group
+        .image_textures
+        .iter()
+        .map(|texture| {
+            create_texture(device, queue, texture)
+                .create_view(&wgpu::TextureViewDescriptor::default())
+        })
+        .collect();
 
-    let textures = load_textures(device, queue, msrd, mxmd, &m_tex_folder, &h_tex_folder);
+    let (materials, pipelines) =
+        materials(device, queue, pipeline_data, &group.materials, &textures);
 
-    // TODO: Don't assume there is only one model?
-    let model =
-        xc3_model::Model::from_model(&mxmd.models.models[0], &vertex_data, vec![Mat4::IDENTITY]);
-
-    let model_folder = model_folder(model_path);
-    let spch = shader_database.files.get(&model_folder);
-
-    let (materials, pipelines) = materials(
-        device,
-        queue,
-        &pipeline_data,
-        &mxmd.materials,
-        &textures,
-        spch,
-    );
+    let models = group
+        .models
+        .iter()
+        .map(|model| create_model(device, model))
+        .collect();
 
     ModelGroup {
         materials,
         pipelines,
-        models: vec![create_model(device, &model)],
+        models,
     }
-}
-
-// TODO: Move this to xc3_shader?
-fn model_folder(model_path: &str) -> String {
-    Path::new(model_path)
-        .with_extension("")
-        .file_name()
-        .unwrap()
-        .to_string_lossy()
-        .to_string()
 }
 
 // TODO: Separate module for this?
@@ -183,407 +166,13 @@ pub fn load_map<R: Read + Seek>(
     model_path: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
 ) -> Vec<ModelGroup> {
-    let model_folder = model_folder(model_path);
-
     // Compile shaders only once to improve loading times.
     let pipeline_data = ModelPipelineData::new(device);
 
-    let textures: Vec<_> = msmd
-        .textures
+    let groups = xc3_model::map::load_map(msmd, wismda, model_path, shader_database);
+    groups
         .iter()
-        .map(|texture| {
-            // Load high resolution textures.
-            // TODO: Merging doesn't always work?
-            let base_mip_level = texture.high.decompress(wismda);
-            let mibl_m = texture.mid.extract(wismda);
-            merge_mibl(base_mip_level, mibl_m)
-        })
-        .collect();
-
-    // TODO: Better way to combine models?
-    let mut combined_models = Vec::new();
-    for (i, env_model) in msmd.env_models.iter().enumerate() {
-        let model = load_env_model(
-            device,
-            queue,
-            wismda,
-            env_model,
-            i,
-            &model_folder,
-            shader_database,
-            &pipeline_data,
-        );
-        combined_models.push(model);
-    }
-
-    for foliage_model in &msmd.foliage_models {
-        let model = load_foliage_model(device, queue, wismda, foliage_model, &pipeline_data);
-        combined_models.push(model);
-    }
-
-    for (i, map_model) in msmd.map_models.iter().enumerate() {
-        let model = load_map_model_group(
-            device,
-            queue,
-            wismda,
-            map_model,
-            i,
-            &msmd.map_vertex_data,
-            &textures,
-            &model_folder,
-            shader_database,
-            &pipeline_data,
-        );
-        combined_models.push(model);
-    }
-
-    for (i, prop_model) in msmd.prop_models.iter().enumerate() {
-        let model = load_prop_model_group(
-            device,
-            queue,
-            wismda,
-            prop_model,
-            i,
-            &msmd.prop_vertex_data,
-            &textures,
-            msmd.parts.as_ref(),
-            &model_folder,
-            shader_database,
-            &pipeline_data,
-        );
-        combined_models.push(model);
-    }
-
-    combined_models
-}
-
-fn load_prop_model_group<R: Read + Seek>(
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    wismda: &mut R,
-    prop_model: &xc3_lib::msmd::PropModel,
-    model_index: usize,
-    prop_vertex_data: &[StreamEntry<VertexData>],
-    image_textures: &[ImageTexture],
-    parts: Option<&MapParts>,
-    model_folder: &str,
-    shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
-    pipeline_data: &ModelPipelineData,
-) -> ModelGroup {
-    let prop_model_data = prop_model.entry.extract(wismda);
-
-    // Get the textures referenced by the materials in this model.
-    let textures = load_map_textures(device, queue, &prop_model_data.textures, image_textures);
-
-    let spch = shader_database
-        .map_files
-        .get(model_folder)
-        .and_then(|map| map.prop_models.get(model_index));
-
-    // TODO: cached textures?
-    let (materials, pipelines) = materials(
-        device,
-        queue,
-        pipeline_data,
-        &prop_model_data.materials,
-        &textures,
-        spch,
-    );
-
-    // Load the base LOD model for each prop model.
-    let mut models: Vec<_> = prop_model_data
-        .lods
-        .props
-        .iter()
-        .enumerate()
-        .map(|(i, prop_lod)| {
-            let base_lod_index = prop_lod.base_lod_index as usize;
-            let vertex_data_index = prop_model_data.model_vertex_data_indices[base_lod_index];
-
-            // TODO: Also cache vertex and index buffer creation?
-            let vertex_data = prop_vertex_data[vertex_data_index as usize].extract(wismda);
-
-            // Find all the instances referencing this prop.
-            let instances = prop_model_data
-                .lods
-                .instances
-                .iter()
-                .filter(|instance| instance.prop_index as usize == i)
-                .map(|instance| Mat4::from_cols_array_2d(&instance.transform))
-                .collect();
-
-            let model = xc3_model::Model::from_model(
-                &prop_model_data.models.models[base_lod_index],
-                &vertex_data,
-                instances,
-            );
-            create_model(device, &model)
-        })
-        .collect();
-
-    // TODO: Is this the correct way to handle animated props?
-    // TODO: Document how this works in xc3_lib.
-    // Add additional animated prop instances to the appropriate models.
-    if let Some(parts) = parts {
-        add_animated_part_instances(device, &mut models, &prop_model_data, parts);
-    }
-
-    ModelGroup {
-        materials,
-        pipelines,
-        models,
-    }
-}
-
-fn add_animated_part_instances(
-    device: &wgpu::Device,
-    models: &mut [Model],
-    prop_model_data: &xc3_lib::map::PropModelData,
-    parts: &MapParts,
-) {
-    let start = prop_model_data.lods.animated_parts_start_index as usize;
-    let count = prop_model_data.lods.animated_parts_count as usize;
-
-    for i in start..start + count {
-        let instance = &parts.animated_instances[i];
-        let animation = &parts.instance_animations[i];
-
-        // Each instance has a base transform as well as animation data.
-        let mut transform = Mat4::from_cols_array_2d(&instance.transform);
-
-        // Get the first frame of the animation channels.
-        let mut translation: Vec3 = animation.translation.into();
-
-        // TODO: Do these add to or replace the base values?
-        for channel in &animation.channels {
-            match channel.channel_type {
-                ChannelType::TranslationX => {
-                    translation.x += channel
-                        .keyframes
-                        .get(0)
-                        .map(|f| f.value)
-                        .unwrap_or_default()
-                }
-                ChannelType::TranslationY => {
-                    translation.y += channel
-                        .keyframes
-                        .get(0)
-                        .map(|f| f.value)
-                        .unwrap_or_default()
-                }
-                ChannelType::TranslationZ => {
-                    translation.z += channel
-                        .keyframes
-                        .get(0)
-                        .map(|f| f.value)
-                        .unwrap_or_default()
-                }
-                ChannelType::RotationX => (),
-                ChannelType::RotationY => (),
-                ChannelType::RotationZ => (),
-                ChannelType::ScaleX => (),
-                ChannelType::ScaleY => (),
-                ChannelType::ScaleZ => (),
-            }
-        }
-        // TODO: transform order?
-        transform = Mat4::from_translation(translation) * transform;
-
-        let per_model = per_model_bind_group(device, transform);
-        let model_instance = ModelInstance { per_model };
-
-        models[instance.prop_index as usize]
-            .instances
-            .push(model_instance);
-    }
-}
-
-fn load_map_model_group<R: Read + Seek>(
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    wismda: &mut R,
-    model: &xc3_lib::msmd::MapModel,
-    model_index: usize,
-    vertex_data: &[xc3_lib::msmd::StreamEntry<VertexData>],
-    textures: &[ImageTexture],
-    model_folder: &str,
-    shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
-    pipeline_data: &ModelPipelineData,
-) -> ModelGroup {
-    let model_data = model.entry.extract(wismda);
-
-    // Get the textures referenced by the materials in this model.
-    let textures = load_map_textures(device, queue, &model_data.textures, textures);
-
-    let spch = shader_database
-        .map_files
-        .get(model_folder)
-        .and_then(|map| map.map_models.get(model_index));
-
-    let (materials, pipelines) = materials(
-        device,
-        queue,
-        pipeline_data,
-        &model_data.materials,
-        &textures,
-        spch,
-    );
-
-    let mut models = Vec::new();
-
-    for group in model_data.groups.groups {
-        let vertex_data_index = group.vertex_data_index as usize;
-        let vertex_data = vertex_data[vertex_data_index].extract(wismda);
-
-        // Each group has a base and low detail vertex data index.
-        // Each model has an assigned vertex data index.
-        // Find all the base detail models and meshes for each group.
-        for (model, index) in model_data
-            .models
-            .models
-            .iter()
-            .zip(model_data.groups.model_vertex_data_indices.iter())
-        {
-            if *index as usize == vertex_data_index {
-                let model = xc3_model::Model::from_model(model, &vertex_data, vec![Mat4::IDENTITY]);
-                models.push(create_model(device, &model));
-            }
-        }
-    }
-
-    ModelGroup {
-        materials,
-        pipelines,
-        models,
-    }
-}
-
-fn load_env_model<R: Read + Seek>(
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    wismda: &mut R,
-    model: &xc3_lib::msmd::EnvModel,
-    model_index: usize,
-    model_folder: &str,
-    shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
-    pipeline_data: &ModelPipelineData,
-) -> ModelGroup {
-    let model_data = model.entry.extract(wismda);
-
-    // Environment models embed their own textures instead of using the MSMD.
-    let textures: Vec<_> = model_data
-        .textures
-        .textures
-        .iter()
-        .map(|texture| {
-            let texture = Mibl::read(&mut Cursor::new(&texture.mibl_data))
-                .unwrap()
-                .try_into()
-                .unwrap();
-            create_texture(device, queue, &texture)
-                .create_view(&wgpu::TextureViewDescriptor::default())
-        })
-        .collect();
-
-    let spch = shader_database
-        .map_files
-        .get(model_folder)
-        .and_then(|map| map.env_models.get(model_index));
-
-    let (materials, pipelines) = materials(
-        device,
-        queue,
-        pipeline_data,
-        &model_data.materials,
-        &textures,
-        spch,
-    );
-
-    let models = model_data
-        .models
-        .models
-        .iter()
-        .map(|model| {
-            // TODO: Avoid creating vertex buffers more than once?
-            let model =
-                xc3_model::Model::from_model(model, &model_data.vertex_data, vec![Mat4::IDENTITY]);
-            create_model(device, &model)
-        })
-        .collect();
-
-    ModelGroup {
-        materials,
-        pipelines,
-        models,
-    }
-}
-
-fn load_foliage_model<R: Read + Seek>(
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    wismda: &mut R,
-    model: &xc3_lib::msmd::FoliageModel,
-    pipeline_data: &ModelPipelineData,
-) -> ModelGroup {
-    let model_data = model.entry.extract(wismda);
-
-    // Foliage models embed their own textures instead of using the MSMD.
-    let textures: Vec<_> = model_data
-        .textures
-        .textures
-        .iter()
-        .map(|texture| {
-            let texture = Mibl::read(&mut Cursor::new(&texture.mibl_data))
-                .unwrap()
-                .try_into()
-                .unwrap();
-            create_texture(device, queue, &texture)
-                .create_view(&wgpu::TextureViewDescriptor::default())
-        })
-        .collect();
-
-    let (materials, pipelines) = foliage_materials(
-        device,
-        queue,
-        pipeline_data,
-        &model_data.materials,
-        &textures,
-    );
-
-    // TODO: foliage models are instanced somehow for grass clumps?
-    let models = model_data
-        .models
-        .models
-        .iter()
-        .map(|model| {
-            // TODO: Avoid creating vertex buffers more than once?
-            let model =
-                xc3_model::Model::from_model(model, &model_data.vertex_data, vec![Mat4::IDENTITY]);
-            create_model(device, &model)
-        })
-        .collect();
-
-    ModelGroup {
-        materials,
-        pipelines,
-        models,
-    }
-}
-
-fn load_map_textures(
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    textures: &[xc3_lib::map::Texture],
-    image_textures: &[ImageTexture],
-) -> Vec<wgpu::TextureView> {
-    textures
-        .iter()
-        .map(|item| {
-            // TODO: Handle texture index being -1?
-            let texture = &image_textures[item.texture_index.max(0) as usize];
-            create_texture(device, queue, texture)
-                .create_view(&wgpu::TextureViewDescriptor::default())
-        })
+        .map(|group| create_model_group(device, queue, group, &pipeline_data))
         .collect()
 }
 
@@ -602,24 +191,6 @@ fn model_index_buffers(device: &wgpu::Device, model: &xc3_model::Model) -> Vec<I
                 index_buffer,
                 vertex_index_count: buffer.indices.len() as u32,
             }
-        })
-        .collect()
-}
-
-fn load_textures(
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    msrd: &Msrd,
-    mxmd: &Mxmd,
-    m_tex_folder: &Path,
-    h_tex_folder: &Path,
-) -> Vec<wgpu::TextureView> {
-    let textures = xc3_model::texture::load_textures(msrd, mxmd, m_tex_folder, h_tex_folder);
-    textures
-        .iter()
-        .map(|texture| {
-            create_texture(device, queue, texture)
-                .create_view(&wgpu::TextureViewDescriptor::default())
         })
         .collect()
 }
