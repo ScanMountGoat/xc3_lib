@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, path::Path};
 
 use crate::{vertex::AttributeData, ModelGroup};
-use glam::Vec4Swizzles;
+use glam::{Mat4, Vec4Swizzles};
 use gltf::json::validation::Checked::Valid;
 
 type GltfAttributes = BTreeMap<
@@ -9,61 +9,78 @@ type GltfAttributes = BTreeMap<
     gltf::json::Index<gltf::json::Accessor>,
 >;
 
-/// Data associated with a [VertexData](xc3_lib::vertex::VertexData).
+// gltf stores flat lists of attributes and accessors at the root level.
+// Create mappings to properly differentiate models and groups.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct BufferKey {
+    group_index: usize,
+    model_index: usize,
+    buffer_index: usize,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct ImageKey {
+    group_index: usize,
+    image_index: usize,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct MaterialKey {
+    group_index: usize,
+    material_index: usize,
+}
+
+// Combined vertex data for a gltf buffer.
 struct Buffers {
     buffer: gltf::json::Buffer,
     buffer_bytes: Vec<u8>,
     buffer_views: Vec<gltf::json::buffer::View>,
     accessors: Vec<gltf::json::Accessor>,
-
-    vertex_buffer_attributes: Vec<GltfAttributes>,
-    // Mapping from buffer index to accessor index.
-    index_buffer_accessors: Vec<usize>,
+    // Map group and model specific indices to flattened indices.
+    vertex_buffer_attributes: BTreeMap<BufferKey, GltfAttributes>,
+    index_buffer_accessors: BTreeMap<BufferKey, usize>,
 }
 
-// TODO: Support multiple groups?
+// TODO: Clean this up.
 // TODO: Make returning and writing the data separate functions.
-pub fn export_gltf<P: AsRef<Path>>(path: P, group: &ModelGroup) {
+pub fn export_gltf<P: AsRef<Path>>(path: P, groups: &[ModelGroup]) {
     // TODO: Is it worth giving images their in game names?
-    // TODO: Differentiate names by group?
-    let mut png_images: Vec<_> = group
-        .image_textures
-        .iter()
-        .map(|texture| {
+    let mut png_images = BTreeMap::new();
+    for (group_index, group) in groups.iter().enumerate() {
+        for (i, texture) in group.image_textures.iter().enumerate() {
             // Convert to PNG since DDS is not well supported.
+            // TODO: These don't all decode properly?
             let dds = texture.to_dds().unwrap();
-            image_dds::image_from_dds(&dds, 0).unwrap()
-        })
-        .collect();
+            let image = image_dds::image_from_dds(&dds, 0).unwrap();
+            let key = ImageKey {
+                group_index,
+                image_index: i,
+            };
+            png_images.insert(key, image);
+        }
+    }
 
-    let textures = (0..group.image_textures.len())
-        .map(|i| gltf::json::Texture {
+    // Create a mapping from group index, texture index -> texture index.
+    let mut textures = Vec::new();
+    let mut texture_indices = BTreeMap::new();
+
+    for key in png_images.keys() {
+        let texture_index = textures.len() as u32;
+        textures.push(gltf::json::Texture {
             name: None,
             sampler: None,
-            source: gltf::json::Index::new(i as u32),
+            source: gltf::json::Index::new(texture_index),
             extensions: None,
             extras: Default::default(),
-        })
-        .collect();
+        });
+        texture_indices.insert(*key, texture_index);
+    }
 
-    // TODO: These need to be made while creating
-    // TODO: Name textures as group{i}_{j}.png.
-    // TODO: Create a lookup from group index and texture index to image index.
-    let images = (0..group.image_textures.len())
-        .map(|i| gltf::json::Image {
-            buffer_view: None,
-            mime_type: None,
-            name: None,
-            uri: Some(format!("model{i}.png")),
-            extensions: None,
-            extras: Default::default(),
-        })
-        .collect();
+    let mut materials = Vec::new();
+    let mut material_indices = BTreeMap::new();
 
-    let materials: Vec<_> = group
-        .materials
-        .iter()
-        .map(|material| {
+    for (group_index, group) in groups.iter().enumerate() {
+        for (material_index, material) in group.materials.iter().enumerate() {
             // TODO: A proper solution will construct each channel individually.
             // Assume the texture is used for all channels for now.
             // TODO: Create consts for the gbuffer texture indices?
@@ -75,7 +92,11 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, group: &ModelGroup) {
             // TODO: Cache by program index, usage (albedo vs normal), input samplers and channels?
             // TODO: handle the case where each channel has a different resolution?
             if let Some(index) = normal_index {
-                for pixel in png_images[index as usize].pixels_mut() {
+                let key = ImageKey {
+                    group_index,
+                    image_index: index as usize,
+                };
+                for pixel in png_images.get_mut(&key).unwrap().pixels_mut() {
                     // x^y + y^2 + z^2 = 1 for unit vectors.
                     let x = (pixel[0] as f32 / 255.0) * 2.0 - 1.0;
                     let y = (pixel[1] as f32 / 255.0) * 2.0 - 1.0;
@@ -84,7 +105,26 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, group: &ModelGroup) {
                 }
             }
 
-            gltf::json::Material {
+            // The final texture indices depend on the group index.
+            // TODO: Function for this?
+            let albedo_index = albedo_index.map(|i| {
+                *texture_indices
+                    .get(&ImageKey {
+                        group_index,
+                        image_index: i as usize,
+                    })
+                    .unwrap()
+            });
+            let normal_index = normal_index.map(|i| {
+                *texture_indices
+                    .get(&ImageKey {
+                        group_index,
+                        image_index: i as usize,
+                    })
+                    .unwrap()
+            });
+
+            let material = gltf::json::Material {
                 name: Some(material.name.clone()),
                 pbr_metallic_roughness: gltf::json::material::PbrMetallicRoughness {
                     base_color_texture: albedo_index.map(|i| gltf::json::texture::Info {
@@ -106,9 +146,19 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, group: &ModelGroup) {
                     extras: Default::default(),
                 }),
                 ..Default::default()
-            }
-        })
-        .collect();
+            };
+            let material_flattened_index = materials.len();
+            materials.push(material);
+
+            material_indices.insert(
+                MaterialKey {
+                    group_index,
+                    material_index,
+                },
+                material_flattened_index,
+            );
+        }
+    }
 
     let model_name = path
         .as_ref()
@@ -121,6 +171,7 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, group: &ModelGroup) {
     // TODO: Create nodes and meshes for each mesh in the mxmd.
     let buffer_name = format!("{model_name}.buffer0.bin");
 
+    // TODO: This should be for all model groups.
     let Buffers {
         buffer,
         buffer_bytes,
@@ -128,18 +179,44 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, group: &ModelGroup) {
         accessors,
         vertex_buffer_attributes,
         index_buffer_accessors,
-    } = create_buffers(&group.models[0], buffer_name.clone());
+    } = create_buffers(groups, buffer_name.clone());
 
     // TODO: select by LOD and skip outline meshes?
-    // TODO: Also add instances in this step?
-    let meshes: Vec<_> = group
-        .models
-        .iter()
-        .flat_map(|model| {
-            model.meshes.iter().map(|mesh| {
-                let attributes = vertex_buffer_attributes[mesh.vertex_buffer_index].clone();
+    let mut meshes = Vec::new();
+    let mut nodes = Vec::new();
+    let mut scene_nodes = Vec::new();
 
-                let index_accessor = index_buffer_accessors[mesh.index_buffer_index] as u32;
+    // TODO: Can nodes only be the child of one node?
+    for (group_index, group) in groups.iter().enumerate() {
+        let mut group_children = Vec::new();
+
+        for (model_index, model) in group.models.iter().enumerate() {
+            let mut children = Vec::new();
+
+            for mesh in &model.meshes {
+                let attributes_key = BufferKey {
+                    group_index,
+                    model_index,
+                    buffer_index: mesh.vertex_buffer_index,
+                };
+                let attributes = vertex_buffer_attributes
+                    .get(&attributes_key)
+                    .unwrap()
+                    .clone();
+
+                let indices_key = BufferKey {
+                    group_index,
+                    model_index,
+                    buffer_index: mesh.index_buffer_index,
+                };
+                let index_accessor = *index_buffer_accessors.get(&indices_key).unwrap() as u32;
+
+                let material_index = material_indices
+                    .get(&MaterialKey {
+                        group_index,
+                        material_index: mesh.material_index,
+                    })
+                    .unwrap();
 
                 let primitive = gltf::json::mesh::Primitive {
                     // TODO: Store this with the buffers?
@@ -147,49 +224,106 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, group: &ModelGroup) {
                     extensions: Default::default(),
                     extras: Default::default(),
                     indices: Some(gltf::json::Index::new(index_accessor)),
-                    material: Some(gltf::json::Index::new(mesh.material_index as u32)),
+                    material: Some(gltf::json::Index::new(*material_index as u32)),
                     mode: Valid(gltf::json::mesh::Mode::Triangles),
                     targets: None,
                 };
 
                 // Assign one primitive per mesh to create distinct objects in applications.
                 // In game meshes aren't named, so just use the material name.
-                gltf::json::Mesh {
+                let material_name = materials[*material_index].name.clone();
+
+                let mesh = gltf::json::Mesh {
                     extensions: Default::default(),
                     extras: Default::default(),
-                    name: materials[mesh.material_index].name.clone(),
+                    name: material_name,
                     primitives: vec![primitive],
                     weights: None,
-                }
-            })
-        })
-        .collect();
+                };
+                let mesh_index = meshes.len() as u32;
+                meshes.push(mesh);
 
-    // TODO: Instance transforms for stages?
-    // TODO: combine this with mesh loading?
-    let nodes: Vec<_> = (0..meshes.len())
-        .map(|i| {
-            // Assume one gltf node per gltf mesh for now.
-            gltf::json::Node {
+                // Instancing is applied at the model level.
+                // Instance meshes instead so each node has only one parent.
+                // TODO: Use None instead of a single instance transform?
+                for instance in &model.instances {
+                    let mesh_node = gltf::json::Node {
+                        camera: None,
+                        children: None,
+                        extensions: Default::default(),
+                        extras: Default::default(),
+                        matrix: if *instance == Mat4::IDENTITY {
+                            None
+                        } else {
+                            Some(instance.to_cols_array())
+                        },
+                        mesh: Some(gltf::json::Index::new(mesh_index)),
+                        name: None,
+                        rotation: None,
+                        scale: None,
+                        translation: None,
+                        skin: None,
+                        weights: None,
+                    };
+                    let child_index = nodes.len() as u32;
+                    nodes.push(mesh_node);
+
+                    children.push(gltf::json::Index::new(child_index))
+                }
+            }
+
+            let model_node = gltf::json::Node {
                 camera: None,
-                children: None,
+                children: Some(children.clone()),
                 extensions: Default::default(),
                 extras: Default::default(),
                 matrix: None,
-                mesh: Some(gltf::json::Index::new(i as u32)),
+                mesh: None,
                 name: None,
                 rotation: None,
                 scale: None,
                 translation: None,
                 skin: None,
                 weights: None,
-            }
-        })
-        .collect();
+            };
+            let model_node_index = nodes.len() as u32;
+            nodes.push(model_node);
 
-    // TODO: Should all nodes be used like this?
-    let scene_nodes = (0..nodes.len())
-        .map(|i| gltf::json::Index::new(i as u32))
+            group_children.push(gltf::json::Index::new(model_node_index));
+        }
+
+        let group_node_index = nodes.len() as u32;
+
+        let group_node = gltf::json::Node {
+            camera: None,
+            children: Some(group_children),
+            extensions: Default::default(),
+            extras: Default::default(),
+            matrix: None,
+            mesh: None,
+            name: None,
+            rotation: None,
+            scale: None,
+            translation: None,
+            skin: None,
+            weights: None,
+        };
+        nodes.push(group_node);
+
+        // Only include root nodes.
+        scene_nodes.push(gltf::json::Index::new(group_node_index));
+    }
+
+    let images = png_images
+        .keys()
+        .map(|key| gltf::json::Image {
+            buffer_view: None,
+            mime_type: None,
+            name: None,
+            uri: Some(image_name(key)),
+            extensions: None,
+            extras: Default::default(),
+        })
         .collect();
 
     let root = gltf::json::Root {
@@ -215,9 +349,14 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, group: &ModelGroup) {
 
     std::fs::write(path.as_ref().with_file_name(buffer_name), buffer_bytes).unwrap();
 
-    for (i, image) in png_images.iter().enumerate() {
-        image.save(format!("model{i}.png")).unwrap();
+    for (key, image) in png_images {
+        let name = image_name(&key);
+        image.save(name).unwrap();
     }
+}
+
+fn image_name(key: &ImageKey) -> String {
+    format!("group{}_{}.png", key.group_index, key.image_index)
 }
 
 fn texture_index(material: &crate::Material, gbuffer_index: usize, channel: char) -> Option<u32> {
@@ -234,99 +373,69 @@ fn texture_index(material: &crate::Material, gbuffer_index: usize, channel: char
         .map(|t| t.image_texture_index as u32)
 }
 
-fn create_buffers(model: &crate::Model, buffer_name: String) -> Buffers {
+fn create_buffers(groups: &[ModelGroup], buffer_name: String) -> Buffers {
     let mut buffer_bytes = Vec::new();
     let mut buffer_views = Vec::new();
     let mut accessors = Vec::new();
-    let mut vertex_buffer_attributes = Vec::new();
-    let mut index_buffer_accessors = Vec::new();
+    let mut vertex_buffer_attributes = BTreeMap::new();
+    let mut index_buffer_accessors = BTreeMap::new();
 
-    // TODO: Handle the weight buffers separately?
+    for (group_index, group) in groups.iter().enumerate() {
+        for (model_index, model) in group.models.iter().enumerate() {
+            // TODO: Handle the weight buffers separately?
 
-    for vertex_buffer in &model.vertex_buffers {
-        let mut attributes = BTreeMap::new();
-        for attribute in &vertex_buffer.attributes {
-            match attribute {
-                AttributeData::Position(values) => {
-                    add_attribute_values(
-                        values,
-                        gltf::Semantic::Positions,
-                        gltf::json::accessor::Type::Vec3,
-                        &mut buffer_bytes,
-                        &mut buffer_views,
-                        &mut attributes,
-                        &mut accessors,
-                    );
-                }
-                AttributeData::Normal(values) => {
-                    // Not all applications will normalize the vertex normals.
-                    // Use Vec3 instead of Vec4 since it's better supported.
-                    let values: Vec<_> = values.iter().map(|v| v.xyz().normalize()).collect();
-                    add_attribute_values(
-                        &values,
-                        gltf::Semantic::Normals,
-                        gltf::json::accessor::Type::Vec3,
-                        &mut buffer_bytes,
-                        &mut buffer_views,
-                        &mut attributes,
-                        &mut accessors,
-                    );
-                }
-                AttributeData::Tangent(values) => {
-                    // TODO: do these values need to be scaled/normalized?
-                    add_attribute_values(
-                        values,
-                        gltf::Semantic::Tangents,
-                        gltf::json::accessor::Type::Vec4,
-                        &mut buffer_bytes,
-                        &mut buffer_views,
-                        &mut attributes,
-                        &mut accessors,
-                    );
-                }
-                AttributeData::Uv1(values) => {
-                    add_attribute_values(
-                        values,
-                        gltf::Semantic::TexCoords(0),
-                        gltf::json::accessor::Type::Vec2,
-                        &mut buffer_bytes,
-                        &mut buffer_views,
-                        &mut attributes,
-                        &mut accessors,
-                    );
-                }
-                AttributeData::Uv2(values) => {
-                    add_attribute_values(
-                        values,
-                        gltf::Semantic::TexCoords(1),
-                        gltf::json::accessor::Type::Vec2,
-                        &mut buffer_bytes,
-                        &mut buffer_views,
-                        &mut attributes,
-                        &mut accessors,
-                    );
-                }
-                AttributeData::VertexColor(values) => {
-                    add_attribute_values(
-                        values,
-                        gltf::Semantic::Colors(0),
-                        gltf::json::accessor::Type::Vec4,
-                        &mut buffer_bytes,
-                        &mut buffer_views,
-                        &mut attributes,
-                        &mut accessors,
-                    );
-                }
-                AttributeData::WeightIndex(_) => (),
-            }
+            add_vertex_buffers(
+                model,
+                group_index,
+                model_index,
+                &mut buffer_bytes,
+                &mut buffer_views,
+                &mut accessors,
+                &mut vertex_buffer_attributes,
+            );
+
+            // Place indices after the vertices to use a single buffer.
+            // TODO: Alignment?
+            add_index_buffers(
+                model,
+                group_index,
+                model_index,
+                &mut buffer_bytes,
+                &mut buffer_views,
+                &mut index_buffer_accessors,
+                &mut accessors,
+            );
         }
-
-        vertex_buffer_attributes.push(attributes);
     }
 
-    // Place indices after the vertices to use a single buffer.
-    // TODO: Alignment?
-    for index_buffer in &model.index_buffers {
+    let buffer = gltf::json::Buffer {
+        byte_length: buffer_bytes.len() as u32,
+        extensions: Default::default(),
+        extras: Default::default(),
+        name: None,
+        uri: Some(buffer_name),
+    };
+
+    Buffers {
+        buffer,
+        buffer_bytes,
+        buffer_views,
+        accessors,
+        vertex_buffer_attributes,
+        index_buffer_accessors,
+    }
+}
+
+fn add_index_buffers(
+    model: &crate::Model,
+    group_index: usize,
+    model_index: usize,
+    buffer_bytes: &mut Vec<u8>,
+    buffer_views: &mut Vec<gltf::json::buffer::View>,
+    index_buffer_accessors: &mut BTreeMap<BufferKey, usize>,
+    accessors: &mut Vec<gltf::json::Accessor>,
+) {
+    for (i, index_buffer) in model.index_buffers.iter().enumerate() {
         let index_bytes: &[u8] = bytemuck::cast_slice(&index_buffer.indices);
 
         // Assume everything uses the same buffer for now.
@@ -357,28 +466,116 @@ fn create_buffers(model: &crate::Model, buffer_name: String) -> Buffers {
             normalized: false,
             sparse: None,
         };
-        index_buffer_accessors.push(accessors.len());
+        index_buffer_accessors.insert(
+            BufferKey {
+                group_index,
+                model_index,
+                buffer_index: i,
+            },
+            accessors.len(),
+        );
 
         accessors.push(indices);
         buffer_views.push(view);
         buffer_bytes.extend_from_slice(index_bytes);
     }
+}
 
-    let buffer = gltf::json::Buffer {
-        byte_length: buffer_bytes.len() as u32,
-        extensions: Default::default(),
-        extras: Default::default(),
-        name: None,
-        uri: Some(buffer_name),
-    };
+fn add_vertex_buffers(
+    model: &crate::Model,
+    group_index: usize,
+    model_index: usize,
+    buffer_bytes: &mut Vec<u8>,
+    buffer_views: &mut Vec<gltf::json::buffer::View>,
+    accessors: &mut Vec<gltf::json::Accessor>,
+    vertex_buffer_attributes: &mut BTreeMap<BufferKey, GltfAttributes>,
+) {
+    for (i, vertex_buffer) in model.vertex_buffers.iter().enumerate() {
+        let mut attributes = BTreeMap::new();
+        for attribute in &vertex_buffer.attributes {
+            match attribute {
+                AttributeData::Position(values) => {
+                    add_attribute_values(
+                        values,
+                        gltf::Semantic::Positions,
+                        gltf::json::accessor::Type::Vec3,
+                        buffer_bytes,
+                        buffer_views,
+                        &mut attributes,
+                        accessors,
+                    );
+                }
+                AttributeData::Normal(values) => {
+                    // Not all applications will normalize the vertex normals.
+                    // Use Vec3 instead of Vec4 since it's better supported.
+                    let values: Vec<_> = values.iter().map(|v| v.xyz().normalize()).collect();
+                    add_attribute_values(
+                        &values,
+                        gltf::Semantic::Normals,
+                        gltf::json::accessor::Type::Vec3,
+                        buffer_bytes,
+                        buffer_views,
+                        &mut attributes,
+                        accessors,
+                    );
+                }
+                AttributeData::Tangent(values) => {
+                    // TODO: do these values need to be scaled/normalized?
+                    add_attribute_values(
+                        values,
+                        gltf::Semantic::Tangents,
+                        gltf::json::accessor::Type::Vec4,
+                        buffer_bytes,
+                        buffer_views,
+                        &mut attributes,
+                        accessors,
+                    );
+                }
+                AttributeData::Uv1(values) => {
+                    add_attribute_values(
+                        values,
+                        gltf::Semantic::TexCoords(0),
+                        gltf::json::accessor::Type::Vec2,
+                        buffer_bytes,
+                        buffer_views,
+                        &mut attributes,
+                        accessors,
+                    );
+                }
+                AttributeData::Uv2(values) => {
+                    add_attribute_values(
+                        values,
+                        gltf::Semantic::TexCoords(1),
+                        gltf::json::accessor::Type::Vec2,
+                        buffer_bytes,
+                        buffer_views,
+                        &mut attributes,
+                        accessors,
+                    );
+                }
+                AttributeData::VertexColor(values) => {
+                    add_attribute_values(
+                        values,
+                        gltf::Semantic::Colors(0),
+                        gltf::json::accessor::Type::Vec4,
+                        buffer_bytes,
+                        buffer_views,
+                        &mut attributes,
+                        accessors,
+                    );
+                }
+                AttributeData::WeightIndex(_) => (),
+            }
+        }
 
-    Buffers {
-        buffer,
-        buffer_bytes,
-        buffer_views,
-        accessors,
-        vertex_buffer_attributes,
-        index_buffer_accessors,
+        vertex_buffer_attributes.insert(
+            BufferKey {
+                group_index,
+                model_index,
+                buffer_index: i,
+            },
+            attributes,
+        );
     }
 }
 
