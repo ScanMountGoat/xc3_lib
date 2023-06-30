@@ -349,8 +349,8 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, groups: &[ModelGroup]) {
     std::fs::write(path.as_ref().with_file_name(buffer_name), buffer_bytes).unwrap();
 
     for (key, image) in png_images {
-        let name = image_name(&key);
-        image.save(name).unwrap();
+        let output = path.as_ref().with_file_name(image_name(&key));
+        image.save(output).unwrap();
     }
 }
 

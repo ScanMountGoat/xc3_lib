@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    io::{Read, Seek},
-};
+use std::collections::HashMap;
 
 use glam::{vec4, Vec3, Vec4};
 use wgpu::util::DeviceExt;
@@ -158,11 +155,11 @@ fn create_model_group(
 
 // TODO: Separate module for this?
 // TODO: Better way to pass the wismda file?
-pub fn load_map<R: Read + Seek>(
+pub fn load_map(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     msmd: &Msmd,
-    wismda: &mut R,
+    wismda: &[u8],
     model_path: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
 ) -> Vec<ModelGroup> {

@@ -120,16 +120,14 @@ impl State {
             }
             "wismhd" => {
                 let msmd = Msmd::from_file(model_path).unwrap();
-                let mut wismda = BufReader::new(
-                    std::fs::File::open(model_path.with_extension("wismda")).unwrap(),
-                );
+                let wismda = std::fs::read(model_path.with_extension("wismda")).unwrap();
                 let model_name = model_path.to_string_lossy().to_string();
 
                 load_map(
                     &device,
                     &queue,
                     &msmd,
-                    &mut wismda,
+                    &wismda,
                     &model_name,
                     &shader_database,
                 )
