@@ -49,7 +49,6 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, groups: &[ModelGroup]) {
     for (group_index, group) in groups.iter().enumerate() {
         for (i, texture) in group.image_textures.iter().enumerate() {
             // Convert to PNG since DDS is not well supported.
-            // TODO: These don't all decode properly?
             let dds = texture.to_dds().unwrap();
             let image = image_dds::image_from_dds(&dds, 0).unwrap();
             let key = ImageKey {

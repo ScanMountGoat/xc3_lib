@@ -36,7 +36,8 @@ pub fn load_map<R: Read + Seek>(
             // TODO: Merging doesn't always work?
             let base_mip_level = texture.high.decompress(wismda);
             let mibl_m = texture.mid.extract(wismda);
-            merge_mibl(base_mip_level, mibl_m)
+            // merge_mibl(base_mip_level, mibl_m)
+            mibl_m.try_into().unwrap()
         })
         .collect();
 
