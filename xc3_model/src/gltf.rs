@@ -1,13 +1,8 @@
 use std::{collections::BTreeMap, path::Path};
 
-use crate::{
-    texture::load_textures,
-    vertex::{read_indices, read_vertex_buffers, AttributeData},
-};
+use crate::{vertex::AttributeData, ModelGroup};
 use glam::Vec4Swizzles;
 use gltf::json::validation::Checked::Valid;
-use xc3_lib::{msrd::Msrd, mxmd::Mxmd};
-use xc3_shader::gbuffer_database::GBufferDatabase;
 
 type GltfAttributes = BTreeMap<
     gltf::json::validation::Checked<gltf::Semantic>,
@@ -26,19 +21,13 @@ struct Buffers {
     index_buffer_accessors: Vec<usize>,
 }
 
-// TODO: Take xc3_model types directly?
-pub fn export_gltf<P: AsRef<Path>>(
-    path: P,
-    mxmd: &Mxmd,
-    msrd: &Msrd,
-    model_name: &str,
-    m_tex_folder: &Path,
-    h_tex_folder: &Path,
-    database: &GBufferDatabase,
-) {
-    let mibls = load_textures(msrd, mxmd, m_tex_folder, h_tex_folder);
+// TODO: Support multiple groups?
+// TODO: Make returning and writing the data separate functions.
+pub fn export_gltf<P: AsRef<Path>>(path: P, group: &ModelGroup) {
     // TODO: Is it worth giving images their in game names?
-    let mut png_images: Vec<_> = mibls
+    // TODO: Differentiate names by group?
+    let mut png_images: Vec<_> = group
+        .image_textures
         .iter()
         .map(|texture| {
             // Convert to PNG since DDS is not well supported.
@@ -47,7 +36,7 @@ pub fn export_gltf<P: AsRef<Path>>(
         })
         .collect();
 
-    let textures = (0..mibls.len())
+    let textures = (0..group.image_textures.len())
         .map(|i| gltf::json::Texture {
             name: None,
             sampler: None,
@@ -58,7 +47,9 @@ pub fn export_gltf<P: AsRef<Path>>(
         .collect();
 
     // TODO: These need to be made while creating
-    let images = (0..mibls.len())
+    // TODO: Name textures as group{i}_{j}.png.
+    // TODO: Create a lookup from group index and texture index to image index.
+    let images = (0..group.image_textures.len())
         .map(|i| gltf::json::Image {
             buffer_view: None,
             mime_type: None,
@@ -69,22 +60,15 @@ pub fn export_gltf<P: AsRef<Path>>(
         })
         .collect();
 
-    let materials: Vec<_> = mxmd
-        .materials
+    let materials: Vec<_> = group
         .materials
         .iter()
         .map(|material| {
-            let program_index = material.shader_programs[0].program_index as usize;
-            let programs = database.files.get(model_name).map(|f| &f.programs);
-            let shader = programs
-                .and_then(|programs| programs.get(program_index))
-                .map(|program| &program.shaders[0]);
-
             // TODO: A proper solution will construct each channel individually.
             // Assume the texture is used for all channels for now.
             // TODO: Create consts for the gbuffer texture indices?
-            let albedo_index = texture_index(shader, material, 0, 'x');
-            let normal_index = texture_index(shader, material, 2, 'x');
+            let albedo_index = texture_index(material, 0, 'x');
+            let normal_index = texture_index(material, 2, 'x');
 
             // Reconstruct the normal map Z channel.
             // TODO: Cache already processed textures?
@@ -134,8 +118,6 @@ pub fn export_gltf<P: AsRef<Path>>(
         .to_string_lossy()
         .to_string();
 
-    let vertex_data = msrd.extract_vertex_data();
-
     // TODO: Create nodes and meshes for each mesh in the mxmd.
     let buffer_name = format!("{model_name}.buffer0.bin");
 
@@ -146,20 +128,18 @@ pub fn export_gltf<P: AsRef<Path>>(
         accessors,
         vertex_buffer_attributes,
         index_buffer_accessors,
-    } = create_buffers(vertex_data, buffer_name.clone());
+    } = create_buffers(&group.models[0], buffer_name.clone());
 
     // TODO: select by LOD and skip outline meshes?
-    let meshes: Vec<_> = mxmd
-        .models
+    // TODO: Also add instances in this step?
+    let meshes: Vec<_> = group
         .models
         .iter()
         .flat_map(|model| {
             model.meshes.iter().map(|mesh| {
-                let attributes =
-                    vertex_buffer_attributes[mesh.vertex_buffer_index as usize].clone();
+                let attributes = vertex_buffer_attributes[mesh.vertex_buffer_index].clone();
 
-                let index_accessor =
-                    index_buffer_accessors[mesh.index_buffer_index as usize] as u32;
+                let index_accessor = index_buffer_accessors[mesh.index_buffer_index] as u32;
 
                 let primitive = gltf::json::mesh::Primitive {
                     // TODO: Store this with the buffers?
@@ -177,7 +157,7 @@ pub fn export_gltf<P: AsRef<Path>>(
                 gltf::json::Mesh {
                     extensions: Default::default(),
                     extras: Default::default(),
-                    name: materials[mesh.material_index as usize].name.clone(),
+                    name: materials[mesh.material_index].name.clone(),
                     primitives: vec![primitive],
                     weights: None,
                 }
@@ -186,6 +166,7 @@ pub fn export_gltf<P: AsRef<Path>>(
         .collect();
 
     // TODO: Instance transforms for stages?
+    // TODO: combine this with mesh loading?
     let nodes: Vec<_> = (0..meshes.len())
         .map(|i| {
             // Assume one gltf node per gltf mesh for now.
@@ -229,7 +210,6 @@ pub fn export_gltf<P: AsRef<Path>>(
         ..Default::default()
     };
 
-    // TODO: Make returning and writing the data separate functions.
     let writer = std::fs::File::create(path.as_ref()).unwrap();
     gltf::json::serialize::to_writer_pretty(writer, &root).unwrap();
 
@@ -240,23 +220,21 @@ pub fn export_gltf<P: AsRef<Path>>(
     }
 }
 
-fn texture_index(
-    shader: Option<&xc3_shader::gbuffer_database::Shader>,
-    material: &xc3_lib::mxmd::Material,
-    gbuffer_index: usize,
-    channel: char,
-) -> Option<u32> {
+fn texture_index(material: &crate::Material, gbuffer_index: usize, channel: char) -> Option<u32> {
     // Find the sampler from the material.
-    let (sampler_index, _) = shader?.material_channel_assignment(gbuffer_index, channel)?;
+    let (sampler_index, _) = material
+        .shader
+        .as_ref()?
+        .material_channel_assignment(gbuffer_index, channel)?;
 
     // Find the texture referenced by this sampler.
     material
         .textures
         .get(sampler_index as usize)
-        .map(|t| t.texture_index as u32)
+        .map(|t| t.image_texture_index as u32)
 }
 
-fn create_buffers(vertex_data: xc3_lib::vertex::VertexData, buffer_name: String) -> Buffers {
+fn create_buffers(model: &crate::Model, buffer_name: String) -> Buffers {
     let mut buffer_bytes = Vec::new();
     let mut buffer_views = Vec::new();
     let mut accessors = Vec::new();
@@ -264,9 +242,8 @@ fn create_buffers(vertex_data: xc3_lib::vertex::VertexData, buffer_name: String)
     let mut index_buffer_accessors = Vec::new();
 
     // TODO: Handle the weight buffers separately?
-    let vertex_buffers = read_vertex_buffers(&vertex_data);
 
-    for vertex_buffer in vertex_buffers {
+    for vertex_buffer in &model.vertex_buffers {
         let mut attributes = BTreeMap::new();
         for attribute in &vertex_buffer.attributes {
             match attribute {
@@ -349,9 +326,8 @@ fn create_buffers(vertex_data: xc3_lib::vertex::VertexData, buffer_name: String)
 
     // Place indices after the vertices to use a single buffer.
     // TODO: Alignment?
-    for index_buffer in &vertex_data.index_buffers {
-        let indices = read_indices(index_buffer, &vertex_data.buffer);
-        let index_bytes: &[u8] = bytemuck::cast_slice(&indices);
+    for index_buffer in &model.index_buffers {
+        let index_bytes: &[u8] = bytemuck::cast_slice(&index_buffer.indices);
 
         // Assume everything uses the same buffer for now.
         let view = gltf::json::buffer::View {
@@ -368,7 +344,7 @@ fn create_buffers(vertex_data: xc3_lib::vertex::VertexData, buffer_name: String)
         let indices = gltf::json::Accessor {
             buffer_view: Some(gltf::json::Index::new(buffer_views.len() as u32)),
             byte_offset: 0,
-            count: indices.len() as u32,
+            count: index_buffer.indices.len() as u32,
             component_type: Valid(gltf::json::accessor::GenericComponentType(
                 gltf::json::accessor::ComponentType::U16,
             )),
