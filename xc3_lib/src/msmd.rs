@@ -95,7 +95,7 @@ pub struct Msmd {
     #[br(parse_with = parse_count_offset)]
     pub low_models: Vec<MapLowModel>,
 
-    unk_flags: u32,
+    env_flags: u32,
 
     /// `.wismda` data with names like `/seamwork/mpfmap/poli//0000`.
     #[br(parse_with = parse_count_offset)]
@@ -108,9 +108,9 @@ pub struct Msmd {
     #[br(parse_with = parse_count_offset)]
     pub map_vertex_data: Vec<StreamEntry<VertexData>>,
 
-    // TODO: only nerd if flags is 2?
     #[br(parse_with = FilePtr32::parse)]
-    nerd: Nerd,
+    #[br(args { inner: env_flags })]
+    nerd: EnvironmentData,
 
     unk6: [u32; 3],
 
@@ -209,6 +209,17 @@ pub struct FoliageModel {
     pub entry: StreamEntry<FoliageModelData>,
 }
 
+
+#[binread]
+#[derive(Debug)]
+#[br(import_raw(flags: u32))]
+pub enum EnvironmentData {
+    #[br(pre_assert(flags == 0))]
+    Cems(Cems),
+    #[br(pre_assert(flags == 2))]
+    Nerd(Nerd)
+}
+
 #[binread]
 #[derive(Debug)]
 #[br(magic(b"DREN"))]
@@ -221,6 +232,15 @@ pub struct Nerd {
     unk5: u32,
     // padding?
     unk6: [u32; 6],
+}
+
+// TODO: This contains a Nerd?
+#[binread]
+#[derive(Debug)]
+#[br(magic(b"SMEC"))]
+pub struct Cems {
+    unk1: [u32; 10],
+    offset: u32
 }
 
 // TODO: cloud data?
@@ -314,8 +334,9 @@ pub struct Effect {
     #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
     unk1: String,
 
-    #[br(parse_with = parse_count_offset, args_raw(base_offset))]
-    unk2: Vec<[[f32; 4]; 4]>, // TODO: transforms?
+    // TODO: xc2 has a string here instead?
+    transform_count: u32,
+    transform_offset: u32,
 
     unk4: u32,
     unk5: u32,
@@ -453,6 +474,7 @@ pub struct MapPartInstanceAnimationChannel {
 
     #[br(seek_before = std::io::SeekFrom::Start(base_offset + keyframes_offset as u64))]
     #[br(count = keyframe_count)]
+    #[br(restore_position)]
     pub keyframes: Vec<MapPartInstanceAnimationKeyframe>,
 }
 
