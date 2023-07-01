@@ -3,6 +3,7 @@ use std::{collections::BTreeMap, path::Path};
 use crate::{vertex::AttributeData, ModelGroup};
 use glam::{Mat4, Vec4Swizzles};
 use gltf::json::validation::Checked::Valid;
+use rayon::prelude::*;
 
 type GltfAttributes = BTreeMap<
     gltf::json::validation::Checked<gltf::Semantic>,
@@ -44,20 +45,7 @@ struct Buffers {
 // TODO: Clean this up.
 // TODO: Make returning and writing the data separate functions.
 pub fn export_gltf<P: AsRef<Path>>(path: P, groups: &[ModelGroup]) {
-    // TODO: Is it worth giving images their in game names?
-    let mut png_images = BTreeMap::new();
-    for (group_index, group) in groups.iter().enumerate() {
-        for (i, texture) in group.image_textures.iter().enumerate() {
-            // Convert to PNG since DDS is not well supported.
-            let dds = texture.to_dds().unwrap();
-            let image = image_dds::image_from_dds(&dds, 0).unwrap();
-            let key = ImageKey {
-                group_index,
-                image_index: i,
-            };
-            png_images.insert(key, image);
-        }
-    }
+    let mut png_images = create_images(groups);
 
     // Create a mapping from group index, texture index -> texture index.
     let mut textures = Vec::new();
@@ -104,48 +92,13 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, groups: &[ModelGroup]) {
                 }
             }
 
-            // The final texture indices depend on the group index.
-            // TODO: Function for this?
-            let albedo_index = albedo_index.map(|i| {
-                *texture_indices
-                    .get(&ImageKey {
-                        group_index,
-                        image_index: i as usize,
-                    })
-                    .unwrap()
-            });
-            let normal_index = normal_index.map(|i| {
-                *texture_indices
-                    .get(&ImageKey {
-                        group_index,
-                        image_index: i as usize,
-                    })
-                    .unwrap()
-            });
-
-            let material = gltf::json::Material {
-                name: Some(material.name.clone()),
-                pbr_metallic_roughness: gltf::json::material::PbrMetallicRoughness {
-                    base_color_texture: albedo_index.map(|i| gltf::json::texture::Info {
-                        index: gltf::json::Index::new(i),
-                        tex_coord: 0,
-                        extensions: None,
-                        extras: Default::default(),
-                    }),
-                    metallic_factor: gltf::json::material::StrengthFactor(0.0),
-                    roughness_factor: gltf::json::material::StrengthFactor(0.5),
-                    // TODO: metalness in B channel and roughness in G channel?
-                    ..Default::default()
-                },
-                normal_texture: normal_index.map(|i| gltf::json::material::NormalTexture {
-                    index: gltf::json::Index::new(i),
-                    scale: 1.0,
-                    tex_coord: 0,
-                    extensions: None,
-                    extras: Default::default(),
-                }),
-                ..Default::default()
-            };
+            let material = create_material(
+                material,
+                group_index,
+                albedo_index,
+                normal_index,
+                &texture_indices,
+            );
             let material_flattened_index = materials.len();
             materials.push(material);
 
@@ -348,10 +301,89 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, groups: &[ModelGroup]) {
 
     std::fs::write(path.as_ref().with_file_name(buffer_name), buffer_bytes).unwrap();
 
-    for (key, image) in png_images {
-        let output = path.as_ref().with_file_name(image_name(&key));
+    let path = path.as_ref();
+    // Encode and save images in parallel to boost performance.
+    png_images.par_iter().for_each(|(key, image)| {
+        let output = path.with_file_name(image_name(&key));
         image.save(output).unwrap();
+    });
+}
+
+fn create_images(groups: &[ModelGroup]) -> BTreeMap<ImageKey, image::RgbaImage> {
+    // TODO: Is it worth giving images their in game names?
+    let mut png_images = BTreeMap::new();
+    for (group_index, group) in groups.iter().enumerate() {
+        // Decode images in parallel to boost performance.
+        png_images.par_extend(
+            group
+                .image_textures
+                .par_iter()
+                .enumerate()
+                .map(|(i, texture)| {
+                    // Convert to PNG since DDS is not well supported.
+                    let dds = texture.to_dds().unwrap();
+                    let image = image_dds::image_from_dds(&dds, 0).unwrap();
+                    let key = ImageKey {
+                        group_index,
+                        image_index: i,
+                    };
+                    (key, image)
+                }),
+        );
     }
+    png_images
+}
+
+fn create_material(
+    material: &crate::Material,
+    group_index: usize,
+    albedo_index: Option<u32>,
+    normal_index: Option<u32>,
+    texture_indices: &BTreeMap<ImageKey, u32>,
+) -> gltf::json::Material {
+    // The final texture indices depend on the group index.
+    let albedo_index = material_texture_index(albedo_index, texture_indices, group_index);
+    let normal_index = material_texture_index(normal_index, texture_indices, group_index);
+
+    let material = gltf::json::Material {
+        name: Some(material.name.clone()),
+        pbr_metallic_roughness: gltf::json::material::PbrMetallicRoughness {
+            base_color_texture: albedo_index.map(|i| gltf::json::texture::Info {
+                index: gltf::json::Index::new(i),
+                tex_coord: 0,
+                extensions: None,
+                extras: Default::default(),
+            }),
+            metallic_factor: gltf::json::material::StrengthFactor(0.0),
+            roughness_factor: gltf::json::material::StrengthFactor(0.5),
+            // TODO: metalness in B channel and roughness in G channel?
+            ..Default::default()
+        },
+        normal_texture: normal_index.map(|i| gltf::json::material::NormalTexture {
+            index: gltf::json::Index::new(i),
+            scale: 1.0,
+            tex_coord: 0,
+            extensions: None,
+            extras: Default::default(),
+        }),
+        ..Default::default()
+    };
+    material
+}
+
+fn material_texture_index(
+    texture_index: Option<u32>,
+    texture_indices: &BTreeMap<ImageKey, u32>,
+    group_index: usize,
+) -> Option<u32> {
+    texture_index.map(|i| {
+        *texture_indices
+            .get(&ImageKey {
+                group_index,
+                image_index: i as usize,
+            })
+            .unwrap()
+    })
 }
 
 fn image_name(key: &ImageKey) -> String {
