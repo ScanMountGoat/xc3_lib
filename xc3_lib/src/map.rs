@@ -228,7 +228,6 @@ pub struct MapModelGroup {
     unk3: u32,
 }
 
-// TODO: Where is the VertexData?
 // TODO: Link to appropriate fields with doc links.
 /// The data for a [EnvModel](crate::msmd::EnvModel).
 #[binread]
@@ -286,7 +285,6 @@ pub struct TextureItem {
     pub name: String,
 }
 
-// TODO: Where is the VertexData?
 // TODO: Link to appropriate fields with doc links.
 /// The data for a [FoliageModel](crate::msmd::FoliageModel).
 #[binread]
