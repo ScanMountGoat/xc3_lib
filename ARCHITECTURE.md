@@ -8,9 +8,14 @@ File data starts as an unstructured array of bytes in one or more binary files. 
 
 **Model Rendering**
 1. Parse files (xc3_lib).
-2. Decompress, decode, and extract vertex and texture data from the parsed files (xc3_model).
-3. Convert the decoded data to renderable buffers, textures, pipelines etc (xc3_wgpu).
+2. Decompress, decode, and convert models and textures to a standardized format (xc3_model).
+3. Convert the xc3_model data to renderable buffers, textures, pipelines etc (xc3_wgpu).
 4. Initialize an `Xc3Renderer`, load the models, and render them on screen (xc3_viewer).
+
+**gltf Export**
+1. Parse files (xc3_lib).
+2. Decompress, decode, and convert models and textures to a standardized format (xc3_model).
+3. Convert the xc3_model data to the gltf format and textures to PNG (xc3_model).
 
 ## Projects
 ### xc3_lib
