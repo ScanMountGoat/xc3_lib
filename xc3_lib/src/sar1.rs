@@ -1,7 +1,7 @@
 use std::io::SeekFrom;
 
-use crate::{parse_count_offset, parse_string_ptr32};
-use binrw::{binread, BinRead, FilePtr32, NamedArgs, NullString};
+use crate::{parse_count_offset, parse_ptr32, parse_string_ptr32};
+use binrw::{binread, BinRead, NamedArgs, NullString};
 use serde::Serialize;
 
 // .chr files have skeletons?
@@ -28,7 +28,7 @@ pub struct Sar1 {
 #[binread]
 #[derive(Debug, Serialize)]
 pub struct Entry {
-    #[br(parse_with = FilePtr32::parse)]
+    #[br(parse_with = parse_ptr32)]
     data: EntryData,
     data_size: u32,
     name_hash: u32, // TODO: CRC32C?
@@ -163,7 +163,7 @@ pub struct Transform {
 #[derive(Debug, Serialize)]
 #[br(import_raw(base_offset: u64))]
 pub struct BoneName {
-    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     #[br(pad_after = 12)]
     name: String,
 }

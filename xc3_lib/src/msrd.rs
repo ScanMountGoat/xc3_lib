@@ -22,10 +22,10 @@ pub struct Msrd {
     tag: u32,
     revision: u32,
 
-    #[br(parse_with = parse_count_offset, args_raw(offset as u64))]
+    #[br(parse_with = parse_count_offset, offset = offset as u64)]
     pub stream_entries: Vec<StreamEntry>,
 
-    #[br(parse_with = parse_count_offset, args_raw(offset as u64))]
+    #[br(parse_with = parse_count_offset, offset = offset as u64)]
     pub streams: Vec<Stream>,
 
     pub model_entry_index: u32,
@@ -36,16 +36,16 @@ pub struct Msrd {
     pub middle_textures_stream_entry_start_index: u32,
     pub middle_textures_stream_entry_count: u32,
 
-    #[br(parse_with = parse_count_offset, args_raw(offset as u64))]
+    #[br(parse_with = parse_count_offset, offset = offset as u64)]
     texture_ids: Vec<u16>,
 
-    #[br(parse_with = parse_opt_ptr32, args_raw(offset as u64))]
+    #[br(parse_with = parse_opt_ptr32, offset = offset as u64)]
     pub textures: Option<PackedTextures>,
 
     unk1: u32,
 
     // TODO: Same count as textures?
-    #[br(parse_with = parse_count_offset, args_raw(offset as u64))]
+    #[br(parse_with = parse_count_offset, offset = offset as u64)]
     unk2: Vec<TextureResource>,
 
     // TODO: padding:

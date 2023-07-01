@@ -1,9 +1,9 @@
 use crate::{
-    parse_count_offset, parse_count_offset2, parse_offset_count, parse_offset_count2,
-    parse_opt_ptr32, parse_string_ptr32, spch::Spch, vertex::VertexData,
+    parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
+    spch::Spch, vertex::VertexData,
 };
 use bilge::prelude::*;
-use binrw::{args, binread, FilePtr32};
+use binrw::{args, binread};
 use serde::Serialize;
 
 /// .wimdo files
@@ -14,10 +14,10 @@ pub struct Mxmd {
     version: u32,
 
     // Are the following fields shared with maps?
-    #[br(parse_with = FilePtr32::parse)]
+    #[br(parse_with = parse_ptr32)]
     pub models: Models,
 
-    #[br(parse_with = FilePtr32::parse)]
+    #[br(parse_with = parse_ptr32)]
     pub materials: Materials,
 
     #[br(parse_with = parse_opt_ptr32)]
@@ -35,7 +35,7 @@ pub struct Mxmd {
     unk5: u32,
 
     // unpacked textures?
-    #[br(parse_with = FilePtr32::parse)]
+    #[br(parse_with = parse_ptr32)]
     pub textures: Textures,
 }
 
@@ -46,7 +46,7 @@ pub struct Materials {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    #[br(parse_with = parse_offset_count2, args_raw(base_offset))]
+    #[br(parse_with = parse_offset_count, args { offset: base_offset, inner: base_offset })]
     pub materials: Vec<Material>,
 
     // offset?
@@ -55,30 +55,30 @@ pub struct Materials {
 
     // TODO: Materials have offsets into these arrays for parameter values?
     // material body has a uniform at shader offset 64 but offset 48 in this floats buffer
-    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
     floats: Vec<f32>,
 
-    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
     ints: Vec<u32>,
 
-    #[br(parse_with = FilePtr32::parse)]
+    #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset })]
     unk_offset1: MaterialUnk1,
 
     // TODO: is this ever not 0?
     unk4: u32,
 
-    #[br(parse_with = parse_offset_count2, args_raw(base_offset))]
+    #[br(parse_with = parse_offset_count, args { offset: base_offset, inner: base_offset })]
     unks: Vec<MaterialUnk>,
 
     unks1: [u32; 2],
 
-    #[br(parse_with = parse_count_offset, args_raw(base_offset))]
+    #[br(parse_with = parse_count_offset, offset = base_offset)]
     unks2: Vec<(u32, u32)>,
 
     unks3: [u32; 7],
 
-    #[br(parse_with = parse_opt_ptr32, args_raw(base_offset))]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     pub samplers: Option<Samplers>,
 
     // TODO: padding?
@@ -89,19 +89,19 @@ pub struct Materials {
 #[derive(Debug, Serialize)]
 #[br(import_raw(base_offset: u64))]
 pub struct MaterialUnk {
-    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
     unk1: Vec<(u32, u32)>,
 
     unk3: u32, // 0
     unk4: u32, // 0
 
-    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
     unk5: Vec<[u32; 6]>,
 
-    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
     unk7: Vec<u16>,
 
-    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
     unk9: Vec<(u16, u16)>,
 
     unk11: u32,
@@ -117,10 +117,10 @@ pub struct MaterialUnk {
 #[br(import_raw(base_offset: u64))]
 pub struct MaterialUnk1 {
     // count matches up with Material.unk_start_index?
-    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
     unk1: Vec<(u16, u16)>,
     // 0 1 2 ... count-1
-    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
     unk2: Vec<u16>,
 }
 
@@ -178,7 +178,7 @@ pub struct SamplerFlags {
 #[derive(Debug, Serialize)]
 #[br(import_raw(base_offset: u64))]
 pub struct Material {
-    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     pub name: String,
 
     unk1: u16,
@@ -193,7 +193,7 @@ pub struct Material {
 
     // TODO: materials with zero textures?
     /// Defines the shader's sampler bindings in order for s0, s1, s2, ...
-    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
     pub textures: Vec<Texture>,
 
     pub flags: MaterialFlags,
@@ -208,7 +208,7 @@ pub struct Material {
     ints_count: u32,
 
     // always count 1?
-    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
     pub shader_programs: Vec<ShaderProgram>,
 
     unk5: u32,
@@ -349,22 +349,22 @@ pub struct Models {
     max_xyz: [f32; 3],
     min_xyz: [f32; 3],
 
-    #[br(parse_with = parse_offset_count2, args_raw(base_offset))]
+    #[br(parse_with = parse_offset_count, args { offset: base_offset, inner: base_offset })]
     pub models: Vec<Model>,
 
     unk2: u32,
 
-    #[br(parse_with = parse_opt_ptr32, args_raw(base_offset))]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     skeleton: Option<Skeleton>,
 
     unks3: [u32; 22],
 
-    #[br(parse_with = parse_opt_ptr32, args_raw(base_offset))]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     pub unk_offset1: Option<MeshUnk1>,
 
     unk_offset2: u32,
 
-    #[br(parse_with = parse_opt_ptr32, args_raw(base_offset))]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     lod_data: Option<LodData>,
 }
 
@@ -375,7 +375,7 @@ pub struct Models {
 #[derive(Debug, Serialize)]
 #[br(import_raw(base_offset: u64))]
 pub struct Model {
-    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
     pub meshes: Vec<Mesh>,
 
     unk1: u32,
@@ -410,7 +410,7 @@ pub struct MeshUnk1 {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    #[br(parse_with = FilePtr32::parse)]
+    #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset })]
     pub inner: MeshUnk1Inner,
     unk1: [u32; 14],
@@ -420,7 +420,7 @@ pub struct MeshUnk1 {
 #[derive(Debug, Serialize)]
 #[br(import_raw(base_offset: u64))]
 pub struct MeshUnk1Inner {
-    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     pub unk1: String,
 
     unk2: [f32; 9],
@@ -439,7 +439,7 @@ pub struct LodData {
     unk2: u32,
     unk3: u32,
 
-    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
     items: Vec<(u16, u16)>,
 }
 
@@ -459,7 +459,7 @@ pub struct Textures {
 
     unk2: u32,
 
-    #[br(parse_with = parse_opt_ptr32, args_raw(base_offset))]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     pub items: Option<PackedTextures>,
 }
 
@@ -470,7 +470,7 @@ pub struct PackedTextures {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    #[br(parse_with = parse_count_offset2, args_raw(base_offset))]
+    #[br(parse_with = parse_count_offset, args { offset: base_offset, inner: base_offset })]
     pub textures: Vec<PackedTexture>,
 
     unk2: u32,
@@ -487,7 +487,7 @@ pub struct PackedTexture {
     pub mibl_length: u32,
     pub mibl_offset: u32,
 
-    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     pub name: String,
 }
 
@@ -502,7 +502,7 @@ pub struct Skeleton {
     count2: u32,
 
     // TODO: Find a simpler way of writing this?
-    #[br(parse_with = FilePtr32::parse)]
+    #[br(parse_with = parse_ptr32)]
     #[br(args {
         offset: base_offset,
         inner: args! {
@@ -513,7 +513,7 @@ pub struct Skeleton {
     bones: Vec<Bone>,
 
     // TODO: Create a matrix type?
-    #[br(parse_with = FilePtr32::parse)]
+    #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: count1 as usize } })]
     transforms: Vec<[[f32; 4]; 4]>,
 
@@ -528,7 +528,7 @@ pub struct Skeleton {
 #[derive(Debug, Serialize)]
 #[br(import_raw(base_offset: u64))]
 pub struct Bone {
-    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     name: String,
     unk1: f32,
     unk_type: u32,
@@ -544,17 +544,17 @@ pub struct Unk1 {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    #[br(parse_with = parse_count_offset, args_raw(base_offset))]
+    #[br(parse_with = parse_count_offset, offset = base_offset)]
     unk1: Vec<Unk1Unk1>,
 
-    #[br(parse_with = parse_count_offset, args_raw(base_offset))]
+    #[br(parse_with = parse_count_offset, offset = base_offset)]
     unk2: Vec<Unk1Unk2>,
 
-    #[br(parse_with = parse_count_offset, args_raw(base_offset))]
+    #[br(parse_with = parse_count_offset, offset = base_offset)]
     unk3: Vec<Unk1Unk3>,
 
     // angle values?
-    #[br(parse_with = parse_count_offset, args_raw(base_offset))]
+    #[br(parse_with = parse_count_offset, offset = base_offset)]
     unk4: Vec<Unk1Unk4>,
 }
 

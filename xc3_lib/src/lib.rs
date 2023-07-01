@@ -4,7 +4,9 @@ use std::{
     path::Path,
 };
 
-use binrw::{BinRead, BinReaderExt, BinResult, BinWrite, NullString, VecArgs};
+use binrw::{
+    file_ptr::FilePtrArgs, BinRead, BinReaderExt, BinResult, BinWrite, NullString, VecArgs,
+};
 
 pub mod dds;
 pub mod map;
@@ -17,154 +19,120 @@ pub mod spch;
 pub mod vertex;
 pub mod xbc1;
 
-fn parse_offset_count<T, R>(reader: &mut R, endian: binrw::Endian, args: u64) -> BinResult<Vec<T>>
-where
-    for<'a> T: BinRead<Args<'a> = ()> + 'static,
-    R: std::io::Read + std::io::Seek,
-{
-    let offset = u32::read_options(reader, endian, ())?;
-    let count = u32::read_options(reader, endian, ())?;
-
-    let saved_pos = reader.stream_position()?;
-
-    reader.seek(SeekFrom::Start(offset as u64 + args))?;
-
-    let values = Vec::<T>::read_options(
-        reader,
-        endian,
-        VecArgs {
-            count: count as usize,
-            inner: (),
-        },
-    )?;
-
-    reader.seek(SeekFrom::Start(saved_pos))?;
-
-    Ok(values)
-}
-
-// TODO: Find a way to avoid duplicating the function for new inner args.
-fn parse_offset_count2<T, R>(reader: &mut R, endian: binrw::Endian, args: u64) -> BinResult<Vec<T>>
-where
-    for<'a> T: BinRead<Args<'a> = u64> + 'static,
-    R: std::io::Read + std::io::Seek,
-{
-    let offset = u32::read_options(reader, endian, ())?;
-    let count = u32::read_options(reader, endian, ())?;
-
-    let saved_pos = reader.stream_position()?;
-
-    reader.seek(SeekFrom::Start(offset as u64 + args))?;
-
-    let values = Vec::<T>::read_options(
-        reader,
-        endian,
-        VecArgs {
-            count: count as usize,
-            inner: args,
-        },
-    )?;
-
-    reader.seek(SeekFrom::Start(saved_pos))?;
-
-    Ok(values)
-}
-
-fn parse_count_offset<T, R>(reader: &mut R, endian: binrw::Endian, args: u64) -> BinResult<Vec<T>>
-where
-    for<'a> T: BinRead<Args<'a> = ()> + 'static,
-    R: std::io::Read + std::io::Seek,
-{
-    let count = u32::read_options(reader, endian, ())?;
-    let offset = u32::read_options(reader, endian, ())?;
-
-    let saved_pos = reader.stream_position()?;
-
-    reader.seek(SeekFrom::Start(offset as u64 + args))?;
-
-    let values = Vec::<T>::read_options(
-        reader,
-        endian,
-        VecArgs {
-            count: count as usize,
-            inner: (),
-        },
-    )?;
-
-    reader.seek(SeekFrom::Start(saved_pos))?;
-
-    Ok(values)
-}
-
-// TODO: Find a way to avoid duplicating the function for new inner args.
-fn parse_count_offset2<T, R>(reader: &mut R, endian: binrw::Endian, args: u64) -> BinResult<Vec<T>>
-where
-    for<'a> T: BinRead<Args<'a> = u64> + 'static,
-    R: std::io::Read + std::io::Seek,
-{
-    let count = u32::read_options(reader, endian, ())?;
-    let offset = u32::read_options(reader, endian, ())?;
-
-    let saved_pos = reader.stream_position()?;
-
-    reader.seek(SeekFrom::Start(offset as u64 + args))?;
-
-    let values = Vec::<T>::read_options(
-        reader,
-        endian,
-        VecArgs {
-            count: count as usize,
-            inner: args,
-        },
-    )?;
-
-    reader.seek(SeekFrom::Start(saved_pos))?;
-
-    Ok(values)
-}
-
-fn parse_string_ptr32<R: std::io::Read + std::io::Seek>(
+fn parse_offset_count<T, R, Args>(
     reader: &mut R,
     endian: binrw::Endian,
-    args: u64,
+    args: FilePtrArgs<Args>,
+) -> BinResult<Vec<T>>
+where
+    for<'a> T: BinRead<Args<'a> = Args> + 'static,
+    R: std::io::Read + std::io::Seek,
+    Args: Clone,
+{
+    let offset = u32::read_options(reader, endian, ())?;
+    let count = u32::read_options(reader, endian, ())?;
+
+    let saved_pos = reader.stream_position()?;
+
+    reader.seek(SeekFrom::Start(offset as u64 + args.offset))?;
+
+    let values = Vec::<T>::read_options(
+        reader,
+        endian,
+        VecArgs {
+            count: count as usize,
+            inner: args.inner,
+        },
+    )?;
+
+    reader.seek(SeekFrom::Start(saved_pos))?;
+
+    Ok(values)
+}
+
+fn parse_count_offset<T, R, Args>(
+    reader: &mut R,
+    endian: binrw::Endian,
+    args: FilePtrArgs<Args>,
+) -> BinResult<Vec<T>>
+where
+    for<'a> T: BinRead<Args<'a> = Args> + 'static,
+    R: std::io::Read + std::io::Seek,
+    Args: Clone,
+{
+    let count = u32::read_options(reader, endian, ())?;
+    let offset = u32::read_options(reader, endian, ())?;
+
+    let saved_pos = reader.stream_position()?;
+
+    reader.seek(SeekFrom::Start(offset as u64 + args.offset))?;
+
+    let values = Vec::<T>::read_options(
+        reader,
+        endian,
+        VecArgs {
+            count: count as usize,
+            inner: args.inner,
+        },
+    )?;
+
+    reader.seek(SeekFrom::Start(saved_pos))?;
+
+    Ok(values)
+}
+
+fn parse_string_ptr32<R: Read + Seek>(
+    reader: &mut R,
+    endian: binrw::Endian,
+    args: FilePtrArgs<()>,
 ) -> BinResult<String> {
     let offset = u32::read_options(reader, endian, ())?;
     let saved_pos = reader.stream_position()?;
 
-    reader.seek(SeekFrom::Start(args + offset as u64))?;
+    reader.seek(SeekFrom::Start(offset as u64 + args.offset))?;
     let value = NullString::read_options(reader, endian, ())?;
     reader.seek(SeekFrom::Start(saved_pos))?;
 
     Ok(value.to_string())
 }
 
-fn parse_ptr32<T, R>(reader: &mut R, endian: binrw::Endian, args: u64) -> BinResult<T>
+fn parse_ptr32<T, R, Args>(
+    reader: &mut R,
+    endian: binrw::Endian,
+    args: FilePtrArgs<Args>,
+) -> BinResult<T>
 where
-    for<'a> T: BinRead<Args<'a> = ()> + 'static,
+    for<'a> T: BinRead<Args<'a> = Args> + 'static,
     R: std::io::Read + std::io::Seek,
+    Args: Clone,
 {
     // Read a value pointed to by a relative offset.
     let offset = u32::read_options(reader, endian, ())?;
     let saved_pos = reader.stream_position()?;
 
-    reader.seek(SeekFrom::Start(offset as u64 + args))?;
-    let value = T::read_options(reader, endian, ())?;
+    reader.seek(SeekFrom::Start(offset as u64 + args.offset))?;
+    let value = T::read_options(reader, endian, args.inner)?;
     reader.seek(SeekFrom::Start(saved_pos))?;
 
     Ok(value)
 }
 
-fn parse_opt_ptr32<T, R>(reader: &mut R, endian: binrw::Endian, args: u64) -> BinResult<Option<T>>
+fn parse_opt_ptr32<T, R, Args>(
+    reader: &mut R,
+    endian: binrw::Endian,
+    args: FilePtrArgs<Args>,
+) -> BinResult<Option<T>>
 where
-    for<'a> T: BinRead<Args<'a> = ()> + 'static,
+    for<'a> T: BinRead<Args<'a> = Args> + 'static,
     R: std::io::Read + std::io::Seek,
+    Args: Clone,
 {
     // Read a value pointed to by a nullable relative offset.
     let offset = u32::read_options(reader, endian, ())?;
     if offset > 0 {
         let saved_pos = reader.stream_position()?;
-        reader.seek(SeekFrom::Start(offset as u64 + args))?;
-        let value = T::read_options(reader, endian, ())?;
+        reader.seek(SeekFrom::Start(offset as u64 + args.offset))?;
+        let value = T::read_options(reader, endian, args.inner)?;
         reader.seek(SeekFrom::Start(saved_pos))?;
 
         Ok(Some(value))

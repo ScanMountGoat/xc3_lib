@@ -4,7 +4,7 @@ use std::{
     marker::PhantomData,
 };
 
-use binrw::{binread, BinRead, FilePtr32};
+use binrw::{binread, BinRead};
 
 use crate::{
     map::{
@@ -12,8 +12,7 @@ use crate::{
         MapModelData, PropInstance, PropModelData, PropPositions,
     },
     mibl::Mibl,
-    parse_count_offset, parse_count_offset2, parse_offset_count, parse_offset_count2,
-    parse_opt_ptr32, parse_string_ptr32,
+    parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
     vertex::VertexData,
     xbc1::Xbc1,
 };
@@ -39,7 +38,7 @@ pub struct Msmd {
     #[br(parse_with = parse_count_offset)]
     pub env_models: Vec<EnvModel>,
 
-    #[br(parse_with = FilePtr32::parse)]
+    #[br(parse_with = parse_ptr32)]
     unk_offset: Unk,
 
     unk2_1: u32,
@@ -73,7 +72,7 @@ pub struct Msmd {
     unk3_1: u32,
     unk3_2: u32,
 
-    #[br(parse_with = FilePtr32::parse)]
+    #[br(parse_with = parse_ptr32)]
     tgld: Tgld,
 
     #[br(parse_with = parse_count_offset)]
@@ -108,13 +107,13 @@ pub struct Msmd {
     #[br(parse_with = parse_count_offset)]
     pub map_vertex_data: Vec<StreamEntry<VertexData>>,
 
-    #[br(parse_with = FilePtr32::parse)]
+    #[br(parse_with = parse_ptr32)]
     #[br(args { inner: env_flags })]
     nerd: EnvironmentData,
 
     unk6: [u32; 3],
 
-    #[br(parse_with = FilePtr32::parse)]
+    #[br(parse_with = parse_ptr32)]
     ibl: Ibl,
 
     #[br(parse_with = parse_opt_ptr32)]
@@ -267,7 +266,7 @@ pub struct Ibl {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    #[br(parse_with = parse_count_offset2, args_raw(base_offset))]
+    #[br(parse_with = parse_count_offset, args { offset: base_offset, inner: base_offset })]
     unk1: Vec<IblInner>,
 
     unk3: u32,
@@ -281,9 +280,9 @@ pub struct Ibl {
 #[br(import_raw(base_offset: u64))]
 pub struct IblInner {
     unk1: u32, // 0?
-    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     map_name: String,
-    #[br(parse_with = FilePtr32::parse, offset = base_offset)]
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
     gibl: Gibl,
     unk4: u32, // gibl section length?
     // padding?
@@ -317,7 +316,7 @@ pub struct Effects {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    #[br(parse_with = parse_count_offset, args_raw(base_offset))]
+    #[br(parse_with = parse_count_offset, offset = base_offset)]
     unk1: Vec<Effect>,
 
     unk3: u32,
@@ -330,7 +329,7 @@ pub struct Effect {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     unk1: String,
 
     // TODO: xc2 has a string here instead?
@@ -402,7 +401,7 @@ pub struct MapParts {
     base_offset: u64,
 
     // TODO: Where do static parts index?
-    #[br(parse_with = parse_offset_count2, args_raw(base_offset))]
+    #[br(parse_with = parse_offset_count, args { offset: base_offset, inner: base_offset })]
     pub parts: Vec<MapPart>,
 
     unk_count: u32,
@@ -434,7 +433,7 @@ pub struct MapParts {
     unk6: u32,
     unk7: u32,
 
-    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
     pub transforms: Vec<[[f32; 4]; 4]>,
 }
 
@@ -450,7 +449,7 @@ pub struct MapPartInstanceAnimation {
     unk3: u32,
     flags: u32,
 
-    #[br(parse_with = parse_offset_count2, args_raw(base_offset))]
+    #[br(parse_with = parse_offset_count, args { offset: base_offset, inner: base_offset })]
     pub channels: Vec<MapPartInstanceAnimationChannel>,
 
     time_min: u16,
@@ -506,7 +505,7 @@ pub struct MapPartInstanceAnimationKeyframe {
 #[derive(Debug)]
 #[br(import_raw(base_offset: u64))]
 pub struct MapPart {
-    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     pub name: String,
 
     // TODO: The index of the instance in PropLods.instances?

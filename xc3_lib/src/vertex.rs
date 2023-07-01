@@ -1,7 +1,5 @@
-use crate::{
-    parse_count_offset, parse_offset_count, parse_offset_count2, parse_opt_ptr32, parse_ptr32,
-};
-use binrw::{args, binread, FilePtr32};
+use crate::{parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32};
+use binrw::{args, binread};
 use serde::Serialize;
 
 /// Vertex and vertex index buffer data used by a [Model](crate::mxmd::Model).
@@ -12,10 +10,10 @@ pub struct VertexData {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    #[br(parse_with = parse_offset_count2, args_raw(base_offset))]
+    #[br(parse_with = parse_offset_count, args { offset: base_offset, inner: base_offset })]
     pub vertex_buffers: Vec<VertexBufferDescriptor>,
 
-    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
     pub index_buffers: Vec<IndexBufferDescriptor>,
 
     // padding?
@@ -24,29 +22,29 @@ pub struct VertexData {
     unk2: u32,
 
     // TODO: Extra data for every buffer except the single weights buffer?
-    #[br(parse_with = FilePtr32::parse)]
+    #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: vertex_buffers.len() - 1 }})]
     vertex_buffer_info: Vec<VertexBufferInfo>,
 
     // 332 bytes of data?
-    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
     outline_buffers: Vec<OutlineBuffer>,
 
-    #[br(parse_with = parse_opt_ptr32, args_raw(base_offset))]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     pub vertex_animation: Option<VertexAnimation>,
 
     /// The data buffer containing all the geometry data.
     // TODO: Optimized function for reading bytes?
-    #[br(parse_with = parse_count_offset, args_raw(base_offset))]
+    #[br(parse_with = parse_count_offset, offset = base_offset)]
     pub buffer: Vec<u8>,
 
     // TODO: particles?
     unk6: u32,
 
-    #[br(parse_with = parse_ptr32, args_raw(base_offset))]
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
     pub weights: Weights,
 
-    #[br(parse_with = parse_ptr32, args_raw(base_offset))]
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
     unk7: Unk,
     // padding?
 }
@@ -62,7 +60,7 @@ pub struct VertexBufferDescriptor {
     pub vertex_size: u32,
 
     // Corresponds to attributes in vertex shader?
-    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
     pub attributes: Vec<VertexAttribute>,
 
     // TODO: padding?
@@ -162,7 +160,7 @@ pub struct VertexAnimationDescriptor {
     pub target_count: u32,
     // pointer to u16 indices 0,1,2,...?
     // start and ending frame for each target?
-    #[br(parse_with = FilePtr32::parse)]
+    #[br(parse_with = parse_ptr32)]
     #[br(args { inner: args! { count: target_count as usize * 2 }})]
     pub unk1: Vec<u16>,
 
@@ -218,7 +216,7 @@ pub struct Unk {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    #[br(parse_with = parse_count_offset, args_raw(base_offset))]
+    #[br(parse_with = parse_count_offset, offset = base_offset)]
     pub unk1: Vec<UnkInner>,
 
     // The length of the data in bytes.

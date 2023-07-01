@@ -1,7 +1,7 @@
 use std::io::{Cursor, Seek, SeekFrom};
 
-use crate::{parse_count_offset2, parse_offset_count, parse_string_ptr32};
-use binrw::{args, binread, BinRead, BinReaderExt, FilePtr32};
+use crate::{parse_count_offset, parse_offset_count, parse_ptr32, parse_string_ptr32};
+use binrw::{args, binread, BinRead, BinReaderExt};
 use serde::Serialize;
 
 /// .wishp, embedded in .wismt and .wimdo
@@ -16,21 +16,21 @@ pub struct Spch {
 
     version: u32,
 
-    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
     pub shader_programs: Vec<ShaderProgram>,
 
     // TODO: Related to string section?
-    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
     pub unk4s: Vec<(u32, u32, u32)>,
 
     /// A collection of [Slct].
-    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
     pub slct_section: Vec<u8>,
 
     /// Compiled shader binaries.
     /// Alternates between vertex and fragment shaders.
     // TODO: Optimized function for reading bytes?
-    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
     pub xv4_section: Vec<u8>,
 
     // data before the xV4 section
@@ -38,11 +38,11 @@ pub struct Spch {
     // each has length 2176 (referenced in shaders?)
     // TODO: Optimized function for reading bytes?
     /// A collection of [UnkItem].
-    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
     pub unk_section: Vec<u8>,
 
     // TODO: Does this actually need the program count?
-    #[br(parse_with = FilePtr32::parse, offset = base_offset)]
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
     #[br(args { inner: (base_offset, shader_programs.len()) })]
     pub string_section: StringSection,
 
@@ -69,7 +69,14 @@ impl BinRead for StringSection {
 
         let mut program_names = Vec::new();
         for _ in 0..count {
-            let name = parse_string_ptr32(reader, endian, base_offset)?;
+            let name = parse_string_ptr32(
+                reader,
+                endian,
+                binrw::file_ptr::FilePtrArgs {
+                    offset: base_offset,
+                    inner: (),
+                },
+            )?;
             program_names.push(name);
         }
 
@@ -95,10 +102,10 @@ pub struct Slct {
 
     unk1: u32,
 
-    #[br(parse_with = parse_count_offset2, args_raw(base_offset))]
+    #[br(parse_with = parse_count_offset, args { offset: base_offset, inner: base_offset })]
     unk_strings: Vec<UnkString>,
 
-    #[br(parse_with = parse_count_offset2, args_raw(base_offset))]
+    #[br(parse_with = parse_count_offset, args { offset: base_offset, inner: base_offset })]
     pub nvsds: Vec<NvsdMetadataOffset>,
 
     unk5_count: u32,
@@ -128,7 +135,7 @@ pub struct Slct {
 struct UnkString {
     unk1: u32,
     unk2: u32,
-    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     text: String,
 }
 
@@ -136,7 +143,7 @@ struct UnkString {
 #[derive(Debug, Serialize)]
 #[br(import_raw(base_offset: u64))]
 pub struct NvsdMetadataOffset {
-    #[br(parse_with = FilePtr32::parse, offset = base_offset)]
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
     pub inner: NvsdMetadata,
     size: u32,
 }
@@ -154,7 +161,7 @@ pub struct NvsdMetadata {
     // TODO: not always the same as above?
     pub unk_count2: u16,
 
-    #[br(parse_with = FilePtr32::parse)]
+    #[br(parse_with = parse_ptr32)]
     #[br(args {
         offset: base_offset,
         inner: args! { count: unk_count1 as usize, inner: args! { base_offset } }
@@ -167,7 +174,7 @@ pub struct NvsdMetadata {
     // TODO: not always the same as above?
     pub unk_count4: u16,
 
-    #[br(parse_with = FilePtr32::parse)]
+    #[br(parse_with = parse_ptr32)]
     #[br(args {
         offset: base_offset,
         inner: args! { count: unk_count3 as usize, inner: args! { base_offset } }
@@ -181,7 +188,7 @@ pub struct NvsdMetadata {
     // TODO: not always the same as above?
     pub unk_count6: u16,
 
-    #[br(parse_with = FilePtr32::parse)]
+    #[br(parse_with = parse_ptr32)]
     #[br(args {
         offset: base_offset,
         inner: args! { count: sampler_count as usize, inner: args! { base_offset } }
@@ -190,10 +197,10 @@ pub struct NvsdMetadata {
 
     pub unks2_1: [u32; 4],
 
-    #[br(parse_with = parse_count_offset2, args_raw(base_offset))]
+    #[br(parse_with = parse_count_offset, args { offset: base_offset, inner: base_offset })]
     pub attributes: Vec<InputAttribute>,
 
-    #[br(parse_with = parse_count_offset2, args_raw(base_offset))]
+    #[br(parse_with = parse_count_offset, args { offset: base_offset, inner: base_offset })]
     pub uniforms: Vec<Uniform>,
 
     pub unks3: [u32; 4],
@@ -240,7 +247,7 @@ pub struct Nvsd {
 #[derive(Debug, Serialize)]
 #[br(import { base_offset: u64 })]
 pub struct UniformBuffer {
-    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     pub name: String,
     pub uniform_count: u16,
     pub uniform_start_index: u16,
@@ -253,7 +260,7 @@ pub struct UniformBuffer {
 #[derive(Debug, Serialize)]
 #[br(import { base_offset: u64 })]
 pub struct Sampler {
-    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     pub name: String,
     pub unk1: u32,
     pub unk2: u32, // handle = (unk2 - 256) * 2 + 8?
@@ -265,7 +272,7 @@ pub struct Sampler {
 #[br(import_raw(base_offset: u64))]
 pub struct Uniform {
     /// The name used to refer to the uniform like `gMatCol`.
-    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     pub name: String,
 
     /// The offset into the parent buffer in bytes.
@@ -277,7 +284,7 @@ pub struct Uniform {
 #[derive(Debug, Serialize)]
 #[br(import_raw(base_offset: u64))]
 pub struct InputAttribute {
-    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     pub name: String,
     pub location: u32,
 }
