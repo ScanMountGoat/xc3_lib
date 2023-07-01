@@ -21,12 +21,14 @@ pub struct VertexData {
     unk1: u32,
     unk2: u32,
 
-    // 144 bytes of data?
-    unk_offset0: u32,
+    // TODO: Extra data for every buffer except the single weights buffer?
+    #[br(parse_with = FilePtr32::parse)]
+    #[br(args { offset: base_offset, inner: args! { count: vertex_buffers.len() - 1 }})]
+    vertex_buffer_info: Vec<VertexBufferInfo>,
 
     // 332 bytes of data?
-    unk_offset1: u32,
-    unk4: u32,
+    #[br(parse_with = parse_offset_count, args_raw(base_offset))]
+    outline_buffers: Vec<OutlineBuffer>,
 
     #[br(parse_with = parse_ptr32, args_raw(base_offset))]
     pub vertex_animation: Option<VertexAnimation>,
@@ -36,12 +38,14 @@ pub struct VertexData {
     #[br(parse_with = parse_count_offset, args_raw(base_offset))]
     pub buffer: Vec<u8>,
 
+    // TODO: particles?
     unk6: u32,
 
     #[br(parse_with = FilePtr32::parse, offset = base_offset)]
     pub weights: Weights,
 
-    unk7: u32,
+    #[br(parse_with = FilePtr32::parse, offset = base_offset)]
+    unk7: Unk,
     // padding?
 }
 
@@ -182,7 +186,7 @@ pub struct VertexAnimationTarget {
 #[derive(Debug, Serialize)]
 pub struct Weights {
     #[br(parse_with = parse_count_offset)]
-    pub weights: Vec<Weight>,
+    pub groups: Vec<WeightGroup>,
 
     /// The descriptor in [vertex_buffers](struct.VertexData.html#structfield.vertex_buffer) containing the weight data.
     /// This is typically the last element.
@@ -197,10 +201,61 @@ pub struct Weights {
 // 40 bytes?
 #[binread]
 #[derive(Debug, Serialize)]
-pub struct Weight {
+pub struct WeightGroup {
     // offsets are just the sum of the previous counts?
     unk1: u32, // offset?
     unk2: u32, // offset?
     unk3: u32, // count?
     unks: [u32; 7],
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(stream = r)]
+pub struct Unk {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = parse_count_offset, args_raw(base_offset))]
+    pub unk1: Vec<UnkInner>,
+
+    // The length of the data in bytes.
+    pub data_count: u32,
+
+    /// The offset into [buffer](struct.VertexData.html#structfield.buffer).
+    pub data_offset: u32,
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+pub struct UnkInner {
+    unk1: u16,
+    unk2: u16,
+    unk3: u32,
+    unk4: u32,
+    unk5: u32,
+    unk6: u32,
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+pub struct VertexBufferInfo {
+    flags: u16,
+    outline_buffer_index: u16,
+    vertex_animation_target_start_index: u16,
+    vertex_animation_target_count: u16,
+    // TODO: padding?
+    unk: u32,
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+pub struct OutlineBuffer {
+    /// The offset into [buffer](struct.VertexData.html#structfield.buffer).
+    pub data_offset: u32,
+    pub vertex_count: u32,
+    /// The size or stride of the vertex in bytes.
+    pub vertex_size: u32,
+    // TODO: padding?
+    unk: u32,
 }
