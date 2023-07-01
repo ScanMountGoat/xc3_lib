@@ -28,6 +28,8 @@ pub fn load_map(
 ) -> Vec<ModelGroup> {
     let model_folder = model_folder_name(model_path);
 
+    let compressed = msmd.wismda_info.compressed_length != msmd.wismda_info.decompressed_length;
+
     // The .wismda is already parsed, so we can cheaply create readers.
     // This makes it easier to parallelize but increase memory usage.
     let textures: Vec<_> = msmd
@@ -37,7 +39,7 @@ pub fn load_map(
             // TODO: Merging doesn't always work?
             // TODO: Do all textures load a separate base mip level?
             let mut wismda = Cursor::new(&wismda);
-            let mibl_m = texture.mid.extract(&mut wismda);
+            let mibl_m = texture.mid.extract(&mut wismda, compressed);
             mibl_m.try_into().unwrap()
         })
         .collect();
@@ -53,14 +55,21 @@ pub fn load_map(
             .par_iter()
             .enumerate()
             .map(|(i, env_model)| {
-                load_env_model(&wismda, env_model, i, &model_folder, shader_database)
+                load_env_model(
+                    &wismda,
+                    compressed,
+                    env_model,
+                    i,
+                    &model_folder,
+                    shader_database,
+                )
             }),
     );
 
     combined_models.par_extend(
         msmd.foliage_models
             .par_iter()
-            .map(|foliage_model| load_foliage_model(&wismda, foliage_model)),
+            .map(|foliage_model| load_foliage_model(&wismda, compressed, foliage_model)),
     );
 
     combined_models.par_extend(
@@ -70,6 +79,7 @@ pub fn load_map(
             .map(|(i, map_model)| {
                 load_map_model_group(
                     wismda,
+                    compressed,
                     map_model,
                     i,
                     &msmd.map_vertex_data,
@@ -87,6 +97,7 @@ pub fn load_map(
             .map(|(i, prop_model)| {
                 load_prop_model_group(
                     wismda,
+                    compressed,
                     prop_model,
                     i,
                     &msmd.prop_vertex_data,
@@ -103,6 +114,7 @@ pub fn load_map(
 
 fn load_prop_model_group(
     wismda: &[u8],
+    compressed: bool,
     prop_model: &xc3_lib::msmd::PropModel,
     model_index: usize,
     prop_vertex_data: &[StreamEntry<VertexData>],
@@ -113,7 +125,7 @@ fn load_prop_model_group(
 ) -> ModelGroup {
     let mut wismda = Cursor::new(&wismda);
 
-    let prop_model_data = prop_model.entry.extract(&mut wismda);
+    let prop_model_data = prop_model.entry.extract(&mut wismda, compressed);
 
     // Get the textures referenced by the materials in this model.
     let image_textures = load_map_textures(&prop_model_data.textures, image_textures);
@@ -132,12 +144,13 @@ fn load_prop_model_group(
         .props
         .iter()
         .enumerate()
-        .map(|(i, prop_lod)| {
+        .filter_map(|(i, prop_lod)| {
             let base_lod_index = prop_lod.base_lod_index as usize;
             let vertex_data_index = prop_model_data.model_vertex_data_indices[base_lod_index];
 
             // TODO: Also cache vertex and index buffer creation?
-            let vertex_data = prop_vertex_data[vertex_data_index as usize].extract(&mut wismda);
+            let vertex_data =
+                prop_vertex_data[vertex_data_index as usize].extract(&mut wismda, compressed);
 
             // Find all the instances referencing this prop.
             let instances = prop_model_data
@@ -148,11 +161,11 @@ fn load_prop_model_group(
                 .map(|instance| Mat4::from_cols_array_2d(&instance.transform))
                 .collect();
 
-            Model::from_model(
-                &prop_model_data.models.models[base_lod_index],
+            Some(Model::from_model(
+                prop_model_data.models.models.get(base_lod_index)?,
                 &vertex_data,
                 instances,
-            )
+            ))
         })
         .collect();
 
@@ -231,6 +244,7 @@ fn add_animated_part_instances(
 
 fn load_map_model_group(
     wismda: &[u8],
+    compressed: bool,
     model: &xc3_lib::msmd::MapModel,
     model_index: usize,
     vertex_data: &[StreamEntry<VertexData>],
@@ -239,7 +253,7 @@ fn load_map_model_group(
     shader_database: &GBufferDatabase,
 ) -> ModelGroup {
     let mut wismda = Cursor::new(&wismda);
-    let model_data = model.entry.extract(&mut wismda);
+    let model_data = model.entry.extract(&mut wismda, compressed);
 
     // Get the textures referenced by the materials in this model.
     let image_textures = load_map_textures(&model_data.textures, image_textures);
@@ -255,7 +269,7 @@ fn load_map_model_group(
 
     for group in model_data.groups.groups {
         let vertex_data_index = group.vertex_data_index as usize;
-        let vertex_data = vertex_data[vertex_data_index].extract(&mut wismda);
+        let vertex_data = vertex_data[vertex_data_index].extract(&mut wismda, compressed);
 
         // Each group has a base and low detail vertex data index.
         // Each model has an assigned vertex data index.
@@ -282,6 +296,7 @@ fn load_map_model_group(
 
 fn load_env_model(
     wismda: &[u8],
+    compressed: bool,
     model: &xc3_lib::msmd::EnvModel,
     model_index: usize,
     model_folder: &str,
@@ -289,7 +304,7 @@ fn load_env_model(
 ) -> ModelGroup {
     let mut wismda = Cursor::new(&wismda);
 
-    let model_data = model.entry.extract(&mut wismda);
+    let model_data = model.entry.extract(&mut wismda, compressed);
 
     // Environment models embed their own textures instead of using the MSMD.
     let image_textures: Vec<_> = model_data
@@ -328,10 +343,14 @@ fn load_env_model(
     }
 }
 
-fn load_foliage_model(wismda: &[u8], model: &xc3_lib::msmd::FoliageModel) -> ModelGroup {
+fn load_foliage_model(
+    wismda: &[u8],
+    compressed: bool,
+    model: &xc3_lib::msmd::FoliageModel,
+) -> ModelGroup {
     let mut wismda = Cursor::new(&wismda);
 
-    let model_data = model.entry.extract(&mut wismda);
+    let model_data = model.entry.extract(&mut wismda, compressed);
 
     // Foliage models embed their own textures instead of using the MSMD.
     let image_textures: Vec<_> = model_data

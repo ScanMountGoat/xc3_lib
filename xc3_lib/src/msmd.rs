@@ -39,7 +39,7 @@ pub struct Msmd {
     pub env_models: Vec<EnvModel>,
 
     #[br(parse_with = parse_ptr32)]
-    unk_offset: Unk,
+    pub wismda_info: WismdaInfo,
 
     unk2_1: u32,
 
@@ -304,9 +304,12 @@ pub struct Gibl {
 
 #[binread]
 #[derive(Debug)]
-pub struct Unk {
-    wismda_length: u32,
-    unks: [u32; 18],
+pub struct WismdaInfo {
+    pub compressed_length: u32,
+    pub unk1: u32,
+    pub decompressed_length: u32,
+    pub streaming_buffer_length: u32,
+    unks: [u32; 15],
 }
 
 #[binread]
@@ -543,14 +546,21 @@ where
     for<'a> T: BinRead<Args<'a> = ()>,
 {
     /// Decompress and read the data from a reader for a `.wismda` file.
-    pub fn extract<R: Read + Seek>(&self, wismda: &mut R) -> T {
-        let bytes = self.decompress(wismda);
+    pub fn extract<R: Read + Seek>(&self, wismda: &mut R, is_compressed: bool) -> T {
+        let bytes = self.decompress(wismda, is_compressed);
         T::read_le(&mut Cursor::new(bytes)).unwrap()
     }
 
     /// Decompress the data from a reader for a `.wismda` file.
-    pub fn decompress<R: Read + Seek>(&self, wismda: &mut R) -> Vec<u8> {
+    pub fn decompress<R: Read + Seek>(&self, wismda: &mut R, is_compressed: bool) -> Vec<u8> {
+        // Not all wismda files use XBC1 archives to store data.
         wismda.seek(SeekFrom::Start(self.offset as u64)).unwrap();
-        Xbc1::read(wismda).unwrap().decompress().unwrap()
+        if is_compressed {
+            Xbc1::read(wismda).unwrap().decompress().unwrap()
+        } else {
+            let mut bytes = vec![0u8; self.decompressed_size as usize];
+            wismda.read_exact(&mut bytes).unwrap();
+            bytes
+        }
     }
 }
