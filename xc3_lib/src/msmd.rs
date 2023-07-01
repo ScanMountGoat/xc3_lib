@@ -12,8 +12,8 @@ use crate::{
         MapModelData, PropInstance, PropModelData, PropPositions,
     },
     mibl::Mibl,
-    parse_count_offset, parse_count_offset2, parse_offset_count, parse_offset_count2, parse_ptr32,
-    parse_string_ptr32,
+    parse_count_offset, parse_count_offset2, parse_offset_count, parse_offset_count2,
+    parse_opt_ptr32, parse_string_ptr32,
     vertex::VertexData,
     xbc1::Xbc1,
 };
@@ -44,7 +44,7 @@ pub struct Msmd {
 
     unk2_1: u32,
 
-    #[br(parse_with = parse_ptr32)]
+    #[br(parse_with = parse_opt_ptr32)]
     effects: Option<Effects>,
 
     unk2: [u32; 3],
@@ -87,7 +87,7 @@ pub struct Msmd {
     // TODO: Document more of these fields.
     unk4: [u32; 6],
 
-    #[br(parse_with = parse_ptr32)]
+    #[br(parse_with = parse_opt_ptr32)]
     pub parts: Option<MapParts>,
 
     unk4_2: u32,
@@ -117,13 +117,13 @@ pub struct Msmd {
     #[br(parse_with = FilePtr32::parse)]
     ibl: Ibl,
 
-    #[br(parse_with = parse_ptr32)]
+    #[br(parse_with = parse_opt_ptr32)]
     cmld: Option<Cmld>,
 
     unk5_2: u32,
     unk5_3: u32,
 
-    #[br(parse_with = parse_ptr32)]
+    #[br(parse_with = parse_opt_ptr32)]
     unk5_4: Option<Doce>,
 
     unk5_5: u32,
@@ -209,7 +209,6 @@ pub struct FoliageModel {
     pub entry: StreamEntry<FoliageModelData>,
 }
 
-
 #[binread]
 #[derive(Debug)]
 #[br(import_raw(flags: u32))]
@@ -217,7 +216,7 @@ pub enum EnvironmentData {
     #[br(pre_assert(flags == 0))]
     Cems(Cems),
     #[br(pre_assert(flags == 2))]
-    Nerd(Nerd)
+    Nerd(Nerd),
 }
 
 #[binread]
@@ -240,7 +239,7 @@ pub struct Nerd {
 #[br(magic(b"SMEC"))]
 pub struct Cems {
     unk1: [u32; 10],
-    offset: u32
+    offset: u32,
 }
 
 // TODO: cloud data?

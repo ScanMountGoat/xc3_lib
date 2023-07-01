@@ -1,4 +1,4 @@
-use std::{io::BufReader, path::Path};
+use std::path::Path;
 
 use futures::executor::block_on;
 use glam::{vec3, Vec3};

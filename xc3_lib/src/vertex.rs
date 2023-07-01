@@ -1,4 +1,6 @@
-use crate::{parse_count_offset, parse_offset_count, parse_offset_count2, parse_ptr32};
+use crate::{
+    parse_count_offset, parse_offset_count, parse_offset_count2, parse_opt_ptr32, parse_ptr32,
+};
 use binrw::{args, binread, FilePtr32};
 use serde::Serialize;
 
@@ -30,7 +32,7 @@ pub struct VertexData {
     #[br(parse_with = parse_offset_count, args_raw(base_offset))]
     outline_buffers: Vec<OutlineBuffer>,
 
-    #[br(parse_with = parse_ptr32, args_raw(base_offset))]
+    #[br(parse_with = parse_opt_ptr32, args_raw(base_offset))]
     pub vertex_animation: Option<VertexAnimation>,
 
     /// The data buffer containing all the geometry data.
@@ -41,10 +43,10 @@ pub struct VertexData {
     // TODO: particles?
     unk6: u32,
 
-    #[br(parse_with = FilePtr32::parse, offset = base_offset)]
+    #[br(parse_with = parse_ptr32, args_raw(base_offset))]
     pub weights: Weights,
 
-    #[br(parse_with = FilePtr32::parse, offset = base_offset)]
+    #[br(parse_with = parse_ptr32, args_raw(base_offset))]
     unk7: Unk,
     // padding?
 }

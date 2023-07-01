@@ -1,10 +1,10 @@
 use std::io::Cursor;
 
 use crate::{
-    mibl::Mibl, parse_count_offset, parse_ptr32, parse_string_ptr32, spch::Spch,
+    mibl::Mibl, mxmd::PackedTextures, parse_count_offset, parse_opt_ptr32, parse_ptr32, spch::Spch,
     vertex::VertexData, xbc1::Xbc1,
 };
-use binrw::{binread, FilePtr32};
+use binrw::binread;
 use serde::Serialize;
 
 /// .wismt model files in `chr/bt`, `chr/ch/`, `chr/en`, `chr/oj`, and `chr/wp`.
@@ -15,6 +15,7 @@ pub struct Msrd {
     version: u32,
     header_size: u32,
 
+    // TODO: Pointer to an inner type?
     #[br(temp)]
     offset: u32,
 
@@ -38,8 +39,17 @@ pub struct Msrd {
     #[br(parse_with = parse_count_offset, args_raw(offset as u64))]
     texture_ids: Vec<u16>,
 
-    #[br(parse_with = parse_ptr32, args_raw(offset as u64))]
-    pub textures: Option<Textures>,
+    #[br(parse_with = parse_opt_ptr32, args_raw(offset as u64))]
+    pub textures: Option<PackedTextures>,
+
+    unk1: u32,
+
+    // TODO: Same count as textures?
+    #[br(parse_with = parse_count_offset, args_raw(offset as u64))]
+    unk2: Vec<TextureResource>,
+
+    // TODO: padding:
+    unk: [u32; 5],
 }
 
 #[binread]
@@ -50,7 +60,7 @@ pub struct StreamEntry {
     pub unk_index: u16, // TODO: what does this do?
     pub item_type: EntryType,
     // TODO: padding?
-    unk: [u8; 8],
+    unk: [u32; 2],
 }
 
 #[binread]
@@ -59,38 +69,8 @@ pub struct StreamEntry {
 pub enum EntryType {
     Model = 0,
     Shader = 1,
-    CachedTexture = 2,
+    PackedTexture = 2,
     Texture = 3,
-}
-
-#[binread]
-#[derive(Debug, Serialize)]
-#[br(stream = r)]
-pub struct Textures {
-    #[br(temp, try_calc = r.stream_position())]
-    base_offset: u64,
-
-    count: u32,
-    unk0: u32,
-    unk1: u32,
-    unk2: u32,
-
-    // Same order as the data in the wimdo file?
-    #[br(args { count: count as usize, inner: (base_offset,) })]
-    pub textures: Vec<TextureInfo>,
-}
-
-#[binread]
-#[derive(Debug, Serialize)]
-#[br(import(base_offset: u64))]
-pub struct TextureInfo {
-    unk1: u16,
-    unk2: u16,
-    pub size: u32,
-    pub offset: u32,
-    // Same as the file names in chr/tex/nx/m and chr/tex/nx/h?
-    #[br(parse_with = parse_string_ptr32, args_raw(base_offset))]
-    pub name: String,
 }
 
 #[binread]
@@ -98,8 +78,19 @@ pub struct TextureInfo {
 pub struct Stream {
     comp_size: u32,
     decomp_size: u32, // TODO: slightly larger than xbc1 decomp size?
-    #[br(parse_with = FilePtr32::parse)]
+    #[br(parse_with = parse_ptr32)] // TODO: always at the end of the file?
     pub xbc1: Xbc1,
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+pub struct TextureResource {
+    // TODO: The the texture name hash as an integer?
+    hash: u32,
+    unk2: u32,
+    unk3: u32,
+    unk4: u32,
+    unk5: u32,
 }
 
 impl Msrd {

@@ -53,9 +53,9 @@ pub fn load_textures(
     m_tex_folder: &Path,
     h_tex_folder: &Path,
 ) -> Vec<ImageTexture> {
-    let cached_texture_data = msrd.extract_low_texture_data();
+    let packed_texture_data = msrd.extract_low_texture_data();
 
-    // Assume the cached and non cached textures have the same ordering.
+    // Assume the packed and non packed textures have the same ordering.
     mxmd.textures
         .items
         .as_ref()
@@ -63,21 +63,21 @@ pub fn load_textures(
         .textures
         .iter()
         .zip(msrd.textures.as_ref().unwrap().textures.iter())
-        .map(|(item, cached_item)| {
+        .map(|(item, packed_item)| {
             load_wismt_texture(m_tex_folder, h_tex_folder, &item.name).unwrap_or_else(|| {
-                // Some textures only appear in the cache and have no high res version.
-                load_cached_texture(&cached_texture_data, cached_item)
+                // Some textures only appear in the packed textures and have no high res version.
+                load_packed_texture(&packed_texture_data, packed_item)
             })
         })
         .collect()
 }
 
-fn load_cached_texture(
-    cached_texture_data: &[u8],
-    cached_item: &xc3_lib::msrd::TextureInfo,
+fn load_packed_texture(
+    packed_texture_data: &[u8],
+    item: &xc3_lib::mxmd::PackedTexture,
 ) -> ImageTexture {
-    let data = &cached_texture_data
-        [cached_item.offset as usize..cached_item.offset as usize + cached_item.size as usize];
+    let data = &packed_texture_data
+        [item.mibl_offset as usize..item.mibl_offset as usize + item.mibl_length as usize];
     Mibl::read(&mut Cursor::new(&data))
         .unwrap()
         .try_into()

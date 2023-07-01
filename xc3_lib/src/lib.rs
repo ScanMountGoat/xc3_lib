@@ -138,7 +138,23 @@ fn parse_string_ptr32<R: std::io::Read + std::io::Seek>(
     Ok(value.to_string())
 }
 
-fn parse_ptr32<T, R>(reader: &mut R, endian: binrw::Endian, args: u64) -> BinResult<Option<T>>
+fn parse_ptr32<T, R>(reader: &mut R, endian: binrw::Endian, args: u64) -> BinResult<T>
+where
+    for<'a> T: BinRead<Args<'a> = ()> + 'static,
+    R: std::io::Read + std::io::Seek,
+{
+    // Read a value pointed to by a relative offset.
+    let offset = u32::read_options(reader, endian, ())?;
+    let saved_pos = reader.stream_position()?;
+
+    reader.seek(SeekFrom::Start(offset as u64 + args))?;
+    let value = T::read_options(reader, endian, ())?;
+    reader.seek(SeekFrom::Start(saved_pos))?;
+
+    Ok(value)
+}
+
+fn parse_opt_ptr32<T, R>(reader: &mut R, endian: binrw::Endian, args: u64) -> BinResult<Option<T>>
 where
     for<'a> T: BinRead<Args<'a> = ()> + 'static,
     R: std::io::Read + std::io::Seek,
@@ -147,7 +163,6 @@ where
     let offset = u32::read_options(reader, endian, ())?;
     if offset > 0 {
         let saved_pos = reader.stream_position()?;
-
         reader.seek(SeekFrom::Start(offset as u64 + args))?;
         let value = T::read_options(reader, endian, ())?;
         reader.seek(SeekFrom::Start(saved_pos))?;

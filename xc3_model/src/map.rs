@@ -123,7 +123,7 @@ fn load_prop_model_group(
         .get(model_folder)
         .and_then(|map| map.prop_models.get(model_index));
 
-    // TODO: cached textures?
+    // TODO: packed textures?
     let materials = materials(&prop_model_data.materials, spch);
 
     // Load the base LOD model for each prop model.

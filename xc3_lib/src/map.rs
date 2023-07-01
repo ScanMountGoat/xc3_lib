@@ -248,7 +248,7 @@ pub struct EnvModelData {
     pub vertex_data: VertexData,
 
     #[br(parse_with = FilePtr32::parse)]
-    pub textures: TextureItems,
+    pub textures: PackedTextures,
 
     // TODO: always 0?
     unk6: u32,
@@ -262,8 +262,8 @@ pub struct EnvModelData {
 #[binread]
 #[derive(Debug)]
 #[br(stream = r)]
-pub struct TextureItems {
-    #[br(try_calc = r.stream_position())]
+pub struct PackedTextures {
+    #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
     #[br(parse_with = parse_count_offset2, args_raw(base_offset))]
@@ -305,7 +305,7 @@ pub struct FoliageModelData {
     pub vertex_data: VertexData,
 
     #[br(parse_with = FilePtr32::parse)]
-    pub textures: TextureItems,
+    pub textures: PackedTextures,
 
     unk4: [u32; 11], // padding?
 }

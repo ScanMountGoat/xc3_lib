@@ -1,6 +1,6 @@
 use crate::{
-    parse_count_offset, parse_count_offset2, parse_offset_count, parse_offset_count2, parse_ptr32,
-    parse_string_ptr32, spch::Spch, vertex::VertexData,
+    parse_count_offset, parse_count_offset2, parse_offset_count, parse_offset_count2,
+    parse_opt_ptr32, parse_string_ptr32, spch::Spch, vertex::VertexData,
 };
 use bilge::prelude::*;
 use binrw::{args, binread, FilePtr32};
@@ -20,21 +20,21 @@ pub struct Mxmd {
     #[br(parse_with = FilePtr32::parse)]
     pub materials: Materials,
 
-    #[br(parse_with = parse_ptr32)]
+    #[br(parse_with = parse_opt_ptr32)]
     unk1: Option<Unk1>,
 
     /// Embedded vertex data for .wimdo only models with no .wismt.
-    #[br(parse_with = parse_ptr32)]
+    #[br(parse_with = parse_opt_ptr32)]
     pub vertex_data: Option<VertexData>,
 
     /// Embedded shader data for .wimdo only models with no .wismt.
-    #[br(parse_with = parse_ptr32)]
+    #[br(parse_with = parse_opt_ptr32)]
     pub spch: Option<Spch>,
 
     unk4: u32,
     unk5: u32,
 
-    // uncached textures?
+    // unpacked textures?
     #[br(parse_with = FilePtr32::parse)]
     pub textures: Textures,
 }
@@ -78,7 +78,7 @@ pub struct Materials {
 
     unks3: [u32; 7],
 
-    #[br(parse_with = parse_ptr32, args_raw(base_offset))]
+    #[br(parse_with = parse_opt_ptr32, args_raw(base_offset))]
     pub samplers: Option<Samplers>,
 
     // TODO: padding?
@@ -354,17 +354,17 @@ pub struct Models {
 
     unk2: u32,
 
-    #[br(parse_with = parse_ptr32, args_raw(base_offset))]
+    #[br(parse_with = parse_opt_ptr32, args_raw(base_offset))]
     skeleton: Option<Skeleton>,
 
     unks3: [u32; 22],
 
-    #[br(parse_with = parse_ptr32, args_raw(base_offset))]
+    #[br(parse_with = parse_opt_ptr32, args_raw(base_offset))]
     pub unk_offset1: Option<MeshUnk1>,
 
     unk_offset2: u32,
 
-    #[br(parse_with = parse_ptr32, args_raw(base_offset))]
+    #[br(parse_with = parse_opt_ptr32, args_raw(base_offset))]
     lod_data: Option<LodData>,
 }
 
@@ -459,19 +459,19 @@ pub struct Textures {
 
     unk2: u32,
 
-    #[br(parse_with = parse_ptr32, args_raw(base_offset))]
-    pub items: Option<TextureItems>,
+    #[br(parse_with = parse_opt_ptr32, args_raw(base_offset))]
+    pub items: Option<PackedTextures>,
 }
 
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(stream = r)]
-pub struct TextureItems {
+pub struct PackedTextures {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
     #[br(parse_with = parse_count_offset2, args_raw(base_offset))]
-    pub textures: Vec<TextureItem>,
+    pub textures: Vec<PackedTexture>,
 
     unk2: u32,
     strings_offset: u32,
@@ -480,7 +480,7 @@ pub struct TextureItems {
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(import_raw(base_offset: u64))]
-pub struct TextureItem {
+pub struct PackedTexture {
     unk1: u32,
 
     // TODO: These offsets are for different places for maps and characters?
