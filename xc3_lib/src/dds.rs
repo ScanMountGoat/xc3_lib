@@ -1,3 +1,5 @@
+use std::{io::BufWriter, path::Path};
+
 use ddsfile::{D3DFormat, Dds, DxgiFormat, FourCC};
 
 use anyhow::Result;
@@ -8,6 +10,10 @@ use crate::{
 };
 
 // TODO: Create a write_dds and save_dds helper functions or trait?
+pub fn save_dds<P: AsRef<Path>>(dds: &Dds, path: P) {
+    let mut writer = BufWriter::new(std::fs::File::create(path).unwrap());
+    dds.write(&mut writer).unwrap();
+}
 
 // TODO: Publicly export ddsfile from image_dds?
 // TODO: add conversions to and from dds for surface to image_dds?

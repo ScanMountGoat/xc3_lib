@@ -19,6 +19,8 @@ pub mod spch;
 pub mod vertex;
 pub mod xbc1;
 
+// TODO: parse_vec helper for shared code?
+// TODO: use the helper for parsing offset and count from args?
 fn parse_offset_count<T, R, Args>(
     reader: &mut R,
     endian: binrw::Endian,
@@ -86,13 +88,7 @@ fn parse_string_ptr32<R: Read + Seek>(
     endian: binrw::Endian,
     args: FilePtrArgs<()>,
 ) -> BinResult<String> {
-    let offset = u32::read_options(reader, endian, ())?;
-    let saved_pos = reader.stream_position()?;
-
-    reader.seek(SeekFrom::Start(offset as u64 + args.offset))?;
-    let value = NullString::read_options(reader, endian, ())?;
-    reader.seek(SeekFrom::Start(saved_pos))?;
-
+    let value: NullString = parse_ptr32(reader, endian, args)?;
     Ok(value.to_string())
 }
 

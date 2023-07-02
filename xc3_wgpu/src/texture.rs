@@ -7,25 +7,22 @@ pub fn create_texture(
     queue: &wgpu::Queue,
     texture: &ImageTexture,
 ) -> wgpu::Texture {
-    let width = texture.width;
-    let height = texture.height;
-    let depth = texture.depth;
-    let view_dimension = texture.view_dimension;
-    let image_format = texture.image_format;
-    let mipmap_count = texture.mipmap_count;
-    let layers = match view_dimension {
+    let format = texture_format(texture.image_format);
+
+    let layers = match texture.view_dimension {
         xc3_lib::mibl::ViewDimension::Cube => 6,
         _ => 1,
     };
 
     let size = wgpu::Extent3d {
+        // TODO: Not all map textures are a multiple of the block width?
         // TODO: How to handle not being a multiple of the block dimensions?
-        width: width.max(4),
-        height: height.max(4),
-        depth_or_array_layers: std::cmp::max(layers, depth),
+        width: texture.width.max(4) / 4 * 4,
+        height: texture.height.max(4) / 4 * 4,
+        depth_or_array_layers: std::cmp::max(layers, texture.depth),
     };
 
-    let dimension = match view_dimension {
+    let dimension = match texture.view_dimension {
         xc3_lib::mibl::ViewDimension::D2 => wgpu::TextureDimension::D2,
         xc3_lib::mibl::ViewDimension::D3 => wgpu::TextureDimension::D3,
         xc3_lib::mibl::ViewDimension::Cube => wgpu::TextureDimension::D2,
@@ -38,10 +35,10 @@ pub fn create_texture(
             label: None,
             size,
             // TODO: Why are some mipmap counts too high?
-            mip_level_count: mipmap_count.min(size.max_mips(dimension)),
+            mip_level_count: texture.mipmap_count.min(size.max_mips(dimension)),
             sample_count: 1,
             dimension,
-            format: texture_format(image_format),
+            format,
             usage: wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         },

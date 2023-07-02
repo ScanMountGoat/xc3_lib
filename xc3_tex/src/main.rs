@@ -1,11 +1,11 @@
 use std::{
-    io::{BufReader, BufWriter, Cursor},
+    io::{BufReader, Cursor},
     path::{Path, PathBuf},
 };
 
 use clap::Parser;
 use xc3_lib::{
-    dds::{create_dds, create_mibl},
+    dds::{create_dds, create_mibl, save_dds},
     mibl::Mibl,
     xbc1::Xbc1,
 };
@@ -49,8 +49,7 @@ fn main() {
 
     match output.extension().unwrap().to_str().unwrap() {
         "dds" => {
-            let mut writer = BufWriter::new(std::fs::File::create(output).unwrap());
-            dds.write(&mut writer).unwrap();
+            save_dds(&dds, output);
         }
         "witex" | "witx" => {
             let mibl = create_mibl(&dds).unwrap();

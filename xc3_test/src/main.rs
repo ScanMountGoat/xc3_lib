@@ -194,50 +194,52 @@ fn check_msmd(msmd: Msmd, path: &Path) {
     // Parse all the data from the .wismda
     let mut reader = BufReader::new(std::fs::File::open(path.with_extension("wismda")).unwrap());
 
+    let compressed = msmd.wismda_info.compressed_length != msmd.wismda_info.decompressed_length;
+
     for model in msmd.map_models {
-        model.entry.extract(&mut reader);
+        model.entry.extract(&mut reader, compressed);
     }
 
     for model in msmd.prop_models {
-        model.entry.extract(&mut reader);
+        model.entry.extract(&mut reader, compressed);
     }
 
     for model in msmd.env_models {
-        model.entry.extract(&mut reader);
+        model.entry.extract(&mut reader, compressed);
     }
 
     for entry in msmd.prop_vertex_data {
-        entry.extract(&mut reader);
+        entry.extract(&mut reader, compressed);
     }
 
     for texture in msmd.textures {
         // TODO: Test combining med and high files?
-        texture.mid.extract(&mut reader);
-        // texture.high.extract(&mut reader);
+        texture.mid.extract(&mut reader, compressed);
+        // texture.high.extract(&mut reader, compressed);
     }
 
     for model in msmd.foliage_models {
-        model.entry.extract(&mut reader);
+        model.entry.extract(&mut reader, compressed);
     }
 
     for entry in msmd.prop_positions {
-        entry.extract(&mut reader);
+        entry.extract(&mut reader, compressed);
     }
 
     for entry in msmd.low_textures {
-        entry.extract(&mut reader);
+        entry.extract(&mut reader, compressed);
     }
 
     for model in msmd.low_models {
-        model.entry.extract(&mut reader);
+        model.entry.extract(&mut reader, compressed);
     }
 
     for entry in msmd.unk_foliage_data {
-        entry.extract(&mut reader);
+        entry.extract(&mut reader, compressed);
     }
 
     for entry in msmd.map_vertex_data {
-        entry.extract(&mut reader);
+        entry.extract(&mut reader, compressed);
     }
 }
 
