@@ -205,11 +205,10 @@ pub struct MapModelGroups {
     #[br(parse_with = parse_offset_count, offset = base_offset)]
     pub groups: Vec<MapModelGroup>,
 
-    /// The index of the [VertexData](crate::vertex::VertexData)
-    /// in [map_vertex_data](../msmd/struct.Msmd.html#structfield.map_vertex_data)
+    /// The index of the [MapModelGroup] in [groups](#structfield.groups)
     /// for each of the models in [models](struct.MapModelData.html#structfield.models).
     #[br(parse_with = parse_offset_count, offset = base_offset)]
-    pub model_vertex_data_indices: Vec<u16>,
+    pub model_group_index: Vec<u16>,
 }
 
 // Groups?

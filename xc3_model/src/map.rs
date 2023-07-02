@@ -267,20 +267,22 @@ fn load_map_model_group(
 
     let mut models = Vec::new();
 
-    for group in model_data.groups.groups {
+    for (group_index, group) in model_data.groups.groups.iter().enumerate() {
         let vertex_data_index = group.vertex_data_index as usize;
         let vertex_data = vertex_data[vertex_data_index].extract(&mut wismda, compressed);
 
         // Each group has a base and low detail vertex data index.
         // Each model has an assigned vertex data index.
         // Find all the base detail models and meshes for each group.
+        // TODO: Why is the largest index twice the group count?
+        // TODO: Are the larger indices LOD models?
         for (model, index) in model_data
             .models
             .models
             .iter()
-            .zip(model_data.groups.model_vertex_data_indices.iter())
+            .zip(model_data.groups.model_group_index.iter())
         {
-            if *index as usize == vertex_data_index {
+            if *index as usize == group_index {
                 let new_model = Model::from_model(model, &vertex_data, vec![Mat4::IDENTITY]);
                 models.push(new_model);
             }
