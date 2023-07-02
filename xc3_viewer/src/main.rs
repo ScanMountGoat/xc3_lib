@@ -16,9 +16,8 @@ use xc3_wgpu::{
     COLOR_FORMAT,
 };
 
-const FOV: f32 = 0.5;
-// TODO: Why does a near clip below 1.0 break panning?
-const Z_NEAR: f32 = 1.0;
+const FOV_Y: f32 = 0.5;
+const Z_NEAR: f32 = 0.1;
 const Z_FAR: f32 = 100000.0;
 
 struct State {
@@ -257,41 +256,21 @@ impl State {
                     self.rotation_xyz.x += (delta_y * 0.01) as f32;
                     self.rotation_xyz.y += (delta_x * 0.01) as f32;
                 } else if self.input_state.is_mouse_right_clicked {
-                    // The translation should not depend on the camera orientation.
-                    // TODO: Avoid recalculating the matrix?
-                    // TODO: Does ignoring rotation like this work in general?
-                    // TODO: Should this account for near and far clip distances?
-                    let data =
-                        calculate_camera_data(self.size, self.translation, self.rotation_xyz * 0.0);
+                    let delta_x = position.x - self.input_state.previous_cursor_position.x;
+                    let delta_y = position.y - self.input_state.previous_cursor_position.y;
 
-                    let (current_x_world, current_y_world) = screen_to_world(
-                        (position.x as f32, position.y as f32),
-                        data.view_projection,
-                        self.size.width,
-                        self.size.height,
-                    );
-                    let (previous_x_world, previous_y_world) = screen_to_world(
-                        (
-                            self.input_state.previous_cursor_position.x as f32,
-                            self.input_state.previous_cursor_position.y as f32,
-                        ),
-                        data.view_projection,
-                        self.size.width,
-                        self.size.height,
-                    );
-
-                    let delta_x_world = current_x_world - previous_x_world;
-                    let delta_y_world = current_y_world - previous_y_world;
+                    // Translate an equivalent distance in screen space based on the camera.
+                    // The viewport height and vertical field of view define the conversion.
+                    let fac = FOV_Y.sin() * self.translation.z.abs() / self.size.height as f32;
 
                     // Negate y so that dragging up "drags" the model up.
-                    self.translation.x += delta_x_world;
-                    self.translation.y -= delta_y_world;
+                    self.translation.x += delta_x as f32 * fac;
+                    self.translation.y -= delta_y as f32 * fac;
                 }
                 // Always update the position to avoid jumps when moving between clicks.
                 self.input_state.previous_cursor_position = *position;
             }
             WindowEvent::MouseWheel { delta, .. } => {
-                // TODO: Add tests for handling scroll events properly?
                 // Scale zoom speed with distance to make it easier to zoom out large scenes.
                 let delta_z = match delta {
                     MouseScrollDelta::LineDelta(_x, y) => *y * self.translation.z.abs() * 0.1,
@@ -308,18 +287,6 @@ impl State {
     }
 }
 
-fn screen_to_world(point: (f32, f32), mvp: glam::Mat4, width: u32, height: u32) -> (f32, f32) {
-    // The translation input is in pixels.
-    let (x_pixels, y_pixels) = point;
-    // We want a world translation to move the scene origin that many pixels.
-    // Map from screen space to clip space in the range [-1,1].
-    let x_clip = 2.0 * x_pixels / width as f32 - 1.0;
-    let y_clip = 2.0 * y_pixels / height as f32 - 1.0;
-    // Map to world space using the model, view, and projection matrix.
-    let world = mvp.inverse() * glam::vec4(x_clip, y_clip, 0.0, 1.0);
-    (world.x * world.z, world.y * world.z)
-}
-
 fn calculate_camera_data(
     size: winit::dpi::PhysicalSize<u32>,
     translation: glam::Vec3,
@@ -331,7 +298,7 @@ fn calculate_camera_data(
         * glam::Mat4::from_rotation_x(rotation.x)
         * glam::Mat4::from_rotation_y(rotation.y);
 
-    let projection = glam::Mat4::perspective_rh(FOV, aspect, Z_NEAR, Z_FAR);
+    let projection = glam::Mat4::perspective_rh(FOV_Y, aspect, Z_NEAR, Z_FAR);
 
     let view_projection = projection * view;
 
