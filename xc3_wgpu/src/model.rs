@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use glam::{vec4, Vec3, Vec4};
+use log::info;
 use wgpu::util::DeviceExt;
 use xc3_lib::{msmd::Msmd, msrd::Msrd, mxmd::Mxmd};
 use xc3_model::vertex::AttributeData;
@@ -166,7 +167,10 @@ pub fn load_map(
     // Compile shaders only once to improve loading times.
     let pipeline_data = ModelPipelineData::new(device);
 
+    let start = std::time::Instant::now();
     let groups = xc3_model::map::load_map(msmd, wismda, model_path, shader_database);
+    info!("Load map: {:?}", start.elapsed());
+
     groups
         .iter()
         .map(|group| create_model_group(device, queue, group, &pipeline_data))
