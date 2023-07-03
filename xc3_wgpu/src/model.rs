@@ -114,12 +114,28 @@ pub fn load_model(
     model_path: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
 ) -> ModelGroup {
-    let group = xc3_model::load_model(msrd, mxmd, model_path, shader_database);
+    let root = xc3_model::load_model(msrd, mxmd, model_path, shader_database);
 
     // Compile shaders only once to improve loading times.
     let pipeline_data = ModelPipelineData::new(device);
 
-    create_model_group(device, queue, &group, &pipeline_data)
+    let textures = load_textures(device, queue, &root);
+
+    create_model_group(device, queue, &root.groups[0], &textures, &pipeline_data)
+}
+
+fn load_textures(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    root: &xc3_model::ModelRoot,
+) -> Vec<wgpu::TextureView> {
+    root.image_textures
+        .iter()
+        .map(|texture| {
+            create_texture(device, queue, texture)
+                .create_view(&wgpu::TextureViewDescriptor::default())
+        })
+        .collect()
 }
 
 // TODO: Make this a method?
@@ -127,19 +143,11 @@ fn create_model_group(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     group: &xc3_model::ModelGroup,
+    textures: &[wgpu::TextureView],
     pipeline_data: &ModelPipelineData,
 ) -> ModelGroup {
-    let textures: Vec<_> = group
-        .image_textures
-        .iter()
-        .map(|texture| {
-            create_texture(device, queue, texture)
-                .create_view(&wgpu::TextureViewDescriptor::default())
-        })
-        .collect();
-
     let (materials, pipelines) =
-        materials(device, queue, pipeline_data, &group.materials, &textures);
+        materials(device, queue, pipeline_data, &group.materials, &group.image_texture_indices, textures);
 
     let models = group
         .models
@@ -168,13 +176,20 @@ pub fn load_map(
     let pipeline_data = ModelPipelineData::new(device);
 
     let start = std::time::Instant::now();
-    let groups = xc3_model::map::load_map(msmd, wismda, model_path, shader_database);
+    let roots = xc3_model::map::load_map(msmd, wismda, model_path, shader_database);
     info!("Load map: {:?}", start.elapsed());
 
+    let mut groups = Vec::new();
+
+    for root in &roots {
+        let textures = load_textures(device, queue, root);
+        for group in &root.groups {
+            let model_group = create_model_group(device, queue, group, &textures, &pipeline_data);
+            groups.push(model_group);
+        }
+    }
+
     groups
-        .iter()
-        .map(|group| create_model_group(device, queue, group, &pipeline_data))
-        .collect()
 }
 
 fn model_index_buffers(device: &wgpu::Device, model: &xc3_model::Model) -> Vec<IndexBuffer> {

@@ -11,26 +11,76 @@ use xc3_lib::{
 };
 use xc3_shader::gbuffer_database::GBufferDatabase;
 
-use crate::{
-    materials, model_folder_name, texture::ImageTexture, Material, Model, ModelGroup, Texture,
-};
+use crate::{materials, model_folder_name, Material, Model, ModelGroup, ModelRoot, Texture};
 
 pub fn load_map(
     msmd: &Msmd,
     wismda: &[u8],
     model_path: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
-) -> Vec<ModelGroup> {
+) -> Vec<ModelRoot> {
     // Loading is CPU intensive due to decompression and decoding.
     // The .wismda is loaded into memory as &[u8].
     // Extracting can be parallelized without locks by creating multiple readers.
-
     let model_folder = model_folder_name(model_path);
 
     // Some maps don't use XBC1 compressed archives in the .wismda file.
     let compressed = msmd.wismda_info.compressed_length != msmd.wismda_info.decompressed_length;
 
-    let textures: Vec<_> = msmd
+    // TODO: Better way to combine models?
+    let mut roots = Vec::new();
+
+    roots.par_extend(msmd.env_models.par_iter().enumerate().map(|(i, model)| {
+        load_env_model(
+            &wismda,
+            compressed,
+            model,
+            i,
+            &model_folder,
+            shader_database,
+        )
+    }));
+
+    roots.par_extend(
+        msmd.foliage_models
+            .par_iter()
+            .map(|foliage_model| load_foliage_model(&wismda, compressed, foliage_model)),
+    );
+
+    let mut groups = Vec::new();
+
+    // Process vertex data ahead of time in parallel.
+    // This gives better CPU utilization and avoids redundant processing.
+    let map_vertex_data = extract_vertex_data(&msmd.map_vertex_data, wismda, compressed);
+
+    groups.par_extend(msmd.map_models.par_iter().enumerate().map(|(i, model)| {
+        let model_data = model.entry.extract(&mut Cursor::new(wismda), compressed);
+
+        load_map_model_group(
+            &model_data,
+            i,
+            &map_vertex_data,
+            &model_folder,
+            shader_database,
+        )
+    }));
+
+    let prop_vertex_data = extract_vertex_data(&msmd.prop_vertex_data, wismda, compressed);
+
+    groups.par_extend(msmd.prop_models.par_iter().enumerate().map(|(i, model)| {
+        let model_data = model.entry.extract(&mut Cursor::new(wismda), compressed);
+
+        load_prop_model_group(
+            &model_data,
+            i,
+            &prop_vertex_data,
+            msmd.parts.as_ref(),
+            &model_folder,
+            shader_database,
+        )
+    }));
+
+    let image_textures: Vec<_> = msmd
         .textures
         .par_iter()
         .map(|texture| {
@@ -42,60 +92,12 @@ pub fn load_map(
         })
         .collect();
 
-    // TODO: Better way to combine models?
-    let mut combined_models = Vec::new();
+    roots.push(ModelRoot {
+        groups,
+        image_textures,
+    });
 
-    combined_models.par_extend(msmd.env_models.par_iter().enumerate().map(|(i, model)| {
-        load_env_model(
-            &wismda,
-            compressed,
-            model,
-            i,
-            &model_folder,
-            shader_database,
-        )
-    }));
-
-    combined_models.par_extend(
-        msmd.foliage_models
-            .par_iter()
-            .map(|foliage_model| load_foliage_model(&wismda, compressed, foliage_model)),
-    );
-
-    // Process vertex data ahead of time in parallel.
-    // This gives better CPU utilization and avoids redundant processing.
-    let map_vertex_data = extract_vertex_data(&msmd.map_vertex_data, wismda, compressed);
-
-    combined_models.par_extend(msmd.map_models.par_iter().enumerate().map(|(i, model)| {
-        let model_data = model.entry.extract(&mut Cursor::new(wismda), compressed);
-
-        load_map_model_group(
-            &model_data,
-            i,
-            &map_vertex_data,
-            &textures,
-            &model_folder,
-            shader_database,
-        )
-    }));
-
-    let prop_vertex_data = extract_vertex_data(&msmd.prop_vertex_data, wismda, compressed);
-
-    combined_models.par_extend(msmd.prop_models.par_iter().enumerate().map(|(i, model)| {
-        let model_data = model.entry.extract(&mut Cursor::new(wismda), compressed);
-
-        load_prop_model_group(
-            &model_data,
-            i,
-            &prop_vertex_data,
-            &textures,
-            msmd.parts.as_ref(),
-            &model_folder,
-            shader_database,
-        )
-    }));
-
-    combined_models
+    roots
 }
 
 fn extract_vertex_data(
@@ -113,13 +115,12 @@ fn load_prop_model_group(
     model_data: &xc3_lib::map::PropModelData,
     model_index: usize,
     prop_vertex_data: &[VertexData],
-    image_textures: &[ImageTexture],
     parts: Option<&MapParts>,
     model_folder: &str,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
 ) -> ModelGroup {
     // Get the textures referenced by the materials in this model.
-    let image_textures = load_map_textures(&model_data.textures, image_textures);
+    let image_texture_indices = map_texture_indices(&model_data.textures);
 
     let spch = shader_database
         .map_files
@@ -169,7 +170,7 @@ fn load_prop_model_group(
     ModelGroup {
         models,
         materials,
-        image_textures,
+        image_texture_indices,
     }
 }
 
@@ -236,12 +237,11 @@ fn load_map_model_group(
     model_data: &xc3_lib::map::MapModelData,
     model_index: usize,
     vertex_data: &[VertexData],
-    image_textures: &[ImageTexture],
     model_folder: &str,
     shader_database: &GBufferDatabase,
 ) -> ModelGroup {
     // Get the textures referenced by the materials in this model.
-    let image_textures = load_map_textures(&model_data.textures, image_textures);
+    let image_texture_indices = map_texture_indices(&model_data.textures);
 
     let spch = shader_database
         .map_files
@@ -277,7 +277,7 @@ fn load_map_model_group(
     ModelGroup {
         models,
         materials,
-        image_textures,
+        image_texture_indices,
     }
 }
 
@@ -288,7 +288,7 @@ fn load_env_model(
     model_index: usize,
     model_folder: &str,
     shader_database: &GBufferDatabase,
-) -> ModelGroup {
+) -> ModelRoot {
     let mut wismda = Cursor::new(&wismda);
 
     let model_data = model.entry.extract(&mut wismda, compressed);
@@ -323,9 +323,12 @@ fn load_env_model(
         })
         .collect();
 
-    ModelGroup {
-        models,
-        materials,
+    ModelRoot {
+        groups: vec![ModelGroup {
+            models,
+            materials,
+            image_texture_indices: (0..image_textures.len()).collect(),
+        }],
         image_textures,
     }
 }
@@ -334,7 +337,7 @@ fn load_foliage_model(
     wismda: &[u8],
     compressed: bool,
     model: &xc3_lib::msmd::FoliageModel,
-) -> ModelGroup {
+) -> ModelRoot {
     let mut wismda = Cursor::new(&wismda);
 
     let model_data = model.entry.extract(&mut wismda, compressed);
@@ -365,9 +368,12 @@ fn load_foliage_model(
         })
         .collect();
 
-    ModelGroup {
-        models,
-        materials,
+    ModelRoot {
+        groups: vec![ModelGroup {
+            models,
+            materials,
+            image_texture_indices: (0..image_textures.len()).collect(),
+        }],
         image_textures,
     }
 }
@@ -410,16 +416,12 @@ pub fn foliage_materials(materials: &FoliageMaterials) -> Vec<Material> {
     materials
 }
 
-fn load_map_textures(
-    textures: &[xc3_lib::map::Texture],
-    image_textures: &[ImageTexture],
-) -> Vec<ImageTexture> {
+fn map_texture_indices(textures: &[xc3_lib::map::Texture]) -> Vec<usize> {
     textures
         .iter()
         .map(|item| {
-            // TODO: Find a way to do this without expensive clones.
             // TODO: Handle texture index being -1?
-            image_textures[item.texture_index.max(0) as usize].clone()
+            item.texture_index.max(0) as usize
         })
         .collect()
 }

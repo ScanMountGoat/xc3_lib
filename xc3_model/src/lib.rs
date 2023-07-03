@@ -17,11 +17,19 @@ pub mod map;
 pub mod texture;
 pub mod vertex;
 
+// TODO: Come up with a better name
+#[derive(Debug)]
+pub struct ModelRoot {
+    pub groups: Vec<ModelGroup>,
+    pub image_textures: Vec<ImageTexture>,
+}
+
 #[derive(Debug)]
 pub struct ModelGroup {
     pub models: Vec<Model>,
     pub materials: Vec<Material>,
-    pub image_textures: Vec<ImageTexture>,
+    // TODO: Apply this ahead of time to simplify consuming code.
+    pub image_texture_indices: Vec<usize>,
 }
 
 #[derive(Debug)]
@@ -105,7 +113,7 @@ pub fn load_model(
     mxmd: &Mxmd,
     model_path: &str, // TODO: &Path?
     shader_database: &GBufferDatabase,
-) -> ModelGroup {
+) -> ModelRoot {
     // TODO: Avoid unwrap.
     let vertex_data = msrd.extract_vertex_data();
 
@@ -125,9 +133,12 @@ pub fn load_model(
     // TODO: Don't assume there is only one model?
     let model = Model::from_model(&mxmd.models.models[0], &vertex_data, vec![Mat4::IDENTITY]);
 
-    ModelGroup {
-        materials,
-        models: vec![model],
+    ModelRoot {
+        groups: vec![ModelGroup {
+            materials,
+            models: vec![model],
+            image_texture_indices: (0..image_textures.len()).collect(),
+        }],
         image_textures,
     }
 }

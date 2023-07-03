@@ -31,6 +31,7 @@ pub fn materials(
     queue: &wgpu::Queue,
     pipeline_data: &ModelPipelineData,
     materials: &[xc3_model::Material],
+    texture_indices: &[usize],
     textures: &[wgpu::TextureView],
 ) -> (Vec<Material>, HashMap<PipelineKey, wgpu::RenderPipeline>) {
     // TODO: Is there a better way to handle missing textures?
@@ -60,16 +61,26 @@ pub fn materials(
             let bind_group1 = crate::shader::model::bind_groups::BindGroup1::from_bindings(
                 device,
                 crate::shader::model::bind_groups::BindGroupLayout1 {
-                    s0: material_texture(material, textures, 0).unwrap_or(&default_black),
-                    s1: material_texture(material, textures, 1).unwrap_or(&default_black),
-                    s2: material_texture(material, textures, 2).unwrap_or(&default_black),
-                    s3: material_texture(material, textures, 3).unwrap_or(&default_black),
-                    s4: material_texture(material, textures, 4).unwrap_or(&default_black),
-                    s5: material_texture(material, textures, 5).unwrap_or(&default_black),
-                    s6: material_texture(material, textures, 6).unwrap_or(&default_black),
-                    s7: material_texture(material, textures, 7).unwrap_or(&default_black),
-                    s8: material_texture(material, textures, 8).unwrap_or(&default_black),
-                    s9: material_texture(material, textures, 9).unwrap_or(&default_black),
+                    s0: material_texture(material, texture_indices, textures, 0)
+                        .unwrap_or(&default_black),
+                    s1: material_texture(material, texture_indices, textures, 1)
+                        .unwrap_or(&default_black),
+                    s2: material_texture(material, texture_indices, textures, 2)
+                        .unwrap_or(&default_black),
+                    s3: material_texture(material, texture_indices, textures, 3)
+                        .unwrap_or(&default_black),
+                    s4: material_texture(material, texture_indices, textures, 4)
+                        .unwrap_or(&default_black),
+                    s5: material_texture(material, texture_indices, textures, 5)
+                        .unwrap_or(&default_black),
+                    s6: material_texture(material, texture_indices, textures, 6)
+                        .unwrap_or(&default_black),
+                    s7: material_texture(material, texture_indices, textures, 7)
+                        .unwrap_or(&default_black),
+                    s8: material_texture(material, texture_indices, textures, 8)
+                        .unwrap_or(&default_black),
+                    s9: material_texture(material, texture_indices, textures, 9)
+                        .unwrap_or(&default_black),
                     shared_sampler: &default_sampler,
                 },
             );
@@ -268,13 +279,16 @@ pub fn load_database<P: AsRef<Path>>(path: P) -> xc3_shader::gbuffer_database::G
 
 fn material_texture<'a>(
     material: &xc3_model::Material,
+    texture_indices: &[usize],
     textures: &'a [wgpu::TextureView],
     index: usize,
 ) -> Option<&'a wgpu::TextureView> {
+    // Not all textures are referenced by the material.
+    // This gives texture indices an additional level of indirection.
     material
         .textures
         .get(index)
-        .map(|texture| &textures[texture.image_texture_index])
+        .map(|texture| &textures[texture_indices[texture.image_texture_index]])
 }
 
 fn default_gbuffer_assignments() -> Vec<crate::shader::model::GBufferAssignment> {
