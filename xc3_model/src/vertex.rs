@@ -86,7 +86,7 @@ pub fn read_indices(descriptor: &IndexBufferDescriptor, buffer: &[u8]) -> Vec<u1
         .seek(SeekFrom::Start(descriptor.data_offset as u64))
         .unwrap();
 
-    let mut indices = Vec::new();
+    let mut indices = Vec::with_capacity(descriptor.index_count as usize);
     for _ in 0..descriptor.index_count {
         let index: u16 = reader.read_le().unwrap();
         indices.push(index);
@@ -177,7 +177,7 @@ where
 {
     let mut reader = Cursor::new(buffer);
 
-    let mut values = Vec::new();
+    let mut values = Vec::with_capacity(descriptor.vertex_count as usize);
     for i in 0..descriptor.vertex_count as u64 {
         let offset = descriptor.data_offset as u64 + i * descriptor.vertex_size as u64 + offset;
         reader.seek(SeekFrom::Start(offset)).unwrap();
@@ -218,9 +218,9 @@ pub fn read_animation_buffer_attributes(
 ) -> Vec<AttributeData> {
     let mut reader = Cursor::new(model_bytes);
 
-    let mut positions = Vec::new();
-    let mut normals = Vec::new();
-    let mut tangents = Vec::new();
+    let mut positions = Vec::with_capacity(descriptor.vertex_count as usize);
+    let mut normals = Vec::with_capacity(descriptor.vertex_count as usize);
+    let mut tangents = Vec::with_capacity(descriptor.vertex_count as usize);
 
     for i in 0..descriptor.vertex_count as u64 {
         reader
