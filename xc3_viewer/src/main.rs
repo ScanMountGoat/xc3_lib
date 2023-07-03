@@ -2,6 +2,7 @@ use std::path::Path;
 
 use futures::executor::block_on;
 use glam::{vec3, Vec3};
+use log::{debug, error, info};
 use winit::{
     dpi::PhysicalPosition,
     event::*,
@@ -60,15 +61,13 @@ impl State {
             })
             .await
             .unwrap();
-        println!("{:#?}", adapter.get_info());
+        debug!("{:?}", adapter.get_info());
 
-        println!("{:?}", adapter.features());
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: None,
-                    features: wgpu::Features::TEXTURE_COMPRESSION_BC
-                        | wgpu::Features::POLYGON_MODE_POINT,
+                    features: xc3_wgpu::FEATURES,
                     limits: wgpu::Limits::default(),
                 },
                 None,
@@ -143,7 +142,7 @@ impl State {
                     .sum::<usize>()
             })
             .sum();
-        println!(
+        info!(
             "Load {:?} models and {:?} meshes: {:?}",
             models.len(),
             mesh_count,
@@ -312,6 +311,13 @@ fn calculate_camera_data(
 }
 
 fn main() {
+    // Ignore most wgpu logs to avoid flooding the console.
+    simple_logger::SimpleLogger::new()
+        .with_module_level("wgpu", log::LevelFilter::Warn)
+        .with_module_level("naga", log::LevelFilter::Warn)
+        .init()
+        .unwrap();
+
     let args: Vec<_> = std::env::args().collect();
 
     let model_path = Path::new(&args[1]);
@@ -356,7 +362,7 @@ fn main() {
             Ok(_) => {}
             Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
             Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
-            Err(e) => eprintln!("{e:?}"),
+            Err(e) => error!("{e:?}"),
         },
         Event::MainEventsCleared => {
             window.request_redraw();

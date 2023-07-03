@@ -1,3 +1,4 @@
+use log::warn;
 use wgpu::util::DeviceExt;
 use xc3_lib::mibl::ImageFormat;
 use xc3_model::texture::ImageTexture;
@@ -14,11 +15,33 @@ pub fn create_texture(
         _ => 1,
     };
 
+    // TODO: Not all map textures are a multiple of the block width?
+    // TODO: How to handle not being a multiple of the block dimensions?
+    let (block_width, block_height) = format.block_dimensions();
+    let rounded_width = texture.width.max(4) / 4 * 4;
+    let rounded_height = texture.height.max(4) / 4 * 4;
+
+    if texture.width % block_width != 0
+        || texture.height % block_height != 0
+        || texture.width < block_width
+        || texture.height < block_height
+    {
+        warn!(
+            "Dimensions {}x{}x{} are not divisible by block dimensions {}x{}. Rounding to {}x{}x{}",
+            texture.width,
+            texture.height,
+            texture.depth,
+            block_width,
+            block_height,
+            rounded_width,
+            rounded_height,
+            texture.depth
+        );
+    }
+
     let size = wgpu::Extent3d {
-        // TODO: Not all map textures are a multiple of the block width?
-        // TODO: How to handle not being a multiple of the block dimensions?
-        width: texture.width.max(4) / 4 * 4,
-        height: texture.height.max(4) / 4 * 4,
+        width: rounded_width,
+        height: rounded_height,
         depth_or_array_layers: std::cmp::max(layers, texture.depth),
     };
 
