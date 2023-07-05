@@ -1,6 +1,6 @@
 use crate::{
-    parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
-    spch::Spch, vertex::VertexData,
+    msrd::TextureResource, parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32,
+    parse_string_ptr32, spch::Spch, vertex::VertexData,
 };
 use bilge::prelude::*;
 use binrw::{args, binread};
@@ -447,20 +447,85 @@ pub struct LodData {
 #[derive(Debug, Serialize)]
 #[br(stream = r)]
 pub struct Textures {
-    #[br(temp, try_calc = r.stream_position())]
+    // TODO: The fields change depending on some sort of flag?
+    tag: u32, // 4097 or sometimes 0?
+
+    #[br(args_raw(tag))]
+    pub inner: TexturesInner,
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(import_raw(tag: u32))]
+pub enum TexturesInner {
+    #[br(pre_assert(tag == 0))]
+    Unk0(Textures1),
+    #[br(pre_assert(tag == 4097))]
+    Unk1(Textures2),
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(stream = r)]
+pub struct Textures1 {
+    // Subtract the tag size.
+    #[br(temp, try_calc = r.stream_position().map(|p| p - 4))]
     base_offset: u64,
 
-    // TODO: The fields change depending on some sort of flag?
-    unks: [u32; 5],
+    unk1: u32, // TODO: count for multiple packed textures?
+    // low textures?
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    pub textures1: PackedTextures,
+    // high textures?
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    pub textures2: Option<PackedTextures>,
 
-    unk_offset: u32, // 292 bytes?
+    unk4: u32,
+    unk5: u32,
+    // TODO: more fields?
+}
 
-    unks2: [u32; 8],
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(stream = r)]
+pub struct Textures2 {
+    // Subtract the tag size.
+    #[br(temp, try_calc = r.stream_position().map(|p| p - 4))]
+    base_offset: u64,
 
-    unk2: u32,
+    unk2: u32, // 103
+
+    // TODO: count offset?
+    unk3: u32,
+    unk4: u32,
+
+    // TODO: count?
+    unk5: u32,
+
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    unk_offset: TexturesUnk,
+
+    unks2: [u32; 7],
+
+    #[br(parse_with = parse_count_offset, offset = base_offset)]
+    indices: Vec<u16>,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     pub items: Option<PackedTextures>,
+
+    unk7: u32,
+
+    // TODO: same as the type in msrd?
+    #[br(parse_with = parse_count_offset, offset = base_offset)]
+    resources: Vec<TextureResource>,
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+pub struct TexturesUnk {
+    unk1: u32,
+    unk2: u32,
+    unk3: u32,
 }
 
 #[binread]

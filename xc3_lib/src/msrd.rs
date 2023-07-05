@@ -13,13 +13,13 @@ use serde::Serialize;
 #[br(magic(b"DRSM"))]
 pub struct Msrd {
     version: u32,
-    header_size: u32,
+    header_size: u32, // xbc1 offset - 16?
 
     // TODO: Pointer to an inner type?
     #[br(temp)]
     offset: u32,
 
-    tag: u32,
+    tag: u32, // 4097?
     revision: u32,
 
     #[br(parse_with = parse_count_offset, offset = offset as u64)]

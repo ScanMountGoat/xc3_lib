@@ -55,12 +55,13 @@ pub fn load_textures(
 ) -> Vec<ImageTexture> {
     let packed_texture_data = msrd.extract_low_texture_data();
 
+    // TODO: Is this the correct way to handle this?
+    let packed_textures = match &mxmd.textures.inner {
+        xc3_lib::mxmd::TexturesInner::Unk0(t) => &t.textures1.textures,
+        xc3_lib::mxmd::TexturesInner::Unk1(t) => &t.items.as_ref().unwrap().textures,
+    };
     // Assume the packed and non packed textures have the same ordering.
-    mxmd.textures
-        .items
-        .as_ref()
-        .unwrap()
-        .textures
+    packed_textures
         .iter()
         .zip(msrd.textures.as_ref().unwrap().textures.iter())
         .map(|(item, packed_item)| {
