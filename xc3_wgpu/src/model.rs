@@ -1,9 +1,9 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::Path};
 
 use glam::{vec4, Vec3, Vec4};
 use log::info;
 use wgpu::util::DeviceExt;
-use xc3_lib::{msmd::Msmd, msrd::Msrd, mxmd::Mxmd};
+use xc3_lib::msmd::Msmd;
 use xc3_model::vertex::AttributeData;
 
 use crate::{
@@ -72,6 +72,7 @@ impl ModelGroup {
                         && !material.name.ends_with("_outline")
                         && !material.name.ends_with("_ope")
                         && !material.name.ends_with("_zpre")
+                        && material.texture_count > 0
                     {
                         // TODO: How to make sure the pipeline outputs match the render pass?
                         let pipeline = &self.pipelines[&material.pipeline_key];
@@ -106,15 +107,14 @@ impl ModelGroup {
     }
 }
 
-pub fn load_model(
+// TODO: Take xc3_model types directly and avoid a separate load_map function.
+pub fn load_model<P: AsRef<Path>>(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-    msrd: &Msrd,
-    mxmd: &Mxmd,
-    model_path: &str,
+    wimdo_path: P,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
 ) -> ModelGroup {
-    let root = xc3_model::load_model(msrd, mxmd, model_path, shader_database);
+    let root = xc3_model::load_model(wimdo_path, shader_database);
 
     // Compile shaders only once to improve loading times.
     let pipeline_data = ModelPipelineData::new(device);
@@ -146,8 +146,14 @@ fn create_model_group(
     textures: &[wgpu::TextureView],
     pipeline_data: &ModelPipelineData,
 ) -> ModelGroup {
-    let (materials, pipelines) =
-        materials(device, queue, pipeline_data, &group.materials, &group.image_texture_indices, textures);
+    let (materials, pipelines) = materials(
+        device,
+        queue,
+        pipeline_data,
+        &group.materials,
+        &group.image_texture_indices,
+        textures,
+    );
 
     let models = group
         .models
@@ -162,21 +168,20 @@ fn create_model_group(
     }
 }
 
-// TODO: Separate module for this?
-// TODO: Better way to pass the wismda file?
-pub fn load_map(
+pub fn load_map<P: AsRef<Path>>(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-    msmd: &Msmd,
-    wismda: &[u8],
-    model_path: &str,
+    wismhd_path: P,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
 ) -> Vec<ModelGroup> {
     // Compile shaders only once to improve loading times.
     let pipeline_data = ModelPipelineData::new(device);
 
+    let msmd = Msmd::from_file(wismhd_path.as_ref()).unwrap();
+    let wismda = std::fs::read(wismhd_path.as_ref().with_extension("wismda")).unwrap();
+
     let start = std::time::Instant::now();
-    let roots = xc3_model::map::load_map(msmd, wismda, model_path, shader_database);
+    let roots = xc3_model::map::load_map(&msmd, &wismda, wismhd_path.as_ref(), shader_database);
     info!("Load map: {:?}", start.elapsed());
 
     let mut groups = Vec::new();

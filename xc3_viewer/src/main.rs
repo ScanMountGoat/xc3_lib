@@ -9,7 +9,6 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
     window::{Window, WindowBuilder},
 };
-use xc3_lib::{msmd::Msmd, msrd::Msrd, mxmd::Mxmd};
 use xc3_wgpu::{
     material::load_database,
     model::{load_map, load_model, ModelGroup},
@@ -97,39 +96,14 @@ impl State {
 
         let shader_database = load_database(database_path);
 
-        // Infer the type of model to load based on the extension.
-        // TODO: Is it possible to render just a wimdo?
         let start = std::time::Instant::now();
 
+        // Infer the type of model to load based on the extension.
         let models = match model_path.extension().unwrap().to_str().unwrap() {
-            "wismt" => {
-                let msrd = Msrd::from_file(model_path).unwrap();
-                let mxmd = Mxmd::from_file(model_path.with_extension("wimdo")).unwrap();
-                let model_name = model_path.to_string_lossy().to_string();
-
-                vec![load_model(
-                    &device,
-                    &queue,
-                    &msrd,
-                    &mxmd,
-                    &model_name,
-                    &shader_database,
-                )]
+            "wimdo" => {
+                vec![load_model(&device, &queue, model_path, &shader_database)]
             }
-            "wismhd" => {
-                let msmd = Msmd::from_file(model_path).unwrap();
-                let wismda = std::fs::read(model_path.with_extension("wismda")).unwrap();
-                let model_name = model_path.to_string_lossy().to_string();
-
-                load_map(
-                    &device,
-                    &queue,
-                    &msmd,
-                    &wismda,
-                    &model_name,
-                    &shader_database,
-                )
-            }
+            "wismhd" => load_map(&device, &queue, model_path, &shader_database),
             _ => todo!(),
         };
 

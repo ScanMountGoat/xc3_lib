@@ -107,25 +107,25 @@ impl Model {
     }
 }
 
+// TODO: The wismt isn't always an msrd?
+// TODO: Just take the wimdo and wismt path for now?
 /// Load a character (ch), object (oj), weapon (wp), or enemy (en) model.
-pub fn load_model(
-    msrd: &Msrd,
-    mxmd: &Mxmd,
-    model_path: &str, // TODO: &Path?
-    shader_database: &GBufferDatabase,
-) -> ModelRoot {
+pub fn load_model<P: AsRef<Path>>(wimdo_path: P, shader_database: &GBufferDatabase) -> ModelRoot {
+    let mxmd = Mxmd::from_file(wimdo_path.as_ref()).unwrap();
+    let msrd = Msrd::from_file(wimdo_path.as_ref().with_extension("wismt")).unwrap();
     // TODO: Avoid unwrap.
     let vertex_data = msrd.extract_vertex_data();
 
     // "chr/en/file.wismt" -> "chr/tex/nx/m"
     // TODO: Don't assume model_path is in the chr/ch or chr/en folders.
-    let chr_folder = Path::new(model_path).parent().unwrap().parent().unwrap();
+    let chr_folder = wimdo_path.as_ref().parent().unwrap().parent().unwrap();
     let m_tex_folder = chr_folder.join("tex").join("nx").join("m");
     let h_tex_folder = chr_folder.join("tex").join("nx").join("h");
+    // TODO: This should account for the texture folders not being present.
+    // TODO: Also load textures from wismt msrd or wismt raw?
+    let image_textures = load_textures(&msrd, &mxmd, &m_tex_folder, &h_tex_folder);
 
-    let image_textures = load_textures(msrd, mxmd, &m_tex_folder, &h_tex_folder);
-
-    let model_folder = model_folder_name(model_path);
+    let model_folder = model_folder_name(wimdo_path.as_ref());
     let spch = shader_database.files.get(&model_folder);
 
     let materials = materials(&mxmd.materials, spch);
@@ -178,8 +178,8 @@ fn materials(
 }
 
 // TODO: Move this to xc3_shader?
-fn model_folder_name(model_path: &str) -> String {
-    Path::new(model_path)
+fn model_folder_name(model_path: &Path) -> String {
+    model_path
         .with_extension("")
         .file_name()
         .unwrap()

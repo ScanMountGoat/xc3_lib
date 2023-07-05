@@ -1,4 +1,4 @@
-use std::io::Cursor;
+use std::{io::Cursor, path::Path};
 
 use glam::{Mat4, Vec3};
 use rayon::prelude::*;
@@ -16,7 +16,7 @@ use crate::{materials, model_folder_name, Material, Model, ModelGroup, ModelRoot
 pub fn load_map(
     msmd: &Msmd,
     wismda: &[u8],
-    model_path: &str,
+    model_path: &Path,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
 ) -> Vec<ModelRoot> {
     // Loading is CPU intensive due to decompression and decoding.
