@@ -9,10 +9,11 @@ pub fn extract_shader_binaries<P: AsRef<Path>>(
     ryujinx_shader_tools: Option<&str>,
     save_binaries: bool,
 ) {
+    // TODO: Handle missing program names?
     for (program, name) in spch
         .shader_programs
         .iter()
-        .zip(&spch.string_section.program_names)
+        .zip(&spch.string_section.as_ref().unwrap().program_names)
     {
         let slct = program.read_slct(&spch.slct_section);
 

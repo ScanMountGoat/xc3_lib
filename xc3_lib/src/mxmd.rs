@@ -35,8 +35,8 @@ pub struct Mxmd {
     unk5: u32,
 
     // unpacked textures?
-    #[br(parse_with = parse_ptr32)]
-    pub textures: Textures,
+    #[br(parse_with = parse_opt_ptr32)]
+    pub textures: Option<Textures>,
 }
 
 #[binread]

@@ -56,7 +56,7 @@ pub fn load_textures(
     let packed_texture_data = msrd.extract_low_texture_data();
 
     // TODO: Is this the correct way to handle this?
-    let packed_textures = match &mxmd.textures.inner {
+    let packed_textures = match &mxmd.textures.as_ref().unwrap().inner {
         xc3_lib::mxmd::TexturesInner::Unk0(t) => &t.textures1.textures,
         xc3_lib::mxmd::TexturesInner::Unk1(t) => &t.items.as_ref().unwrap().textures,
     };

@@ -1,6 +1,8 @@
 use std::io::{Cursor, Seek, SeekFrom};
 
-use crate::{parse_count_offset, parse_offset_count, parse_ptr32, parse_string_ptr32};
+use crate::{
+    parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
+};
 use binrw::{args, binread, BinRead, BinReaderExt};
 use serde::Serialize;
 
@@ -38,13 +40,14 @@ pub struct Spch {
     // each has length 2176 (referenced in shaders?)
     // TODO: Optimized function for reading bytes?
     /// A collection of [UnkItem].
+    // TODO: xc2 tg_ui_hitpoint.wimdo has some sort of assembly code?
     #[br(parse_with = parse_offset_count, offset = base_offset)]
     pub unk_section: Vec<u8>,
 
     // TODO: Does this actually need the program count?
-    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[br(args { inner: (base_offset, shader_programs.len()) })]
-    pub string_section: StringSection,
+    pub string_section: Option<StringSection>,
 
     #[br(pad_after = 16)]
     unk7: u32,
