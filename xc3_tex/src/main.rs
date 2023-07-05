@@ -49,7 +49,7 @@ fn main() {
 
     match output.extension().unwrap().to_str().unwrap() {
         "dds" => {
-            save_dds(&dds, output);
+            save_dds(output, &dds);
         }
         "witex" | "witx" => {
             let mibl = create_mibl(&dds).unwrap();

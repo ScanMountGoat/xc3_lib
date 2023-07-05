@@ -1,8 +1,12 @@
 use std::io::SeekFrom;
 
+use anyhow::Result;
 use binrw::{binrw, BinRead, BinWrite};
+use ddsfile::Dds;
 use serde::Serialize;
 use tegra_swizzle::{surface::BlockDim, SwizzleError};
+
+use crate::dds::create_dds;
 
 /// Image texture data.
 /// Used in `.witex` or `.witx` files or embedded in `.wismt` files.
@@ -170,5 +174,9 @@ impl Mibl {
                 1
             },
         )
+    }
+
+    pub fn to_dds(&self) -> Result<Dds> {
+        create_dds(self)
     }
 }

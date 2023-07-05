@@ -10,7 +10,7 @@ use crate::{
 };
 
 // TODO: Create a write_dds and save_dds helper functions or trait?
-pub fn save_dds<P: AsRef<Path>>(dds: &Dds, path: P) {
+pub fn save_dds<P: AsRef<Path>>(path: P, dds: &Dds) {
     let mut writer = BufWriter::new(std::fs::File::create(path).unwrap());
     dds.write(&mut writer).unwrap();
 }
