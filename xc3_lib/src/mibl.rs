@@ -39,18 +39,16 @@ pub struct MiblFooter {
     magic: (),
 }
 
-#[binrw]
+#[derive(BinRead, BinWrite, Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[brw(repr(u32))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum ViewDimension {
     D2 = 1,
     D3 = 2,
     Cube = 8,
 }
 
-#[binrw]
+#[derive(BinRead, BinWrite, Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[brw(repr(u32))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum ImageFormat {
     R8Unorm = 1,
     R8G8B8A8Unorm = 37,

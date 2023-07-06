@@ -65,8 +65,7 @@ pub struct Bc {
     data: BcData,
 }
 
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 #[br(import { base_offset: u64 })]
 pub enum BcData {
     #[br(magic(2u32))]
@@ -83,16 +82,14 @@ pub enum BcData {
 }
 
 // skeleton dynamics?
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 #[br(magic(b"SKDY"))]
 pub struct Skdy {
     unk1: u32,
 }
 
 // animation?
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 #[br(magic(b"ANIM"))]
 pub struct Anim {
     unk1: u32,
@@ -100,8 +97,7 @@ pub struct Anim {
 
 // TODO: Is there a cleaner way to handle base offsets?
 // This pattern is used in a lot of files.
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 #[br(magic(b"SKEL"))]
 #[br(import { base_offset: u64 })]
 pub struct Skel {
@@ -130,8 +126,7 @@ pub struct Skel {
     // TODO: other fields?
 }
 
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 #[br(import_raw(args: SkelDataArgs<T::Args<'_>>))]
 pub struct SkelData<T>
 where
@@ -151,16 +146,14 @@ pub struct SkelDataArgs<Inner: Default> {
     inner: Inner,
 }
 
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 pub struct Transform {
     position: [f32; 4],
     rotation_quaternion: [f32; 4],
     scale: [f32; 4],
 }
 
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 #[br(import_raw(base_offset: u64))]
 pub struct BoneName {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
@@ -168,24 +161,21 @@ pub struct BoneName {
     name: String,
 }
 
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 #[br(magic(b"ASMB"))]
 pub struct Asmb {
     unk1: u32,
 }
 
 // character collision?
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 #[br(magic(b"CHCL"))]
 pub struct ChCl {
     unk1: u32,
 }
 
 // "effpnt" or "effect" "point"?
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 #[br(magic(b"CSVB"))]
 pub struct Csvb {
     unk1: u32,

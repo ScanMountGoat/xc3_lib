@@ -1,14 +1,12 @@
 use std::io::Read;
 
-use binrw::{binrw, NullString};
+use binrw::{BinRead, BinWrite, NullString};
 use flate2::{bufread::ZlibEncoder, Compression};
 use serde::Serialize;
 use zune_inflate::{errors::InflateDecodeErrors, DeflateDecoder, DeflateOptions};
 
-// TODO: binwrite as well?
 // TODO: test read + write
-#[binrw]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, BinWrite, Debug, Serialize)]
 #[brw(magic(b"xbc1"))]
 pub struct Xbc1 {
     unk1: u32,
@@ -16,7 +14,7 @@ pub struct Xbc1 {
     // temp + calc?
     comp_size: u32,
 
-    unk2: u32, // hash of string data?
+    unk2: u32, // TODO: hash of string data?
 
     #[br(map = |x: NullString| x.to_string())]
     #[bw(map = |x: &String| NullString::from(x.as_str()))]

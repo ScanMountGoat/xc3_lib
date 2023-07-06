@@ -1,5 +1,5 @@
 use crate::{parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32};
-use binrw::{args, binread};
+use binrw::{args, binread, BinRead};
 use serde::Serialize;
 
 /// Vertex and vertex index buffer data used by a [Model](crate::mxmd::Model).
@@ -49,8 +49,7 @@ pub struct VertexData {
     // padding?
 }
 
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 #[br(import_raw(base_offset: u64))]
 pub struct VertexBufferDescriptor {
     /// The offset into [buffer](struct.VertexData.html#structfield.buffer).
@@ -69,15 +68,13 @@ pub struct VertexBufferDescriptor {
     pub unk3: u32,
 }
 
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 pub struct VertexAttribute {
     pub data_type: DataType,
     pub data_size: u16,
 }
 
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 #[br(repr(u16))]
 pub enum DataType {
     /// Float32x3 position.
@@ -114,8 +111,7 @@ pub enum DataType {
 }
 
 // TODO: Is this data always u16?
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 pub struct IndexBufferDescriptor {
     /// The offset into [buffer](struct.VertexData.html#structfield.buffer).
     pub data_offset: u32,
@@ -127,24 +123,21 @@ pub struct IndexBufferDescriptor {
     unk4: u32,
 }
 
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 #[br(repr(u16))]
 pub enum Unk1 {
     Unk0 = 0,
     Unk3 = 3,
 }
 
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 #[br(repr(u16))]
 pub enum Unk2 {
     Unk0 = 0,
 }
 
 /// Vertex animation data often called "vertex morphs", "shape keys", or "blend shapes".
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 pub struct VertexAnimation {
     #[br(parse_with = parse_count_offset)]
     pub descriptors: Vec<VertexAnimationDescriptor>,
@@ -152,8 +145,7 @@ pub struct VertexAnimation {
     pub targets: Vec<VertexAnimationTarget>,
 }
 
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 pub struct VertexAnimationDescriptor {
     pub vertex_buffer_index: u32,
     pub target_start_index: u32,
@@ -169,8 +161,7 @@ pub struct VertexAnimationDescriptor {
 
 // TODO: vertex attributes for vertex animation data?
 /// A set of target vertex values similar to a keyframe in traditional animations.
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 pub struct VertexAnimationTarget {
     /// Relative to [data_base_offset](struct.ModelData.html#structfield.data_base_offset)
     pub data_offset: u32,
@@ -182,8 +173,7 @@ pub struct VertexAnimationTarget {
 // TODO: How are weights assigned to vertices?
 // TODO: Skinning happens in the vertex shader?
 // TODO: Where are the skin weights in the vertex shader?
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 pub struct Weights {
     #[br(parse_with = parse_count_offset)]
     pub groups: Vec<WeightGroup>,
@@ -199,8 +189,7 @@ pub struct Weights {
 }
 
 // 40 bytes?
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 pub struct WeightGroup {
     // offsets are just the sum of the previous counts?
     unk1: u32, // offset?
@@ -226,8 +215,7 @@ pub struct Unk {
     pub data_offset: u32,
 }
 
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 pub struct UnkInner {
     unk1: u16,
     unk2: u16,
@@ -237,8 +225,7 @@ pub struct UnkInner {
     unk6: u32,
 }
 
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 pub struct VertexBufferInfo {
     flags: u16,
     outline_buffer_index: u16,
@@ -248,8 +235,7 @@ pub struct VertexBufferInfo {
     unk: u32,
 }
 
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 pub struct OutlineBuffer {
     /// The offset into [buffer](struct.VertexData.html#structfield.buffer).
     pub data_offset: u32,

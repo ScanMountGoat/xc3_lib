@@ -2,7 +2,7 @@
 //!
 //! Many of these sections use the same formats as character models.
 
-use binrw::binread;
+use binrw::{binread, BinRead};
 
 use crate::{
     mxmd::{Materials, Models, PackedTextures},
@@ -14,8 +14,8 @@ use crate::{
 // TODO: Improve docs.
 // TODO: Link to appropriate stream field with doc links.
 /// The data for a [PropModel](crate::msmd::PropModel).
-#[binread]
-#[derive(Debug)]
+
+#[derive(BinRead, Debug)]
 pub struct PropModelData {
     pub unk1: [u32; 3],
 
@@ -97,8 +97,7 @@ pub struct PropLods {
     pub static_parts_count: u32,
 }
 
-#[binread]
-#[derive(Debug)]
+#[derive(BinRead, Debug)]
 #[br(stream = r)]
 pub struct PropLod {
     // TODO: Do these actually index into the PropModelLod?
@@ -109,8 +108,7 @@ pub struct PropLod {
     pub lod_count: u32,
 }
 
-#[binread]
-#[derive(Debug)]
+#[derive(BinRead, Debug)]
 pub struct PropModelLod {
     radius: f32,
     distance: f32,
@@ -118,8 +116,7 @@ pub struct PropModelLod {
     index: u32,
 }
 
-#[binread]
-#[derive(Debug)]
+#[derive(BinRead, Debug)]
 pub struct PropInstance {
     /// The transform of the instance as a 4x4 column-major matrix.
     pub transform: [[f32; 4]; 4],
@@ -143,8 +140,7 @@ pub struct PropInstance {
     unks: [u32; 2],
 }
 
-#[binread]
-#[derive(Debug)]
+#[derive(BinRead, Debug)]
 pub struct PropUnk3 {
     unk1: [f32; 5],
     unk2: [u32; 3],
@@ -152,8 +148,8 @@ pub struct PropUnk3 {
 
 // TODO: Link to appropriate stream field with doc links.
 /// The data for a [MapModel](crate::msmd::MapModel).
-#[binread]
-#[derive(Debug)]
+
+#[derive(BinRead, Debug)]
 pub struct MapModelData {
     unk1: [u32; 3],
 
@@ -184,8 +180,8 @@ pub struct MapModelData {
 }
 
 // TODO: Shared with other formats?
-#[binread]
-#[derive(Debug)]
+
+#[derive(BinRead, Debug)]
 pub struct Texture {
     // TODO: What do these index into?
     pub low_texture_index: i16,
@@ -212,8 +208,8 @@ pub struct MapModelGroups {
 }
 
 // Groups?
-#[binread]
-#[derive(Debug)]
+
+#[derive(BinRead, Debug)]
 pub struct MapModelGroup {
     max: [f32; 3],
     min: [f32; 3],
@@ -229,8 +225,8 @@ pub struct MapModelGroup {
 
 // TODO: Link to appropriate fields with doc links.
 /// The data for a [EnvModel](crate::msmd::EnvModel).
-#[binread]
-#[derive(Debug)]
+
+#[derive(BinRead, Debug)]
 pub struct EnvModelData {
     #[br(parse_with = parse_ptr32)]
     pub models: Models,
@@ -257,8 +253,8 @@ pub struct EnvModelData {
 
 // TODO: Link to appropriate fields with doc links.
 /// The data for a [FoliageModel](crate::msmd::FoliageModel).
-#[binread]
-#[derive(Debug)]
+
+#[derive(BinRead, Debug)]
 pub struct FoliageModelData {
     #[br(parse_with = parse_ptr32)]
     pub models: Models,
@@ -294,8 +290,7 @@ pub struct FoliageMaterials {
     unk5: u32,
 }
 
-#[binread]
-#[derive(Debug)]
+#[derive(BinRead, Debug)]
 #[br(import_raw(base_offset: u64))]
 pub struct FoliageMaterial {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
@@ -317,8 +312,7 @@ pub struct FoliageMaterial {
     unk14: u16,
 }
 
-#[binread]
-#[derive(Debug)]
+#[derive(BinRead, Debug)]
 pub struct FoliageVertexData {
     #[br(parse_with = parse_count_offset)]
     unk1: Vec<FoliageVertex1>,
@@ -329,15 +323,13 @@ pub struct FoliageVertexData {
     unks: [u32; 7],
 }
 
-#[binread]
-#[derive(Debug)]
+#[derive(BinRead, Debug)]
 pub struct FoliageVertex1 {
     unk1: (f32, f32, f32),
     unk2: [u8; 4],
 }
 
-#[binread]
-#[derive(Debug)]
+#[derive(BinRead, Debug)]
 pub struct FoliageVertex2 {
     unk1: (f32, f32, f32, f32),
     unk2: u32, // offset?
@@ -346,8 +338,7 @@ pub struct FoliageVertex2 {
     unk5: u32,
 }
 
-#[binread]
-#[derive(Debug)]
+#[derive(BinRead, Debug)]
 pub struct FoliageUnkData {
     unk1: [u32; 9], // length of the file repeated?
     unk2: [f32; 4],
@@ -356,8 +347,8 @@ pub struct FoliageUnkData {
 }
 
 /// The data for a [MapLowModel](crate::msmd::MapLowModel).
-#[binread]
-#[derive(Debug)]
+
+#[derive(BinRead, Debug)]
 pub struct MapLowModelData {
     unk1: u32,
     unk2: u32,
@@ -383,8 +374,8 @@ pub struct MapLowModelData {
 
 // TODO: Is this documented correctly?
 // TODO: https://github.com/atnavon/xc2f/wiki/map-instance-chunk#extrainstancepack
-#[binread]
-#[derive(Debug)]
+
+#[derive(BinRead, Debug)]
 pub struct PropPositions {
     #[br(parse_with = parse_count_offset)]
     pub instances: Vec<PropInstance>,
@@ -402,8 +393,7 @@ pub struct PropPositions {
     // TODO: more fields?
 }
 
-#[binread]
-#[derive(Debug)]
+#[derive(BinRead, Debug)]
 pub struct RenderNode {
     center: [f32; 3],
     radius: f32,

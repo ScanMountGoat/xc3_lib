@@ -87,8 +87,7 @@ impl BinRead for StringSection {
     }
 }
 
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 pub struct ShaderProgram {
     pub slct_offset: u32,
     unk1: u32,
@@ -131,8 +130,7 @@ pub struct Slct {
     // end of slct main header?
 }
 
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 #[br(import_raw(base_offset: u64))]
 struct UnkString {
     unk1: u32,
@@ -141,8 +139,7 @@ struct UnkString {
     text: String,
 }
 
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 #[br(import_raw(base_offset: u64))]
 pub struct NvsdMetadataOffset {
     #[br(parse_with = parse_ptr32, offset = base_offset)]
@@ -212,8 +209,7 @@ pub struct NvsdMetadata {
 }
 
 // TODO: add read method to slct?
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 pub struct UnkItem {
     unk1: u32,
     unk2: u32,
@@ -231,8 +227,7 @@ pub struct UnkItem {
 }
 
 // TODO: Create a more meaningful default?
-#[binread]
-#[derive(Debug, Serialize, Default)]
+#[derive(BinRead, Debug, Serialize, Default)]
 #[br(magic(b"NVSD"))]
 pub struct Nvsd {
     version: u32,
@@ -258,8 +253,7 @@ pub struct Nvsd {
 }
 
 // TODO: CBuffer?
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 #[br(import { base_offset: u64 })]
 pub struct UniformBuffer {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
@@ -271,8 +265,7 @@ pub struct UniformBuffer {
     pub unk5: u16,
 }
 
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 #[br(import { base_offset: u64 })]
 pub struct Sampler {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
@@ -282,8 +275,7 @@ pub struct Sampler {
 }
 
 /// A `vec4` parameter in a [UniformBuffer].
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 #[br(import_raw(base_offset: u64))]
 pub struct Uniform {
     /// The name used to refer to the uniform like `gMatCol`.
@@ -295,8 +287,7 @@ pub struct Uniform {
     pub buffer_offset: u32,
 }
 
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 #[br(import_raw(base_offset: u64))]
 pub struct InputAttribute {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]

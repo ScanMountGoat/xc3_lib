@@ -1,10 +1,10 @@
 use std::io::Cursor;
 
 use crate::{
-    mibl::Mibl, mxmd::PackedExternalTextures, parse_count_offset, parse_opt_ptr32, parse_ptr32, spch::Spch,
-    vertex::VertexData, xbc1::Xbc1,
+    mibl::Mibl, mxmd::PackedExternalTextures, parse_count_offset, parse_opt_ptr32, parse_ptr32,
+    spch::Spch, vertex::VertexData, xbc1::Xbc1,
 };
-use binrw::binread;
+use binrw::{binread, BinRead};
 use serde::Serialize;
 
 /// .wismt model files in `chr/bt`, `chr/ch/`, `chr/en`, `chr/oj`, and `chr/wp`.
@@ -52,8 +52,7 @@ pub struct Msrd {
     unk: [u32; 5],
 }
 
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 pub struct StreamEntry {
     pub offset: u32,
     pub size: u32,
@@ -63,9 +62,8 @@ pub struct StreamEntry {
     unk: [u32; 2],
 }
 
-#[binread]
+#[derive(BinRead, Debug, Serialize, PartialEq, Eq)]
 #[br(repr(u16))]
-#[derive(Debug, Serialize, PartialEq, Eq)]
 pub enum EntryType {
     Model = 0,
     Shader = 1,
@@ -73,8 +71,7 @@ pub enum EntryType {
     Texture = 3,
 }
 
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 pub struct Stream {
     comp_size: u32,
     decomp_size: u32, // TODO: slightly larger than xbc1 decomp size?
@@ -82,8 +79,7 @@ pub struct Stream {
     pub xbc1: Xbc1,
 }
 
-#[binread]
-#[derive(Debug, Serialize)]
+#[derive(BinRead, Debug, Serialize)]
 pub struct TextureResource {
     // TODO: The the texture name hash as an integer?
     hash: u32,

@@ -19,8 +19,7 @@ use crate::{
 
 // TODO: Is it worth implementing serialize?
 /// The main map data for a `.wismhd` file.
-#[binread]
-#[derive(Debug)]
+#[derive(BinRead, Debug)]
 #[br(magic(b"DMSM"))]
 pub struct Msmd {
     version: u32,
@@ -133,8 +132,7 @@ pub struct Msmd {
 }
 
 /// References to medium and high resolution [Mibl](crate::mibl::Mibl) textures.
-#[binread]
-#[derive(Debug)]
+#[derive(BinRead, Debug)]
 pub struct Texture {
     pub mid: StreamEntry<Mibl>,
     // TODO: This is just vec<u8>?
@@ -143,8 +141,7 @@ pub struct Texture {
 }
 
 // TODO: Better name for this?
-#[binread]
-#[derive(Debug)]
+#[derive(BinRead, Debug)]
 pub struct MapModel {
     pub bounds: BoundingBox,
     // bounding sphere?
@@ -155,8 +152,8 @@ pub struct MapModel {
 }
 
 // TODO: Better name for this?
-#[binread]
-#[derive(Debug)]
+
+#[derive(BinRead, Debug)]
 pub struct PropModel {
     pub bounds: BoundingBox,
     // bounding sphere?
@@ -166,8 +163,7 @@ pub struct PropModel {
     pub unk3: u32,
 }
 
-#[binread]
-#[derive(Debug)]
+#[derive(BinRead, Debug)]
 pub struct EnvModel {
     pub bounds: BoundingBox,
     // bounding sphere?
@@ -177,16 +173,15 @@ pub struct EnvModel {
 }
 
 // TODO: also in mxmd but without the center?
-#[binread]
-#[derive(Debug)]
+
+#[derive(BinRead, Debug)]
 pub struct BoundingBox {
     max: [f32; 3],
     min: [f32; 3],
     center: [f32; 3],
 }
 
-#[binread]
-#[derive(Debug)]
+#[derive(BinRead, Debug)]
 pub struct MapLowModel {
     pub bounds: BoundingBox,
     unk1: f32,
@@ -198,8 +193,7 @@ pub struct MapLowModel {
     unk: [u32; 5],
 }
 
-#[binread]
-#[derive(Debug)]
+#[derive(BinRead, Debug)]
 pub struct FoliageModel {
     unk1: [f32; 9],
     unk: [u32; 3],
@@ -208,8 +202,7 @@ pub struct FoliageModel {
     pub entry: StreamEntry<FoliageModelData>,
 }
 
-#[binread]
-#[derive(Debug)]
+#[derive(BinRead, Debug)]
 #[br(import_raw(flags: u32))]
 pub enum EnvironmentData {
     #[br(pre_assert(flags == 0))]
@@ -218,8 +211,7 @@ pub enum EnvironmentData {
     Nerd(Nerd),
 }
 
-#[binread]
-#[derive(Debug)]
+#[derive(BinRead, Debug)]
 #[br(magic(b"DREN"))]
 pub struct Nerd {
     version: u32,
@@ -233,8 +225,8 @@ pub struct Nerd {
 }
 
 // TODO: This contains a Nerd?
-#[binread]
-#[derive(Debug)]
+
+#[derive(BinRead, Debug)]
 #[br(magic(b"SMEC"))]
 pub struct Cems {
     unk1: [u32; 10],
@@ -242,16 +234,16 @@ pub struct Cems {
 }
 
 // TODO: cloud data?
-#[binread]
-#[derive(Debug)]
+
+#[derive(BinRead, Debug)]
 #[br(magic(b"CMLD"))]
 pub struct Cmld {
     version: u32,
 }
 
 // TODO: Lighting data?
-#[binread]
-#[derive(Debug)]
+
+#[derive(BinRead, Debug)]
 #[br(magic(b"DLGT"))]
 pub struct Tgld {
     version: u32,
@@ -275,8 +267,7 @@ pub struct Ibl {
     unk6: u32,
 }
 
-#[binread]
-#[derive(Debug)]
+#[derive(BinRead, Debug)]
 #[br(import_raw(base_offset: u64))]
 pub struct IblInner {
     unk1: u32, // 0?
@@ -289,8 +280,7 @@ pub struct IblInner {
     unk5: [u32; 6],
 }
 
-#[binread]
-#[derive(Debug)]
+#[derive(BinRead, Debug)]
 #[br(magic(b"GIBL"))]
 pub struct Gibl {
     unk1: u32,
@@ -302,8 +292,7 @@ pub struct Gibl {
     unk6: [u32; 6],
 }
 
-#[binread]
-#[derive(Debug)]
+#[derive(BinRead, Debug)]
 pub struct WismdaInfo {
     pub compressed_length: u32,
     pub unk1: u32,
@@ -356,8 +345,8 @@ pub struct Effect {
 
 // TODO: What does this do?
 // 116 bytes including magic?
-#[binread]
-#[derive(Debug)]
+
+#[derive(BinRead, Debug)]
 #[br(magic(b"DOCE"))]
 pub struct Doce {
     version: u32,
@@ -365,8 +354,7 @@ pub struct Doce {
     count: u32,
 }
 
-#[binread]
-#[derive(Debug)]
+#[derive(BinRead, Debug)]
 pub struct LowTextures {
     #[br(parse_with = parse_count_offset)]
     pub textures: Vec<LowTexture>,
@@ -374,8 +362,7 @@ pub struct LowTextures {
     unk: [u32; 5],
 }
 
-#[binread]
-#[derive(Debug)]
+#[derive(BinRead, Debug)]
 pub struct LowTexture {
     unk1: u32,
     // TODO: Optimized function for reading bytes?
@@ -384,8 +371,7 @@ pub struct LowTexture {
     unk2: i32,
 }
 
-#[binread]
-#[derive(Debug)]
+#[derive(BinRead, Debug)]
 pub struct UnkLight {
     max: [f32; 3],
     min: [f32; 3],
@@ -440,8 +426,7 @@ pub struct MapParts {
     pub transforms: Vec<[[f32; 4]; 4]>,
 }
 
-#[binread]
-#[derive(Debug)]
+#[derive(BinRead, Debug)]
 #[br(import_raw(base_offset: u64))]
 pub struct MapPartInstanceAnimation {
     pub translation: [f32; 3],
@@ -461,8 +446,7 @@ pub struct MapPartInstanceAnimation {
     unks: [u32; 5],
 }
 
-#[binread]
-#[derive(Debug)]
+#[derive(BinRead, Debug)]
 #[br(import_raw(base_offset: u64))]
 pub struct MapPartInstanceAnimationChannel {
     // TODO: Group this together into a single type?
@@ -479,8 +463,7 @@ pub struct MapPartInstanceAnimationChannel {
     pub keyframes: Vec<MapPartInstanceAnimationKeyframe>,
 }
 
-#[binread]
-#[derive(Debug)]
+#[derive(BinRead, Debug)]
 #[br(repr(u16))]
 pub enum ChannelType {
     TranslationX = 0,
@@ -494,8 +477,7 @@ pub enum ChannelType {
     ScaleZ = 8,
 }
 
-#[binread]
-#[derive(Debug)]
+#[derive(BinRead, Debug)]
 pub struct MapPartInstanceAnimationKeyframe {
     pub slope_out: f32,
     pub slope_in: f32,
@@ -504,8 +486,7 @@ pub struct MapPartInstanceAnimationKeyframe {
     pub flags: u16,
 }
 
-#[binread]
-#[derive(Debug)]
+#[derive(BinRead, Debug)]
 #[br(import_raw(base_offset: u64))]
 pub struct MapPart {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
@@ -532,8 +513,8 @@ pub struct MapPart {
 }
 
 /// A reference to an [Xbc1](crate::xbc1::Xbc1) in `.wismda` file.
-#[binread]
-#[derive(Debug)]
+
+#[derive(BinRead, Debug)]
 pub struct StreamEntry<T> {
     /// The offset of the [Xbc1](crate::xbc1::Xbc1) in `.wismda` file.
     pub offset: u32,
