@@ -31,7 +31,10 @@ pub struct Mxmd {
     #[br(parse_with = parse_opt_ptr32)]
     pub spch: Option<Spch>,
 
-    unk4: u32,
+    // mibl offsets point relative to start of packed textures like maps?
+    #[br(parse_with = parse_opt_ptr32)]
+    pub packed_textures: Option<PackedTextures>,
+
     unk5: u32,
 
     // unpacked textures?
@@ -510,8 +513,9 @@ pub struct Textures2 {
     #[br(parse_with = parse_count_offset, offset = base_offset)]
     indices: Vec<u16>,
 
+    // TODO: separate PackedTextures and PackedExternalTextures?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    pub items: Option<PackedTextures>,
+    pub textures: Option<PackedTextures>,
 
     unk7: u32,
 

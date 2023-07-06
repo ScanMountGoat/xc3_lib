@@ -120,8 +120,7 @@ pub struct Slct {
 
     /// The offset into [unk_section](struct.Spch.html#structfield.unk_section).
     pub unk_item_offset: u32,
-
-    unk_offset2: u32,
+    pub unk_item_size: u32,
 
     // relative to xv4 base offset
     pub xv4_offset: u32,
@@ -212,10 +211,23 @@ pub struct NvsdMetadata {
     pub nvsd: Nvsd,
 }
 
+// TODO: add read method to slct?
 #[binread]
 #[derive(Debug, Serialize)]
 pub struct UnkItem {
-    unk: [u32; 9],
+    unk1: u32,
+    unk2: u32,
+    unk3: u32,
+    unk4: u32,
+    unk5: u32,
+
+    // TODO: relative to start of data for this unk item?
+    assembly_code_string_offset: u32,
+    assembly_code_string_length: u32,
+
+    unk8: u32,
+    unk9: u32,
+    // TODO: more fields?
 }
 
 // TODO: Create a more meaningful default?
@@ -245,7 +257,7 @@ pub struct Nvsd {
     unks4: [u16; 8],
 }
 
-// TODO: Annotate uniforms and uniform buffers?
+// TODO: CBuffer?
 #[binread]
 #[derive(Debug, Serialize)]
 #[br(import { base_offset: u64 })]

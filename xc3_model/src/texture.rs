@@ -48,27 +48,33 @@ impl TryFrom<Mibl> for ImageTexture {
 
 // TODO: Indicate that this is for non maps?
 pub fn load_textures(
-    msrd: &Msrd,
     mxmd: &Mxmd,
+    msrd: Option<&Msrd>,
     m_tex_folder: &Path,
     h_tex_folder: &Path,
 ) -> Vec<ImageTexture> {
-    let packed_texture_data = msrd.extract_low_texture_data();
+    let middle_textures = msrd.unwrap().extract_middle_textures();
+
+    let packed_texture_data = msrd.unwrap().extract_low_texture_data();
 
     // TODO: Is this the correct way to handle this?
     let packed_textures = match &mxmd.textures.as_ref().unwrap().inner {
         xc3_lib::mxmd::TexturesInner::Unk0(t) => &t.textures1.textures,
-        xc3_lib::mxmd::TexturesInner::Unk1(t) => &t.items.as_ref().unwrap().textures,
+        xc3_lib::mxmd::TexturesInner::Unk1(t) => &t.textures.as_ref().unwrap().textures,
     };
+    // TODO: Find a simpler way of writing this.
     // Assume the packed and non packed textures have the same ordering.
     packed_textures
         .iter()
-        .zip(msrd.textures.as_ref().unwrap().textures.iter())
-        .map(|(item, packed_item)| {
-            load_wismt_texture(m_tex_folder, h_tex_folder, &item.name).unwrap_or_else(|| {
-                // Some textures only appear in the packed textures and have no high res version.
-                load_packed_texture(&packed_texture_data, packed_item)
-            })
+        .zip(msrd.unwrap().textures.as_ref().unwrap().textures.iter())
+        .enumerate()
+        .map(|(i, (item, packed_item))| {
+            load_wismt_texture(m_tex_folder, h_tex_folder, &item.name)
+                .or_else(|| middle_textures.get(i).map(|t| t.try_into().unwrap()))
+                .unwrap_or_else(|| {
+                    // Some textures only appear in the packed textures and have no high res version.
+                    load_packed_texture(&packed_texture_data, packed_item)
+                })
         })
         .collect()
 }
