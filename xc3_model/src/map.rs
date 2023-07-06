@@ -32,7 +32,7 @@ pub fn load_map(
 
     roots.par_extend(msmd.env_models.par_iter().enumerate().map(|(i, model)| {
         load_env_model(
-            &wismda,
+            wismda,
             compressed,
             model,
             i,
@@ -44,7 +44,7 @@ pub fn load_map(
     roots.par_extend(
         msmd.foliage_models
             .par_iter()
-            .map(|foliage_model| load_foliage_model(&wismda, compressed, foliage_model)),
+            .map(|foliage_model| load_foliage_model(wismda, compressed, foliage_model)),
     );
 
     let mut groups = Vec::new();
@@ -154,7 +154,7 @@ fn load_prop_model_group(
 
             Some(Model::from_model(
                 model_data.models.models.get(base_lod_index)?,
-                &vertex_data,
+                vertex_data,
                 instances,
             ))
         })
@@ -164,7 +164,7 @@ fn load_prop_model_group(
     // TODO: Document how this works in xc3_lib.
     // Add additional animated prop instances to the appropriate models.
     if let Some(parts) = parts {
-        add_animated_part_instances(&mut models, &model_data, parts);
+        add_animated_part_instances(&mut models, model_data, parts);
     }
 
     ModelGroup {
@@ -268,7 +268,7 @@ fn load_map_model_group(
             .zip(model_data.groups.model_group_index.iter())
         {
             if *index as usize == group_index {
-                let new_model = Model::from_model(model, &vertex_data, vec![Mat4::IDENTITY]);
+                let new_model = Model::from_model(model, vertex_data, vec![Mat4::IDENTITY]);
                 models.push(new_model);
             }
         }

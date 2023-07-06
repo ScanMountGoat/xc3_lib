@@ -136,7 +136,7 @@ pub fn load_model<P: AsRef<Path>>(wimdo_path: P, shader_database: &GBufferDataba
     let materials = materials(&mxmd.materials, spch);
 
     // TODO: Don't assume there is only one model?
-    let model = Model::from_model(&mxmd.models.models[0], &vertex_data, vec![Mat4::IDENTITY]);
+    let model = Model::from_model(&mxmd.models.models[0], vertex_data, vec![Mat4::IDENTITY]);
 
     ModelRoot {
         groups: vec![ModelGroup {

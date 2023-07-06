@@ -316,7 +316,7 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, roots: &[ModelRoot]) {
     let path = path.as_ref();
     // Encode and save images in parallel to boost performance.
     png_images.par_iter().for_each(|(key, image)| {
-        let output = path.with_file_name(image_name(&key));
+        let output = path.with_file_name(image_name(key));
         image.save(output).unwrap();
     });
 }
@@ -356,7 +356,8 @@ fn create_material(
     let albedo_index = material_texture_index(albedo_index, texture_indices, root_index);
     let normal_index = material_texture_index(normal_index, texture_indices, root_index);
 
-    let material = gltf::json::Material {
+    
+    gltf::json::Material {
         name: Some(material.name.clone()),
         pbr_metallic_roughness: gltf::json::material::PbrMetallicRoughness {
             base_color_texture: albedo_index.map(|i| gltf::json::texture::Info {
@@ -378,8 +379,7 @@ fn create_material(
             extras: Default::default(),
         }),
         ..Default::default()
-    };
-    material
+    }
 }
 
 fn material_texture_index(
