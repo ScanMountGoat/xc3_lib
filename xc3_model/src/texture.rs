@@ -47,41 +47,60 @@ impl TryFrom<Mibl> for ImageTexture {
 }
 
 // TODO: Indicate that this is for non maps?
+// TODO: Create unit tests for this?
 pub fn load_textures(
     mxmd: &Mxmd,
     msrd: Option<&Msrd>,
     m_tex_folder: &Path,
     h_tex_folder: &Path,
 ) -> Vec<ImageTexture> {
-    let middle_textures = msrd.unwrap().extract_middle_textures();
-
-    let packed_texture_data = msrd.unwrap().extract_low_texture_data();
-
+    // TODO: packed mxmd, external mxmd, low res msrd, msrd,
     // TODO: Is this the correct way to handle this?
-    let packed_textures = match &mxmd.textures.as_ref().unwrap().inner {
-        xc3_lib::mxmd::TexturesInner::Unk0(t) => &t.textures1.textures,
-        xc3_lib::mxmd::TexturesInner::Unk1(t) => &t.textures.as_ref().unwrap().textures,
-    };
-    // TODO: Find a simpler way of writing this.
-    // Assume the packed and non packed textures have the same ordering.
-    packed_textures
-        .iter()
-        .zip(msrd.unwrap().textures.as_ref().unwrap().textures.iter())
-        .enumerate()
-        .map(|(i, (item, packed_item))| {
-            load_wismt_texture(m_tex_folder, h_tex_folder, &item.name)
-                .or_else(|| middle_textures.get(i).map(|t| t.try_into().unwrap()))
-                .unwrap_or_else(|| {
-                    // Some textures only appear in the packed textures and have no high res version.
-                    load_packed_texture(&packed_texture_data, packed_item)
-                })
-        })
-        .collect()
+    // TODO: Is it possible to have both packed and external mxmd textures?
+    if let Some(textures) = &mxmd.textures {
+        let packed_textures = match &textures.inner {
+            xc3_lib::mxmd::TexturesInner::Unk0(t) => &t.textures1.textures,
+            xc3_lib::mxmd::TexturesInner::Unk1(t) => &t.textures.as_ref().unwrap().textures,
+        };
+
+        let packed_texture_data = msrd.unwrap().extract_low_texture_data();
+        let middle_textures = msrd.unwrap().extract_middle_textures();
+
+        // Assume the packed and non packed textures have the same ordering.
+        // Xenoblade 3 has some textures in the chr/tex folder.
+        packed_textures
+            .iter()
+            .zip(msrd.unwrap().textures.as_ref().unwrap().textures.iter())
+            .enumerate()
+            .map(|(i, (item, packed_item))| {
+                load_wismt_texture(m_tex_folder, h_tex_folder, &item.name)
+                    .or_else(|| middle_textures.get(i).map(|t| t.try_into().unwrap()))
+                    .unwrap_or_else(|| {
+                        // Some textures only appear in the packed textures and have no high res version.
+                        load_packed_texture(&packed_texture_data, packed_item)
+                    })
+            })
+            .collect()
+    } else if let Some(packed_textures) = &mxmd.packed_textures {
+        packed_textures
+            .textures
+            .iter()
+            .map(|t| {
+                Mibl::read(&mut Cursor::new(&t.mibl_data))
+                    .unwrap()
+                    .try_into()
+                    .unwrap()
+            })
+            .collect()
+    } else {
+        // TODO: How to handle this case?
+        Vec::new()
+    }
 }
 
 fn load_packed_texture(
     packed_texture_data: &[u8],
-    item: &xc3_lib::mxmd::PackedTexture,
+    item: &xc3_lib::mxmd::PackedExternalTexture,
 ) -> ImageTexture {
     let data = &packed_texture_data
         [item.mibl_offset as usize..item.mibl_offset as usize + item.mibl_length as usize];

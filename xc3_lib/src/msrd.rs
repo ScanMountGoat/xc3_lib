@@ -1,7 +1,7 @@
 use std::io::Cursor;
 
 use crate::{
-    mibl::Mibl, mxmd::PackedTextures, parse_count_offset, parse_opt_ptr32, parse_ptr32, spch::Spch,
+    mibl::Mibl, mxmd::PackedExternalTextures, parse_count_offset, parse_opt_ptr32, parse_ptr32, spch::Spch,
     vertex::VertexData, xbc1::Xbc1,
 };
 use binrw::binread;
@@ -40,7 +40,7 @@ pub struct Msrd {
     texture_ids: Vec<u16>,
 
     #[br(parse_with = parse_opt_ptr32, offset = offset as u64)]
-    pub textures: Option<PackedTextures>,
+    pub textures: Option<PackedExternalTextures>,
 
     unk1: u32,
 

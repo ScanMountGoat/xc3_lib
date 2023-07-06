@@ -31,7 +31,6 @@ pub struct Mxmd {
     #[br(parse_with = parse_opt_ptr32)]
     pub spch: Option<Spch>,
 
-    // mibl offsets point relative to start of packed textures like maps?
     #[br(parse_with = parse_opt_ptr32)]
     pub packed_textures: Option<PackedTextures>,
 
@@ -478,10 +477,10 @@ pub struct Textures1 {
     unk1: u32, // TODO: count for multiple packed textures?
     // low textures?
     #[br(parse_with = parse_ptr32, offset = base_offset)]
-    pub textures1: PackedTextures,
+    pub textures1: PackedExternalTextures,
     // high textures?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    pub textures2: Option<PackedTextures>,
+    pub textures2: Option<PackedExternalTextures>,
 
     unk4: u32,
     unk5: u32,
@@ -515,7 +514,7 @@ pub struct Textures2 {
 
     // TODO: separate PackedTextures and PackedExternalTextures?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    pub textures: Option<PackedTextures>,
+    pub textures: Option<PackedExternalTextures>,
 
     unk7: u32,
 
@@ -550,6 +549,34 @@ pub struct PackedTextures {
 #[derive(Debug, Serialize)]
 #[br(import_raw(base_offset: u64))]
 pub struct PackedTexture {
+    unk1: u32,
+
+    // TODO: Optimized function for reading bytes?
+    #[br(parse_with = parse_count_offset, offset = base_offset)]
+    pub mibl_data: Vec<u8>,
+
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    pub name: String,
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(stream = r)]
+pub struct PackedExternalTextures {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = parse_count_offset, args { offset: base_offset, inner: base_offset })]
+    pub textures: Vec<PackedExternalTexture>,
+
+    unk2: u32,
+    strings_offset: u32,
+}
+
+#[binread]
+#[derive(Debug, Serialize)]
+#[br(import_raw(base_offset: u64))]
+pub struct PackedExternalTexture {
     unk1: u32,
 
     // TODO: These offsets are for different places for maps and characters?

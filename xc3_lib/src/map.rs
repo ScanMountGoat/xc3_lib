@@ -5,7 +5,7 @@
 use binrw::binread;
 
 use crate::{
-    mxmd::{Materials, Models},
+    mxmd::{Materials, Models, PackedTextures},
     parse_count_offset, parse_offset_count, parse_ptr32, parse_string_ptr32,
     spch::Spch,
     vertex::VertexData,
@@ -253,35 +253,6 @@ pub struct EnvModelData {
     #[br(parse_with = parse_ptr32)]
     pub spch: Spch,
     // padding?
-}
-
-// TODO: Shared with Mxmd?
-#[binread]
-#[derive(Debug)]
-#[br(stream = r)]
-pub struct PackedTextures {
-    #[br(temp, try_calc = r.stream_position())]
-    base_offset: u64,
-
-    #[br(parse_with = parse_count_offset, args { offset: base_offset, inner: base_offset })]
-    pub textures: Vec<TextureItem>,
-
-    unk2: u32,
-    strings_offset: u32,
-}
-
-#[binread]
-#[derive(Debug)]
-#[br(import_raw(base_offset: u64))]
-pub struct TextureItem {
-    unk1: u32,
-
-    // TODO: Optimized function for reading bytes?
-    #[br(parse_with = parse_count_offset, offset = base_offset)]
-    pub mibl_data: Vec<u8>,
-
-    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
-    pub name: String,
 }
 
 // TODO: Link to appropriate fields with doc links.
