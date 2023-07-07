@@ -12,15 +12,15 @@ use serde::Serialize;
 #[derive(Debug, Serialize)]
 #[br(magic(b"DRSM"))]
 pub struct Msrd {
-    version: u32,
-    header_size: u32, // xbc1 offset - 16?
+    pub version: u32,
+    pub header_size: u32, // xbc1 offset - 16?
 
     // TODO: Pointer to an inner type?
     #[br(temp)]
     offset: u32,
 
-    tag: u32, // 4097?
-    revision: u32,
+    pub tag: u32, // 4097?
+    pub revision: u32,
 
     #[br(parse_with = parse_count_offset, offset = offset as u64)]
     pub stream_entries: Vec<StreamEntry>,
@@ -43,14 +43,14 @@ pub struct Msrd {
     #[br(parse_with = parse_opt_ptr32, offset = offset as u64)]
     pub textures: Option<PackedExternalTextures>,
 
-    unk1: u32,
+    pub unk1: u32,
 
     // TODO: Same count as textures?
     #[br(parse_with = parse_count_offset, offset = offset as u64)]
-    unk2: Vec<TextureResource>,
+    pub unk2: Vec<TextureResource>,
 
     // TODO: padding:
-    unk: [u32; 5],
+    pub unk: [u32; 5],
 }
 
 #[derive(BinRead, Debug, Serialize)]
@@ -60,7 +60,7 @@ pub struct StreamEntry {
     pub unk_index: u16, // TODO: what does this do?
     pub item_type: EntryType,
     // TODO: padding?
-    unk: [u32; 2],
+    pub unk: [u32; 2],
 }
 
 #[derive(BinRead, Debug, Serialize, PartialEq, Eq)]
@@ -74,8 +74,8 @@ pub enum EntryType {
 
 #[derive(BinRead, Debug, Serialize)]
 pub struct Stream {
-    comp_size: u32,
-    decomp_size: u32, // TODO: slightly larger than xbc1 decomp size?
+    pub comp_size: u32,
+    pub decomp_size: u32, // TODO: slightly larger than xbc1 decomp size?
     #[br(parse_with = parse_ptr32)] // TODO: always at the end of the file?
     pub xbc1: Xbc1,
 }
@@ -83,11 +83,11 @@ pub struct Stream {
 #[derive(BinRead, Debug, Serialize)]
 pub struct TextureResource {
     // TODO: The the texture name hash as an integer?
-    hash: u32,
-    unk2: u32,
-    unk3: u32,
-    unk4: u32,
-    unk5: u32,
+    pub hash: u32,
+    pub unk2: u32,
+    pub unk3: u32,
+    pub unk4: u32,
+    pub unk5: u32,
 }
 
 impl Msrd {

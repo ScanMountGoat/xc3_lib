@@ -10,30 +10,30 @@ use serde::Serialize;
 #[derive(Debug, Serialize)]
 #[br(magic(b"1RAS"))]
 pub struct Sar1 {
-    file_size: u32,
-    version: u32,
+    pub file_size: u32,
+    pub version: u32,
 
     #[br(parse_with = parse_count_offset)]
-    entries: Vec<Entry>,
+    pub entries: Vec<Entry>,
 
-    unk_offset: u32, // pointer to start of data?
+    pub unk_offset: u32, // pointer to start of data?
 
-    unk4: u32,
-    unk5: u32,
+    pub unk4: u32,
+    pub unk5: u32,
 
     #[br(map = |x: NullString| x.to_string(), pad_size_to = 128)]
-    name: String,
+    pub name: String,
 }
 
 #[binread]
 #[derive(Debug, Serialize)]
 pub struct Entry {
     #[br(parse_with = parse_ptr32)]
-    data: EntryData,
-    data_size: u32,
-    name_hash: u32, // TODO: CRC32C?
+    pub data: EntryData,
+    pub data_size: u32,
+    pub name_hash: u32, // TODO: CRC32C?
     #[br(map = |x: NullString| x.to_string(), pad_size_to = 52)]
-    name: String,
+    pub name: String,
     // TODO: padding after last element?
 }
 
@@ -54,15 +54,15 @@ pub struct Bc {
     #[br(temp, try_calc = r.stream_position().map(|p| p - 4))]
     base_offset: u64,
 
-    unk0: u16,
-    block_count: u16,
-    data_offset: u32,
-    unk_offset: u32,
-    unk1: u64,
-    unk2: u64,
+    pub unk0: u16,
+    pub block_count: u16,
+    pub data_offset: u32,
+    pub unk_offset: u32,
+    pub unk1: u64,
+    pub unk2: u64,
 
     #[br(args { base_offset })]
-    data: BcData,
+    pub data: BcData,
 }
 
 #[derive(BinRead, Debug, Serialize)]
@@ -85,14 +85,14 @@ pub enum BcData {
 #[derive(BinRead, Debug, Serialize)]
 #[br(magic(b"SKDY"))]
 pub struct Skdy {
-    unk1: u32,
+    pub unk1: u32,
 }
 
 // animation?
 #[derive(BinRead, Debug, Serialize)]
 #[br(magic(b"ANIM"))]
 pub struct Anim {
-    unk1: u32,
+    pub unk1: u32,
 }
 
 // TODO: Is there a cleaner way to handle base offsets?
@@ -101,28 +101,28 @@ pub struct Anim {
 #[br(magic(b"SKEL"))]
 #[br(import { base_offset: u64 })]
 pub struct Skel {
-    unks: [u32; 10],
+    pub unks: [u32; 10],
 
     #[br(args { base_offset })]
-    parents: SkelData<i16>,
+    pub parents: SkelData<i16>,
 
     #[br(args { base_offset, inner: base_offset })]
-    names: SkelData<BoneName>,
+    pub names: SkelData<BoneName>,
 
     #[br(args { base_offset })]
-    transforms: SkelData<Transform>,
+    pub transforms: SkelData<Transform>,
 
     // TODO: types?
     #[br(args { base_offset })]
-    unk_table1: SkelData<u8>,
+    pub unk_table1: SkelData<u8>,
     #[br(args { base_offset })]
-    unk_table2: SkelData<u8>,
+    pub unk_table2: SkelData<u8>,
     #[br(args { base_offset })]
-    unk_table3: SkelData<u8>,
+    pub unk_table3: SkelData<u8>,
     #[br(args { base_offset })]
-    unk_table4: SkelData<u8>,
+    pub unk_table4: SkelData<u8>,
     #[br(args { base_offset })]
-    unk_table5: SkelData<u8>,
+    pub unk_table5: SkelData<u8>,
     // TODO: other fields?
 }
 
@@ -134,8 +134,8 @@ where
     for<'a> T::Args<'a>: Clone + Default,
 {
     #[br(args { base_offset: args.base_offset, inner: args.inner })]
-    items: Container<T>,
-    unk1: i32,
+    pub items: Container<T>,
+    pub unk1: i32,
 }
 
 #[derive(Clone, NamedArgs)]
@@ -148,9 +148,9 @@ pub struct SkelDataArgs<Inner: Default> {
 
 #[derive(BinRead, Debug, Serialize)]
 pub struct Transform {
-    position: [f32; 4],
-    rotation_quaternion: [f32; 4],
-    scale: [f32; 4],
+    pub position: [f32; 4],
+    pub rotation_quaternion: [f32; 4],
+    pub scale: [f32; 4],
 }
 
 #[derive(BinRead, Debug, Serialize)]
@@ -158,33 +158,33 @@ pub struct Transform {
 pub struct BoneName {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     #[br(pad_after = 12)]
-    name: String,
+    pub name: String,
 }
 
 #[derive(BinRead, Debug, Serialize)]
 #[br(magic(b"ASMB"))]
 pub struct Asmb {
-    unk1: u32,
+    pub unk1: u32,
 }
 
 // character collision?
 #[derive(BinRead, Debug, Serialize)]
 #[br(magic(b"CHCL"))]
 pub struct ChCl {
-    unk1: u32,
+    pub unk1: u32,
 }
 
 // "effpnt" or "effect" "point"?
 #[derive(BinRead, Debug, Serialize)]
 #[br(magic(b"CSVB"))]
 pub struct Csvb {
-    unk1: u32,
+    pub unk1: u32,
 }
 
 // TODO: Shared with mxmd just with a different pointer type.
 /// A [u64] offset and [u32] count with an optional base offset.
 #[derive(Clone, NamedArgs)]
-struct ContainerArgs<Inner: Default> {
+pub struct ContainerArgs<Inner: Default> {
     #[named_args(default = 0)]
     base_offset: u64,
     #[named_args(default = Inner::default())]
@@ -195,7 +195,7 @@ struct ContainerArgs<Inner: Default> {
 #[derive(Debug, Serialize)]
 #[br(import_raw(args: ContainerArgs<T::Args<'_>>))]
 #[serde(transparent)]
-struct Container<T>
+pub struct Container<T>
 where
     T: BinRead + 'static,
     for<'a> <T as BinRead>::Args<'a>: Clone + Default,
@@ -208,5 +208,5 @@ where
     #[br(args { count: count as usize, inner: args.inner })]
     #[br(seek_before = SeekFrom::Start(args.base_offset + offset as u64))]
     #[br(restore_position)]
-    elements: Vec<T>,
+    pub elements: Vec<T>,
 }

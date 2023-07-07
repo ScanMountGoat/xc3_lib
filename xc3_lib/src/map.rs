@@ -26,13 +26,13 @@ pub struct PropModelData {
     #[br(parse_with = parse_ptr32)]
     pub materials: Materials,
 
-    unk2: u32,
+    pub unk2: u32,
 
     // Is this the actual props in the scene?
     #[br(parse_with = parse_ptr32)]
     pub lods: PropLods,
 
-    unk3: u32,
+    pub unk3: u32,
 
     /// The textures referenced by [materials](#structfield.materials).
     #[br(parse_with = parse_offset_count)]
@@ -44,13 +44,13 @@ pub struct PropModelData {
     #[br(parse_with = parse_offset_count)]
     pub model_vertex_data_indices: Vec<u32>,
 
-    unk4: [u32; 5],
+    pub unk4: [u32; 5],
 
     #[br(parse_with = parse_ptr32)]
     pub spch: Spch,
 
-    unk5: u32,
-    unk6: u32,
+    pub unk5: u32,
+    pub unk6: u32,
     // 16 bytes of padding?
 }
 
@@ -63,7 +63,7 @@ pub struct PropLods {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    unk1: u32,
+    pub unk1: u32,
 
     // model groups?
     // Each of these is a single prop with all of its lods?
@@ -78,16 +78,16 @@ pub struct PropLods {
     pub instances: Vec<PropInstance>,
 
     // render tree node indices?
-    count2: u32,
-    offset2: u32,
+    pub count2: u32,
+    pub offset2: u32,
 
     // render tree nodes?
     #[br(parse_with = parse_count_offset, offset = base_offset)]
     pub unk3: Vec<PropUnk3>,
 
-    unk2: u32,
+    pub unk2: u32,
 
-    unks: [u32; 10],
+    pub unks: [u32; 10],
 
     // TODO: indices into animated map parts in msmd that then index into props?
     pub animated_parts_start_index: u32,
@@ -110,40 +110,40 @@ pub struct PropLod {
 
 #[derive(BinRead, Debug)]
 pub struct PropModelLod {
-    radius: f32,
-    distance: f32,
+    pub radius: f32,
+    pub distance: f32,
     // TODO: Index into PropModelData.models?
-    index: u32,
+    pub index: u32,
 }
 
 #[derive(BinRead, Debug)]
 pub struct PropInstance {
     /// The transform of the instance as a 4x4 column-major matrix.
     pub transform: [[f32; 4]; 4],
-    position: [f32; 3],
-    radius: f32,
-    center: [f32; 3],
+    pub position: [f32; 3],
+    pub radius: f32,
+    pub center: [f32; 3],
 
     // TODO: fix this doc link
     /// The index into [props](struct.PropLods.html#structfield.props).
     pub prop_index: u32,
 
-    unk1: u16,
+    pub unk1: u16,
 
     // TODO: part_id of MapPart?
     // TODO: Does a value of 0 indicate no parent MapPart?
     pub part_id: u16,
 
-    unk3: u16,
-    unk4: u16,
+    pub unk3: u16,
+    pub unk4: u16,
     // TODO: padding?
-    unks: [u32; 2],
+    pub unks: [u32; 2],
 }
 
 #[derive(BinRead, Debug)]
 pub struct PropUnk3 {
-    unk1: [f32; 5],
-    unk2: [u32; 3],
+    pub unk1: [f32; 5],
+    pub unk2: [u32; 3],
 }
 
 // TODO: Link to appropriate stream field with doc links.
@@ -151,7 +151,7 @@ pub struct PropUnk3 {
 
 #[derive(BinRead, Debug)]
 pub struct MapModelData {
-    unk1: [u32; 3],
+    pub unk1: [u32; 3],
 
     #[br(parse_with = parse_ptr32)]
     pub models: Models,
@@ -159,20 +159,20 @@ pub struct MapModelData {
     #[br(parse_with = parse_ptr32)]
     pub materials: Materials,
 
-    m_unk2: [u32; 2],
+    pub m_unk2: [u32; 2],
 
     /// The textures referenced by [materials](#structfield.materials).
     #[br(parse_with = parse_offset_count)]
     pub textures: Vec<Texture>,
 
-    m_unk3: [u32; 2],
+    pub m_unk3: [u32; 2],
 
     #[br(parse_with = parse_ptr32)]
     pub spch: Spch,
 
     // TODO: What does this do?
-    low_res_offset: u32,
-    low_res_count: u32,
+    pub low_res_offset: u32,
+    pub low_res_count: u32,
 
     #[br(parse_with = parse_ptr32)]
     pub groups: MapModelGroups,
@@ -211,8 +211,8 @@ pub struct MapModelGroups {
 
 #[derive(BinRead, Debug)]
 pub struct MapModelGroup {
-    max: [f32; 3],
-    min: [f32; 3],
+    pub max: [f32; 3],
+    pub min: [f32; 3],
 
     /// The index of the [VertexData](crate::vertex::VertexData)
     /// in [map_vertex_data](../msmd/struct.Msmd.html#structfield.map_vertex_data).
@@ -220,7 +220,7 @@ pub struct MapModelGroup {
     // TODO: lod vertex data index?
     // TODO: This is also used in indices?
     pub unk_vertex_data_index: u32,
-    unk3: u32,
+    pub unk3: u32,
 }
 
 // TODO: Link to appropriate fields with doc links.
@@ -235,7 +235,7 @@ pub struct EnvModelData {
     pub materials: Materials,
 
     // TODO: Pointers to MIBL files?
-    unk_offset1: u32,
+    pub unk_offset1: u32,
 
     #[br(parse_with = parse_ptr32)]
     pub vertex_data: VertexData,
@@ -244,7 +244,7 @@ pub struct EnvModelData {
     pub textures: PackedTextures,
 
     // TODO: always 0?
-    unk6: u32,
+    pub unk6: u32,
 
     #[br(parse_with = parse_ptr32)]
     pub spch: Spch,
@@ -262,7 +262,7 @@ pub struct FoliageModelData {
     #[br(parse_with = parse_ptr32)]
     pub materials: FoliageMaterials,
 
-    unk1: u32,
+    pub unk1: u32,
 
     #[br(parse_with = parse_ptr32)]
     pub vertex_data: VertexData,
@@ -270,7 +270,7 @@ pub struct FoliageModelData {
     #[br(parse_with = parse_ptr32)]
     pub textures: PackedTextures,
 
-    unk4: [u32; 11], // padding?
+    pub unk4: [u32; 11], // padding?
 }
 
 #[binread]
@@ -283,11 +283,11 @@ pub struct FoliageMaterials {
     #[br(parse_with = parse_offset_count, args { offset: base_offset, inner: base_offset })]
     pub materials: Vec<FoliageMaterial>,
 
-    unk1: u32,
-    unk2: u32,
-    unk3: u32,
-    unk4: u32,
-    unk5: u32,
+    pub unk1: u32,
+    pub unk2: u32,
+    pub unk3: u32,
+    pub unk4: u32,
+    pub unk5: u32,
 }
 
 #[derive(BinRead, Debug)]
@@ -296,62 +296,62 @@ pub struct FoliageMaterial {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     pub name: String,
 
-    unk1: u16,
-    unk2: u16,
-    unk3: u16,
-    unk4: u16,
-    unk5: u16,
-    unk6: u16,
-    unk7: u16,
-    unk8: u16,
-    unk9: u16,
-    unk10: u16,
-    unk11: u16,
-    unk12: u16,
-    unk13: u16,
-    unk14: u16,
+    pub unk1: u16,
+    pub unk2: u16,
+    pub unk3: u16,
+    pub unk4: u16,
+    pub unk5: u16,
+    pub unk6: u16,
+    pub unk7: u16,
+    pub unk8: u16,
+    pub unk9: u16,
+    pub unk10: u16,
+    pub unk11: u16,
+    pub unk12: u16,
+    pub unk13: u16,
+    pub unk14: u16,
 }
 
 #[derive(BinRead, Debug)]
 pub struct FoliageVertexData {
     #[br(parse_with = parse_count_offset)]
-    unk1: Vec<FoliageVertex1>,
+    pub unk1: Vec<FoliageVertex1>,
     #[br(parse_with = parse_count_offset)]
-    unk2: Vec<FoliageVertex2>,
-    unk3: u32,
+    pub unk2: Vec<FoliageVertex2>,
+    pub unk3: u32,
     // TODO: padding?
-    unks: [u32; 7],
+    pub unks: [u32; 7],
 }
 
 #[derive(BinRead, Debug)]
 pub struct FoliageVertex1 {
-    unk1: (f32, f32, f32),
-    unk2: [u8; 4],
+    pub unk1: (f32, f32, f32),
+    pub unk2: [u8; 4],
 }
 
 #[derive(BinRead, Debug)]
 pub struct FoliageVertex2 {
-    unk1: (f32, f32, f32, f32),
-    unk2: u32, // offset?
-    unk3: u32, // offset?
-    unk4: u32,
-    unk5: u32,
+    pub unk1: (f32, f32, f32, f32),
+    pub unk2: u32, // offset?
+    pub unk3: u32, // offset?
+    pub unk4: u32,
+    pub unk5: u32,
 }
 
 #[derive(BinRead, Debug)]
 pub struct FoliageUnkData {
-    unk1: [u32; 9], // length of the file repeated?
-    unk2: [f32; 4],
+    pub unk1: [u32; 9], // length of the file repeated?
+    pub unk2: [f32; 4],
     // TODO: padding?
-    unk3: [u32; 8],
+    pub unk3: [u32; 8],
 }
 
 /// The data for a [MapLowModel](crate::msmd::MapLowModel).
 
 #[derive(BinRead, Debug)]
 pub struct MapLowModelData {
-    unk1: u32,
-    unk2: u32,
+    pub unk1: u32,
+    pub unk2: u32,
 
     #[br(parse_with = parse_ptr32)]
     pub models: Models,
@@ -359,13 +359,13 @@ pub struct MapLowModelData {
     #[br(parse_with = parse_ptr32)]
     pub materials: Materials,
 
-    unk5: u32,
-    unk6: u32,
+    pub unk5: u32,
+    pub unk6: u32,
 
     #[br(parse_with = parse_ptr32)]
     pub vertex_data: VertexData,
 
-    unk8: u32,
+    pub unk8: u32,
 
     #[br(parse_with = parse_ptr32)]
     pub spch: Spch,
@@ -379,26 +379,26 @@ pub struct MapLowModelData {
 pub struct PropPositions {
     #[br(parse_with = parse_count_offset)]
     pub instances: Vec<PropInstance>,
-    unk1: u32,
-    unk2: u32,
+    pub unk1: u32,
+    pub unk2: u32,
     #[br(parse_with = parse_count_offset)]
-    nodes: Vec<RenderNode>,
-    unk3: u32,
-    unk4: u32,
-    unk5: u32,
-    animated_parts_start_index: u32,
-    animated_parts_count: u32,
-    tree_offset: u32,
-    unk6: u32,
+    pub nodes: Vec<RenderNode>,
+    pub unk3: u32,
+    pub unk4: u32,
+    pub unk5: u32,
+    pub animated_parts_start_index: u32,
+    pub animated_parts_count: u32,
+    pub tree_offset: u32,
+    pub unk6: u32,
     // TODO: more fields?
 }
 
 #[derive(BinRead, Debug)]
 pub struct RenderNode {
-    center: [f32; 3],
-    radius: f32,
-    unk1: f32,
-    unk2: u32,
-    unk3: u32,
-    unk4: u32,
+    pub center: [f32; 3],
+    pub radius: f32,
+    pub unk1: f32,
+    pub unk2: u32,
+    pub unk3: u32,
+    pub unk4: u32,
 }
