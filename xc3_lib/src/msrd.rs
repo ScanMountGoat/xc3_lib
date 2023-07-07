@@ -28,7 +28,7 @@ pub struct Msrd {
     #[br(parse_with = parse_count_offset, offset = offset as u64)]
     pub streams: Vec<Stream>,
 
-    pub model_entry_index: u32,
+    pub vertex_data_entry_index: u32,
     pub shader_entry_index: u32,
     pub low_textures_entry_index: u32,
     pub low_textures_stream_index: u32,
@@ -36,8 +36,9 @@ pub struct Msrd {
     pub middle_textures_stream_entry_start_index: u32,
     pub middle_textures_stream_entry_count: u32,
 
+    // TODO: identical to indices in mxmd?
     #[br(parse_with = parse_count_offset, offset = offset as u64)]
-    texture_ids: Vec<u16>,
+    pub texture_ids: Vec<u16>,
 
     #[br(parse_with = parse_opt_ptr32, offset = offset as u64)]
     pub textures: Option<PackedExternalTextures>,
@@ -93,7 +94,7 @@ impl Msrd {
     // TODO: Avoid unwrap.
     pub fn extract_vertex_data(&self) -> VertexData {
         // TODO: is this always in the first stream?
-        let bytes = self.decompress_stream(0, self.model_entry_index);
+        let bytes = self.decompress_stream(0, self.vertex_data_entry_index);
         VertexData::read(&mut Cursor::new(bytes)).unwrap()
     }
 

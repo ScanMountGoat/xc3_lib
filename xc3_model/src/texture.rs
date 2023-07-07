@@ -58,28 +58,40 @@ pub fn load_textures(
     // TODO: Is this the correct way to handle this?
     // TODO: Is it possible to have both packed and external mxmd textures?
     if let Some(textures) = &mxmd.textures {
-        let packed_textures = match &textures.inner {
+        let mxmd_textures = match &textures.inner {
             xc3_lib::mxmd::TexturesInner::Unk0(t) => Some(&t.textures1.textures),
             xc3_lib::mxmd::TexturesInner::Unk1(t) => t.textures.as_ref().map(|t| &t.textures),
         };
 
         let packed_texture_data = msrd.unwrap().extract_low_texture_data();
+        // TODO: These textures aren't in the same order?
         let middle_textures = msrd.unwrap().extract_middle_textures();
+
+        // TODO: Same as msrd?
+        let texture_ids = &msrd.as_ref().unwrap().texture_ids;
 
         // Assume the packed and non packed textures have the same ordering.
         // Xenoblade 3 has some textures in the chr/tex folder.
-        packed_textures
+        // TODO: Are the mxmd and msrd packed texture lists always identical?
+        mxmd_textures
             .map(|packed_textures| {
                 packed_textures
                     .iter()
-                    .zip(msrd.unwrap().textures.as_ref().unwrap().textures.iter())
                     .enumerate()
-                    .map(|(i, (item, packed_item))| {
-                        load_wismt_texture(m_tex_folder, h_tex_folder, &item.name)
-                            .or_else(|| middle_textures.get(i).map(|t| t.try_into().unwrap()))
+                    .map(|(i, texture)| {
+                        load_wismt_texture(m_tex_folder, h_tex_folder, &texture.name)
+                            .or_else(|| {
+                                // TODO: Assign in a second pass to avoid O(N) find.
+                                texture_ids
+                                    .iter()
+                                    .position(|id| *id as usize == i)
+                                    .and_then(|index| {
+                                        middle_textures.get(index).map(|t| t.try_into().unwrap())
+                                    })
+                            })
                             .unwrap_or_else(|| {
                                 // Some textures only appear in the packed textures and have no high res version.
-                                load_packed_texture(&packed_texture_data, packed_item)
+                                load_packed_texture(&packed_texture_data, texture)
                             })
                     })
                     .collect()
