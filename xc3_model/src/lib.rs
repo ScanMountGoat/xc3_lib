@@ -21,6 +21,7 @@ pub mod vertex;
 #[derive(Debug)]
 pub struct ModelRoot {
     pub groups: Vec<ModelGroup>,
+    // TODO: Access textures by name?
     pub image_textures: Vec<ImageTexture>,
 }
 
@@ -126,8 +127,7 @@ pub fn load_model<P: AsRef<Path>>(wimdo_path: P, shader_database: &GBufferDataba
     let chr_folder = wimdo_path.as_ref().parent().unwrap().parent().unwrap();
     let m_tex_folder = chr_folder.join("tex").join("nx").join("m");
     let h_tex_folder = chr_folder.join("tex").join("nx").join("h");
-    // TODO: This should account for the texture folders not being present.
-    // TODO: Also load textures from wismt msrd or wismt raw?
+
     let image_textures = load_textures(&mxmd, msrd.as_ref(), &m_tex_folder, &h_tex_folder);
 
     let model_folder = model_folder_name(wimdo_path.as_ref());
@@ -135,13 +135,17 @@ pub fn load_model<P: AsRef<Path>>(wimdo_path: P, shader_database: &GBufferDataba
 
     let materials = materials(&mxmd.materials, spch);
 
-    // TODO: Don't assume there is only one model?
-    let model = Model::from_model(&mxmd.models.models[0], vertex_data, vec![Mat4::IDENTITY]);
+    let models = mxmd
+        .models
+        .models
+        .iter()
+        .map(|model| Model::from_model(model, vertex_data, vec![Mat4::IDENTITY]))
+        .collect();
 
     ModelRoot {
         groups: vec![ModelGroup {
             materials,
-            models: vec![model],
+            models,
             image_texture_indices: (0..image_textures.len()).collect(),
         }],
         image_textures,

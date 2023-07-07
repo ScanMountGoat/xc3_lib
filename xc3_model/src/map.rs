@@ -4,14 +4,16 @@ use glam::{Mat4, Vec3};
 use rayon::prelude::*;
 use xc3_lib::{
     map::FoliageMaterials,
-    mibl::Mibl,
     msmd::{ChannelType, MapParts, Msmd, StreamEntry},
     mxmd::{MaterialFlags, ShaderUnkType},
     vertex::VertexData,
 };
 use xc3_shader::gbuffer_database::GBufferDatabase;
 
-use crate::{materials, model_folder_name, Material, Model, ModelGroup, ModelRoot, Texture};
+use crate::{
+    materials, model_folder_name, texture::ImageTexture, Material, Model, ModelGroup, ModelRoot,
+    Texture,
+};
 
 pub fn load_map<P: AsRef<Path>>(
     wismhd_path: P,
@@ -89,7 +91,7 @@ pub fn load_map<P: AsRef<Path>>(
             // TODO: Do all textures load a separate base mip level?
             let mut wismda = Cursor::new(&wismda);
             let mibl_m = texture.mid.extract(&mut wismda, compressed);
-            mibl_m.try_into().unwrap()
+            ImageTexture::from_mibl(&mibl_m, None).unwrap()
         })
         .collect();
 
@@ -300,12 +302,7 @@ fn load_env_model(
         .textures
         .textures
         .iter()
-        .map(|texture| {
-            Mibl::read(&mut Cursor::new(&texture.mibl_data))
-                .unwrap()
-                .try_into()
-                .unwrap()
-        })
+        .map(ImageTexture::from_packed_texture)
         .collect();
 
     let spch = shader_database
@@ -349,12 +346,7 @@ fn load_foliage_model(
         .textures
         .textures
         .iter()
-        .map(|texture| {
-            Mibl::read(&mut Cursor::new(&texture.mibl_data))
-                .unwrap()
-                .try_into()
-                .unwrap()
-        })
+        .map(ImageTexture::from_packed_texture)
         .collect();
 
     let materials = foliage_materials(&model_data.materials);

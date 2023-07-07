@@ -356,7 +356,6 @@ fn create_material(
     let albedo_index = material_texture_index(albedo_index, texture_indices, root_index);
     let normal_index = material_texture_index(normal_index, texture_indices, root_index);
 
-    
     gltf::json::Material {
         name: Some(material.name.clone()),
         pbr_metallic_roughness: gltf::json::material::PbrMetallicRoughness {

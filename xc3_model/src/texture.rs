@@ -4,15 +4,14 @@ use ddsfile::Dds;
 use xc3_lib::{
     mibl::{ImageFormat, Mibl, ViewDimension},
     msrd::Msrd,
-    mxmd::Mxmd,
+    mxmd::{Mxmd, PackedTexture},
     xbc1::Xbc1,
 };
 
-// TODO: Store a texture name as well?
 /// A non swizzled version of an [Mibl] texture.
 #[derive(Debug, Clone)]
-
 pub struct ImageTexture {
+    pub name: Option<String>,
     pub width: u32,
     pub height: u32,
     pub depth: u32,
@@ -22,11 +21,15 @@ pub struct ImageTexture {
     pub image_data: Vec<u8>,
 }
 
-impl TryFrom<&Mibl> for ImageTexture {
-    type Error = tegra_swizzle::SwizzleError;
-
-    fn try_from(mibl: &Mibl) -> Result<Self, Self::Error> {
+impl ImageTexture {
+    /// Deswizzle the data from `mibl`.
+    /// The `name` is not required but creates more descriptive file names and debug information.
+    pub fn from_mibl(
+        mibl: &Mibl,
+        name: Option<String>,
+    ) -> Result<Self, tegra_swizzle::SwizzleError> {
         Ok(Self {
+            name,
             width: mibl.footer.width,
             height: mibl.footer.height,
             depth: mibl.footer.depth,
@@ -36,13 +39,10 @@ impl TryFrom<&Mibl> for ImageTexture {
             image_data: mibl.deswizzled_image_data()?,
         })
     }
-}
 
-impl TryFrom<Mibl> for ImageTexture {
-    type Error = tegra_swizzle::SwizzleError;
-
-    fn try_from(mibl: Mibl) -> Result<Self, Self::Error> {
-        Self::try_from(&mibl)
+    pub fn from_packed_texture(texture: &PackedTexture) -> Self {
+        let mibl = Mibl::read(&mut Cursor::new(&texture.mibl_data)).unwrap();
+        Self::from_mibl(&mibl, Some(texture.name.clone())).unwrap()
     }
 }
 
@@ -86,7 +86,13 @@ pub fn load_textures(
                                     .iter()
                                     .position(|id| *id as usize == i)
                                     .and_then(|index| {
-                                        middle_textures.get(index).map(|t| t.try_into().unwrap())
+                                        middle_textures.get(index).map(|mibl| {
+                                            ImageTexture::from_mibl(
+                                                mibl,
+                                                Some(texture.name.clone()),
+                                            )
+                                            .unwrap()
+                                        })
                                     })
                             })
                             .unwrap_or_else(|| {
@@ -101,12 +107,7 @@ pub fn load_textures(
         packed_textures
             .textures
             .iter()
-            .map(|t| {
-                Mibl::read(&mut Cursor::new(&t.mibl_data))
-                    .unwrap()
-                    .try_into()
-                    .unwrap()
-            })
+            .map(ImageTexture::from_packed_texture)
             .collect()
     } else {
         // TODO: How to handle this case?
@@ -120,10 +121,9 @@ fn load_packed_texture(
 ) -> ImageTexture {
     let data = &packed_texture_data
         [item.mibl_offset as usize..item.mibl_offset as usize + item.mibl_length as usize];
-    Mibl::read(&mut Cursor::new(&data))
-        .unwrap()
-        .try_into()
-        .unwrap()
+
+    let mibl = Mibl::read(&mut Cursor::new(&data)).unwrap();
+    ImageTexture::from_mibl(&mibl, Some(item.name.clone())).unwrap()
 }
 
 fn load_wismt_texture(
@@ -143,10 +143,14 @@ fn load_wismt_texture(
             .decompress()
             .unwrap();
 
-    Some(merge_mibl(base_mip_level, mibl_m))
+    Some(merge_mibl(
+        base_mip_level,
+        mibl_m,
+        Some(texture_name.to_string()),
+    ))
 }
 
-pub fn merge_mibl(base_mip_level: Vec<u8>, mibl_m: Mibl) -> ImageTexture {
+pub fn merge_mibl(base_mip_level: Vec<u8>, mibl_m: Mibl, name: Option<String>) -> ImageTexture {
     let width = mibl_m.footer.width * 2;
     let height = mibl_m.footer.height * 2;
     // TODO: double depth?
@@ -178,6 +182,7 @@ pub fn merge_mibl(base_mip_level: Vec<u8>, mibl_m: Mibl) -> ImageTexture {
     image_data.extend_from_slice(&mibl_m.deswizzled_image_data().unwrap());
 
     ImageTexture {
+        name,
         width,
         height,
         depth,

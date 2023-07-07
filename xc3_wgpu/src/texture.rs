@@ -51,11 +51,10 @@ pub fn create_texture(
         xc3_lib::mibl::ViewDimension::Cube => wgpu::TextureDimension::D2,
     };
 
-    // TODO: label?
     device.create_texture_with_data(
         queue,
         &wgpu::TextureDescriptor {
-            label: None,
+            label: texture.name.as_deref(),
             size,
             // TODO: Why are some mipmap counts too high?
             mip_level_count: texture.mipmap_count.min(size.max_mips(dimension)),
