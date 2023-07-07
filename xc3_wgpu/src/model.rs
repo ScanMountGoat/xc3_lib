@@ -1,9 +1,8 @@
-use std::{collections::HashMap, path::Path};
+use std::collections::HashMap;
 
 use glam::{vec4, Vec3, Vec4};
 use log::info;
 use wgpu::util::DeviceExt;
-use xc3_lib::msmd::Msmd;
 use xc3_model::vertex::AttributeData;
 
 use crate::{
@@ -107,21 +106,28 @@ impl ModelGroup {
     }
 }
 
-// TODO: Take xc3_model types directly and avoid a separate load_map function.
-pub fn load_model<P: AsRef<Path>>(
+pub fn load_model(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-    wimdo_path: P,
-    shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
-) -> ModelGroup {
-    let root = xc3_model::load_model(wimdo_path, shader_database);
-
+    roots: &[xc3_model::ModelRoot],
+) -> Vec<ModelGroup> {
     // Compile shaders only once to improve loading times.
     let pipeline_data = ModelPipelineData::new(device);
 
-    let textures = load_textures(device, queue, &root);
+    let start = std::time::Instant::now();
 
-    create_model_group(device, queue, &root.groups[0], &textures, &pipeline_data)
+    let mut groups = Vec::new();
+
+    for root in roots {
+        let textures = load_textures(device, queue, root);
+        for group in &root.groups {
+            let model_group = create_model_group(device, queue, group, &textures, &pipeline_data);
+            groups.push(model_group);
+        }
+    }
+    info!("Load {} roots: {:?}", roots.len(), start.elapsed());
+
+    groups
 }
 
 fn load_textures(
@@ -166,35 +172,6 @@ fn create_model_group(
         pipelines,
         models,
     }
-}
-
-pub fn load_map<P: AsRef<Path>>(
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    wismhd_path: P,
-    shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
-) -> Vec<ModelGroup> {
-    // Compile shaders only once to improve loading times.
-    let pipeline_data = ModelPipelineData::new(device);
-
-    let msmd = Msmd::from_file(wismhd_path.as_ref()).unwrap();
-    let wismda = std::fs::read(wismhd_path.as_ref().with_extension("wismda")).unwrap();
-
-    let start = std::time::Instant::now();
-    let roots = xc3_model::map::load_map(&msmd, &wismda, wismhd_path.as_ref(), shader_database);
-    info!("Load map: {:?}", start.elapsed());
-
-    let mut groups = Vec::new();
-
-    for root in &roots {
-        let textures = load_textures(device, queue, root);
-        for group in &root.groups {
-            let model_group = create_model_group(device, queue, group, &textures, &pipeline_data);
-            groups.push(model_group);
-        }
-    }
-
-    groups
 }
 
 fn model_index_buffers(device: &wgpu::Device, model: &xc3_model::Model) -> Vec<IndexBuffer> {

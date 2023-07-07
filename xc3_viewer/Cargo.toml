@@ -9,6 +9,6 @@ wgpu = "0.16.0"
 winit = "0.28.3"
 glam = "0.23.0"
 xc3_wgpu = { path = "../xc3_wgpu" }
-xc3_lib = { path = "../xc3_lib" }
+xc3_model = { path = "../xc3_model" }
 log = "0.4.19"
 simple_logger = "4.2.0"

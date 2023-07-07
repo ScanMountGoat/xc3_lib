@@ -13,16 +13,17 @@ use xc3_shader::gbuffer_database::GBufferDatabase;
 
 use crate::{materials, model_folder_name, Material, Model, ModelGroup, ModelRoot, Texture};
 
-pub fn load_map(
-    msmd: &Msmd,
-    wismda: &[u8],
-    model_path: &Path,
+pub fn load_map<P: AsRef<Path>>(
+    wismhd_path: P,
     shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
 ) -> Vec<ModelRoot> {
+    let msmd = Msmd::from_file(wismhd_path.as_ref()).unwrap();
+    let wismda = std::fs::read(wismhd_path.as_ref().with_extension("wismda")).unwrap();
+
     // Loading is CPU intensive due to decompression and decoding.
     // The .wismda is loaded into memory as &[u8].
     // Extracting can be parallelized without locks by creating multiple readers.
-    let model_folder = model_folder_name(model_path);
+    let model_folder = model_folder_name(wismhd_path.as_ref());
 
     // Some maps don't use XBC1 compressed archives in the .wismda file.
     let compressed = msmd.wismda_info.compressed_length != msmd.wismda_info.decompressed_length;
@@ -32,7 +33,7 @@ pub fn load_map(
 
     roots.par_extend(msmd.env_models.par_iter().enumerate().map(|(i, model)| {
         load_env_model(
-            wismda,
+            &wismda,
             compressed,
             model,
             i,
@@ -44,17 +45,17 @@ pub fn load_map(
     roots.par_extend(
         msmd.foliage_models
             .par_iter()
-            .map(|foliage_model| load_foliage_model(wismda, compressed, foliage_model)),
+            .map(|foliage_model| load_foliage_model(&wismda, compressed, foliage_model)),
     );
 
     let mut groups = Vec::new();
 
     // Process vertex data ahead of time in parallel.
     // This gives better CPU utilization and avoids redundant processing.
-    let map_vertex_data = extract_vertex_data(&msmd.map_vertex_data, wismda, compressed);
+    let map_vertex_data = extract_vertex_data(&msmd.map_vertex_data, &wismda, compressed);
 
     groups.par_extend(msmd.map_models.par_iter().enumerate().map(|(i, model)| {
-        let model_data = model.entry.extract(&mut Cursor::new(wismda), compressed);
+        let model_data = model.entry.extract(&mut Cursor::new(&wismda), compressed);
 
         load_map_model_group(
             &model_data,
@@ -65,10 +66,10 @@ pub fn load_map(
         )
     }));
 
-    let prop_vertex_data = extract_vertex_data(&msmd.prop_vertex_data, wismda, compressed);
+    let prop_vertex_data = extract_vertex_data(&msmd.prop_vertex_data, &wismda, compressed);
 
     groups.par_extend(msmd.prop_models.par_iter().enumerate().map(|(i, model)| {
-        let model_data = model.entry.extract(&mut Cursor::new(wismda), compressed);
+        let model_data = model.entry.extract(&mut Cursor::new(&wismda), compressed);
 
         load_prop_model_group(
             &model_data,
@@ -267,6 +268,7 @@ fn load_map_model_group(
             .iter()
             .zip(model_data.groups.model_group_index.iter())
         {
+            // TODO: Faster to just make empty groups and assign each model in a loop?
             if *index as usize == group_index {
                 let new_model = Model::from_model(model, vertex_data, vec![Mat4::IDENTITY]);
                 models.push(new_model);

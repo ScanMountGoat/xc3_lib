@@ -11,7 +11,7 @@ use winit::{
 };
 use xc3_wgpu::{
     material::load_database,
-    model::{load_map, load_model, ModelGroup},
+    model::{load_model, ModelGroup},
     renderer::{CameraData, Xc3Renderer},
     COLOR_FORMAT,
 };
@@ -101,9 +101,13 @@ impl State {
         // Infer the type of model to load based on the extension.
         let models = match model_path.extension().unwrap().to_str().unwrap() {
             "wimdo" => {
-                vec![load_model(&device, &queue, model_path, &shader_database)]
+                let root = xc3_model::load_model(model_path, &shader_database);
+                load_model(&device, &queue, &[root])
             }
-            "wismhd" => load_map(&device, &queue, model_path, &shader_database),
+            "wismhd" => {
+                let roots = xc3_model::map::load_map(model_path, &shader_database);
+                load_model(&device, &queue, &roots)
+            }
             _ => todo!(),
         };
 
@@ -260,6 +264,7 @@ impl State {
     }
 }
 
+// TODO: Move to xc3_wgpu?
 fn calculate_camera_data(
     size: winit::dpi::PhysicalSize<u32>,
     translation: glam::Vec3,
