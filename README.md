@@ -36,6 +36,10 @@ Most of the file processing and conversion code is tested by running the xc3_tes
 `cargo run -p xc3_test --release <path to xenoblade 2 or xenoblade 3 dump> --all`  
 `cargo run -p xc3_test --release <path to xenoblade 2 or xenoblade 3 dump> --mxmd --mibl`
 
+The rendering can be tested by batch rendering files to PNG. Specifying the GBuffer JSON database from xc3_shader will allow xc3_wgpu to assign textures to the appropriate outputs.  
+`cargo run -p xc3_wgpu_batch --release "xenoblade 2 dump/model/bl" wimdo`  
+`cargo run -p xc3_wgpu_batch --release "xenoblade 3 dump/map" wismhd gbuffer.json`  
+
 ## Credits
 This project makes use of a number of Rust crates that are useful for reverse engineering. For a full list of dependencies, see the Cargo.toml files.
 * [binrw](https://github.com/jam1garner/binrw) - declarative binary parsing
