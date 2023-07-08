@@ -105,6 +105,7 @@ impl From<ImageFormat> for ddsfile::DxgiFormat {
             ImageFormat::R8G8B8A8Unorm => Self::R8G8B8A8_UNorm,
             ImageFormat::R16G16B16A16Float => Self::R16G16B16A16_Float,
             ImageFormat::BC1Unorm => Self::BC1_UNorm,
+            ImageFormat::BC2Unorm => Self::BC2_UNorm,
             ImageFormat::BC3Unorm => Self::BC3_UNorm,
             ImageFormat::BC4Unorm => Self::BC4_UNorm,
             ImageFormat::BC5Unorm => Self::BC5_UNorm,
