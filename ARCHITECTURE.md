@@ -12,6 +12,12 @@ File data starts as an unstructured array of bytes in one or more binary files. 
 3. Convert the xc3_model data to renderable buffers, textures, pipelines etc (xc3_wgpu).
 4. Initialize an `Xc3Renderer`, load the models, and render them on screen (xc3_viewer).
 
+**Batch Rendering**
+1. Parse files (xc3_lib).
+2. Decompress, decode, and convert models and textures to a standardized format (xc3_model).
+3. Convert the xc3_model data to renderable buffers, textures, pipelines etc (xc3_wgpu).
+4. Initialize an `Xc3Renderer`, load the models, and render directly to a texture (xc3_wgpu_batch).
+
 **gltf Export**
 1. Parse files (xc3_lib).
 2. Decompress, decode, and convert models and textures to a standardized format (xc3_model).
@@ -42,3 +48,6 @@ A simple winit desktop application for rendering model files using xc3_wgpu. Thi
 A wgpu based renderer for model files with an emphasis on portability and readability over perfect in game accuracy. The most important user accessible type is `Xc3Renderer` since this renders models and implements a series of render passes based on the in game renderer.
 
 wgpu initializes GPU resources using immutable descriptor objects similar to Vulkan. This makes xc3_wgpu a good way to document how parameters in game files affect rendering in game since all the rendering state is explicitly initialized in Rust functions. Code in xc3_wgpu is organized based on key wgpu objects like pipelines or samplers to make this information easier to find.
+
+### xc3_wgpu_batch
+A CLI program for testing the entire loading and rendering code from xc3_lib, xc3_model, and xc3_wgpu. xc3_wgpu_batch renders directly to textures to create PNG files, so  no window is ever constructed. This makes it easy to identify major rendering errors or models that fail to load properly. Changes to the file formats themselves should use xc3_test since xc3_test runs faster and gives more detailed feedback on errors compared to xc3_wgpu_batch.
