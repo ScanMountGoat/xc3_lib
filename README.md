@@ -18,9 +18,13 @@ The initial focus is creating robust and readable parsing code for formats relat
 File formats and where to find them in a game dump are outlined above. Note that the same extension can be used for multiple formats. Some formats like `Msrd` contain files from other formats like `Spch` embedded as compressed `Xbc1` archives.
 
 ## Usage
-This library is still highly experimental. When adding this project to the Cargo.toml, specify a specific git revision or commit the Cargo.lock file to source control. This locks the version and avoids any breaking changes. The debug or JSON output has not stabilized and should not be assumed to be the same between commits.
+This library is still highly experimental. When adding any of these projects to the Cargo.toml, specify a specific git revision or commit the Cargo.lock file to source control. This locks the version and avoids any breaking changes. The debug or JSON output has not stabilized and should not be assumed to be the same between commits.
 
-`xc3_lib = { git = "https://github.com/ScanMountGoat/xc3_lib", rev = "commit_hash" }`  
+```toml
+xc3_model = { git = "https://github.com/ScanMountGoat/xc3_lib", rev = "commit_hash" }
+xc3_wgpu = { git = "https://github.com/ScanMountGoat/xc3_lib", rev = "commit_hash" }
+xc3_lib = { git = "https://github.com/ScanMountGoat/xc3_lib", rev = "commit_hash" }
+```
 
 ## Building
 After installing the [Rust toolchain](https://www.rust-lang.org/tools/install), run `cargo build --release` in the repository directory.
