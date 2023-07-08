@@ -21,9 +21,9 @@ struct Cli {
     /// The file extension to load.
     extension: FileExtension,
 
-    // TODO: Make this optional.
     /// The GBuffer JSON database for texture assignments.
-    shader_database: String,
+    /// If not specified, the first texture is assumed to be albedo color.
+    shader_database: Option<String>,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
@@ -97,7 +97,7 @@ fn main() {
         mapped_at_creation: false,
     });
 
-    let shader_database = load_database(cli.shader_database);
+    let database = cli.shader_database.map(|path| load_database(path));
 
     // TODO: Work through mxmd in wiefb files in xc2?
     let ext = match cli.extension {
@@ -137,8 +137,10 @@ fn main() {
             }
 
             let roots = match cli.extension {
-                FileExtension::Wimdo => vec![xc3_model::load_model(model_path, &shader_database)],
-                FileExtension::Wismhd => xc3_model::map::load_map(model_path, &shader_database),
+                FileExtension::Wimdo => {
+                    vec![xc3_model::load_model(model_path, database.as_ref())]
+                }
+                FileExtension::Wismhd => xc3_model::map::load_map(model_path, database.as_ref()),
             };
 
             let groups = xc3_wgpu::model::load_model(&device, &queue, &roots);

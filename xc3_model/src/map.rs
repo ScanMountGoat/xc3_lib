@@ -17,7 +17,7 @@ use crate::{
 
 pub fn load_map<P: AsRef<Path>>(
     wismhd_path: P,
-    shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
+    shader_database: Option<&GBufferDatabase>,
 ) -> Vec<ModelRoot> {
     let msmd = Msmd::from_file(wismhd_path.as_ref()).unwrap();
     let wismda = std::fs::read(wismhd_path.as_ref().with_extension("wismda")).unwrap();
@@ -120,14 +120,13 @@ fn load_prop_model_group(
     prop_vertex_data: &[VertexData],
     parts: Option<&MapParts>,
     model_folder: &str,
-    shader_database: &xc3_shader::gbuffer_database::GBufferDatabase,
+    shader_database: Option<&GBufferDatabase>,
 ) -> ModelGroup {
     // Get the textures referenced by the materials in this model.
     let image_texture_indices = map_texture_indices(&model_data.textures);
 
     let spch = shader_database
-        .map_files
-        .get(model_folder)
+        .and_then(|database| database.map_files.get(model_folder))
         .and_then(|map| map.prop_models.get(model_index));
 
     // TODO: packed textures?
@@ -241,14 +240,13 @@ fn load_map_model_group(
     model_index: usize,
     vertex_data: &[VertexData],
     model_folder: &str,
-    shader_database: &GBufferDatabase,
+    shader_database: Option<&GBufferDatabase>,
 ) -> ModelGroup {
     // Get the textures referenced by the materials in this model.
     let image_texture_indices = map_texture_indices(&model_data.textures);
 
     let spch = shader_database
-        .map_files
-        .get(model_folder)
+        .and_then(|database| database.map_files.get(model_folder))
         .and_then(|map| map.map_models.get(model_index));
 
     let materials = materials(&model_data.materials, spch);
@@ -291,7 +289,7 @@ fn load_env_model(
     model: &xc3_lib::msmd::EnvModel,
     model_index: usize,
     model_folder: &str,
-    shader_database: &GBufferDatabase,
+    shader_database: Option<&GBufferDatabase>,
 ) -> ModelRoot {
     let mut wismda = Cursor::new(&wismda);
 
@@ -306,8 +304,7 @@ fn load_env_model(
         .collect();
 
     let spch = shader_database
-        .map_files
-        .get(model_folder)
+        .and_then(|database| database.map_files.get(model_folder))
         .and_then(|map| map.env_models.get(model_index));
 
     let materials = materials(&model_data.materials, spch);

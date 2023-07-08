@@ -94,18 +94,18 @@ impl State {
         let camera_data = calculate_camera_data(size, translation, rotation_xyz);
         renderer.update_camera(&queue, &camera_data);
 
-        let shader_database = load_database(database_path);
+        let database = Some(load_database(database_path));
 
         let start = std::time::Instant::now();
 
         // Infer the type of model to load based on the extension.
         let models = match model_path.extension().unwrap().to_str().unwrap() {
             "wimdo" => {
-                let root = xc3_model::load_model(model_path, &shader_database);
+                let root = xc3_model::load_model(model_path, database.as_ref());
                 load_model(&device, &queue, &[root])
             }
             "wismhd" => {
-                let roots = xc3_model::map::load_map(model_path, &shader_database);
+                let roots = xc3_model::map::load_map(model_path, database.as_ref());
                 load_model(&device, &queue, &roots)
             }
             _ => todo!(),

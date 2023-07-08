@@ -108,10 +108,11 @@ impl Model {
     }
 }
 
-// TODO: The wismt isn't always an msrd?
-// TODO: Just take the wimdo and wismt path for now?
 /// Load a character (ch), object (oj), weapon (wp), or enemy (en) model.
-pub fn load_model<P: AsRef<Path>>(wimdo_path: P, shader_database: &GBufferDatabase) -> ModelRoot {
+pub fn load_model<P: AsRef<Path>>(
+    wimdo_path: P,
+    shader_database: Option<&GBufferDatabase>,
+) -> ModelRoot {
     let mxmd = Mxmd::from_file(wimdo_path.as_ref()).unwrap();
     // TODO: Some files don't have a wismt?
     let msrd = Msrd::from_file(wimdo_path.as_ref().with_extension("wismt")).ok();
@@ -131,7 +132,7 @@ pub fn load_model<P: AsRef<Path>>(wimdo_path: P, shader_database: &GBufferDataba
     let image_textures = load_textures(&mxmd, msrd.as_ref(), &m_tex_folder, &h_tex_folder);
 
     let model_folder = model_folder_name(wimdo_path.as_ref());
-    let spch = shader_database.files.get(&model_folder);
+    let spch = shader_database.and_then(|database| database.files.get(&model_folder));
 
     let materials = materials(&mxmd.materials, spch);
 
