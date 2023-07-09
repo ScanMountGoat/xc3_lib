@@ -7,6 +7,7 @@ use clap::Parser;
 use rayon::prelude::*;
 use xc3_lib::{
     dds::{create_dds, create_mibl},
+    dhal::Dhal,
     mibl::Mibl,
     msmd::Msmd,
     msrd::Msrd,
@@ -47,6 +48,10 @@ struct Cli {
     /// Process HCPS shader files from .wishp
     #[arg(long)]
     spch: bool,
+
+    /// Process LAHD texture files from .wilay
+    #[arg(long)]
+    dhal: bool,
 
     /// Process all file types
     #[arg(long)]
@@ -93,6 +98,11 @@ fn main() {
     if cli.spch || cli.all {
         println!("Checking SPCH files ...");
         check_all_spch(root);
+    }
+
+    if cli.dhal || cli.all {
+        println!("Checking DHAL files ...");
+        check_all_dhal(root);
     }
 
     // TODO: check standalone shaders
@@ -150,6 +160,10 @@ fn check_all_msrd<P: AsRef<Path>>(root: P) {
     let folder = root.as_ref();
 
     // Skip the .wismt textures in the XC3 tex folder.
+    // TODO: Some XC2 .wismt files are other formats?
+    // model/oj/oj108004.wismt - XBC1 for packed MIBL files
+    // model/we/we010601.wismt - packed MIBL files (uncompressed)
+    // model/we/we010602.wismt - packed MIBL files (uncompressed)
     globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.wismt", "!**/tex/**"])
         .build()
         .unwrap()
@@ -181,6 +195,7 @@ fn check_all_msmd<P: AsRef<Path>>(root: P) {
         .par_bridge()
         .for_each(|entry| {
             let path = entry.as_ref().unwrap().path();
+            // TODO: Also check xc3_model loading?
             match Msmd::from_file(path) {
                 Ok(msmd) => {
                     check_msmd(msmd, path);
@@ -266,7 +281,7 @@ fn read_wismt_single_tex<P: AsRef<Path>>(path: P) -> (Vec<u8>, Mibl) {
 }
 
 fn check_all_sar1<P: AsRef<Path>>(root: P) {
-    let folder = root.as_ref().join("chr");
+    let folder = root.as_ref();
     globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.chr"])
         .build()
         .unwrap()
@@ -292,6 +307,28 @@ fn check_all_spch<P: AsRef<Path>>(root: P) {
             let path = entry.as_ref().unwrap().path();
             match Spch::from_file(path) {
                 Ok(_) => (),
+                Err(e) => println!("Error reading {path:?}: {e}"),
+            }
+        });
+}
+
+fn check_all_dhal<P: AsRef<Path>>(root: P) {
+    let folder = root.as_ref();
+    globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.wilay"])
+        .build()
+        .unwrap()
+        .par_bridge()
+        .for_each(|entry| {
+            // TODO: How to validate this file?
+            let path = entry.as_ref().unwrap().path();
+            match Dhal::from_file(path) {
+                Ok(dhal) => {
+                    if let Some(textures) = dhal.textures {
+                        for texture in textures.textures {
+                            Mibl::read(&mut Cursor::new(&texture.mibl_data)).unwrap();
+                        }
+                    }
+                }
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }
         });

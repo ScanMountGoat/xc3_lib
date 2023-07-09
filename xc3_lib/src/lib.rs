@@ -8,7 +8,9 @@ use binrw::{
     file_ptr::FilePtrArgs, BinRead, BinReaderExt, BinResult, BinWrite, NullString, VecArgs,
 };
 
+pub mod apmd;
 pub mod dds;
+pub mod dhal;
 pub mod map;
 pub mod mibl;
 pub mod msmd;
@@ -36,7 +38,9 @@ where
 
     let saved_pos = reader.stream_position()?;
 
+    // TODO: log trace with minimal performance hit?
     reader.seek(SeekFrom::Start(offset as u64 + args.offset))?;
+    // println!("{:?}: {:?}", std::any::type_name::<Vec<T>>(), reader.stream_position().unwrap());
 
     let values = Vec::<T>::read_options(
         reader,
@@ -68,6 +72,7 @@ where
     let saved_pos = reader.stream_position()?;
 
     reader.seek(SeekFrom::Start(offset as u64 + args.offset))?;
+    // println!("{:?}: {:?}", std::any::type_name::<Vec<T>>(), reader.stream_position().unwrap());
 
     let values = Vec::<T>::read_options(
         reader,
@@ -107,6 +112,7 @@ where
     let saved_pos = reader.stream_position()?;
 
     reader.seek(SeekFrom::Start(offset as u64 + args.offset))?;
+    // println!("{}: {:?}", std::any::type_name::<T>(), reader.stream_position().unwrap());
     let value = T::read_options(reader, endian, args.inner)?;
     reader.seek(SeekFrom::Start(saved_pos))?;
 
@@ -128,6 +134,7 @@ where
     if offset > 0 {
         let saved_pos = reader.stream_position()?;
         reader.seek(SeekFrom::Start(offset as u64 + args.offset))?;
+        // println!("{:?}: {:?}", std::any::type_name::<T>(), reader.stream_position().unwrap());
         let value = T::read_options(reader, endian, args.inner)?;
         reader.seek(SeekFrom::Start(saved_pos))?;
 
@@ -190,5 +197,6 @@ file_read_impl!(
     mxmd::Mxmd,
     sar1::Sar1,
     spch::Spch,
-    vertex::VertexData
+    vertex::VertexData,
+    dhal::Dhal
 );
