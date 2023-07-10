@@ -38,6 +38,9 @@ Consult the appropriate documentation for details and usage instructions.
 ## In Game Testing
 The easiest way to test files is using an emulator like Ryujinx and the [xc3-file-loader](https://github.com/RoccoDev/xc3-file-loader) plugin for loading modded files. Files can be extracted from a dump of the game by dumping the romfs from Ryujinx and then dumping the ard and arh archive files using [XbTool](https://github.com/AlexCSDev/XbTool/releases).
 
+## Code Generation
+For seeing the generated code from procedural macros, use [cargo expand](https://github.com/dtolnay/cargo-expand). For example, call `cargo expand -p xc3_lib mxmd > expanded.rs` to output the expanded contents of `mxmd.rs`.
+
 ## Debugging File Parsing
 The easiest way to test file parsing is by running xc3_test on an extracted game dump and noting any errors printed to the console. The `binrw` library used to generate parsing code also supports debugging the location and values of specific fields by adding the `#[br(dbg)]` attribute like in the example below. This makes it easy to identify the offset to use when hex editing for in game tests.
 

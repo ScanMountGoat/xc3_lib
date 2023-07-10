@@ -13,6 +13,33 @@ pub(crate) trait Xc3Write {
     const ALIGNMENT: u64 = 4;
 }
 
+// Support importing both the trait and derive macro at once.
+pub(crate) use xc3_lib_derive::Xc3Write;
+
+macro_rules! xc3_write_binwrite_impl {
+    ($($ty:ty),*) => {
+        $(
+            impl Xc3Write for $ty {
+                type Offsets = ();
+
+                fn write<W: std::io::Write + std::io::Seek>(
+                    &self,
+                    writer: &mut W,
+                    data_ptr: &mut u64,
+                ) -> BinResult<Self::Offsets> {
+                    self.write_le(writer)?;
+                    *data_ptr = (*data_ptr).max(writer.stream_position()?);
+                    Ok(())
+                }
+            }
+        )*
+
+    };
+}
+
+xc3_write_binwrite_impl!(u16);
+pub(crate) use xc3_write_binwrite_impl;
+
 // TODO: Macro for implementing for binwrite?
 impl Xc3Write for String {
     type Offsets = ();
@@ -29,20 +56,6 @@ impl Xc3Write for String {
     }
 
     const ALIGNMENT: u64 = 1;
-}
-
-impl Xc3Write for u16 {
-    type Offsets = ();
-
-    fn write<W: std::io::Write + std::io::Seek>(
-        &self,
-        writer: &mut W,
-        data_ptr: &mut u64,
-    ) -> BinResult<Self::Offsets> {
-        let result = self.write_le(writer);
-        *data_ptr = (*data_ptr).max(writer.stream_position()?);
-        result
-    }
 }
 
 impl<T: Xc3Write> Xc3Write for Vec<T> {

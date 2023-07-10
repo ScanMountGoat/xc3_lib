@@ -6,7 +6,7 @@ use crate::{
     parse_count_offset, parse_opt_ptr32, parse_ptr32,
     spch::Spch,
     vertex::VertexData,
-    write::{write_offset, Xc3Write},
+    write::{write_offset, xc3_write_binwrite_impl, Xc3Write},
     xbc1::Xbc1,
 };
 use binrw::{binread, BinRead, BinResult, BinWrite};
@@ -14,23 +14,25 @@ use serde::Serialize;
 
 /// .wismt model files in `chr/bt`, `chr/ch/`, `chr/en`, `chr/oj`, and `chr/wp`.
 #[binread]
-#[derive(Debug, Serialize)]
+#[derive(Debug, Xc3Write, Serialize)]
 #[br(magic(b"DRSM"))]
+#[xc3(magic(b"DRSM"))]
 pub struct Msrd {
     pub version: u32,
     pub header_size: u32, // xbc1 offset - 16?
 
     // TODO: Pointer to an inner type?
-    #[br(temp)]
     offset: u32,
 
     pub tag: u32, // 4097?
     pub revision: u32,
 
     #[br(parse_with = parse_count_offset, offset = offset as u64)]
+    #[xc3(count_offset)]
     pub stream_entries: Vec<StreamEntry>,
 
     #[br(parse_with = parse_count_offset, offset = offset as u64)]
+    #[xc3(count_offset)]
     pub streams: Vec<Stream>,
 
     pub vertex_data_entry_index: u32,
@@ -43,9 +45,11 @@ pub struct Msrd {
 
     // TODO: identical to indices in mxmd?
     #[br(parse_with = parse_count_offset, offset = offset as u64)]
+    #[xc3(count_offset)]
     pub texture_ids: Vec<u16>,
 
     #[br(parse_with = parse_opt_ptr32, offset = offset as u64)]
+    #[xc3(offset)]
     pub textures: Option<PackedExternalTextures>,
 
     pub unk1: u32,
@@ -53,6 +57,7 @@ pub struct Msrd {
     // TODO: Same count as textures?
     // TODO: This doesn't work for pc000101.wismt?
     #[br(parse_with = parse_count_offset, offset = offset as u64)]
+    #[xc3(count_offset)]
     pub texture_resources: Vec<TextureResource>,
 
     // TODO: padding:
@@ -78,11 +83,12 @@ pub enum EntryType {
     Texture = 3,
 }
 
-#[derive(BinRead, Debug, Serialize)]
+#[derive(BinRead, Xc3Write, Debug, Serialize)]
 pub struct Stream {
     pub comp_size: u32,
     pub decomp_size: u32, // TODO: slightly larger than xbc1 decomp size?
-    #[br(parse_with = parse_ptr32)] // TODO: always at the end of the file?
+    #[br(parse_with = parse_ptr32)]
+    #[xc3(offset)]
     pub xbc1: Xbc1,
 }
 
@@ -148,185 +154,9 @@ impl Msrd {
     }
 }
 
-// TODO: Store the offsets in the type itself?
-// TODO: Indicate that this is the position of the offset?
-#[derive(Debug)]
-pub(crate) struct MsrdOffsets {
-    stream_entries: u64,
-    streams: u64,
-    texture_ids: u64,
-    textures: u64,
-    texture_resources: u64,
-}
+xc3_write_binwrite_impl!(TextureResource, StreamEntry);
 
-impl Xc3Write for TextureResource {
-    type Offsets = ();
-
-    fn write<W: std::io::Write + std::io::Seek>(
-        &self,
-        writer: &mut W,
-        data_ptr: &mut u64,
-    ) -> BinResult<Self::Offsets> {
-        let result = self.write_le(writer);
-        *data_ptr = (*data_ptr).max(writer.stream_position()?);
-        result
-    }
-}
-
-impl Xc3Write for StreamEntry {
-    type Offsets = ();
-
-    fn write<W: std::io::Write + std::io::Seek>(
-        &self,
-        writer: &mut W,
-        data_ptr: &mut u64,
-    ) -> BinResult<Self::Offsets> {
-        let result = self.write_le(writer);
-        *data_ptr = (*data_ptr).max(writer.stream_position()?);
-        result
-    }
-}
-
-pub(crate) struct StreamOffsets {
-    xbc1: u64,
-}
-
-impl Xc3Write for Stream {
-    type Offsets = StreamOffsets;
-
-    fn write<W: std::io::Write + std::io::Seek>(
-        &self,
-        writer: &mut W,
-        data_ptr: &mut u64,
-    ) -> BinResult<Self::Offsets> {
-        self.comp_size.write_le(writer)?;
-        self.decomp_size.write_le(writer)?;
-        let xbc1 = writer.stream_position()?;
-        0u32.write_le(writer)?;
-
-        *data_ptr = (*data_ptr).max(writer.stream_position()?);
-        Ok(StreamOffsets { xbc1 })
-    }
-}
-
-pub(crate) struct PackedExternalTexturesOffsets {
-    base_offset: u64,
-    textures: u64,
-}
-
-impl Xc3Write for PackedExternalTextures {
-    type Offsets = PackedExternalTexturesOffsets;
-
-    fn write<W: std::io::Write + std::io::Seek>(
-        &self,
-        writer: &mut W,
-        data_ptr: &mut u64,
-    ) -> BinResult<Self::Offsets> {
-        let base_offset = writer.stream_position()?;
-
-        (self.textures.len() as u32).write_le(writer)?;
-        let textures = writer.stream_position()?;
-        0u32.write_le(writer)?;
-
-        self.unk2.write_le(writer)?;
-        self.strings_offset.write_le(writer)?;
-
-        *data_ptr = (*data_ptr).max(writer.stream_position()?);
-        Ok(PackedExternalTexturesOffsets {
-            base_offset,
-            textures,
-        })
-    }
-}
-
-pub(crate) struct PackedExternalTextureOffsets {
-    name: u64,
-}
-
-impl Xc3Write for crate::mxmd::PackedExternalTexture {
-    type Offsets = PackedExternalTextureOffsets;
-
-    fn write<W: std::io::Write + std::io::Seek>(
-        &self,
-        writer: &mut W,
-        data_ptr: &mut u64,
-    ) -> BinResult<Self::Offsets> {
-        self.unk1.write_le(writer)?;
-        self.mibl_length.write_le(writer)?;
-        self.mibl_offset.write_le(writer)?;
-
-        let name = writer.stream_position()?;
-        0u32.write_le(writer)?;
-
-        *data_ptr = (*data_ptr).max(writer.stream_position()?);
-        Ok(PackedExternalTextureOffsets { name })
-    }
-}
-
-impl Xc3Write for Msrd {
-    type Offsets = MsrdOffsets;
-
-    // TODO: find a way to just use binwrite?
-    fn write<W: std::io::Write + std::io::Seek>(
-        &self,
-        writer: &mut W,
-        data_ptr: &mut u64,
-    ) -> BinResult<MsrdOffsets> {
-        b"DRSM".write_le(writer)?;
-        self.version.write_le(writer)?;
-        self.header_size.write_le(writer)?;
-
-        16u32.write_le(writer)?;
-
-        self.tag.write_le(writer)?; // 4097?
-        self.revision.write_le(writer)?;
-
-        // TODO: Create a custom write trait?
-        // TODO: Interior mutability on pointer types to store offset using cell?
-        (self.stream_entries.len() as u32).write_le(writer)?;
-        let stream_entries = writer.stream_position()?;
-        0u32.write_le(writer)?;
-
-        (self.streams.len() as u32).write_le(writer)?;
-        let streams = writer.stream_position()?;
-        0u32.write_le(writer)?;
-
-        self.vertex_data_entry_index.write_le(writer)?;
-        self.shader_entry_index.write_le(writer)?;
-        self.low_textures_entry_index.write_le(writer)?;
-        self.low_textures_stream_index.write_le(writer)?;
-        self.middle_textures_stream_index.write_le(writer)?;
-        self.middle_textures_stream_entry_start_index
-            .write_le(writer)?;
-        self.middle_textures_stream_entry_count.write_le(writer)?;
-
-        (self.texture_ids.len() as u32).write_le(writer)?;
-        let texture_ids = writer.stream_position()?;
-        0u32.write_le(writer)?;
-
-        let textures = writer.stream_position()?;
-        0u32.write_le(writer)?;
-
-        self.unk1.write_le(writer)?;
-
-        (self.texture_resources.len() as u32).write_le(writer)?;
-        let texture_resources = writer.stream_position()?;
-        0u32.write_le(writer)?;
-
-        self.unk.write_le(writer)?;
-
-        *data_ptr = (*data_ptr).max(writer.stream_position()?);
-        Ok(MsrdOffsets {
-            stream_entries,
-            streams,
-            texture_ids,
-            textures,
-            texture_resources,
-        })
-    }
-}
-
-// TODO: Generate this with a macro?
+// TODO: Generate this with a macro rules macro?
 // TODO: Include this in some sort of trait?
 pub fn write_msrd<W: std::io::Write + std::io::Seek>(msrd: &Msrd, writer: &mut W) -> BinResult<()> {
     let mut data_ptr = 0;

@@ -1,9 +1,9 @@
 use crate::{
     msrd::TextureResource, parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32,
-    parse_string_ptr32, spch::Spch, vertex::VertexData,
+    parse_string_ptr32, spch::Spch, vertex::VertexData, write::Xc3Write,
 };
 use bilge::prelude::*;
-use binrw::{args, binread, BinRead};
+use binrw::{args, binread, BinRead, BinWrite};
 use serde::Serialize;
 
 /// .wimdo files
@@ -539,20 +539,22 @@ pub struct PackedTexture {
 }
 
 #[binread]
-#[derive(Debug, Serialize)]
+#[derive(Debug, Xc3Write, Serialize)]
 #[br(stream = r)]
+#[xc3(base_offset)]
 pub struct PackedExternalTextures {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
     #[br(parse_with = parse_count_offset, args { offset: base_offset, inner: base_offset })]
+    #[xc3(count_offset)]
     pub textures: Vec<PackedExternalTexture>,
 
     pub unk2: u32,
     pub strings_offset: u32,
 }
 
-#[derive(BinRead, Debug, Serialize)]
+#[derive(BinRead, Xc3Write, Debug, Serialize)]
 #[br(import_raw(base_offset: u64))]
 pub struct PackedExternalTexture {
     pub unk1: u32,
@@ -562,6 +564,7 @@ pub struct PackedExternalTexture {
     pub mibl_offset: u32,
 
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset)]
     pub name: String,
 }
 

@@ -29,6 +29,9 @@ The file format library and utilities. The goal is to create the simplest possib
 
 Operations like deswizzling and decompression are implemented as functions that users must explicitly call to return new data rather than modifying the types representing the data on disk. The deswizzing operation for `Mibl` textures returns a new .dds file, for example. More advanced decoding operations are implemented in higher level projects like xc3_wgpu or xc3_model.
 
+### xc3_lib_derive
+A procedural macro for generating code for xc3_lib at compile time.
+
 ### xc3_model
 Higher level data access for xc3_lib. xc3_model converts the game specific data structures and buffers into a standardized format that is easier to edit, render, and convert. Examples including reading attributes from vertex buffers and constructing a scene hierarchy from model files. This makes it easier to implement features like gltf export since the gltf exporter doesn't need to work directly with game files. xc3_wgpu also utilizes xc3_model for converting the model data into a renderable form. The end goal is for the vast majority of applications and libraries to only need to depend on xc3_model for working with in game model data. The simpler API should also experience fewer breaking changes since it's an abstraction over xc3_lib.
 
