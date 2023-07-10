@@ -19,6 +19,7 @@ pub mod mxmd;
 pub mod sar1;
 pub mod spch;
 pub mod vertex;
+mod write;
 pub mod xbc1;
 
 // TODO: parse_vec helper for shared code?
@@ -40,7 +41,11 @@ where
 
     // TODO: log trace with minimal performance hit?
     reader.seek(SeekFrom::Start(offset as u64 + args.offset))?;
-    // println!("{:?}: {:?}", std::any::type_name::<Vec<T>>(), reader.stream_position().unwrap());
+    println!(
+        "{:?}: {:?}",
+        std::any::type_name::<Vec<T>>(),
+        reader.stream_position().unwrap()
+    );
 
     let values = Vec::<T>::read_options(
         reader,
@@ -72,7 +77,11 @@ where
     let saved_pos = reader.stream_position()?;
 
     reader.seek(SeekFrom::Start(offset as u64 + args.offset))?;
-    // println!("{:?}: {:?}", std::any::type_name::<Vec<T>>(), reader.stream_position().unwrap());
+    println!(
+        "{:?}: {:?}",
+        std::any::type_name::<Vec<T>>(),
+        reader.stream_position().unwrap()
+    );
 
     let values = Vec::<T>::read_options(
         reader,
@@ -112,7 +121,11 @@ where
     let saved_pos = reader.stream_position()?;
 
     reader.seek(SeekFrom::Start(offset as u64 + args.offset))?;
-    // println!("{}: {:?}", std::any::type_name::<T>(), reader.stream_position().unwrap());
+    println!(
+        "{}: {:?}",
+        std::any::type_name::<T>(),
+        reader.stream_position().unwrap()
+    );
     let value = T::read_options(reader, endian, args.inner)?;
     reader.seek(SeekFrom::Start(saved_pos))?;
 
@@ -134,7 +147,11 @@ where
     if offset > 0 {
         let saved_pos = reader.stream_position()?;
         reader.seek(SeekFrom::Start(offset as u64 + args.offset))?;
-        // println!("{:?}: {:?}", std::any::type_name::<T>(), reader.stream_position().unwrap());
+        println!(
+            "{:?}: {:?}",
+            std::any::type_name::<T>(),
+            reader.stream_position().unwrap()
+        );
         let value = T::read_options(reader, endian, args.inner)?;
         reader.seek(SeekFrom::Start(saved_pos))?;
 

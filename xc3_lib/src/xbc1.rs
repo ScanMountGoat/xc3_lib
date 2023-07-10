@@ -1,9 +1,11 @@
 use std::io::Read;
 
-use binrw::{BinRead, BinWrite, NullString};
+use binrw::{BinRead, BinResult, BinWrite, NullString};
 use flate2::{bufread::ZlibEncoder, Compression};
 use serde::Serialize;
 use zune_inflate::{errors::InflateDecodeErrors, DeflateDecoder, DeflateOptions};
+
+use crate::write::Xc3Write;
 
 // TODO: test read + write
 #[derive(BinRead, BinWrite, Debug, Serialize)]
@@ -24,7 +26,7 @@ pub struct Xbc1 {
     /// A zlib encoded compressed stream.
     /// The decompressed or "inflated" stream will have size [decomp_size](#structfield.decomp_size).
     #[br(count = comp_size)]
-    #[br(align_after = 16)]
+    #[brw(align_after = 16)]
     #[serde(skip)]
     pub deflate_stream: Vec<u8>,
 }
@@ -55,4 +57,20 @@ impl Xbc1 {
         );
         decoder.decode_zlib()
     }
+}
+
+impl Xc3Write for Xbc1 {
+    type Offsets = ();
+
+    fn write<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        data_ptr: &mut u64,
+    ) -> BinResult<Self::Offsets> {
+        let result = self.write_le(writer);
+        *data_ptr = (*data_ptr).max(writer.stream_position()?);
+        result
+    }
+
+    const ALIGNMENT: u64 = 16;
 }
