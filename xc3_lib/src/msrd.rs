@@ -6,7 +6,7 @@ use crate::{
     parse_count_offset, parse_opt_ptr32, parse_ptr32,
     spch::Spch,
     vertex::VertexData,
-    write::{write_offset, xc3_write_binwrite_impl, Xc3Write},
+    write::{xc3_write_binwrite_impl, Xc3Write},
     xbc1::Xbc1,
 };
 use binrw::{binread, BinRead, BinResult, BinWrite};
@@ -25,6 +25,7 @@ pub struct Msrd {
     offset: u32,
 
     pub tag: u32, // 4097?
+    // TODO: This affects the fields in the file?
     pub revision: u32,
 
     #[br(parse_with = parse_count_offset, offset = offset as u64)]
@@ -167,69 +168,44 @@ pub fn write_msrd<W: std::io::Write + std::io::Seek>(msrd: &Msrd, writer: &mut W
     let base_offset = 16;
 
     // Write offset data in the order items appear in the binary file.
-    write_offset(
-        writer,
-        msrd_offsets.stream_entries,
-        base_offset,
-        &mut data_ptr,
-        &msrd.stream_entries,
-    )?;
+    msrd_offsets
+        .stream_entries
+        .write_offset(writer, base_offset, &mut data_ptr)?;
 
-    let stream_offsets = write_offset(
-        writer,
-        msrd_offsets.streams,
-        base_offset,
-        &mut data_ptr,
-        &msrd.streams,
-    )?;
+    let stream_offsets = msrd_offsets
+        .streams
+        .write_offset(writer, base_offset, &mut data_ptr)?;
 
-    write_offset(
-        writer,
-        msrd_offsets.texture_resources,
-        base_offset,
-        &mut data_ptr,
-        &msrd.texture_resources,
-    )?;
+    msrd_offsets
+        .texture_resources
+        .write_offset(writer, base_offset, &mut data_ptr)?;
 
-    write_offset(
-        writer,
-        msrd_offsets.texture_ids,
-        base_offset,
-        &mut data_ptr,
-        &msrd.texture_ids,
-    )?;
+    msrd_offsets
+        .texture_ids
+        .write_offset(writer, base_offset, &mut data_ptr)?;
 
-    // TODO: Implement Xc3Write for Option?
-    if let Some(textures) = &msrd.textures {
-        let packed_external_textures_offsets = write_offset(
+    if let Some(packed_external_textures_offsets) =
+        msrd_offsets
+            .textures
+            .write_offset(writer, base_offset, &mut data_ptr)?
+    {
+        let textures_offsets = packed_external_textures_offsets.textures.write_offset(
             writer,
-            msrd_offsets.textures,
-            base_offset,
-            &mut data_ptr,
-            textures,
-        )?;
-
-        let textures_offsets = write_offset(
-            writer,
-            packed_external_textures_offsets.textures,
             packed_external_textures_offsets.base_offset,
             &mut data_ptr,
-            &textures.textures,
         )?;
 
-        for (texture, offsets) in textures.textures.iter().zip(textures_offsets.iter()) {
-            write_offset(
+        for offsets in textures_offsets {
+            offsets.name.write_offset(
                 writer,
-                offsets.name,
                 packed_external_textures_offsets.base_offset,
                 &mut data_ptr,
-                &texture.name,
             )?;
         }
     }
 
-    for (stream, offsets) in msrd.streams.iter().zip(stream_offsets.iter()) {
-        write_offset(writer, offsets.xbc1, 0, &mut data_ptr, &stream.xbc1)?;
+    for offsets in stream_offsets {
+        offsets.xbc1.write_offset(writer, 0, &mut data_ptr)?;
     }
 
     Ok(())

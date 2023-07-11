@@ -60,13 +60,13 @@ impl Xbc1 {
 }
 
 impl Xc3Write for Xbc1 {
-    type Offsets = ();
+    type Offsets<'a> = ();
 
     fn write<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
         data_ptr: &mut u64,
-    ) -> BinResult<Self::Offsets> {
+    ) -> BinResult<Self::Offsets<'_>> {
         let result = self.write_le(writer);
         *data_ptr = (*data_ptr).max(writer.stream_position()?);
         result

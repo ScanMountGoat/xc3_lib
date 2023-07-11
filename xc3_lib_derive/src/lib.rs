@@ -3,7 +3,7 @@ use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
 use syn::{
     parenthesized, parse_macro_input, Attribute, Data, DataStruct, DeriveInput, Fields, Ident,
-    LitByteStr,
+    LitByteStr, Type,
 };
 
 #[proc_macro_derive(Xc3Write, attributes(xc3))]
@@ -13,7 +13,11 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
     let name = &input.ident;
     let offsets_name = Ident::new(&(input.ident.to_string() + "Offsets"), Span::call_site());
 
-    let (write_fields, offset_fields) = write_field_data(&input.data);
+    let FieldData {
+        write_fields,
+        offset_field_names,
+        offset_fields,
+    } = write_field_data(&input.data);
 
     // Some types need a pointer to the start of the type.
     let has_base_offset = has_base_offset(&input.attrs);
@@ -24,20 +28,21 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
 
     let write_magic = file_magic(&input.attrs).map(|m| quote!(#m.write_le(writer)?;));
 
+    // TODO: move offset struct generation to the field data?
     quote! {
-        pub(crate) struct #offsets_name {
+        pub(crate) struct #offsets_name<'a> {
             #base_offset_field
-            #(pub #offset_fields: u64),*
+            #(#offset_fields),*
         }
 
         impl crate::write::Xc3Write for #name {
-            type Offsets = #offsets_name;
+            type Offsets<'a> = #offsets_name<'a>;
 
             fn write<W: std::io::Write + std::io::Seek>(
                 &self,
                 writer: &mut W,
                 data_ptr: &mut u64,
-            ) -> binrw::BinResult<Self::Offsets> {
+            ) -> binrw::BinResult<Self::Offsets<'_>> {
                 #set_base_offset
 
                 #write_magic
@@ -49,7 +54,7 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
                 *data_ptr = (*data_ptr).max(writer.stream_position()?);
 
                 // Return positions of offsets to update later.
-                Ok(#offsets_name { #base_offset #(#offset_fields),* })
+                Ok(#offsets_name { #base_offset #(#offset_field_names),* })
             }
         }
     }
@@ -126,8 +131,15 @@ fn field_type(attrs: &[Attribute]) -> Option<FieldType> {
     ty
 }
 
-fn write_field_data(data: &Data) -> (Vec<TokenStream2>, Vec<Ident>) {
+struct FieldData {
+    write_fields: Vec<TokenStream2>,
+    offset_field_names: Vec<Ident>,
+    offset_fields: Vec<TokenStream2>,
+}
+
+fn write_field_data(data: &Data) -> FieldData {
     let mut write_fields = Vec::new();
+    let mut offset_field_names = Vec::new();
     let mut offset_fields = Vec::new();
 
     match data {
@@ -137,32 +149,37 @@ fn write_field_data(data: &Data) -> (Vec<TokenStream2>, Vec<Ident>) {
         }) => {
             for f in fields.named.iter() {
                 let name = f.ident.as_ref().unwrap();
+                let ty = &f.ty;
 
                 // Check if we need to write the count.
                 // Use a null offset as a placeholder.
+                let offset = create_offset_struct(name);
                 match field_type(&f.attrs) {
                     Some(FieldType::Offset) => {
                         write_fields.push(quote! {
-                            let #name = writer.stream_position()?;
+                            let #name = #offset;
                             0u32.write_le(writer)?;
                         });
-                        offset_fields.push(name.clone());
+                        offset_fields.push(offset_field(name, ty));
+                        offset_field_names.push(name.clone());
                     }
                     Some(FieldType::CountOffset) => {
                         write_fields.push(quote! {
                             (self.#name.len() as u32).write_le(writer)?;
-                            let #name = writer.stream_position()?;
+                            let #name = #offset;
                             0u32.write_le(writer)?;
                         });
-                        offset_fields.push(name.clone());
+                        offset_fields.push(offset_field(name, ty));
+                        offset_field_names.push(name.clone());
                     }
                     Some(FieldType::OffsetCount) => {
                         write_fields.push(quote! {
-                            let #name = writer.stream_position()?;
+                            let #name = #offset;
                             0u32.write_le(writer)?;
                             (self.#name.len() as u32).write_le(writer)?;
                         });
-                        offset_fields.push(name.clone());
+                        offset_fields.push(offset_field(name, ty));
+                        offset_field_names.push(name.clone());
                     }
                     None => write_fields.push(quote! {
                         self.#name.write_le(writer)?;
@@ -175,5 +192,17 @@ fn write_field_data(data: &Data) -> (Vec<TokenStream2>, Vec<Ident>) {
         _ => panic!("Unsupported type"),
     }
 
-    (write_fields, offset_fields)
+    FieldData {
+        write_fields,
+        offset_field_names,
+        offset_fields,
+    }
+}
+
+fn offset_field(name: &Ident, ty: &Type) -> TokenStream2 {
+    quote!(pub #name: crate::write::Offset<'a, #ty>)
+}
+
+fn create_offset_struct(name: &Ident) -> TokenStream2 {
+    quote!(crate::write::Offset::new(writer.stream_position()?, &self.#name))
 }

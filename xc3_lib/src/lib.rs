@@ -7,6 +7,7 @@ use std::{
 use binrw::{
     file_ptr::FilePtrArgs, BinRead, BinReaderExt, BinResult, BinWrite, NullString, VecArgs,
 };
+use log::trace;
 
 pub mod apmd;
 pub mod dds;
@@ -41,7 +42,7 @@ where
 
     // TODO: log trace with minimal performance hit?
     reader.seek(SeekFrom::Start(offset as u64 + args.offset))?;
-    println!(
+    trace!(
         "{:?}: {:?}",
         std::any::type_name::<Vec<T>>(),
         reader.stream_position().unwrap()
@@ -77,7 +78,7 @@ where
     let saved_pos = reader.stream_position()?;
 
     reader.seek(SeekFrom::Start(offset as u64 + args.offset))?;
-    println!(
+    trace!(
         "{:?}: {:?}",
         std::any::type_name::<Vec<T>>(),
         reader.stream_position().unwrap()
@@ -121,7 +122,7 @@ where
     let saved_pos = reader.stream_position()?;
 
     reader.seek(SeekFrom::Start(offset as u64 + args.offset))?;
-    println!(
+    trace!(
         "{}: {:?}",
         std::any::type_name::<T>(),
         reader.stream_position().unwrap()
@@ -147,7 +148,7 @@ where
     if offset > 0 {
         let saved_pos = reader.stream_position()?;
         reader.seek(SeekFrom::Start(offset as u64 + args.offset))?;
-        println!(
+        trace!(
             "{:?}: {:?}",
             std::any::type_name::<T>(),
             reader.stream_position().unwrap()
