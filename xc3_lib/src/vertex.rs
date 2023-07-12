@@ -159,6 +159,9 @@ pub struct VertexAnimation {
     #[br(parse_with = parse_count_offset)]
     #[xc3(count_offset)]
     pub targets: Vec<VertexAnimationTarget>,
+
+    // TODO: padding?
+    pub unks: [u32; 4],
 }
 
 #[derive(BinRead, Xc3Write, Debug, Serialize)]
@@ -167,10 +170,11 @@ pub struct VertexAnimationDescriptor {
     pub target_start_index: u32,
     pub target_count: u32,
 
+    // TODO: count_offset?
     // pointer to u16 indices 0,1,2,...?
     // start and ending frame for each target?
     #[br(parse_with = parse_ptr32)]
-    #[br(args { inner: args! { count: target_count as usize * 2 }})]
+    #[br(args { inner: args! { count: target_count as usize }})]
     #[xc3(offset)]
     pub unk1: Vec<u16>,
 
@@ -222,7 +226,7 @@ pub struct WeightGroup {
 
 #[derive(BinRead, BinWrite, Debug, Serialize)]
 pub struct WeightLod {
-    unks: [u16; 10],
+    unks: [u16; 9],
 }
 
 #[binread]
@@ -242,6 +246,9 @@ pub struct Unk {
 
     /// The offset into [buffer](struct.VertexData.html#structfield.buffer).
     pub data_offset: u32,
+
+    // TODO: Padding?
+    unks: [u32; 8],
 }
 
 #[derive(BinRead, BinWrite, Debug, Serialize)]
@@ -309,9 +316,13 @@ pub fn write_vertex_data<W: std::io::Write + std::io::Seek>(
     root_offsets
         .vertex_buffer_info
         .write_offset(writer, 0, &mut data_ptr)?;
-    root_offsets
-        .outline_buffers
-        .write_offset(writer, 0, &mut data_ptr)?;
+
+    // TODO: Do all empty lists use offset 0?
+    if !root.outline_buffers.is_empty() {
+        root_offsets
+            .outline_buffers
+            .write_offset(writer, 0, &mut data_ptr)?;
+    }
 
     for offsets in vertex_buffers_offsets {
         offsets.attributes.write_offset(writer, 0, &mut data_ptr)?;
@@ -327,25 +338,31 @@ pub fn write_vertex_data<W: std::io::Write + std::io::Seek>(
         .weight_lods
         .write_offset(writer, 0, &mut data_ptr)?;
 
-    if let Some(vertex_animation_offsets) =
-        root_offsets
-            .vertex_animation
-            .write_offset(writer, 0, &mut data_ptr)?
-    {
-        let descriptors_offsets =
+    // TODO: Prevent writing the offset for the null case?
+    // TODO: Add alignment customization to derive?
+    data_ptr = round_up(data_ptr, 4);
+    if root.vertex_animation.is_some() {
+        if let Some(vertex_animation_offsets) =
+            root_offsets
+                .vertex_animation
+                .write_offset(writer, 0, &mut data_ptr)?
+        {
+            let descriptors_offsets =
+                vertex_animation_offsets
+                    .descriptors
+                    .write_offset(writer, 0, &mut data_ptr)?;
             vertex_animation_offsets
-                .descriptors
+                .targets
                 .write_offset(writer, 0, &mut data_ptr)?;
-        vertex_animation_offsets
-            .targets
-            .write_offset(writer, 0, &mut data_ptr)?;
 
-        for offsets in descriptors_offsets {
-            offsets.unk1.write_offset(writer, 0, &mut data_ptr)?;
+            for offsets in descriptors_offsets {
+                offsets.unk1.write_offset(writer, 0, &mut data_ptr)?;
+            }
         }
     }
 
-    // TODO: This offset isn't correct?
+    // TODO: Add alignment customization to derive?
+    data_ptr = round_up(data_ptr, 4);
     let unk_offsets = root_offsets.unk7.write_offset(writer, 0, &mut data_ptr)?;
     unk_offsets
         .unk1
