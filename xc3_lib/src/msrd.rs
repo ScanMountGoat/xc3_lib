@@ -184,23 +184,24 @@ pub fn write_msrd<W: std::io::Write + std::io::Seek>(msrd: &Msrd, writer: &mut W
         .texture_ids
         .write_offset(writer, base_offset, &mut data_ptr)?;
 
-    if let Some(packed_external_textures_offsets) =
+    // TODO: Store the base offset with the offsets themselves?
+    // TODO: This would allow making Offset impl Xc3Write?
+    // TODO: Every field in an offset type shares a base offset?
+    if let Some(msrd_textures_offset) =
         msrd_offsets
             .textures
             .write_offset(writer, base_offset, &mut data_ptr)?
     {
-        let textures_offsets = packed_external_textures_offsets.textures.write_offset(
+        let textures_offsets = msrd_textures_offset.textures.write_offset(
             writer,
-            packed_external_textures_offsets.base_offset,
+            msrd_textures_offset.base_offset,
             &mut data_ptr,
         )?;
 
         for offsets in textures_offsets {
-            offsets.name.write_offset(
-                writer,
-                packed_external_textures_offsets.base_offset,
-                &mut data_ptr,
-            )?;
+            offsets
+                .name
+                .write_offset(writer, msrd_textures_offset.base_offset, &mut data_ptr)?;
         }
     }
 

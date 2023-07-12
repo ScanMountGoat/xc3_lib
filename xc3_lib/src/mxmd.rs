@@ -538,6 +538,7 @@ pub struct PackedTexture {
     pub name: String,
 }
 
+// TODO: The alignment here is only 2?
 #[binread]
 #[derive(Debug, Xc3Write, Serialize)]
 #[br(stream = r)]

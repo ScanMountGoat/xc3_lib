@@ -25,6 +25,16 @@ pub(crate) struct Offset<'a, T: Xc3Write> {
     pub data: &'a T,
 }
 
+impl<'a, T: Xc3Write> std::fmt::Debug for Offset<'a, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Don't print the actual data to avoid excessive output.
+        f.debug_struct("Offset")
+            .field("position", &self.position)
+            .field("data", &std::any::type_name::<T>())
+            .finish()
+    }
+}
+
 impl<'a, T: Xc3Write> Offset<'a, T> {
     pub fn new(position: u64, data: &'a T) -> Self {
         Self { position, data }
@@ -90,8 +100,9 @@ macro_rules! xc3_write_binwrite_impl {
     };
 }
 
-xc3_write_binwrite_impl!(u16);
 pub(crate) use xc3_write_binwrite_impl;
+
+xc3_write_binwrite_impl!(u8, u16);
 
 // TODO: Macro for implementing for binwrite?
 impl Xc3Write for String {
@@ -128,6 +139,6 @@ where
     }
 }
 
-const fn round_up(x: u64, n: u64) -> u64 {
+pub(crate) const fn round_up(x: u64, n: u64) -> u64 {
     ((x + n - 1) / n) * n
 }
