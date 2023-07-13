@@ -33,6 +33,58 @@ struct MaterialKey {
     material_index: usize,
 }
 
+// TODO: This will eventually need to account for parameters and constants.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct GeneratedImageKey {
+    root_index: usize,
+    red_index: Option<usize>,
+    green_index: Option<usize>,
+    blue_index: Option<usize>,
+    alpha_index: Option<usize>,
+}
+
+#[derive(Default)]
+struct TextureCache {
+    textures: Vec<gltf::json::Texture>,
+    generated_images: BTreeMap<GeneratedImageKey, image::RgbaImage>,
+    generated_texture_indices: BTreeMap<GeneratedImageKey, u32>,
+    original_images: BTreeMap<ImageKey, image::RgbaImage>,
+}
+
+impl TextureCache {
+    fn new(roots: &[ModelRoot]) -> Self {
+        // Get the base images used for channel reconstruction.
+        let original_images = create_images(roots);
+
+        Self {
+            textures: Vec::new(),
+            generated_images: BTreeMap::new(),
+            generated_texture_indices: BTreeMap::new(),
+            original_images,
+        }
+    }
+
+    fn insert(&mut self, key: GeneratedImageKey, recalculate_z: bool) -> u32 {
+        *self
+            .generated_texture_indices
+            .entry(key)
+            .or_insert_with(|| {
+                let texture_index = self.textures.len() as u32;
+                self.textures.push(gltf::json::Texture {
+                    name: None,
+                    sampler: None,
+                    source: gltf::json::Index::new(texture_index),
+                    extensions: None,
+                    extras: Default::default(),
+                });
+                let image = generate_image(key, &self.original_images, recalculate_z);
+                self.generated_images.insert(key, image);
+
+                texture_index
+            })
+    }
+}
+
 // Combined vertex data for a gltf buffer.
 struct Buffers {
     buffer: gltf::json::Buffer,
@@ -47,23 +99,7 @@ struct Buffers {
 // TODO: Clean this up.
 // TODO: Make returning and writing the data separate functions.
 pub fn export_gltf<P: AsRef<Path>>(path: P, roots: &[ModelRoot]) {
-    let mut png_images = create_images(roots);
-
-    // Create a mapping from group index, texture index -> texture index.
-    let mut textures = Vec::new();
-    let mut texture_indices = BTreeMap::new();
-
-    for key in png_images.keys() {
-        let texture_index = textures.len() as u32;
-        textures.push(gltf::json::Texture {
-            name: None,
-            sampler: None,
-            source: gltf::json::Index::new(texture_index),
-            extensions: None,
-            extras: Default::default(),
-        });
-        texture_indices.insert(*key, texture_index);
-    }
+    let mut texture_cache = TextureCache::new(roots);
 
     let mut materials = Vec::new();
     let mut material_indices = BTreeMap::new();
@@ -71,36 +107,28 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, roots: &[ModelRoot]) {
     for (root_index, root) in roots.iter().enumerate() {
         for (group_index, group) in root.groups.iter().enumerate() {
             for (material_index, material) in group.materials.iter().enumerate() {
-                // TODO: A proper solution will construct each channel individually.
-                // Assume the texture is used for all channels for now.
-                // TODO: Create consts for the gbuffer texture indices?
-                let albedo_index = texture_index(material, &group.image_texture_indices, 0, 'x');
-                let normal_index = texture_index(material, &group.image_texture_indices, 2, 'x');
+                // TODO: Create a function for this?
+                let albedo_key =
+                    albedo_generated_key(material, &group.image_texture_indices, root_index);
+                let albedo_index = albedo_key.map(|key| texture_cache.insert(key, false));
 
-                // Reconstruct the normal map Z channel.
-                // TODO: Cache already processed textures?
-                // TODO: Cache by program index, usage (albedo vs normal), input samplers and channels?
-                // TODO: handle the case where each channel has a different resolution?
-                if let Some(index) = normal_index {
-                    let key = ImageKey {
-                        root_index,
-                        image_index: index as usize,
-                    };
-                    for pixel in png_images.get_mut(&key).unwrap().pixels_mut() {
-                        // x^y + y^2 + z^2 = 1 for unit vectors.
-                        let x = (pixel[0] as f32 / 255.0) * 2.0 - 1.0;
-                        let y = (pixel[1] as f32 / 255.0) * 2.0 - 1.0;
-                        let z = 1.0 - x * x - y * y;
-                        pixel[2] = (z * 255.0) as u8;
-                    }
-                }
+                let normal_key =
+                    normal_generated_key(material, &group.image_texture_indices, root_index);
+                let normal_index = normal_key.map(|key| texture_cache.insert(key, true));
+
+                let metallic_roughness_key = metallic_roughness_generated_key(
+                    material,
+                    &group.image_texture_indices,
+                    root_index,
+                );
+                let metallic_roughness_index =
+                    metallic_roughness_key.map(|key| texture_cache.insert(key, false));
 
                 let material = create_material(
                     material,
-                    root_index,
                     albedo_index,
                     normal_index,
-                    &texture_indices,
+                    metallic_roughness_index,
                 );
                 let material_flattened_index = materials.len();
                 materials.push(material);
@@ -125,10 +153,8 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, roots: &[ModelRoot]) {
         .to_string_lossy()
         .to_string();
 
-    // TODO: Create nodes and meshes for each mesh in the mxmd.
     let buffer_name = format!("{model_name}.buffer0.bin");
 
-    // TODO: This should be for all model groups.
     let Buffers {
         buffer,
         buffer_bytes,
@@ -143,8 +169,6 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, roots: &[ModelRoot]) {
     let mut nodes = Vec::new();
     let mut scene_nodes = Vec::new();
 
-    // TODO: Can nodes only be the child of one node?
-    // TODO: Create nodes for roots instead?
     for (root_index, root) in roots.iter().enumerate() {
         for (group_index, group) in root.groups.iter().enumerate() {
             let mut group_children = Vec::new();
@@ -278,17 +302,24 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, roots: &[ModelRoot]) {
         }
     }
 
-    let images = png_images
-        .keys()
-        .map(|key| gltf::json::Image {
-            buffer_view: None,
-            mime_type: None,
-            name: None,
-            uri: Some(image_name(key)),
-            extensions: None,
-            extras: Default::default(),
-        })
-        .collect();
+    // The texture assume the images are in ascending order by index.
+    // The sorted order of the keys may not match this order.
+    // TODO: Find a faster way to do this.
+    let mut images = Vec::new();
+    for i in 0..texture_cache.generated_texture_indices.len() {
+        for (key, index) in &texture_cache.generated_texture_indices {
+            if *index as usize == i {
+                images.push(gltf::json::Image {
+                    buffer_view: None,
+                    mime_type: None,
+                    name: None,
+                    uri: Some(image_name(key)),
+                    extensions: None,
+                    extras: Default::default(),
+                });
+            }
+        }
+    }
 
     let root = gltf::json::Root {
         accessors,
@@ -303,7 +334,7 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, roots: &[ModelRoot]) {
             nodes: scene_nodes,
         }],
         materials,
-        textures,
+        textures: texture_cache.textures,
         images,
         ..Default::default()
     };
@@ -315,10 +346,13 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, roots: &[ModelRoot]) {
 
     let path = path.as_ref();
     // Encode and save images in parallel to boost performance.
-    png_images.par_iter().for_each(|(key, image)| {
-        let output = path.with_file_name(image_name(key));
-        image.save(output).unwrap();
-    });
+    texture_cache
+        .generated_images
+        .par_iter()
+        .for_each(|(key, image)| {
+            let output = path.with_file_name(image_name(key));
+            image.save(output).unwrap();
+        });
 }
 
 fn create_images(roots: &[ModelRoot]) -> BTreeMap<ImageKey, image::RgbaImage> {
@@ -347,15 +381,10 @@ fn create_images(roots: &[ModelRoot]) -> BTreeMap<ImageKey, image::RgbaImage> {
 
 fn create_material(
     material: &crate::Material,
-    root_index: usize,
     albedo_index: Option<u32>,
     normal_index: Option<u32>,
-    texture_indices: &BTreeMap<ImageKey, u32>,
+    metallic_roughness_index: Option<u32>,
 ) -> gltf::json::Material {
-    // The final texture indices depend on the group index.
-    let albedo_index = material_texture_index(albedo_index, texture_indices, root_index);
-    let normal_index = material_texture_index(normal_index, texture_indices, root_index);
-
     gltf::json::Material {
         name: Some(material.name.clone()),
         pbr_metallic_roughness: gltf::json::material::PbrMetallicRoughness {
@@ -365,9 +394,14 @@ fn create_material(
                 extensions: None,
                 extras: Default::default(),
             }),
-            metallic_factor: gltf::json::material::StrengthFactor(0.0),
-            roughness_factor: gltf::json::material::StrengthFactor(0.5),
-            // TODO: metalness in B channel and roughness in G channel?
+            metallic_roughness_texture: metallic_roughness_index.map(|i| {
+                gltf::json::texture::Info {
+                    index: gltf::json::Index::new(i),
+                    tex_coord: 0,
+                    extensions: None,
+                    extras: Default::default(),
+                }
+            }),
             ..Default::default()
         },
         normal_texture: normal_index.map(|i| gltf::json::material::NormalTexture {
@@ -381,44 +415,168 @@ fn create_material(
     }
 }
 
-fn material_texture_index(
-    texture_index: Option<u32>,
-    texture_indices: &BTreeMap<ImageKey, u32>,
+// TODO: Create consts for the gbuffer texture indices?
+fn albedo_generated_key(
+    material: &crate::Material,
+    material_texture_indices: &[usize],
     root_index: usize,
-) -> Option<u32> {
-    texture_index.map(|i| {
-        *texture_indices
-            .get(&ImageKey {
-                root_index,
-                image_index: i as usize,
-            })
-            .unwrap()
+) -> Option<GeneratedImageKey> {
+    let red_index = texture_index(material, material_texture_indices, 0, 'x');
+    let green_index = texture_index(material, material_texture_indices, 0, 'y');
+    let blue_index = texture_index(material, material_texture_indices, 0, 'z');
+    let alpha_index = texture_index(material, material_texture_indices, 0, 'w');
+
+    Some(GeneratedImageKey {
+        root_index,
+        red_index,
+        green_index,
+        blue_index,
+        alpha_index,
     })
 }
 
-fn image_name(key: &ImageKey) -> String {
-    format!("group{}_{}.png", key.root_index, key.image_index)
+fn normal_generated_key(
+    material: &crate::Material,
+    material_texture_indices: &[usize],
+    root_index: usize,
+) -> Option<GeneratedImageKey> {
+    let red_index = texture_index(material, material_texture_indices, 2, 'x');
+    let green_index = texture_index(material, material_texture_indices, 2, 'y');
+    let blue_index = texture_index(material, material_texture_indices, 2, 'z');
+    let alpha_index = texture_index(material, material_texture_indices, 2, 'w');
+
+    Some(GeneratedImageKey {
+        root_index,
+        red_index,
+        green_index,
+        blue_index,
+        alpha_index,
+    })
+}
+
+fn metallic_roughness_generated_key(
+    material: &crate::Material,
+    material_texture_indices: &[usize],
+    root_index: usize,
+) -> Option<GeneratedImageKey> {
+    let metalness_index = texture_index(material, material_texture_indices, 1, 'x');
+    // TODO: Generated roughness from glossiness?
+    Some(GeneratedImageKey {
+        root_index,
+        red_index: None,
+        green_index: None,
+        blue_index: metalness_index,
+        alpha_index: None,
+    })
+}
+
+fn generate_image(
+    key: GeneratedImageKey,
+    original_images: &BTreeMap<ImageKey, image::RgbaImage>,
+    recalculate_z: bool,
+) -> image::RgbaImage {
+    // TODO: Reduce repetition.
+    let red_image = key.red_index.and_then(|image_index| {
+        original_images.get(&ImageKey {
+            root_index: key.root_index,
+            image_index,
+        })
+    });
+    let green_image = key.green_index.and_then(|image_index| {
+        original_images.get(&ImageKey {
+            root_index: key.root_index,
+            image_index,
+        })
+    });
+    let blue_image = key.blue_index.and_then(|image_index| {
+        original_images.get(&ImageKey {
+            root_index: key.root_index,
+            image_index,
+        })
+    });
+    let alpha_image = key.alpha_index.and_then(|image_index| {
+        original_images.get(&ImageKey {
+            root_index: key.root_index,
+            image_index,
+        })
+    });
+
+    // Use the dimensions of the largest image to avoid quality loss.
+    // TODO: Avoid unwrap?
+    let (width, height) = [red_image, green_image, blue_image, alpha_image]
+        .iter()
+        .filter_map(|i| i.map(|i| i.dimensions()))
+        .max()
+        .unwrap();
+
+    // Start with a fully opaque black image.
+    let mut image = image::RgbaImage::new(width, height);
+    for pixel in image.pixels_mut() {
+        pixel[3] = 255u8;
+    }
+
+    // TODO: These images may need to be resized.
+    assign_channel(&mut image, red_image, 0);
+    assign_channel(&mut image, green_image, 1);
+    assign_channel(&mut image, blue_image, 2);
+    assign_channel(&mut image, alpha_image, 3);
+
+    if recalculate_z {
+        // Reconstruct the normal map Z channel.
+        for pixel in image.pixels_mut() {
+            // x^y + y^2 + z^2 = 1 for unit vectors.
+            let x = (pixel[0] as f32 / 255.0) * 2.0 - 1.0;
+            let y = (pixel[1] as f32 / 255.0) * 2.0 - 1.0;
+            let z = 1.0 - x * x - y * y;
+            pixel[2] = (z * 255.0) as u8;
+        }
+    }
+
+    image
+}
+
+fn assign_channel(
+    image: &mut image::RgbaImage,
+    channel: Option<&image::RgbaImage>,
+    channel_index: usize,
+) {
+    if let Some(channel) = channel {
+        for (pixel, channel_pixel) in image.pixels_mut().zip(channel.pixels()) {
+            pixel[channel_index] = channel_pixel[channel_index];
+        }
+    }
+}
+
+fn image_name(key: &GeneratedImageKey) -> String {
+    // TODO: Don't include missing channels?
+    format!(
+        "root{}_{}_{}_{}_{}.png",
+        key.root_index,
+        key.red_index.unwrap_or_default(),
+        key.green_index.unwrap_or_default(),
+        key.blue_index.unwrap_or_default(),
+        key.alpha_index.unwrap_or_default()
+    )
 }
 
 fn texture_index(
     material: &crate::Material,
-    texture_indices: &[usize],
+    material_texture_indices: &[usize],
     gbuffer_index: usize,
     channel: char,
-) -> Option<u32> {
+) -> Option<usize> {
     // Find the sampler from the material.
     let (sampler_index, _) = material
         .shader
         .as_ref()?
         .material_channel_assignment(gbuffer_index, channel)?;
 
-    // Find the texture referenced by this sampler.
-    // Not all textures are referenced by the material.
-    // This gives texture indices an additional level of indirection.
-    material
-        .textures
-        .get(sampler_index as usize)
-        .map(|t| texture_indices[t.image_texture_index] as u32)
+    material.textures.get(sampler_index as usize).map(|t| {
+        // Find the texture referenced by this sampler.
+        // Not all textures are referenced by the material.
+        // This gives texture indices an additional level of indirection.
+        material_texture_indices[t.image_texture_index]
+    })
 }
 
 fn create_buffers(roots: &[ModelRoot], buffer_name: String) -> Buffers {
@@ -489,6 +647,7 @@ fn add_index_buffers(
     accessors: &mut Vec<gltf::json::Accessor>,
 ) {
     for (i, index_buffer) in model.index_buffers.iter().enumerate() {
+        // TODO: enforce little endian instead of casting
         let index_bytes: &[u8] = bytemuck::cast_slice(&index_buffer.indices);
 
         // Assume everything uses the same buffer for now.
@@ -644,7 +803,7 @@ fn add_attribute_values<T: bytemuck::Pod>(
     attributes: &mut GltfAttributes,
     accessors: &mut Vec<gltf::json::Accessor>,
 ) {
-    // TODO: Make this a generic function?
+    // TODO: enforce little endian instead of casting
     let attribute_bytes = bytemuck::cast_slice(values);
 
     // Assume everything uses the same buffer for now.
