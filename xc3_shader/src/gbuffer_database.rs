@@ -38,13 +38,13 @@ pub struct ShaderProgram {
     pub shaders: Vec<Shader>,
 }
 
-// TODO: Should dependencies be more strongly typed?
+/// The buffer elements, textures, and constants used to initialize each fragment output.
+///
+/// This assumes inputs are assigned directly to outputs without any modifications.
+/// Fragment shaders typically only perform basic input and channel selection in practice.
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct Shader {
-    /// The buffer elements, textures, and constants used to initialize each fragment output.
-    ///
-    /// This assumes inputs are assigned directly to outputs without any modifications.
-    /// Fragment shaders typically only perform basic input and channel selection in practice.
     pub output_dependencies: IndexMap<String, Vec<String>>,
 }
 
@@ -74,7 +74,9 @@ impl Shader {
                             .collect();
                         dependencies.sort();
 
-                        (name, dependencies)
+                        // Simplify the output name to save space.
+                        let output_name = format!("o{i}.{c}");
+                        (output_name, dependencies)
                     })
                 })
                 .filter(|(_, dependencies)| !dependencies.is_empty())
@@ -88,7 +90,7 @@ impl Shader {
         output_index: usize,
         channel: char,
     ) -> Option<(u32, u32)> {
-        let output = format!("out_attr{output_index}.{channel}");
+        let output = format!("o{output_index}.{channel}");
 
         // Find the first material referenced sampler like "s0" or "s1".
         let (sampler_index, channels) =
@@ -228,7 +230,7 @@ mod tests {
     #[test]
     fn material_channel_assignment_single_output_no_assignment() {
         let shader = Shader {
-            output_dependencies: [("out_attr0.x".to_string(), Vec::new())].into(),
+            output_dependencies: [("o0.x".to_string(), Vec::new())].into(),
         };
         assert_eq!(None, shader.material_channel_assignment(0, 'x'));
     }
@@ -237,12 +239,12 @@ mod tests {
     fn material_channel_assignment_multiple_output_assignment() {
         let shader = Shader {
             output_dependencies: [
-                ("out_attr0.x".to_string(), vec!["s0.y".to_string()]),
+                ("o0.x".to_string(), vec!["s0.y".to_string()]),
                 (
-                    "out_attr0.y".to_string(),
+                    "o0.y".to_string(),
                     vec!["tex.xyz".to_string(), "s2.z".to_string()],
                 ),
-                ("out_attr1.x".to_string(), vec!["s3.xyz".to_string()]),
+                ("o1.x".to_string(), vec!["s3.xyz".to_string()]),
             ]
             .into(),
         };
