@@ -15,6 +15,9 @@ use crate::{
     Texture,
 };
 
+/// Load a map from a `.wismhd` file for Xenoblade 2 or Xenoblade 3.
+///
+/// The corresponding `.wismda` should be in the same directory.
 pub fn load_map<P: AsRef<Path>>(
     wismhd_path: P,
     shader_database: Option<&GBufferDatabase>,
@@ -348,7 +351,7 @@ fn load_foliage_model(
     }
 }
 
-pub fn foliage_materials(materials: &FoliageMaterials) -> Vec<Material> {
+fn foliage_materials(materials: &FoliageMaterials) -> Vec<Material> {
     let materials = materials
         .materials
         .iter()

@@ -105,7 +105,7 @@ impl State {
                 load_model(&device, &queue, &[root])
             }
             "wismhd" => {
-                let roots = xc3_model::map::load_map(model_path, database.as_ref());
+                let roots = xc3_model::load_map(model_path, database.as_ref());
                 load_model(&device, &queue, &roots)
             }
             _ => todo!(),
@@ -294,6 +294,7 @@ fn main() {
     simple_logger::SimpleLogger::new()
         .with_module_level("wgpu", log::LevelFilter::Warn)
         .with_module_level("naga", log::LevelFilter::Warn)
+        .with_module_level("xc3_lib", log::LevelFilter::Info)
         .init()
         .unwrap();
 

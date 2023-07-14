@@ -12,8 +12,10 @@ use xc3_lib::{
 };
 use xc3_shader::gbuffer_database::{GBufferDatabase, Shader};
 
+pub use map::load_map;
+
 pub mod gltf;
-pub mod map;
+mod map;
 pub mod texture;
 pub mod vertex;
 
@@ -103,7 +105,8 @@ impl Model {
     }
 }
 
-/// Load a character (ch), object (oj), weapon (wp), or enemy (en) model.
+/// Load a character (ch), object (oj), weapon (wp), or enemy (en) model
+/// for Xenoblade 2 or Xenoblade 3.
 pub fn load_model<P: AsRef<Path>>(
     wimdo_path: P,
     shader_database: Option<&GBufferDatabase>,
