@@ -10,10 +10,11 @@ use xc3_lib::{
     dhal::Dhal,
     mibl::Mibl,
     msmd::Msmd,
-    msrd::Msrd,
+    msrd::{write_msrd, Msrd},
     mxmd::Mxmd,
     sar1::Sar1,
     spch::Spch,
+    vertex::write_vertex_data,
     xbc1::Xbc1,
 };
 
@@ -105,8 +106,6 @@ fn main() {
         check_all_dhal(root);
     }
 
-    // TODO: check standalone shaders
-
     println!("Finished in {:?}", start.elapsed());
 }
 
@@ -172,18 +171,32 @@ fn check_all_msrd<P: AsRef<Path>>(root: P) {
             let path = entry.as_ref().unwrap().path();
             match Msrd::from_file(path) {
                 Ok(msrd) => {
-                    check_msrd(msrd);
+                    check_msrd(msrd, path);
                 }
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }
         });
 }
 
-fn check_msrd(msrd: Msrd) {
+fn check_msrd(msrd: Msrd, path: &Path) {
     msrd.extract_shader_data();
-    msrd.extract_vertex_data();
+    let vertex_data = msrd.extract_vertex_data();
     msrd.extract_low_texture_data();
     // TODO: High textures?
+
+    let original = std::fs::read(path).unwrap();
+    let mut writer = Cursor::new(Vec::new());
+    write_msrd(&msrd, &mut writer).unwrap();
+    if writer.into_inner() != original {
+        println!("Read write not 1:1 for {path:?}");
+    }
+
+    let original = msrd.decompress_stream(0, msrd.vertex_data_entry_index);
+    let mut writer = Cursor::new(Vec::new());
+    write_vertex_data(&vertex_data, &mut writer).unwrap();
+    if writer.into_inner() != original {
+        println!("VertexData Read write not 1:1 for {path:?}");
+    }
 }
 
 fn check_all_msmd<P: AsRef<Path>>(root: P) {
