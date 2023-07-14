@@ -77,6 +77,8 @@ impl TextureCache {
                     extensions: None,
                     extras: Default::default(),
                 });
+                // TODO: Handle returning none here?
+                // TODO: Images may have no inputs?
                 let image = generate_image(key, &self.original_images, recalculate_z);
                 self.generated_images.insert(key, image);
 
@@ -108,19 +110,13 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, roots: &[ModelRoot]) {
         for (group_index, group) in root.groups.iter().enumerate() {
             for (material_index, material) in group.materials.iter().enumerate() {
                 // TODO: Create a function for this?
-                let albedo_key =
-                    albedo_generated_key(material, &group.image_texture_indices, root_index);
+                let albedo_key = albedo_generated_key(material, root_index);
                 let albedo_index = albedo_key.map(|key| texture_cache.insert(key, false));
 
-                let normal_key =
-                    normal_generated_key(material, &group.image_texture_indices, root_index);
+                let normal_key = normal_generated_key(material, root_index);
                 let normal_index = normal_key.map(|key| texture_cache.insert(key, true));
 
-                let metallic_roughness_key = metallic_roughness_generated_key(
-                    material,
-                    &group.image_texture_indices,
-                    root_index,
-                );
+                let metallic_roughness_key = metallic_roughness_generated_key(material, root_index);
                 let metallic_roughness_index =
                     metallic_roughness_key.map(|key| texture_cache.insert(key, false));
 
@@ -418,13 +414,12 @@ fn create_material(
 // TODO: Create consts for the gbuffer texture indices?
 fn albedo_generated_key(
     material: &crate::Material,
-    material_texture_indices: &[usize],
     root_index: usize,
 ) -> Option<GeneratedImageKey> {
-    let red_index = texture_index(material, material_texture_indices, 0, 'x');
-    let green_index = texture_index(material, material_texture_indices, 0, 'y');
-    let blue_index = texture_index(material, material_texture_indices, 0, 'z');
-    let alpha_index = texture_index(material, material_texture_indices, 0, 'w');
+    let red_index = texture_index(material, 0, 'x');
+    let green_index = texture_index(material, 0, 'y');
+    let blue_index = texture_index(material, 0, 'z');
+    let alpha_index = texture_index(material, 0, 'w');
 
     Some(GeneratedImageKey {
         root_index,
@@ -437,13 +432,12 @@ fn albedo_generated_key(
 
 fn normal_generated_key(
     material: &crate::Material,
-    material_texture_indices: &[usize],
     root_index: usize,
 ) -> Option<GeneratedImageKey> {
-    let red_index = texture_index(material, material_texture_indices, 2, 'x');
-    let green_index = texture_index(material, material_texture_indices, 2, 'y');
-    let blue_index = texture_index(material, material_texture_indices, 2, 'z');
-    let alpha_index = texture_index(material, material_texture_indices, 2, 'w');
+    let red_index = texture_index(material, 2, 'x');
+    let green_index = texture_index(material, 2, 'y');
+    let blue_index = texture_index(material, 2, 'z');
+    let alpha_index = texture_index(material, 2, 'w');
 
     Some(GeneratedImageKey {
         root_index,
@@ -456,10 +450,9 @@ fn normal_generated_key(
 
 fn metallic_roughness_generated_key(
     material: &crate::Material,
-    material_texture_indices: &[usize],
     root_index: usize,
 ) -> Option<GeneratedImageKey> {
-    let metalness_index = texture_index(material, material_texture_indices, 1, 'x');
+    let metalness_index = texture_index(material, 1, 'x');
     // TODO: Generated roughness from glossiness?
     Some(GeneratedImageKey {
         root_index,
@@ -503,11 +496,12 @@ fn generate_image(
 
     // Use the dimensions of the largest image to avoid quality loss.
     // TODO: Avoid unwrap?
+    // TODO: How to handle missing textures?
     let (width, height) = [red_image, green_image, blue_image, alpha_image]
         .iter()
         .filter_map(|i| i.map(|i| i.dimensions()))
         .max()
-        .unwrap();
+        .unwrap_or((4,4));
 
     // Start with a fully opaque black image.
     let mut image = image::RgbaImage::new(width, height);
@@ -559,24 +553,18 @@ fn image_name(key: &GeneratedImageKey) -> String {
     )
 }
 
-fn texture_index(
-    material: &crate::Material,
-    material_texture_indices: &[usize],
-    gbuffer_index: usize,
-    channel: char,
-) -> Option<usize> {
+fn texture_index(material: &crate::Material, gbuffer_index: usize, channel: char) -> Option<usize> {
     // Find the sampler from the material.
     let (sampler_index, _) = material
         .shader
         .as_ref()?
         .material_channel_assignment(gbuffer_index, channel)?;
 
-    material.textures.get(sampler_index as usize).map(|t| {
-        // Find the texture referenced by this sampler.
-        // Not all textures are referenced by the material.
-        // This gives texture indices an additional level of indirection.
-        material_texture_indices[t.image_texture_index]
-    })
+    // Find the texture referenced by this sampler.
+    material
+        .textures
+        .get(sampler_index as usize)
+        .map(|t| t.image_texture_index)
 }
 
 fn create_buffers(roots: &[ModelRoot], buffer_name: String) -> Buffers {

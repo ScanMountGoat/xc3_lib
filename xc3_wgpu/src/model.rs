@@ -152,14 +152,8 @@ fn create_model_group(
     textures: &[wgpu::TextureView],
     pipeline_data: &ModelPipelineData,
 ) -> ModelGroup {
-    let (materials, pipelines) = materials(
-        device,
-        queue,
-        pipeline_data,
-        &group.materials,
-        &group.image_texture_indices,
-        textures,
-    );
+    let (materials, pipelines) =
+        materials(device, queue, pipeline_data, &group.materials, textures);
 
     let models = group
         .models

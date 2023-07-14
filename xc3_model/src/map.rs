@@ -122,15 +122,12 @@ fn load_prop_model_group(
     model_folder: &str,
     shader_database: Option<&GBufferDatabase>,
 ) -> ModelGroup {
-    // Get the textures referenced by the materials in this model.
-    let image_texture_indices = map_texture_indices(&model_data.textures);
-
     let spch = shader_database
         .and_then(|database| database.map_files.get(model_folder))
         .and_then(|map| map.prop_models.get(model_index));
 
-    // TODO: packed textures?
-    let materials = materials(&model_data.materials, spch);
+    let mut materials = materials(&model_data.materials, spch);
+    apply_material_texture_indices(&mut materials, &model_data.textures);
 
     // Load the base LOD model for each prop model.
     let mut models: Vec<_> = model_data
@@ -169,11 +166,7 @@ fn load_prop_model_group(
         add_animated_part_instances(&mut models, model_data, parts);
     }
 
-    ModelGroup {
-        models,
-        materials,
-        image_texture_indices,
-    }
+    ModelGroup { models, materials }
 }
 
 fn add_animated_part_instances(
@@ -242,14 +235,12 @@ fn load_map_model_group(
     model_folder: &str,
     shader_database: Option<&GBufferDatabase>,
 ) -> ModelGroup {
-    // Get the textures referenced by the materials in this model.
-    let image_texture_indices = map_texture_indices(&model_data.textures);
-
     let spch = shader_database
         .and_then(|database| database.map_files.get(model_folder))
         .and_then(|map| map.map_models.get(model_index));
 
-    let materials = materials(&model_data.materials, spch);
+    let mut materials = materials(&model_data.materials, spch);
+    apply_material_texture_indices(&mut materials, &model_data.textures);
 
     let mut models = Vec::new();
 
@@ -276,11 +267,7 @@ fn load_map_model_group(
         }
     }
 
-    ModelGroup {
-        models,
-        materials,
-        image_texture_indices,
-    }
+    ModelGroup { models, materials }
 }
 
 fn load_env_model(
@@ -320,11 +307,7 @@ fn load_env_model(
         .collect();
 
     ModelRoot {
-        groups: vec![ModelGroup {
-            models,
-            materials,
-            image_texture_indices: (0..image_textures.len()).collect(),
-        }],
+        groups: vec![ModelGroup { models, materials }],
         image_textures,
     }
 }
@@ -360,11 +343,7 @@ fn load_foliage_model(
         .collect();
 
     ModelRoot {
-        groups: vec![ModelGroup {
-            models,
-            materials,
-            image_texture_indices: (0..image_textures.len()).collect(),
-        }],
+        groups: vec![ModelGroup { models, materials }],
         image_textures,
     }
 }
@@ -407,12 +386,17 @@ pub fn foliage_materials(materials: &FoliageMaterials) -> Vec<Material> {
     materials
 }
 
-fn map_texture_indices(textures: &[xc3_lib::map::Texture]) -> Vec<usize> {
-    textures
-        .iter()
-        .map(|item| {
-            // TODO: Handle texture index being -1?
-            item.texture_index.max(0) as usize
-        })
-        .collect()
+fn apply_material_texture_indices(
+    materials: &mut Vec<Material>,
+    textures: &[xc3_lib::map::Texture],
+) {
+    // Not all textures are referenced by each material.
+    // Apply indices here to reduce indirection for consuming code.
+    for material in materials {
+        for texture in &mut material.textures {
+            // TODO: How to handle texture index being -1?
+            let index = textures[texture.image_texture_index].texture_index.max(0) as usize;
+            texture.image_texture_index = index;
+        }
+    }
 }

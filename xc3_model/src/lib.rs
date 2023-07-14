@@ -21,7 +21,6 @@ pub mod vertex;
 #[derive(Debug)]
 pub struct ModelRoot {
     pub groups: Vec<ModelGroup>,
-    // TODO: Access textures by name?
     pub image_textures: Vec<ImageTexture>,
 }
 
@@ -29,8 +28,6 @@ pub struct ModelRoot {
 pub struct ModelGroup {
     pub models: Vec<Model>,
     pub materials: Vec<Material>,
-    // TODO: Apply this ahead of time to simplify consuming code.
-    pub image_texture_indices: Vec<usize>,
 }
 
 #[derive(Debug)]
@@ -42,7 +39,6 @@ pub struct Model {
 }
 
 #[derive(Debug)]
-
 pub struct Mesh {
     pub vertex_buffer_index: usize,
     pub index_buffer_index: usize,
@@ -50,7 +46,6 @@ pub struct Mesh {
 }
 
 #[derive(Debug)]
-
 pub struct Material {
     pub name: String,
     pub flags: MaterialFlags,
@@ -64,8 +59,8 @@ pub struct Material {
 
 // TODO: sampler index or sampler flags?
 #[derive(Debug)]
-
 pub struct Texture {
+    /// The index of the image in [image_textures](struct.ModelRoot.html#structfield.image_textures).
     pub image_texture_index: usize,
 }
 
@@ -144,11 +139,7 @@ pub fn load_model<P: AsRef<Path>>(
         .collect();
 
     ModelRoot {
-        groups: vec![ModelGroup {
-            materials,
-            models,
-            image_texture_indices: (0..image_textures.len()).collect(),
-        }],
+        groups: vec![ModelGroup { materials, models }],
         image_textures,
     }
 }
