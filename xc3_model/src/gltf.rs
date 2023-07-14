@@ -64,25 +64,27 @@ impl TextureCache {
         }
     }
 
-    fn insert(&mut self, key: GeneratedImageKey, recalculate_z: bool) -> u32 {
-        *self
-            .generated_texture_indices
-            .entry(key)
-            .or_insert_with(|| {
-                let texture_index = self.textures.len() as u32;
-                self.textures.push(gltf::json::Texture {
-                    name: None,
-                    sampler: None,
-                    source: gltf::json::Index::new(texture_index),
-                    extensions: None,
-                    extras: Default::default(),
-                });
-                // TODO: Handle returning none here?
-                // TODO: Images may have no inputs?
-                let image = generate_image(key, &self.original_images, recalculate_z);
-                self.generated_images.insert(key, image);
+    fn insert(&mut self, key: GeneratedImageKey, recalculate_z: bool) -> Option<u32> {
+        // Use a cache to avoid costly channel reconstructions if possible.
+        self.generated_texture_indices
+            .get(&key)
+            .copied()
+            .or_else(|| {
+                // Only create an image if it has at least one input.
+                generate_image(key, &self.original_images, recalculate_z).map(|image| {
+                    let texture_index = self.textures.len() as u32;
+                    self.textures.push(gltf::json::Texture {
+                        name: None,
+                        sampler: None,
+                        source: gltf::json::Index::new(texture_index),
+                        extensions: None,
+                        extras: Default::default(),
+                    });
+                    self.generated_images.insert(key, image);
+                    self.generated_texture_indices.insert(key, texture_index);
 
-                texture_index
+                    texture_index
+                })
             })
     }
 }
@@ -109,16 +111,15 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, roots: &[ModelRoot]) {
     for (root_index, root) in roots.iter().enumerate() {
         for (group_index, group) in root.groups.iter().enumerate() {
             for (material_index, material) in group.materials.iter().enumerate() {
-                // TODO: Create a function for this?
                 let albedo_key = albedo_generated_key(material, root_index);
-                let albedo_index = albedo_key.map(|key| texture_cache.insert(key, false));
+                let albedo_index = albedo_key.and_then(|key| texture_cache.insert(key, false));
 
                 let normal_key = normal_generated_key(material, root_index);
-                let normal_index = normal_key.map(|key| texture_cache.insert(key, true));
+                let normal_index = normal_key.and_then(|key| texture_cache.insert(key, true));
 
                 let metallic_roughness_key = metallic_roughness_generated_key(material, root_index);
                 let metallic_roughness_index =
-                    metallic_roughness_key.map(|key| texture_cache.insert(key, false));
+                    metallic_roughness_key.and_then(|key| texture_cache.insert(key, false));
 
                 let material = create_material(
                     material,
@@ -467,41 +468,26 @@ fn generate_image(
     key: GeneratedImageKey,
     original_images: &BTreeMap<ImageKey, image::RgbaImage>,
     recalculate_z: bool,
-) -> image::RgbaImage {
-    // TODO: Reduce repetition.
-    let red_image = key.red_index.and_then(|image_index| {
-        original_images.get(&ImageKey {
-            root_index: key.root_index,
-            image_index,
+) -> Option<image::RgbaImage> {
+    let find_image = |index: Option<usize>| {
+        index.and_then(|image_index| {
+            original_images.get(&ImageKey {
+                root_index: key.root_index,
+                image_index,
+            })
         })
-    });
-    let green_image = key.green_index.and_then(|image_index| {
-        original_images.get(&ImageKey {
-            root_index: key.root_index,
-            image_index,
-        })
-    });
-    let blue_image = key.blue_index.and_then(|image_index| {
-        original_images.get(&ImageKey {
-            root_index: key.root_index,
-            image_index,
-        })
-    });
-    let alpha_image = key.alpha_index.and_then(|image_index| {
-        original_images.get(&ImageKey {
-            root_index: key.root_index,
-            image_index,
-        })
-    });
+    };
+
+    let red_image = find_image(key.red_index);
+    let green_image = find_image(key.green_index);
+    let blue_image = find_image(key.blue_index);
+    let alpha_image = find_image(key.alpha_index);
 
     // Use the dimensions of the largest image to avoid quality loss.
-    // TODO: Avoid unwrap?
-    // TODO: How to handle missing textures?
     let (width, height) = [red_image, green_image, blue_image, alpha_image]
         .iter()
         .filter_map(|i| i.map(|i| i.dimensions()))
-        .max()
-        .unwrap_or((4,4));
+        .max()?;
 
     // Start with a fully opaque black image.
     let mut image = image::RgbaImage::new(width, height);
@@ -526,7 +512,7 @@ fn generate_image(
         }
     }
 
-    image
+    Some(image)
 }
 
 fn assign_channel(
