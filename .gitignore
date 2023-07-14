@@ -18,6 +18,12 @@ Cargo.lock
 *.png
 *.bin
 *.glsl
+*.txt
+*.gltf
+
+# Development Scripts
+*.sh
+*.bat
 
 # Game files
 *.wismt
