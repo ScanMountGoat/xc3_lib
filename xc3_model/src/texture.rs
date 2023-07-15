@@ -1,4 +1,4 @@
-use std::{error::Error, io::Cursor, path::Path};
+use std::{error::Error, path::Path};
 
 use ddsfile::Dds;
 use xc3_lib::{
@@ -41,7 +41,7 @@ impl ImageTexture {
     }
 
     pub fn from_packed_texture(texture: &PackedTexture) -> Self {
-        let mibl = Mibl::read(&mut Cursor::new(&texture.mibl_data)).unwrap();
+        let mibl = Mibl::from_bytes(&texture.mibl_data);
         Self::from_mibl(&mibl, Some(texture.name.clone())).unwrap()
     }
 }
@@ -122,7 +122,7 @@ fn load_packed_texture(
     let data = &packed_texture_data
         [item.mibl_offset as usize..item.mibl_offset as usize + item.mibl_length as usize];
 
-    let mibl = Mibl::read(&mut Cursor::new(&data)).unwrap();
+    let mibl = Mibl::from_bytes(&data);
     ImageTexture::from_mibl(&mibl, Some(item.name.clone())).unwrap()
 }
 
@@ -133,9 +133,7 @@ fn load_wismt_texture(
 ) -> Option<ImageTexture> {
     // TODO: Create a helper function in xc3_lib for this?
     let xbc1 = Xbc1::from_file(m_texture_folder.join(texture_name).with_extension("wismt")).ok()?;
-    let mut reader = Cursor::new(xbc1.decompress().unwrap());
-
-    let mibl_m = Mibl::read(&mut reader).unwrap();
+    let mibl_m = Mibl::from_bytes(&xbc1.decompress().unwrap());
 
     let base_mip_level =
         Xbc1::from_file(&h_texture_folder.join(texture_name).with_extension("wismt"))

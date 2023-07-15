@@ -1,4 +1,5 @@
 use std::{
+    error::Error,
     io::{BufReader, Cursor},
     path::Path,
 };
@@ -64,7 +65,6 @@ fn main() {
     // The main advantage is being able to avoid distributing assets.
     // The user can specify the path instead of hardcoding it.
     // It's also easier to apply optimizations like multithreading.
-
     let cli = Cli::parse();
     let root = Path::new(&cli.root_folder);
 
@@ -77,53 +77,43 @@ fn main() {
     }
 
     if cli.mxmd || cli.all {
+        // TODO: The map folder .wimdo files for XC3 are a different format?
+        // TODO: b"APMD" magic in "chr/oj/oj03010100.wimdo"?
         println!("Checking MXMD files ...");
-        check_all_mxmd(root);
+        check_all(root, &["*.wimdo", "!map/**"], |_: Mxmd, _| {});
     }
 
     if cli.msrd || cli.all {
+        // Skip the .wismt textures in the XC3 tex folder.
+        // TODO: Some XC2 .wismt files are other formats?
+        // model/oj/oj108004.wismt - XBC1 for packed MIBL files
+        // model/we/we010601.wismt - packed MIBL files (uncompressed)
+        // model/we/we010602.wismt - packed MIBL files (uncompressed)
         println!("Checking MSRD files ...");
-        check_all_msrd(root);
+        check_all(root, &["*.wismt", "!**/tex/**"], check_msrd);
     }
 
     if cli.msmd || cli.all {
         println!("Checking MSMD files ...");
-        check_all_msmd(root);
+        check_all(root, &["*.wismhd"], check_msmd);
     }
 
     if cli.sar1 || cli.all {
         println!("Checking SAR1 files ...");
-        check_all_sar1(root);
+        check_all(root, &["*.char", "*.mot"], |_: Sar1, _| {});
     }
 
     if cli.spch || cli.all {
         println!("Checking SPCH files ...");
-        check_all_spch(root);
+        check_all(root, &["*.wishp"], |_: Spch, _| {});
     }
 
     if cli.dhal || cli.all {
         println!("Checking DHAL files ...");
-        check_all_dhal(root);
+        check_all(root, &["*.wilay"], check_dhal);
     }
 
     println!("Finished in {:?}", start.elapsed());
-}
-
-fn check_all_mxmd<P: AsRef<Path>>(root: P) {
-    // TODO: The map folder .wimdo files for XC3 are a different format?
-    // TODO: b"APMD" magic in "chr/oj/oj03010100.wimdo"?
-    globwalk::GlobWalkerBuilder::from_patterns(root, &["*.wimdo", "!map/**"])
-        .build()
-        .unwrap()
-        .par_bridge()
-        .for_each(|entry| {
-            let path = entry.as_ref().unwrap().path();
-            // TODO: How to validate this file?
-            match Mxmd::from_file(path) {
-                Ok(_) => (),
-                Err(e) => println!("Error reading {path:?}: {e}"),
-            }
-        });
 }
 
 fn check_all_mibl<P: AsRef<Path>>(root: P) {
@@ -155,35 +145,14 @@ fn check_all_mibl<P: AsRef<Path>>(root: P) {
         });
 }
 
-fn check_all_msrd<P: AsRef<Path>>(root: P) {
-    let folder = root.as_ref();
-
-    // Skip the .wismt textures in the XC3 tex folder.
-    // TODO: Some XC2 .wismt files are other formats?
-    // model/oj/oj108004.wismt - XBC1 for packed MIBL files
-    // model/we/we010601.wismt - packed MIBL files (uncompressed)
-    // model/we/we010602.wismt - packed MIBL files (uncompressed)
-    globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.wismt", "!**/tex/**"])
-        .build()
-        .unwrap()
-        .par_bridge()
-        .for_each(|entry| {
-            let path = entry.as_ref().unwrap().path();
-            match Msrd::from_file(path) {
-                Ok(msrd) => {
-                    check_msrd(msrd, path);
-                }
-                Err(e) => println!("Error reading {path:?}: {e}"),
-            }
-        });
-}
-
 fn check_msrd(msrd: Msrd, path: &Path) {
     msrd.extract_shader_data();
     let vertex_data = msrd.extract_vertex_data();
     msrd.extract_low_texture_data();
     // TODO: High textures?
+    // TODO: Check mibl?
 
+    // Check read/write for embedded data.
     let original = std::fs::read(path).unwrap();
     let mut writer = Cursor::new(Vec::new());
     write_msrd(&msrd, &mut writer).unwrap();
@@ -197,25 +166,6 @@ fn check_msrd(msrd: Msrd, path: &Path) {
     if writer.into_inner() != original {
         println!("VertexData Read write not 1:1 for {path:?}");
     }
-}
-
-fn check_all_msmd<P: AsRef<Path>>(root: P) {
-    let folder = root.as_ref().join("map");
-
-    globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.wismhd"])
-        .build()
-        .unwrap()
-        .par_bridge()
-        .for_each(|entry| {
-            let path = entry.as_ref().unwrap().path();
-            // TODO: Also check xc3_model loading?
-            match Msmd::from_file(path) {
-                Ok(msmd) => {
-                    check_msmd(msmd, path);
-                }
-                Err(e) => println!("Error reading {path:?}: {e}"),
-            }
-        });
 }
 
 fn check_msmd(msmd: Msmd, path: &Path) {
@@ -232,8 +182,12 @@ fn check_msmd(msmd: Msmd, path: &Path) {
         model.entry.extract(&mut reader, compressed);
     }
 
+    // TODO: Test mibl read/write?
     for model in msmd.env_models {
-        model.entry.extract(&mut reader, compressed);
+        let entry = model.entry.extract(&mut reader, compressed);
+        for texture in entry.textures.textures {
+            Mibl::from_bytes(&texture.mibl_data);
+        }
     }
 
     for entry in msmd.prop_vertex_data {
@@ -241,13 +195,16 @@ fn check_msmd(msmd: Msmd, path: &Path) {
     }
 
     for texture in msmd.textures {
-        // TODO: Test combining med and high files?
+        // TODO: Test combining mid and high files?
         texture.mid.extract(&mut reader, compressed);
         // texture.high.extract(&mut reader, compressed);
     }
 
     for model in msmd.foliage_models {
-        model.entry.extract(&mut reader, compressed);
+        let entry = model.entry.extract(&mut reader, compressed);
+        for texture in entry.textures.textures {
+            Mibl::from_bytes(&texture.mibl_data);
+        }
     }
 
     for entry in msmd.prop_positions {
@@ -255,7 +212,10 @@ fn check_msmd(msmd: Msmd, path: &Path) {
     }
 
     for entry in msmd.low_textures {
-        entry.extract(&mut reader, compressed);
+        let entry = entry.extract(&mut reader, compressed);
+        for texture in entry.textures {
+            Mibl::from_bytes(&texture.mibl_data);
+        }
     }
 
     for model in msmd.low_models {
@@ -289,59 +249,52 @@ fn read_wismt_single_tex<P: AsRef<Path>>(path: P) -> (Vec<u8>, Mibl) {
     let xbc1 = Xbc1::from_file(path).unwrap();
 
     let decompressed = xbc1.decompress().unwrap();
-    let mut reader = Cursor::new(decompressed.clone());
-    (decompressed, Mibl::read(&mut reader).unwrap())
+    let mibl = Mibl::from_bytes(&decompressed);
+    (decompressed, mibl)
 }
 
-fn check_all_sar1<P: AsRef<Path>>(root: P) {
-    let folder = root.as_ref();
-    globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.chr", "*.mot"])
-        .build()
-        .unwrap()
-        .par_bridge()
-        .for_each(|entry| {
-            // TODO: How to validate this file?
-            let path = entry.as_ref().unwrap().path();
-            match Sar1::from_file(path) {
-                Ok(_) => (),
-                Err(e) => println!("Error reading {path:?}: {e}"),
-            }
-        });
+fn check_dhal(dhal: Dhal, _path: &Path) {
+    if let Some(textures) = dhal.textures {
+        for texture in textures.textures {
+            Mibl::from_bytes(&texture.mibl_data);
+        }
+    }
 }
 
-fn check_all_spch<P: AsRef<Path>>(root: P) {
-    let folder = root.as_ref();
-    globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.wishp"])
-        .build()
-        .unwrap()
-        .par_bridge()
-        .for_each(|entry| {
-            // TODO: How to validate this file?
-            let path = entry.as_ref().unwrap().path();
-            match Spch::from_file(path) {
-                Ok(_) => (),
-                Err(e) => println!("Error reading {path:?}: {e}"),
-            }
-        });
+trait Xc3File
+where
+    Self: Sized,
+{
+    fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn Error>>;
 }
 
-fn check_all_dhal<P: AsRef<Path>>(root: P) {
-    let folder = root.as_ref();
-    globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.wilay"])
-        .build()
-        .unwrap()
-        .par_bridge()
-        .for_each(|entry| {
-            // TODO: How to validate this file?
-            let path = entry.as_ref().unwrap().path();
-            match Dhal::from_file(path) {
-                Ok(dhal) => {
-                    if let Some(textures) = dhal.textures {
-                        for texture in textures.textures {
-                            Mibl::read(&mut Cursor::new(&texture.mibl_data)).unwrap();
-                        }
-                    }
+macro_rules! file_impl {
+    ($($type_name:path),*) => {
+        $(
+            impl Xc3File for $type_name {
+                fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn Error>> {
+                    Self::from_file(path)
                 }
+            }
+        )*
+    };
+}
+file_impl!(Mxmd, Msrd, Msmd, Spch, Dhal, Sar1);
+
+fn check_all<P, T, F>(root: P, patterns: &[&str], check_file: F)
+where
+    P: AsRef<Path>,
+    T: Xc3File,
+    F: Fn(T, &Path) + Sync,
+{
+    globwalk::GlobWalkerBuilder::from_patterns(root, patterns)
+        .build()
+        .unwrap()
+        .par_bridge()
+        .for_each(|entry| {
+            let path = entry.as_ref().unwrap().path();
+            match T::from_file(path) {
+                Ok(file) => check_file(file, path),
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }
         });

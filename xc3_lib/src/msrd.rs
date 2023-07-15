@@ -134,7 +134,7 @@ impl Msrd {
             .map(|entry| {
                 let bytes =
                     &stream[entry.offset as usize..entry.offset as usize + entry.size as usize];
-                Mibl::read(&mut Cursor::new(bytes)).unwrap()
+                Mibl::from_bytes(bytes)
             })
             .collect()
     }
@@ -145,7 +145,7 @@ impl Msrd {
         Spch::read(&mut Cursor::new(bytes)).unwrap()
     }
 
-    fn decompress_stream(&self, stream_index: u32, entry_index: u32) -> Vec<u8> {
+    pub fn decompress_stream(&self, stream_index: u32, entry_index: u32) -> Vec<u8> {
         let entry = &self.stream_entries[entry_index as usize];
         let stream = &self.streams[stream_index as usize]
             .xbc1

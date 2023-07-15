@@ -76,8 +76,7 @@ fn read_wismt_single_tex<P: AsRef<Path>>(path: P) -> Mibl {
     let xbc1 = Xbc1::from_file(path).unwrap();
 
     let decompressed = xbc1.decompress().unwrap();
-    let mut reader = Cursor::new(decompressed);
-    Mibl::read(&mut reader).unwrap()
+    Mibl::from_bytes(&decompressed)
 }
 
 fn create_wismt_single_tex(mibl: &Mibl) -> Xbc1 {

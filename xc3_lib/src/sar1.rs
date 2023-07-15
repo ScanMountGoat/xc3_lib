@@ -34,7 +34,7 @@ pub struct Entry {
 
     // TODO: CRC32C?
     // https://github.com/PredatorCZ/XenoLib/blob/master/source/sar.cpp
-    pub name_hash: u32, 
+    pub name_hash: u32,
 
     #[br(map = |x: NullString| x.to_string(), pad_size_to = 52)]
     pub name: String,
@@ -46,7 +46,7 @@ pub enum EntryData {
     Bc(Bc),
     ChCl(ChCl),
     Csvb(Csvb),
-    Eva(Eva)
+    Eva(Eva),
 }
 
 #[binread]
@@ -64,7 +64,7 @@ pub struct Bc {
     pub data_size: u32,
     pub unk_count: u32,
     pub data_offset: u64, // TODO: offset for bcdata?
-    pub unk_offset: u64, // TODO: offset to u64s?
+    pub unk_offset: u64,  // TODO: offset to u64s?
 
     #[br(args { base_offset })]
     pub data: BcData,
@@ -94,6 +94,7 @@ pub struct Skdy {
 }
 
 // animation?
+// TODO: animation binding?
 #[derive(BinRead, Debug, Serialize)]
 #[br(magic(b"ANIM"))]
 pub struct Anim {
