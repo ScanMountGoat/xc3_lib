@@ -12,7 +12,6 @@ use serde::Serialize;
 pub struct Mxmd {
     pub version: u32,
 
-    // Are the following fields shared with maps?
     #[br(parse_with = parse_ptr32)]
     pub models: Models,
 

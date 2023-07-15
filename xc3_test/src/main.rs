@@ -295,7 +295,7 @@ fn read_wismt_single_tex<P: AsRef<Path>>(path: P) -> (Vec<u8>, Mibl) {
 
 fn check_all_sar1<P: AsRef<Path>>(root: P) {
     let folder = root.as_ref();
-    globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.chr"])
+    globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.chr", "*.mot"])
         .build()
         .unwrap()
         .par_bridge()

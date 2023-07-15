@@ -4,5 +4,5 @@ use binrw::BinRead;
 #[derive(BinRead, Debug)]
 #[br(magic(b"DMPA"))]
 pub struct Apmd {
-    version: u32,
+    pub version: u32,
 }

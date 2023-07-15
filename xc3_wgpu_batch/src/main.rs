@@ -97,7 +97,7 @@ fn main() {
         mapped_at_creation: false,
     });
 
-    let database = cli.shader_database.map(|path| load_database(path));
+    let database = cli.shader_database.map(load_database);
 
     // TODO: Work through mxmd in wiefb files in xc2?
     let ext = match cli.extension {
@@ -140,7 +140,7 @@ fn main() {
                 FileExtension::Wimdo => {
                     vec![xc3_model::load_model(model_path, database.as_ref())]
                 }
-                FileExtension::Wismhd => xc3_model::map::load_map(model_path, database.as_ref()),
+                FileExtension::Wismhd => xc3_model::load_map(model_path, database.as_ref()),
             };
 
             let groups = xc3_wgpu::model::load_model(&device, &queue, &roots);

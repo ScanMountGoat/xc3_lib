@@ -52,14 +52,13 @@ def write_vertex_data(root, ...):
         offsets.attributes.write_offset(...)
 
     weights_offsets = root_offsets.weights.write_offset(...)
-    for offset in weights_offsets.groups:
-        offset.write_offset(...)
+    weights_offsets.groups.write_offset(...)
 
     vertex_animation_offsets = root_offsets.vertex_animation.write_offset(...)
-    vertex_animation_offsets.descriptors.write_offset(...)
+    descriptors_offsets = vertex_animation_offsets.descriptors.write_offset(...)
     vertex_animation_offsets.targets.write_offset(...)
-    for offset in vertex_animation_offsets.descriptors:
-        offset.write_offset(...)
+    for offsets in descriptors_offsets:
+        offsets.unk1.write_offset(...)
 
     unk_offsets = root_offsets.unk.write_offset(...)
     unk_offsets.unk1.write_offset(...)

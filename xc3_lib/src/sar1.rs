@@ -31,10 +31,13 @@ pub struct Entry {
     #[br(parse_with = parse_ptr32)]
     pub data: EntryData,
     pub data_size: u32,
-    pub name_hash: u32, // TODO: CRC32C?
+
+    // TODO: CRC32C?
+    // https://github.com/PredatorCZ/XenoLib/blob/master/source/sar.cpp
+    pub name_hash: u32, 
+
     #[br(map = |x: NullString| x.to_string(), pad_size_to = 52)]
     pub name: String,
-    // TODO: padding after last element?
 }
 
 #[binread]
@@ -43,23 +46,25 @@ pub enum EntryData {
     Bc(Bc),
     ChCl(ChCl),
     Csvb(Csvb),
+    Eva(Eva)
 }
 
 #[binread]
 #[derive(Debug, Serialize)]
-#[br(magic(b"BC\x00\x00"))]
+#[br(magic(b"BC"))]
 #[br(stream = r)]
 pub struct Bc {
     // Subtract the magic size.
-    #[br(temp, try_calc = r.stream_position().map(|p| p - 4))]
+    #[br(temp, try_calc = r.stream_position().map(|p| p - 2))]
     base_offset: u64,
 
-    pub unk0: u16,
-    pub block_count: u16,
-    pub data_offset: u32,
-    pub unk_offset: u32,
-    pub unk1: u64,
-    pub unk2: u64,
+    pub unk_flags: u16,
+
+    pub unk1: u32,
+    pub data_size: u32,
+    pub unk_count: u32,
+    pub data_offset: u64, // TODO: offset for bcdata?
+    pub unk_offset: u64, // TODO: offset to u64s?
 
     #[br(args { base_offset })]
     pub data: BcData,
@@ -95,8 +100,6 @@ pub struct Anim {
     pub unk1: u32,
 }
 
-// TODO: Is there a cleaner way to handle base offsets?
-// This pattern is used in a lot of files.
 #[derive(BinRead, Debug, Serialize)]
 #[br(magic(b"SKEL"))]
 #[br(import { base_offset: u64 })]
@@ -127,12 +130,19 @@ pub struct Skel {
 }
 
 #[derive(BinRead, Debug, Serialize)]
+#[br(magic(b"eva\x00"))]
+pub struct Eva {
+    pub unk1: u32,
+}
+
+#[derive(BinRead, Debug, Serialize)]
 #[br(import_raw(args: SkelDataArgs<T::Args<'_>>))]
 pub struct SkelData<T>
 where
     T: BinRead + 'static,
     for<'a> T::Args<'a>: Clone + Default,
 {
+    // TODO: Use parse_with for this?
     #[br(args { base_offset: args.base_offset, inner: args.inner })]
     pub items: Container<T>,
     pub unk1: i32,
