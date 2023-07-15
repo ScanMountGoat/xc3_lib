@@ -54,10 +54,16 @@ pub struct Data {
 }
 ```
 
-Values can also be pretty printed using the appropriate debug format specifier. The output will look similar to Rust syntax or JSON without quotation marks.
+Values can also be pretty printed using the appropriate debug format specifier. The output will look similar to Rust syntax.
+
 ```rust
 fn main() {
    let value = xc3_lib::mxmd::Mxmd::from_file("ch01012013.wimdo");
    println!("{:#?}", value);
 }
 ```
+
+## Debugging File Writing
+The easiest way to test writing a file is to parse a file and then write it again without making changes. This should result in a binary identical output file. This can be checked using Rust code or using a hex editor like [HxD](https://mh-nexus.de/en/hxd/) or [ImHex](https://github.com/WerWolv/ImHex) for visual diff checking. See xc3_test for code examples.
+
+Another useful test is to write the file to binary and then read it again. The two data structures like `Mxmd` or `Msrd` should compare as equal. Differences can indicate that data isn't being written properly. For more visual output, pretty print the debug representation before and after to text files. The text can be diffed using an online diffing tool or directly in some editors like VsCode.
