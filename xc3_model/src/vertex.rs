@@ -31,6 +31,8 @@ pub enum AttributeData {
     Uv2(Vec<Vec2>),
     VertexColor(Vec<Vec4>), // TODO: [u8; 4]?
     WeightIndex(Vec<u32>),  // TODO: [u8; 4]?
+    Weights(Vec<Vec4>),
+    BoneIndices(Vec<[u8; 4]>),
 }
 
 impl AttributeData {
@@ -43,6 +45,8 @@ impl AttributeData {
             AttributeData::Uv2(v) => v.len(),
             AttributeData::VertexColor(v) => v.len(),
             AttributeData::WeightIndex(v) => v.len(),
+            AttributeData::Weights(v) => v.len(),
+            AttributeData::BoneIndices(v) => v.len(),
         }
     }
 
@@ -117,6 +121,7 @@ fn read_attribute(
     offset: u64,
     buffer: &[u8],
 ) -> Option<AttributeData> {
+    // TODO: handle all cases and don't return option.
     match a.data_type {
         DataType::Position => Some(AttributeData::Position(read_data(
             d, offset, buffer, read_f32x3,
@@ -124,7 +129,7 @@ fn read_attribute(
         DataType::Unk1 => None,
         DataType::Unk2 => None,
         DataType::WeightIndex => Some(AttributeData::WeightIndex(read_data(
-            d, offset, buffer, read_u8x4,
+            d, offset, buffer, read_u32,
         ))),
         DataType::Unk4 => None,
         DataType::Uv1 => Some(AttributeData::Uv1(read_data(d, offset, buffer, read_f32x2))),
@@ -160,8 +165,15 @@ fn read_attribute(
             read_snorm8x4,
         ))),
         DataType::Unk33 => None,
-        DataType::WeightShort => None,
-        DataType::BoneId2 => None,
+        DataType::WeightShort => Some(AttributeData::Weights(read_data(
+            d,
+            offset,
+            buffer,
+            read_unorm16x4,
+        ))),
+        DataType::BoneIndices => Some(AttributeData::BoneIndices(read_data(
+            d, offset, buffer, read_u8x4,
+        ))),
         DataType::Unk52 => None,
     }
 }
@@ -187,7 +199,11 @@ where
     values
 }
 
-fn read_u8x4(reader: &mut Cursor<&[u8]>) -> u32 {
+fn read_u32(reader: &mut Cursor<&[u8]>) -> u32 {
+    reader.read_le().unwrap()
+}
+
+fn read_u8x4(reader: &mut Cursor<&[u8]>) -> [u8; 4] {
     reader.read_le().unwrap()
 }
 
@@ -209,6 +225,11 @@ fn read_unorm8x4(reader: &mut Cursor<&[u8]>) -> Vec4 {
 fn read_snorm8x4(reader: &mut Cursor<&[u8]>) -> Vec4 {
     let value: [i8; 4] = reader.read_le().unwrap();
     value.map(|i| i as f32 / 255.0).into()
+}
+
+fn read_unorm16x4(reader: &mut Cursor<&[u8]>) -> Vec4 {
+    let value: [u16; 4] = reader.read_le().unwrap();
+    value.map(|u| u as f32 / 65535.0).into()
 }
 
 pub fn read_animation_buffer_attributes(
@@ -272,7 +293,6 @@ mod tests {
     use hexlit::hex;
     use xc3_lib::vertex::{DataType, VertexAttribute};
 
-    // TODO: Test weight buffers.
     #[test]
     fn read_vertex_buffer_vertices() {
         // chr/ch/ch01012013.wismt, vertex buffer 0
@@ -352,6 +372,50 @@ mod tests {
                     vec4(0.47843137, 0.0, -0.12941177, 0.49803922),
                     vec4(0.30980393, 0.0, -0.38431373, 0.49803922)
                 ])
+            ],
+            read_vertex_attributes(&descriptor, &data)
+        );
+    }
+
+    // TODO: Test morph/animation buffer
+
+    #[test]
+    fn read_weight_buffer_vertices() {
+        // chr/ch/ch01012013.wismt, vertex buffer 12
+        let data = hex!(
+            // vertex 0
+            AEC75138 00000000 18170000
+            // vertex 1
+            0x1EC5E13A 00000000 18170000
+        );
+
+        let descriptor = VertexBufferDescriptor {
+            data_offset: 0,
+            vertex_count: 2,
+            vertex_size: 12,
+            attributes: vec![
+                VertexAttribute {
+                    data_type: DataType::WeightShort,
+                    data_size: 8,
+                },
+                VertexAttribute {
+                    data_type: DataType::BoneIndices,
+                    data_size: 4,
+                },
+            ],
+            unk1: 0,
+            unk2: 0,
+            unk3: 0,
+        };
+
+        // TODO: Use strict equality for float comparisons?
+        assert_eq!(
+            vec![
+                AttributeData::Weights(vec![
+                    vec4(0.7800107, 0.21998931, 0.0, 0.0),
+                    vec4(0.77000076, 0.22999924, 0.0, 0.0)
+                ]),
+                AttributeData::BoneIndices(vec![[24, 23, 0, 0], [24, 23, 0, 0]]),
             ],
             read_vertex_attributes(&descriptor, &data)
         );

@@ -753,6 +753,8 @@ fn add_vertex_buffers(
                     );
                 }
                 AttributeData::WeightIndex(_) => (),
+                AttributeData::Weights(_) => (),
+                AttributeData::BoneIndices(_) => (),
             }
         }
 

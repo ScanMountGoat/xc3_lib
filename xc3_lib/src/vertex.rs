@@ -93,6 +93,7 @@ pub enum DataType {
     Position = 0,
     Unk1 = 1,
     Unk2 = 2,
+    // TODO: indexes into "vertices" in weights buffer?
     WeightIndex = 3, // bone indices?
     Unk4 = 4,
     /// Float32x2 UV coordinates.
@@ -113,12 +114,14 @@ pub enum DataType {
     /// Snorm8x4 normal vector.
     Normal2 = 32,
     Unk33 = 33,
+    // TODO: unorm16x4 for skin weights?
     WeightShort = 41,
     // 4 bytes with each byte being used separately by vertex shader?
     // one of the bytes selects some sort of group and
     // one byte selects bones within a group?
     // only the least significant byte matters?
-    BoneId2 = 42,
+    // TODO: Is this just the bone indices?
+    BoneIndices = 42,
     Unk52 = 52,
 }
 

@@ -101,7 +101,9 @@ pub struct Anim {
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset })]
     pub anim_data: AnimData,
+
     pub unk1: [u32; 9],
+
     #[br(args_raw(base_offset))]
     pub animation: Animation,
 }
@@ -111,8 +113,10 @@ pub struct Anim {
 pub struct AnimData {
     pub unk1: [u32; 8],
 
+    // TODO: Same length and ordering as hashes?
+    // TODO: convert to indices in the mxmd skeleton based on hashes?
     #[br(offset = base_offset)]
-    pub ids: SarData<u16>,
+    pub bone_indices: SarData<u16>,
 
     #[br(offset = base_offset)]
     pub unk2: SarData<()>, // TODO: type?
@@ -187,6 +191,7 @@ pub enum AnimationData {
 #[derive(BinRead, Debug)]
 #[br(import_raw(base_offset: u64))]
 pub struct PackedCubicData {
+    // TODO: same length and ordering as bone indices and hashes?
     #[br(offset = base_offset)]
     pub tracks: SarData<Track>,
 
@@ -205,15 +210,18 @@ pub struct PackedCubicData {
 
 #[derive(BinRead, Debug)]
 pub struct Track {
-    pub translaton: SubTrack,
+    pub translation: SubTrack,
     pub rotation: SubTrack,
     pub scale: SubTrack,
 }
 
 #[derive(BinRead, Debug)]
 pub struct SubTrack {
+    // TODO: index into timings?
     pub time_start_index: u32,
+    // TODO: index into translations, rotation_quaternions?
     pub curves_start_index: u32,
+    // TODO: index into timings?
     pub time_end_index: u32,
 }
 
