@@ -41,6 +41,8 @@ struct GeneratedImageKey {
     green_index: Option<usize>,
     blue_index: Option<usize>,
     alpha_index: Option<usize>,
+    recalculate_normal_z: bool,
+    invert_green: bool,
 }
 
 #[derive(Default)]
@@ -64,14 +66,14 @@ impl TextureCache {
         }
     }
 
-    fn insert(&mut self, key: GeneratedImageKey, recalculate_z: bool) -> Option<u32> {
+    fn insert(&mut self, key: GeneratedImageKey) -> Option<u32> {
         // Use a cache to avoid costly channel reconstructions if possible.
         self.generated_texture_indices
             .get(&key)
             .copied()
             .or_else(|| {
                 // Only create an image if it has at least one input.
-                generate_image(key, &self.original_images, recalculate_z).map(|image| {
+                generate_image(key, &self.original_images).map(|image| {
                     let texture_index = self.textures.len() as u32;
                     self.textures.push(gltf::json::Texture {
                         name: None,
@@ -112,14 +114,14 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, roots: &[ModelRoot]) {
         for (group_index, group) in root.groups.iter().enumerate() {
             for (material_index, material) in group.materials.iter().enumerate() {
                 let albedo_key = albedo_generated_key(material, root_index);
-                let albedo_index = albedo_key.and_then(|key| texture_cache.insert(key, false));
+                let albedo_index = albedo_key.and_then(|key| texture_cache.insert(key));
 
                 let normal_key = normal_generated_key(material, root_index);
-                let normal_index = normal_key.and_then(|key| texture_cache.insert(key, true));
+                let normal_index = normal_key.and_then(|key| texture_cache.insert(key));
 
                 let metallic_roughness_key = metallic_roughness_generated_key(material, root_index);
                 let metallic_roughness_index =
-                    metallic_roughness_key.and_then(|key| texture_cache.insert(key, false));
+                    metallic_roughness_key.and_then(|key| texture_cache.insert(key));
 
                 let material = create_material(
                     material,
@@ -428,6 +430,8 @@ fn albedo_generated_key(
         green_index,
         blue_index,
         alpha_index,
+        recalculate_normal_z: false,
+        invert_green: false,
     })
 }
 
@@ -446,6 +450,8 @@ fn normal_generated_key(
         green_index,
         blue_index,
         alpha_index,
+        recalculate_normal_z: true,
+        invert_green: false,
     })
 }
 
@@ -454,20 +460,23 @@ fn metallic_roughness_generated_key(
     root_index: usize,
 ) -> Option<GeneratedImageKey> {
     let metalness_index = texture_index(material, 1, 'x');
-    // TODO: Generated roughness from glossiness?
+    let glossiness_index = texture_index(material, 1, 'y');
+
+    // Invert the glossiness since glTF uses roughness.
     Some(GeneratedImageKey {
         root_index,
         red_index: None,
-        green_index: None,
+        green_index: glossiness_index,
         blue_index: metalness_index,
         alpha_index: None,
+        recalculate_normal_z: false,
+        invert_green: true,
     })
 }
 
 fn generate_image(
     key: GeneratedImageKey,
     original_images: &BTreeMap<ImageKey, image::RgbaImage>,
-    recalculate_z: bool,
 ) -> Option<image::RgbaImage> {
     let find_image = |index: Option<usize>| {
         index.and_then(|image_index| {
@@ -501,7 +510,7 @@ fn generate_image(
     assign_channel(&mut image, blue_image, 2);
     assign_channel(&mut image, alpha_image, 3);
 
-    if recalculate_z {
+    if key.recalculate_normal_z {
         // Reconstruct the normal map Z channel.
         for pixel in image.pixels_mut() {
             // x^y + y^2 + z^2 = 1 for unit vectors.
@@ -509,6 +518,13 @@ fn generate_image(
             let y = (pixel[1] as f32 / 255.0) * 2.0 - 1.0;
             let z = 1.0 - x * x - y * y;
             pixel[2] = (z * 255.0) as u8;
+        }
+    }
+
+    if key.invert_green {
+        // Used to convert glossiness to roughness.
+        for pixel in image.pixels_mut() {
+            pixel[1] = 255u8 - pixel[1];
         }
     }
 
