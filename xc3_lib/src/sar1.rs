@@ -98,9 +98,44 @@ pub struct Skdy {
 #[br(magic(b"ANIM"))]
 #[br(import_raw(base_offset: u64))]
 pub struct Anim {
-    pub unk1: [u32; 10],
+    #[br(parse_with = parse_ptr32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    pub anim_data: AnimData,
+    pub unk1: [u32; 9],
     #[br(args_raw(base_offset))]
     pub animation: Animation,
+}
+
+#[derive(BinRead, Debug)]
+#[br(import_raw(base_offset: u64))]
+pub struct AnimData {
+    pub unk1: [u32; 8],
+
+    #[br(offset = base_offset)]
+    pub ids: SarData<u16>,
+
+    #[br(offset = base_offset)]
+    pub unk2: SarData<()>, // TODO: type?
+
+    #[br(offset = base_offset)]
+    pub unk3: SarData<()>, // TODO: type?
+
+    pub unk4: u32,
+    pub unk5: u32,
+
+    #[br(parse_with = parse_ptr32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    pub inner: AnimDataInner,
+}
+
+#[derive(BinRead, Debug)]
+#[br(import_raw(base_offset: u64))]
+pub struct AnimDataInner {
+    pub unk1: [u32; 8],
+    /// The MurmurHash3 32-bit hash of the bone names.
+    // TODO: type alias for this?
+    #[br(offset = base_offset)]
+    pub hashes: SarData<u32>,
 }
 
 #[derive(BinRead, Debug)]
@@ -155,9 +190,11 @@ pub struct PackedCubicData {
     #[br(offset = base_offset)]
     pub tracks: SarData<Track>,
 
+    // TODO: [a,b,c,d] for a*x^3 + b*x^2 + c*x + d?
     #[br(offset = base_offset)]
     pub translations: SarData<[f32; 4]>,
 
+    // TODO: same equation as above?
     #[br(offset = base_offset)]
     pub rotation_quaternions: SarData<[f32; 4]>,
 
@@ -264,10 +301,30 @@ where
     count: u32,
 
     // TODO: Use parse_with for this instead?
+    // TODO: How to handle offset of 0?
     #[br(args { count: count as usize, inner: args.inner })]
     #[br(seek_before = SeekFrom::Start(args.offset + offset as u64))]
     #[br(restore_position)]
     pub elements: Vec<T>,
 
     pub unk1: i32,
+}
+
+/// Produce the 32-bit hash for a value like a bone name.
+pub fn murmur3(bytes: &[u8]) -> u32 {
+    murmur3::murmur3_32(&mut std::io::Cursor::new(bytes), 0).unwrap()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hash_bones_murmur3() {
+        // Check that wimdo bone name hashes match the mot hashes.
+        // xeno3/chr/ch/ch01012013.wimdo
+        // xeno3/chr/ch/ch01011000_battle.mot
+        assert_eq!(1205803477, murmur3("J_thumb_A_R".as_bytes()));
+        assert_eq!(4244707126, murmur3("J_hip".as_bytes()));
+    }
 }
