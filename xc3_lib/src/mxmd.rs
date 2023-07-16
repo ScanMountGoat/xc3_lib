@@ -4,10 +4,9 @@ use crate::{
 };
 use bilge::prelude::*;
 use binrw::{args, binread, BinRead, BinWrite};
-use serde::Serialize;
 
 /// .wimdo files
-#[derive(BinRead, Debug, Serialize)]
+#[derive(BinRead, Debug)]
 #[br(magic(b"DMXM"))]
 pub struct Mxmd {
     pub version: u32,
@@ -40,7 +39,7 @@ pub struct Mxmd {
 }
 
 #[binread]
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 #[br(stream = r)]
 pub struct Materials {
     #[br(temp, try_calc = r.stream_position())]
@@ -85,7 +84,7 @@ pub struct Materials {
     pub unks4: [u32; 4],
 }
 
-#[derive(BinRead, Debug, Serialize)]
+#[derive(BinRead, Debug)]
 #[br(import_raw(base_offset: u64))]
 pub struct MaterialUnk {
     #[br(parse_with = parse_offset_count, offset = base_offset)]
@@ -111,7 +110,7 @@ pub struct MaterialUnk {
     pub padding: [u32; 5],
 }
 
-#[derive(BinRead, Debug, Serialize)]
+#[derive(BinRead, Debug)]
 #[br(import_raw(base_offset: u64))]
 pub struct MaterialUnk1 {
     // count matches up with Material.unk_start_index?
@@ -122,7 +121,7 @@ pub struct MaterialUnk1 {
     pub unk2: Vec<u16>,
 }
 
-#[derive(BinRead, Debug, Serialize)]
+#[derive(BinRead, Debug)]
 pub struct Samplers {
     pub unk1: u32, // count?
     pub unk2: u32, // offset?
@@ -134,11 +133,9 @@ pub struct Samplers {
     pub samplers: Vec<Sampler>,
 }
 
-#[derive(BinRead, Debug, Serialize)]
+#[derive(BinRead, Debug)]
 pub struct Sampler {
-    // TODO: Serialize bitfields like structs?
     #[br(map(|x: u32| x.into()))]
-    #[serde(skip_serializing)]
     pub flags: SamplerFlags,
 
     // Is this actually a float?
@@ -170,7 +167,7 @@ pub struct SamplerFlags {
     pub unk: u23,
 }
 
-#[derive(BinRead, Debug, Serialize)]
+#[derive(BinRead, Debug)]
 #[br(import_raw(base_offset: u64))]
 pub struct Material {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
@@ -215,7 +212,7 @@ pub struct Material {
     pub m_unks2: [u16; 12],
 }
 
-#[derive(BinRead, Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[derive(BinRead, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct MaterialFlags {
     pub flag0: u8,
     pub blend_state: BlendState,
@@ -235,7 +232,7 @@ pub struct MaterialFlags {
 // 2, Src Alpha, One, Add, Src Alpha, One, Add
 // 3, Zero, Src Col, Add, Zero, Src Col, Add
 // 6, disabled + ???
-#[derive(BinRead, Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[derive(BinRead, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[br(repr(u8))]
 pub enum BlendState {
     Disabled = 0,
@@ -249,7 +246,7 @@ pub enum BlendState {
 // 0 = disables hair blur stencil stuff?
 // 4 = disables hair but different ref value?
 // 16 = enables hair blur stencil stuff?
-#[derive(BinRead, Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[derive(BinRead, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[br(repr(u8))]
 pub enum StencilState1 {
     Always = 0,
@@ -263,7 +260,7 @@ pub enum StencilState1 {
 }
 
 // TODO: Does this flag actually disable stencil?
-#[derive(BinRead, Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[derive(BinRead, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[br(repr(u8))]
 pub enum StencilState2 {
     Disabled = 0,
@@ -274,7 +271,7 @@ pub enum StencilState2 {
     Unk8 = 8,
 }
 
-#[derive(BinRead, Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[derive(BinRead, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[br(repr(u8))]
 pub enum DepthFunc {
     Disabled = 0,
@@ -282,7 +279,7 @@ pub enum DepthFunc {
     Equal = 3,
 }
 
-#[derive(BinRead, Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[derive(BinRead, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[br(repr(u8))]
 pub enum CullMode {
     Back = 0,
@@ -291,7 +288,7 @@ pub enum CullMode {
     Unk3 = 3, // front + ???
 }
 
-#[derive(BinRead, Debug, Serialize)]
+#[derive(BinRead, Debug)]
 pub struct ShaderProgram {
     pub program_index: u32, // index into programs in wismt?
     pub unk_type: ShaderUnkType,
@@ -305,7 +302,7 @@ pub struct ShaderProgram {
 // _ope = 0,1,7
 // _zpre = 0
 // _outline = 0
-#[derive(BinRead, Debug, PartialEq, Eq, Clone, Copy, Serialize)]
+#[derive(BinRead, Debug, PartialEq, Eq, Clone, Copy)]
 #[br(repr(u16))]
 pub enum ShaderUnkType {
     Unk0 = 0, // main opaque + some transparent?
@@ -315,7 +312,7 @@ pub enum ShaderUnkType {
     Unk9 = 9, // used for maps?
 }
 
-#[derive(BinRead, Debug, Serialize)]
+#[derive(BinRead, Debug)]
 pub struct Texture {
     pub texture_index: u16,
     pub sampler_index: u16,
@@ -324,7 +321,7 @@ pub struct Texture {
 }
 
 #[binread]
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 #[br(stream = r)]
 pub struct Models {
     #[br(temp, try_calc = r.stream_position())]
@@ -357,7 +354,7 @@ pub struct Models {
 /// A collection of meshes where each [Mesh] represents one draw call.
 ///
 /// Each [Model] has an associated [VertexData](crate::vertex::VertexData) containing vertex and index buffers.
-#[derive(BinRead, Debug, Serialize)]
+#[derive(BinRead, Debug)]
 #[br(import_raw(base_offset: u64))]
 pub struct Model {
     #[br(parse_with = parse_offset_count, offset = base_offset)]
@@ -370,7 +367,7 @@ pub struct Model {
     unks: [u32; 7],
 }
 
-#[derive(BinRead, Debug, Serialize)]
+#[derive(BinRead, Debug)]
 pub struct Mesh {
     flags1: u32,
     flags2: u32,
@@ -388,7 +385,7 @@ pub struct Mesh {
 }
 
 #[binread]
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 #[br(stream = r)]
 pub struct MeshUnk1 {
     #[br(temp, try_calc = r.stream_position())]
@@ -400,7 +397,7 @@ pub struct MeshUnk1 {
     unk1: [u32; 14],
 }
 
-#[derive(BinRead, Debug, Serialize)]
+#[derive(BinRead, Debug)]
 #[br(import_raw(base_offset: u64))]
 pub struct MeshUnk1Inner {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
@@ -410,7 +407,7 @@ pub struct MeshUnk1Inner {
 }
 
 #[binread]
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 #[br(stream = r)]
 pub struct LodData {
     #[br(temp, try_calc = r.stream_position())]
@@ -427,7 +424,7 @@ pub struct LodData {
 }
 
 #[binread]
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 #[br(stream = r)]
 pub struct Textures {
     // TODO: The fields change depending on some sort of flag?
@@ -437,7 +434,7 @@ pub struct Textures {
     pub inner: TexturesInner,
 }
 
-#[derive(BinRead, Debug, Serialize)]
+#[derive(BinRead, Debug)]
 #[br(import_raw(tag: u32))]
 pub enum TexturesInner {
     #[br(pre_assert(tag == 0))]
@@ -447,7 +444,7 @@ pub enum TexturesInner {
 }
 
 #[binread]
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 #[br(stream = r)]
 pub struct Textures1 {
     // Subtract the tag size.
@@ -468,7 +465,7 @@ pub struct Textures1 {
 }
 
 #[binread]
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 #[br(stream = r)]
 pub struct Textures2 {
     // Subtract the tag size.
@@ -503,7 +500,7 @@ pub struct Textures2 {
     resources: Vec<TextureResource>,
 }
 
-#[derive(BinRead, Debug, Serialize)]
+#[derive(BinRead, Debug)]
 pub struct TexturesUnk {
     unk1: u32,
     unk2: u32,
@@ -511,7 +508,7 @@ pub struct TexturesUnk {
 }
 
 #[binread]
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 #[br(stream = r)]
 pub struct PackedTextures {
     #[br(temp, try_calc = r.stream_position())]
@@ -524,7 +521,7 @@ pub struct PackedTextures {
     strings_offset: u32,
 }
 
-#[derive(BinRead, Debug, Serialize)]
+#[derive(BinRead, Debug)]
 #[br(import_raw(base_offset: u64))]
 pub struct PackedTexture {
     unk1: u32,
@@ -539,7 +536,7 @@ pub struct PackedTexture {
 
 // TODO: The alignment here is only 2?
 #[binread]
-#[derive(Debug, Xc3Write, Serialize)]
+#[derive(Debug, Xc3Write)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct PackedExternalTextures {
@@ -554,7 +551,7 @@ pub struct PackedExternalTextures {
     pub strings_offset: u32,
 }
 
-#[derive(BinRead, Xc3Write, Debug, Serialize)]
+#[derive(BinRead, Xc3Write, Debug)]
 #[br(import_raw(base_offset: u64))]
 pub struct PackedExternalTexture {
     pub unk1: u32,
@@ -569,7 +566,7 @@ pub struct PackedExternalTexture {
 }
 
 #[binread]
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 #[br(stream = r)]
 pub struct Skeleton {
     #[br(temp, try_calc = r.stream_position())]
@@ -601,7 +598,7 @@ pub struct Skeleton {
     pub unk_offset4: u32,
 }
 
-#[derive(BinRead, Debug, Serialize)]
+#[derive(BinRead, Debug)]
 #[br(import_raw(base_offset: u64))]
 pub struct Bone {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
@@ -614,7 +611,7 @@ pub struct Bone {
 
 // TODO: pointer to decl_gbl_cac in ch001011011.wimdo?
 #[binread]
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 #[br(stream = r)]
 pub struct Unk1 {
     #[br(temp, try_calc = r.stream_position())]
@@ -634,13 +631,13 @@ pub struct Unk1 {
     pub unk4: Vec<Unk1Unk4>,
 }
 
-#[derive(BinRead, Debug, Serialize)]
+#[derive(BinRead, Debug)]
 pub struct Unk1Unk1 {
     pub index: u16,
     pub unk2: u16, // 1
 }
 
-#[derive(BinRead, Debug, Serialize)]
+#[derive(BinRead, Debug)]
 pub struct Unk1Unk2 {
     pub unk1: u16, // 0
     pub index: u16,
@@ -649,7 +646,7 @@ pub struct Unk1Unk2 {
     pub unk5: u32, // 0
 }
 
-#[derive(BinRead, Debug, Serialize)]
+#[derive(BinRead, Debug)]
 pub struct Unk1Unk3 {
     pub unk1: u16,
     pub unk2: u16,
@@ -660,7 +657,7 @@ pub struct Unk1Unk3 {
     pub unk7: u16,
 }
 
-#[derive(BinRead, Debug, Serialize)]
+#[derive(BinRead, Debug)]
 pub struct Unk1Unk4 {
     pub unk1: f32,
     pub unk2: f32,

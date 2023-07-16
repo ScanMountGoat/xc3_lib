@@ -3,7 +3,6 @@ use std::io::SeekFrom;
 use anyhow::Result;
 use binrw::{binrw, BinRead, BinWrite};
 use ddsfile::Dds;
-use serde::Serialize;
 use tegra_swizzle::{surface::BlockDim, SwizzleError};
 
 use crate::dds::create_dds;
@@ -11,7 +10,7 @@ use crate::dds::create_dds;
 /// Image texture data.
 /// Used in `.witex` or `.witx` files or embedded in `.wismt` files.
 // TODO: also .wiltp and .wilay?
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Mibl {
     pub image_data: Vec<u8>,
     pub footer: MiblFooter,
@@ -20,7 +19,7 @@ pub struct Mibl {
 const MIBL_FOOTER_SIZE: usize = 40;
 
 #[binrw]
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct MiblFooter {
     /// Swizzled image size for the entire surface aligned to 4096 (0x1000).
     pub image_size: u32,
@@ -39,7 +38,7 @@ pub struct MiblFooter {
     magic: (),
 }
 
-#[derive(BinRead, BinWrite, Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(BinRead, BinWrite, Debug, Clone, Copy, PartialEq, Eq)]
 #[brw(repr(u32))]
 pub enum ViewDimension {
     D2 = 1,
@@ -47,7 +46,7 @@ pub enum ViewDimension {
     Cube = 8,
 }
 
-#[derive(BinRead, BinWrite, Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(BinRead, BinWrite, Debug, Clone, Copy, PartialEq, Eq)]
 #[brw(repr(u32))]
 pub enum ImageFormat {
     R8Unorm = 1,

@@ -30,9 +30,10 @@ pub fn extract_shader_binaries<P: AsRef<Path>>(
             // Each NVSD has separate metadata since the shaders are different.
             let metadata = &slct.nvsds[i].inner;
 
-            let json_file = output_folder.as_ref().join(&format!("{name}.json"));
-            let json = serde_json::to_string_pretty(&metadata).unwrap();
-            std::fs::write(json_file, json).unwrap();
+            // This doesn't need to be parsed, so just use debug output for now.
+            let txt_file = output_folder.as_ref().join(&format!("{name}.txt"));
+            let text = format!("{:#?}", &metadata);
+            std::fs::write(txt_file, text).unwrap();
 
             // Decompile using Ryujinx.ShaderTools.exe.
             // There isn't Rust code for this, so just take an exe path.

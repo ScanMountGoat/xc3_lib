@@ -2,13 +2,12 @@ use std::io::Read;
 
 use binrw::{BinRead, BinResult, BinWrite, NullString};
 use flate2::{bufread::ZlibEncoder, Compression};
-use serde::Serialize;
 use zune_inflate::{errors::InflateDecodeErrors, DeflateDecoder, DeflateOptions};
 
 use crate::write::Xc3Write;
 
 // TODO: test read + write
-#[derive(BinRead, BinWrite, Debug, Serialize)]
+#[derive(BinRead, BinWrite, Debug)]
 #[brw(magic(b"xbc1"))]
 pub struct Xbc1 {
     unk1: u32,
@@ -27,7 +26,6 @@ pub struct Xbc1 {
     /// The decompressed or "inflated" stream will have size [decomp_size](#structfield.decomp_size).
     #[br(count = comp_size)]
     #[brw(align_after = 16)]
-    #[serde(skip)]
     pub deflate_stream: Vec<u8>,
 }
 

@@ -4,11 +4,10 @@ use crate::{
     parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
 };
 use binrw::{args, binread, BinRead, BinReaderExt};
-use serde::Serialize;
 
 /// .wishp, embedded in .wismt and .wimdo
 #[binread]
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 #[br(magic(b"HCPS"))]
 #[br(stream = r)]
 pub struct Spch {
@@ -54,7 +53,7 @@ pub struct Spch {
     // end of header?
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub struct StringSection {
     pub program_names: Vec<String>,
 }
@@ -87,14 +86,14 @@ impl BinRead for StringSection {
     }
 }
 
-#[derive(BinRead, Debug, Serialize)]
+#[derive(BinRead, Debug)]
 pub struct ShaderProgram {
     pub slct_offset: u32,
     unk1: u32,
 }
 
 #[binread]
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 #[br(magic(b"SLCT"))]
 #[br(stream = r)]
 pub struct Slct {
@@ -130,7 +129,7 @@ pub struct Slct {
     // end of slct main header?
 }
 
-#[derive(BinRead, Debug, Serialize)]
+#[derive(BinRead, Debug)]
 #[br(import_raw(base_offset: u64))]
 struct UnkString {
     unk1: u32,
@@ -139,7 +138,7 @@ struct UnkString {
     text: String,
 }
 
-#[derive(BinRead, Debug, Serialize)]
+#[derive(BinRead, Debug)]
 #[br(import_raw(base_offset: u64))]
 pub struct NvsdMetadataOffset {
     #[br(parse_with = parse_ptr32, offset = base_offset)]
@@ -148,7 +147,7 @@ pub struct NvsdMetadataOffset {
 }
 
 #[binread]
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 #[br(stream = r)]
 pub struct NvsdMetadata {
     #[br(temp, try_calc = r.stream_position())]
@@ -209,7 +208,7 @@ pub struct NvsdMetadata {
 }
 
 // TODO: add read method to slct?
-#[derive(BinRead, Debug, Serialize)]
+#[derive(BinRead, Debug)]
 pub struct UnkItem {
     unk1: u32,
     unk2: u32,
@@ -227,7 +226,7 @@ pub struct UnkItem {
 }
 
 // TODO: Create a more meaningful default?
-#[derive(BinRead, Debug, Serialize, Default)]
+#[derive(BinRead, Debug, Default)]
 #[br(magic(b"NVSD"))]
 pub struct Nvsd {
     version: u32,
@@ -253,7 +252,7 @@ pub struct Nvsd {
 }
 
 // TODO: CBuffer?
-#[derive(BinRead, Debug, Serialize)]
+#[derive(BinRead, Debug)]
 #[br(import { base_offset: u64 })]
 pub struct UniformBuffer {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
@@ -265,7 +264,7 @@ pub struct UniformBuffer {
     pub unk5: u16,
 }
 
-#[derive(BinRead, Debug, Serialize)]
+#[derive(BinRead, Debug)]
 #[br(import { base_offset: u64 })]
 pub struct Sampler {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
@@ -275,7 +274,7 @@ pub struct Sampler {
 }
 
 /// A `vec4` parameter in a [UniformBuffer].
-#[derive(BinRead, Debug, Serialize)]
+#[derive(BinRead, Debug)]
 #[br(import_raw(base_offset: u64))]
 pub struct Uniform {
     /// The name used to refer to the uniform like `gMatCol`.
@@ -287,7 +286,7 @@ pub struct Uniform {
     pub buffer_offset: u32,
 }
 
-#[derive(BinRead, Debug, Serialize)]
+#[derive(BinRead, Debug)]
 #[br(import_raw(base_offset: u64))]
 pub struct InputAttribute {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]

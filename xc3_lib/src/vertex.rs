@@ -3,11 +3,10 @@ use crate::{
     write::{round_up, xc3_write_binwrite_impl, Xc3Write},
 };
 use binrw::{args, binread, BinRead, BinResult, BinWrite};
-use serde::Serialize;
 
 /// Vertex and vertex index buffer data used by a [Model](crate::mxmd::Model).
 #[binread]
-#[derive(Debug, Xc3Write, Serialize)]
+#[derive(Debug, Xc3Write)]
 #[br(stream = r)]
 pub struct VertexData {
     #[br(temp, try_calc = r.stream_position())]
@@ -62,7 +61,7 @@ pub struct VertexData {
     unks: [u32; 5],
 }
 
-#[derive(BinRead, Xc3Write, Debug, Serialize)]
+#[derive(BinRead, Xc3Write, Debug)]
 #[br(import_raw(base_offset: u64))]
 pub struct VertexBufferDescriptor {
     /// The offset into [buffer](struct.VertexData.html#structfield.buffer).
@@ -81,13 +80,13 @@ pub struct VertexBufferDescriptor {
     pub unk3: u32,
 }
 
-#[derive(BinRead, BinWrite, Debug, Serialize)]
+#[derive(BinRead, BinWrite, Debug)]
 pub struct VertexAttribute {
     pub data_type: DataType,
     pub data_size: u16,
 }
 
-#[derive(BinRead, BinWrite, Debug, Serialize)]
+#[derive(BinRead, BinWrite, Debug)]
 #[brw(repr(u16))]
 pub enum DataType {
     /// Float32x3 position.
@@ -124,7 +123,7 @@ pub enum DataType {
 }
 
 // TODO: Is this data always u16?
-#[derive(BinRead, BinWrite, Debug, Serialize)]
+#[derive(BinRead, BinWrite, Debug)]
 pub struct IndexBufferDescriptor {
     /// The offset into [buffer](struct.VertexData.html#structfield.buffer).
     pub data_offset: u32,
@@ -136,21 +135,21 @@ pub struct IndexBufferDescriptor {
     unk4: u32,
 }
 
-#[derive(BinRead, BinWrite, Debug, Serialize)]
+#[derive(BinRead, BinWrite, Debug)]
 #[brw(repr(u16))]
 pub enum Unk1 {
     Unk0 = 0,
     Unk3 = 3,
 }
 
-#[derive(BinRead, BinWrite, Debug, Serialize)]
+#[derive(BinRead, BinWrite, Debug)]
 #[brw(repr(u16))]
 pub enum Unk2 {
     Unk0 = 0,
 }
 
 /// Vertex animation data often called "vertex morphs", "shape keys", or "blend shapes".
-#[derive(BinRead, Xc3Write, Debug, Serialize)]
+#[derive(BinRead, Xc3Write, Debug)]
 pub struct VertexAnimation {
     #[br(parse_with = parse_count_offset)]
     #[xc3(count_offset)]
@@ -164,7 +163,7 @@ pub struct VertexAnimation {
     pub unks: [u32; 4],
 }
 
-#[derive(BinRead, Xc3Write, Debug, Serialize)]
+#[derive(BinRead, Xc3Write, Debug)]
 pub struct VertexAnimationDescriptor {
     pub vertex_buffer_index: u32,
     pub target_start_index: u32,
@@ -183,7 +182,7 @@ pub struct VertexAnimationDescriptor {
 
 // TODO: vertex attributes for vertex animation data?
 /// A set of target vertex values similar to a keyframe in traditional animations.
-#[derive(BinRead, BinWrite, Debug, Serialize)]
+#[derive(BinRead, BinWrite, Debug)]
 pub struct VertexAnimationTarget {
     /// Relative to [data_base_offset](struct.ModelData.html#structfield.data_base_offset)
     pub data_offset: u32,
@@ -195,7 +194,7 @@ pub struct VertexAnimationTarget {
 // TODO: How are weights assigned to vertices?
 // TODO: Skinning happens in the vertex shader?
 // TODO: Where are the skin weights in the vertex shader?
-#[derive(BinRead, Xc3Write, Debug, Serialize)]
+#[derive(BinRead, Xc3Write, Debug)]
 pub struct Weights {
     #[br(parse_with = parse_count_offset)]
     #[xc3(count_offset)]
@@ -215,7 +214,7 @@ pub struct Weights {
     unks5: [u32; 4], // padding?
 }
 
-#[derive(BinRead, BinWrite, Debug, Serialize)]
+#[derive(BinRead, BinWrite, Debug)]
 pub struct WeightGroup {
     // offsets are just the sum of the previous counts?
     unk1: u32, // offset?
@@ -224,13 +223,13 @@ pub struct WeightGroup {
     unks: [u32; 7],
 }
 
-#[derive(BinRead, BinWrite, Debug, Serialize)]
+#[derive(BinRead, BinWrite, Debug)]
 pub struct WeightLod {
     unks: [u16; 9],
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Serialize)]
+#[derive(Debug, Xc3Write)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Unk {
@@ -251,7 +250,7 @@ pub struct Unk {
     unks: [u32; 8],
 }
 
-#[derive(BinRead, BinWrite, Debug, Serialize)]
+#[derive(BinRead, BinWrite, Debug)]
 pub struct UnkInner {
     unk1: u16,
     unk2: u16,
@@ -261,7 +260,7 @@ pub struct UnkInner {
     unk6: u32,
 }
 
-#[derive(BinRead, BinWrite, Debug, Serialize)]
+#[derive(BinRead, BinWrite, Debug)]
 pub struct VertexBufferInfo {
     flags: u16,
     outline_buffer_index: u16,
@@ -271,7 +270,7 @@ pub struct VertexBufferInfo {
     unk: u32,
 }
 
-#[derive(BinRead, BinWrite, Debug, Serialize)]
+#[derive(BinRead, BinWrite, Debug)]
 pub struct OutlineBuffer {
     /// The offset into [buffer](struct.VertexData.html#structfield.buffer).
     pub data_offset: u32,

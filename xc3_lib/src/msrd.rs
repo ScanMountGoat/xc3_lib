@@ -10,11 +10,10 @@ use crate::{
     xbc1::Xbc1,
 };
 use binrw::{binread, BinRead, BinResult, BinWrite};
-use serde::Serialize;
 
 /// .wismt model files in `chr/bt`, `chr/ch/`, `chr/en`, `chr/oj`, and `chr/wp`.
 #[binread]
-#[derive(Debug, Xc3Write, Serialize)]
+#[derive(Debug, Xc3Write)]
 #[br(magic(b"DRSM"))]
 #[xc3(magic(b"DRSM"))]
 pub struct Msrd {
@@ -65,7 +64,7 @@ pub struct Msrd {
     pub unk: [u32; 4],
 }
 
-#[derive(BinRead, BinWrite, Debug, Serialize)]
+#[derive(BinRead, BinWrite, Debug)]
 pub struct StreamEntry {
     pub offset: u32,
     pub size: u32,
@@ -75,7 +74,7 @@ pub struct StreamEntry {
     pub unk: [u32; 2],
 }
 
-#[derive(BinRead, BinWrite, Debug, Serialize, PartialEq, Eq)]
+#[derive(BinRead, BinWrite, Debug, PartialEq, Eq)]
 #[brw(repr(u16))]
 pub enum EntryType {
     Model = 0,
@@ -84,7 +83,7 @@ pub enum EntryType {
     Texture = 3,
 }
 
-#[derive(BinRead, Xc3Write, Debug, Serialize)]
+#[derive(BinRead, Xc3Write, Debug)]
 pub struct Stream {
     pub comp_size: u32,
     pub decomp_size: u32, // TODO: slightly larger than xbc1 decomp size?
@@ -93,7 +92,7 @@ pub struct Stream {
     pub xbc1: Xbc1,
 }
 
-#[derive(BinRead, BinWrite, Debug, Serialize)]
+#[derive(BinRead, BinWrite, Debug)]
 pub struct TextureResource {
     // TODO: The the texture name hash as an integer?
     pub hash: u32,
