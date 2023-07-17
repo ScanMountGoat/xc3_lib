@@ -37,10 +37,10 @@ struct MaterialKey {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct GeneratedImageKey {
     root_index: usize,
-    red_index: Option<usize>,
-    green_index: Option<usize>,
-    blue_index: Option<usize>,
-    alpha_index: Option<usize>,
+    red_index: Option<(usize, usize)>,
+    green_index: Option<(usize, usize)>,
+    blue_index: Option<(usize, usize)>,
+    alpha_index: Option<(usize, usize)>,
     recalculate_normal_z: bool,
     invert_green: bool,
 }
@@ -410,6 +410,17 @@ fn create_material(
             extensions: None,
             extras: Default::default(),
         }),
+        occlusion_texture: metallic_roughness_index.map(|i| {
+            gltf::json::material::OcclusionTexture {
+                // Only the red channel is sampled for the occlusion texture.
+                // We can reuse the metallic roughness texture red channel here.
+                index: gltf::json::Index::new(i),
+                strength: gltf::json::material::StrengthFactor(1.0),
+                tex_coord: 0,
+                extensions: None,
+                extras: Default::default(),
+            }
+        }),
         ..Default::default()
     }
 }
@@ -419,10 +430,10 @@ fn albedo_generated_key(
     material: &crate::Material,
     root_index: usize,
 ) -> Option<GeneratedImageKey> {
-    let red_index = texture_index(material, 0, 'x');
-    let green_index = texture_index(material, 0, 'y');
-    let blue_index = texture_index(material, 0, 'z');
-    let alpha_index = texture_index(material, 0, 'w');
+    let red_index = texture_channel_index(material, 0, 'x');
+    let green_index = texture_channel_index(material, 0, 'y');
+    let blue_index = texture_channel_index(material, 0, 'z');
+    let alpha_index = texture_channel_index(material, 0, 'w');
 
     Some(GeneratedImageKey {
         root_index,
@@ -439,17 +450,15 @@ fn normal_generated_key(
     material: &crate::Material,
     root_index: usize,
 ) -> Option<GeneratedImageKey> {
-    let red_index = texture_index(material, 2, 'x');
-    let green_index = texture_index(material, 2, 'y');
-    let blue_index = texture_index(material, 2, 'z');
-    let alpha_index = texture_index(material, 2, 'w');
+    let red_index = texture_channel_index(material, 2, 'x');
+    let green_index = texture_channel_index(material, 2, 'y');
 
     Some(GeneratedImageKey {
         root_index,
         red_index,
         green_index,
-        blue_index,
-        alpha_index,
+        blue_index: None,
+        alpha_index: None,
         recalculate_normal_z: true,
         invert_green: false,
     })
@@ -459,13 +468,15 @@ fn metallic_roughness_generated_key(
     material: &crate::Material,
     root_index: usize,
 ) -> Option<GeneratedImageKey> {
-    let metalness_index = texture_index(material, 1, 'x');
-    let glossiness_index = texture_index(material, 1, 'y');
+    // The red channel is unused, we can pack occlusion here.
+    let occlusion_index = texture_channel_index(material, 2, 'z');
+    let metalness_index = texture_channel_index(material, 1, 'x');
+    let glossiness_index = texture_channel_index(material, 1, 'y');
 
     // Invert the glossiness since glTF uses roughness.
     Some(GeneratedImageKey {
         root_index,
-        red_index: None,
+        red_index: occlusion_index,
         green_index: glossiness_index,
         blue_index: metalness_index,
         alpha_index: None,
@@ -478,24 +489,26 @@ fn generate_image(
     key: GeneratedImageKey,
     original_images: &BTreeMap<ImageKey, image::RgbaImage>,
 ) -> Option<image::RgbaImage> {
-    let find_image = |index: Option<usize>| {
-        index.and_then(|image_index| {
-            original_images.get(&ImageKey {
-                root_index: key.root_index,
-                image_index,
-            })
+    let find_image_channel = |index: Option<(usize, usize)>| {
+        index.and_then(|(image_index, channel)| {
+            original_images
+                .get(&ImageKey {
+                    root_index: key.root_index,
+                    image_index,
+                })
+                .map(|image| (image, channel))
         })
     };
 
-    let red_image = find_image(key.red_index);
-    let green_image = find_image(key.green_index);
-    let blue_image = find_image(key.blue_index);
-    let alpha_image = find_image(key.alpha_index);
+    let red_image = find_image_channel(key.red_index);
+    let green_image = find_image_channel(key.green_index);
+    let blue_image = find_image_channel(key.blue_index);
+    let alpha_image = find_image_channel(key.alpha_index);
 
     // Use the dimensions of the largest image to avoid quality loss.
     let (width, height) = [red_image, green_image, blue_image, alpha_image]
         .iter()
-        .filter_map(|i| i.map(|i| i.dimensions()))
+        .filter_map(|i| i.map(|(i, _)| i.dimensions()))
         .max()?;
 
     // Start with a fully opaque black image.
@@ -532,32 +545,41 @@ fn generate_image(
 }
 
 fn assign_channel(
-    image: &mut image::RgbaImage,
-    channel: Option<&image::RgbaImage>,
-    channel_index: usize,
+    output: &mut image::RgbaImage,
+    image_channel: Option<(&image::RgbaImage, usize)>,
+    output_channel: usize,
 ) {
-    if let Some(channel) = channel {
-        for (pixel, channel_pixel) in image.pixels_mut().zip(channel.pixels()) {
-            pixel[channel_index] = channel_pixel[channel_index];
+    if let Some((image, channel)) = image_channel {
+        for (pixel, channel_pixel) in output.pixels_mut().zip(image.pixels()) {
+            pixel[output_channel] = channel_pixel[channel];
         }
     }
 }
 
 fn image_name(key: &GeneratedImageKey) -> String {
-    // TODO: Don't include missing channels?
-    format!(
-        "root{}_{}_{}_{}_{}.png",
-        key.root_index,
-        key.red_index.unwrap_or_default(),
-        key.green_index.unwrap_or_default(),
-        key.blue_index.unwrap_or_default(),
-        key.alpha_index.unwrap_or_default()
-    )
+    let mut name = format!("root{}", key.root_index);
+    if let Some((i, c)) = key.red_index {
+        name += &format!("_r{i}[{c}]");
+    }
+    if let Some((i, c)) = key.green_index {
+        name += &format!("_g{i}[{c}]");
+    }
+    if let Some((i, c)) = key.blue_index {
+        name += &format!("_b{i}[{c}]");
+    }
+    if let Some((i, c)) = key.alpha_index {
+        name += &format!("_a{i}[{c}]");
+    }
+    name + ".png"
 }
 
-fn texture_index(material: &crate::Material, gbuffer_index: usize, channel: char) -> Option<usize> {
+fn texture_channel_index(
+    material: &crate::Material,
+    gbuffer_index: usize,
+    channel: char,
+) -> Option<(usize, usize)> {
     // Find the sampler from the material.
-    let (sampler_index, _) = material
+    let (sampler_index, channel_index) = material
         .shader
         .as_ref()?
         .material_channel_assignment(gbuffer_index, channel)?;
@@ -566,7 +588,7 @@ fn texture_index(material: &crate::Material, gbuffer_index: usize, channel: char
     material
         .textures
         .get(sampler_index as usize)
-        .map(|t| t.image_texture_index)
+        .map(|t| (t.image_texture_index, channel_index as usize))
 }
 
 fn create_buffers(roots: &[ModelRoot], buffer_name: String) -> Buffers {
