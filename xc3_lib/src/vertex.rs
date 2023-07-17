@@ -217,13 +217,20 @@ pub struct Weights {
     unks5: [u32; 4], // padding?
 }
 
+// TODO: Counts up to the total number of "vertices" in the skin weights buffer?
+// TODO: How to select the weight group for each mesh in the model?
 #[derive(BinRead, BinWrite, Debug)]
 pub struct WeightGroup {
     // offsets are just the sum of the previous counts?
-    unk1: u32, // offset?
-    unk2: u32, // offset?
-    unk3: u32, // count?
-    unks: [u32; 7],
+    pub unk1: u32, // offset?
+    pub unk2: u32, // offset?
+    pub unk3: u32, // count?
+    pub unks: [u32; 4],
+    pub pass_index: u8,
+    pub lod_index: u8,
+    pub unk_value: u8,
+    pub unk4: u8,
+    pub unks2: [u32; 2],
 }
 
 #[derive(BinRead, BinWrite, Debug)]

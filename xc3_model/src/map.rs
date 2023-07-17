@@ -169,7 +169,7 @@ fn load_prop_model_group(
         add_animated_part_instances(&mut models, model_data, parts);
     }
 
-    ModelGroup { models, materials }
+    ModelGroup { models, materials, skeleton: None }
 }
 
 fn add_animated_part_instances(
@@ -270,7 +270,7 @@ fn load_map_model_group(
         }
     }
 
-    ModelGroup { models, materials }
+    ModelGroup { models, materials, skeleton: None }
 }
 
 fn load_env_model(
@@ -310,7 +310,7 @@ fn load_env_model(
         .collect();
 
     ModelRoot {
-        groups: vec![ModelGroup { models, materials }],
+        groups: vec![ModelGroup { models, materials, skeleton: None }],
         image_textures,
     }
 }
@@ -346,7 +346,7 @@ fn load_foliage_model(
         .collect();
 
     ModelRoot {
-        groups: vec![ModelGroup { models, materials }],
+        groups: vec![ModelGroup { models, materials, skeleton: None }],
         image_textures,
     }
 }

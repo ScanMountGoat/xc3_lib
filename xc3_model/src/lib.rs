@@ -4,11 +4,13 @@
 use std::path::Path;
 
 use glam::Mat4;
+use skeleton::Skeleton;
 use texture::{load_textures, ImageTexture};
 use vertex::{read_index_buffers, read_vertex_buffers, AttributeData};
 use xc3_lib::{
     msrd::Msrd,
     mxmd::{MaterialFlags, Materials, Mxmd, ShaderUnkType},
+    sar1::Sar1,
 };
 use xc3_shader::gbuffer_database::{GBufferDatabase, Shader};
 
@@ -16,6 +18,7 @@ pub use map::load_map;
 
 pub mod gltf;
 mod map;
+pub mod skeleton;
 pub mod texture;
 pub mod vertex;
 
@@ -30,6 +33,7 @@ pub struct ModelRoot {
 pub struct ModelGroup {
     pub models: Vec<Model>,
     pub materials: Vec<Material>,
+    pub skeleton: Option<Skeleton>,
 }
 
 #[derive(Debug)]
@@ -134,6 +138,16 @@ pub fn load_model<P: AsRef<Path>>(
 
     let materials = materials(&mxmd.materials, spch);
 
+    // TODO: Load skeleton from mxmd or chr?
+    let chr = Sar1::from_file(wimdo_path.as_ref().with_extension("chr")).unwrap();
+    let skeleton = chr.entries.iter().find_map(|e| match &e.data {
+        xc3_lib::sar1::EntryData::Bc(bc) => match &bc.data {
+            xc3_lib::sar1::BcData::Skel(skel) => Some(Skeleton::from_skel(&skel)),
+            _ => None,
+        },
+        _ => None,
+    });
+
     let models = mxmd
         .models
         .models
@@ -142,7 +156,11 @@ pub fn load_model<P: AsRef<Path>>(
         .collect();
 
     ModelRoot {
-        groups: vec![ModelGroup { materials, models }],
+        groups: vec![ModelGroup {
+            materials,
+            models,
+            skeleton,
+        }],
         image_textures,
     }
 }

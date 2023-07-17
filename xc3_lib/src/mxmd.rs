@@ -587,14 +587,17 @@ pub struct Skeleton {
     pub bones: Vec<Bone>,
 
     // TODO: Create a matrix type?
+    // TODO: column-major?
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: count1 as usize } })]
     pub transforms: Vec<[[f32; 4]; 4]>,
 
     pub unk_offset1: u32,
     pub unk_offset2: u32,
-    pub count3: u32,
-    pub unk_offset3: u32,
+
+    #[br(parse_with = parse_count_offset, offset = base_offset)]
+    pub unk3: Vec<u16>,
+
     pub unk_offset4: u32,
 }
 

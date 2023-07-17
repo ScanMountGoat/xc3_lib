@@ -262,7 +262,7 @@ pub struct Eva {
 
 #[derive(BinRead, Debug)]
 pub struct Transform {
-    pub position: [f32; 4],
+    pub translation: [f32; 4],
     pub rotation_quaternion: [f32; 4],
     pub scale: [f32; 4],
 }

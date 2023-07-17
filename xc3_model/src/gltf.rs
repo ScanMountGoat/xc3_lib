@@ -167,9 +167,12 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, roots: &[ModelRoot]) {
     let mut meshes = Vec::new();
     let mut nodes = Vec::new();
     let mut scene_nodes = Vec::new();
+    let mut skins = Vec::new();
 
     for (root_index, root) in roots.iter().enumerate() {
         for (group_index, group) in root.groups.iter().enumerate() {
+            let skin_index = create_skin(group, &mut nodes, &mut skins);
+
             let mut group_children = Vec::new();
 
             for (model_index, model) in group.models.iter().enumerate() {
@@ -248,7 +251,7 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, roots: &[ModelRoot]) {
                             rotation: None,
                             scale: None,
                             translation: None,
-                            skin: None,
+                            skin: skin_index.map(|i| gltf::json::Index::new(i as u32)),
                             weights: None,
                         };
                         let child_index = nodes.len() as u32;
@@ -335,6 +338,7 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, roots: &[ModelRoot]) {
         materials,
         textures: texture_cache.textures,
         images,
+        skins,
         ..Default::default()
     };
 
@@ -352,6 +356,74 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, roots: &[ModelRoot]) {
             let output = path.with_file_name(image_name(key));
             image.save(output).unwrap();
         });
+}
+
+fn create_skin(
+    group: &crate::ModelGroup,
+    nodes: &mut Vec<gltf::json::Node>,
+    skins: &mut Vec<gltf::json::Skin>,
+) -> Option<usize> {
+    group.skeleton.as_ref().map(|skeleton| {
+        let bone_start_index = nodes.len() as u32;
+        for (i, bone) in skeleton.bones.iter().enumerate() {
+            let children = find_children(skeleton, i);
+
+            let bone_node = gltf::json::Node {
+                camera: None,
+                children: if !children.is_empty() {
+                    Some(children)
+                } else {
+                    None
+                },
+                extensions: Default::default(),
+                extras: Default::default(),
+                matrix: Some(bone.transform.to_cols_array()),
+                mesh: None,
+                name: Some(bone.name.clone()),
+                rotation: None,
+                scale: None,
+                translation: None,
+                skin: None,
+                weights: None,
+            };
+            nodes.push(bone_node);
+        }
+
+        // TODO: Multiple roots for skeleton?
+        // TODO: inverse_bind_matrices accessor?
+        let skin = gltf::json::Skin {
+            extensions: Default::default(),
+            extras: Default::default(),
+            inverse_bind_matrices: None,
+            joints: (bone_start_index..bone_start_index + skeleton.bones.len() as u32)
+                .map(|i| gltf::json::Index::new(i))
+                .collect(),
+            name: None,
+            skeleton: None,
+        };
+        let skin_index = skins.len();
+        skins.push(skin);
+        skin_index
+    })
+}
+
+fn find_children(
+    skeleton: &crate::skeleton::Skeleton,
+    bone_index: usize,
+) -> Vec<gltf::json::Index<gltf::json::Node>> {
+    // TODO: is is worth optimizing this lookup?
+    skeleton
+        .bones
+        .iter()
+        .enumerate()
+        .filter_map(|(child_index, b)| {
+            if b.parent_index == Some(bone_index) {
+                Some(gltf::json::Index::new(child_index as u32))
+            } else {
+                None
+            }
+        })
+        .collect()
 }
 
 fn create_images(roots: &[ModelRoot]) -> BTreeMap<ImageKey, image::RgbaImage> {

@@ -272,8 +272,13 @@ fn set_attributes(verts: &mut [shader::model::VertexInput], buffer: &xc3_model::
                 set_attribute(verts, vals, |v, t| v.vertex_color = t)
             }
             AttributeData::WeightIndex(vals) => {
+                // TODO: Look up the weight data from the skinning buffer.
+                // TODO: Just precompute all the indirection for now.
+                // TODO: Switch to a separate skinning buffer later?
                 set_attribute(verts, vals, |v, t| v.weight_index = t)
             }
+            AttributeData::Weights(_) => (),
+            AttributeData::BoneIndices(_) => (),
         }
     }
 }
