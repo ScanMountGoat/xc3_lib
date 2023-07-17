@@ -1,7 +1,12 @@
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::BTreeMap,
+    io::{Cursor, Seek, Write},
+    path::Path,
+};
 
 use crate::{vertex::AttributeData, ModelRoot};
-use glam::{Mat4, Vec4Swizzles};
+use binrw::BinWrite;
+use glam::{Mat4, Vec2, Vec3, Vec4, Vec4Swizzles};
 use gltf::json::validation::Checked::Valid;
 use rayon::prelude::*;
 
@@ -731,8 +736,7 @@ fn add_index_buffers(
     accessors: &mut Vec<gltf::json::Accessor>,
 ) {
     for (i, index_buffer) in model.index_buffers.iter().enumerate() {
-        // TODO: enforce little endian instead of casting
-        let index_bytes: &[u8] = bytemuck::cast_slice(&index_buffer.indices);
+        let index_bytes = write_bytes(&index_buffer.indices);
 
         // Assume everything uses the same buffer for now.
         let view = gltf::json::buffer::View {
@@ -774,7 +778,7 @@ fn add_index_buffers(
 
         accessors.push(indices);
         buffer_views.push(view);
-        buffer_bytes.extend_from_slice(index_bytes);
+        buffer_bytes.extend_from_slice(&index_bytes);
     }
 }
 
@@ -880,7 +884,7 @@ fn add_vertex_buffers(
     }
 }
 
-fn add_attribute_values<T: bytemuck::Pod>(
+fn add_attribute_values<T: WriteBytes>(
     values: &[T],
     semantic: gltf::Semantic,
     components: gltf::json::accessor::Type,
@@ -889,8 +893,7 @@ fn add_attribute_values<T: bytemuck::Pod>(
     attributes: &mut GltfAttributes,
     accessors: &mut Vec<gltf::json::Accessor>,
 ) {
-    // TODO: enforce little endian instead of casting
-    let attribute_bytes = bytemuck::cast_slice(values);
+    let attribute_bytes = write_bytes(values);
 
     // Assume everything uses the same buffer for now.
     // Each attribute is in its own section and thus has its own view.
@@ -904,7 +907,7 @@ fn add_attribute_values<T: bytemuck::Pod>(
         name: None,
         target: Some(Valid(gltf::json::buffer::Target::ArrayBuffer)),
     };
-    buffer_bytes.extend_from_slice(attribute_bytes);
+    buffer_bytes.extend_from_slice(&attribute_bytes);
     // TODO: Alignment after each attribute?
 
     let accessor = gltf::json::Accessor {
@@ -930,4 +933,42 @@ fn add_attribute_values<T: bytemuck::Pod>(
     );
     accessors.push(accessor);
     buffer_views.push(view);
+}
+
+// gltf requires little endian for byte buffers.
+// Create a trait instead of using bytemuck.
+trait WriteBytes {
+    fn write<W: Write + Seek>(&self, writer: &mut W);
+}
+
+impl WriteBytes for u16 {
+    fn write<W: Write + Seek>(&self, writer: &mut W) {
+        self.write_le(writer).unwrap();
+    }
+}
+
+impl WriteBytes for Vec2 {
+    fn write<W: Write + Seek>(&self, writer: &mut W) {
+        self.to_array().write_le(writer).unwrap();
+    }
+}
+
+impl WriteBytes for Vec3 {
+    fn write<W: Write + Seek>(&self, writer: &mut W) {
+        self.to_array().write_le(writer).unwrap();
+    }
+}
+
+impl WriteBytes for Vec4 {
+    fn write<W: Write + Seek>(&self, writer: &mut W) {
+        self.to_array().write_le(writer).unwrap();
+    }
+}
+
+fn write_bytes<T: WriteBytes>(values: &[T]) -> Vec<u8> {
+    let mut writer = Cursor::new(Vec::new());
+    for v in values {
+        v.write(&mut writer);
+    }
+    writer.into_inner()
 }
