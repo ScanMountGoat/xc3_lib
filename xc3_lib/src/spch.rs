@@ -15,7 +15,7 @@ pub struct Spch {
     #[br(temp, try_calc = r.stream_position().map(|p| p - 4))]
     base_offset: u64,
 
-    version: u32,
+    pub version: u32,
 
     #[br(parse_with = parse_offset_count, offset = base_offset)]
     pub shader_programs: Vec<ShaderProgram>,
@@ -49,7 +49,7 @@ pub struct Spch {
     pub string_section: Option<StringSection>,
 
     #[br(pad_after = 16)]
-    unk7: u32,
+    pub unk7: u32,
     // end of header?
 }
 
@@ -89,7 +89,7 @@ impl BinRead for StringSection {
 #[derive(BinRead, Debug)]
 pub struct ShaderProgram {
     pub slct_offset: u32,
-    unk1: u32,
+    pub unk1: u32,
 }
 
 #[binread]
@@ -101,20 +101,20 @@ pub struct Slct {
     #[br(temp, try_calc = r.stream_position().map(|p| p - 4))]
     base_offset: u64,
 
-    unk1: u32,
+    pub unk1: u32,
 
     #[br(parse_with = parse_count_offset, args { offset: base_offset, inner: base_offset })]
-    unk_strings: Vec<UnkString>,
+    pub unk_strings: Vec<UnkString>,
 
     #[br(parse_with = parse_count_offset, args { offset: base_offset, inner: base_offset })]
     pub nvsds: Vec<NvsdMetadataOffset>,
 
-    unk5_count: u32,
-    unk5_offset: u32,
+    pub unk5_count: u32,
+    pub unk5_offset: u32,
 
-    unk_offset: u32,
+    pub unk_offset: u32,
 
-    unk_offset1: u32,
+    pub unk_offset1: u32,
 
     /// The offset into [unk_section](struct.Spch.html#structfield.unk_section).
     pub unk_item_offset: u32,
@@ -123,19 +123,19 @@ pub struct Slct {
     // relative to xv4 base offset
     pub xv4_offset: u32,
     // vertex + fragment size for all NVSDs
-    xv4_total_size: u32,
+    pub xv4_total_size: u32,
 
-    unks1: [u32; 4],
+    pub unks1: [u32; 4],
     // end of slct main header?
 }
 
 #[derive(BinRead, Debug)]
 #[br(import_raw(base_offset: u64))]
-struct UnkString {
-    unk1: u32,
-    unk2: u32,
+pub struct UnkString {
+    pub unk1: u32,
+    pub unk2: u32,
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
-    text: String,
+    pub text: String,
 }
 
 #[derive(BinRead, Debug)]
@@ -143,7 +143,7 @@ struct UnkString {
 pub struct NvsdMetadataOffset {
     #[br(parse_with = parse_ptr32, offset = base_offset)]
     pub inner: NvsdMetadata,
-    size: u32,
+    pub size: u32,
 }
 
 #[binread]
@@ -210,18 +210,18 @@ pub struct NvsdMetadata {
 // TODO: add read method to slct?
 #[derive(BinRead, Debug)]
 pub struct UnkItem {
-    unk1: u32,
-    unk2: u32,
-    unk3: u32,
-    unk4: u32,
-    unk5: u32,
+    pub unk1: u32,
+    pub unk2: u32,
+    pub unk3: u32,
+    pub unk4: u32,
+    pub unk5: u32,
 
     // TODO: relative to start of data for this unk item?
-    assembly_code_string_offset: u32,
-    assembly_code_string_length: u32,
+    pub assembly_code_string_offset: u32,
+    pub assembly_code_string_length: u32,
 
-    unk8: u32,
-    unk9: u32,
+    pub unk8: u32,
+    pub unk9: u32,
     // TODO: more fields?
 }
 
@@ -229,26 +229,26 @@ pub struct UnkItem {
 #[derive(BinRead, Debug, Default)]
 #[br(magic(b"NVSD"))]
 pub struct Nvsd {
-    version: u32,
-    unk1: u32, // 0
-    unk2: u32, // 0
-    unk3: u32, // identical to vertex_xv4_size?
-    unk4: u32, // 0
-    unk5: u32, // identical to unk_size1?
+    pub version: u32,
+    pub unk1: u32, // 0
+    pub unk2: u32, // 0
+    pub unk3: u32, // identical to vertex_xv4_size?
+    pub unk4: u32, // 0
+    pub unk5: u32, // identical to unk_size1?
     // end of nvsd?
 
     // TODO: this section isn't always present?
-    unk6: u32, // 1
+    pub unk6: u32, // 1
     /// The size of the vertex shader pointed to by the [Slct].
     pub vertex_xv4_size: u32,
     /// The size of the fragment shader pointed to by the [Slct].
     pub fragment_xv4_size: u32,
     // Corresponding unk entry size for the two shaders?
-    unk_size1: u32, // 2176
-    unk_size2: u32, // 2176
+    pub unk_size1: u32, // 2176
+    pub unk_size2: u32, // 2176
 
     // TODO: What controls this count?
-    unks4: [u16; 8],
+    pub unks4: [u16; 8],
 }
 
 // TODO: CBuffer?

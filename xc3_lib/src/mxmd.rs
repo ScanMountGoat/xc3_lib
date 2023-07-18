@@ -360,28 +360,28 @@ pub struct Model {
     #[br(parse_with = parse_offset_count, offset = base_offset)]
     pub meshes: Vec<Mesh>,
 
-    unk1: u32,
-    max_xyz: [f32; 3],
-    min_xyz: [f32; 3],
-    bounding_radius: f32,
-    unks: [u32; 7],
+    pub unk1: u32,
+    pub max_xyz: [f32; 3],
+    pub min_xyz: [f32; 3],
+    pub bounding_radius: f32,
+    pub unks: [u32; 7],
 }
 
 #[derive(BinRead, Debug)]
 pub struct Mesh {
-    flags1: u32,
-    flags2: u32,
+    pub flags1: u32,
+    pub flags2: u32,
     pub vertex_buffer_index: u16,
     pub index_buffer_index: u16,
-    unk_index: u16,
+    pub unk_index: u16,
     pub material_index: u16,
-    unk2: u32,
-    unk3: u32,
-    unk4: u32,
-    unk5: u16,
+    pub unk2: u32,
+    pub unk3: u32,
+    pub unk4: u32,
+    pub unk5: u16,
     pub lod: u16,
     // TODO: groups?
-    unks6: [i32; 4],
+    pub unks6: [i32; 4],
 }
 
 #[binread]
@@ -394,7 +394,7 @@ pub struct MeshUnk1 {
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset })]
     pub inner: MeshUnk1Inner,
-    unk1: [u32; 14],
+    pub unk1: [u32; 14],
 }
 
 #[derive(BinRead, Debug)]
@@ -403,7 +403,7 @@ pub struct MeshUnk1Inner {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     pub unk1: String,
 
-    unk2: [f32; 9],
+    pub unk2: [f32; 9],
 }
 
 #[binread]
@@ -413,14 +413,14 @@ pub struct LodData {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    unk1: u32,
+    pub unk1: u32,
 
     // another list?
-    unk2: u32,
-    unk3: u32,
+    pub unk2: u32,
+    pub unk3: u32,
 
     #[br(parse_with = parse_offset_count, offset = base_offset)]
-    items: Vec<(u16, u16)>,
+    pub items: Vec<(u16, u16)>,
 }
 
 #[binread]
@@ -428,7 +428,7 @@ pub struct LodData {
 #[br(stream = r)]
 pub struct Textures {
     // TODO: The fields change depending on some sort of flag?
-    tag: u32, // 4097 or sometimes 0?
+    pub tag: u32, // 4097 or sometimes 0?
 
     #[br(args_raw(tag))]
     pub inner: TexturesInner,
@@ -451,7 +451,7 @@ pub struct Textures1 {
     #[br(temp, try_calc = r.stream_position().map(|p| p - 4))]
     base_offset: u64,
 
-    unk1: u32, // TODO: count for multiple packed textures?
+    pub unk1: u32, // TODO: count for multiple packed textures?
     // low textures?
     #[br(parse_with = parse_ptr32, offset = base_offset)]
     pub textures1: PackedExternalTextures,
@@ -459,8 +459,8 @@ pub struct Textures1 {
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     pub textures2: Option<PackedExternalTextures>,
 
-    unk4: u32,
-    unk5: u32,
+    pub unk4: u32,
+    pub unk5: u32,
     // TODO: more fields?
 }
 
@@ -472,39 +472,39 @@ pub struct Textures2 {
     #[br(temp, try_calc = r.stream_position().map(|p| p - 4))]
     base_offset: u64,
 
-    unk2: u32, // 103
+    pub unk2: u32, // 103
 
     // TODO: count offset?
-    unk3: u32,
-    unk4: u32,
+    pub unk3: u32,
+    pub unk4: u32,
 
     // TODO: count?
-    unk5: u32,
+    pub unk5: u32,
 
     #[br(parse_with = parse_ptr32, offset = base_offset)]
-    unk_offset: TexturesUnk,
+    pub unk_offset: TexturesUnk,
 
-    unks2: [u32; 7],
+    pub unks2: [u32; 7],
 
     #[br(parse_with = parse_count_offset, offset = base_offset)]
-    indices: Vec<u16>,
+    pub indices: Vec<u16>,
 
     // TODO: separate PackedTextures and PackedExternalTextures?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     pub textures: Option<PackedExternalTextures>,
 
-    unk7: u32,
+    pub unk7: u32,
 
     // TODO: same as the type in msrd?
     #[br(parse_with = parse_count_offset, offset = base_offset)]
-    resources: Vec<TextureResource>,
+    pub resources: Vec<TextureResource>,
 }
 
 #[derive(BinRead, Debug)]
 pub struct TexturesUnk {
-    unk1: u32,
-    unk2: u32,
-    unk3: u32,
+    pub unk1: u32,
+    pub unk2: u32,
+    pub unk3: u32,
 }
 
 #[binread]
@@ -517,14 +517,14 @@ pub struct PackedTextures {
     #[br(parse_with = parse_count_offset, args { offset: base_offset, inner: base_offset })]
     pub textures: Vec<PackedTexture>,
 
-    unk2: u32,
-    strings_offset: u32,
+    pub unk2: u32,
+    pub strings_offset: u32,
 }
 
 #[derive(BinRead, Debug)]
 #[br(import_raw(base_offset: u64))]
 pub struct PackedTexture {
-    unk1: u32,
+    pub unk1: u32,
 
     // TODO: Optimized function for reading bytes?
     #[br(parse_with = parse_count_offset, offset = base_offset)]
