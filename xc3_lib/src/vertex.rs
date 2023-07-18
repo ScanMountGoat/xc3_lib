@@ -70,7 +70,7 @@ pub struct VertexBufferDescriptor {
     /// The size or stride of the vertex in bytes.
     pub vertex_size: u32,
 
-    // Corresponds to attributes in vertex shader?
+    /// A tightly packed list of attributes for the data for this buffer.
     #[br(parse_with = parse_offset_count, offset = base_offset)]
     #[xc3(offset_count)]
     pub attributes: Vec<VertexAttribute>,
@@ -80,12 +80,18 @@ pub struct VertexBufferDescriptor {
     pub unk3: u32,
 }
 
+/// A single attribute in a [VertexBufferDescriptor] like positions or normals.
+///
+/// Attributes are tightly packed, so the relative offset is
+/// the sum of previous attribute sizes.
 #[derive(BinRead, BinWrite, Debug)]
 pub struct VertexAttribute {
     pub data_type: DataType,
+    /// The size in bytes of [data_type](#structfield.data_type).
     pub data_size: u16,
 }
 
+/// The data type, usage, and component count for a [VertexAttribute].
 #[derive(BinRead, BinWrite, Debug)]
 #[brw(repr(u16))]
 pub enum DataType {
@@ -93,8 +99,10 @@ pub enum DataType {
     Position = 0,
     Unk1 = 1,
     Unk2 = 2,
-    // TODO: indexes into "vertices" in weights buffer?
-    WeightIndex = 3, // bone indices?
+    /// u32 index for the element in the weights buffer
+    /// at index [vertex_buffer_index](struct.Weights.html#structfield.vertex_buffer_index)
+    /// containing the [DataType::SkinWeights] and [DataType::BoneIndices] attributes.
+    WeightIndex = 3,
     Unk4 = 4,
     /// Float32x2 UV coordinates.
     Uv1 = 5,
@@ -114,13 +122,9 @@ pub enum DataType {
     /// Snorm8x4 normal vector.
     Normal2 = 32,
     Unk33 = 33,
-    // TODO: unorm16x4 for skin weights?
-    WeightShort = 41,
-    // 4 bytes with each byte being used separately by vertex shader?
-    // one of the bytes selects some sort of group and
-    // one byte selects bones within a group?
-    // only the least significant byte matters?
-    // TODO: Is this just the bone indices?
+    /// Unorm16x4 skin weights for up to 4 bone influences.
+    SkinWeights = 41,
+    /// u8x4 bone indices for up to 4 bone infuences in the [Skeleton](crate::mxmd::Skeleton) in the [Mxmd](crate::mxmd::Mxmd).
     BoneIndices = 42,
     Unk52 = 52,
 }

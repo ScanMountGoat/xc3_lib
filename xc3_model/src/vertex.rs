@@ -31,7 +31,7 @@ pub enum AttributeData {
     Uv2(Vec<Vec2>),
     VertexColor(Vec<Vec4>), // TODO: [u8; 4]?
     WeightIndex(Vec<u32>),  // TODO: [u8; 4]?
-    Weights(Vec<Vec4>),
+    SkinWeights(Vec<Vec4>),
     BoneIndices(Vec<[u8; 4]>),
 }
 
@@ -45,7 +45,7 @@ impl AttributeData {
             AttributeData::Uv2(v) => v.len(),
             AttributeData::VertexColor(v) => v.len(),
             AttributeData::WeightIndex(v) => v.len(),
-            AttributeData::Weights(v) => v.len(),
+            AttributeData::SkinWeights(v) => v.len(),
             AttributeData::BoneIndices(v) => v.len(),
         }
     }
@@ -165,7 +165,7 @@ fn read_attribute(
             read_snorm8x4,
         ))),
         DataType::Unk33 => None,
-        DataType::WeightShort => Some(AttributeData::Weights(read_data(
+        DataType::SkinWeights => Some(AttributeData::SkinWeights(read_data(
             d,
             offset,
             buffer,
@@ -395,7 +395,7 @@ mod tests {
             vertex_size: 12,
             attributes: vec![
                 VertexAttribute {
-                    data_type: DataType::WeightShort,
+                    data_type: DataType::SkinWeights,
                     data_size: 8,
                 },
                 VertexAttribute {
@@ -411,7 +411,7 @@ mod tests {
         // TODO: Use strict equality for float comparisons?
         assert_eq!(
             vec![
-                AttributeData::Weights(vec![
+                AttributeData::SkinWeights(vec![
                     vec4(0.7800107, 0.21998931, 0.0, 0.0),
                     vec4(0.77000076, 0.22999924, 0.0, 0.0)
                 ]),

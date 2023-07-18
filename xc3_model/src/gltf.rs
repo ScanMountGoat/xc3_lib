@@ -160,10 +160,10 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, roots: &[ModelRoot]) {
     let buffer_name = format!("{model_name}.buffer0.bin");
 
     let Buffers {
-        buffer,
-        buffer_bytes,
-        buffer_views,
-        accessors,
+        mut buffer,
+        mut buffer_bytes,
+        mut buffer_views,
+        mut accessors,
         vertex_buffer_attributes,
         index_buffer_accessors,
     } = create_buffers(roots, buffer_name.clone());
@@ -176,7 +176,15 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, roots: &[ModelRoot]) {
 
     for (root_index, root) in roots.iter().enumerate() {
         for (group_index, group) in root.groups.iter().enumerate() {
-            let skin_index = create_skin(group, &mut nodes, &mut skins);
+            let skin_index = create_skin(
+                group,
+                &mut nodes,
+                &mut scene_nodes,
+                &mut skins,
+                &mut buffer_bytes,
+                &mut buffer_views,
+                &mut accessors,
+            );
 
             let mut group_children = Vec::new();
 
@@ -309,6 +317,10 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, roots: &[ModelRoot]) {
         }
     }
 
+    // Update the length in case we added any skinning data.
+    // TODO: Find a cleaner way to do this.
+    buffer.byte_length = buffer_bytes.len() as u32;
+
     // The texture assume the images are in ascending order by index.
     // The sorted order of the keys may not match this order.
     // TODO: Find a faster way to do this.
@@ -366,14 +378,18 @@ pub fn export_gltf<P: AsRef<Path>>(path: P, roots: &[ModelRoot]) {
 fn create_skin(
     group: &crate::ModelGroup,
     nodes: &mut Vec<gltf::json::Node>,
+    scene_nodes: &mut Vec<gltf::json::Index<gltf::json::Node>>,
     skins: &mut Vec<gltf::json::Skin>,
+    buffer_bytes: &mut Vec<u8>,
+    buffer_views: &mut Vec<gltf::json::buffer::View>,
+    accessors: &mut Vec<gltf::json::Accessor>,
 ) -> Option<usize> {
     group.skeleton.as_ref().map(|skeleton| {
         let bone_start_index = nodes.len() as u32;
         for (i, bone) in skeleton.bones.iter().enumerate() {
             let children = find_children(skeleton, i);
 
-            let bone_node = gltf::json::Node {
+            let joint_node = gltf::json::Node {
                 camera: None,
                 children: if !children.is_empty() {
                     Some(children)
@@ -391,15 +407,60 @@ fn create_skin(
                 skin: None,
                 weights: None,
             };
-            nodes.push(bone_node);
+            // Joint nodes must belong to the scene.
+            let joint_node_index = nodes.len() as u32;
+            nodes.push(joint_node);
+            scene_nodes.push(gltf::json::Index::new(joint_node_index));
         }
+
+        // TODO: Add this to skeleton.rs?
+        let inverse_bind_matrices: Vec<_> = skeleton
+            .world_transforms()
+            .iter()
+            .map(|t| t.inverse())
+            .collect();
+
+        // TODO: Create functions for creating views and attributes?
+        // TODO: Create a buffer type with add_data method?
+        let matrix_bytes = write_bytes(&inverse_bind_matrices);
+        let view = gltf::json::buffer::View {
+            buffer: gltf::json::Index::new(0),
+            byte_length: matrix_bytes.len() as u32,
+            byte_offset: Some(buffer_bytes.len() as u32),
+            byte_stride: None,
+            extensions: Default::default(),
+            extras: Default::default(),
+            name: None,
+            target: None,
+        };
+        buffer_bytes.extend_from_slice(&matrix_bytes);
+
+        let accessor = gltf::json::Accessor {
+            buffer_view: Some(gltf::json::Index::new(buffer_views.len() as u32)),
+            byte_offset: 0,
+            count: inverse_bind_matrices.len() as u32,
+            component_type: Valid(gltf::json::accessor::GenericComponentType(
+                gltf::json::accessor::ComponentType::F32,
+            )),
+            extensions: Default::default(),
+            extras: Default::default(),
+            type_: Valid(gltf::json::accessor::Type::Mat4),
+            min: None,
+            max: None,
+            name: None,
+            normalized: false,
+            sparse: None,
+        };
+        let accessor_index = accessors.len() as u32;
+        buffer_views.push(view);
+        accessors.push(accessor);
 
         // TODO: Multiple roots for skeleton?
         // TODO: inverse_bind_matrices accessor?
         let skin = gltf::json::Skin {
             extensions: Default::default(),
             extras: Default::default(),
-            inverse_bind_matrices: None,
+            inverse_bind_matrices: Some(gltf::json::Index::new(accessor_index)),
             joints: (bone_start_index..bone_start_index + skeleton.bones.len() as u32)
                 .map(|i| gltf::json::Index::new(i))
                 .collect(),
@@ -682,6 +743,7 @@ fn create_buffers(roots: &[ModelRoot], buffer_name: String) -> Buffers {
 
                 add_vertex_buffers(
                     model,
+                    group.skeleton.as_ref(),
                     root_index,
                     group_index,
                     model_index,
@@ -784,6 +846,7 @@ fn add_index_buffers(
 
 fn add_vertex_buffers(
     model: &crate::Model,
+    skeleton: Option<&crate::skeleton::Skeleton>,
     root_index: usize,
     group_index: usize,
     model_index: usize,
@@ -792,7 +855,23 @@ fn add_vertex_buffers(
     accessors: &mut Vec<gltf::json::Accessor>,
     vertex_buffer_attributes: &mut BTreeMap<BufferKey, GltfAttributes>,
 ) {
-    for (i, vertex_buffer) in model.vertex_buffers.iter().enumerate() {
+    // TODO: Separate weights buffer in xc3_model itself?
+    let mut skin_weights = &Vec::new();
+    let mut bone_indices = &Vec::new();
+    for attribute in &model.vertex_buffers.last().unwrap().attributes {
+        match attribute {
+            AttributeData::SkinWeights(values) => skin_weights = values,
+            AttributeData::BoneIndices(values) => bone_indices = values,
+            _ => (),
+        }
+    }
+
+    for (i, vertex_buffer) in model
+        .vertex_buffers
+        .iter()
+        .take(model.vertex_buffers.len() - 1)
+        .enumerate()
+    {
         let mut attributes = BTreeMap::new();
         for attribute in &vertex_buffer.attributes {
             match attribute {
@@ -801,6 +880,7 @@ fn add_vertex_buffers(
                         values,
                         gltf::Semantic::Positions,
                         gltf::json::accessor::Type::Vec3,
+                        gltf::json::accessor::ComponentType::F32,
                         buffer_bytes,
                         buffer_views,
                         &mut attributes,
@@ -815,6 +895,7 @@ fn add_vertex_buffers(
                         &values,
                         gltf::Semantic::Normals,
                         gltf::json::accessor::Type::Vec3,
+                        gltf::json::accessor::ComponentType::F32,
                         buffer_bytes,
                         buffer_views,
                         &mut attributes,
@@ -827,6 +908,7 @@ fn add_vertex_buffers(
                         values,
                         gltf::Semantic::Tangents,
                         gltf::json::accessor::Type::Vec4,
+                        gltf::json::accessor::ComponentType::F32,
                         buffer_bytes,
                         buffer_views,
                         &mut attributes,
@@ -838,6 +920,7 @@ fn add_vertex_buffers(
                         values,
                         gltf::Semantic::TexCoords(0),
                         gltf::json::accessor::Type::Vec2,
+                        gltf::json::accessor::ComponentType::F32,
                         buffer_bytes,
                         buffer_views,
                         &mut attributes,
@@ -849,6 +932,7 @@ fn add_vertex_buffers(
                         values,
                         gltf::Semantic::TexCoords(1),
                         gltf::json::accessor::Type::Vec2,
+                        gltf::json::accessor::ComponentType::F32,
                         buffer_bytes,
                         buffer_views,
                         &mut attributes,
@@ -860,14 +944,66 @@ fn add_vertex_buffers(
                         values,
                         gltf::Semantic::Colors(0),
                         gltf::json::accessor::Type::Vec4,
+                        gltf::json::accessor::ComponentType::F32,
                         buffer_bytes,
                         buffer_views,
                         &mut attributes,
                         accessors,
                     );
                 }
-                AttributeData::WeightIndex(_) => (),
-                AttributeData::Weights(_) => (),
+                AttributeData::WeightIndex(indices) => {
+                    // Skin weights and indices are shared among all buffers.
+                    // TODO: handle in xc3_model types and test.
+                    let mut actual_weights = Vec::new();
+                    let mut actual_indices = Vec::new();
+
+                    // The vertex attributes use the ordering of the mxmd skeleton.
+                    // Create a mapping so we can still use the chr skeleton.
+                    // TODO: Modify the attributes ahead of time or make a function for this?
+                    let mut mxmd_to_chr = Vec::new();
+                    if let Some(skeleton) = skeleton {
+                        for (i, mxmd_name) in skeleton.mxmd_names.iter().enumerate() {
+                            if let Some(chr_index) =
+                                skeleton.bones.iter().position(|b| &b.name == mxmd_name)
+                            {
+                                mxmd_to_chr.push(chr_index as u8);
+                            } else {
+                                // TODO: how to handle unmapped bones?
+                                mxmd_to_chr.push(i as u8);
+                            }
+                        }
+                    }
+
+                    for index in indices {
+                        actual_weights.push(skin_weights[*index as usize]);
+
+                        let remapped_indices =
+                            bone_indices[*index as usize].map(|i| mxmd_to_chr[i as usize]);
+                        actual_indices.push(remapped_indices);
+                    }
+
+                    add_attribute_values(
+                        &actual_weights,
+                        gltf::Semantic::Weights(0),
+                        gltf::json::accessor::Type::Vec4,
+                        gltf::json::accessor::ComponentType::F32,
+                        buffer_bytes,
+                        buffer_views,
+                        &mut attributes,
+                        accessors,
+                    );
+                    add_attribute_values(
+                        &actual_indices,
+                        gltf::Semantic::Joints(0),
+                        gltf::json::accessor::Type::Vec4,
+                        gltf::json::accessor::ComponentType::U8,
+                        buffer_bytes,
+                        buffer_views,
+                        &mut attributes,
+                        accessors,
+                    );
+                }
+                AttributeData::SkinWeights(_) => (),
                 AttributeData::BoneIndices(_) => (),
             }
         }
@@ -888,6 +1024,7 @@ fn add_attribute_values<T: WriteBytes>(
     values: &[T],
     semantic: gltf::Semantic,
     components: gltf::json::accessor::Type,
+    component_type: gltf::json::accessor::ComponentType,
     buffer_bytes: &mut Vec<u8>,
     buffer_views: &mut Vec<gltf::json::buffer::View>,
     attributes: &mut GltfAttributes,
@@ -908,15 +1045,13 @@ fn add_attribute_values<T: WriteBytes>(
         target: Some(Valid(gltf::json::buffer::Target::ArrayBuffer)),
     };
     buffer_bytes.extend_from_slice(&attribute_bytes);
-    // TODO: Alignment after each attribute?
 
+    // TODO: min/max for positions.
     let accessor = gltf::json::Accessor {
         buffer_view: Some(gltf::json::Index::new(buffer_views.len() as u32)),
         byte_offset: 0,
         count: values.len() as u32,
-        component_type: Valid(gltf::json::accessor::GenericComponentType(
-            gltf::json::accessor::ComponentType::F32,
-        )),
+        component_type: Valid(gltf::json::accessor::GenericComponentType(component_type)),
         extensions: Default::default(),
         extras: Default::default(),
         type_: Valid(components),
@@ -947,6 +1082,12 @@ impl WriteBytes for u16 {
     }
 }
 
+impl WriteBytes for [u8; 4] {
+    fn write<W: Write + Seek>(&self, writer: &mut W) {
+        self.write_le(writer).unwrap();
+    }
+}
+
 impl WriteBytes for Vec2 {
     fn write<W: Write + Seek>(&self, writer: &mut W) {
         self.to_array().write_le(writer).unwrap();
@@ -962,6 +1103,12 @@ impl WriteBytes for Vec3 {
 impl WriteBytes for Vec4 {
     fn write<W: Write + Seek>(&self, writer: &mut W) {
         self.to_array().write_le(writer).unwrap();
+    }
+}
+
+impl WriteBytes for Mat4 {
+    fn write<W: Write + Seek>(&self, writer: &mut W) {
+        self.to_cols_array().write_le(writer).unwrap();
     }
 }
 

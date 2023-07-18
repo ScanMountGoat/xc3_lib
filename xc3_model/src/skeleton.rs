@@ -5,6 +5,9 @@ use glam::{vec3, Mat4, Quat};
 pub struct Skeleton {
     /// The hierarchy of bones in the skeleton.
     pub bones: Vec<Bone>,
+    // TODO: vertex attribute bone indices refer to the mxmd and not chr order?
+    // TODO: Bake this into the skeleton itself?
+    pub mxmd_names: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -20,7 +23,7 @@ pub struct Bone {
 impl Skeleton {
     // TODO: Test this?
     // TODO: Also accept mxmd skeleton?
-    pub fn from_skel(skel: &xc3_lib::sar1::Skel) -> Self {
+    pub fn from_skel(skel: &xc3_lib::sar1::Skel, skeleton: &xc3_lib::mxmd::Skeleton) -> Self {
         Self {
             bones: skel
                 .names
@@ -38,7 +41,25 @@ impl Skeleton {
                     },
                 })
                 .collect(),
+            mxmd_names: skeleton.bones.iter().map(|b| b.name.clone()).collect(),
         }
+    }
+
+    /// The global accumulated transform for each bone in world space.
+    ///
+    /// This is the result of recursively applying the bone's transform to its parent.
+    /// For inverse bind matrices, simply invert the world transforms.
+    pub fn world_transforms(&self) -> Vec<Mat4> {
+        let mut final_transforms: Vec<_> = self.bones.iter().map(|b| b.transform).collect();
+
+        // TODO: Don't assume bones appear after their parents.
+        for i in 0..final_transforms.len() {
+            if let Some(parent) = self.bones[i].parent_index {
+                final_transforms[i] = final_transforms[parent] * self.bones[i].transform;
+            }
+        }
+
+        final_transforms
     }
 }
 

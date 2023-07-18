@@ -140,13 +140,19 @@ pub fn load_model<P: AsRef<Path>>(
 
     // TODO: Load skeleton from mxmd or chr?
     let chr = Sar1::from_file(wimdo_path.as_ref().with_extension("chr")).unwrap();
-    let skeleton = chr.entries.iter().find_map(|e| match &e.data {
+    let skel = chr.entries.iter().find_map(|e| match &e.data {
         xc3_lib::sar1::EntryData::Bc(bc) => match &bc.data {
-            xc3_lib::sar1::BcData::Skel(skel) => Some(Skeleton::from_skel(&skel)),
+            xc3_lib::sar1::BcData::Skel(skel) => Some(skel),
             _ => None,
         },
         _ => None,
     });
+
+    let skeleton = if let (Some(skel), Some(skeleton)) = (skel, mxmd.models.skeleton) {
+        Some(Skeleton::from_skel(skel, &skeleton))
+    } else {
+        None
+    };
 
     let models = mxmd
         .models

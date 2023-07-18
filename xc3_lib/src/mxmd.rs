@@ -327,28 +327,28 @@ pub struct Models {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    unk1: u32,
+    pub unk1: u32,
 
-    max_xyz: [f32; 3],
-    min_xyz: [f32; 3],
+    pub max_xyz: [f32; 3],
+    pub min_xyz: [f32; 3],
 
     #[br(parse_with = parse_offset_count, args { offset: base_offset, inner: base_offset })]
     pub models: Vec<Model>,
 
-    unk2: u32,
+    pub unk2: u32,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    skeleton: Option<Skeleton>,
+    pub skeleton: Option<Skeleton>,
 
-    unks3: [u32; 22],
+    pub unks3: [u32; 22],
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     pub unk_offset1: Option<MeshUnk1>,
 
-    unk_offset2: u32,
+    pub unk_offset2: u32,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    lod_data: Option<LodData>,
+    pub lod_data: Option<LodData>,
 }
 
 /// A collection of meshes where each [Mesh] represents one draw call.
