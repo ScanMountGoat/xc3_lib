@@ -211,35 +211,44 @@ pub struct Weights {
     /// This is typically the last element.
     pub vertex_buffer_index: u16,
 
+    // TODO: parse_count16_offset32?
     lod_count: u16,
     #[br(parse_with = parse_ptr32)]
     #[br(args { inner: args! { count: lod_count as usize }})]
     #[xc3(offset)]
-    weight_lods: Vec<WeightLod>,
+    pub weight_lods: Vec<WeightLod>,
 
-    unk4: u32,
-    unks5: [u32; 4], // padding?
+    pub unk4: u32,
+    pub unks5: [u32; 4], // padding?
 }
 
 // TODO: Counts up to the total number of "vertices" in the skin weights buffer?
 // TODO: How to select the weight group for each mesh in the model?
 #[derive(BinRead, BinWrite, Debug)]
 pub struct WeightGroup {
-    // offsets are just the sum of the previous counts?
-    pub unk1: u32, // offset?
-    pub unk2: u32, // offset?
-    pub unk3: u32, // count?
+    pub output_starting_index: u32,
+    /// Start of the items in the weights buffer at [vertex_buffer_index](struct.Weights.html#structfield.vertex_buffer_index).
+    pub input_starting_index: u32,
+    /// Number of items in the weights buffer.
+    pub count: u32,
     pub unks: [u32; 4],
-    pub pass_index: u8,
+    /// Index into [group_indices_plus_one](struct.WeightLod.html#structfield.group_indices_plus_one)
+    /// pointing back to this group.
+    pub lod_group_index: u8,
+    /// Index into [weight_lods](struct.Weights.html#structfield.weight_lods).
     pub lod_index: u8,
-    pub unk_value: u8,
+    /// The max number of non-zero bone influences per vertex
+    /// for the range of items in the weights buffer.
+    pub max_influences: u8,
     pub unk4: u8,
     pub unks2: [u32; 2],
 }
 
 #[derive(BinRead, BinWrite, Debug)]
 pub struct WeightLod {
-    unks: [u16; 9],
+    /// One plus the indices pointing back to [groups](struct.Weights.html#structfield.groups).
+    /// Unused entries use the value `0`.
+    pub group_indices_plus_one: [u16; 9],
 }
 
 #[binread]
