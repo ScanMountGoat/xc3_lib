@@ -80,7 +80,7 @@ fn main() {
         // TODO: The map folder .wimdo files for XC3 are a different format?
         // TODO: b"APMD" magic in "chr/oj/oj03010100.wimdo"?
         println!("Checking MXMD files ...");
-        check_all(root, &["*.wimdo", "!map/**"], |_: Mxmd, _| {});
+        check_all(root, &["*.wimdo", "!map/**"], check_mxmd);
     }
 
     if cli.msrd || cli.all {
@@ -105,7 +105,7 @@ fn main() {
 
     if cli.spch || cli.all {
         println!("Checking SPCH files ...");
-        check_all(root, &["*.wishp"], |_: Spch, _| {});
+        check_all(root, &["*.wishp"], check_spch);
     }
 
     if cli.dhal || cli.all {
@@ -258,6 +258,24 @@ fn check_dhal(dhal: Dhal, _path: &Path) {
         for texture in textures.textures {
             Mibl::from_bytes(&texture.mibl_data);
         }
+    }
+}
+
+fn check_mxmd(mxmd: Mxmd, path: &Path) {
+    if let Some(spch) = mxmd.spch {
+        check_spch(spch, path);
+    }
+
+    if let Some(packed_textures) = mxmd.packed_textures {
+        for texture in packed_textures.textures {
+            Mibl::from_bytes(&texture.mibl_data);
+        }
+    }
+}
+
+fn check_spch(spch: Spch, _path: &Path) {
+    for program in spch.shader_programs {
+        program.read_slct(&spch.slct_section);
     }
 }
 
