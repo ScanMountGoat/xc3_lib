@@ -1,4 +1,16 @@
 # Offsets (WIP)
+## Reading Overview
+Reading binary files with offsets is generally straightforward. Offsets refer to data elsewhere in the file. Each offset is relative to some starting position like the start of the current struct or the start of the file. The same struct definitions and generated reading code will work across all instances of the file since the positions are encoded in the offsets themselves. In other words, the order of items in the binary file may have little to do with the order of the structs and fields themselves. Some files require multiple passes to parse due to storing types in byte buffers that may also be compressed.
+
+## Writing Overview
+Writing binary files with offsets is significantly more challenging. Offsets must be calculated at runtime when writing the file since the lengths and types of data stored in the file may change since the time it was read due to user modifications. Just as offsets can be useful in estimating sizes while reverse engineering files, sizes are important for calculating offsets when writing. See previous work done for the [SSBH binary formats](https://github.com/ultimate-research/ssbh_lib/blob/master/ssbh_offsets.md) for details.
+
+Offsets in Xenoblade follow certain rules like always being non negative. This means offsets never point backwards. Data items in a file also do not overlap, so each item must ensure the next offset should point past the current data item. Duplicate items are typically handled using an additional layer of indirection such as a list of item indices. These simple rules provide most of the details needing to automate writing data in the next section.
+
+The main challenge with writing is to ensure that writing an unmodified file results in binary identical output to the original. This isn't strictly necessary but makes it substantially simpler to test the writing implementation for errors. 
+
+The standard way to represent binary data in programming languages is in a hierarchy of structs where a root struct has fields that may have offsets to other structs with offsets and so on. This creates a tree structure rooted at the header with nodes or vertices for instances of structs. The offsets between structs define directed edges in the tree. Producing a binary identical output file requires not only calculating offset values that respect the offset rules but also defining an ordering for the data items in the binary file. This ordering can be thought of a tree traversal starting from the root header struct and visiting each data item exactly once. There are many valid strategies to traverse the tree like the traversals used in depth first search (DFS) or breadth first search (BFS). This ordering is currently defined manually due to a lack of any obvious patterns that work across all files.
+
 ## Write Functions
 Writing is split into two main functions. The `write` function writes the data and placeholder offset values. This function also calculates an objects size. The `write_offset` function updates the offsets from the previous step and writes the pointed to data. This approach is similar to the two pass measure and layout approach used for user interface layout. The main difference is that addresses in binary files are 1D and the constraints are much simpler.
 
