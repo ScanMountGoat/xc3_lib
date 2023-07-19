@@ -79,8 +79,16 @@ pub fn read_vertex_buffers(
             }
 
             let influences = skeleton
-                .map(|skeleton| {
-                    bone_influences(&attributes, &skin_weights, &bone_indices, skeleton)
+                .and_then(|skeleton| {
+                    attributes.iter().find_map(|a| match a {
+                        AttributeData::WeightIndex(indices) => Some(bone_influences(
+                            indices,
+                            &skin_weights,
+                            &bone_indices,
+                            &skeleton.bones,
+                        )),
+                        _ => None,
+                    })
                 })
                 .unwrap_or_default();
 
