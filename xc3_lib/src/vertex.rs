@@ -228,6 +228,7 @@ pub struct Weights {
 pub struct WeightGroup {
     pub output_starting_index: u32,
     /// Start of the items in the weights buffer at [vertex_buffer_index](struct.Weights.html#structfield.vertex_buffer_index).
+    // TODO: Why does this sometimes offset the starting index but not always?
     pub input_starting_index: u32,
     /// Number of items in the weights buffer.
     pub count: u32,

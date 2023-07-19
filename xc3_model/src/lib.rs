@@ -5,6 +5,7 @@ use std::path::Path;
 
 use glam::Mat4;
 use skeleton::Skeleton;
+use skinning::Influence;
 use texture::{load_textures, ImageTexture};
 use vertex::{read_index_buffers, read_vertex_buffers, AttributeData};
 use xc3_lib::{
@@ -19,6 +20,7 @@ pub use map::load_map;
 pub mod gltf;
 mod map;
 pub mod skeleton;
+pub mod skinning;
 pub mod texture;
 pub mod vertex;
 
@@ -41,6 +43,7 @@ pub struct Model {
     pub meshes: Vec<Mesh>,
     pub vertex_buffers: Vec<VertexBuffer>,
     pub index_buffers: Vec<IndexBuffer>,
+    // TODO: Separate weight buffer?
     pub instances: Vec<Mat4>,
 }
 
@@ -72,7 +75,9 @@ pub struct Texture {
 
 #[derive(Debug)]
 pub struct VertexBuffer {
+    // TODO: Remove the attributes for skin weights?
     pub attributes: Vec<AttributeData>,
+    pub influences: Vec<Influence>,
 }
 
 #[derive(Debug)]
@@ -84,6 +89,7 @@ pub struct IndexBuffer {
 impl Model {
     pub fn from_model(
         model: &xc3_lib::mxmd::Model,
+        skeleton: Option<&xc3_lib::mxmd::Skeleton>,
         vertex_data: &xc3_lib::vertex::VertexData,
         instances: Vec<Mat4>,
     ) -> Self {
@@ -97,7 +103,7 @@ impl Model {
             })
             .collect();
 
-        let vertex_buffers = read_vertex_buffers(vertex_data);
+        let vertex_buffers = read_vertex_buffers(vertex_data, skeleton);
         let index_buffers = read_index_buffers(vertex_data);
 
         Self {
@@ -140,25 +146,26 @@ pub fn load_model<P: AsRef<Path>>(
 
     // TODO: Load skeleton from mxmd or chr?
     let chr = Sar1::from_file(wimdo_path.as_ref().with_extension("chr")).unwrap();
-    let skel = chr.entries.iter().find_map(|e| match &e.data {
+    let skeleton = chr.entries.iter().find_map(|e| match &e.data {
         xc3_lib::sar1::EntryData::Bc(bc) => match &bc.data {
-            xc3_lib::sar1::BcData::Skel(skel) => Some(skel),
+            xc3_lib::sar1::BcData::Skel(skel) => Some(Skeleton::from_skel(skel)),
             _ => None,
         },
         _ => None,
     });
 
-    let skeleton = if let (Some(skel), Some(skeleton)) = (skel, mxmd.models.skeleton) {
-        Some(Skeleton::from_skel(skel, &skeleton))
-    } else {
-        None
-    };
-
     let models = mxmd
         .models
         .models
         .iter()
-        .map(|model| Model::from_model(model, vertex_data, vec![Mat4::IDENTITY]))
+        .map(|model| {
+            Model::from_model(
+                model,
+                mxmd.models.skeleton.as_ref(),
+                vertex_data,
+                vec![Mat4::IDENTITY],
+            )
+        })
         .collect();
 
     ModelRoot {

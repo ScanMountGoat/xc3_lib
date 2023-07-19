@@ -5,9 +5,6 @@ use glam::{vec3, Mat4, Quat};
 pub struct Skeleton {
     /// The hierarchy of bones in the skeleton.
     pub bones: Vec<Bone>,
-    // TODO: vertex attribute bone indices refer to the mxmd and not chr order?
-    // TODO: Bake this into the skeleton itself?
-    pub mxmd_names: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -22,8 +19,7 @@ pub struct Bone {
 
 impl Skeleton {
     // TODO: Test this?
-    // TODO: Also accept mxmd skeleton?
-    pub fn from_skel(skel: &xc3_lib::sar1::Skel, skeleton: &xc3_lib::mxmd::Skeleton) -> Self {
+    pub fn from_skel(skel: &xc3_lib::sar1::Skel) -> Self {
         Self {
             bones: skel
                 .names
@@ -41,7 +37,6 @@ impl Skeleton {
                     },
                 })
                 .collect(),
-            mxmd_names: skeleton.bones.iter().map(|b| b.name.clone()).collect(),
         }
     }
 

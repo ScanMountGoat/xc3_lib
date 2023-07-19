@@ -156,6 +156,7 @@ fn load_prop_model_group(
 
             Some(Model::from_model(
                 model_data.models.models.get(base_lod_index)?,
+                model_data.models.skeleton.as_ref(),
                 vertex_data,
                 instances,
             ))
@@ -169,7 +170,11 @@ fn load_prop_model_group(
         add_animated_part_instances(&mut models, model_data, parts);
     }
 
-    ModelGroup { models, materials, skeleton: None }
+    ModelGroup {
+        models,
+        materials,
+        skeleton: None,
+    }
 }
 
 fn add_animated_part_instances(
@@ -264,13 +269,22 @@ fn load_map_model_group(
         {
             // TODO: Faster to just make empty groups and assign each model in a loop?
             if *index as usize == group_index {
-                let new_model = Model::from_model(model, vertex_data, vec![Mat4::IDENTITY]);
+                let new_model = Model::from_model(
+                    model,
+                    model_data.models.skeleton.as_ref(),
+                    vertex_data,
+                    vec![Mat4::IDENTITY],
+                );
                 models.push(new_model);
             }
         }
     }
 
-    ModelGroup { models, materials, skeleton: None }
+    ModelGroup {
+        models,
+        materials,
+        skeleton: None,
+    }
 }
 
 fn load_env_model(
@@ -305,12 +319,21 @@ fn load_env_model(
         .iter()
         .map(|model| {
             // TODO: Avoid creating vertex buffers more than once?
-            Model::from_model(model, &model_data.vertex_data, vec![Mat4::IDENTITY])
+            Model::from_model(
+                model,
+                model_data.models.skeleton.as_ref(),
+                &model_data.vertex_data,
+                vec![Mat4::IDENTITY],
+            )
         })
         .collect();
 
     ModelRoot {
-        groups: vec![ModelGroup { models, materials, skeleton: None }],
+        groups: vec![ModelGroup {
+            models,
+            materials,
+            skeleton: None,
+        }],
         image_textures,
     }
 }
@@ -341,12 +364,16 @@ fn load_foliage_model(
         .iter()
         .map(|model| {
             // TODO: Avoid creating vertex buffers more than once?
-            Model::from_model(model, &model_data.vertex_data, vec![Mat4::IDENTITY])
+            Model::from_model(model, None, &model_data.vertex_data, vec![Mat4::IDENTITY])
         })
         .collect();
 
     ModelRoot {
-        groups: vec![ModelGroup { models, materials, skeleton: None }],
+        groups: vec![ModelGroup {
+            models,
+            materials,
+            skeleton: None,
+        }],
         image_textures,
     }
 }

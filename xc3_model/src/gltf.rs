@@ -4,7 +4,7 @@ use std::{
     path::Path,
 };
 
-use crate::{vertex::AttributeData, ModelRoot};
+use crate::{skinning::create_bone_indices_weights, vertex::AttributeData, ModelRoot};
 use binrw::BinWrite;
 use glam::{Mat4, Vec2, Vec3, Vec4, Vec4Swizzles};
 use gltf::json::validation::Checked::Valid;
@@ -462,7 +462,7 @@ fn create_skin(
             extras: Default::default(),
             inverse_bind_matrices: Some(gltf::json::Index::new(accessor_index)),
             joints: (bone_start_index..bone_start_index + skeleton.bones.len() as u32)
-                .map(|i| gltf::json::Index::new(i))
+                .map(gltf::json::Index::new)
                 .collect(),
             name: None,
             skeleton: None,
@@ -855,17 +855,6 @@ fn add_vertex_buffers(
     accessors: &mut Vec<gltf::json::Accessor>,
     vertex_buffer_attributes: &mut BTreeMap<BufferKey, GltfAttributes>,
 ) {
-    // TODO: Separate weights buffer in xc3_model itself?
-    let mut skin_weights = &Vec::new();
-    let mut bone_indices = &Vec::new();
-    for attribute in &model.vertex_buffers.last().unwrap().attributes {
-        match attribute {
-            AttributeData::SkinWeights(values) => skin_weights = values,
-            AttributeData::BoneIndices(values) => bone_indices = values,
-            _ => (),
-        }
-    }
-
     for (i, vertex_buffer) in model
         .vertex_buffers
         .iter()
@@ -951,61 +940,44 @@ fn add_vertex_buffers(
                         accessors,
                     );
                 }
-                AttributeData::WeightIndex(indices) => {
-                    // Skin weights and indices are shared among all buffers.
-                    // TODO: handle in xc3_model types and test.
-                    let mut actual_weights = Vec::new();
-                    let mut actual_indices = Vec::new();
-
-                    // The vertex attributes use the ordering of the mxmd skeleton.
-                    // Create a mapping so we can still use the chr skeleton.
-                    // TODO: Modify the attributes ahead of time or make a function for this?
-                    let mut mxmd_to_chr = Vec::new();
-                    if let Some(skeleton) = skeleton {
-                        for (i, mxmd_name) in skeleton.mxmd_names.iter().enumerate() {
-                            if let Some(chr_index) =
-                                skeleton.bones.iter().position(|b| &b.name == mxmd_name)
-                            {
-                                mxmd_to_chr.push(chr_index as u8);
-                            } else {
-                                // TODO: how to handle unmapped bones?
-                                mxmd_to_chr.push(i as u8);
-                            }
-                        }
-                    }
-
-                    for index in indices {
-                        actual_weights.push(skin_weights[*index as usize]);
-
-                        let remapped_indices =
-                            bone_indices[*index as usize].map(|i| mxmd_to_chr[i as usize]);
-                        actual_indices.push(remapped_indices);
-                    }
-
-                    add_attribute_values(
-                        &actual_weights,
-                        gltf::Semantic::Weights(0),
-                        gltf::json::accessor::Type::Vec4,
-                        gltf::json::accessor::ComponentType::F32,
-                        buffer_bytes,
-                        buffer_views,
-                        &mut attributes,
-                        accessors,
-                    );
-                    add_attribute_values(
-                        &actual_indices,
-                        gltf::Semantic::Joints(0),
-                        gltf::json::accessor::Type::Vec4,
-                        gltf::json::accessor::ComponentType::U8,
-                        buffer_bytes,
-                        buffer_views,
-                        &mut attributes,
-                        accessors,
-                    );
-                }
+                // Skin weights are handled separately.
+                // TODO: remove these attributes?
+                AttributeData::WeightIndex(_) => (),
                 AttributeData::SkinWeights(_) => (),
                 AttributeData::BoneIndices(_) => (),
             }
+        }
+
+        if let Some(skeleton) = skeleton {
+            // TODO: Avoid collect?
+            let bone_names: Vec<_> = skeleton.bones.iter().map(|b| &b.name).collect();
+
+            let (indices, weights) = create_bone_indices_weights(
+                &vertex_buffer.influences,
+                vertex_buffer.attributes[0].len(),
+                &bone_names,
+            );
+
+            add_attribute_values(
+                &weights,
+                gltf::Semantic::Weights(0),
+                gltf::json::accessor::Type::Vec4,
+                gltf::json::accessor::ComponentType::F32,
+                buffer_bytes,
+                buffer_views,
+                &mut attributes,
+                accessors,
+            );
+            add_attribute_values(
+                &indices,
+                gltf::Semantic::Joints(0),
+                gltf::json::accessor::Type::Vec4,
+                gltf::json::accessor::ComponentType::U8,
+                buffer_bytes,
+                buffer_views,
+                &mut attributes,
+                accessors,
+            );
         }
 
         vertex_buffer_attributes.insert(
