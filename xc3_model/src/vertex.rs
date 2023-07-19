@@ -16,7 +16,7 @@ use xc3_lib::vertex::{
     DataType, IndexBufferDescriptor, VertexAnimationTarget, VertexBufferDescriptor, VertexData,
 };
 
-use crate::{skinning::create_influences, IndexBuffer, VertexBuffer};
+use crate::{skinning::bone_influences, IndexBuffer, VertexBuffer};
 
 // TODO: Add an option to convert a collection of these to the vertex above?
 // TODO: How to handle normalized attributes?
@@ -80,7 +80,7 @@ pub fn read_vertex_buffers(
 
             let influences = skeleton
                 .map(|skeleton| {
-                    create_influences(&attributes, &skin_weights, &bone_indices, skeleton)
+                    bone_influences(&attributes, &skin_weights, &bone_indices, skeleton)
                 })
                 .unwrap_or_default();
 

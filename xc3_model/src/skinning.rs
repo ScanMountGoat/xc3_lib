@@ -20,7 +20,7 @@ pub struct SkinWeight {
 // TODO: test this
 /// Convert the per-vertex indices and weights to per bone influences.
 /// The `skeleton` defines the mapping from bone indices to bone names.
-pub fn create_influences(
+pub fn bone_influences(
     attributes: &[AttributeData],
     skin_weights: &[Vec4],
     bone_indices: &[[u8; 4]],
@@ -59,11 +59,10 @@ pub fn create_influences(
     influences
 }
 
-// TODO: Use this for gltf and xc3_wgpu
 /// Convert the per-bone `influences` to per-vertex indices and weights.
 /// The `bone_names` provide the mapping from bone names to bone indices.
 /// Only the first 4 influences for each vertex will be included.
-pub fn create_bone_indices_weights<S: AsRef<str>>(
+pub fn bone_indices_weights<S: AsRef<str>>(
     influences: &[Influence],
     vertex_count: usize,
     bone_names: &[S],
@@ -93,12 +92,71 @@ pub fn create_bone_indices_weights<S: AsRef<str>>(
     (indices, weights)
 }
 
-// TODO: indices/weights -> influences
-// TODO influences -> indices/weights
-// TODO: Test cases?
-
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    use glam::vec4;
+
     #[test]
-    fn test_weights() {}
+    fn bone_indices_weights_no_influences() {
+        assert_eq!(
+            (vec![[0u8; 4]; 3], vec![Vec4::ZERO; 3]),
+            bone_indices_weights(&[], 3, &["a", "b", "c"])
+        );
+    }
+
+    #[test]
+    fn bone_indices_weights_multiple_influences() {
+        assert_eq!(
+            (
+                vec![[0, 1, 0, 0], [0, 0, 0, 0], [0, 2, 0, 0]],
+                vec![
+                    vec4(0.1, 0.2, 0.0, 0.0),
+                    vec4(0.0, 0.0, 0.0, 0.0),
+                    vec4(0.11, 0.3, 0.0, 0.0)
+                ]
+            ),
+            bone_indices_weights(
+                &[
+                    Influence {
+                        bone_name: "a".to_string(),
+                        weights: vec![
+                            SkinWeight {
+                                vertex_index: 0,
+                                weight: 0.1
+                            },
+                            SkinWeight {
+                                vertex_index: 2,
+                                weight: 0.11
+                            }
+                        ]
+                    },
+                    Influence {
+                        bone_name: "b".to_string(),
+                        weights: vec![SkinWeight {
+                            vertex_index: 0,
+                            weight: 0.2
+                        }]
+                    },
+                    Influence {
+                        bone_name: "c".to_string(),
+                        weights: vec![SkinWeight {
+                            vertex_index: 2,
+                            weight: 0.3
+                        }]
+                    },
+                    Influence {
+                        bone_name: "d".to_string(),
+                        weights: vec![SkinWeight {
+                            vertex_index: 0,
+                            weight: 0.4
+                        }]
+                    }
+                ],
+                3,
+                &["a", "b", "c"]
+            )
+        );
+    }
 }

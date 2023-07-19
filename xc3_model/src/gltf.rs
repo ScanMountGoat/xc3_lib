@@ -4,7 +4,7 @@ use std::{
     path::Path,
 };
 
-use crate::{skinning::create_bone_indices_weights, vertex::AttributeData, ModelRoot};
+use crate::{skinning::bone_indices_weights, vertex::AttributeData, ModelRoot};
 use binrw::BinWrite;
 use glam::{Mat4, Vec2, Vec3, Vec4, Vec4Swizzles};
 use gltf::json::validation::Checked::Valid;
@@ -952,7 +952,7 @@ fn add_vertex_buffers(
             // TODO: Avoid collect?
             let bone_names: Vec<_> = skeleton.bones.iter().map(|b| &b.name).collect();
 
-            let (indices, weights) = create_bone_indices_weights(
+            let (indices, weights) = bone_indices_weights(
                 &vertex_buffer.influences,
                 vertex_buffer.attributes[0].len(),
                 &bone_names,
