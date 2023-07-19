@@ -72,7 +72,7 @@ pub struct Msmd {
     pub unk3_2: u32,
 
     #[br(parse_with = parse_ptr32)]
-    pub tgld: Tgld,
+    pub dlgt: Dlgt,
 
     #[br(parse_with = parse_count_offset)]
     pub unk_lights: Vec<UnkLight>,
@@ -234,7 +234,6 @@ pub struct Cems {
 }
 
 // TODO: cloud data?
-
 #[derive(BinRead, Debug)]
 #[br(magic(b"CMLD"))]
 pub struct Cmld {
@@ -242,10 +241,10 @@ pub struct Cmld {
 }
 
 // TODO: Lighting data?
-
+// TODO: .wilgt files?
 #[derive(BinRead, Debug)]
 #[br(magic(b"DLGT"))]
-pub struct Tgld {
+pub struct Dlgt {
     pub version: u32,
     pub unk1: u32,
     pub unk2: u32,
@@ -376,7 +375,7 @@ pub struct UnkLight {
     pub max: [f32; 3],
     pub min: [f32; 3],
     /// `.wismda` data with names like `/seamwork/lgt/bina/00000.wi`.
-    pub entry: StreamEntry<Tgld>,
+    pub entry: StreamEntry<Dlgt>,
     pub unk3: u32,
     // TODO: padding?
     pub unk4: [u32; 5],

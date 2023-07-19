@@ -12,6 +12,7 @@ use log::trace;
 pub mod apmd;
 pub mod dds;
 pub mod dhal;
+pub mod ltpc;
 pub mod map;
 pub mod mibl;
 pub mod msmd;
@@ -216,5 +217,6 @@ file_read_impl!(
     sar1::Sar1,
     spch::Spch,
     vertex::VertexData,
-    dhal::Dhal
+    dhal::Dhal,
+    ltpc::Ltpc
 );

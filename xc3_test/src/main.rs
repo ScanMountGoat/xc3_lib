@@ -9,6 +9,7 @@ use rayon::prelude::*;
 use xc3_lib::{
     dds::{create_dds, create_mibl},
     dhal::Dhal,
+    ltpc::{write_ltpc, Ltpc},
     mibl::Mibl,
     msmd::Msmd,
     msrd::{write_msrd, Msrd},
@@ -54,6 +55,10 @@ struct Cli {
     /// Process LAHD texture files from .wilay
     #[arg(long)]
     dhal: bool,
+
+    /// Process LTPC texture files from .wiltp
+    #[arg(long)]
+    ltpc: bool,
 
     /// Process all file types
     #[arg(long)]
@@ -111,6 +116,11 @@ fn main() {
     if cli.dhal || cli.all {
         println!("Checking DHAL files ...");
         check_all(root, &["*.wilay"], check_dhal);
+    }
+
+    if cli.ltpc || cli.all {
+        println!("Checking LTPC files ...");
+        check_all(root, &["*.wiltp"], check_ltpc);
     }
 
     println!("Finished in {:?}", start.elapsed());
@@ -279,6 +289,16 @@ fn check_spch(spch: Spch, _path: &Path) {
     }
 }
 
+fn check_ltpc(ltpc: Ltpc, path: &Path) {
+    // Check read/write.
+    let original = std::fs::read(path).unwrap();
+    let mut writer = Cursor::new(Vec::new());
+    write_ltpc(&ltpc, &mut writer).unwrap();
+    if writer.into_inner() != original {
+        println!("Read write not 1:1 for {path:?}");
+    }
+}
+
 trait Xc3File
 where
     Self: Sized,
@@ -297,7 +317,7 @@ macro_rules! file_impl {
         )*
     };
 }
-file_impl!(Mxmd, Msrd, Msmd, Spch, Dhal, Sar1);
+file_impl!(Mxmd, Msrd, Msmd, Spch, Dhal, Sar1, Ltpc);
 
 fn check_all<P, T, F>(root: P, patterns: &[&str], check_file: F)
 where

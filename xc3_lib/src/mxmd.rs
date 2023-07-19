@@ -3,7 +3,7 @@ use crate::{
     parse_string_ptr32, spch::Spch, vertex::VertexData, write::Xc3Write,
 };
 use bilge::prelude::*;
-use binrw::{args, binread, BinRead, BinWrite};
+use binrw::{args, binread, BinRead};
 
 /// .wimdo files
 #[derive(BinRead, Debug)]
@@ -369,8 +369,8 @@ pub struct Model {
 
 #[derive(BinRead, Debug)]
 pub struct Mesh {
-    pub flags1: u32,
-    pub flags2: u32,
+    pub render_flags: u32,
+    pub skin_flags: u32,
     pub vertex_buffer_index: u16,
     pub index_buffer_index: u16,
     pub unk_index: u16,

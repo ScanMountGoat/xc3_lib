@@ -43,6 +43,8 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
                 writer: &mut W,
                 data_ptr: &mut u64,
             ) -> binrw::BinResult<Self::Offsets<'_>> {
+                use binrw::BinWrite;
+
                 #set_base_offset
 
                 #write_magic
