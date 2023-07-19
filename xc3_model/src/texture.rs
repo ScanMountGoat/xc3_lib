@@ -122,7 +122,7 @@ fn load_packed_texture(
     let data = &packed_texture_data
         [item.mibl_offset as usize..item.mibl_offset as usize + item.mibl_length as usize];
 
-    let mibl = Mibl::from_bytes(&data);
+    let mibl = Mibl::from_bytes(data);
     ImageTexture::from_mibl(&mibl, Some(item.name.clone())).unwrap()
 }
 

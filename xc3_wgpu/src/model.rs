@@ -277,7 +277,7 @@ fn set_attributes(verts: &mut [shader::model::VertexInput], buffer: &xc3_model::
                 // TODO: Switch to a separate skinning buffer later?
                 set_attribute(verts, vals, |v, t| v.weight_index = t)
             }
-            AttributeData::Weights(_) => (),
+            AttributeData::SkinWeights(_) => (),
             AttributeData::BoneIndices(_) => (),
         }
     }

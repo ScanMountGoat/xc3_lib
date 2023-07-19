@@ -97,7 +97,7 @@ fn skin_weights_bone_indices(vertex_data: &VertexData) -> Option<(Vec<Vec4>, Vec
         .vertex_buffers
         .get(vertex_data.weights.vertex_buffer_index as usize)?;
 
-    let attributes = read_vertex_attributes(&descriptor, &vertex_data.buffer);
+    let attributes = read_vertex_attributes(descriptor, &vertex_data.buffer);
 
     let weights = attributes.iter().find_map(|a| match a {
         AttributeData::SkinWeights(values) => Some(values.clone()),

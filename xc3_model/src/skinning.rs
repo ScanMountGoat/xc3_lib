@@ -77,7 +77,7 @@ pub fn create_bone_indices_weights<S: AsRef<str>>(
     for influence in influences {
         if let Some(bone_index) = bone_names
             .iter()
-            .position(|n| n.as_ref() == &influence.bone_name)
+            .position(|n| n.as_ref() == influence.bone_name)
         {
             for weight in &influence.weights {
                 let i = weight.vertex_index as usize;
