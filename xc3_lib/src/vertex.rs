@@ -361,26 +361,23 @@ pub fn write_vertex_data<W: std::io::Write + std::io::Seek>(
         .weight_lods
         .write_offset(writer, 0, &mut data_ptr)?;
 
-    // TODO: Prevent writing the offset for the null case?
     // TODO: Add alignment customization to derive?
     data_ptr = round_up(data_ptr, 4);
-    if root.vertex_animation.is_some() {
-        if let Some(vertex_animation_offsets) =
-            root_offsets
-                .vertex_animation
-                .write_offset(writer, 0, &mut data_ptr)?
-        {
-            let descriptors_offsets =
-                vertex_animation_offsets
-                    .descriptors
-                    .write_offset(writer, 0, &mut data_ptr)?;
+    if let Some(vertex_animation_offsets) =
+        root_offsets
+            .vertex_animation
+            .write_offset(writer, 0, &mut data_ptr)?
+    {
+        let descriptors_offsets =
             vertex_animation_offsets
-                .targets
+                .descriptors
                 .write_offset(writer, 0, &mut data_ptr)?;
+        vertex_animation_offsets
+            .targets
+            .write_offset(writer, 0, &mut data_ptr)?;
 
-            for offsets in descriptors_offsets {
-                offsets.unk1.write_offset(writer, 0, &mut data_ptr)?;
-            }
+        for offsets in descriptors_offsets {
+            offsets.unk1.write_offset(writer, 0, &mut data_ptr)?;
         }
     }
 
