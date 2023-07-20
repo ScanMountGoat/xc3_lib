@@ -3,6 +3,7 @@ use binrw::{BinRead, BinResult};
 use crate::{
     parse_count_offset, parse_offset_count,
     write::{round_up, Xc3Write},
+    PAGE_SIZE,
 };
 
 /// `monolib/shader/filterlut.wiltp` for Xenoblade 3.
@@ -41,7 +42,8 @@ pub fn write_ltpc<W: std::io::Write + std::io::Seek>(root: &Ltpc, writer: &mut W
         .write_offset(writer, 0, &mut data_ptr)?;
     for offsets in textures_offsets {
         // TODO: Add alignment customization to derive?
-        data_ptr = round_up(data_ptr, 4096);
+        // TODO: Create ByteBuffer wrapper with 4096 (page) alignment?
+        data_ptr = round_up(data_ptr, PAGE_SIZE);
         offsets.mibl_data.write_offset(writer, 0, &mut data_ptr)?;
     }
 

@@ -23,7 +23,7 @@ const MIBL_FOOTER_SIZE: usize = 40;
 pub struct MiblFooter {
     /// Swizzled image size for the entire surface aligned to 4096 (0x1000).
     pub image_size: u32,
-    pub unk: u32, // is this actually 0x1000 for swizzled like with nutexb?
+    pub unk: u32, // TODO: is this actually 0x1000 for swizzled like with nutexb?
     pub width: u32,
     pub height: u32,
     pub depth: u32,

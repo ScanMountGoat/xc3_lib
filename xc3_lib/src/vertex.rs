@@ -1,6 +1,7 @@
 use crate::{
     parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32,
     write::{round_up, xc3_write_binwrite_impl, Xc3Write},
+    PAGE_SIZE,
 };
 use binrw::{args, binread, BinRead, BinResult, BinWrite};
 
@@ -21,20 +22,20 @@ pub struct VertexData {
     pub index_buffers: Vec<IndexBufferDescriptor>,
 
     // padding?
-    unk0: u32,
-    unk1: u32,
-    unk2: u32,
+    pub unk0: u32,
+    pub unk1: u32,
+    pub unk2: u32,
 
     // TODO: Extra data for every buffer except the single weights buffer?
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: vertex_buffers.len() - 1 }})]
     #[xc3(offset)]
-    vertex_buffer_info: Vec<VertexBufferInfo>,
+    pub vertex_buffer_info: Vec<VertexBufferInfo>,
 
     // 332 bytes of data?
     #[br(parse_with = parse_offset_count, offset = base_offset)]
     #[xc3(offset_count)]
-    outline_buffers: Vec<OutlineBuffer>,
+    pub outline_buffers: Vec<OutlineBuffer>,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset)]
@@ -47,7 +48,9 @@ pub struct VertexData {
     pub buffer: Vec<u8>,
 
     // TODO: particles?
-    unk6: u32,
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset)]
+    pub unk_data: Option<UnkData>,
 
     #[br(parse_with = parse_ptr32, offset = base_offset)]
     #[xc3(offset)]
@@ -55,10 +58,10 @@ pub struct VertexData {
 
     #[br(parse_with = parse_ptr32, offset = base_offset)]
     #[xc3(offset)]
-    unk7: Unk,
+    pub unk7: Unk,
 
     // TODO: padding?
-    unks: [u32; 5],
+    pub unks: [u32; 5],
 }
 
 #[derive(BinRead, Xc3Write, Debug)]
@@ -305,6 +308,11 @@ pub struct OutlineBuffer {
     unk: u32,
 }
 
+#[derive(BinRead, BinWrite, Debug)]
+pub struct UnkData {
+    pub unk: [u32; 17],
+}
+
 xc3_write_binwrite_impl!(
     VertexAttribute,
     DataType,
@@ -316,7 +324,8 @@ xc3_write_binwrite_impl!(
     UnkInner,
     VertexBufferInfo,
     OutlineBuffer,
-    WeightLod
+    WeightLod,
+    UnkData
 );
 
 // TODO: Generate this with a macro rules macro?
@@ -361,6 +370,10 @@ pub fn write_vertex_data<W: std::io::Write + std::io::Seek>(
         .weight_lods
         .write_offset(writer, 0, &mut data_ptr)?;
 
+    root_offsets
+        .unk_data
+        .write_offset(writer, 0, &mut data_ptr)?;
+
     // TODO: Add alignment customization to derive?
     data_ptr = round_up(data_ptr, 4);
     if let Some(vertex_animation_offsets) =
@@ -389,7 +402,7 @@ pub fn write_vertex_data<W: std::io::Write + std::io::Seek>(
         .write_offset(writer, unk_offsets.base_offset, &mut data_ptr)?;
 
     // TODO: Special type with 4096 byte alignment?
-    data_ptr = round_up(data_ptr, 4096);
+    data_ptr = round_up(data_ptr, PAGE_SIZE);
     root_offsets.buffer.write_offset(writer, 0, &mut data_ptr)?;
 
     Ok(())

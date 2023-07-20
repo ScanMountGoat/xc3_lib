@@ -7,6 +7,8 @@ use anyhow::Result;
 use crate::{
     mibl::Mibl,
     mibl::{ImageFormat, MiblFooter, ViewDimension},
+    write::round_up,
+    PAGE_SIZE,
 };
 
 // TODO: Create a write_dds and save_dds helper functions or trait?
@@ -73,8 +75,8 @@ pub fn create_mibl(dds: &Dds) -> Result<Mibl> {
     )?;
 
     // TODO: expose round up in tegra_swizzle?
-    let aligned_size = tegra_swizzle::div_round_up(image_data.len(), 4096) * 4096;
-    image_data.resize(aligned_size, 0);
+    let aligned_size = round_up(image_data.len() as u64, PAGE_SIZE);
+    image_data.resize(aligned_size as usize, 0);
 
     Ok(Mibl {
         image_data,

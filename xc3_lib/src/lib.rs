@@ -24,6 +24,8 @@ pub mod vertex;
 mod write;
 pub mod xbc1;
 
+pub const PAGE_SIZE: u64 = 4096;
+
 // TODO: parse_vec helper for shared code?
 // TODO: use the helper for parsing offset and count from args?
 fn parse_offset_count<T, R, Args>(
