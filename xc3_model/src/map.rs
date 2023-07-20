@@ -15,6 +15,7 @@ use crate::{
     Texture,
 };
 
+// TODO: Document loading the database in an example.
 /// Load a map from a `.wismhd` file for Xenoblade 2 or Xenoblade 3.
 ///
 /// The corresponding `.wismda` should be in the same directory.

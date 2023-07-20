@@ -115,6 +115,7 @@ impl Model {
     }
 }
 
+// TODO: Document loading the database in an example.
 /// Load a character (ch), object (oj), weapon (wp), or enemy (en) model
 /// for Xenoblade 2 or Xenoblade 3.
 pub fn load_model<P: AsRef<Path>>(

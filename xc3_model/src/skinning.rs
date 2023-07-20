@@ -17,7 +17,7 @@ pub struct SkinWeight {
 }
 
 /// Convert the per-vertex indices and weights to per bone influences.
-/// The `weight_indices` represent the data from [AttributeData::WeightIndex].
+/// The `weight_indices` represent the data from [crate::vertex::AttributeData::WeightIndex].
 /// The `skeleton` defines the mapping from bone indices to bone names.
 pub fn bone_influences(
     weight_indices: &[u32],
