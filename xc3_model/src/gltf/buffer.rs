@@ -75,12 +75,7 @@ impl Buffers {
         group_index: usize,
         model_index: usize,
     ) {
-        for (i, vertex_buffer) in model
-            .vertex_buffers
-            .iter()
-            .take(model.vertex_buffers.len() - 1)
-            .enumerate()
-        {
+        for (i, vertex_buffer) in model.vertex_buffers.iter().enumerate() {
             let mut attributes = BTreeMap::new();
             for attribute in &vertex_buffer.attributes {
                 match attribute {

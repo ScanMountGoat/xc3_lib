@@ -63,7 +63,7 @@ pub fn read_vertex_buffers(
     // TODO: Remove the weight index attribute?
     // TODO: Don't return the actual weights buffer?
     // TODO: avoid unwrap?
-    let (skin_weights, bone_indices) = skin_weights_bone_indices(vertex_data).unwrap();
+    let weights_indices = skin_weights_bone_indices(vertex_data);
 
     vertex_data
         .vertex_buffers
@@ -78,16 +78,19 @@ pub fn read_vertex_buffers(
                 attributes.extend(animation_attributes);
             }
 
-            let influences = skeleton
-                .and_then(|skeleton| {
-                    attributes.iter().find_map(|a| match a {
-                        AttributeData::WeightIndex(indices) => Some(bone_influences(
-                            indices,
-                            &skin_weights,
-                            &bone_indices,
-                            &skeleton.bones,
-                        )),
-                        _ => None,
+            let influences = weights_indices
+                .as_ref()
+                .and_then(|(skin_weights, bone_indices)| {
+                    skeleton.and_then(|skeleton| {
+                        attributes.iter().find_map(|a| match a {
+                            AttributeData::WeightIndex(indices) => Some(bone_influences(
+                                indices,
+                                skin_weights,
+                                bone_indices,
+                                &skeleton.bones,
+                            )),
+                            _ => None,
+                        })
                     })
                 })
                 .unwrap_or_default();
