@@ -179,14 +179,18 @@ fn create_map_spchs(folder: &Path) -> Vec<Spch> {
 }
 
 fn create_shader_programs(folder: &Path) -> Vec<ShaderProgram> {
-    // Process all fragment shaders.
-    // TODO: Will this always process shaders in the right order?
-    globwalk::GlobWalkerBuilder::from_patterns(folder, &["*FS0.glsl"])
+    // Shaders are generated as nvsd{program_index}.
+    // Sort by file name to process files in the right order.
+    let mut paths: Vec<_> = globwalk::GlobWalkerBuilder::from_patterns(folder, &["*FS0.glsl"])
         .build()
         .unwrap()
-        .par_bridge()
-        .map(|entry| {
-            let path = entry.as_ref().unwrap().path();
+        .filter_map(|e| e.map(|e| e.path().to_owned()).ok())
+        .collect();
+    paths.sort();
+
+    paths
+        .par_iter()
+        .map(|path| {
             let source = std::fs::read_to_string(path).unwrap();
 
             // TODO: Add FS0 and FS1 to the same program?

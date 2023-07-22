@@ -9,18 +9,15 @@ pub fn extract_shader_binaries<P: AsRef<Path>>(
     ryujinx_shader_tools: Option<&str>,
     save_binaries: bool,
 ) {
-    // TODO: Handle missing program names?
-    for (program, name) in spch
-        .shader_programs
-        .iter()
-        .zip(&spch.string_section.as_ref().unwrap().program_names)
-    {
-        let slct = program.read_slct(&spch.slct_section);
+    for (program_index, program) in spch.shader_programs.iter().enumerate() {
+        // Not all programs have associated names.
+        // Generate the name to avoid any ambiguity.
+        let name = format!("nvsd{program_index}");
 
+        let slct = program.read_slct(&spch.slct_section);
         let binaries = vertex_fragment_binaries(spch, &slct);
 
         for (i, (vertex, fragment)) in binaries.into_iter().enumerate() {
-            // TODO: Only include i if above 0?
             let vert_file = output_folder.as_ref().join(&format!("{name}_VS{i}.bin"));
             std::fs::write(&vert_file, vertex).unwrap();
 

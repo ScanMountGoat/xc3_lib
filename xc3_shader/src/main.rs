@@ -5,10 +5,10 @@ use clap::{Parser, Subcommand};
 use rayon::prelude::*;
 use xc3_lib::msmd::Msmd;
 use xc3_lib::msrd::Msrd;
+use xc3_lib::mxmd::Mxmd;
 use xc3_shader::extract::extract_shader_binaries;
 use xc3_shader::gbuffer_database::create_shader_database;
 
-// TODO: subcommands for decompilation, annotation, etc
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]
@@ -22,7 +22,7 @@ enum Commands {
     /// Extract and decompile shaders into a folder for each .wismt file.
     /// JSON metadata for each program will also be saved in the output folder.
     DecompileShaders {
-        /// The dump root folder.
+        /// The dump root folder for Xenoblade 2 or Xenoblade 3.
         input_folder: String,
         /// The output folder for the decompiled shaders.
         output_folder: String,
@@ -63,21 +63,33 @@ fn main() {
 }
 
 fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Option<&str>) {
-    // TODO: Also dump en,oj,wp?
-    let chr_folder = Path::new(input).join("chr").join("ch");
-    globwalk::GlobWalkerBuilder::from_patterns(chr_folder, &["*.wismt"])
+    globwalk::GlobWalkerBuilder::from_patterns(input, &["*.wimdo"])
         .build()
         .unwrap()
         .par_bridge()
         .for_each(|entry| {
             let path = entry.as_ref().unwrap().path();
-            match Msrd::from_file(path) {
-                Ok(msrd) => {
-                    // Get the embedded shaders from the wismt file.
-                    let output_folder = decompiled_output_folder(output, path);
-                    std::fs::create_dir_all(&output_folder).unwrap();
 
-                    extract_and_decompile_msrd_shaders(msrd, shader_tools, output_folder);
+            // Assume that file names are unique even across different folders.
+            // This simplifies the output directory structure.
+            // TODO: Preserve the original folder structure instead?
+            let output_folder = decompiled_output_folder(output, path);
+            std::fs::create_dir_all(&output_folder).unwrap();
+
+            // Shaders can be embedded in the wimdo or wismt file.
+            match Mxmd::from_file(path) {
+                Ok(mxmd) => {
+                    if let Some(spch) = mxmd.spch {
+                        extract_shader_binaries(&spch, &output_folder, shader_tools, false);
+                    }
+                }
+                Err(e) => println!("Error reading {path:?}: {e}"),
+            }
+
+            match Msrd::from_file(path.with_extension("wismt")) {
+                Ok(msrd) => {
+                    let spch = msrd.extract_shader_data();
+                    extract_shader_binaries(&spch, &output_folder, shader_tools, false);
                 }
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }
@@ -144,17 +156,4 @@ fn extract_and_decompile_msmd_shaders(
 
         extract_shader_binaries(&data.spch, &model_folder, shader_tools, false);
     }
-}
-
-fn extract_and_decompile_msrd_shaders<P: AsRef<Path>>(
-    msrd: Msrd,
-    shader_tools: Option<&str>,
-    output_folder: P,
-) {
-    // Assume each msrd has only one shader item.
-    let spch = msrd.extract_shader_data();
-
-    // TODO: Will shaders always have names like "shd0004"?
-    // TODO: Include the program index in the name to avoid ambiguities?
-    extract_shader_binaries(&spch, output_folder.as_ref(), shader_tools, false);
 }
