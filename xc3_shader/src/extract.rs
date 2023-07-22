@@ -1,7 +1,6 @@
 use std::path::Path;
 
 use crate::annotation::{annotate_fragment, annotate_vertex};
-use rayon::prelude::*;
 use xc3_lib::spch::{NvsdMetadata, Slct, Spch};
 
 pub fn extract_shader_binaries<P: AsRef<Path>>(

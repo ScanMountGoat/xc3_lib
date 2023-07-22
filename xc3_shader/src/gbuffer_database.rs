@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use glsl::{parser::Parse, syntax::ShaderStage};
+use glsl_lang::{ast::TranslationUnit, parse::DefaultParse};
 use indexmap::IndexMap;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -50,9 +50,10 @@ pub struct Shader {
 
 impl Shader {
     fn from_glsl(source: &str) -> Self {
+        // TODO: Find a better way to skip unsupported extensions.
+        let modified_source = source.get(source.find("#pragma").unwrap()..).unwrap();
         // Only parse the source code once.
-        // TODO: Will naga's glsl frontend be faster or easier to use?
-        let translation_unit = &ShaderStage::parse(source).unwrap();
+        let translation_unit = &TranslationUnit::parse(modified_source).unwrap();
 
         // Get the textures used to initialize each fragment output channel.
         // Unused outputs will have an empty dependency list.
@@ -61,8 +62,6 @@ impl Shader {
             output_dependencies: (0..=5)
                 .flat_map(|i| {
                     "xyzw".chars().map(move |c| {
-                        // TODO: Handle cases like "out_attr1.w = 0.00823529344;"
-                        // TODO: Handle cases like "out_attr1.z = fp_c4_data[0].z;"
                         // TODO: Handle cases with vertex color assignments.
                         // TODO: Handle cases with multiple operations before assignment?
                         // TODO: Tests for the above?

@@ -2,9 +2,12 @@
 // TODO: make dependencies and annotation into a library?
 use std::collections::{BTreeSet, HashMap};
 
-use glsl::{
-    syntax::{ArraySpecifierDimension, Expr, FunIdentifier, SimpleStatement, TranslationUnit},
-    transpiler::glsl::show_expr,
+use glsl_lang::{
+    ast::{
+        DeclarationData, Expr, ExprData, FunIdentifierData, InitializerData, Statement,
+        StatementData, TranslationUnit,
+    },
+    transpiler::glsl::{show_expr, FormattingState},
     visitor::{Host, Visit, Visitor},
 };
 
@@ -111,40 +114,36 @@ pub fn input_dependencies(translation_unit: &TranslationUnit, var: &str) -> Vec<
 }
 
 fn add_final_assignment_dependencies(final_assignment: &Expr, dependencies: &mut Vec<SourceInput>) {
-    match final_assignment {
-        Expr::Variable(_) => (),
-        Expr::IntConst(_) => (),
-        Expr::UIntConst(_) => (),
-        Expr::BoolConst(_) => (),
-        Expr::FloatConst(f) => dependencies.push(SourceInput::Constant(*f)),
-        Expr::DoubleConst(_) => (),
-        Expr::Unary(_, _) => (),
-        Expr::Binary(_, _, _) => (),
-        Expr::Ternary(_, _, _) => (),
-        Expr::Assignment(_, _, _) => (),
-        Expr::Bracket(_, _) => (),
-        Expr::FunCall(_, _) => (),
-        Expr::Dot(e, channel) => {
+    match &final_assignment.content {
+        ExprData::Variable(_) => (),
+        ExprData::IntConst(_) => (),
+        ExprData::UIntConst(_) => (),
+        ExprData::BoolConst(_) => (),
+        ExprData::FloatConst(f) => dependencies.push(SourceInput::Constant(*f)),
+        ExprData::DoubleConst(_) => (),
+        ExprData::Unary(_, _) => (),
+        ExprData::Binary(_, _, _) => (),
+        ExprData::Ternary(_, _, _) => (),
+        ExprData::Assignment(_, _, _) => (),
+        ExprData::Bracket(_, _) => (),
+        ExprData::FunCall(_, _) => (),
+        ExprData::Dot(e, channel) => {
             // TODO: Is there a cleaner way of writing this?
-            if let Expr::Bracket(var, specifier) = e.as_ref() {
-                if let Expr::Variable(id) = var.as_ref() {
-                    if let ArraySpecifierDimension::ExplicitlySized(specifier) =
-                        &specifier.dimensions.0[0]
-                    {
-                        if let Expr::IntConst(index) = **specifier {
-                            dependencies.push(SourceInput::Buffer {
-                                name: id.0.clone(),
-                                index: index as usize,
-                                channels: channel.0.clone(),
-                            });
-                        }
+            if let ExprData::Bracket(var, specifier) = &e.as_ref().content {
+                if let ExprData::Variable(id) = &var.as_ref().content {
+                    if let ExprData::IntConst(index) = &specifier.content {
+                        dependencies.push(SourceInput::Buffer {
+                            name: id.content.to_string(),
+                            index: *index as usize,
+                            channels: channel.content.to_string(),
+                        });
                     }
                 }
             }
         }
-        Expr::PostInc(_) => (),
-        Expr::PostDec(_) => (),
-        Expr::Comma(_, _) => (),
+        ExprData::PostInc(_) => (),
+        ExprData::PostDec(_) => (),
+        ExprData::Comma(_, _) => (),
     }
 }
 
@@ -223,106 +222,118 @@ fn actual_channels(
         .collect()
 }
 
-// TODO: Return option instead?
 fn texture_identifier_name(expr: &Expr) -> Option<String> {
     // Assume textures are only accessed in statements with a single texture function.
     // Accesses may have channels like "texture(the_tex, vec2(0.5)).rgb".
-    match expr {
-        Expr::FunCall(id, es) => {
-            if matches!(id, FunIdentifier::Identifier(fun_id) if fun_id.0.contains("texture")) {
-                match &es[0] {
-                    Expr::Variable(id) => Some(id.0.clone()),
-                    _ => None,
+    match &expr.content {
+        ExprData::FunCall(id, es) => {
+            if let FunIdentifierData::Expr(expr) = &id.content {
+                if let ExprData::Variable(id) = &expr.content {
+                    if id.content.0.as_str().contains("texture") {
+                        // Get the texA from "texture(texA, ...)".
+                        if let ExprData::Variable(id) = &es[0].content {
+                            return Some(id.content.0.to_string());
+                        }
+                    }
                 }
-            } else {
-                None
             }
         }
-        Expr::Dot(e, _) => texture_identifier_name(e),
-        _ => None,
+        ExprData::Dot(e, _) => return texture_identifier_name(e),
+        _ => (),
     }
+
+    None
 }
 
 fn add_vars(
     expr: &Expr,
     vars: &mut Vec<(LastAssignment, Option<String>)>,
     most_recent_assignment: &HashMap<String, usize>,
-    channel: Option<&String>,
+    channel: Option<&str>,
 ) {
     // Collect and variables used in an expression.
     // Code like fma(a, b, c) should return [a, b, c].
     // TODO: Include constants?
-    match expr {
-        Expr::Variable(i) => {
+    match &expr.content {
+        ExprData::Variable(i) => {
             // The base case is a single variable like temp_01.
             // Also handle values like buffer or texture names.
-            let assignment = match most_recent_assignment.get(&i.0) {
+            let assignment = match most_recent_assignment.get(i.content.0.as_str()) {
                 Some(i) => LastAssignment::LineNumber(*i),
-                None => LastAssignment::Global(i.0.clone()),
+                None => LastAssignment::Global(i.content.0.to_string()),
             };
-            vars.push((assignment, channel.cloned()));
+            vars.push((assignment, channel.map(|c| c.to_string())));
         }
-        Expr::IntConst(_) => (),
-        Expr::UIntConst(_) => (),
-        Expr::BoolConst(_) => (),
-        Expr::FloatConst(_) => (),
-        Expr::DoubleConst(_) => (),
-        Expr::Unary(_, e) => add_vars(e, vars, most_recent_assignment, channel),
-        Expr::Binary(_, lh, rh) => {
+        ExprData::IntConst(_) => (),
+        ExprData::UIntConst(_) => (),
+        ExprData::BoolConst(_) => (),
+        ExprData::FloatConst(_) => (),
+        ExprData::DoubleConst(_) => (),
+        ExprData::Unary(_, e) => add_vars(e, vars, most_recent_assignment, channel),
+        ExprData::Binary(_, lh, rh) => {
             add_vars(lh, vars, most_recent_assignment, channel);
             add_vars(rh, vars, most_recent_assignment, channel);
         }
-        Expr::Ternary(a, b, c) => {
+        ExprData::Ternary(a, b, c) => {
             add_vars(a, vars, most_recent_assignment, channel);
             add_vars(b, vars, most_recent_assignment, channel);
             add_vars(c, vars, most_recent_assignment, channel);
         }
-        Expr::Assignment(_, _, _) => todo!(),
-        Expr::Bracket(e, specifier) => {
+        ExprData::Assignment(_, _, _) => todo!(),
+        ExprData::Bracket(e, specifier) => {
             // Expressions like array[index] depend on index.
             // TODO: Do we also need to depend on array itself?
             add_vars(e, vars, most_recent_assignment, channel);
-
-            for dim in &specifier.dimensions {
-                if let ArraySpecifierDimension::ExplicitlySized(e) = dim {
-                    add_vars(e, vars, most_recent_assignment, channel);
-                }
-            }
+            add_vars(specifier, vars, most_recent_assignment, channel);
         }
-        Expr::FunCall(_, es) => {
+        ExprData::FunCall(_, es) => {
             for e in es {
                 add_vars(e, vars, most_recent_assignment, channel);
             }
         }
-        Expr::Dot(e, channel) => {
+        ExprData::Dot(e, channel) => {
             // Track the channels accessed by expressions like "value.rgb".
-            add_vars(e, vars, most_recent_assignment, Some(&channel.0))
+            add_vars(
+                e,
+                vars,
+                most_recent_assignment,
+                Some(channel.content.0.as_str()),
+            )
         }
-        Expr::PostInc(e) => add_vars(e, vars, most_recent_assignment, channel),
-        Expr::PostDec(e) => add_vars(e, vars, most_recent_assignment, channel),
-        Expr::Comma(_, _) => todo!(),
+        ExprData::PostInc(e) => add_vars(e, vars, most_recent_assignment, channel),
+        ExprData::PostDec(e) => add_vars(e, vars, most_recent_assignment, channel),
+        ExprData::Comma(_, _) => todo!(),
     }
 }
 
 fn print_expr(expr: &Expr) -> String {
     let mut text = String::new();
-    show_expr(&mut text, expr);
+    show_expr(&mut text, expr, &mut FormattingState::default()).unwrap();
     text
 }
 
 impl Visitor for AssignmentVisitor {
-    fn visit_simple_statement(&mut self, statement: &SimpleStatement) -> Visit {
-        match statement {
-            SimpleStatement::Expression(Some(glsl::syntax::Expr::Assignment(lh, _, rh))) => {
-                let output = print_expr(lh);
-                self.add_assignment(output, rh);
+    fn visit_statement(&mut self, statement: &Statement) -> Visit {
+        match &statement.content {
+            StatementData::Expression(expr) => {
+                if let Some(ExprData::Assignment(lh, _, rh)) =
+                    expr.content.0.as_ref().map(|c| &c.content)
+                {
+                    let output = print_expr(lh);
+                    self.add_assignment(output, rh);
+                }
+
                 Visit::Children
             }
-            SimpleStatement::Declaration(glsl::syntax::Declaration::InitDeclaratorList(l)) => {
-                // TODO: is it worth handling complex initializers?
-                if let Some(glsl::syntax::Initializer::Simple(init)) = l.head.initializer.as_ref() {
-                    let output = l.head.name.as_ref().unwrap().0.clone();
-                    self.add_assignment(output, init);
+            StatementData::Declaration(decl) => {
+                if let DeclarationData::InitDeclaratorList(l) = &decl.content {
+                    // TODO: is it worth handling complex initializers?
+                    if let Some(InitializerData::Simple(init)) =
+                        l.head.initializer.as_ref().map(|c| &c.content)
+                    {
+                        let output = l.head.name.as_ref().unwrap().0.clone();
+                        self.add_assignment(output.to_string(), init);
+                    }
                 }
 
                 Visit::Children
@@ -389,16 +400,15 @@ fn add_dependencies(
 mod tests {
     use super::*;
 
-    use glsl::{parser::Parse, syntax::ShaderStage};
+    use glsl_lang::{ast::TranslationUnit, parse::DefaultParse};
     use indoc::indoc;
 
     fn line_dependencies_glsl(source: &str, var: &str) -> String {
-        let translation_unit = ShaderStage::parse(source).unwrap();
+        let translation_unit = TranslationUnit::parse(source).unwrap();
         line_dependencies(&translation_unit, var)
             .map(|dependencies| {
                 // Combine all the lines into source code again.
                 // These won't exactly match the originals due to formatting differences.
-                // TODO: Just store the statement in string form?
                 dependencies
                     .dependent_lines
                     .into_iter()
@@ -436,10 +446,10 @@ mod tests {
             indoc! {"
                 a = fp_c9_data[0].x;
                 b = 2.;
-                c = a*b;
+                c = a * b;
                 d = fma(a, b, c);
-                d = d+1.;
-                OUT_Color.x = c+d;
+                d = d + 1.;
+                OUT_Color.x = c + d;
             "},
             line_dependencies_glsl(glsl, "OUT_Color.x")
         );
@@ -462,7 +472,7 @@ mod tests {
         assert_eq!(
             indoc! {"
                 b = 2.;
-                c = 2*b;
+                c = 2 * b;
             "},
             line_dependencies_glsl(glsl, "c")
         );
@@ -483,7 +493,7 @@ mod tests {
         assert_eq!(
             indoc! {"
                 a = 0.;
-                b = uint(a)>>2;
+                b = uint(a) >> 2;
                 c = data[int(b)];
             "},
             line_dependencies_glsl(glsl, "c")
@@ -516,7 +526,7 @@ mod tests {
         assert_eq!(
             indoc! {"
                 a = 1.;
-                b = texture(texture1, vec2(a+2., 1.)).x;
+                b = texture(texture1, vec2(a + 2., 1.)).x;
                 c = data[int(b)];
             "},
             line_dependencies_glsl(glsl, "c")
