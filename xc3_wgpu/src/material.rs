@@ -233,22 +233,22 @@ fn gbuffer_assignments(
             // TODO: How to properly handle missing assignment information?
             // TODO: How to encode constants and buffer values?
             let (s0, c0) = shader
-                .material_channel_assignment(i, 'x')
+                .sampler_channel_index(i, 'x')
                 .map(|(s, c)| (s as i32, c))
                 .unwrap_or((-1, 0));
 
             let (s1, c1) = shader
-                .material_channel_assignment(i, 'y')
+                .sampler_channel_index(i, 'y')
                 .map(|(s, c)| (s as i32, c))
                 .unwrap_or((-1, 0));
 
             let (s2, c2) = shader
-                .material_channel_assignment(i, 'z')
+                .sampler_channel_index(i, 'z')
                 .map(|(s, c)| (s as i32, c))
                 .unwrap_or((-1, 0));
 
             let (s3, c3) = shader
-                .material_channel_assignment(i, 'w')
+                .sampler_channel_index(i, 'w')
                 .map(|(s, c)| (s as i32, c))
                 .unwrap_or((-1, 0));
 

@@ -224,7 +224,7 @@ fn texture_channel_index(
     let (sampler_index, channel_index) = material
         .shader
         .as_ref()?
-        .material_channel_assignment(gbuffer_index, channel)?;
+        .sampler_channel_index(gbuffer_index, channel)?;
 
     // Find the texture referenced by this sampler.
     material

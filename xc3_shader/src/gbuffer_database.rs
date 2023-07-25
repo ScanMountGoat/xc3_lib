@@ -83,12 +83,10 @@ impl Shader {
         }
     }
 
-    /// Find the sampler and channel index of the first material sampler like "s0" or "s3" assigned to the output.
-    pub fn material_channel_assignment(
-        &self,
-        output_index: usize,
-        channel: char,
-    ) -> Option<(u32, u32)> {
+    /// Find the sampler and channel index of the first material sampler assigned to the output.
+    ///
+    /// For example, an assignment of `"s3.y"` results in a sampler index of `3` and a channel index of `1`.
+    pub fn sampler_channel_index(&self, output_index: usize, channel: char) -> Option<(u32, u32)> {
         let output = format!("o{output_index}.{channel}");
 
         // Find the first material referenced sampler like "s0" or "s1".
@@ -227,7 +225,7 @@ mod tests {
         let shader = Shader {
             output_dependencies: IndexMap::new(),
         };
-        assert_eq!(None, shader.material_channel_assignment(0, 'x'));
+        assert_eq!(None, shader.sampler_channel_index(0, 'x'));
     }
 
     #[test]
@@ -235,7 +233,7 @@ mod tests {
         let shader = Shader {
             output_dependencies: [("o0.x".to_string(), Vec::new())].into(),
         };
-        assert_eq!(None, shader.material_channel_assignment(0, 'x'));
+        assert_eq!(None, shader.sampler_channel_index(0, 'x'));
     }
 
     #[test]
@@ -251,6 +249,6 @@ mod tests {
             ]
             .into(),
         };
-        assert_eq!(Some((2, 2)), shader.material_channel_assignment(0, 'y'));
+        assert_eq!(Some((2, 2)), shader.sampler_channel_index(0, 'y'));
     }
 }
