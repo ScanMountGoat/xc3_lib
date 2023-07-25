@@ -2,11 +2,13 @@ use std::{error::Error, path::Path};
 
 use ddsfile::Dds;
 use xc3_lib::{
-    mibl::{ImageFormat, Mibl, ViewDimension},
+    mibl::Mibl,
     msrd::Msrd,
     mxmd::{Mxmd, PackedTexture},
     xbc1::Xbc1,
 };
+
+pub use xc3_lib::mibl::{ImageFormat, ViewDimension};
 
 /// A non swizzled version of an [Mibl] texture.
 #[derive(Debug, Clone)]
@@ -193,6 +195,11 @@ pub fn merge_mibl(base_mip_level: Vec<u8>, mibl_m: Mibl, name: Option<String>) -
 
 // TODO: add conversions to and from dds for surface to image_dds?
 impl ImageTexture {
+    pub fn to_image(&self) -> Result<image::RgbaImage, Box<dyn Error>> {
+        let dds = self.to_dds()?;
+        image_dds::image_from_dds(&dds, 0).map_err(Into::into)
+    }
+
     pub fn to_dds(&self) -> Result<Dds, Box<dyn Error>> {
         let mut dds = Dds::new_dxgi(ddsfile::NewDxgiParams {
             height: self.height,

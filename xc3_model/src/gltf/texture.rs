@@ -244,8 +244,7 @@ pub fn create_images(roots: &[ModelRoot]) -> BTreeMap<ImageKey, image::RgbaImage
                 .enumerate()
                 .map(|(i, texture)| {
                     // Convert to PNG since DDS is not well supported.
-                    let dds = texture.to_dds().unwrap();
-                    let image = image_dds::image_from_dds(&dds, 0).unwrap();
+                    let image = texture.to_image().unwrap();
                     let key = ImageKey {
                         root_index,
                         image_index: i,
