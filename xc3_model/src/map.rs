@@ -3,7 +3,7 @@ use std::{io::Cursor, path::Path};
 use glam::{Mat4, Vec3};
 use rayon::prelude::*;
 use xc3_lib::{
-    map::FoliageMaterials,
+    map::{FoliageMaterials, PropInstance, PropLod, PropLods, PropPositions},
     msmd::{ChannelType, MapParts, Msmd, StreamEntry},
     mxmd::{MaterialFlags, ShaderUnkType},
     vertex::VertexData,
@@ -74,6 +74,12 @@ pub fn load_map<P: AsRef<Path>>(
 
     let prop_vertex_data = extract_vertex_data(&msmd.prop_vertex_data, &wismda, compressed);
 
+    let prop_positions: Vec<_> = msmd
+        .prop_positions
+        .par_iter()
+        .map(|p| p.extract(&mut Cursor::new(&wismda), compressed))
+        .collect();
+
     groups.par_extend(msmd.prop_models.par_iter().enumerate().map(|(i, model)| {
         let model_data = model.entry.extract(&mut Cursor::new(&wismda), compressed);
 
@@ -82,6 +88,7 @@ pub fn load_map<P: AsRef<Path>>(
             i,
             &prop_vertex_data,
             msmd.parts.as_ref(),
+            &prop_positions,
             &model_folder,
             shader_database,
         )
@@ -123,6 +130,7 @@ fn load_prop_model_group(
     model_index: usize,
     prop_vertex_data: &[VertexData],
     parts: Option<&MapParts>,
+    prop_positions: &[PropPositions],
     model_folder: &str,
     shader_database: Option<&GBufferDatabase>,
 ) -> ModelGroup {
@@ -133,42 +141,60 @@ fn load_prop_model_group(
     let mut materials = materials(&model_data.materials, spch);
     apply_material_texture_indices(&mut materials, &model_data.textures);
 
-    // Load the base LOD model for each prop model.
     let mut models: Vec<_> = model_data
-        .lods
-        .props
+        .models
+        .models
         .iter()
-        .enumerate()
-        .filter_map(|(i, prop_lod)| {
-            let base_lod_index = prop_lod.base_lod_index as usize;
-            let vertex_data_index = model_data.model_vertex_data_indices[base_lod_index];
-
+        .zip(model_data.model_vertex_data_indices.iter())
+        .map(|(model, vertex_data_index)| {
             // TODO: Also cache vertex and index buffer creation?
-            let vertex_data = &prop_vertex_data[vertex_data_index as usize];
+            let vertex_data = &prop_vertex_data[*vertex_data_index as usize];
 
-            // Find all the instances referencing this prop.
-            let instances = model_data
-                .lods
-                .instances
-                .iter()
-                .filter(|instance| instance.prop_index as usize == i)
-                .map(|instance| Mat4::from_cols_array_2d(&instance.transform))
-                .collect();
-
-            Some(Model::from_model(
-                model_data.models.models.get(base_lod_index)?,
+            Model::from_model(
+                model,
                 model_data.models.skeleton.as_ref(),
                 vertex_data,
-                instances,
-            ))
+                Vec::new(),
+            )
         })
         .collect();
+
+    // Load instances for each base LOD model.
+    add_prop_instances(
+        &mut models,
+        &model_data.lods.props,
+        &model_data.lods.instances,
+    );
+
+    // Add additional instances if present.
+    for info in &model_data.prop_info {
+        let additional_instances = &prop_positions[info.prop_position_entry_index as usize];
+        add_prop_instances(
+            &mut models,
+            &model_data.lods.props,
+            &additional_instances.instances,
+        );
+
+        if let Some(parts) = parts {
+            add_animated_part_instances(
+                &mut models,
+                additional_instances.animated_parts_start_index as usize,
+                additional_instances.animated_parts_count as usize,
+                parts,
+            );
+        }
+    }
 
     // TODO: Is this the correct way to handle animated props?
     // TODO: Document how this works in xc3_lib.
     // Add additional animated prop instances to the appropriate models.
     if let Some(parts) = parts {
-        add_animated_part_instances(&mut models, model_data, parts);
+        add_animated_part_instances(
+            &mut models,
+            model_data.lods.animated_parts_start_index as usize,
+            model_data.lods.animated_parts_count as usize,
+            parts,
+        );
     }
 
     ModelGroup {
@@ -178,15 +204,25 @@ fn load_prop_model_group(
     }
 }
 
+fn add_prop_instances(models: &mut [Model], props: &[PropLod], instances: &[PropInstance]) {
+    for instance in instances {
+        let prop_lod = &props[instance.prop_index as usize];
+        let base_lod_index = prop_lod.base_lod_index as usize;
+        // TODO: Should we also index into the PropModelLod?
+        // TODO: Is PropModelLod.index always the same as its index in the list?
+        models[base_lod_index]
+            .instances
+            .push(Mat4::from_cols_array_2d(&instance.transform));
+    }
+}
+
 fn add_animated_part_instances(
     models: &mut [Model],
-    prop_model_data: &xc3_lib::map::PropModelData,
+    start_index: usize,
+    count: usize,
     parts: &MapParts,
 ) {
-    let start = prop_model_data.lods.animated_parts_start_index as usize;
-    let count = prop_model_data.lods.animated_parts_count as usize;
-
-    for i in start..start + count {
+    for i in start_index..start_index + count {
         let instance = &parts.animated_instances[i];
         let animation = &parts.instance_animations[i];
 
@@ -220,6 +256,7 @@ fn add_animated_part_instances(
                         .map(|f| f.value)
                         .unwrap_or_default()
                 }
+                // TODO: Handle other transforms.
                 ChannelType::RotationX => (),
                 ChannelType::RotationY => (),
                 ChannelType::RotationZ => (),

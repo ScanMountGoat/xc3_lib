@@ -14,7 +14,6 @@ use crate::{
 // TODO: Improve docs.
 // TODO: Link to appropriate stream field with doc links.
 /// The data for a [PropModel](crate::msmd::PropModel).
-
 #[derive(BinRead, Debug)]
 pub struct PropModelData {
     pub unk1: [u32; 3],
@@ -44,7 +43,13 @@ pub struct PropModelData {
     #[br(parse_with = parse_offset_count)]
     pub model_vertex_data_indices: Vec<u32>,
 
-    pub unk4: [u32; 5],
+    pub unk4_1: u32,
+    pub unk4_2: u32,
+
+    #[br(parse_with = parse_offset_count)]
+    pub prop_info: Vec<PropPositionInfo>,
+
+    pub unk4_5: u32,
 
     #[br(parse_with = parse_ptr32)]
     pub spch: Spch,
@@ -124,7 +129,6 @@ pub struct PropInstance {
     pub radius: f32,
     pub center: [f32; 3],
 
-    // TODO: fix this doc link
     /// The index into [props](struct.PropLods.html#structfield.props).
     pub prop_index: u32,
 
@@ -146,9 +150,17 @@ pub struct PropUnk3 {
     pub unk2: [u32; 3],
 }
 
+#[derive(BinRead, Debug)]
+pub struct PropPositionInfo {
+    /// The index in [prop_positions](../msmd/struct.Msmd.html#structfield.prop_positions).
+    pub prop_position_entry_index: u32,
+    pub instance_start_index: u32,
+    pub max: [f32; 3],
+    pub min: [f32; 3],
+}
+
 // TODO: Link to appropriate stream field with doc links.
 /// The data for a [MapModel](crate::msmd::MapModel).
-
 #[derive(BinRead, Debug)]
 pub struct MapModelData {
     pub unk1: [u32; 3],
@@ -374,7 +386,6 @@ pub struct MapLowModelData {
 
 // TODO: Is this documented correctly?
 // TODO: https://github.com/atnavon/xc2f/wiki/map-instance-chunk#extrainstancepack
-
 #[derive(BinRead, Debug)]
 pub struct PropPositions {
     #[br(parse_with = parse_count_offset)]
