@@ -24,6 +24,7 @@ pub struct Sar1 {
     pub name: String,
 }
 
+// TODO: Parse this in a separate step?
 #[binread]
 #[derive(Debug)]
 pub struct Entry {
@@ -332,7 +333,7 @@ mod tests {
         // Check that wimdo bone name hashes match the mot hashes.
         // xeno3/chr/ch/ch01012013.wimdo
         // xeno3/chr/ch/ch01011000_battle.mot
-        assert_eq!(1205803477, murmur3("J_thumb_A_R".as_bytes()));
-        assert_eq!(4244707126, murmur3("J_hip".as_bytes()));
+        assert_eq!(0x47df19d5, murmur3("J_thumb_A_R".as_bytes()));
+        assert_eq!(0xfd011736, murmur3("J_hip".as_bytes()));
     }
 }

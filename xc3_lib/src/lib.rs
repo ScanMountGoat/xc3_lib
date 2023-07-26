@@ -220,5 +220,6 @@ file_read_impl!(
     spch::Spch,
     vertex::VertexData,
     dhal::Dhal,
-    ltpc::Ltpc
+    ltpc::Ltpc,
+    apmd::Apmd
 );
