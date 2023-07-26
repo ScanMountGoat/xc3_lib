@@ -9,10 +9,7 @@ It's recommended to use an editor like [Visual Studio Code](https://code.visuals
 `rust-analyzer` is also available for other editors for those that prefer to use something other than VSCode.
 
 ## Style and Formatting
-Rust code should be formatted by running the cargo fmt command. 
-This can also be done in VS Code using the Rust Analyzer extension and using the format document command (Alt+Shift+F). 
-Running code lints with cargo clippy is also recommended. 
-Running formatting and linting regularly during development helps keep the code easy to read for other Rust developers.
+Rust code should be formatted by running the cargo fmt command. This can also be done in VS Code using the Rust Analyzer extension and using the format document command (Alt+Shift+F). Running code lints with cargo clippy is also recommended. Running formatting and linting regularly during development helps keep the code easy to read for other Rust developers. WGSL shader files should be formatted using [wgsl_analyzer](https://github.com/wgsl-analyzer/wgsl-analyzer).
 
 ## CPU Profiling
 For Linux and MacOS, an easy way to identify performance bottlenecks is by using [cargo-flamegraph](https://github.com/flamegraph-rs/flamegraph).

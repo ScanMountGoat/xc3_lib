@@ -187,11 +187,11 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     let s9_color = textureSample(s9, shared_sampler, in.uv1);
 
     let s_colors = array<vec4<f32>, 10>(
-        s0_color, 
-        s1_color, 
-        s2_color, 
-        s3_color, 
-        s4_color, 
+        s0_color,
+        s1_color,
+        s2_color,
+        s3_color,
+        s4_color,
         s5_color,
         s6_color,
         s7_color,
@@ -218,7 +218,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     // Not all materials and shaders use normal mapping.
     // TODO: Is this a good way to check for this?
     var normal = vertex_normal;
-    if (gbuffer_assignments[2].sampler_indices.x != -1 && gbuffer_assignments[2].sampler_indices.y != -1) {
+    if gbuffer_assignments[2].sampler_indices.x != -1 && gbuffer_assignments[2].sampler_indices.y != -1 {
         normal = apply_normal_map(vertex_normal, tangent, bitangent, normal_map);
     }
 
