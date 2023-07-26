@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use glam::{vec4, Vec3, Vec4};
 use log::info;
 use wgpu::util::DeviceExt;
-use xc3_model::vertex::AttributeData;
+use xc3_model::{skinning::bone_indices_weights, vertex::AttributeData};
 
 use crate::{
     material::{materials, Material},
@@ -29,7 +29,7 @@ pub struct Model {
 }
 
 pub struct ModelInstance {
-    per_model: crate::shader::model::bind_groups::BindGroup3,
+    per_model: crate::shader::model::bind_groups::BindGroup2,
 }
 
 #[derive(Debug)]
@@ -78,7 +78,6 @@ impl ModelGroup {
                         render_pass.set_pipeline(pipeline);
 
                         material.bind_group1.set(render_pass);
-                        material.bind_group2.set(render_pass);
 
                         self.draw_mesh(model, mesh, render_pass);
                     }
@@ -158,7 +157,7 @@ fn create_model_group(
     let models = group
         .models
         .iter()
-        .map(|model| create_model(device, model))
+        .map(|model| create_model(device, model, group.skeleton.as_ref()))
         .collect();
 
     ModelGroup {
@@ -187,8 +186,12 @@ fn model_index_buffers(device: &wgpu::Device, model: &xc3_model::Model) -> Vec<I
         .collect()
 }
 
-fn create_model(device: &wgpu::Device, model: &xc3_model::Model) -> Model {
-    let vertex_buffers = model_vertex_buffers(device, model);
+fn create_model(
+    device: &wgpu::Device,
+    model: &xc3_model::Model,
+    skeleton: Option<&xc3_model::skeleton::Skeleton>,
+) -> Model {
+    let vertex_buffers = model_vertex_buffers(device, model, skeleton);
     let index_buffers = model_index_buffers(device, model);
 
     let meshes = model
@@ -219,7 +222,11 @@ fn create_model(device: &wgpu::Device, model: &xc3_model::Model) -> Model {
     }
 }
 
-fn model_vertex_buffers(device: &wgpu::Device, model: &xc3_model::Model) -> Vec<VertexBuffer> {
+fn model_vertex_buffers(
+    device: &wgpu::Device,
+    model: &xc3_model::Model,
+    skeleton: Option<&xc3_model::skeleton::Skeleton>,
+) -> Vec<VertexBuffer> {
     model
         .vertex_buffers
         .iter()
@@ -233,7 +240,8 @@ fn model_vertex_buffers(device: &wgpu::Device, model: &xc3_model::Model) -> Vec<
             let mut vertices = vec![
                 shader::model::VertexInput {
                     position: Vec3::ZERO,
-                    weight_index: 0,
+                    bone_indices: 0,
+                    skin_weights: Vec4::ZERO,
                     vertex_color: Vec4::ZERO,
                     normal: Vec4::ZERO,
                     tangent: Vec4::ZERO,
@@ -245,7 +253,7 @@ fn model_vertex_buffers(device: &wgpu::Device, model: &xc3_model::Model) -> Vec<
             // Convert the attributes back to an interleaved representation for rendering.
             // Unused attributes will use the default values defined above.
             // Using a single vertex representation reduces the number of shaders.
-            set_attributes(&mut vertices, buffer);
+            set_attributes(&mut vertices, buffer, skeleton);
 
             let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("vertex buffer"),
@@ -258,7 +266,11 @@ fn model_vertex_buffers(device: &wgpu::Device, model: &xc3_model::Model) -> Vec<
         .collect()
 }
 
-fn set_attributes(verts: &mut [shader::model::VertexInput], buffer: &xc3_model::VertexBuffer) {
+fn set_attributes(
+    verts: &mut [shader::model::VertexInput],
+    buffer: &xc3_model::VertexBuffer,
+    skeleton: Option<&xc3_model::skeleton::Skeleton>,
+) {
     for attribute in &buffer.attributes {
         match attribute {
             AttributeData::Position(vals) => set_attribute(verts, vals, |v, t| v.position = t),
@@ -271,15 +283,23 @@ fn set_attributes(verts: &mut [shader::model::VertexInput], buffer: &xc3_model::
             AttributeData::VertexColor(vals) => {
                 set_attribute(verts, vals, |v, t| v.vertex_color = t)
             }
-            AttributeData::WeightIndex(vals) => {
-                // TODO: Look up the weight data from the skinning buffer.
-                // TODO: Just precompute all the indirection for now.
-                // TODO: Switch to a separate skinning buffer later?
-                set_attribute(verts, vals, |v, t| v.weight_index = t)
-            }
+            // Bone influences are handled separately.
+            AttributeData::WeightIndex(_) => {}
             AttributeData::SkinWeights(_) => (),
             AttributeData::BoneIndices(_) => (),
         }
+    }
+
+    if let Some(skeleton) = skeleton {
+        // TODO: Avoid collect?
+        let bone_names: Vec<_> = skeleton.bones.iter().map(|b| b.name.as_str()).collect();
+        let (indices, weights) = bone_indices_weights(&buffer.influences, verts.len(), &bone_names);
+
+        // TODO: Will this always work as little endian?
+        set_attribute(verts, &indices, |v, t| {
+            v.bone_indices = u32::from_le_bytes(t)
+        });
+        set_attribute(verts, &weights, |v, t| v.skin_weights = t);
     }
 }
 
@@ -296,16 +316,16 @@ where
 fn per_model_bind_group(
     device: &wgpu::Device,
     transform: glam::Mat4,
-) -> shader::model::bind_groups::BindGroup3 {
+) -> shader::model::bind_groups::BindGroup2 {
     let per_model_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("per model buffer"),
         contents: bytemuck::cast_slice(&[crate::shader::model::PerModel { matrix: transform }]),
         usage: wgpu::BufferUsages::UNIFORM,
     });
 
-    crate::shader::model::bind_groups::BindGroup3::from_bindings(
+    crate::shader::model::bind_groups::BindGroup2::from_bindings(
         device,
-        crate::shader::model::bind_groups::BindGroupLayout3 {
+        crate::shader::model::bind_groups::BindGroupLayout2 {
             per_model: per_model_buffer.as_entire_buffer_binding(),
         },
     )

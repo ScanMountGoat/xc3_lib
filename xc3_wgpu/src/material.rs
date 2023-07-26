@@ -17,7 +17,6 @@ use crate::{
 pub struct Material {
     pub name: String,
     pub bind_group1: crate::shader::model::bind_groups::BindGroup1,
-    pub bind_group2: crate::shader::model::bind_groups::BindGroup2,
 
     // The material flags may require a separate pipeline per material.
     // We only store a key here to allow caching.
@@ -54,6 +53,20 @@ pub fn materials(
     let materials = materials
         .iter()
         .map(|material| {
+            // TODO: Default assignments?
+            let assignments = material
+                .shader
+                .as_ref()
+                .map(gbuffer_assignments)
+                .unwrap_or_else(default_gbuffer_assignments);
+
+            let gbuffer_assignments =
+                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("GBuffer Assignments"),
+                    contents: bytemuck::cast_slice(&assignments),
+                    usage: wgpu::BufferUsages::UNIFORM,
+                });
+
             // Bind all available textures and samplers.
             // Texture selection happens within the shader itself.
             // This simulates having a unique shader for each material.
@@ -71,26 +84,6 @@ pub fn materials(
                     s8: material_texture(material, textures, 8).unwrap_or(&default_black),
                     s9: material_texture(material, textures, 9).unwrap_or(&default_black),
                     shared_sampler: &default_sampler,
-                },
-            );
-
-            // TODO: Default assignments?
-            let assignments = material
-                .shader
-                .as_ref()
-                .map(gbuffer_assignments)
-                .unwrap_or_else(default_gbuffer_assignments);
-
-            let gbuffer_assignments =
-                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("GBuffer Assignments"),
-                    contents: bytemuck::cast_slice(&assignments),
-                    usage: wgpu::BufferUsages::UNIFORM,
-                });
-
-            let bind_group2 = crate::shader::model::bind_groups::BindGroup2::from_bindings(
-                device,
-                crate::shader::model::bind_groups::BindGroupLayout2 {
                     gbuffer_assignments: gbuffer_assignments.as_entire_buffer_binding(),
                 },
             );
@@ -109,7 +102,6 @@ pub fn materials(
             Material {
                 name: material.name.clone(),
                 bind_group1,
-                bind_group2,
                 pipeline_key,
                 texture_count: material.textures.len(),
             }
@@ -149,24 +141,6 @@ pub fn foliage_materials(
         .materials
         .iter()
         .map(|material| {
-            // TODO: Where are the textures?
-            let bind_group1 = crate::shader::model::bind_groups::BindGroup1::from_bindings(
-                device,
-                crate::shader::model::bind_groups::BindGroupLayout1 {
-                    s0: &textures[0],
-                    s1: &default_black,
-                    s2: &default_black,
-                    s3: &default_black,
-                    s4: &default_black,
-                    s5: &default_black,
-                    s6: &default_black,
-                    s7: &default_black,
-                    s8: &default_black,
-                    s9: &default_black,
-                    shared_sampler: &default_sampler,
-                },
-            );
-
             // TODO: Foliage shaders?
             let shader = None;
 
@@ -182,9 +156,20 @@ pub fn foliage_materials(
                     usage: wgpu::BufferUsages::UNIFORM,
                 });
 
-            let bind_group2 = crate::shader::model::bind_groups::BindGroup2::from_bindings(
+            let bind_group1 = crate::shader::model::bind_groups::BindGroup1::from_bindings(
                 device,
-                crate::shader::model::bind_groups::BindGroupLayout2 {
+                crate::shader::model::bind_groups::BindGroupLayout1 {
+                    s0: &textures[0],
+                    s1: &default_black,
+                    s2: &default_black,
+                    s3: &default_black,
+                    s4: &default_black,
+                    s5: &default_black,
+                    s6: &default_black,
+                    s7: &default_black,
+                    s8: &default_black,
+                    s9: &default_black,
+                    shared_sampler: &default_sampler,
                     gbuffer_assignments: gbuffer_assignments.as_entire_buffer_binding(),
                 },
             );
@@ -210,7 +195,6 @@ pub fn foliage_materials(
             Material {
                 name: material.name.clone(),
                 bind_group1,
-                bind_group2,
                 pipeline_key,
                 texture_count: 0,
             }

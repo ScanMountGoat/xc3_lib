@@ -3,7 +3,7 @@ use std::{io::Cursor, path::Path};
 use glam::{Mat4, Vec3};
 use rayon::prelude::*;
 use xc3_lib::{
-    map::{FoliageMaterials, PropInstance, PropLod, PropLods, PropPositions},
+    map::{FoliageMaterials, PropInstance, PropLod, PropPositions},
     msmd::{ChannelType, MapParts, Msmd, StreamEntry},
     mxmd::{MaterialFlags, ShaderUnkType},
     vertex::VertexData,

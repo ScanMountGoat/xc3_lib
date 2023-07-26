@@ -23,16 +23,6 @@ const _: () = assert!(
 );
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct VertexInput {
-    pub position: glam::Vec3,
-    pub weight_index: u32,
-    pub vertex_color: glam::Vec4,
-    pub normal: glam::Vec4,
-    pub tangent: glam::Vec4,
-    pub uv1: glam::Vec4,
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct GBufferAssignment {
     pub sampler_indices: glam::IVec4,
     pub channel_indices: glam::UVec4,
@@ -61,6 +51,17 @@ const _: () = assert!(
     memoffset::offset_of!(PerModel, matrix) == 0,
     "offset of PerModel.matrix does not match WGSL"
 );
+#[repr(C)]
+#[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct VertexInput {
+    pub position: glam::Vec3,
+    pub bone_indices: u32,
+    pub skin_weights: glam::Vec4,
+    pub vertex_color: glam::Vec4,
+    pub normal: glam::Vec4,
+    pub tangent: glam::Vec4,
+    pub uv1: glam::Vec4,
+}
 pub mod bind_groups {
     pub struct BindGroup0(wgpu::BindGroup);
     pub struct BindGroupLayout0<'a> {
@@ -119,6 +120,7 @@ pub mod bind_groups {
         pub s8: &'a wgpu::TextureView,
         pub s9: &'a wgpu::TextureView,
         pub shared_sampler: &'a wgpu::Sampler,
+        pub gbuffer_assignments: wgpu::BufferBinding<'a>,
     }
     const LAYOUT_DESCRIPTOR1: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
         label: None,
@@ -249,6 +251,16 @@ pub mod bind_groups {
                 ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                 count: None,
             },
+            wgpu::BindGroupLayoutEntry {
+                binding: 11,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
         ],
     };
     impl BindGroup1 {
@@ -308,6 +320,12 @@ pub mod bind_groups {
                                     bindings.shared_sampler,
                                 ),
                             },
+                            wgpu::BindGroupEntry {
+                                binding: 11,
+                                resource: wgpu::BindingResource::Buffer(
+                                    bindings.gbuffer_assignments,
+                                ),
+                            },
                         ],
                         label: None,
                     },
@@ -320,7 +338,7 @@ pub mod bind_groups {
     }
     pub struct BindGroup2(wgpu::BindGroup);
     pub struct BindGroupLayout2<'a> {
-        pub gbuffer_assignments: wgpu::BufferBinding<'a>,
+        pub per_model: wgpu::BufferBinding<'a>,
     }
     const LAYOUT_DESCRIPTOR2: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
         label: None,
@@ -350,9 +368,7 @@ pub mod bind_groups {
                         entries: &[
                             wgpu::BindGroupEntry {
                                 binding: 0,
-                                resource: wgpu::BindingResource::Buffer(
-                                    bindings.gbuffer_assignments,
-                                ),
+                                resource: wgpu::BindingResource::Buffer(bindings.per_model),
                             },
                         ],
                         label: None,
@@ -364,55 +380,10 @@ pub mod bind_groups {
             render_pass.set_bind_group(2, &self.0, &[]);
         }
     }
-    pub struct BindGroup3(wgpu::BindGroup);
-    pub struct BindGroupLayout3<'a> {
-        pub per_model: wgpu::BufferBinding<'a>,
-    }
-    const LAYOUT_DESCRIPTOR3: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
-        label: None,
-        entries: &[
-            wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-        ],
-    };
-    impl BindGroup3 {
-        pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-            device.create_bind_group_layout(&LAYOUT_DESCRIPTOR3)
-        }
-        pub fn from_bindings(device: &wgpu::Device, bindings: BindGroupLayout3) -> Self {
-            let bind_group_layout = device.create_bind_group_layout(&LAYOUT_DESCRIPTOR3);
-            let bind_group = device
-                .create_bind_group(
-                    &wgpu::BindGroupDescriptor {
-                        layout: &bind_group_layout,
-                        entries: &[
-                            wgpu::BindGroupEntry {
-                                binding: 0,
-                                resource: wgpu::BindingResource::Buffer(bindings.per_model),
-                            },
-                        ],
-                        label: None,
-                    },
-                );
-            Self(bind_group)
-        }
-        pub fn set<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
-            render_pass.set_bind_group(3, &self.0, &[]);
-        }
-    }
     pub struct BindGroups<'a> {
         pub bind_group0: &'a BindGroup0,
         pub bind_group1: &'a BindGroup1,
         pub bind_group2: &'a BindGroup2,
-        pub bind_group3: &'a BindGroup3,
     }
     pub fn set_bind_groups<'a>(
         pass: &mut wgpu::RenderPass<'a>,
@@ -421,12 +392,11 @@ pub mod bind_groups {
         bind_groups.bind_group0.set(pass);
         bind_groups.bind_group1.set(pass);
         bind_groups.bind_group2.set(pass);
-        bind_groups.bind_group3.set(pass);
     }
 }
 pub mod vertex {
     impl super::VertexInput {
-        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 6] = [
+        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 7] = [
             wgpu::VertexAttribute {
                 format: wgpu::VertexFormat::Float32x3,
                 offset: memoffset::offset_of!(super::VertexInput, position) as u64,
@@ -434,28 +404,33 @@ pub mod vertex {
             },
             wgpu::VertexAttribute {
                 format: wgpu::VertexFormat::Uint32,
-                offset: memoffset::offset_of!(super::VertexInput, weight_index) as u64,
+                offset: memoffset::offset_of!(super::VertexInput, bone_indices) as u64,
                 shader_location: 2,
             },
             wgpu::VertexAttribute {
                 format: wgpu::VertexFormat::Float32x4,
-                offset: memoffset::offset_of!(super::VertexInput, vertex_color) as u64,
+                offset: memoffset::offset_of!(super::VertexInput, skin_weights) as u64,
                 shader_location: 3,
             },
             wgpu::VertexAttribute {
                 format: wgpu::VertexFormat::Float32x4,
-                offset: memoffset::offset_of!(super::VertexInput, normal) as u64,
+                offset: memoffset::offset_of!(super::VertexInput, vertex_color) as u64,
                 shader_location: 4,
             },
             wgpu::VertexAttribute {
                 format: wgpu::VertexFormat::Float32x4,
-                offset: memoffset::offset_of!(super::VertexInput, tangent) as u64,
+                offset: memoffset::offset_of!(super::VertexInput, normal) as u64,
                 shader_location: 5,
             },
             wgpu::VertexAttribute {
                 format: wgpu::VertexFormat::Float32x4,
-                offset: memoffset::offset_of!(super::VertexInput, uv1) as u64,
+                offset: memoffset::offset_of!(super::VertexInput, tangent) as u64,
                 shader_location: 6,
+            },
+            wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x4,
+                offset: memoffset::offset_of!(super::VertexInput, uv1) as u64,
+                shader_location: 7,
             },
         ];
         pub const fn vertex_buffer_layout(
@@ -508,7 +483,6 @@ pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
                     &bind_groups::BindGroup0::get_bind_group_layout(device),
                     &bind_groups::BindGroup1::get_bind_group_layout(device),
                     &bind_groups::BindGroup2::get_bind_group_layout(device),
-                    &bind_groups::BindGroup3::get_bind_group_layout(device),
                 ],
                 push_constant_ranges: &[],
             },

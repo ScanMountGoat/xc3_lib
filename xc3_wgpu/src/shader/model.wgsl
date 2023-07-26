@@ -4,6 +4,7 @@ struct Camera {
     position: vec4<f32>
 }
 
+// PerScene values.
 @group(0) @binding(0)
 var<uniform> camera: Camera;
 
@@ -44,14 +45,35 @@ var s9: texture_2d<f32>;
 @group(1) @binding(10)
 var shared_sampler: sampler;
 
-// TODO: Define all possible attributes and have accessors fill them in.
+// TODO: How to handle multiple inputs for each output channel?
+// Texture and channel input for each output channel.
+struct GBufferAssignment {
+    sampler_indices: vec4<i32>,
+    channel_indices: vec4<u32>
+}
+
+@group(1) @binding(11)
+var<uniform> gbuffer_assignments: array<GBufferAssignment, 6>;
+
+// TODO: Where to store skeleton?
+// PerModel values
+@group(2) @binding(0)
+var<uniform> per_model: PerModel;
+
+struct PerModel {
+    matrix: mat4x4<f32>
+}
+
+// Define all possible attributes even if unused.
+// This avoids needing separate shaders.
 struct VertexInput {
     @location(0) position: vec3<f32>,
-    @location(2) weight_index: u32,
-    @location(3) vertex_color: vec4<f32>,
-    @location(4) normal: vec4<f32>,
-    @location(5) tangent: vec4<f32>,
-    @location(6) uv1: vec4<f32>, // TODO: padding?
+    @location(2) bone_indices: u32,
+    @location(3) skin_weights: vec4<f32>,
+    @location(4) vertex_color: vec4<f32>,
+    @location(5) normal: vec4<f32>,
+    @location(6) tangent: vec4<f32>,
+    @location(7) uv1: vec4<f32>, // TODO: padding?
 }
 
 struct VertexOutput {
@@ -73,26 +95,9 @@ struct FragmentOutput {
     @location(6) g6: vec4<f32>,
 }
 
-// TODO: How to handle multiple inputs for each output channel?
-// Texture and channel input for each output channel.
-struct GBufferAssignment {
-    sampler_indices: vec4<i32>,
-    channel_indices: vec4<u32>
-}
-
-@group(2) @binding(0)
-var<uniform> gbuffer_assignments: array<GBufferAssignment, 6>;
-
-// TODO: Sort by frequency like pass, model, mesh, etc.
-@group(3) @binding(0)
-var<uniform> per_model: PerModel;
-
-struct PerModel {
-    matrix: mat4x4<f32>
-}
-
 @vertex
 fn vs_main(vertex: VertexInput) -> VertexOutput {
+    // TODO: Skinning.
     var out: VertexOutput;
     out.clip_position = camera.view_projection * per_model.matrix * vec4(vertex.position.xyz, 1.0);
     out.position = vertex.position.xyz;
