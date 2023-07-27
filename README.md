@@ -1,10 +1,9 @@
 # xc3_lib
-An experimental Rust library for reading rendering related file formats for Xenoblade Chronicles 3. Support for Xenoblade Chronicles 2 is still a WIP.
+Rust libraries and tools for working with rendering related file formats for Xenoblade Chronicles 2 and Xenoblade Chronicles 3. Files from Xenoblade Chronicles 1 DE should work but are not well tested. 
 
-The initial focus is creating robust and readable parsing code for formats related to in game rendering. Writing support and higher level libraries may be added at a later date once the formats have been more thoroughly researched. Formats not directly related to rendering may be considered at a later date.
+See [Architecture](https://github.com/ScanMountGoat/xc3_lib/blob/main/ARCHITECTURE.md) for an overview of the various projects. Report any bugs or request new features in [issues](https://github.com/ScanMountGoat/xc3_lib/issues).
 
 ## Formats
-
 | Format | File Paths | Description |
 | --- | --- | --- |
 | Mibl | `chr/tex/nx/*/*.wismt`, `monolib/shader/*.{witex,witx}` | textures |
@@ -18,7 +17,7 @@ The initial focus is creating robust and readable parsing code for formats relat
 File formats and where to find them in a game dump are outlined above. Note that the same extension can be used for multiple formats. Some formats like `Msrd` contain files from other formats like `Spch` embedded as compressed `Xbc1` archives.
 
 ## Usage
-This library is still highly experimental. When adding any of these projects to the Cargo.toml, specify a specific git revision or commit the Cargo.lock file to source control. This locks the version and avoids any breaking changes. The debug or JSON output has not stabilized and should not be assumed to be the same between commits.
+These projects are still highly unstable. When adding any of these projects to the Cargo.toml, specify a specific git revision or commit the Cargo.lock file to source control. This locks the version and avoids any breaking changes. The debug or JSON output has not stabilized and should not be assumed to be the same between commits.
 
 ```toml
 xc3_model = { git = "https://github.com/ScanMountGoat/xc3_lib", rev = "commit_hash" }
@@ -45,15 +44,11 @@ The rendering can be tested by batch rendering files to PNG. Specifying the GBuf
 `cargo run -p xc3_wgpu_batch --release "xenoblade 3 dump/map" wismhd gbuffer.json`  
 
 ## Credits
-This project makes use of a number of Rust crates that are useful for reverse engineering. For a full list of dependencies, see the Cargo.toml files.
-* [binrw](https://github.com/jam1garner/binrw) - declarative binary parsing
-* [tegra_swizzle](https://github.com/ScanMountGoat/tegra_swizzle) - efficient and robust Tegra X1 swizzling/deswizzling
-* [image_dds](https://github.com/ScanMountGoat/image_dds) - encode/decode BCN image data
-
 This project is based on previous reverse engineering work, including work done for Xenoblade 2.
 Special thanks go to members of the World Tree Research discord (formerly the World of Alrest discord) for their assistance.
 * [Xenoblade Data Hub](https://xenobladedata.github.io/)
-* [XenoLib](https://github.com/PredatorCZ/XenoLib)
 * [xc2f wiki](https://github.com/atnavon/xc2f/wiki)
 * [Xenoblade-Switch-Model-Importer-Noesis](https://github.com/Turk645/Xenoblade-Switch-Model-Importer-Noesis)
+* [fmt_xc3](https://github.com/Joschuka/fmt_xc3)
 * [XbTool](https://github.com/AlexCSDev/XbTool)
+* [XenoLib](https://github.com/PredatorCZ/XenoLib)
