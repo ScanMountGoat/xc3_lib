@@ -40,6 +40,8 @@ Most applications and libraries should depend on xc3_model instead of xc3_lib. T
 ### xc3_shader
 A library and command line tool for working with the game's compiled shader programs. Parameter names are applied to decompiled GLSL files in `annotation.rs`. Shaders are extracted and decompiled in `extract.rs`. `gbuffer_database.rs` creates a precomputed database of assignments from shader inputs to G-Buffer textures for determining input usage like albedo vs normal. This analysis is facilitated by parsing and converting the code to a directed graph representation in `dependencies.rs`. Decompiling is handled by `Ryujinx.ShaderTools` from [Ryujinx](https://github.com/Ryujinx/Ryujinx).
 
+Other projects like xc3_model, xc3_wgpu, and xc3_viewer use the generated G-Buffer database to determine how to assign textures in a material. This includes which textures to assign to a particular output like normals or albedo as well as how to unpack and pack the texture color channels. The G-Buffer database is usually an optional argument since not all applications require assigned textures. The database format is not stable, so consuming code should use xc3_shader as a library to parse the database file itself.
+
 ### xc3_test
 A command line tool for testing parsing and conversion code for all files in an extracted dump. This allows files of a given type to be checked efficiently in parallel and avoids needing to commit game files to source control. The main goal is to ensure that all files in the game dump of a given format parse without any errors. More specific tests are usually better suited as unit tests in the associated projects.
 
@@ -53,6 +55,8 @@ A simple winit desktop application for rendering model files using xc3_wgpu. Thi
 A wgpu based renderer for model files with an emphasis on portability and readability over perfect in game accuracy. The most important user accessible type is `Xc3Renderer` since this renders models and implements a series of render passes based on the in game renderer.
 
 wgpu initializes GPU resources using immutable descriptor objects similar to Vulkan. This makes xc3_wgpu a good way to document how parameters in game files affect rendering in game since all the rendering state is explicitly initialized in Rust functions. Code in xc3_wgpu is organized based on key wgpu objects like pipelines or samplers to make this information easier to find.
+
+Shaders are written in WGSL for best compatibility with wgpu/WebGPU. Most of the boilerplate code for working with the WGSL shaders is generated in the `build.rs` script using [wgsl_to_wgpu](https://github.com/ScanMountGoat/wgsl_to_wgpu).
 
 ### xc3_wgpu_batch
 A CLI program for testing the entire loading and rendering code from xc3_lib, xc3_model, and xc3_wgpu. xc3_wgpu_batch renders directly to textures to create PNG files, so  no window is ever constructed. This makes it easy to identify major rendering errors or models that fail to load properly. Changes to the file formats themselves should use xc3_test since xc3_test runs faster and gives more detailed feedback on errors compared to xc3_wgpu_batch.
