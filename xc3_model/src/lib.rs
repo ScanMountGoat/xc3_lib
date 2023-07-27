@@ -122,9 +122,11 @@ pub fn load_model<P: AsRef<Path>>(
     wimdo_path: P,
     shader_database: Option<&GBufferDatabase>,
 ) -> ModelRoot {
-    let mxmd = Mxmd::from_file(wimdo_path.as_ref()).unwrap();
+    let wimdo_path = wimdo_path.as_ref();
+
+    let mxmd = Mxmd::from_file(wimdo_path).unwrap();
     // TODO: Some files don't have a wismt?
-    let msrd = Msrd::from_file(wimdo_path.as_ref().with_extension("wismt")).ok();
+    let msrd = Msrd::from_file(wimdo_path.with_extension("wismt")).ok();
     // TODO: Avoid unwrap.
     let msrd_vertex_data = msrd.as_ref().map(|msrd| msrd.extract_vertex_data());
     let vertex_data = mxmd
@@ -134,26 +136,24 @@ pub fn load_model<P: AsRef<Path>>(
 
     // "chr/en/file.wismt" -> "chr/tex/nx/m"
     // TODO: Don't assume model_path is in the chr/ch or chr/en folders.
-    let chr_folder = wimdo_path.as_ref().parent().unwrap().parent().unwrap();
+    let chr_folder = wimdo_path.parent().unwrap().parent().unwrap();
     let m_tex_folder = chr_folder.join("tex").join("nx").join("m");
     let h_tex_folder = chr_folder.join("tex").join("nx").join("h");
 
     let image_textures = load_textures(&mxmd, msrd.as_ref(), &m_tex_folder, &h_tex_folder);
 
-    let model_folder = model_folder_name(wimdo_path.as_ref());
-    let spch = shader_database.and_then(|database| database.files.get(&model_folder));
+    let model_name = model_name(wimdo_path.as_ref());
+    let spch = shader_database.and_then(|database| database.files.get(&model_name));
 
     let materials = materials(&mxmd.materials, spch);
 
-    // TODO: Load skeleton from mxmd or chr?
-    let chr = Sar1::from_file(wimdo_path.as_ref().with_extension("chr")).unwrap();
-    let skeleton = chr.entries.iter().find_map(|e| match &e.data {
-        xc3_lib::sar1::EntryData::Bc(bc) => match &bc.data {
-            xc3_lib::sar1::BcData::Skel(skel) => Some(Skeleton::from_skel(skel)),
-            _ => None,
-        },
-        _ => None,
-    });
+    // TODO: Is the last digit always 0 like in ch01012013.wimdo -> ch01012010.chr?
+    let mut chr_name = model_name.clone();
+    chr_name.pop();
+    chr_name.push('0');
+
+    let chr = Sar1::from_file(wimdo_path.with_file_name(chr_name).with_extension("chr")).unwrap();
+    let skeleton = create_skeleton(&chr, &mxmd);
 
     let models = mxmd
         .models
@@ -177,6 +177,19 @@ pub fn load_model<P: AsRef<Path>>(
         }],
         image_textures,
     }
+}
+
+fn create_skeleton(chr: &Sar1, mxmd: &Mxmd) -> Option<Skeleton> {
+    // Merge both skeletons since the bone lists may be different.
+    let skel = chr.entries.iter().find_map(|e| match &e.data {
+        xc3_lib::sar1::EntryData::Bc(bc) => match &bc.data {
+            xc3_lib::sar1::BcData::Skel(skel) => Some(skel),
+            _ => None,
+        },
+        _ => None,
+    })?;
+
+    Some(Skeleton::from_skel(skel, mxmd.models.skeleton.as_ref()?))
 }
 
 fn materials(
@@ -214,7 +227,7 @@ fn materials(
 }
 
 // TODO: Move this to xc3_shader?
-fn model_folder_name(model_path: &Path) -> String {
+fn model_name(model_path: &Path) -> String {
     model_path
         .with_extension("")
         .file_name()

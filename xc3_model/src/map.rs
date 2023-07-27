@@ -11,7 +11,7 @@ use xc3_lib::{
 use xc3_shader::gbuffer_database::GBufferDatabase;
 
 use crate::{
-    materials, model_folder_name, texture::ImageTexture, Material, Model, ModelGroup, ModelRoot,
+    materials, model_name, texture::ImageTexture, Material, Model, ModelGroup, ModelRoot,
     Texture,
 };
 
@@ -29,7 +29,7 @@ pub fn load_map<P: AsRef<Path>>(
     // Loading is CPU intensive due to decompression and decoding.
     // The .wismda is loaded into memory as &[u8].
     // Extracting can be parallelized without locks by creating multiple readers.
-    let model_folder = model_folder_name(wismhd_path.as_ref());
+    let model_folder = model_name(wismhd_path.as_ref());
 
     // Some maps don't use XBC1 compressed archives in the .wismda file.
     let compressed = msmd.wismda_info.compressed_length != msmd.wismda_info.decompressed_length;

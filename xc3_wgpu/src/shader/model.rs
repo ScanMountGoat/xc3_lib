@@ -23,6 +23,23 @@ const _: () = assert!(
 );
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct PerGroup {
+    pub enable_skinning: glam::UVec4,
+    pub animated_transforms: [glam::Mat4; 256],
+}
+const _: () = assert!(
+    std::mem::size_of:: < PerGroup > () == 16400, "size of PerGroup does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(PerGroup, enable_skinning) == 0,
+    "offset of PerGroup.enable_skinning does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(PerGroup, animated_transforms) == 16,
+    "offset of PerGroup.animated_transforms does not match WGSL"
+);
+#[repr(C)]
+#[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct GBufferAssignment {
     pub sampler_indices: glam::IVec4,
     pub channel_indices: glam::UVec4,
@@ -109,6 +126,50 @@ pub mod bind_groups {
     }
     pub struct BindGroup1(wgpu::BindGroup);
     pub struct BindGroupLayout1<'a> {
+        pub per_group: wgpu::BufferBinding<'a>,
+    }
+    const LAYOUT_DESCRIPTOR1: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
+        label: None,
+        entries: &[
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+        ],
+    };
+    impl BindGroup1 {
+        pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+            device.create_bind_group_layout(&LAYOUT_DESCRIPTOR1)
+        }
+        pub fn from_bindings(device: &wgpu::Device, bindings: BindGroupLayout1) -> Self {
+            let bind_group_layout = device.create_bind_group_layout(&LAYOUT_DESCRIPTOR1);
+            let bind_group = device
+                .create_bind_group(
+                    &wgpu::BindGroupDescriptor {
+                        layout: &bind_group_layout,
+                        entries: &[
+                            wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: wgpu::BindingResource::Buffer(bindings.per_group),
+                            },
+                        ],
+                        label: None,
+                    },
+                );
+            Self(bind_group)
+        }
+        pub fn set<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
+            render_pass.set_bind_group(1, &self.0, &[]);
+        }
+    }
+    pub struct BindGroup2(wgpu::BindGroup);
+    pub struct BindGroupLayout2<'a> {
         pub s0: &'a wgpu::TextureView,
         pub s1: &'a wgpu::TextureView,
         pub s2: &'a wgpu::TextureView,
@@ -122,7 +183,7 @@ pub mod bind_groups {
         pub shared_sampler: &'a wgpu::Sampler,
         pub gbuffer_assignments: wgpu::BufferBinding<'a>,
     }
-    const LAYOUT_DESCRIPTOR1: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
+    const LAYOUT_DESCRIPTOR2: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
         label: None,
         entries: &[
             wgpu::BindGroupLayoutEntry {
@@ -263,12 +324,12 @@ pub mod bind_groups {
             },
         ],
     };
-    impl BindGroup1 {
+    impl BindGroup2 {
         pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-            device.create_bind_group_layout(&LAYOUT_DESCRIPTOR1)
+            device.create_bind_group_layout(&LAYOUT_DESCRIPTOR2)
         }
-        pub fn from_bindings(device: &wgpu::Device, bindings: BindGroupLayout1) -> Self {
-            let bind_group_layout = device.create_bind_group_layout(&LAYOUT_DESCRIPTOR1);
+        pub fn from_bindings(device: &wgpu::Device, bindings: BindGroupLayout2) -> Self {
+            let bind_group_layout = device.create_bind_group_layout(&LAYOUT_DESCRIPTOR2);
             let bind_group = device
                 .create_bind_group(
                     &wgpu::BindGroupDescriptor {
@@ -333,14 +394,14 @@ pub mod bind_groups {
             Self(bind_group)
         }
         pub fn set<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
-            render_pass.set_bind_group(1, &self.0, &[]);
+            render_pass.set_bind_group(2, &self.0, &[]);
         }
     }
-    pub struct BindGroup2(wgpu::BindGroup);
-    pub struct BindGroupLayout2<'a> {
+    pub struct BindGroup3(wgpu::BindGroup);
+    pub struct BindGroupLayout3<'a> {
         pub per_model: wgpu::BufferBinding<'a>,
     }
-    const LAYOUT_DESCRIPTOR2: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
+    const LAYOUT_DESCRIPTOR3: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
         label: None,
         entries: &[
             wgpu::BindGroupLayoutEntry {
@@ -355,12 +416,12 @@ pub mod bind_groups {
             },
         ],
     };
-    impl BindGroup2 {
+    impl BindGroup3 {
         pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-            device.create_bind_group_layout(&LAYOUT_DESCRIPTOR2)
+            device.create_bind_group_layout(&LAYOUT_DESCRIPTOR3)
         }
-        pub fn from_bindings(device: &wgpu::Device, bindings: BindGroupLayout2) -> Self {
-            let bind_group_layout = device.create_bind_group_layout(&LAYOUT_DESCRIPTOR2);
+        pub fn from_bindings(device: &wgpu::Device, bindings: BindGroupLayout3) -> Self {
+            let bind_group_layout = device.create_bind_group_layout(&LAYOUT_DESCRIPTOR3);
             let bind_group = device
                 .create_bind_group(
                     &wgpu::BindGroupDescriptor {
@@ -377,13 +438,14 @@ pub mod bind_groups {
             Self(bind_group)
         }
         pub fn set<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
-            render_pass.set_bind_group(2, &self.0, &[]);
+            render_pass.set_bind_group(3, &self.0, &[]);
         }
     }
     pub struct BindGroups<'a> {
         pub bind_group0: &'a BindGroup0,
         pub bind_group1: &'a BindGroup1,
         pub bind_group2: &'a BindGroup2,
+        pub bind_group3: &'a BindGroup3,
     }
     pub fn set_bind_groups<'a>(
         pass: &mut wgpu::RenderPass<'a>,
@@ -392,6 +454,7 @@ pub mod bind_groups {
         bind_groups.bind_group0.set(pass);
         bind_groups.bind_group1.set(pass);
         bind_groups.bind_group2.set(pass);
+        bind_groups.bind_group3.set(pass);
     }
 }
 pub mod vertex {
@@ -483,6 +546,7 @@ pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
                     &bind_groups::BindGroup0::get_bind_group_layout(device),
                     &bind_groups::BindGroup1::get_bind_group_layout(device),
                     &bind_groups::BindGroup2::get_bind_group_layout(device),
+                    &bind_groups::BindGroup3::get_bind_group_layout(device),
                 ],
                 push_constant_ranges: &[],
             },

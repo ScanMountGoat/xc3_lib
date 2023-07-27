@@ -1,48 +1,59 @@
+// PerScene values.
 struct Camera {
     view: mat4x4<f32>,
     view_projection: mat4x4<f32>,
     position: vec4<f32>
 }
 
-// PerScene values.
 @group(0) @binding(0)
 var<uniform> camera: Camera;
+
+// PerGroup values.
+struct PerGroup {
+    enable_skinning: vec4<u32>,
+    // TODO: Is 256 the max bone count if index attributes use u8?
+    // bone_world.inv() * animated_bone_world
+    animated_transforms: array<mat4x4<f32>, 256>,
+}
+
+@group(1) @binding(0)
+var<uniform> per_group: PerGroup;
 
 // PerMaterial values.
 // Define all possible parameters even if unused.
 // The "ubershader" approach makes it possible to generate WGSL bindings at build time.
-@group(1) @binding(0)
+@group(2) @binding(0)
 var s0: texture_2d<f32>;
 
-@group(1) @binding(1)
+@group(2) @binding(1)
 var s1: texture_2d<f32>;
 
-@group(1) @binding(2)
+@group(2) @binding(2)
 var s2: texture_2d<f32>;
 
-@group(1) @binding(3)
+@group(2) @binding(3)
 var s3: texture_2d<f32>;
 
-@group(1) @binding(4)
+@group(2) @binding(4)
 var s4: texture_2d<f32>;
 
-@group(1) @binding(5)
+@group(2) @binding(5)
 var s5: texture_2d<f32>;
 
-@group(1) @binding(6)
+@group(2) @binding(6)
 var s6: texture_2d<f32>;
 
-@group(1) @binding(7)
+@group(2) @binding(7)
 var s7: texture_2d<f32>;
 
-@group(1) @binding(8)
+@group(2) @binding(8)
 var s8: texture_2d<f32>;
 
-@group(1) @binding(9)
+@group(2) @binding(9)
 var s9: texture_2d<f32>;
 
 // TODO: Multiple samplers?
-@group(1) @binding(10)
+@group(2) @binding(10)
 var shared_sampler: sampler;
 
 // TODO: How to handle multiple inputs for each output channel?
@@ -52,17 +63,17 @@ struct GBufferAssignment {
     channel_indices: vec4<u32>
 }
 
-@group(1) @binding(11)
+@group(2) @binding(11)
 var<uniform> gbuffer_assignments: array<GBufferAssignment, 6>;
 
 // TODO: Where to store skeleton?
 // PerModel values
-@group(2) @binding(0)
-var<uniform> per_model: PerModel;
-
 struct PerModel {
     matrix: mat4x4<f32>
 }
+
+@group(3) @binding(0)
+var<uniform> per_model: PerModel;
 
 // Define all possible attributes even if unused.
 // This avoids needing separate shaders.
@@ -97,10 +108,23 @@ struct FragmentOutput {
 
 @vertex
 fn vs_main(vertex: VertexInput) -> VertexOutput {
-    // TODO: Skinning.
     var out: VertexOutput;
-    out.clip_position = camera.view_projection * per_model.matrix * vec4(vertex.position.xyz, 1.0);
-    out.position = vertex.position.xyz;
+
+    var position = vertex.position.xyz;
+
+    // Linear blend skinning.
+    if per_group.enable_skinning.x == 1u {
+        // TODO: Also skin normals and tangents.
+        position = vec3(0.0);
+        for (var i = 0u; i < 4u; i = i + 1u) {
+            // Indices are packed into a u32 since WGSL lacks a u8x4 attribute type.
+            let bone_index = (vertex.bone_indices >> (i * 8u)) & 0xFFu;
+            position = position + vertex.skin_weights[i] * (per_group.animated_transforms[bone_index] * vec4(vertex.position.xyz, 1.0)).xyz;
+        }
+    }
+
+    out.clip_position = camera.view_projection * per_model.matrix * vec4(position, 1.0);
+    out.position = position;
     out.uv1 = vertex.uv1.xy;
     out.vertex_color = vertex.vertex_color;
     // Transform any direction vectors by the instance transform.

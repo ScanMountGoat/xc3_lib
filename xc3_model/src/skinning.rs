@@ -1,5 +1,6 @@
 //! Utilities for working with vertex skinning.
 use glam::Vec4;
+use log::error;
 
 // Using a bone name allows using different skeleton hierarchies.
 // wimdo and chr files use different ordering, for example.
@@ -63,7 +64,6 @@ pub fn bone_indices_weights<S: AsRef<str>>(
     vertex_count: usize,
     bone_names: &[S],
 ) -> (Vec<[u8; 4]>, Vec<Vec4>) {
-    // TODO: reverse the mapping
     let mut influence_counts = vec![0; vertex_count];
     let mut indices = vec![[0u8; 4]; vertex_count];
     let mut weights = vec![Vec4::ZERO; vertex_count];
@@ -83,6 +83,8 @@ pub fn bone_indices_weights<S: AsRef<str>>(
                     influence_counts[i] += 1;
                 }
             }
+        } else {
+            error!("Influence {:?} not found in skeleton.", influence.bone_name);
         }
     }
 

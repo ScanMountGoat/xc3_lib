@@ -586,8 +586,7 @@ pub struct Skeleton {
     })]
     pub bones: Vec<Bone>,
 
-    // TODO: Create a matrix type?
-    // TODO: column-major?
+    /// Column-major transformation matrices for each of the bones in [bones](#structfield.bones).
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: count1 as usize } })]
     pub transforms: Vec<[[f32; 4]; 4]>,
@@ -599,6 +598,28 @@ pub struct Skeleton {
     pub unk3: Vec<u16>,
 
     pub unk_offset4: u32,
+    pub unk_offset5: u32,
+
+    #[br(parse_with = parse_ptr32, args { offset: base_offset, inner: base_offset })]
+    pub as_bone_data: AsBoneData,
+}
+
+// TODO: Data for AS_ bones?
+#[derive(BinRead, Debug)]
+#[br(import_raw(base_offset: u64))]
+pub struct AsBoneData {
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    pub bones: Vec<AsBone>,
+    // TODO: more fields
+}
+
+#[derive(BinRead, Debug)]
+pub struct AsBone {
+    /// The index in [bones](struct.Skeleton.html#structfield.bones).
+    pub bone_index: u16,
+    /// The index in [bones](struct.Skeleton.html#structfield.bones) of the parent bone.
+    pub parent_index: u16,
+    pub unk: [u32; 19],
 }
 
 #[derive(BinRead, Debug)]

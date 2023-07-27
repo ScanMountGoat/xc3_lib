@@ -16,7 +16,7 @@ use crate::{
 // TODO: Store material parameter values.
 pub struct Material {
     pub name: String,
-    pub bind_group1: crate::shader::model::bind_groups::BindGroup1,
+    pub bind_group2: crate::shader::model::bind_groups::BindGroup2,
 
     // The material flags may require a separate pipeline per material.
     // We only store a key here to allow caching.
@@ -70,9 +70,9 @@ pub fn materials(
             // Bind all available textures and samplers.
             // Texture selection happens within the shader itself.
             // This simulates having a unique shader for each material.
-            let bind_group1 = crate::shader::model::bind_groups::BindGroup1::from_bindings(
+            let bind_group2 = crate::shader::model::bind_groups::BindGroup2::from_bindings(
                 device,
-                crate::shader::model::bind_groups::BindGroupLayout1 {
+                crate::shader::model::bind_groups::BindGroupLayout2 {
                     s0: material_texture(material, textures, 0).unwrap_or(&default_black),
                     s1: material_texture(material, textures, 1).unwrap_or(&default_black),
                     s2: material_texture(material, textures, 2).unwrap_or(&default_black),
@@ -101,7 +101,7 @@ pub fn materials(
 
             Material {
                 name: material.name.clone(),
-                bind_group1,
+                bind_group2,
                 pipeline_key,
                 texture_count: material.textures.len(),
             }
@@ -156,9 +156,9 @@ pub fn foliage_materials(
                     usage: wgpu::BufferUsages::UNIFORM,
                 });
 
-            let bind_group1 = crate::shader::model::bind_groups::BindGroup1::from_bindings(
+            let bind_group2 = crate::shader::model::bind_groups::BindGroup2::from_bindings(
                 device,
-                crate::shader::model::bind_groups::BindGroupLayout1 {
+                crate::shader::model::bind_groups::BindGroupLayout2 {
                     s0: &textures[0],
                     s1: &default_black,
                     s2: &default_black,
@@ -194,7 +194,7 @@ pub fn foliage_materials(
 
             Material {
                 name: material.name.clone(),
-                bind_group1,
+                bind_group2,
                 pipeline_key,
                 texture_count: 0,
             }

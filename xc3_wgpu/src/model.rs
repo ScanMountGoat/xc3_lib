@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use glam::{vec4, Vec3, Vec4};
+use glam::{uvec4, vec4, Mat4, Vec3, Vec4};
 use log::info;
 use wgpu::util::DeviceExt;
 use xc3_model::{skinning::bone_indices_weights, vertex::AttributeData};
@@ -18,6 +18,7 @@ pub struct ModelGroup {
     materials: Vec<Material>,
     // Cache pipelines by their creation parameters.
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
+    per_group: crate::shader::model::bind_groups::BindGroup1,
 }
 
 pub struct Model {
@@ -29,7 +30,7 @@ pub struct Model {
 }
 
 pub struct ModelInstance {
-    per_model: crate::shader::model::bind_groups::BindGroup2,
+    per_model: crate::shader::model::bind_groups::BindGroup3,
 }
 
 #[derive(Debug)]
@@ -52,6 +53,8 @@ struct IndexBuffer {
 impl ModelGroup {
     // TODO: How to handle other unk types?
     pub fn draw<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, is_transparent: bool) {
+        self.per_group.set(render_pass);
+
         // TODO: Is this the best way to "instance" models?
         for model in &self.models {
             for instance in &model.instances {
@@ -77,7 +80,7 @@ impl ModelGroup {
                         let pipeline = &self.pipelines[&material.pipeline_key];
                         render_pass.set_pipeline(pipeline);
 
-                        material.bind_group1.set(render_pass);
+                        material.bind_group2.set(render_pass);
 
                         self.draw_mesh(model, mesh, render_pass);
                     }
@@ -160,10 +163,13 @@ fn create_model_group(
         .map(|model| create_model(device, model, group.skeleton.as_ref()))
         .collect();
 
+    let per_group = per_group_bind_group(device, group.skeleton.as_ref());
+
     ModelGroup {
         materials,
         pipelines,
         models,
+        per_group,
     }
 }
 
@@ -295,8 +301,8 @@ fn set_attributes(
         let bone_names: Vec<_> = skeleton.bones.iter().map(|b| b.name.as_str()).collect();
         let (indices, weights) = bone_indices_weights(&buffer.influences, verts.len(), &bone_names);
 
-        // TODO: Will this always work as little endian?
         set_attribute(verts, &indices, |v, t| {
+            // TODO: Will this always work as little endian?
             v.bone_indices = u32::from_le_bytes(t)
         });
         set_attribute(verts, &weights, |v, t| v.skin_weights = t);
@@ -313,20 +319,43 @@ where
     }
 }
 
+fn per_group_bind_group(
+    device: &wgpu::Device,
+    skeleton: Option<&xc3_model::skeleton::Skeleton>,
+) -> shader::model::bind_groups::BindGroup1 {
+    // TODO: Set bones from skeletons.
+    // TODO: Store the buffer to support animation?
+    let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("per group buffer"),
+        contents: bytemuck::cast_slice(&[crate::shader::model::PerGroup {
+            enable_skinning: uvec4(skeleton.is_some() as u32, 0, 0, 0),
+            animated_transforms: [Mat4::IDENTITY; 256],
+        }]),
+        usage: wgpu::BufferUsages::UNIFORM,
+    });
+
+    crate::shader::model::bind_groups::BindGroup1::from_bindings(
+        device,
+        crate::shader::model::bind_groups::BindGroupLayout1 {
+            per_group: buffer.as_entire_buffer_binding(),
+        },
+    )
+}
+
 fn per_model_bind_group(
     device: &wgpu::Device,
     transform: glam::Mat4,
-) -> shader::model::bind_groups::BindGroup2 {
-    let per_model_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+) -> shader::model::bind_groups::BindGroup3 {
+    let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("per model buffer"),
         contents: bytemuck::cast_slice(&[crate::shader::model::PerModel { matrix: transform }]),
         usage: wgpu::BufferUsages::UNIFORM,
     });
 
-    crate::shader::model::bind_groups::BindGroup2::from_bindings(
+    crate::shader::model::bind_groups::BindGroup3::from_bindings(
         device,
-        crate::shader::model::bind_groups::BindGroupLayout2 {
-            per_model: per_model_buffer.as_entire_buffer_binding(),
+        crate::shader::model::bind_groups::BindGroupLayout3 {
+            per_model: buffer.as_entire_buffer_binding(),
         },
     )
 }

@@ -101,7 +101,7 @@ impl BinRead for Mibl {
         endian: binrw::Endian,
         args: Self::Args<'_>,
     ) -> binrw::BinResult<Self> {
-        // TODO: Don't assume the reader only contains the MIBL?
+        // Assume the MIBL is the only item in the reader.
         reader.seek(SeekFrom::End(-(MIBL_FOOTER_SIZE as i64)))?;
         let footer = MiblFooter::read_options(reader, endian, args)?;
 
