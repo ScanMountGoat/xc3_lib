@@ -147,12 +147,18 @@ pub fn load_model<P: AsRef<Path>>(
 
     let materials = materials(&mxmd.materials, spch);
 
-    // TODO: Is the last digit always 0 like in ch01012013.wimdo -> ch01012010.chr?
-    let mut chr_name = model_name.clone();
-    chr_name.pop();
-    chr_name.push('0');
+    // TODO: Does every wimdo have a chr file?
+    // TODO: Does something control the chr name used?
+    let chr = Sar1::from_file(&wimdo_path.with_extension("chr")).unwrap_or_else(|_| {
+        // TODO: Is the last digit always 0 like in ch01012013.wimdo -> ch01012010.chr?
+        let mut chr_name = model_name.clone();
+        chr_name.pop();
+        chr_name.push('0');
 
-    let chr = Sar1::from_file(wimdo_path.with_file_name(chr_name).with_extension("chr")).unwrap();
+        let chr_path = wimdo_path.with_file_name(chr_name).with_extension("chr");
+        Sar1::from_file(&chr_path).unwrap()
+    });
+
     let skeleton = create_skeleton(&chr, &mxmd);
 
     let models = mxmd

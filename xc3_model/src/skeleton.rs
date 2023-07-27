@@ -41,14 +41,18 @@ impl Skeleton {
         // TODO: Does the mxmd have parenting information for all bones?
         // TODO: Is it safe to assume only "AS_..." bones need to be added?
         // TODO: Is it safe to assume these bones aren't part of the chr skeleton?
-        for bone in &skeleton.as_bone_data.bones {
-            // TODO: Don't assume these bones are all parented?
-            let parent_name = &skeleton.bones[bone.parent_index as usize].name;
-            bones.push(Bone {
-                name: skeleton.bones[bone.bone_index as usize].name.clone(),
-                transform: Mat4::from_cols_array_2d(&skeleton.transforms[bone.bone_index as usize]),
-                parent_index: bones.iter().position(|b| &b.name == parent_name),
-            });
+        if let Some(as_bone_data) = &skeleton.as_bone_data {
+            for bone in &as_bone_data.bones {
+                // TODO: Don't assume these bones are all parented?
+                let parent_name = &skeleton.bones[bone.parent_index as usize].name;
+                bones.push(Bone {
+                    name: skeleton.bones[bone.bone_index as usize].name.clone(),
+                    transform: Mat4::from_cols_array_2d(
+                        &skeleton.transforms[bone.bone_index as usize],
+                    ),
+                    parent_index: bones.iter().position(|b| &b.name == parent_name),
+                });
+            }
         }
 
         Self { bones }

@@ -35,10 +35,9 @@ enum FileExtension {
 fn main() {
     let cli = Cli::parse();
 
-    // Ignore most wgpu logs to avoid flooding the console.
+    // Ignore most logs to avoid flooding the console.
     simple_logger::SimpleLogger::new()
-        .with_module_level("wgpu", log::LevelFilter::Warn)
-        .with_module_level("naga", log::LevelFilter::Warn)
+        .with_level(log::LevelFilter::Warn)
         .init()
         .unwrap();
 
@@ -136,6 +135,7 @@ fn main() {
                 return;
             }
 
+            println!("{:?}", model_path);
             let roots = match cli.extension {
                 FileExtension::Wimdo => {
                     vec![xc3_model::load_model(model_path, database.as_ref())]

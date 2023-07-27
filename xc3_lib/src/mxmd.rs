@@ -600,8 +600,8 @@ pub struct Skeleton {
     pub unk_offset4: u32,
     pub unk_offset5: u32,
 
-    #[br(parse_with = parse_ptr32, args { offset: base_offset, inner: base_offset })]
-    pub as_bone_data: AsBoneData,
+    #[br(parse_with = parse_opt_ptr32, args { offset: base_offset, inner: base_offset })]
+    pub as_bone_data: Option<AsBoneData>,
 }
 
 // TODO: Data for AS_ bones?
