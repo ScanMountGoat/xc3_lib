@@ -4,9 +4,8 @@
 use std::path::Path;
 
 use glam::Mat4;
-use skeleton::Skeleton;
 use skinning::Influence;
-use texture::{load_textures, ImageTexture};
+use texture::load_textures;
 use vertex::{read_index_buffers, read_vertex_buffers, AttributeData};
 use xc3_lib::{
     msrd::Msrd,
@@ -16,9 +15,13 @@ use xc3_lib::{
 use xc3_shader::gbuffer_database::{GBufferDatabase, Shader};
 
 pub use map::load_map;
+pub use sampler::{AddressMode, FilterMode, Sampler};
+pub use skeleton::Skeleton;
+pub use texture::ImageTexture;
 
 pub mod gltf;
 mod map;
+mod sampler;
 pub mod skeleton;
 pub mod skinning;
 pub mod texture;
@@ -31,10 +34,12 @@ pub struct ModelRoot {
     pub image_textures: Vec<ImageTexture>,
 }
 
+// TODO: Should samplers be optional?
 #[derive(Debug)]
 pub struct ModelGroup {
     pub models: Vec<Model>,
     pub materials: Vec<Material>,
+    pub samplers: Vec<Sampler>,
     pub skeleton: Option<Skeleton>,
 }
 
@@ -66,11 +71,12 @@ pub struct Material {
     pub unk_type: ShaderUnkType,
 }
 
-// TODO: sampler index or sampler flags?
 #[derive(Debug)]
 pub struct Texture {
-    /// The index of the image in [image_textures](struct.ModelRoot.html#structfield.image_textures).
+    /// The index of the [ImageTexture] in [image_textures](struct.ModelRoot.html#structfield.image_textures).
     pub image_texture_index: usize,
+    /// The index of the [Sampler] in [samplers](struct.ModelGroup.html#structfield.samplers).
+    pub sampler_index: usize,
 }
 
 #[derive(Debug)]
@@ -142,10 +148,12 @@ pub fn load_model<P: AsRef<Path>>(
 
     let image_textures = load_textures(&mxmd, msrd.as_ref(), &m_tex_folder, &h_tex_folder);
 
-    let model_name = model_name(wimdo_path.as_ref());
+    let model_name = model_name(wimdo_path);
     let spch = shader_database.and_then(|database| database.files.get(&model_name));
 
     let materials = materials(&mxmd.materials, spch);
+
+    let samplers = samplers(&mxmd.materials);
 
     // TODO: Does every wimdo have a chr file?
     // TODO: Does something control the chr name used?
@@ -177,12 +185,21 @@ pub fn load_model<P: AsRef<Path>>(
 
     ModelRoot {
         groups: vec![ModelGroup {
-            materials,
             models,
+            materials,
+            samplers,
             skeleton,
         }],
         image_textures,
     }
+}
+
+fn samplers(materials: &Materials) -> Vec<Sampler> {
+    materials
+        .samplers
+        .as_ref()
+        .map(|samplers| samplers.samplers.iter().map(|s| s.flags.into()).collect())
+        .unwrap_or_default()
 }
 
 fn create_skeleton(chr: &Sar1, mxmd: &Mxmd) -> Option<Skeleton> {
@@ -218,6 +235,7 @@ fn materials(
                 .iter()
                 .map(|texture| Texture {
                     image_texture_index: texture.texture_index as usize,
+                    sampler_index: texture.sampler_index as usize,
                 })
                 .collect();
 

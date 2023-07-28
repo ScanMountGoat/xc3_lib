@@ -11,7 +11,7 @@ use xc3_lib::{
 use xc3_shader::gbuffer_database::GBufferDatabase;
 
 use crate::{
-    materials, model_name, texture::ImageTexture, Material, Model, ModelGroup, ModelRoot,
+    materials, model_name, samplers, texture::ImageTexture, Material, Model, ModelGroup, ModelRoot,
     Texture,
 };
 
@@ -141,6 +141,8 @@ fn load_prop_model_group(
     let mut materials = materials(&model_data.materials, spch);
     apply_material_texture_indices(&mut materials, &model_data.textures);
 
+    let samplers = samplers(&model_data.materials);
+
     let mut models: Vec<_> = model_data
         .models
         .models
@@ -200,6 +202,7 @@ fn load_prop_model_group(
     ModelGroup {
         models,
         materials,
+        samplers,
         skeleton: None,
     }
 }
@@ -288,6 +291,8 @@ fn load_map_model_group(
     let mut materials = materials(&model_data.materials, spch);
     apply_material_texture_indices(&mut materials, &model_data.textures);
 
+    let samplers = samplers(&model_data.materials);
+
     let mut models = Vec::new();
 
     for (group_index, group) in model_data.groups.groups.iter().enumerate() {
@@ -321,6 +326,7 @@ fn load_map_model_group(
     ModelGroup {
         models,
         materials,
+        samplers,
         skeleton: None,
     }
 }
@@ -351,6 +357,8 @@ fn load_env_model(
 
     let materials = materials(&model_data.materials, spch);
 
+    let samplers = samplers(&model_data.materials);
+
     let models = model_data
         .models
         .models
@@ -370,6 +378,7 @@ fn load_env_model(
         groups: vec![ModelGroup {
             models,
             materials,
+            samplers,
             skeleton: None,
         }],
         image_textures,
@@ -406,10 +415,12 @@ fn load_foliage_model(
         })
         .collect();
 
+    // TODO: foliage samplers?
     ModelRoot {
         groups: vec![ModelGroup {
             models,
             materials,
+            samplers: Vec::new(),
             skeleton: None,
         }],
         image_textures,
@@ -424,6 +435,7 @@ fn foliage_materials(materials: &FoliageMaterials) -> Vec<Material> {
             // TODO: Where are the textures?
             let textures = vec![Texture {
                 image_texture_index: 0,
+                sampler_index: 0,
             }];
 
             // TODO: Foliage shaders?

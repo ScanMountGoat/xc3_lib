@@ -1,163 +1,34 @@
-use xc3_lib::mxmd::SamplerFlags;
-
-pub fn create_sampler(device: &wgpu::Device, flags: SamplerFlags) -> wgpu::Sampler {
-    device.create_sampler(&sampler_descriptor(flags))
+pub fn create_sampler(device: &wgpu::Device, sampler: &xc3_model::Sampler) -> wgpu::Sampler {
+    device.create_sampler(&sampler_descriptor(sampler))
 }
 
-fn sampler_descriptor(flags: SamplerFlags) -> wgpu::SamplerDescriptor<'static> {
+fn sampler_descriptor(sampler: &xc3_model::Sampler) -> wgpu::SamplerDescriptor<'static> {
     // TODO: anisotropic filtering and lod bias?
     wgpu::SamplerDescriptor {
         label: None,
-        address_mode_u: address_mode(flags.repeat_u(), flags.mirror_u()),
-        address_mode_v: address_mode(flags.repeat_v(), flags.mirror_v()),
-        address_mode_w: wgpu::AddressMode::ClampToEdge,
-        mag_filter: filter_mode(flags.nearest()),
-        min_filter: filter_mode(flags.nearest()),
+        address_mode_u: address_mode(sampler.address_mode_u),
+        address_mode_v: address_mode(sampler.address_mode_v),
+        address_mode_w: address_mode(sampler.address_mode_w),
+        mag_filter: filter_mode(sampler.mag_filter),
+        min_filter: filter_mode(sampler.min_filter),
         mipmap_filter: wgpu::FilterMode::Nearest,
         lod_min_clamp: 0.0,
-        lod_max_clamp: if flags.disable_mipmap_filter() {
-            0.25
-        } else {
-            15.0
-        },
+        lod_max_clamp: if sampler.mipmaps { 15.0 } else { 0.25 },
         ..Default::default()
     }
 }
 
-fn filter_mode(nearest: bool) -> wgpu::FilterMode {
-    if nearest {
-        wgpu::FilterMode::Nearest
-    } else {
-        wgpu::FilterMode::Linear
+fn filter_mode(value: xc3_model::FilterMode) -> wgpu::FilterMode {
+    match value {
+        xc3_model::FilterMode::Nearest => wgpu::FilterMode::Nearest,
+        xc3_model::FilterMode::Linear => wgpu::FilterMode::Linear,
     }
 }
 
-fn address_mode(repeat: bool, mirror: bool) -> wgpu::AddressMode {
-    if mirror {
-        wgpu::AddressMode::MirrorRepeat
-    } else if repeat {
-        wgpu::AddressMode::Repeat
-    } else {
-        wgpu::AddressMode::ClampToEdge
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    // Test various flags values based on testing Vulkan samplers in RenderDoc.
-    #[test]
-    fn descriptor_0x0() {
-        assert_eq!(
-            wgpu::SamplerDescriptor {
-                label: None,
-                address_mode_u: wgpu::AddressMode::ClampToEdge,
-                address_mode_v: wgpu::AddressMode::ClampToEdge,
-                address_mode_w: wgpu::AddressMode::ClampToEdge,
-                mag_filter: wgpu::FilterMode::Linear,
-                min_filter: wgpu::FilterMode::Linear,
-                mipmap_filter: wgpu::FilterMode::Nearest,
-                lod_min_clamp: 0.0,
-                lod_max_clamp: 15.0,
-                ..Default::default()
-            },
-            sampler_descriptor(SamplerFlags::from(0x0))
-        );
-    }
-
-    #[test]
-    fn descriptor_0x3() {
-        assert_eq!(
-            wgpu::SamplerDescriptor {
-                label: None,
-                address_mode_u: wgpu::AddressMode::Repeat,
-                address_mode_v: wgpu::AddressMode::Repeat,
-                address_mode_w: wgpu::AddressMode::ClampToEdge,
-                mag_filter: wgpu::FilterMode::Linear,
-                min_filter: wgpu::FilterMode::Linear,
-                mipmap_filter: wgpu::FilterMode::Nearest,
-                lod_min_clamp: 0.0,
-                lod_max_clamp: 15.0,
-                ..Default::default()
-            },
-            sampler_descriptor(SamplerFlags::from(0b_11))
-        );
-    }
-
-    #[test]
-    fn descriptor_0x6() {
-        assert_eq!(
-            wgpu::SamplerDescriptor {
-                label: None,
-                address_mode_u: wgpu::AddressMode::MirrorRepeat,
-                address_mode_v: wgpu::AddressMode::Repeat,
-                address_mode_w: wgpu::AddressMode::ClampToEdge,
-                mag_filter: wgpu::FilterMode::Linear,
-                min_filter: wgpu::FilterMode::Linear,
-                mipmap_filter: wgpu::FilterMode::Nearest,
-                lod_min_clamp: 0.0,
-                lod_max_clamp: 15.0,
-                ..Default::default()
-            },
-            sampler_descriptor(SamplerFlags::from(0b_110))
-        );
-    }
-
-    #[test]
-    fn descriptor_0x12() {
-        assert_eq!(
-            wgpu::SamplerDescriptor {
-                label: None,
-                address_mode_u: wgpu::AddressMode::MirrorRepeat,
-                address_mode_v: wgpu::AddressMode::MirrorRepeat,
-                address_mode_w: wgpu::AddressMode::ClampToEdge,
-                mag_filter: wgpu::FilterMode::Linear,
-                min_filter: wgpu::FilterMode::Linear,
-                mipmap_filter: wgpu::FilterMode::Nearest,
-                lod_min_clamp: 0.0,
-                lod_max_clamp: 15.0,
-                ..Default::default()
-            },
-            sampler_descriptor(SamplerFlags::from(0b_1100))
-        );
-    }
-
-    #[test]
-    fn descriptor_0x40() {
-        assert_eq!(
-            wgpu::SamplerDescriptor {
-                label: None,
-                address_mode_u: wgpu::AddressMode::ClampToEdge,
-                address_mode_v: wgpu::AddressMode::ClampToEdge,
-                address_mode_w: wgpu::AddressMode::ClampToEdge,
-                mag_filter: wgpu::FilterMode::Linear,
-                min_filter: wgpu::FilterMode::Linear,
-                mipmap_filter: wgpu::FilterMode::Nearest,
-                lod_min_clamp: 0.0,
-                lod_max_clamp: 0.25,
-                ..Default::default()
-            },
-            sampler_descriptor(SamplerFlags::from(0b_01000000))
-        );
-    }
-
-    #[test]
-    fn descriptor_0x50() {
-        assert_eq!(
-            wgpu::SamplerDescriptor {
-                label: None,
-                address_mode_u: wgpu::AddressMode::ClampToEdge,
-                address_mode_v: wgpu::AddressMode::ClampToEdge,
-                address_mode_w: wgpu::AddressMode::ClampToEdge,
-                mag_filter: wgpu::FilterMode::Nearest,
-                min_filter: wgpu::FilterMode::Nearest,
-                mipmap_filter: wgpu::FilterMode::Nearest,
-                lod_min_clamp: 0.0,
-                lod_max_clamp: 0.25,
-                ..Default::default()
-            },
-            sampler_descriptor(SamplerFlags::from(0b_01010000))
-        );
+fn address_mode(value: xc3_model::AddressMode) -> wgpu::AddressMode {
+    match value {
+        xc3_model::AddressMode::ClampToEdge => wgpu::AddressMode::ClampToEdge,
+        xc3_model::AddressMode::Repeat => wgpu::AddressMode::Repeat,
+        xc3_model::AddressMode::MirrorRepeat => wgpu::AddressMode::MirrorRepeat,
     }
 }
