@@ -10,7 +10,6 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 use xc3_wgpu::{
-    material::load_database,
     model::{load_model, ModelGroup},
     renderer::{CameraData, Xc3Renderer},
     COLOR_FORMAT,
@@ -94,7 +93,7 @@ impl State {
         let camera_data = calculate_camera_data(size, translation, rotation_xyz);
         renderer.update_camera(&queue, &camera_data);
 
-        let database = Some(load_database(database_path));
+        let database = Some(xc3_model::GBufferDatabase::from_file(database_path));
 
         let start = std::time::Instant::now();
 

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::Path};
+use std::collections::HashMap;
 
 use glam::{ivec4, uvec4};
 use wgpu::util::DeviceExt;
@@ -242,12 +242,6 @@ fn gbuffer_assignments(
             }
         })
         .collect()
-}
-
-// TODO: Does this need to be public?
-pub fn load_database<P: AsRef<Path>>(path: P) -> xc3_shader::gbuffer_database::GBufferDatabase {
-    let json = std::fs::read_to_string(path).unwrap();
-    serde_json::from_str(&json).unwrap()
 }
 
 fn material_texture<'a>(

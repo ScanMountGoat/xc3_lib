@@ -2,10 +2,8 @@ use clap::{Parser, ValueEnum};
 use futures::executor::block_on;
 use glam::{vec3, Vec3};
 use image::ImageBuffer;
-use xc3_wgpu::{
-    material::load_database,
-    renderer::{CameraData, Xc3Renderer},
-};
+use xc3_model::GBufferDatabase;
+use xc3_wgpu::renderer::{CameraData, Xc3Renderer};
 
 const WIDTH: u32 = 512;
 const HEIGHT: u32 = 512;
@@ -96,7 +94,7 @@ fn main() {
         mapped_at_creation: false,
     });
 
-    let database = cli.shader_database.map(load_database);
+    let database = cli.shader_database.map(GBufferDatabase::from_file);
 
     // TODO: Work through mxmd in wiefb files in xc2?
     let ext = match cli.extension {

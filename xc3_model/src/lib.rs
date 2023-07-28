@@ -12,12 +12,14 @@ use xc3_lib::{
     mxmd::{MaterialFlags, Materials, Mxmd, ShaderUnkType},
     sar1::Sar1,
 };
-use xc3_shader::gbuffer_database::{GBufferDatabase, Shader};
 
 pub use map::load_map;
 pub use sampler::{AddressMode, FilterMode, Sampler};
 pub use skeleton::Skeleton;
 pub use texture::ImageTexture;
+
+// TODO: Export from a shader module instead of the crate root?
+pub use xc3_shader::gbuffer_database::{GBufferDatabase, Shader};
 
 pub mod gltf;
 mod map;

@@ -18,6 +18,14 @@ pub struct GBufferDatabase {
     pub map_files: IndexMap<String, Map>,
 }
 
+impl GBufferDatabase {
+    /// Loads and deserializes the JSON data from `path`.
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Self {
+        let json = std::fs::read_to_string(path).unwrap();
+        serde_json::from_str(&json).unwrap()
+    }
+}
+
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Map {
     pub map_models: Vec<Spch>,
