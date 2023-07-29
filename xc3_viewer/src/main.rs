@@ -31,7 +31,6 @@ struct State {
 
     renderer: Xc3Renderer,
 
-    // TODO: Better way to render multiple map models?
     models: Vec<ModelGroup>,
 
     input_state: InputState,

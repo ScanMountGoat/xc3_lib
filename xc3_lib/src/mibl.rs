@@ -179,9 +179,4 @@ impl Mibl {
     pub fn to_dds(&self) -> Result<Dds> {
         create_dds(self)
     }
-
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        // TODO: Avoid unwrap.
-        Self::read(&mut std::io::Cursor::new(bytes)).unwrap()
-    }
 }

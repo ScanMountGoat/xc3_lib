@@ -196,7 +196,7 @@ fn check_msmd(msmd: Msmd, path: &Path) {
     for model in msmd.env_models {
         let entry = model.entry.extract(&mut reader, compressed);
         for texture in entry.textures.textures {
-            Mibl::from_bytes(&texture.mibl_data);
+            Mibl::from_bytes(&texture.mibl_data).unwrap();
         }
     }
 
@@ -213,7 +213,7 @@ fn check_msmd(msmd: Msmd, path: &Path) {
     for model in msmd.foliage_models {
         let entry = model.entry.extract(&mut reader, compressed);
         for texture in entry.textures.textures {
-            Mibl::from_bytes(&texture.mibl_data);
+            Mibl::from_bytes(&texture.mibl_data).unwrap();
         }
     }
 
@@ -224,7 +224,7 @@ fn check_msmd(msmd: Msmd, path: &Path) {
     for entry in msmd.low_textures {
         let entry = entry.extract(&mut reader, compressed);
         for texture in entry.textures {
-            Mibl::from_bytes(&texture.mibl_data);
+            Mibl::from_bytes(&texture.mibl_data).unwrap();
         }
     }
 
@@ -259,14 +259,14 @@ fn read_wismt_single_tex<P: AsRef<Path>>(path: P) -> (Vec<u8>, Mibl) {
     let xbc1 = Xbc1::from_file(path).unwrap();
 
     let decompressed = xbc1.decompress().unwrap();
-    let mibl = Mibl::from_bytes(&decompressed);
+    let mibl = Mibl::from_bytes(&decompressed).unwrap();
     (decompressed, mibl)
 }
 
 fn check_dhal(dhal: Dhal, _path: &Path) {
     if let Some(textures) = dhal.textures {
         for texture in textures.textures {
-            Mibl::from_bytes(&texture.mibl_data);
+            Mibl::from_bytes(&texture.mibl_data).unwrap();
         }
     }
 }
@@ -278,7 +278,7 @@ fn check_mxmd(mxmd: Mxmd, path: &Path) {
 
     if let Some(packed_textures) = mxmd.packed_textures {
         for texture in packed_textures.textures {
-            Mibl::from_bytes(&texture.mibl_data);
+            Mibl::from_bytes(&texture.mibl_data).unwrap();
         }
     }
 }

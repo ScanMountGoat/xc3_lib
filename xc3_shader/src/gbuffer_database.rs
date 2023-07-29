@@ -41,7 +41,6 @@ pub struct Spch {
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct ShaderProgram {
-    // TODO: Is it worth including the program name?
     /// Some shaders have multiple NVSD sections, so the length may be greater than 1.
     pub shaders: Vec<Shader>,
 }

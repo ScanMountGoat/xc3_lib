@@ -43,13 +43,11 @@ impl ImageTexture {
     }
 
     pub fn from_packed_texture(texture: &PackedTexture) -> Self {
-        let mibl = Mibl::from_bytes(&texture.mibl_data);
+        let mibl = Mibl::from_bytes(&texture.mibl_data).unwrap();
         Self::from_mibl(&mibl, Some(texture.name.clone())).unwrap()
     }
 }
 
-// TODO: Indicate that this is for non maps?
-// TODO: Create unit tests for this?
 pub fn load_textures(
     mxmd: &Mxmd,
     msrd: Option<&Msrd>,
@@ -124,7 +122,7 @@ fn load_packed_texture(
     let data = &packed_texture_data
         [item.mibl_offset as usize..item.mibl_offset as usize + item.mibl_length as usize];
 
-    let mibl = Mibl::from_bytes(data);
+    let mibl = Mibl::from_bytes(data).unwrap();
     ImageTexture::from_mibl(&mibl, Some(item.name.clone())).unwrap()
 }
 
@@ -135,7 +133,7 @@ fn load_wismt_texture(
 ) -> Option<ImageTexture> {
     // TODO: Create a helper function in xc3_lib for this?
     let xbc1 = Xbc1::from_file(m_texture_folder.join(texture_name).with_extension("wismt")).ok()?;
-    let mibl_m = Mibl::from_bytes(&xbc1.decompress().unwrap());
+    let mibl_m = Mibl::from_bytes(&xbc1.decompress().unwrap()).unwrap();
 
     let base_mip_level =
         Xbc1::from_file(&h_texture_folder.join(texture_name).with_extension("wismt"))

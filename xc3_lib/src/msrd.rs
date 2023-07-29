@@ -1,5 +1,3 @@
-use std::io::Cursor;
-
 use crate::{
     mibl::Mibl,
     mxmd::PackedExternalTextures,
@@ -107,7 +105,7 @@ impl Msrd {
     pub fn extract_vertex_data(&self) -> VertexData {
         // TODO: is this always in the first stream?
         let bytes = self.decompress_stream(0, self.vertex_data_entry_index);
-        VertexData::read(&mut Cursor::new(bytes)).unwrap()
+        VertexData::from_bytes(&bytes).unwrap()
     }
 
     // TODO: Return mibl instead?
@@ -133,7 +131,7 @@ impl Msrd {
             .map(|entry| {
                 let bytes =
                     &stream[entry.offset as usize..entry.offset as usize + entry.size as usize];
-                Mibl::from_bytes(bytes)
+                Mibl::from_bytes(bytes).unwrap()
             })
             .collect()
     }
@@ -141,7 +139,7 @@ impl Msrd {
     pub fn extract_shader_data(&self) -> Spch {
         // TODO: is this always in the first stream?
         let bytes = self.decompress_stream(0, self.shader_entry_index);
-        Spch::read(&mut Cursor::new(bytes)).unwrap()
+        Spch::from_bytes(&bytes).unwrap()
     }
 
     pub fn decompress_stream(&self, stream_index: u32, entry_index: u32) -> Vec<u8> {

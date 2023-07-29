@@ -201,7 +201,6 @@ pub fn foliage_materials(
         })
         .collect();
 
-    // TODO: is this the best place to cache pipelines?
     (materials, pipelines)
 }
 

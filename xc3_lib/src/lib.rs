@@ -43,7 +43,6 @@ where
 
     let saved_pos = reader.stream_position()?;
 
-    // TODO: log trace with minimal performance hit?
     reader.seek(SeekFrom::Start(offset as u64 + args.offset))?;
     trace!(
         "{:?}: {:?}",
@@ -166,20 +165,10 @@ where
 }
 
 // TODO: Dedicated error types?
-// TODO: Add a from_bytes helper that reads using a Cursor?
-macro_rules! file_read_write_impl {
+macro_rules! file_write_impl {
     ($($type_name:path),*) => {
         $(
             impl $type_name {
-                pub fn read<R: Read + Seek>(reader: &mut R) -> Result<Self, Box<dyn Error>> {
-                    reader.read_le().map_err(Into::into)
-                }
-
-                pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn Error>> {
-                    let mut reader = Cursor::new(std::fs::read(path)?);
-                    reader.read_le().map_err(Into::into)
-                }
-
                 pub fn write<W: Write + Seek>(&self, writer: &mut W) -> Result<(), Box<dyn Error>> {
                     self.write_le(writer).map_err(Into::into)
                 }
@@ -193,8 +182,9 @@ macro_rules! file_read_write_impl {
     };
 }
 
-file_read_write_impl!(mibl::Mibl, xbc1::Xbc1);
+file_write_impl!(mibl::Mibl, xbc1::Xbc1);
 
+// TODO: Dedicated error types?
 macro_rules! file_read_impl {
     ($($type_name:path),*) => {
         $(
@@ -207,12 +197,18 @@ macro_rules! file_read_impl {
                     let mut reader = Cursor::new(std::fs::read(path)?);
                     reader.read_le().map_err(Into::into)
                 }
+
+                pub fn from_bytes(bytes: &[u8]) -> Result<Self, Box<dyn Error>> {
+                    Self::read(&mut Cursor::new(bytes))
+                }
             }
         )*
     };
 }
 
 file_read_impl!(
+    mibl::Mibl,
+    xbc1::Xbc1,
     msmd::Msmd,
     msrd::Msrd,
     mxmd::Mxmd,

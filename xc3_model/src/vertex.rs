@@ -30,7 +30,7 @@ pub enum AttributeData {
     Uv1(Vec<Vec2>),
     Uv2(Vec<Vec2>),
     VertexColor(Vec<Vec4>), // TODO: [u8; 4]?
-    WeightIndex(Vec<u32>),  // TODO: [u8; 4]?
+    WeightIndex(Vec<u32>),
     SkinWeights(Vec<Vec4>),
     BoneIndices(Vec<[u8; 4]>),
 }
