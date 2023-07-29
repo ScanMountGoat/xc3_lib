@@ -16,8 +16,7 @@ use crate::{
 };
 
 // TODO: Document loading the database in an example.
-/// Load a map from a `.wismhd` file for Xenoblade 2 or Xenoblade 3.
-///
+/// Load a map from a `.wismhd` file. 
 /// The corresponding `.wismda` should be in the same directory.
 pub fn load_map<P: AsRef<Path>>(
     wismhd_path: P,

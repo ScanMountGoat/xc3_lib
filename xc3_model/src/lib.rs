@@ -15,8 +15,8 @@ use xc3_lib::{
 
 pub use map::load_map;
 pub use sampler::{AddressMode, FilterMode, Sampler};
-pub use skeleton::Skeleton;
-pub use texture::ImageTexture;
+pub use skeleton::{Bone, Skeleton};
+pub use texture::{ImageFormat, ImageTexture, ViewDimension};
 
 // TODO: Export from a shader module instead of the crate root?
 pub use xc3_shader::gbuffer_database::{GBufferDatabase, Shader};
@@ -24,9 +24,9 @@ pub use xc3_shader::gbuffer_database::{GBufferDatabase, Shader};
 pub mod gltf;
 mod map;
 mod sampler;
-pub mod skeleton;
+mod skeleton;
 pub mod skinning;
-pub mod texture;
+mod texture;
 pub mod vertex;
 
 // TODO: Come up with a better name
@@ -124,8 +124,7 @@ impl Model {
 }
 
 // TODO: Document loading the database in an example.
-/// Load a character (ch), object (oj), weapon (wp), or enemy (en) model
-/// for Xenoblade 2 or Xenoblade 3.
+/// Load a character (ch), object (oj), weapon (wp), or enemy (en) model.
 pub fn load_model<P: AsRef<Path>>(
     wimdo_path: P,
     shader_database: Option<&GBufferDatabase>,

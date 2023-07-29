@@ -1,7 +1,7 @@
 use log::warn;
 use wgpu::util::DeviceExt;
 use xc3_lib::mibl::ImageFormat;
-use xc3_model::texture::ImageTexture;
+use xc3_model::ImageTexture;
 
 pub fn create_texture(
     device: &wgpu::Device,

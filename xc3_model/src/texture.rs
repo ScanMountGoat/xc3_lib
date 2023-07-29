@@ -42,13 +42,57 @@ impl ImageTexture {
         })
     }
 
+    /// Deswizzle and combine the data from `base_mip_level` for mip 0 and `mibl_m` for the remaining mip levels.
+    pub fn from_mibl_base_mip(base_mip_level: Vec<u8>, mibl_m: Mibl, name: Option<String>) -> Self {
+        let width = mibl_m.footer.width * 2;
+        let height = mibl_m.footer.height * 2;
+        // TODO: double depth?
+        let depth = mibl_m.footer.depth;
+
+        // The high resolution texture is only the base level.
+        let mipmap_count = 1;
+
+        // TODO: move to xc3_lib?
+        let mut image_data = tegra_swizzle::surface::deswizzle_surface(
+            width as usize,
+            height as usize,
+            depth as usize,
+            &base_mip_level,
+            mibl_m.footer.image_format.block_dim(),
+            None,
+            mibl_m.footer.image_format.bytes_per_pixel(),
+            mipmap_count,
+            if mibl_m.footer.view_dimension == ViewDimension::Cube {
+                6
+            } else {
+                1
+            },
+        )
+        .unwrap();
+
+        // Non swizzled data has no alignment requirements.
+        // We can just combine the two surfaces.
+        image_data.extend_from_slice(&mibl_m.deswizzled_image_data().unwrap());
+
+        ImageTexture {
+            name,
+            width,
+            height,
+            depth,
+            view_dimension: mibl_m.footer.view_dimension,
+            image_format: mibl_m.footer.image_format,
+            mipmap_count: mibl_m.footer.mipmap_count + 1,
+            image_data,
+        }
+    }
+
     pub fn from_packed_texture(texture: &PackedTexture) -> Self {
         let mibl = Mibl::from_bytes(&texture.mibl_data).unwrap();
         Self::from_mibl(&mibl, Some(texture.name.clone())).unwrap()
     }
 }
 
-pub fn load_textures(
+pub(crate) fn load_textures(
     mxmd: &Mxmd,
     msrd: Option<&Msrd>,
     m_tex_folder: &Path,
@@ -141,54 +185,11 @@ fn load_wismt_texture(
             .decompress()
             .unwrap();
 
-    Some(merge_mibl(
+    Some(ImageTexture::from_mibl_base_mip(
         base_mip_level,
         mibl_m,
         Some(texture_name.to_string()),
     ))
-}
-
-pub fn merge_mibl(base_mip_level: Vec<u8>, mibl_m: Mibl, name: Option<String>) -> ImageTexture {
-    let width = mibl_m.footer.width * 2;
-    let height = mibl_m.footer.height * 2;
-    // TODO: double depth?
-    let depth = mibl_m.footer.depth;
-
-    // The high resolution texture is only the base level.
-    let mipmap_count = 1;
-
-    // TODO: move to xc3_lib?
-    let mut image_data = tegra_swizzle::surface::deswizzle_surface(
-        width as usize,
-        height as usize,
-        depth as usize,
-        &base_mip_level,
-        mibl_m.footer.image_format.block_dim(),
-        None,
-        mibl_m.footer.image_format.bytes_per_pixel(),
-        mipmap_count,
-        if mibl_m.footer.view_dimension == ViewDimension::Cube {
-            6
-        } else {
-            1
-        },
-    )
-    .unwrap();
-
-    // Non swizzled data has no alignment requirements.
-    // We can just combine the two surfaces.
-    image_data.extend_from_slice(&mibl_m.deswizzled_image_data().unwrap());
-
-    ImageTexture {
-        name,
-        width,
-        height,
-        depth,
-        view_dimension: mibl_m.footer.view_dimension,
-        image_format: mibl_m.footer.image_format,
-        mipmap_count: mibl_m.footer.mipmap_count + 1,
-        image_data,
-    }
 }
 
 // TODO: add conversions to and from dds for surface to image_dds?
