@@ -16,7 +16,7 @@ use crate::{
 };
 
 // TODO: Document loading the database in an example.
-/// Load a map from a `.wismhd` file. 
+/// Load a map from a `.wismhd` file.
 /// The corresponding `.wismda` should be in the same directory.
 pub fn load_map<P: AsRef<Path>>(
     wismhd_path: P,
@@ -142,27 +142,13 @@ fn load_prop_model_group(
 
     let samplers = samplers(&model_data.materials);
 
-    let mut models: Vec<_> = model_data
-        .models
-        .models
-        .iter()
-        .zip(model_data.model_vertex_data_indices.iter())
-        .map(|(model, vertex_data_index)| {
-            // TODO: Also cache vertex and index buffer creation?
-            let vertex_data = &prop_vertex_data[*vertex_data_index as usize];
-
-            Model::from_model(
-                model,
-                model_data.models.skeleton.as_ref(),
-                vertex_data,
-                Vec::new(),
-            )
-        })
-        .collect();
+    // Calculate instances separately from models.
+    // This allows us to avoid loading unused models later.
+    let mut model_instances = vec![Vec::new(); model_data.models.models.len()];
 
     // Load instances for each base LOD model.
     add_prop_instances(
-        &mut models,
+        &mut model_instances,
         &model_data.lods.props,
         &model_data.lods.instances,
     );
@@ -171,14 +157,14 @@ fn load_prop_model_group(
     for info in &model_data.prop_info {
         let additional_instances = &prop_positions[info.prop_position_entry_index as usize];
         add_prop_instances(
-            &mut models,
+            &mut model_instances,
             &model_data.lods.props,
             &additional_instances.instances,
         );
 
         if let Some(parts) = parts {
             add_animated_part_instances(
-                &mut models,
+                &mut model_instances,
                 additional_instances.animated_parts_start_index as usize,
                 additional_instances.animated_parts_count as usize,
                 parts,
@@ -191,12 +177,36 @@ fn load_prop_model_group(
     // Add additional animated prop instances to the appropriate models.
     if let Some(parts) = parts {
         add_animated_part_instances(
-            &mut models,
+            &mut model_instances,
             model_data.lods.animated_parts_start_index as usize,
             model_data.lods.animated_parts_count as usize,
             parts,
         );
     }
+
+    let models = model_data
+        .models
+        .models
+        .iter()
+        .zip(model_data.model_vertex_data_indices.iter())
+        .zip(model_instances.into_iter())
+        .filter_map(|((model, vertex_data_index), instances)| {
+            // Avoid expensive vertex loading for unused prop models.
+            if !instances.is_empty() {
+                // TODO: Also cache vertex and index buffer creation?
+                let vertex_data = &prop_vertex_data[*vertex_data_index as usize];
+
+                Some(Model::from_model(
+                    model,
+                    model_data.models.skeleton.as_ref(),
+                    vertex_data,
+                    instances,
+                ))
+            } else {
+                None
+            }
+        })
+        .collect();
 
     ModelGroup {
         models,
@@ -206,20 +216,22 @@ fn load_prop_model_group(
     }
 }
 
-fn add_prop_instances(models: &mut [Model], props: &[PropLod], instances: &[PropInstance]) {
+fn add_prop_instances(
+    model_instances: &mut [Vec<Mat4>],
+    props: &[PropLod],
+    instances: &[PropInstance],
+) {
     for instance in instances {
         let prop_lod = &props[instance.prop_index as usize];
         let base_lod_index = prop_lod.base_lod_index as usize;
         // TODO: Should we also index into the PropModelLod?
         // TODO: Is PropModelLod.index always the same as its index in the list?
-        models[base_lod_index]
-            .instances
-            .push(Mat4::from_cols_array_2d(&instance.transform));
+        model_instances[base_lod_index].push(Mat4::from_cols_array_2d(&instance.transform));
     }
 }
 
 fn add_animated_part_instances(
-    models: &mut [Model],
+    model_instances: &mut [Vec<Mat4>],
     start_index: usize,
     count: usize,
     parts: &MapParts,
@@ -269,10 +281,7 @@ fn add_animated_part_instances(
         }
         // TODO: transform order?
         transform = Mat4::from_translation(translation) * transform;
-
-        models[instance.prop_index as usize]
-            .instances
-            .push(transform);
+        model_instances[instance.prop_index as usize].push(transform);
     }
 }
 

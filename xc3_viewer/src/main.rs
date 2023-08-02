@@ -10,7 +10,7 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 use xc3_wgpu::{
-    model::{load_model, ModelGroup},
+    model::ModelGroup,
     renderer::{CameraData, Xc3Renderer},
     COLOR_FORMAT,
 };
@@ -99,15 +99,20 @@ impl State {
         // Infer the type of model to load based on the extension.
         let models = match model_path.extension().unwrap().to_str().unwrap() {
             "wimdo" => {
+                // TODO: Dropping vertex buffers is expensive?
                 let root = xc3_model::load_model(model_path, database.as_ref());
-                load_model(&device, &queue, &[root])
+                info!("Load root: {:?}", start.elapsed());
+                xc3_wgpu::model::load_model(&device, &queue, &[root])
             }
             "wismhd" => {
                 let roots = xc3_model::load_map(model_path, database.as_ref());
-                load_model(&device, &queue, &roots)
+                info!("Load {} roots: {:?}", roots.len(), start.elapsed());
+                xc3_wgpu::model::load_model(&device, &queue, &roots)
             }
             _ => todo!(),
         };
+
+        let elapsed = start.elapsed();
 
         let mesh_count: usize = models
             .iter()
@@ -122,7 +127,7 @@ impl State {
             "Load {:?} models and {:?} meshes: {:?}",
             models.len(),
             mesh_count,
-            start.elapsed()
+            elapsed
         );
 
         Self {

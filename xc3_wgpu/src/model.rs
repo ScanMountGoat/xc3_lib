@@ -113,10 +113,10 @@ pub fn load_model(
     queue: &wgpu::Queue,
     roots: &[xc3_model::ModelRoot],
 ) -> Vec<ModelGroup> {
+    let start = std::time::Instant::now();
+
     // Compile shaders only once to improve loading times.
     let pipeline_data = ModelPipelineData::new(device);
-
-    let start = std::time::Instant::now();
 
     let mut groups = Vec::new();
 
@@ -127,7 +127,7 @@ pub fn load_model(
             groups.push(model_group);
         }
     }
-    info!("Load {} roots: {:?}", roots.len(), start.elapsed());
+    info!("Load {} model groups: {:?}", roots.len(), start.elapsed());
 
     groups
 }
@@ -195,7 +195,7 @@ fn model_index_buffers(device: &wgpu::Device, model: &xc3_model::Model) -> Vec<I
 fn create_model(
     device: &wgpu::Device,
     model: &xc3_model::Model,
-    skeleton: Option<&xc3_model::skeleton::Skeleton>,
+    skeleton: Option<&xc3_model::Skeleton>,
 ) -> Model {
     let vertex_buffers = model_vertex_buffers(device, model, skeleton);
     let index_buffers = model_index_buffers(device, model);
@@ -231,7 +231,7 @@ fn create_model(
 fn model_vertex_buffers(
     device: &wgpu::Device,
     model: &xc3_model::Model,
-    skeleton: Option<&xc3_model::skeleton::Skeleton>,
+    skeleton: Option<&xc3_model::Skeleton>,
 ) -> Vec<VertexBuffer> {
     model
         .vertex_buffers
@@ -275,7 +275,7 @@ fn model_vertex_buffers(
 fn set_attributes(
     verts: &mut [shader::model::VertexInput],
     buffer: &xc3_model::VertexBuffer,
-    skeleton: Option<&xc3_model::skeleton::Skeleton>,
+    skeleton: Option<&xc3_model::Skeleton>,
 ) {
     for attribute in &buffer.attributes {
         match attribute {
@@ -321,7 +321,7 @@ where
 
 fn per_group_bind_group(
     device: &wgpu::Device,
-    skeleton: Option<&xc3_model::skeleton::Skeleton>,
+    skeleton: Option<&xc3_model::Skeleton>,
 ) -> shader::model::bind_groups::BindGroup1 {
     // TODO: Set bones from skeletons.
     // TODO: Store the buffer to support animation?
