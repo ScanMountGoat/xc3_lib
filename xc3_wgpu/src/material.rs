@@ -25,6 +25,7 @@ pub struct Material {
     pub texture_count: usize,
 }
 
+#[tracing::instrument]
 pub fn materials(
     device: &wgpu::Device,
     queue: &wgpu::Queue,

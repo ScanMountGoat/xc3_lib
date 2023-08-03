@@ -36,22 +36,36 @@ pub struct ModelRoot {
     pub image_textures: Vec<ImageTexture>,
 }
 
-// TODO: Should samplers be optional?
 #[derive(Debug)]
 pub struct ModelGroup {
+    pub models: Vec<Models>,
+    pub buffers: Vec<ModelBuffers>,
+}
+
+#[derive(Debug)]
+pub struct ModelBuffers {
+    pub vertex_buffers: Vec<VertexBuffer>,
+    pub index_buffers: Vec<IndexBuffer>,
+}
+
+// TODO: Should samplers be optional?
+#[derive(Debug)]
+pub struct Models {
     pub models: Vec<Model>,
     pub materials: Vec<Material>,
     pub samplers: Vec<Sampler>,
     pub skeleton: Option<Skeleton>,
+    // TODO: The vertex buffer will have redundant weight information?
+    // TODO: This should go with each mesh?
+    // pub influences: Vec<Influence>,
 }
 
 #[derive(Debug)]
 pub struct Model {
     pub meshes: Vec<Mesh>,
-    pub vertex_buffers: Vec<VertexBuffer>,
-    pub index_buffers: Vec<IndexBuffer>,
-    // TODO: Separate weight buffer?
+    /// Each mesh has instance for every transform in [instances](#structfield.instances).
     pub instances: Vec<Mat4>,
+    pub model_buffers_index: usize,
 }
 
 #[derive(Debug)]
@@ -83,8 +97,8 @@ pub struct Texture {
 
 #[derive(Debug)]
 pub struct VertexBuffer {
-    // TODO: Remove the attributes for skin weights?
     pub attributes: Vec<AttributeData>,
+    // TODO: Buffers can be shared between models with different bone names?
     pub influences: Vec<Influence>,
 }
 
@@ -97,9 +111,8 @@ pub struct IndexBuffer {
 impl Model {
     pub fn from_model(
         model: &xc3_lib::mxmd::Model,
-        skeleton: Option<&xc3_lib::mxmd::Skeleton>,
-        vertex_data: &xc3_lib::vertex::VertexData,
         instances: Vec<Mat4>,
+        model_buffers_index: usize,
     ) -> Self {
         let meshes = model
             .meshes
@@ -111,14 +124,10 @@ impl Model {
             })
             .collect();
 
-        let vertex_buffers = read_vertex_buffers(vertex_data, skeleton);
-        let index_buffers = read_index_buffers(vertex_data);
-
         Self {
             meshes,
-            vertex_buffers,
-            index_buffers,
             instances,
+            model_buffers_index,
         }
     }
 }
@@ -170,26 +179,28 @@ pub fn load_model<P: AsRef<Path>>(
 
     let skeleton = create_skeleton(&chr, &mxmd);
 
-    let models = mxmd
-        .models
-        .models
-        .iter()
-        .map(|model| {
-            Model::from_model(
-                model,
-                mxmd.models.skeleton.as_ref(),
-                vertex_data,
-                vec![Mat4::IDENTITY],
-            )
-        })
-        .collect();
+    let vertex_buffers = read_vertex_buffers(vertex_data, mxmd.models.skeleton.as_ref());
+    let index_buffers = read_index_buffers(vertex_data);
+
+    let model = Models {
+        models: mxmd
+            .models
+            .models
+            .iter()
+            .map(|model| Model::from_model(model, vec![Mat4::IDENTITY], 0))
+            .collect(),
+        materials,
+        samplers,
+        skeleton,
+    };
 
     ModelRoot {
         groups: vec![ModelGroup {
-            models,
-            materials,
-            samplers,
-            skeleton,
+            models: vec![model],
+            buffers: vec![ModelBuffers {
+                vertex_buffers,
+                index_buffers,
+            }],
         }],
         image_textures,
     }

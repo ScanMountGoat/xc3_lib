@@ -22,7 +22,7 @@ type GltfAttributes = BTreeMap<
 pub struct BufferKey {
     pub root_index: usize,
     pub group_index: usize,
-    pub model_index: usize,
+    pub buffers_index: usize,
     pub buffer_index: usize,
 }
 
@@ -38,7 +38,7 @@ pub struct Buffers {
 
 impl Buffers {
     pub fn new(roots: &[ModelRoot]) -> Self {
-        let mut buffers = Buffers {
+        let mut combined_buffers = Buffers {
             buffer_bytes: Vec::new(),
             buffer_views: Vec::new(),
             accessors: Vec::new(),
@@ -48,34 +48,35 @@ impl Buffers {
 
         for (root_index, root) in roots.iter().enumerate() {
             for (group_index, group) in root.groups.iter().enumerate() {
-                for (model_index, model) in group.models.iter().enumerate() {
-                    buffers.add_vertex_buffers(
-                        model,
-                        group.skeleton.as_ref(),
+                for (buffers_index, buffers) in group.buffers.iter().enumerate() {
+                    // TODO: How to handle buffers shared between multiple skeletons?
+                    combined_buffers.add_vertex_buffers(
+                        buffers,
+                        group.models.first().and_then(|m| m.skeleton.as_ref()),
                         root_index,
                         group_index,
-                        model_index,
+                        buffers_index,
                     );
 
                     // Place indices after the vertices to use a single buffer.
                     // TODO: Alignment?
-                    buffers.add_index_buffers(model, root_index, group_index, model_index);
+                    combined_buffers.add_index_buffers(buffers, root_index, group_index, buffers_index);
                 }
             }
         }
 
-        buffers
+        combined_buffers
     }
 
     fn add_vertex_buffers(
         &mut self,
-        model: &crate::Model,
+        buffers: &crate::ModelBuffers,
         skeleton: Option<&crate::skeleton::Skeleton>,
         root_index: usize,
         group_index: usize,
-        model_index: usize,
+        buffers_index: usize,
     ) {
-        for (i, vertex_buffer) in model.vertex_buffers.iter().enumerate() {
+        for (i, vertex_buffer) in buffers.vertex_buffers.iter().enumerate() {
             let mut attributes = BTreeMap::new();
             for attribute in &vertex_buffer.attributes {
                 match attribute {
@@ -183,7 +184,7 @@ impl Buffers {
                 BufferKey {
                     root_index,
                     group_index,
-                    model_index,
+                    buffers_index,
                     buffer_index: i,
                 },
                 attributes,
@@ -193,12 +194,12 @@ impl Buffers {
 
     fn add_index_buffers(
         &mut self,
-        model: &crate::Model,
+        buffers: &crate::ModelBuffers,
         root_index: usize,
         group_index: usize,
-        model_index: usize,
+        buffers_index: usize,
     ) {
-        for (i, index_buffer) in model.index_buffers.iter().enumerate() {
+        for (i, index_buffer) in buffers.index_buffers.iter().enumerate() {
             let index_bytes = write_bytes(&index_buffer.indices);
 
             // Assume everything uses the same buffer for now.
@@ -233,7 +234,7 @@ impl Buffers {
                 BufferKey {
                     root_index,
                     group_index,
-                    model_index,
+                    buffers_index,
                     buffer_index: i,
                 },
                 self.accessors.len(),

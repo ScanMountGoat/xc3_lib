@@ -20,7 +20,7 @@ pub struct SkinWeight {
 /// Convert the per-vertex indices and weights to per bone influences.
 /// The `weight_indices` represent the data from [crate::vertex::AttributeData::WeightIndex].
 /// The `skeleton` defines the mapping from bone indices to bone names.
-pub fn bone_influences(
+pub fn indices_weights_to_influences(
     weight_indices: &[u32],
     skin_weights: &[Vec4],
     bone_indices: &[[u8; 4]],
@@ -170,7 +170,7 @@ mod tests {
 
     #[test]
     fn bone_influences_empty() {
-        assert!(bone_influences(&[], &[], &[], &[]).is_empty());
+        assert!(indices_weights_to_influences(&[], &[], &[], &[]).is_empty());
     }
 
     #[test]
@@ -180,7 +180,7 @@ mod tests {
                 bone_name: "root".to_string(),
                 weights: Vec::new()
             }],
-            bone_influences(
+            indices_weights_to_influences(
                 &[0, 1],
                 &[Vec4::ZERO, Vec4::ZERO],
                 &[[0u8; 4], [0u8; 4]],
@@ -234,7 +234,7 @@ mod tests {
                     }]
                 }
             ],
-            bone_influences(
+            indices_weights_to_influences(
                 &[0, 1],
                 &[vec4(0.3, 0.4, 0.1, 0.2), vec4(0.7, 0.3, 0.0, 0.0)],
                 &[[3, 1, 2, 0], [2, 1, 0, 0]],

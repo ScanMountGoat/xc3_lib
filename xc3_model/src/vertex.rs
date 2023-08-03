@@ -16,7 +16,10 @@ use xc3_lib::vertex::{
     DataType, IndexBufferDescriptor, VertexAnimationTarget, VertexBufferDescriptor, VertexData,
 };
 
-use crate::{skinning::bone_influences, IndexBuffer, VertexBuffer};
+use crate::{
+    skinning::{indices_weights_to_influences, Influence},
+    IndexBuffer, VertexBuffer,
+};
 
 // TODO: Add an option to convert a collection of these to the vertex above?
 // TODO: How to handle normalized attributes?
@@ -59,13 +62,8 @@ pub fn read_vertex_buffers(
     vertex_data: &VertexData,
     skeleton: Option<&xc3_lib::mxmd::Skeleton>,
 ) -> Vec<VertexBuffer> {
-    // TODO: Add an option to get the weights buffer separately?
-    // TODO: Remove the weight index attribute?
-    // TODO: Don't return the actual weights buffer?
     // TODO: avoid unwrap?
-    let weights_indices = skin_weights_bone_indices(vertex_data);
-
-    vertex_data
+    let mut buffers: Vec<_> = vertex_data
         .vertex_buffers
         .iter()
         .enumerate()
@@ -78,43 +76,51 @@ pub fn read_vertex_buffers(
                 attributes.extend(animation_attributes);
             }
 
-            let influences = weights_indices
-                .as_ref()
-                .and_then(|(skin_weights, bone_indices)| {
-                    skeleton.and_then(|skeleton| {
-                        attributes.iter().find_map(|a| match a {
-                            AttributeData::WeightIndex(indices) => Some(bone_influences(
-                                indices,
-                                skin_weights,
-                                bone_indices,
-                                &skeleton.bones,
-                            )),
-                            _ => None,
-                        })
-                    })
-                })
-                .unwrap_or_default();
-
             VertexBuffer {
                 attributes,
-                influences,
+                influences: Vec::new(),
             }
         })
-        .collect()
+        .collect();
+
+    // TODO: Is this the best place to do this?
+    if let Some(skeleton) = skeleton {
+        for i in 0..buffers.len() {
+            let weights_buffer = &buffers[vertex_data.weights.vertex_buffer_index as usize];
+            buffers[i].influences = bone_influences(&buffers[i], weights_buffer, skeleton);
+        }
+    }
+
+    buffers
 }
 
-fn skin_weights_bone_indices(vertex_data: &VertexData) -> Option<(Vec<Vec4>, Vec<[u8; 4]>)> {
-    let descriptor = vertex_data
-        .vertex_buffers
-        .get(vertex_data.weights.vertex_buffer_index as usize)?;
+fn bone_influences(
+    buffer: &VertexBuffer,
+    weights_buffer: &VertexBuffer,
+    skeleton: &xc3_lib::mxmd::Skeleton,
+) -> Vec<Influence> {
+    skin_weights_bone_indices(weights_buffer)
+        .as_ref()
+        .and_then(|(skin_weights, bone_indices)| {
+            buffer.attributes.iter().find_map(|a| match a {
+                AttributeData::WeightIndex(indices) => Some(indices_weights_to_influences(
+                    indices,
+                    skin_weights,
+                    bone_indices,
+                    &skeleton.bones,
+                )),
+                _ => None,
+            })
+        })
+        .unwrap_or_default()
+}
 
-    let attributes = read_vertex_attributes(descriptor, &vertex_data.buffer);
-
-    let weights = attributes.iter().find_map(|a| match a {
+fn skin_weights_bone_indices(buffer: &VertexBuffer) -> Option<(Vec<Vec4>, Vec<[u8; 4]>)> {
+    let weights = buffer.attributes.iter().find_map(|a| match a {
         AttributeData::SkinWeights(values) => Some(values.clone()),
         _ => None,
     })?;
-    let indices = attributes.iter().find_map(|a| match a {
+    let indices = buffer.attributes.iter().find_map(|a| match a {
         AttributeData::BoneIndices(values) => Some(values.clone()),
         _ => None,
     })?;

@@ -3,6 +3,7 @@ use std::path::Path;
 use futures::executor::block_on;
 use glam::{vec3, Vec3};
 use log::{debug, error, info};
+use tracing_subscriber::prelude::*;
 use winit::{
     dpi::PhysicalPosition,
     event::*,
@@ -119,12 +120,17 @@ impl State {
             .map(|m| {
                 m.models
                     .iter()
-                    .map(|model| model.meshes.len() * model.instances.len())
+                    .flat_map(|models| {
+                        models
+                            .models
+                            .iter()
+                            .map(|model| model.meshes.len() * model.instances.len())
+                    })
                     .sum::<usize>()
             })
             .sum();
         info!(
-            "Load {:?} models and {:?} meshes: {:?}",
+            "Load {:?} groups and {:?} meshes: {:?}",
             models.len(),
             mesh_count,
             elapsed
@@ -293,6 +299,7 @@ fn calculate_camera_data(
 }
 
 fn main() {
+    // TODO: Can these both be active at once?
     // Ignore most wgpu logs to avoid flooding the console.
     simple_logger::SimpleLogger::new()
         .with_module_level("wgpu", log::LevelFilter::Warn)
@@ -300,6 +307,17 @@ fn main() {
         .with_module_level("xc3_lib", log::LevelFilter::Info)
         .init()
         .unwrap();
+
+    // Limit tracing to these projects.
+    // let (chrome_layer, _guard) = tracing_chrome::ChromeLayerBuilder::new().build();
+    // tracing_subscriber::registry()
+    //     .with(
+    //         chrome_layer.with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
+    //             metadata.target().starts_with("xc3_wgpu")
+    //                 || metadata.target().starts_with("xc3_viewer")
+    //         })),
+    //     )
+    //     .init();
 
     let args: Vec<_> = std::env::args().collect();
 

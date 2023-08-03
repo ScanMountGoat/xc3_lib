@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use glam::{uvec4, vec4, Mat4, Vec3, Vec4};
 use log::info;
+use rayon::prelude::*;
 use wgpu::util::DeviceExt;
 use xc3_model::{skinning::bone_indices_weights, vertex::AttributeData};
 
@@ -14,19 +15,28 @@ use crate::{
 
 // Organize the model data to ensure shared resources are created only once.
 pub struct ModelGroup {
+    pub models: Vec<Models>,
+    buffers: Vec<ModelBuffers>,
+}
+
+pub struct ModelBuffers {
+    vertex_buffers: Vec<VertexBuffer>,
+    index_buffers: Vec<IndexBuffer>,
+}
+
+pub struct Models {
     pub models: Vec<Model>,
     materials: Vec<Material>,
+    per_group: crate::shader::model::bind_groups::BindGroup1,
     // Cache pipelines by their creation parameters.
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
-    per_group: crate::shader::model::bind_groups::BindGroup1,
 }
 
 pub struct Model {
     pub meshes: Vec<Mesh>,
-    vertex_buffers: Vec<VertexBuffer>,
-    index_buffers: Vec<IndexBuffer>,
     // Use a collection to support "instancing" for map props.
     pub instances: Vec<ModelInstance>,
+    pub model_buffers_index: usize,
 }
 
 pub struct ModelInstance {
@@ -53,36 +63,38 @@ struct IndexBuffer {
 impl ModelGroup {
     // TODO: How to handle other unk types?
     pub fn draw<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, is_transparent: bool) {
-        self.per_group.set(render_pass);
+        for models in &self.models {
+            models.per_group.set(render_pass);
 
-        // TODO: Is this the best way to "instance" models?
-        for model in &self.models {
-            for instance in &model.instances {
-                instance.per_model.set(render_pass);
+            // TODO: Is this the best way to "instance" models?
+            for model in &models.models {
+                for instance in &model.instances {
+                    instance.per_model.set(render_pass);
 
-                // Each "instance" repeats the same meshes with different transforms.
-                for mesh in &model.meshes {
-                    // TODO: How does LOD selection work in game?
-                    let material = &self.materials[mesh.material_index];
+                    // Each "instance" repeats the same meshes with different transforms.
+                    for mesh in &model.meshes {
+                        // TODO: How does LOD selection work in game?
+                        let material = &models.materials[mesh.material_index];
 
-                    // TODO: Why are there materials with no textures?
-                    // TODO: Group these into passes with separate shaders for each pass?
-                    // TODO: The main pass is shared with outline, ope, and zpre?
-                    // TODO: How to handle transparency?
-                    // TODO: Characters render as solid white?
-                    if (is_transparent != material.pipeline_key.write_to_all_outputs)
-                        && !material.name.ends_with("_outline")
-                        && !material.name.ends_with("_ope")
-                        && !material.name.ends_with("_zpre")
-                        && material.texture_count > 0
-                    {
-                        // TODO: How to make sure the pipeline outputs match the render pass?
-                        let pipeline = &self.pipelines[&material.pipeline_key];
-                        render_pass.set_pipeline(pipeline);
+                        // TODO: Why are there materials with no textures?
+                        // TODO: Group these into passes with separate shaders for each pass?
+                        // TODO: The main pass is shared with outline, ope, and zpre?
+                        // TODO: How to handle transparency?
+                        // TODO: Characters render as solid white?
+                        if (is_transparent != material.pipeline_key.write_to_all_outputs)
+                            && !material.name.ends_with("_outline")
+                            && !material.name.ends_with("_ope")
+                            && !material.name.ends_with("_zpre")
+                            && material.texture_count > 0
+                        {
+                            // TODO: How to make sure the pipeline outputs match the render pass?
+                            let pipeline = &models.pipelines[&material.pipeline_key];
+                            render_pass.set_pipeline(pipeline);
 
-                        material.bind_group2.set(render_pass);
+                            material.bind_group2.set(render_pass);
 
-                        self.draw_mesh(model, mesh, render_pass);
+                            self.draw_mesh(model, mesh, render_pass);
+                        }
                     }
                 }
             }
@@ -95,19 +107,23 @@ impl ModelGroup {
         mesh: &Mesh,
         render_pass: &mut wgpu::RenderPass<'a>,
     ) {
-        let vertex_data = &model.vertex_buffers[mesh.vertex_buffer_index];
+        let vertex_data =
+            &self.buffers[model.model_buffers_index].vertex_buffers[mesh.vertex_buffer_index];
         render_pass.set_vertex_buffer(0, vertex_data.vertex_buffer.slice(..));
 
         // TODO: Are all indices u16?
-        // TODO: Why do maps not always refer to a valid index buffer?
-        let index_data = &model.index_buffers[mesh.index_buffer_index];
-        // let index_data = &self.index_buffers[mesh.index_buffer_index];
-        render_pass.set_index_buffer(index_data.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+        let index_buffer =
+            &self.buffers[model.model_buffers_index].index_buffers[mesh.index_buffer_index];
+        render_pass.set_index_buffer(
+            index_buffer.index_buffer.slice(..),
+            wgpu::IndexFormat::Uint16,
+        );
 
-        render_pass.draw_indexed(0..index_data.vertex_index_count, 0, 0..1);
+        render_pass.draw_indexed(0..index_buffer.vertex_index_count, 0, 0..1);
     }
 }
 
+#[tracing::instrument]
 pub fn load_model(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
@@ -119,19 +135,21 @@ pub fn load_model(
     let pipeline_data = ModelPipelineData::new(device);
 
     let mut groups = Vec::new();
-
     for root in roots {
         let textures = load_textures(device, queue, root);
-        for group in &root.groups {
-            let model_group = create_model_group(device, queue, group, &textures, &pipeline_data);
-            groups.push(model_group);
-        }
+        groups.par_extend(
+            root.groups
+                .par_iter()
+                .map(|group| create_model_group(device, queue, group, &textures, &pipeline_data)),
+        );
     }
+
     info!("Load {} model groups: {:?}", roots.len(), start.elapsed());
 
     groups
 }
 
+#[tracing::instrument]
 fn load_textures(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
@@ -147,6 +165,7 @@ fn load_textures(
 }
 
 // TODO: Make this a method?
+#[tracing::instrument]
 fn create_model_group(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
@@ -154,27 +173,57 @@ fn create_model_group(
     textures: &[wgpu::TextureView],
     pipeline_data: &ModelPipelineData,
 ) -> ModelGroup {
-    let (materials, pipelines) =
-        materials(device, queue, pipeline_data, &group.materials, textures);
-
     let models = group
         .models
         .iter()
-        .map(|model| create_model(device, model, group.skeleton.as_ref()))
+        .map(|models| {
+            let (materials, pipelines) =
+                materials(device, queue, pipeline_data, &models.materials, textures);
+
+            let models = models
+                .models
+                .iter()
+                .map(|model| create_model(device, model, None))
+                .collect();
+
+            let per_group = per_group_bind_group(device, None);
+
+            Models {
+                models,
+                materials,
+                per_group,
+                pipelines,
+            }
+        })
         .collect();
 
-    let per_group = per_group_bind_group(device, group.skeleton.as_ref());
+    let buffers = group
+        .buffers
+        .iter()
+        .map(|buffers| {
+            // TODO: How to handle vertex buffers being used with multiple skeletons?
+            let vertex_buffers = model_vertex_buffers(
+                device,
+                buffers,
+                group.models.first().and_then(|m| m.skeleton.as_ref()),
+            );
+            let index_buffers = model_index_buffers(device, buffers);
 
-    ModelGroup {
-        materials,
-        pipelines,
-        models,
-        per_group,
-    }
+            ModelBuffers {
+                vertex_buffers,
+                index_buffers,
+            }
+        })
+        .collect();
+
+    ModelGroup { models, buffers }
 }
 
-fn model_index_buffers(device: &wgpu::Device, model: &xc3_model::Model) -> Vec<IndexBuffer> {
-    model
+fn model_index_buffers(
+    device: &wgpu::Device,
+    buffer: &xc3_model::ModelBuffers,
+) -> Vec<IndexBuffer> {
+    buffer
         .index_buffers
         .iter()
         .map(|buffer| {
@@ -192,14 +241,12 @@ fn model_index_buffers(device: &wgpu::Device, model: &xc3_model::Model) -> Vec<I
         .collect()
 }
 
+#[tracing::instrument]
 fn create_model(
     device: &wgpu::Device,
     model: &xc3_model::Model,
     skeleton: Option<&xc3_model::Skeleton>,
 ) -> Model {
-    let vertex_buffers = model_vertex_buffers(device, model, skeleton);
-    let index_buffers = model_index_buffers(device, model);
-
     let meshes = model
         .meshes
         .iter()
@@ -221,19 +268,18 @@ fn create_model(
         .collect();
 
     Model {
-        vertex_buffers,
-        index_buffers,
         meshes,
         instances,
+        model_buffers_index: model.model_buffers_index,
     }
 }
 
 fn model_vertex_buffers(
     device: &wgpu::Device,
-    model: &xc3_model::Model,
+    buffer: &xc3_model::ModelBuffers,
     skeleton: Option<&xc3_model::Skeleton>,
 ) -> Vec<VertexBuffer> {
-    model
+    buffer
         .vertex_buffers
         .iter()
         .map(|buffer| {

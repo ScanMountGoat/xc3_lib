@@ -11,8 +11,10 @@ use xc3_lib::{
 use xc3_shader::gbuffer_database::GBufferDatabase;
 
 use crate::{
-    materials, model_name, samplers, texture::ImageTexture, Material, Model, ModelGroup, ModelRoot,
-    Texture,
+    materials, model_name, samplers,
+    texture::ImageTexture,
+    vertex::{read_index_buffers, read_vertex_buffers},
+    Material, Model, ModelBuffers, ModelGroup, ModelRoot, Models, Texture,
 };
 
 // TODO: Document loading the database in an example.
@@ -55,43 +57,11 @@ pub fn load_map<P: AsRef<Path>>(
 
     let mut groups = Vec::new();
 
-    // Process vertex data ahead of time in parallel.
-    // This gives better CPU utilization and avoids redundant processing.
-    let map_vertex_data = extract_vertex_data(&msmd.map_vertex_data, &wismda, compressed);
+    let group = map_models_group(&msmd, &wismda, compressed, &model_folder, shader_database);
+    groups.push(group);
 
-    groups.par_extend(msmd.map_models.par_iter().enumerate().map(|(i, model)| {
-        let model_data = model.entry.extract(&mut Cursor::new(&wismda), compressed);
-
-        load_map_model_group(
-            &model_data,
-            i,
-            &map_vertex_data,
-            &model_folder,
-            shader_database,
-        )
-    }));
-
-    let prop_vertex_data = extract_vertex_data(&msmd.prop_vertex_data, &wismda, compressed);
-
-    let prop_positions: Vec<_> = msmd
-        .prop_positions
-        .par_iter()
-        .map(|p| p.extract(&mut Cursor::new(&wismda), compressed))
-        .collect();
-
-    groups.par_extend(msmd.prop_models.par_iter().enumerate().map(|(i, model)| {
-        let model_data = model.entry.extract(&mut Cursor::new(&wismda), compressed);
-
-        load_prop_model_group(
-            &model_data,
-            i,
-            &prop_vertex_data,
-            msmd.parts.as_ref(),
-            &prop_positions,
-            &model_folder,
-            shader_database,
-        )
-    }));
+    let group = props_group(&msmd, &wismda, compressed, model_folder, shader_database);
+    groups.push(group);
 
     let image_textures: Vec<_> = msmd
         .textures
@@ -113,34 +83,96 @@ pub fn load_map<P: AsRef<Path>>(
     roots
 }
 
-fn extract_vertex_data(
-    vertex_data: &[StreamEntry<VertexData>],
-    wismda: &[u8],
+fn map_models_group(
+    msmd: &Msmd,
+    wismda: &Vec<u8>,
     compressed: bool,
-) -> Vec<VertexData> {
+    model_folder: &String,
+    shader_database: Option<&GBufferDatabase>,
+) -> ModelGroup {
+    let buffers = create_buffers(&msmd.map_vertex_data, wismda, compressed);
+
+    let mut models = Vec::new();
+    models.par_extend(
+        msmd.map_models
+            .par_iter()
+            .enumerate()
+            .flat_map(|(i, model)| {
+                let model_data = model.entry.extract(&mut Cursor::new(wismda), compressed);
+                load_map_model_group(&model_data, i, model_folder, shader_database)
+            }),
+    );
+
+    ModelGroup { models, buffers }
+}
+
+fn props_group(
+    msmd: &Msmd,
+    wismda: &Vec<u8>,
+    compressed: bool,
+    model_folder: String,
+    shader_database: Option<&GBufferDatabase>,
+) -> ModelGroup {
+    let buffers = create_buffers(&msmd.prop_vertex_data, wismda, compressed);
+
+    let prop_positions: Vec<_> = msmd
+        .prop_positions
+        .par_iter()
+        .map(|p| p.extract(&mut Cursor::new(wismda), compressed))
+        .collect();
+
+    let models = msmd
+        .prop_models
+        .par_iter()
+        .enumerate()
+        .map(|(i, model)| {
+            let model_data = model.entry.extract(&mut Cursor::new(wismda), compressed);
+
+            load_prop_model_group(
+                &model_data,
+                i,
+                msmd.parts.as_ref(),
+                &prop_positions,
+                &model_folder,
+                shader_database,
+            )
+        })
+        .collect();
+
+    ModelGroup { models, buffers }
+}
+
+fn create_buffers(
+    vertex_data: &[StreamEntry<VertexData>],
+    wismda: &Vec<u8>,
+    compressed: bool,
+) -> Vec<ModelBuffers> {
+    // Process vertex data ahead of time in parallel.
+    // This gives better CPU utilization and avoids redundant processing.
     vertex_data
         .par_iter()
-        .map(|e| e.extract(&mut Cursor::new(wismda), compressed))
+        .map(|e| {
+            // Assume maps have no skeletons for now.
+            let vertex_data = e.extract(&mut Cursor::new(wismda), compressed);
+            ModelBuffers {
+                vertex_buffers: read_vertex_buffers(&vertex_data, None),
+                index_buffers: read_index_buffers(&vertex_data),
+            }
+        })
         .collect()
 }
 
 fn load_prop_model_group(
     model_data: &xc3_lib::map::PropModelData,
     model_index: usize,
-    prop_vertex_data: &[VertexData],
     parts: Option<&MapParts>,
     prop_positions: &[PropPositions],
     model_folder: &str,
     shader_database: Option<&GBufferDatabase>,
-) -> ModelGroup {
+) -> Models {
     let spch = shader_database
         .and_then(|database| database.map_files.get(model_folder))
         .and_then(|map| map.prop_models.get(model_index));
-
-    let mut materials = materials(&model_data.materials, spch);
-    apply_material_texture_indices(&mut materials, &model_data.textures);
-
-    let samplers = samplers(&model_data.materials);
 
     // Calculate instances separately from models.
     // This allows us to avoid loading unused models later.
@@ -184,36 +216,37 @@ fn load_prop_model_group(
         );
     }
 
-    let models = model_data
+    // TODO: Group by vertex data index?
+    // TODO: empty groups?
+
+    // TODO: Create material data only once.
+    let mut materials = materials(&model_data.materials, spch);
+    apply_material_texture_indices(&mut materials, &model_data.textures);
+
+    let samplers = samplers(&model_data.materials);
+
+    let mut models = Models {
+        models: Vec::new(),
+        materials,
+        samplers,
+        skeleton: None,
+    };
+
+    for ((model, vertex_data_index), instances) in model_data
         .models
         .models
         .iter()
         .zip(model_data.model_vertex_data_indices.iter())
         .zip(model_instances.into_iter())
-        .filter_map(|((model, vertex_data_index), instances)| {
-            // Avoid expensive vertex loading for unused prop models.
-            if !instances.is_empty() {
-                // TODO: Also cache vertex and index buffer creation?
-                let vertex_data = &prop_vertex_data[*vertex_data_index as usize];
-
-                Some(Model::from_model(
-                    model,
-                    model_data.models.skeleton.as_ref(),
-                    vertex_data,
-                    instances,
-                ))
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    ModelGroup {
-        models,
-        materials,
-        samplers,
-        skeleton: None,
+    {
+        // Avoid loading unused prop models.
+        if !instances.is_empty() {
+            let group = Model::from_model(model, instances, *vertex_data_index as usize);
+            models.models.push(group);
+        }
     }
+
+    models
 }
 
 fn add_prop_instances(
@@ -288,55 +321,55 @@ fn add_animated_part_instances(
 fn load_map_model_group(
     model_data: &xc3_lib::map::MapModelData,
     model_index: usize,
-    vertex_data: &[VertexData],
     model_folder: &str,
     shader_database: Option<&GBufferDatabase>,
-) -> ModelGroup {
+) -> Vec<Models> {
     let spch = shader_database
         .and_then(|database| database.map_files.get(model_folder))
         .and_then(|map| map.map_models.get(model_index));
 
-    let mut materials = materials(&model_data.materials, spch);
-    apply_material_texture_indices(&mut materials, &model_data.textures);
+    model_data
+        .groups
+        .groups
+        .iter()
+        .enumerate()
+        .map(|(group_index, group)| {
+            let vertex_data_index = group.vertex_data_index as usize;
 
-    let samplers = samplers(&model_data.materials);
-
-    let mut models = Vec::new();
-
-    for (group_index, group) in model_data.groups.groups.iter().enumerate() {
-        let vertex_data_index = group.vertex_data_index as usize;
-        let vertex_data = &vertex_data[vertex_data_index];
-
-        // Each group has a base and low detail vertex data index.
-        // Each model has an assigned vertex data index.
-        // Find all the base detail models and meshes for each group.
-        // TODO: Why is the largest index twice the group count?
-        // TODO: Are the larger indices LOD models?
-        for (model, index) in model_data
-            .models
-            .models
-            .iter()
-            .zip(model_data.groups.model_group_index.iter())
-        {
-            // TODO: Faster to just make empty groups and assign each model in a loop?
-            if *index as usize == group_index {
-                let new_model = Model::from_model(
-                    model,
-                    model_data.models.skeleton.as_ref(),
-                    vertex_data,
-                    vec![Mat4::IDENTITY],
-                );
-                models.push(new_model);
+            // Each group has a base and low detail vertex data index.
+            // Each model has an assigned vertex data index.
+            // Find all the base detail models and meshes for each group.
+            // TODO: Why is the largest index twice the group count?
+            // TODO: Are the larger indices LOD models?
+            let mut models = Vec::new();
+            for (model, index) in model_data
+                .models
+                .models
+                .iter()
+                .zip(model_data.groups.model_group_index.iter())
+            {
+                // TODO: Faster to just make empty groups and assign each model in a loop?
+                if *index as usize == group_index {
+                    let new_model =
+                        Model::from_model(model, vec![Mat4::IDENTITY], vertex_data_index);
+                    models.push(new_model);
+                }
             }
-        }
-    }
 
-    ModelGroup {
-        models,
-        materials,
-        samplers,
-        skeleton: None,
-    }
+            // TODO: Create material data only once.
+            let mut materials = materials(&model_data.materials, spch);
+            apply_material_texture_indices(&mut materials, &model_data.textures);
+
+            let samplers = samplers(&model_data.materials);
+
+            Models {
+                models,
+                materials,
+                samplers,
+                skeleton: None,
+            }
+        })
+        .collect()
 }
 
 fn load_env_model(
@@ -371,23 +404,24 @@ fn load_env_model(
         .models
         .models
         .iter()
-        .map(|model| {
-            // TODO: Avoid creating vertex buffers more than once?
-            Model::from_model(
-                model,
-                model_data.models.skeleton.as_ref(),
-                &model_data.vertex_data,
-                vec![Mat4::IDENTITY],
-            )
-        })
+        .map(|model| Model::from_model(model, vec![Mat4::IDENTITY], 0))
         .collect();
+
+    let vertex_buffers = read_vertex_buffers(&model_data.vertex_data, None);
+    let index_buffers = read_index_buffers(&model_data.vertex_data);
 
     ModelRoot {
         groups: vec![ModelGroup {
-            models,
-            materials,
-            samplers,
-            skeleton: None,
+            models: vec![Models {
+                models,
+                materials,
+                samplers,
+                skeleton: None,
+            }],
+            buffers: vec![ModelBuffers {
+                vertex_buffers,
+                index_buffers,
+            }],
         }],
         image_textures,
     }
@@ -417,19 +451,26 @@ fn load_foliage_model(
         .models
         .models
         .iter()
-        .map(|model| {
-            // TODO: Avoid creating vertex buffers more than once?
-            Model::from_model(model, None, &model_data.vertex_data, vec![Mat4::IDENTITY])
-        })
+        .map(|model| Model::from_model(model, vec![Mat4::IDENTITY], 0))
         .collect();
 
+    let vertex_buffers = read_vertex_buffers(&model_data.vertex_data, None);
+    let index_buffers = read_index_buffers(&model_data.vertex_data);
+
     // TODO: foliage samplers?
+    // TODO: is it worth making a skeleton here?
     ModelRoot {
         groups: vec![ModelGroup {
-            models,
-            materials,
-            samplers: Vec::new(),
-            skeleton: None,
+            models: vec![Models {
+                models,
+                materials,
+                samplers: Vec::new(),
+                skeleton: None,
+            }],
+            buffers: vec![ModelBuffers {
+                vertex_buffers,
+                index_buffers,
+            }],
         }],
         image_textures,
     }

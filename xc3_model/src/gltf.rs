@@ -22,6 +22,7 @@ mod texture;
 struct MaterialKey {
     root_index: usize,
     group_index: usize,
+    models_index: usize,
     material_index: usize,
 }
 
@@ -47,35 +48,38 @@ impl GltfFile {
 
         for (root_index, root) in roots.iter().enumerate() {
             for (group_index, group) in root.groups.iter().enumerate() {
-                for (material_index, material) in group.materials.iter().enumerate() {
-                    let albedo_key = albedo_generated_key(material, root_index);
-                    let albedo_index = albedo_key.and_then(|key| texture_cache.insert(key));
+                for (models_index, models) in group.models.iter().enumerate() {
+                    for (material_index, material) in models.materials.iter().enumerate() {
+                        let albedo_key = albedo_generated_key(material, root_index);
+                        let albedo_index = albedo_key.and_then(|key| texture_cache.insert(key));
 
-                    let normal_key = normal_generated_key(material, root_index);
-                    let normal_index = normal_key.and_then(|key| texture_cache.insert(key));
+                        let normal_key = normal_generated_key(material, root_index);
+                        let normal_index = normal_key.and_then(|key| texture_cache.insert(key));
 
-                    let metallic_roughness_key =
-                        metallic_roughness_generated_key(material, root_index);
-                    let metallic_roughness_index =
-                        metallic_roughness_key.and_then(|key| texture_cache.insert(key));
+                        let metallic_roughness_key =
+                            metallic_roughness_generated_key(material, root_index);
+                        let metallic_roughness_index =
+                            metallic_roughness_key.and_then(|key| texture_cache.insert(key));
 
-                    let material = create_material(
-                        material,
-                        albedo_index,
-                        normal_index,
-                        metallic_roughness_index,
-                    );
-                    let material_flattened_index = materials.len();
-                    materials.push(material);
+                        let material = create_material(
+                            material,
+                            albedo_index,
+                            normal_index,
+                            metallic_roughness_index,
+                        );
+                        let material_flattened_index = materials.len();
+                        materials.push(material);
 
-                    material_indices.insert(
-                        MaterialKey {
-                            root_index,
-                            group_index,
-                            material_index,
-                        },
-                        material_flattened_index,
-                    );
+                        material_indices.insert(
+                            MaterialKey {
+                                root_index,
+                                group_index,
+                                models_index,
+                                material_index,
+                            },
+                            material_flattened_index,
+                        );
+                    }
                 }
             }
         }
@@ -90,105 +94,129 @@ impl GltfFile {
 
         for (root_index, root) in roots.iter().enumerate() {
             for (group_index, group) in root.groups.iter().enumerate() {
-                let skin_index = create_skin(
-                    group,
-                    &mut nodes,
-                    &mut scene_nodes,
-                    &mut skins,
-                    &mut buffers,
-                );
+                for (models_index, models) in group.models.iter().enumerate() {
+                    let skin_index = create_skin(
+                        models.skeleton.as_ref(),
+                        &mut nodes,
+                        &mut scene_nodes,
+                        &mut skins,
+                        &mut buffers,
+                    );
 
-                let mut group_children = Vec::new();
+                    let mut group_children = Vec::new();
 
-                for (model_index, model) in group.models.iter().enumerate() {
-                    let mut children = Vec::new();
+                    for model in &models.models {
+                        let mut children = Vec::new();
 
-                    for mesh in &model.meshes {
-                        let attributes_key = BufferKey {
-                            root_index,
-                            group_index,
-                            model_index,
-                            buffer_index: mesh.vertex_buffer_index,
-                        };
-                        let attributes = buffers
-                            .vertex_buffer_attributes
-                            .get(&attributes_key)
-                            .unwrap()
-                            .clone();
-
-                        let indices_key = BufferKey {
-                            root_index,
-                            group_index,
-                            model_index,
-                            buffer_index: mesh.index_buffer_index,
-                        };
-                        let index_accessor =
-                            *buffers.index_buffer_accessors.get(&indices_key).unwrap() as u32;
-
-                        let material_index = material_indices
-                            .get(&MaterialKey {
+                        for mesh in &model.meshes {
+                            let attributes_key = BufferKey {
                                 root_index,
                                 group_index,
-                                material_index: mesh.material_index,
-                            })
-                            .unwrap();
+                                buffers_index: model.model_buffers_index,
+                                buffer_index: mesh.vertex_buffer_index,
+                            };
+                            let attributes = buffers
+                                .vertex_buffer_attributes
+                                .get(&attributes_key)
+                                .unwrap()
+                                .clone();
 
-                        let primitive = gltf::json::mesh::Primitive {
-                            attributes,
-                            extensions: Default::default(),
-                            extras: Default::default(),
-                            indices: Some(gltf::json::Index::new(index_accessor)),
-                            material: Some(gltf::json::Index::new(*material_index as u32)),
-                            mode: Valid(gltf::json::mesh::Mode::Triangles),
-                            targets: None,
-                        };
+                            let indices_key = BufferKey {
+                                root_index,
+                                group_index,
+                                buffers_index: model.model_buffers_index,
+                                buffer_index: mesh.index_buffer_index,
+                            };
+                            let index_accessor =
+                                *buffers.index_buffer_accessors.get(&indices_key).unwrap() as u32;
 
-                        // Assign one primitive per mesh to create distinct objects in applications.
-                        // In game meshes aren't named, so just use the material name.
-                        let material_name = materials[*material_index].name.clone();
+                            let material_index = material_indices
+                                .get(&MaterialKey {
+                                    root_index,
+                                    group_index,
+                                    models_index,
+                                    material_index: mesh.material_index,
+                                })
+                                .unwrap();
 
-                        let mesh = gltf::json::Mesh {
-                            extensions: Default::default(),
-                            extras: Default::default(),
-                            name: material_name,
-                            primitives: vec![primitive],
-                            weights: None,
-                        };
-                        let mesh_index = meshes.len() as u32;
-                        meshes.push(mesh);
-
-                        // Instancing is applied at the model level.
-                        // Instance meshes instead so each node has only one parent.
-                        // TODO: Use None instead of a single instance transform?
-                        for instance in &model.instances {
-                            let mesh_node = gltf::json::Node {
-                                camera: None,
-                                children: None,
+                            let primitive = gltf::json::mesh::Primitive {
+                                attributes,
                                 extensions: Default::default(),
                                 extras: Default::default(),
-                                matrix: if *instance == Mat4::IDENTITY {
-                                    None
-                                } else {
-                                    Some(instance.to_cols_array())
-                                },
-                                mesh: Some(gltf::json::Index::new(mesh_index)),
-                                name: None,
-                                rotation: None,
-                                scale: None,
-                                translation: None,
-                                skin: skin_index.map(|i| gltf::json::Index::new(i as u32)),
+                                indices: Some(gltf::json::Index::new(index_accessor)),
+                                material: Some(gltf::json::Index::new(*material_index as u32)),
+                                mode: Valid(gltf::json::mesh::Mode::Triangles),
+                                targets: None,
+                            };
+
+                            // Assign one primitive per mesh to create distinct objects in applications.
+                            // In game meshes aren't named, so just use the material name.
+                            let material_name = materials[*material_index].name.clone();
+
+                            let mesh = gltf::json::Mesh {
+                                extensions: Default::default(),
+                                extras: Default::default(),
+                                name: material_name,
+                                primitives: vec![primitive],
                                 weights: None,
                             };
-                            let child_index = nodes.len() as u32;
-                            nodes.push(mesh_node);
+                            let mesh_index = meshes.len() as u32;
+                            meshes.push(mesh);
 
-                            children.push(gltf::json::Index::new(child_index))
+                            // Instancing is applied at the model level.
+                            // Instance meshes instead so each node has only one parent.
+                            // TODO: Use None instead of a single instance transform?
+                            for instance in &model.instances {
+                                let mesh_node = gltf::json::Node {
+                                    camera: None,
+                                    children: None,
+                                    extensions: Default::default(),
+                                    extras: Default::default(),
+                                    matrix: if *instance == Mat4::IDENTITY {
+                                        None
+                                    } else {
+                                        Some(instance.to_cols_array())
+                                    },
+                                    mesh: Some(gltf::json::Index::new(mesh_index)),
+                                    name: None,
+                                    rotation: None,
+                                    scale: None,
+                                    translation: None,
+                                    skin: skin_index.map(|i| gltf::json::Index::new(i as u32)),
+                                    weights: None,
+                                };
+                                let child_index = nodes.len() as u32;
+                                nodes.push(mesh_node);
+
+                                children.push(gltf::json::Index::new(child_index))
+                            }
                         }
+
+                        let model_node = gltf::json::Node {
+                            camera: None,
+                            children: Some(children.clone()),
+                            extensions: Default::default(),
+                            extras: Default::default(),
+                            matrix: None,
+                            mesh: None,
+                            name: None,
+                            rotation: None,
+                            scale: None,
+                            translation: None,
+                            skin: None,
+                            weights: None,
+                        };
+                        let model_node_index = nodes.len() as u32;
+                        nodes.push(model_node);
+
+                        group_children.push(gltf::json::Index::new(model_node_index));
                     }
 
-                    let model_node = gltf::json::Node {
+                    let group_node_index = nodes.len() as u32;
+
+                    let group_node = gltf::json::Node {
                         camera: None,
-                        children: Some(children.clone()),
+                        children: Some(group_children),
                         extensions: Default::default(),
                         extras: Default::default(),
                         matrix: None,
@@ -200,32 +228,11 @@ impl GltfFile {
                         skin: None,
                         weights: None,
                     };
-                    let model_node_index = nodes.len() as u32;
-                    nodes.push(model_node);
+                    nodes.push(group_node);
 
-                    group_children.push(gltf::json::Index::new(model_node_index));
+                    // Only include root nodes.
+                    scene_nodes.push(gltf::json::Index::new(group_node_index));
                 }
-
-                let group_node_index = nodes.len() as u32;
-
-                let group_node = gltf::json::Node {
-                    camera: None,
-                    children: Some(group_children),
-                    extensions: Default::default(),
-                    extras: Default::default(),
-                    matrix: None,
-                    mesh: None,
-                    name: None,
-                    rotation: None,
-                    scale: None,
-                    translation: None,
-                    skin: None,
-                    weights: None,
-                };
-                nodes.push(group_node);
-
-                // Only include root nodes.
-                scene_nodes.push(gltf::json::Index::new(group_node_index));
             }
         }
 
@@ -318,13 +325,13 @@ impl GltfFile {
 }
 
 fn create_skin(
-    group: &crate::ModelGroup,
+    skeleton: Option<&crate::skeleton::Skeleton>,
     nodes: &mut Vec<gltf::json::Node>,
     scene_nodes: &mut Vec<gltf::json::Index<gltf::json::Node>>,
     skins: &mut Vec<gltf::json::Skin>,
     buffers: &mut Buffers,
 ) -> Option<usize> {
-    group.skeleton.as_ref().map(|skeleton| {
+    skeleton.as_ref().map(|skeleton| {
         let bone_start_index = nodes.len() as u32;
         for (i, bone) in skeleton.bones.iter().enumerate() {
             let children = find_children(skeleton, i);

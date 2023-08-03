@@ -2,6 +2,7 @@ use xc3_lib::mxmd::{BlendState, MaterialFlags};
 
 use crate::{DEPTH_FORMAT, GBUFFER_COLOR_FORMAT};
 
+#[derive(Debug)]
 pub struct ModelPipelineData {
     module: wgpu::ShaderModule,
     layout: wgpu::PipelineLayout,

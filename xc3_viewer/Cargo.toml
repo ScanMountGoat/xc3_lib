@@ -12,3 +12,5 @@ xc3_wgpu = { path = "../xc3_wgpu" }
 xc3_model = { path = "../xc3_model" }
 log = "0.4.19"
 simple_logger = "4.2.0"
+tracing-subscriber = "0.3.0"
+tracing-chrome = "0.7.1"
