@@ -1,13 +1,13 @@
 use glam::{vec3, Mat4, Quat};
 
 // TODO: Assume bones appear after their parents?
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Skeleton {
     /// The hierarchy of bones in the skeleton.
     pub bones: Vec<Bone>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Bone {
     pub name: String,
     /// The local transform of the bone relative to its parent.

@@ -60,7 +60,12 @@ impl Buffers {
 
                     // Place indices after the vertices to use a single buffer.
                     // TODO: Alignment?
-                    combined_buffers.add_index_buffers(buffers, root_index, group_index, buffers_index);
+                    combined_buffers.add_index_buffers(
+                        buffers,
+                        root_index,
+                        group_index,
+                        buffers_index,
+                    );
                 }
             }
         }

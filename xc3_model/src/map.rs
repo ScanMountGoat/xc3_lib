@@ -87,7 +87,7 @@ fn map_models_group(
     msmd: &Msmd,
     wismda: &Vec<u8>,
     compressed: bool,
-    model_folder: &String,
+    model_folder: &str,
     shader_database: Option<&GBufferDatabase>,
 ) -> ModelGroup {
     let buffers = create_buffers(&msmd.map_vertex_data, wismda, compressed);

@@ -49,6 +49,7 @@ pub enum EntryData {
     Eva(Eva),
 }
 
+// TODO: TODO: Separate module for BC and anim?
 #[binread]
 #[derive(Debug)]
 #[br(magic(b"BC"))]
@@ -93,15 +94,13 @@ pub struct Skdy {
     pub unk1: u32,
 }
 
-// animation?
-// TODO: animation binding?
 #[derive(BinRead, Debug)]
 #[br(magic(b"ANIM"))]
 #[br(import_raw(base_offset: u64))]
 pub struct Anim {
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset })]
-    pub anim_data: AnimData,
+    pub header: AnimHeader,
 
     pub unk1: [u32; 9],
 
@@ -111,11 +110,14 @@ pub struct Anim {
 
 #[derive(BinRead, Debug)]
 #[br(import_raw(base_offset: u64))]
-pub struct AnimData {
+pub struct AnimHeader {
     pub unk1: [u32; 8],
 
     // TODO: Same length and ordering as hashes?
     // TODO: convert to indices in the mxmd skeleton based on hashes?
+    // TODO: Are these always 0..N-1?
+    // i.e are the hashes always unique?
+    // TODO: same length and ordering as tracks?
     #[br(offset = base_offset)]
     pub bone_indices: SarData<u16>,
 
@@ -130,12 +132,12 @@ pub struct AnimData {
 
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset })]
-    pub inner: AnimDataInner,
+    pub inner: AnimHeaderInner,
 }
 
 #[derive(BinRead, Debug)]
 #[br(import_raw(base_offset: u64))]
-pub struct AnimDataInner {
+pub struct AnimHeaderInner {
     pub unk1: [u32; 8],
     /// The MurmurHash3 32-bit hash of the bone names.
     // TODO: type alias for this?
@@ -186,23 +188,23 @@ pub enum AnimationData {
     Unk2,
 
     #[br(pre_assert(animation_type == AnimationType::PackedCubic))]
-    PackedCubic(#[br(args_raw(base_offset))] PackedCubicData),
+    PackedCubic(#[br(args_raw(base_offset))] PackedCubic),
 }
 
 #[derive(BinRead, Debug)]
 #[br(import_raw(base_offset: u64))]
-pub struct PackedCubicData {
+pub struct PackedCubic {
     // TODO: same length and ordering as bone indices and hashes?
     #[br(offset = base_offset)]
     pub tracks: SarData<Track>,
 
     // TODO: [a,b,c,d] for a*x^3 + b*x^2 + c*x + d?
     #[br(offset = base_offset)]
-    pub translations: SarData<[f32; 4]>,
+    pub vectors: SarData<[f32; 4]>,
 
     // TODO: same equation as above?
     #[br(offset = base_offset)]
-    pub rotation_quaternions: SarData<[f32; 4]>,
+    pub quaternions: SarData<[f32; 4]>,
 
     // TODO: Are these keyframe times?
     #[br(offset = base_offset)]
@@ -220,7 +222,7 @@ pub struct Track {
 pub struct SubTrack {
     // TODO: index into timings?
     pub time_start_index: u32,
-    // TODO: index into translations, rotation_quaternions?
+    /// Starting index for the vector or quaternion values.
     pub curves_start_index: u32,
     // TODO: index into timings?
     pub time_end_index: u32,

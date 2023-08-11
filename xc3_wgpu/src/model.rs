@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 
-use glam::{uvec4, vec4, Mat4, Vec3, Vec4};
+use glam::{uvec4, vec3, vec4, Mat4, Quat, Vec3, Vec4};
 use log::info;
 use rayon::prelude::*;
 use wgpu::util::DeviceExt;
+use xc3_lib::sar1::murmur3;
 use xc3_model::{skinning::bone_indices_weights, vertex::AttributeData};
 
 use crate::{
@@ -28,6 +29,8 @@ pub struct Models {
     pub models: Vec<Model>,
     materials: Vec<Material>,
     per_group: crate::shader::model::bind_groups::BindGroup1,
+    per_group_buffer: wgpu::Buffer,
+    skeleton: Option<xc3_model::Skeleton>,
     // Cache pipelines by their creation parameters.
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
 }
@@ -123,6 +126,95 @@ impl ModelGroup {
     }
 }
 
+impl Models {
+    pub fn update_bone_transforms(&self, queue: &wgpu::Queue, anim: &xc3_lib::sar1::Anim) {
+        if let Some(skeleton) = &self.skeleton {
+            let hash_to_index: HashMap<_, _> = skeleton
+                .bones
+                .iter()
+                .enumerate()
+                .map(|(i, b)| (murmur3(b.name.as_bytes()), i))
+                .collect();
+
+            // Just create a copy of the skeleton to simplify the code for now.
+            let mut animated_skeleton = skeleton.clone();
+
+            // TODO: Load all key frames?
+            match &anim.animation.data {
+                xc3_lib::sar1::AnimationData::Unk0 => todo!(),
+                xc3_lib::sar1::AnimationData::Unk1 => todo!(),
+                xc3_lib::sar1::AnimationData::Unk2 => todo!(),
+                xc3_lib::sar1::AnimationData::PackedCubic(cubic) => {
+                    // TODO: Does each of these tracks have a corresponding hash?
+                    // TODO: Also check the bone indices?
+                    for (track, hash) in cubic
+                        .tracks
+                        .elements
+                        .iter()
+                        .zip(anim.header.inner.hashes.elements.iter())
+                    {
+                        // TODO: cubic interpolation?
+                        let translation = sample_vec3_packed_cubic(
+                            cubic,
+                            track.translation.curves_start_index as usize,
+                        );
+                        let rotation = sample_quat_packed_cubic(
+                            cubic,
+                            track.rotation.curves_start_index as usize,
+                        );
+                        let scale = sample_vec3_packed_cubic(
+                            cubic,
+                            track.scale.curves_start_index as usize,
+                        );
+
+                        if let Some(bone_index) = hash_to_index.get(hash) {
+                            println!("{:?},", &animated_skeleton.bones[*bone_index].name);
+
+                            // TODO: Does every track start at time 0?
+                            let transform = Mat4::from_translation(translation)
+                                * Mat4::from_quat(rotation)
+                                * Mat4::from_scale(scale);
+                            animated_skeleton.bones[*bone_index].transform = transform;
+                        }
+                    }
+                }
+            }
+
+            let rest_pose_world = skeleton.world_transforms();
+            let animated_world = animated_skeleton.world_transforms();
+
+            let mut animated_transforms = [Mat4::IDENTITY; 256];
+            for i in (0..skeleton.bones.len()).take(animated_transforms.len()) {
+                animated_transforms[i] = animated_world[i] * rest_pose_world[i].inverse();
+            }
+
+            queue.write_buffer(
+                &self.per_group_buffer,
+                0,
+                bytemuck::cast_slice(&[crate::shader::model::PerGroup {
+                    enable_skinning: uvec4(self.skeleton.is_some() as u32, 0, 0, 0),
+                    animated_transforms,
+                }]),
+            );
+        }
+    }
+}
+
+fn sample_vec3_packed_cubic(cubic: &xc3_lib::sar1::PackedCubic, start_index: usize) -> Vec3 {
+    let x_coeffs = cubic.vectors.elements[start_index];
+    let y_coeffs = cubic.vectors.elements[start_index + 1];
+    let z_coeffs = cubic.vectors.elements[start_index + 2];
+    vec3(x_coeffs[3], y_coeffs[3], z_coeffs[3])
+}
+
+fn sample_quat_packed_cubic(cubic: &xc3_lib::sar1::PackedCubic, start_index: usize) -> Quat {
+    let x_coeffs = cubic.quaternions.elements[start_index];
+    let y_coeffs = cubic.quaternions.elements[start_index + 1];
+    let z_coeffs = cubic.quaternions.elements[start_index + 2];
+    let w_coeffs = cubic.quaternions.elements[start_index + 3];
+    Quat::from_xyzw(x_coeffs[3], y_coeffs[3], z_coeffs[3], w_coeffs[3])
+}
+
 #[tracing::instrument]
 pub fn load_model(
     device: &wgpu::Device,
@@ -180,19 +272,22 @@ fn create_model_group(
             let (materials, pipelines) =
                 materials(device, queue, pipeline_data, &models.materials, textures);
 
+            let skeleton = models.skeleton.clone();
+            let (per_group, per_group_buffer) = per_group_bind_group(device, skeleton.as_ref());
+
             let models = models
                 .models
                 .iter()
-                .map(|model| create_model(device, model, None))
+                .map(|model| create_model(device, model))
                 .collect();
-
-            let per_group = per_group_bind_group(device, None);
 
             Models {
                 models,
                 materials,
                 per_group,
+                per_group_buffer,
                 pipelines,
+                skeleton,
             }
         })
         .collect();
@@ -242,11 +337,7 @@ fn model_index_buffers(
 }
 
 #[tracing::instrument]
-fn create_model(
-    device: &wgpu::Device,
-    model: &xc3_model::Model,
-    skeleton: Option<&xc3_model::Skeleton>,
-) -> Model {
+fn create_model(device: &wgpu::Device, model: &xc3_model::Model) -> Model {
     let meshes = model
         .meshes
         .iter()
@@ -368,23 +459,39 @@ where
 fn per_group_bind_group(
     device: &wgpu::Device,
     skeleton: Option<&xc3_model::Skeleton>,
-) -> shader::model::bind_groups::BindGroup1 {
-    // TODO: Set bones from skeletons.
+) -> (shader::model::bind_groups::BindGroup1, wgpu::Buffer) {
     // TODO: Store the buffer to support animation?
+    let animated_transforms = skeleton
+        .map(|skeleton| {
+            let mut result = [Mat4::IDENTITY; 256];
+            for (transform, result) in skeleton
+                .world_transforms()
+                .into_iter()
+                .zip(result.iter_mut())
+            {
+                *result = transform * transform.inverse();
+            }
+            result
+        })
+        .unwrap_or([Mat4::IDENTITY; 256]);
+
     let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("per group buffer"),
         contents: bytemuck::cast_slice(&[crate::shader::model::PerGroup {
             enable_skinning: uvec4(skeleton.is_some() as u32, 0, 0, 0),
-            animated_transforms: [Mat4::IDENTITY; 256],
+            animated_transforms,
         }]),
-        usage: wgpu::BufferUsages::UNIFORM,
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
     });
 
-    crate::shader::model::bind_groups::BindGroup1::from_bindings(
-        device,
-        crate::shader::model::bind_groups::BindGroupLayout1 {
-            per_group: buffer.as_entire_buffer_binding(),
-        },
+    (
+        crate::shader::model::bind_groups::BindGroup1::from_bindings(
+            device,
+            crate::shader::model::bind_groups::BindGroupLayout1 {
+                per_group: buffer.as_entire_buffer_binding(),
+            },
+        ),
+        buffer,
     )
 }
 

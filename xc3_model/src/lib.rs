@@ -49,15 +49,13 @@ pub struct ModelBuffers {
 }
 
 // TODO: Should samplers be optional?
+// TODO: Come up with a better name?
 #[derive(Debug)]
 pub struct Models {
     pub models: Vec<Model>,
     pub materials: Vec<Material>,
     pub samplers: Vec<Sampler>,
     pub skeleton: Option<Skeleton>,
-    // TODO: The vertex buffer will have redundant weight information?
-    // TODO: This should go with each mesh?
-    // pub influences: Vec<Influence>,
 }
 
 #[derive(Debug)]
