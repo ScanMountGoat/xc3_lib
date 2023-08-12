@@ -105,7 +105,7 @@ fn main() {
 
     if cli.sar1 || cli.all {
         println!("Checking SAR1 files ...");
-        check_all(root, &["*.char", "*.mot"], |_: Sar1, _| {});
+        check_all(root, &["*.chr", "*.mot"], |_: Sar1, _| {});
     }
 
     if cli.spch || cli.all {
