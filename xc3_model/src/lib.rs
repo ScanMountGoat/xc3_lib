@@ -214,15 +214,18 @@ fn samplers(materials: &Materials) -> Vec<Sampler> {
 
 fn create_skeleton(chr: &Sar1, mxmd: &Mxmd) -> Option<Skeleton> {
     // Merge both skeletons since the bone lists may be different.
-    let skel = chr.entries.iter().find_map(|e| match &e.data {
-        xc3_lib::sar1::EntryData::Bc(bc) => match &bc.data {
-            xc3_lib::bc::BcData::Skel(skel) => Some(skel),
+    let skel = chr
+        .entries
+        .iter()
+        .find_map(|e| match e.read_data().unwrap() {
+            xc3_lib::sar1::EntryData::Bc(bc) => match bc.data {
+                xc3_lib::bc::BcData::Skel(skel) => Some(skel),
+                _ => None,
+            },
             _ => None,
-        },
-        _ => None,
-    })?;
+        })?;
 
-    Some(Skeleton::from_skel(skel, mxmd.models.skeleton.as_ref()?))
+    Some(Skeleton::from_skel(&skel, mxmd.models.skeleton.as_ref()?))
 }
 
 fn materials(
