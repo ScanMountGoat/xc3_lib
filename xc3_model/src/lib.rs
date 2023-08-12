@@ -216,7 +216,7 @@ fn create_skeleton(chr: &Sar1, mxmd: &Mxmd) -> Option<Skeleton> {
     // Merge both skeletons since the bone lists may be different.
     let skel = chr.entries.iter().find_map(|e| match &e.data {
         xc3_lib::sar1::EntryData::Bc(bc) => match &bc.data {
-            xc3_lib::sar1::BcData::Skel(skel) => Some(skel),
+            xc3_lib::bc::BcData::Skel(skel) => Some(skel),
             _ => None,
         },
         _ => None,

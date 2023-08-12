@@ -4,7 +4,7 @@ use glam::{uvec4, vec3, vec4, Mat4, Quat, Vec3, Vec4};
 use log::info;
 use rayon::prelude::*;
 use wgpu::util::DeviceExt;
-use xc3_lib::sar1::murmur3;
+use xc3_lib::bc::murmur3;
 use xc3_model::{skinning::bone_indices_weights, vertex::AttributeData};
 
 use crate::{
@@ -127,7 +127,7 @@ impl ModelGroup {
 }
 
 impl Models {
-    pub fn update_bone_transforms(&self, queue: &wgpu::Queue, anim: &xc3_lib::sar1::Anim) {
+    pub fn update_bone_transforms(&self, queue: &wgpu::Queue, anim: &xc3_lib::bc::Anim) {
         if let Some(skeleton) = &self.skeleton {
             let hash_to_index: HashMap<_, _> = skeleton
                 .bones
@@ -141,10 +141,10 @@ impl Models {
 
             // TODO: Load all key frames?
             match &anim.data {
-                xc3_lib::sar1::AnimationData::Unk0 => todo!(),
-                xc3_lib::sar1::AnimationData::Cubic(_) => todo!(),
-                xc3_lib::sar1::AnimationData::Unk2 => todo!(),
-                xc3_lib::sar1::AnimationData::PackedCubic(cubic) => {
+                xc3_lib::bc::AnimationData::Unk0 => todo!(),
+                xc3_lib::bc::AnimationData::Cubic(_) => todo!(),
+                xc3_lib::bc::AnimationData::Unk2 => todo!(),
+                xc3_lib::bc::AnimationData::PackedCubic(cubic) => {
                     // TODO: Does each of these tracks have a corresponding hash?
                     // TODO: Also check the bone indices?
                     for (track, hash) in cubic
@@ -198,14 +198,14 @@ impl Models {
     }
 }
 
-fn sample_vec3_packed_cubic(cubic: &xc3_lib::sar1::PackedCubic, start_index: usize) -> Vec3 {
+fn sample_vec3_packed_cubic(cubic: &xc3_lib::bc::PackedCubic, start_index: usize) -> Vec3 {
     let x_coeffs = cubic.vectors.elements[start_index];
     let y_coeffs = cubic.vectors.elements[start_index + 1];
     let z_coeffs = cubic.vectors.elements[start_index + 2];
     vec3(x_coeffs[3], y_coeffs[3], z_coeffs[3])
 }
 
-fn sample_quat_packed_cubic(cubic: &xc3_lib::sar1::PackedCubic, start_index: usize) -> Quat {
+fn sample_quat_packed_cubic(cubic: &xc3_lib::bc::PackedCubic, start_index: usize) -> Quat {
     let x_coeffs = cubic.quaternions.elements[start_index];
     let y_coeffs = cubic.quaternions.elements[start_index + 1];
     let z_coeffs = cubic.quaternions.elements[start_index + 2];

@@ -19,7 +19,7 @@ pub struct Bone {
 
 impl Skeleton {
     // TODO: Test this?
-    pub fn from_skel(skel: &xc3_lib::sar1::Skel, skeleton: &xc3_lib::mxmd::Skeleton) -> Self {
+    pub fn from_skel(skel: &xc3_lib::bc::Skel, skeleton: &xc3_lib::mxmd::Skeleton) -> Self {
         let mut bones: Vec<_> = skel
             .names
             .elements
@@ -77,7 +77,7 @@ impl Skeleton {
 }
 
 // TODO: Test the order of transforms.
-fn bone_transform(b: &xc3_lib::sar1::Transform) -> Mat4 {
+fn bone_transform(b: &xc3_lib::bc::Transform) -> Mat4 {
     Mat4::from_translation(vec3(b.translation[0], b.translation[1], b.translation[2]))
         * Mat4::from_quat(Quat::from_array(b.rotation_quaternion))
         * Mat4::from_scale(vec3(b.scale[0], b.scale[1], b.scale[2]))

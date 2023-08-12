@@ -10,6 +10,7 @@ use binrw::{
 use log::trace;
 
 pub mod apmd;
+pub mod bc;
 pub mod dds;
 pub mod dhal;
 pub mod ltpc;
