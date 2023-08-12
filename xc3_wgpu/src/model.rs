@@ -140,9 +140,9 @@ impl Models {
             let mut animated_skeleton = skeleton.clone();
 
             // TODO: Load all key frames?
-            match &anim.animation.data {
+            match &anim.data {
                 xc3_lib::sar1::AnimationData::Unk0 => todo!(),
-                xc3_lib::sar1::AnimationData::Unk1 => todo!(),
+                xc3_lib::sar1::AnimationData::Cubic(_) => todo!(),
                 xc3_lib::sar1::AnimationData::Unk2 => todo!(),
                 xc3_lib::sar1::AnimationData::PackedCubic(cubic) => {
                     // TODO: Does each of these tracks have a corresponding hash?
@@ -168,8 +168,6 @@ impl Models {
                         );
 
                         if let Some(bone_index) = hash_to_index.get(hash) {
-                            println!("{:?},", &animated_skeleton.bones[*bone_index].name);
-
                             // TODO: Does every track start at time 0?
                             let transform = Mat4::from_translation(translation)
                                 * Mat4::from_quat(rotation)

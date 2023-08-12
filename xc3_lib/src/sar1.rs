@@ -25,6 +25,7 @@ pub struct Sar1 {
 }
 
 // TODO: Parse this in a separate step?
+// This would simplify base offsets for BC data.
 #[binread]
 #[derive(Debug)]
 pub struct Entry {
@@ -49,7 +50,7 @@ pub enum EntryData {
     Eva(Eva),
 }
 
-// TODO: TODO: Separate module for BC and anim?
+// TODO: TODO: Separate module for BC?
 #[binread]
 #[derive(Debug)]
 #[br(magic(b"BC"))]
@@ -102,52 +103,14 @@ pub struct Anim {
     #[br(args { offset: base_offset, inner: base_offset })]
     pub header: AnimHeader,
 
-    pub unk1: [u32; 9],
+    pub unks_1: u32,
+    pub unks_2: SarData<()>,
+    pub unks_3: u32,
+    pub unks_4: u32,
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    pub name: String,
+    pub unks_5: u32,
 
-    #[br(args_raw(base_offset))]
-    pub animation: Animation,
-}
-
-#[derive(BinRead, Debug)]
-#[br(import_raw(base_offset: u64))]
-pub struct AnimHeader {
-    pub unk1: [u32; 8],
-
-    // TODO: Same length and ordering as hashes?
-    // TODO: convert to indices in the mxmd skeleton based on hashes?
-    // TODO: Are these always 0..N-1?
-    // i.e are the hashes always unique?
-    // TODO: same length and ordering as tracks?
-    #[br(offset = base_offset)]
-    pub bone_indices: SarData<u16>,
-
-    #[br(offset = base_offset)]
-    pub unk2: SarData<()>, // TODO: type?
-
-    #[br(offset = base_offset)]
-    pub unk3: SarData<()>, // TODO: type?
-
-    pub unk4: u32,
-    pub unk5: u32,
-
-    #[br(parse_with = parse_ptr32)]
-    #[br(args { offset: base_offset, inner: base_offset })]
-    pub inner: AnimHeaderInner,
-}
-
-#[derive(BinRead, Debug)]
-#[br(import_raw(base_offset: u64))]
-pub struct AnimHeaderInner {
-    pub unk1: [u32; 8],
-    /// The MurmurHash3 32-bit hash of the bone names.
-    // TODO: type alias for this?
-    #[br(offset = base_offset)]
-    pub hashes: SarData<u32>,
-}
-
-#[derive(BinRead, Debug)]
-#[br(import_raw(base_offset: u64))]
-pub struct Animation {
     pub animation_type: AnimationType,
     pub space_mode: u8,
     pub play_mode: u8,
@@ -155,15 +118,54 @@ pub struct Animation {
     pub frames_per_second: f32,
     pub seconds_per_frame: f32,
     pub frame_count: u32,
-    pub unk1: u32,
-    pub unk2: u32,
-    pub unk3: u32,
-    pub unk4: i32,
+    pub unk1: SarData<()>,
     pub unk5: u64,
 
-    // TODO: more fields?
     #[br(args { animation_type, base_offset })]
     pub data: AnimationData,
+    // TODO: more fields?
+}
+
+#[derive(BinRead, Debug)]
+#[br(import_raw(base_offset: u64))]
+pub struct AnimHeader {
+    // TODO: More sar data?
+    pub unk1: SarData<()>,
+    pub unk2: [u32; 4],
+
+    // TODO: Same length and ordering as hashes?
+    // TODO: convert to indices in the mxmd skeleton based on hashes?
+    // TODO: Are these always 0..N-1?
+    // i.e are the hashes always unique?
+    // TODO: same length and ordering as tracks?
+    #[br(offset = base_offset)]
+    pub bone_indices: SarData<i16>,
+
+    #[br(offset = base_offset)]
+    pub unk3: SarData<()>, // TODO: type?
+
+    #[br(offset = base_offset)]
+    pub unk4: SarData<()>, // TODO: type?
+
+    pub unk5: u32,
+    pub unk6: u32,
+
+    #[br(parse_with = parse_ptr32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    pub inner: AnimHeaderInner,
+}
+
+// TODO: animation type 1 doesn't have hashes, so indices aren't remapped?
+#[derive(BinRead, Debug)]
+#[br(import_raw(base_offset: u64))]
+pub struct AnimHeaderInner {
+    // TODO: Types?
+    pub unk1: SarData<()>,
+    pub unk2: SarData<()>,
+    /// The MurmurHash3 32-bit hash of the bone names.
+    // TODO: type alias for this?
+    #[br(offset = base_offset)]
+    pub hashes: SarData<u32>,
 }
 
 #[derive(BinRead, Debug, PartialEq, Eq, Clone, Copy)]
@@ -182,7 +184,7 @@ pub enum AnimationData {
     Unk0,
 
     #[br(pre_assert(animation_type == AnimationType::Unk1))]
-    Unk1,
+    Cubic(#[br(args_raw(base_offset))] Cubic),
 
     #[br(pre_assert(animation_type == AnimationType::Unk2))]
     Unk2,
@@ -193,10 +195,45 @@ pub enum AnimationData {
 
 #[derive(BinRead, Debug)]
 #[br(import_raw(base_offset: u64))]
+pub struct Cubic {
+    #[br(args { offset: base_offset, inner: base_offset })]
+    pub tracks: SarData<CubicTrack>,
+}
+
+#[derive(BinRead, Debug)]
+#[br(import_raw(base_offset: u64))]
+pub struct CubicTrack {
+    #[br(offset = base_offset)]
+    pub translation: SarData<KeyFrameCubicVec3>,
+    #[br(offset = base_offset)]
+    pub rotation: SarData<KeyFrameCubicQuaternion>,
+    #[br(offset = base_offset)]
+    pub scale: SarData<KeyFrameCubicVec3>,
+}
+
+#[derive(BinRead, Debug)]
+pub struct KeyFrameCubicVec3 {
+    pub time: f32,
+    pub x: [f32; 4],
+    pub y: [f32; 4],
+    pub z: [f32; 4],
+}
+
+#[derive(BinRead, Debug)]
+pub struct KeyFrameCubicQuaternion {
+    pub time: f32,
+    pub x: [f32; 4],
+    pub y: [f32; 4],
+    pub z: [f32; 4],
+    pub w: [f32; 4],
+}
+
+#[derive(BinRead, Debug)]
+#[br(import_raw(base_offset: u64))]
 pub struct PackedCubic {
     // TODO: same length and ordering as bone indices and hashes?
     #[br(offset = base_offset)]
-    pub tracks: SarData<Track>,
+    pub tracks: SarData<PackedCubicTrack>,
 
     // TODO: [a,b,c,d] for a*x^3 + b*x^2 + c*x + d?
     #[br(offset = base_offset)]
@@ -212,7 +249,7 @@ pub struct PackedCubic {
 }
 
 #[derive(BinRead, Debug)]
-pub struct Track {
+pub struct PackedCubicTrack {
     pub translation: SubTrack,
     pub rotation: SubTrack,
     pub scale: SubTrack,
@@ -298,6 +335,7 @@ pub struct Csvb {
     pub unk1: u32,
 }
 
+// TODO: Rename to BcData?
 #[binread]
 #[derive(Debug)]
 #[br(import_raw(args: FilePtrArgs<T::Args<'_>>))]
