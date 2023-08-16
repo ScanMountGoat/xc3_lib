@@ -5,7 +5,7 @@ use std::{
 };
 
 use binrw::{
-    file_ptr::FilePtrArgs, BinRead, BinReaderExt, BinResult, BinWrite, NullString, VecArgs,
+    file_ptr::FilePtrArgs, BinRead, BinReaderExt, BinResult, BinWrite, NullString, VecArgs, FilePtr64,
 };
 use log::trace;
 
@@ -107,6 +107,16 @@ fn parse_string_ptr32<R: Read + Seek>(
     args: FilePtrArgs<()>,
 ) -> BinResult<String> {
     let value: NullString = parse_ptr32(reader, endian, args)?;
+    Ok(value.to_string())
+}
+
+fn parse_string_ptr64<R: Read + Seek>(
+    reader: &mut R,
+    endian: binrw::Endian,
+    args: FilePtrArgs<()>,
+) -> BinResult<String> {
+    // TODO: Create parse_ptr64 for offset logging.
+    let value: NullString = FilePtr64::parse(reader, endian, args)?;
     Ok(value.to_string())
 }
 

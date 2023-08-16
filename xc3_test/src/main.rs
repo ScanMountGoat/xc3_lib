@@ -105,7 +105,7 @@ fn main() {
 
     if cli.sar1 || cli.all {
         println!("Checking SAR1 files ...");
-        check_all(root, &["*.chr", "*.mot"], |_: Sar1, _| {});
+        check_all(root, &["*.chr", "*.mot"], check_sar1);
     }
 
     if cli.spch || cli.all {
@@ -296,6 +296,14 @@ fn check_ltpc(ltpc: Ltpc, path: &Path) {
     write_ltpc(&ltpc, &mut writer).unwrap();
     if writer.into_inner() != original {
         println!("Read write not 1:1 for {path:?}");
+    }
+}
+
+fn check_sar1(sar1: Sar1, path: &Path) {
+    for entry in sar1.entries {
+        if let Err(e) = entry.read_data() {
+            println!("Error reading entry for {path:?}: {e}");
+        }
     }
 }
 

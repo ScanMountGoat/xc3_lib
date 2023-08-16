@@ -140,41 +140,71 @@ impl Models {
             let mut animated_skeleton = skeleton.clone();
 
             // TODO: Load all key frames?
-            match &anim.data {
+            match &anim.header.animation.data {
                 xc3_lib::bc::AnimationData::Unk0 => todo!(),
-                xc3_lib::bc::AnimationData::Cubic(_) => todo!(),
-                xc3_lib::bc::AnimationData::Unk2 => todo!(),
-                xc3_lib::bc::AnimationData::PackedCubic(cubic) => {
+                xc3_lib::bc::AnimationData::Cubic(cubic) => {
                     // TODO: Does each of these tracks have a corresponding hash?
                     // TODO: Also check the bone indices?
-                    for (track, hash) in cubic
+                    for (track, bone_index) in cubic
                         .tracks
                         .elements
                         .iter()
-                        .zip(anim.header.inner.hashes.elements.iter())
+                        .zip(anim.header.bone_indices.elements.iter())
                     {
                         // TODO: cubic interpolation?
-                        let translation = sample_vec3_packed_cubic(
-                            cubic,
-                            track.translation.curves_start_index as usize,
-                        );
-                        let rotation = sample_quat_packed_cubic(
-                            cubic,
-                            track.rotation.curves_start_index as usize,
-                        );
-                        let scale = sample_vec3_packed_cubic(
-                            cubic,
-                            track.scale.curves_start_index as usize,
-                        );
+                        // TODO: Add sample methods to the keyframe types?
+                        // TODO: Will the first key always be at time 0?
+                        let key = &track.translation.elements[0];
+                        let translation = vec3(key.x[3], key.y[3], key.z[3]);
 
-                        if let Some(bone_index) = hash_to_index.get(hash) {
-                            // TODO: Does every track start at time 0?
+                        let key = &track.rotation.elements[0];
+                        let rotation = Quat::from_xyzw(key.x[3], key.y[3], key.z[3], key.w[3]);
+
+                        let key = &track.scale.elements[0];
+                        let scale = vec3(key.x[3], key.y[3], key.z[3]);
+
+                        if *bone_index >= 0 {
+                            // TODO: Does this work in any tools yet?
+                            // TODO: Should this use mxmd ordering?
                             let transform = Mat4::from_translation(translation)
                                 * Mat4::from_quat(rotation)
                                 * Mat4::from_scale(scale);
-                            animated_skeleton.bones[*bone_index].transform = transform;
+                            animated_skeleton.bones[*bone_index as usize].transform = transform;
                         }
                     }
+                }
+                xc3_lib::bc::AnimationData::Unk2 => todo!(),
+                xc3_lib::bc::AnimationData::PackedCubic(cubic) => {
+                        // TODO: Does each of these tracks have a corresponding hash?
+                        // TODO: Also check the bone indices?
+                        for (track, hash) in cubic
+                            .tracks
+                            .elements
+                            .iter()
+                            .zip(anim.header.inner.hashes.as_ref().unwrap().elements.iter())
+                        {
+                            // TODO: cubic interpolation?
+                            let translation = sample_vec3_packed_cubic(
+                                cubic,
+                                track.translation.curves_start_index as usize,
+                            );
+                            let rotation = sample_quat_packed_cubic(
+                                cubic,
+                                track.rotation.curves_start_index as usize,
+                            );
+                            let scale = sample_vec3_packed_cubic(
+                                cubic,
+                                track.scale.curves_start_index as usize,
+                            );
+
+                            if let Some(bone_index) = hash_to_index.get(hash) {
+                                // TODO: Does every track start at time 0?
+                                let transform = Mat4::from_translation(translation)
+                                    * Mat4::from_quat(rotation)
+                                    * Mat4::from_scale(scale);
+                                animated_skeleton.bones[*bone_index].transform = transform;
+                            }
+                        }
                 }
             }
 

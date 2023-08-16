@@ -1,22 +1,19 @@
 use std::io::SeekFrom;
 
-use crate::{parse_ptr32, parse_string_ptr32};
-use binrw::{binread, file_ptr::FilePtrArgs, BinRead};
+use crate::{parse_string_ptr32, parse_string_ptr64};
+use binrw::{binread, file_ptr::FilePtrArgs, BinRead, FilePtr64};
 
 // Assume the BC is at the root of the reader to simplify offsets.
 #[binread]
 #[derive(Debug)]
-#[br(magic(b"BC"))]
+#[br(magic(b"BC\x00\x00"))]
 #[br(stream = r)]
 pub struct Bc {
-    pub unk_flags: u16,
-
     pub unk1: u32,
     pub data_size: u32,
-    pub unk_count: u32,
+    pub unk_count: u32,   // TODO: count for u64s?
     pub data_offset: u64, // TODO: offset for bcdata?
     pub unk_offset: u64,  // TODO: offset to u64s?
-
     pub data: BcData,
 }
 
@@ -51,16 +48,17 @@ pub struct Skdy {
 #[derive(BinRead, Debug)]
 #[br(magic(b"ANIM"))]
 pub struct Anim {
-    #[br(parse_with = parse_ptr32)]
+    #[br(parse_with = FilePtr64::parse)]
     pub header: AnimHeader,
+}
 
-    pub unks_1: u32,
-    pub unks_2: BcList<()>,
-    pub unks_3: u32,
-    pub unks_4: u32,
-    #[br(parse_with = parse_string_ptr32)]
+#[derive(BinRead, Debug)]
+pub struct Animation {
+    pub unk1: BcList<()>,
+    pub unk_offset1: u64,
+
+    #[br(parse_with = parse_string_ptr64)]
     pub name: String,
-    pub unks_5: u32,
 
     pub animation_type: AnimationType,
     pub space_mode: u8,
@@ -69,8 +67,8 @@ pub struct Anim {
     pub frames_per_second: f32,
     pub seconds_per_frame: f32,
     pub frame_count: u32,
-    pub unk1: BcList<()>,
-    pub unk5: u64,
+    pub unk2: BcList<()>,
+    pub unk3: u64,
 
     #[br(args { animation_type })]
     pub data: AnimationData,
@@ -79,9 +77,14 @@ pub struct Anim {
 
 #[derive(BinRead, Debug)]
 pub struct AnimHeader {
-    // TODO: More sar data?
+    // TODO: More data?
     pub unk1: BcList<()>,
-    pub unk2: [u32; 4],
+
+    pub unk2: u32,
+    pub unk3: u32,
+
+    #[br(parse_with = FilePtr64::parse)]
+    pub animation: Animation,
 
     // TODO: Same length and ordering as hashes?
     // TODO: convert to indices in the mxmd skeleton based on hashes?
@@ -89,27 +92,31 @@ pub struct AnimHeader {
     // i.e are the hashes always unique?
     // TODO: same length and ordering as tracks?
     pub bone_indices: BcList<i16>,
+    pub unk4: BcList<u64>, // TODO: extra track stuff?
+    pub unk5: BcList<()>,  // TODO: type?
 
-    pub unk3: BcList<()>, // TODO: type?
-
-    pub unk4: BcList<()>, // TODO: type?
-
-    pub unk5: u32,
     pub unk6: u32,
+    pub unk7: u32,
 
-    #[br(parse_with = parse_ptr32)]
+    // TODO: should parsing depend on type?
+    #[br(parse_with = FilePtr64::parse)]
+    #[br(args { inner: animation.animation_type })]
     pub inner: AnimHeaderInner,
+
+    pub unk_offset: u64,
 }
 
 // TODO: animation type 1 doesn't have hashes, so indices aren't remapped?
 #[derive(BinRead, Debug)]
+#[br(import_raw(animation_type: AnimationType))]
 pub struct AnimHeaderInner {
-    // TODO: Types?
-    pub unk1: BcList<()>,
-    pub unk2: BcList<()>,
-    /// The MurmurHash3 32-bit hash of the bone names.
-    // TODO: type alias for this?
-    pub hashes: BcList<u32>,
+    pub unk1: BcList<()>, // TODO: type?
+    pub unk2: BcList<()>, // TODO: type?
+
+    // The MurmurHash3 32-bit hash of the bone names.
+    // TODO: type alias for hash?
+    #[br(if(animation_type == AnimationType::PackedCubic))]
+    pub hashes: Option<BcList<u32>>,
 }
 
 #[derive(BinRead, Debug, PartialEq, Eq, Clone, Copy)]
@@ -225,6 +232,7 @@ pub struct Transform {
 
 #[derive(BinRead, Debug)]
 pub struct BoneName {
+    // TODO: Is this a 64-bit pointer?
     #[br(parse_with = parse_string_ptr32)]
     #[br(pad_after = 12)]
     pub name: String,
@@ -238,6 +246,7 @@ where
     T: BinRead + 'static,
     for<'a> T::Args<'a>: Clone + Default,
 {
+    // TODO: parse_offset64_count?
     #[br(temp)]
     offset: u64,
     #[br(temp)]
