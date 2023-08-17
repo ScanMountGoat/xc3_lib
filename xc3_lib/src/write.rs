@@ -23,6 +23,9 @@ pub(crate) struct Offset<'a, T> {
     pub position: u64,
     /// The data pointed to by the offset.
     pub data: &'a T,
+    /// Additional alignment applied at the field level.
+    /// This may be stricter than the alignment of `T`.
+    pub field_alignment: u64,
 }
 
 impl<'a, T: Xc3Write> std::fmt::Debug for Offset<'a, T> {
@@ -36,8 +39,12 @@ impl<'a, T: Xc3Write> std::fmt::Debug for Offset<'a, T> {
 }
 
 impl<'a, T> Offset<'a, T> {
-    pub fn new(position: u64, data: &'a T) -> Self {
-        Self { position, data }
+    pub fn new(position: u64, data: &'a T, field_alignment: u64) -> Self {
+        Self {
+            position,
+            data,
+            field_alignment,
+        }
     }
 }
 
@@ -50,9 +57,12 @@ impl<'a, T: Xc3Write> Offset<'a, T> {
         data_ptr_base_offset: u64,
         data_ptr: &mut u64,
     ) -> BinResult<T::Offsets<'_>> {
+        // Account for the type and field alignment.
+        *data_ptr = round_up(*data_ptr, T::ALIGNMENT);
+        *data_ptr = round_up(*data_ptr, self.field_alignment);
+
         // Update the offset value.
         writer.seek(std::io::SeekFrom::Start(self.position))?;
-        *data_ptr = round_up(*data_ptr, T::ALIGNMENT);
         ((*data_ptr - data_ptr_base_offset) as u32).write_le(writer)?;
 
         // Write the data.
@@ -110,6 +120,7 @@ macro_rules! xc3_write_binwrite_impl {
 
 pub(crate) use xc3_write_binwrite_impl;
 
+// TODO: Add alignment as a parameter.
 xc3_write_binwrite_impl!(u8, u16);
 
 // TODO: Macro for implementing for binwrite?

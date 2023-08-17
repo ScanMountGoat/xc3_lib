@@ -3,7 +3,7 @@ use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
 use syn::{
     parenthesized, parse_macro_input, Attribute, Data, DataStruct, DeriveInput, Fields, Ident,
-    LitByteStr, Type,
+    LitByteStr, LitInt, Type,
 };
 
 #[proc_macro_derive(Xc3Write, attributes(xc3))]
@@ -115,7 +115,8 @@ fn field_type(attrs: &[Attribute]) -> Option<FieldType> {
 
     for a in attrs {
         if a.path().is_ident("xc3") {
-            a.parse_nested_meta(|meta| {
+            // TODO: Why does this sometimes return errors?
+            let _ = a.parse_nested_meta(|meta| {
                 if meta.path.is_ident("offset") {
                     ty = Some(FieldType::Offset);
                 } else if meta.path.is_ident("offset_count") {
@@ -125,12 +126,33 @@ fn field_type(attrs: &[Attribute]) -> Option<FieldType> {
                 }
 
                 Ok(())
-            })
-            .unwrap();
+            });
         }
     }
 
     ty
+}
+
+fn field_alignment(attrs: &[Attribute]) -> Option<u64> {
+    // TODO: Support constants?
+    // #[xc3(align(4096))]
+    let mut align = None;
+
+    for a in attrs {
+        if a.path().is_ident("xc3") {
+            let _ = a.parse_nested_meta(|meta| {
+                if meta.path.is_ident("align") {
+                    let content;
+                    parenthesized!(content in meta.input);
+                    let lit: LitInt = content.parse().unwrap();
+                    align = Some(lit.base10_parse().unwrap());
+                }
+                Ok(())
+            });
+        }
+    }
+
+    align
 }
 
 struct FieldData {
@@ -155,7 +177,9 @@ fn write_field_data(data: &Data) -> FieldData {
 
                 // Check if we need to write the count.
                 // Use a null offset as a placeholder.
-                let offset = create_offset_struct(name);
+                let align = field_alignment(&f.attrs).unwrap_or(1);
+                let offset = create_offset_struct(name, align);
+
                 match field_type(&f.attrs) {
                     Some(FieldType::Offset) => {
                         write_fields.push(quote! {
@@ -205,6 +229,6 @@ fn offset_field(name: &Ident, ty: &Type) -> TokenStream2 {
     quote!(pub #name: crate::write::Offset<'a, #ty>)
 }
 
-fn create_offset_struct(name: &Ident) -> TokenStream2 {
-    quote!(crate::write::Offset::new(writer.stream_position()?, &self.#name))
+fn create_offset_struct(name: &Ident, alignment: u64) -> TokenStream2 {
+    quote!(crate::write::Offset::new(writer.stream_position()?, &self.#name, #alignment))
 }

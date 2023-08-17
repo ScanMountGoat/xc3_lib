@@ -5,7 +5,8 @@ use std::{
 };
 
 use binrw::{
-    file_ptr::FilePtrArgs, BinRead, BinReaderExt, BinResult, BinWrite, NullString, VecArgs, FilePtr64,
+    file_ptr::FilePtrArgs, BinRead, BinReaderExt, BinResult, BinWrite, FilePtr64, NullString,
+    VecArgs,
 };
 use log::trace;
 

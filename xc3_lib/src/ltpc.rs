@@ -24,8 +24,9 @@ pub struct Ltpc {
 
 #[derive(BinRead, Xc3Write, Debug)]
 pub struct Texture {
+    // TODO: Support alignment constants.
     #[br(parse_with = parse_offset_count)]
-    #[xc3(offset_count)]
+    #[xc3(offset_count, align(4096))]
     pub mibl_data: Vec<u8>,
     pub unk1: u32,
     // TODO: padding?
@@ -33,18 +34,13 @@ pub struct Texture {
 }
 
 // TODO: This can just be derived?
-pub fn write_ltpc<W: std::io::Write + std::io::Seek>(root: &Ltpc, writer: &mut W) -> BinResult<()> {
+pub fn write_ltpc<W: std::io::Write + std::io::Seek>(ltpc: &Ltpc, writer: &mut W) -> BinResult<()> {
     let mut data_ptr = 0;
 
-    let root_offsets = root.write(writer, &mut data_ptr)?;
-    let textures_offsets = root_offsets
-        .textures
-        .write_offset(writer, 0, &mut data_ptr)?;
-    for offsets in textures_offsets {
-        // TODO: Add alignment customization to derive?
-        // TODO: Create ByteBuffer wrapper with 4096 (page) alignment?
-        data_ptr = round_up(data_ptr, PAGE_SIZE);
-        offsets.mibl_data.write_offset(writer, 0, &mut data_ptr)?;
+    let root = ltpc.write(writer, &mut data_ptr)?;
+    let textures = root.textures.write_offset(writer, 0, &mut data_ptr)?;
+    for texture in textures {
+        texture.mibl_data.write_offset(writer, 0, &mut data_ptr)?;
     }
 
     Ok(())

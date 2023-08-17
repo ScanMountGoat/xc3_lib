@@ -1,7 +1,7 @@
 use std::io::Cursor;
 
 use crate::{bc::Bc, parse_count_offset, parse_offset_count};
-use binrw::{binread, BinRead, NullString, BinResult, BinReaderExt};
+use binrw::{binread, BinRead, BinReaderExt, BinResult, NullString};
 
 // .chr files have skeletons?
 // .mot files have animations?
