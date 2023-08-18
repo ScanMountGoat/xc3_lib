@@ -10,6 +10,7 @@ winit = "0.28.3"
 glam = "0.24.0"
 xc3_wgpu = { path = "../xc3_wgpu" }
 xc3_model = { path = "../xc3_model" }
+xc3_lib = { path = "../xc3_lib" }
 log = "0.4.19"
 simple_logger = "4.2.0"
 tracing-subscriber = "0.3.0"

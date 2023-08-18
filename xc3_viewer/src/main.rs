@@ -3,7 +3,7 @@ use std::path::Path;
 use futures::executor::block_on;
 use glam::{vec3, Vec3};
 use log::{debug, error, info};
-use tracing_subscriber::prelude::*;
+// use tracing_subscriber::prelude::*;
 use winit::{
     dpi::PhysicalPosition,
     event::*,
@@ -45,7 +45,13 @@ struct InputState {
 }
 
 impl State {
-    async fn new(window: &Window, model_path: &Path, database_path: &str) -> Self {
+    async fn new(
+        window: &Window,
+        model_path: &Path,
+        anim_path: Option<&String>,
+        anim_index: usize,
+        database_path: &str,
+    ) -> Self {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
@@ -135,6 +141,23 @@ impl State {
             mesh_count,
             elapsed
         );
+
+        // TODO: Store the data to support loading multiple frames.
+        if let Some(anim_path) = anim_path {
+            let entry = &xc3_lib::sar1::Sar1::from_file(anim_path).unwrap().entries[anim_index];
+            if let xc3_lib::sar1::EntryData::Bc(bc) = &entry.read_data().unwrap() {
+                match &bc.data {
+                    xc3_lib::bc::BcData::Anim(anim) => {
+                        for model in &models {
+                            for models in &model.models {
+                                models.update_bone_transforms(&queue, anim);
+                            }
+                        }
+                    }
+                    _ => (),
+                }
+            }
+        }
 
         Self {
             surface,
@@ -308,6 +331,7 @@ fn main() {
         .init()
         .unwrap();
 
+    // TODO: Create a tracing feature flag?
     // Limit tracing to these projects.
     // let (chrome_layer, _guard) = tracing_chrome::ChromeLayerBuilder::new().build();
     // tracing_subscriber::registry()
@@ -322,8 +346,9 @@ fn main() {
     let args: Vec<_> = std::env::args().collect();
 
     let model_path = Path::new(&args[1]);
-
     let database_path = &args[2];
+    let anim_path = args.get(3);
+    let anim_index = 0;
 
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
@@ -331,7 +356,13 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
-    let mut state = block_on(State::new(&window, model_path, database_path));
+    let mut state = block_on(State::new(
+        &window,
+        model_path,
+        anim_path,
+        anim_index,
+        database_path,
+    ));
     event_loop.run(move |event, _, control_flow| match event {
         Event::WindowEvent {
             ref event,
