@@ -21,7 +21,7 @@ Make sure to profile in release mode with debug info enabled by temporarily addi
 debug = true
 ```
 
-Some projects have [tracing](https://github.com/tokio-rs/tracing) support for profiling with `#[tracing::instrument]`. This can be used to generate spans, which are helpful for understanding the performance of multithreaded code. xc3_viewer can use `tracing-chrome` to generate JSON reports that are viewable using https://ui.perfetto.dev/.
+Some projects have [tracing](https://github.com/tokio-rs/tracing) support for profiling with `#[tracing::instrument]`. This can be used to generate spans, which are helpful for understanding the performance of multithreaded code. When compiling with `--features=tracing`, xc3_viewer can use `tracing-chrome` to generate JSON reports that are viewable using https://ui.perfetto.dev/.
 
 ## GPU Debugging
 [RenderDoc](https://renderdoc.org/) is a powerful GPU debugging tool. 

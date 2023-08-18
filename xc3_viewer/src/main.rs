@@ -3,7 +3,6 @@ use std::path::Path;
 use futures::executor::block_on;
 use glam::{vec3, Vec3};
 use log::{debug, error, info};
-// use tracing_subscriber::prelude::*;
 use winit::{
     dpi::PhysicalPosition,
     event::*,
@@ -15,6 +14,9 @@ use xc3_wgpu::{
     renderer::{CameraData, Xc3Renderer},
     COLOR_FORMAT,
 };
+
+#[cfg(feature = "tracing")]
+use tracing_subscriber::prelude::*;
 
 const FOV_Y: f32 = 0.5;
 const Z_NEAR: f32 = 0.1;
@@ -324,24 +326,29 @@ fn calculate_camera_data(
 fn main() {
     // TODO: Can these both be active at once?
     // Ignore most wgpu logs to avoid flooding the console.
-    simple_logger::SimpleLogger::new()
-        .with_module_level("wgpu", log::LevelFilter::Warn)
-        .with_module_level("naga", log::LevelFilter::Warn)
-        .with_module_level("xc3_lib", log::LevelFilter::Info)
-        .init()
-        .unwrap();
+    #[cfg(not(feature = "tracing"))]
+    {
+        simple_logger::SimpleLogger::new()
+            .with_module_level("wgpu", log::LevelFilter::Warn)
+            .with_module_level("naga", log::LevelFilter::Warn)
+            .with_module_level("xc3_lib", log::LevelFilter::Info)
+            .init()
+            .unwrap();
+    }
 
-    // TODO: Create a tracing feature flag?
-    // Limit tracing to these projects.
-    // let (chrome_layer, _guard) = tracing_chrome::ChromeLayerBuilder::new().build();
-    // tracing_subscriber::registry()
-    //     .with(
-    //         chrome_layer.with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
-    //             metadata.target().starts_with("xc3_wgpu")
-    //                 || metadata.target().starts_with("xc3_viewer")
-    //         })),
-    //     )
-    //     .init();
+    #[cfg(feature = "tracing")]
+    {
+        let (chrome_layer, _guard) = tracing_chrome::ChromeLayerBuilder::new().build();
+        tracing_subscriber::registry()
+            .with(
+                // Limit tracing to these projects.
+                chrome_layer.with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
+                    metadata.target().starts_with("xc3_wgpu")
+                        || metadata.target().starts_with("xc3_viewer")
+                })),
+            )
+            .init();
+    }
 
     let args: Vec<_> = std::env::args().collect();
 
