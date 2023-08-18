@@ -1,7 +1,6 @@
 use crate::{
     parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32,
     write::{round_up, xc3_write_binwrite_impl, Xc3Write},
-    PAGE_SIZE,
 };
 use binrw::{args, binread, BinRead, BinResult, BinWrite};
 

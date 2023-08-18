@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use glam::{uvec4, vec3, vec4, Mat4, Quat, Vec3, Vec4};
-use log::info;
+use log::{error, info};
 use rayon::prelude::*;
 use wgpu::util::DeviceExt;
 use xc3_lib::bc::murmur3;
@@ -175,36 +175,38 @@ impl Models {
                 }
                 xc3_lib::bc::AnimationData::Unk2 => todo!(),
                 xc3_lib::bc::AnimationData::PackedCubic(cubic) => {
-                        // TODO: Does each of these tracks have a corresponding hash?
-                        // TODO: Also check the bone indices?
-                        for (track, hash) in cubic
-                            .tracks
-                            .elements
-                            .iter()
-                            .zip(anim.header.inner.hashes.as_ref().unwrap().elements.iter())
-                        {
-                            // TODO: cubic interpolation?
-                            let translation = sample_vec3_packed_cubic(
-                                cubic,
-                                track.translation.curves_start_index as usize,
-                            );
-                            let rotation = sample_quat_packed_cubic(
-                                cubic,
-                                track.rotation.curves_start_index as usize,
-                            );
-                            let scale = sample_vec3_packed_cubic(
-                                cubic,
-                                track.scale.curves_start_index as usize,
-                            );
+                    // TODO: Does each of these tracks have a corresponding hash?
+                    // TODO: Also check the bone indices?
+                    for (track, hash) in cubic
+                        .tracks
+                        .elements
+                        .iter()
+                        .zip(anim.header.inner.hashes.as_ref().unwrap().elements.iter())
+                    {
+                        // TODO: cubic interpolation?
+                        let translation = sample_vec3_packed_cubic(
+                            cubic,
+                            track.translation.curves_start_index as usize,
+                        );
+                        let rotation = sample_quat_packed_cubic(
+                            cubic,
+                            track.rotation.curves_start_index as usize,
+                        );
+                        let scale = sample_vec3_packed_cubic(
+                            cubic,
+                            track.scale.curves_start_index as usize,
+                        );
 
-                            if let Some(bone_index) = hash_to_index.get(hash) {
-                                // TODO: Does every track start at time 0?
-                                let transform = Mat4::from_translation(translation)
-                                    * Mat4::from_quat(rotation)
-                                    * Mat4::from_scale(scale);
-                                animated_skeleton.bones[*bone_index].transform = transform;
-                            }
+                        if let Some(bone_index) = hash_to_index.get(hash) {
+                            // TODO: Does every track start at time 0?
+                            let transform = Mat4::from_translation(translation)
+                                * Mat4::from_quat(rotation)
+                                * Mat4::from_scale(scale);
+                            animated_skeleton.bones[*bone_index].transform = transform;
+                        } else {
+                            error!("No matching bone for hash {hash:x}");
                         }
+                    }
                 }
             }
 

@@ -31,7 +31,6 @@ pub struct Xbc1 {
 
 impl Xbc1 {
     pub fn from_decompressed(name: String, decompressed: &[u8]) -> Self {
-        // TODO: Benchmark this?
         let mut encoder = ZlibEncoder::new(decompressed, Compression::best());
         let mut deflate_stream = Vec::new();
         encoder.read_to_end(&mut deflate_stream).unwrap();

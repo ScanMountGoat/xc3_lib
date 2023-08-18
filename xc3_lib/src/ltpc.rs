@@ -1,10 +1,6 @@
 use binrw::{BinRead, BinResult};
 
-use crate::{
-    parse_count_offset, parse_offset_count,
-    write::{round_up, Xc3Write},
-    PAGE_SIZE,
-};
+use crate::{parse_count_offset, parse_offset_count, write::Xc3Write};
 
 /// `monolib/shader/filterlut.wiltp` for Xenoblade 3.
 #[derive(BinRead, Xc3Write, Debug)]

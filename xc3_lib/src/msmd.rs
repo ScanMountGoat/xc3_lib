@@ -17,7 +17,6 @@ use crate::{
     xbc1::Xbc1,
 };
 
-// TODO: Is it worth implementing serialize?
 /// The main map data for a `.wismhd` file.
 #[derive(BinRead, Debug)]
 #[br(magic(b"DMSM"))]

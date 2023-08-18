@@ -384,8 +384,6 @@ pub struct MapLowModelData {
     // TODO: more fields?
 }
 
-// TODO: Is this documented correctly?
-// TODO: https://github.com/atnavon/xc2f/wiki/map-instance-chunk#extrainstancepack
 #[derive(BinRead, Debug)]
 pub struct PropPositions {
     #[br(parse_with = parse_count_offset)]
