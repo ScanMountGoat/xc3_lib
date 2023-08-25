@@ -13,6 +13,7 @@ xc3_model = { path = "../xc3_model" }
 xc3_lib = { path = "../xc3_lib" }
 log = "0.4.19"
 simple_logger = "4.2.0"
+clap = { version = "4.2.7", features = ["derive"] }
 tracing-subscriber = { version = "0.3.0", optional = true }
 tracing-chrome = { version = "0.7.1", optional = true }
 
