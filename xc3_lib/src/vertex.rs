@@ -228,10 +228,10 @@ pub struct Weights {
 // TODO: How to select the weight group for each mesh in the model?
 #[derive(BinRead, BinWrite, Debug)]
 pub struct WeightGroup {
-    pub output_starting_index: u32,
+    pub output_start_index: u32,
     /// Start of the items in the weights buffer at [vertex_buffer_index](struct.Weights.html#structfield.vertex_buffer_index).
     // TODO: Why does this sometimes offset the starting index but not always?
-    pub input_starting_index: u32,
+    pub input_start_index: u32,
     /// Number of items in the weights buffer.
     pub count: u32,
     pub unks: [u32; 4],

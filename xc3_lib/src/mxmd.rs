@@ -349,6 +349,7 @@ pub struct Models {
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     pub lod_data: Option<LodData>,
+    // TODO: more fields?
 }
 
 /// A collection of meshes where each [Mesh] represents one draw call.
@@ -379,7 +380,7 @@ pub struct Mesh {
     pub unk3: u32,
     pub unk4: u32,
     pub unk5: u16,
-    pub lod: u16,
+    pub lod: u16, // TODO: flags?
     // TODO: groups?
     pub unks6: [i32; 4],
 }
@@ -410,17 +411,34 @@ pub struct MeshUnk1Inner {
 #[derive(Debug)]
 #[br(stream = r)]
 pub struct LodData {
-    #[br(temp, try_calc = r.stream_position())]
+    #[br(dbg, temp, try_calc = r.stream_position())]
     base_offset: u64,
 
     pub unk1: u32,
 
-    // another list?
-    pub unk2: u32,
-    pub unk3: u32,
+    // TODO: Count related to number of mesh lod values?
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    pub items1: Vec<LodItem1>,
 
     #[br(parse_with = parse_offset_count, offset = base_offset)]
-    pub items: Vec<(u16, u16)>,
+    pub items2: Vec<LodItem2>,
+
+    pub unks: [u32; 4],
+}
+
+#[derive(BinRead, Debug)]
+pub struct LodItem1 {
+    pub unk1: [u32; 4],
+    pub unk2: f32,
+    pub unk3: (u16, u16),
+    pub unk4: [u32; 2],
+}
+
+#[derive(BinRead, Debug)]
+pub struct LodItem2 {
+    // TODO: (start_index, count) for items1?
+    pub start_index: u16,
+    pub count: u16,
 }
 
 #[binread]
