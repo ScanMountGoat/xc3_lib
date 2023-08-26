@@ -230,6 +230,11 @@ fn load_prop_model_group(
         materials,
         samplers,
         skeleton: None,
+        base_lod_indices: model_data
+            .models
+            .lod_data
+            .as_ref()
+            .map(|data| data.items2.iter().map(|i| i.base_lod_index).collect()),
     };
 
     for ((model, vertex_data_index), instances) in model_data
@@ -367,6 +372,11 @@ fn load_map_model_group(
                 materials,
                 samplers,
                 skeleton: None,
+                base_lod_indices: model_data
+                    .models
+                    .lod_data
+                    .as_ref()
+                    .map(|data| data.items2.iter().map(|i| i.base_lod_index).collect()),
             }
         })
         .collect()
@@ -417,6 +427,10 @@ fn load_env_model(
                 materials,
                 samplers,
                 skeleton: None,
+                base_lod_indices: model_data
+                    .models
+                    .lod_data
+                    .map(|data| data.items2.iter().map(|i| i.base_lod_index).collect()),
             }],
             buffers: vec![ModelBuffers {
                 vertex_buffers,
@@ -466,6 +480,10 @@ fn load_foliage_model(
                 materials,
                 samplers: Vec::new(),
                 skeleton: None,
+                base_lod_indices: model_data
+                    .models
+                    .lod_data
+                    .map(|data| data.items2.iter().map(|i| i.base_lod_index).collect()),
             }],
             buffers: vec![ModelBuffers {
                 vertex_buffers,

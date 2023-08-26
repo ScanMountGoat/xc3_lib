@@ -426,19 +426,24 @@ pub struct LodData {
     pub unks: [u32; 4],
 }
 
+// TODO: is lod: 0 in the mxmd special?
 #[derive(BinRead, Debug)]
 pub struct LodItem1 {
     pub unk1: [u32; 4],
     pub unk2: f32,
-    pub unk3: (u16, u16),
+    // second element is index related to count in item2?
+    // [0,0,1,0], [0,1,1,0], [0,2,1,0], ...
+    pub unk3: [u8; 4],
     pub unk4: [u32; 2],
 }
 
+// TODO: lod group?
 #[derive(BinRead, Debug)]
 pub struct LodItem2 {
+    // TODO: base_lod_index?
     // TODO: (start_index, count) for items1?
-    pub start_index: u16,
-    pub count: u16,
+    pub base_lod_index: u16,
+    pub lod_count: u16,
 }
 
 #[binread]

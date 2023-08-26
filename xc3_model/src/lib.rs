@@ -56,6 +56,11 @@ pub struct Models {
     pub materials: Vec<Material>,
     pub samplers: Vec<Sampler>,
     pub skeleton: Option<Skeleton>,
+    // TODO: Better way of organizing this data?
+    // TODO: How to handle the indices being off by 1?
+    // TODO: when is this None?
+    // TODO: Create a type for this constructed from Models?
+    pub base_lod_indices: Option<Vec<u16>>,
 }
 
 #[derive(Debug)]
@@ -71,6 +76,7 @@ pub struct Mesh {
     pub vertex_buffer_index: usize,
     pub index_buffer_index: usize,
     pub material_index: usize,
+    pub lod: u16,
 }
 
 #[derive(Debug)]
@@ -119,6 +125,7 @@ impl Model {
                 vertex_buffer_index: mesh.vertex_buffer_index as usize,
                 index_buffer_index: mesh.index_buffer_index as usize,
                 material_index: mesh.material_index as usize,
+                lod: mesh.lod,
             })
             .collect();
 
@@ -190,6 +197,10 @@ pub fn load_model<P: AsRef<Path>>(
         materials,
         samplers,
         skeleton,
+        base_lod_indices: mxmd
+            .models
+            .lod_data
+            .map(|data| data.items2.iter().map(|i| i.base_lod_index).collect()),
     };
 
     ModelRoot {

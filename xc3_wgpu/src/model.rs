@@ -31,6 +31,7 @@ pub struct Models {
     per_group: crate::shader::model::bind_groups::BindGroup1,
     per_group_buffer: wgpu::Buffer,
     skeleton: Option<xc3_model::Skeleton>,
+    base_lod_indices: Option<Vec<u16>>,
     // Cache pipelines by their creation parameters.
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
 }
@@ -51,7 +52,8 @@ pub struct Mesh {
     vertex_buffer_index: usize,
     index_buffer_index: usize,
     material_index: usize,
-    // TODO: lod?
+    // TODO: how to handle LOD?
+    lod: u16,
 }
 
 struct VertexBuffer {
@@ -89,6 +91,7 @@ impl ModelGroup {
                             && !material.name.ends_with("_ope")
                             && !material.name.ends_with("_zpre")
                             && material.texture_count > 0
+                            && should_render_lod(models, mesh)
                         {
                             // TODO: How to make sure the pipeline outputs match the render pass?
                             let pipeline = &models.pipelines[&material.pipeline_key];
@@ -124,6 +127,18 @@ impl ModelGroup {
 
         render_pass.draw_indexed(0..index_buffer.vertex_index_count, 0, 0..1);
     }
+}
+
+// TODO: Move to xc3_model with tests?
+fn should_render_lod(models: &Models, mesh: &Mesh) -> bool {
+    // TODO: Why are the mesh values 1-indexed and the models lod data 0-indexed?
+    // TODO: should this also include 0?
+    // TODO: How to handle the none case?
+    models
+        .base_lod_indices
+        .as_ref()
+        .map(|indices| indices.contains(&mesh.lod.saturating_sub(1)))
+        .unwrap_or(true)
 }
 
 impl Models {
@@ -305,6 +320,8 @@ fn create_model_group(
             let skeleton = models.skeleton.clone();
             let (per_group, per_group_buffer) = per_group_bind_group(device, skeleton.as_ref());
 
+            let base_lod_indices = models.base_lod_indices.clone();
+
             let models = models
                 .models
                 .iter()
@@ -318,6 +335,7 @@ fn create_model_group(
                 per_group_buffer,
                 pipelines,
                 skeleton,
+                base_lod_indices,
             }
         })
         .collect();
@@ -375,6 +393,7 @@ fn create_model(device: &wgpu::Device, model: &xc3_model::Model) -> Model {
             vertex_buffer_index: mesh.vertex_buffer_index,
             index_buffer_index: mesh.index_buffer_index,
             material_index: mesh.material_index,
+            lod: mesh.lod,
         })
         .collect();
 
