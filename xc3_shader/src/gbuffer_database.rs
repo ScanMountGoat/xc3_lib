@@ -183,14 +183,16 @@ fn create_map_spchs(folder: &Path) -> Vec<Spch> {
 }
 
 fn create_shader_programs(folder: &Path) -> Vec<ShaderProgram> {
-    // Shaders are generated as nvsd{program_index}.
-    // Sort by file name to process files in the right order.
     let mut paths: Vec<_> = globwalk::GlobWalkerBuilder::from_patterns(folder, &["*FS0.glsl"])
         .build()
         .unwrap()
         .filter_map(|e| e.map(|e| e.path().to_owned()).ok())
         .collect();
-    paths.sort();
+
+    // Shaders are generated as "nvsd{program_index}_FS{i}.glsl".
+    // Sort by {program_index} to process files in the right order.
+    // TODO: Find a simpler way of doing this?
+    paths.sort_by_cached_key(extract_program_index);
 
     paths
         .par_iter()
@@ -203,6 +205,13 @@ fn create_shader_programs(folder: &Path) -> Vec<ShaderProgram> {
             }
         })
         .collect()
+}
+
+fn extract_program_index(p: &std::path::PathBuf) -> usize {
+    let name = p.file_name().unwrap().to_string_lossy();
+    let start = name.find('d').unwrap();
+    let end = name.find('_').unwrap();
+    name[start + 1..end].parse::<usize>().unwrap()
 }
 
 fn material_sampler_index(sampler: &str) -> Option<u32> {
@@ -257,5 +266,13 @@ mod tests {
             .into(),
         };
         assert_eq!(Some((2, 2)), shader.sampler_channel_index(0, 'y'));
+    }
+
+    #[test]
+    fn extract_program_index_multiple_digits() {
+        assert_eq!(
+            89,
+            extract_program_index(&"xc3_shader_dump/ch01027000/nvsd89_FS1.glsl".into())
+        )
     }
 }
