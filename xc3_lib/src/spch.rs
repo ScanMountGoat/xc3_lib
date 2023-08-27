@@ -148,7 +148,7 @@ pub struct NvsdMetadataOffset {
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Default)]
 #[br(stream = r)]
 pub struct NvsdMetadata {
     #[br(temp, try_calc = r.stream_position())]
@@ -159,39 +159,47 @@ pub struct NvsdMetadata {
     #[br(parse_with = parse_offset_count, offset = base_offset)]
     pub nvsd_shaders: Vec<NvsdShaders>,
 
-    pub unk_count1: u16,
+    pub buffers1_count: u16,
     // TODO: not always the same as above?
-    pub unk_count2: u16,
+    pub buffers1_index_count: u16,
+
+    // TODO: Make a parsing helper for this?
+    #[br(parse_with = parse_ptr32)]
+    #[br(args {
+        offset: base_offset,
+        inner: args! { count: buffers1_count as usize, inner: args! { base_offset } }
+    })]
+    pub buffers1: Vec<UniformBuffer>,
 
     #[br(parse_with = parse_ptr32)]
     #[br(args {
         offset: base_offset,
-        inner: args! { count: unk_count1 as usize, inner: args! { base_offset } }
+        inner: args! { count: buffers1_index_count as usize }
     })]
-    pub buffers1: Vec<UniformBuffer>,
+    pub buffers1_indices: Vec<i8>,
 
-    // TODO: end of strings offset?
-    pub unk13: u32,
-
-    pub unk_count3: u16,
+    pub buffers2_count: u16,
     // TODO: not always the same as above?
-    pub unk_count4: u16,
+    pub buffers2_index_count: u16,
 
     // TODO: SSBOs in Ryujinx?
     #[br(parse_with = parse_ptr32)]
     #[br(args {
         offset: base_offset,
-        inner: args! { count: unk_count3 as usize, inner: args! { base_offset } }
+        inner: args! { count: buffers2_count as usize, inner: args! { base_offset } }
     })]
     pub buffers2: Vec<UniformBuffer>,
 
-    // TODO: offset before the next slct?
-    pub unk15: u32,
+    #[br(parse_with = parse_ptr32)]
+    #[br(args {
+        offset: base_offset,
+        inner: args! { count: buffers2_index_count as usize }
+    })]
+    pub buffers2_indices: Vec<i8>,
 
-    #[br(temp)]
-    sampler_count: u16,
-    // TODO: not always the same as above?
-    pub unk_count6: u16,
+    // Count of non negative indices?
+    pub sampler_count: u16,
+    pub sampler_index_count: u16,
 
     #[br(parse_with = parse_ptr32)]
     #[br(args {
@@ -200,8 +208,14 @@ pub struct NvsdMetadata {
     })]
     pub samplers: Vec<Sampler>,
 
-    // TODO: offset before the next slct?
-    pub unks2_1: [u32; 4],
+    #[br(parse_with = parse_ptr32)]
+    #[br(args {
+        offset: base_offset,
+        inner: args! { count: sampler_index_count as usize }
+    })]
+    pub samplers_indices: Vec<i8>,
+
+    pub unks2_1: [u32; 3],
 
     #[br(parse_with = parse_count_offset, args { offset: base_offset, inner: base_offset })]
     pub attributes: Vec<InputAttribute>,
