@@ -411,7 +411,7 @@ pub struct MeshUnk1Inner {
 #[derive(Debug)]
 #[br(stream = r)]
 pub struct LodData {
-    #[br(dbg, temp, try_calc = r.stream_position())]
+    #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
     pub unk1: u32,

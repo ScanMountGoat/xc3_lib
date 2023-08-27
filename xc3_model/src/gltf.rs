@@ -1,7 +1,7 @@
 //! Conversions from xc3_model types to glTF.
 use std::{collections::BTreeMap, path::Path};
 
-use crate::ModelRoot;
+use crate::{should_render_lod, ModelRoot};
 use glam::Mat4;
 use gltf::json::validation::Checked::Valid;
 use rayon::prelude::*;
@@ -109,86 +109,90 @@ impl GltfFile {
                         let mut children = Vec::new();
 
                         for mesh in &model.meshes {
-                            let attributes_key = BufferKey {
-                                root_index,
-                                group_index,
-                                buffers_index: model.model_buffers_index,
-                                buffer_index: mesh.vertex_buffer_index,
-                            };
-                            let attributes = buffers
-                                .vertex_buffer_attributes
-                                .get(&attributes_key)
-                                .unwrap()
-                                .clone();
-
-                            let indices_key = BufferKey {
-                                root_index,
-                                group_index,
-                                buffers_index: model.model_buffers_index,
-                                buffer_index: mesh.index_buffer_index,
-                            };
-                            let index_accessor =
-                                *buffers.index_buffer_accessors.get(&indices_key).unwrap() as u32;
-
-                            let material_index = material_indices
-                                .get(&MaterialKey {
+                            // TODO: Make LOD selection configurable?
+                            if should_render_lod(mesh.lod, &models.base_lod_indices) {
+                                let attributes_key = BufferKey {
                                     root_index,
                                     group_index,
-                                    models_index,
-                                    material_index: mesh.material_index,
-                                })
-                                .unwrap();
+                                    buffers_index: model.model_buffers_index,
+                                    buffer_index: mesh.vertex_buffer_index,
+                                };
+                                let attributes = buffers
+                                    .vertex_buffer_attributes
+                                    .get(&attributes_key)
+                                    .unwrap()
+                                    .clone();
 
-                            let primitive = gltf::json::mesh::Primitive {
-                                attributes,
-                                extensions: Default::default(),
-                                extras: Default::default(),
-                                indices: Some(gltf::json::Index::new(index_accessor)),
-                                material: Some(gltf::json::Index::new(*material_index as u32)),
-                                mode: Valid(gltf::json::mesh::Mode::Triangles),
-                                targets: None,
-                            };
+                                let indices_key = BufferKey {
+                                    root_index,
+                                    group_index,
+                                    buffers_index: model.model_buffers_index,
+                                    buffer_index: mesh.index_buffer_index,
+                                };
+                                let index_accessor =
+                                    *buffers.index_buffer_accessors.get(&indices_key).unwrap()
+                                        as u32;
 
-                            // Assign one primitive per mesh to create distinct objects in applications.
-                            // In game meshes aren't named, so just use the material name.
-                            let material_name = materials[*material_index].name.clone();
+                                let material_index = material_indices
+                                    .get(&MaterialKey {
+                                        root_index,
+                                        group_index,
+                                        models_index,
+                                        material_index: mesh.material_index,
+                                    })
+                                    .unwrap();
 
-                            let mesh = gltf::json::Mesh {
-                                extensions: Default::default(),
-                                extras: Default::default(),
-                                name: material_name,
-                                primitives: vec![primitive],
-                                weights: None,
-                            };
-                            let mesh_index = meshes.len() as u32;
-                            meshes.push(mesh);
-
-                            // Instancing is applied at the model level.
-                            // Instance meshes instead so each node has only one parent.
-                            // TODO: Use None instead of a single instance transform?
-                            for instance in &model.instances {
-                                let mesh_node = gltf::json::Node {
-                                    camera: None,
-                                    children: None,
+                                let primitive = gltf::json::mesh::Primitive {
+                                    attributes,
                                     extensions: Default::default(),
                                     extras: Default::default(),
-                                    matrix: if *instance == Mat4::IDENTITY {
-                                        None
-                                    } else {
-                                        Some(instance.to_cols_array())
-                                    },
-                                    mesh: Some(gltf::json::Index::new(mesh_index)),
-                                    name: None,
-                                    rotation: None,
-                                    scale: None,
-                                    translation: None,
-                                    skin: skin_index.map(|i| gltf::json::Index::new(i as u32)),
+                                    indices: Some(gltf::json::Index::new(index_accessor)),
+                                    material: Some(gltf::json::Index::new(*material_index as u32)),
+                                    mode: Valid(gltf::json::mesh::Mode::Triangles),
+                                    targets: None,
+                                };
+
+                                // Assign one primitive per mesh to create distinct objects in applications.
+                                // In game meshes aren't named, so just use the material name.
+                                let material_name = materials[*material_index].name.clone();
+
+                                let mesh = gltf::json::Mesh {
+                                    extensions: Default::default(),
+                                    extras: Default::default(),
+                                    name: material_name,
+                                    primitives: vec![primitive],
                                     weights: None,
                                 };
-                                let child_index = nodes.len() as u32;
-                                nodes.push(mesh_node);
+                                let mesh_index = meshes.len() as u32;
+                                meshes.push(mesh);
 
-                                children.push(gltf::json::Index::new(child_index))
+                                // Instancing is applied at the model level.
+                                // Instance meshes instead so each node has only one parent.
+                                // TODO: Use None instead of a single instance transform?
+                                for instance in &model.instances {
+                                    let mesh_node = gltf::json::Node {
+                                        camera: None,
+                                        children: None,
+                                        extensions: Default::default(),
+                                        extras: Default::default(),
+                                        matrix: if *instance == Mat4::IDENTITY {
+                                            None
+                                        } else {
+                                            Some(instance.to_cols_array())
+                                        },
+                                        mesh: Some(gltf::json::Index::new(mesh_index)),
+                                        name: None,
+                                        rotation: None,
+                                        scale: None,
+                                        translation: None,
+                                        skin: skin_index.map(|i| gltf::json::Index::new(i as u32)),
+                                        weights: None,
+                                    };
+                                    let child_index = nodes.len() as u32;
+                                    nodes.push(mesh_node);
+
+                                    children.push(gltf::json::Index::new(child_index))
+                                }
                             }
                         }
 

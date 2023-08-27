@@ -91,7 +91,7 @@ impl ModelGroup {
                             && !material.name.ends_with("_ope")
                             && !material.name.ends_with("_zpre")
                             && material.texture_count > 0
-                            && should_render_lod(models, mesh)
+                            && mesh.should_render_lod(models)
                         {
                             // TODO: How to make sure the pipeline outputs match the render pass?
                             let pipeline = &models.pipelines[&material.pipeline_key];
@@ -127,18 +127,6 @@ impl ModelGroup {
 
         render_pass.draw_indexed(0..index_buffer.vertex_index_count, 0, 0..1);
     }
-}
-
-// TODO: Move to xc3_model with tests?
-fn should_render_lod(models: &Models, mesh: &Mesh) -> bool {
-    // TODO: Why are the mesh values 1-indexed and the models lod data 0-indexed?
-    // TODO: should this also include 0?
-    // TODO: How to handle the none case?
-    models
-        .base_lod_indices
-        .as_ref()
-        .map(|indices| indices.contains(&mesh.lod.saturating_sub(1)))
-        .unwrap_or(true)
 }
 
 impl Models {
@@ -242,6 +230,12 @@ impl Models {
                 }]),
             );
         }
+    }
+}
+
+impl Mesh {
+    fn should_render_lod(&self, models: &Models) -> bool {
+        xc3_model::should_render_lod(self.lod, &models.base_lod_indices)
     }
 }
 

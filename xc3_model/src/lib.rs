@@ -161,6 +161,19 @@ impl Model {
     }
 }
 
+/// Returns `true` if a mesh with `lod` should be rendered
+/// as part of the highest detail or base level of detail (LOD).
+pub fn should_render_lod(lod: u16, base_lod_indices: &Option<Vec<u16>>) -> bool {
+    // TODO: Why are the mesh values 1-indexed and the models lod data 0-indexed?
+    // TODO: should this also include 0?
+    // TODO: How to handle the none case?
+    // TODO: Add test cases for this?
+    base_lod_indices
+        .as_ref()
+        .map(|indices| indices.contains(&lod.saturating_sub(1)))
+        .unwrap_or(true)
+}
+
 // TODO: Document loading the database in an example.
 /// Load a character (ch), object (oj), weapon (wp), or enemy (en) model.
 pub fn load_model<P: AsRef<Path>>(
