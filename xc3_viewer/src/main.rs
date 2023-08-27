@@ -102,7 +102,7 @@ impl State {
         let camera_data = calculate_camera_data(size, translation, rotation_xyz);
         renderer.update_camera(&queue, &camera_data);
 
-        let database = database_path.map(|file| xc3_model::GBufferDatabase::from_file(file));
+        let database = database_path.map(xc3_model::GBufferDatabase::from_file);
 
         let start = std::time::Instant::now();
 
@@ -149,15 +149,12 @@ impl State {
         if let Some(anim_path) = anim_path {
             let entry = &xc3_lib::sar1::Sar1::from_file(anim_path).unwrap().entries[anim_index];
             if let xc3_lib::sar1::EntryData::Bc(bc) = &entry.read_data().unwrap() {
-                match &bc.data {
-                    xc3_lib::bc::BcData::Anim(anim) => {
-                        for model in &models {
-                            for models in &model.models {
-                                models.update_bone_transforms(&queue, anim);
-                            }
+                if let xc3_lib::bc::BcData::Anim(anim) = &bc.data {
+                    for model in &models {
+                        for models in &model.models {
+                            models.update_bone_transforms(&queue, anim);
                         }
                     }
-                    _ => (),
                 }
             }
         }

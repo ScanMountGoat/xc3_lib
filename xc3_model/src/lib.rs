@@ -112,6 +112,30 @@ pub struct IndexBuffer {
     pub indices: Vec<u16>,
 }
 
+impl Models {
+    pub fn from_models(
+        models: &xc3_lib::mxmd::Models,
+        materials: &xc3_lib::mxmd::Materials,
+        spch: Option<&xc3_shader::gbuffer_database::Spch>,
+        skeleton: Option<Skeleton>,
+    ) -> Models {
+        Models {
+            models: models
+                .models
+                .iter()
+                .map(|model| Model::from_model(model, vec![Mat4::IDENTITY], 0))
+                .collect(),
+            materials: create_materials(materials, spch),
+            samplers: create_samplers(materials),
+            skeleton,
+            base_lod_indices: models
+                .lod_data
+                .as_ref()
+                .map(|data| data.items2.iter().map(|i| i.base_lod_index).collect()),
+        }
+    }
+}
+
 impl Model {
     pub fn from_model(
         model: &xc3_lib::mxmd::Model,
@@ -166,10 +190,6 @@ pub fn load_model<P: AsRef<Path>>(
     let model_name = model_name(wimdo_path);
     let spch = shader_database.and_then(|database| database.files.get(&model_name));
 
-    let materials = materials(&mxmd.materials, spch);
-
-    let samplers = samplers(&mxmd.materials);
-
     // TODO: Does every wimdo have a chr file?
     // TODO: Does something control the chr name used?
     let chr = Sar1::from_file(&wimdo_path.with_extension("chr")).unwrap_or_else(|_| {
@@ -187,25 +207,11 @@ pub fn load_model<P: AsRef<Path>>(
     let vertex_buffers = read_vertex_buffers(vertex_data, mxmd.models.skeleton.as_ref());
     let index_buffers = read_index_buffers(vertex_data);
 
-    let model = Models {
-        models: mxmd
-            .models
-            .models
-            .iter()
-            .map(|model| Model::from_model(model, vec![Mat4::IDENTITY], 0))
-            .collect(),
-        materials,
-        samplers,
-        skeleton,
-        base_lod_indices: mxmd
-            .models
-            .lod_data
-            .map(|data| data.items2.iter().map(|i| i.base_lod_index).collect()),
-    };
+    let models = Models::from_models(&mxmd.models, &mxmd.materials, spch, skeleton);
 
     ModelRoot {
         groups: vec![ModelGroup {
-            models: vec![model],
+            models: vec![models],
             buffers: vec![ModelBuffers {
                 vertex_buffers,
                 index_buffers,
@@ -215,7 +221,7 @@ pub fn load_model<P: AsRef<Path>>(
     }
 }
 
-fn samplers(materials: &Materials) -> Vec<Sampler> {
+fn create_samplers(materials: &Materials) -> Vec<Sampler> {
     materials
         .samplers
         .as_ref()
@@ -239,7 +245,7 @@ fn create_skeleton(chr: &Sar1, mxmd: &Mxmd) -> Option<Skeleton> {
     Some(Skeleton::from_skel(&skel, mxmd.models.skeleton.as_ref()?))
 }
 
-fn materials(
+fn create_materials(
     materials: &Materials,
     spch: Option<&xc3_shader::gbuffer_database::Spch>,
 ) -> Vec<Material> {

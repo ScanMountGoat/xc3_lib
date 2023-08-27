@@ -11,7 +11,7 @@ use xc3_lib::{
 use xc3_shader::gbuffer_database::GBufferDatabase;
 
 use crate::{
-    materials, model_name, samplers,
+    create_materials, create_samplers, model_name,
     texture::ImageTexture,
     vertex::{read_index_buffers, read_vertex_buffers},
     Material, Model, ModelBuffers, ModelGroup, ModelRoot, Models, Texture,
@@ -220,10 +220,10 @@ fn load_prop_model_group(
     // TODO: empty groups?
 
     // TODO: Create material data only once.
-    let mut materials = materials(&model_data.materials, spch);
+    let mut materials = create_materials(&model_data.materials, spch);
     apply_material_texture_indices(&mut materials, &model_data.textures);
 
-    let samplers = samplers(&model_data.materials);
+    let samplers = create_samplers(&model_data.materials);
 
     let mut models = Models {
         models: Vec::new(),
@@ -362,10 +362,10 @@ fn load_map_model_group(
             }
 
             // TODO: Create material data only once.
-            let mut materials = materials(&model_data.materials, spch);
+            let mut materials = create_materials(&model_data.materials, spch);
             apply_material_texture_indices(&mut materials, &model_data.textures);
 
-            let samplers = samplers(&model_data.materials);
+            let samplers = create_samplers(&model_data.materials);
 
             Models {
                 models,
@@ -406,32 +406,17 @@ fn load_env_model(
         .and_then(|database| database.map_files.get(model_folder))
         .and_then(|map| map.env_models.get(model_index));
 
-    let materials = materials(&model_data.materials, spch);
-
-    let samplers = samplers(&model_data.materials);
-
-    let models = model_data
-        .models
-        .models
-        .iter()
-        .map(|model| Model::from_model(model, vec![Mat4::IDENTITY], 0))
-        .collect();
-
     let vertex_buffers = read_vertex_buffers(&model_data.vertex_data, None);
     let index_buffers = read_index_buffers(&model_data.vertex_data);
 
     ModelRoot {
         groups: vec![ModelGroup {
-            models: vec![Models {
-                models,
-                materials,
-                samplers,
-                skeleton: None,
-                base_lod_indices: model_data
-                    .models
-                    .lod_data
-                    .map(|data| data.items2.iter().map(|i| i.base_lod_index).collect()),
-            }],
+            models: vec![Models::from_models(
+                &model_data.models,
+                &model_data.materials,
+                spch,
+                None,
+            )],
             buffers: vec![ModelBuffers {
                 vertex_buffers,
                 index_buffers,
