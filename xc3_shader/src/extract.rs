@@ -92,14 +92,17 @@ fn vertex_fragment_binaries<'a>(spch: &'a Spch, slct: &Slct) -> Vec<(&'a [u8], &
     // Each NVSD has a vertex and fragment shader.
     let mut binaries = Vec::new();
     for nvsd in &slct.nvsds {
+        // TODO: Do all models use the second item?
+        let shaders = &nvsd.inner.nvsd_shaders[1];
+
         // The first offset is the vertex shader.
-        let vert_size = nvsd.inner.nvsd.vertex_xv4_size as usize;
+        let vert_size = shaders.vertex_xv4_size as usize;
         // Strip the xV4 header for easier decompilation.
         let vertex = &spch.xv4_section[offset..offset + vert_size][48..];
 
         // The fragment shader immediately follows the vertex shader.
         offset += vert_size;
-        let frag_size = nvsd.inner.nvsd.fragment_xv4_size as usize;
+        let frag_size = shaders.fragment_xv4_size as usize;
         let fragment = &spch.xv4_section[offset..offset + frag_size][48..];
         offset += frag_size;
 

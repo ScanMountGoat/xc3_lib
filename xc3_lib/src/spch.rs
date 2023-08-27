@@ -89,6 +89,7 @@ impl BinRead for StringSection {
 #[derive(BinRead, Debug)]
 pub struct ShaderProgram {
     pub slct_offset: u32,
+    // TODO: Always 0?
     pub unk1: u32,
 }
 
@@ -153,7 +154,10 @@ pub struct NvsdMetadata {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    pub unks2: [u32; 8],
+    pub unks2: [u32; 6],
+
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    pub nvsd_shaders: Vec<NvsdShaders>,
 
     pub unk_count1: u16,
     // TODO: not always the same as above?
@@ -166,12 +170,14 @@ pub struct NvsdMetadata {
     })]
     pub buffers1: Vec<UniformBuffer>,
 
-    pub unk13: u32, // end of strings offset?
+    // TODO: end of strings offset?
+    pub unk13: u32,
 
     pub unk_count3: u16,
     // TODO: not always the same as above?
     pub unk_count4: u16,
 
+    // TODO: SSBOs in Ryujinx?
     #[br(parse_with = parse_ptr32)]
     #[br(args {
         offset: base_offset,
@@ -179,7 +185,8 @@ pub struct NvsdMetadata {
     })]
     pub buffers2: Vec<UniformBuffer>,
 
-    pub unk15: u32, // offset?
+    // TODO: offset before the next slct?
+    pub unk15: u32,
 
     #[br(temp)]
     sampler_count: u16,
@@ -193,18 +200,17 @@ pub struct NvsdMetadata {
     })]
     pub samplers: Vec<Sampler>,
 
+    // TODO: offset before the next slct?
     pub unks2_1: [u32; 4],
 
     #[br(parse_with = parse_count_offset, args { offset: base_offset, inner: base_offset })]
     pub attributes: Vec<InputAttribute>,
 
+    // TODO: uniforms for buffers1 and then buffers2 buffers in order?
     #[br(parse_with = parse_count_offset, args { offset: base_offset, inner: base_offset })]
     pub uniforms: Vec<Uniform>,
 
     pub unks3: [u32; 4],
-
-    // TODO: Separate this from the metadata type?
-    pub nvsd: Nvsd,
 }
 
 // TODO: add read method to slct?
@@ -225,30 +231,24 @@ pub struct UnkItem {
     // TODO: more fields?
 }
 
-// TODO: Create a more meaningful default?
-#[derive(BinRead, Debug, Default)]
+// TODO: Does anything actually point to the nvsd magic?
+#[derive(BinRead, Debug)]
 #[br(magic(b"NVSD"))]
 pub struct Nvsd {
     pub version: u32,
-    pub unk1: u32, // 0
-    pub unk2: u32, // 0
-    pub unk3: u32, // identical to vertex_xv4_size?
-    pub unk4: u32, // 0
-    pub unk5: u32, // identical to unk_size1?
-    // end of nvsd?
+}
 
-    // TODO: this section isn't always present?
+#[derive(BinRead, Debug)]
+pub struct NvsdShaders {
     pub unk6: u32, // 1
     /// The size of the vertex shader pointed to by the [Slct].
     pub vertex_xv4_size: u32,
     /// The size of the fragment shader pointed to by the [Slct].
     pub fragment_xv4_size: u32,
-    // Corresponding unk entry size for the two shaders?
-    pub unk_size1: u32, // 2176
-    pub unk_size2: u32, // 2176
-
-    // TODO: What controls this count?
-    pub unks4: [u16; 8],
+    /// The size of the [UnkItem] for the vertex shader.
+    pub vertex_unk_item_size: u32,
+    /// The size of the [UnkItem] for the fragment shader.
+    pub fragment_unk_item_size: u32,
 }
 
 // TODO: CBuffer?

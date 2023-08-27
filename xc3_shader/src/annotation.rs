@@ -34,12 +34,13 @@ mod tests {
     use super::*;
 
     use indoc::indoc;
-    use xc3_lib::spch::{InputAttribute, Nvsd, Sampler};
+    use xc3_lib::spch::{InputAttribute, Sampler};
 
     fn create_metadata(samplers: Vec<Sampler>, attributes: Vec<InputAttribute>) -> NvsdMetadata {
         // TODO: Derive default for these types?
         NvsdMetadata {
             unks2: Default::default(),
+            nvsd_shaders: Default::default(),
             unk_count1: Default::default(),
             unk_count2: Default::default(),
             buffers1: Default::default(),
@@ -54,8 +55,6 @@ mod tests {
             attributes,
             uniforms: Default::default(),
             unks3: Default::default(),
-            // TODO: We shouldn't even need to construct this?
-            nvsd: Nvsd::default(),
         }
     }
 
