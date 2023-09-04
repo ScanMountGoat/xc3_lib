@@ -130,13 +130,27 @@ fn add_final_assignment_dependencies(final_assignment: &Expr, dependencies: &mut
         ExprData::Dot(e, channel) => {
             // TODO: Is there a cleaner way of writing this?
             if let ExprData::Bracket(var, specifier) = &e.as_ref().content {
-                if let ExprData::Variable(id) = &var.as_ref().content {
-                    if let ExprData::IntConst(index) = &specifier.content {
-                        dependencies.push(SourceInput::Buffer {
-                            name: id.content.to_string(),
-                            index: *index as usize,
-                            channels: channel.content.to_string(),
-                        });
+                if let ExprData::IntConst(index) = &specifier.content {
+                    match &var.as_ref().content {
+                        ExprData::Variable(id) => {
+                            // buffer[index].x
+                            dependencies.push(SourceInput::Buffer {
+                                name: id.content.to_string(),
+                                index: *index as usize,
+                                channels: channel.content.to_string(),
+                            });
+                        }
+                        ExprData::Dot(e, field) => {
+                            if let ExprData::Variable(id) = &e.content {
+                                // buffer.field[index].x
+                                dependencies.push(SourceInput::Buffer {
+                                    name: format!("{}.{}", id.content, field.0),
+                                    index: *index as usize,
+                                    channels: channel.content.to_string(),
+                                });
+                            }
+                        }
+                        _ => (),
                     }
                 }
             }
@@ -604,8 +618,8 @@ mod tests {
             {
                 float a = texture(texture1, vec2(1.0)).x;
                 out_attr1.x = a;
-                out_attr1.y = fp_c4_data[1].w;
-                out_attr1.z = fp_c4_data[1].y;
+                out_attr1.y = U_Mate.data[1].w;
+                out_attr1.z = uniform_data[3].y;
                 out_attr1.w = 1.5;
             }
         "};
@@ -620,7 +634,7 @@ mod tests {
         );
         assert_eq!(
             vec![SourceInput::Buffer {
-                name: "fp_c4_data".to_string(),
+                name: "U_Mate.data".to_string(),
                 index: 1,
                 channels: "w".to_string()
             }],
@@ -628,8 +642,8 @@ mod tests {
         );
         assert_eq!(
             vec![SourceInput::Buffer {
-                name: "fp_c4_data".to_string(),
-                index: 1,
+                name: "uniform_data".to_string(),
+                index: 3,
                 channels: "y".to_string()
             }],
             input_dependencies(&tu, "out_attr1.z")
