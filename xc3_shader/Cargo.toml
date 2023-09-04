@@ -15,3 +15,4 @@ indexmap = { version = "1.9.3", features = ["serde", "rayon"] }
 
 [dev-dependencies]
 indoc = "2"
+pretty_assertions = "1.4.0"

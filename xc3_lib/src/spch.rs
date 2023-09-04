@@ -1,4 +1,4 @@
-use std::io::{Cursor, Seek, SeekFrom};
+use std::io::{Cursor, SeekFrom};
 
 use crate::{
     parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
@@ -88,6 +88,7 @@ impl BinRead for StringSection {
 
 #[derive(BinRead, Debug)]
 pub struct ShaderProgram {
+    // TODO: 64-bit offset?
     pub slct_offset: u32,
     // TODO: Always 0?
     pub unk1: u32,
@@ -98,16 +99,12 @@ pub struct ShaderProgram {
 #[br(magic(b"SLCT"))]
 #[br(stream = r)]
 pub struct Slct {
-    // Subtract the magic size.
-    #[br(temp, try_calc = r.stream_position().map(|p| p - 4))]
-    base_offset: u64,
-
     pub unk1: u32,
 
-    #[br(parse_with = parse_count_offset, args { offset: base_offset, inner: base_offset })]
+    #[br(parse_with = parse_count_offset)]
     pub unk_strings: Vec<UnkString>,
 
-    #[br(parse_with = parse_count_offset, args { offset: base_offset, inner: base_offset })]
+    #[br(parse_with = parse_count_offset)]
     pub nvsds: Vec<NvsdMetadataOffset>,
 
     pub unk5_count: u32,
@@ -119,7 +116,7 @@ pub struct Slct {
 
     /// The offset into [unk_section](struct.Spch.html#structfield.unk_section).
     pub unk_item_offset: u32,
-    pub unk_item_size: u32,
+    pub unk_item_total_size: u32,
 
     // relative to xv4 base offset
     pub xv4_offset: u32,
@@ -131,18 +128,17 @@ pub struct Slct {
 }
 
 #[derive(BinRead, Debug)]
-#[br(import_raw(base_offset: u64))]
 pub struct UnkString {
     pub unk1: u32,
     pub unk2: u32,
-    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[br(parse_with = parse_string_ptr32)]
     pub text: String,
 }
 
 #[derive(BinRead, Debug)]
-#[br(import_raw(base_offset: u64))]
 pub struct NvsdMetadataOffset {
-    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    // TODO: parse this as Vec<u8> to avoid needing a base offset?
+    #[br(parse_with = parse_ptr32)]
     pub inner: NvsdMetadata,
     pub size: u32,
 }
@@ -169,7 +165,7 @@ pub struct NvsdMetadata {
         offset: base_offset,
         inner: args! { count: buffers1_count as usize, inner: args! { base_offset } }
     })]
-    pub buffers1: Vec<UniformBuffer>,
+    pub uniform_buffers: Vec<UniformBuffer>,
 
     #[br(parse_with = parse_ptr32)]
     #[br(args {
@@ -183,12 +179,13 @@ pub struct NvsdMetadata {
     pub buffers2_index_count: u16,
 
     // TODO: SSBOs in Ryujinx?
+    // TODO: make a separate type for this?
     #[br(parse_with = parse_ptr32)]
     #[br(args {
         offset: base_offset,
         inner: args! { count: buffers2_count as usize, inner: args! { base_offset } }
     })]
-    pub buffers2: Vec<UniformBuffer>,
+    pub storage_buffers: Vec<UniformBuffer>,
 
     #[br(parse_with = parse_ptr32)]
     #[br(args {
@@ -208,6 +205,8 @@ pub struct NvsdMetadata {
     })]
     pub samplers: Vec<Sampler>,
 
+    // TODO: The index of each sampler in the shader?
+    // TODO: is this ordering based on sampler.unk2 handle?
     #[br(parse_with = parse_ptr32)]
     #[br(args {
         offset: base_offset,
@@ -224,7 +223,11 @@ pub struct NvsdMetadata {
     #[br(parse_with = parse_count_offset, args { offset: base_offset, inner: base_offset })]
     pub uniforms: Vec<Uniform>,
 
-    pub unks3: [u32; 4],
+    pub unk3_1: u32,
+    pub unk3_2: u32,
+    // TODO: Why do these not match the same values in the slct?
+    pub xv4_total_size: u32,
+    pub unk_item_total_size: u32,
 }
 
 // TODO: add read method to slct?
@@ -243,6 +246,12 @@ pub struct UnkItem {
     pub unk8: u32,
     pub unk9: u32,
     // TODO: more fields?
+
+    // TODO: Always 256 bytes in length?
+    // TODO: same as fragment xv4 size?
+    #[br(seek_before = SeekFrom::Start(3968))]
+    pub const_buffer_offset: u32,
+    pub shader_size: u32,
 }
 
 // TODO: Does anything actually point to the nvsd magic?
@@ -273,9 +282,24 @@ pub struct UniformBuffer {
     pub name: String,
     pub uniform_count: u16,
     pub uniform_start_index: u16,
-    pub unk3: u32, // ??? + handle * 2?
-    pub unk4: u16,
-    pub unk5: u16,
+    pub unk3: u32,
+    pub handle: Handle, // TODO: handle.handle + 3?
+    pub unk5: u16,      // (start + count) * 32 for buffers1?
+}
+
+// TODO: is this used for all handle fields?
+#[derive(BinRead, Debug)]
+pub struct Handle {
+    pub handle: u8,
+    pub visibility: Visibility,
+}
+
+#[derive(BinRead, Debug)]
+#[br(repr(u8))]
+pub enum Visibility {
+    // TODO: this doesn't work for storage buffers?
+    Fragment = 1,
+    VertexFragment = 2,
 }
 
 #[derive(BinRead, Debug)]
@@ -284,7 +308,9 @@ pub struct Sampler {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     pub name: String,
     pub unk1: u32,
-    pub unk2: u32, // handle = (unk2 - 256) * 2 + 8?
+    // TODO: upper byte never set since samplers are fragment only?
+    pub handle: Handle, // handle = (unk2 & 0xFF) * 2 + 8?
+    pub unk: u16,       // TODO: always 0?
 }
 
 /// A `vec4` parameter in a [UniformBuffer].
@@ -310,10 +336,40 @@ pub struct InputAttribute {
 
 impl ShaderProgram {
     pub fn read_slct(&self, slct_section: &[u8]) -> Slct {
-        let mut reader = Cursor::new(slct_section);
-        reader
-            .seek(SeekFrom::Start(self.slct_offset as u64))
-            .unwrap();
+        // Select the bytes first to avoid needing base offsets.
+        let bytes = &slct_section[self.slct_offset as usize..];
+        let mut reader = Cursor::new(bytes);
         reader.read_le().unwrap()
+    }
+}
+
+impl Slct {
+    pub fn read_unk_item(&self, unk_section: &[u8]) -> UnkItem {
+        let bytes = &unk_section[self.unk_item_offset as usize..];
+        let mut reader = Cursor::new(bytes);
+        reader.read_le().unwrap()
+    }
+}
+
+impl NvsdMetadata {
+    // TODO: Add option to strip xv4 header?
+    /// Returns the bytes for the compiled fragment shader, including the 48-byte xv4 header.
+    pub fn vertex_binary<'a>(&self, slct_xv4_offset: u32, xv4_section: &'a [u8]) -> &'a [u8] {
+        // TODO: Do all models use the second item?
+        let shaders = &self.nvsd_shaders[1];
+
+        // The first offset is the vertex shader.
+        let offset = slct_xv4_offset as usize;
+        &xv4_section[offset..offset + shaders.vertex_xv4_size as usize]
+    }
+
+    /// Returns the bytes for the compiled vertex shader, including the 48-byte xv4 header.
+    pub fn fragment_binary<'a>(&self, slct_xv4_offset: u32, xv4_section: &'a [u8]) -> &'a [u8] {
+        // TODO: Do all models use the second item?
+        let shaders = &self.nvsd_shaders[1];
+
+        // The fragment shader immediately follows the vertex shader.
+        let offset = slct_xv4_offset as usize + shaders.vertex_xv4_size as usize;
+        &xv4_section[offset..offset + shaders.fragment_xv4_size as usize]
     }
 }
