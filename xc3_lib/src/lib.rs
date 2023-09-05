@@ -1,3 +1,10 @@
+//! A library for reading and writing rendering related file formats.
+//!
+//! # Game Versions
+//! Xenoblade 1 DE, Xenoblade 2, and Xenoblade 3 are supported
+//! with Xenoblade 3 receiving the most testing.
+//! Struct documentation contains the corresponding
+//! type from Xenoblade 2 binary symbols where appropriate.
 use std::{
     error::Error,
     io::{BufWriter, Cursor, Read, Seek, SeekFrom, Write},
@@ -26,7 +33,7 @@ pub mod vertex;
 mod write;
 pub mod xbc1;
 
-pub const PAGE_SIZE: u64 = 4096;
+const PAGE_SIZE: u64 = 4096;
 
 // TODO: parse_vec helper for shared code?
 // TODO: use the helper for parsing offset and count from args?

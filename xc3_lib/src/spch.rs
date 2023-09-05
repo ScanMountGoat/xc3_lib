@@ -1,3 +1,4 @@
+//! Compiled shaders in `.wishp` files or embedded in other formats.
 use std::io::{Cursor, SeekFrom};
 
 use crate::{

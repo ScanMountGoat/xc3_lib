@@ -284,7 +284,7 @@ fn create_materials(
 
             Material {
                 name: material.name.clone(),
-                flags: material.flags,
+                flags: material.material_flags,
                 textures,
                 shader,
                 unk_type: material.shader_programs[0].unk_type,

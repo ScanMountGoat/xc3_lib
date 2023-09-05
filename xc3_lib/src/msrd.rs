@@ -1,3 +1,4 @@
+//! Model resources like shaders, geometry, or textures in `.wismt` files.
 use crate::{
     mibl::Mibl,
     mxmd::PackedExternalTextures,

@@ -1,3 +1,4 @@
+//! Conversions between [Mibl] and [ddsfile::Dds].
 use std::{io::BufWriter, path::Path};
 
 use ddsfile::{D3DFormat, Dds, DxgiFormat, FourCC};

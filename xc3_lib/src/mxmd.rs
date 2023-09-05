@@ -1,3 +1,4 @@
+//! Model data in `.wimdo` files.
 use crate::{
     msrd::TextureResource, parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32,
     parse_string_ptr32, spch::Spch, vertex::VertexData, write::Xc3Write,
@@ -55,20 +56,23 @@ pub struct Materials {
     // TODO: Materials have offsets into these arrays for parameter values?
     // material body has a uniform at shader offset 64 but offset 48 in this floats buffer
     #[br(parse_with = parse_offset_count, offset = base_offset)]
-    pub floats: Vec<f32>,
+    pub floats: Vec<f32>, // work values?
 
+    // TODO: final number counts up from 0?
+    // TODO: Some sort of index or offset?
     #[br(parse_with = parse_offset_count, offset = base_offset)]
-    pub ints: Vec<u32>,
+    pub ints: Vec<(u8, u8, u16)>, // shader vars?
 
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset })]
-    pub unk_offset1: MaterialUnk1,
+    pub unk_offset1: MaterialUnk1, // callbacks?
 
     // TODO: is this ever not 0?
     pub unk4: u32,
 
+    /// Info for each of the shaders in the associated [Spch](crate::spch::Spch).
     #[br(parse_with = parse_offset_count, args { offset: base_offset, inner: base_offset })]
-    pub unks: Vec<MaterialUnk>,
+    pub shader_programs: Vec<ShaderProgramInfo>,
 
     pub unks1: [u32; 2],
 
@@ -84,25 +88,30 @@ pub struct Materials {
     pub unks4: [u32; 4],
 }
 
+/// `ml::MdsMatTechnique` in the Xenoblade 2 binary.
 #[derive(BinRead, Debug)]
 #[br(import_raw(base_offset: u64))]
-pub struct MaterialUnk {
+pub struct ShaderProgramInfo {
     #[br(parse_with = parse_offset_count, offset = base_offset)]
-    pub unk1: Vec<(u32, u32)>,
+    pub unk1: Vec<u64>, // vertex attributes?
 
     pub unk3: u32, // 0
     pub unk4: u32, // 0
 
+    // work values?
+    // TODO: matches up with uniform parameters for U_Mate?
     #[br(parse_with = parse_offset_count, offset = base_offset)]
-    pub unk5: Vec<[u32; 6]>,
+    pub parameters: Vec<MaterialParameter>, // var table?
 
     #[br(parse_with = parse_offset_count, offset = base_offset)]
-    pub unk7: Vec<u16>,
+    pub textures: Vec<u16>, // textures?
 
+    // ssbos and then uniform buffers ordered by handle?
     #[br(parse_with = parse_offset_count, offset = base_offset)]
-    pub unk9: Vec<(u16, u16)>,
+    pub uniform_blocks: Vec<(u16, u16)>, // uniform blocks?
 
-    pub unk11: u32,
+    pub unk11: u32, // material texture count?
+
     pub unk12: u16, // counts up from 0?
     pub unk13: u16, // unk11 + unk12?
 
@@ -110,13 +119,47 @@ pub struct MaterialUnk {
     pub padding: [u32; 5],
 }
 
+/// `ml::MdsMatVariableTbl` in the Xenoblade 2 binary.
+#[derive(BinRead, Debug)]
+pub struct MaterialParameter {
+    pub param_type: ParamType,
+    pub work_value_index_offset: u16, // added to floats start index?
+    pub unk: u16,
+    pub count: u16, // actual number of bytes depends on type?
+}
+
+#[derive(BinRead, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[br(repr(u16))]
+pub enum ParamType {
+    Unk0 = 0,
+    /// `gTexMat` uniform in the [Spch] and
+    /// `ml::DrMdoSetup::unimate_texMatrix` in the Xenoblade 2 binary.
+    Unk1 = 1,
+    /// `gWrkFl4[0]` uniform in the [Spch] and
+    /// `ml::DrMdoSetup::unimate_workFloat4` in the Xenoblade 2 binary.
+    Unk2 = 2,
+    /// `gWrkCol` uniform in the [Spch] and
+    /// `ml::DrMdoSetup::unimate_workColor` in the Xenoblade 2 binary.
+    Unk3 = 3,
+    Unk4 = 4,
+    /// `gAlInf` uniform in the [Spch] and
+    /// `ml::DrMdoSetup::unimate_alphaInfo` in the Xenoblade 2 binary.
+    Unk5 = 5,
+    Unk6 = 6,
+    /// `gToonHeadMat` uniform in the [Spch].
+    Unk10 = 10,
+}
+
+// TODO: Does this affect texture assignment order?
 #[derive(BinRead, Debug)]
 #[br(import_raw(base_offset: u64))]
 pub struct MaterialUnk1 {
     // count matches up with Material.unk_start_index?
+    // TODO: affects material parameter assignment?
     #[br(parse_with = parse_offset_count, offset = base_offset)]
     pub unk1: Vec<(u16, u16)>,
-    // 0 1 2 ... count-1
+
+    // 0 1 2 ... material_count - 1
     #[br(parse_with = parse_offset_count, offset = base_offset)]
     pub unk2: Vec<u16>,
 }
@@ -167,35 +210,39 @@ pub struct SamplerFlags {
     pub unk: u23,
 }
 
+/// A single material assignable to a [Mesh].
+/// `ml::mdsMatInfoHeader` in the Xenoblade 2 binary.
 #[derive(BinRead, Debug)]
 #[br(import_raw(base_offset: u64))]
 pub struct Material {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     pub name: String,
 
-    pub unk1: u16,
-    pub unk2: u16,
-    pub unk3: u16,
-    pub unk4: u16,
+    pub flags: u32,
+    pub render_flags: u32,
 
     /// Color multiplier value assigned to the `gMatCol` shader uniform.
     pub color: [f32; 4],
 
-    pub unk_float: f32,
+    pub unk_float: f32, // alpha testing ref?
 
     // TODO: materials with zero textures?
     /// Defines the shader's sampler bindings in order for s0, s1, s2, ...
     #[br(parse_with = parse_offset_count, offset = base_offset)]
     pub textures: Vec<Texture>,
 
-    pub flags: MaterialFlags,
+    // TODO: rename to pipeline state?
+    pub material_flags: MaterialFlags,
 
-    // Parameters?
+    // group indices?
     pub m_unks1_1: u32,
     pub m_unks1_2: u32,
     pub m_unks1_3: u32,
     pub m_unks1_4: u32,
-    pub floats_start_index: u32,
+
+    pub floats_start_index: u32, // work value index?
+
+    // TODO: starts with a small number and then some random ints?
     pub ints_start_index: u32,
     pub ints_count: u32,
 
@@ -206,6 +253,7 @@ pub struct Material {
     pub unk5: u32,
 
     // index for MaterialUnk1.unk1?
+    // work callbacks?
     pub unk_start_index: u16, // sum of previous unk_count?
     pub unk_count: u16,
 
@@ -288,12 +336,14 @@ pub enum CullMode {
     Unk3 = 3, // front + ???
 }
 
+/// `ml::MdsMatMaterialTechnique` in the Xenoblade 2 binary.
 #[derive(BinRead, Debug)]
 pub struct ShaderProgram {
-    pub program_index: u32, // index into programs in wismt?
+    /// Index into [shader_programs](struct.Materials.html#structfield.shader_programs).
+    pub program_index: u32,
     pub unk_type: ShaderUnkType,
-    pub parent_material_index: u16, // index of the parent material?
-    pub unk4: u32,                  // always 1?
+    pub parent_material_index: u16, // buffer index?
+    pub flags: u32,                 // always 1?
 }
 
 // Affects what pass the object renders in?
