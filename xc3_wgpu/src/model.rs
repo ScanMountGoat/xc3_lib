@@ -78,19 +78,15 @@ impl ModelGroup {
 
                     // Each "instance" repeats the same meshes with different transforms.
                     for mesh in &model.meshes {
-                        // TODO: How does LOD selection work in game?
                         let material = &models.materials[mesh.material_index];
 
-                        // TODO: Why are there materials with no textures?
                         // TODO: Group these into passes with separate shaders for each pass?
                         // TODO: The main pass is shared with outline, ope, and zpre?
                         // TODO: How to handle transparency?
                         // TODO: Characters render as solid white?
                         if (is_transparent != material.pipeline_key.write_to_all_outputs)
                             && !material.name.ends_with("_outline")
-                            && !material.name.ends_with("_ope")
-                            && !material.name.ends_with("_zpre")
-                            && material.texture_count > 0
+                            && !material.name.contains("_speff_")
                             && mesh.should_render_lod(models)
                         {
                             // TODO: How to make sure the pipeline outputs match the render pass?
