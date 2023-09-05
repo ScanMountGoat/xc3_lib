@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use glam::{ivec4, uvec4};
+use glam::{ivec4, uvec4, Vec4};
 use wgpu::util::DeviceExt;
 use xc3_lib::{
     map::FoliageMaterials,
@@ -55,18 +55,20 @@ pub fn materials(
         .iter()
         .map(|material| {
             // TODO: Default assignments?
-            let assignments = material
+            let gbuffer_assignments = material
                 .shader
                 .as_ref()
-                .map(gbuffer_assignments)
+                .map(parse_gbuffer_assignments)
                 .unwrap_or_else(default_gbuffer_assignments);
 
-            let gbuffer_assignments =
-                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("GBuffer Assignments"),
-                    contents: bytemuck::cast_slice(&assignments),
-                    usage: wgpu::BufferUsages::UNIFORM,
-                });
+            let per_material = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("PerMaterial"),
+                contents: bytemuck::cast_slice(&[crate::shader::model::PerMaterial {
+                    mat_color: material.parameters.mat_color.into(),
+                    gbuffer_assignments,
+                }]),
+                usage: wgpu::BufferUsages::UNIFORM,
+            });
 
             // Bind all available textures and samplers.
             // Texture selection happens within the shader itself.
@@ -85,7 +87,7 @@ pub fn materials(
                     s8: material_texture(material, textures, 8).unwrap_or(&default_black),
                     s9: material_texture(material, textures, 9).unwrap_or(&default_black),
                     shared_sampler: &default_sampler,
-                    gbuffer_assignments: gbuffer_assignments.as_entire_buffer_binding(),
+                    per_material: per_material.as_entire_buffer_binding(),
                 },
             );
 
@@ -146,16 +148,18 @@ pub fn foliage_materials(
             let shader = None;
 
             // TODO: Default assignments?
-            let assignments = shader
-                .map(gbuffer_assignments)
+            let gbuffer_assignments = shader
+                .map(parse_gbuffer_assignments)
                 .unwrap_or_else(default_gbuffer_assignments);
 
-            let gbuffer_assignments =
-                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("GBuffer Assignments"),
-                    contents: bytemuck::cast_slice(&assignments),
-                    usage: wgpu::BufferUsages::UNIFORM,
-                });
+            let per_material = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("PerMaterial"),
+                contents: bytemuck::cast_slice(&[crate::shader::model::PerMaterial {
+                    mat_color: Vec4::ONE,
+                    gbuffer_assignments,
+                }]),
+                usage: wgpu::BufferUsages::UNIFORM,
+            });
 
             let bind_group2 = crate::shader::model::bind_groups::BindGroup2::from_bindings(
                 device,
@@ -171,7 +175,7 @@ pub fn foliage_materials(
                     s8: &default_black,
                     s9: &default_black,
                     shared_sampler: &default_sampler,
-                    gbuffer_assignments: gbuffer_assignments.as_entire_buffer_binding(),
+                    per_material: per_material.as_entire_buffer_binding(),
                 },
             );
 
@@ -208,40 +212,38 @@ pub fn foliage_materials(
 // TODO: submodule for this?
 // TODO: Store this information already parsed in the JSON?
 // TODO: Test cases for this
-fn gbuffer_assignments(
+fn parse_gbuffer_assignments(
     shader: &xc3_shader::gbuffer_database::Shader,
-) -> Vec<crate::shader::model::GBufferAssignment> {
-    (0..=5)
-        .map(|i| {
-            // Each output channel may have a different input sampler and channel.
-            // TODO: How to properly handle missing assignment information?
-            // TODO: How to encode constants and buffer values?
-            let (s0, c0) = shader
-                .sampler_channel_index(i, 'x')
-                .map(|(s, c)| (s as i32, c))
-                .unwrap_or((-1, 0));
+) -> [crate::shader::model::GBufferAssignment; 6] {
+    [0, 1, 2, 3, 4, 5].map(|i| {
+        // Each output channel may have a different input sampler and channel.
+        // TODO: How to properly handle missing assignment information?
+        // TODO: How to encode constants and buffer values?
+        let (s0, c0) = shader
+            .sampler_channel_index(i, 'x')
+            .map(|(s, c)| (s as i32, c))
+            .unwrap_or((-1, 0));
 
-            let (s1, c1) = shader
-                .sampler_channel_index(i, 'y')
-                .map(|(s, c)| (s as i32, c))
-                .unwrap_or((-1, 0));
+        let (s1, c1) = shader
+            .sampler_channel_index(i, 'y')
+            .map(|(s, c)| (s as i32, c))
+            .unwrap_or((-1, 0));
 
-            let (s2, c2) = shader
-                .sampler_channel_index(i, 'z')
-                .map(|(s, c)| (s as i32, c))
-                .unwrap_or((-1, 0));
+        let (s2, c2) = shader
+            .sampler_channel_index(i, 'z')
+            .map(|(s, c)| (s as i32, c))
+            .unwrap_or((-1, 0));
 
-            let (s3, c3) = shader
-                .sampler_channel_index(i, 'w')
-                .map(|(s, c)| (s as i32, c))
-                .unwrap_or((-1, 0));
+        let (s3, c3) = shader
+            .sampler_channel_index(i, 'w')
+            .map(|(s, c)| (s as i32, c))
+            .unwrap_or((-1, 0));
 
-            crate::shader::model::GBufferAssignment {
-                sampler_indices: ivec4(s0, s1, s2, s3),
-                channel_indices: uvec4(c0, c1, c2, c3),
-            }
-        })
-        .collect()
+        crate::shader::model::GBufferAssignment {
+            sampler_indices: ivec4(s0, s1, s2, s3),
+            channel_indices: uvec4(c0, c1, c2, c3),
+        }
+    })
 }
 
 fn material_texture<'a>(
@@ -255,9 +257,9 @@ fn material_texture<'a>(
         .map(|texture| &textures[texture.image_texture_index])
 }
 
-fn default_gbuffer_assignments() -> Vec<crate::shader::model::GBufferAssignment> {
+fn default_gbuffer_assignments() -> [crate::shader::model::GBufferAssignment; 6] {
     // We can only assume that the first texture is probably albedo.
-    vec![
+    [
         crate::shader::model::GBufferAssignment {
             sampler_indices: ivec4(0, 0, 0, 0),
             channel_indices: uvec4(0, 1, 2, 3),

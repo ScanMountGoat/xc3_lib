@@ -123,7 +123,7 @@ pub struct ShaderProgramInfo {
 #[derive(BinRead, Debug)]
 pub struct MaterialParameter {
     pub param_type: ParamType,
-    pub work_value_index_offset: u16, // added to floats start index?
+    pub floats_index_offset: u16, // added to floats start index?
     pub unk: u16,
     pub count: u16, // actual number of bytes depends on type?
 }
@@ -134,13 +134,13 @@ pub enum ParamType {
     Unk0 = 0,
     /// `gTexMat` uniform in the [Spch] and
     /// `ml::DrMdoSetup::unimate_texMatrix` in the Xenoblade 2 binary.
-    Unk1 = 1,
+    TexMatrix = 1,
     /// `gWrkFl4[0]` uniform in the [Spch] and
     /// `ml::DrMdoSetup::unimate_workFloat4` in the Xenoblade 2 binary.
-    Unk2 = 2,
+    WorkFloat4 = 2,
     /// `gWrkCol` uniform in the [Spch] and
     /// `ml::DrMdoSetup::unimate_workColor` in the Xenoblade 2 binary.
-    Unk3 = 3,
+    WorkColor = 3,
     Unk4 = 4,
     /// `gAlInf` uniform in the [Spch] and
     /// `ml::DrMdoSetup::unimate_alphaInfo` in the Xenoblade 2 binary.
@@ -673,6 +673,7 @@ pub struct Skeleton {
     pub unk_offset4: u32,
     pub unk_offset5: u32,
 
+    // TODO: This doesn't work with some xenoblade 2 models.
     #[br(parse_with = parse_opt_ptr32, args { offset: base_offset, inner: base_offset })]
     pub as_bone_data: Option<AsBoneData>,
 }

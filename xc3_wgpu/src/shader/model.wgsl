@@ -64,7 +64,13 @@ struct GBufferAssignment {
 }
 
 @group(2) @binding(11)
-var<uniform> gbuffer_assignments: array<GBufferAssignment, 6>;
+var<uniform> per_material: PerMaterial;
+
+struct PerMaterial {
+    mat_color: vec4<f32>,
+// TODO: How to handle assignment of material params and constants?
+    gbuffer_assignments: array<GBufferAssignment, 6>,
+}
 
 // TODO: Where to store skeleton?
 // PerModel values
@@ -233,6 +239,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     // The ordering here is the order of per material fragment shader outputs.
     // The input order for the deferred lighting pass is slightly different.
     // TODO: How to properly handle missing assignments?
+    let gbuffer_assignments = per_material.gbuffer_assignments;
     let g0 = assign_gbuffer_texture(gbuffer_assignments[0], s_colors, vec4(1.0));
     let g1 = assign_gbuffer_texture(gbuffer_assignments[1], s_colors, vec4(0.0));
     let g2 = assign_gbuffer_texture(gbuffer_assignments[2], s_colors, vec4(0.5, 0.5, 1.0, 0.0));
@@ -256,8 +263,9 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
 
     // TODO: alpha?
     // TODO: How much shading is done in this pass?
+    // TODO: Is it ok to always apply gMatCol like this?
     var out: FragmentOutput;
-    out.g0 = g0;
+    out.g0 = g0 * vec4(per_material.mat_color.rgb, 1.0);
     out.g1 = g1;
     out.g2 = vec4(normalize(view_normal).xy * 0.5 + 0.5, g2.zw);
     out.g3 = g3;

@@ -58,6 +58,24 @@ const _: () = assert!(
 );
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct PerMaterial {
+    pub mat_color: glam::Vec4,
+    pub gbuffer_assignments: [GBufferAssignment; 6],
+}
+const _: () = assert!(
+    std::mem::size_of:: < PerMaterial > () == 208,
+    "size of PerMaterial does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(PerMaterial, mat_color) == 0,
+    "offset of PerMaterial.mat_color does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(PerMaterial, gbuffer_assignments) == 16,
+    "offset of PerMaterial.gbuffer_assignments does not match WGSL"
+);
+#[repr(C)]
+#[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct PerModel {
     pub matrix: glam::Mat4,
 }
@@ -181,7 +199,7 @@ pub mod bind_groups {
         pub s8: &'a wgpu::TextureView,
         pub s9: &'a wgpu::TextureView,
         pub shared_sampler: &'a wgpu::Sampler,
-        pub gbuffer_assignments: wgpu::BufferBinding<'a>,
+        pub per_material: wgpu::BufferBinding<'a>,
     }
     const LAYOUT_DESCRIPTOR2: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
         label: None,
@@ -384,7 +402,7 @@ pub mod bind_groups {
                             wgpu::BindGroupEntry {
                                 binding: 11,
                                 resource: wgpu::BindingResource::Buffer(
-                                    bindings.gbuffer_assignments,
+                                    bindings.per_material,
                                 ),
                             },
                         ],

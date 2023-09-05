@@ -84,11 +84,25 @@ pub struct Material {
     pub name: String,
     pub flags: MaterialFlags,
     pub textures: Vec<Texture>,
+
+    // TODO: Also store parameters?
     /// Precomputed metadata from the decompiled shader source
     /// or [None] if the database does not contain this model.
     pub shader: Option<Shader>,
+
     // TODO: include with shader?
     pub unk_type: ShaderUnkType,
+    pub parameters: MaterialParameters,
+}
+
+/// Values assigned to known shader uniforms or `None` if not present.
+#[derive(Debug, Default)]
+pub struct MaterialParameters {
+    pub mat_color: [f32; 4],
+    // Assume each param type is used at most once.
+    pub tex_matrix: Option<Vec<[f32; 8]>>,
+    pub work_float4: Option<Vec<[f32; 4]>>,
+    pub work_color: Option<Vec<[f32; 4]>>,
 }
 
 #[derive(Debug)]
@@ -258,6 +272,7 @@ fn create_skeleton(chr: &Sar1, mxmd: &Mxmd) -> Option<Skeleton> {
     Some(Skeleton::from_skel(&skel, mxmd.models.skeleton.as_ref()?))
 }
 
+// TODO: material module?
 fn create_materials(
     materials: &Materials,
     spch: Option<&xc3_shader::gbuffer_database::Spch>,
@@ -282,14 +297,71 @@ fn create_materials(
                 })
                 .collect();
 
+            let parameters = assign_parameters(materials, material);
+
             Material {
                 name: material.name.clone(),
                 flags: material.material_flags,
                 textures,
                 shader,
                 unk_type: material.shader_programs[0].unk_type,
+                parameters,
             }
         })
+        .collect()
+}
+
+// TODO: How to test this?
+fn assign_parameters(
+    materials: &Materials,
+    material: &xc3_lib::mxmd::Material,
+) -> MaterialParameters {
+    // TODO: Don't assume a single program info?
+    let info = &materials.shader_programs[material.shader_programs[0].program_index as usize];
+    let floats = &materials.floats;
+    let start_index = material.floats_start_index;
+
+    let mut parameters = MaterialParameters {
+        mat_color: material.color,
+        tex_matrix: None,
+        work_float4: None,
+        work_color: None,
+    };
+
+    for param in &info.parameters {
+        match param.param_type {
+            xc3_lib::mxmd::ParamType::Unk0 => (),
+            xc3_lib::mxmd::ParamType::TexMatrix => {
+                parameters.tex_matrix = Some(read_param(param, floats, start_index));
+            }
+            xc3_lib::mxmd::ParamType::WorkFloat4 => {
+                parameters.work_float4 = Some(read_param(param, floats, start_index));
+            }
+            xc3_lib::mxmd::ParamType::WorkColor => {
+                parameters.work_color = Some(read_param(param, floats, start_index));
+            }
+            xc3_lib::mxmd::ParamType::Unk4 => (),
+            xc3_lib::mxmd::ParamType::Unk5 => (),
+            xc3_lib::mxmd::ParamType::Unk6 => (),
+            xc3_lib::mxmd::ParamType::Unk10 => (),
+        }
+    }
+
+    parameters
+}
+
+fn read_param<const N: usize>(
+    param: &xc3_lib::mxmd::MaterialParameter,
+    floats: &[f32],
+    start_index: u32,
+) -> Vec<[f32; N]> {
+    // Assume any parameter can be an array, so read a vec.
+    // TODO: avoid unwrap.
+    let start = param.floats_index_offset as usize + start_index as usize;
+    floats[start..]
+        .chunks_exact(N)
+        .take(param.count as usize)
+        .map(|v| v.try_into().unwrap())
         .collect()
 }
 
