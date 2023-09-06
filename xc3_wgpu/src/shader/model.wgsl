@@ -118,16 +118,22 @@ struct FragmentOutput {
 fn vs_main(vertex: VertexInput) -> VertexOutput {
     var out: VertexOutput;
 
-    var position = vertex.position.xyz;
-
     // Linear blend skinning.
+    var position = vertex.position.xyz;
+    var normal_xyz = vertex.normal.xyz;
+    var tangent_xyz = vertex.tangent.xyz;
+
     if per_group.enable_skinning.x == 1u {
-        // TODO: Also skin normals and tangents.
         position = vec3(0.0);
+        normal_xyz = vec3(0.0);
+        tangent_xyz = vec3(0.0);
         for (var i = 0u; i < 4u; i = i + 1u) {
             // Indices are packed into a u32 since WGSL lacks a u8x4 attribute type.
             let bone_index = (vertex.bone_indices >> (i * 8u)) & 0xFFu;
-            position = position + vertex.skin_weights[i] * (per_group.animated_transforms[bone_index] * vec4(vertex.position.xyz, 1.0)).xyz;
+            position += vertex.skin_weights[i] * (per_group.animated_transforms[bone_index] * vec4(vertex.position.xyz, 1.0)).xyz;
+            // TODO: does this need the inverse transpose?
+            tangent_xyz += vertex.skin_weights[i] * (per_group.animated_transforms[bone_index] * vec4(vertex.tangent.xyz, 0.0)).xyz;
+            normal_xyz += vertex.skin_weights[i] * (per_group.animated_transforms[bone_index] * vec4(vertex.normal.xyz, 0.0)).xyz;
         }
     }
 
@@ -136,8 +142,8 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
     out.uv1 = vertex.uv1.xy;
     out.vertex_color = vertex.vertex_color;
     // Transform any direction vectors by the instance transform.
-    out.normal = (per_model.matrix * vec4(vertex.normal.xyz, 0.0)).xyz;
-    out.tangent = vec4((per_model.matrix * vec4(vertex.tangent.xyz, 0.0)).xyz, vertex.tangent.w);
+    out.normal = (per_model.matrix * vec4(normal_xyz, 0.0)).xyz;
+    out.tangent = vec4((per_model.matrix * vec4(tangent_xyz, 0.0)).xyz, vertex.tangent.w);
     return out;
 }
 

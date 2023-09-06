@@ -311,6 +311,7 @@ fn create_materials(
         .collect()
 }
 
+// TODO: Some elements get set by values not in the floats array?
 // TODO: How to test this?
 // TODO: This doesn't work properly for all models?
 fn assign_parameters(

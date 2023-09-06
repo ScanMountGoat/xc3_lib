@@ -104,11 +104,6 @@ pub fn materials(
                 .map(|s| parse_gbuffer_params_consts(s, &material.parameters))
                 .unwrap_or(GBUFFER_DEFAULTS);
 
-            println!(
-                "{:?},{:?},{:?}",
-                &material.name, gbuffer_defaults[1], material.parameters.work_float4
-            );
-
             let per_material = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("PerMaterial"),
                 contents: bytemuck::cast_slice(&[crate::shader::model::PerMaterial {
