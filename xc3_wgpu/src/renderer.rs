@@ -164,17 +164,26 @@ impl Xc3Renderer {
     }
 
     fn transparent_pass(&self, encoder: &mut wgpu::CommandEncoder, models: &[ModelGroup]) {
+        // The transparent pass only writes to the albedo output.
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Transparent Pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &self.gbuffer_textures[0],
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    // TODO: Does in game actually use load?
-                    load: wgpu::LoadOp::Load,
-                    store: true,
-                },
-            })],
+            color_attachments: &[
+                Some(wgpu::RenderPassColorAttachment {
+                    view: &self.gbuffer_textures[0],
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        // TODO: Does in game actually use load?
+                        load: wgpu::LoadOp::Load,
+                        store: true,
+                    },
+                }),
+                color_attachment_disabled(&self.gbuffer_textures[1]),
+                color_attachment_disabled(&self.gbuffer_textures[2]),
+                color_attachment_disabled(&self.gbuffer_textures[3]),
+                color_attachment_disabled(&self.gbuffer_textures[4]),
+                color_attachment_disabled(&self.gbuffer_textures[5]),
+                color_attachment_disabled(&self.gbuffer_textures[6]),
+            ],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.depth_view,
                 depth_ops: Some(wgpu::Operations {
@@ -250,6 +259,19 @@ fn color_attachment(
         resolve_target: None,
         ops: wgpu::Operations {
             load: wgpu::LoadOp::Clear(color),
+            store: true,
+        },
+    })
+}
+
+fn color_attachment_disabled(view: &wgpu::TextureView) -> Option<wgpu::RenderPassColorAttachment> {
+    // Necessary to fix a validation error about writing to missing attachments.
+    // This could also be fixed by modifying the shader code.
+    Some(wgpu::RenderPassColorAttachment {
+        view,
+        resolve_target: None,
+        ops: wgpu::Operations {
+            load: wgpu::LoadOp::Load,
             store: true,
         },
     })

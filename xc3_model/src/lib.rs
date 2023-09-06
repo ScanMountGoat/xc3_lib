@@ -96,13 +96,24 @@ pub struct Material {
 }
 
 /// Values assigned to known shader uniforms or `None` if not present.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct MaterialParameters {
     pub mat_color: [f32; 4],
     // Assume each param type is used at most once.
     pub tex_matrix: Option<Vec<[f32; 8]>>,
     pub work_float4: Option<Vec<[f32; 4]>>,
     pub work_color: Option<Vec<[f32; 4]>>,
+}
+
+impl Default for MaterialParameters {
+    fn default() -> Self {
+        Self {
+            mat_color: [1.0; 4],
+            tex_matrix: None,
+            work_float4: None,
+            work_color: None,
+        }
+    }
 }
 
 #[derive(Debug)]

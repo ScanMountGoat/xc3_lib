@@ -30,6 +30,7 @@ pub fn model_pipeline(
     key: &PipelineKey,
 ) -> wgpu::RenderPipeline {
     // Some shaders only write to the albedo output.
+    // TODO: Is there a better of handling this than modifying the render pass?
     let targets = if key.write_to_all_outputs {
         // TODO: alpha blending?
         // Create a target for each of the G-Buffer textures.
@@ -44,11 +45,43 @@ pub fn model_pipeline(
             7
         ]
     } else {
-        vec![Some(wgpu::ColorTargetState {
-            format: GBUFFER_COLOR_FORMAT,
-            blend: blend_state(key.flags.blend_state),
-            write_mask: wgpu::ColorWrites::all(),
-        })]
+        vec![
+            Some(wgpu::ColorTargetState {
+                format: GBUFFER_COLOR_FORMAT,
+                blend: blend_state(key.flags.blend_state),
+                write_mask: wgpu::ColorWrites::all(),
+            }),
+            Some(wgpu::ColorTargetState {
+                format: GBUFFER_COLOR_FORMAT,
+                blend: None,
+                write_mask: wgpu::ColorWrites::empty(),
+            }),
+            Some(wgpu::ColorTargetState {
+                format: GBUFFER_COLOR_FORMAT,
+                blend: None,
+                write_mask: wgpu::ColorWrites::empty(),
+            }),
+            Some(wgpu::ColorTargetState {
+                format: GBUFFER_COLOR_FORMAT,
+                blend: None,
+                write_mask: wgpu::ColorWrites::empty(),
+            }),
+            Some(wgpu::ColorTargetState {
+                format: GBUFFER_COLOR_FORMAT,
+                blend: None,
+                write_mask: wgpu::ColorWrites::empty(),
+            }),
+            Some(wgpu::ColorTargetState {
+                format: GBUFFER_COLOR_FORMAT,
+                blend: None,
+                write_mask: wgpu::ColorWrites::empty(),
+            }),
+            Some(wgpu::ColorTargetState {
+                format: GBUFFER_COLOR_FORMAT,
+                blend: None,
+                write_mask: wgpu::ColorWrites::empty(),
+            }),
+        ]
     };
 
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
