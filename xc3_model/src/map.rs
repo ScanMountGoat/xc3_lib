@@ -511,7 +511,7 @@ fn foliage_materials(materials: &FoliageMaterials) -> Vec<Material> {
                 textures,
                 shader,
                 unk_type: ShaderUnkType::Unk0,
-                parameters: Default::default()
+                parameters: Default::default(),
             }
         })
         .collect();

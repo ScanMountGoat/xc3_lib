@@ -315,7 +315,7 @@ pub struct Sampler {
 }
 
 /// A `vec4` parameter in a [UniformBuffer].
-#[derive(BinRead, Debug)]
+#[derive(BinRead, Debug, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Uniform {
     /// The name used to refer to the uniform like `gMatCol`.

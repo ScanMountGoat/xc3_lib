@@ -65,6 +65,7 @@ struct LineDependencies {
     assignments: Vec<AssignmentDependency>,
 }
 
+// TODO: Easier to just serialize this instead?
 #[derive(Debug, PartialEq)]
 pub enum SourceInput {
     Constant(f32),

@@ -68,8 +68,10 @@ var<uniform> per_material: PerMaterial;
 
 struct PerMaterial {
     mat_color: vec4<f32>,
-// TODO: How to handle assignment of material params and constants?
+    // TODO: How to handle assignment of material params and constants?
     gbuffer_assignments: array<GBufferAssignment, 6>,
+    // Parameters, constants, and defaults if no texture is assigned.
+    gbuffer_defaults: array<vec4<f32>, 6>,
 }
 
 // TODO: Where to store skeleton?
@@ -236,16 +238,17 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
 
     // The layout of G-Buffer textures is fixed but assignments are not.
     // Each material in game can have a unique shader program.
-    // The ordering here is the order of per material fragment shader outputs.
-    // The input order for the deferred lighting pass is slightly different.
+    // Check the G-Buffer assignment database to simulate having unique shaders.
     // TODO: How to properly handle missing assignments?
-    let gbuffer_assignments = per_material.gbuffer_assignments;
-    let g0 = assign_gbuffer_texture(gbuffer_assignments[0], s_colors, vec4(1.0));
-    let g1 = assign_gbuffer_texture(gbuffer_assignments[1], s_colors, vec4(0.0));
-    let g2 = assign_gbuffer_texture(gbuffer_assignments[2], s_colors, vec4(0.5, 0.5, 1.0, 0.0));
-    let g3 = assign_gbuffer_texture(gbuffer_assignments[3], s_colors, vec4(0.0));
-    let g4 = assign_gbuffer_texture(gbuffer_assignments[4], s_colors, vec4(0.0));
-    let g5 = assign_gbuffer_texture(gbuffer_assignments[5], s_colors, vec4(0.0));
+    let assignments = per_material.gbuffer_assignments;
+    // Defaults incorporate constants, parameters, and default values.
+    let defaults = per_material.gbuffer_defaults;
+    let g0 = assign_gbuffer_texture(assignments[0], s_colors, defaults[0]);
+    let g1 = assign_gbuffer_texture(assignments[1], s_colors, defaults[1]);
+    let g2 = assign_gbuffer_texture(assignments[2], s_colors, defaults[2]);
+    let g3 = assign_gbuffer_texture(assignments[3], s_colors, defaults[3]);
+    let g4 = assign_gbuffer_texture(assignments[4], s_colors, defaults[4]);
+    let g5 = assign_gbuffer_texture(assignments[5], s_colors, defaults[5]);
 
     // TODO: How much of this goes into deferred?
     // Assume each G-Buffer texture and channel always has the same usage.
@@ -254,13 +257,15 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     // Not all materials and shaders use normal mapping.
     // TODO: Is this a good way to check for this?
     var normal = vertex_normal;
-    if gbuffer_assignments[2].sampler_indices.x != -1 && gbuffer_assignments[2].sampler_indices.y != -1 {
+    if assignments[2].sampler_indices.x != -1 && assignments[2].sampler_indices.y != -1 {
         normal = apply_normal_map(vertex_normal, tangent, bitangent, normal_map);
     }
 
     // TODO: Are in game normals in view space?
     let view_normal = camera.view * vec4(normal.xyz, 0.0);
 
+    // The ordering here is the order of per material fragment shader outputs.
+    // The input order for the deferred lighting pass is slightly different.
     // TODO: alpha?
     // TODO: How much shading is done in this pass?
     // TODO: Is it ok to always apply gMatCol like this?

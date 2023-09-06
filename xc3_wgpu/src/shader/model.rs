@@ -61,9 +61,10 @@ const _: () = assert!(
 pub struct PerMaterial {
     pub mat_color: glam::Vec4,
     pub gbuffer_assignments: [GBufferAssignment; 6],
+    pub gbuffer_defaults: [glam::Vec4; 6],
 }
 const _: () = assert!(
-    std::mem::size_of:: < PerMaterial > () == 208,
+    std::mem::size_of:: < PerMaterial > () == 304,
     "size of PerMaterial does not match WGSL"
 );
 const _: () = assert!(
@@ -73,6 +74,10 @@ const _: () = assert!(
 const _: () = assert!(
     memoffset::offset_of!(PerMaterial, gbuffer_assignments) == 16,
     "offset of PerMaterial.gbuffer_assignments does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(PerMaterial, gbuffer_defaults) == 208,
+    "offset of PerMaterial.gbuffer_defaults does not match WGSL"
 );
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]

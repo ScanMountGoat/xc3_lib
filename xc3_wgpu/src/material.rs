@@ -25,6 +25,44 @@ pub struct Material {
     pub texture_count: usize,
 }
 
+// Choose defaults that have as close to no effect as possible.
+const GBUFFER_DEFAULTS: [Vec4; 6] = [
+    Vec4::ONE,
+    Vec4::ZERO,
+    Vec4::new(0.5, 0.5, 1.0, 0.0),
+    Vec4::ZERO,
+    Vec4::ZERO,
+    Vec4::ZERO,
+];
+
+// We can only assume that the first texture is probably albedo.
+const DEFAULT_GBUFFER_ASSIGNMENTS: [crate::shader::model::GBufferAssignment; 6] = [
+    crate::shader::model::GBufferAssignment {
+        sampler_indices: ivec4(0, 0, 0, 0),
+        channel_indices: uvec4(0, 1, 2, 3),
+    },
+    crate::shader::model::GBufferAssignment {
+        sampler_indices: ivec4(-1, -1, -1, -1),
+        channel_indices: uvec4(0, 1, 2, 3),
+    },
+    crate::shader::model::GBufferAssignment {
+        sampler_indices: ivec4(-1, -1, -1, -1),
+        channel_indices: uvec4(0, 1, 2, 3),
+    },
+    crate::shader::model::GBufferAssignment {
+        sampler_indices: ivec4(-1, -1, -1, -1),
+        channel_indices: uvec4(0, 1, 2, 3),
+    },
+    crate::shader::model::GBufferAssignment {
+        sampler_indices: ivec4(-1, -1, -1, -1),
+        channel_indices: uvec4(0, 1, 2, 3),
+    },
+    crate::shader::model::GBufferAssignment {
+        sampler_indices: ivec4(-1, -1, -1, -1),
+        channel_indices: uvec4(0, 1, 2, 3),
+    },
+];
+
 #[tracing::instrument]
 pub fn materials(
     device: &wgpu::Device,
@@ -54,18 +92,29 @@ pub fn materials(
     let materials = materials
         .iter()
         .map(|material| {
-            // TODO: Default assignments?
             let gbuffer_assignments = material
                 .shader
                 .as_ref()
                 .map(parse_gbuffer_assignments)
-                .unwrap_or_else(default_gbuffer_assignments);
+                .unwrap_or(DEFAULT_GBUFFER_ASSIGNMENTS);
+
+            let gbuffer_defaults = material
+                .shader
+                .as_ref()
+                .map(|s| parse_gbuffer_params_consts(s, &material.parameters))
+                .unwrap_or(GBUFFER_DEFAULTS);
+
+            println!(
+                "{:?},{:?},{:?}",
+                &material.name, gbuffer_defaults[1], material.parameters.work_float4
+            );
 
             let per_material = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("PerMaterial"),
                 contents: bytemuck::cast_slice(&[crate::shader::model::PerMaterial {
                     mat_color: material.parameters.mat_color.into(),
                     gbuffer_assignments,
+                    gbuffer_defaults,
                 }]),
                 usage: wgpu::BufferUsages::UNIFORM,
             });
@@ -147,16 +196,21 @@ pub fn foliage_materials(
             // TODO: Foliage shaders?
             let shader = None;
 
-            // TODO: Default assignments?
+            // TODO: Handle constants in defaults?
             let gbuffer_assignments = shader
                 .map(parse_gbuffer_assignments)
-                .unwrap_or_else(default_gbuffer_assignments);
+                .unwrap_or(DEFAULT_GBUFFER_ASSIGNMENTS);
+
+            let gbuffer_defaults = shader
+                .map(|s| parse_gbuffer_params_consts(s, &Default::default()))
+                .unwrap_or(GBUFFER_DEFAULTS);
 
             let per_material = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("PerMaterial"),
                 contents: bytemuck::cast_slice(&[crate::shader::model::PerMaterial {
                     mat_color: Vec4::ONE,
                     gbuffer_assignments,
+                    gbuffer_defaults,
                 }]),
                 usage: wgpu::BufferUsages::UNIFORM,
             });
@@ -246,6 +300,49 @@ fn parse_gbuffer_assignments(
     })
 }
 
+fn parse_gbuffer_params_consts(
+    shader: &xc3_shader::gbuffer_database::Shader,
+    parameters: &xc3_model::MaterialParameters,
+) -> [Vec4; 6] {
+    // TODO: Update the database to also handle parameters?
+    [0, 1, 2, 3, 4, 5].map(|i| {
+        Vec4::new(
+            param_const_or_default(shader, parameters, i, 0),
+            param_const_or_default(shader, parameters, i, 1),
+            param_const_or_default(shader, parameters, i, 2),
+            param_const_or_default(shader, parameters, i, 3),
+        )
+    })
+}
+
+// TODO: Tests for this?
+fn param_const_or_default(
+    shader: &xc3_shader::gbuffer_database::Shader,
+    parameters: &xc3_model::MaterialParameters,
+    i: usize,
+    c: usize,
+) -> f32 {
+    let channel = ['x', 'y', 'z', 'w'][c];
+    shader
+        .buffer_parameter(i, channel)
+        .and_then(|p| extract_parameter(p, parameters))
+        .or_else(|| shader.float_constant(i, channel))
+        .unwrap_or(GBUFFER_DEFAULTS[i][c])
+}
+
+fn extract_parameter(
+    p: xc3_shader::gbuffer_database::BufferParameter,
+    parameters: &xc3_model::MaterialParameters,
+) -> Option<f32> {
+    // TODO: Also check for U_Mate?
+    let c = "xyzw".find(p.channel).unwrap();
+    match p.uniform.as_str() {
+        "gWrkFl4" => Some(parameters.work_float4.as_ref()?.get(p.index)?[c]),
+        "gWrkCol" => Some(parameters.work_color.as_ref()?.get(p.index)?[c]),
+        _ => None,
+    }
+}
+
 fn material_texture<'a>(
     material: &xc3_model::Material,
     textures: &'a [wgpu::TextureView],
@@ -255,34 +352,4 @@ fn material_texture<'a>(
         .textures
         .get(index)
         .map(|texture| &textures[texture.image_texture_index])
-}
-
-fn default_gbuffer_assignments() -> [crate::shader::model::GBufferAssignment; 6] {
-    // We can only assume that the first texture is probably albedo.
-    [
-        crate::shader::model::GBufferAssignment {
-            sampler_indices: ivec4(0, 0, 0, 0),
-            channel_indices: uvec4(0, 1, 2, 3),
-        },
-        crate::shader::model::GBufferAssignment {
-            sampler_indices: ivec4(-1, -1, -1, -1),
-            channel_indices: uvec4(0, 1, 2, 3),
-        },
-        crate::shader::model::GBufferAssignment {
-            sampler_indices: ivec4(-1, -1, -1, -1),
-            channel_indices: uvec4(0, 1, 2, 3),
-        },
-        crate::shader::model::GBufferAssignment {
-            sampler_indices: ivec4(-1, -1, -1, -1),
-            channel_indices: uvec4(0, 1, 2, 3),
-        },
-        crate::shader::model::GBufferAssignment {
-            sampler_indices: ivec4(-1, -1, -1, -1),
-            channel_indices: uvec4(0, 1, 2, 3),
-        },
-        crate::shader::model::GBufferAssignment {
-            sampler_indices: ivec4(-1, -1, -1, -1),
-            channel_indices: uvec4(0, 1, 2, 3),
-        },
-    ]
 }

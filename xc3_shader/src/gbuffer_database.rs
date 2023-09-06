@@ -45,6 +45,7 @@ pub struct ShaderProgram {
     pub shaders: Vec<Shader>,
 }
 
+// TODO: Document how to try sampler, constant, parameter in order.
 /// The buffer elements, textures, and constants used to initialize each fragment output.
 ///
 /// This assumes inputs are assigned directly to outputs without any modifications.
@@ -53,6 +54,14 @@ pub struct ShaderProgram {
 #[serde(transparent)]
 pub struct Shader {
     pub output_dependencies: IndexMap<String, Vec<String>>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct BufferParameter {
+    pub buffer: String,
+    pub uniform: String,
+    pub index: usize,
+    pub channel: char,
 }
 
 impl Shader {
@@ -90,7 +99,8 @@ impl Shader {
         }
     }
 
-    /// Find the sampler and channel index of the first material sampler assigned to the output.
+    /// Returns the sampler and channel index of the first material sampler assigned to the output
+    /// or `None` if the output does not use a sampler.
     ///
     /// For example, an assignment of `"s3.y"` results in a sampler index of `3` and a channel index of `1`.
     pub fn sampler_channel_index(&self, output_index: usize, channel: char) -> Option<(u32, u32)> {
@@ -118,6 +128,37 @@ impl Shader {
         };
         let channel_index = "xyzw".find(c).unwrap() as u32;
         Some((sampler_index, channel_index))
+    }
+
+    /// Returns the float constant assigned directly to the output
+    /// or `None` if the output does not use a constant.
+    pub fn float_constant(&self, output_index: usize, channel: char) -> Option<f32> {
+        let output = format!("o{output_index}.{channel}");
+
+        // If a constant is assigned, it will be the only dependency.
+        self.output_dependencies.get(&output)?.first()?.parse().ok()
+    }
+
+    /// Returns the uniform buffer parameter assigned directly to the output
+    /// or `None` if the output does not use a parameter.
+    pub fn buffer_parameter(&self, output_index: usize, channel: char) -> Option<BufferParameter> {
+        let output = format!("o{output_index}.{channel}");
+
+        // If a parameter is assigned, it will be the only dependency.
+        let text = self.output_dependencies.get(&output)?.first()?;
+
+        // Parse U_Mate_gWrkFl4[0].x into "U_Mate", "gWrkFl4", 0, 'x'.
+        let (text, c) = text.split_once('.')?;
+        let (buffer, text) = text.rsplit_once('_')?;
+        let (uniform, index) = text.split_once('[')?;
+        let (index, _) = index.rsplit_once(']')?;
+
+        Some(BufferParameter {
+            buffer: buffer.to_string(),
+            uniform: uniform.to_string(),
+            index: index.parse().ok()?,
+            channel: c.chars().next().unwrap(),
+        })
     }
 }
 
@@ -266,6 +307,48 @@ mod tests {
             .into(),
         };
         assert_eq!(Some((2, 2)), shader.sampler_channel_index(0, 'y'));
+    }
+
+    #[test]
+    fn float_constant_multiple_assigments() {
+        let shader = Shader {
+            output_dependencies: [
+                ("o0.x".to_string(), vec!["s0.y".to_string()]),
+                (
+                    "o0.y".to_string(),
+                    vec!["tex.xyz".to_string(), "s2.z".to_string()],
+                ),
+                ("o1.z".to_string(), vec!["0.5".to_string()]),
+            ]
+            .into(),
+        };
+        assert_eq!(None, shader.float_constant(0, 'x'));
+        assert_eq!(Some(0.5), shader.float_constant(1, 'z'));
+    }
+
+    #[test]
+    fn buffer_parameter_multiple_assigments() {
+        let shader = Shader {
+            output_dependencies: [
+                ("o0.x".to_string(), vec!["s0.y".to_string()]),
+                (
+                    "o0.y".to_string(),
+                    vec!["tex.xyz".to_string(), "s2.z".to_string()],
+                ),
+                ("o1.z".to_string(), vec!["U_Mate_param[31].w".to_string()]),
+            ]
+            .into(),
+        };
+        assert_eq!(None, shader.buffer_parameter(0, 'x'));
+        assert_eq!(
+            Some(BufferParameter {
+                buffer: "U_Mate".to_string(),
+                uniform: "param".to_string(),
+                index: 31,
+                channel: 'w'
+            }),
+            shader.buffer_parameter(1, 'z')
+        );
     }
 
     #[test]

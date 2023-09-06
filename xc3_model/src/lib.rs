@@ -312,6 +312,7 @@ fn create_materials(
 }
 
 // TODO: How to test this?
+// TODO: This doesn't work properly for all models?
 fn assign_parameters(
     materials: &Materials,
     material: &xc3_lib::mxmd::Material,
