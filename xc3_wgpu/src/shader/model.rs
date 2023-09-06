@@ -62,9 +62,10 @@ pub struct PerMaterial {
     pub mat_color: glam::Vec4,
     pub gbuffer_assignments: [GBufferAssignment; 6],
     pub gbuffer_defaults: [glam::Vec4; 6],
+    pub alpha_test_texture: glam::IVec4,
 }
 const _: () = assert!(
-    std::mem::size_of:: < PerMaterial > () == 304,
+    std::mem::size_of:: < PerMaterial > () == 320,
     "size of PerMaterial does not match WGSL"
 );
 const _: () = assert!(
@@ -78,6 +79,10 @@ const _: () = assert!(
 const _: () = assert!(
     memoffset::offset_of!(PerMaterial, gbuffer_defaults) == 208,
     "offset of PerMaterial.gbuffer_defaults does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(PerMaterial, alpha_test_texture) == 304,
+    "offset of PerMaterial.alpha_test_texture does not match WGSL"
 );
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]

@@ -509,6 +509,7 @@ fn foliage_materials(materials: &FoliageMaterials) -> Vec<Material> {
                 name: material.name.clone(),
                 flags,
                 textures,
+                alpha_test_texture_index: None,
                 shader,
                 unk_type: ShaderUnkType::Unk0,
                 parameters: Default::default(),

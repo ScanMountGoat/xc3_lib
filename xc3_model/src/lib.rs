@@ -85,6 +85,10 @@ pub struct Material {
     pub flags: MaterialFlags,
     pub textures: Vec<Texture>,
 
+    // TODO: alpha test ref value?
+    /// The texture in [textures](#structfield.textures) used for alpha testing.
+    pub alpha_test_texture_index: Option<usize>,
+
     // TODO: Also store parameters?
     /// Precomputed metadata from the decompiled shader source
     /// or [None] if the database does not contain this model.
@@ -230,6 +234,7 @@ pub fn load_model<P: AsRef<Path>>(
 
     // TODO: Does every wimdo have a chr file?
     // TODO: Does something control the chr name used?
+    // TODO: make this optional?
     let chr = Sar1::from_file(&wimdo_path.with_extension("chr")).unwrap_or_else(|_| {
         // TODO: Is the last digit always 0 like in ch01012013.wimdo -> ch01012010.chr?
         let mut chr_name = model_name.clone();
@@ -310,16 +315,38 @@ fn create_materials(
 
             let parameters = assign_parameters(materials, material);
 
+            let alpha_test_texture_index = find_alpha_test_texture(materials, material);
+
             Material {
                 name: material.name.clone(),
                 flags: material.material_flags,
                 textures,
+                alpha_test_texture_index,
                 shader,
                 unk_type: material.shader_programs[0].unk_type,
                 parameters,
             }
         })
         .collect()
+}
+
+fn find_alpha_test_texture(
+    materials: &Materials,
+    material: &xc3_lib::mxmd::Material,
+) -> Option<usize> {
+    // Find the texture used for alpha testing in the shader.
+    // TODO: investigate how this works in game.
+    let alpha_texture = materials
+        .alpha_test_textures
+        .get(material.alpha_test_texture_index as usize)?;
+    if alpha_texture.unk1 == 0 {
+        material
+            .textures
+            .iter()
+            .position(|t| t.texture_index == alpha_texture.texture_index)
+    } else {
+        None
+    }
 }
 
 // TODO: Some elements get set by values not in the floats array?

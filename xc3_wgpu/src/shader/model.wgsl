@@ -72,6 +72,8 @@ struct PerMaterial {
     gbuffer_assignments: array<GBufferAssignment, 6>,
     // Parameters, constants, and defaults if no texture is assigned.
     gbuffer_defaults: array<vec4<f32>, 6>,
+    // TODO: Where to store the alpha test reference?
+    alpha_test_texture: vec4<i32>
 }
 
 // TODO: Where to store skeleton?
@@ -241,6 +243,14 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
         s8_color,
         s9_color,
     );
+
+    // An index of -1 disables alpha testing.
+    let alpha_texture_index = per_material.alpha_test_texture.x;
+    // Workaround for not being able to use a non constant index.
+    // TODO: Does this always use one of the RGB channels?
+    if assign_channel(alpha_texture_index, 0u, s_colors, 1.0) < 0.5 {
+        discard;
+    }
 
     // The layout of G-Buffer textures is fixed but assignments are not.
     // Each material in game can have a unique shader program.

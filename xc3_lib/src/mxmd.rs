@@ -77,7 +77,7 @@ pub struct Materials {
     pub unks1: [u32; 2],
 
     #[br(parse_with = parse_count_offset, offset = base_offset)]
-    pub unks2: Vec<(u32, u32)>,
+    pub alpha_test_textures: Vec<AlphaTestTexture>,
 
     pub unks3: [u32; 7],
 
@@ -86,6 +86,15 @@ pub struct Materials {
 
     // TODO: padding?
     pub unks4: [u32; 4],
+}
+
+#[derive(BinRead, Debug)]
+pub struct AlphaTestTexture {
+    // TODO: (_, 0, 1) has alpha testing?
+    // TODO: Test different param values?
+    pub texture_index: u16,
+    pub unk1: u16,
+    pub unk2: u32,
 }
 
 /// `ml::MdsMatTechnique` in the Xenoblade 2 binary.
@@ -257,7 +266,10 @@ pub struct Material {
     pub unk_start_index: u16, // sum of previous unk_count?
     pub unk_count: u16,
 
-    pub m_unks2: [u16; 12],
+    pub m_unks2: [u16; 3],
+    /// Index into [alpha_test_textures](struct.Materials.html#structfield.alpha_test_textures).
+    pub alpha_test_texture_index: u16,
+    pub m_unks3: [u16; 8],
 }
 
 #[derive(BinRead, Debug, Clone, Copy, PartialEq, Eq, Hash)]

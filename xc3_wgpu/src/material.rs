@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use glam::{ivec4, uvec4, Vec4};
+use glam::{ivec4, uvec4, IVec4, Vec4};
 use wgpu::util::DeviceExt;
 use xc3_lib::{
     map::FoliageMaterials,
@@ -110,6 +110,9 @@ pub fn materials(
                     mat_color: material.parameters.mat_color.into(),
                     gbuffer_assignments,
                     gbuffer_defaults,
+                    alpha_test_texture: IVec4::splat(
+                        material.alpha_test_texture_index.map(|i| i as i32).unwrap_or(-1),
+                    ),
                 }]),
                 usage: wgpu::BufferUsages::UNIFORM,
             });
@@ -206,6 +209,7 @@ pub fn foliage_materials(
                     mat_color: Vec4::ONE,
                     gbuffer_assignments,
                     gbuffer_defaults,
+                    alpha_test_texture: IVec4::splat(-1),
                 }]),
                 usage: wgpu::BufferUsages::UNIFORM,
             });
