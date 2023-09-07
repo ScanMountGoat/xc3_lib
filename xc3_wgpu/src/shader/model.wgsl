@@ -249,6 +249,8 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     // Workaround for not being able to use a non constant index.
     // TODO: Does this always use one of the RGB channels?
     if assign_channel(alpha_texture_index, 0u, s_colors, 1.0) < 0.5 {
+        // TODO: not working properly for bl301401.wimdo for xc2?
+        // TODO: incorrect reference alpha for comparison?
         discard;
     }
 

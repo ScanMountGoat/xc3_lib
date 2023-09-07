@@ -111,7 +111,10 @@ pub fn materials(
                     gbuffer_assignments,
                     gbuffer_defaults,
                     alpha_test_texture: IVec4::splat(
-                        material.alpha_test_texture_index.map(|i| i as i32).unwrap_or(-1),
+                        material
+                            .alpha_test_texture_index
+                            .map(|i| i as i32)
+                            .unwrap_or(-1),
                     ),
                 }]),
                 usage: wgpu::BufferUsages::UNIFORM,

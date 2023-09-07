@@ -61,6 +61,12 @@ pub struct Models {
     // TODO: when is this None?
     // TODO: Create a type for this constructed from Models?
     pub base_lod_indices: Option<Vec<u16>>,
+
+    // TODO: make this a function instead to avoid dependencies?
+    /// The minimum XYZ coordinates of the bounding volume.
+    pub max_xyz: [f32; 3],
+    /// The maximum XYZ coordinates of the bounding volume.
+    pub min_xyz: [f32; 3],
 }
 
 #[derive(Debug)]
@@ -161,6 +167,8 @@ impl Models {
                 .lod_data
                 .as_ref()
                 .map(|data| data.items2.iter().map(|i| i.base_lod_index).collect()),
+            min_xyz: models.min_xyz,
+            max_xyz: models.max_xyz,
         }
     }
 }
@@ -235,17 +243,19 @@ pub fn load_model<P: AsRef<Path>>(
     // TODO: Does every wimdo have a chr file?
     // TODO: Does something control the chr name used?
     // TODO: make this optional?
-    let chr = Sar1::from_file(&wimdo_path.with_extension("chr")).unwrap_or_else(|_| {
-        // TODO: Is the last digit always 0 like in ch01012013.wimdo -> ch01012010.chr?
-        let mut chr_name = model_name.clone();
-        chr_name.pop();
-        chr_name.push('0');
+    let chr = Sar1::from_file(&wimdo_path.with_extension("chr"))
+        .ok()
+        .or_else(|| {
+            // TODO: Is the last digit always 0 like in ch01012013.wimdo -> ch01012010.chr?
+            let mut chr_name = model_name.clone();
+            chr_name.pop();
+            chr_name.push('0');
 
-        let chr_path = wimdo_path.with_file_name(chr_name).with_extension("chr");
-        Sar1::from_file(&chr_path).unwrap()
-    });
+            let chr_path = wimdo_path.with_file_name(chr_name).with_extension("chr");
+            Sar1::from_file(&chr_path).ok()
+        });
 
-    let skeleton = create_skeleton(&chr, &mxmd);
+    let skeleton = create_skeleton(chr.as_ref(), &mxmd);
 
     let vertex_buffers = read_vertex_buffers(vertex_data, mxmd.models.skeleton.as_ref());
     let index_buffers = read_index_buffers(vertex_data);
@@ -272,9 +282,10 @@ fn create_samplers(materials: &Materials) -> Vec<Sampler> {
         .unwrap_or_default()
 }
 
-fn create_skeleton(chr: &Sar1, mxmd: &Mxmd) -> Option<Skeleton> {
+fn create_skeleton(chr: Option<&Sar1>, mxmd: &Mxmd) -> Option<Skeleton> {
     // Merge both skeletons since the bone lists may be different.
-    let skel = chr
+    // TODO: Create a skeleton even without the chr?
+    let skel = chr?
         .entries
         .iter()
         .find_map(|e| match e.read_data().unwrap() {

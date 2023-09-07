@@ -235,6 +235,8 @@ fn load_prop_model_group(
             .lod_data
             .as_ref()
             .map(|data| data.items2.iter().map(|i| i.base_lod_index).collect()),
+        min_xyz: model_data.models.min_xyz,
+        max_xyz: model_data.models.max_xyz,
     };
 
     for ((model, vertex_data_index), instances) in model_data
@@ -377,6 +379,8 @@ fn load_map_model_group(
                     .lod_data
                     .as_ref()
                     .map(|data| data.items2.iter().map(|i| i.base_lod_index).collect()),
+                min_xyz: model_data.models.min_xyz,
+                max_xyz: model_data.models.max_xyz,
             }
         })
         .collect()
@@ -469,6 +473,8 @@ fn load_foliage_model(
                     .models
                     .lod_data
                     .map(|data| data.items2.iter().map(|i| i.base_lod_index).collect()),
+                min_xyz: model_data.models.min_xyz,
+                max_xyz: model_data.models.max_xyz,
             }],
             buffers: vec![ModelBuffers {
                 vertex_buffers,

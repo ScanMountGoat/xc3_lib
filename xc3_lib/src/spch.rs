@@ -367,7 +367,7 @@ impl NvsdMetadata {
     /// Returns the bytes for the compiled vertex shader, including the 48-byte xv4 header.
     pub fn fragment_binary<'a>(&self, slct_xv4_offset: u32, xv4_section: &'a [u8]) -> &'a [u8] {
         // TODO: Do all models use the second item?
-        let shaders = &self.nvsd_shaders[1];
+        let shaders = &self.nvsd_shaders.last().unwrap();
 
         // The fragment shader immediately follows the vertex shader.
         let offset = slct_xv4_offset as usize + shaders.vertex_xv4_size as usize;

@@ -1,12 +1,13 @@
 use clap::{Parser, ValueEnum};
 use futures::executor::block_on;
-use glam::{vec3, Vec3};
+use glam::{vec3, Mat4, Vec3};
 use image::ImageBuffer;
 use xc3_model::GBufferDatabase;
 use xc3_wgpu::renderer::{CameraData, Xc3Renderer};
 
 const WIDTH: u32 = 512;
 const HEIGHT: u32 = 512;
+const FOV_Y: f32 = 0.5;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -65,8 +66,8 @@ fn main() {
 
     // Initialize the camera transform.
     let translation = vec3(0.0, -1.0, -10.0);
-    let rotation_xyz = Vec3::ZERO;
-    let camera_data = calculate_camera_data(WIDTH, HEIGHT, translation, rotation_xyz);
+    let rotation = vec3(0.0, -20f32.to_radians(), 0.0);
+    let camera_data = calculate_camera_data(WIDTH, HEIGHT, translation, rotation);
     renderer.update_camera(&queue, &camera_data);
 
     let size = wgpu::Extent3d {
@@ -141,6 +142,8 @@ fn main() {
                 FileExtension::Wismhd => xc3_model::load_map(model_path, database.as_ref()),
             };
 
+            frame_model_bounds(&queue, &roots, &renderer);
+
             let groups = xc3_wgpu::model::load_model(&device, &queue, &roots);
 
             let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -164,6 +167,46 @@ fn main() {
             queue.submit(std::iter::empty());
             device.poll(wgpu::Maintain::Wait);
         });
+}
+
+fn frame_model_bounds(queue: &wgpu::Queue, roots: &[xc3_model::ModelRoot], renderer: &Xc3Renderer) {
+    let min_xyz = roots
+        .iter()
+        .flat_map(|r| {
+            r.groups
+                .iter()
+                .flat_map(|g| g.models.iter().map(|m| m.min_xyz.into()))
+        })
+        .reduce(Vec3::min)
+        .unwrap();
+
+    let max_xyz = roots
+        .iter()
+        .flat_map(|r| {
+            r.groups
+                .iter()
+                .flat_map(|g| g.models.iter().map(|m| m.max_xyz.into()))
+        })
+        .reduce(Vec3::max)
+        .unwrap();
+
+    let center = (min_xyz + max_xyz) / 2.0;
+    let bounds_size = max_xyz - min_xyz;
+
+    // Find the base of the triangle based on vertical FOV and model height.
+    // The aspect ratio is 1.0, so FOV_X is also FOV_Y.
+    // Take the max to frame both horizontally and vertically.
+    // Add a small offset to better frame the entire model.
+    let distance = bounds_size.y.max(bounds_size.x) / FOV_Y.tan() + 2.0;
+
+    let rotation = vec3(0.0, -20f32.to_radians(), 0.0);
+    let camera_data = calculate_camera_data(
+        WIDTH,
+        HEIGHT,
+        vec3(center.x, -center.y, -distance),
+        rotation,
+    );
+    renderer.update_camera(queue, &camera_data);
 }
 
 fn save_screenshot(
@@ -220,19 +263,14 @@ fn save_screenshot(
 }
 
 // TODO: Move to xc3_wgpu?
-fn calculate_camera_data(
-    width: u32,
-    height: u32,
-    translation: glam::Vec3,
-    rotation: glam::Vec3,
-) -> CameraData {
+fn calculate_camera_data(width: u32, height: u32, translation: Vec3, rotation: Vec3) -> CameraData {
     let aspect = width as f32 / height as f32;
 
-    let view = glam::Mat4::from_translation(translation)
-        * glam::Mat4::from_rotation_x(rotation.x)
-        * glam::Mat4::from_rotation_y(rotation.y);
+    let view = Mat4::from_translation(translation)
+        * Mat4::from_rotation_x(rotation.x)
+        * Mat4::from_rotation_y(rotation.y);
 
-    let projection = glam::Mat4::perspective_rh(0.5, aspect, 0.1, 100000.0);
+    let projection = Mat4::perspective_rh(FOV_Y, aspect, 0.1, 100000.0);
 
     let view_projection = projection * view;
 

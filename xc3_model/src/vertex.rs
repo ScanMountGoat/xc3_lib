@@ -12,6 +12,7 @@ use std::io::{Cursor, Seek, SeekFrom};
 
 use binrw::BinReaderExt;
 use glam::{Vec2, Vec3, Vec4};
+use log::error;
 use xc3_lib::vertex::{
     DataType, IndexBufferDescriptor, VertexAnimationTarget, VertexBufferDescriptor, VertexData,
 };
@@ -86,8 +87,18 @@ pub fn read_vertex_buffers(
     // TODO: Is this the best place to do this?
     if let Some(skeleton) = skeleton {
         for i in 0..buffers.len() {
-            let weights_buffer = &buffers[vertex_data.weights.vertex_buffer_index as usize];
-            buffers[i].influences = bone_influences(&buffers[i], weights_buffer, skeleton);
+            // TODO: Why is this sometimes out of range?
+            if let Some(weights_buffer) =
+                buffers.get(vertex_data.weights.vertex_buffer_index as usize)
+            {
+                buffers[i].influences = bone_influences(&buffers[i], weights_buffer, skeleton);
+            } else {
+                error!(
+                    "Weights buffer index {} is out of range for length {}.",
+                    vertex_data.weights.vertex_buffer_index,
+                    buffers.len()
+                );
+            }
         }
     }
 

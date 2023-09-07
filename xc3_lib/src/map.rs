@@ -155,8 +155,8 @@ pub struct PropPositionInfo {
     /// The index in [prop_positions](../msmd/struct.Msmd.html#structfield.prop_positions).
     pub prop_position_entry_index: u32,
     pub instance_start_index: u32,
-    pub max: [f32; 3],
-    pub min: [f32; 3],
+    pub max_xyz: [f32; 3],
+    pub min_xyz: [f32; 3],
 }
 
 // TODO: Link to appropriate stream field with doc links.
@@ -220,11 +220,10 @@ pub struct MapModelGroups {
 }
 
 // Groups?
-
 #[derive(BinRead, Debug)]
 pub struct MapModelGroup {
-    pub max: [f32; 3],
-    pub min: [f32; 3],
+    pub max_xyz: [f32; 3],
+    pub min_xyz: [f32; 3],
 
     /// The index of the [VertexData](crate::vertex::VertexData)
     /// in [map_vertex_data](../msmd/struct.Msmd.html#structfield.map_vertex_data).
@@ -237,7 +236,6 @@ pub struct MapModelGroup {
 
 // TODO: Link to appropriate fields with doc links.
 /// The data for a [EnvModel](crate::msmd::EnvModel).
-
 #[derive(BinRead, Debug)]
 pub struct EnvModelData {
     #[br(parse_with = parse_ptr32)]
@@ -265,7 +263,6 @@ pub struct EnvModelData {
 
 // TODO: Link to appropriate fields with doc links.
 /// The data for a [FoliageModel](crate::msmd::FoliageModel).
-
 #[derive(BinRead, Debug)]
 pub struct FoliageModelData {
     #[br(parse_with = parse_ptr32)]
