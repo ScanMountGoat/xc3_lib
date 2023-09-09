@@ -5,7 +5,7 @@ use rayon::prelude::*;
 use xc3_lib::{
     map::{FoliageMaterials, PropInstance, PropLod, PropPositions},
     msmd::{ChannelType, MapParts, Msmd, StreamEntry},
-    mxmd::{MaterialFlags, ShaderUnkType},
+    mxmd::{ShaderUnkType, StateFlags},
     vertex::VertexData,
 };
 use xc3_shader::gbuffer_database::GBufferDatabase;
@@ -500,7 +500,7 @@ fn foliage_materials(materials: &FoliageMaterials) -> Vec<Material> {
             let shader = None;
 
             // TODO: Flags?
-            let flags = MaterialFlags {
+            let flags = StateFlags {
                 flag0: 0,
                 blend_state: xc3_lib::mxmd::BlendState::Disabled,
                 cull_mode: xc3_lib::mxmd::CullMode::Disabled,
@@ -515,7 +515,7 @@ fn foliage_materials(materials: &FoliageMaterials) -> Vec<Material> {
                 name: material.name.clone(),
                 flags,
                 textures,
-                alpha_test_texture_index: None,
+                alpha_test: None,
                 shader,
                 unk_type: ShaderUnkType::Unk0,
                 parameters: Default::default(),

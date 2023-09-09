@@ -4,7 +4,7 @@ use glam::{ivec4, uvec4, IVec4, Vec4};
 use wgpu::util::DeviceExt;
 use xc3_lib::{
     map::FoliageMaterials,
-    mxmd::{MaterialFlags, ShaderUnkType},
+    mxmd::{ShaderUnkType, StateFlags},
 };
 
 use crate::{
@@ -104,17 +104,28 @@ pub fn materials(
                 .map(|s| parse_gbuffer_params_consts(s, &material.parameters))
                 .unwrap_or(GBUFFER_DEFAULTS);
 
+            // TODO: This is normally done using a depth prepass.
+            // TODO: Is it ok to combine the prepass alpha in the main pass like this?
             let per_material = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("PerMaterial"),
                 contents: bytemuck::cast_slice(&[crate::shader::model::PerMaterial {
                     mat_color: material.parameters.mat_color.into(),
                     gbuffer_assignments,
                     gbuffer_defaults,
-                    alpha_test_texture: IVec4::splat(
+                    alpha_test_texture: {
+                        let (texture_index, channel_index) = material
+                            .alpha_test
+                            .as_ref()
+                            .map(|a| (a.texture_index as i32, a.channel_index as i32))
+                            .unwrap_or((-1, 3));
+                        IVec4::new(texture_index, channel_index, 0, 0)
+                    },
+                    alpha_test_ref: Vec4::splat(
                         material
-                            .alpha_test_texture_index
-                            .map(|i| i as i32)
-                            .unwrap_or(-1),
+                            .alpha_test
+                            .as_ref()
+                            .map(|a| a.ref_value)
+                            .unwrap_or(1.0),
                     ),
                 }]),
                 usage: wgpu::BufferUsages::UNIFORM,
@@ -213,6 +224,7 @@ pub fn foliage_materials(
                     gbuffer_assignments,
                     gbuffer_defaults,
                     alpha_test_texture: IVec4::splat(-1),
+                    alpha_test_ref: Vec4::splat(1.0),
                 }]),
                 usage: wgpu::BufferUsages::UNIFORM,
             });
@@ -238,7 +250,7 @@ pub fn foliage_materials(
             // TODO: Flags?
             let pipeline_key = PipelineKey {
                 write_to_all_outputs: true,
-                flags: MaterialFlags {
+                flags: StateFlags {
                     flag0: 0,
                     blend_state: xc3_lib::mxmd::BlendState::Disabled,
                     cull_mode: xc3_lib::mxmd::CullMode::Disabled,

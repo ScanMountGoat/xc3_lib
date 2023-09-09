@@ -9,7 +9,7 @@ use texture::load_textures;
 use vertex::{read_index_buffers, read_vertex_buffers, AttributeData};
 use xc3_lib::{
     msrd::Msrd,
-    mxmd::{MaterialFlags, Materials, Mxmd, ShaderUnkType},
+    mxmd::{Materials, Mxmd, ShaderUnkType, StateFlags},
     sar1::Sar1,
 };
 
@@ -88,12 +88,10 @@ pub struct Mesh {
 #[derive(Debug)]
 pub struct Material {
     pub name: String,
-    pub flags: MaterialFlags,
+    pub flags: StateFlags,
     pub textures: Vec<Texture>,
 
-    // TODO: alpha test ref value?
-    /// The texture in [textures](#structfield.textures) used for alpha testing.
-    pub alpha_test_texture_index: Option<usize>,
+    pub alpha_test: Option<TextureAlphaTest>,
 
     // TODO: Also store parameters?
     /// Precomputed metadata from the decompiled shader source
@@ -105,10 +103,22 @@ pub struct Material {
     pub parameters: MaterialParameters,
 }
 
+/// Information for alpha testing based on sampled texture values.
+#[derive(Debug)]
+pub struct TextureAlphaTest {
+    /// The texture in [textures](struct.Material.html#structfield.textures) used for alpha testing.
+    pub texture_index: usize,
+    /// The RGBA channel to sample for the comparison.
+    pub channel_index: usize,
+    // TODO: alpha test ref value?
+    pub ref_value: f32,
+}
+
 /// Values assigned to known shader uniforms or `None` if not present.
 #[derive(Debug)]
 pub struct MaterialParameters {
     pub mat_color: [f32; 4],
+    pub alpha_test_ref: f32,
     // Assume each param type is used at most once.
     pub tex_matrix: Option<Vec<[f32; 8]>>,
     pub work_float4: Option<Vec<[f32; 4]>>,
@@ -119,6 +129,7 @@ impl Default for MaterialParameters {
     fn default() -> Self {
         Self {
             mat_color: [1.0; 4],
+            alpha_test_ref: 1.0,
             tex_matrix: None,
             work_float4: None,
             work_color: None,
@@ -326,13 +337,13 @@ fn create_materials(
 
             let parameters = assign_parameters(materials, material);
 
-            let alpha_test_texture_index = find_alpha_test_texture(materials, material);
+            let alpha_test = find_alpha_test_texture(materials, material);
 
             Material {
                 name: material.name.clone(),
-                flags: material.material_flags,
+                flags: material.state_flags,
                 textures,
-                alpha_test_texture_index,
+                alpha_test,
                 shader,
                 unk_type: material.shader_programs[0].unk_type,
                 parameters,
@@ -344,17 +355,27 @@ fn create_materials(
 fn find_alpha_test_texture(
     materials: &Materials,
     material: &xc3_lib::mxmd::Material,
-) -> Option<usize> {
+) -> Option<TextureAlphaTest> {
     // Find the texture used for alpha testing in the shader.
     // TODO: investigate how this works in game.
     let alpha_texture = materials
         .alpha_test_textures
         .get(material.alpha_test_texture_index as usize)?;
-    if alpha_texture.unk1 == 0 {
-        material
+    if material.flags.alpha_mask() {
+        // TODO: Do some materials require separate textures in a separate pass?
+        let texture_index = material
             .textures
             .iter()
-            .position(|t| t.texture_index == alpha_texture.texture_index)
+            .position(|t| t.texture_index == alpha_texture.texture_index)?;
+
+        // Some materials use the red channel of a dedicated mask instead of alpha.
+        let channel_index = if material.flags.separate_mask() { 0 } else { 3 };
+
+        Some(TextureAlphaTest {
+            texture_index,
+            channel_index,
+            ref_value: 0.5,
+        })
     } else {
         None
     }
@@ -374,6 +395,7 @@ fn assign_parameters(
 
     let mut parameters = MaterialParameters {
         mat_color: material.color,
+        alpha_test_ref: 0.5, //material.alpha_test_ref,
         tex_matrix: None,
         work_float4: None,
         work_color: None,

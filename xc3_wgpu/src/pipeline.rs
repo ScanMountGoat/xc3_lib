@@ -1,4 +1,4 @@
-use xc3_lib::mxmd::{BlendState, MaterialFlags};
+use xc3_lib::mxmd::{BlendState, StateFlags};
 
 use crate::{DEPTH_FORMAT, GBUFFER_COLOR_FORMAT};
 
@@ -20,7 +20,7 @@ impl ModelPipelineData {
 #[derive(Hash, Clone, Copy, PartialEq, Eq)]
 pub struct PipelineKey {
     pub write_to_all_outputs: bool,
-    pub flags: MaterialFlags,
+    pub flags: StateFlags,
 }
 
 // TODO: Always set depth and stencil state?

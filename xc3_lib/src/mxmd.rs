@@ -227,13 +227,16 @@ pub struct Material {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     pub name: String,
 
-    pub flags: u32,
+    #[br(map(|x: u32| x.into()))]
+    pub flags: MaterialFlags,
+
     pub render_flags: u32,
 
     /// Color multiplier value assigned to the `gMatCol` shader uniform.
     pub color: [f32; 4],
 
-    pub unk_float: f32, // alpha testing ref?
+    // TODO: final byte controls reference?
+    pub alpha_test_ref: [u8; 4],
 
     // TODO: materials with zero textures?
     /// Defines the shader's sampler bindings in order for s0, s1, s2, ...
@@ -241,7 +244,7 @@ pub struct Material {
     pub textures: Vec<Texture>,
 
     // TODO: rename to pipeline state?
-    pub material_flags: MaterialFlags,
+    pub state_flags: StateFlags,
 
     // group indices?
     pub m_unks1_1: u32,
@@ -266,22 +269,37 @@ pub struct Material {
     pub unk_start_index: u16, // sum of previous unk_count?
     pub unk_count: u16,
 
+    // TODO: alt textures offset for non opaque rendering?
     pub m_unks2: [u16; 3],
+
     /// Index into [alpha_test_textures](struct.Materials.html#structfield.alpha_test_textures).
     pub alpha_test_texture_index: u16,
     pub m_unks3: [u16; 8],
 }
 
-#[derive(BinRead, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[bitsize(32)]
+#[derive(DebugBits, FromBits, Clone, Copy)]
 pub struct MaterialFlags {
-    pub flag0: u8,
+    pub unk1: bool,
+    pub unk2: bool,
+    /// Enables alpha testing from a texture when `true`.
+    pub alpha_mask: bool,
+    /// Samples `texture.x` from a dedicated mask texture when `true`.
+    /// Otherwise, the alpha channel is used.
+    pub separate_mask: bool,
+    pub unk: u28,
+}
+
+#[derive(BinRead, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct StateFlags {
+    pub flag0: u8, // depth write?
     pub blend_state: BlendState,
     pub cull_mode: CullMode,
-    pub flag3: u8,
+    pub flag3: u8, // unused?
     pub stencil_state1: StencilState1,
     pub stencil_state2: StencilState2,
     pub depth_func: DepthFunc,
-    pub flag7: u8,
+    pub flag7: u8, // color writes?
 }
 
 // TODO: Convert these to equations for RGB and alpha for docs.
@@ -661,6 +679,7 @@ pub struct Skeleton {
     pub count2: u32,
 
     // TODO: Find a simpler way of writing this?
+    // TODO: helper for separate count.
     #[br(parse_with = parse_ptr32)]
     #[br(args {
         offset: base_offset,
@@ -679,15 +698,28 @@ pub struct Skeleton {
     pub unk_offset1: u32,
     pub unk_offset2: u32,
 
+    // TODO: 0..count-1?
     #[br(parse_with = parse_count_offset, offset = base_offset)]
     pub unk3: Vec<u16>,
 
-    pub unk_offset4: u32,
+    #[br(parse_with = parse_ptr32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    pub unk_offset4: SkeletonUnk4,
     pub unk_offset5: u32,
 
+    // TODO: Disabled by something above?
     // TODO: This doesn't work with some xenoblade 2 models.
     #[br(parse_with = parse_opt_ptr32, args { offset: base_offset, inner: base_offset })]
     pub as_bone_data: Option<AsBoneData>,
+}
+
+#[derive(BinRead, Debug)]
+#[br(import_raw(base_offset: u64))]
+pub struct SkeletonUnk4 {
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    pub unk1: Vec<()>,
+    pub unk_offset: u32,
+    // TODO: padding?
 }
 
 // TODO: Data for AS_ bones?
