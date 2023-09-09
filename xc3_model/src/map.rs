@@ -194,14 +194,8 @@ fn load_prop_model_group(
             &additional_instances.instances,
         );
 
-        if let Some(parts) = parts {
-            add_animated_part_instances(
-                &mut model_instances,
-                additional_instances.animated_parts_start_index as usize,
-                additional_instances.animated_parts_count as usize,
-                parts,
-            );
-        }
+        // TODO: Add animated parts from the additional instances
+        // TODO: This doesn't work on all maps?
     }
 
     // TODO: Is this the correct way to handle animated props?
@@ -261,12 +255,15 @@ fn add_prop_instances(
     props: &[PropLod],
     instances: &[PropInstance],
 ) {
-    for instance in instances {
-        let prop_lod = &props[instance.prop_index as usize];
-        let base_lod_index = prop_lod.base_lod_index as usize;
-        // TODO: Should we also index into the PropModelLod?
-        // TODO: Is PropModelLod.index always the same as its index in the list?
-        model_instances[base_lod_index].push(Mat4::from_cols_array_2d(&instance.transform));
+    // TODO: Why do XC2 maps have instances for empty models?
+    if !model_instances.is_empty() {
+        for instance in instances {
+            let prop_lod = &props[instance.prop_index as usize];
+            let base_lod_index = prop_lod.base_lod_index as usize;
+            // TODO: Should we also index into the PropModelLod?
+            // TODO: Is PropModelLod.index always the same as its index in the list?
+            model_instances[base_lod_index].push(Mat4::from_cols_array_2d(&instance.transform));
+        }
     }
 }
 

@@ -362,8 +362,9 @@ fn material_texture<'a>(
     textures: &'a [wgpu::TextureView],
     index: usize,
 ) -> Option<&'a wgpu::TextureView> {
+    // TODO: Why is this sometimes out of range for XC2 maps?
     material
         .textures
         .get(index)
-        .map(|texture| &textures[texture.image_texture_index])
+        .and_then(|texture| textures.get(texture.image_texture_index))
 }
