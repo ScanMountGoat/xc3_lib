@@ -155,6 +155,7 @@ pub enum ParamType {
     /// `ml::DrMdoSetup::unimate_alphaInfo` in the Xenoblade 2 binary.
     Unk5 = 5,
     Unk6 = 6,
+    Unk7 = 7,
     /// `gToonHeadMat` uniform in the [Spch].
     Unk10 = 10,
 }

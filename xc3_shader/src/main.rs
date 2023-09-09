@@ -54,7 +54,7 @@ fn main() {
             output_file,
         } => {
             let files = create_shader_database(&input_folder);
-            let json = serde_json::to_string_pretty(&files).unwrap();
+            let json = serde_json::to_string(&files).unwrap();
             std::fs::write(output_file, json).unwrap()
         }
     }

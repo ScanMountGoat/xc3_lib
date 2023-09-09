@@ -416,6 +416,7 @@ fn assign_parameters(
             xc3_lib::mxmd::ParamType::Unk4 => (),
             xc3_lib::mxmd::ParamType::Unk5 => (),
             xc3_lib::mxmd::ParamType::Unk6 => (),
+            xc3_lib::mxmd::ParamType::Unk7 => (),
             xc3_lib::mxmd::ParamType::Unk10 => (),
         }
     }
