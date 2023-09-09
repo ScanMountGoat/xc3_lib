@@ -707,9 +707,9 @@ pub struct Skeleton {
     pub unk_offset4: SkeletonUnk4,
     pub unk_offset5: u32,
 
-    // TODO: Disabled by something above?
-    // TODO: This doesn't work with some xenoblade 2 models.
+    // TODO: Disabled by something above for XC2?
     #[br(parse_with = parse_opt_ptr32, args { offset: base_offset, inner: base_offset })]
+    #[br(if(!unk3.is_empty()))]
     pub as_bone_data: Option<AsBoneData>,
 }
 
@@ -717,7 +717,7 @@ pub struct Skeleton {
 #[br(import_raw(base_offset: u64))]
 pub struct SkeletonUnk4 {
     #[br(parse_with = parse_offset_count, offset = base_offset)]
-    pub unk1: Vec<()>,
+    pub unk1: Vec<()>, // TODO: type?
     pub unk_offset: u32,
     // TODO: padding?
 }

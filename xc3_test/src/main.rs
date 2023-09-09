@@ -278,7 +278,9 @@ fn check_mxmd(mxmd: Mxmd, path: &Path) {
 
     if let Some(packed_textures) = mxmd.packed_textures {
         for texture in packed_textures.textures {
-            Mibl::from_bytes(&texture.mibl_data).unwrap();
+            if let Err(e) = Mibl::from_bytes(&texture.mibl_data) {
+                println!("Error reading Mibl for {path:?}: {e}");
+            }
         }
     }
 }
