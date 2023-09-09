@@ -152,46 +152,50 @@ impl GltfFile {
                                     targets: None,
                                 };
 
-                                // Assign one primitive per mesh to create distinct objects in applications.
-                                // In game meshes aren't named, so just use the material name.
+                                // TODO: Add an option to export all material passes?
                                 let material_name = materials[*material_index].name.clone();
-
-                                let mesh = gltf::json::Mesh {
-                                    extensions: Default::default(),
-                                    extras: Default::default(),
-                                    name: material_name,
-                                    primitives: vec![primitive],
-                                    weights: None,
-                                };
-                                let mesh_index = meshes.len() as u32;
-                                meshes.push(mesh);
-
-                                // Instancing is applied at the model level.
-                                // Instance meshes instead so each node has only one parent.
-                                // TODO: Use None instead of a single instance transform?
-                                for instance in &model.instances {
-                                    let mesh_node = gltf::json::Node {
-                                        camera: None,
-                                        children: None,
+                                if !matches!(&material_name, Some(n) if n.contains("_speff_") || n.contains("_outline"))
+                                {
+                                    // Assign one primitive per mesh to create distinct objects in applications.
+                                    // In game meshes aren't named, so just use the material name.
+                                    let mesh = gltf::json::Mesh {
                                         extensions: Default::default(),
                                         extras: Default::default(),
-                                        matrix: if *instance == Mat4::IDENTITY {
-                                            None
-                                        } else {
-                                            Some(instance.to_cols_array())
-                                        },
-                                        mesh: Some(gltf::json::Index::new(mesh_index)),
-                                        name: None,
-                                        rotation: None,
-                                        scale: None,
-                                        translation: None,
-                                        skin: skin_index.map(|i| gltf::json::Index::new(i as u32)),
+                                        name: material_name,
+                                        primitives: vec![primitive],
                                         weights: None,
                                     };
-                                    let child_index = nodes.len() as u32;
-                                    nodes.push(mesh_node);
+                                    let mesh_index = meshes.len() as u32;
+                                    meshes.push(mesh);
 
-                                    children.push(gltf::json::Index::new(child_index))
+                                    // Instancing is applied at the model level.
+                                    // Instance meshes instead so each node has only one parent.
+                                    // TODO: Use None instead of a single instance transform?
+                                    for instance in &model.instances {
+                                        let mesh_node = gltf::json::Node {
+                                            camera: None,
+                                            children: None,
+                                            extensions: Default::default(),
+                                            extras: Default::default(),
+                                            matrix: if *instance == Mat4::IDENTITY {
+                                                None
+                                            } else {
+                                                Some(instance.to_cols_array())
+                                            },
+                                            mesh: Some(gltf::json::Index::new(mesh_index)),
+                                            name: None,
+                                            rotation: None,
+                                            scale: None,
+                                            translation: None,
+                                            skin: skin_index
+                                                .map(|i| gltf::json::Index::new(i as u32)),
+                                            weights: None,
+                                        };
+                                        let child_index = nodes.len() as u32;
+                                        nodes.push(mesh_node);
+
+                                        children.push(gltf::json::Index::new(child_index))
+                                    }
                                 }
                             }
                         }
