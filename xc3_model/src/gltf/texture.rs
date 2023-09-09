@@ -75,7 +75,18 @@ pub fn albedo_generated_key(
     let red_index = texture_channel_index(material, 0, 'x');
     let green_index = texture_channel_index(material, 0, 'y');
     let blue_index = texture_channel_index(material, 0, 'z');
-    let alpha_index = texture_channel_index(material, 0, 'w');
+    // Some materials have alpha testing in a separate depth prepass.
+    // glTF expects the alpha to be part of the main albedo texture.
+    // We'll cheat a little here and convert the mask texture to albedo alpha.
+    // TODO: Will this always work?
+    let alpha_index = material
+        .alpha_test
+        .as_ref()
+        .map(|a| {
+            let texture_index = material.textures[a.texture_index].image_texture_index;
+            (texture_index, a.channel_index)
+        })
+        .or_else(|| texture_channel_index(material, 0, 'w'));
 
     Some(GeneratedImageKey {
         root_index,
@@ -159,7 +170,6 @@ fn generate_image(
         pixel[3] = 255u8;
     }
 
-    // TODO: These images may need to be resized.
     assign_channel(&mut image, red_image, 0);
     assign_channel(&mut image, green_image, 1);
     assign_channel(&mut image, blue_image, 2);
@@ -191,10 +201,31 @@ fn assign_channel(
     image_channel: Option<(&image::RgbaImage, usize)>,
     output_channel: usize,
 ) {
-    if let Some((image, channel)) = image_channel {
-        for (pixel, channel_pixel) in output.pixels_mut().zip(image.pixels()) {
-            pixel[output_channel] = channel_pixel[channel];
+    if let Some((input, input_channel)) = image_channel {
+        // Ensure the input and output images have the same dimensions.
+        // TODO: Is it worth caching this operation?
+        if input.dimensions() != output.dimensions() {
+            let resized = image::imageops::resize(
+                input,
+                output.width(),
+                output.height(),
+                image::imageops::FilterType::Triangle,
+            );
+            assign_pixels(output, &resized, output_channel, input_channel);
+        } else {
+            assign_pixels(output, input, output_channel, input_channel);
         }
+    }
+}
+
+fn assign_pixels(
+    output: &mut image::RgbaImage,
+    input: &image::RgbaImage,
+    output_channel: usize,
+    input_channel: usize,
+) {
+    for (output_pixel, input_pixel) in output.pixels_mut().zip(input.pixels()) {
+        output_pixel[output_channel] = input_pixel[input_channel];
     }
 }
 

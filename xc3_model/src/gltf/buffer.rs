@@ -140,6 +140,8 @@ impl Buffers {
                         );
                     }
                     AttributeData::VertexColor(values) => {
+                        // TODO: Should these be set as a separate attribute?
+                        // Using vertex color causes weird rendering issues.
                         self.add_attribute_values(
                             values,
                             gltf::Semantic::Colors(0),

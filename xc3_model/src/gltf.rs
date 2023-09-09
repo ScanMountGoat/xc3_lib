@@ -461,6 +461,15 @@ fn create_material(
                 extras: Default::default(),
             }
         }),
+        alpha_mode: if material.alpha_test.is_some() {
+            Valid(gltf::json::material::AlphaMode::Mask)
+        } else {
+            Valid(gltf::json::material::AlphaMode::Opaque)
+        },
+        alpha_cutoff: material
+            .alpha_test
+            .as_ref()
+            .map(|a| gltf::json::material::AlphaCutoff(a.ref_value)),
         ..Default::default()
     }
 }
