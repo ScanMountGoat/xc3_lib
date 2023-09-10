@@ -7,7 +7,7 @@ edition = "2021"
 xc3_lib = { path = "../xc3_lib" }
 xc3_shader = { path = "../xc3_shader" }
 glam = { version = "0.24.0", features = ["bytemuck"] }
-gltf = "1.2.0"
+gltf = { version = "1.2.0", features = ["extras"] }
 binrw = "0.11.2"
 image_dds = "0.1.1"
 tegra_swizzle = "0.3.1"

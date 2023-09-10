@@ -39,7 +39,7 @@ impl GltfFile {
     /// See [load_model](crate::load_model) or [load_map](crate::load_map) for loading files.
     ///
     /// The `model_name` is used to create resource file names and should
-    /// usually match the file name used for [save](GltfFile::save) without the `.gltf` extension.
+    /// usually match the file name for [save](GltfFile::save) without the `.gltf` extension.
     pub fn new(model_name: &str, roots: &[ModelRoot]) -> Self {
         let mut texture_cache = TextureCache::new(roots);
 

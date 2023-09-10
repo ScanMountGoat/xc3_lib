@@ -1,0 +1,8 @@
+[package]
+name = "xc3_gltf"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+xc3_model = { path = "../xc3_model" }
+clap = { version = "4.2.7", features = ["derive"] }

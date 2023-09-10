@@ -24,6 +24,9 @@ File data starts as an unstructured array of bytes in one or more binary files. 
 3. Convert the xc3_model data to the gltf format and textures to PNG (xc3_model).
 
 ## Projects
+### xc3_gltf
+A command line tool for converting models and maps from Xenoblade 1 DE, Xenoblade 2, and Xenoblade 3 to glTF. This project is a thin wrapper over the conversion capabilities provided by xc3_model. Sharing the xc3_model format between glTF and xc3_wgpu reduces duplicate code code and ensures the conversion code receives more testing. The project provides an alternative to dedicated importer addons and also handles using the xc3_shader database to automatically repack image texture channels. glTF is designed as an interchange format, so there are some limitations in terms of what the output file can support. Using xc3_model directly or xc3_model_py provides consumers with more control at the cost of increased complexity.
+
 ### xc3_lib
 The file format library and utilities. The goal is to create the simplest possible API that can fully represent the data on disk. This means many buffers will not be decompressed, decoded, deswizzled, etc since this would make it harder to export a file binary identical with the original. 
 

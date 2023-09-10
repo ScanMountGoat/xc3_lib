@@ -140,11 +140,11 @@ impl Buffers {
                         );
                     }
                     AttributeData::VertexColor(values) => {
-                        // TODO: Should these be set as a separate attribute?
-                        // Using vertex color causes weird rendering issues.
+                        // TODO: Vertex color isn't always an RGB multiplier?
+                        // Use a custom attribute to avoid rendering issues.
                         self.add_attribute_values(
                             values,
-                            gltf::Semantic::Colors(0),
+                            gltf::Semantic::Extras("_Color".to_string()),
                             gltf::json::accessor::Type::Vec4,
                             gltf::json::accessor::ComponentType::F32,
                             Some(Valid(Target::ArrayBuffer)),
