@@ -229,8 +229,8 @@ fn assign_pixels(
     }
 }
 
-pub fn image_name(key: &GeneratedImageKey) -> String {
-    let mut name = format!("root{}", key.root_index);
+pub fn image_name(key: &GeneratedImageKey, model_name: &str) -> String {
+    let mut name = format!("{model_name}_root{}", key.root_index);
     if let Some((i, c)) = key.red_index {
         name += &format!("_r{i}[{c}]");
     }

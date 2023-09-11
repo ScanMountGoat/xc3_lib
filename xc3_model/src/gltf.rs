@@ -255,7 +255,7 @@ impl GltfFile {
                         buffer_view: None,
                         mime_type: None,
                         name: None,
-                        uri: Some(image_name(key)),
+                        uri: Some(image_name(key, model_name)),
                         extensions: None,
                         extras: Default::default(),
                     });
@@ -295,7 +295,7 @@ impl GltfFile {
         let images = texture_cache
             .generated_images
             .into_par_iter()
-            .map(|(key, image)| (image_name(&key), image))
+            .map(|(key, image)| (image_name(&key, model_name), image))
             .collect();
 
         Self {
