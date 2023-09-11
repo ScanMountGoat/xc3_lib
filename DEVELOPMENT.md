@@ -40,6 +40,9 @@ The easiest way to test files is using an emulator like Ryujinx and the [xc3-fil
 ## Code Generation
 For seeing the generated code from procedural macros, use [cargo expand](https://github.com/dtolnay/cargo-expand). For example, call `cargo expand -p xc3_lib mxmd > expanded.rs` to output the expanded contents of `mxmd.rs`.
 
+## Shader JSON Database
+Multiple projects rely on a generated JSON databases of shader metadata to properly assign textures and material parameters. This database is specific to a particular game version like Xenoblade 3 or Xenoblade 1 DE. The first step is to decompile the shaders. This requires `Ryujinx.ShaderTools`, which can be compiled from source from [Ryujinx](https://github.com/Ryujinx/Ryujinx). The final step is to convert the decompiled shaders into a database.
+
 ## Debugging File Parsing
 The easiest way to test file parsing is by running xc3_test on an extracted game dump and noting any errors printed to the console. The `binrw` library used to generate parsing code also supports debugging the location and values of specific fields by adding the `#[br(dbg)]` attribute like in the example below. This makes it easy to identify the offset to use when hex editing for in game tests.
 
