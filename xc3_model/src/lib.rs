@@ -8,6 +8,7 @@ use skinning::Influence;
 use texture::load_textures;
 use vertex::{read_index_buffers, read_vertex_buffers, AttributeData};
 use xc3_lib::{
+    apmd::Apmd,
     msrd::Msrd,
     mxmd::{Materials, Mxmd, ShaderUnkType, StateFlags},
     sar1::Sar1,
@@ -230,7 +231,22 @@ pub fn load_model<P: AsRef<Path>>(
 ) -> ModelRoot {
     let wimdo_path = wimdo_path.as_ref();
 
-    let mxmd = Mxmd::from_file(wimdo_path).unwrap();
+    let mxmd = Mxmd::from_file(wimdo_path).unwrap_or_else(|_| {
+        // Some wimdo files have the mxmd in an archive.
+        Apmd::from_file(wimdo_path)
+            .unwrap()
+            .entries
+            .iter()
+            .find_map(|e| {
+                if let xc3_lib::apmd::EntryData::Mxmd(mxmd) = e.read_data() {
+                    Some(mxmd)
+                } else {
+                    None
+                }
+            })
+            .unwrap()
+    });
+
     // TODO: Some files don't have a wismt?
     let msrd = Msrd::from_file(wimdo_path.with_extension("wismt")).ok();
     // TODO: Avoid unwrap.

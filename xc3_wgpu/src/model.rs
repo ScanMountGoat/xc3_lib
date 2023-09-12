@@ -281,12 +281,19 @@ fn load_textures(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     root: &xc3_model::ModelRoot,
-) -> Vec<wgpu::TextureView> {
+) -> Vec<(wgpu::TextureViewDimension, wgpu::TextureView)> {
     root.image_textures
         .iter()
         .map(|texture| {
-            create_texture(device, queue, texture)
-                .create_view(&wgpu::TextureViewDescriptor::default())
+            // Track the view dimension since shaders expect 2D.
+            let dimension = match &texture.view_dimension {
+                xc3_model::ViewDimension::D2 => wgpu::TextureViewDimension::D2,
+                xc3_model::ViewDimension::D3 => wgpu::TextureViewDimension::D3,
+                xc3_model::ViewDimension::Cube => wgpu::TextureViewDimension::Cube,
+            };
+            let texture = create_texture(device, queue, texture)
+                .create_view(&wgpu::TextureViewDescriptor::default());
+            (dimension, texture)
         })
         .collect()
 }
@@ -297,7 +304,7 @@ fn create_model_group(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     group: &xc3_model::ModelGroup,
-    textures: &[wgpu::TextureView],
+    textures: &[(wgpu::TextureViewDimension, wgpu::TextureView)],
     pipeline_data: &ModelPipelineData,
 ) -> ModelGroup {
     let models = group

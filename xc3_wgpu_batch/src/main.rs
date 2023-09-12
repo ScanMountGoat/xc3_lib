@@ -111,20 +111,6 @@ fn main() {
 
             // TODO: Fix files that don't load.
             let paths = [
-                // XC3
-                "oj00031600.wimdo", // 3D texture
-                "oj03010100.wimdo", // DMPA
-                "ch02011110.wimdo", // 3D texture
-                "ch02011111.wimdo", // 3D texture
-                "ch02011112.wimdo", // 3D texture
-                "ch02011113.wimdo", // 3D texture
-                "ch02011114.wimdo", // 3D texture
-                "ch02011115.wimdo", // 3D texture
-                "ch02011116.wimdo", // 3D texture
-                "ch02011117.wimdo", // 3D texture
-                "ch02011118.wimdo", // 3D texture
-                "ch02011119.wimdo", // 3D texture
-                "ch02011120.wimdo", // 3D texture
                 // XC2
                 "oj108004.wimdo",
                 "we010601.wimdo",

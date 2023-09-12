@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use glam::{ivec4, uvec4, IVec4, Vec4};
+use log::error;
 use wgpu::util::DeviceExt;
 use xc3_lib::{
     map::FoliageMaterials,
@@ -69,7 +70,7 @@ pub fn materials(
     queue: &wgpu::Queue,
     pipeline_data: &ModelPipelineData,
     materials: &[xc3_model::Material],
-    textures: &[wgpu::TextureView],
+    textures: &[(wgpu::TextureViewDimension, wgpu::TextureView)],
 ) -> (Vec<Material>, HashMap<PipelineKey, wgpu::RenderPipeline>) {
     // TODO: Is there a better way to handle missing textures?
     // TODO: Is it worth creating a separate shaders for each material?
@@ -359,7 +360,7 @@ fn extract_parameter(
 
 fn material_texture<'a>(
     material: &xc3_model::Material,
-    textures: &'a [wgpu::TextureView],
+    textures: &'a [(wgpu::TextureViewDimension, wgpu::TextureView)],
     index: usize,
 ) -> Option<&'a wgpu::TextureView> {
     // TODO: Why is this sometimes out of range for XC2 maps?
@@ -367,4 +368,13 @@ fn material_texture<'a>(
         .textures
         .get(index)
         .and_then(|texture| textures.get(texture.image_texture_index))
+        .and_then(|(d, t)| {
+            // TODO: How to handle 3D textures within the shader?
+            if *d == wgpu::TextureViewDimension::D2 {
+                Some(t)
+            } else {
+                error!("Expected 2D texture but found dimension {d:?}.");
+                None
+            }
+        })
 }

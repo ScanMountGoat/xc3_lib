@@ -703,12 +703,16 @@ pub struct Skeleton {
     #[br(parse_with = parse_count_offset, offset = base_offset)]
     pub unk3: Vec<u16>,
 
+    // TODO: Not all models have these fields?
+    // TODO: Doesn't work for xenoblade 2?
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset })]
-    pub unk_offset4: SkeletonUnk4,
+    #[br(if(unk_offset1 > 0 && unk_offset2 > 0))]
+    pub unk_offset4: Option<SkeletonUnk4>,
 
     #[br(parse_with = parse_ptr32, offset = base_offset)]
-    pub unk_offset5: SkeletonUnk5,
+    #[br(if(unk_offset1 > 0 && unk_offset2 > 0))]
+    pub unk_offset5: Option<SkeletonUnk5>,
 
     // TODO: Disabled by something above for XC2?
     #[br(parse_with = parse_opt_ptr32, args { offset: base_offset, inner: base_offset })]
