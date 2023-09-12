@@ -20,6 +20,7 @@ pub struct Bone {
 impl Skeleton {
     // TODO: Test this?
     pub fn from_skel(skel: &xc3_lib::bc::Skel, skeleton: &xc3_lib::mxmd::Skeleton) -> Self {
+        // Start with the chr skeleton since it has parenting information.
         let mut bones: Vec<_> = skel
             .names
             .elements
@@ -38,20 +39,31 @@ impl Skeleton {
             .collect();
 
         // Merge the mxmd skeleton in case there are any missing bones.
-        // TODO: Does the mxmd have parenting information for all bones?
-        // TODO: Is it safe to assume only "AS_..." bones need to be added?
-        // TODO: Is it safe to assume these bones aren't part of the chr skeleton?
-        if let Some(as_bone_data) = &skeleton.as_bone_data {
-            for bone in &as_bone_data.bones {
-                // TODO: Don't assume these bones are all parented?
-                let parent_name = &skeleton.bones[bone.parent_index as usize].name;
+        for (bone, transform) in skeleton.bones.iter().zip(skeleton.transforms.iter()) {
+            if !bones.iter().any(|b| b.name == bone.name) {
+                // TODO: Parent index?
                 bones.push(Bone {
-                    name: skeleton.bones[bone.bone_index as usize].name.clone(),
-                    transform: Mat4::from_cols_array_2d(
-                        &skeleton.transforms[bone.bone_index as usize],
-                    ),
-                    parent_index: bones.iter().position(|b| &b.name == parent_name),
+                    name: bone.name.clone(),
+                    transform: Mat4::from_cols_array_2d(transform),
+                    parent_index: None,
                 });
+            }
+        }
+
+        // Add parenting and transform information for AS_ bones.
+        // TODO: Does the mxmd have parenting information for all bones?
+        if let Some(as_bone_data) = &skeleton.as_bone_data {
+            for as_bone in &as_bone_data.bones {
+                // TODO: Don't assume these bones are all parented?
+                let bone_name = &skeleton.bones[as_bone.bone_index as usize].name;
+                let parent_name = &skeleton.bones[as_bone.parent_index as usize].name;
+                let parent_index = bones.iter().position(|b| &b.name == parent_name);
+
+                if let Some(bone) = bones.iter_mut().find(|b| &b.name == bone_name) {
+                    bone.transform =
+                        Mat4::from_cols_array_2d(&skeleton.transforms[as_bone.bone_index as usize]);
+                    bone.parent_index = parent_index;
+                }
             }
         }
 

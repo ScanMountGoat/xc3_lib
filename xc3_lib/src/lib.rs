@@ -35,8 +35,6 @@ pub mod xbc1;
 
 const PAGE_SIZE: u64 = 4096;
 
-// TODO: parse_vec helper for shared code?
-// TODO: use the helper for parsing offset and count from args?
 fn parse_offset_count<T, R, Args>(
     reader: &mut R,
     endian: binrw::Endian,
@@ -49,28 +47,7 @@ where
 {
     let offset = u32::read_options(reader, endian, ())?;
     let count = u32::read_options(reader, endian, ())?;
-
-    let saved_pos = reader.stream_position()?;
-
-    reader.seek(SeekFrom::Start(offset as u64 + args.offset))?;
-    trace!(
-        "{:?}: {:?}",
-        std::any::type_name::<Vec<T>>(),
-        reader.stream_position().unwrap()
-    );
-
-    let values = Vec::<T>::read_options(
-        reader,
-        endian,
-        VecArgs {
-            count: count as usize,
-            inner: args.inner,
-        },
-    )?;
-
-    reader.seek(SeekFrom::Start(saved_pos))?;
-
-    Ok(values)
+    parse_vec(reader, endian, args, offset as u64, count as usize)
 }
 
 fn parse_count_offset<T, R, Args>(
@@ -85,10 +62,24 @@ where
 {
     let count = u32::read_options(reader, endian, ())?;
     let offset = u32::read_options(reader, endian, ())?;
+    parse_vec(reader, endian, args, offset as u64, count as usize)
+}
 
+fn parse_vec<T, R, Args>(
+    reader: &mut R,
+    endian: binrw::Endian,
+    args: FilePtrArgs<Args>,
+    offset: u64,
+    count: usize,
+) -> BinResult<Vec<T>>
+where
+    for<'a> T: BinRead<Args<'a> = Args> + 'static,
+    R: std::io::Read + std::io::Seek,
+    Args: Clone,
+{
     let saved_pos = reader.stream_position()?;
 
-    reader.seek(SeekFrom::Start(offset as u64 + args.offset))?;
+    reader.seek(SeekFrom::Start(offset + args.offset))?;
     trace!(
         "{:?}: {:?}",
         std::any::type_name::<Vec<T>>(),
@@ -99,7 +90,7 @@ where
         reader,
         endian,
         VecArgs {
-            count: count as usize,
+            count,
             inner: args.inner,
         },
     )?;

@@ -684,10 +684,7 @@ pub struct Skeleton {
     #[br(parse_with = parse_ptr32)]
     #[br(args {
         offset: base_offset,
-        inner: args! {
-            count: count1 as usize,
-            inner: base_offset
-        }
+        inner: args! { count: count1 as usize, inner: base_offset }
     })]
     pub bones: Vec<Bone>,
 
@@ -696,7 +693,10 @@ pub struct Skeleton {
     #[br(args { offset: base_offset, inner: args! { count: count1 as usize } })]
     pub transforms: Vec<[[f32; 4]; 4]>,
 
+    // [f32; 4] * 4?
     pub unk_offset1: u32,
+
+    // [f32; 4] * 108?
     pub unk_offset2: u32,
 
     // TODO: 0..count-1?
@@ -706,7 +706,9 @@ pub struct Skeleton {
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset })]
     pub unk_offset4: SkeletonUnk4,
-    pub unk_offset5: u32,
+
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    pub unk_offset5: SkeletonUnk5,
 
     // TODO: Disabled by something above for XC2?
     #[br(parse_with = parse_opt_ptr32, args { offset: base_offset, inner: base_offset })]
@@ -717,10 +719,29 @@ pub struct Skeleton {
 #[derive(BinRead, Debug)]
 #[br(import_raw(base_offset: u64))]
 pub struct SkeletonUnk4 {
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
-    pub unk1: Vec<()>, // TODO: type?
-    pub unk_offset: u32,
+    // TODO: u16 indices?
+    pub offset: u32,
+    pub count: u32,
+
+    #[br(parse_with = parse_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: count as usize }})]
+    pub unk_offset: Vec<[[f32; 4]; 4]>,
     // TODO: padding?
+}
+
+#[binread]
+#[derive(Debug)]
+#[br(stream = r)]
+pub struct SkeletonUnk5 {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = parse_count_offset, offset = base_offset)]
+    pub unk1: Vec<[f32; 4]>,
+
+    // TODO: count?
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    pub unk_offset: [f32; 12], // TODO: padding?
 }
 
 // TODO: Data for AS_ bones?
