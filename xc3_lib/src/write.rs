@@ -23,7 +23,12 @@ pub(crate) trait Xc3Write {
 // TODO: Come up with a better name.
 // The full write operation that updates all offsets.
 pub(crate) trait Xc3WriteFull {
-    fn write_full<W: Write + Seek>(&self, writer: &mut W, data_ptr: &mut u64) -> BinResult<()>;
+    fn write_full<W: Write + Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> BinResult<()>;
 }
 
 // Support importing both the trait and derive macro at once.
@@ -61,9 +66,9 @@ impl<'a, T> Offset<'a, T> {
 
     fn set_offset_seek<W: Write + Seek>(
         &self,
-        data_ptr: &mut u64,
         writer: &mut W,
-        data_ptr_base_offset: u64,
+        base_offset: u64,
+        data_ptr: &mut u64,
         type_alignment: u64,
     ) -> Result<(), binrw::Error> {
         // Account for the type and field alignment.
@@ -72,7 +77,7 @@ impl<'a, T> Offset<'a, T> {
 
         // Update the offset value.
         writer.seek(SeekFrom::Start(self.position))?;
-        ((*data_ptr - data_ptr_base_offset) as u32).write_le(writer)?;
+        ((*data_ptr - base_offset) as u32).write_le(writer)?;
 
         // Seek to the data position.
         writer.seek(SeekFrom::Start(*data_ptr))?;
@@ -86,10 +91,10 @@ impl<'a, T: Xc3Write> Offset<'a, T> {
     pub(crate) fn write_offset<W: Write + Seek>(
         &self,
         writer: &mut W,
-        data_ptr_base_offset: u64,
+        base_offset: u64,
         data_ptr: &mut u64,
     ) -> BinResult<T::Offsets<'_>> {
-        self.set_offset_seek(data_ptr, writer, data_ptr_base_offset, T::ALIGNMENT)?;
+        self.set_offset_seek(writer, base_offset, data_ptr, T::ALIGNMENT)?;
         let offsets = self.data.write(writer, data_ptr)?;
         Ok(offsets)
     }
@@ -100,12 +105,12 @@ impl<'a, T: Xc3Write> Offset<'a, Option<T>> {
     pub(crate) fn write_offset<W: Write + Seek>(
         &self,
         writer: &mut W,
-        data_ptr_base_offset: u64,
+        base_offset: u64,
         data_ptr: &mut u64,
     ) -> BinResult<Option<T::Offsets<'_>>> {
         // Only update the offset if there is data.
         if let Some(data) = self.data {
-            self.set_offset_seek(data_ptr, writer, data_ptr_base_offset, T::ALIGNMENT)?;
+            self.set_offset_seek(writer, base_offset, data_ptr, T::ALIGNMENT)?;
             let offsets = data.write(writer, data_ptr)?;
             Ok(Some(offsets))
         } else {
@@ -118,12 +123,29 @@ impl<'a, T: Xc3Write + Xc3WriteFull> Offset<'a, T> {
     pub(crate) fn write_offset_full<W: Write + Seek>(
         &self,
         writer: &mut W,
-        data_ptr_base_offset: u64,
+        base_offset: u64,
         data_ptr: &mut u64,
     ) -> BinResult<()> {
-        self.set_offset_seek(data_ptr, writer, data_ptr_base_offset, T::ALIGNMENT)?;
-        let offsets = self.data.write_full(writer, data_ptr)?;
-        Ok(offsets)
+        self.set_offset_seek(writer, base_offset, data_ptr, T::ALIGNMENT)?;
+        self.data.write_full(writer, base_offset, data_ptr)?;
+        Ok(())
+    }
+}
+
+// This doesn't need specialization because Option does not impl Xc3WriteFull.
+impl<'a, T: Xc3Write + Xc3WriteFull> Offset<'a, Option<T>> {
+    pub(crate) fn write_offset_full<W: Write + Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> BinResult<()> {
+        // Only update the offset if there is data.
+        if let Some(data) = self.data {
+            self.set_offset_seek(writer, base_offset, data_ptr, T::ALIGNMENT)?;
+            data.write_full(writer, base_offset, data_ptr)?;
+        }
+        Ok(())
     }
 }
 
@@ -171,6 +193,18 @@ impl Xc3Write for String {
     const ALIGNMENT: u64 = 1;
 }
 
+impl Xc3WriteFull for String {
+    fn write_full<W: Write + Seek>(
+        &self,
+        writer: &mut W,
+        _base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> BinResult<()> {
+        self.write(writer, data_ptr)?;
+        Ok(())
+    }
+}
+
 impl<T> Xc3Write for Vec<T>
 where
     T: Xc3Write + 'static,
@@ -193,18 +227,28 @@ where
     T: Xc3Write + Xc3WriteFull + 'static,
     for<'a> T::Offsets<'a>: Xc3WriteFull,
 {
-    fn write_full<W: Write + Seek>(&self, writer: &mut W, data_ptr: &mut u64) -> BinResult<()> {
+    fn write_full<W: Write + Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> BinResult<()> {
         // Ensure all items are written before their pointed to data.
         let offsets = self.write(writer, data_ptr)?;
         for item in offsets {
-            item.write_full(writer, data_ptr)?;
+            item.write_full(writer, base_offset, data_ptr)?;
         }
         Ok(())
     }
 }
 
 impl Xc3WriteFull for () {
-    fn write_full<W: Write + Seek>(&self, _writer: &mut W, _data_ptr: &mut u64) -> BinResult<()> {
+    fn write_full<W: Write + Seek>(
+        &self,
+        _writer: &mut W,
+        _base_offset: u64,
+        _data_ptr: &mut u64,
+    ) -> BinResult<()> {
         Ok(())
     }
 }
@@ -213,9 +257,10 @@ macro_rules! xc3_write_full_binwrite_impl {
     ($($ty:ty),*) => {
         $(
             impl Xc3WriteFull for $ty {
-                fn write_full<W: Write + Seek>(
+                fn write_full<W: std::io::Write + std::io::Seek>(
                     &self,
                     writer: &mut W,
+                    _base_offset: u64,
                     data_ptr: &mut u64,
                 ) -> BinResult<()> {
                     self.write_le(writer)?;

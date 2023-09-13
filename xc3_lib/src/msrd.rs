@@ -159,6 +159,7 @@ impl Xc3WriteFull for Msrd {
     fn write_full<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
+        _base_offset: u64,
         data_ptr: &mut u64,
     ) -> BinResult<()> {
         let msrd_offsets = self.write(writer, data_ptr)?;
@@ -183,26 +184,9 @@ impl Xc3WriteFull for Msrd {
             .texture_ids
             .write_offset(writer, base_offset, data_ptr)?;
 
-        // TODO: Store the base offset with the offsets themselves?
-        // TODO: This would allow making Offset impl Xc3Write?
-        // TODO: Every field in an offset type shares a base offset?
-        if let Some(msrd_textures_offset) =
-            msrd_offsets
-                .textures
-                .write_offset(writer, base_offset, data_ptr)?
-        {
-            let textures_offsets = msrd_textures_offset.textures.write_offset(
-                writer,
-                msrd_textures_offset.base_offset,
-                data_ptr,
-            )?;
-
-            for offsets in textures_offsets {
-                offsets
-                    .name
-                    .write_offset(writer, msrd_textures_offset.base_offset, data_ptr)?;
-            }
-        }
+        msrd_offsets
+            .textures
+            .write_offset_full(writer, base_offset, data_ptr)?;
 
         for offsets in stream_offsets {
             offsets.xbc1.write_offset(writer, 0, data_ptr)?;

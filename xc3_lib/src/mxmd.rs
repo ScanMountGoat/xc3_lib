@@ -1,7 +1,10 @@
 //! Model data in `.wimdo` files.
 use crate::{
-    msrd::TextureResource, parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32,
-    parse_string_ptr32, spch::Spch, vertex::VertexData, write::Xc3Write,
+    msrd::TextureResource,
+    parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
+    spch::Spch,
+    vertex::VertexData,
+    write::{Xc3Write, Xc3WriteFull},
 };
 use bilge::prelude::*;
 use binrw::{args, binread, BinRead};
@@ -640,7 +643,7 @@ pub struct PackedTexture {
 
 // TODO: The alignment here is only 2?
 #[binread]
-#[derive(Debug, Xc3Write)]
+#[derive(Debug, Xc3Write, Xc3WriteFull)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct PackedExternalTextures {
@@ -655,7 +658,7 @@ pub struct PackedExternalTextures {
     pub strings_offset: u32,
 }
 
-#[derive(BinRead, Xc3Write, Debug)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 #[br(import_raw(base_offset: u64))]
 pub struct PackedExternalTexture {
     pub unk1: u32,

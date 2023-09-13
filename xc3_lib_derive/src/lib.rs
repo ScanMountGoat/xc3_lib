@@ -75,10 +75,22 @@ pub fn xc3_write_full_derive(input: TokenStream) -> TokenStream {
         offset_field_names, ..
     } = parse_field_data(&input.data);
 
+    let has_base_offset = has_base_offset(&input.attrs);
+    let self_base_offset = if has_base_offset {
+        quote!(self.base_offset;)
+    } else {
+        quote!(base_offset)
+    };
+    let offsets_base_offset = if has_base_offset {
+        quote!(offsets.base_offset;)
+    } else {
+        quote!(base_offset)
+    };
+
     // TODO: How to handle the base offset?
     let write_fields: Vec<_> = offset_field_names
         .iter()
-        .map(|f| quote!(self.#f.write_offset_full(writer, 0, data_ptr)?;))
+        .map(|f| quote!(self.#f.write_offset_full(writer, base_offset, data_ptr)?;))
         .collect();
 
     // Add a write impl to the offset type to support nested types.
@@ -88,10 +100,12 @@ pub fn xc3_write_full_derive(input: TokenStream) -> TokenStream {
             fn write_full<W: std::io::Write + std::io::Seek>(
                 &self,
                 writer: &mut W,
+                base_offset: u64,
                 data_ptr: &mut u64,
             ) -> binrw::BinResult<()> {
                 // Assume data is arranged in order by field.
                 // TODO: investigate deriving other orderings.
+                let base_offset = #self_base_offset;
                 #(#write_fields)*
                 Ok(())
             }
@@ -101,10 +115,12 @@ pub fn xc3_write_full_derive(input: TokenStream) -> TokenStream {
             fn write_full<W: std::io::Write + std::io::Seek>(
                 &self,
                 writer: &mut W,
+                base_offset: u64,
                 data_ptr: &mut u64,
             ) -> binrw::BinResult<()> {
                 let offsets = self.write(writer, data_ptr)?;
-                offsets.write_full(writer, data_ptr)?;
+                let base_offset = #offsets_base_offset;
+                offsets.write_full(writer, base_offset, data_ptr)?;
                 Ok(())
             }
         }

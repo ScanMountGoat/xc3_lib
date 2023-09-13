@@ -1,6 +1,6 @@
 use crate::{
     parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32,
-    write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteFull},
+    write::{xc3_write_binwrite_impl, xc3_write_full_binwrite_impl, Xc3Write, Xc3WriteFull},
 };
 use binrw::{args, binread, BinRead, BinResult, BinWrite};
 
@@ -203,7 +203,7 @@ pub struct VertexAnimationTarget {
 // TODO: How are weights assigned to vertices?
 // TODO: Skinning happens in the vertex shader?
 // TODO: Where are the skin weights in the vertex shader?
-#[derive(BinRead, Xc3Write, Debug)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 pub struct Weights {
     #[br(parse_with = parse_count_offset)]
     #[xc3(count_offset)]
@@ -226,7 +226,7 @@ pub struct Weights {
 
 // TODO: Counts up to the total number of "vertices" in the skin weights buffer?
 // TODO: How to select the weight group for each mesh in the model?
-#[derive(BinRead, BinWrite, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct WeightGroup {
     pub output_start_index: u32,
     /// Start of the items in the weights buffer at [vertex_buffer_index](struct.Weights.html#structfield.vertex_buffer_index).
@@ -247,7 +247,7 @@ pub struct WeightGroup {
     pub unks2: [u32; 2],
 }
 
-#[derive(BinRead, BinWrite, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct WeightLod {
     /// One plus the indices pointing back to [groups](struct.Weights.html#structfield.groups).
     /// Unused entries use the value `0`.
@@ -255,7 +255,7 @@ pub struct WeightLod {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write)]
+#[derive(Debug, Xc3Write, Xc3WriteFull)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Unk {
@@ -276,7 +276,7 @@ pub struct Unk {
     unks: [u32; 8],
 }
 
-#[derive(BinRead, BinWrite, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct UnkInner {
     unk1: u16,
     unk2: u16,
@@ -327,52 +327,66 @@ xc3_write_binwrite_impl!(
     UnkData
 );
 
+xc3_write_full_binwrite_impl!(UnkInner, WeightGroup, WeightLod);
+
 // TODO: Generate this with a macro rules macro?
 // TODO: Include this in some sort of trait?
 impl Xc3WriteFull for VertexData {
     fn write_full<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
+        base_offset: u64,
         data_ptr: &mut u64,
     ) -> BinResult<()> {
         let root = self.write(writer, data_ptr)?;
 
-        let vertex_buffers = root.vertex_buffers.write_offset(writer, 0, data_ptr)?;
-        root.index_buffers.write_offset(writer, 0, data_ptr)?;
-        root.vertex_buffer_info.write_offset(writer, 0, data_ptr)?;
+        let vertex_buffers = root
+            .vertex_buffers
+            .write_offset(writer, base_offset, data_ptr)?;
+        root.index_buffers
+            .write_offset(writer, base_offset, data_ptr)?;
+        root.vertex_buffer_info
+            .write_offset(writer, base_offset, data_ptr)?;
 
         // TODO: Do all empty lists use offset 0?
         if !self.outline_buffers.is_empty() {
-            root.outline_buffers.write_offset(writer, 0, data_ptr)?;
+            root.outline_buffers
+                .write_offset(writer, base_offset, data_ptr)?;
         }
 
         for vertex_buffer in vertex_buffers {
-            vertex_buffer.attributes.write_offset(writer, 0, data_ptr)?;
+            vertex_buffer
+                .attributes
+                .write_offset(writer, base_offset, data_ptr)?;
         }
 
-        // TODO: Derive Xc3WriteFull?
-        let weights = root.weights.write_offset(writer, 0, data_ptr)?;
-        weights.groups.write_offset(writer, 0, data_ptr)?;
-        weights.weight_lods.write_offset(writer, 0, data_ptr)?;
+        root.weights
+            .write_offset_full(writer, base_offset, data_ptr)?;
 
-        root.unk_data.write_offset(writer, 0, data_ptr)?;
+        root.unk_data.write_offset(writer, base_offset, data_ptr)?;
 
-        if let Some(vertex_animation) = root.vertex_animation.write_offset(writer, 0, data_ptr)? {
-            let descriptors = vertex_animation
-                .descriptors
-                .write_offset(writer, 0, data_ptr)?;
-            vertex_animation.targets.write_offset(writer, 0, data_ptr)?;
+        if let Some(vertex_animation) =
+            root.vertex_animation
+                .write_offset(writer, base_offset, data_ptr)?
+        {
+            let descriptors =
+                vertex_animation
+                    .descriptors
+                    .write_offset(writer, base_offset, data_ptr)?;
+            vertex_animation
+                .targets
+                .write_offset(writer, base_offset, data_ptr)?;
 
             for descriptor in descriptors {
-                descriptor.unk1.write_offset(writer, 0, data_ptr)?;
+                descriptor
+                    .unk1
+                    .write_offset(writer, base_offset, data_ptr)?;
             }
         }
 
-        // TODO: Derive Xc3WriteFull?
-        let unk7 = root.unk7.write_offset(writer, 0, data_ptr)?;
-        unk7.unk1.write_offset(writer, unk7.base_offset, data_ptr)?;
+        root.unk7.write_offset_full(writer, base_offset, data_ptr)?;
 
-        root.buffer.write_offset(writer, 0, data_ptr)?;
+        root.buffer.write_offset(writer, base_offset, data_ptr)?;
 
         Ok(())
     }
