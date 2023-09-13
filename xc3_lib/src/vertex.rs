@@ -1,6 +1,6 @@
 use crate::{
     parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32,
-    write::{round_up, xc3_write_binwrite_impl, Xc3Write},
+    write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteFull},
 };
 use binrw::{args, binread, BinRead, BinResult, BinWrite};
 
@@ -37,7 +37,7 @@ pub struct VertexData {
     pub outline_buffers: Vec<OutlineBuffer>,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset)]
+    #[xc3(offset, align(4))]
     pub vertex_animation: Option<VertexAnimation>,
 
     /// The data buffer containing all the geometry data.
@@ -56,7 +56,7 @@ pub struct VertexData {
     pub weights: Weights,
 
     #[br(parse_with = parse_ptr32, offset = base_offset)]
-    #[xc3(offset)]
+    #[xc3(offset, align(4))]
     pub unk7: Unk,
 
     // TODO: padding?
@@ -329,62 +329,51 @@ xc3_write_binwrite_impl!(
 
 // TODO: Generate this with a macro rules macro?
 // TODO: Include this in some sort of trait?
-pub fn write_vertex_data<W: std::io::Write + std::io::Seek>(
-    vertex_data: &VertexData,
-    writer: &mut W,
-) -> BinResult<()> {
-    let mut data_ptr = 0;
+impl Xc3WriteFull for VertexData {
+    fn write_full<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        data_ptr: &mut u64,
+    ) -> BinResult<()> {
+        let root = self.write(writer, data_ptr)?;
 
-    let root = vertex_data.write(writer, &mut data_ptr)?;
+        let vertex_buffers = root.vertex_buffers.write_offset(writer, 0, data_ptr)?;
+        root.index_buffers.write_offset(writer, 0, data_ptr)?;
+        root.vertex_buffer_info.write_offset(writer, 0, data_ptr)?;
 
-    let vertex_buffers = root.vertex_buffers.write_offset(writer, 0, &mut data_ptr)?;
-    root.index_buffers.write_offset(writer, 0, &mut data_ptr)?;
-    root.vertex_buffer_info
-        .write_offset(writer, 0, &mut data_ptr)?;
-
-    // TODO: Do all empty lists use offset 0?
-    if !vertex_data.outline_buffers.is_empty() {
-        root.outline_buffers
-            .write_offset(writer, 0, &mut data_ptr)?;
-    }
-
-    for vertex_buffer in vertex_buffers {
-        vertex_buffer
-            .attributes
-            .write_offset(writer, 0, &mut data_ptr)?;
-    }
-
-    let weights = root.weights.write_offset(writer, 0, &mut data_ptr)?;
-    weights.groups.write_offset(writer, 0, &mut data_ptr)?;
-    weights.weight_lods.write_offset(writer, 0, &mut data_ptr)?;
-
-    root.unk_data.write_offset(writer, 0, &mut data_ptr)?;
-
-    // TODO: Add alignment customization to derive?
-    data_ptr = round_up(data_ptr, 4);
-    if let Some(vertex_animation) = root
-        .vertex_animation
-        .write_offset(writer, 0, &mut data_ptr)?
-    {
-        let descriptors = vertex_animation
-            .descriptors
-            .write_offset(writer, 0, &mut data_ptr)?;
-        vertex_animation
-            .targets
-            .write_offset(writer, 0, &mut data_ptr)?;
-
-        for descriptor in descriptors {
-            descriptor.unk1.write_offset(writer, 0, &mut data_ptr)?;
+        // TODO: Do all empty lists use offset 0?
+        if !self.outline_buffers.is_empty() {
+            root.outline_buffers.write_offset(writer, 0, data_ptr)?;
         }
+
+        for vertex_buffer in vertex_buffers {
+            vertex_buffer.attributes.write_offset(writer, 0, data_ptr)?;
+        }
+
+        // TODO: Derive Xc3WriteFull?
+        let weights = root.weights.write_offset(writer, 0, data_ptr)?;
+        weights.groups.write_offset(writer, 0, data_ptr)?;
+        weights.weight_lods.write_offset(writer, 0, data_ptr)?;
+
+        root.unk_data.write_offset(writer, 0, data_ptr)?;
+
+        if let Some(vertex_animation) = root.vertex_animation.write_offset(writer, 0, data_ptr)? {
+            let descriptors = vertex_animation
+                .descriptors
+                .write_offset(writer, 0, data_ptr)?;
+            vertex_animation.targets.write_offset(writer, 0, data_ptr)?;
+
+            for descriptor in descriptors {
+                descriptor.unk1.write_offset(writer, 0, data_ptr)?;
+            }
+        }
+
+        // TODO: Derive Xc3WriteFull?
+        let unk7 = root.unk7.write_offset(writer, 0, data_ptr)?;
+        unk7.unk1.write_offset(writer, unk7.base_offset, data_ptr)?;
+
+        root.buffer.write_offset(writer, 0, data_ptr)?;
+
+        Ok(())
     }
-
-    // TODO: Add alignment customization to derive?
-    data_ptr = round_up(data_ptr, 4);
-    let unk7 = root.unk7.write_offset(writer, 0, &mut data_ptr)?;
-    unk7.unk1
-        .write_offset(writer, unk7.base_offset, &mut data_ptr)?;
-
-    root.buffer.write_offset(writer, 0, &mut data_ptr)?;
-
-    Ok(())
 }

@@ -17,7 +17,7 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
         write_fields,
         offset_field_names,
         offset_fields,
-    } = write_field_data(&input.data);
+    } = parse_field_data(&input.data);
 
     // Some types need a pointer to the start of the type.
     let has_base_offset = has_base_offset(&input.attrs);
@@ -57,6 +57,55 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
 
                 // Return positions of offsets to update later.
                 Ok(#offsets_name { #base_offset #(#offset_field_names),* })
+            }
+        }
+    }
+    .into()
+}
+
+// TODO: Is sharing attributes with Xc3Write the best way to do this?
+#[proc_macro_derive(Xc3WriteFull, attributes(xc3))]
+pub fn xc3_write_full_derive(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+
+    let name = &input.ident;
+    let offsets_name = Ident::new(&(input.ident.to_string() + "Offsets"), Span::call_site());
+
+    let FieldData {
+        offset_field_names, ..
+    } = parse_field_data(&input.data);
+
+    // TODO: How to handle the base offset?
+    let write_fields: Vec<_> = offset_field_names
+        .iter()
+        .map(|f| quote!(self.#f.write_offset_full(writer, 0, data_ptr)?;))
+        .collect();
+
+    // Add a write impl to the offset type to support nested types.
+    // Vecs need to be able to write all items before the pointed to data.
+    quote! {
+        impl<'a> crate::write::Xc3WriteFull for #offsets_name<'a> {
+            fn write_full<W: std::io::Write + std::io::Seek>(
+                &self,
+                writer: &mut W,
+                data_ptr: &mut u64,
+            ) -> binrw::BinResult<()> {
+                // Assume data is arranged in order by field.
+                // TODO: investigate deriving other orderings.
+                #(#write_fields)*
+                Ok(())
+            }
+        }
+
+        impl crate::write::Xc3WriteFull for #name {
+            fn write_full<W: std::io::Write + std::io::Seek>(
+                &self,
+                writer: &mut W,
+                data_ptr: &mut u64,
+            ) -> binrw::BinResult<()> {
+                let offsets = self.write(writer, data_ptr)?;
+                offsets.write_full(writer, data_ptr)?;
+                Ok(())
             }
         }
     }
@@ -161,7 +210,7 @@ struct FieldData {
     offset_fields: Vec<TokenStream2>,
 }
 
-fn write_field_data(data: &Data) -> FieldData {
+fn parse_field_data(data: &Data) -> FieldData {
     let mut write_fields = Vec::new();
     let mut offset_field_names = Vec::new();
     let mut offset_fields = Vec::new();

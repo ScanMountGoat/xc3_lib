@@ -11,6 +11,7 @@ use std::{
     path::Path,
 };
 
+use crate::write::Xc3WriteFull;
 use binrw::{
     file_ptr::FilePtrArgs, BinRead, BinReaderExt, BinResult, BinWrite, FilePtr64, NullString,
     VecArgs,
@@ -193,6 +194,26 @@ macro_rules! file_write_impl {
 }
 
 file_write_impl!(mibl::Mibl, xbc1::Xbc1);
+
+macro_rules! file_write_full_impl {
+    ($($type_name:path),*) => {
+        $(
+            impl $type_name {
+                // TODO: Come up with a better name.
+                pub fn write_into<W: Write + Seek>(&self, writer: &mut W) -> Result<(), Box<dyn Error>> {
+                    self.write_full(writer, &mut 0).map_err(Into::into)
+                }
+
+                pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Box<dyn Error>> {
+                    let mut writer = BufWriter::new(std::fs::File::create(path)?);
+                    self.write_full(&mut writer, &mut 0).map_err(Into::into)
+                }
+            }
+        )*
+    };
+}
+
+file_write_full_impl!(vertex::VertexData, ltpc::Ltpc, msrd::Msrd);
 
 // TODO: Dedicated error types?
 macro_rules! file_read_impl {

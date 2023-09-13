@@ -9,14 +9,13 @@ use rayon::prelude::*;
 use xc3_lib::{
     dds::{create_dds, create_mibl},
     dhal::Dhal,
-    ltpc::{write_ltpc, Ltpc},
+    ltpc::Ltpc,
     mibl::Mibl,
     msmd::Msmd,
-    msrd::{write_msrd, Msrd},
+    msrd::Msrd,
     mxmd::Mxmd,
     sar1::Sar1,
     spch::Spch,
-    vertex::write_vertex_data,
     xbc1::Xbc1,
 };
 
@@ -165,14 +164,14 @@ fn check_msrd(msrd: Msrd, path: &Path) {
     // Check read/write for embedded data.
     let original = std::fs::read(path).unwrap();
     let mut writer = Cursor::new(Vec::new());
-    write_msrd(&msrd, &mut writer).unwrap();
+    msrd.write_into(&mut writer).unwrap();
     if writer.into_inner() != original {
         println!("Read write not 1:1 for {path:?}");
     }
 
     let original = msrd.decompress_stream(0, msrd.vertex_data_entry_index);
     let mut writer = Cursor::new(Vec::new());
-    write_vertex_data(&vertex_data, &mut writer).unwrap();
+    vertex_data.write_into(&mut writer).unwrap();
     if writer.into_inner() != original {
         println!("VertexData Read write not 1:1 for {path:?}");
     }
@@ -295,7 +294,7 @@ fn check_ltpc(ltpc: Ltpc, path: &Path) {
     // Check read/write.
     let original = std::fs::read(path).unwrap();
     let mut writer = Cursor::new(Vec::new());
-    write_ltpc(&ltpc, &mut writer).unwrap();
+    ltpc.write_into(&mut writer).unwrap();
     if writer.into_inner() != original {
         println!("Read write not 1:1 for {path:?}");
     }

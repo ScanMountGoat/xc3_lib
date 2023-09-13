@@ -1,11 +1,16 @@
+use std::io::Seek;
+use std::io::SeekFrom;
+use std::io::Write;
+
 use binrw::{BinResult, BinWrite};
 
+// The initial measure and dummy offset pass.
 pub(crate) trait Xc3Write {
     type Offsets<'a>
     where
         Self: 'a;
 
-    fn write<W: std::io::Write + std::io::Seek>(
+    fn write<W: Write + Seek>(
         &self,
         writer: &mut W,
         data_ptr: &mut u64,
@@ -15,8 +20,15 @@ pub(crate) trait Xc3Write {
     const ALIGNMENT: u64 = 1;
 }
 
+// TODO: Come up with a better name.
+// The full write operation that updates all offsets.
+pub(crate) trait Xc3WriteFull {
+    fn write_full<W: Write + Seek>(&self, writer: &mut W, data_ptr: &mut u64) -> BinResult<()>;
+}
+
 // Support importing both the trait and derive macro at once.
 pub(crate) use xc3_lib_derive::Xc3Write;
+pub(crate) use xc3_lib_derive::Xc3WriteFull;
 
 pub(crate) struct Offset<'a, T> {
     /// The position in the file for the offset field.
@@ -46,35 +58,46 @@ impl<'a, T> Offset<'a, T> {
             field_alignment,
         }
     }
+
+    fn set_offset_seek<W: Write + Seek>(
+        &self,
+        data_ptr: &mut u64,
+        writer: &mut W,
+        data_ptr_base_offset: u64,
+        type_alignment: u64,
+    ) -> Result<(), binrw::Error> {
+        // Account for the type and field alignment.
+        *data_ptr = round_up(*data_ptr, type_alignment);
+        *data_ptr = round_up(*data_ptr, self.field_alignment);
+
+        // Update the offset value.
+        writer.seek(SeekFrom::Start(self.position))?;
+        ((*data_ptr - data_ptr_base_offset) as u32).write_le(writer)?;
+
+        // Seek to the data position.
+        writer.seek(SeekFrom::Start(*data_ptr))?;
+        Ok(())
+    }
 }
 
 impl<'a, T: Xc3Write> Offset<'a, T> {
     // TODO: make the data ptr u32?
     // TODO: Specify an alignment using another trait?
-    pub(crate) fn write_offset<W: std::io::Write + std::io::Seek>(
+    pub(crate) fn write_offset<W: Write + Seek>(
         &self,
         writer: &mut W,
         data_ptr_base_offset: u64,
         data_ptr: &mut u64,
     ) -> BinResult<T::Offsets<'_>> {
-        // Account for the type and field alignment.
-        *data_ptr = round_up(*data_ptr, T::ALIGNMENT);
-        *data_ptr = round_up(*data_ptr, self.field_alignment);
-
-        // Update the offset value.
-        writer.seek(std::io::SeekFrom::Start(self.position))?;
-        ((*data_ptr - data_ptr_base_offset) as u32).write_le(writer)?;
-
-        // Write the data.
-        writer.seek(std::io::SeekFrom::Start(*data_ptr))?;
+        self.set_offset_seek(data_ptr, writer, data_ptr_base_offset, T::ALIGNMENT)?;
         let offsets = self.data.write(writer, data_ptr)?;
-
         Ok(offsets)
     }
 }
 
+// This doesn't need specialization because Option does not impl Xc3Write.
 impl<'a, T: Xc3Write> Offset<'a, Option<T>> {
-    pub(crate) fn write_offset<W: std::io::Write + std::io::Seek>(
+    pub(crate) fn write_offset<W: Write + Seek>(
         &self,
         writer: &mut W,
         data_ptr_base_offset: u64,
@@ -82,18 +105,25 @@ impl<'a, T: Xc3Write> Offset<'a, Option<T>> {
     ) -> BinResult<Option<T::Offsets<'_>>> {
         // Only update the offset if there is data.
         if let Some(data) = self.data {
-            // Update the offset value.
-            writer.seek(std::io::SeekFrom::Start(self.position))?;
-            *data_ptr = round_up(*data_ptr, T::ALIGNMENT);
-            ((*data_ptr - data_ptr_base_offset) as u32).write_le(writer)?;
-
-            // Write the data.
-            writer.seek(std::io::SeekFrom::Start(*data_ptr))?;
+            self.set_offset_seek(data_ptr, writer, data_ptr_base_offset, T::ALIGNMENT)?;
             let offsets = data.write(writer, data_ptr)?;
             Ok(Some(offsets))
         } else {
             Ok(None)
         }
+    }
+}
+
+impl<'a, T: Xc3Write + Xc3WriteFull> Offset<'a, T> {
+    pub(crate) fn write_offset_full<W: Write + Seek>(
+        &self,
+        writer: &mut W,
+        data_ptr_base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> BinResult<()> {
+        self.set_offset_seek(data_ptr, writer, data_ptr_base_offset, T::ALIGNMENT)?;
+        let offsets = self.data.write_full(writer, data_ptr)?;
+        Ok(offsets)
     }
 }
 
@@ -127,7 +157,7 @@ xc3_write_binwrite_impl!(u8, u16);
 impl Xc3Write for String {
     type Offsets<'a> = ();
 
-    fn write<W: std::io::Write + std::io::Seek>(
+    fn write<W: Write + Seek>(
         &self,
         writer: &mut W,
         data_ptr: &mut u64,
@@ -147,7 +177,7 @@ where
 {
     type Offsets<'a> = Vec<T::Offsets<'a>>;
 
-    fn write<W: std::io::Write + std::io::Seek>(
+    fn write<W: Write + Seek>(
         &self,
         writer: &mut W,
         data_ptr: &mut u64,
@@ -157,6 +187,50 @@ where
         result
     }
 }
+
+impl<T> Xc3WriteFull for Vec<T>
+where
+    T: Xc3Write + Xc3WriteFull + 'static,
+    for<'a> T::Offsets<'a>: Xc3WriteFull,
+{
+    fn write_full<W: Write + Seek>(&self, writer: &mut W, data_ptr: &mut u64) -> BinResult<()> {
+        // Ensure all items are written before their pointed to data.
+        let offsets = self.write(writer, data_ptr)?;
+        for item in offsets {
+            item.write_full(writer, data_ptr)?;
+        }
+        Ok(())
+    }
+}
+
+impl Xc3WriteFull for () {
+    fn write_full<W: Write + Seek>(&self, _writer: &mut W, _data_ptr: &mut u64) -> BinResult<()> {
+        Ok(())
+    }
+}
+
+macro_rules! xc3_write_full_binwrite_impl {
+    ($($ty:ty),*) => {
+        $(
+            impl Xc3WriteFull for $ty {
+                fn write_full<W: Write + Seek>(
+                    &self,
+                    writer: &mut W,
+                    data_ptr: &mut u64,
+                ) -> BinResult<()> {
+                    self.write_le(writer)?;
+                    *data_ptr = (*data_ptr).max(writer.stream_position()?);
+                    Ok(())
+                }
+            }
+        )*
+
+    };
+}
+
+pub(crate) use xc3_write_full_binwrite_impl;
+
+xc3_write_full_binwrite_impl!(u8, u16);
 
 pub(crate) const fn round_up(x: u64, n: u64) -> u64 {
     ((x + n - 1) / n) * n

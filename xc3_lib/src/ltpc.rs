@@ -1,9 +1,12 @@
-use binrw::{BinRead, BinResult};
+use binrw::BinRead;
 
-use crate::{parse_count_offset, parse_offset_count, write::Xc3Write};
+use crate::{
+    parse_count_offset, parse_offset_count,
+    write::{Xc3Write, Xc3WriteFull},
+};
 
 /// `monolib/shader/filterlut.wiltp` for Xenoblade 3.
-#[derive(BinRead, Xc3Write, Debug)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 #[br(magic(b"LTPC"))]
 #[xc3(magic(b"LTPC"))]
 pub struct Ltpc {
@@ -18,7 +21,7 @@ pub struct Ltpc {
     pub unk: [u32; 6],
 }
 
-#[derive(BinRead, Xc3Write, Debug)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 pub struct Texture {
     // TODO: Support alignment constants.
     #[br(parse_with = parse_offset_count)]
@@ -27,17 +30,4 @@ pub struct Texture {
     pub unk1: u32,
     // TODO: padding?
     pub unks: [u32; 4],
-}
-
-// TODO: This can just be derived?
-pub fn write_ltpc<W: std::io::Write + std::io::Seek>(ltpc: &Ltpc, writer: &mut W) -> BinResult<()> {
-    let mut data_ptr = 0;
-
-    let root = ltpc.write(writer, &mut data_ptr)?;
-    let textures = root.textures.write_offset(writer, 0, &mut data_ptr)?;
-    for texture in textures {
-        texture.mibl_data.write_offset(writer, 0, &mut data_ptr)?;
-    }
-
-    Ok(())
 }
