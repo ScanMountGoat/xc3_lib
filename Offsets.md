@@ -5,7 +5,9 @@ Reading binary files with offsets is generally straightforward. Offsets refer to
 ## Writing Overview
 Writing binary files with offsets is significantly more challenging. Offsets must be calculated at runtime when writing the file since the lengths and types of data stored in the file may change since the time it was read due to user modifications. Just as offsets can be useful in estimating sizes while reverse engineering files, sizes are important for calculating offsets when writing. See previous work done for the [SSBH binary formats](https://github.com/ultimate-research/ssbh_lib/blob/master/ssbh_offsets.md) for details.
 
-Offsets in Xenoblade follow certain rules like always being non negative. This means offsets never point backwards. Data items in a file also do not overlap, so each item must ensure the next offset should point past the current data item. Duplicate items are typically handled using an additional layer of indirection such as a list of item indices. These simple rules provide most of the details needing to automate writing data in the next section.
+Offsets in Xenoblade follow certain rules like always being non negative. This means offsets never point backwards. This does not imply that offsets are strictly increasing when visited in any set order, however. An offset can still point to a position before the offset position if the offset is relative to the start of the file.
+
+Data items in a file also do not overlap, so each item must ensure the next offset should point past the current data item. Duplicate items are typically handled using an additional layer of indirection such as a list of item indices. These simple rules provide most of the details needing to automate writing data in the next section.
 
 The main challenge with writing is to ensure that writing an unmodified file results in binary identical output to the original. This isn't strictly necessary but makes it substantially simpler to test the writing implementation for errors. 
 
@@ -13,6 +15,8 @@ The standard way to represent binary data in programming languages is in a hiera
 
 ## Write Functions
 Writing is split into two main functions. The `write` function writes the data and placeholder offset values. This function also calculates an objects size. The `write_offset` function updates the offsets from the previous step and writes the pointed to data. This approach is similar to the two pass measure and layout approach used for user interface layout. The main difference is that addresses in binary files are 1D and the constraints are much simpler.
+
+The actual implementation defines a second set of functions ending in `_full` that represent the result of not only writing the data but also updating and writing the pointed to data for each offset. This typically needs to be implemented manually to be able to specify the order that items appear in the file. In some cases, this can be derived if the offset fields are updated in order recursively.
 
 ```python
 # This function and FieldOffsets can be automatically generated for each type.
@@ -51,7 +55,7 @@ The calls to `write_offset` must be applied in a specific order to match in game
 
 ```python
 # The writer and data_ptr parameters are omitted from this example.
-def write_vertex_data(root, ...):
+def write_vertex_data_full(root, ...):
     root_offsets = root.write(...)
 
     # Call write_offset based on the order items appear in the file.
@@ -76,29 +80,4 @@ def write_vertex_data(root, ...):
     unk_offsets.unk1.write_offset(...)
 
     root_offsets.buffer.write_offset(...)
-```
-
-## Msrd
-```python
-# The writer and data_ptr parameters are omitted from this example.
-def write_msrd(root, ...):
-    root_offsets = root.write(...)
-
-    # Call write_offset based on the order items appear in the file.
-    root_offsets.stream_entries.write_offset(...)
-    root_offsets.streams.write_offset(...)
-
-    root_offsets.texture_resources.write_offset(...)
-
-    root_offsets.texture_ids.write_offset(...)
-
-    # TODO: Will this always be done in the same way?
-    # TODO: Move logic into write_offset of the parent?
-    root_textures_offsets = root_offsets.textures.write_offset(...)
-    textures_offsets = root_textures_offsets.textures.write_offset(...)
-    for offsets in textures_offsets:
-        offsets.name.write_offset(...)
-
-    for offsets in root_offsets.streams:
-        offsets.xbc1.write_offset(...)
 ```
