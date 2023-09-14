@@ -161,7 +161,7 @@ macro_rules! xc3_write_binwrite_impl {
                     &self,
                     writer: &mut W,
                     data_ptr: &mut u64,
-                ) -> BinResult<Self::Offsets<'_>> {
+                ) -> binrw::BinResult<Self::Offsets<'_>> {
                     self.write_le(writer)?;
                     *data_ptr = (*data_ptr).max(writer.stream_position()?);
                     Ok(())
@@ -220,6 +220,8 @@ where
 }
 
 // TODO: Incorporate the base offset from offsets using option?
+// We can fully write any type that can fully write its offset values.
+// This includes types with an offset type of () like primitive types.
 impl<T> Xc3WriteFull for T
 where
     T: Xc3Write + 'static,

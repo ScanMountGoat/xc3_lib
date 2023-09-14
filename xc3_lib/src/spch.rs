@@ -1,15 +1,17 @@
 //! Compiled shaders in `.wishp` files or embedded in other formats.
 use std::io::{Cursor, SeekFrom};
 
+use crate::write::{Xc3Write, Xc3WriteFull, xc3_write_binwrite_impl, VecOffsets};
 use crate::{
     parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
 };
-use binrw::{args, binread, BinRead, BinReaderExt};
+use binrw::{args, binread, BinRead, BinReaderExt, BinWrite};
 
 /// .wishp, embedded in .wismt and .wimdo
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Xc3Write)]
 #[br(magic(b"HCPS"))]
+#[xc3(magic(b"HCPS"))]
 #[br(stream = r)]
 pub struct Spch {
     // Subtract the magic size.
@@ -19,20 +21,24 @@ pub struct Spch {
     pub version: u32,
 
     #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[xc3(offset_count)]
     pub shader_programs: Vec<ShaderProgram>,
 
     // TODO: Related to string section?
     #[br(parse_with = parse_offset_count, offset = base_offset)]
-    pub unk4s: Vec<(u32, u32, u32)>,
+    #[xc3(offset_count)]
+    pub unk4s: Vec<Unk4>,
 
     /// A collection of [Slct].
     #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[xc3(offset_count, align(4))]
     pub slct_section: Vec<u8>,
 
     /// Compiled shader binaries.
     /// Alternates between vertex and fragment shaders.
     // TODO: Optimized function for reading bytes?
     #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[xc3(offset_count, align(4096))]
     pub xv4_section: Vec<u8>,
 
     // data before the xV4 section
@@ -42,57 +48,51 @@ pub struct Spch {
     /// A collection of [UnkItem].
     // TODO: xc2 tg_ui_hitpoint.wimdo has some sort of assembly code?
     #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[xc3(offset_count, align(8))]
     pub unk_section: Vec<u8>,
 
     // TODO: Does this actually need the program count?
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[br(args { inner: (base_offset, shader_programs.len()) })]
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { 
+        offset: base_offset, 
+        inner: args! { base_offset, count: shader_programs.len() 
+    }})]
+    #[xc3(offset)]
     pub string_section: Option<StringSection>,
 
-    #[br(pad_after = 16)]
     pub unk7: u32,
-    // end of header?
+
+    pub padding: [u32; 4]
 }
 
-#[derive(Debug)]
+#[derive(Debug, BinRead)]
+#[br(import { base_offset: u64, count: usize })]
 pub struct StringSection {
-    pub program_names: Vec<String>,
+    #[br(args { count, inner: base_offset})]
+    pub program_names: Vec<StringOffset>,
 }
 
-// TODO: Derive this?
-impl BinRead for StringSection {
-    type Args<'a> = (u64, usize);
-
-    fn read_options<R: std::io::Read + std::io::Seek>(
-        reader: &mut R,
-        endian: binrw::Endian,
-        args: Self::Args<'_>,
-    ) -> binrw::BinResult<Self> {
-        let (base_offset, count) = args;
-
-        let mut program_names = Vec::new();
-        for _ in 0..count {
-            let name = parse_string_ptr32(
-                reader,
-                endian,
-                binrw::file_ptr::FilePtrArgs {
-                    offset: base_offset,
-                    inner: (),
-                },
-            )?;
-            program_names.push(name);
-        }
-
-        Ok(StringSection { program_names })
-    }
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
+#[br(import_raw(base_offset: u64))]
+pub struct StringOffset {
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset)]
+    pub string: String,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct ShaderProgram {
     // TODO: 64-bit offset?
     pub slct_offset: u32,
     // TODO: Always 0?
     pub unk1: u32,
+}
+
+#[derive(Debug, BinRead, BinWrite)]
+pub struct Unk4 {
+    pub unk1: u32,
+    pub unk2: u32,
+    pub unk3: u32,
 }
 
 #[binread]
@@ -257,12 +257,6 @@ pub struct UnkItem {
 
 // TODO: Does anything actually point to the nvsd magic?
 #[derive(BinRead, Debug)]
-#[br(magic(b"NVSD"))]
-pub struct Nvsd {
-    pub version: u32,
-}
-
-#[derive(BinRead, Debug)]
 pub struct NvsdShaders {
     pub unk6: u32, // 1
     /// The size of the vertex shader pointed to by the [Slct].
@@ -372,5 +366,39 @@ impl NvsdMetadata {
         // The fragment shader immediately follows the vertex shader.
         let offset = slct_xv4_offset as usize + shaders.vertex_xv4_size as usize;
         &xv4_section[offset..offset + shaders.fragment_xv4_size as usize]
+    }
+}
+
+xc3_write_binwrite_impl!(Unk4, ShaderProgram);
+
+
+impl Xc3Write for StringSection {
+    type Offsets<'a> = VecOffsets<StringOffsetOffsets<'a>>;
+
+    fn xc3_write<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        data_ptr: &mut u64,
+    ) -> binrw::BinResult<Self::Offsets<'_>> {
+        self.program_names.xc3_write(writer, data_ptr)
+    }
+}
+
+
+impl<'a> Xc3WriteFull for SpchOffsets<'a> {
+    fn write_full<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> binrw::BinResult<()> {
+        // The ordering is slightly different than the field order.
+        self.shader_programs.write_offset_full(writer, base_offset, data_ptr)?;
+        self.unk4s.write_offset_full(writer, base_offset, data_ptr)?;
+        self.string_section.write_offset_full(writer, base_offset, data_ptr)?;
+        self.slct_section.write_offset_full(writer, base_offset, data_ptr)?;
+        self.unk_section.write_offset_full(writer, base_offset, data_ptr)?;  
+        self.xv4_section.write_offset_full(writer, base_offset, data_ptr)?;
+        Ok(())
     }
 }

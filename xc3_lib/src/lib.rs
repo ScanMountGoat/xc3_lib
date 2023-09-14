@@ -212,7 +212,7 @@ macro_rules! file_write_full_impl {
     };
 }
 
-file_write_full_impl!(vertex::VertexData, ltpc::Ltpc, msrd::Msrd, apmd::Apmd);
+file_write_full_impl!(vertex::VertexData, ltpc::Ltpc, msrd::Msrd, apmd::Apmd, spch::Spch);
 
 // TODO: Dedicated error types?
 macro_rules! file_read_impl {

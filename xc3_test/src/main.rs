@@ -284,9 +284,18 @@ fn check_mxmd(mxmd: Mxmd, path: &Path) {
     }
 }
 
-fn check_spch(spch: Spch, _path: &Path) {
-    for program in spch.shader_programs {
+fn check_spch(spch: Spch, path: &Path) {
+    // TODO: Check reading other sections.
+    for program in &spch.shader_programs {
         program.read_slct(&spch.slct_section);
+    }
+
+    // Check read/write.
+    let original = std::fs::read(path).unwrap();
+    let mut writer = Cursor::new(Vec::new());
+    spch.write(&mut writer).unwrap();
+    if writer.into_inner() != original {
+        println!("Read write not 1:1 for {path:?}");
     }
 }
 
