@@ -38,7 +38,7 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
         impl crate::write::Xc3Write for #name {
             type Offsets<'a> = #offsets_name<'a>;
 
-            fn write<W: std::io::Write + std::io::Seek>(
+            fn xc3_write<W: std::io::Write + std::io::Seek>(
                 &self,
                 writer: &mut W,
                 data_ptr: &mut u64,
@@ -118,7 +118,7 @@ pub fn xc3_write_full_derive(input: TokenStream) -> TokenStream {
                 base_offset: u64,
                 data_ptr: &mut u64,
             ) -> binrw::BinResult<()> {
-                let offsets = self.write(writer, data_ptr)?;
+                let offsets = self.xc3_write(writer, data_ptr)?;
                 let base_offset = #offsets_base_offset;
                 offsets.write_full(writer, base_offset, data_ptr)?;
                 Ok(())

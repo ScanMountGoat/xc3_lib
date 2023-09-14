@@ -199,14 +199,13 @@ macro_rules! file_write_full_impl {
     ($($type_name:path),*) => {
         $(
             impl $type_name {
-                // TODO: Come up with a better name.
-                pub fn write_into<W: Write + Seek>(&self, writer: &mut W) -> Result<(), Box<dyn Error>> {
+                pub fn write<W: Write + Seek>(&self, writer: &mut W) -> Result<(), Box<dyn Error>> {
                     self.write_full(writer, 0, &mut 0).map_err(Into::into)
                 }
 
                 pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Box<dyn Error>> {
                     let mut writer = BufWriter::new(std::fs::File::create(path)?);
-                    self.write_full(&mut writer, 0, &mut 0).map_err(Into::into)
+                    self.write(&mut writer)
                 }
             }
         )*

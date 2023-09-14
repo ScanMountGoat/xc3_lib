@@ -10,7 +10,7 @@ pub(crate) trait Xc3Write {
     where
         Self: 'a;
 
-    fn write<W: Write + Seek>(
+    fn xc3_write<W: Write + Seek>(
         &self,
         writer: &mut W,
         data_ptr: &mut u64,
@@ -95,7 +95,7 @@ impl<'a, T: Xc3Write> Offset<'a, T> {
         data_ptr: &mut u64,
     ) -> BinResult<T::Offsets<'_>> {
         self.set_offset_seek(writer, base_offset, data_ptr, T::ALIGNMENT)?;
-        let offsets = self.data.write(writer, data_ptr)?;
+        let offsets = self.data.xc3_write(writer, data_ptr)?;
         Ok(offsets)
     }
 }
@@ -111,7 +111,7 @@ impl<'a, T: Xc3Write> Offset<'a, Option<T>> {
         // Only update the offset if there is data.
         if let Some(data) = self.data {
             self.set_offset_seek(writer, base_offset, data_ptr, T::ALIGNMENT)?;
-            let offsets = data.write(writer, data_ptr)?;
+            let offsets = data.xc3_write(writer, data_ptr)?;
             Ok(Some(offsets))
         } else {
             Ok(None)
@@ -149,13 +149,14 @@ impl<'a, T: Xc3Write + Xc3WriteFull> Offset<'a, Option<T>> {
     }
 }
 
+// TODO: This won't work as a blanket impl because of Vec?
 macro_rules! xc3_write_binwrite_impl {
     ($($ty:ty),*) => {
         $(
             impl Xc3Write for $ty {
                 type Offsets<'a> = ();
 
-                fn write<W: std::io::Write + std::io::Seek>(
+                fn xc3_write<W: std::io::Write + std::io::Seek>(
                     &self,
                     writer: &mut W,
                     data_ptr: &mut u64,
@@ -179,7 +180,7 @@ xc3_write_binwrite_impl!(u8, u16);
 impl Xc3Write for String {
     type Offsets<'a> = ();
 
-    fn write<W: Write + Seek>(
+    fn xc3_write<W: Write + Seek>(
         &self,
         writer: &mut W,
         data_ptr: &mut u64,
@@ -200,7 +201,7 @@ impl Xc3WriteFull for String {
         _base_offset: u64,
         data_ptr: &mut u64,
     ) -> BinResult<()> {
-        self.write(writer, data_ptr)?;
+        self.xc3_write(writer, data_ptr)?;
         Ok(())
     }
 }
@@ -211,12 +212,12 @@ where
 {
     type Offsets<'a> = Vec<T::Offsets<'a>>;
 
-    fn write<W: Write + Seek>(
+    fn xc3_write<W: Write + Seek>(
         &self,
         writer: &mut W,
         data_ptr: &mut u64,
     ) -> BinResult<Self::Offsets<'_>> {
-        let result = self.iter().map(|v| v.write(writer, data_ptr)).collect();
+        let result = self.iter().map(|v| v.xc3_write(writer, data_ptr)).collect();
         *data_ptr = (*data_ptr).max(writer.stream_position()?);
         result
     }
@@ -234,7 +235,7 @@ where
         data_ptr: &mut u64,
     ) -> BinResult<()> {
         // Ensure all items are written before their pointed to data.
-        let offsets = self.write(writer, data_ptr)?;
+        let offsets = self.xc3_write(writer, data_ptr)?;
         for item in offsets {
             item.write_full(writer, base_offset, data_ptr)?;
         }

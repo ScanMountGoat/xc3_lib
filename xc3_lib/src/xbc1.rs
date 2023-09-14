@@ -59,7 +59,7 @@ impl Xbc1 {
 impl Xc3Write for Xbc1 {
     type Offsets<'a> = ();
 
-    fn write<W: std::io::Write + std::io::Seek>(
+    fn xc3_write<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
         data_ptr: &mut u64,

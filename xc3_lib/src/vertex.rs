@@ -312,6 +312,7 @@ pub struct UnkData {
     pub unk: [u32; 17],
 }
 
+// TODO: Just derive Xc3Write?
 xc3_write_binwrite_impl!(
     VertexAttribute,
     DataType,
@@ -329,8 +330,7 @@ xc3_write_binwrite_impl!(
 
 xc3_write_full_binwrite_impl!(UnkInner, WeightGroup, WeightLod);
 
-// TODO: Generate this with a macro rules macro?
-// TODO: Include this in some sort of trait?
+// TODO: automatically generate this?
 impl Xc3WriteFull for VertexData {
     fn write_full<W: std::io::Write + std::io::Seek>(
         &self,
@@ -338,19 +338,30 @@ impl Xc3WriteFull for VertexData {
         base_offset: u64,
         data_ptr: &mut u64,
     ) -> BinResult<()> {
-        let root = self.write(writer, data_ptr)?;
+        let offsets = self.xc3_write(writer, data_ptr)?;
+        offsets.write_full(writer, base_offset, data_ptr)?;
+        Ok(())
+    }
+}
 
-        let vertex_buffers = root
+impl<'a> Xc3WriteFull for VertexDataOffsets<'a> {
+    fn write_full<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> BinResult<()> {
+        let vertex_buffers = self
             .vertex_buffers
             .write_offset(writer, base_offset, data_ptr)?;
-        root.index_buffers
+        self.index_buffers
             .write_offset(writer, base_offset, data_ptr)?;
-        root.vertex_buffer_info
+        self.vertex_buffer_info
             .write_offset(writer, base_offset, data_ptr)?;
 
         // TODO: Do all empty lists use offset 0?
-        if !self.outline_buffers.is_empty() {
-            root.outline_buffers
+        if !self.outline_buffers.data.is_empty() {
+            self.outline_buffers
                 .write_offset(writer, base_offset, data_ptr)?;
         }
 
@@ -360,13 +371,13 @@ impl Xc3WriteFull for VertexData {
                 .write_offset(writer, base_offset, data_ptr)?;
         }
 
-        root.weights
+        self.weights
             .write_offset_full(writer, base_offset, data_ptr)?;
 
-        root.unk_data.write_offset(writer, base_offset, data_ptr)?;
+        self.unk_data.write_offset(writer, base_offset, data_ptr)?;
 
         if let Some(vertex_animation) =
-            root.vertex_animation
+            self.vertex_animation
                 .write_offset(writer, base_offset, data_ptr)?
         {
             let descriptors =
@@ -384,9 +395,9 @@ impl Xc3WriteFull for VertexData {
             }
         }
 
-        root.unk7.write_offset_full(writer, base_offset, data_ptr)?;
+        self.unk7.write_offset_full(writer, base_offset, data_ptr)?;
 
-        root.buffer.write_offset(writer, base_offset, data_ptr)?;
+        self.buffer.write_offset(writer, base_offset, data_ptr)?;
 
         Ok(())
     }

@@ -159,33 +159,38 @@ impl Xc3WriteFull for Msrd {
     fn write_full<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> BinResult<()> {
+        let offsets = self.xc3_write(writer, data_ptr)?;
+        offsets.write_full(writer, base_offset, data_ptr)?;
+        Ok(())
+    }
+}
+
+impl<'a> Xc3WriteFull for MsrdOffsets<'a> {
+    fn write_full<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
         _base_offset: u64,
         data_ptr: &mut u64,
     ) -> BinResult<()> {
-        let msrd_offsets = self.write(writer, data_ptr)?;
-
         // TODO: Rework the msrd types to handle this.
         let base_offset = 16;
 
         // Write offset data in the order items appear in the binary file.
-        msrd_offsets
-            .stream_entries
+        self.stream_entries
             .write_offset(writer, base_offset, data_ptr)?;
 
-        let stream_offsets = msrd_offsets
-            .streams
+        let stream_offsets = self.streams.write_offset(writer, base_offset, data_ptr)?;
+
+        self.texture_resources
             .write_offset(writer, base_offset, data_ptr)?;
 
-        msrd_offsets
-            .texture_resources
+        self.texture_ids
             .write_offset(writer, base_offset, data_ptr)?;
 
-        msrd_offsets
-            .texture_ids
-            .write_offset(writer, base_offset, data_ptr)?;
-
-        msrd_offsets
-            .textures
+        self.textures
             .write_offset_full(writer, base_offset, data_ptr)?;
 
         for offsets in stream_offsets {
