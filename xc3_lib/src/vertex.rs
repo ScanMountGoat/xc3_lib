@@ -1,6 +1,6 @@
 use crate::{
     parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32,
-    write::{xc3_write_binwrite_impl, xc3_write_full_binwrite_impl, Xc3Write, Xc3WriteFull},
+    write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteFull},
 };
 use binrw::{args, binread, BinRead, BinResult, BinWrite};
 
@@ -328,22 +328,6 @@ xc3_write_binwrite_impl!(
     UnkData
 );
 
-xc3_write_full_binwrite_impl!(UnkInner, WeightGroup, WeightLod);
-
-// TODO: automatically generate this?
-impl Xc3WriteFull for VertexData {
-    fn write_full<W: std::io::Write + std::io::Seek>(
-        &self,
-        writer: &mut W,
-        base_offset: u64,
-        data_ptr: &mut u64,
-    ) -> BinResult<()> {
-        let offsets = self.xc3_write(writer, data_ptr)?;
-        offsets.write_full(writer, base_offset, data_ptr)?;
-        Ok(())
-    }
-}
-
 impl<'a> Xc3WriteFull for VertexDataOffsets<'a> {
     fn write_full<W: std::io::Write + std::io::Seek>(
         &self,
@@ -365,7 +349,7 @@ impl<'a> Xc3WriteFull for VertexDataOffsets<'a> {
                 .write_offset(writer, base_offset, data_ptr)?;
         }
 
-        for vertex_buffer in vertex_buffers {
+        for vertex_buffer in vertex_buffers.0 {
             vertex_buffer
                 .attributes
                 .write_offset(writer, base_offset, data_ptr)?;
@@ -388,7 +372,7 @@ impl<'a> Xc3WriteFull for VertexDataOffsets<'a> {
                 .targets
                 .write_offset(writer, base_offset, data_ptr)?;
 
-            for descriptor in descriptors {
+            for descriptor in descriptors.0 {
                 descriptor
                     .unk1
                     .write_offset(writer, base_offset, data_ptr)?;

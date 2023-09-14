@@ -4,7 +4,7 @@ use std::io::Write;
 
 use binrw::{BinResult, BinWrite};
 
-// The initial measure and dummy offset pass.
+/// The initial write and dummy offset pass.
 pub(crate) trait Xc3Write {
     type Offsets<'a>
     where
@@ -21,7 +21,8 @@ pub(crate) trait Xc3Write {
 }
 
 // TODO: Come up with a better name.
-// The full write operation that updates all offsets.
+/// The full write operation that updates all offsets.
+/// This should write recursively, so it doesn't return anything.
 pub(crate) trait Xc3WriteFull {
     fn write_full<W: Write + Seek>(
         &self,
@@ -194,38 +195,34 @@ impl Xc3Write for String {
     const ALIGNMENT: u64 = 1;
 }
 
-impl Xc3WriteFull for String {
-    fn write_full<W: Write + Seek>(
-        &self,
-        writer: &mut W,
-        _base_offset: u64,
-        data_ptr: &mut u64,
-    ) -> BinResult<()> {
-        self.xc3_write(writer, data_ptr)?;
-        Ok(())
-    }
-}
+// Create a new type to differentiate vec and a vec of offsets.
+// This allows using a blanket implementation for write full.
+pub struct VecOffsets<T>(pub Vec<T>);
 
 impl<T> Xc3Write for Vec<T>
 where
     T: Xc3Write + 'static,
 {
-    type Offsets<'a> = Vec<T::Offsets<'a>>;
+    type Offsets<'a> = VecOffsets<T::Offsets<'a>>;
 
     fn xc3_write<W: Write + Seek>(
         &self,
         writer: &mut W,
         data_ptr: &mut u64,
     ) -> BinResult<Self::Offsets<'_>> {
-        let result = self.iter().map(|v| v.xc3_write(writer, data_ptr)).collect();
+        let offsets = self
+            .iter()
+            .map(|v| v.xc3_write(writer, data_ptr))
+            .collect::<Result<Vec<_>, _>>()?;
         *data_ptr = (*data_ptr).max(writer.stream_position()?);
-        result
+        Ok(VecOffsets(offsets))
     }
 }
 
-impl<T> Xc3WriteFull for Vec<T>
+// TODO: Incorporate the base offset from offsets using option?
+impl<T> Xc3WriteFull for T
 where
-    T: Xc3Write + Xc3WriteFull + 'static,
+    T: Xc3Write + 'static,
     for<'a> T::Offsets<'a>: Xc3WriteFull,
 {
     fn write_full<W: Write + Seek>(
@@ -236,7 +233,22 @@ where
     ) -> BinResult<()> {
         // Ensure all items are written before their pointed to data.
         let offsets = self.xc3_write(writer, data_ptr)?;
-        for item in offsets {
+        offsets.write_full(writer, base_offset, data_ptr)?;
+        Ok(())
+    }
+}
+
+impl<T> Xc3WriteFull for VecOffsets<T>
+where
+    T: Xc3WriteFull,
+{
+    fn write_full<W: Write + Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> BinResult<()> {
+        for item in &self.0 {
             item.write_full(writer, base_offset, data_ptr)?;
         }
         Ok(())
@@ -253,30 +265,6 @@ impl Xc3WriteFull for () {
         Ok(())
     }
 }
-
-macro_rules! xc3_write_full_binwrite_impl {
-    ($($ty:ty),*) => {
-        $(
-            impl Xc3WriteFull for $ty {
-                fn write_full<W: std::io::Write + std::io::Seek>(
-                    &self,
-                    writer: &mut W,
-                    _base_offset: u64,
-                    data_ptr: &mut u64,
-                ) -> BinResult<()> {
-                    self.write_le(writer)?;
-                    *data_ptr = (*data_ptr).max(writer.stream_position()?);
-                    Ok(())
-                }
-            }
-        )*
-
-    };
-}
-
-pub(crate) use xc3_write_full_binwrite_impl;
-
-xc3_write_full_binwrite_impl!(u8, u16);
 
 pub(crate) const fn round_up(x: u64, n: u64) -> u64 {
     ((x + n - 1) / n) * n

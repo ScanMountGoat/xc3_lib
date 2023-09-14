@@ -81,11 +81,6 @@ pub fn xc3_write_full_derive(input: TokenStream) -> TokenStream {
     } else {
         quote!(base_offset)
     };
-    let offsets_base_offset = if has_base_offset {
-        quote!(offsets.base_offset;)
-    } else {
-        quote!(base_offset)
-    };
 
     // TODO: How to handle the base offset?
     let write_fields: Vec<_> = offset_field_names
@@ -107,20 +102,6 @@ pub fn xc3_write_full_derive(input: TokenStream) -> TokenStream {
                 // TODO: investigate deriving other orderings.
                 let base_offset = #self_base_offset;
                 #(#write_fields)*
-                Ok(())
-            }
-        }
-
-        impl crate::write::Xc3WriteFull for #name {
-            fn write_full<W: std::io::Write + std::io::Seek>(
-                &self,
-                writer: &mut W,
-                base_offset: u64,
-                data_ptr: &mut u64,
-            ) -> binrw::BinResult<()> {
-                let offsets = self.xc3_write(writer, data_ptr)?;
-                let base_offset = #offsets_base_offset;
-                offsets.write_full(writer, base_offset, data_ptr)?;
                 Ok(())
             }
         }

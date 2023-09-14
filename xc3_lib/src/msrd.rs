@@ -155,19 +155,6 @@ impl Msrd {
 
 xc3_write_binwrite_impl!(TextureResource, StreamEntry);
 
-impl Xc3WriteFull for Msrd {
-    fn write_full<W: std::io::Write + std::io::Seek>(
-        &self,
-        writer: &mut W,
-        base_offset: u64,
-        data_ptr: &mut u64,
-    ) -> BinResult<()> {
-        let offsets = self.xc3_write(writer, data_ptr)?;
-        offsets.write_full(writer, base_offset, data_ptr)?;
-        Ok(())
-    }
-}
-
 impl<'a> Xc3WriteFull for MsrdOffsets<'a> {
     fn write_full<W: std::io::Write + std::io::Seek>(
         &self,
@@ -193,7 +180,7 @@ impl<'a> Xc3WriteFull for MsrdOffsets<'a> {
         self.textures
             .write_offset_full(writer, base_offset, data_ptr)?;
 
-        for offsets in stream_offsets {
+        for offsets in stream_offsets.0 {
             offsets.xbc1.write_offset(writer, 0, data_ptr)?;
         }
 
