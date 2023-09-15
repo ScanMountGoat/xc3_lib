@@ -75,8 +75,7 @@ impl<'a> Xc3WriteFull for ApmdOffsets<'a> {
         base_offset: u64,
         data_ptr: &mut u64,
     ) -> binrw::BinResult<()> {
-        self.entries
-            .write_offset_full(writer, base_offset, data_ptr)?;
+        self.entries.write_full(writer, base_offset, data_ptr)?;
         // TODO: Handle this in the derive?
         let length = writer.stream_position()?;
         let padding = round_up(length, 4096) - length;

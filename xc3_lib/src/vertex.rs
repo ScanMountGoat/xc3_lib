@@ -355,8 +355,7 @@ impl<'a> Xc3WriteFull for VertexDataOffsets<'a> {
                 .write_offset(writer, base_offset, data_ptr)?;
         }
 
-        self.weights
-            .write_offset_full(writer, base_offset, data_ptr)?;
+        self.weights.write_full(writer, base_offset, data_ptr)?;
 
         self.unk_data.write_offset(writer, base_offset, data_ptr)?;
 
@@ -379,7 +378,7 @@ impl<'a> Xc3WriteFull for VertexDataOffsets<'a> {
             }
         }
 
-        self.unk7.write_offset_full(writer, base_offset, data_ptr)?;
+        self.unk7.write_full(writer, base_offset, data_ptr)?;
 
         self.buffer.write_offset(writer, base_offset, data_ptr)?;
 

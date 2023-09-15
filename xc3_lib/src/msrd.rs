@@ -177,8 +177,7 @@ impl<'a> Xc3WriteFull for MsrdOffsets<'a> {
         self.texture_ids
             .write_offset(writer, base_offset, data_ptr)?;
 
-        self.textures
-            .write_offset_full(writer, base_offset, data_ptr)?;
+        self.textures.write_full(writer, base_offset, data_ptr)?;
 
         for offsets in stream_offsets.0 {
             offsets.xbc1.write_offset(writer, 0, data_ptr)?;

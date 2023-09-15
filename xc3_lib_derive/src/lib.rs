@@ -68,7 +68,6 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
 pub fn xc3_write_full_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
-    let name = &input.ident;
     let offsets_name = Ident::new(&(input.ident.to_string() + "Offsets"), Span::call_site());
 
     let FieldData {
@@ -85,7 +84,7 @@ pub fn xc3_write_full_derive(input: TokenStream) -> TokenStream {
     // TODO: How to handle the base offset?
     let write_fields: Vec<_> = offset_field_names
         .iter()
-        .map(|f| quote!(self.#f.write_offset_full(writer, base_offset, data_ptr)?;))
+        .map(|f| quote!(self.#f.write_full(writer, base_offset, data_ptr)?;))
         .collect();
 
     // Add a write impl to the offset type to support nested types.

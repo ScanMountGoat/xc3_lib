@@ -1,7 +1,7 @@
 //! Compiled shaders in `.wishp` files or embedded in other formats.
 use std::io::{Cursor, SeekFrom};
 
-use crate::write::{Xc3Write, Xc3WriteFull, xc3_write_binwrite_impl, VecOffsets};
+use crate::write::{xc3_write_binwrite_impl, VecOffsets, Xc3Write, Xc3WriteFull};
 use crate::{
     parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
 };
@@ -53,16 +53,16 @@ pub struct Spch {
 
     // TODO: Does this actually need the program count?
     #[br(parse_with = parse_opt_ptr32)]
-    #[br(args { 
-        offset: base_offset, 
-        inner: args! { base_offset, count: shader_programs.len() 
+    #[br(args {
+        offset: base_offset,
+        inner: args! { base_offset, count: shader_programs.len()
     }})]
     #[xc3(offset)]
     pub string_section: Option<StringSection>,
 
     pub unk7: u32,
 
-    pub padding: [u32; 4]
+    pub padding: [u32; 4],
 }
 
 #[derive(Debug, BinRead)]
@@ -371,7 +371,6 @@ impl NvsdMetadata {
 
 xc3_write_binwrite_impl!(Unk4, ShaderProgram);
 
-
 impl Xc3Write for StringSection {
     type Offsets<'a> = VecOffsets<StringOffsetOffsets<'a>>;
 
@@ -384,7 +383,6 @@ impl Xc3Write for StringSection {
     }
 }
 
-
 impl<'a> Xc3WriteFull for SpchOffsets<'a> {
     fn write_full<W: std::io::Write + std::io::Seek>(
         &self,
@@ -393,12 +391,15 @@ impl<'a> Xc3WriteFull for SpchOffsets<'a> {
         data_ptr: &mut u64,
     ) -> binrw::BinResult<()> {
         // The ordering is slightly different than the field order.
-        self.shader_programs.write_offset_full(writer, base_offset, data_ptr)?;
-        self.unk4s.write_offset_full(writer, base_offset, data_ptr)?;
-        self.string_section.write_offset_full(writer, base_offset, data_ptr)?;
-        self.slct_section.write_offset_full(writer, base_offset, data_ptr)?;
-        self.unk_section.write_offset_full(writer, base_offset, data_ptr)?;  
-        self.xv4_section.write_offset_full(writer, base_offset, data_ptr)?;
+        self.shader_programs
+            .write_full(writer, base_offset, data_ptr)?;
+        self.unk4s.write_full(writer, base_offset, data_ptr)?;
+        self.string_section
+            .write_full(writer, base_offset, data_ptr)?;
+        self.slct_section
+            .write_full(writer, base_offset, data_ptr)?;
+        self.unk_section.write_full(writer, base_offset, data_ptr)?;
+        self.xv4_section.write_full(writer, base_offset, data_ptr)?;
         Ok(())
     }
 }

@@ -120,8 +120,11 @@ impl<'a, T: Xc3Write> Offset<'a, Option<T>> {
     }
 }
 
-impl<'a, T: Xc3Write + Xc3WriteFull> Offset<'a, T> {
-    pub(crate) fn write_offset_full<W: Write + Seek>(
+impl<'a, T> Xc3WriteFull for Offset<'a, T>
+where
+    T: Xc3Write + Xc3WriteFull,
+{
+    fn write_full<W: Write + Seek>(
         &self,
         writer: &mut W,
         base_offset: u64,
@@ -134,8 +137,11 @@ impl<'a, T: Xc3Write + Xc3WriteFull> Offset<'a, T> {
 }
 
 // This doesn't need specialization because Option does not impl Xc3WriteFull.
-impl<'a, T: Xc3Write + Xc3WriteFull> Offset<'a, Option<T>> {
-    pub(crate) fn write_offset_full<W: Write + Seek>(
+impl<'a, T> Xc3WriteFull for Offset<'a, Option<T>>
+where
+    T: Xc3Write + Xc3WriteFull,
+{
+    fn write_full<W: Write + Seek>(
         &self,
         writer: &mut W,
         base_offset: u64,
