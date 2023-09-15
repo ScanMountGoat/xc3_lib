@@ -13,6 +13,7 @@ fn sampler_descriptor(sampler: &xc3_model::Sampler) -> wgpu::SamplerDescriptor<'
         min_filter: filter_mode(sampler.min_filter),
         mipmap_filter: wgpu::FilterMode::Nearest,
         lod_min_clamp: 0.0,
+        // Values taken from tests using Ryujinx with Vulkan.
         lod_max_clamp: if sampler.mipmaps { 15.0 } else { 0.25 },
         ..Default::default()
     }

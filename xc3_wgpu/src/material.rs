@@ -71,6 +71,7 @@ pub fn materials(
     pipeline_data: &ModelPipelineData,
     materials: &[xc3_model::Material],
     textures: &[(wgpu::TextureViewDimension, wgpu::TextureView)],
+    samplers: &[wgpu::Sampler],
 ) -> (Vec<Material>, HashMap<PipelineKey, wgpu::RenderPipeline>) {
     // TODO: Is there a better way to handle missing textures?
     // TODO: Is it worth creating a separate shaders for each material?
@@ -148,7 +149,16 @@ pub fn materials(
                     s7: material_texture(material, textures, 7).unwrap_or(&default_black),
                     s8: material_texture(material, textures, 8).unwrap_or(&default_black),
                     s9: material_texture(material, textures, 9).unwrap_or(&default_black),
-                    shared_sampler: &default_sampler,
+                    s0_sampler: material_sampler(material, samplers, 0).unwrap_or(&default_sampler),
+                    s1_sampler: material_sampler(material, samplers, 1).unwrap_or(&default_sampler),
+                    s2_sampler: material_sampler(material, samplers, 2).unwrap_or(&default_sampler),
+                    s3_sampler: material_sampler(material, samplers, 3).unwrap_or(&default_sampler),
+                    s4_sampler: material_sampler(material, samplers, 4).unwrap_or(&default_sampler),
+                    s5_sampler: material_sampler(material, samplers, 5).unwrap_or(&default_sampler),
+                    s6_sampler: material_sampler(material, samplers, 6).unwrap_or(&default_sampler),
+                    s7_sampler: material_sampler(material, samplers, 7).unwrap_or(&default_sampler),
+                    s8_sampler: material_sampler(material, samplers, 8).unwrap_or(&default_sampler),
+                    s9_sampler: material_sampler(material, samplers, 9).unwrap_or(&default_sampler),
                     per_material: per_material.as_entire_buffer_binding(),
                 },
             );
@@ -243,7 +253,16 @@ pub fn foliage_materials(
                     s7: &default_black,
                     s8: &default_black,
                     s9: &default_black,
-                    shared_sampler: &default_sampler,
+                    s0_sampler: &default_sampler,
+                    s1_sampler: &default_sampler,
+                    s2_sampler: &default_sampler,
+                    s3_sampler: &default_sampler,
+                    s4_sampler: &default_sampler,
+                    s5_sampler: &default_sampler,
+                    s6_sampler: &default_sampler,
+                    s7_sampler: &default_sampler,
+                    s8_sampler: &default_sampler,
+                    s9_sampler: &default_sampler,
                     per_material: per_material.as_entire_buffer_binding(),
                 },
             );
@@ -377,4 +396,16 @@ fn material_texture<'a>(
                 None
             }
         })
+}
+
+fn material_sampler<'a>(
+    material: &xc3_model::Material,
+    samplers: &'a [wgpu::Sampler],
+    index: usize,
+) -> Option<&'a wgpu::Sampler> {
+    // TODO: Why is this sometimes out of range for XC2 maps?
+    material
+        .textures
+        .get(index)
+        .and_then(|texture| samplers.get(texture.sampler_index))
 }

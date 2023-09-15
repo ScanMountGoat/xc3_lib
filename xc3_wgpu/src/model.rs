@@ -10,6 +10,7 @@ use xc3_model::{skinning::bone_indices_weights, vertex::AttributeData};
 use crate::{
     material::{materials, Material},
     pipeline::{ModelPipelineData, PipelineKey},
+    sampler::create_sampler,
     shader,
     texture::create_texture,
 };
@@ -311,13 +312,25 @@ fn create_model_group(
         .models
         .iter()
         .map(|models| {
-            let (materials, pipelines) =
-                materials(device, queue, pipeline_data, &models.materials, textures);
-
             let skeleton = models.skeleton.clone();
             let (per_group, per_group_buffer) = per_group_bind_group(device, skeleton.as_ref());
 
             let base_lod_indices = models.base_lod_indices.clone();
+
+            let samplers: Vec<_> = models
+                .samplers
+                .iter()
+                .map(|s| create_sampler(device, s))
+                .collect();
+
+            let (materials, pipelines) = materials(
+                device,
+                queue,
+                pipeline_data,
+                &models.materials,
+                textures,
+                &samplers,
+            );
 
             let models = models
                 .models
@@ -325,6 +338,7 @@ fn create_model_group(
                 .map(|model| create_model(device, model))
                 .collect();
 
+            // TODO: Store the samplers?
             Models {
                 models,
                 materials,

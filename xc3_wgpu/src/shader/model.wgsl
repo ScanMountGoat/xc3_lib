@@ -54,7 +54,34 @@ var s9: texture_2d<f32>;
 
 // TODO: Multiple samplers?
 @group(2) @binding(10)
-var shared_sampler: sampler;
+var s0_sampler: sampler;
+
+@group(2) @binding(11)
+var s1_sampler: sampler;
+
+@group(2) @binding(12)
+var s2_sampler: sampler;
+
+@group(2) @binding(13)
+var s3_sampler: sampler;
+
+@group(2) @binding(14)
+var s4_sampler: sampler;
+
+@group(2) @binding(15)
+var s5_sampler: sampler;
+
+@group(2) @binding(16)
+var s6_sampler: sampler;
+
+@group(2) @binding(17)
+var s7_sampler: sampler;
+
+@group(2) @binding(18)
+var s8_sampler: sampler;
+
+@group(2) @binding(19)
+var s9_sampler: sampler;
 
 // TODO: How to handle multiple inputs for each output channel?
 // Texture and channel input for each output channel.
@@ -63,7 +90,7 @@ struct GBufferAssignment {
     channel_indices: vec4<u32>
 }
 
-@group(2) @binding(11)
+@group(2) @binding(20)
 var<uniform> per_material: PerMaterial;
 
 struct PerMaterial {
@@ -220,17 +247,16 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     // TODO: Flip the sign?
     let bitangent = cross(vertex_normal, tangent) * in.tangent.w;
 
-    // TODO: Handle missing samplers?
-    let s0_color = textureSample(s0, shared_sampler, in.uv1);
-    let s1_color = textureSample(s1, shared_sampler, in.uv1);
-    let s2_color = textureSample(s2, shared_sampler, in.uv1);
-    let s3_color = textureSample(s3, shared_sampler, in.uv1);
-    let s4_color = textureSample(s4, shared_sampler, in.uv1);
-    let s5_color = textureSample(s5, shared_sampler, in.uv1);
-    let s6_color = textureSample(s6, shared_sampler, in.uv1);
-    let s7_color = textureSample(s7, shared_sampler, in.uv1);
-    let s8_color = textureSample(s8, shared_sampler, in.uv1);
-    let s9_color = textureSample(s9, shared_sampler, in.uv1);
+    let s0_color = textureSample(s0, s0_sampler, in.uv1);
+    let s1_color = textureSample(s1, s1_sampler, in.uv1);
+    let s2_color = textureSample(s2, s2_sampler, in.uv1);
+    let s3_color = textureSample(s3, s3_sampler, in.uv1);
+    let s4_color = textureSample(s4, s4_sampler, in.uv1);
+    let s5_color = textureSample(s5, s5_sampler, in.uv1);
+    let s6_color = textureSample(s6, s6_sampler, in.uv1);
+    let s7_color = textureSample(s7, s7_sampler, in.uv1);
+    let s8_color = textureSample(s8, s8_sampler, in.uv1);
+    let s9_color = textureSample(s9, s9_sampler, in.uv1);
 
     let s_colors = array<vec4<f32>, 10>(
         s0_color,
