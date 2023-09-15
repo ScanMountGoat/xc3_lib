@@ -1,7 +1,9 @@
 use std::{error::Error, path::Path};
 
 use ddsfile::Dds;
+use image_dds::Surface;
 use xc3_lib::{
+    dds::surface_image_format,
     mibl::Mibl,
     msrd::Msrd,
     mxmd::{Mxmd, PackedTexture},
@@ -192,7 +194,6 @@ fn load_wismt_texture(
     ))
 }
 
-// TODO: add conversions to and from dds for surface to image_dds?
 impl ImageTexture {
     pub fn to_image(&self) -> Result<image::RgbaImage, Box<dyn Error>> {
         let dds = self.to_dds()?;
@@ -200,37 +201,21 @@ impl ImageTexture {
     }
 
     pub fn to_dds(&self) -> Result<Dds, Box<dyn Error>> {
-        let mut dds = Dds::new_dxgi(ddsfile::NewDxgiParams {
-            height: self.height,
+        image_dds::dds_from_surface(Surface {
             width: self.width,
-            depth: if self.depth > 1 {
-                Some(self.depth)
+            height: self.height,
+            depth: self.depth,
+            layers: if self.view_dimension == ViewDimension::Cube {
+                6
             } else {
-                None
+                1
             },
-            format: self.image_format.into(),
-            mipmap_levels: if self.mipmap_count > 1 {
-                Some(self.mipmap_count)
-            } else {
-                None
-            },
-            array_layers: if self.view_dimension == ViewDimension::Cube {
-                Some(6)
-            } else {
-                None
-            },
-            caps2: None,
-            is_cubemap: false,
-            resource_dimension: if self.depth > 1 {
-                ddsfile::D3D10ResourceDimension::Texture3D
-            } else {
-                ddsfile::D3D10ResourceDimension::Texture2D
-            },
-            alpha_mode: ddsfile::AlphaMode::Straight, // TODO: Does this matter?
-        })?;
-
-        dds.data = self.image_data.clone();
-
-        Ok(dds)
+            mipmaps: self.mipmap_count,
+            image_format: surface_image_format(self.image_format).unwrap(),
+            data: &self.image_data,
+        })
+        .map_err(Into::into)
     }
+
+    // TODO: from_dds
 }

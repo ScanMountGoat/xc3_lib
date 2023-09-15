@@ -1,9 +1,10 @@
 //! Conversions between [Mibl] and [ddsfile::Dds].
 use std::{io::BufWriter, path::Path};
 
-use ddsfile::{D3DFormat, Dds, DxgiFormat, FourCC};
+use ddsfile::Dds;
 
 use anyhow::Result;
+use image_dds::Surface;
 
 use crate::{
     mibl::Mibl,
@@ -19,60 +20,47 @@ pub fn save_dds<P: AsRef<Path>>(path: P, dds: &Dds) {
 }
 
 // TODO: Publicly export ddsfile from image_dds?
-// TODO: add conversions to and from dds for surface to image_dds?
 pub fn create_dds(mibl: &Mibl) -> Result<Dds> {
-    let mut dds = Dds::new_dxgi(ddsfile::NewDxgiParams {
-        height: mibl.footer.height,
+    image_dds::dds_from_surface(Surface {
         width: mibl.footer.width,
-        depth: if mibl.footer.depth > 1 {
-            Some(mibl.footer.depth)
+        height: mibl.footer.height,
+        depth: mibl.footer.depth,
+        layers: if mibl.footer.view_dimension == ViewDimension::Cube {
+            6
         } else {
-            None
+            1
         },
-        format: mibl.footer.image_format.into(),
-        mipmap_levels: if mibl.footer.mipmap_count > 1 {
-            Some(mibl.footer.mipmap_count)
-        } else {
-            None
-        },
-        array_layers: if mibl.footer.view_dimension == ViewDimension::Cube {
-            Some(6)
-        } else {
-            None
-        },
-        caps2: None,
-        is_cubemap: false,
-        resource_dimension: if mibl.footer.depth > 1 {
-            ddsfile::D3D10ResourceDimension::Texture3D
-        } else {
-            ddsfile::D3D10ResourceDimension::Texture2D
-        },
-        alpha_mode: ddsfile::AlphaMode::Straight, // TODO: Does this matter?
-    })?;
-
-    dds.data = mibl.deswizzled_image_data()?;
-
-    Ok(dds)
+        mipmaps: mibl.footer.mipmap_count,
+        image_format: surface_image_format(mibl.footer.image_format).unwrap(),
+        data: mibl.deswizzled_image_data()?,
+    })
+    .map_err(Into::into)
 }
 
 // TODO: Add a more general from_image_data function.
 pub fn create_mibl(dds: &Dds) -> Result<Mibl> {
     // TODO: Avoid unwrap.
-    let image_format =
-        dds_image_format(dds).unwrap_or_else(|| panic!("{:?}", dds.get_dxgi_format().unwrap()));
-
-    let layer_count = layer_count(dds);
+    let Surface {
+        width,
+        height,
+        depth,
+        layers,
+        mipmaps,
+        image_format,
+        data,
+    } = image_dds::surface_from_dds(dds).unwrap();
+    let image_format = image_format_from_surface(image_format).unwrap();
 
     let mut image_data = tegra_swizzle::surface::swizzle_surface(
-        dds.get_width() as usize,
-        dds.get_height() as usize,
-        dds.get_depth() as usize,
-        &dds.data,
+        width as usize,
+        height as usize,
+        depth as usize,
+        data,
         image_format.block_dim(),
         None,
         image_format.bytes_per_pixel(),
-        dds.get_num_mipmap_levels() as usize,
-        layer_count as usize,
+        mipmaps as usize,
+        layers as usize,
     )?;
 
     // TODO: expose round up in tegra_swizzle?
@@ -89,7 +77,7 @@ pub fn create_mibl(dds: &Dds) -> Result<Mibl> {
             depth: dds.get_depth(),
             view_dimension: if dds.get_depth() > 1 {
                 ViewDimension::D3
-            } else if layer_count == 6 {
+            } else if layers == 6 {
                 ViewDimension::Cube
             } else {
                 ViewDimension::D2
@@ -101,81 +89,43 @@ pub fn create_mibl(dds: &Dds) -> Result<Mibl> {
     })
 }
 
-impl From<ImageFormat> for ddsfile::DxgiFormat {
-    fn from(value: ImageFormat) -> Self {
-        match value {
-            ImageFormat::R8Unorm => Self::R8_UNorm,
-            ImageFormat::R8G8B8A8Unorm => Self::R8G8B8A8_UNorm,
-            ImageFormat::R16G16B16A16Float => Self::R16G16B16A16_Float,
-            ImageFormat::BC1Unorm => Self::BC1_UNorm,
-            ImageFormat::BC2Unorm => Self::BC2_UNorm,
-            ImageFormat::BC3Unorm => Self::BC3_UNorm,
-            ImageFormat::BC4Unorm => Self::BC4_UNorm,
-            ImageFormat::BC5Unorm => Self::BC5_UNorm,
-            ImageFormat::BC7Unorm => Self::BC7_UNorm,
-            ImageFormat::B8G8R8A8Unorm => Self::B8G8R8A8_UNorm,
-        }
+// TODO: try_into?
+pub fn surface_image_format(value: ImageFormat) -> Option<image_dds::ImageFormat> {
+    match value {
+        ImageFormat::R8Unorm => Some(image_dds::ImageFormat::R8Unorm),
+        ImageFormat::R8G8B8A8Unorm => Some(image_dds::ImageFormat::R8G8B8A8Unorm),
+        ImageFormat::R16G16B16A16Float => None,
+        ImageFormat::BC1Unorm => Some(image_dds::ImageFormat::BC1Unorm),
+        ImageFormat::BC2Unorm => Some(image_dds::ImageFormat::BC2Unorm),
+        ImageFormat::BC3Unorm => Some(image_dds::ImageFormat::BC3Unorm),
+        ImageFormat::BC4Unorm => Some(image_dds::ImageFormat::BC4Unorm),
+        ImageFormat::BC5Unorm => Some(image_dds::ImageFormat::BC5Unorm),
+        ImageFormat::BC7Unorm => Some(image_dds::ImageFormat::BC7Unorm),
+        ImageFormat::B8G8R8A8Unorm => Some(image_dds::ImageFormat::B8G8R8A8Unorm),
     }
 }
 
-// TODO: Convert image format the other way.
-
-fn layer_count(dds: &Dds) -> u32 {
-    // Array layers for DDS are calculated differently for cube maps.
-    if matches!(&dds.header10, Some(header10) if header10.misc_flag == ddsfile::MiscFlag::TEXTURECUBE)
-    {
-        dds.get_num_array_layers() * 6
-    } else {
-        dds.get_num_array_layers()
-    }
-}
-
-fn dds_image_format(dds: &Dds) -> Option<ImageFormat> {
-    // The format can be DXGI, D3D, or specified in the FOURCC.
-    // This is necessary for compatibility with different programs.
-    let dxgi = dds.get_dxgi_format();
-    let d3d = dds.get_d3d_format();
-    let fourcc = dds.header.spf.fourcc.as_ref();
-
-    dxgi.and_then(image_format_from_dxgi)
-        .or_else(|| d3d.and_then(image_format_from_d3d))
-        .or_else(|| fourcc.and_then(image_format_from_fourcc))
-}
-
-fn image_format_from_dxgi(format: DxgiFormat) -> Option<ImageFormat> {
-    match format {
-        DxgiFormat::R8_UNorm => Some(ImageFormat::R8Unorm),
-        DxgiFormat::R8G8B8A8_UNorm => Some(ImageFormat::R8G8B8A8Unorm),
-        DxgiFormat::R16G16B16A16_Float => Some(ImageFormat::R16G16B16A16Float),
-        DxgiFormat::BC1_UNorm => Some(ImageFormat::BC1Unorm),
-        DxgiFormat::BC3_UNorm => Some(ImageFormat::BC3Unorm),
-        DxgiFormat::BC4_UNorm => Some(ImageFormat::BC4Unorm),
-        DxgiFormat::BC5_UNorm => Some(ImageFormat::BC5Unorm),
-        DxgiFormat::BC7_UNorm => Some(ImageFormat::BC7Unorm),
-        DxgiFormat::B8G8R8A8_UNorm => Some(ImageFormat::B8G8R8A8Unorm),
-        _ => None,
-    }
-}
-
-fn image_format_from_d3d(format: D3DFormat) -> Option<ImageFormat> {
-    match format {
-        D3DFormat::DXT1 => Some(ImageFormat::BC1Unorm),
-        D3DFormat::DXT4 => Some(ImageFormat::BC3Unorm),
-        D3DFormat::DXT5 => Some(ImageFormat::BC3Unorm),
-        _ => None,
-    }
-}
-
-const BC5U: u32 = u32::from_le_bytes(*b"BC5U");
-const ATI2: u32 = u32::from_le_bytes(*b"ATI2");
-
-fn image_format_from_fourcc(fourcc: &FourCC) -> Option<ImageFormat> {
-    match fourcc.0 {
-        FourCC::DXT1 => Some(ImageFormat::BC1Unorm),
-        FourCC::DXT4 => Some(ImageFormat::BC3Unorm),
-        FourCC::DXT5 => Some(ImageFormat::BC3Unorm),
-        FourCC::BC4_UNORM => Some(ImageFormat::BC4Unorm),
-        ATI2 | BC5U => Some(ImageFormat::BC5Unorm),
-        _ => None,
+pub fn image_format_from_surface(value: image_dds::ImageFormat) -> Option<ImageFormat> {
+    match value {
+        image_dds::ImageFormat::R8Unorm => Some(ImageFormat::R8Unorm),
+        image_dds::ImageFormat::R8G8B8A8Unorm => Some(ImageFormat::R8G8B8A8Unorm),
+        image_dds::ImageFormat::R8G8B8A8Srgb => None,
+        image_dds::ImageFormat::R32G32B32A32Float => None,
+        image_dds::ImageFormat::B8G8R8A8Unorm => Some(ImageFormat::B8G8R8A8Unorm),
+        image_dds::ImageFormat::B8G8R8A8Srgb => None,
+        image_dds::ImageFormat::BC1Unorm => Some(ImageFormat::BC1Unorm),
+        image_dds::ImageFormat::BC1Srgb => None,
+        image_dds::ImageFormat::BC2Unorm => Some(ImageFormat::BC2Unorm),
+        image_dds::ImageFormat::BC2Srgb => None,
+        image_dds::ImageFormat::BC3Unorm => Some(ImageFormat::BC3Unorm),
+        image_dds::ImageFormat::BC3Srgb => None,
+        image_dds::ImageFormat::BC4Unorm => Some(ImageFormat::BC4Unorm),
+        image_dds::ImageFormat::BC4Snorm => None,
+        image_dds::ImageFormat::BC5Unorm => Some(ImageFormat::BC5Unorm),
+        image_dds::ImageFormat::BC5Snorm => None,
+        image_dds::ImageFormat::BC6Ufloat => None,
+        image_dds::ImageFormat::BC6Sfloat => None,
+        image_dds::ImageFormat::BC7Unorm => Some(ImageFormat::BC7Unorm),
+        image_dds::ImageFormat::BC7Srgb => None,
     }
 }
