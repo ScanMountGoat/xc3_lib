@@ -33,7 +33,7 @@ The file format library and utilities. The goal is to create the simplest possib
 Operations like deswizzling and decompression are implemented as functions that users must explicitly call to return new data rather than modifying the types representing the data on disk. The deswizzing operation for `Mibl` textures returns a new .dds file, for example. More advanced decoding operations are implemented in higher level projects like xc3_wgpu or xc3_model.
 
 ### xc3_lib_derive
-A procedural macro for generating code for xc3_lib at compile time. This currently just handles generating the code described in [Offsets}(https://github.com/ScanMountGoat/xc3_lib/blob/main/Offsets.md).
+A procedural macro for generating code for xc3_lib at compile time. This currently just handles generating the code described in [Offsets](https://github.com/ScanMountGoat/xc3_lib/blob/main/Offsets.md).
 
 ### xc3_model
 xc3_model converts the game specific binary file data into a standardized format that is easier to read, render, and convert. Converting the xc3_lib types into the same format abstracts away the details of how data is represented and allows consuming code to use the same code for all the various characters, objects, and maps in game. For example, xc3_model uses a single `ImageData` stored at the root level of a model hierarchy to encompass all the many ways that `Mibl` data can be packed and stored across different files.
