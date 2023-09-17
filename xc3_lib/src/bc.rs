@@ -17,7 +17,7 @@ pub struct Bc {
     pub data: BcData,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead)]
 pub enum BcData {
     #[br(magic(2u32))]
     Skdy(Skdy),
@@ -32,27 +32,27 @@ pub enum BcData {
     Asmb(Asmb),
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead)]
 #[br(magic(b"ASMB"))]
 pub struct Asmb {
     pub unk1: u32,
 }
 
 // skeleton dynamics?
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead)]
 #[br(magic(b"SKDY"))]
 pub struct Skdy {
     pub unk1: u32,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead)]
 #[br(magic(b"ANIM"))]
 pub struct Anim {
     #[br(parse_with = FilePtr64::parse)]
-    pub header: AnimHeader,
+    pub binding: AnimationBinding,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead)]
 pub struct Animation {
     pub unk1: BcList<()>,
     pub unk_offset1: u64,
@@ -72,17 +72,17 @@ pub struct Animation {
 
     #[br(args { animation_type })]
     pub data: AnimationData,
-    // TODO: more fields?
 }
 
-#[derive(BinRead, Debug)]
-pub struct AnimHeader {
+#[derive(Debug, BinRead)]
+pub struct AnimationBinding {
     // TODO: More data?
     pub unk1: BcList<()>,
 
-    pub unk2: u32,
-    pub unk3: u32,
+    // u64?
+    pub unk2: u64,
 
+    // TODO: Avoid needing to match multiple times on animation type?
     #[br(parse_with = FilePtr64::parse)]
     pub animation: Animation,
 
@@ -92,49 +92,80 @@ pub struct AnimHeader {
     // i.e are the hashes always unique?
     // TODO: same length and ordering as tracks?
     pub bone_indices: BcList<i16>,
-    pub unk4: BcList<u64>, // TODO: extra track stuff?
-    pub unk5: BcList<()>,  // TODO: type?
+    // TODO: extra track bindings?
+    pub bone_names: BcList<StringOffset>,
 
+    #[br(args_raw(animation.animation_type))]
+    pub extra_track_animation: ExtraTrackAnimation,
+}
+
+// TODO: Is this the right type?
+#[derive(Debug, BinRead)]
+pub struct StringOffset {
+    #[br(parse_with = parse_string_ptr64)]
+    pub name: String,
+}
+
+#[derive(Debug, BinRead)]
+#[br(import_raw(animation_type: AnimationType))]
+pub struct ExtraTrackAnimation {
+    #[br(parse_with = parse_string_ptr64)]
+    pub unk1: String,
+    pub unk2: u32,
+    pub unk3: i32,
     pub unk6: u32,
     pub unk7: u32,
 
-    // TODO: should parsing depend on type?
     #[br(parse_with = FilePtr64::parse)]
-    #[br(args { inner: animation.animation_type })]
-    pub inner: AnimHeaderInner,
+    #[br(args { inner: animation_type })]
+    pub data: ExtraTrackAnimationData,
 
     pub unk_offset: u64,
 }
 
-// TODO: animation type 1 doesn't have hashes, so indices aren't remapped?
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead)]
 #[br(import_raw(animation_type: AnimationType))]
-pub struct AnimHeaderInner {
-    pub unk1: BcList<()>, // TODO: type?
-    pub unk2: BcList<()>, // TODO: type?
+pub enum ExtraTrackAnimationData {
+    #[br(pre_assert(animation_type == AnimationType::Unk0))]
+    Unk0,
+
+    #[br(pre_assert(animation_type == AnimationType::Cubic))]
+    Unk1,
+
+    #[br(pre_assert(animation_type == AnimationType::Unk2))]
+    Unk2,
+
+    #[br(pre_assert(animation_type == AnimationType::PackedCubic))]
+    PackedCubic(PackedCubicExtraData),
+}
+
+#[derive(Debug, BinRead)]
+pub struct PackedCubicExtraData {
+    // TODO: buffers?
+    pub unk1: BcList<u8>,
+    pub unk2: BcList<u8>,
 
     // The MurmurHash3 32-bit hash of the bone names.
     // TODO: type alias for hash?
-    #[br(if(animation_type == AnimationType::PackedCubic))]
-    pub hashes: Option<BcList<u32>>,
+    pub hashes: BcList<u32>,
 }
 
-#[derive(BinRead, Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, BinRead, PartialEq, Eq, Clone, Copy)]
 #[br(repr(u8))]
 pub enum AnimationType {
     Unk0 = 0,
-    Unk1 = 1,
+    Cubic = 1,
     Unk2 = 2,
     PackedCubic = 3,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead)]
 #[br(import { animation_type: AnimationType})]
 pub enum AnimationData {
     #[br(pre_assert(animation_type == AnimationType::Unk0))]
     Unk0,
 
-    #[br(pre_assert(animation_type == AnimationType::Unk1))]
+    #[br(pre_assert(animation_type == AnimationType::Cubic))]
     Cubic(Cubic),
 
     #[br(pre_assert(animation_type == AnimationType::Unk2))]
@@ -144,19 +175,19 @@ pub enum AnimationData {
     PackedCubic(PackedCubic),
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead)]
 pub struct Cubic {
     pub tracks: BcList<CubicTrack>,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead)]
 pub struct CubicTrack {
     pub translation: BcList<KeyFrameCubicVec3>,
     pub rotation: BcList<KeyFrameCubicQuaternion>,
     pub scale: BcList<KeyFrameCubicVec3>,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead)]
 pub struct KeyFrameCubicVec3 {
     pub time: f32,
     pub x: [f32; 4],
@@ -164,7 +195,7 @@ pub struct KeyFrameCubicVec3 {
     pub z: [f32; 4],
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead)]
 pub struct KeyFrameCubicQuaternion {
     pub time: f32,
     pub x: [f32; 4],
@@ -173,7 +204,7 @@ pub struct KeyFrameCubicQuaternion {
     pub w: [f32; 4],
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead)]
 pub struct PackedCubic {
     // TODO: same length and ordering as bone indices and hashes?
     pub tracks: BcList<PackedCubicTrack>,
@@ -188,14 +219,14 @@ pub struct PackedCubic {
     pub timings: BcList<u16>,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead)]
 pub struct PackedCubicTrack {
     pub translation: SubTrack,
     pub rotation: SubTrack,
     pub scale: SubTrack,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead)]
 pub struct SubTrack {
     // TODO: index into timings?
     pub time_start_index: u32,
@@ -205,7 +236,7 @@ pub struct SubTrack {
     pub time_end_index: u32,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead)]
 #[br(magic(b"SKEL"))]
 pub struct Skel {
     pub unks: [u32; 10],
@@ -223,14 +254,14 @@ pub struct Skel {
     // TODO: other fields?
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead)]
 pub struct Transform {
     pub translation: [f32; 4],
     pub rotation_quaternion: [f32; 4],
     pub scale: [f32; 4],
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead)]
 pub struct BoneName {
     // TODO: Is this a 64-bit pointer?
     #[br(parse_with = parse_string_ptr32)]

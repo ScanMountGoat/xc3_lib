@@ -140,7 +140,7 @@ impl Models {
             let mut animated_skeleton = skeleton.clone();
 
             // TODO: Load all key frames?
-            match &anim.header.animation.data {
+            match &anim.binding.animation.data {
                 xc3_lib::bc::AnimationData::Unk0 => todo!(),
                 xc3_lib::bc::AnimationData::Cubic(cubic) => {
                     // TODO: Does each of these tracks have a corresponding hash?
@@ -149,7 +149,7 @@ impl Models {
                         .tracks
                         .elements
                         .iter()
-                        .zip(anim.header.bone_indices.elements.iter())
+                        .zip(anim.binding.bone_indices.elements.iter())
                     {
                         // TODO: cubic interpolation?
                         // TODO: Add sample methods to the keyframe types?
@@ -177,34 +177,38 @@ impl Models {
                 xc3_lib::bc::AnimationData::PackedCubic(cubic) => {
                     // TODO: Does each of these tracks have a corresponding hash?
                     // TODO: Also check the bone indices?
-                    for (track, hash) in cubic
-                        .tracks
-                        .elements
-                        .iter()
-                        .zip(anim.header.inner.hashes.as_ref().unwrap().elements.iter())
+                    if let xc3_lib::bc::ExtraTrackAnimationData::PackedCubic(extra) =
+                        &anim.binding.extra_track_animation.data
                     {
-                        // TODO: cubic interpolation?
-                        let translation = sample_vec3_packed_cubic(
-                            cubic,
-                            track.translation.curves_start_index as usize,
-                        );
-                        let rotation = sample_quat_packed_cubic(
-                            cubic,
-                            track.rotation.curves_start_index as usize,
-                        );
-                        let scale = sample_vec3_packed_cubic(
-                            cubic,
-                            track.scale.curves_start_index as usize,
-                        );
+                        for (track, hash) in cubic
+                            .tracks
+                            .elements
+                            .iter()
+                            .zip(extra.hashes.elements.iter())
+                        {
+                            // TODO: cubic interpolation?
+                            let translation = sample_vec3_packed_cubic(
+                                cubic,
+                                track.translation.curves_start_index as usize,
+                            );
+                            let rotation = sample_quat_packed_cubic(
+                                cubic,
+                                track.rotation.curves_start_index as usize,
+                            );
+                            let scale = sample_vec3_packed_cubic(
+                                cubic,
+                                track.scale.curves_start_index as usize,
+                            );
 
-                        if let Some(bone_index) = hash_to_index.get(hash) {
-                            // TODO: Does every track start at time 0?
-                            let transform = Mat4::from_translation(translation)
-                                * Mat4::from_quat(rotation)
-                                * Mat4::from_scale(scale);
-                            animated_skeleton.bones[*bone_index].transform = transform;
-                        } else {
-                            error!("No matching bone for hash {hash:x}");
+                            if let Some(bone_index) = hash_to_index.get(hash) {
+                                // TODO: Does every track start at time 0?
+                                let transform = Mat4::from_translation(translation)
+                                    * Mat4::from_quat(rotation)
+                                    * Mat4::from_scale(scale);
+                                animated_skeleton.bones[*bone_index].transform = transform;
+                            } else {
+                                error!("No matching bone for hash {hash:x}");
+                            }
                         }
                     }
                 }
