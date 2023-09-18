@@ -223,7 +223,7 @@ impl Buffers {
 
             let indices = gltf::json::Accessor {
                 buffer_view: Some(gltf::json::Index::new(self.buffer_views.len() as u32)),
-                byte_offset: 0,
+                byte_offset: Some(0),
                 count: index_buffer.indices.len() as u32,
                 component_type: Valid(gltf::json::accessor::GenericComponentType(
                     gltf::json::accessor::ComponentType::U16,
@@ -294,7 +294,7 @@ impl Buffers {
         // TODO: min/max for positions.
         let accessor = gltf::json::Accessor {
             buffer_view: Some(gltf::json::Index::new(self.buffer_views.len() as u32)),
-            byte_offset: 0,
+            byte_offset: Some(0),
             count: values.len() as u32,
             component_type: Valid(gltf::json::accessor::GenericComponentType(component_type)),
             extensions: Default::default(),
