@@ -95,8 +95,7 @@ fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Option
             }
         });
 
-    let map_folder = Path::new(input).join("map");
-    globwalk::GlobWalkerBuilder::from_patterns(map_folder, &["*.wismhd"])
+    globwalk::GlobWalkerBuilder::from_patterns(input, &["*.wismhd"])
         .build()
         .unwrap()
         .par_bridge()
