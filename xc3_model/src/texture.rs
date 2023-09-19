@@ -201,7 +201,7 @@ impl ImageTexture {
     }
 
     pub fn to_dds(&self) -> Result<Dds, Box<dyn Error>> {
-        image_dds::dds_from_surface(Surface {
+        Surface {
             width: self.width,
             height: self.height,
             depth: self.depth,
@@ -213,7 +213,8 @@ impl ImageTexture {
             mipmaps: self.mipmap_count,
             image_format: surface_image_format(self.image_format).unwrap(),
             data: &self.image_data,
-        })
+        }
+        .to_dds()
         .map_err(Into::into)
     }
 

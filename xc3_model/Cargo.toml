@@ -9,7 +9,7 @@ xc3_shader = { path = "../xc3_shader" }
 glam = { version = "0.24.0", features = ["bytemuck"] }
 gltf = { version = "1.3.0", features = ["extras"] }
 binrw = "0.11.2"
-image_dds = { git = "https://github.com/ScanMountGoat/image_dds", rev ="d8848f3" }
+image_dds = { git = "https://github.com/ScanMountGoat/image_dds", rev ="c661d67" }
 tegra_swizzle = "0.3.1"
 ddsfile = "0.5.1"
 rayon = "1.7.0"

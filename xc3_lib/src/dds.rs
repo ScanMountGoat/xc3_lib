@@ -21,7 +21,7 @@ pub fn save_dds<P: AsRef<Path>>(path: P, dds: &Dds) {
 
 // TODO: Publicly export ddsfile from image_dds?
 pub fn create_dds(mibl: &Mibl) -> Result<Dds> {
-    image_dds::dds_from_surface(Surface {
+    Surface {
         width: mibl.footer.width,
         height: mibl.footer.height,
         depth: mibl.footer.depth,
@@ -33,7 +33,8 @@ pub fn create_dds(mibl: &Mibl) -> Result<Dds> {
         mipmaps: mibl.footer.mipmap_count,
         image_format: surface_image_format(mibl.footer.image_format).unwrap(),
         data: mibl.deswizzled_image_data()?,
-    })
+    }
+    .to_dds()
     .map_err(Into::into)
 }
 
@@ -48,7 +49,7 @@ pub fn create_mibl(dds: &Dds) -> Result<Mibl> {
         mipmaps,
         image_format,
         data,
-    } = image_dds::surface_from_dds(dds).unwrap();
+    } = image_dds::Surface::from_dds(dds).unwrap();
     let image_format = image_format_from_surface(image_format).unwrap();
 
     let mut image_data = tegra_swizzle::surface::swizzle_surface(
@@ -94,7 +95,7 @@ pub fn surface_image_format(value: ImageFormat) -> Option<image_dds::ImageFormat
     match value {
         ImageFormat::R8Unorm => Some(image_dds::ImageFormat::R8Unorm),
         ImageFormat::R8G8B8A8Unorm => Some(image_dds::ImageFormat::R8G8B8A8Unorm),
-        ImageFormat::R16G16B16A16Float => None,
+        ImageFormat::R16G16B16A16Float => Some(image_dds::ImageFormat::R16G16B16A16Float),
         ImageFormat::BC1Unorm => Some(image_dds::ImageFormat::BC1Unorm),
         ImageFormat::BC2Unorm => Some(image_dds::ImageFormat::BC2Unorm),
         ImageFormat::BC3Unorm => Some(image_dds::ImageFormat::BC3Unorm),
@@ -110,6 +111,7 @@ pub fn image_format_from_surface(value: image_dds::ImageFormat) -> Option<ImageF
         image_dds::ImageFormat::R8Unorm => Some(ImageFormat::R8Unorm),
         image_dds::ImageFormat::R8G8B8A8Unorm => Some(ImageFormat::R8G8B8A8Unorm),
         image_dds::ImageFormat::R8G8B8A8Srgb => None,
+        image_dds::ImageFormat::R16G16B16A16Float => Some(ImageFormat::R16G16B16A16Float),
         image_dds::ImageFormat::R32G32B32A32Float => None,
         image_dds::ImageFormat::B8G8R8A8Unorm => Some(ImageFormat::B8G8R8A8Unorm),
         image_dds::ImageFormat::B8G8R8A8Srgb => None,

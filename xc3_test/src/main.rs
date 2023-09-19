@@ -166,14 +166,14 @@ fn check_msrd(msrd: Msrd, path: &Path) {
     let mut writer = Cursor::new(Vec::new());
     msrd.write(&mut writer).unwrap();
     if writer.into_inner() != original {
-        println!("Read write not 1:1 for {path:?}");
+        println!("Msrd read write not 1:1 for {path:?}");
     }
 
     let original = msrd.decompress_stream(0, msrd.vertex_data_entry_index);
     let mut writer = Cursor::new(Vec::new());
     vertex_data.write(&mut writer).unwrap();
     if writer.into_inner() != original {
-        println!("VertexData Read write not 1:1 for {path:?}");
+        println!("VertexData read write not 1:1 for {path:?}");
     }
 }
 
@@ -250,7 +250,7 @@ fn check_mibl(original_bytes: Vec<u8>, mibl: Mibl, path: &Path) {
     // DDS should support all MIBL image formats.
     // Check that read -> MIBL -> DDS -> MIBL -> write is 1:1.
     if original_bytes != writer.into_inner() {
-        println!("Read/write not 1:1 for {path:?}");
+        println!("Mibl read/write not 1:1 for {path:?}");
     };
 }
 
@@ -295,7 +295,7 @@ fn check_spch(spch: Spch, path: &Path) {
     let mut writer = Cursor::new(Vec::new());
     spch.write(&mut writer).unwrap();
     if writer.into_inner() != original {
-        println!("Read write not 1:1 for {path:?}");
+        println!("Spch read write not 1:1 for {path:?}");
     }
 }
 
@@ -305,7 +305,7 @@ fn check_ltpc(ltpc: Ltpc, path: &Path) {
     let mut writer = Cursor::new(Vec::new());
     ltpc.write(&mut writer).unwrap();
     if writer.into_inner() != original {
-        println!("Read write not 1:1 for {path:?}");
+        println!("Ltpc read write not 1:1 for {path:?}");
     }
 }
 
