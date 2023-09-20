@@ -5,6 +5,5 @@ edition = "2021"
 
 [dependencies]
 xc3_lib = { path = "../xc3_lib" }
-image_dds = { git = "https://github.com/ScanMountGoat/image_dds", rev ="c661d67" }
-ddsfile = "0.5.1"
+image_dds = { git = "https://github.com/ScanMountGoat/image_dds", rev ="7aeea27" }
 clap = { version = "4.2.7", features = ["derive"] }

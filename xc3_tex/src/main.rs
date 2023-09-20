@@ -1,9 +1,11 @@
 use std::{
     io::{BufReader, Cursor},
     path::{Path, PathBuf},
+    str::FromStr,
 };
 
 use clap::Parser;
+use image_dds::{ddsfile::Dds, image};
 use xc3_lib::{
     dds::{create_dds, create_mibl, save_dds},
     mibl::Mibl,
@@ -16,6 +18,8 @@ use xc3_lib::{
 struct Cli {
     input: String,
     output: Option<String>,
+    // TODO: Document available options.
+    format: Option<String>,
 }
 
 fn main() {
@@ -38,13 +42,26 @@ fn main() {
         // TODO: image and single tex wismt
         "dds" => {
             let mut reader = BufReader::new(std::fs::File::open(input).unwrap());
-            ddsfile::Dds::read(&mut reader).unwrap()
+            Dds::read(&mut reader).unwrap()
         }
         "wismt" => {
             let mibl = read_wismt_single_tex(input);
             create_dds(&mibl).unwrap()
         }
-        _ => todo!(),
+        _ => {
+            // Assume other formats are image formats for now.
+            // TODO: Support floating point images.
+            // TODO: Specify quality and mipmaps?
+            let image = image::open(input).unwrap().to_rgba8();
+            let format = image_dds::ImageFormat::from_str(&cli.format.unwrap()).unwrap();
+            image_dds::dds_from_image(
+                &image,
+                format,
+                image_dds::Quality::Normal,
+                image_dds::Mipmaps::GeneratedAutomatic,
+            )
+            .unwrap()
+        }
     };
 
     match output.extension().unwrap().to_str().unwrap() {

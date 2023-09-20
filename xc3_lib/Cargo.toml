@@ -14,4 +14,4 @@ ddsfile = "0.5.1"
 bilge = "0.1.4"
 log = "0.4.19"
 murmur3 = "0.5.2"
-image_dds = { git = "https://github.com/ScanMountGoat/image_dds", rev ="c661d67", default_features = false, features = ["ddsfile" ] }
+image_dds = { git = "https://github.com/ScanMountGoat/image_dds", rev ="7aeea27", default_features = false, features = ["ddsfile" ] }
