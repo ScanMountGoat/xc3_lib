@@ -1,6 +1,6 @@
 use std::io::Cursor;
 
-use crate::write::{Xc3Write, Xc3WriteFull};
+use crate::write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteFull};
 use crate::{
     msmd::{Dlgt, Gibl, Nerd},
     mxmd::Mxmd,
@@ -67,6 +67,8 @@ impl Entry {
         }
     }
 }
+
+xc3_write_binwrite_impl!(EntryType);
 
 impl<'a> Xc3WriteFull for ApmdOffsets<'a> {
     fn write_full<W: std::io::Write + std::io::Seek>(

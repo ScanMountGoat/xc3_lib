@@ -4,52 +4,65 @@ use crate::{
     parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
     spch::Spch,
     vertex::VertexData,
-    write::{Xc3Write, Xc3WriteFull},
+    write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteFull},
 };
 use bilge::prelude::*;
-use binrw::{args, binread, BinRead};
+use binrw::{args, binread, BinRead, BinWrite};
 
 /// .wimdo files
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 #[br(magic(b"DMXM"))]
+#[xc3(magic(b"DMXM"))]
 pub struct Mxmd {
     pub version: u32,
 
     #[br(parse_with = parse_ptr32)]
+    #[xc3(offset)]
     pub models: Models,
 
     #[br(parse_with = parse_ptr32)]
+    #[xc3(offset)]
     pub materials: Materials,
 
     #[br(parse_with = parse_opt_ptr32)]
+    #[xc3(offset)]
     pub unk1: Option<Unk1>,
 
     /// Embedded vertex data for .wimdo only models with no .wismt.
     #[br(parse_with = parse_opt_ptr32)]
+    #[xc3(offset)]
     pub vertex_data: Option<VertexData>,
 
     /// Embedded shader data for .wimdo only models with no .wismt.
     #[br(parse_with = parse_opt_ptr32)]
+    #[xc3(offset)]
     pub spch: Option<Spch>,
 
     #[br(parse_with = parse_opt_ptr32)]
+    #[xc3(offset)]
     pub packed_textures: Option<PackedTextures>,
 
     pub unk5: u32,
 
     // unpacked textures?
     #[br(parse_with = parse_opt_ptr32)]
+    #[xc3(offset)]
     pub textures: Option<Textures>,
+
+    // TODO: padding?
+    pub unk: [u32; 10],
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Xc3Write, Xc3WriteFull)]
 #[br(stream = r)]
+#[xc3(base_offset)]
 pub struct Materials {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
     #[br(parse_with = parse_offset_count, args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset_count)]
     pub materials: Vec<Material>,
 
     // offset?
@@ -59,15 +72,18 @@ pub struct Materials {
     // TODO: Materials have offsets into these arrays for parameter values?
     // material body has a uniform at shader offset 64 but offset 48 in this floats buffer
     #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[xc3(offset_count)]
     pub floats: Vec<f32>, // work values?
 
     // TODO: final number counts up from 0?
     // TODO: Some sort of index or offset?
     #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[xc3(offset_count)]
     pub ints: Vec<(u8, u8, u16)>, // shader vars?
 
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset)]
     pub unk_offset1: MaterialUnk1, // callbacks?
 
     // TODO: is this ever not 0?
@@ -75,23 +91,26 @@ pub struct Materials {
 
     /// Info for each of the shaders in the associated [Spch](crate::spch::Spch).
     #[br(parse_with = parse_offset_count, args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset_count)]
     pub shader_programs: Vec<ShaderProgramInfo>,
 
     pub unks1: [u32; 2],
 
     #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[xc3(count_offset)]
     pub alpha_test_textures: Vec<AlphaTestTexture>,
 
     pub unks3: [u32; 7],
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset)]
     pub samplers: Option<Samplers>,
 
     // TODO: padding?
     pub unks4: [u32; 4],
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct AlphaTestTexture {
     // TODO: (_, 0, 1) has alpha testing?
     // TODO: Test different param values?
@@ -101,10 +120,11 @@ pub struct AlphaTestTexture {
 }
 
 /// `ml::MdsMatTechnique` in the Xenoblade 2 binary.
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 #[br(import_raw(base_offset: u64))]
 pub struct ShaderProgramInfo {
     #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[xc3(offset_count)]
     pub unk1: Vec<u64>, // vertex attributes?
 
     pub unk3: u32, // 0
@@ -113,13 +133,16 @@ pub struct ShaderProgramInfo {
     // work values?
     // TODO: matches up with uniform parameters for U_Mate?
     #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[xc3(offset_count)]
     pub parameters: Vec<MaterialParameter>, // var table?
 
     #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[xc3(offset_count)]
     pub textures: Vec<u16>, // textures?
 
     // ssbos and then uniform buffers ordered by handle?
     #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[xc3(offset_count)]
     pub uniform_blocks: Vec<(u16, u16)>, // uniform blocks?
 
     pub unk11: u32, // material texture count?
@@ -132,7 +155,7 @@ pub struct ShaderProgramInfo {
 }
 
 /// `ml::MdsMatVariableTbl` in the Xenoblade 2 binary.
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct MaterialParameter {
     pub param_type: ParamType,
     pub floats_index_offset: u16, // added to floats start index?
@@ -140,8 +163,8 @@ pub struct MaterialParameter {
     pub count: u16, // actual number of bytes depends on type?
 }
 
-#[derive(BinRead, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[br(repr(u16))]
+#[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
+#[brw(repr(u16))]
 pub enum ParamType {
     Unk0 = 0,
     /// `gTexMat` uniform in the [Spch] and
@@ -164,34 +187,37 @@ pub enum ParamType {
 }
 
 // TODO: Does this affect texture assignment order?
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 #[br(import_raw(base_offset: u64))]
 pub struct MaterialUnk1 {
     // count matches up with Material.unk_start_index?
     // TODO: affects material parameter assignment?
     #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[xc3(offset_count)]
     pub unk1: Vec<(u16, u16)>,
 
     // 0 1 2 ... material_count - 1
     #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[xc3(offset_count)]
     pub unk2: Vec<u16>,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct Samplers {
-    pub unk1: u32, // count?
-    pub unk2: u32, // offset?
-    pub unk3: u32, // pad?
-    pub unk4: u32, // pad?
+    pub count: u32, // count?
+    pub unk2: u32,  // offset?
+    pub unk3: u32,  // pad?
+    pub unk4: u32,  // pad?
 
     // TODO: pointed to by above?
-    #[br(count = unk1)]
+    #[br(count = count)]
     pub samplers: Vec<Sampler>,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct Sampler {
     #[br(map(|x: u32| x.into()))]
+    #[bw(map(|x| u32::from(*x)))]
     pub flags: SamplerFlags,
 
     // Is this actually a float?
@@ -225,7 +251,7 @@ pub struct SamplerFlags {
 
 /// A single material assignable to a [Mesh].
 /// `ml::mdsMatInfoHeader` in the Xenoblade 2 binary.
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 #[br(import_raw(base_offset: u64))]
 pub struct Material {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
@@ -245,6 +271,7 @@ pub struct Material {
     // TODO: materials with zero textures?
     /// Defines the shader's sampler bindings in order for s0, s1, s2, ...
     #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[xc3(offset_count)]
     pub textures: Vec<Texture>,
 
     // TODO: rename to pipeline state?
@@ -264,6 +291,7 @@ pub struct Material {
 
     // always count 1?
     #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[xc3(offset_count)]
     pub shader_programs: Vec<ShaderProgram>,
 
     pub unk5: u32,
@@ -294,7 +322,7 @@ pub struct MaterialFlags {
     pub unk: u28,
 }
 
-#[derive(BinRead, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct StateFlags {
     pub flag0: u8, // depth write?
     pub blend_state: BlendState,
@@ -314,8 +342,8 @@ pub struct StateFlags {
 // 2, Src Alpha, One, Add, Src Alpha, One, Add
 // 3, Zero, Src Col, Add, Zero, Src Col, Add
 // 6, disabled + ???
-#[derive(BinRead, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[br(repr(u8))]
+#[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
+#[brw(repr(u8))]
 pub enum BlendState {
     Disabled = 0,
     AlphaBlend = 1,
@@ -328,8 +356,8 @@ pub enum BlendState {
 // 0 = disables hair blur stencil stuff?
 // 4 = disables hair but different ref value?
 // 16 = enables hair blur stencil stuff?
-#[derive(BinRead, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[br(repr(u8))]
+#[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
+#[brw(repr(u8))]
 pub enum StencilState1 {
     Always = 0,
     Unk1 = 1,
@@ -342,8 +370,8 @@ pub enum StencilState1 {
 }
 
 // TODO: Does this flag actually disable stencil?
-#[derive(BinRead, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[br(repr(u8))]
+#[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
+#[brw(repr(u8))]
 pub enum StencilState2 {
     Disabled = 0,
     Enabled = 1,
@@ -353,16 +381,16 @@ pub enum StencilState2 {
     Unk8 = 8,
 }
 
-#[derive(BinRead, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[br(repr(u8))]
+#[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
+#[brw(repr(u8))]
 pub enum DepthFunc {
     Disabled = 0,
     LessEqual = 1,
     Equal = 3,
 }
 
-#[derive(BinRead, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[br(repr(u8))]
+#[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
+#[brw(repr(u8))]
 pub enum CullMode {
     Back = 0,
     Front = 1,
@@ -371,7 +399,7 @@ pub enum CullMode {
 }
 
 /// `ml::MdsMatMaterialTechnique` in the Xenoblade 2 binary.
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct ShaderProgram {
     /// Index into [shader_programs](struct.Materials.html#structfield.shader_programs).
     pub program_index: u32,
@@ -386,8 +414,8 @@ pub struct ShaderProgram {
 // _ope = 0,1,7
 // _zpre = 0
 // _outline = 0
-#[derive(BinRead, Debug, PartialEq, Eq, Clone, Copy)]
-#[br(repr(u16))]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy)]
+#[brw(repr(u16))]
 pub enum ShaderUnkType {
     Unk0 = 0, // main opaque + some transparent?
     Unk1 = 1, // second layer transparent?
@@ -396,7 +424,7 @@ pub enum ShaderUnkType {
     Unk9 = 9, // used for maps?
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct Texture {
     pub texture_index: u16,
     pub sampler_index: u16,
@@ -405,8 +433,9 @@ pub struct Texture {
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Xc3Write, Xc3WriteFull)]
 #[br(stream = r)]
+#[xc3(base_offset)]
 pub struct Models {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
@@ -417,21 +446,25 @@ pub struct Models {
     pub min_xyz: [f32; 3],
 
     #[br(parse_with = parse_offset_count, args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset_count)]
     pub models: Vec<Model>,
 
     pub unk2: u32,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset)]
     pub skeleton: Option<Skeleton>,
 
     pub unks3: [u32; 22],
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset)]
     pub unk_offset1: Option<MeshUnk1>,
 
     pub unk_offset2: u32,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset)]
     pub lod_data: Option<LodData>,
     // TODO: more fields?
 }
@@ -439,10 +472,11 @@ pub struct Models {
 /// A collection of meshes where each [Mesh] represents one draw call.
 ///
 /// Each [Model] has an associated [VertexData](crate::vertex::VertexData) containing vertex and index buffers.
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 #[br(import_raw(base_offset: u64))]
 pub struct Model {
     #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[xc3(offset_count)]
     pub meshes: Vec<Mesh>,
 
     pub unk1: u32,
@@ -452,7 +486,7 @@ pub struct Model {
     pub unks: [u32; 7],
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct Mesh {
     pub render_flags: u32,
     pub skin_flags: u32,
@@ -470,30 +504,34 @@ pub struct Mesh {
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Xc3Write, Xc3WriteFull)]
 #[br(stream = r)]
+#[xc3(base_offset)]
 pub struct MeshUnk1 {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset)]
     pub inner: MeshUnk1Inner,
     pub unk1: [u32; 14],
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 #[br(import_raw(base_offset: u64))]
 pub struct MeshUnk1Inner {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset)]
     pub unk1: String,
 
     pub unk2: [f32; 9],
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Xc3Write, Xc3WriteFull)]
 #[br(stream = r)]
+#[xc3(base_offset)]
 pub struct LodData {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
@@ -502,37 +540,35 @@ pub struct LodData {
 
     // TODO: Count related to number of mesh lod values?
     #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[xc3(offset_count)]
     pub items1: Vec<LodItem1>,
 
     #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[xc3(offset_count)]
     pub items2: Vec<LodItem2>,
 
     pub unks: [u32; 4],
 }
 
 // TODO: is lod: 0 in the mxmd special?
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct LodItem1 {
     pub unk1: [u32; 4],
     pub unk2: f32,
-    // second element is index related to count in item2?
+    // second element is index related to count in LodItem2?
     // [0,0,1,0], [0,1,1,0], [0,2,1,0], ...
     pub unk3: [u8; 4],
     pub unk4: [u32; 2],
 }
 
 // TODO: lod group?
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct LodItem2 {
-    // TODO: base_lod_index?
-    // TODO: (start_index, count) for items1?
     pub base_lod_index: u16,
     pub lod_count: u16,
 }
 
-#[binread]
-#[derive(Debug)]
-#[br(stream = r)]
+#[derive(Debug, BinRead)]
 pub struct Textures {
     // TODO: The fields change depending on some sort of flag?
     pub tag: u32, // 4097 or sometimes 0?
@@ -541,7 +577,7 @@ pub struct Textures {
     pub inner: TexturesInner,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead)]
 #[br(import_raw(tag: u32))]
 pub enum TexturesInner {
     #[br(pre_assert(tag == 0))]
@@ -551,8 +587,9 @@ pub enum TexturesInner {
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Xc3Write, Xc3WriteFull)]
 #[br(stream = r)]
+#[xc3(base_offset)]
 pub struct Textures1 {
     // Subtract the tag size.
     #[br(temp, try_calc = r.stream_position().map(|p| p - 4))]
@@ -561,9 +598,12 @@ pub struct Textures1 {
     pub unk1: u32, // TODO: count for multiple packed textures?
     // low textures?
     #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[xc3(offset)]
     pub textures1: PackedExternalTextures,
+
     // high textures?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset)]
     pub textures2: Option<PackedExternalTextures>,
 
     pub unk4: u32,
@@ -572,8 +612,9 @@ pub struct Textures1 {
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Xc3Write, Xc3WriteFull)]
 #[br(stream = r)]
+#[xc3(base_offset)]
 pub struct Textures2 {
     // Subtract the tag size.
     #[br(temp, try_calc = r.stream_position().map(|p| p - 4))]
@@ -589,25 +630,29 @@ pub struct Textures2 {
     pub unk5: u32,
 
     #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[xc3(offset)]
     pub unk_offset: TexturesUnk,
 
     pub unks2: [u32; 7],
 
     #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[xc3(count_offset)]
     pub indices: Vec<u16>,
 
     // TODO: separate PackedTextures and PackedExternalTextures?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset)]
     pub textures: Option<PackedExternalTextures>,
 
     pub unk7: u32,
 
     // TODO: same as the type in msrd?
     #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[xc3(count_offset)]
     pub resources: Vec<TextureResource>,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct TexturesUnk {
     pub unk1: u32,
     pub unk2: u32,
@@ -615,29 +660,33 @@ pub struct TexturesUnk {
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Xc3Write, Xc3WriteFull)]
 #[br(stream = r)]
+#[xc3(base_offset)]
 pub struct PackedTextures {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
     #[br(parse_with = parse_count_offset, args { offset: base_offset, inner: base_offset })]
+    #[xc3(count_offset)]
     pub textures: Vec<PackedTexture>,
 
     pub unk2: u32,
     pub strings_offset: u32,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 #[br(import_raw(base_offset: u64))]
 pub struct PackedTexture {
     pub unk1: u32,
 
     // TODO: Optimized function for reading bytes?
     #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[xc3(count_offset)]
     pub mibl_data: Vec<u8>,
 
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset)]
     pub name: String,
 }
 
@@ -673,8 +722,9 @@ pub struct PackedExternalTexture {
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Xc3Write, Xc3WriteFull)]
 #[br(stream = r)]
+#[xc3(base_offset)]
 pub struct Skeleton {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
@@ -694,6 +744,7 @@ pub struct Skeleton {
     /// Column-major transformation matrices for each of the bones in [bones](#structfield.bones).
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: count1 as usize } })]
+    #[xc3(offset)]
     pub transforms: Vec<[[f32; 4]; 4]>,
 
     // [f32; 4] * 4?
@@ -704,6 +755,7 @@ pub struct Skeleton {
 
     // TODO: 0..count-1?
     #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[xc3(count_offset)]
     pub unk3: Vec<u16>,
 
     // TODO: Not all models have these fields?
@@ -711,19 +763,22 @@ pub struct Skeleton {
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset })]
     #[br(if(unk_offset1 > 0 && unk_offset2 > 0))]
+    #[xc3(offset)]
     pub unk_offset4: Option<SkeletonUnk4>,
 
     #[br(parse_with = parse_ptr32, offset = base_offset)]
     #[br(if(unk_offset1 > 0 && unk_offset2 > 0))]
+    #[xc3(offset)]
     pub unk_offset5: Option<SkeletonUnk5>,
 
     // TODO: Disabled by something above for XC2?
     #[br(parse_with = parse_opt_ptr32, args { offset: base_offset, inner: base_offset })]
     #[br(if(!unk3.is_empty()))]
+    #[xc3(offset)]
     pub as_bone_data: Option<AsBoneData>,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 #[br(import_raw(base_offset: u64))]
 pub struct SkeletonUnk4 {
     // TODO: u16 indices?
@@ -732,35 +787,40 @@ pub struct SkeletonUnk4 {
 
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: count as usize }})]
+    #[xc3(offset)]
     pub unk_offset: Vec<[[f32; 4]; 4]>,
     // TODO: padding?
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Xc3Write, Xc3WriteFull)]
 #[br(stream = r)]
+#[xc3(base_offset)]
 pub struct SkeletonUnk5 {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
     #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[xc3(count_offset)]
     pub unk1: Vec<[f32; 4]>,
 
     // TODO: count?
     #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[xc3(offset)]
     pub unk_offset: [f32; 12], // TODO: padding?
 }
 
 // TODO: Data for AS_ bones?
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 #[br(import_raw(base_offset: u64))]
 pub struct AsBoneData {
     #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[xc3(offset_count)]
     pub bones: Vec<AsBone>,
     // TODO: more fields
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct AsBone {
     /// The index in [bones](struct.Skeleton.html#structfield.bones).
     pub bone_index: u16,
@@ -769,10 +829,11 @@ pub struct AsBone {
     pub unk: [u32; 19],
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 #[br(import_raw(base_offset: u64))]
 pub struct Bone {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset)]
     pub name: String,
     pub unk1: f32,
     pub unk_type: u32,
@@ -782,33 +843,38 @@ pub struct Bone {
 
 // TODO: pointer to decl_gbl_cac in ch001011011.wimdo?
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Xc3Write, Xc3WriteFull)]
 #[br(stream = r)]
+#[xc3(base_offset)]
 pub struct Unk1 {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
     #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[xc3(count_offset)]
     pub unk1: Vec<Unk1Unk1>,
 
     #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[xc3(count_offset)]
     pub unk2: Vec<Unk1Unk2>,
 
     #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[xc3(count_offset)]
     pub unk3: Vec<Unk1Unk3>,
 
     // angle values?
     #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[xc3(count_offset)]
     pub unk4: Vec<Unk1Unk4>,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct Unk1Unk1 {
     pub index: u16,
     pub unk2: u16, // 1
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct Unk1Unk2 {
     pub unk1: u16, // 0
     pub index: u16,
@@ -817,7 +883,7 @@ pub struct Unk1Unk2 {
     pub unk5: u32, // 0
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct Unk1Unk3 {
     pub unk1: u16,
     pub unk2: u16,
@@ -828,10 +894,82 @@ pub struct Unk1Unk3 {
     pub unk7: u16,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct Unk1Unk4 {
     pub unk1: f32,
     pub unk2: f32,
     pub unk3: f32,
     pub unk4: u32,
+}
+
+xc3_write_binwrite_impl!(
+    TexturesUnk,
+    Unk1Unk1,
+    Unk1Unk2,
+    Unk1Unk3,
+    Unk1Unk4,
+    MaterialParameter,
+    ParamType,
+    Samplers,
+    Sampler,
+    AlphaTestTexture,
+    ShaderProgram,
+    ShaderUnkType,
+    Texture,
+    StateFlags,
+    LodItem1,
+    LodItem2,
+    Mesh,
+    AsBone
+);
+
+impl Xc3Write for MaterialFlags {
+    type Offsets<'a> = ();
+
+    fn xc3_write<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        data_ptr: &mut u64,
+    ) -> binrw::BinResult<Self::Offsets<'_>> {
+        u32::from(*self).write_le(writer)?;
+        *data_ptr = (*data_ptr).max(writer.stream_position()?);
+        Ok(())
+    }
+}
+
+// TODO: Derive this?
+pub(crate) enum TexturesOffsets<'a> {
+    Unk0(Textures1Offsets<'a>),
+    Unk1(Textures2Offsets<'a>),
+}
+
+impl Xc3Write for Textures {
+    type Offsets<'a> = TexturesOffsets<'a>;
+
+    fn xc3_write<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        data_ptr: &mut u64,
+    ) -> binrw::BinResult<Self::Offsets<'_>> {
+        self.tag.write_le(writer)?;
+        let offsets = match &self.inner {
+            TexturesInner::Unk0(t) => TexturesOffsets::Unk0(t.xc3_write(writer, data_ptr)?),
+            TexturesInner::Unk1(t) => TexturesOffsets::Unk1(t.xc3_write(writer, data_ptr)?),
+        };
+        Ok(offsets)
+    }
+}
+
+impl<'a> Xc3WriteFull for TexturesOffsets<'a> {
+    fn write_full<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> binrw::BinResult<()> {
+        match self {
+            TexturesOffsets::Unk0(offsets) => offsets.write_full(writer, base_offset, data_ptr),
+            TexturesOffsets::Unk1(offsets) => offsets.write_full(writer, base_offset, data_ptr),
+        }
+    }
 }

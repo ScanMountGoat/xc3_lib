@@ -161,6 +161,8 @@ fn field_type(attrs: &[Attribute]) -> Option<FieldType> {
     for a in attrs {
         if a.path().is_ident("xc3") {
             // TODO: Why does this sometimes return errors?
+            // TODO: add types like offset32 or offset64_count32
+            // TODO: separate offset and count fields?
             let _ = a.parse_nested_meta(|meta| {
                 if meta.path.is_ident("offset") {
                     ty = Some(FieldType::Offset);
@@ -253,7 +255,7 @@ fn parse_field_data(data: &Data) -> FieldData {
                         offset_field_names.push(name.clone());
                     }
                     None => write_fields.push(quote! {
-                        self.#name.write_le(writer)?;
+                        self.#name.xc3_write(writer, data_ptr)?;
                     }),
                 }
             }

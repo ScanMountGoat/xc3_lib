@@ -8,6 +8,7 @@ use binrw::{args, binread, BinRead, BinResult, BinWrite};
 #[binread]
 #[derive(Debug, Xc3Write)]
 #[br(stream = r)]
+#[xc3(base_offset)]
 pub struct VertexData {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,

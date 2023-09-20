@@ -213,11 +213,12 @@ macro_rules! file_write_full_impl {
 }
 
 file_write_full_impl!(
-    vertex::VertexData,
+    apmd::Apmd,
     ltpc::Ltpc,
     msrd::Msrd,
-    apmd::Apmd,
-    spch::Spch
+    mxmd::Mxmd,
+    spch::Spch,
+    vertex::VertexData
 );
 
 // TODO: Dedicated error types?

@@ -161,6 +161,7 @@ macro_rules! xc3_write_binwrite_impl {
     ($($ty:ty),*) => {
         $(
             impl Xc3Write for $ty {
+                // This also implements Xc3WriteFull since () is Xc3WriteFull.
                 type Offsets<'a> = ();
 
                 fn xc3_write<W: std::io::Write + std::io::Seek>(
@@ -181,9 +182,27 @@ macro_rules! xc3_write_binwrite_impl {
 pub(crate) use xc3_write_binwrite_impl;
 
 // TODO: Add alignment as a parameter.
-xc3_write_binwrite_impl!(u8, u16);
+xc3_write_binwrite_impl!(u8, u16, u32, u64, f32, (u16, u16), (u8, u8, u16));
 
-// TODO: Macro for implementing for binwrite?
+// TODO: Support types with offsets?
+impl<const N: usize, T> Xc3Write for [T; N]
+where
+    T: Xc3Write + 'static,
+{
+    type Offsets<'a> = ();
+
+    fn xc3_write<W: Write + Seek>(
+        &self,
+        writer: &mut W,
+        data_ptr: &mut u64,
+    ) -> BinResult<Self::Offsets<'_>> {
+        for value in self {
+            value.xc3_write(writer, data_ptr)?;
+        }
+        Ok(())
+    }
+}
+
 impl Xc3Write for String {
     type Offsets<'a> = ();
 

@@ -3,8 +3,6 @@ use std::io::Cursor;
 use crate::{bc::Bc, parse_count_offset, parse_offset_count};
 use binrw::{binread, BinRead, BinReaderExt, BinResult, NullString};
 
-// .chr files have skeletons?
-// .mot files have animations?
 #[binread]
 #[derive(Debug)]
 #[br(magic(b"1RAS"))]
@@ -24,8 +22,6 @@ pub struct Sar1 {
     pub name: String,
 }
 
-// TODO: Parse this in a separate step?
-// This would simplify base offsets for BC data.
 #[binread]
 #[derive(Debug)]
 pub struct Entry {
