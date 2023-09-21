@@ -69,11 +69,13 @@ def write_full(self, writer, base_offset: int, ctx: Ctx):
     offsets.write_full(writer, base_offset, ctx.data_ptr)
 ```
 
-The implementation of `write_full` for the offset return type typically needs to be implemented manually to be able to specify the order that items appear in the file. In some cases, this can be derived if the offset fields are updated in order recursively.
+The implementation of `write_full` for the offset return type may need to be implemented manually to match the data layout of existing files. The implementation can be derived if the offset fields are updated in order recursively.
 
 ```python
 def write_full(self, writer, base_offset: int, ctx: Ctx):
-    self.field0.write_offset_full(writer, base_offset, ctx)
+    # It may be necessary to defer writing inner offsets until later.
+    field0_offsets = self.field0.write_offset(writer, base_offset, ctx)
     self.field1.write_offset_full(writer, base_offset, ctx)
+    field0_offsets.name.write_offset_full(writer, base_offset, ctx)
     ...
 ```
