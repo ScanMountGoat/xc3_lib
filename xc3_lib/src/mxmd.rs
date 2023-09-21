@@ -573,33 +573,34 @@ pub struct LodItem2 {
     pub lod_count: u16,
 }
 
-#[derive(Debug, BinRead)]
+// TODO: Derive Xc3Write?
+#[binread]
+#[derive(Debug)]
+#[br(stream = r)]
 pub struct Textures {
-    // TODO: The fields change depending on some sort of flag?
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
     pub tag: u32, // 4097 or sometimes 0?
 
-    #[br(args_raw(tag))]
+    // TODO: How to derive for non offset fields that have offsets?
+    #[br(args { base_offset, tag })]
     pub inner: TexturesInner,
 }
 
 #[derive(Debug, BinRead)]
-#[br(import_raw(tag: u32))]
+#[br(import { base_offset: u64, tag: u32 })]
 pub enum TexturesInner {
     #[br(pre_assert(tag == 0))]
-    Unk0(Textures1),
+    Unk0(#[br(args_raw(base_offset))] Textures1),
+
     #[br(pre_assert(tag == 4097))]
-    Unk1(Textures2),
+    Unk1(#[br(args_raw(base_offset))] Textures2),
 }
 
-// We don't set base offset since it's done manually.
-#[binread]
-#[derive(Debug, Xc3Write, Xc3WriteFull)]
-#[br(stream = r)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
+#[br(import_raw(base_offset: u64))]
 pub struct Textures1 {
-    // Subtract the tag size.
-    #[br(temp, try_calc = r.stream_position().map(|p| p - 4))]
-    base_offset: u64,
-
     pub unk1: u32, // TODO: count for multiple packed textures?
     // low textures?
     #[br(parse_with = parse_ptr32, offset = base_offset)]
@@ -616,14 +617,9 @@ pub struct Textures1 {
     // TODO: more fields?
 }
 
-#[binread]
-#[derive(Debug, Xc3Write, Xc3WriteFull)]
-#[br(stream = r)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
+#[br(import_raw(base_offset: u64))]
 pub struct Textures2 {
-    // Subtract the tag size.
-    #[br(temp, try_calc = r.stream_position().map(|p| p - 4))]
-    base_offset: u64,
-
     pub unk2: u32, // 103
 
     // TODO: count offset?
@@ -973,6 +969,7 @@ pub(crate) enum TexturesOffsetsInner<'a> {
     Unk1(Textures2Offsets<'a>),
 }
 
+// TODO: Derive this?
 impl Xc3Write for Textures {
     type Offsets<'a> = TexturesOffsets<'a>;
 
@@ -1000,8 +997,12 @@ impl<'a> Xc3WriteFull for TexturesOffsets<'a> {
     ) -> binrw::BinResult<()> {
         let base_offset = self.base_offset;
         match &self.inner {
-            TexturesOffsetsInner::Unk0(offsets) => offsets.write_full(writer, base_offset, data_ptr),
-            TexturesOffsetsInner::Unk1(offsets) => offsets.write_full(writer, base_offset, data_ptr),
+            TexturesOffsetsInner::Unk0(offsets) => {
+                offsets.write_full(writer, base_offset, data_ptr)
+            }
+            TexturesOffsetsInner::Unk1(offsets) => {
+                offsets.write_full(writer, base_offset, data_ptr)
+            }
         }
     }
 }
