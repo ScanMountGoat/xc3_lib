@@ -31,7 +31,7 @@ pub struct Spch {
 
     /// A collection of [Slct].
     #[br(parse_with = parse_offset_count, offset = base_offset)]
-    #[xc3(offset_count, align(4))]
+    #[xc3(offset_count)]
     pub slct_section: Vec<u8>,
 
     /// Compiled shader binaries.

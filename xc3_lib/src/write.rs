@@ -16,8 +16,7 @@ pub(crate) trait Xc3Write {
         data_ptr: &mut u64,
     ) -> BinResult<Self::Offsets<'_>>;
 
-    // TODO: Look at pointers to determine default alignment.
-    const ALIGNMENT: u64 = 1;
+    const ALIGNMENT: u64 = 4;
 }
 
 // TODO: Come up with a better name.
@@ -173,6 +172,8 @@ macro_rules! xc3_write_binwrite_impl {
                     *data_ptr = (*data_ptr).max(writer.stream_position()?);
                     Ok(())
                 }
+
+                const ALIGNMENT: u64 = std::mem::size_of::<$ty>() as u64;
             }
         )*
 

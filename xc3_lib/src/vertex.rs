@@ -38,7 +38,7 @@ pub struct VertexData {
     pub outline_buffers: Vec<OutlineBuffer>,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset, align(4))]
+    #[xc3(offset)]
     pub vertex_animation: Option<VertexAnimation>,
 
     /// The data buffer containing all the geometry data.
@@ -57,7 +57,7 @@ pub struct VertexData {
     pub weights: Weights,
 
     #[br(parse_with = parse_ptr32, offset = base_offset)]
-    #[xc3(offset, align(4))]
+    #[xc3(offset)]
     pub unk7: Unk,
 
     // TODO: padding?

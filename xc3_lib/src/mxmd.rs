@@ -255,6 +255,7 @@ pub struct SamplerFlags {
 #[br(import_raw(base_offset: u64))]
 pub struct Material {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset)]
     pub name: String,
 
     #[br(map(|x: u32| x.into()))]
@@ -590,10 +591,10 @@ pub enum TexturesInner {
     Unk1(Textures2),
 }
 
+// We don't set base offset since it's done manually.
 #[binread]
 #[derive(Debug, Xc3Write, Xc3WriteFull)]
 #[br(stream = r)]
-#[xc3(base_offset)]
 pub struct Textures1 {
     // Subtract the tag size.
     #[br(temp, try_calc = r.stream_position().map(|p| p - 4))]
@@ -618,7 +619,6 @@ pub struct Textures1 {
 #[binread]
 #[derive(Debug, Xc3Write, Xc3WriteFull)]
 #[br(stream = r)]
-#[xc3(base_offset)]
 pub struct Textures2 {
     // Subtract the tag size.
     #[br(temp, try_calc = r.stream_position().map(|p| p - 4))]
@@ -753,6 +753,8 @@ pub struct Skeleton {
     #[xc3(offset)]
     pub transforms: Vec<[[f32; 4]; 4]>,
 
+    // TODO: offset for some sort of buffer?
+    // 1376 bytes or [f32; 4] * 108?
     // [f32; 4] * 4?
     pub unk_offset1: u32,
 
@@ -766,13 +768,13 @@ pub struct Skeleton {
 
     // TODO: Not all models have these fields?
     // TODO: Doesn't work for xenoblade 2?
-    #[br(parse_with = parse_ptr32)]
+    #[br(parse_with = parse_opt_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset })]
     #[br(if(unk_offset1 > 0 && unk_offset2 > 0))]
     #[xc3(offset)]
     pub unk_offset4: Option<SkeletonUnk4>,
 
-    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[br(if(unk_offset1 > 0 && unk_offset2 > 0))]
     #[xc3(offset)]
     pub unk_offset5: Option<SkeletonUnk5>,
@@ -839,9 +841,8 @@ pub struct AsBoneData {
     pub unk2: Vec<[[f32; 4]; 4]>,
 
     // TODO: padding?
-    pub unk: [u32; 2]
+    pub unk: [u32; 2],
 }
-
 
 #[derive(Debug, BinRead, BinWrite)]
 pub struct AsBone {
@@ -862,7 +863,7 @@ pub struct Bone {
     pub unk_type: u32,
     pub unk_index: u32,
     // TODO: padding?
-    pub unk: [u32; 2]
+    pub unk: [u32; 2],
 }
 
 // TODO: pointer to decl_gbl_cac in ch001011011.wimdo?
@@ -962,7 +963,12 @@ impl Xc3Write for MaterialFlags {
 }
 
 // TODO: Derive this?
-pub(crate) enum TexturesOffsets<'a> {
+pub(crate) struct TexturesOffsets<'a> {
+    base_offset: u64,
+    inner: TexturesOffsetsInner<'a>,
+}
+
+pub(crate) enum TexturesOffsetsInner<'a> {
     Unk0(Textures1Offsets<'a>),
     Unk1(Textures2Offsets<'a>),
 }
@@ -975,12 +981,13 @@ impl Xc3Write for Textures {
         writer: &mut W,
         data_ptr: &mut u64,
     ) -> binrw::BinResult<Self::Offsets<'_>> {
+        let base_offset = writer.stream_position()?;
         self.tag.write_le(writer)?;
-        let offsets = match &self.inner {
-            TexturesInner::Unk0(t) => TexturesOffsets::Unk0(t.xc3_write(writer, data_ptr)?),
-            TexturesInner::Unk1(t) => TexturesOffsets::Unk1(t.xc3_write(writer, data_ptr)?),
+        let inner = match &self.inner {
+            TexturesInner::Unk0(t) => TexturesOffsetsInner::Unk0(t.xc3_write(writer, data_ptr)?),
+            TexturesInner::Unk1(t) => TexturesOffsetsInner::Unk1(t.xc3_write(writer, data_ptr)?),
         };
-        Ok(offsets)
+        Ok(TexturesOffsets { base_offset, inner })
     }
 }
 
@@ -988,12 +995,13 @@ impl<'a> Xc3WriteFull for TexturesOffsets<'a> {
     fn write_full<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
-        base_offset: u64,
+        _base_offset: u64,
         data_ptr: &mut u64,
     ) -> binrw::BinResult<()> {
-        match self {
-            TexturesOffsets::Unk0(offsets) => offsets.write_full(writer, base_offset, data_ptr),
-            TexturesOffsets::Unk1(offsets) => offsets.write_full(writer, base_offset, data_ptr),
+        let base_offset = self.base_offset;
+        match &self.inner {
+            TexturesOffsetsInner::Unk0(offsets) => offsets.write_full(writer, base_offset, data_ptr),
+            TexturesOffsetsInner::Unk1(offsets) => offsets.write_full(writer, base_offset, data_ptr),
         }
     }
 }
@@ -1008,15 +1016,16 @@ impl<'a> Xc3WriteFull for SkeletonOffsets<'a> {
         let base_offset = self.base_offset;
 
         let bones = self.bones.write_offset(writer, base_offset, data_ptr)?;
-        
+
         self.unk3.write_full(writer, base_offset, data_ptr)?;
 
         self.transforms.write_full(writer, base_offset, data_ptr)?;
 
-        // TODO: How to handle these fields?
-        // self.unk_offset4.write_full(writer, base_offset, data_ptr)?;
-        // self.unk_offset5.write_full(writer, base_offset, data_ptr)?;
-        
+        // TODO: unk offset 1 and 2.
+
+        self.unk_offset4.write_full(writer, base_offset, data_ptr)?;
+        self.unk_offset5.write_full(writer, base_offset, data_ptr)?;
+
         self.as_bone_data
             .write_full(writer, base_offset, data_ptr)?;
 
