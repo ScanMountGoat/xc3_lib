@@ -34,6 +34,17 @@ Examples include Nvidia Nsight Graphics, AMD Radeon GPU Profiler, or the Metal p
 These tools often assume advanced knowledge of modern graphics APIs and hardware capabilities. 
 Consult the appropriate documentation for details and usage instructions. 
 
+## Tests
+Unit tests and doc tests can be run using `cargo test`. 
+
+Most of the file processing and conversion code is tested by running the xc3_test executable against a dump of the game extracted with [XbTool](https://github.com/AlexCSDev/XbTool/releases). Details for failed conversions will be printed to the console. File types can all be enabled at once or enabled individually.  
+`cargo run -p xc3_test --release <path to xenoblade 2 or xenoblade 3 dump> --all`  
+`cargo run -p xc3_test --release <path to xenoblade 2 or xenoblade 3 dump> --mxmd --mibl`
+
+The rendering can be tested by batch rendering files to PNG. This tests xc3_lib, xc3_wgpu, and xc3_model. Specifying the GBuffer JSON database from xc3_shader will allow xc3_wgpu to assign textures to the appropriate outputs.  
+`cargo run -p xc3_wgpu_batch --release "xenoblade 2 dump/model/bl" wimdo`  
+`cargo run -p xc3_wgpu_batch --release "xenoblade 3 dump/map" wismhd gbuffer.json`  
+
 ## In Game Testing
 The easiest way to test files is using an emulator like Ryujinx and the [xc3-file-loader](https://github.com/RoccoDev/xc3-file-loader) plugin for loading modded files. Files can be extracted from a dump of the game by dumping the romfs from Ryujinx and then dumping the ard and arh archive files using [XbTool](https://github.com/AlexCSDev/XbTool/releases).
 
@@ -69,6 +80,6 @@ fn main() {
 ```
 
 ## Debugging File Writing
-The easiest way to test writing a file is to parse a file and then write it again without making changes. This should result in a binary identical output file. This can be checked using Rust code or using a hex editor like [HxD](https://mh-nexus.de/en/hxd/) or [ImHex](https://github.com/WerWolv/ImHex) for visual diff checking. See xc3_test for code examples.
+The easiest way to test errors when writing a file is to parse a file and then write it again without making changes. This should result in a binary identical output file. This can be checked using a hex editor like [HxD](https://mh-nexus.de/en/hxd/) or [ImHex](https://github.com/WerWolv/ImHex) for visual diff checking. See xc3_test for Rust code examples.
 
-Another useful test is to write the file to binary and then read it again. The two data structures like `Mxmd` or `Msrd` should compare as equal. Differences can indicate that data isn't being written properly. For more visual output, pretty print the debug representation before and after to text files. The text can be diffed using an online diffing tool or directly in some editors like VsCode.
+Another useful test is to write the file to binary and then read it again. The two data structures like `Mxmd` or `Msrd` should compare as equal. Differences can indicate that data isn't being written properly. For more visual output, pretty print the debug representation before and after to text files using the `"{:#?}"` format specifier. The text can be diffed using an online diffing tool or directly in some editors like VsCode.
