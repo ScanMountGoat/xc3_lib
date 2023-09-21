@@ -746,7 +746,7 @@ pub struct Skeleton {
     /// Column-major transformation matrices for each of the bones in [bones](#structfield.bones).
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: count1 as usize } })]
-    #[xc3(offset)]
+    #[xc3(offset, align(16))]
     pub transforms: Vec<[[f32; 4]; 4]>,
 
     // TODO: offset for some sort of buffer?

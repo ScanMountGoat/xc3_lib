@@ -5,14 +5,14 @@ use crate::{
     msmd::{Dlgt, Gibl, Nerd},
     mxmd::Mxmd,
     parse_offset_count,
-    write::round_up,
 };
 use binrw::{BinRead, BinReaderExt, BinWrite};
 
 /// A packed model container with entries like [Mxmd](crate::mxmd::Mxmd) or [Gibl](crate::msmd::Gibl).
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 #[br(magic(b"DMPA"))]
 #[xc3(magic(b"DMPA"))]
+#[xc3(align_after(4096))]
 pub struct Apmd {
     pub version: u32,
     #[br(parse_with = parse_offset_count)]
@@ -69,19 +69,3 @@ impl Entry {
 }
 
 xc3_write_binwrite_impl!(EntryType);
-
-impl<'a> Xc3WriteFull for ApmdOffsets<'a> {
-    fn write_full<W: std::io::Write + std::io::Seek>(
-        &self,
-        writer: &mut W,
-        base_offset: u64,
-        data_ptr: &mut u64,
-    ) -> binrw::BinResult<()> {
-        self.entries.write_full(writer, base_offset, data_ptr)?;
-        // TODO: Handle this in the derive?
-        let length = writer.stream_position()?;
-        let padding = round_up(length, 4096) - length;
-        writer.write_all(&vec![0u8; padding as usize])?;
-        Ok(())
-    }
-}

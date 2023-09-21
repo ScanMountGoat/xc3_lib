@@ -310,11 +310,20 @@ fn check_ltpc(ltpc: Ltpc, path: &Path) {
 }
 
 fn check_sar1(sar1: Sar1, path: &Path) {
-    for entry in sar1.entries {
+    for entry in &sar1.entries {
         if let Err(e) = entry.read_data() {
             println!("Error reading entry for {path:?}: {e}");
         }
     }
+
+    // Check read/write for the archive.
+    // TODO: Also read/write entry data?
+    let original = std::fs::read(path).unwrap();
+    let mut writer = Cursor::new(Vec::new());
+    sar1.write(&mut writer).unwrap();
+    if writer.into_inner() != original {
+        println!("Sar1 read/write not 1:1 for {path:?}");
+    };
 }
 
 trait Xc3File

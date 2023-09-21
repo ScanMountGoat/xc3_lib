@@ -218,7 +218,8 @@ file_write_full_impl!(
     msrd::Msrd,
     mxmd::Mxmd,
     spch::Spch,
-    vertex::VertexData
+    vertex::VertexData,
+    sar1::Sar1
 );
 
 // TODO: Dedicated error types?

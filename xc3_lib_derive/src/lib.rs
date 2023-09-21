@@ -19,14 +19,18 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
         offset_fields,
     } = parse_field_data(&input.data);
 
-    // Some types need a pointer to the start of the type.
-    let has_base_offset = has_base_offset(&input.attrs);
-    let base_offset_field = has_base_offset.then_some(quote!(pub base_offset: u64,));
-    let base_offset = has_base_offset.then_some(quote!(base_offset,));
-    let set_base_offset =
-        has_base_offset.then_some(quote!(let base_offset = writer.stream_position()?;));
+    let options = type_options(&input.attrs);
 
-    let write_magic = file_magic(&input.attrs).map(|m| quote!(#m.write_le(writer)?;));
+    // Some types need a pointer to the start of the type.
+    let base_offset_field = options
+        .has_base_offset
+        .then_some(quote!(pub base_offset: u64,));
+    let base_offset = options.has_base_offset.then_some(quote!(base_offset,));
+    let set_base_offset = options
+        .has_base_offset
+        .then_some(quote!(let base_offset = writer.stream_position()?;));
+
+    let write_magic = options.magic.map(|m| quote!(#m.write_le(writer)?;));
 
     // TODO: move offset struct generation to the field data?
     quote! {
@@ -44,7 +48,6 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
                 data_ptr: &mut u64,
             ) -> binrw::BinResult<Self::Offsets<'_>> {
                 use binrw::BinWrite;
-
                 #set_base_offset
 
                 #write_magic
@@ -74,8 +77,8 @@ pub fn xc3_write_full_derive(input: TokenStream) -> TokenStream {
         offset_field_names, ..
     } = parse_field_data(&input.data);
 
-    let has_base_offset = has_base_offset(&input.attrs);
-    let self_base_offset = if has_base_offset {
+    let options = type_options(&input.attrs);
+    let self_base_offset = if options.has_base_offset {
         quote!(self.base_offset;)
     } else {
         quote!(base_offset)
@@ -86,6 +89,23 @@ pub fn xc3_write_full_derive(input: TokenStream) -> TokenStream {
         .iter()
         .map(|f| quote!(self.#f.write_full(writer, base_offset, data_ptr)?;))
         .collect();
+
+    // The offsets are the last thing to be written.
+    // Final alignment should go here instead of Xc3Write.
+    // TODO: Share logic with pad_size_to?
+    let align_after = options.align_after.map(|align| {
+        quote! {
+            // Round up the total size.
+            let size = writer.stream_position()?;
+            let round_up = |x, n| ((x + n - 1) / n) * n;
+            let desired_size = round_up(size, #align);
+            let padding = desired_size - size;
+            writer.write_all(&vec![0u8; padding as usize])?;
+
+            // Point past current write.
+            *data_ptr = (*data_ptr).max(writer.stream_position()?);
+        }
+    });
 
     // Add a write impl to the offset type to support nested types.
     // Vecs need to be able to write all items before the pointed to data.
@@ -101,11 +121,62 @@ pub fn xc3_write_full_derive(input: TokenStream) -> TokenStream {
                 // TODO: investigate deriving other orderings.
                 let base_offset = #self_base_offset;
                 #(#write_fields)*
+
+                #align_after
+
                 Ok(())
             }
         }
     }
     .into()
+}
+
+struct TypeOptions {
+    magic: Option<LitByteStr>,
+    has_base_offset: bool,
+    align_after: Option<u64>,
+}
+
+fn type_options(attrs: &[Attribute]) -> TypeOptions {
+    let mut magic = None;
+    let mut has_base_offset = false;
+    let mut align_after = None;
+
+    for a in attrs {
+        if a.path().is_ident("xc3") {
+            let _ = a.parse_nested_meta(|meta| {
+                if meta.path.is_ident("magic") {
+                    // #[xc3(magic(b"MAGIC"))]
+                    let content;
+                    parenthesized!(content in meta.input);
+                    let lit: LitByteStr = content.parse().unwrap();
+                    magic = Some(lit);
+                } else if meta.path.is_ident("base_offset") {
+                    // #[xc3(base_offset)]
+                    has_base_offset = true;
+                } else if meta.path.is_ident("align_after") {
+                    // #[xc3(align_after(4096))]
+                    let content;
+                    parenthesized!(content in meta.input);
+                    let lit: LitInt = content.parse().unwrap();
+                    align_after = Some(lit.base10_parse().unwrap());
+                }
+                Ok(())
+            });
+        }
+    }
+
+    TypeOptions {
+        magic,
+        has_base_offset,
+        align_after,
+    }
+}
+
+struct FieldOptions {
+    field_type: Option<FieldType>,
+    align: Option<u64>,
+    pad_size_to: Option<u64>,
 }
 
 enum FieldType {
@@ -114,92 +185,51 @@ enum FieldType {
     CountOffset,
 }
 
-// TODO: Create an options struct?
-fn file_magic(attrs: &[Attribute]) -> Option<LitByteStr> {
-    // #[xc3(magic(b"MAGIC"))]
-    let mut magic = None;
+fn field_options(attrs: &[Attribute]) -> FieldOptions {
+    let mut field_type = None;
+    let mut align = None;
+    let mut pad_size_to = None;
 
     for a in attrs {
         if a.path().is_ident("xc3") {
-            let _ = a.parse_nested_meta(|meta| {
-                if meta.path.is_ident("magic") {
-                    let content;
-                    parenthesized!(content in meta.input);
-                    let lit: LitByteStr = content.parse().unwrap();
-                    magic = Some(lit);
-                }
-                Ok(())
-            });
-        }
-    }
-
-    magic
-}
-
-fn has_base_offset(attrs: &[Attribute]) -> bool {
-    // #[xc3(base_offset)]
-    let mut has_base_offset = false;
-
-    for a in attrs {
-        if a.path().is_ident("xc3") {
-            let _ = a.parse_nested_meta(|meta| {
-                if meta.path.is_ident("base_offset") {
-                    has_base_offset = true;
-                }
-                Ok(())
-            });
-        }
-    }
-
-    has_base_offset
-}
-
-fn field_type(attrs: &[Attribute]) -> Option<FieldType> {
-    // #[xc3(offset)], #[xc3(count_offset)], #[xc3(offset_count)]
-    let mut ty = None;
-
-    for a in attrs {
-        if a.path().is_ident("xc3") {
-            // TODO: Why does this sometimes return errors?
+            // TODO: Why does parsing sometimes return errors?
             // TODO: add types like offset32 or offset64_count32
             // TODO: separate offset and count fields?
             let _ = a.parse_nested_meta(|meta| {
                 if meta.path.is_ident("offset") {
-                    ty = Some(FieldType::Offset);
+                    // #[xc3(offset)]
+                    field_type = Some(FieldType::Offset);
                 } else if meta.path.is_ident("offset_count") {
-                    ty = Some(FieldType::OffsetCount);
+                    // #[xc3(offset_count)]
+                    field_type = Some(FieldType::OffsetCount);
                 } else if meta.path.is_ident("count_offset") {
-                    ty = Some(FieldType::CountOffset);
-                }
-
-                Ok(())
-            });
-        }
-    }
-
-    ty
-}
-
-fn field_alignment(attrs: &[Attribute]) -> Option<u64> {
-    // TODO: Support constants?
-    // #[xc3(align(4096))]
-    let mut align = None;
-
-    for a in attrs {
-        if a.path().is_ident("xc3") {
-            let _ = a.parse_nested_meta(|meta| {
-                if meta.path.is_ident("align") {
+                    // #[xc3(count_offset)]
+                    field_type = Some(FieldType::CountOffset);
+                } else if meta.path.is_ident("align") {
+                    // TODO: Support constants?
+                    // #[xc3(align(4096))]
                     let content;
                     parenthesized!(content in meta.input);
                     let lit: LitInt = content.parse().unwrap();
                     align = Some(lit.base10_parse().unwrap());
+                } else if meta.path.is_ident("pad_size_to") {
+                    // #[xc3(pad_size_to(128))]
+                    let content;
+                    parenthesized!(content in meta.input);
+                    let lit: LitInt = content.parse().unwrap();
+                    pad_size_to = Some(lit.base10_parse().unwrap());
                 }
+
                 Ok(())
             });
         }
     }
 
-    align
+    FieldOptions {
+        field_type,
+        align,
+        pad_size_to,
+    }
 }
 
 struct FieldData {
@@ -222,12 +252,26 @@ fn parse_field_data(data: &Data) -> FieldData {
                 let name = f.ident.as_ref().unwrap();
                 let ty = &f.ty;
 
-                // Check if we need to write the count.
-                // Use a null offset as a placeholder.
-                let align = field_alignment(&f.attrs).unwrap_or(1);
+                let options = field_options(&f.attrs);
+                let align = options.align.unwrap_or(1);
                 let offset = create_offset_struct(name, align);
 
-                match field_type(&f.attrs) {
+                let pad_size_to = options.pad_size_to.map(|desired_size| {
+                    quote! {
+                        // Add appropriate padding until desired size.
+                        let after_pos = writer.stream_position()?;
+                        let size = after_pos - before_pos;
+                        let padding = #desired_size - size;
+                        writer.write_all(&vec![0u8; padding as usize])?;
+
+                        // Point past current write.
+                        *data_ptr = (*data_ptr).max(writer.stream_position()?);
+                    }
+                });
+
+                // Check if we need to write the count.
+                // Use a null offset as a placeholder.
+                match options.field_type {
                     Some(FieldType::Offset) => {
                         write_fields.push(quote! {
                             let #name = #offset;
@@ -255,7 +299,9 @@ fn parse_field_data(data: &Data) -> FieldData {
                         offset_field_names.push(name.clone());
                     }
                     None => write_fields.push(quote! {
+                        let before_pos = writer.stream_position()?;
                         self.#name.xc3_write(writer, data_ptr)?;
+                        #pad_size_to
                     }),
                 }
             }

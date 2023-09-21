@@ -1,16 +1,24 @@
 use std::io::Cursor;
 
-use crate::{bc::Bc, parse_count_offset, parse_offset_count};
+use crate::{
+    bc::Bc,
+    parse_count_offset, parse_offset_count,
+    write::{Xc3Write, Xc3WriteFull},
+};
 use binrw::{binread, BinRead, BinReaderExt, BinResult, NullString};
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Xc3Write, Xc3WriteFull)]
 #[br(magic(b"1RAS"))]
+#[xc3(magic(b"1RAS"))]
+#[xc3(align_after(2048))]
 pub struct Sar1 {
+    // TODO: calculate this when writing.
     pub file_size: u32,
     pub version: u32,
 
     #[br(parse_with = parse_count_offset)]
+    #[xc3(count_offset)]
     pub entries: Vec<Entry>,
 
     pub unk_offset: u32, // pointer to start of data?
@@ -19,13 +27,15 @@ pub struct Sar1 {
     pub unk5: u32,
 
     #[br(map = |x: NullString| x.to_string(), pad_size_to = 128)]
+    #[xc3(pad_size_to(128))]
     pub name: String,
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Xc3Write, Xc3WriteFull)]
 pub struct Entry {
     #[br(parse_with = parse_offset_count)]
+    #[xc3(offset_count, align(64))]
     pub entry_data: Vec<u8>,
 
     // TODO: CRC32C?
@@ -33,6 +43,7 @@ pub struct Entry {
     pub name_hash: u32,
 
     #[br(map = |x: NullString| x.to_string(), pad_size_to = 52)]
+    #[xc3(pad_size_to(52))]
     pub name: String,
 }
 
