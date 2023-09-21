@@ -32,17 +32,6 @@ Running `cargo build` without the `--release` will result in faster compile time
 ## Documentation
 The projects are not currently published to crates.io, so run `cargo doc -p xc3_lib --open` to generate and view the rustdoc output in the browser. Replace xc3_lib with the name of other packages to view the corresponding documentation. Contributors should see [Architecture](https://github.com/ScanMountGoat/xc3_lib/blob/main/ARCHITECTURE.md) and [Development](https://github.com/ScanMountGoat/xc3_lib/blob/main/DEVELOPMENT.md) for information.
 
-## Tests
-Unit tests and doc tests can be run using `cargo test`. 
-
-Most of the file processing and conversion code is tested by running the xc3_test executable against a dump of the game extracted with [XbTool](https://github.com/AlexCSDev/XbTool/releases). Details for failed conversions will be printed to the console. File types can all be enabled at once or enabled individually.  
-`cargo run -p xc3_test --release <path to xenoblade 2 or xenoblade 3 dump> --all`  
-`cargo run -p xc3_test --release <path to xenoblade 2 or xenoblade 3 dump> --mxmd --mibl`
-
-The rendering can be tested by batch rendering files to PNG. Specifying the GBuffer JSON database from xc3_shader will allow xc3_wgpu to assign textures to the appropriate outputs.  
-`cargo run -p xc3_wgpu_batch --release "xenoblade 2 dump/model/bl" wimdo`  
-`cargo run -p xc3_wgpu_batch --release "xenoblade 3 dump/map" wismhd gbuffer.json`  
-
 ## Credits
 This project is based on previous reverse engineering work, including work done for Xenoblade 2.
 Special thanks go to members of the World Tree Research discord (formerly the World of Alrest discord) for their assistance.
