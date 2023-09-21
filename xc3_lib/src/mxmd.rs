@@ -466,7 +466,11 @@ pub struct Models {
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset)]
     pub lod_data: Option<LodData>,
+
     // TODO: more fields?
+    pub unk_fields: [u32; 7],
+    // TODO: padding?
+    pub unk: [u32; 8],
 }
 
 /// A collection of meshes where each [Mesh] represents one draw call.
@@ -721,8 +725,9 @@ pub struct PackedExternalTexture {
     pub name: String,
 }
 
+// TODO: Fix offset writing.
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteFull)]
+#[derive(Debug, Xc3Write)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Skeleton {
@@ -739,6 +744,7 @@ pub struct Skeleton {
         offset: base_offset,
         inner: args! { count: count1 as usize, inner: base_offset }
     })]
+    #[xc3(offset)]
     pub bones: Vec<Bone>,
 
     /// Column-major transformation matrices for each of the bones in [bones](#structfield.bones).
@@ -776,6 +782,9 @@ pub struct Skeleton {
     #[br(if(!unk3.is_empty()))]
     #[xc3(offset)]
     pub as_bone_data: Option<AsBoneData>,
+
+    // TODO: padding?
+    pub unk: [u32; 4],
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
@@ -818,7 +827,21 @@ pub struct AsBoneData {
     #[xc3(offset_count)]
     pub bones: Vec<AsBone>,
     // TODO: more fields
+
+    // TODO: Some of these aren't floats?
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[xc3(offset_count)]
+    pub unk1: Vec<[f32; 14]>,
+
+    // TODO: count ever not 1?
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[xc3(offset_count)]
+    pub unk2: Vec<[[f32; 4]; 4]>,
+
+    // TODO: padding?
+    pub unk: [u32; 2]
 }
+
 
 #[derive(Debug, BinRead, BinWrite)]
 pub struct AsBone {
@@ -829,7 +852,7 @@ pub struct AsBone {
     pub unk: [u32; 19],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
+#[derive(Debug, BinRead, Xc3Write)]
 #[br(import_raw(base_offset: u64))]
 pub struct Bone {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
@@ -837,8 +860,9 @@ pub struct Bone {
     pub name: String,
     pub unk1: f32,
     pub unk_type: u32,
-    #[br(pad_after = 8)]
     pub unk_index: u32,
+    // TODO: padding?
+    pub unk: [u32; 2]
 }
 
 // TODO: pointer to decl_gbl_cac in ch001011011.wimdo?
@@ -971,5 +995,35 @@ impl<'a> Xc3WriteFull for TexturesOffsets<'a> {
             TexturesOffsets::Unk0(offsets) => offsets.write_full(writer, base_offset, data_ptr),
             TexturesOffsets::Unk1(offsets) => offsets.write_full(writer, base_offset, data_ptr),
         }
+    }
+}
+
+impl<'a> Xc3WriteFull for SkeletonOffsets<'a> {
+    fn write_full<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        _base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> binrw::BinResult<()> {
+        let base_offset = self.base_offset;
+
+        let bones = self.bones.write_offset(writer, base_offset, data_ptr)?;
+        
+        self.unk3.write_full(writer, base_offset, data_ptr)?;
+
+        self.transforms.write_full(writer, base_offset, data_ptr)?;
+
+        // TODO: How to handle these fields?
+        // self.unk_offset4.write_full(writer, base_offset, data_ptr)?;
+        // self.unk_offset5.write_full(writer, base_offset, data_ptr)?;
+        
+        self.as_bone_data
+            .write_full(writer, base_offset, data_ptr)?;
+
+        for bone in bones.0 {
+            bone.name.write_full(writer, base_offset, data_ptr)?;
+        }
+
+        Ok(())
     }
 }
