@@ -1,6 +1,6 @@
 use crate::{
     parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32,
-    write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteFull, round_up},
+    write::{round_up, xc3_write_binwrite_impl, Xc3Write, Xc3WriteFull},
 };
 use binrw::{args, binread, BinRead, BinResult, BinWrite};
 
@@ -64,7 +64,7 @@ pub struct VertexData {
     pub unks: [u32; 5],
 }
 
-#[derive(BinRead, Xc3Write, Debug)]
+#[derive(Debug, BinRead, Xc3Write)]
 #[br(import_raw(base_offset: u64))]
 pub struct VertexBufferDescriptor {
     /// The offset into [buffer](struct.VertexData.html#structfield.buffer).
@@ -87,7 +87,7 @@ pub struct VertexBufferDescriptor {
 ///
 /// Attributes are tightly packed, so the relative offset is
 /// the sum of previous attribute sizes.
-#[derive(BinRead, BinWrite, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct VertexAttribute {
     pub data_type: DataType,
     /// The size in bytes of [data_type](#structfield.data_type).
@@ -95,7 +95,7 @@ pub struct VertexAttribute {
 }
 
 /// The data type, usage, and component count for a [VertexAttribute].
-#[derive(BinRead, BinWrite, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 #[brw(repr(u16))]
 pub enum DataType {
     /// Float32x3 position.
@@ -133,7 +133,7 @@ pub enum DataType {
 }
 
 // TODO: Is this data always u16?
-#[derive(BinRead, BinWrite, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct IndexBufferDescriptor {
     /// The offset into [buffer](struct.VertexData.html#structfield.buffer).
     pub data_offset: u32,
@@ -145,21 +145,21 @@ pub struct IndexBufferDescriptor {
     unk4: u32,
 }
 
-#[derive(BinRead, BinWrite, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 #[brw(repr(u16))]
 pub enum Unk1 {
     Unk0 = 0,
     Unk3 = 3,
 }
 
-#[derive(BinRead, BinWrite, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 #[brw(repr(u16))]
 pub enum Unk2 {
     Unk0 = 0,
 }
 
 /// Vertex animation data often called "vertex morphs", "shape keys", or "blend shapes".
-#[derive(BinRead, Xc3Write, Debug)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct VertexAnimation {
     #[br(parse_with = parse_count_offset)]
     #[xc3(count_offset)]
@@ -173,7 +173,7 @@ pub struct VertexAnimation {
     pub unks: [u32; 4],
 }
 
-#[derive(BinRead, Xc3Write, Debug)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct VertexAnimationDescriptor {
     pub vertex_buffer_index: u32,
     pub target_start_index: u32,
@@ -192,7 +192,7 @@ pub struct VertexAnimationDescriptor {
 
 // TODO: vertex attributes for vertex animation data?
 /// A set of target vertex values similar to a keyframe in traditional animations.
-#[derive(BinRead, BinWrite, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct VertexAnimationTarget {
     /// Relative to [data_base_offset](struct.ModelData.html#structfield.data_base_offset)
     pub data_offset: u32,
@@ -287,7 +287,7 @@ pub struct UnkInner {
     unk6: u32,
 }
 
-#[derive(BinRead, BinWrite, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct VertexBufferInfo {
     flags: u16,
     outline_buffer_index: u16,
@@ -297,7 +297,7 @@ pub struct VertexBufferInfo {
     unk: u32,
 }
 
-#[derive(BinRead, BinWrite, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct OutlineBuffer {
     /// The offset into [buffer](struct.VertexData.html#structfield.buffer).
     pub data_offset: u32,
@@ -308,7 +308,7 @@ pub struct OutlineBuffer {
     unk: u32,
 }
 
-#[derive(BinRead, BinWrite, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct UnkData {
     pub unk: [u32; 17],
 }
@@ -351,6 +351,7 @@ impl<'a> Xc3WriteFull for VertexDataOffsets<'a> {
         }
 
         // The first attribute is aligned to 16.
+        // TODO: This doesn't always happen?
         *data_ptr = round_up(*data_ptr, 16);
         for vertex_buffer in vertex_buffers.0 {
             vertex_buffer

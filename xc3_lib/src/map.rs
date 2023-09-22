@@ -2,56 +2,64 @@
 //!
 //! Many of these sections use the same formats as character models.
 
-use binrw::{binread, BinRead};
+use binrw::{binread, BinRead, BinWrite};
 
 use crate::{
     mxmd::{Materials, Models, PackedTextures},
     parse_count_offset, parse_offset_count, parse_ptr32, parse_string_ptr32,
     spch::Spch,
     vertex::VertexData,
+    write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteFull},
 };
 
 // TODO: Improve docs.
 // TODO: Link to appropriate stream field with doc links.
 /// The data for a [PropModel](crate::msmd::PropModel).
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 pub struct PropModelData {
     pub unk1: [u32; 3],
 
     /// Each model has a corresponding element in [vertex_data_indices](#structfield.vertex_data_indices).
     #[br(parse_with = parse_ptr32)]
+    #[xc3(offset)]
     pub models: Models,
 
     #[br(parse_with = parse_ptr32)]
+    #[xc3(offset)]
     pub materials: Materials,
 
     pub unk2: u32,
 
     // Is this the actual props in the scene?
     #[br(parse_with = parse_ptr32)]
+    #[xc3(offset)]
     pub lods: PropLods,
 
     pub unk3: u32,
 
     /// The textures referenced by [materials](#structfield.materials).
     #[br(parse_with = parse_offset_count)]
+    #[xc3(offset_count)]
     pub textures: Vec<Texture>,
 
     /// The index of the [VertexData](crate::vertex::VertexData)
     /// in [prop_vertex_data](../msmd/struct.Msmd.html#structfield.prop_vertex_data)
     /// for each of the models in [models](#structfield.models).
     #[br(parse_with = parse_offset_count)]
+    #[xc3(offset_count)]
     pub model_vertex_data_indices: Vec<u32>,
 
     pub unk4_1: u32,
     pub unk4_2: u32,
 
     #[br(parse_with = parse_offset_count)]
+    #[xc3(offset_count)]
     pub prop_info: Vec<PropPositionInfo>,
 
     pub unk4_5: u32,
 
     #[br(parse_with = parse_ptr32)]
+    #[xc3(offset)]
     pub spch: Spch,
 
     pub unk5: u32,
@@ -62,8 +70,9 @@ pub struct PropModelData {
 // Similar to LOD data in mxmd?
 // TODO: Better names for these types
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Xc3Write, Xc3WriteFull)]
 #[br(stream = r)]
+#[xc3(base_offset)]
 pub struct PropLods {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
@@ -73,13 +82,16 @@ pub struct PropLods {
     // model groups?
     // Each of these is a single prop with all of its lods?
     #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[xc3(count_offset)]
     pub props: Vec<PropLod>,
 
     #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[xc3(count_offset)]
     pub lods: Vec<PropModelLod>,
 
     /// Instance information for [props](#structfield.props).
     #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[xc3(count_offset)]
     pub instances: Vec<PropInstance>,
 
     // render tree node indices?
@@ -88,6 +100,7 @@ pub struct PropLods {
 
     // render tree nodes?
     #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[xc3(count_offset)]
     pub unk3: Vec<PropUnk3>,
 
     pub unk2: u32,
@@ -102,8 +115,7 @@ pub struct PropLods {
     pub static_parts_count: u32,
 }
 
-#[derive(BinRead, Debug)]
-#[br(stream = r)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct PropLod {
     // TODO: Do these actually index into the PropModelLod?
     /// The index of the base LOD (highest quality) [Model](crate::mxmd::Model)
@@ -113,7 +125,7 @@ pub struct PropLod {
     pub lod_count: u32,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct PropModelLod {
     pub radius: f32,
     pub distance: f32,
@@ -121,7 +133,7 @@ pub struct PropModelLod {
     pub index: u32,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct PropInstance {
     /// The transform of the instance as a 4x4 column-major matrix.
     pub transform: [[f32; 4]; 4],
@@ -144,13 +156,13 @@ pub struct PropInstance {
     pub unks: [u32; 2],
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct PropUnk3 {
     pub unk1: [f32; 5],
     pub unk2: [u32; 3],
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct PropPositionInfo {
     /// The index in [prop_positions](../msmd/struct.Msmd.html#structfield.prop_positions).
     pub prop_position_entry_index: u32,
@@ -161,25 +173,29 @@ pub struct PropPositionInfo {
 
 // TODO: Link to appropriate stream field with doc links.
 /// The data for a [MapModel](crate::msmd::MapModel).
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 pub struct MapModelData {
     pub unk1: [u32; 3],
 
     #[br(parse_with = parse_ptr32)]
+    #[xc3(offset)]
     pub models: Models,
 
     #[br(parse_with = parse_ptr32)]
+    #[xc3(offset)]
     pub materials: Materials,
 
     pub m_unk2: [u32; 2],
 
     /// The textures referenced by [materials](#structfield.materials).
     #[br(parse_with = parse_offset_count)]
+    #[xc3(offset_count)]
     pub textures: Vec<Texture>,
 
     pub m_unk3: [u32; 2],
 
     #[br(parse_with = parse_ptr32)]
+    #[xc3(offset)]
     pub spch: Spch,
 
     // TODO: What does this do?
@@ -187,13 +203,14 @@ pub struct MapModelData {
     pub low_res_count: u32,
 
     #[br(parse_with = parse_ptr32)]
+    #[xc3(offset)]
     pub groups: MapModelGroups,
     // padding?
 }
 
 // TODO: Shared with other formats?
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct Texture {
     // TODO: What do these index into?
     pub low_texture_index: i16,
@@ -204,23 +221,26 @@ pub struct Texture {
 
 // TODO: What to call this?
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Xc3Write, Xc3WriteFull)]
 #[br(stream = r)]
+#[xc3(base_offset)]
 pub struct MapModelGroups {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
     #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[xc3(offset_count)]
     pub groups: Vec<MapModelGroup>,
 
     /// The index of the [MapModelGroup] in [groups](#structfield.groups)
     /// for each of the models in [models](struct.MapModelData.html#structfield.models).
     #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[xc3(offset_count)]
     pub model_group_index: Vec<u16>,
 }
 
 // Groups?
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct MapModelGroup {
     pub max_xyz: [f32; 3],
     pub min_xyz: [f32; 3],
@@ -236,60 +256,71 @@ pub struct MapModelGroup {
 
 // TODO: Link to appropriate fields with doc links.
 /// The data for a [EnvModel](crate::msmd::EnvModel).
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 pub struct EnvModelData {
     #[br(parse_with = parse_ptr32)]
+    #[xc3(offset)]
     pub models: Models,
 
     #[br(parse_with = parse_ptr32)]
+    #[xc3(offset)]
     pub materials: Materials,
 
     // TODO: Pointers to MIBL files?
     pub unk_offset1: u32,
 
     #[br(parse_with = parse_ptr32)]
+    #[xc3(offset)]
     pub vertex_data: VertexData,
 
     #[br(parse_with = parse_ptr32)]
+    #[xc3(offset)]
     pub textures: PackedTextures,
 
     // TODO: always 0?
     pub unk6: u32,
 
     #[br(parse_with = parse_ptr32)]
+    #[xc3(offset)]
     pub spch: Spch,
     // padding?
 }
 
 // TODO: Link to appropriate fields with doc links.
 /// The data for a [FoliageModel](crate::msmd::FoliageModel).
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 pub struct FoliageModelData {
     #[br(parse_with = parse_ptr32)]
+    #[xc3(offset)]
     pub models: Models,
 
     #[br(parse_with = parse_ptr32)]
+    #[xc3(offset)]
     pub materials: FoliageMaterials,
 
     pub unk1: u32,
 
     #[br(parse_with = parse_ptr32)]
+    #[xc3(offset)]
     pub vertex_data: VertexData,
 
     #[br(parse_with = parse_ptr32)]
+    #[xc3(offset)]
     pub textures: PackedTextures,
 
     pub unk4: [u32; 11], // padding?
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Xc3Write, Xc3WriteFull)]
 #[br(stream = r)]
+#[xc3(base_offset)]
 pub struct FoliageMaterials {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
     #[br(parse_with = parse_offset_count, args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset_count)]
     pub materials: Vec<FoliageMaterial>,
 
     pub unk1: u32,
@@ -299,10 +330,11 @@ pub struct FoliageMaterials {
     pub unk5: u32,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 #[br(import_raw(base_offset: u64))]
 pub struct FoliageMaterial {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset)]
     pub name: String,
 
     pub unk1: u16,
@@ -321,24 +353,28 @@ pub struct FoliageMaterial {
     pub unk14: u16,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 pub struct FoliageVertexData {
     #[br(parse_with = parse_count_offset)]
+    #[xc3(count_offset)]
     pub unk1: Vec<FoliageVertex1>,
+
     #[br(parse_with = parse_count_offset)]
+    #[xc3(count_offset)]
     pub unk2: Vec<FoliageVertex2>,
+
     pub unk3: u32,
     // TODO: padding?
     pub unks: [u32; 7],
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct FoliageVertex1 {
     pub unk1: (f32, f32, f32),
     pub unk2: [u8; 4],
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct FoliageVertex2 {
     pub unk1: (f32, f32, f32, f32),
     pub unk2: u32, // offset?
@@ -347,7 +383,7 @@ pub struct FoliageVertex2 {
     pub unk5: u32,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct FoliageUnkData {
     pub unk1: [u32; 9], // length of the file repeated?
     pub unk2: [f32; 4],
@@ -357,38 +393,47 @@ pub struct FoliageUnkData {
 
 /// The data for a [MapLowModel](crate::msmd::MapLowModel).
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 pub struct MapLowModelData {
     pub unk1: u32,
     pub unk2: u32,
 
     #[br(parse_with = parse_ptr32)]
+    #[xc3(offset)]
     pub models: Models,
 
     #[br(parse_with = parse_ptr32)]
+    #[xc3(offset)]
     pub materials: Materials,
 
     pub unk5: u32,
     pub unk6: u32,
 
     #[br(parse_with = parse_ptr32)]
+    #[xc3(offset)]
     pub vertex_data: VertexData,
 
     pub unk8: u32,
 
     #[br(parse_with = parse_ptr32)]
+    #[xc3(offset)]
     pub spch: Spch,
     // TODO: more fields?
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 pub struct PropPositions {
     #[br(parse_with = parse_count_offset)]
+    #[xc3(count_offset)]
     pub instances: Vec<PropInstance>,
+
     pub unk1: u32,
     pub unk2: u32,
+
     #[br(parse_with = parse_count_offset)]
+    #[xc3(count_offset)]
     pub nodes: Vec<RenderNode>,
+
     pub unk3: u32,
     pub unk4: u32,
     pub unk5: u32,
@@ -399,7 +444,7 @@ pub struct PropPositions {
     // TODO: more fields?
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct RenderNode {
     pub center: [f32; 3],
     pub radius: f32,
@@ -408,3 +453,17 @@ pub struct RenderNode {
     pub unk3: u32,
     pub unk4: u32,
 }
+
+xc3_write_binwrite_impl!(
+    PropLod,
+    PropModelLod,
+    PropInstance,
+    PropUnk3,
+    PropPositionInfo,
+    Texture,
+    MapModelGroup,
+    FoliageVertex1,
+    FoliageVertex2,
+    FoliageUnkData,
+    RenderNode
+);

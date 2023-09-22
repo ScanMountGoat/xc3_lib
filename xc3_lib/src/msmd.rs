@@ -4,7 +4,7 @@ use std::{
     marker::PhantomData,
 };
 
-use binrw::{binread, BinRead};
+use binrw::{binread, BinRead, BinWrite};
 
 use crate::{
     map::{
@@ -14,88 +14,108 @@ use crate::{
     mibl::Mibl,
     parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
     vertex::VertexData,
+    write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteFull},
     xbc1::Xbc1,
 };
 
+// TODO: write support?
+
 /// The main map data for a `.wismhd` file.
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 #[br(magic(b"DMSM"))]
+#[xc3(magic(b"DMSM"))]
 pub struct Msmd {
     pub version: u32,
     // TODO: always 0?
     pub unk1: [u32; 4],
 
     #[br(parse_with = parse_count_offset)]
+    #[xc3(count_offset)]
     pub map_models: Vec<MapModel>,
 
     #[br(parse_with = parse_count_offset)]
+    #[xc3(count_offset)]
     pub prop_models: Vec<PropModel>,
 
     pub unk1_1: [u32; 2],
 
     #[br(parse_with = parse_count_offset)]
+    #[xc3(count_offset)]
     pub env_models: Vec<EnvModel>,
 
     #[br(parse_with = parse_ptr32)]
+    #[xc3(offset)]
     pub wismda_info: WismdaInfo,
 
     pub unk2_1: u32,
 
     #[br(parse_with = parse_opt_ptr32)]
+    #[xc3(offset)]
     pub effects: Option<Effects>,
 
     pub unk2: [u32; 3],
 
     /// `.wismda` data with names like `/seamwork/inst/mdl/00003.te`.
     #[br(parse_with = parse_count_offset)]
+    #[xc3(count_offset)]
     pub prop_vertex_data: Vec<StreamEntry<VertexData>>,
 
     // TODO: What do these do?
     #[br(parse_with = parse_count_offset)]
+    #[xc3(count_offset)]
     pub textures: Vec<Texture>,
 
     pub strings_offset: u32,
 
     #[br(parse_with = parse_count_offset)]
+    #[xc3(count_offset)]
     pub foliage_models: Vec<FoliageModel>,
 
     /// `.wismda` data with names like `/seamwork/inst/pos/00000.et`.
     #[br(parse_with = parse_count_offset)]
+    #[xc3(count_offset)]
     pub prop_positions: Vec<StreamEntry<PropPositions>>,
 
     /// `.wismda` data with names like `/seamwork/mpfmap/poli//0022`.
     #[br(parse_with = parse_count_offset)]
+    #[xc3(count_offset)]
     pub foliage_data: Vec<StreamEntry<FoliageVertexData>>,
 
     pub unk3_1: u32,
     pub unk3_2: u32,
 
     #[br(parse_with = parse_ptr32)]
+    #[xc3(offset)]
     pub dlgt: Dlgt,
 
     #[br(parse_with = parse_count_offset)]
+    #[xc3(count_offset)]
     pub unk_lights: Vec<UnkLight>,
 
     // low resolution packed textures?
     /// `.wismda` data with names like `/seamwork/texture/00000_wi`.
     #[br(parse_with = parse_count_offset)]
+    #[xc3(count_offset)]
     pub low_textures: Vec<StreamEntry<LowTextures>>,
 
     // TODO: Document more of these fields.
     pub unk4: [u32; 6],
 
     #[br(parse_with = parse_opt_ptr32)]
+    #[xc3(offset)]
     pub parts: Option<MapParts>,
 
     pub unk4_2: u32,
 
     #[br(parse_with = parse_count_offset)]
+    #[xc3(count_offset)]
     pub low_models: Vec<MapLowModel>,
 
     pub env_flags: u32,
 
     /// `.wismda` data with names like `/seamwork/mpfmap/poli//0000`.
     #[br(parse_with = parse_count_offset)]
+    #[xc3(count_offset)]
     pub unk_foliage_data: Vec<StreamEntry<FoliageUnkData>>,
 
     /// `.wismda` data with names like `/seamwork/basemap/poli//000`
@@ -103,24 +123,29 @@ pub struct Msmd {
     // TODO: Are all of these referenced by map models?
     // TODO: What references "poli/001"?
     #[br(parse_with = parse_count_offset)]
+    #[xc3(count_offset)]
     pub map_vertex_data: Vec<StreamEntry<VertexData>>,
 
     #[br(parse_with = parse_ptr32)]
+    #[xc3(offset)]
     #[br(args { inner: env_flags })]
     pub nerd: EnvironmentData,
 
     pub unk6: [u32; 3],
 
     #[br(parse_with = parse_ptr32)]
+    #[xc3(offset)]
     pub ibl: Ibl,
 
     #[br(parse_with = parse_opt_ptr32)]
+    #[xc3(offset)]
     pub cmld: Option<Cmld>,
 
     pub unk5_2: u32,
     pub unk5_3: u32,
 
     #[br(parse_with = parse_opt_ptr32)]
+    #[xc3(offset)]
     pub unk5_4: Option<Doce>,
 
     pub unk5_5: u32,
@@ -131,7 +156,7 @@ pub struct Msmd {
 }
 
 /// References to medium and high resolution [Mibl](crate::mibl::Mibl) textures.
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct Texture {
     pub mid: StreamEntry<Mibl>,
     // TODO: This is just vec<u8>?
@@ -140,7 +165,7 @@ pub struct Texture {
 }
 
 // TODO: Better name for this?
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct MapModel {
     pub bounds: BoundingBox,
     // bounding sphere?
@@ -152,7 +177,7 @@ pub struct MapModel {
 
 // TODO: Better name for this?
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct PropModel {
     pub bounds: BoundingBox,
     // bounding sphere?
@@ -162,7 +187,7 @@ pub struct PropModel {
     pub unk3: u32,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct EnvModel {
     pub bounds: BoundingBox,
     // bounding sphere?
@@ -173,14 +198,14 @@ pub struct EnvModel {
 
 // TODO: also in mxmd but without the center?
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct BoundingBox {
     pub max: [f32; 3],
     pub min: [f32; 3],
     pub center: [f32; 3],
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct MapLowModel {
     pub bounds: BoundingBox,
     pub unk1: f32,
@@ -192,7 +217,7 @@ pub struct MapLowModel {
     pub unk: [u32; 5],
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct FoliageModel {
     pub unk1: [f32; 9],
     pub unk: [u32; 3],
@@ -201,7 +226,7 @@ pub struct FoliageModel {
     pub entry: StreamEntry<FoliageModelData>,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 #[br(import_raw(flags: u32))]
 pub enum EnvironmentData {
     #[br(pre_assert(flags == 0))]
@@ -210,8 +235,8 @@ pub enum EnvironmentData {
     Nerd(Nerd),
 }
 
-#[derive(BinRead, Debug)]
-#[br(magic(b"DREN"))]
+#[derive(Debug, BinRead, BinWrite)]
+#[brw(magic(b"DREN"))]
 pub struct Nerd {
     pub version: u32,
     pub unk1: u32,
@@ -225,24 +250,24 @@ pub struct Nerd {
 
 // TODO: This contains a Nerd?
 
-#[derive(BinRead, Debug)]
-#[br(magic(b"SMEC"))]
+#[derive(Debug, BinRead, BinWrite)]
+#[brw(magic(b"SMEC"))]
 pub struct Cems {
     pub unk1: [u32; 10],
     pub offset: u32,
 }
 
 // TODO: cloud data?
-#[derive(BinRead, Debug)]
-#[br(magic(b"CMLD"))]
+#[derive(Debug, BinRead, BinWrite)]
+#[brw(magic(b"CMLD"))]
 pub struct Cmld {
     pub version: u32,
 }
 
 // TODO: Lighting data?
 // TODO: .wilgt files?
-#[derive(BinRead, Debug)]
-#[br(magic(b"DLGT"))]
+#[derive(Debug, BinRead, BinWrite)]
+#[brw(magic(b"DLGT"))]
 pub struct Dlgt {
     pub version: u32,
     pub unk1: u32,
@@ -250,13 +275,15 @@ pub struct Dlgt {
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Xc3Write, Xc3WriteFull)]
 #[br(stream = r)]
+#[xc3(base_offset)]
 pub struct Ibl {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
     #[br(parse_with = parse_count_offset, args { offset: base_offset, inner: base_offset })]
+    #[xc3(count_offset)]
     pub unk1: Vec<IblInner>,
 
     pub unk3: u32,
@@ -265,21 +292,26 @@ pub struct Ibl {
     pub unk6: u32,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 #[br(import_raw(base_offset: u64))]
 pub struct IblInner {
     pub unk1: u32, // 0?
+
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset)]
     pub map_name: String,
+
     #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[xc3(offset)]
     pub gibl: Gibl,
+
     pub unk4: u32, // gibl section length?
     // padding?
     pub unk5: [u32; 6],
 }
 
-#[derive(BinRead, Debug)]
-#[br(magic(b"GIBL"))]
+#[derive(Debug, BinRead, BinWrite)]
+#[brw(magic(b"GIBL"))]
 pub struct Gibl {
     pub unk1: u32,
     pub unk2: u32,
@@ -290,7 +322,7 @@ pub struct Gibl {
     pub unk6: [u32; 6],
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct WismdaInfo {
     pub compressed_length: u32,
     pub unk1: u32,
@@ -300,26 +332,30 @@ pub struct WismdaInfo {
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Xc3Write, Xc3WriteFull)]
 #[br(stream = r)]
+#[xc3(base_offset)]
 pub struct Effects {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
     #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[xc3(count_offset)]
     pub unk1: Vec<Effect>,
 
     pub unk3: u32,
 }
 
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Xc3Write, Xc3WriteFull)]
 #[br(stream = r)]
+#[xc3(base_offset)]
 pub struct Effect {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset)]
     pub unk1: String,
 
     // TODO: xc2 has a string here instead?
@@ -344,32 +380,34 @@ pub struct Effect {
 // TODO: What does this do?
 // 116 bytes including magic?
 
-#[derive(BinRead, Debug)]
-#[br(magic(b"DOCE"))]
+#[derive(Debug, BinRead, BinWrite)]
+#[brw(magic(b"DOCE"))]
 pub struct Doce {
     pub version: u32,
     pub offset: u32,
     pub count: u32,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 pub struct LowTextures {
     #[br(parse_with = parse_count_offset)]
+    #[xc3(count_offset)]
     pub textures: Vec<LowTexture>,
     // TODO: Padding?
     pub unk: [u32; 5],
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 pub struct LowTexture {
     pub unk1: u32,
     // TODO: Optimized function for reading bytes?
     #[br(parse_with = parse_count_offset)]
+    #[xc3(count_offset)]
     pub mibl_data: Vec<u8>,
     pub unk2: i32,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct UnkLight {
     pub max: [f32; 3],
     pub min: [f32; 3],
@@ -380,19 +418,23 @@ pub struct UnkLight {
     pub unk4: [u32; 5],
 }
 
+// TODO: How to get writing working?
 #[binread]
-#[derive(Debug)]
+#[derive(Debug, Xc3Write, Xc3WriteFull)]
 #[br(stream = r)]
+#[xc3(base_offset)]
 pub struct MapParts {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
     // TODO: Where do static parts index?
     #[br(parse_with = parse_offset_count, args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset_count)]
     pub parts: Vec<MapPart>,
 
     pub unk_count: u32,
 
+    // TODO: How to handle this for writing?
     #[br(temp)]
     animated_parts_offset: u32,
 
@@ -421,10 +463,11 @@ pub struct MapParts {
     pub unk7: u32,
 
     #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[xc3(offset_count)]
     pub transforms: Vec<[[f32; 4]; 4]>,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 #[br(import_raw(base_offset: u64))]
 pub struct MapPartInstanceAnimation {
     pub translation: [f32; 3],
@@ -436,6 +479,7 @@ pub struct MapPartInstanceAnimation {
     pub flags: u32,
 
     #[br(parse_with = parse_offset_count, args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset_count)]
     pub channels: Vec<MapPartInstanceAnimationChannel>,
 
     pub time_min: u16,
@@ -444,7 +488,8 @@ pub struct MapPartInstanceAnimation {
     pub unks: [u32; 5],
 }
 
-#[derive(BinRead, Debug)]
+// TODO: Derive xc3write?
+#[derive(Debug, BinRead, BinWrite)]
 #[br(import_raw(base_offset: u64))]
 pub struct MapPartInstanceAnimationChannel {
     // TODO: Group this together into a single type?
@@ -455,14 +500,15 @@ pub struct MapPartInstanceAnimationChannel {
     pub time_min: u16,
     pub time_max: u16,
 
+    // TODO: Write offset?
     #[br(seek_before = std::io::SeekFrom::Start(base_offset + keyframes_offset as u64))]
     #[br(count = keyframe_count)]
     #[br(restore_position)]
     pub keyframes: Vec<MapPartInstanceAnimationKeyframe>,
 }
 
-#[derive(BinRead, Debug)]
-#[br(repr(u16))]
+#[derive(Debug, BinRead, BinWrite)]
+#[brw(repr(u16))]
 pub enum ChannelType {
     TranslationX = 0,
     TranslationY = 1,
@@ -475,7 +521,7 @@ pub enum ChannelType {
     ScaleZ = 8,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct MapPartInstanceAnimationKeyframe {
     pub slope_out: f32,
     pub slope_in: f32,
@@ -484,10 +530,11 @@ pub struct MapPartInstanceAnimationKeyframe {
     pub flags: u16,
 }
 
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 #[br(import_raw(base_offset: u64))]
 pub struct MapPart {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset)]
     pub name: String,
 
     // TODO: The index of the instance in PropLods.instances?
@@ -511,12 +558,12 @@ pub struct MapPart {
 }
 
 /// A reference to an [Xbc1](crate::xbc1::Xbc1) in `.wismda` file.
-
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct StreamEntry<T> {
     /// The offset of the [Xbc1](crate::xbc1::Xbc1) in `.wismda` file.
     pub offset: u32,
     pub decompressed_size: u32,
+    #[bw(ignore)]
     phantom: PhantomData<T>,
 }
 
@@ -543,3 +590,38 @@ where
         }
     }
 }
+
+// TODO: Find a way to derive this?
+impl<T> Xc3Write for StreamEntry<T> {
+    type Offsets<'a> = () where T: 'a;
+
+    fn xc3_write<W: std::io::Write + Seek>(
+        &self,
+        writer: &mut W,
+        data_ptr: &mut u64,
+    ) -> binrw::BinResult<Self::Offsets<'_>> {
+        self.write_le(writer)?;
+        *data_ptr = (*data_ptr).max(writer.stream_position()?);
+        Ok(())
+    }
+}
+
+xc3_write_binwrite_impl!(
+    BoundingBox,
+    MapLowModel,
+    FoliageModel,
+    EnvironmentData,
+    Nerd,
+    Cems,
+    Cmld,
+    Dlgt,
+    Doce,
+    Gibl,
+    MapPartInstanceAnimationChannel,
+    UnkLight,
+    Texture,
+    MapModel,
+    PropModel,
+    EnvModel,
+    WismdaInfo
+);

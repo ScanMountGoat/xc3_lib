@@ -181,8 +181,7 @@ macro_rules! xc3_write_binwrite_impl {
 
 pub(crate) use xc3_write_binwrite_impl;
 
-// TODO: Add alignment as a parameter.
-xc3_write_binwrite_impl!(u8, u16, u32, u64, f32, (u16, u16), (u8, u8, u16));
+xc3_write_binwrite_impl!(i32, u8, u16, u32, u64, f32, (u16, u16), (u8, u8, u16));
 
 // TODO: Support types with offsets?
 impl<const N: usize, T> Xc3Write for [T; N]
