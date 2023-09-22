@@ -1,6 +1,6 @@
 use crate::{
     parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32,
-    write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteFull},
+    write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteFull, round_up},
 };
 use binrw::{args, binread, BinRead, BinResult, BinWrite};
 
@@ -52,13 +52,13 @@ pub struct VertexData {
     #[xc3(offset)]
     pub unk_data: Option<UnkData>,
 
-    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset)]
-    pub weights: Weights,
+    pub weights: Option<Weights>,
 
-    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset)]
-    pub unk7: Unk,
+    pub unk7: Option<Unk>,
 
     // TODO: padding?
     pub unks: [u32; 5],
@@ -350,6 +350,8 @@ impl<'a> Xc3WriteFull for VertexDataOffsets<'a> {
                 .write_offset(writer, base_offset, data_ptr)?;
         }
 
+        // The first attribute is aligned to 16.
+        *data_ptr = round_up(*data_ptr, 16);
         for vertex_buffer in vertex_buffers.0 {
             vertex_buffer
                 .attributes

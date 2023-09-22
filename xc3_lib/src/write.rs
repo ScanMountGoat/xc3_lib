@@ -40,9 +40,8 @@ pub(crate) struct Offset<'a, T> {
     pub position: u64,
     /// The data pointed to by the offset.
     pub data: &'a T,
-    /// Additional alignment applied at the field level.
-    /// This may be stricter than the alignment of `T`.
-    pub field_alignment: u64,
+    /// Alignment override applied at the field level.
+    pub field_alignment: Option<u64>,
 }
 
 impl<'a, T: Xc3Write> std::fmt::Debug for Offset<'a, T> {
@@ -56,7 +55,7 @@ impl<'a, T: Xc3Write> std::fmt::Debug for Offset<'a, T> {
 }
 
 impl<'a, T> Offset<'a, T> {
-    pub fn new(position: u64, data: &'a T, field_alignment: u64) -> Self {
+    pub fn new(position: u64, data: &'a T, field_alignment: Option<u64>) -> Self {
         Self {
             position,
             data,
@@ -71,9 +70,9 @@ impl<'a, T> Offset<'a, T> {
         data_ptr: &mut u64,
         type_alignment: u64,
     ) -> Result<(), binrw::Error> {
-        // Account for the type and field alignment.
-        *data_ptr = round_up(*data_ptr, type_alignment);
-        *data_ptr = round_up(*data_ptr, self.field_alignment);
+        // Account for the type or field alignment.
+        let alignment = self.field_alignment.unwrap_or(type_alignment);
+        *data_ptr = round_up(*data_ptr, alignment);
 
         // Update the offset value.
         writer.seek(SeekFrom::Start(self.position))?;
@@ -236,10 +235,16 @@ where
         writer: &mut W,
         data_ptr: &mut u64,
     ) -> BinResult<Self::Offsets<'_>> {
-        let offsets = self
-            .iter()
-            .map(|v| v.xc3_write(writer, data_ptr))
-            .collect::<Result<Vec<_>, _>>()?;
+        // TODO: Find a less hacky way to specialize Vec<u8>.
+        let offsets = if let Some(bytes) = <dyn core::any::Any>::downcast_ref::<Vec<u8>>(self) {
+            // Avoiding writing buffers byte by byte to drastically improve performance.
+            writer.write_all(&bytes)?;
+            Vec::new()
+        } else {
+            self.iter()
+                .map(|v| v.xc3_write(writer, data_ptr))
+                .collect::<Result<Vec<_>, _>>()?
+        };
         *data_ptr = (*data_ptr).max(writer.stream_position()?);
         Ok(VecOffsets(offsets))
     }

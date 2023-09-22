@@ -87,17 +87,17 @@ pub fn read_vertex_buffers(
     // TODO: Is this the best place to do this?
     if let Some(skeleton) = skeleton {
         for i in 0..buffers.len() {
-            // TODO: Why is this sometimes out of range?
-            if let Some(weights_buffer) =
-                buffers.get(vertex_data.weights.vertex_buffer_index as usize)
-            {
-                buffers[i].influences = bone_influences(&buffers[i], weights_buffer, skeleton);
-            } else {
-                error!(
-                    "Weights buffer index {} is out of range for length {}.",
-                    vertex_data.weights.vertex_buffer_index,
-                    buffers.len()
-                );
+            if let Some(weights) = &vertex_data.weights {
+                if let Some(weights_buffer) = buffers.get(weights.vertex_buffer_index as usize) {
+                    buffers[i].influences = bone_influences(&buffers[i], weights_buffer, skeleton);
+                } else {
+                    // TODO: Why is this sometimes out of range?
+                    error!(
+                        "Weights buffer index {} is out of range for length {}.",
+                        weights.vertex_buffer_index,
+                        buffers.len()
+                    );
+                }
             }
         }
     }

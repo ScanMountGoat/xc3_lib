@@ -156,8 +156,7 @@ fn parse_field_data(data: &Data) -> FieldData {
                 let ty = &f.ty;
 
                 let options = FieldOptions::from_attrs(&f.attrs);
-                let align = options.align.unwrap_or(1);
-                let offset = create_offset_struct(name, align);
+                let offset = create_offset_struct(name, options.align);
 
                 let pad_size_to = options.pad_size_to.map(|desired_size| {
                     quote! {
@@ -225,6 +224,10 @@ fn offset_field(name: &Ident, ty: &Type) -> TokenStream2 {
     quote!(pub #name: crate::write::Offset<'a, #ty>)
 }
 
-fn create_offset_struct(name: &Ident, alignment: u64) -> TokenStream2 {
+fn create_offset_struct(name: &Ident, alignment: Option<u64>) -> TokenStream2 {
+    let alignment = match alignment {
+        Some(align) => quote!(Some(#align)),
+        None => quote!(None),
+    };
     quote!(crate::write::Offset::new(writer.stream_position()?, &self.#name, #alignment))
 }

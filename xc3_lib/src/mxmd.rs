@@ -639,7 +639,6 @@ pub struct Textures2 {
     #[xc3(count_offset)]
     pub indices: Vec<u16>,
 
-    // TODO: separate PackedTextures and PackedExternalTextures?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset)]
     pub textures: Option<PackedExternalTextures>,
@@ -690,7 +689,6 @@ pub struct PackedTexture {
     pub name: String,
 }
 
-// TODO: The alignment here is only 2?
 #[binread]
 #[derive(Debug, Xc3Write, Xc3WriteFull)]
 #[br(stream = r)]
@@ -700,7 +698,7 @@ pub struct PackedExternalTextures {
     base_offset: u64,
 
     #[br(parse_with = parse_count_offset, args { offset: base_offset, inner: base_offset })]
-    #[xc3(count_offset)]
+    #[xc3(count_offset, align(2))]
     pub textures: Vec<PackedExternalTexture>,
 
     pub unk2: u32,

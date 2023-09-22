@@ -48,7 +48,7 @@ pub struct Msrd {
     pub texture_ids: Vec<u16>,
 
     #[br(parse_with = parse_opt_ptr32, offset = offset as u64)]
-    #[xc3(offset)]
+    #[xc3(offset, align(2))]
     pub textures: Option<PackedExternalTextures>,
 
     pub unk1: u32,
@@ -86,6 +86,7 @@ pub enum EntryType {
 pub struct Stream {
     pub comp_size: u32,
     pub decomp_size: u32, // TODO: slightly larger than xbc1 decomp size?
+    // TODO: Why does this sometimes have an extra 16 bytes of padding?
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset)]
     pub xbc1: Xbc1,
