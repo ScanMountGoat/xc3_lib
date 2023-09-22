@@ -1,17 +1,17 @@
+use attribute::{FieldOptions, FieldType, TypeOptions};
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
-use syn::{
-    parenthesized, parse_macro_input, Attribute, Data, DataStruct, DeriveInput, Fields, Ident,
-    LitByteStr, LitInt, Type,
-};
+use syn::{parse_macro_input, Data, DataStruct, DeriveInput, Fields, Ident, Type};
+
+mod attribute;
 
 #[proc_macro_derive(Xc3Write, attributes(xc3))]
 pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
     let name = &input.ident;
-    let offsets_name = Ident::new(&(input.ident.to_string() + "Offsets"), Span::call_site());
+    let offsets_name = offsets_name(&input.ident);
 
     let FieldData {
         write_fields,
@@ -19,7 +19,7 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
         offset_fields,
     } = parse_field_data(&input.data);
 
-    let options = type_options(&input.attrs);
+    let options = TypeOptions::from_attrs(&input.attrs);
 
     // Some types need a pointer to the start of the type.
     let base_offset_field = options
@@ -66,18 +66,18 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
     .into()
 }
 
-// TODO: Is sharing attributes with Xc3Write the best way to do this?
+// Share attributes with Xc3Write.
 #[proc_macro_derive(Xc3WriteFull, attributes(xc3))]
 pub fn xc3_write_full_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
-    let offsets_name = Ident::new(&(input.ident.to_string() + "Offsets"), Span::call_site());
+    let offsets_name = offsets_name(&input.ident);
 
     let FieldData {
         offset_field_names, ..
     } = parse_field_data(&input.data);
 
-    let options = type_options(&input.attrs);
+    let options = TypeOptions::from_attrs(&input.attrs);
     let self_base_offset = if options.has_base_offset {
         quote!(self.base_offset;)
     } else {
@@ -131,105 +131,8 @@ pub fn xc3_write_full_derive(input: TokenStream) -> TokenStream {
     .into()
 }
 
-struct TypeOptions {
-    magic: Option<LitByteStr>,
-    has_base_offset: bool,
-    align_after: Option<u64>,
-}
-
-fn type_options(attrs: &[Attribute]) -> TypeOptions {
-    let mut magic = None;
-    let mut has_base_offset = false;
-    let mut align_after = None;
-
-    for a in attrs {
-        if a.path().is_ident("xc3") {
-            let _ = a.parse_nested_meta(|meta| {
-                if meta.path.is_ident("magic") {
-                    // #[xc3(magic(b"MAGIC"))]
-                    let content;
-                    parenthesized!(content in meta.input);
-                    let lit: LitByteStr = content.parse().unwrap();
-                    magic = Some(lit);
-                } else if meta.path.is_ident("base_offset") {
-                    // #[xc3(base_offset)]
-                    has_base_offset = true;
-                } else if meta.path.is_ident("align_after") {
-                    // #[xc3(align_after(4096))]
-                    let content;
-                    parenthesized!(content in meta.input);
-                    let lit: LitInt = content.parse().unwrap();
-                    align_after = Some(lit.base10_parse().unwrap());
-                }
-                Ok(())
-            });
-        }
-    }
-
-    TypeOptions {
-        magic,
-        has_base_offset,
-        align_after,
-    }
-}
-
-struct FieldOptions {
-    field_type: Option<FieldType>,
-    align: Option<u64>,
-    pad_size_to: Option<u64>,
-}
-
-enum FieldType {
-    Offset,
-    OffsetCount,
-    CountOffset,
-}
-
-fn field_options(attrs: &[Attribute]) -> FieldOptions {
-    let mut field_type = None;
-    let mut align = None;
-    let mut pad_size_to = None;
-
-    for a in attrs {
-        if a.path().is_ident("xc3") {
-            // TODO: Why does parsing sometimes return errors?
-            // TODO: add types like offset32 or offset64_count32
-            // TODO: separate offset and count fields?
-            let _ = a.parse_nested_meta(|meta| {
-                if meta.path.is_ident("offset") {
-                    // #[xc3(offset)]
-                    field_type = Some(FieldType::Offset);
-                } else if meta.path.is_ident("offset_count") {
-                    // #[xc3(offset_count)]
-                    field_type = Some(FieldType::OffsetCount);
-                } else if meta.path.is_ident("count_offset") {
-                    // #[xc3(count_offset)]
-                    field_type = Some(FieldType::CountOffset);
-                } else if meta.path.is_ident("align") {
-                    // TODO: Support constants?
-                    // #[xc3(align(4096))]
-                    let content;
-                    parenthesized!(content in meta.input);
-                    let lit: LitInt = content.parse().unwrap();
-                    align = Some(lit.base10_parse().unwrap());
-                } else if meta.path.is_ident("pad_size_to") {
-                    // #[xc3(pad_size_to(128))]
-                    let content;
-                    parenthesized!(content in meta.input);
-                    let lit: LitInt = content.parse().unwrap();
-                    pad_size_to = Some(lit.base10_parse().unwrap());
-                }
-
-                Ok(())
-            });
-        }
-    }
-
-    FieldOptions {
-        field_type,
-        align,
-        pad_size_to,
-    }
+fn offsets_name(ident: &Ident) -> Ident {
+    Ident::new(&(ident.to_string() + "Offsets"), Span::call_site())
 }
 
 struct FieldData {
@@ -252,7 +155,7 @@ fn parse_field_data(data: &Data) -> FieldData {
                 let name = f.ident.as_ref().unwrap();
                 let ty = &f.ty;
 
-                let options = field_options(&f.attrs);
+                let options = FieldOptions::from_attrs(&f.attrs);
                 let align = options.align.unwrap_or(1);
                 let offset = create_offset_struct(name, align);
 
