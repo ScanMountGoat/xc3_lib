@@ -456,20 +456,42 @@ pub struct Models {
     #[xc3(offset)]
     pub skeleton: Option<Skeleton>,
 
-    pub unks3: [u32; 22],
+    pub unks3_1: [u32; 14],
+
+    #[br(parse_with = parse_offset_count, args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset_count)]
+    pub model_unks: Vec<ModelUnk>,
+
+    pub unks3_2: [u32; 5],
+
+    // TODO: vertex morphs/blendshapes?
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset)]
+    model_unk2: Option<ModelUnk2>,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset)]
     pub unk_offset1: Option<MeshUnk1>,
 
-    pub unk_offset2: u32,
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset)]
+    pub model_unk3: Option<ModelUnk3>,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset)]
     pub lod_data: Option<LodData>,
 
-    // TODO: more fields?
-    pub unk_fields: [u32; 7],
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset)]
+    pub model_unk4: Option<ModelUnk4>,
+
+    pub unk_field2: u32,
+    pub unk_fields: [u32; 4],
+
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset)]
+    pub model_unk5: Option<ModelUnk5>,
+
     // TODO: padding?
     pub unk: [u32; 8],
 }
@@ -508,6 +530,130 @@ pub struct Mesh {
     pub unks6: [i32; 4],
 }
 
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
+#[br(import_raw(base_offset: u64))]
+pub struct ModelUnk {
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset)]
+    name: String,
+    string_end_offset: u32,
+
+    unk1: u16,
+    unk2: u16,
+    unk3: u32,
+}
+
+// TODO: vertex morphs?
+#[binread]
+#[derive(Debug, Xc3Write, Xc3WriteFull)]
+#[br(stream = r)]
+#[xc3(base_offset)]
+pub struct ModelUnk2 {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = parse_offset_count, args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset_count)]
+    items: Vec<ModelUnk2Inner>,
+
+    unk1: u32,
+    unk2: u32,
+    unk3: u32,
+    unk4: u32,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
+#[br(import_raw(base_offset: u64))]
+pub struct ModelUnk2Inner {
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset)]
+    name1: String,
+
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset)]
+    name2: String,
+
+    unk1: u32,
+    unk2: u32,
+    unk3: u32,
+    unk4: u32,
+    unk5: u32,
+}
+
+#[binread]
+#[derive(Debug, Xc3Write, Xc3WriteFull)]
+#[br(stream = r)]
+#[xc3(base_offset)]
+pub struct ModelUnk3 {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = parse_count_offset, args { offset: base_offset, inner: base_offset })]
+    #[xc3(count_offset)]
+    items: Vec<ModelUnk3Inner>,
+
+    unk1: u32,
+    unk2: u32,
+    unk3: u32,
+    unk4: u32,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
+#[br(import_raw(base_offset: u64))]
+pub struct ModelUnk3Inner {
+    // DECL_GBL_CALC
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset)]
+    name: String,
+
+    unk1: u32,
+    unk2: u32,
+    unk3: u32,
+    unk4: u32,
+    unk5: u32,
+    unk6: u32,
+    unk7: u32,
+}
+
+#[binread]
+#[derive(Debug, Xc3Write, Xc3WriteFull)]
+#[br(stream = r)]
+#[xc3(base_offset)]
+pub struct ModelUnk4 {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    // 0 ... N-1
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[xc3(offset_count)]
+    items: Vec<u32>,
+
+    unk1: u32,
+    unk2: u32,
+    unk3: u32,
+    unk4: u32,
+}
+
+#[binread]
+#[derive(Debug, Xc3Write)]
+#[br(stream = r)]
+#[xc3(base_offset)]
+pub struct ModelUnk5 {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    // TODO: What type is this?
+    // #[br(parse_with = parse_count_offset, offset = base_offset)]
+    // #[xc3(count_offset)]
+    count: u32,
+    offset: u32,
+
+    unk1: u32,
+    unk2: u32,
+    unk3: u32,
+    unk4: u32,
+}
+
 #[binread]
 #[derive(Debug, Xc3Write, Xc3WriteFull)]
 #[br(stream = r)]
@@ -520,6 +666,7 @@ pub struct MeshUnk1 {
     #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(offset)]
     pub inner: MeshUnk1Inner,
+
     pub unk1: [u32; 14],
 }
 
@@ -528,7 +675,7 @@ pub struct MeshUnk1 {
 pub struct MeshUnk1Inner {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     #[xc3(offset)]
-    pub unk1: String,
+    pub name: String,
 
     pub unk2: [f32; 9],
 }
@@ -719,6 +866,7 @@ pub struct PackedExternalTexture {
     pub name: String,
 }
 
+// TODO: Rename to skinning?
 // TODO: Fix offset writing.
 #[binread]
 #[derive(Debug, Xc3Write)]
