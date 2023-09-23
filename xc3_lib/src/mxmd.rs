@@ -110,7 +110,7 @@ pub struct Materials {
     pub unks4: [u32; 4],
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct AlphaTestTexture {
     // TODO: (_, 0, 1) has alpha testing?
     // TODO: Test different param values?
@@ -425,7 +425,7 @@ pub enum ShaderUnkType {
     Unk9 = 9, // used for maps?
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct Texture {
     pub texture_index: u16,
     pub sampler_index: u16,
@@ -491,7 +491,7 @@ pub struct Model {
     pub unks: [u32; 7],
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct Mesh {
     pub render_flags: u32,
     pub skin_flags: u32,
@@ -556,7 +556,7 @@ pub struct LodData {
 }
 
 // TODO: is lod: 0 in the mxmd special?
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct LodItem1 {
     pub unk1: [u32; 4],
     pub unk2: f32,
@@ -567,7 +567,7 @@ pub struct LodItem1 {
 }
 
 // TODO: lod group?
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct LodItem2 {
     pub base_lod_index: u16,
     pub lod_count: u16,
@@ -651,7 +651,7 @@ pub struct Textures2 {
     pub resources: Vec<TextureResource>,
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct TexturesUnk {
     pub unk1: u32,
     pub unk2: u32,
@@ -838,7 +838,7 @@ pub struct AsBoneData {
     pub unk: [u32; 2],
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct AsBone {
     /// The index in [bones](struct.Skeleton.html#structfield.bones).
     pub bone_index: u16,
@@ -887,13 +887,13 @@ pub struct Unk1 {
     pub unk4: Vec<Unk1Unk4>,
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct Unk1Unk1 {
     pub index: u16,
     pub unk2: u16, // 1
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct Unk1Unk2 {
     pub unk1: u16, // 0
     pub index: u16,
@@ -902,7 +902,7 @@ pub struct Unk1Unk2 {
     pub unk5: u32, // 0
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct Unk1Unk3 {
     pub unk1: u16,
     pub unk2: u16,
@@ -913,7 +913,7 @@ pub struct Unk1Unk3 {
     pub unk7: u16,
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct Unk1Unk4 {
     pub unk1: f32,
     pub unk2: f32,
@@ -922,24 +922,13 @@ pub struct Unk1Unk4 {
 }
 
 xc3_write_binwrite_impl!(
-    TexturesUnk,
-    Unk1Unk1,
-    Unk1Unk2,
-    Unk1Unk3,
-    Unk1Unk4,
     MaterialParameter,
     ParamType,
     Samplers,
     Sampler,
-    AlphaTestTexture,
     ShaderProgram,
     ShaderUnkType,
-    Texture,
-    StateFlags,
-    LodItem1,
-    LodItem2,
-    Mesh,
-    AsBone
+    StateFlags
 );
 
 impl Xc3Write for MaterialFlags {

@@ -32,15 +32,38 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
 
     let write_magic = options.magic.map(|m| quote!(#m.write_le(writer)?;));
 
+    // Use the unit type instead of an empty struct for no offset fields.
+    let offsets_struct = if offset_field_names.is_empty() {
+        quote!()
+    } else {
+        quote! {
+            pub(crate) struct #offsets_name<'a> {
+                #base_offset_field
+                #(#offset_fields),*
+            }
+        }
+    };
+
+    let initialize_offsets_struct = if offset_field_names.is_empty() {
+        quote!(Ok(()))
+    } else {
+        quote! {
+            Ok(#offsets_name { #base_offset #(#offset_field_names),* })
+        }
+    };
+
+    let offsets_type = if offset_field_names.is_empty() {
+        quote!(())
+    } else {
+        quote!(#offsets_name<'a>)
+    };
+
     // TODO: move offset struct generation to the field data?
     quote! {
-        pub(crate) struct #offsets_name<'a> {
-            #base_offset_field
-            #(#offset_fields),*
-        }
+        #offsets_struct
 
         impl crate::write::Xc3Write for #name {
-            type Offsets<'a> = #offsets_name<'a>;
+            type Offsets<'a> = #offsets_type;
 
             fn xc3_write<W: std::io::Write + std::io::Seek>(
                 &self,
@@ -59,7 +82,7 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
                 *data_ptr = (*data_ptr).max(writer.stream_position()?);
 
                 // Return positions of offsets to update later.
-                Ok(#offsets_name { #base_offset #(#offset_field_names),* })
+                #initialize_offsets_struct
             }
         }
     }

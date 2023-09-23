@@ -1,6 +1,6 @@
 use crate::{
     parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32,
-    write::{round_up, xc3_write_binwrite_impl, Xc3Write, Xc3WriteFull},
+    write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteFull},
 };
 use binrw::{args, binread, BinRead, BinResult, BinWrite};
 
@@ -192,7 +192,7 @@ pub struct VertexAnimationDescriptor {
 
 // TODO: vertex attributes for vertex animation data?
 /// A set of target vertex values similar to a keyframe in traditional animations.
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct VertexAnimationTarget {
     /// Relative to [data_base_offset](struct.ModelData.html#structfield.data_base_offset)
     pub data_offset: u32,
@@ -227,7 +227,7 @@ pub struct Weights {
 
 // TODO: Counts up to the total number of "vertices" in the skin weights buffer?
 // TODO: How to select the weight group for each mesh in the model?
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct WeightGroup {
     pub output_start_index: u32,
     /// Start of the items in the weights buffer at [vertex_buffer_index](struct.Weights.html#structfield.vertex_buffer_index).
@@ -248,7 +248,7 @@ pub struct WeightGroup {
     pub unks2: [u32; 2],
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct WeightLod {
     /// One plus the indices pointing back to [groups](struct.Weights.html#structfield.groups).
     /// Unused entries use the value `0`.
@@ -277,7 +277,7 @@ pub struct Unk {
     unks: [u32; 8],
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct UnkInner {
     unk1: u16,
     unk2: u16,
@@ -287,7 +287,7 @@ pub struct UnkInner {
     unk6: u32,
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct VertexBufferInfo {
     flags: u16,
     outline_buffer_index: u16,
@@ -297,7 +297,7 @@ pub struct VertexBufferInfo {
     unk: u32,
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct OutlineBuffer {
     /// The offset into [buffer](struct.VertexData.html#structfield.buffer).
     pub data_offset: u32,
@@ -308,26 +308,13 @@ pub struct OutlineBuffer {
     unk: u32,
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct UnkData {
     pub unk: [u32; 17],
 }
 
 // TODO: Just derive Xc3Write?
-xc3_write_binwrite_impl!(
-    VertexAttribute,
-    DataType,
-    IndexBufferDescriptor,
-    Unk1,
-    Unk2,
-    VertexAnimationTarget,
-    WeightGroup,
-    UnkInner,
-    VertexBufferInfo,
-    OutlineBuffer,
-    WeightLod,
-    UnkData
-);
+xc3_write_binwrite_impl!(VertexAttribute, DataType, IndexBufferDescriptor, Unk1, Unk2);
 
 impl<'a> Xc3WriteFull for VertexDataOffsets<'a> {
     fn write_full<W: std::io::Write + std::io::Seek>(
@@ -352,7 +339,7 @@ impl<'a> Xc3WriteFull for VertexDataOffsets<'a> {
 
         // The first attribute is aligned to 16.
         // TODO: This doesn't always happen?
-        *data_ptr = round_up(*data_ptr, 16);
+        // *data_ptr = round_up(*data_ptr, 16);
         for vertex_buffer in vertex_buffers.0 {
             vertex_buffer
                 .attributes

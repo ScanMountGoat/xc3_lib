@@ -1,11 +1,11 @@
 //! Compiled shaders in `.wishp` files or embedded in other formats.
 use std::io::{Cursor, SeekFrom};
 
-use crate::write::{xc3_write_binwrite_impl, VecOffsets, Xc3Write, Xc3WriteFull};
+use crate::write::{VecOffsets, Xc3Write, Xc3WriteFull};
 use crate::{
     parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
 };
-use binrw::{args, binread, BinRead, BinReaderExt, BinWrite};
+use binrw::{args, binread, BinRead, BinReaderExt};
 
 /// .wishp, embedded in .wismt and .wimdo
 #[binread]
@@ -80,7 +80,7 @@ pub struct StringOffset {
     pub string: String,
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct ShaderProgram {
     // TODO: 64-bit offset?
     pub slct_offset: u32,
@@ -88,7 +88,7 @@ pub struct ShaderProgram {
     pub unk1: u32,
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct Unk4 {
     pub unk1: u32,
     pub unk2: u32,
@@ -368,8 +368,6 @@ impl NvsdMetadata {
         &xv4_section[offset..offset + shaders.fragment_xv4_size as usize]
     }
 }
-
-xc3_write_binwrite_impl!(Unk4, ShaderProgram);
 
 impl Xc3Write for StringSection {
     type Offsets<'a> = VecOffsets<StringOffsetOffsets<'a>>;

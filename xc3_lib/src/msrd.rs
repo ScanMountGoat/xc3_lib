@@ -63,7 +63,7 @@ pub struct Msrd {
     pub unk: [u32; 4],
 }
 
-#[derive(BinRead, BinWrite, Debug)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct StreamEntry {
     pub offset: u32,
     pub size: u32,
@@ -73,7 +73,7 @@ pub struct StreamEntry {
     pub unk: [u32; 2],
 }
 
-#[derive(BinRead, BinWrite, Debug, PartialEq, Eq)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Eq)]
 #[brw(repr(u16))]
 pub enum EntryType {
     Model = 0,
@@ -82,7 +82,7 @@ pub enum EntryType {
     Texture = 3,
 }
 
-#[derive(BinRead, Xc3Write, Debug)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct Stream {
     pub comp_size: u32,
     pub decomp_size: u32, // TODO: slightly larger than xbc1 decomp size?
@@ -92,7 +92,7 @@ pub struct Stream {
     pub xbc1: Xbc1,
 }
 
-#[derive(BinRead, BinWrite, Debug)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct TextureResource {
     // TODO: The the texture name hash as an integer?
     pub hash: u32,
@@ -154,7 +154,7 @@ impl Msrd {
     }
 }
 
-xc3_write_binwrite_impl!(TextureResource, StreamEntry);
+xc3_write_binwrite_impl!(StreamEntry);
 
 impl<'a> Xc3WriteFull for MsrdOffsets<'a> {
     fn write_full<W: std::io::Write + std::io::Seek>(

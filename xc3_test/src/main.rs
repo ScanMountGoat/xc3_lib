@@ -154,89 +154,94 @@ fn check_all_mibl<P: AsRef<Path>>(root: P) {
         });
 }
 
-fn check_msrd(msrd: Msrd, path: &Path) {
+fn check_msrd(msrd: Msrd, path: Option<&Path>) {
     msrd.extract_shader_data();
     let vertex_data = msrd.extract_vertex_data();
     msrd.extract_low_texture_data();
     // TODO: High textures?
     // TODO: Check mibl?
 
-    // Check read/write for embedded data.
-    let original = std::fs::read(path).unwrap();
-    let mut writer = Cursor::new(Vec::new());
-    msrd.write(&mut writer).unwrap();
-    if writer.into_inner() != original {
-        println!("Msrd read write not 1:1 for {path:?}");
+    if let Some(path) = path {
+        let original = std::fs::read(path).unwrap();
+        let mut writer = Cursor::new(Vec::new());
+        msrd.write(&mut writer).unwrap();
+        if writer.into_inner() != original {
+            println!("Msrd read/write not 1:1 for {path:?}");
+        }
     }
 
+    // Check read/write for embedded data.
     let original = msrd.decompress_stream(0, msrd.vertex_data_entry_index);
     let mut writer = Cursor::new(Vec::new());
     vertex_data.write(&mut writer).unwrap();
     if writer.into_inner() != original {
-        println!("VertexData read write not 1:1 for {path:?}");
+        println!("VertexData read/write not 1:1 for {path:?}");
     }
 }
 
-fn check_msmd(msmd: Msmd, path: &Path) {
-    // Parse all the data from the .wismda
-    let mut reader = BufReader::new(std::fs::File::open(path.with_extension("wismda")).unwrap());
+fn check_msmd(msmd: Msmd, path: Option<&Path>) {
+    if let Some(path) = path {
+        // Parse all the data from the .wismda
+        let mut reader =
+            BufReader::new(std::fs::File::open(path.with_extension("wismda")).unwrap());
 
-    let compressed = msmd.wismda_info.compressed_length != msmd.wismda_info.decompressed_length;
+        let compressed = msmd.wismda_info.compressed_length != msmd.wismda_info.decompressed_length;
 
-    for model in msmd.map_models {
-        model.entry.extract(&mut reader, compressed);
-    }
-
-    for model in msmd.prop_models {
-        model.entry.extract(&mut reader, compressed);
-    }
-
-    // TODO: Test mibl read/write?
-    for model in msmd.env_models {
-        let entry = model.entry.extract(&mut reader, compressed);
-        for texture in entry.textures.textures {
-            Mibl::from_bytes(&texture.mibl_data).unwrap();
+        for model in msmd.map_models {
+            model.entry.extract(&mut reader, compressed);
         }
-    }
 
-    for entry in msmd.prop_vertex_data {
-        entry.extract(&mut reader, compressed);
-    }
-
-    for texture in msmd.textures {
-        // TODO: Test combining mid and high files?
-        texture.mid.extract(&mut reader, compressed);
-        // texture.high.extract(&mut reader, compressed);
-    }
-
-    for model in msmd.foliage_models {
-        let entry = model.entry.extract(&mut reader, compressed);
-        for texture in entry.textures.textures {
-            Mibl::from_bytes(&texture.mibl_data).unwrap();
+        for model in msmd.prop_models {
+            model.entry.extract(&mut reader, compressed);
         }
-    }
 
-    for entry in msmd.prop_positions {
-        entry.extract(&mut reader, compressed);
-    }
-
-    for entry in msmd.low_textures {
-        let entry = entry.extract(&mut reader, compressed);
-        for texture in entry.textures {
-            Mibl::from_bytes(&texture.mibl_data).unwrap();
+        // TODO: Test mibl read/write?
+        for model in msmd.env_models {
+            let entry = model.entry.extract(&mut reader, compressed);
+            for texture in entry.textures.textures {
+                Mibl::from_bytes(&texture.mibl_data).unwrap();
+            }
         }
-    }
 
-    for model in msmd.low_models {
-        model.entry.extract(&mut reader, compressed);
-    }
+        for entry in msmd.prop_vertex_data {
+            entry.extract(&mut reader, compressed);
+        }
 
-    for entry in msmd.unk_foliage_data {
-        entry.extract(&mut reader, compressed);
-    }
+        for texture in msmd.textures {
+            // TODO: Test combining mid and high files?
+            texture.mid.extract(&mut reader, compressed);
+            // texture.high.extract(&mut reader, compressed);
+        }
 
-    for entry in msmd.map_vertex_data {
-        entry.extract(&mut reader, compressed);
+        for model in msmd.foliage_models {
+            let entry = model.entry.extract(&mut reader, compressed);
+            for texture in entry.textures.textures {
+                Mibl::from_bytes(&texture.mibl_data).unwrap();
+            }
+        }
+
+        for entry in msmd.prop_positions {
+            entry.extract(&mut reader, compressed);
+        }
+
+        for entry in msmd.low_textures {
+            let entry = entry.extract(&mut reader, compressed);
+            for texture in entry.textures {
+                Mibl::from_bytes(&texture.mibl_data).unwrap();
+            }
+        }
+
+        for model in msmd.low_models {
+            model.entry.extract(&mut reader, compressed);
+        }
+
+        for entry in msmd.unk_foliage_data {
+            entry.extract(&mut reader, compressed);
+        }
+
+        for entry in msmd.map_vertex_data {
+            entry.extract(&mut reader, compressed);
+        }
     }
 }
 
@@ -262,7 +267,7 @@ fn read_wismt_single_tex<P: AsRef<Path>>(path: P) -> (Vec<u8>, Mibl) {
     (decompressed, mibl)
 }
 
-fn check_dhal(dhal: Dhal, _path: &Path) {
+fn check_dhal(dhal: Dhal, _path: Option<&Path>) {
     if let Some(textures) = dhal.textures {
         for texture in textures.textures {
             Mibl::from_bytes(&texture.mibl_data).unwrap();
@@ -270,13 +275,24 @@ fn check_dhal(dhal: Dhal, _path: &Path) {
     }
 }
 
-fn check_mxmd(mxmd: Mxmd, path: &Path) {
-    if let Some(spch) = mxmd.spch {
-        check_spch(spch, path);
+fn check_mxmd(mxmd: Mxmd, path: Option<&Path>) {
+    if let Some(path) = path {
+        // Check read/write.
+        let original = std::fs::read(path).unwrap();
+        let mut writer = Cursor::new(Vec::new());
+        mxmd.write(&mut writer).unwrap();
+        if writer.into_inner() != original {
+            println!("Mxmd read/write not 1:1 for {path:?}");
+        }
     }
 
-    if let Some(packed_textures) = mxmd.packed_textures {
-        for texture in packed_textures.textures {
+    if let Some(spch) = mxmd.spch {
+        // TODO: Check read/write for inner data?
+        check_spch(spch, None);
+    }
+
+    if let Some(packed_textures) = &mxmd.packed_textures {
+        for texture in &packed_textures.textures {
             if let Err(e) = Mibl::from_bytes(&texture.mibl_data) {
                 println!("Error reading Mibl for {path:?}: {e}");
             }
@@ -284,46 +300,52 @@ fn check_mxmd(mxmd: Mxmd, path: &Path) {
     }
 }
 
-fn check_spch(spch: Spch, path: &Path) {
+fn check_spch(spch: Spch, path: Option<&Path>) {
     // TODO: Check reading other sections.
     for program in &spch.shader_programs {
         program.read_slct(&spch.slct_section);
     }
 
-    // Check read/write.
-    let original = std::fs::read(path).unwrap();
-    let mut writer = Cursor::new(Vec::new());
-    spch.write(&mut writer).unwrap();
-    if writer.into_inner() != original {
-        println!("Spch read write not 1:1 for {path:?}");
+    if let Some(path) = path {
+        // Check read/write.
+        let original = std::fs::read(path).unwrap();
+        let mut writer = Cursor::new(Vec::new());
+        spch.write(&mut writer).unwrap();
+        if writer.into_inner() != original {
+            println!("Spch read/write not 1:1 for {path:?}");
+        }
     }
 }
 
-fn check_ltpc(ltpc: Ltpc, path: &Path) {
-    // Check read/write.
-    let original = std::fs::read(path).unwrap();
-    let mut writer = Cursor::new(Vec::new());
-    ltpc.write(&mut writer).unwrap();
-    if writer.into_inner() != original {
-        println!("Ltpc read write not 1:1 for {path:?}");
+fn check_ltpc(ltpc: Ltpc, path: Option<&Path>) {
+    if let Some(path) = path {
+        // Check read/write.
+        let original = std::fs::read(path).unwrap();
+        let mut writer = Cursor::new(Vec::new());
+        ltpc.write(&mut writer).unwrap();
+        if writer.into_inner() != original {
+            println!("Ltpc read/write not 1:1 for {path:?}");
+        }
     }
 }
 
-fn check_sar1(sar1: Sar1, path: &Path) {
+fn check_sar1(sar1: Sar1, path: Option<&Path>) {
     for entry in &sar1.entries {
         if let Err(e) = entry.read_data() {
             println!("Error reading entry for {path:?}: {e}");
         }
     }
 
-    // Check read/write for the archive.
-    // TODO: Also read/write entry data?
-    let original = std::fs::read(path).unwrap();
-    let mut writer = Cursor::new(Vec::new());
-    sar1.write(&mut writer).unwrap();
-    if writer.into_inner() != original {
-        println!("Sar1 read/write not 1:1 for {path:?}");
-    };
+    if let Some(path) = path {
+        // Check read/write for the archive.
+        // TODO: Also read/write entry data?
+        let original = std::fs::read(path).unwrap();
+        let mut writer = Cursor::new(Vec::new());
+        sar1.write(&mut writer).unwrap();
+        if writer.into_inner() != original {
+            println!("Sar1 read/write not 1:1 for {path:?}");
+        };
+    }
 }
 
 trait Xc3File
@@ -350,7 +372,7 @@ fn check_all<P, T, F>(root: P, patterns: &[&str], check_file: F)
 where
     P: AsRef<Path>,
     T: Xc3File,
-    F: Fn(T, &Path) + Sync,
+    F: Fn(T, Option<&Path>) + Sync,
 {
     globwalk::GlobWalkerBuilder::from_patterns(root, patterns)
         .build()
@@ -359,7 +381,7 @@ where
         .for_each(|entry| {
             let path = entry.as_ref().unwrap().path();
             match T::from_file(path) {
-                Ok(file) => check_file(file, path),
+                Ok(file) => check_file(file, Some(path)),
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }
         });
