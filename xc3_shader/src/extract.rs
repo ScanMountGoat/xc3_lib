@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use crate::annotation::{annotate_fragment, annotate_vertex};
+use rayon::prelude::*;
 use xc3_lib::spch::{NvsdMetadata, Slct, Spch};
 
 // TODO: profile performance using a single thread and check threading with tracing?
@@ -13,7 +14,7 @@ pub fn extract_shader_binaries<P: AsRef<Path>>(
     let output_folder = output_folder.as_ref();
 
     spch.shader_programs
-        .iter()
+        .par_iter()
         .enumerate()
         .for_each(|(program_index, program)| {
             // Not all programs have associated names.
@@ -61,8 +62,13 @@ fn decompile_glsl_shaders(
     vert_file: &Path,
     metadata: &NvsdMetadata,
 ) {
-    let mut frag_glsl = extract_shader(shader_tools, frag_file);
-    let mut vert_glsl = extract_shader(shader_tools, vert_file);
+    // Spawn multiple process to increase utilization and boost performance.
+    let frag_process = extract_shader(shader_tools, frag_file);
+    let vert_process = extract_shader(shader_tools, vert_file);
+
+    // TODO: Check exit code?
+    let mut frag_glsl = String::from_utf8(frag_process.wait_with_output().unwrap().stdout).unwrap();
+    let mut vert_glsl = String::from_utf8(vert_process.wait_with_output().unwrap().stdout).unwrap();
 
     // Perform annotation here since we need to know the file names.
     vert_glsl = annotate_vertex(vert_glsl, metadata);
@@ -72,16 +78,12 @@ fn decompile_glsl_shaders(
     std::fs::write(frag_file.with_extension("glsl"), frag_glsl).unwrap();
 }
 
-fn extract_shader(shader_tools: &str, binary_file: &Path) -> String {
-    // TODO: Check exit code?
-    String::from_utf8(
-        std::process::Command::new(shader_tools)
-            .args([binary_file])
-            .output()
-            .unwrap()
-            .stdout,
-    )
-    .unwrap()
+fn extract_shader(shader_tools: &str, binary_file: &Path) -> std::process::Child {
+    std::process::Command::new(shader_tools)
+        .args([binary_file])
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .unwrap()
 }
 
 fn vertex_fragment_binaries<'a>(spch: &'a Spch, slct: &Slct) -> Vec<(&'a [u8], &'a [u8])> {

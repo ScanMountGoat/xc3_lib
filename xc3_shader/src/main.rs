@@ -66,7 +66,6 @@ fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Option
     globwalk::GlobWalkerBuilder::from_patterns(input, &["*.wimdo"])
         .build()
         .unwrap()
-        .par_bridge()
         .for_each(|entry| {
             let path = entry.as_ref().unwrap().path();
 
@@ -75,6 +74,7 @@ fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Option
             // TODO: Preserve the original folder structure instead?
             let output_folder = decompiled_output_folder(output, path);
             std::fs::create_dir_all(&output_folder).unwrap();
+            println!("{output_folder:?}");
 
             // Shaders can be embedded in the wimdo or wismt file.
             match Mxmd::from_file(path) {
@@ -106,6 +106,7 @@ fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Option
                     // Get the embedded shaders from the map files.
                     let output_folder = decompiled_output_folder(output, path);
                     std::fs::create_dir_all(&output_folder).unwrap();
+                    println!("{output_folder:?}");
 
                     extract_and_decompile_msmd_shaders(path, msmd, output_folder, shader_tools);
                 }
