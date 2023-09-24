@@ -284,7 +284,7 @@ pub fn load_model<P: AsRef<Path>>(
 
     let skeleton = create_skeleton(chr.as_ref(), &mxmd);
 
-    let vertex_buffers = read_vertex_buffers(vertex_data, mxmd.models.skeleton.as_ref());
+    let vertex_buffers = read_vertex_buffers(vertex_data, mxmd.models.skinning.as_ref());
     let index_buffers = read_index_buffers(vertex_data);
 
     let models = Models::from_models(&mxmd.models, &mxmd.materials, spch, skeleton);
@@ -323,7 +323,7 @@ fn create_skeleton(chr: Option<&Sar1>, mxmd: &Mxmd) -> Option<Skeleton> {
             _ => None,
         })?;
 
-    Some(Skeleton::from_skel(&skel, mxmd.models.skeleton.as_ref()?))
+    Some(Skeleton::from_skel(&skel, mxmd.models.skinning.as_ref()?))
 }
 
 // TODO: material module?

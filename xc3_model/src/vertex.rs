@@ -61,7 +61,7 @@ impl AttributeData {
 
 pub fn read_vertex_buffers(
     vertex_data: &VertexData,
-    skeleton: Option<&xc3_lib::mxmd::Skeleton>,
+    skinning: Option<&xc3_lib::mxmd::Skinning>,
 ) -> Vec<VertexBuffer> {
     // TODO: avoid unwrap?
     let mut buffers: Vec<_> = vertex_data
@@ -85,11 +85,11 @@ pub fn read_vertex_buffers(
         .collect();
 
     // TODO: Is this the best place to do this?
-    if let Some(skeleton) = skeleton {
+    if let Some(skinning) = skinning {
         for i in 0..buffers.len() {
             if let Some(weights) = &vertex_data.weights {
                 if let Some(weights_buffer) = buffers.get(weights.vertex_buffer_index as usize) {
-                    buffers[i].influences = bone_influences(&buffers[i], weights_buffer, skeleton);
+                    buffers[i].influences = bone_influences(&buffers[i], weights_buffer, skinning);
                 } else {
                     // TODO: Why is this sometimes out of range?
                     error!(
@@ -108,7 +108,7 @@ pub fn read_vertex_buffers(
 fn bone_influences(
     buffer: &VertexBuffer,
     weights_buffer: &VertexBuffer,
-    skeleton: &xc3_lib::mxmd::Skeleton,
+    skinning: &xc3_lib::mxmd::Skinning,
 ) -> Vec<Influence> {
     skin_weights_bone_indices(weights_buffer)
         .as_ref()
@@ -118,7 +118,7 @@ fn bone_influences(
                     indices,
                     skin_weights,
                     bone_indices,
-                    &skeleton.bones,
+                    &skinning.bones,
                 )),
                 _ => None,
             })
