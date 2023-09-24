@@ -472,6 +472,7 @@ pub struct Models {
     #[xc3(offset)]
     model_unk2: Option<ModelUnk2>,
 
+    // TODO: eye animations?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset)]
     pub unk_offset1: Option<MeshUnk1>,
@@ -638,7 +639,7 @@ pub struct ModelUnk4 {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write)]
+#[derive(Debug, Xc3Write, Xc3WriteFull)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct ModelUnk5 {
@@ -646,10 +647,9 @@ pub struct ModelUnk5 {
     base_offset: u64,
 
     // TODO: What type is this?
-    // #[br(parse_with = parse_count_offset, offset = base_offset)]
-    // #[xc3(count_offset)]
-    count: u32,
-    offset: u32,
+    #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[xc3(count_offset)]
+    pub items: Vec<[u32; 2]>,
 
     unk1: u32,
     unk2: u32,
@@ -657,30 +657,83 @@ pub struct ModelUnk5 {
     unk4: u32,
 }
 
+// TODO: Some sort of animation?
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteFull)]
+#[derive(Debug, Xc3Write)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct MeshUnk1 {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    #[br(parse_with = parse_ptr32)]
+    #[br(parse_with = parse_offset_count)]
     #[br(args { offset: base_offset, inner: base_offset })]
-    #[xc3(offset)]
-    pub inner: MeshUnk1Inner,
+    #[xc3(offset_count)]
+    pub items1: Vec<MeshUnk1Item1>,
 
-    pub unk1: [u32; 14],
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[xc3(offset_count)]
+    pub items2: Vec<MeshUnk1Item2>,
+
+    // TODO: Size and count?
+    #[br(parse_with = parse_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: 28 }})]
+    #[xc3(offset)]
+    pub items3: Vec<[f32; 4]>,
+
+    pub unk1: u32,
+    pub unk2: u32,
+    pub unk3: u32,
+    pub unk4: u32,
+    pub unk5: u32,
+
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[xc3(offset)]
+    pub unk_inner: MeshUnk1Inner,
+
+    // TODO: padding?
+    pub unk: [u32; 4],
+}
+
+#[binread]
+#[derive(Debug, Xc3Write, Xc3WriteFull)]
+#[br(stream = r)]
+#[xc3(base_offset)]
+pub struct MeshUnk1Inner {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[xc3(offset_count)]
+    pub items1: Vec<u32>,
+
+    // TODO: Size and count?
+    #[br(parse_with = parse_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: 68 }})]
+    #[xc3(offset)]
+    pub unk_offset: Vec<u32>,
+
+    // TODO: padding?
+    pub unks: [u32; 5],
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 #[br(import_raw(base_offset: u64))]
-pub struct MeshUnk1Inner {
+pub struct MeshUnk1Item1 {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     #[xc3(offset)]
     pub name: String,
+    // TODO: padding?
+    pub unk: [u32; 3],
+}
 
-    pub unk2: [f32; 9],
+#[derive(Debug, BinRead, Xc3Write)]
+pub struct MeshUnk1Item2 {
+    pub unk1: u32,
+    pub unk2: u32,
+    pub unk3: u32,
+    pub unk4: u32,
+    pub unk5: u32,
 }
 
 #[binread]
@@ -1197,6 +1250,31 @@ impl<'a> Xc3WriteFull for SkinningOffsets<'a> {
         for bone in bones.0 {
             bone.name.write_full(writer, base_offset, data_ptr)?;
         }
+
+        Ok(())
+    }
+}
+
+impl<'a> Xc3WriteFull for MeshUnk1Offsets<'a> {
+    fn write_full<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        _base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> binrw::BinResult<()> {
+        let base_offset = self.base_offset;
+
+        let items1 = self.items1.write_offset(writer, base_offset, data_ptr)?;
+
+        self.items3.write_full(writer, base_offset, data_ptr)?;
+
+        self.items2.write_full(writer, base_offset, data_ptr)?;
+
+        for item in items1.0 {
+            item.name.write_full(writer, base_offset, data_ptr)?;
+        }
+
+        self.unk_inner.write_full(writer, base_offset, data_ptr)?;
 
         Ok(())
     }

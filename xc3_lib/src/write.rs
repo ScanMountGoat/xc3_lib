@@ -181,7 +181,19 @@ macro_rules! xc3_write_binwrite_impl {
 
 pub(crate) use xc3_write_binwrite_impl;
 
-xc3_write_binwrite_impl!(i8, i16, i32, i64, u8, u16, u32, u64, f32, (u16, u16), (u8, u8, u16));
+xc3_write_binwrite_impl!(
+    i8,
+    i16,
+    i32,
+    i64,
+    u8,
+    u16,
+    u32,
+    u64,
+    f32,
+    (u16, u16),
+    (u8, u8, u16)
+);
 
 // TODO: Support types with offsets?
 impl<const N: usize, T> Xc3Write for [T; N]
@@ -252,6 +264,7 @@ where
 // TODO: Incorporate the base offset from offsets using option?
 // We can fully write any type that can fully write its offset values.
 // This includes types with an offset type of () like primitive types.
+// This means structs without offsets only need to derive Xc3Write.
 impl<T> Xc3WriteFull for T
 where
     T: Xc3Write + 'static,
