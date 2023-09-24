@@ -6,18 +6,18 @@ See [Architecture](https://github.com/ScanMountGoat/xc3_lib/blob/main/ARCHITECTU
 ## Formats
 xc3_lib supports a number of in game formats. All formats support reading. Write support is still a WIP for some formats. Click on the links to open the corresponding Rust module in xc3_lib.
 
-| Format | Read | Write | Extensions | 
-| --- | --- | --- | --- |
-| [Apmd](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/apmd.rs) | ✔️ | ✔️ | `wimdo` |
-| [Dhal](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/dhal.rs) | ✔️ | ✔️ |  |
-| [Ltpc](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/ltpc.rs) | ✔️ | ✔️ |  |
-| [Mibl](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/mibl.rs) | ✔️ | ✔️ | `wismt`, `witex`, `witx` |
-| [Msmd](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/msmd.rs) | ✔️ | ❌ | `wismhd` |
-| [Msrd](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/msrd.rs) | ✔️ | ✔️* | `wismt` |
-| [Mxmd](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/mxmd.rs) | ✔️ | ❌ | `wimdo` |
-| [Sar1](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/sar1.rs) | ✔️ | ✔️ | `chr`, `mot` |
-| [Spch](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/spch.rs) | ✔️ | ✔️ | `wishp` |
-| [Xbc1](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/xbc1.rs) | ✔️ | ✔️ | `wismt` |
+| Format | Magic | Extensions | Read | Write |
+| --- | --- | --- | --- | --- |
+| [Apmd](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/apmd.rs) | DMPA | `wimdo` | ✔️ | ✔️ | 
+| [Dhal](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/dhal.rs) | LAHD |  | ✔️ | ✔️ | 
+| [Ltpc](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/ltpc.rs) | LTPC |  | ✔️ | ✔️ | 
+| [Mibl](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/mibl.rs) | LBIM | `wismt`, `witex`, `witx` | ✔️ | ✔️ | 
+| [Msmd](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/msmd.rs) | DMSM | `wismhd` | ✔️ | ❌ | 
+| [Msrd](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/msrd.rs) | DRSM |  `wismt` | ✔️ | ✔️* |
+| [Mxmd](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/mxmd.rs) | DMXM | `wimdo` | ✔️ | ❌ | 
+| [Sar1](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/sar1.rs) | 1RAS | `chr`, `mot` | ✔️ | ✔️ | 
+| [Spch](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/spch.rs) | HCPS | `wishp` | ✔️ | ✔️ | 
+| [Xbc1](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/xbc1.rs) | xbc1 | `wismt` | ✔️ | ✔️ | 
 
 \* *Files rebuild but may have small differences in padding or alignment.*
 
