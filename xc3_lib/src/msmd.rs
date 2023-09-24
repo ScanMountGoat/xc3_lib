@@ -1,4 +1,6 @@
 //! `.wismhd` files for map data that points to data in a corresponding `.wismda` files
+//! 
+//! XC3: `map/*.wismhd`
 use std::{
     io::{Cursor, Read, Seek, SeekFrom},
     marker::PhantomData,

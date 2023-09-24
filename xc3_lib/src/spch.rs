@@ -1,4 +1,6 @@
 //! Compiled shaders in `.wishp` files or embedded in other formats.
+//! 
+//! XC3: `monolib/shader/*.wishp`
 use std::io::{Cursor, SeekFrom};
 
 use crate::write::{VecOffsets, Xc3Write, Xc3WriteFull};

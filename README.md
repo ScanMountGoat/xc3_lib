@@ -4,17 +4,22 @@ Rust libraries and tools for working with rendering related file formats for Xen
 See [Architecture](https://github.com/ScanMountGoat/xc3_lib/blob/main/ARCHITECTURE.md) for an overview of the various projects. Report any bugs or request new features in [issues](https://github.com/ScanMountGoat/xc3_lib/issues). Python bindings for xc3_model are available with [xc3_model_py](https://github.com/ScanMountGoat/xc3_model_py).
 
 ## Formats
-| Format | File Paths | Description |
-| --- | --- | --- |
-| Mibl | `chr/tex/nx/*/*.wismt`, `monolib/shader/*.{witex,witx}` | textures |
-| Msmd | `map/*.wismhd` | maps |
-| Msrd | `chr/{ch,en,oj,wp}/*.wismt` | models, textures, shaders |
-| Mxmd | `chr/{ch,en,oj,wp}/*.wimdo`, `monolib/shader/*.wimdo` | models, materials |
-| Sar1 | `chr/{ch,en,oj,wp}/*.{chr,mot}` | skeletons, animations |
-| Spch | `monolib/shader/*.wishp` | shaders |
-| Xbc1 | *embedded in files* | zlib compressed data |
+xc3_lib supports a number of in game formats. All formats support reading. Write support is still a WIP for some formats. Click on the links to open the corresponding Rust module in xc3_lib.
 
-File formats and where to find them in a game dump are outlined above. Note that the same extension can be used for multiple formats. Some formats like `Msrd` contain files from other formats like `Spch` embedded as compressed `Xbc1` archives.
+| Format | Read | Write |
+| --- | --- | --- |
+| [Apmd](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/apmd.rs) | ✔️ | ✔️ |
+| [Dhal](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/dhal.rs) | ✔️ | ✔️ |
+| [Ltpc](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/ltpc.rs) | ✔️ | ✔️ |
+| [Mibl](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/mibl.rs) | ✔️ | ✔️ |
+| [Msmd](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/msmd.rs) | ✔️ | ❌ |
+| [Msrd](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/msrd.rs) | ✔️ | ✔️* |
+| [Mxmd](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/mxmd.rs) | ✔️ | ❌ |
+| [Sar1](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/sar1.rs) | ✔️ | ✔️ |
+| [Spch](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/spch.rs) | ✔️ | ✔️ |
+| [Xbc1](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/xbc1.rs) | ✔️ | ✔️ |
+
+\* *Files rebuild but may have small differences in padding or alignment.*
 
 ## Usage
 These projects are still highly unstable. When adding any of these projects to the Cargo.toml, specify a specific git revision or commit the Cargo.lock file to source control. This locks the version and avoids any breaking changes. The debug or JSON output has not stabilized and should not be assumed to be the same between commits.

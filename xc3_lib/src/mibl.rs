@@ -1,4 +1,6 @@
 //! Textures in `.witx`, `.witex`, or `.wismt` files or embedded in other formats.
+//! 
+//! XC3: `chr/tex/nx/*/*.wismt`, `monolib/shader/*.{witex,witx}`
 use std::io::SeekFrom;
 
 use anyhow::Result;

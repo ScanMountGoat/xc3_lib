@@ -1,4 +1,6 @@
 //! Model data in `.wimdo` files.
+//! 
+//! XC3: `chr/{ch,en,oj,wp}/*.wimdo`, `monolib/shader/*.wimdo`
 use crate::{
     msrd::TextureResource,
     parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
