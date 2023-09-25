@@ -12,7 +12,7 @@ use bilge::prelude::*;
 use binrw::{args, binread, BinRead, BinWrite};
 
 /// .wimdo files
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
+#[derive(Debug, BinRead, Xc3Write)]
 #[br(magic(b"DMXM"))]
 #[xc3(magic(b"DMXM"))]
 pub struct Mxmd {
@@ -202,6 +202,9 @@ pub struct MaterialUnk1 {
     #[br(parse_with = parse_offset_count, offset = base_offset)]
     #[xc3(offset_count)]
     pub unk2: Vec<u16>,
+
+    // TODO: padding?
+    pub unk: [u32; 8],
 }
 
 #[derive(Debug, BinRead, BinWrite)]
@@ -677,10 +680,7 @@ pub struct MeshUnk1 {
     #[xc3(offset_count)]
     pub items2: Vec<MeshUnk1Item2>,
 
-    // TODO: Size and count?
-    // #[br(parse_with = parse_offset_count, offset = base_offset)]
-    // #[xc3(offset_count)]
-    // pub items3: Vec<[f32; 2]>,
+    // TODO: Don't hardcode count
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: 4 }})]
     #[xc3(offset)]
@@ -714,7 +714,7 @@ pub struct MeshUnk1Inner {
     #[xc3(offset_count)]
     pub items1: Vec<u32>,
 
-    // TODO: Size and count?
+    // TODO: Don't hardcode count.
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: 4 }})]
     #[xc3(offset)]
@@ -830,7 +830,7 @@ pub struct Textures1 {
     // TODO: more fields?
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
+#[derive(Debug, BinRead, Xc3Write)]
 #[br(import_raw(base_offset: u64))]
 pub struct Textures2 {
     pub unk1: u32, // 103
@@ -962,13 +962,14 @@ pub struct Skinning {
     pub transforms1: Vec<[[f32; 4]; 4]>,
 
     // TODO: offset for some sort of buffer?
-    // TODO: Count?
+    // TODO: Don't hardcode count.
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: 0 } })]
     #[xc3(offset)]
     pub transforms2: Vec<[[f32; 4]; 2]>,
 
-    // related to max unk index on bone?
+    // TODO: related to max unk index on bone?
+    // TODO: Don't hardcode count.
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: 43 } })]
     #[xc3(offset)]
@@ -1067,8 +1068,8 @@ pub struct AsBoneData {
     #[xc3(offset_count)]
     pub unk1: Vec<AsBoneValue>,
 
-    // TODO: what is the count for this?
     // TODO: distance from offset to first bone name?
+    // TODO: Don't hardcode count.
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: 42 }})]
     #[xc3(offset)]
@@ -1293,6 +1294,7 @@ impl<'a> Xc3WriteFull for MeshUnk1Offsets<'a> {
         Ok(())
     }
 }
+
 impl<'a> Xc3WriteFull for LodDataOffsets<'a> {
     fn write_full<W: std::io::Write + std::io::Seek>(
         &self,
@@ -1348,8 +1350,11 @@ impl<'a> Xc3WriteFull for ShaderProgramInfoOffsets<'a> {
         }
         self.uniform_blocks
             .write_full(writer, base_offset, data_ptr)?;
+
+        // TODO: Why is there a variable amount of padding?
         self.parameters.write_full(writer, base_offset, data_ptr)?;
-        // TODO: parameters have a variable amount of padding?
+        *data_ptr += self.parameters.data.len() as u64 * 16;
+
         Ok(())
     }
 }
@@ -1393,6 +1398,50 @@ impl<'a> Xc3WriteFull for MaterialsOffsets<'a> {
         for material in &materials.0 {
             material.name.write_full(writer, base_offset, data_ptr)?;
         }
+
+        Ok(())
+    }
+}
+
+impl<'a> Xc3WriteFull for MxmdOffsets<'a> {
+    fn write_full<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> binrw::BinResult<()> {
+        self.models.write_full(writer, base_offset, data_ptr)?;
+        self.materials.write_full(writer, base_offset, data_ptr)?;
+
+        // Different order than field order.
+        self.textures.write_full(writer, base_offset, data_ptr)?;
+
+        // TODO: 16 bytes of padding before this?
+        self.unk1.write_full(writer, base_offset, data_ptr)?;
+
+        self.vertex_data.write_full(writer, base_offset, data_ptr)?;
+        self.spch.write_full(writer, base_offset, data_ptr)?;
+        self.packed_textures
+            .write_full(writer, base_offset, data_ptr)?;
+
+        Ok(())
+    }
+}
+
+impl<'a> Xc3WriteFull for Textures2Offsets<'a> {
+    fn write_full<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> binrw::BinResult<()> {
+        self.unk2.write_full(writer, base_offset, data_ptr)?;
+        self.unk3.write_full(writer, base_offset, data_ptr)?;
+
+        // Different order than field order.
+        self.resources.write_full(writer, base_offset, data_ptr)?;
+        self.indices.write_full(writer, base_offset, data_ptr)?;
+        self.textures.write_full(writer, base_offset, data_ptr)?;
 
         Ok(())
     }

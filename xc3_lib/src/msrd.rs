@@ -1,5 +1,5 @@
 //! Model resources like shaders, geometry, or textures in `.wismt` files.
-//! 
+//!
 //! XC3: `chr/{ch,en,oj,wp}/*.wismt`
 use crate::{
     mibl::Mibl,
