@@ -23,7 +23,7 @@ pub struct Mxmd {
     pub models: Models,
 
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset, align(16))]
     pub materials: Materials,
 
     #[br(parse_with = parse_opt_ptr32)]
@@ -56,7 +56,7 @@ pub struct Mxmd {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteFull)]
+#[derive(Debug, Xc3Write)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Materials {
@@ -74,7 +74,7 @@ pub struct Materials {
     // TODO: Materials have offsets into these arrays for parameter values?
     // material body has a uniform at shader offset 64 but offset 48 in this floats buffer
     #[br(parse_with = parse_offset_count, offset = base_offset)]
-    #[xc3(offset_count)]
+    #[xc3(offset_count, align(16))]
     pub floats: Vec<f32>, // work values?
 
     // TODO: final number counts up from 0?
@@ -122,7 +122,7 @@ pub struct AlphaTestTexture {
 }
 
 /// `ml::MdsMatTechnique` in the Xenoblade 2 binary.
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
+#[derive(Debug, BinRead, Xc3Write)]
 #[br(import_raw(base_offset: u64))]
 pub struct ShaderProgramInfo {
     #[br(parse_with = parse_offset_count, offset = base_offset)]
@@ -707,7 +707,7 @@ pub struct MeshUnk1 {
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct MeshUnk1Inner {
-    #[br(dbg, temp, try_calc = r.stream_position())]
+    #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
     #[br(parse_with = parse_offset_count, offset = base_offset)]
@@ -1328,6 +1328,71 @@ impl<'a> Xc3WriteFull for ModelsOffsets<'a> {
         self.model_unk4.write_full(writer, base_offset, data_ptr)?;
         self.model_unk3.write_full(writer, base_offset, data_ptr)?;
         self.model_unk5.write_full(writer, base_offset, data_ptr)?;
+
+        Ok(())
+    }
+}
+
+impl<'a> Xc3WriteFull for ShaderProgramInfoOffsets<'a> {
+    fn write_full<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> binrw::BinResult<()> {
+        // Different order than field order.
+        self.unk1.write_full(writer, base_offset, data_ptr)?;
+        if !self.textures.data.is_empty() {
+            // TODO: Always skip offset for empty vec?
+            self.textures.write_full(writer, base_offset, data_ptr)?;
+        }
+        self.uniform_blocks
+            .write_full(writer, base_offset, data_ptr)?;
+        self.parameters.write_full(writer, base_offset, data_ptr)?;
+        // TODO: parameters have a variable amount of padding?
+        Ok(())
+    }
+}
+
+impl<'a> Xc3WriteFull for MaterialsOffsets<'a> {
+    fn write_full<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        _base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> binrw::BinResult<()> {
+        let base_offset = self.base_offset;
+
+        // Material fields get split up and written in a different order.
+        let materials = self.materials.write_offset(writer, base_offset, data_ptr)?;
+
+        self.floats.write_full(writer, base_offset, data_ptr)?;
+        self.ints.write_full(writer, base_offset, data_ptr)?;
+
+        for material in &materials.0 {
+            material
+                .shader_programs
+                .write_full(writer, base_offset, data_ptr)?;
+        }
+
+        for material in &materials.0 {
+            material
+                .textures
+                .write_full(writer, base_offset, data_ptr)?;
+        }
+
+        // Different order than field order.
+        self.alpha_test_textures
+            .write_full(writer, base_offset, data_ptr)?;
+        self.unk_offset1.write_full(writer, base_offset, data_ptr)?;
+        self.samplers.write_full(writer, base_offset, data_ptr)?;
+        self.shader_programs
+            .write_full(writer, base_offset, data_ptr)?;
+
+        // TODO: Offset not large enough?
+        for material in &materials.0 {
+            material.name.write_full(writer, base_offset, data_ptr)?;
+        }
 
         Ok(())
     }

@@ -93,6 +93,7 @@ impl<'a, T: Xc3Write> Offset<'a, T> {
         base_offset: u64,
         data_ptr: &mut u64,
     ) -> BinResult<T::Offsets<'_>> {
+        // TODO: How to avoid setting this for empty vecs?
         self.set_offset_seek(writer, base_offset, data_ptr, T::ALIGNMENT)?;
         let offsets = self.data.xc3_write(writer, data_ptr)?;
         Ok(offsets)
