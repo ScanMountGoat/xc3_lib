@@ -6,7 +6,7 @@ use crate::{
     parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
     spch::Spch,
     vertex::VertexData,
-    write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteFull},
+    write::{round_up, xc3_write_binwrite_impl, Xc3Write, Xc3WriteFull},
 };
 use bilge::prelude::*;
 use binrw::{args, binread, BinRead, BinWrite};
@@ -436,7 +436,7 @@ pub struct Texture {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteFull)]
+#[derive(Debug, Xc3Write)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Models {
@@ -460,9 +460,9 @@ pub struct Models {
 
     pub unks3_1: [u32; 14],
 
-    // TODO: 12 bytes of padding before this offset data?
+    // TODO: previous string section size aligned to 16?
     #[br(parse_with = parse_offset_count, args { offset: base_offset, inner: base_offset })]
-    #[xc3(offset_count)]
+    #[xc3(offset_count, align(16))]
     pub model_unks: Vec<ModelUnk>,
 
     pub unks3_2: [u32; 5],
@@ -474,7 +474,7 @@ pub struct Models {
 
     // TODO: eye animations?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset)]
+    #[xc3(offset, align(16))]
     pub unk_offset1: Option<MeshUnk1>,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
@@ -539,8 +539,12 @@ pub struct Mesh {
 pub struct ModelUnk {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     #[xc3(offset)]
-    name: String,
-    string_end_offset: u32,
+    name1: String,
+
+    // TODO: Always an empty string?
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset)]
+    name2: String,
 
     unk1: u16,
     unk2: u16,
@@ -594,12 +598,10 @@ pub struct ModelUnk3 {
 
     #[br(parse_with = parse_count_offset, args { offset: base_offset, inner: base_offset })]
     #[xc3(count_offset)]
-    items: Vec<ModelUnk3Inner>,
+    pub items: Vec<ModelUnk3Inner>,
 
-    unk1: u32,
-    unk2: u32,
-    unk3: u32,
-    unk4: u32,
+    // TODO: padding?
+    pub unk: [u32; 4],
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
@@ -676,14 +678,19 @@ pub struct MeshUnk1 {
     pub items2: Vec<MeshUnk1Item2>,
 
     // TODO: Size and count?
+    // #[br(parse_with = parse_offset_count, offset = base_offset)]
+    // #[xc3(offset_count)]
+    // pub items3: Vec<[f32; 2]>,
     #[br(parse_with = parse_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: 28 }})]
+    #[br(args { offset: base_offset, inner: args! { count: 4 }})]
     #[xc3(offset)]
-    pub items3: Vec<[f32; 4]>,
-
+    pub items3: Vec<[f32; 2]>,
     pub unk1: u32,
-    pub unk2: u32,
-    pub unk3: u32,
+
+    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[xc3(offset_count)]
+    pub items4: Vec<[u32; 5]>,
+
     pub unk4: u32,
     pub unk5: u32,
 
@@ -700,7 +707,7 @@ pub struct MeshUnk1 {
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct MeshUnk1Inner {
-    #[br(temp, try_calc = r.stream_position())]
+    #[br(dbg, temp, try_calc = r.stream_position())]
     base_offset: u64,
 
     #[br(parse_with = parse_offset_count, offset = base_offset)]
@@ -709,7 +716,7 @@ pub struct MeshUnk1Inner {
 
     // TODO: Size and count?
     #[br(parse_with = parse_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: 68 }})]
+    #[br(args { offset: base_offset, inner: args! { count: 4 }})]
     #[xc3(offset)]
     pub unk_offset: Vec<u32>,
 
@@ -737,7 +744,7 @@ pub struct MeshUnk1Item2 {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteFull)]
+#[derive(Debug, Xc3Write)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct LodData {
@@ -774,6 +781,9 @@ pub struct LodItem1 {
 pub struct LodItem2 {
     pub base_lod_index: u16,
     pub lod_count: u16,
+    // TODO: padding?
+    pub unk1: u32,
+    pub unk2: u32,
 }
 
 // TODO: Derive Xc3Write?
@@ -823,20 +833,17 @@ pub struct Textures1 {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
 #[br(import_raw(base_offset: u64))]
 pub struct Textures2 {
-    pub unk2: u32, // 103
+    pub unk1: u32, // 103
 
-    // TODO: count offset?
-    pub unk3: u32,
-    pub unk4: u32,
+    #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[xc3(count_offset)]
+    pub unk2: Vec<[u32; 5]>,
 
-    // TODO: count?
-    pub unk5: u32,
+    #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[xc3(count_offset)]
+    pub unk3: Vec<TexturesUnk>,
 
-    #[br(parse_with = parse_ptr32, offset = base_offset)]
-    #[xc3(offset)]
-    pub unk_offset: TexturesUnk,
-
-    pub unks2: [u32; 7],
+    pub unk4: [u32; 7],
 
     #[br(parse_with = parse_count_offset, offset = base_offset)]
     #[xc3(count_offset)]
@@ -846,12 +853,15 @@ pub struct Textures2 {
     #[xc3(offset)]
     pub textures: Option<PackedExternalTextures>,
 
-    pub unk7: u32,
+    pub unk5: u32,
 
     // TODO: same as the type in msrd?
     #[br(parse_with = parse_count_offset, offset = base_offset)]
     #[xc3(count_offset)]
     pub resources: Vec<TextureResource>,
+
+    // TODO: padding?
+    pub unk: [u32; 4],
 }
 
 #[derive(Debug, BinRead, Xc3Write)]
@@ -953,14 +963,14 @@ pub struct Skinning {
 
     // TODO: offset for some sort of buffer?
     // TODO: Count?
-    #[br(parse_with = parse_ptr32, offset = base_offset)]
-    #[xc3(offset)]
-    pub transforms2: [[f32; 4]; 4],
-
-    // related to unk index on bone?
-    // [[f32; 4]; 2] * 54?
     #[br(parse_with = parse_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: 54 } })]
+    #[br(args { offset: base_offset, inner: args! { count: 0 } })]
+    #[xc3(offset)]
+    pub transforms2: Vec<[[f32; 4]; 2]>,
+
+    // related to max unk index on bone?
+    #[br(parse_with = parse_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: 43 } })]
     #[xc3(offset)]
     pub transforms3: Vec<[[f32; 4]; 2]>,
 
@@ -1058,9 +1068,9 @@ pub struct AsBoneData {
     pub unk1: Vec<AsBoneValue>,
 
     // TODO: what is the count for this?
-    // 4608 bytes or 72 elements?
+    // TODO: distance from offset to first bone name?
     #[br(parse_with = parse_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: 72 }})]
+    #[br(args { offset: base_offset, inner: args! { count: 42 }})]
     #[xc3(offset)]
     pub unk2: Vec<[[f32; 4]; 4]>,
 
@@ -1270,11 +1280,54 @@ impl<'a> Xc3WriteFull for MeshUnk1Offsets<'a> {
 
         self.items2.write_full(writer, base_offset, data_ptr)?;
 
+        // TODO: Set alignment at type level for Xc3Write?
+        *data_ptr = round_up(*data_ptr, 16);
+        self.items4.write_full(writer, base_offset, data_ptr)?;
+
         for item in items1.0 {
             item.name.write_full(writer, base_offset, data_ptr)?;
         }
 
         self.unk_inner.write_full(writer, base_offset, data_ptr)?;
+
+        Ok(())
+    }
+}
+impl<'a> Xc3WriteFull for LodDataOffsets<'a> {
+    fn write_full<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        _base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> binrw::BinResult<()> {
+        let base_offset = self.base_offset;
+        // Different order than field order.
+        self.items2.write_full(writer, base_offset, data_ptr)?;
+        self.items1.write_full(writer, base_offset, data_ptr)?;
+        Ok(())
+    }
+}
+
+impl<'a> Xc3WriteFull for ModelsOffsets<'a> {
+    fn write_full<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        _base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> binrw::BinResult<()> {
+        let base_offset = self.base_offset;
+
+        self.models.write_full(writer, base_offset, data_ptr)?;
+        self.skinning.write_full(writer, base_offset, data_ptr)?;
+        self.model_unks.write_full(writer, base_offset, data_ptr)?;
+        self.model_unk2.write_full(writer, base_offset, data_ptr)?;
+
+        // Different order than field order.
+        self.lod_data.write_full(writer, base_offset, data_ptr)?;
+        self.unk_offset1.write_full(writer, base_offset, data_ptr)?;
+        self.model_unk4.write_full(writer, base_offset, data_ptr)?;
+        self.model_unk3.write_full(writer, base_offset, data_ptr)?;
+        self.model_unk5.write_full(writer, base_offset, data_ptr)?;
 
         Ok(())
     }
