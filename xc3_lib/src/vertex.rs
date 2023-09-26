@@ -1,3 +1,4 @@
+//! Vertex and geometry data for model formats.
 use crate::{
     parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32,
     write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteFull},
@@ -127,7 +128,7 @@ pub enum DataType {
     Unk33 = 33,
     /// Unorm16x4 skin weights for up to 4 bone influences.
     SkinWeights = 41,
-    /// u8x4 bone indices for up to 4 bone infuences in the [Skeleton](crate::mxmd::Skeleton) in the [Mxmd](crate::mxmd::Mxmd).
+    /// u8x4 bone indices for up to 4 bone infuences in the [Skinning](crate::mxmd::Skinning) in the [Mxmd](crate::mxmd::Mxmd).
     BoneIndices = 42,
     Unk52 = 52,
 }

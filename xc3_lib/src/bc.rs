@@ -1,3 +1,4 @@
+//! Animation and skeleton data for [Sar1](crate::sar1::Sar1) archives.
 use std::io::SeekFrom;
 
 use crate::{parse_string_ptr32, parse_string_ptr64};

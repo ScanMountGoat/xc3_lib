@@ -1,10 +1,41 @@
 //! A library for reading and writing rendering related file formats.
 //!
-//! # Game Versions
 //! Xenoblade 1 DE, Xenoblade 2, and Xenoblade 3 are supported
 //! with Xenoblade 3 receiving the most testing.
 //! Struct documentation contains the corresponding
 //! type from Xenoblade 2 binary symbols where appropriate.
+//!
+//! # Getting Started
+//! Each format has its own module based on the name of type representing the root of the file.
+//! Only these top level types support reading and writing from files.
+//!
+//! ```rust no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! // Read from disk.
+//! let mxmd = xc3_lib::mxmd::Mxmd::from_file("ch01011013.wimdo")?;
+//! println!("{mxmd:#?}");
+//!
+//! // Save to disk after making any changes.
+//! mxmd.write_to_file("out.wimdo")?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! # Design
+//! xc3_lib provides safe, efficient, and robust reading and writing code for binary file formats.
+//! Each file format consists of a set of Rust types representing the structures in the binary file.
+//! xc3_lib uses derive macros to generate reading and writing code from the type and its attribute annotations.
+//! This avoids the need to separately document the format and reading and writing logic.
+//!
+//! Each type is intended to be as specific as possible while still being able to generate a binary identical output.
+//! Enums are used instead of raw integers to reject unknown variants, for example.
+//! Each file is fully parsed and invalid input is not sanitized in any way.
+//! xc3_lib can validate the contents of a binary file by parsing it but cannot validate
+//! higher level constraints like entry indices being in range.
+//! These checks are performed by higher level libraries like xc3_model or xc3_wgpu.
+//!
+//! Operations that would be impossible to reverse accurately like compression or byte buffers must be decoded and encoded in
+//! a separate step. This allows identical outputs when no modifications are needed to binary buffers.
 use std::{
     error::Error,
     io::{BufWriter, Cursor, Read, Seek, SeekFrom, Write},

@@ -1,3 +1,4 @@
+//! Compressed container used to store data in other formats.
 use std::io::Read;
 
 use binrw::{BinRead, BinResult, BinWrite, NullString};

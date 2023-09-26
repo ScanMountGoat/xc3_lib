@@ -1,3 +1,4 @@
+//! User interface [Mibl](crate::mibl::Mibl) images in `.wilay` files.
 use crate::{parse_offset_count, parse_opt_ptr32};
 use binrw::{binread, BinRead};
 

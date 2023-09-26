@@ -1,3 +1,4 @@
+//! Texture container of [Mibl](crate::mibl::Mibl) images in `.wiltp` files.
 use binrw::BinRead;
 
 use crate::{

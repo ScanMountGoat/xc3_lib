@@ -1,3 +1,4 @@
+//! Model archive for character and map models in `.wimdo` files.
 use std::io::Cursor;
 
 use crate::write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteFull};
