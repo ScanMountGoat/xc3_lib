@@ -121,7 +121,8 @@ impl<'a, T: Xc3Write> Offset<'a, Option<T>> {
 
 impl<'a, T> Xc3WriteFull for Offset<'a, T>
 where
-    T: Xc3Write + Xc3WriteFull,
+    T: Xc3Write + 'static,
+    T::Offsets<'a>: Xc3WriteFull,
 {
     fn write_full<W: Write + Seek>(
         &self,
@@ -129,8 +130,9 @@ where
         base_offset: u64,
         data_ptr: &mut u64,
     ) -> BinResult<()> {
+        // TODO: How to avoid setting this for empty vecs?
         self.set_offset_seek(writer, base_offset, data_ptr, T::ALIGNMENT)?;
-        self.data.write_full(writer, base_offset, data_ptr)?;
+        write_full(self.data, writer, base_offset, data_ptr)?;
         Ok(())
     }
 }
@@ -138,7 +140,8 @@ where
 // This doesn't need specialization because Option does not impl Xc3WriteFull.
 impl<'a, T> Xc3WriteFull for Offset<'a, Option<T>>
 where
-    T: Xc3Write + Xc3WriteFull,
+    T: Xc3Write + 'static,
+    T::Offsets<'a>: Xc3WriteFull,
 {
     fn write_full<W: Write + Seek>(
         &self,
@@ -149,7 +152,7 @@ where
         // Only update the offset if there is data.
         if let Some(data) = self.data {
             self.set_offset_seek(writer, base_offset, data_ptr, T::ALIGNMENT)?;
-            data.write_full(writer, base_offset, data_ptr)?;
+            write_full(data, writer, base_offset, data_ptr)?;
         }
         Ok(())
     }
@@ -266,22 +269,21 @@ where
 // We can fully write any type that can fully write its offset values.
 // This includes types with an offset type of () like primitive types.
 // This means structs without offsets only need to derive Xc3Write.
-impl<T> Xc3WriteFull for T
+pub(crate) fn write_full<'a, T, W>(
+    value: &'a T,
+    writer: &mut W,
+    base_offset: u64,
+    data_ptr: &mut u64,
+) -> BinResult<()>
 where
+    W: Write + Seek,
     T: Xc3Write + 'static,
-    for<'a> T::Offsets<'a>: Xc3WriteFull,
+    T::Offsets<'a>: Xc3WriteFull,
 {
-    fn write_full<W: Write + Seek>(
-        &self,
-        writer: &mut W,
-        base_offset: u64,
-        data_ptr: &mut u64,
-    ) -> BinResult<()> {
-        // Ensure all items are written before their pointed to data.
-        let offsets = self.xc3_write(writer, data_ptr)?;
-        offsets.write_full(writer, base_offset, data_ptr)?;
-        Ok(())
-    }
+    // Ensure all items are written before their pointed to data.
+    let offsets = value.xc3_write(writer, data_ptr)?;
+    offsets.write_full(writer, base_offset, data_ptr)?;
+    Ok(())
 }
 
 impl<T> Xc3WriteFull for VecOffsets<T>

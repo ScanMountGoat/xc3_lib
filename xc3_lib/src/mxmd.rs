@@ -970,9 +970,9 @@ pub struct Skinning {
 
     // TODO: related to max unk index on bone?
     #[br(parse_with = parse_ptr32)]
-    #[br(args { 
-        offset: base_offset, 
-        inner: args! { count: bones.iter().map(|b| b.unk_index as usize + 1).max().unwrap_or_default() } 
+    #[br(args {
+        offset: base_offset,
+        inner: args! { count: bones.iter().map(|b| b.unk_index as usize + 1).max().unwrap_or_default() }
     })]
     #[xc3(offset)]
     pub transforms3: Vec<[[f32; 4]; 2]>,
@@ -1128,7 +1128,7 @@ pub struct Unk1 {
     pub unk4: Vec<Unk1Unk4>,
 
     // TODO: padding?
-    pub unk: [u32; 4]
+    pub unk: [u32; 4],
 }
 
 #[derive(Debug, BinRead, Xc3Write)]

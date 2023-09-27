@@ -42,7 +42,7 @@ use std::{
     path::Path,
 };
 
-use crate::write::Xc3WriteFull;
+use crate::write::write_full;
 use binrw::{
     file_ptr::FilePtrArgs, BinRead, BinReaderExt, BinResult, BinWrite, FilePtr64, NullString,
     VecArgs,
@@ -231,7 +231,7 @@ macro_rules! file_write_full_impl {
         $(
             impl $type_name {
                 pub fn write<W: Write + Seek>(&self, writer: &mut W) -> Result<(), Box<dyn Error>> {
-                    self.write_full(writer, 0, &mut 0).map_err(Into::into)
+                    write_full(self, writer, 0, &mut 0).map_err(Into::into)
                 }
 
                 pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Box<dyn Error>> {
