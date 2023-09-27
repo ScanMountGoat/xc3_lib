@@ -95,4 +95,4 @@ def write_full(self, writer, base_offset: int, ctx: Ctx):
     offsets.write_offsets(writer, base_offset, ctx.data_ptr)
 ```
 
-This two pass approach is similar to the measure and layout passes used in some UI frameworks. Having separate passes for offsets adds more flexibility in data layout and ordering. A single pass approach simplifies the implementation but requires making additional layout and ordering assumptions. See [SsbhWrite]((https://github.com/ultimate-research/ssbh_lib/blob/master/ssbh_offsets.md)) for an example of a single pass implementation.
+This two pass approach is similar to the measure and layout passes used in some UI frameworks. Having separate passes for offsets adds more flexibility in data layout and ordering. A single pass approach simplifies the implementation but requires making additional layout and ordering assumptions. See [SsbhWrite](https://github.com/ultimate-research/ssbh_lib/blob/master/ssbh_offsets.md) for an example of a single pass implementation.
