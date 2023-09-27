@@ -969,9 +969,11 @@ pub struct Skinning {
     pub transforms2: Vec<[[f32; 4]; 2]>,
 
     // TODO: related to max unk index on bone?
-    // TODO: Don't hardcode count.
     #[br(parse_with = parse_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: 43 } })]
+    #[br(args { 
+        offset: base_offset, 
+        inner: args! { count: bones.iter().map(|b| b.unk_index as usize + 1).max().unwrap_or_default() } 
+    })]
     #[xc3(offset)]
     pub transforms3: Vec<[[f32; 4]; 2]>,
 
@@ -1119,10 +1121,14 @@ pub struct Unk1 {
     #[xc3(count_offset)]
     pub unk3: Vec<Unk1Unk3>,
 
+    // TODO: Don't write offset if zero count.
     // angle values?
     #[br(parse_with = parse_count_offset, offset = base_offset)]
     #[xc3(count_offset)]
     pub unk4: Vec<Unk1Unk4>,
+
+    // TODO: padding?
+    pub unk: [u32; 4]
 }
 
 #[derive(Debug, BinRead, Xc3Write)]
@@ -1417,6 +1423,7 @@ impl<'a> Xc3WriteFull for MxmdOffsets<'a> {
         self.textures.write_full(writer, base_offset, data_ptr)?;
 
         // TODO: 16 bytes of padding before this?
+        *data_ptr += 16;
         self.unk1.write_full(writer, base_offset, data_ptr)?;
 
         self.vertex_data.write_full(writer, base_offset, data_ptr)?;
