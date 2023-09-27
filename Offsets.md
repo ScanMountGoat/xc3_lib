@@ -16,7 +16,7 @@ The main challenge with writing is to ensure that writing an unmodified file res
 Producing a binary identical output file requires not only calculating a valid layout but also the correct ordering for the data items. The reading code visits each field in order recursively. The writing code keeps incrementing the location for the next write and must visit data items in increasing order by absolute offset. This ordering is currently defined manually in many cases due to different layout conventions for different formats. For example, matching the ordering of items in a file may require writing fields in reverse order or writing an inner name offset after all other items have been written.
 
 ## Write Functions
-Writing is split into two main functions that define two passes. The `write` function writes the data and placeholder offset values. This function also calculates an objects size. Size is assumed to be the difference in the write position before and after writing for simplicity. The return value stores the position of offset values as well as the data they point to for later.
+Writing is split into two main functions that define two passes. The `write` function defines the first pass that writes the data and placeholder offset values. This function also calculates an objects size. Size is assumed to be the difference in the write position before and after writing for simplicity. The return value stores the position of offset values as well as the data they point to for later.
 
 ```python
 # Mutable writing context.
@@ -24,29 +24,12 @@ def Ctx:
     __init__(self):
         self.data_ptr = 0
 
-# This function and FieldOffsets can be automatically generated for each type.
-def write(self, writer, ctx: Ctx) -> FieldOffsets:
-    # Store the position of the offset and data for each field.
-    field_offsets = FieldOffsets()
-
-    # Offset field.
-    field_offsets.field0 = Offset(writer.position, self.field0)
-    writer.write(0)
-    # Regular field.
-    self.field1.write(writer, ctx)
-    ...
-
-    # Update data_ptr to point past this write.
-    # This implicitly calculates an object's size.
-    ctx.data_ptr = max(ctx.data_ptr, writer.position)
-    return field_offsets
-
 def Offset:
     def __init__(self, position: int, data):
         self.position = position
         self.data = data
 
-    # write_offset_full is similar but calls write_full instead of write.
+    # Write one level of offsets.
     def write_offset(self, writer, base_offset: int, ctx: Ctx) -> OffsetsForData:
         # Use data_ptr to update the placeholder offset.
         writer.position = self.position
@@ -57,23 +40,59 @@ def Offset:
         writer.position = ctx.data_ptr
         offsets = self.data.write(writer, ctx)
         return offsets
+
+    # Write all levels recursively.
+    def write_full(self, writer, base_offset: int, ctx: Ctx) -> OffsetsForData:
+        # Use data_ptr to update the placeholder offset.
+        writer.position = self.position
+        offset_value = ctx.data_ptr - base_offset
+        writer.write(offset_value)
+    
+        # Write the pointed to data, potentially updating ctx.data
+        writer.position = ctx.data_ptr
+        write_full(self.data, writer, ctx)
+        return offsets
+
+# This function and FieldOffsets can be automatically generated for each type.
+def Root:
+    def write(self, writer, ctx: Ctx) -> RootOffsets:
+        # Store the position of the offset and data for each field.
+        offsets = RootOffsets()
+
+        # Offset field.
+        offsets.field0 = Offset(writer.position, self.field0)
+        writer.write(0)
+        # Regular field.
+        self.field1.write(writer, ctx)
+        ...
+
+        # Update data_ptr to point past this write.
+        # This implicitly calculates an object's size.
+        ctx.data_ptr = max(ctx.data_ptr, writer.position)
+        return offsets
+```
+
+The `write_offsets` function defines the second pass that updates the placeholder offsets and writes the pointed to data recursively. This function should write each offset field in increasing order by absolute offset. The implementation of `write_offsets` for the offset return type may need to be implemented manually to match the data layout of existing files. The implementation can be derived if the offset fields are updated in order recursively. 
+
+```python
+def RootOffsets:
+    def write_offsets(self, writer, base_offset: int, ctx: Ctx):
+        # It may be necessary to defer writing inner offsets until later.
+        field0_offsets = self.field0.write_offset(writer, base_offset, ctx)
+
+        # Types without special ordering use the recursively defined write_full.
+        self.field1.write_full(writer, base_offset, ctx)
+
+        field0_offsets.name.write_full(writer, base_offset, ctx)
+    ...
 ```
 
 The `write_full` function represents a complete write and thus doesn't return any values. Any type that knows how to write itself and its offsets can also implement a complete write with `write_full`. This also applies to types without offset fields and primitive types since they don't need to write any offset data.
 
 ```python
 def write_full(self, writer, base_offset: int, ctx: Ctx):
-    offsets = self.write(writer, data_ptr)
-    offsets.write_full(writer, base_offset, ctx.data_ptr)
+    offsets = self.write(writer, ctx)
+    offsets.write_offsets(writer, base_offset, ctx.data_ptr)
 ```
 
-The implementation of `write_full` for the offset return type may need to be implemented manually to match the data layout of existing files. The implementation can be derived if the offset fields are updated in order recursively.
-
-```python
-def write_full(self, writer, base_offset: int, ctx: Ctx):
-    # It may be necessary to defer writing inner offsets until later.
-    field0_offsets = self.field0.write_offset(writer, base_offset, ctx)
-    self.field1.write_offset_full(writer, base_offset, ctx)
-    field0_offsets.name.write_offset_full(writer, base_offset, ctx)
-    ...
-```
+This two pass approach is similar to the measure and layout passes used in some UI frameworks. Having separate passes for offsets adds more flexibility in data layout and ordering. A single pass approach simplifies the implementation but requires making additional layout and ordering assumptions. See [SsbhWrite]((https://github.com/ultimate-research/ssbh_lib/blob/master/ssbh_offsets.md)) for an example of a single pass implementation.
