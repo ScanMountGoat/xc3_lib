@@ -16,14 +16,14 @@ use crate::{
     mibl::Mibl,
     parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
     vertex::VertexData,
-    write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteFull},
+    write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets},
     xbc1::Xbc1,
 };
 
 // TODO: write support?
 
 /// The main map data for a `.wismhd` file.
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(magic(b"DMSM"))]
 #[xc3(magic(b"DMSM"))]
 pub struct Msmd {
@@ -277,7 +277,7 @@ pub struct Dlgt {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteFull)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Ibl {
@@ -294,7 +294,7 @@ pub struct Ibl {
     pub unk6: u32,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(import_raw(base_offset: u64))]
 pub struct IblInner {
     pub unk1: u32, // 0?
@@ -334,7 +334,7 @@ pub struct WismdaInfo {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteFull)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Effects {
@@ -349,7 +349,7 @@ pub struct Effects {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteFull)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Effect {
@@ -390,7 +390,7 @@ pub struct Doce {
     pub count: u32,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct LowTextures {
     #[br(parse_with = parse_count_offset)]
     #[xc3(count_offset)]
@@ -399,7 +399,7 @@ pub struct LowTextures {
     pub unk: [u32; 5],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct LowTexture {
     pub unk1: u32,
     // TODO: Optimized function for reading bytes?
@@ -422,7 +422,7 @@ pub struct UnkLight {
 
 // TODO: How to get writing working?
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteFull)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct MapParts {
@@ -469,7 +469,7 @@ pub struct MapParts {
     pub transforms: Vec<[[f32; 4]; 4]>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(import_raw(base_offset: u64))]
 pub struct MapPartInstanceAnimation {
     pub translation: [f32; 3],
@@ -532,7 +532,7 @@ pub struct MapPartInstanceAnimationKeyframe {
     pub flags: u16,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(import_raw(base_offset: u64))]
 pub struct MapPart {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]

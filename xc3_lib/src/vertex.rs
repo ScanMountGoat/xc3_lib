@@ -1,7 +1,7 @@
 //! Vertex and geometry data for model formats.
 use crate::{
     parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32,
-    write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteFull},
+    write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets},
 };
 use binrw::{args, binread, BinRead, BinResult, BinWrite};
 
@@ -205,7 +205,7 @@ pub struct VertexAnimationTarget {
 // TODO: How are weights assigned to vertices?
 // TODO: Skinning happens in the vertex shader?
 // TODO: Where are the skin weights in the vertex shader?
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct Weights {
     #[br(parse_with = parse_count_offset)]
     #[xc3(count_offset)]
@@ -257,7 +257,7 @@ pub struct WeightLod {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteFull)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Unk {
@@ -317,8 +317,8 @@ pub struct UnkData {
 // TODO: Just derive Xc3Write?
 xc3_write_binwrite_impl!(VertexAttribute, DataType, IndexBufferDescriptor, Unk1, Unk2);
 
-impl<'a> Xc3WriteFull for VertexDataOffsets<'a> {
-    fn write_full<W: std::io::Write + std::io::Seek>(
+impl<'a> Xc3WriteOffsets for <VertexData as Xc3Write>::Offsets<'a> {
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
         base_offset: u64,

@@ -90,8 +90,8 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
 }
 
 // Share attributes with Xc3Write.
-#[proc_macro_derive(Xc3WriteFull, attributes(xc3))]
-pub fn xc3_write_full_derive(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(Xc3WriteOffsets, attributes(xc3))]
+pub fn xc3_write_offsets_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
     let offsets_name = offsets_name(&input.ident);
@@ -133,8 +133,8 @@ pub fn xc3_write_full_derive(input: TokenStream) -> TokenStream {
     // Add a write impl to the offset type to support nested types.
     // Vecs need to be able to write all items before the pointed to data.
     quote! {
-        impl<'a> crate::write::Xc3WriteFull for #offsets_name<'a> {
-            fn write_full<W: std::io::Write + std::io::Seek>(
+        impl<'a> crate::write::Xc3WriteOffsets for #offsets_name<'a> {
+            fn write_offsets<W: std::io::Write + std::io::Seek>(
                 &self,
                 writer: &mut W,
                 base_offset: u64,

@@ -7,7 +7,7 @@ use crate::{
     parse_count_offset, parse_opt_ptr32, parse_ptr32,
     spch::Spch,
     vertex::VertexData,
-    write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteFull},
+    write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets},
     xbc1::Xbc1,
 };
 use binrw::{binread, BinRead, BinResult, BinWrite};
@@ -158,8 +158,8 @@ impl Msrd {
 
 xc3_write_binwrite_impl!(StreamEntry);
 
-impl<'a> Xc3WriteFull for MsrdOffsets<'a> {
-    fn write_full<W: std::io::Write + std::io::Seek>(
+impl<'a> Xc3WriteOffsets for <Msrd as Xc3Write>::Offsets<'a> {
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
         _base_offset: u64,

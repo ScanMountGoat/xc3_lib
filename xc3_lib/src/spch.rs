@@ -3,7 +3,7 @@
 //! XC3: `monolib/shader/*.wishp`
 use std::io::{Cursor, SeekFrom};
 
-use crate::write::{VecOffsets, Xc3Write, Xc3WriteFull};
+use crate::write::{VecOffsets, Xc3Write, Xc3WriteOffsets};
 use crate::{
     parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
 };
@@ -74,7 +74,7 @@ pub struct StringSection {
     pub program_names: Vec<StringOffset>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(import_raw(base_offset: u64))]
 pub struct StringOffset {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
@@ -383,8 +383,8 @@ impl Xc3Write for StringSection {
     }
 }
 
-impl<'a> Xc3WriteFull for SpchOffsets<'a> {
-    fn write_full<W: std::io::Write + std::io::Seek>(
+impl<'a> Xc3WriteOffsets for <Spch as Xc3Write>::Offsets<'a> {
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
         base_offset: u64,

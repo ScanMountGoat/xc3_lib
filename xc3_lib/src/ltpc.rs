@@ -3,11 +3,11 @@ use binrw::BinRead;
 
 use crate::{
     parse_count_offset, parse_offset_count,
-    write::{Xc3Write, Xc3WriteFull},
+    write::{Xc3Write, Xc3WriteOffsets},
 };
 
 /// `monolib/shader/filterlut.wiltp` for Xenoblade 3.
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(magic(b"LTPC"))]
 #[xc3(magic(b"LTPC"))]
 pub struct Ltpc {
@@ -22,7 +22,7 @@ pub struct Ltpc {
     pub unk: [u32; 6],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct Texture {
     // TODO: Support alignment constants.
     #[br(parse_with = parse_offset_count)]

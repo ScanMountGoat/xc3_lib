@@ -4,7 +4,7 @@ use std::io::Write;
 
 use binrw::{BinResult, BinWrite};
 
-/// The initial write and dummy offset pass.
+/// The write pass that writes fields and placeholder offsets.
 pub(crate) trait Xc3Write {
     type Offsets<'a>
     where
@@ -19,11 +19,9 @@ pub(crate) trait Xc3Write {
     const ALIGNMENT: u64 = 4;
 }
 
-// TODO: Come up with a better name.
-/// The full write operation that updates all offsets.
-/// This should write recursively, so it doesn't return anything.
-pub(crate) trait Xc3WriteFull {
-    fn write_full<W: Write + Seek>(
+/// The layout pass that updates and writes data for all fields in [Xc3Write::Offsets] recursively.
+pub(crate) trait Xc3WriteOffsets {
+    fn write_offsets<W: Write + Seek>(
         &self,
         writer: &mut W,
         base_offset: u64,
@@ -31,9 +29,31 @@ pub(crate) trait Xc3WriteFull {
     ) -> BinResult<()>;
 }
 
+// A complete write uses a two pass approach to handle offsets.
+// We can fully write any type that can fully write its offset values.
+// This includes types with an offset type of () like primitive types.
+// This means structs without offsets only need to derive Xc3Write.
+pub(crate) fn write_full<'a, T, W>(
+    value: &'a T,
+    writer: &mut W,
+    base_offset: u64,
+    data_ptr: &mut u64,
+) -> BinResult<()>
+where
+    W: Write + Seek,
+    T: Xc3Write + 'static,
+    T::Offsets<'a>: Xc3WriteOffsets,
+{
+    // TODO: Incorporate the base offset from offsets using option?
+    // Ensure all items are written before their pointed to data.
+    let offsets = value.xc3_write(writer, data_ptr)?;
+    offsets.write_offsets(writer, base_offset, data_ptr)?;
+    Ok(())
+}
+
 // Support importing both the trait and derive macro at once.
 pub(crate) use xc3_lib_derive::Xc3Write;
-pub(crate) use xc3_lib_derive::Xc3WriteFull;
+pub(crate) use xc3_lib_derive::Xc3WriteOffsets;
 
 pub(crate) struct Offset<'a, T> {
     /// The position in the file for the offset field.
@@ -119,12 +139,12 @@ impl<'a, T: Xc3Write> Offset<'a, Option<T>> {
     }
 }
 
-impl<'a, T> Xc3WriteFull for Offset<'a, T>
+impl<'a, T> Offset<'a, T>
 where
     T: Xc3Write + 'static,
-    T::Offsets<'a>: Xc3WriteFull,
+    T::Offsets<'a>: Xc3WriteOffsets,
 {
-    fn write_full<W: Write + Seek>(
+    pub fn write_full<W: Write + Seek>(
         &self,
         writer: &mut W,
         base_offset: u64,
@@ -137,13 +157,13 @@ where
     }
 }
 
-// This doesn't need specialization because Option does not impl Xc3WriteFull.
-impl<'a, T> Xc3WriteFull for Offset<'a, Option<T>>
+// This doesn't need specialization because Option does not impl Xc3WriteOffsets.
+impl<'a, T> Offset<'a, Option<T>>
 where
     T: Xc3Write + 'static,
-    T::Offsets<'a>: Xc3WriteFull,
+    T::Offsets<'a>: Xc3WriteOffsets,
 {
-    fn write_full<W: Write + Seek>(
+    pub fn write_full<W: Write + Seek>(
         &self,
         writer: &mut W,
         base_offset: u64,
@@ -163,7 +183,7 @@ macro_rules! xc3_write_binwrite_impl {
     ($($ty:ty),*) => {
         $(
             impl Xc3Write for $ty {
-                // This also implements Xc3WriteFull since () is Xc3WriteFull.
+                // This also enables write_full since () implements Xc3WriteOffsets.
                 type Offsets<'a> = ();
 
                 fn xc3_write<W: std::io::Write + std::io::Seek>(
@@ -265,46 +285,25 @@ where
     }
 }
 
-// TODO: Incorporate the base offset from offsets using option?
-// We can fully write any type that can fully write its offset values.
-// This includes types with an offset type of () like primitive types.
-// This means structs without offsets only need to derive Xc3Write.
-pub(crate) fn write_full<'a, T, W>(
-    value: &'a T,
-    writer: &mut W,
-    base_offset: u64,
-    data_ptr: &mut u64,
-) -> BinResult<()>
+impl<T> Xc3WriteOffsets for VecOffsets<T>
 where
-    W: Write + Seek,
-    T: Xc3Write + 'static,
-    T::Offsets<'a>: Xc3WriteFull,
+    T: Xc3WriteOffsets,
 {
-    // Ensure all items are written before their pointed to data.
-    let offsets = value.xc3_write(writer, data_ptr)?;
-    offsets.write_full(writer, base_offset, data_ptr)?;
-    Ok(())
-}
-
-impl<T> Xc3WriteFull for VecOffsets<T>
-where
-    T: Xc3WriteFull,
-{
-    fn write_full<W: Write + Seek>(
+    fn write_offsets<W: Write + Seek>(
         &self,
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
     ) -> BinResult<()> {
         for item in &self.0 {
-            item.write_full(writer, base_offset, data_ptr)?;
+            item.write_offsets(writer, base_offset, data_ptr)?;
         }
         Ok(())
     }
 }
 
-impl Xc3WriteFull for () {
-    fn write_full<W: Write + Seek>(
+impl Xc3WriteOffsets for () {
+    fn write_offsets<W: Write + Seek>(
         &self,
         _writer: &mut W,
         _base_offset: u64,

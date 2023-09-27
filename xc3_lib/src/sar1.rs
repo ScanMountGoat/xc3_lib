@@ -6,12 +6,12 @@ use std::io::Cursor;
 use crate::{
     bc::Bc,
     parse_count_offset, parse_offset_count,
-    write::{Xc3Write, Xc3WriteFull},
+    write::{Xc3Write, Xc3WriteOffsets},
 };
 use binrw::{binread, BinRead, BinReaderExt, BinResult, NullString};
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteFull)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
 #[br(magic(b"1RAS"))]
 #[xc3(magic(b"1RAS"))]
 #[xc3(align_after(2048))]
@@ -35,7 +35,7 @@ pub struct Sar1 {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteFull)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
 pub struct Entry {
     #[br(parse_with = parse_offset_count)]
     #[xc3(offset_count, align(64))]

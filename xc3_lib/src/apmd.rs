@@ -1,7 +1,7 @@
 //! Model archive for character and map models in `.wimdo` files.
 use std::io::Cursor;
 
-use crate::write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteFull};
+use crate::write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
 use crate::{
     msmd::{Dlgt, Gibl, Nerd},
     mxmd::Mxmd,
@@ -10,7 +10,7 @@ use crate::{
 use binrw::{BinRead, BinReaderExt, BinWrite};
 
 /// A packed model container with entries like [Mxmd](crate::mxmd::Mxmd) or [Gibl](crate::msmd::Gibl).
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(magic(b"DMPA"))]
 #[xc3(magic(b"DMPA"))]
 #[xc3(align_after(4096))]
@@ -25,7 +25,7 @@ pub struct Apmd {
     pub unk: [u32; 7],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteFull)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct Entry {
     pub entry_type: EntryType,
     #[br(parse_with = parse_offset_count)]
