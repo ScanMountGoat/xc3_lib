@@ -32,12 +32,6 @@ The file format library and utilities. The goal is to create the simplest possib
 
 Operations like deswizzling and decompression are implemented as functions that users must explicitly call to return new data rather than modifying the types representing the data on disk. The deswizzing operation for `Mibl` textures returns a new .dds file, for example. More advanced decoding operations are implemented in higher level projects like xc3_wgpu or xc3_model.
 
-### xc3_write
-Defines the two pass writing system for handling writing of binary files and offset calculation. See [Offsets](https://github.com/ScanMountGoat/xc3_lib/blob/main/Offsets.md) for a high level overview.
-
-### xc3_write_derive
-A procedural macro for generating code for xc3_write at compile time.
-
 ### xc3_model
 xc3_model converts the game specific binary file data into a standardized format that is easier to read, render, and convert. Converting the xc3_lib types into the same format abstracts away the details of how data is represented and allows consuming code to use the same code for all the various characters, objects, and maps in game. For example, xc3_model uses a collection of `ImageData` stored at the root level of a model hierarchy to encompass all the many ways that `Mibl` data can be packed and stored across different files.
 
@@ -66,3 +60,9 @@ Shaders are written in WGSL for best compatibility with wgpu/WebGPU. Most of the
 
 ### xc3_wgpu_batch
 A CLI program for testing the entire loading and rendering code from xc3_lib, xc3_model, and xc3_wgpu. xc3_wgpu_batch renders directly to textures to create PNG files, so  no window is ever constructed. This makes it easy to identify major rendering errors or models that fail to load properly. Changes to the file formats themselves should use xc3_test since xc3_test runs faster and gives more detailed feedback on errors compared to xc3_wgpu_batch.
+
+### xc3_write
+Defines the two pass writing system for handling writing of binary files and offset calculation. See [Offsets](https://github.com/ScanMountGoat/xc3_lib/blob/main/Offsets.md) for a high level overview.
+
+### xc3_write_derive
+A procedural macro for generating code for xc3_write at compile time.
