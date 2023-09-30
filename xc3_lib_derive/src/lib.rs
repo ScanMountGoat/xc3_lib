@@ -197,7 +197,7 @@ fn parse_field_data(data: &Data) -> FieldData {
                 // Check if we need to write the count.
                 // Use a null offset as a placeholder.
                 match options.field_type {
-                    Some(FieldType::Offset) => {
+                    Some(FieldType::Offset32) => {
                         write_fields.push(quote! {
                             let #name = #offset;
                             0u32.write_le(writer)?;
@@ -205,7 +205,7 @@ fn parse_field_data(data: &Data) -> FieldData {
                         offset_fields.push(offset_field(name, ty));
                         offset_field_names.push(name.clone());
                     }
-                    Some(FieldType::CountOffset) => {
+                    Some(FieldType::Count32Offset32) => {
                         write_fields.push(quote! {
                             (self.#name.len() as u32).write_le(writer)?;
                             let #name = #offset;
@@ -214,7 +214,7 @@ fn parse_field_data(data: &Data) -> FieldData {
                         offset_fields.push(offset_field(name, ty));
                         offset_field_names.push(name.clone());
                     }
-                    Some(FieldType::OffsetCount) => {
+                    Some(FieldType::Offset32Count32) => {
                         write_fields.push(quote! {
                             let #name = #offset;
                             0u32.write_le(writer)?;
@@ -244,7 +244,8 @@ fn parse_field_data(data: &Data) -> FieldData {
 }
 
 fn offset_field(name: &Ident, ty: &Type) -> TokenStream2 {
-    quote!(pub #name: crate::write::Offset<'a, #ty>)
+    // TODO: Make the pointer type configurable.
+    quote!(pub #name: crate::write::Offset<'a, u32, #ty>)
 }
 
 fn create_offset_struct(name: &Ident, alignment: Option<u64>) -> TokenStream2 {

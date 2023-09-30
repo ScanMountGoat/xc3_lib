@@ -23,24 +23,24 @@ pub struct Spch {
     pub version: u32,
 
     #[br(parse_with = parse_offset_count, offset = base_offset)]
-    #[xc3(offset_count)]
+    #[xc3(offset32_count32)]
     pub shader_programs: Vec<ShaderProgram>,
 
     // TODO: Related to string section?
     #[br(parse_with = parse_offset_count, offset = base_offset)]
-    #[xc3(offset_count)]
+    #[xc3(offset32_count32)]
     pub unk4s: Vec<Unk4>,
 
     /// A collection of [Slct].
     #[br(parse_with = parse_offset_count, offset = base_offset)]
-    #[xc3(offset_count)]
+    #[xc3(offset32_count32)]
     pub slct_section: Vec<u8>,
 
     /// Compiled shader binaries.
     /// Alternates between vertex and fragment shaders.
     // TODO: Optimized function for reading bytes?
     #[br(parse_with = parse_offset_count, offset = base_offset)]
-    #[xc3(offset_count, align(4096))]
+    #[xc3(offset32_count32, align(4096))]
     pub xv4_section: Vec<u8>,
 
     // data before the xV4 section
@@ -50,7 +50,7 @@ pub struct Spch {
     /// A collection of [UnkItem].
     // TODO: xc2 tg_ui_hitpoint.wimdo has some sort of assembly code?
     #[br(parse_with = parse_offset_count, offset = base_offset)]
-    #[xc3(offset_count, align(8))]
+    #[xc3(offset32_count32, align(8))]
     pub unk_section: Vec<u8>,
 
     // TODO: Does this actually need the program count?
@@ -59,7 +59,7 @@ pub struct Spch {
         offset: base_offset,
         inner: args! { base_offset, count: shader_programs.len()
     }})]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub string_section: Option<StringSection>,
 
     pub unk7: u32,
@@ -78,7 +78,7 @@ pub struct StringSection {
 #[br(import_raw(base_offset: u64))]
 pub struct StringOffset {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub string: String,
 }
 

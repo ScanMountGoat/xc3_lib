@@ -1,6 +1,7 @@
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
+use std::marker::PhantomData;
 
 use binrw::{BinResult, BinWrite};
 
@@ -55,16 +56,17 @@ where
 pub(crate) use xc3_lib_derive::Xc3Write;
 pub(crate) use xc3_lib_derive::Xc3WriteOffsets;
 
-pub(crate) struct Offset<'a, T> {
+pub(crate) struct Offset<'a, P, T> {
     /// The position in the file for the offset field.
     pub position: u64,
     /// The data pointed to by the offset.
     pub data: &'a T,
     /// Alignment override applied at the field level.
     pub field_alignment: Option<u64>,
+    phantom: PhantomData<P>,
 }
 
-impl<'a, T: Xc3Write> std::fmt::Debug for Offset<'a, T> {
+impl<'a, P, T: Xc3Write> std::fmt::Debug for Offset<'a, P, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Don't print the actual data to avoid excessive output.
         f.debug_struct("Offset")
@@ -74,29 +76,38 @@ impl<'a, T: Xc3Write> std::fmt::Debug for Offset<'a, T> {
     }
 }
 
-impl<'a, T> Offset<'a, T> {
+impl<'a, P, T> Offset<'a, P, T> {
     pub fn new(position: u64, data: &'a T, field_alignment: Option<u64>) -> Self {
         Self {
             position,
             data,
             field_alignment,
+            phantom: PhantomData,
         }
     }
 
-    fn set_offset_seek<W: Write + Seek>(
+    fn set_offset_seek<W>(
         &self,
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
         type_alignment: u64,
-    ) -> Result<(), binrw::Error> {
+    ) -> Result<(), binrw::Error>
+    where
+        W: Write + Seek,
+        // TODO: Create a trait for this?
+        P: TryFrom<u64>,
+        <P as TryFrom<u64>>::Error: std::fmt::Debug,
+        for<'b> P: BinWrite<Args<'b> = ()>,
+    {
         // Account for the type or field alignment.
         let alignment = self.field_alignment.unwrap_or(type_alignment);
         *data_ptr = round_up(*data_ptr, alignment);
 
         // Update the offset value.
         writer.seek(SeekFrom::Start(self.position))?;
-        ((*data_ptr - base_offset) as u32).write_le(writer)?;
+        let offset = P::try_from(*data_ptr - base_offset).unwrap();
+        offset.write_le(writer)?;
 
         // Seek to the data position.
         writer.seek(SeekFrom::Start(*data_ptr))?;
@@ -104,9 +115,13 @@ impl<'a, T> Offset<'a, T> {
     }
 }
 
-impl<'a, T: Xc3Write> Offset<'a, T> {
-    // TODO: make the data ptr u32?
-    // TODO: Specify an alignment using another trait?
+impl<'a, P, T> Offset<'a, P, T>
+where
+    T: Xc3Write,
+    P: TryFrom<u64>,
+    <P as TryFrom<u64>>::Error: std::fmt::Debug,
+    for<'b> P: BinWrite<Args<'b> = ()>,
+{
     pub(crate) fn write_offset<W: Write + Seek>(
         &self,
         writer: &mut W,
@@ -121,7 +136,13 @@ impl<'a, T: Xc3Write> Offset<'a, T> {
 }
 
 // This doesn't need specialization because Option does not impl Xc3Write.
-impl<'a, T: Xc3Write> Offset<'a, Option<T>> {
+impl<'a, P, T> Offset<'a, P, Option<T>>
+where
+    T: Xc3Write,
+    P: TryFrom<u64>,
+    <P as TryFrom<u64>>::Error: std::fmt::Debug,
+    for<'b> P: BinWrite<Args<'b> = ()>,
+{
     pub(crate) fn write_offset<W: Write + Seek>(
         &self,
         writer: &mut W,
@@ -139,10 +160,13 @@ impl<'a, T: Xc3Write> Offset<'a, Option<T>> {
     }
 }
 
-impl<'a, T> Offset<'a, T>
+impl<'a, P, T> Offset<'a, P, T>
 where
     T: Xc3Write + 'static,
     T::Offsets<'a>: Xc3WriteOffsets,
+    P: TryFrom<u64>,
+    <P as TryFrom<u64>>::Error: std::fmt::Debug,
+    for<'b> P: BinWrite<Args<'b> = ()>,
 {
     pub fn write_full<W: Write + Seek>(
         &self,
@@ -158,10 +182,13 @@ where
 }
 
 // This doesn't need specialization because Option does not impl Xc3WriteOffsets.
-impl<'a, T> Offset<'a, Option<T>>
+impl<'a, P, T> Offset<'a, P, Option<T>>
 where
     T: Xc3Write + 'static,
     T::Offsets<'a>: Xc3WriteOffsets,
+    P: TryFrom<u64>,
+    <P as TryFrom<u64>>::Error: std::fmt::Debug,
+    for<'b> P: BinWrite<Args<'b> = ()>,
 {
     pub fn write_full<W: Write + Seek>(
         &self,

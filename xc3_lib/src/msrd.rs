@@ -29,11 +29,11 @@ pub struct Msrd {
     pub revision: u32,
 
     #[br(parse_with = parse_count_offset, offset = offset as u64)]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub stream_entries: Vec<StreamEntry>,
 
     #[br(parse_with = parse_count_offset, offset = offset as u64)]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub streams: Vec<Stream>,
 
     pub vertex_data_entry_index: u32,
@@ -46,11 +46,11 @@ pub struct Msrd {
 
     // TODO: identical to indices in mxmd?
     #[br(parse_with = parse_count_offset, offset = offset as u64)]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub texture_ids: Vec<u16>,
 
     #[br(parse_with = parse_opt_ptr32, offset = offset as u64)]
-    #[xc3(offset, align(2))]
+    #[xc3(offset32, align(2))]
     pub textures: Option<PackedExternalTextures>,
 
     pub unk1: u32,
@@ -58,7 +58,7 @@ pub struct Msrd {
     // TODO: Same count as textures?
     // TODO: This doesn't work for pc000101.wismt?
     #[br(parse_with = parse_count_offset, offset = offset as u64)]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub texture_resources: Vec<TextureResource>,
 
     // TODO: padding:
@@ -90,7 +90,7 @@ pub struct Stream {
     pub decomp_size: u32, // TODO: slightly larger than xbc1 decomp size?
     // TODO: Why does this sometimes have an extra 16 bytes of padding?
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub xbc1: Xbc1,
 }
 

@@ -32,92 +32,92 @@ pub struct Msmd {
     pub unk1: [u32; 4],
 
     #[br(parse_with = parse_count_offset)]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub map_models: Vec<MapModel>,
 
     #[br(parse_with = parse_count_offset)]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub prop_models: Vec<PropModel>,
 
     pub unk1_1: [u32; 2],
 
     #[br(parse_with = parse_count_offset)]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub env_models: Vec<EnvModel>,
 
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub wismda_info: WismdaInfo,
 
     pub unk2_1: u32,
 
     #[br(parse_with = parse_opt_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub effects: Option<Effects>,
 
     pub unk2: [u32; 3],
 
     /// `.wismda` data with names like `/seamwork/inst/mdl/00003.te`.
     #[br(parse_with = parse_count_offset)]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub prop_vertex_data: Vec<StreamEntry<VertexData>>,
 
     // TODO: What do these do?
     #[br(parse_with = parse_count_offset)]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub textures: Vec<Texture>,
 
     pub strings_offset: u32,
 
     #[br(parse_with = parse_count_offset)]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub foliage_models: Vec<FoliageModel>,
 
     /// `.wismda` data with names like `/seamwork/inst/pos/00000.et`.
     #[br(parse_with = parse_count_offset)]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub prop_positions: Vec<StreamEntry<PropPositions>>,
 
     /// `.wismda` data with names like `/seamwork/mpfmap/poli//0022`.
     #[br(parse_with = parse_count_offset)]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub foliage_data: Vec<StreamEntry<FoliageVertexData>>,
 
     pub unk3_1: u32,
     pub unk3_2: u32,
 
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub dlgt: Dlgt,
 
     #[br(parse_with = parse_count_offset)]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub unk_lights: Vec<UnkLight>,
 
     // low resolution packed textures?
     /// `.wismda` data with names like `/seamwork/texture/00000_wi`.
     #[br(parse_with = parse_count_offset)]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub low_textures: Vec<StreamEntry<LowTextures>>,
 
     // TODO: Document more of these fields.
     pub unk4: [u32; 6],
 
     #[br(parse_with = parse_opt_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub parts: Option<MapParts>,
 
     pub unk4_2: u32,
 
     #[br(parse_with = parse_count_offset)]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub low_models: Vec<MapLowModel>,
 
     pub env_flags: u32,
 
     /// `.wismda` data with names like `/seamwork/mpfmap/poli//0000`.
     #[br(parse_with = parse_count_offset)]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub unk_foliage_data: Vec<StreamEntry<FoliageUnkData>>,
 
     /// `.wismda` data with names like `/seamwork/basemap/poli//000`
@@ -125,29 +125,29 @@ pub struct Msmd {
     // TODO: Are all of these referenced by map models?
     // TODO: What references "poli/001"?
     #[br(parse_with = parse_count_offset)]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub map_vertex_data: Vec<StreamEntry<VertexData>>,
 
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     #[br(args { inner: env_flags })]
     pub nerd: EnvironmentData,
 
     pub unk6: [u32; 3],
 
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub ibl: Ibl,
 
     #[br(parse_with = parse_opt_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub cmld: Option<Cmld>,
 
     pub unk5_2: u32,
     pub unk5_3: u32,
 
     #[br(parse_with = parse_opt_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub unk5_4: Option<Doce>,
 
     pub unk5_5: u32,
@@ -285,7 +285,7 @@ pub struct Ibl {
     base_offset: u64,
 
     #[br(parse_with = parse_count_offset, args { offset: base_offset, inner: base_offset })]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub unk1: Vec<IblInner>,
 
     pub unk3: u32,
@@ -300,11 +300,11 @@ pub struct IblInner {
     pub unk1: u32, // 0?
 
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub map_name: String,
 
     #[br(parse_with = parse_ptr32, offset = base_offset)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub gibl: Gibl,
 
     pub unk4: u32, // gibl section length?
@@ -342,7 +342,7 @@ pub struct Effects {
     base_offset: u64,
 
     #[br(parse_with = parse_count_offset, offset = base_offset)]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub unk1: Vec<Effect>,
 
     pub unk3: u32,
@@ -357,7 +357,7 @@ pub struct Effect {
     base_offset: u64,
 
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub unk1: String,
 
     // TODO: xc2 has a string here instead?
@@ -393,7 +393,7 @@ pub struct Doce {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct LowTextures {
     #[br(parse_with = parse_count_offset)]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub textures: Vec<LowTexture>,
     // TODO: Padding?
     pub unk: [u32; 5],
@@ -404,7 +404,7 @@ pub struct LowTexture {
     pub unk1: u32,
     // TODO: Optimized function for reading bytes?
     #[br(parse_with = parse_count_offset)]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub mibl_data: Vec<u8>,
     pub unk2: i32,
 }
@@ -431,7 +431,7 @@ pub struct MapParts {
 
     // TODO: Where do static parts index?
     #[br(parse_with = parse_offset_count, args { offset: base_offset, inner: base_offset })]
-    #[xc3(offset_count)]
+    #[xc3(offset32_count32)]
     pub parts: Vec<MapPart>,
 
     pub unk_count: u32,
@@ -465,7 +465,7 @@ pub struct MapParts {
     pub unk7: u32,
 
     #[br(parse_with = parse_offset_count, offset = base_offset)]
-    #[xc3(offset_count)]
+    #[xc3(offset32_count32)]
     pub transforms: Vec<[[f32; 4]; 4]>,
 }
 
@@ -481,7 +481,7 @@ pub struct MapPartInstanceAnimation {
     pub flags: u32,
 
     #[br(parse_with = parse_offset_count, args { offset: base_offset, inner: base_offset })]
-    #[xc3(offset_count)]
+    #[xc3(offset32_count32)]
     pub channels: Vec<MapPartInstanceAnimationChannel>,
 
     pub time_min: u16,
@@ -536,7 +536,7 @@ pub struct MapPartInstanceAnimationKeyframe {
 #[br(import_raw(base_offset: u64))]
 pub struct MapPart {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub name: String,
 
     // TODO: The index of the instance in PropLods.instances?

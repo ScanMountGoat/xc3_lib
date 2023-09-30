@@ -21,45 +21,45 @@ pub struct PropModelData {
 
     /// Each model has a corresponding element in [vertex_data_indices](#structfield.vertex_data_indices).
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub models: Models,
 
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub materials: Materials,
 
     pub unk2: u32,
 
     // Is this the actual props in the scene?
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub lods: PropLods,
 
     pub unk3: u32,
 
     /// The textures referenced by [materials](#structfield.materials).
     #[br(parse_with = parse_offset_count)]
-    #[xc3(offset_count)]
+    #[xc3(offset32_count32)]
     pub textures: Vec<Texture>,
 
     /// The index of the [VertexData](crate::vertex::VertexData)
     /// in [prop_vertex_data](../msmd/struct.Msmd.html#structfield.prop_vertex_data)
     /// for each of the models in [models](#structfield.models).
     #[br(parse_with = parse_offset_count)]
-    #[xc3(offset_count)]
+    #[xc3(offset32_count32)]
     pub model_vertex_data_indices: Vec<u32>,
 
     pub unk4_1: u32,
     pub unk4_2: u32,
 
     #[br(parse_with = parse_offset_count)]
-    #[xc3(offset_count)]
+    #[xc3(offset32_count32)]
     pub prop_info: Vec<PropPositionInfo>,
 
     pub unk4_5: u32,
 
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub spch: Spch,
 
     pub unk5: u32,
@@ -82,16 +82,16 @@ pub struct PropLods {
     // model groups?
     // Each of these is a single prop with all of its lods?
     #[br(parse_with = parse_count_offset, offset = base_offset)]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub props: Vec<PropLod>,
 
     #[br(parse_with = parse_count_offset, offset = base_offset)]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub lods: Vec<PropModelLod>,
 
     /// Instance information for [props](#structfield.props).
     #[br(parse_with = parse_count_offset, offset = base_offset)]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub instances: Vec<PropInstance>,
 
     // render tree node indices?
@@ -100,7 +100,7 @@ pub struct PropLods {
 
     // render tree nodes?
     #[br(parse_with = parse_count_offset, offset = base_offset)]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub unk3: Vec<PropUnk3>,
 
     pub unk2: u32,
@@ -178,24 +178,24 @@ pub struct MapModelData {
     pub unk1: [u32; 3],
 
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub models: Models,
 
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub materials: Materials,
 
     pub m_unk2: [u32; 2],
 
     /// The textures referenced by [materials](#structfield.materials).
     #[br(parse_with = parse_offset_count)]
-    #[xc3(offset_count)]
+    #[xc3(offset32_count32)]
     pub textures: Vec<Texture>,
 
     pub m_unk3: [u32; 2],
 
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub spch: Spch,
 
     // TODO: What does this do?
@@ -203,7 +203,7 @@ pub struct MapModelData {
     pub low_res_count: u32,
 
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub groups: MapModelGroups,
     // padding?
 }
@@ -229,13 +229,13 @@ pub struct MapModelGroups {
     base_offset: u64,
 
     #[br(parse_with = parse_offset_count, offset = base_offset)]
-    #[xc3(offset_count)]
+    #[xc3(offset32_count32)]
     pub groups: Vec<MapModelGroup>,
 
     /// The index of the [MapModelGroup] in [groups](#structfield.groups)
     /// for each of the models in [models](struct.MapModelData.html#structfield.models).
     #[br(parse_with = parse_offset_count, offset = base_offset)]
-    #[xc3(offset_count)]
+    #[xc3(offset32_count32)]
     pub model_group_index: Vec<u16>,
 }
 
@@ -259,29 +259,29 @@ pub struct MapModelGroup {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct EnvModelData {
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub models: Models,
 
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub materials: Materials,
 
     // TODO: Pointers to MIBL files?
     pub unk_offset1: u32,
 
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub vertex_data: VertexData,
 
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub textures: PackedTextures,
 
     // TODO: always 0?
     pub unk6: u32,
 
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub spch: Spch,
     // padding?
 }
@@ -291,21 +291,21 @@ pub struct EnvModelData {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct FoliageModelData {
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub models: Models,
 
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub materials: FoliageMaterials,
 
     pub unk1: u32,
 
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub vertex_data: VertexData,
 
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub textures: PackedTextures,
 
     pub unk4: [u32; 11], // padding?
@@ -320,7 +320,7 @@ pub struct FoliageMaterials {
     base_offset: u64,
 
     #[br(parse_with = parse_offset_count, args { offset: base_offset, inner: base_offset })]
-    #[xc3(offset_count)]
+    #[xc3(offset32_count32)]
     pub materials: Vec<FoliageMaterial>,
 
     pub unk1: u32,
@@ -334,7 +334,7 @@ pub struct FoliageMaterials {
 #[br(import_raw(base_offset: u64))]
 pub struct FoliageMaterial {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub name: String,
 
     pub unk1: u16,
@@ -356,11 +356,11 @@ pub struct FoliageMaterial {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct FoliageVertexData {
     #[br(parse_with = parse_count_offset)]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub unk1: Vec<FoliageVertex1>,
 
     #[br(parse_with = parse_count_offset)]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub unk2: Vec<FoliageVertex2>,
 
     pub unk3: u32,
@@ -399,24 +399,24 @@ pub struct MapLowModelData {
     pub unk2: u32,
 
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub models: Models,
 
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub materials: Materials,
 
     pub unk5: u32,
     pub unk6: u32,
 
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub vertex_data: VertexData,
 
     pub unk8: u32,
 
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset)]
+    #[xc3(offset32)]
     pub spch: Spch,
     // TODO: more fields?
 }
@@ -424,14 +424,14 @@ pub struct MapLowModelData {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct PropPositions {
     #[br(parse_with = parse_count_offset)]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub instances: Vec<PropInstance>,
 
     pub unk1: u32,
     pub unk2: u32,
 
     #[br(parse_with = parse_count_offset)]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub nodes: Vec<RenderNode>,
 
     pub unk3: u32,

@@ -17,7 +17,7 @@ use binrw::{BinRead, BinReaderExt, BinWrite};
 pub struct Apmd {
     pub version: u32,
     #[br(parse_with = parse_offset_count)]
-    #[xc3(offset_count)]
+    #[xc3(offset32_count32)]
     pub entries: Vec<Entry>,
     pub unk2: u32,
     pub unk3: u32,
@@ -29,7 +29,7 @@ pub struct Apmd {
 pub struct Entry {
     pub entry_type: EntryType,
     #[br(parse_with = parse_offset_count)]
-    #[xc3(offset_count, align(4096))]
+    #[xc3(offset32_count32, align(4096))]
     pub entry_data: Vec<u8>,
 }
 

@@ -6,10 +6,11 @@ pub struct FieldOptions {
     pub pad_size_to: Option<u64>,
 }
 
+// TODO: Separate count field similar to #[bw(calc(...))]?
 pub enum FieldType {
-    Offset,
-    OffsetCount,
-    CountOffset,
+    Offset32,
+    Offset32Count32,
+    Count32Offset32,
 }
 
 impl FieldOptions {
@@ -23,15 +24,15 @@ impl FieldOptions {
                 // TODO: add types like offset32 or offset64_count32
                 // TODO: separate offset and count fields?
                 let _ = a.parse_nested_meta(|meta| {
-                    if meta.path.is_ident("offset") {
-                        // #[xc3(offset)]
-                        field_type = Some(FieldType::Offset);
-                    } else if meta.path.is_ident("offset_count") {
-                        // #[xc3(offset_count)]
-                        field_type = Some(FieldType::OffsetCount);
-                    } else if meta.path.is_ident("count_offset") {
-                        // #[xc3(count_offset)]
-                        field_type = Some(FieldType::CountOffset);
+                    if meta.path.is_ident("offset32") {
+                        // #[xc3(offset32)]
+                        field_type = Some(FieldType::Offset32);
+                    } else if meta.path.is_ident("offset32_count32") {
+                        // #[xc3(offset32_count32)]
+                        field_type = Some(FieldType::Offset32Count32);
+                    } else if meta.path.is_ident("count32_offset32") {
+                        // #[xc3(count32_offset32)]
+                        field_type = Some(FieldType::Count32Offset32);
                     } else if meta.path.is_ident("align") {
                         // TODO: Support constants like PAGE_SIZE?
                         // #[xc3(align(4096))]

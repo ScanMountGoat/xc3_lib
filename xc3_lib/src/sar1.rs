@@ -21,7 +21,7 @@ pub struct Sar1 {
     pub version: u32,
 
     #[br(parse_with = parse_count_offset)]
-    #[xc3(count_offset)]
+    #[xc3(count32_offset32)]
     pub entries: Vec<Entry>,
 
     pub unk_offset: u32, // pointer to start of data?
@@ -38,7 +38,7 @@ pub struct Sar1 {
 #[derive(Debug, Xc3Write, Xc3WriteOffsets)]
 pub struct Entry {
     #[br(parse_with = parse_offset_count)]
-    #[xc3(offset_count, align(64))]
+    #[xc3(offset32_count32, align(64))]
     pub entry_data: Vec<u8>,
 
     // TODO: CRC32C?
