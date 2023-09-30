@@ -1,10 +1,8 @@
 //! Texture container of [Mibl](crate::mibl::Mibl) images in `.wiltp` files.
 use binrw::BinRead;
 
-use crate::{
-    parse_count_offset, parse_offset_count,
-    write::{Xc3Write, Xc3WriteOffsets},
-};
+use crate::{parse_count_offset, parse_offset_count};
+use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 /// `monolib/shader/filterlut.wiltp` for Xenoblade 3.
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]

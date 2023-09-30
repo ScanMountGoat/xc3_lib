@@ -3,11 +3,11 @@
 //! XC3: `monolib/shader/*.wishp`
 use std::io::{Cursor, SeekFrom};
 
-use crate::write::{VecOffsets, Xc3Write, Xc3WriteOffsets};
 use crate::{
     parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
 };
 use binrw::{args, binread, BinRead, BinReaderExt};
+use xc3_write::{VecOffsets, Xc3Write, Xc3WriteOffsets};
 
 /// .wishp, embedded in .wismt and .wimdo
 #[binread]
@@ -82,7 +82,7 @@ pub struct StringOffset {
     pub string: String,
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct ShaderProgram {
     // TODO: 64-bit offset?
     pub slct_offset: u32,
@@ -90,7 +90,7 @@ pub struct ShaderProgram {
     pub unk1: u32,
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct Unk4 {
     pub unk1: u32,
     pub unk2: u32,
@@ -383,7 +383,7 @@ impl Xc3Write for StringSection {
     }
 }
 
-impl<'a> Xc3WriteOffsets for <Spch as Xc3Write>::Offsets<'a> {
+impl<'a> Xc3WriteOffsets for SpchOffsets<'a> {
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,

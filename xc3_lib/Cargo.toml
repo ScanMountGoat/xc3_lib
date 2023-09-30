@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-xc3_lib_derive = { path = "../xc3_lib_derive" }
+xc3_write = { path = "../xc3_write" }
 binrw = "0.11.2"
 flate2 = "1.0"
 zune-inflate = "0.2.0"

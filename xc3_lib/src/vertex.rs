@@ -1,9 +1,7 @@
 //! Vertex and geometry data for model formats.
-use crate::{
-    parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32,
-    write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets},
-};
+use crate::{parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32};
 use binrw::{args, binread, BinRead, BinResult, BinWrite};
+use xc3_write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
 
 /// Vertex and vertex index buffer data used by a [Model](crate::mxmd::Model).
 #[binread]
@@ -228,7 +226,7 @@ pub struct Weights {
 
 // TODO: Counts up to the total number of "vertices" in the skin weights buffer?
 // TODO: How to select the weight group for each mesh in the model?
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct WeightGroup {
     pub output_start_index: u32,
     /// Start of the items in the weights buffer at [vertex_buffer_index](struct.Weights.html#structfield.vertex_buffer_index).
@@ -249,7 +247,7 @@ pub struct WeightGroup {
     pub unks2: [u32; 2],
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct WeightLod {
     /// One plus the indices pointing back to [groups](struct.Weights.html#structfield.groups).
     /// Unused entries use the value `0`.
@@ -278,7 +276,7 @@ pub struct Unk {
     unks: [u32; 8],
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct UnkInner {
     unk1: u16,
     unk2: u16,
@@ -288,7 +286,7 @@ pub struct UnkInner {
     unk6: u32,
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct VertexBufferInfo {
     flags: u16,
     outline_buffer_index: u16,
@@ -298,7 +296,7 @@ pub struct VertexBufferInfo {
     unk: u32,
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct OutlineBuffer {
     /// The offset into [buffer](struct.VertexData.html#structfield.buffer).
     pub data_offset: u32,
@@ -309,7 +307,7 @@ pub struct OutlineBuffer {
     unk: u32,
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct UnkData {
     pub unk: [u32; 17],
 }
@@ -317,7 +315,7 @@ pub struct UnkData {
 // TODO: Just derive Xc3Write?
 xc3_write_binwrite_impl!(VertexAttribute, DataType, IndexBufferDescriptor, Unk1, Unk2);
 
-impl<'a> Xc3WriteOffsets for <VertexData as Xc3Write>::Offsets<'a> {
+impl<'a> Xc3WriteOffsets for VertexDataOffsets<'a> {
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,

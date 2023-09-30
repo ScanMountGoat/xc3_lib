@@ -42,12 +42,12 @@ use std::{
     path::Path,
 };
 
-use crate::write::write_full;
 use binrw::{
     file_ptr::FilePtrArgs, BinRead, BinReaderExt, BinResult, BinWrite, FilePtr64, NullString,
     VecArgs,
 };
 use log::trace;
+use xc3_write::write_full;
 
 pub mod apmd;
 pub mod bc;
@@ -62,7 +62,6 @@ pub mod mxmd;
 pub mod sar1;
 pub mod spch;
 pub mod vertex;
-mod write;
 pub mod xbc1;
 
 const PAGE_SIZE: u64 = 4096;

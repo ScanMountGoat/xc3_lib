@@ -2,14 +2,12 @@
 //!
 //! XC3: `chr/{ch,en,oj,wp}/*.wimdo`, `monolib/shader/*.wimdo`
 use crate::{
-    msrd::TextureResource,
-    parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
-    spch::Spch,
-    vertex::VertexData,
-    write::{round_up, xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets},
+    msrd::TextureResource, parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32,
+    parse_string_ptr32, spch::Spch, vertex::VertexData,
 };
 use bilge::prelude::*;
 use binrw::{args, binread, BinRead, BinWrite};
+use xc3_write::{round_up, xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
 
 /// .wimdo files
 #[derive(Debug, BinRead, Xc3Write)]
@@ -112,7 +110,7 @@ pub struct Materials {
     pub unks4: [u32; 4],
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct AlphaTestTexture {
     // TODO: (_, 0, 1) has alpha testing?
     // TODO: Test different param values?
@@ -430,7 +428,7 @@ pub enum ShaderUnkType {
     Unk9 = 9, // used for maps?
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct Texture {
     pub texture_index: u16,
     pub sampler_index: u16,
@@ -520,7 +518,7 @@ pub struct Model {
     pub unks: [u32; 7],
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct Mesh {
     pub render_flags: u32,
     pub skin_flags: u32,
@@ -734,7 +732,7 @@ pub struct MeshUnk1Item1 {
     pub unk: [u32; 3],
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct MeshUnk1Item2 {
     pub unk1: u32,
     pub unk2: u32,
@@ -766,7 +764,7 @@ pub struct LodData {
 }
 
 // TODO: is lod: 0 in the mxmd special?
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct LodItem1 {
     pub unk1: [u32; 4],
     pub unk2: f32,
@@ -777,7 +775,7 @@ pub struct LodItem1 {
 }
 
 // TODO: lod group?
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct LodItem2 {
     pub base_lod_index: u16,
     pub lod_count: u16,
@@ -864,7 +862,7 @@ pub struct Textures2 {
     pub unk: [u32; 4],
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct TexturesUnk {
     pub unk1: u32,
     pub unk2: u32,
@@ -1006,7 +1004,7 @@ pub struct Skinning {
     pub unk: [u32; 4],
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(import_raw(base_offset: u64))]
 pub struct Bone {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
@@ -1084,7 +1082,7 @@ pub struct AsBoneData {
     pub unk: [u32; 2],
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct AsBone {
     /// The index in [bones](struct.Skeleton.html#structfield.bones).
     pub bone_index: u16,
@@ -1093,7 +1091,7 @@ pub struct AsBone {
     pub unk: [u32; 19],
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct AsBoneValue {
     unk1: [f32; 4],
     unk2: [f32; 4],
@@ -1132,13 +1130,13 @@ pub struct Unk1 {
     pub unk: [u32; 4],
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct Unk1Unk1 {
     pub index: u16,
     pub unk2: u16, // 1
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct Unk1Unk2 {
     pub unk1: u16, // 0
     pub index: u16,
@@ -1147,7 +1145,7 @@ pub struct Unk1Unk2 {
     pub unk5: u32, // 0
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct Unk1Unk3 {
     pub unk1: u16,
     pub unk2: u16,
@@ -1158,7 +1156,7 @@ pub struct Unk1Unk3 {
     pub unk7: u16,
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct Unk1Unk4 {
     pub unk1: f32,
     pub unk2: f32,
@@ -1191,12 +1189,14 @@ impl Xc3Write for MaterialFlags {
 }
 
 // TODO: Derive this?
-pub(crate) struct TexturesOffsets<'a> {
+#[doc(hidden)]
+pub struct TexturesOffsets<'a> {
     base_offset: u64,
     inner: TexturesOffsetsInner<'a>,
 }
 
-pub(crate) enum TexturesOffsetsInner<'a> {
+#[doc(hidden)]
+pub enum TexturesOffsetsInner<'a> {
     Unk0(Textures1Offsets<'a>),
     Unk1(Textures2Offsets<'a>),
 }
@@ -1220,7 +1220,7 @@ impl Xc3Write for Textures {
     }
 }
 
-impl<'a> Xc3WriteOffsets for <Textures as Xc3Write>::Offsets<'a> {
+impl<'a> Xc3WriteOffsets for TexturesOffsets<'a> {
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
@@ -1239,7 +1239,7 @@ impl<'a> Xc3WriteOffsets for <Textures as Xc3Write>::Offsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for <Skinning as Xc3Write>::Offsets<'a> {
+impl<'a> Xc3WriteOffsets for SkinningOffsets<'a> {
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
@@ -1273,7 +1273,7 @@ impl<'a> Xc3WriteOffsets for <Skinning as Xc3Write>::Offsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for <MeshUnk1 as Xc3Write>::Offsets<'a> {
+impl<'a> Xc3WriteOffsets for MeshUnk1Offsets<'a> {
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
@@ -1302,7 +1302,7 @@ impl<'a> Xc3WriteOffsets for <MeshUnk1 as Xc3Write>::Offsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for <LodData as Xc3Write>::Offsets<'a> {
+impl<'a> Xc3WriteOffsets for LodDataOffsets<'a> {
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
@@ -1317,7 +1317,7 @@ impl<'a> Xc3WriteOffsets for <LodData as Xc3Write>::Offsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for <Models as Xc3Write>::Offsets<'a> {
+impl<'a> Xc3WriteOffsets for ModelsOffsets<'a> {
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
@@ -1342,7 +1342,7 @@ impl<'a> Xc3WriteOffsets for <Models as Xc3Write>::Offsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for <ShaderProgramInfo as Xc3Write>::Offsets<'a> {
+impl<'a> Xc3WriteOffsets for ShaderProgramInfoOffsets<'a> {
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
@@ -1366,7 +1366,7 @@ impl<'a> Xc3WriteOffsets for <ShaderProgramInfo as Xc3Write>::Offsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for <Materials as Xc3Write>::Offsets<'a> {
+impl<'a> Xc3WriteOffsets for MaterialsOffsets<'a> {
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
@@ -1410,7 +1410,7 @@ impl<'a> Xc3WriteOffsets for <Materials as Xc3Write>::Offsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for <Mxmd as Xc3Write>::Offsets<'a> {
+impl<'a> Xc3WriteOffsets for MxmdOffsets<'a> {
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
@@ -1436,7 +1436,7 @@ impl<'a> Xc3WriteOffsets for <Mxmd as Xc3Write>::Offsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for <Textures2 as Xc3Write>::Offsets<'a> {
+impl<'a> Xc3WriteOffsets for Textures2Offsets<'a> {
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,

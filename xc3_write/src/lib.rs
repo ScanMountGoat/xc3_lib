@@ -6,7 +6,7 @@ use std::marker::PhantomData;
 use binrw::{BinResult, BinWrite};
 
 /// The write pass that writes fields and placeholder offsets.
-pub(crate) trait Xc3Write {
+pub trait Xc3Write {
     type Offsets<'a>
     where
         Self: 'a;
@@ -21,7 +21,7 @@ pub(crate) trait Xc3Write {
 }
 
 /// The layout pass that updates and writes data for all fields in [Xc3Write::Offsets] recursively.
-pub(crate) trait Xc3WriteOffsets {
+pub trait Xc3WriteOffsets {
     fn write_offsets<W: Write + Seek>(
         &self,
         writer: &mut W,
@@ -33,8 +33,7 @@ pub(crate) trait Xc3WriteOffsets {
 // A complete write uses a two pass approach to handle offsets.
 // We can fully write any type that can fully write its offset values.
 // This includes types with an offset type of () like primitive types.
-// This means structs without offsets only need to derive Xc3Write.
-pub(crate) fn write_full<'a, T, W>(
+pub fn write_full<'a, T, W>(
     value: &'a T,
     writer: &mut W,
     base_offset: u64,
@@ -53,10 +52,10 @@ where
 }
 
 // Support importing both the trait and derive macro at once.
-pub(crate) use xc3_lib_derive::Xc3Write;
-pub(crate) use xc3_lib_derive::Xc3WriteOffsets;
+pub use xc3_write_derive::Xc3Write;
+pub use xc3_write_derive::Xc3WriteOffsets;
 
-pub(crate) struct Offset<'a, P, T> {
+pub struct Offset<'a, P, T> {
     /// The position in the file for the offset field.
     pub position: u64,
     /// The data pointed to by the offset.
@@ -122,7 +121,7 @@ where
     <P as TryFrom<u64>>::Error: std::fmt::Debug,
     for<'b> P: BinWrite<Args<'b> = ()>,
 {
-    pub(crate) fn write_offset<W: Write + Seek>(
+    pub fn write_offset<W: Write + Seek>(
         &self,
         writer: &mut W,
         base_offset: u64,
@@ -143,7 +142,7 @@ where
     <P as TryFrom<u64>>::Error: std::fmt::Debug,
     for<'b> P: BinWrite<Args<'b> = ()>,
 {
-    pub(crate) fn write_offset<W: Write + Seek>(
+    pub fn write_offset<W: Write + Seek>(
         &self,
         writer: &mut W,
         base_offset: u64,
@@ -206,6 +205,7 @@ where
 }
 
 // TODO: This won't work as a blanket impl because of Vec?
+#[macro_export]
 macro_rules! xc3_write_binwrite_impl {
     ($($ty:ty),*) => {
         $(
@@ -229,8 +229,6 @@ macro_rules! xc3_write_binwrite_impl {
 
     };
 }
-
-pub(crate) use xc3_write_binwrite_impl;
 
 xc3_write_binwrite_impl!(
     i8,
@@ -300,7 +298,7 @@ where
         // TODO: Find a less hacky way to specialize Vec<u8>.
         let offsets = if let Some(bytes) = <dyn core::any::Any>::downcast_ref::<Vec<u8>>(self) {
             // Avoiding writing buffers byte by byte to drastically improve performance.
-            writer.write_all(&bytes)?;
+            writer.write_all(bytes)?;
             Vec::new()
         } else {
             self.iter()
@@ -329,6 +327,18 @@ where
     }
 }
 
+impl Xc3Write for () {
+    type Offsets<'a> = ();
+
+    fn xc3_write<W: Write + Seek>(
+        &self,
+        _writer: &mut W,
+        _data_ptr: &mut u64,
+    ) -> BinResult<Self::Offsets<'_>> {
+        Ok(())
+    }
+}
+
 impl Xc3WriteOffsets for () {
     fn write_offsets<W: Write + Seek>(
         &self,
@@ -340,6 +350,6 @@ impl Xc3WriteOffsets for () {
     }
 }
 
-pub(crate) const fn round_up(x: u64, n: u64) -> u64 {
+pub const fn round_up(x: u64, n: u64) -> u64 {
     ((x + n - 1) / n) * n
 }

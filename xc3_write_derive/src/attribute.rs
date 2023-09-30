@@ -8,7 +8,9 @@ pub struct FieldOptions {
 
 // TODO: Separate count field similar to #[bw(calc(...))]?
 pub enum FieldType {
+    Offset16,
     Offset32,
+    Offset64,
     Offset32Count32,
     Count32Offset32,
 }
@@ -24,9 +26,15 @@ impl FieldOptions {
                 // TODO: add types like offset32 or offset64_count32
                 // TODO: separate offset and count fields?
                 let _ = a.parse_nested_meta(|meta| {
-                    if meta.path.is_ident("offset32") {
+                    if meta.path.is_ident("offset16") {
+                        // #[xc3(offset16)]
+                        field_type = Some(FieldType::Offset16);
+                    } else if meta.path.is_ident("offset32") {
                         // #[xc3(offset32)]
                         field_type = Some(FieldType::Offset32);
+                    } else if meta.path.is_ident("offset64") {
+                        // #[xc3(offset64)]
+                        field_type = Some(FieldType::Offset64);
                     } else if meta.path.is_ident("offset32_count32") {
                         // #[xc3(offset32_count32)]
                         field_type = Some(FieldType::Offset32Count32);

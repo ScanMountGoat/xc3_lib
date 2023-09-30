@@ -7,6 +7,7 @@ use std::{
 };
 
 use binrw::{binread, BinRead, BinWrite};
+use xc3_write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
 
 use crate::{
     map::{
@@ -16,7 +17,6 @@ use crate::{
     mibl::Mibl,
     parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
     vertex::VertexData,
-    write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets},
     xbc1::Xbc1,
 };
 
@@ -448,12 +448,12 @@ pub struct MapParts {
     #[br(temp)]
     instance_animations_count: u32,
 
+    // TODO: Find a cleaner way of handling these offsets.
     #[br(seek_before = std::io::SeekFrom::Start(base_offset + animated_parts_offset as u64))]
     #[br(args { count: instance_animations_count as usize })]
     #[br(restore_position)]
     pub animated_instances: Vec<PropInstance>,
 
-    // TODO: Find a cleaner way of writing this?
     #[br(seek_before = std::io::SeekFrom::Start(base_offset + instance_animations_offset as u64))]
     #[br(args { count: instance_animations_count as usize, inner: base_offset })]
     #[br(restore_position)]

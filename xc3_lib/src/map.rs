@@ -1,15 +1,14 @@
 //! Map data stored in compressed sections in `.wismda` files.
 //!
 //! Many of these sections use the same formats as character models.
-
 use binrw::{binread, BinRead};
+use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 use crate::{
     mxmd::{Materials, Models, PackedTextures},
     parse_count_offset, parse_offset_count, parse_ptr32, parse_string_ptr32,
     spch::Spch,
     vertex::VertexData,
-    write::{Xc3Write, Xc3WriteOffsets},
 };
 
 // TODO: Improve docs.
@@ -115,7 +114,7 @@ pub struct PropLods {
     pub static_parts_count: u32,
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct PropLod {
     // TODO: Do these actually index into the PropModelLod?
     /// The index of the base LOD (highest quality) [Model](crate::mxmd::Model)
@@ -125,7 +124,7 @@ pub struct PropLod {
     pub lod_count: u32,
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct PropModelLod {
     pub radius: f32,
     pub distance: f32,
@@ -133,7 +132,7 @@ pub struct PropModelLod {
     pub index: u32,
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct PropInstance {
     /// The transform of the instance as a 4x4 column-major matrix.
     pub transform: [[f32; 4]; 4],
@@ -156,13 +155,13 @@ pub struct PropInstance {
     pub unks: [u32; 2],
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct PropUnk3 {
     pub unk1: [f32; 5],
     pub unk2: [u32; 3],
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct PropPositionInfo {
     /// The index in [prop_positions](../msmd/struct.Msmd.html#structfield.prop_positions).
     pub prop_position_entry_index: u32,
@@ -210,7 +209,7 @@ pub struct MapModelData {
 
 // TODO: Shared with other formats?
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct Texture {
     // TODO: What do these index into?
     pub low_texture_index: i16,
@@ -240,7 +239,7 @@ pub struct MapModelGroups {
 }
 
 // Groups?
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct MapModelGroup {
     pub max_xyz: [f32; 3],
     pub min_xyz: [f32; 3],
@@ -368,13 +367,13 @@ pub struct FoliageVertexData {
     pub unks: [u32; 7],
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct FoliageVertex1 {
     pub unk1: [f32; 3],
     pub unk2: [u8; 4],
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct FoliageVertex2 {
     pub unk1: [f32; 4],
     pub unk2: u32, // offset?
@@ -383,7 +382,7 @@ pub struct FoliageVertex2 {
     pub unk5: u32,
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct FoliageUnkData {
     pub unk1: [u32; 9], // length of the file repeated?
     pub unk2: [f32; 4],
@@ -444,7 +443,7 @@ pub struct PropPositions {
     // TODO: more fields?
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct RenderNode {
     pub center: [f32; 3],
     pub radius: f32,

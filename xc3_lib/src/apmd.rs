@@ -1,13 +1,13 @@
 //! Model archive for character and map models in `.wimdo` files.
 use std::io::Cursor;
 
-use crate::write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
 use crate::{
     msmd::{Dlgt, Gibl, Nerd},
     mxmd::Mxmd,
     parse_offset_count,
 };
 use binrw::{BinRead, BinReaderExt, BinWrite};
+use xc3_write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
 
 /// A packed model container with entries like [Mxmd](crate::mxmd::Mxmd) or [Gibl](crate::msmd::Gibl).
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]

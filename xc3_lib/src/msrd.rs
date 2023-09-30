@@ -2,15 +2,11 @@
 //!
 //! XC3: `chr/{ch,en,oj,wp}/*.wismt`
 use crate::{
-    mibl::Mibl,
-    mxmd::PackedExternalTextures,
-    parse_count_offset, parse_opt_ptr32, parse_ptr32,
-    spch::Spch,
-    vertex::VertexData,
-    write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets},
-    xbc1::Xbc1,
+    mibl::Mibl, mxmd::PackedExternalTextures, parse_count_offset, parse_opt_ptr32, parse_ptr32,
+    spch::Spch, vertex::VertexData, xbc1::Xbc1,
 };
 use binrw::{binread, BinRead, BinResult, BinWrite};
+use xc3_write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
 
 /// .wismt model files in `chr/bt`, `chr/ch/`, `chr/en`, `chr/oj`, and `chr/wp`.
 #[binread]
@@ -84,7 +80,7 @@ pub enum EntryType {
     Texture = 3,
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct Stream {
     pub comp_size: u32,
     pub decomp_size: u32, // TODO: slightly larger than xbc1 decomp size?
@@ -94,7 +90,7 @@ pub struct Stream {
     pub xbc1: Xbc1,
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct TextureResource {
     // TODO: The the texture name hash as an integer?
     pub hash: u32,
@@ -158,7 +154,7 @@ impl Msrd {
 
 xc3_write_binwrite_impl!(StreamEntry);
 
-impl<'a> Xc3WriteOffsets for <Msrd as Xc3Write>::Offsets<'a> {
+impl<'a> Xc3WriteOffsets for MsrdOffsets<'a> {
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,

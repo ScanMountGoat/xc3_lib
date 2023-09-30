@@ -9,9 +9,9 @@ use image_dds::Surface;
 use crate::{
     mibl::Mibl,
     mibl::{ImageFormat, MiblFooter, ViewDimension},
-    write::round_up,
     PAGE_SIZE,
 };
+use xc3_write::round_up;
 
 // TODO: Create a write_dds and save_dds helper functions or trait?
 pub fn save_dds<P: AsRef<Path>>(path: P, dds: &Dds) {

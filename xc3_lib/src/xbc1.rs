@@ -5,7 +5,7 @@ use binrw::{BinRead, BinResult, BinWrite, NullString};
 use flate2::{bufread::ZlibEncoder, Compression};
 use zune_inflate::{errors::InflateDecodeErrors, DeflateDecoder, DeflateOptions};
 
-use crate::write::Xc3Write;
+use xc3_write::Xc3Write;
 
 // TODO: test read + write
 #[derive(BinRead, BinWrite, Debug)]
