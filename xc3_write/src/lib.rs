@@ -223,7 +223,8 @@ macro_rules! xc3_write_binwrite_impl {
                     Ok(())
                 }
 
-                const ALIGNMENT: u64 = std::mem::size_of::<$ty>() as u64;
+                // TODO: Should this be specified manually?
+                const ALIGNMENT: u64 = std::mem::align_of::<$ty>() as u64;
             }
         )*
 
