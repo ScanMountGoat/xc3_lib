@@ -147,16 +147,22 @@ struct FieldData {
 }
 
 impl FieldData {
-    fn from_offset(
-        name: &Ident,
-        alignment: Option<u64>,
-        pointer: &TokenStream2,
-        ty: &Type,
-    ) -> Self {
+    fn offset(name: &Ident, alignment: Option<u64>, pointer: &TokenStream2, ty: &Type) -> Self {
         Self {
             name: name.clone(),
             offset_field: offset_field(name, pointer, ty),
             write_impl: write_dummy_offset(name, alignment, pointer),
+            write_offset_impl: quote! {
+                self.#name.write_full(writer, base_offset, data_ptr)?;
+            },
+        }
+    }
+
+    fn shared_offset(name: &Ident, alignment: Option<u64>, pointer: &TokenStream2) -> Self {
+        Self {
+            name: name.clone(),
+            offset_field: offset_field(name, pointer, &Type::Verbatim(quote!(()))),
+            write_impl: write_dummy_shared_offset(name, alignment, pointer),
             write_offset_impl: quote! {
                 self.#name.write_full(writer, base_offset, data_ptr)?;
             },
@@ -169,10 +175,29 @@ fn write_dummy_offset(
     alignment: Option<u64>,
     pointer: &TokenStream2,
 ) -> TokenStream2 {
-    let create_offset = create_offset_struct(name, alignment);
+    let alignment = match alignment {
+        Some(align) => quote!(Some(#align)),
+        None => quote!(None),
+    };
     quote! {
+        let #name = ::xc3_write::Offset::new(writer.stream_position()?, &self.#name, #alignment);
         // Assume 0 is the default for the pointer type.
-        let #name = #create_offset;
+        #pointer::default().write_le(writer)?;
+    }
+}
+
+fn write_dummy_shared_offset(
+    name: &Ident,
+    alignment: Option<u64>,
+    pointer: &TokenStream2,
+) -> TokenStream2 {
+    let alignment = match alignment {
+        Some(align) => quote!(Some(#align)),
+        None => quote!(None),
+    };
+    quote! {
+        let #name = ::xc3_write::Offset::new(writer.stream_position()?, &(), #alignment);
+        // Assume 0 is the default for the pointer type.
         #pointer::default().write_le(writer)?;
     }
 }
@@ -209,7 +234,7 @@ fn parse_field_data(data: &Data) -> Vec<FieldData> {
                 // TODO: Reduce repeated code?
                 match options.field_type {
                     Some(FieldType::Offset16) => {
-                        offset_fields.push(FieldData::from_offset(
+                        offset_fields.push(FieldData::offset(
                             name,
                             options.align,
                             &quote!(u16),
@@ -217,7 +242,7 @@ fn parse_field_data(data: &Data) -> Vec<FieldData> {
                         ));
                     }
                     Some(FieldType::Offset32) => {
-                        offset_fields.push(FieldData::from_offset(
+                        offset_fields.push(FieldData::offset(
                             name,
                             options.align,
                             &quote!(u32),
@@ -225,7 +250,7 @@ fn parse_field_data(data: &Data) -> Vec<FieldData> {
                         ));
                     }
                     Some(FieldType::Offset64) => {
-                        offset_fields.push(FieldData::from_offset(
+                        offset_fields.push(FieldData::offset(
                             name,
                             options.align,
                             &quote!(u64),
@@ -261,6 +286,15 @@ fn parse_field_data(data: &Data) -> Vec<FieldData> {
                                 self.#name.write_full(writer, base_offset, data_ptr)?;
                             },
                         });
+                    }
+                    Some(FieldType::SharedOffset) => {
+                        // Shared offsets don't actually contain any data.
+                        // The pointer type is the type of the field itself.
+                        offset_fields.push(FieldData::shared_offset(
+                            name,
+                            options.align,
+                            &quote!(#ty),
+                        ));
                     }
                     None => {
                         // Also include fields not marked as offsets in the struct.
@@ -299,12 +333,4 @@ fn parse_field_data(data: &Data) -> Vec<FieldData> {
 
 fn offset_field(name: &Ident, pointer: &TokenStream2, ty: &Type) -> TokenStream2 {
     quote!(pub #name: ::xc3_write::Offset<'a, #pointer, #ty>)
-}
-
-fn create_offset_struct(name: &Ident, alignment: Option<u64>) -> TokenStream2 {
-    let alignment = match alignment {
-        Some(align) => quote!(Some(#align)),
-        None => quote!(None),
-    };
-    quote!(::xc3_write::Offset::new(writer.stream_position()?, &self.#name, #alignment))
 }

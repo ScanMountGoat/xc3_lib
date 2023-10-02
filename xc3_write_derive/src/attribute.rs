@@ -10,6 +10,7 @@ pub struct FieldOptions {
 // TODO: shared_offset32 for Offset<()>?
 // TODO: can shared offset just use the underlying type for P?
 pub enum FieldType {
+    SharedOffset,
     Offset16,
     Offset32,
     Offset64,
@@ -50,8 +51,10 @@ impl FieldOptions {
                     } else if meta.path.is_ident("pad_size_to") {
                         // #[xc3(pad_size_to(128))]
                         pad_size_to = Some(parse_u64(&meta)?);
+                    } else if meta.path.is_ident("shared_offset") {
+                        // #[xc3(shared_offset)]
+                        field_type = Some(FieldType::SharedOffset);
                     }
-
                     Ok(())
                 });
             }

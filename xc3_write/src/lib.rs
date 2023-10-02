@@ -338,6 +338,8 @@ impl Xc3Write for () {
     ) -> BinResult<Self::Offsets<'_>> {
         Ok(())
     }
+
+    const ALIGNMENT: u64 = 1;
 }
 
 impl Xc3WriteOffsets for () {
