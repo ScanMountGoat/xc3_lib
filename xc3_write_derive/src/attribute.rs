@@ -7,6 +7,8 @@ pub struct FieldOptions {
 }
 
 // TODO: Separate count field similar to #[bw(calc(...))]?
+// TODO: shared_offset32 for Offset<()>?
+// TODO: can shared offset just use the underlying type for P?
 pub enum FieldType {
     Offset16,
     Offset32,
