@@ -5,6 +5,7 @@ use std::{
 };
 
 use clap::Parser;
+use image::ImageDecoder;
 use rayon::prelude::*;
 use xc3_lib::{
     dds::{create_dds, create_mibl},
@@ -267,10 +268,23 @@ fn read_wismt_single_tex<P: AsRef<Path>>(path: P) -> (Vec<u8>, Mibl) {
     (decompressed, mibl)
 }
 
-fn check_dhal(dhal: Dhal, _path: Option<&Path>) {
-    if let Some(textures) = dhal.textures {
-        for texture in textures.textures {
-            Mibl::from_bytes(&texture.mibl_data).unwrap();
+fn check_dhal(dhal: Dhal, path: Option<&Path>) {
+    if let Some(path) = path {
+        if let Some(textures) = dhal.textures {
+            for texture in textures.textures {
+                let mibl = Mibl::from_bytes(&texture.mibl_data).unwrap();
+                check_mibl(texture.mibl_data, mibl, path);
+            }
+        }
+
+        if let Some(textures) = dhal.uncompressed_textures {
+            for texture in textures.textures {
+                // Check for valid JFIF/JPEG data.
+                let mut reader = Cursor::new(&texture.jpeg_data);
+                let decoder = image::codecs::jpeg::JpegDecoder::new(&mut reader).unwrap();
+                let mut bytes = vec![0u8; decoder.total_bytes() as usize];
+                decoder.read_image(&mut bytes).unwrap();
+            }
         }
     }
 }

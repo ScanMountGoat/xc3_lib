@@ -186,9 +186,10 @@ pub struct UncompressedTextures {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct UncompressedTexture {
     // TODO: always JFIF?
+    /// JFIF/JPEG image file data commonly saved with the `.jfif` or `.jpeg` extension.
     #[br(parse_with = parse_offset_count)]
     #[xc3(offset32_count32)]
-    pub jfif_data: Vec<u8>,
+    pub jpeg_data: Vec<u8>,
 
     pub unk3: u32,
     pub unk4: u32,
