@@ -1,5 +1,5 @@
 //! User interface [Mibl](crate::mibl::Mibl) images in `.wilay` files.
-use crate::{parse_offset_count, parse_opt_ptr32, parse_ptr32};
+use crate::{parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32};
 use binrw::{binread, BinRead};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
@@ -10,21 +10,20 @@ use xc3_write::{Xc3Write, Xc3WriteOffsets};
 pub struct Dhal {
     pub version: u32,
 
-    // TODO: 0 or 1 depending on type of next field?
     pub unk0: u32,
 
+    // TODO: alignment is sometimes 16?
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset32)]
-    pub unk1: [f32; 15],
+    pub unk1: Unk1,
 
     // TODO: always 0?
     pub unk2: u32,
 
     #[br(parse_with = parse_opt_ptr32)]
-    #[xc3(offset32)]
+    #[xc3(offset32, align(4))]
     pub unk3: Option<Unk3>,
 
-    // TODO: more offsets?
     #[br(parse_with = parse_opt_ptr32)]
     #[xc3(offset32)]
     pub unk4: Option<Unk4>,
@@ -50,6 +49,27 @@ pub struct Dhal {
 
     // TODO: padding?
     pub unk: [u32; 9],
+}
+
+#[binread]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[br(stream = r)]
+#[xc3(base_offset)]
+pub struct Unk1 {
+    pub unk1: u32,
+    pub unk2: u32,
+    pub unk3: u32,
+    pub unk4: u32,
+    pub unk5: f32,
+    pub unk6: f32,
+    pub unk7: u32,
+    pub unk8: u32,
+    pub unk9: f32,
+    pub unk10: f32,
+    pub unk11: f32,
+
+    // TODO: padding?
+    pub unk: [u32; 4],
 }
 
 #[binread]
@@ -111,13 +131,22 @@ pub struct Unk4 {
 #[br(import_raw(base_offset: u64))]
 pub struct Unk4Unk2 {
     // TODO: more offsets
-    pub unk1: u32,
-    pub unk2: u32,
-    pub unk3: u32,
+    #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[xc3(count32_offset32)]
+    pub unk1: Vec<u32>,
+
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[xc3(offset32)]
+    pub unk3: [u32; 2],
+
     pub unk4: u32,
     pub unk5: u32,
     pub unk6: u32,
+
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[xc3(offset32)]
     pub unk7: u32,
+
     pub unk8: u32,
     pub unk9: u32,
     pub unk10: u32,

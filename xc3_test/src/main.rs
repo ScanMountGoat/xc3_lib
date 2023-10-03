@@ -138,7 +138,7 @@ fn check_all_mibl<P: AsRef<Path>>(root: P) {
             .for_each(|entry| {
                 let path = entry.as_ref().unwrap().path();
                 let (original_bytes, mibl) = read_wismt_single_tex(path);
-                check_mibl(original_bytes, mibl, path);
+                check_mibl(&original_bytes, mibl, path);
             });
     }
 
@@ -151,7 +151,7 @@ fn check_all_mibl<P: AsRef<Path>>(root: P) {
             let path = entry.as_ref().unwrap().path();
             let original_bytes = std::fs::read(path).unwrap();
             let mibl = Mibl::from_file(path).unwrap();
-            check_mibl(original_bytes, mibl, path);
+            check_mibl(&original_bytes, mibl, path);
         });
 }
 
@@ -246,7 +246,7 @@ fn check_msmd(msmd: Msmd, path: Option<&Path>) {
     }
 }
 
-fn check_mibl(original_bytes: Vec<u8>, mibl: Mibl, path: &Path) {
+fn check_mibl(original_bytes: &[u8], mibl: Mibl, path: &Path) {
     let dds = create_dds(&mibl).unwrap();
     let new_mibl = create_mibl(&dds).unwrap();
 
@@ -270,21 +270,29 @@ fn read_wismt_single_tex<P: AsRef<Path>>(path: P) -> (Vec<u8>, Mibl) {
 
 fn check_dhal(dhal: Dhal, path: Option<&Path>) {
     if let Some(path) = path {
-        if let Some(textures) = dhal.textures {
-            for texture in textures.textures {
+        if let Some(textures) = &dhal.textures {
+            for texture in &textures.textures {
                 let mibl = Mibl::from_bytes(&texture.mibl_data).unwrap();
-                check_mibl(texture.mibl_data, mibl, path);
+                check_mibl(&texture.mibl_data, mibl, path);
             }
         }
 
-        if let Some(textures) = dhal.uncompressed_textures {
-            for texture in textures.textures {
+        if let Some(textures) = &dhal.uncompressed_textures {
+            for texture in &textures.textures {
                 // Check for valid JFIF/JPEG data.
                 let mut reader = Cursor::new(&texture.jpeg_data);
                 let decoder = image::codecs::jpeg::JpegDecoder::new(&mut reader).unwrap();
                 let mut bytes = vec![0u8; decoder.total_bytes() as usize];
                 decoder.read_image(&mut bytes).unwrap();
             }
+        }
+
+        // Check read/write.
+        let original = std::fs::read(path).unwrap();
+        let mut writer = Cursor::new(Vec::new());
+        dhal.write(&mut writer).unwrap();
+        if writer.into_inner() != original {
+            println!("Dhal read/write not 1:1 for {path:?}");
         }
     }
 }
