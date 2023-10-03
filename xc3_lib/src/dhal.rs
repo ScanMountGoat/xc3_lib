@@ -46,7 +46,7 @@ pub struct Dhal {
 
     #[br(parse_with = parse_opt_ptr32)]
     #[xc3(offset32)]
-    pub unk7: Option<Unk7>,
+    pub uncompressed_textures: Option<UncompressedTextures>,
 
     // TODO: padding?
     pub unk: [u32; 9],
@@ -172,28 +172,33 @@ pub struct Texture {
     pub mibl_data: Vec<u8>,
 }
 
-#[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
-#[br(stream = r)]
-#[xc3(base_offset)]
-pub struct Unk7 {
-    #[br(temp, try_calc = r.stream_position())]
-    base_offset: u64,
-
-    // TODO: size and type?
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct UncompressedTextures {
+    // TODO: does this always use base offset 0?
+    #[br(parse_with = parse_offset_count)]
     #[xc3(offset32_count32)]
-    pub unk1: Vec<u32>,
+    pub textures: Vec<UncompressedTexture>,
 
     // TODO: padding?
     pub unk: [u32; 4],
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct UncompressedTexture {
+    // TODO: always JFIF?
+    #[br(parse_with = parse_offset_count)]
+    #[xc3(offset32_count32)]
+    pub jfif_data: Vec<u8>,
+
+    pub unk3: u32,
+    pub unk4: u32,
 }
 
 impl<'a> Xc3WriteOffsets for Unk4Offsets<'a> {
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
-        b_ase_offset: u64,
+        _base_offset: u64,
         data_ptr: &mut u64,
     ) -> binrw::BinResult<()> {
         // Different order than field order.
