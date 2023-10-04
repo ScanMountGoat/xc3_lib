@@ -438,12 +438,6 @@ fn model_vertex_buffers(
         .vertex_buffers
         .iter()
         .map(|buffer| {
-            let vertex_count = buffer
-                .attributes
-                .first()
-                .map(|a| a.len())
-                .unwrap_or_default();
-
             let mut vertices = vec![
                 shader::model::VertexInput {
                     position: Vec3::ZERO,
@@ -454,7 +448,7 @@ fn model_vertex_buffers(
                     tangent: Vec4::ZERO,
                     uv1: Vec4::ZERO,
                 };
-                vertex_count
+                buffer.vertex_count()
             ];
 
             // Convert the attributes back to an interleaved representation for rendering.
@@ -478,7 +472,30 @@ fn set_attributes(
     buffer: &xc3_model::VertexBuffer,
     skeleton: Option<&xc3_model::Skeleton>,
 ) {
-    for attribute in &buffer.attributes {
+    set_buffer_attributes(verts, &buffer.attributes);
+
+    // Just apply the base morph target for now.
+    // TODO: Do the morph attributes always override the buffer attributes?
+    // TODO: Render morph target animations?
+    if let Some(target) = buffer.morph_targets.first() {
+        set_buffer_attributes(verts, &target.attributes);
+    }
+
+    if let Some(skeleton) = skeleton {
+        // TODO: Avoid collect?
+        let bone_names: Vec<_> = skeleton.bones.iter().map(|b| b.name.as_str()).collect();
+        let (indices, weights) = bone_indices_weights(&buffer.influences, verts.len(), &bone_names);
+
+        set_attribute(verts, &indices, |v, t| {
+            // TODO: Will this always work as little endian?
+            v.bone_indices = u32::from_le_bytes(t)
+        });
+        set_attribute(verts, &weights, |v, t| v.skin_weights = t);
+    }
+}
+
+fn set_buffer_attributes(verts: &mut [shader::model::VertexInput], attributes: &[AttributeData]) {
+    for attribute in attributes {
         match attribute {
             AttributeData::Position(vals) => set_attribute(verts, vals, |v, t| v.position = t),
             AttributeData::Normal(vals) => set_attribute(verts, vals, |v, t| v.normal = t),
@@ -495,18 +512,6 @@ fn set_attributes(
             AttributeData::SkinWeights(_) => (),
             AttributeData::BoneIndices(_) => (),
         }
-    }
-
-    if let Some(skeleton) = skeleton {
-        // TODO: Avoid collect?
-        let bone_names: Vec<_> = skeleton.bones.iter().map(|b| b.name.as_str()).collect();
-        let (indices, weights) = bone_indices_weights(&buffer.influences, verts.len(), &bone_names);
-
-        set_attribute(verts, &indices, |v, t| {
-            // TODO: Will this always work as little endian?
-            v.bone_indices = u32::from_le_bytes(t)
-        });
-        set_attribute(verts, &weights, |v, t| v.skin_weights = t);
     }
 }
 

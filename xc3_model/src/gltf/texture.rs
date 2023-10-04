@@ -88,6 +88,7 @@ pub fn albedo_generated_key(
         })
         .or_else(|| texture_channel_index(material, 0, 'w'));
 
+    // TODO: Default to the first texture for albedo if no database entry?
     Some(GeneratedImageKey {
         root_index,
         red_index,

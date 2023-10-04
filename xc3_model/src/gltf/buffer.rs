@@ -83,80 +83,12 @@ impl Buffers {
     ) {
         for (i, vertex_buffer) in buffers.vertex_buffers.iter().enumerate() {
             let mut attributes = BTreeMap::new();
-            for attribute in &vertex_buffer.attributes {
-                match attribute {
-                    AttributeData::Position(values) => {
-                        self.add_attribute_values(
-                            values,
-                            gltf::Semantic::Positions,
-                            gltf::json::accessor::Type::Vec3,
-                            gltf::json::accessor::ComponentType::F32,
-                            Some(Valid(Target::ArrayBuffer)),
-                            &mut attributes,
-                        );
-                    }
-                    AttributeData::Normal(values) => {
-                        // Not all applications will normalize the vertex normals.
-                        // Use Vec3 instead of Vec4 since it's better supported.
-                        let values: Vec<_> = values.iter().map(|v| v.xyz().normalize()).collect();
-                        self.add_attribute_values(
-                            &values,
-                            gltf::Semantic::Normals,
-                            gltf::json::accessor::Type::Vec3,
-                            gltf::json::accessor::ComponentType::F32,
-                            Some(Valid(Target::ArrayBuffer)),
-                            &mut attributes,
-                        );
-                    }
-                    AttributeData::Tangent(values) => {
-                        // TODO: do these values need to be scaled/normalized?
-                        self.add_attribute_values(
-                            values,
-                            gltf::Semantic::Tangents,
-                            gltf::json::accessor::Type::Vec4,
-                            gltf::json::accessor::ComponentType::F32,
-                            Some(Valid(Target::ArrayBuffer)),
-                            &mut attributes,
-                        );
-                    }
-                    AttributeData::Uv1(values) => {
-                        self.add_attribute_values(
-                            values,
-                            gltf::Semantic::TexCoords(0),
-                            gltf::json::accessor::Type::Vec2,
-                            gltf::json::accessor::ComponentType::F32,
-                            Some(Valid(Target::ArrayBuffer)),
-                            &mut attributes,
-                        );
-                    }
-                    AttributeData::Uv2(values) => {
-                        self.add_attribute_values(
-                            values,
-                            gltf::Semantic::TexCoords(1),
-                            gltf::json::accessor::Type::Vec2,
-                            gltf::json::accessor::ComponentType::F32,
-                            Some(Valid(Target::ArrayBuffer)),
-                            &mut attributes,
-                        );
-                    }
-                    AttributeData::VertexColor(values) => {
-                        // TODO: Vertex color isn't always an RGB multiplier?
-                        // Use a custom attribute to avoid rendering issues.
-                        self.add_attribute_values(
-                            values,
-                            gltf::Semantic::Extras("_Color".to_string()),
-                            gltf::json::accessor::Type::Vec4,
-                            gltf::json::accessor::ComponentType::F32,
-                            Some(Valid(Target::ArrayBuffer)),
-                            &mut attributes,
-                        );
-                    }
-                    // Skin weights are handled separately.
-                    // TODO: remove these attributes?
-                    AttributeData::WeightIndex(_) => (),
-                    AttributeData::SkinWeights(_) => (),
-                    AttributeData::BoneIndices(_) => (),
-                }
+            self.add_attributes(&mut attributes, &vertex_buffer.attributes);
+
+            // TODO: Save morph targets separately?
+            // Just apply the base morph target for now.
+            if let Some(target) = vertex_buffer.morph_targets.first() {
+                self.add_attributes(&mut attributes, &target.attributes);
             }
 
             if let Some(skeleton) = skeleton {
@@ -196,6 +128,88 @@ impl Buffers {
                 },
                 attributes,
             );
+        }
+    }
+
+    fn add_attributes(
+        &mut self,
+        attributes: &mut GltfAttributes,
+        buffer_attributes: &[AttributeData],
+    ) {
+        for attribute in buffer_attributes {
+            match attribute {
+                AttributeData::Position(values) => {
+                    self.add_attribute_values(
+                        values,
+                        gltf::Semantic::Positions,
+                        gltf::json::accessor::Type::Vec3,
+                        gltf::json::accessor::ComponentType::F32,
+                        Some(Valid(Target::ArrayBuffer)),
+                        attributes,
+                    );
+                }
+                AttributeData::Normal(values) => {
+                    // Not all applications will normalize the vertex normals.
+                    // Use Vec3 instead of Vec4 since it's better supported.
+                    let values: Vec<_> = values.iter().map(|v| v.xyz().normalize()).collect();
+                    self.add_attribute_values(
+                        &values,
+                        gltf::Semantic::Normals,
+                        gltf::json::accessor::Type::Vec3,
+                        gltf::json::accessor::ComponentType::F32,
+                        Some(Valid(Target::ArrayBuffer)),
+                        attributes,
+                    );
+                }
+                AttributeData::Tangent(values) => {
+                    // TODO: do these values need to be scaled/normalized?
+                    self.add_attribute_values(
+                        values,
+                        gltf::Semantic::Tangents,
+                        gltf::json::accessor::Type::Vec4,
+                        gltf::json::accessor::ComponentType::F32,
+                        Some(Valid(Target::ArrayBuffer)),
+                        attributes,
+                    );
+                }
+                AttributeData::Uv1(values) => {
+                    self.add_attribute_values(
+                        values,
+                        gltf::Semantic::TexCoords(0),
+                        gltf::json::accessor::Type::Vec2,
+                        gltf::json::accessor::ComponentType::F32,
+                        Some(Valid(Target::ArrayBuffer)),
+                        attributes,
+                    );
+                }
+                AttributeData::Uv2(values) => {
+                    self.add_attribute_values(
+                        values,
+                        gltf::Semantic::TexCoords(1),
+                        gltf::json::accessor::Type::Vec2,
+                        gltf::json::accessor::ComponentType::F32,
+                        Some(Valid(Target::ArrayBuffer)),
+                        attributes,
+                    );
+                }
+                AttributeData::VertexColor(values) => {
+                    // TODO: Vertex color isn't always an RGB multiplier?
+                    // Use a custom attribute to avoid rendering issues.
+                    self.add_attribute_values(
+                        values,
+                        gltf::Semantic::Extras("_Color".to_string()),
+                        gltf::json::accessor::Type::Vec4,
+                        gltf::json::accessor::ComponentType::F32,
+                        Some(Valid(Target::ArrayBuffer)),
+                        attributes,
+                    );
+                }
+                // Skin weights are handled separately.
+                // TODO: remove these attributes?
+                AttributeData::WeightIndex(_) => (),
+                AttributeData::SkinWeights(_) => (),
+                AttributeData::BoneIndices(_) => (),
+            }
         }
     }
 

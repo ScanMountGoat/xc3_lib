@@ -468,10 +468,9 @@ pub struct Models {
 
     pub unks3_2: [u32; 5],
 
-    // TODO: vertex morphs/blendshapes?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset32)]
-    model_unk2: Option<ModelUnk2>,
+    morph_controllers: Option<MorphControllers>,
 
     // TODO: eye animations?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
@@ -552,18 +551,18 @@ pub struct ModelUnk {
     unk3: u32,
 }
 
-// TODO: vertex morphs?
 #[binread]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets)]
 #[br(stream = r)]
 #[xc3(base_offset)]
-pub struct ModelUnk2 {
+pub struct MorphControllers {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
+    // TODO: same count as morph targets per descriptor in vertex data?
     #[br(parse_with = parse_offset_count, args { offset: base_offset, inner: base_offset })]
     #[xc3(offset32_count32)]
-    items: Vec<ModelUnk2Inner>,
+    controllers: Vec<MorphController>,
 
     unk1: u32,
     unk2: u32,
@@ -573,7 +572,7 @@ pub struct ModelUnk2 {
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(import_raw(base_offset: u64))]
-pub struct ModelUnk2Inner {
+pub struct MorphController {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     #[xc3(offset32)]
     name1: String,
@@ -1329,7 +1328,8 @@ impl<'a> Xc3WriteOffsets for ModelsOffsets<'a> {
         self.models.write_full(writer, base_offset, data_ptr)?;
         self.skinning.write_full(writer, base_offset, data_ptr)?;
         self.model_unks.write_full(writer, base_offset, data_ptr)?;
-        self.model_unk2.write_full(writer, base_offset, data_ptr)?;
+        self.morph_controllers
+            .write_full(writer, base_offset, data_ptr)?;
 
         // Different order than field order.
         self.lod_data.write_full(writer, base_offset, data_ptr)?;

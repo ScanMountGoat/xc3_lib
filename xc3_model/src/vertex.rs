@@ -13,13 +13,11 @@ use std::io::{Cursor, Seek, SeekFrom};
 use binrw::BinReaderExt;
 use glam::{Vec2, Vec3, Vec4};
 use log::error;
-use xc3_lib::vertex::{
-    DataType, IndexBufferDescriptor, VertexAnimationTarget, VertexBufferDescriptor, VertexData,
-};
+use xc3_lib::vertex::{DataType, IndexBufferDescriptor, VertexBufferDescriptor, VertexData};
 
 use crate::{
     skinning::{indices_weights_to_influences, Influence},
-    IndexBuffer, VertexBuffer,
+    IndexBuffer, MorphTarget, VertexBuffer,
 };
 
 // TODO: Add an option to convert a collection of these to the vertex above?
@@ -67,23 +65,41 @@ pub fn read_vertex_buffers(
     let mut buffers: Vec<_> = vertex_data
         .vertex_buffers
         .iter()
-        .enumerate()
-        .map(|(i, descriptor)| {
-            let mut attributes = read_vertex_attributes(descriptor, &vertex_data.buffer);
-            if let Some(base_target) = base_vertex_target(vertex_data, i) {
-                // TODO: Does the vertex animation data override the buffer attributes?
-                let animation_attributes =
-                    read_animation_buffer_attributes(&vertex_data.buffer, descriptor, base_target);
-                attributes.extend(animation_attributes);
-            }
-
+        .map(|descriptor| {
+            let attributes = read_vertex_attributes(descriptor, &vertex_data.buffer);
             VertexBuffer {
                 attributes,
                 influences: Vec::new(),
+                morph_targets: Vec::new(),
             }
         })
         .collect();
 
+    // Assign morph target data to the appropriate vertex buffers.
+    // TODO: Get names from the mxmd?
+    // TODO: Add better tests for morph target data.
+    if let Some(vertex_morphs) = &vertex_data.vertex_morphs {
+        for descriptor in &vertex_morphs.descriptors {
+            if let Some(buffer) = buffers.get_mut(descriptor.vertex_buffer_index as usize) {
+                let start = descriptor.target_start_index as usize;
+                let count = descriptor.target_count as usize;
+                if let Some(targets) = vertex_morphs.targets.get(start..start + count) {
+                    // TODO: Lots of morph targets use the exact same bytes?
+                    for target in targets {
+                        let vertex_count = buffer.vertex_count();
+                        let attributes = read_animation_buffer_attributes(
+                            &vertex_data.buffer,
+                            vertex_count,
+                            target,
+                        );
+                        buffer.morph_targets.push(MorphTarget { attributes })
+                    }
+                }
+            }
+        }
+    }
+
+    // TODO: Buffers have skinning indices but not weights?
     // TODO: Is this the best place to do this?
     if let Some(skinning) = skinning {
         for i in 0..buffers.len() {
@@ -300,19 +316,19 @@ fn read_unorm16x4(reader: &mut Cursor<&[u8]>) -> Vec4 {
 
 pub fn read_animation_buffer_attributes(
     model_bytes: &[u8],
-    descriptor: &VertexBufferDescriptor,
-    base_target: &VertexAnimationTarget,
+    vertex_count: usize,
+    morph_target: &xc3_lib::vertex::MorphTarget,
 ) -> Vec<AttributeData> {
     let mut reader = Cursor::new(model_bytes);
 
-    let mut positions = Vec::with_capacity(descriptor.vertex_count as usize);
-    let mut normals = Vec::with_capacity(descriptor.vertex_count as usize);
-    let mut tangents = Vec::with_capacity(descriptor.vertex_count as usize);
+    let mut positions = Vec::with_capacity(vertex_count);
+    let mut normals = Vec::with_capacity(vertex_count);
+    let mut tangents = Vec::with_capacity(vertex_count);
 
-    for i in 0..descriptor.vertex_count as u64 {
+    for i in 0..vertex_count as u64 {
         reader
             .seek(SeekFrom::Start(
-                base_target.data_offset as u64 + i * base_target.vertex_size as u64,
+                morph_target.data_offset as u64 + i * morph_target.vertex_size as u64,
             ))
             .unwrap();
 
@@ -336,19 +352,6 @@ pub fn read_animation_buffer_attributes(
         AttributeData::Normal(normals),
         AttributeData::Tangent(tangents),
     ]
-}
-
-fn base_vertex_target(
-    vertex_data: &VertexData,
-    vertex_buffer_index: usize,
-) -> Option<&VertexAnimationTarget> {
-    // TODO: Easier to loop over each descriptor and assign by vertex buffer index?
-    let vertex_animation = vertex_data.vertex_animation.as_ref()?;
-    vertex_animation
-        .descriptors
-        .iter()
-        .find(|d| d.vertex_buffer_index as usize == vertex_buffer_index)
-        .and_then(|d| vertex_animation.targets.get(d.target_start_index as usize))
 }
 
 #[cfg(test)]

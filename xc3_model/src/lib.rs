@@ -149,14 +149,30 @@ pub struct Texture {
 #[derive(Debug)]
 pub struct VertexBuffer {
     pub attributes: Vec<AttributeData>,
+    /// Animation targets for vertex attributes like positions and normals.
+    /// The first target can be assumed to be the base target.
+    pub morph_targets: Vec<MorphTarget>,
     // TODO: Buffers can be shared between models with different bone names?
     pub influences: Vec<Influence>,
+}
+
+#[derive(Debug)]
+pub struct MorphTarget {
+    // TODO: add names from mxmd?
+    pub attributes: Vec<AttributeData>,
 }
 
 #[derive(Debug)]
 pub struct IndexBuffer {
     // TODO: support u32?
     pub indices: Vec<u16>,
+}
+
+impl VertexBuffer {
+    pub fn vertex_count(&self) -> usize {
+        // TODO: Check all attributes for consistency?
+        self.attributes.first().map(|a| a.len()).unwrap_or_default()
+    }
 }
 
 impl Models {

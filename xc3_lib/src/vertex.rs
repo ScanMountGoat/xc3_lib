@@ -38,7 +38,7 @@ pub struct VertexData {
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset32)]
-    pub vertex_animation: Option<VertexAnimation>,
+    pub vertex_morphs: Option<VertexMorphs>,
 
     /// The data buffer containing all the geometry data.
     // TODO: Optimized function for reading bytes?
@@ -159,21 +159,21 @@ pub enum Unk2 {
 
 /// Vertex animation data often called "vertex morphs", "shape keys", or "blend shapes".
 #[derive(Debug, BinRead, Xc3Write)]
-pub struct VertexAnimation {
+pub struct VertexMorphs {
     #[br(parse_with = parse_count_offset)]
     #[xc3(count32_offset32)]
-    pub descriptors: Vec<VertexAnimationDescriptor>,
+    pub descriptors: Vec<MorphDescriptor>,
 
     #[br(parse_with = parse_count_offset)]
     #[xc3(count32_offset32)]
-    pub targets: Vec<VertexAnimationTarget>,
+    pub targets: Vec<MorphTarget>,
 
     // TODO: padding?
     pub unks: [u32; 4],
 }
 
 #[derive(Debug, BinRead, Xc3Write)]
-pub struct VertexAnimationDescriptor {
+pub struct MorphDescriptor {
     pub vertex_buffer_index: u32,
     pub target_start_index: u32,
     pub target_count: u32,
@@ -192,7 +192,7 @@ pub struct VertexAnimationDescriptor {
 // TODO: vertex attributes for vertex animation data?
 /// A set of target vertex values similar to a keyframe in traditional animations.
 #[derive(Debug, BinRead, Xc3Write)]
-pub struct VertexAnimationTarget {
+pub struct MorphTarget {
     /// Relative to [data_base_offset](struct.ModelData.html#structfield.data_base_offset)
     pub data_offset: u32,
     pub vertex_count: u32,
@@ -350,7 +350,7 @@ impl<'a> Xc3WriteOffsets for VertexDataOffsets<'a> {
         self.unk_data.write_offset(writer, base_offset, data_ptr)?;
 
         if let Some(vertex_animation) =
-            self.vertex_animation
+            self.vertex_morphs
                 .write_offset(writer, base_offset, data_ptr)?
         {
             let descriptors =
