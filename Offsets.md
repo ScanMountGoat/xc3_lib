@@ -1,4 +1,4 @@
-# Offsets (WIP)
+# Offsets
 This document gives an overview of the implementation used for writing and data layout for binary formats. The goal is to motivate the high level ideas used in the actual Rust implementation. Python style pseudocode is provided to better illustrate the concepts but is not guaranteed to be fully valid or working code. For details, please consult the actual implementation in xc3_lib and xc3_lib derive.
 
 ## Reading Overview
@@ -19,6 +19,24 @@ Producing a binary identical output file requires not only calculating a valid l
 Writing is split into two main functions that define two passes. The `write` function defines the first pass that writes the data and placeholder offset values. This function also calculates an objects size. Size is assumed to be the difference in the write position before and after writing for simplicity. The return value stores the position of offset values as well as the data they point to for later.
 
 ```python
+# This function and FieldOffsets can be automatically generated for each type.
+def Root:
+    def write(self, writer, ctx: Ctx) -> RootOffsets:
+        # Store the position of the offset and data for each field.
+        offsets = RootOffsets()
+
+        # Offset field.
+        offsets.field0 = Offset(writer.position, self.field0)
+        writer.write(0)
+        # Regular field.
+        self.field1.write(writer, ctx)
+        ...
+
+        # Update data_ptr to point past this write.
+        # This implicitly calculates an object's size.
+        ctx.data_ptr = max(ctx.data_ptr, writer.position)
+        return offsets
+
 # Mutable writing context.
 def Ctx:
     __init__(self):
@@ -52,24 +70,6 @@ def Offset:
         writer.position = ctx.data_ptr
         write_full(self.data, writer, ctx)
         return offsets
-
-# This function and FieldOffsets can be automatically generated for each type.
-def Root:
-    def write(self, writer, ctx: Ctx) -> RootOffsets:
-        # Store the position of the offset and data for each field.
-        offsets = RootOffsets()
-
-        # Offset field.
-        offsets.field0 = Offset(writer.position, self.field0)
-        writer.write(0)
-        # Regular field.
-        self.field1.write(writer, ctx)
-        ...
-
-        # Update data_ptr to point past this write.
-        # This implicitly calculates an object's size.
-        ctx.data_ptr = max(ctx.data_ptr, writer.position)
-        return offsets
 ```
 
 The `write_offsets` function defines the second pass that updates the placeholder offsets and writes the pointed to data recursively. This function should write each offset field in increasing order by absolute offset. The implementation of `write_offsets` for the offset return type may need to be implemented manually to match the data layout of existing files. The implementation can be derived if the offset fields are updated in order recursively. 
@@ -84,7 +84,7 @@ def RootOffsets:
         self.field1.write_full(writer, base_offset, ctx)
 
         field0_offsets.name.write_full(writer, base_offset, ctx)
-    ...
+        ...
 ```
 
 The `write_full` function represents a complete write and thus doesn't return any values. Any type that knows how to write itself and its offsets can also implement a complete write with `write_full`. This also applies to types without offset fields and primitive types since they don't need to write any offset data.
