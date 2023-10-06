@@ -7,8 +7,6 @@ pub struct FieldOptions {
 }
 
 // TODO: Separate count field similar to #[bw(calc(...))]?
-// TODO: shared_offset32 for Offset<()>?
-// TODO: can shared offset just use the underlying type for P?
 pub enum FieldType {
     SharedOffset,
     Offset16,
@@ -45,7 +43,6 @@ impl FieldOptions {
                         // #[xc3(count32_offset32)]
                         field_type = Some(FieldType::Count32Offset32);
                     } else if meta.path.is_ident("align") {
-                        // TODO: Support constants like PAGE_SIZE?
                         // #[xc3(align(4096))]
                         align = Some(parse_u64(&meta)?);
                     } else if meta.path.is_ident("pad_size_to") {

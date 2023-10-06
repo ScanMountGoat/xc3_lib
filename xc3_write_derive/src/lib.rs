@@ -44,7 +44,6 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
 
     let offsets_type = quote!(#offsets_name<'a>);
 
-    // TODO: move offset struct generation to the field data?
     let write_fields = fields.iter().map(|f| &f.write_impl);
     quote! {
         #offsets_struct
