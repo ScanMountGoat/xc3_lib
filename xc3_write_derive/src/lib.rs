@@ -1,9 +1,10 @@
-use attribute::{FieldOptions, FieldType, TypeOptions};
+use attribute::{FieldOptions, FieldType, TypeOptions, VariantOptions};
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{quote, ToTokens};
 use syn::{
-    parse_macro_input, Data, DataEnum, DataStruct, DeriveInput, Fields, FieldsNamed, Ident, Type,
+    parse_macro_input, Data, DataEnum, DataStruct, DeriveInput, Fields, FieldsNamed, GenericParam,
+    Ident, Lifetime, LifetimeParam, Type,
 };
 
 mod attribute;
@@ -13,8 +14,20 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
     let type_name = &input.ident;
+
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+
+    // The lifetime isn't part of the parent struct, so add it here.
+    let mut offset_generics = input.generics.clone();
+    offset_generics.params.insert(
+        0,
+        GenericParam::Lifetime(LifetimeParam::new(Lifetime::new(
+            "'offsets",
+            Span::call_site(),
+        ))),
+    );
     let offsets = offsets_name(&input.ident);
-    let offsets_type = quote!(#offsets<'a>);
+    let offsets_type = quote!(#offsets #offset_generics);
 
     let options = TypeOptions::from_attrs(&input.attrs);
 
@@ -39,9 +52,10 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
             let fields = parse_named_fields(fields);
 
             let offset_fields = fields.iter().map(|f| &f.offset_field);
+
             let define_offsets = quote! {
                 #[doc(hidden)]
-                pub struct #offsets<'a> {
+                pub struct #offsets #offset_generics #where_clause {
                     #base_offset_field
                     #(#offset_fields),*
                 }
@@ -74,7 +88,7 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
                             .into_token_stream()
                             .to_string();
                         let variant_offsets = Ident::new(&(field0 + "Offsets"), Span::call_site());
-                        quote!(#name(#variant_offsets<'a>))
+                        quote!(#name(#variant_offsets<'offsets>))
                     }
                     Fields::Unit => quote!(#name),
                 }
@@ -82,18 +96,26 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
 
             let define_offsets = quote! {
                 #[doc(hidden)]
-                pub enum #offsets<'a> {
+                pub enum #offsets<'offsets> {
                     #(#offset_fields),*
                 }
             };
 
             let write_variants = variants.iter().map(|variant| {
                 let name = &variant.ident;
+                let variant_options = VariantOptions::from_attrs(&variant.attrs);
+                // TODO: Use xc3_write for this?
+                let write_magic = variant_options
+                    .magic
+                    .map(|magic| quote!(#magic.write_le(writer)?;));
                 match &variant.fields {
                     Fields::Named(_) => todo!(),
                     // TODO: Don't assume one field.
                     Fields::Unnamed(_) => quote! {
-                        Self::#name(data) => #offsets::#name(data.xc3_write(writer, data_ptr)?)
+                        Self::#name(data) => {
+                            #write_magic
+                            #offsets::#name(data.xc3_write(writer, data_ptr)?)
+                        }
                     },
                     Fields::Unit => quote!(Self::#name => #offsets::#name),
                 }
@@ -114,8 +136,8 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
     quote! {
         #define_offsets
 
-        impl ::xc3_write::Xc3Write for #type_name {
-            type Offsets<'a> = #offsets_type;
+        impl #impl_generics ::xc3_write::Xc3Write for #type_name #ty_generics #where_clause {
+            type Offsets<'offsets> = #offsets_type;
 
             fn xc3_write<W: std::io::Write + std::io::Seek>(
                 &self,
@@ -144,7 +166,17 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
 // Share attributes with Xc3Write.
 #[proc_macro_derive(Xc3WriteOffsets, attributes(xc3))]
 pub fn xc3_write_offsets_derive(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
+    let mut input = parse_macro_input!(input as DeriveInput);
+
+    // The lifetime isn't part of the parent struct, so add it here.
+    input.generics.params.insert(
+        0,
+        GenericParam::Lifetime(LifetimeParam::new(Lifetime::new(
+            "'offsets",
+            Span::call_site(),
+        ))),
+    );
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
 
     let offsets_name = offsets_name(&input.ident);
 
@@ -208,7 +240,7 @@ pub fn xc3_write_offsets_derive(input: TokenStream) -> TokenStream {
     // Add a write impl to the offset type to support nested types.
     // Vecs need to be able to write all items before the pointed to data.
     quote! {
-        impl<'a> ::xc3_write::Xc3WriteOffsets for #offsets_name<'a> {
+        impl #impl_generics ::xc3_write::Xc3WriteOffsets for #offsets_name #ty_generics #where_clause {
             fn write_offsets<W: std::io::Write + std::io::Seek>(
                 &self,
                 writer: &mut W,
@@ -267,7 +299,7 @@ impl FieldData {
     fn field_position(name: &Ident, ty: &Type) -> Self {
         Self {
             name: name.clone(),
-            offset_field: quote!(pub #name: ::xc3_write::FieldPosition<'a, #ty>),
+            offset_field: quote!(pub #name: ::xc3_write::FieldPosition<'offsets, #ty>),
             write_impl: write_field_position(name),
             write_offset_impl: quote!(),
         }
@@ -378,6 +410,21 @@ fn parse_named_fields(fields: &FieldsNamed) -> Vec<FieldData> {
                     },
                 });
             }
+            Some(FieldType::Offset64Count32) => {
+                let write_offset = write_dummy_offset(name, options.align, &quote!(u64));
+
+                offset_fields.push(FieldData {
+                    name: name.clone(),
+                    offset_field: offset_field(name, &quote!(u64), ty),
+                    write_impl: quote! {
+                        #write_offset
+                        (self.#name.len() as u32).write_le(writer)?;
+                    },
+                    write_offset_impl: quote! {
+                        self.#name.write_full(writer, base_offset, data_ptr)?;
+                    },
+                });
+            }
             Some(FieldType::SharedOffset) => {
                 // Shared offsets don't actually contain any data.
                 // The pointer type is the type of the field itself.
@@ -403,7 +450,7 @@ fn parse_named_fields(fields: &FieldsNamed) -> Vec<FieldData> {
                 };
                 offset_fields.push(FieldData {
                     name: name.clone(),
-                    offset_field: quote!(pub #name: <#ty as ::xc3_write::Xc3Write>::Offsets<'a>),
+                    offset_field: quote!(pub #name: <#ty as ::xc3_write::Xc3Write>::Offsets<'offsets>),
                     write_impl,
                     write_offset_impl: quote! {
                         // This field isn't an Offset<T>, so just call write_offsets.
@@ -418,5 +465,5 @@ fn parse_named_fields(fields: &FieldsNamed) -> Vec<FieldData> {
 }
 
 fn offset_field(name: &Ident, pointer: &TokenStream2, ty: &Type) -> TokenStream2 {
-    quote!(pub #name: ::xc3_write::Offset<'a, #pointer, #ty>)
+    quote!(pub #name: ::xc3_write::Offset<'offsets, #pointer, #ty>)
 }

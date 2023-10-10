@@ -2,7 +2,7 @@
 //!
 //! XC3: `chr/{ch,en,oj,wp}/*.wismt`
 use crate::{
-    mibl::Mibl, mxmd::PackedExternalTextures, parse_count_offset, parse_opt_ptr32, parse_ptr32,
+    mibl::Mibl, mxmd::PackedExternalTextures, parse_count32_offset32, parse_opt_ptr32, parse_ptr32,
     spch::Spch, vertex::VertexData, xbc1::Xbc1,
 };
 use binrw::{binread, BinRead, BinResult, BinWrite};
@@ -24,11 +24,11 @@ pub struct Msrd {
     // TODO: This affects the fields in the file?
     pub revision: u32,
 
-    #[br(parse_with = parse_count_offset, offset = offset as u64)]
+    #[br(parse_with = parse_count32_offset32, offset = offset as u64)]
     #[xc3(count32_offset32)]
     pub stream_entries: Vec<StreamEntry>,
 
-    #[br(parse_with = parse_count_offset, offset = offset as u64)]
+    #[br(parse_with = parse_count32_offset32, offset = offset as u64)]
     #[xc3(count32_offset32)]
     pub streams: Vec<Stream>,
 
@@ -41,7 +41,7 @@ pub struct Msrd {
     pub middle_textures_stream_entry_count: u32,
 
     // TODO: identical to indices in mxmd?
-    #[br(parse_with = parse_count_offset, offset = offset as u64)]
+    #[br(parse_with = parse_count32_offset32, offset = offset as u64)]
     #[xc3(count32_offset32)]
     pub texture_ids: Vec<u16>,
 
@@ -53,7 +53,7 @@ pub struct Msrd {
 
     // TODO: Same count as textures?
     // TODO: This doesn't work for pc000101.wismt?
-    #[br(parse_with = parse_count_offset, offset = offset as u64)]
+    #[br(parse_with = parse_count32_offset32, offset = offset as u64)]
     #[xc3(count32_offset32)]
     pub texture_resources: Vec<TextureResource>,
 

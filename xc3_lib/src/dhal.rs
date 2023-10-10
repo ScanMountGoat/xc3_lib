@@ -1,7 +1,7 @@
 //! User interface [Mibl](crate::mibl::Mibl) images in `.wilay` files.
-use crate::{parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32};
-use binrw::{binread, BinRead};
-use xc3_write::{Xc3Write, Xc3WriteOffsets};
+use crate::{parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32};
+use binrw::{binread, BinRead, BinWrite};
+use xc3_write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
 
 // TODO: LAGP files are similar?
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -10,14 +10,14 @@ use xc3_write::{Xc3Write, Xc3WriteOffsets};
 pub struct Dhal {
     pub version: u32,
 
-    pub unk0: u32,
+    // TODO: changes remaining fields?
+    pub unk0: Unk0,
 
     // TODO: alignment is sometimes 16?
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset32)]
     pub unk1: Unk1,
 
-    // TODO: always 0?
     pub unk2: u32,
 
     #[br(parse_with = parse_opt_ptr32)]
@@ -51,6 +51,17 @@ pub struct Dhal {
     pub unk: [u32; 9],
 }
 
+// TODO: Is this actually flags?
+#[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
+#[brw(repr(u32))]
+pub enum Unk0 {
+    Unk0 = 0, // images?
+    Unk1 = 1, // images?
+    Unk3 = 3,
+    Unk32 = 32,   // strings?
+    Unk129 = 129, // vol?
+}
+
 #[binread]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets)]
 #[br(stream = r)]
@@ -80,15 +91,15 @@ pub struct Unk3 {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     pub unk1: Vec<[u32; 7]>,
 
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     pub unk2: Vec<[u32; 4]>,
 
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     pub unk3: Vec<[u32; 5]>,
 
@@ -106,7 +117,7 @@ pub struct Unk4 {
 
     pub unk1: u32, // 0
 
-    #[br(parse_with = parse_offset_count)]
+    #[br(parse_with = parse_offset32_count32)]
     #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(offset32_count32)]
     pub unk2: Vec<Unk4Unk2>,
@@ -131,7 +142,7 @@ pub struct Unk4 {
 #[br(import_raw(base_offset: u64))]
 pub struct Unk4Unk2 {
     // TODO: more offsets
-    #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count32_offset32)]
     pub unk1: Vec<u32>,
 
@@ -164,12 +175,15 @@ pub struct Unk4Unk2 {
 #[xc3(base_offset)]
 pub struct Unk4Unk7 {
     #[br(temp, try_calc = r.stream_position())]
-    base_offset: u64,
+    _base_offset: u64,
 
+    // TODO: strings?
     // TODO: size and type?
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
-    #[xc3(offset32_count32)]
-    pub unk1: Vec<[i32; 5]>,
+    // #[br(parse_with = parse_offset_count, offset = base_offset)]
+    // #[xc3(offset32_count32)]
+    // pub unk1: Vec<[i32; 5]>,
+    pub unk1: u32,
+    pub unk2: u32,
 
     // TODO: padding?
     pub unk: [u32; 4],
@@ -183,7 +197,7 @@ pub struct Textures {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    #[br(parse_with = parse_offset_count)]
+    #[br(parse_with = parse_offset32_count32)]
     #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(offset32_count32)]
     pub textures: Vec<Texture>,
@@ -196,7 +210,7 @@ pub struct Textures {
 #[br(import_raw(base_offset: u64))]
 pub struct Texture {
     pub unk1: u32,
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32, align(4096))]
     pub mibl_data: Vec<u8>,
 }
@@ -204,7 +218,7 @@ pub struct Texture {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct UncompressedTextures {
     // TODO: does this always use base offset 0?
-    #[br(parse_with = parse_offset_count)]
+    #[br(parse_with = parse_offset32_count32)]
     #[xc3(offset32_count32)]
     pub textures: Vec<UncompressedTexture>,
 
@@ -216,13 +230,15 @@ pub struct UncompressedTextures {
 pub struct UncompressedTexture {
     // TODO: always JFIF?
     /// JFIF/JPEG image file data commonly saved with the `.jfif` or `.jpeg` extension.
-    #[br(parse_with = parse_offset_count)]
+    #[br(parse_with = parse_offset32_count32)]
     #[xc3(offset32_count32)]
     pub jpeg_data: Vec<u8>,
 
     pub unk3: u32,
     pub unk4: u32,
 }
+
+xc3_write_binwrite_impl!(Unk0);
 
 impl<'a> Xc3WriteOffsets for Unk4Offsets<'a> {
     fn write_offsets<W: std::io::Write + std::io::Seek>(

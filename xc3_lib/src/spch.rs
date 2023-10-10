@@ -4,7 +4,8 @@
 use std::io::{Cursor, SeekFrom};
 
 use crate::{
-    parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
+    parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
+    parse_string_ptr32,
 };
 use binrw::{args, binread, BinRead, BinReaderExt};
 use xc3_write::{VecOffsets, Xc3Write, Xc3WriteOffsets};
@@ -22,24 +23,24 @@ pub struct Spch {
 
     pub version: u32,
 
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     pub shader_programs: Vec<ShaderProgram>,
 
     // TODO: Related to string section?
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     pub unk4s: Vec<Unk4>,
 
     /// A collection of [Slct].
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     pub slct_section: Vec<u8>,
 
     /// Compiled shader binaries.
     /// Alternates between vertex and fragment shaders.
     // TODO: Optimized function for reading bytes?
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32, align(4096))]
     pub xv4_section: Vec<u8>,
 
@@ -49,7 +50,7 @@ pub struct Spch {
     // TODO: Optimized function for reading bytes?
     /// A collection of [UnkItem].
     // TODO: xc2 tg_ui_hitpoint.wimdo has some sort of assembly code?
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32, align(8))]
     pub unk_section: Vec<u8>,
 
@@ -104,10 +105,10 @@ pub struct Unk4 {
 pub struct Slct {
     pub unk1: u32,
 
-    #[br(parse_with = parse_count_offset)]
+    #[br(parse_with = parse_count32_offset32)]
     pub unk_strings: Vec<UnkString>,
 
-    #[br(parse_with = parse_count_offset)]
+    #[br(parse_with = parse_count32_offset32)]
     pub nvsds: Vec<NvsdMetadataOffset>,
 
     pub unk5_count: u32,
@@ -155,7 +156,7 @@ pub struct NvsdMetadata {
 
     pub unks2: [u32; 6],
 
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     pub nvsd_shaders: Vec<NvsdShaders>,
 
     pub buffers1_count: u16,
@@ -219,11 +220,11 @@ pub struct NvsdMetadata {
 
     pub unks2_1: [u32; 3],
 
-    #[br(parse_with = parse_count_offset, args { offset: base_offset, inner: base_offset })]
+    #[br(parse_with = parse_count32_offset32, args { offset: base_offset, inner: base_offset })]
     pub attributes: Vec<InputAttribute>,
 
     // TODO: uniforms for buffers1 and then buffers2 buffers in order?
-    #[br(parse_with = parse_count_offset, args { offset: base_offset, inner: base_offset })]
+    #[br(parse_with = parse_count32_offset32, args { offset: base_offset, inner: base_offset })]
     pub uniforms: Vec<Uniform>,
 
     pub unk3_1: u32,

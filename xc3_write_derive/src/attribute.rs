@@ -1,4 +1,5 @@
-use syn::{parenthesized, Attribute, LitByteStr, LitInt};
+use proc_macro2::TokenStream;
+use syn::{parenthesized, Attribute, LitInt};
 
 pub struct FieldOptions {
     pub field_type: Option<FieldType>,
@@ -14,6 +15,7 @@ pub enum FieldType {
     Offset32,
     Offset64,
     Offset32Count32,
+    Offset64Count32,
     Count32Offset32,
 }
 
@@ -40,6 +42,9 @@ impl FieldOptions {
                     } else if meta.path.is_ident("offset32_count32") {
                         // #[xc3(offset32_count32)]
                         field_type = Some(FieldType::Offset32Count32);
+                    } else if meta.path.is_ident("offset64_count32") {
+                        // #[xc3(offset64_count32)]
+                        field_type = Some(FieldType::Offset64Count32);
                     } else if meta.path.is_ident("count32_offset32") {
                         // #[xc3(count32_offset32)]
                         field_type = Some(FieldType::Count32Offset32);
@@ -77,7 +82,7 @@ fn parse_u64(meta: &syn::meta::ParseNestedMeta<'_>) -> Result<u64, syn::Error> {
 }
 
 pub struct TypeOptions {
-    pub magic: Option<LitByteStr>,
+    pub magic: Option<TokenStream>,
     pub has_base_offset: bool,
     pub align_after: Option<u64>,
 }
@@ -95,7 +100,7 @@ impl TypeOptions {
                         // #[xc3(magic(b"MAGIC"))]
                         let content;
                         parenthesized!(content in meta.input);
-                        let lit: LitByteStr = content.parse().unwrap();
+                        let lit: TokenStream = content.parse().unwrap();
                         magic = Some(lit);
                     } else if meta.path.is_ident("base_offset") {
                         // #[xc3(base_offset)]
@@ -114,5 +119,33 @@ impl TypeOptions {
             has_base_offset,
             align_after,
         }
+    }
+}
+
+pub struct VariantOptions {
+    pub magic: Option<TokenStream>,
+}
+
+impl VariantOptions {
+    pub fn from_attrs(attrs: &[Attribute]) -> Self {
+        let mut magic = None;
+
+        for a in attrs {
+            if a.path().is_ident("xc3") {
+                let _ = a.parse_nested_meta(|meta| {
+                    if meta.path.is_ident("magic") {
+                        // #[xc3(magic(b"MAGIC"))]
+                        // #[xc3(magic(5u32))]
+                        let content;
+                        parenthesized!(content in meta.input);
+                        let lit: TokenStream = content.parse().unwrap();
+                        magic = Some(lit);
+                    }
+                    Ok(())
+                });
+            }
+        }
+
+        Self { magic }
     }
 }

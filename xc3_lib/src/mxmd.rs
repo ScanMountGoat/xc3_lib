@@ -2,8 +2,8 @@
 //!
 //! XC3: `chr/{ch,en,oj,wp}/*.wimdo`, `monolib/shader/*.wimdo`
 use crate::{
-    msrd::TextureResource, parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32,
-    parse_string_ptr32, spch::Spch, vertex::VertexData,
+    msrd::TextureResource, parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32,
+    parse_ptr32, parse_string_ptr32, spch::Spch, vertex::VertexData,
 };
 use bilge::prelude::*;
 use binrw::{args, binread, BinRead, BinWrite};
@@ -61,7 +61,7 @@ pub struct Materials {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    #[br(parse_with = parse_offset_count, args { offset: base_offset, inner: base_offset })]
+    #[br(parse_with = parse_offset32_count32, args { offset: base_offset, inner: base_offset })]
     #[xc3(offset32_count32)]
     pub materials: Vec<Material>,
 
@@ -71,13 +71,13 @@ pub struct Materials {
 
     // TODO: Materials have offsets into these arrays for parameter values?
     // material body has a uniform at shader offset 64 but offset 48 in this floats buffer
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32, align(16))]
     pub floats: Vec<f32>, // work values?
 
     // TODO: final number counts up from 0?
     // TODO: Some sort of index or offset?
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     pub ints: Vec<(u8, u8, u16)>, // shader vars?
 
@@ -90,13 +90,13 @@ pub struct Materials {
     pub unk4: u32,
 
     /// Info for each of the shaders in the associated [Spch](crate::spch::Spch).
-    #[br(parse_with = parse_offset_count, args { offset: base_offset, inner: base_offset })]
+    #[br(parse_with = parse_offset32_count32, args { offset: base_offset, inner: base_offset })]
     #[xc3(offset32_count32)]
     pub shader_programs: Vec<ShaderProgramInfo>,
 
     pub unks1: [u32; 2],
 
-    #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count32_offset32)]
     pub alpha_test_textures: Vec<AlphaTestTexture>,
 
@@ -123,7 +123,7 @@ pub struct AlphaTestTexture {
 #[derive(Debug, BinRead, Xc3Write)]
 #[br(import_raw(base_offset: u64))]
 pub struct ShaderProgramInfo {
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     pub unk1: Vec<u64>, // vertex attributes?
 
@@ -132,16 +132,16 @@ pub struct ShaderProgramInfo {
 
     // work values?
     // TODO: matches up with uniform parameters for U_Mate?
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     pub parameters: Vec<MaterialParameter>, // var table?
 
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     pub textures: Vec<u16>, // textures?
 
     // ssbos and then uniform buffers ordered by handle?
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     pub uniform_blocks: Vec<(u16, u16)>, // uniform blocks?
 
@@ -192,12 +192,12 @@ pub enum ParamType {
 pub struct MaterialUnk1 {
     // count matches up with Material.unk_start_index?
     // TODO: affects material parameter assignment?
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     pub unk1: Vec<(u16, u16)>,
 
     // 0 1 2 ... material_count - 1
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     pub unk2: Vec<u16>,
 
@@ -274,7 +274,7 @@ pub struct Material {
 
     // TODO: materials with zero textures?
     /// Defines the shader's sampler bindings in order for s0, s1, s2, ...
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     pub textures: Vec<Texture>,
 
@@ -294,7 +294,7 @@ pub struct Material {
     pub ints_count: u32,
 
     // always count 1?
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     pub shader_programs: Vec<ShaderProgram>,
 
@@ -449,7 +449,7 @@ pub struct Models {
     pub max_xyz: [f32; 3],
     pub min_xyz: [f32; 3],
 
-    #[br(parse_with = parse_offset_count, args { offset: base_offset, inner: base_offset })]
+    #[br(parse_with = parse_offset32_count32, args { offset: base_offset, inner: base_offset })]
     #[xc3(offset32_count32)]
     pub models: Vec<Model>,
 
@@ -462,7 +462,7 @@ pub struct Models {
     pub unks3_1: [u32; 14],
 
     // TODO: previous string section size aligned to 16?
-    #[br(parse_with = parse_offset_count, args { offset: base_offset, inner: base_offset })]
+    #[br(parse_with = parse_offset32_count32, args { offset: base_offset, inner: base_offset })]
     #[xc3(offset32_count32, align(16))]
     pub model_unks: Vec<ModelUnk>,
 
@@ -506,7 +506,7 @@ pub struct Models {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(import_raw(base_offset: u64))]
 pub struct Model {
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     pub meshes: Vec<Mesh>,
 
@@ -560,7 +560,7 @@ pub struct MorphControllers {
     base_offset: u64,
 
     // TODO: same count as morph targets per descriptor in vertex data?
-    #[br(parse_with = parse_offset_count, args { offset: base_offset, inner: base_offset })]
+    #[br(parse_with = parse_offset32_count32, args { offset: base_offset, inner: base_offset })]
     #[xc3(offset32_count32)]
     controllers: Vec<MorphController>,
 
@@ -596,7 +596,7 @@ pub struct ModelUnk3 {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    #[br(parse_with = parse_count_offset, args { offset: base_offset, inner: base_offset })]
+    #[br(parse_with = parse_count32_offset32, args { offset: base_offset, inner: base_offset })]
     #[xc3(count32_offset32)]
     pub items: Vec<ModelUnk3Inner>,
 
@@ -630,7 +630,7 @@ pub struct ModelUnk4 {
     base_offset: u64,
 
     // 0 ... N-1
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     items: Vec<u32>,
 
@@ -649,7 +649,7 @@ pub struct ModelUnk5 {
     base_offset: u64,
 
     // TODO: What type is this?
-    #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count32_offset32)]
     pub items: Vec<[u32; 2]>,
 
@@ -668,12 +668,12 @@ pub struct MeshUnk1 {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    #[br(parse_with = parse_offset_count)]
+    #[br(parse_with = parse_offset32_count32)]
     #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(offset32_count32)]
     pub items1: Vec<MeshUnk1Item1>,
 
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     pub items2: Vec<MeshUnk1Item2>,
 
@@ -684,7 +684,7 @@ pub struct MeshUnk1 {
     pub items3: Vec<[f32; 2]>,
     pub unk1: u32,
 
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     pub items4: Vec<[u32; 5]>,
 
@@ -707,7 +707,7 @@ pub struct MeshUnk1Inner {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     pub items1: Vec<u32>,
 
@@ -751,11 +751,11 @@ pub struct LodData {
     pub unk1: u32,
 
     // TODO: Count related to number of mesh lod values?
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     pub items1: Vec<LodItem1>,
 
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     pub items2: Vec<LodItem2>,
 
@@ -832,17 +832,17 @@ pub struct Textures1 {
 pub struct Textures2 {
     pub unk1: u32, // 103
 
-    #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count32_offset32)]
     pub unk2: Vec<[u32; 5]>,
 
-    #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count32_offset32)]
     pub unk3: Vec<TexturesUnk>,
 
     pub unk4: [u32; 7],
 
-    #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count32_offset32)]
     pub indices: Vec<u16>,
 
@@ -853,7 +853,7 @@ pub struct Textures2 {
     pub unk5: u32,
 
     // TODO: same as the type in msrd?
-    #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count32_offset32)]
     pub resources: Vec<TextureResource>,
 
@@ -876,7 +876,7 @@ pub struct PackedTextures {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    #[br(parse_with = parse_count_offset, args { offset: base_offset, inner: base_offset })]
+    #[br(parse_with = parse_count32_offset32, args { offset: base_offset, inner: base_offset })]
     #[xc3(count32_offset32)]
     pub textures: Vec<PackedTexture>,
 
@@ -890,7 +890,7 @@ pub struct PackedTexture {
     pub unk1: u32,
 
     // TODO: Optimized function for reading bytes?
-    #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count32_offset32)]
     pub mibl_data: Vec<u8>,
 
@@ -907,7 +907,7 @@ pub struct PackedExternalTextures {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    #[br(parse_with = parse_count_offset, args { offset: base_offset, inner: base_offset })]
+    #[br(parse_with = parse_count32_offset32, args { offset: base_offset, inner: base_offset })]
     #[xc3(count32_offset32, align(2))]
     pub textures: Vec<PackedExternalTexture>,
 
@@ -975,7 +975,7 @@ pub struct Skinning {
     pub transforms3: Vec<[[f32; 4]; 2]>,
 
     // TODO: 0..count-1?
-    #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count32_offset32)]
     pub bone_indices: Vec<u16>,
 
@@ -1021,7 +1021,7 @@ pub struct Bone {
 #[br(import_raw(base_offset: u64))]
 pub struct SkeletonUnk4 {
     // TODO: u16 indices?
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     pub unk1: Vec<[u16; 21]>,
 
@@ -1041,7 +1041,7 @@ pub struct SkeletonUnk5 {
     base_offset: u64,
 
     // TODO: element size?
-    #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count32_offset32)]
     pub unk1: Vec<[u16; 105]>,
 
@@ -1059,12 +1059,12 @@ pub struct SkeletonUnk5 {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(import_raw(base_offset: u64))]
 pub struct AsBoneData {
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     pub bones: Vec<AsBone>,
 
     // TODO: Some of these aren't floats?
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     pub unk1: Vec<AsBoneValue>,
 
@@ -1107,21 +1107,21 @@ pub struct Unk1 {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count32_offset32)]
     pub unk1: Vec<Unk1Unk1>,
 
-    #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count32_offset32)]
     pub unk2: Vec<Unk1Unk2>,
 
-    #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count32_offset32)]
     pub unk3: Vec<Unk1Unk3>,
 
     // TODO: Don't write offset if zero count.
     // angle values?
-    #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count32_offset32)]
     pub unk4: Vec<Unk1Unk4>,
 

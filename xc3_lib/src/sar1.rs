@@ -3,7 +3,7 @@
 //! XC3: `chr/{ch,en,oj,wp}/*.{chr,mot}`
 use std::io::Cursor;
 
-use crate::{bc::Bc, parse_count_offset, parse_offset_count};
+use crate::{bc::Bc, parse_count32_offset32, parse_offset32_count32};
 use binrw::{binread, BinRead, BinReaderExt, BinResult, NullString};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
@@ -17,7 +17,7 @@ pub struct Sar1 {
     pub file_size: u32,
     pub version: u32,
 
-    #[br(parse_with = parse_count_offset)]
+    #[br(parse_with = parse_count32_offset32)]
     #[xc3(count32_offset32)]
     pub entries: Vec<Entry>,
 
@@ -34,7 +34,7 @@ pub struct Sar1 {
 #[binread]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets)]
 pub struct Entry {
-    #[br(parse_with = parse_offset_count)]
+    #[br(parse_with = parse_offset32_count32)]
     #[xc3(offset32_count32, align(64))]
     pub entry_data: Vec<u8>,
 

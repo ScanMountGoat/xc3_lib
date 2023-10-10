@@ -4,7 +4,7 @@ use std::io::Cursor;
 use crate::{
     msmd::{Dlgt, Gibl, Nerd},
     mxmd::Mxmd,
-    parse_offset_count,
+    parse_offset32_count32,
 };
 use binrw::{BinRead, BinReaderExt, BinWrite};
 use xc3_write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
@@ -16,7 +16,7 @@ use xc3_write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
 #[xc3(align_after(4096))]
 pub struct Apmd {
     pub version: u32,
-    #[br(parse_with = parse_offset_count)]
+    #[br(parse_with = parse_offset32_count32)]
     #[xc3(offset32_count32)]
     pub entries: Vec<Entry>,
     pub unk2: u32,
@@ -28,7 +28,7 @@ pub struct Apmd {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct Entry {
     pub entry_type: EntryType,
-    #[br(parse_with = parse_offset_count)]
+    #[br(parse_with = parse_offset32_count32)]
     #[xc3(offset32_count32, align(4096))]
     pub entry_data: Vec<u8>,
 }

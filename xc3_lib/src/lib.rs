@@ -66,7 +66,7 @@ pub mod xbc1;
 
 const PAGE_SIZE: u64 = 4096;
 
-fn parse_offset_count<T, R, Args>(
+fn parse_offset32_count32<T, R, Args>(
     reader: &mut R,
     endian: binrw::Endian,
     args: FilePtrArgs<Args>,
@@ -81,7 +81,7 @@ where
     parse_vec(reader, endian, args, offset as u64, count as usize)
 }
 
-fn parse_count_offset<T, R, Args>(
+fn parse_count32_offset32<T, R, Args>(
     reader: &mut R,
     endian: binrw::Endian,
     args: FilePtrArgs<Args>,
@@ -94,6 +94,21 @@ where
     let count = u32::read_options(reader, endian, ())?;
     let offset = u32::read_options(reader, endian, ())?;
     parse_vec(reader, endian, args, offset as u64, count as usize)
+}
+
+fn parse_offset64_count32<T, R, Args>(
+    reader: &mut R,
+    endian: binrw::Endian,
+    args: FilePtrArgs<Args>,
+) -> BinResult<Vec<T>>
+where
+    for<'a> T: BinRead<Args<'a> = Args> + 'static,
+    R: std::io::Read + std::io::Seek,
+    Args: Clone,
+{
+    let offset = u64::read_options(reader, endian, ())?;
+    let count = u32::read_options(reader, endian, ())?;
+    parse_vec(reader, endian, args, offset, count as usize)
 }
 
 fn parse_vec<T, R, Args>(
@@ -165,6 +180,34 @@ where
     let saved_pos = reader.stream_position()?;
 
     reader.seek(SeekFrom::Start(offset as u64 + args.offset))?;
+    trace!(
+        "{}: {:?}",
+        std::any::type_name::<T>(),
+        reader.stream_position().unwrap()
+    );
+    let value = T::read_options(reader, endian, args.inner)?;
+    reader.seek(SeekFrom::Start(saved_pos))?;
+
+    Ok(value)
+}
+
+// TODO: make this generic over the pointer type?
+// TODO: Create a struct to be able to do Ptr<64>::parse?
+fn parse_ptr64<T, R, Args>(
+    reader: &mut R,
+    endian: binrw::Endian,
+    args: FilePtrArgs<Args>,
+) -> BinResult<T>
+where
+    for<'a> T: BinRead<Args<'a> = Args> + 'static,
+    R: std::io::Read + std::io::Seek,
+    Args: Clone,
+{
+    // Read a value pointed to by a relative offset.
+    let offset = u64::read_options(reader, endian, ())?;
+    let saved_pos = reader.stream_position()?;
+
+    reader.seek(SeekFrom::Start(offset + args.offset))?;
     trace!(
         "{}: {:?}",
         std::any::type_name::<T>(),

@@ -1,5 +1,5 @@
 //! Vertex and geometry data for model formats.
-use crate::{parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32};
+use crate::{parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32};
 use binrw::{args, binread, BinRead, BinResult, BinWrite};
 use xc3_write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
 
@@ -12,11 +12,11 @@ pub struct VertexData {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    #[br(parse_with = parse_offset_count, args { offset: base_offset, inner: base_offset })]
+    #[br(parse_with = parse_offset32_count32, args { offset: base_offset, inner: base_offset })]
     #[xc3(offset32_count32)]
     pub vertex_buffers: Vec<VertexBufferDescriptor>,
 
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     pub index_buffers: Vec<IndexBufferDescriptor>,
 
@@ -32,7 +32,7 @@ pub struct VertexData {
     pub vertex_buffer_info: Vec<VertexBufferInfo>,
 
     // 332 bytes of data?
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     pub outline_buffers: Vec<OutlineBuffer>,
 
@@ -42,7 +42,7 @@ pub struct VertexData {
 
     /// The data buffer containing all the geometry data.
     // TODO: Optimized function for reading bytes?
-    #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count32_offset32, align(4096))]
     pub buffer: Vec<u8>,
 
@@ -73,7 +73,7 @@ pub struct VertexBufferDescriptor {
     pub vertex_size: u32,
 
     /// A tightly packed list of attributes for the data for this buffer.
-    #[br(parse_with = parse_offset_count, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     pub attributes: Vec<VertexAttribute>,
 
@@ -160,11 +160,11 @@ pub enum Unk2 {
 /// Vertex animation data often called "vertex morphs", "shape keys", or "blend shapes".
 #[derive(Debug, BinRead, Xc3Write)]
 pub struct VertexMorphs {
-    #[br(parse_with = parse_count_offset)]
+    #[br(parse_with = parse_count32_offset32)]
     #[xc3(count32_offset32)]
     pub descriptors: Vec<MorphDescriptor>,
 
-    #[br(parse_with = parse_count_offset)]
+    #[br(parse_with = parse_count32_offset32)]
     #[xc3(count32_offset32)]
     pub targets: Vec<MorphTarget>,
 
@@ -205,7 +205,7 @@ pub struct MorphTarget {
 // TODO: Where are the skin weights in the vertex shader?
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct Weights {
-    #[br(parse_with = parse_count_offset)]
+    #[br(parse_with = parse_count32_offset32)]
     #[xc3(count32_offset32)]
     pub groups: Vec<WeightGroup>,
 
@@ -262,7 +262,7 @@ pub struct Unk {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    #[br(parse_with = parse_count_offset, offset = base_offset)]
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count32_offset32)]
     pub unk1: Vec<UnkInner>,
 
