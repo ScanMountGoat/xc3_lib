@@ -39,12 +39,12 @@
 use std::{
     error::Error,
     io::{BufWriter, Cursor, Read, Seek, SeekFrom, Write},
+    marker::PhantomData,
     path::Path,
 };
 
 use binrw::{
-    file_ptr::FilePtrArgs, BinRead, BinReaderExt, BinResult, BinWrite, FilePtr64, NullString,
-    VecArgs,
+    file_ptr::FilePtrArgs, BinRead, BinReaderExt, BinResult, BinWrite, NullString, VecArgs,
 };
 use log::trace;
 use xc3_write::write_full;
@@ -65,6 +65,51 @@ pub mod vertex;
 pub mod xbc1;
 
 const PAGE_SIZE: u64 = 4096;
+
+pub struct Ptr<P> {
+    phantom: PhantomData<P>,
+}
+
+impl<P> Ptr<P>
+where
+    P: Into<u64>,
+    for<'a> P: BinRead<Args<'a> = ()>,
+{
+    fn parse<T, R, Args>(
+        reader: &mut R,
+        endian: binrw::Endian,
+        args: FilePtrArgs<Args>,
+    ) -> BinResult<T>
+    where
+        for<'a> T: BinRead<Args<'a> = Args> + 'static,
+        R: std::io::Read + std::io::Seek,
+        Args: Clone,
+    {
+        // Read a value pointed to by a relative offset.
+        let offset = P::read_options(reader, endian, ())?;
+        parse_ptr(offset.into(), reader, endian, args)
+    }
+
+    fn parse_opt<T, R, Args>(
+        reader: &mut R,
+        endian: binrw::Endian,
+        args: FilePtrArgs<Args>,
+    ) -> BinResult<Option<T>>
+    where
+        for<'a> T: BinRead<Args<'a> = Args> + 'static,
+        R: std::io::Read + std::io::Seek,
+        Args: Clone,
+    {
+        // Read a value pointed to by a nullable relative offset.
+        let offset = P::read_options(reader, endian, ())?.into();
+        if offset > 0 {
+            let value = parse_ptr(offset, reader, endian, args)?;
+            Ok(Some(value))
+        } else {
+            Ok(None)
+        }
+    }
+}
 
 fn parse_offset32_count32<T, R, Args>(
     reader: &mut R,
@@ -109,6 +154,32 @@ where
     let offset = u64::read_options(reader, endian, ())?;
     let count = u32::read_options(reader, endian, ())?;
     parse_vec(reader, endian, args, offset, count as usize)
+}
+
+fn parse_ptr<T, R, Args>(
+    offset: u64,
+    reader: &mut R,
+    endian: binrw::Endian,
+    args: FilePtrArgs<Args>,
+) -> BinResult<T>
+where
+    for<'a> T: BinRead<Args<'a> = Args> + 'static,
+    R: std::io::Read + std::io::Seek,
+    Args: Clone,
+{
+    // Read a value pointed to by a relative offset.
+    let saved_pos = reader.stream_position()?;
+
+    reader.seek(SeekFrom::Start(offset + args.offset))?;
+    trace!(
+        "{}: {:?}",
+        std::any::type_name::<T>(),
+        reader.stream_position().unwrap()
+    );
+    let value = T::read_options(reader, endian, args.inner)?;
+    reader.seek(SeekFrom::Start(saved_pos))?;
+
+    Ok(value)
 }
 
 fn parse_vec<T, R, Args>(
@@ -160,8 +231,7 @@ fn parse_string_ptr64<R: Read + Seek>(
     endian: binrw::Endian,
     args: FilePtrArgs<()>,
 ) -> BinResult<String> {
-    // TODO: Create parse_ptr64 for offset logging.
-    let value: NullString = FilePtr64::parse(reader, endian, args)?;
+    let value: NullString = parse_ptr64(reader, endian, args)?;
     Ok(value.to_string())
 }
 
@@ -175,24 +245,9 @@ where
     R: std::io::Read + std::io::Seek,
     Args: Clone,
 {
-    // Read a value pointed to by a relative offset.
-    let offset = u32::read_options(reader, endian, ())?;
-    let saved_pos = reader.stream_position()?;
-
-    reader.seek(SeekFrom::Start(offset as u64 + args.offset))?;
-    trace!(
-        "{}: {:?}",
-        std::any::type_name::<T>(),
-        reader.stream_position().unwrap()
-    );
-    let value = T::read_options(reader, endian, args.inner)?;
-    reader.seek(SeekFrom::Start(saved_pos))?;
-
-    Ok(value)
+    Ptr::<u32>::parse(reader, endian, args)
 }
 
-// TODO: make this generic over the pointer type?
-// TODO: Create a struct to be able to do Ptr<64>::parse?
 fn parse_ptr64<T, R, Args>(
     reader: &mut R,
     endian: binrw::Endian,
@@ -203,20 +258,7 @@ where
     R: std::io::Read + std::io::Seek,
     Args: Clone,
 {
-    // Read a value pointed to by a relative offset.
-    let offset = u64::read_options(reader, endian, ())?;
-    let saved_pos = reader.stream_position()?;
-
-    reader.seek(SeekFrom::Start(offset + args.offset))?;
-    trace!(
-        "{}: {:?}",
-        std::any::type_name::<T>(),
-        reader.stream_position().unwrap()
-    );
-    let value = T::read_options(reader, endian, args.inner)?;
-    reader.seek(SeekFrom::Start(saved_pos))?;
-
-    Ok(value)
+    Ptr::<u64>::parse(reader, endian, args)
 }
 
 fn parse_opt_ptr32<T, R, Args>(
@@ -229,23 +271,7 @@ where
     R: std::io::Read + std::io::Seek,
     Args: Clone,
 {
-    // Read a value pointed to by a nullable relative offset.
-    let offset = u32::read_options(reader, endian, ())?;
-    if offset > 0 {
-        let saved_pos = reader.stream_position()?;
-        reader.seek(SeekFrom::Start(offset as u64 + args.offset))?;
-        trace!(
-            "{:?}: {:?}",
-            std::any::type_name::<T>(),
-            reader.stream_position().unwrap()
-        );
-        let value = T::read_options(reader, endian, args.inner)?;
-        reader.seek(SeekFrom::Start(saved_pos))?;
-
-        Ok(Some(value))
-    } else {
-        Ok(None)
-    }
+    Ptr::<u32>::parse_opt(reader, endian, args)
 }
 
 // TODO: Dedicated error types?
