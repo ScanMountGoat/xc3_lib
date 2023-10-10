@@ -19,14 +19,14 @@ pub struct Bone {
 
 impl Skeleton {
     // TODO: Test this?
-    pub fn from_skel(skel: &xc3_lib::bc::Skel, skinning: &xc3_lib::mxmd::Skinning) -> Self {
+    pub fn from_skel(skeleton: &xc3_lib::bc::Skeleton, skinning: &xc3_lib::mxmd::Skinning) -> Self {
         // Start with the chr skeleton since it has parenting information.
-        let mut bones: Vec<_> = skel
+        let mut bones: Vec<_> = skeleton
             .names
             .elements
             .iter()
-            .zip(skel.transforms.elements.iter())
-            .zip(skel.parents.elements.iter())
+            .zip(skeleton.transforms.elements.iter())
+            .zip(skeleton.parent_indices.elements.iter())
             .map(|((name, transform), parent)| Bone {
                 name: name.name.clone(),
                 transform: bone_transform(transform),

@@ -261,19 +261,57 @@ pub struct SubTrack {
 #[br(magic(b"SKEL"))]
 #[xc3(magic(b"SKEL"))]
 pub struct Skel {
-    pub unks: [u32; 10],
+    #[br(parse_with = parse_ptr64)]
+    #[xc3(offset64)]
+    pub skeleton: Skeleton,
+}
 
-    pub parents: BcList<i16>,
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct Skeleton {
+    pub unk1: BcList<u8>,
+
+    pub unk2: u64, // 0
+
+    #[br(parse_with = parse_string_ptr64)]
+    #[xc3(offset64)]
+    pub root_bone_name: String,
+
+    pub parent_indices: BcList<i16>,
     pub names: BcList<BoneName>,
     pub transforms: BcList<Transform>,
 
-    // TODO: types?
-    pub unk_table1: BcList<u8>,
-    pub unk_table2: BcList<u8>,
-    pub unk_table3: BcList<u8>,
-    pub unk_table4: BcList<u8>,
-    pub unk_table5: BcList<u8>,
-    // TODO: other fields?
+    pub unk_table1: BcList<SkeletonUnk1>,
+    pub unk_table2: BcList<u64>,
+    pub unk_table3: BcList<StringOffset>,
+    pub unk_table4: BcList<[[f32; 4]; 3]>,
+    pub unk_table5: BcList<u64>,
+
+    #[br(parse_with = parse_ptr64)]
+    #[xc3(offset64)]
+    pub unk6: SkeletonUnk6,
+
+    #[br(parse_with = parse_ptr64)]
+    #[xc3(offset64)]
+    pub unk7: SkeletonUnk7,
+
+    #[br(parse_with = parse_ptr64)]
+    #[xc3(offset64)]
+    pub unk8: SkeletonUnk8,
+
+    #[br(parse_with = parse_ptr64)]
+    #[xc3(offset64)]
+    pub unk9: SkeletonUnk9,
+
+    #[br(parse_with = parse_ptr64)]
+    #[xc3(offset64)]
+    pub unk10: SkeletonUnk10,
+
+    #[br(parse_with = parse_ptr64)]
+    #[xc3(offset64)]
+    pub unk11: SkeletonUnk11,
+
+    pub unk12: u64,
+    pub unk13: i64,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -291,6 +329,69 @@ pub struct BoneName {
 
     // TODO: padding?
     pub unk: [u32; 2],
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct SkeletonUnk1 {
+    #[br(parse_with = parse_string_ptr64)]
+    #[xc3(offset64)]
+    pub unk1: String,
+
+    pub unk2: BcList<StringOffset>,
+    pub unk3: BcList<f32>,
+    pub unk4: BcList<[f32; 2]>,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct SkeletonUnk6 {
+    pub unk1: BcList<u8>,
+    pub unk2: BcList<u16>,
+
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset64_count32)]
+    pub unk3: Vec<u32>,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct SkeletonUnk7 {
+    pub unk1: BcList<u8>,
+    pub unk2: BcList<u16>,
+
+    // TODO: type?
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset64_count32)]
+    pub unk3: Vec<u32>,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct SkeletonUnk8 {
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset64_count32)]
+    pub unk1: Vec<u32>,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct SkeletonUnk9 {
+    // TODO: type?
+    pub unk1: BcList<[u32; 13]>,
+
+    // TODO: type?
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset64_count32)]
+    pub unk2: Vec<u32>,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct SkeletonUnk10 {
+    // TODO: type?
+    pub unk1: [u32; 8],
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct SkeletonUnk11 {
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset64_count32)]
+    pub unk1: Vec<u8>,
 }
 
 #[binread]

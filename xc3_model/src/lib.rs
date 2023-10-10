@@ -339,7 +339,10 @@ fn create_skeleton(chr: Option<&Sar1>, mxmd: &Mxmd) -> Option<Skeleton> {
             _ => None,
         })?;
 
-    Some(Skeleton::from_skel(&skel, mxmd.models.skinning.as_ref()?))
+    Some(Skeleton::from_skel(
+        &skel.skeleton,
+        mxmd.models.skinning.as_ref()?,
+    ))
 }
 
 // TODO: material module?
