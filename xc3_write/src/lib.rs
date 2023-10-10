@@ -55,6 +55,19 @@ where
 pub use xc3_write_derive::Xc3Write;
 pub use xc3_write_derive::Xc3WriteOffsets;
 
+pub struct FieldPosition<'a, T> {
+    /// The position in the file for the field.
+    pub position: u64,
+    /// The field value.
+    pub data: &'a T,
+}
+
+impl<'a, T> FieldPosition<'a, T> {
+    pub fn new(position: u64, data: &'a T) -> Self {
+        Self { position, data }
+    }
+}
+
 pub struct Offset<'a, P, T> {
     /// The position in the file for the offset field.
     pub position: u64,

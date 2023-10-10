@@ -1,8 +1,10 @@
 use attribute::{FieldOptions, FieldType, TypeOptions};
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
-use quote::quote;
-use syn::{parse_macro_input, Data, DataStruct, DeriveInput, Fields, Ident, Type};
+use quote::{quote, ToTokens};
+use syn::{
+    parse_macro_input, Data, DataEnum, DataStruct, DeriveInput, Fields, FieldsNamed, Ident, Type,
+};
 
 mod attribute;
 
@@ -10,10 +12,9 @@ mod attribute;
 pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
-    let name = &input.ident;
-    let offsets_name = offsets_name(&input.ident);
-
-    let fields = parse_field_data(&input.data);
+    let type_name = &input.ident;
+    let offsets = offsets_name(&input.ident);
+    let offsets_type = quote!(#offsets<'a>);
 
     let options = TypeOptions::from_attrs(&input.attrs);
 
@@ -28,27 +29,92 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
 
     let write_magic = options.magic.map(|m| quote!(#m.write_le(writer)?;));
 
-    let offset_fields = fields.iter().map(|f| &f.offset_field);
-    let offsets_struct = quote! {
-        #[doc(hidden)]
-        pub struct #offsets_name<'a> {
-            #base_offset_field
-            #(#offset_fields),*
+    // TODO: How to also handle enums?
+    // TODO: make this code work for enums as well as structs?
+    let (write_data, define_offsets, initialize_offsets) = match &input.data {
+        Data::Struct(DataStruct {
+            fields: Fields::Named(fields),
+            ..
+        }) => {
+            let fields = parse_named_fields(fields);
+
+            let offset_fields = fields.iter().map(|f| &f.offset_field);
+            let define_offsets = quote! {
+                #[doc(hidden)]
+                pub struct #offsets<'a> {
+                    #base_offset_field
+                    #(#offset_fields),*
+                }
+            };
+
+            let offset_field_names = fields.iter().map(|f| &f.name);
+            let initialize_offsets = quote! {
+                Ok(#offsets { #base_offset #(#offset_field_names),* })
+            };
+
+            let write_fields = fields.iter().map(|f| &f.write_impl);
+            let write_data = quote!(#(#write_fields)*);
+
+            (write_data, define_offsets, initialize_offsets)
         }
+        Data::Enum(DataEnum { variants, .. }) => {
+            let offset_fields = variants.iter().map(|variant| {
+                let name = &variant.ident;
+                match &variant.fields {
+                    Fields::Named(_) => todo!(),
+                    Fields::Unnamed(unnamed) => {
+                        // TODO: Don't assume just one field.
+                        // TODO: Possible to use <T as Xc3Write>::Offsets?
+                        let field0 = unnamed
+                            .unnamed
+                            .first()
+                            .unwrap()
+                            .ty
+                            .clone()
+                            .into_token_stream()
+                            .to_string();
+                        let variant_offsets = Ident::new(&(field0 + "Offsets"), Span::call_site());
+                        quote!(#name(#variant_offsets<'a>))
+                    }
+                    Fields::Unit => quote!(#name),
+                }
+            });
+
+            let define_offsets = quote! {
+                #[doc(hidden)]
+                pub enum #offsets<'a> {
+                    #(#offset_fields),*
+                }
+            };
+
+            let write_variants = variants.iter().map(|variant| {
+                let name = &variant.ident;
+                match &variant.fields {
+                    Fields::Named(_) => todo!(),
+                    // TODO: Don't assume one field.
+                    Fields::Unnamed(_) => quote! {
+                        Self::#name(data) => #offsets::#name(data.xc3_write(writer, data_ptr)?)
+                    },
+                    Fields::Unit => quote!(Self::#name => #offsets::#name),
+                }
+            });
+            let write_data = quote! {
+                let offsets = match self {
+                    #(#write_variants),*
+                };
+            };
+
+            let initialize_offsets = quote!(Ok(offsets));
+
+            (write_data, define_offsets, initialize_offsets)
+        }
+        _ => panic!("Unsupported type"),
     };
 
-    let offset_field_names = fields.iter().map(|f| &f.name);
-    let initialize_offsets_struct = quote! {
-        Ok(#offsets_name { #base_offset #(#offset_field_names),* })
-    };
-
-    let offsets_type = quote!(#offsets_name<'a>);
-
-    let write_fields = fields.iter().map(|f| &f.write_impl);
     quote! {
-        #offsets_struct
+        #define_offsets
 
-        impl ::xc3_write::Xc3Write for #name {
+        impl ::xc3_write::Xc3Write for #type_name {
             type Offsets<'a> = #offsets_type;
 
             fn xc3_write<W: std::io::Write + std::io::Seek>(
@@ -62,13 +128,13 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
                 #write_magic
 
                 // Write data and placeholder offsets.
-                #(#write_fields)*
+                #write_data
 
                 // Point past current write.
                 *data_ptr = (*data_ptr).max(writer.stream_position()?);
 
                 // Return positions of offsets to update later.
-                #initialize_offsets_struct
+                #initialize_offsets
             }
         }
     }
@@ -81,8 +147,6 @@ pub fn xc3_write_offsets_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
     let offsets_name = offsets_name(&input.ident);
-
-    let fields = parse_field_data(&input.data);
 
     let options = TypeOptions::from_attrs(&input.attrs);
     let self_base_offset = if options.has_base_offset {
@@ -108,9 +172,41 @@ pub fn xc3_write_offsets_derive(input: TokenStream) -> TokenStream {
         }
     });
 
+    let write_offset_fields = match &input.data {
+        Data::Struct(DataStruct {
+            fields: Fields::Named(fields),
+            ..
+        }) => {
+            let fields = parse_named_fields(fields);
+
+            let write_fields = fields.iter().map(|f| f.write_offset_impl.clone());
+            quote!(#(#write_fields)*)
+        }
+        Data::Enum(DataEnum { variants, .. }) => {
+            // TODO: Named fields?
+            let write_variants = variants.iter().map(|variant| {
+                let name = &variant.ident;
+                match &variant.fields {
+                    Fields::Named(_) => todo!(),
+                    Fields::Unnamed(_) => quote! {
+                        // TODO: Don't assume one field.
+                        Self::#name(data) => data.write_offsets(writer, base_offset, data_ptr)?
+                    },
+                    Fields::Unit => quote!(Self::#name =>()),
+                }
+            });
+
+            quote! {
+                match self {
+                    #(#write_variants),*
+                }
+            }
+        }
+        _ => panic!("Unsupported type"),
+    };
+
     // Add a write impl to the offset type to support nested types.
     // Vecs need to be able to write all items before the pointed to data.
-    let write_offset_fields = fields.iter().map(|f| &f.write_offset_impl);
     quote! {
         impl<'a> ::xc3_write::Xc3WriteOffsets for #offsets_name<'a> {
             fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -122,7 +218,7 @@ pub fn xc3_write_offsets_derive(input: TokenStream) -> TokenStream {
                 // Assume data is arranged in order by field.
                 // TODO: investigate deriving other orderings.
                 let base_offset = #self_base_offset;
-                #(#write_offset_fields)*
+                #write_offset_fields
 
                 #align_after
 
@@ -167,6 +263,15 @@ impl FieldData {
             },
         }
     }
+
+    fn field_position(name: &Ident, ty: &Type) -> Self {
+        Self {
+            name: name.clone(),
+            offset_field: quote!(pub #name: ::xc3_write::FieldPosition<'a, #ty>),
+            write_impl: write_field_position(name),
+            write_offset_impl: quote!(),
+        }
+    }
 }
 
 fn write_dummy_offset(
@@ -201,130 +306,112 @@ fn write_dummy_shared_offset(
     }
 }
 
-fn parse_field_data(data: &Data) -> Vec<FieldData> {
+fn write_field_position(name: &Ident) -> TokenStream2 {
+    quote! {
+        let #name = ::xc3_write::FieldPosition::new(writer.stream_position()?, &self.#name);
+        self.#name.xc3_write(writer, data_ptr)?;
+    }
+}
+
+fn parse_named_fields(fields: &FieldsNamed) -> Vec<FieldData> {
     let mut offset_fields = Vec::new();
 
-    match data {
-        syn::Data::Struct(DataStruct {
-            fields: Fields::Named(fields),
-            ..
-        }) => {
-            for f in fields.named.iter() {
-                let name = f.ident.as_ref().unwrap();
-                let ty = &f.ty;
+    for f in fields.named.iter() {
+        let name = f.ident.as_ref().unwrap();
+        let ty = &f.ty;
 
-                let options = FieldOptions::from_attrs(&f.attrs);
+        let options = FieldOptions::from_attrs(&f.attrs);
 
-                let pad_size_to = options.pad_size_to.map(|desired_size| {
-                    quote! {
-                        // Add appropriate padding until desired size.
-                        let after_pos = writer.stream_position()?;
-                        let size = after_pos - before_pos;
-                        let padding = #desired_size - size;
-                        writer.write_all(&vec![0u8; padding as usize])?;
+        let pad_size_to = options.pad_size_to.map(|desired_size| {
+            quote! {
+                // Add appropriate padding until desired size.
+                let after_pos = writer.stream_position()?;
+                let size = after_pos - before_pos;
+                let padding = #desired_size - size;
+                writer.write_all(&vec![0u8; padding as usize])?;
 
-                        // Point past current write.
-                        *data_ptr = (*data_ptr).max(writer.stream_position()?);
-                    }
+                // Point past current write.
+                *data_ptr = (*data_ptr).max(writer.stream_position()?);
+            }
+        });
+
+        // Check if we need to write the count.
+        // Use a null offset as a placeholder.
+        // TODO: Reduce repeated code?
+        match options.field_type {
+            Some(FieldType::Offset16) => {
+                offset_fields.push(FieldData::offset(name, options.align, &quote!(u16), ty));
+            }
+            Some(FieldType::Offset32) => {
+                offset_fields.push(FieldData::offset(name, options.align, &quote!(u32), ty));
+            }
+            Some(FieldType::Offset64) => {
+                offset_fields.push(FieldData::offset(name, options.align, &quote!(u64), ty));
+            }
+            Some(FieldType::Count32Offset32) => {
+                let write_offset = write_dummy_offset(name, options.align, &quote!(u32));
+
+                offset_fields.push(FieldData {
+                    name: name.clone(),
+                    offset_field: offset_field(name, &quote!(u32), ty),
+                    write_impl: quote! {
+                        (self.#name.len() as u32).write_le(writer)?;
+                        #write_offset
+                    },
+                    write_offset_impl: quote! {
+                        self.#name.write_full(writer, base_offset, data_ptr)?;
+                    },
                 });
+            }
+            Some(FieldType::Offset32Count32) => {
+                let write_offset = write_dummy_offset(name, options.align, &quote!(u32));
 
-                // Check if we need to write the count.
-                // Use a null offset as a placeholder.
-                // TODO: Reduce repeated code?
-                match options.field_type {
-                    Some(FieldType::Offset16) => {
-                        offset_fields.push(FieldData::offset(
-                            name,
-                            options.align,
-                            &quote!(u16),
-                            ty,
-                        ));
+                offset_fields.push(FieldData {
+                    name: name.clone(),
+                    offset_field: offset_field(name, &quote!(u32), ty),
+                    write_impl: quote! {
+                        #write_offset
+                        (self.#name.len() as u32).write_le(writer)?;
+                    },
+                    write_offset_impl: quote! {
+                        self.#name.write_full(writer, base_offset, data_ptr)?;
+                    },
+                });
+            }
+            Some(FieldType::SharedOffset) => {
+                // Shared offsets don't actually contain any data.
+                // The pointer type is the type of the field itself.
+                offset_fields.push(FieldData::shared_offset(name, options.align, &quote!(#ty)));
+            }
+            Some(FieldType::SavePosition) => {
+                // Store the information for later shared offsets.
+                offset_fields.push(FieldData::field_position(name, ty));
+            }
+            None => {
+                // Also include fields not marked as offsets in the struct.
+                // The field type may have offsets that need to be written later.
+                let write_impl = if options.pad_size_to.is_some() {
+                    quote! {
+                        let before_pos = writer.stream_position()?;
+                        let #name = self.#name.xc3_write(writer, data_ptr)?;
+                        #pad_size_to
                     }
-                    Some(FieldType::Offset32) => {
-                        offset_fields.push(FieldData::offset(
-                            name,
-                            options.align,
-                            &quote!(u32),
-                            ty,
-                        ));
+                } else {
+                    quote! {
+                        let #name = self.#name.xc3_write(writer, data_ptr)?;
                     }
-                    Some(FieldType::Offset64) => {
-                        offset_fields.push(FieldData::offset(
-                            name,
-                            options.align,
-                            &quote!(u64),
-                            ty,
-                        ));
-                    }
-                    Some(FieldType::Count32Offset32) => {
-                        let write_offset = write_dummy_offset(name, options.align, &quote!(u32));
-
-                        offset_fields.push(FieldData {
-                            name: name.clone(),
-                            offset_field: offset_field(name, &quote!(u32), ty),
-                            write_impl: quote! {
-                                (self.#name.len() as u32).write_le(writer)?;
-                                #write_offset
-                            },
-                            write_offset_impl: quote! {
-                                self.#name.write_full(writer, base_offset, data_ptr)?;
-                            },
-                        });
-                    }
-                    Some(FieldType::Offset32Count32) => {
-                        let write_offset = write_dummy_offset(name, options.align, &quote!(u32));
-
-                        offset_fields.push(FieldData {
-                            name: name.clone(),
-                            offset_field: offset_field(name, &quote!(u32), ty),
-                            write_impl: quote! {
-                                #write_offset
-                                (self.#name.len() as u32).write_le(writer)?;
-                            },
-                            write_offset_impl: quote! {
-                                self.#name.write_full(writer, base_offset, data_ptr)?;
-                            },
-                        });
-                    }
-                    Some(FieldType::SharedOffset) => {
-                        // Shared offsets don't actually contain any data.
-                        // The pointer type is the type of the field itself.
-                        offset_fields.push(FieldData::shared_offset(
-                            name,
-                            options.align,
-                            &quote!(#ty),
-                        ));
-                    }
-                    None => {
-                        // Also include fields not marked as offsets in the struct.
-                        // The field type may have offsets that need to be written later.
-                        let write_impl = if options.pad_size_to.is_some() {
-                            quote! {
-                                let before_pos = writer.stream_position()?;
-                                let #name = self.#name.xc3_write(writer, data_ptr)?;
-                                #pad_size_to
-                            }
-                        } else {
-                            quote! {
-                                let #name = self.#name.xc3_write(writer, data_ptr)?;
-                            }
-                        };
-                        offset_fields.push(FieldData {
-                            name: name.clone(),
-                            offset_field: quote!(pub #name: <#ty as ::xc3_write::Xc3Write>::Offsets<'a>),
-                            write_impl,
-                            write_offset_impl: quote! {
-                                // This field isn't an Offset<T>, so just call write_offsets.
-                                self.#name.write_offsets(writer, base_offset, data_ptr)?;
-                            },
-                        });
-                    }
-                }
+                };
+                offset_fields.push(FieldData {
+                    name: name.clone(),
+                    offset_field: quote!(pub #name: <#ty as ::xc3_write::Xc3Write>::Offsets<'a>),
+                    write_impl,
+                    write_offset_impl: quote! {
+                        // This field isn't an Offset<T>, so just call write_offsets.
+                        self.#name.write_offsets(writer, base_offset, data_ptr)?;
+                    },
+                });
             }
         }
-        syn::Data::Enum(_) => todo!(),
-        syn::Data::Union(_) => todo!(),
-        _ => panic!("Unsupported type"),
     }
 
     offset_fields
