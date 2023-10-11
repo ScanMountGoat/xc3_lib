@@ -1,5 +1,5 @@
 //! Animation and skeleton data for [Sar1](crate::sar1::Sar1) archives.
-use crate::{parse_offset64_count32, parse_ptr64, parse_string_ptr64};
+use crate::{parse_offset64_count32, parse_opt_ptr64, parse_ptr64, parse_string_ptr64};
 use binrw::{args, binread, BinRead, BinWrite};
 use xc3_write::{xc3_write_binwrite_impl, VecOffsets, Xc3Write, Xc3WriteOffsets};
 
@@ -25,7 +25,6 @@ pub struct Bc {
     pub unks: Vec<u64>,
 }
 
-// TODO: variant level magic?
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub enum BcData {
     #[br(magic(2u32))]
@@ -286,29 +285,29 @@ pub struct Skeleton {
     pub unk_table4: BcList<[[f32; 4]; 3]>,
     pub unk_table5: BcList<u64>,
 
-    #[br(parse_with = parse_ptr64)]
+    #[br(parse_with = parse_opt_ptr64)]
     #[xc3(offset64)]
-    pub unk6: SkeletonUnk6,
+    pub unk6: Option<SkeletonUnk6>,
 
-    #[br(parse_with = parse_ptr64)]
+    #[br(parse_with = parse_opt_ptr64)]
     #[xc3(offset64)]
-    pub unk7: SkeletonUnk7,
+    pub unk7: Option<SkeletonUnk7>,
 
-    #[br(parse_with = parse_ptr64)]
+    #[br(parse_with = parse_opt_ptr64)]
     #[xc3(offset64)]
-    pub unk8: SkeletonUnk8,
+    pub unk8: Option<SkeletonUnk8>,
 
-    #[br(parse_with = parse_ptr64)]
+    #[br(parse_with = parse_opt_ptr64)]
     #[xc3(offset64)]
-    pub unk9: SkeletonUnk9,
+    pub unk9: Option<SkeletonUnk9>,
 
-    #[br(parse_with = parse_ptr64)]
+    #[br(parse_with = parse_opt_ptr64)]
     #[xc3(offset64)]
-    pub unk10: SkeletonUnk10,
+    pub unk10: Option<SkeletonUnk10>,
 
-    #[br(parse_with = parse_ptr64)]
+    #[br(parse_with = parse_opt_ptr64)]
     #[xc3(offset64)]
-    pub unk11: SkeletonUnk11,
+    pub unk11: Option<SkeletonUnk11>,
 
     pub unk12: u64,
     pub unk13: i64,

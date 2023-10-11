@@ -353,8 +353,21 @@ fn check_ltpc(ltpc: Ltpc, path: Option<&Path>) {
 
 fn check_sar1(sar1: Sar1, path: Option<&Path>) {
     for entry in &sar1.entries {
-        if let Err(e) = entry.read_data() {
-            println!("Error reading entry for {path:?}: {e}");
+        match entry.read_data() {
+            // Check read/write for the inner data.
+            Ok(entry_data) => match entry_data {
+                xc3_lib::sar1::EntryData::Bc(_) => (),
+                xc3_lib::sar1::EntryData::ChCl(_) => (),
+                xc3_lib::sar1::EntryData::Csvb(csvb) => {
+                    let mut writer = Cursor::new(Vec::new());
+                    xc3_write::write_full(&csvb, &mut writer, 0, &mut 0).unwrap();
+                    if writer.into_inner() != entry.entry_data {
+                        println!("Csvb read/write not 1:1 for {path:?}");
+                    }
+                }
+                xc3_lib::sar1::EntryData::Eva(_) => (),
+            },
+            Err(e) => println!("Error reading entry for {path:?}: {e}"),
         }
     }
 

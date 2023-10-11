@@ -85,9 +85,15 @@ where
         R: std::io::Read + std::io::Seek,
         Args: Clone,
     {
-        // Read a value pointed to by a relative offset.
-        let offset = P::read_options(reader, endian, ())?;
-        parse_ptr(offset.into(), reader, endian, args)
+        // Reading data at the current position produces confusing errors.
+        // Fail early since an offset of 0 always seems to indicate no value.
+        let pos = reader.stream_position()?;
+        Self::parse_opt(reader, endian, args).and_then(|value| {
+            value.ok_or(binrw::Error::AssertFail {
+                pos,
+                message: "unexpected null offset".to_string(),
+            })
+        })
     }
 
     fn parse_opt<T, R, Args>(
@@ -272,6 +278,19 @@ where
     Args: Clone,
 {
     Ptr::<u32>::parse_opt(reader, endian, args)
+}
+
+fn parse_opt_ptr64<T, R, Args>(
+    reader: &mut R,
+    endian: binrw::Endian,
+    args: FilePtrArgs<Args>,
+) -> BinResult<Option<T>>
+where
+    for<'a> T: BinRead<Args<'a> = Args> + 'static,
+    R: std::io::Read + std::io::Seek,
+    Args: Clone,
+{
+    Ptr::<u64>::parse_opt(reader, endian, args)
 }
 
 // TODO: Dedicated error types?

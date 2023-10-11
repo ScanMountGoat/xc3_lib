@@ -76,9 +76,38 @@ pub struct ChCl {
     pub unk1: u32,
 }
 
+// TODO: Is the padding always aligned?
 // "effpnt" or "effect" "point"?
-#[derive(BinRead, Debug)]
+#[derive(BinRead, Debug, Xc3Write, Xc3WriteOffsets)]
 #[br(magic(b"CSVB"))]
+#[xc3(magic(b"CSVB"))]
+#[xc3(align_after(64))]
 pub struct Csvb {
-    pub unk1: u32,
+    pub item_count: u16,
+    pub unk_count: u16,
+    pub unk_section_length: u32,
+    pub string_section_length: u32,
+
+    // TODO: Why do we need to divide here?
+    #[br(count = unk_count / 8)]
+    pub unks: Vec<u16>,
+
+    #[br(count = item_count)]
+    pub unk6: Vec<CvsbItem>,
+
+    #[br(count = unk_section_length)]
+    pub unk_section: Vec<u8>,
+
+    #[br(count = string_section_length)]
+    pub string_section: Vec<u8>,
+}
+
+#[derive(BinRead, Debug, Xc3Write, Xc3WriteOffsets)]
+pub struct CvsbItem {
+    // TODO: Offsets relative to start of string section.
+    pub name1_offset: u16,
+    pub name2_offset: u16,
+    pub unk3: u32,
+    pub unk4: u32,
+    pub unk5: u32,
 }
