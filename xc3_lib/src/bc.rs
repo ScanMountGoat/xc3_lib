@@ -56,7 +56,101 @@ pub struct Asmb {
 #[br(magic(b"SKDY"))]
 #[xc3(magic(b"SKDY"))]
 pub struct Skdy {
+    #[br(parse_with = parse_ptr64)]
+    #[xc3(offset64)]
+    pub dynamics: Dynamics,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct Dynamics {
+    pub unk1: BcList<()>,
+    pub unk2: u64,
+
+    #[br(parse_with = parse_ptr64)]
+    #[xc3(offset64)]
+    pub unk3: DynamicsUnk1,
+
+    #[br(parse_with = parse_ptr64)]
+    #[xc3(offset64)]
+    pub unk4: DynamicsUnk2,
+
+    #[br(parse_with = parse_ptr64)]
+    #[xc3(offset64)]
+    pub unk5: DynamicsUnk3,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct DynamicsUnk1 {
+    pub unk1: BcList<DynamicsUnk1Item>,
+    pub unk2: BcList<()>,
+    pub unk3: BcList<()>,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct DynamicsUnk1Item {
     pub unk1: u32,
+    pub unk2: i32,
+
+    #[br(parse_with = parse_string_ptr64)]
+    #[xc3(offset64)]
+    pub name1: String,
+
+    // TODO: Shared offset to string + 0xFF?
+    #[br(parse_with = parse_string_ptr64)]
+    #[xc3(offset64)]
+    pub name2: String,
+    pub unk4: u32,
+    pub unk5: i32,
+
+    pub unk6: [f32; 9],
+    pub unk7: [i32; 3],
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct DynamicsUnk2 {
+    pub unk1: BcList<DynamicsUnk2Item>,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct DynamicsUnk2Item {
+    #[br(parse_with = parse_string_ptr64)]
+    #[xc3(offset64)]
+    pub name: String,
+
+    pub unk1: BcList<DynamicsUnk2ItemUnk1>,
+    pub unk2: BcList<[f32; 4]>,
+    pub unk3: BcList<DynamicsUnk2ItemUnk3>,
+    pub unk4: BcList<()>,
+    pub unk5: BcList<()>,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct DynamicsUnk2ItemUnk1 {
+    #[br(parse_with = parse_string_ptr64)]
+    #[xc3(offset64)]
+    pub name1: String,
+
+    #[br(parse_with = parse_string_ptr64)]
+    #[xc3(offset64)]
+    pub name2: String,
+
+    pub unk1: [f32; 7],
+    pub unk2: u32,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct DynamicsUnk2ItemUnk3 {
+    #[br(parse_with = parse_string_ptr64)]
+    #[xc3(offset64)]
+    pub name: String,
+
+    pub unk1: [f32; 8],
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct DynamicsUnk3 {
+    // TODO: points to string section?
+    pub unk1: BcList<()>,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
