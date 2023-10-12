@@ -172,6 +172,7 @@ pub struct AnimationBinding {
 
     // TODO: Avoid needing to match multiple times on animation type?
     #[br(parse_with = parse_ptr64)]
+    #[xc3(offset64)]
     pub animation: Animation,
 
     // TODO: Same length and ordering as hashes?
@@ -220,31 +221,12 @@ pub struct StringOffset {
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(import_raw(animation_type: AnimationType))]
-pub struct ExtraTrackAnimation {
-    #[br(parse_with = parse_string_ptr64)]
-    #[xc3(offset64)]
-    pub unk1: String,
-
-    pub unk2: u32,
-    pub unk3: i32,
-    pub unk6: u32,
-    pub unk7: u32,
-
-    #[br(parse_with = parse_ptr64)]
-    #[br(args { inner: animation_type })]
-    pub data: ExtraTrackAnimationData,
-
-    pub unk_offset: u64,
-}
-
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
-#[br(import_raw(animation_type: AnimationType))]
-pub enum ExtraTrackAnimationData {
-    #[br(pre_assert(animation_type == AnimationType::Unk0))]
-    Unk0,
+pub enum ExtraTrackAnimation {
+    #[br(pre_assert(animation_type == AnimationType::Uncompressed))]
+    Uncompressed(UncompressedExtraData),
 
     #[br(pre_assert(animation_type == AnimationType::Cubic))]
-    Unk1,
+    Cubic,
 
     #[br(pre_assert(animation_type == AnimationType::Unk2))]
     Unk2,
@@ -254,7 +236,60 @@ pub enum ExtraTrackAnimationData {
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct UncompressedExtraData {
+    // TODO: type?
+    pub unk1: BcList<u8>,
+
+    // TODO: offsets?
+    #[br(parse_with = parse_ptr64)]
+    #[xc3(offset64)]
+    pub unk2: UncompressedExtraDataUnk2,
+
+    #[br(parse_with = parse_ptr64)]
+    #[xc3(offset64)]
+    pub unk3: UncompressedExtraDataUnk3,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct UncompressedExtraDataUnk2 {
+    pub unk1: BcList<[f32; 4]>,
+    pub unk2: BcList<[f32; 4]>,
+    pub unk3: BcList<[f32; 4]>,
+    pub unk4: BcList<u16>,
+    pub unk5: BcList<u16>,
+    pub unk6: BcList<u16>,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct UncompressedExtraDataUnk3 {
+    pub unk1: BcList<u8>,
+    pub unk2: BcList<u16>,
+
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset64_count32)]
+    pub unk3: Vec<u32>,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct PackedCubicExtraData {
+    #[br(parse_with = parse_string_ptr64)]
+    #[xc3(offset64)]
+    pub unk1: String,
+    pub unk2: u32,
+    pub unk3: i32,
+
+    pub unk6: u32,
+    pub unk7: u32,
+
+    #[br(parse_with = parse_ptr64)]
+    #[xc3(offset64)]
+    pub data: PackedCubicExtraDataInner,
+
+    pub unk_offset: u64,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct PackedCubicExtraDataInner {
     // TODO: buffers?
     pub unk1: BcList<u8>,
     pub unk2: BcList<u8>,
@@ -267,7 +302,7 @@ pub struct PackedCubicExtraData {
 #[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy)]
 #[brw(repr(u8))]
 pub enum AnimationType {
-    Unk0 = 0,
+    Uncompressed = 0,
     Cubic = 1,
     Unk2 = 2,
     PackedCubic = 3,
@@ -276,8 +311,8 @@ pub enum AnimationType {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(import { animation_type: AnimationType})]
 pub enum AnimationData {
-    #[br(pre_assert(animation_type == AnimationType::Unk0))]
-    Unk0,
+    #[br(pre_assert(animation_type == AnimationType::Uncompressed))]
+    Uncompressed(Uncompressed),
 
     #[br(pre_assert(animation_type == AnimationType::Cubic))]
     Cubic(Cubic),
@@ -287,6 +322,11 @@ pub enum AnimationData {
 
     #[br(pre_assert(animation_type == AnimationType::PackedCubic))]
     PackedCubic(PackedCubic),
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct Uncompressed {
+    pub transforms: BcList<Transform>,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]

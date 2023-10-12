@@ -141,7 +141,7 @@ impl Models {
 
             // TODO: Load all key frames?
             match &anim.binding.animation.data {
-                xc3_lib::bc::AnimationData::Unk0 => todo!(),
+                xc3_lib::bc::AnimationData::Uncompressed(_) => todo!(),
                 xc3_lib::bc::AnimationData::Cubic(cubic) => {
                     // TODO: Does each of these tracks have a corresponding hash?
                     // TODO: Also check the bone indices?
@@ -177,14 +177,14 @@ impl Models {
                 xc3_lib::bc::AnimationData::PackedCubic(cubic) => {
                     // TODO: Does each of these tracks have a corresponding hash?
                     // TODO: Also check the bone indices?
-                    if let xc3_lib::bc::ExtraTrackAnimationData::PackedCubic(extra) =
-                        &anim.binding.extra_track_animation.data
+                    if let xc3_lib::bc::ExtraTrackAnimation::PackedCubic(extra) =
+                        &anim.binding.extra_track_animation
                     {
                         for (track, hash) in cubic
                             .tracks
                             .elements
                             .iter()
-                            .zip(extra.hashes.elements.iter())
+                            .zip(extra.data.hashes.elements.iter())
                         {
                             // TODO: cubic interpolation?
                             let translation = sample_vec3_packed_cubic(

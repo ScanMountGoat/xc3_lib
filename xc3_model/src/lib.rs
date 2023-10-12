@@ -4,6 +4,7 @@
 use std::path::Path;
 
 use glam::Mat4;
+use log::warn;
 use skinning::Influence;
 use texture::load_textures;
 use vertex::{read_index_buffers, read_vertex_buffers, AttributeData};
@@ -247,7 +248,8 @@ pub fn load_model<P: AsRef<Path>>(
 ) -> ModelRoot {
     let wimdo_path = wimdo_path.as_ref();
 
-    let mxmd = Mxmd::from_file(wimdo_path).unwrap_or_else(|_| {
+    let mxmd = Mxmd::from_file(wimdo_path).unwrap_or_else(|e| {
+        warn!("Failed to read Mxmd: {e}. Trying Apmd.");
         // Some wimdo files have the mxmd in an archive.
         Apmd::from_file(wimdo_path)
             .unwrap()

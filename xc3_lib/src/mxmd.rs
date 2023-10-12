@@ -1046,9 +1046,9 @@ pub struct SkeletonUnk5 {
     pub unk1: Vec<[u16; 105]>,
 
     // TODO: count?
-    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset32)]
-    pub unk_offset: [f32; 12],
+    pub unk_offset: Option<[f32; 12]>,
 
     // TODO: padding?
     pub unk: [u32; 5],
