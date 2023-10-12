@@ -379,6 +379,8 @@ pub struct Skeleton {
     pub unk_table4: BcList<[[f32; 4]; 3]>,
     pub unk_table5: BcList<u64>,
 
+    // TODO: Not all skeletons have these fields?
+    // TODO: These may only be pointed to by the offsets at the end of the file?
     #[br(parse_with = parse_opt_ptr64)]
     #[xc3(offset64)]
     pub unk6: Option<SkeletonUnk6>,
