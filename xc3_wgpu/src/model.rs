@@ -143,8 +143,6 @@ impl Models {
             match &anim.binding.animation.data {
                 xc3_lib::bc::AnimationData::Uncompressed(_) => todo!(),
                 xc3_lib::bc::AnimationData::Cubic(cubic) => {
-                    // TODO: Does each of these tracks have a corresponding hash?
-                    // TODO: Also check the bone indices?
                     for (track, bone_index) in cubic
                         .tracks
                         .elements
@@ -163,13 +161,24 @@ impl Models {
                         let key = &track.scale.elements[0];
                         let scale = vec3(key.x[3], key.y[3], key.z[3]);
 
+                        // TODO: How to handle index values of -1?
+                        // TODO: Not all bones are being animated properly?
                         if *bone_index >= 0 {
-                            // TODO: Does this work in any tools yet?
-                            // TODO: Should this use mxmd ordering?
-                            let transform = Mat4::from_translation(translation)
-                                * Mat4::from_quat(rotation)
-                                * Mat4::from_scale(scale);
-                            animated_skeleton.bones[*bone_index as usize].transform = transform;
+                            let bone_name =
+                                &anim.binding.bone_names.elements[*bone_index as usize].name;
+
+                            if let Some(bone_index) = animated_skeleton
+                                .bones
+                                .iter()
+                                .position(|b| &b.name == bone_name)
+                            {
+                                let transform = Mat4::from_translation(translation)
+                                    * Mat4::from_quat(rotation)
+                                    * Mat4::from_scale(scale);
+                                animated_skeleton.bones[bone_index].transform = transform;
+                            } else {
+                                error!("No matching bone for {:?}", bone_name);
+                            }
                         }
                     }
                 }

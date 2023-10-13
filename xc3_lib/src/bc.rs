@@ -170,18 +170,12 @@ pub struct AnimationBinding {
     // u64?
     pub unk2: u64,
 
-    // TODO: Avoid needing to match multiple times on animation type?
     #[br(parse_with = parse_ptr64)]
     #[xc3(offset64)]
     pub animation: Animation,
 
-    // TODO: Same length and ordering as hashes?
-    // TODO: convert to indices in the mxmd skeleton based on hashes?
-    // TODO: Are these always 0..N-1?
-    // i.e are the hashes always unique?
-    // TODO: same length and ordering as tracks?
+    // TODO: Assigns tracks to entries in bone_names?
     pub bone_indices: BcList<i16>,
-    // TODO: extra track bindings?
     pub bone_names: BcList<StringOffset>,
 
     #[br(args_raw(animation.animation_type))]
@@ -226,7 +220,7 @@ pub enum ExtraTrackAnimation {
     Uncompressed(UncompressedExtraData),
 
     #[br(pre_assert(animation_type == AnimationType::Cubic))]
-    Cubic,
+    Cubic(CubicExtraData),
 
     #[br(pre_assert(animation_type == AnimationType::Unk2))]
     Unk2,
@@ -271,7 +265,44 @@ pub struct UncompressedExtraDataUnk3 {
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct CubicExtraData {
+    // pointer to start of strings?
+    #[br(parse_with = parse_string_ptr64)]
+    #[xc3(offset64)]
+    pub unk1: String,
+    pub unk2: u32,
+    pub unk3: i32,
+
+    pub unk6: u32,
+    pub unk7: u32,
+
+    #[br(parse_with = parse_ptr64)]
+    #[xc3(offset64)]
+    pub data1: CubicExtraDataInner1,
+
+    #[br(parse_with = parse_ptr64)]
+    #[xc3(offset64)]
+    pub data2: CubicExtraDataInner2,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct CubicExtraDataInner1 {
+    // TODO: buffer?
+    pub unk1: BcList<u8>,
+
+    pub unk2: BcList<u16>,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct CubicExtraDataInner2 {
+    // TODO: type?
+    pub unk1: BcList<u8>, // ends with 0xFFFFFFFF?
+    pub unk2: BcList<u8>,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct PackedCubicExtraData {
+    // pointer to start of strings?
     #[br(parse_with = parse_string_ptr64)]
     #[xc3(offset64)]
     pub unk1: String,
