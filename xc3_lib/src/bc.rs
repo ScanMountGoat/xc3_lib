@@ -234,34 +234,40 @@ pub struct UncompressedExtraData {
     // TODO: type?
     pub unk1: BcList<u8>,
 
-    // TODO: offsets?
     #[br(parse_with = parse_ptr64)]
     #[xc3(offset64)]
-    pub unk2: UncompressedExtraDataUnk2,
+    pub motion: UncompressedExtraDataMotion,
 
     #[br(parse_with = parse_ptr64)]
     #[xc3(offset64)]
     pub unk3: UncompressedExtraDataUnk3,
 }
 
+// TODO: Default transform for a single bone at each frame?
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
-pub struct UncompressedExtraDataUnk2 {
-    pub unk1: BcList<[f32; 4]>,
-    pub unk2: BcList<[f32; 4]>,
-    pub unk3: BcList<[f32; 4]>,
-    pub unk4: BcList<u16>,
-    pub unk5: BcList<u16>,
-    pub unk6: BcList<u16>,
+pub struct UncompressedExtraDataMotion {
+    pub translation: BcList<[f32; 4]>,
+    pub rotation: BcList<[f32; 4]>,
+    pub scale: BcList<[f32; 4]>,
+
+    // length = frame count?
+    // length * hashes length = transforms length?
+    pub translation_indices: BcList<u16>,
+    pub rotation_indices: BcList<u16>,
+    pub scale_indices: BcList<u16>,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct UncompressedExtraDataUnk3 {
+    // max of 254?
+    // TODO: same length as hash indices?
     pub unk1: BcList<u8>,
-    pub unk2: BcList<u16>,
+    // TODO: assigns hashes to something?
+    pub hash_indices: BcList<u16>,
 
     #[br(parse_with = parse_offset64_count32)]
     #[xc3(offset64_count32)]
-    pub unk3: Vec<u32>,
+    pub bone_name_hashes: Vec<u32>,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -327,7 +333,7 @@ pub struct PackedCubicExtraDataInner {
 
     // The MurmurHash3 32-bit hash of the bone names.
     // TODO: type alias for hash?
-    pub hashes: BcList<u32>,
+    pub bone_name_hashes: BcList<u32>,
 }
 
 #[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy)]

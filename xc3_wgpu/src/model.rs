@@ -126,6 +126,7 @@ impl ModelGroup {
     }
 }
 
+// TODO: Create an animation module.
 impl Models {
     pub fn update_bone_transforms(&self, queue: &wgpu::Queue, anim: &xc3_lib::bc::Anim) {
         if let Some(skeleton) = &self.skeleton {
@@ -141,7 +142,45 @@ impl Models {
 
             // TODO: Load all key frames?
             match &anim.binding.animation.data {
-                xc3_lib::bc::AnimationData::Uncompressed(_) => todo!(),
+                xc3_lib::bc::AnimationData::Uncompressed(uncompressed) => {
+                    if let xc3_lib::bc::ExtraTrackAnimation::Uncompressed(extra) =
+                        &anim.binding.extra_track_animation
+                    {
+                        // TODO: Are the transforms in order for each hash for each frame?
+                        for (transform, hash) in uncompressed
+                            .transforms
+                            .elements
+                            .iter()
+                            .zip(extra.unk3.bone_name_hashes.iter())
+                        {
+                            if let Some(bone_index) = hash_to_index.get(hash) {
+                                let translation = vec3(
+                                    transform.translation[0],
+                                    transform.translation[1],
+                                    transform.translation[2],
+                                );
+                                let rotation = Quat::from_xyzw(
+                                    transform.rotation_quaternion[0],
+                                    transform.rotation_quaternion[1],
+                                    transform.rotation_quaternion[2],
+                                    transform.rotation_quaternion[3],
+                                );
+                                let scale = vec3(
+                                    transform.scale[0],
+                                    transform.scale[1],
+                                    transform.scale[2],
+                                );
+
+                                let transform = Mat4::from_translation(translation)
+                                    * Mat4::from_quat(rotation)
+                                    * Mat4::from_scale(scale);
+                                animated_skeleton.bones[*bone_index].transform = transform;
+                            } else {
+                                error!("No matching bone for hash {hash:x}");
+                            }
+                        }
+                    }
+                }
                 xc3_lib::bc::AnimationData::Cubic(cubic) => {
                     for (track, bone_index) in cubic
                         .tracks
@@ -193,7 +232,7 @@ impl Models {
                             .tracks
                             .elements
                             .iter()
-                            .zip(extra.data.hashes.elements.iter())
+                            .zip(extra.data.bone_name_hashes.elements.iter())
                         {
                             // TODO: cubic interpolation?
                             let translation = sample_vec3_packed_cubic(
