@@ -380,7 +380,7 @@ pub struct CubicTrack {
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct KeyFrameCubicVec3 {
-    pub time: f32,
+    pub frame: f32,
     pub x: [f32; 4],
     pub y: [f32; 4],
     pub z: [f32; 4],
@@ -388,7 +388,7 @@ pub struct KeyFrameCubicVec3 {
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct KeyFrameCubicQuaternion {
-    pub time: f32,
+    pub frame: f32,
     pub x: [f32; 4],
     pub y: [f32; 4],
     pub z: [f32; 4],
@@ -407,7 +407,7 @@ pub struct PackedCubic {
     pub quaternions: BcList<[f32; 4]>,
 
     // TODO: Are these keyframe times?
-    pub timings: BcList<u16>,
+    pub keyframes: BcList<u16>,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -419,12 +419,13 @@ pub struct PackedCubicTrack {
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct SubTrack {
-    // TODO: index into timings?
-    pub time_start_index: u32,
-    /// Starting index for the vector or quaternion values.
+    /// Index into [keyframes](struct.PackedCubic.html#structfield.keyframes).
+    pub keyframe_start_index: u32,
+    /// Index into [vectors](struct.PackedCubic.html#structfield.vectors)
+    /// or [quaternions](struct.PackedCubic.html#structfield.quaternions).
     pub curves_start_index: u32,
-    // TODO: index into timings?
-    pub time_end_index: u32,
+    /// Index into [keyframes](struct.PackedCubic.html#structfield.keyframes).
+    pub keyframe_end_index: u32,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]

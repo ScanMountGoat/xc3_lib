@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
-use glam::{uvec4, vec3, vec4, Mat4, Quat, Vec3, Vec4};
-use log::{error, info};
+use glam::{uvec4, vec4, Mat4, Vec3, Vec4};
+use log::info;
 use rayon::prelude::*;
 use wgpu::util::DeviceExt;
-use xc3_lib::bc::murmur3;
 use xc3_model::{skinning::bone_indices_weights, vertex::AttributeData};
 
 use crate::{
+    animation::animate_skeleton,
     material::{materials, Material},
     pipeline::{ModelPipelineData, PipelineKey},
     sampler::create_sampler,
@@ -126,155 +126,20 @@ impl ModelGroup {
     }
 }
 
-// TODO: Create an animation module.
 impl Models {
-    pub fn update_bone_transforms(&self, queue: &wgpu::Queue, anim: &xc3_lib::bc::Anim) {
+    pub fn update_bone_transforms(
+        &self,
+        queue: &wgpu::Queue,
+        anim: &xc3_lib::bc::Anim,
+        frame: f32,
+    ) {
         if let Some(skeleton) = &self.skeleton {
-            let hash_to_index: HashMap<_, _> = skeleton
-                .bones
-                .iter()
-                .enumerate()
-                .map(|(i, b)| (murmur3(b.name.as_bytes()), i))
-                .collect();
-
-            // Just create a copy of the skeleton to simplify the code for now.
-            let mut animated_skeleton = skeleton.clone();
-
-            // TODO: Load all key frames?
-            match &anim.binding.animation.data {
-                xc3_lib::bc::AnimationData::Uncompressed(uncompressed) => {
-                    if let xc3_lib::bc::ExtraTrackAnimation::Uncompressed(extra) =
-                        &anim.binding.extra_track_animation
-                    {
-                        // TODO: Are the transforms in order for each hash for each frame?
-                        for (transform, hash) in uncompressed
-                            .transforms
-                            .elements
-                            .iter()
-                            .zip(extra.unk3.bone_name_hashes.iter())
-                        {
-                            if let Some(bone_index) = hash_to_index.get(hash) {
-                                let translation = vec3(
-                                    transform.translation[0],
-                                    transform.translation[1],
-                                    transform.translation[2],
-                                );
-                                let rotation = Quat::from_xyzw(
-                                    transform.rotation_quaternion[0],
-                                    transform.rotation_quaternion[1],
-                                    transform.rotation_quaternion[2],
-                                    transform.rotation_quaternion[3],
-                                );
-                                let scale = vec3(
-                                    transform.scale[0],
-                                    transform.scale[1],
-                                    transform.scale[2],
-                                );
-
-                                let transform = Mat4::from_translation(translation)
-                                    * Mat4::from_quat(rotation)
-                                    * Mat4::from_scale(scale);
-                                animated_skeleton.bones[*bone_index].transform = transform;
-                            } else {
-                                error!("No matching bone for hash {hash:x}");
-                            }
-                        }
-                    }
-                }
-                xc3_lib::bc::AnimationData::Cubic(cubic) => {
-                    for (track, bone_index) in cubic
-                        .tracks
-                        .elements
-                        .iter()
-                        .zip(anim.binding.bone_indices.elements.iter())
-                    {
-                        // TODO: cubic interpolation?
-                        // TODO: Add sample methods to the keyframe types?
-                        // TODO: Will the first key always be at time 0?
-                        let key = &track.translation.elements[0];
-                        let translation = vec3(key.x[3], key.y[3], key.z[3]);
-
-                        let key = &track.rotation.elements[0];
-                        let rotation = Quat::from_xyzw(key.x[3], key.y[3], key.z[3], key.w[3]);
-
-                        let key = &track.scale.elements[0];
-                        let scale = vec3(key.x[3], key.y[3], key.z[3]);
-
-                        // TODO: How to handle index values of -1?
-                        // TODO: Not all bones are being animated properly?
-                        if *bone_index >= 0 {
-                            let bone_name =
-                                &anim.binding.bone_names.elements[*bone_index as usize].name;
-
-                            if let Some(bone_index) = animated_skeleton
-                                .bones
-                                .iter()
-                                .position(|b| &b.name == bone_name)
-                            {
-                                let transform = Mat4::from_translation(translation)
-                                    * Mat4::from_quat(rotation)
-                                    * Mat4::from_scale(scale);
-                                animated_skeleton.bones[bone_index].transform = transform;
-                            } else {
-                                error!("No matching bone for {:?}", bone_name);
-                            }
-                        }
-                    }
-                }
-                xc3_lib::bc::AnimationData::Unk2 => todo!(),
-                xc3_lib::bc::AnimationData::PackedCubic(cubic) => {
-                    // TODO: Does each of these tracks have a corresponding hash?
-                    // TODO: Also check the bone indices?
-                    if let xc3_lib::bc::ExtraTrackAnimation::PackedCubic(extra) =
-                        &anim.binding.extra_track_animation
-                    {
-                        for (track, hash) in cubic
-                            .tracks
-                            .elements
-                            .iter()
-                            .zip(extra.data.bone_name_hashes.elements.iter())
-                        {
-                            // TODO: cubic interpolation?
-                            let translation = sample_vec3_packed_cubic(
-                                cubic,
-                                track.translation.curves_start_index as usize,
-                            );
-                            let rotation = sample_quat_packed_cubic(
-                                cubic,
-                                track.rotation.curves_start_index as usize,
-                            );
-                            let scale = sample_vec3_packed_cubic(
-                                cubic,
-                                track.scale.curves_start_index as usize,
-                            );
-
-                            if let Some(bone_index) = hash_to_index.get(hash) {
-                                // TODO: Does every track start at time 0?
-                                let transform = Mat4::from_translation(translation)
-                                    * Mat4::from_quat(rotation)
-                                    * Mat4::from_scale(scale);
-                                animated_skeleton.bones[*bone_index].transform = transform;
-                            } else {
-                                error!("No matching bone for hash {hash:x}");
-                            }
-                        }
-                    }
-                }
-            }
-
-            let rest_pose_world = skeleton.world_transforms();
-            let animated_world = animated_skeleton.world_transforms();
-
-            let mut animated_transforms = [Mat4::IDENTITY; 256];
-            for i in (0..skeleton.bones.len()).take(animated_transforms.len()) {
-                animated_transforms[i] = animated_world[i] * rest_pose_world[i].inverse();
-            }
-
+            let animated_transforms = animate_skeleton(skeleton, anim, frame);
             queue.write_buffer(
                 &self.per_group_buffer,
                 0,
                 bytemuck::cast_slice(&[crate::shader::model::PerGroup {
-                    enable_skinning: uvec4(self.skeleton.is_some() as u32, 0, 0, 0),
+                    enable_skinning: uvec4(1, 0, 0, 0),
                     animated_transforms,
                 }]),
             );
@@ -286,21 +151,6 @@ impl Mesh {
     fn should_render_lod(&self, models: &Models) -> bool {
         xc3_model::should_render_lod(self.lod, &models.base_lod_indices)
     }
-}
-
-fn sample_vec3_packed_cubic(cubic: &xc3_lib::bc::PackedCubic, start_index: usize) -> Vec3 {
-    let x_coeffs = cubic.vectors.elements[start_index];
-    let y_coeffs = cubic.vectors.elements[start_index + 1];
-    let z_coeffs = cubic.vectors.elements[start_index + 2];
-    vec3(x_coeffs[3], y_coeffs[3], z_coeffs[3])
-}
-
-fn sample_quat_packed_cubic(cubic: &xc3_lib::bc::PackedCubic, start_index: usize) -> Quat {
-    let x_coeffs = cubic.quaternions.elements[start_index];
-    let y_coeffs = cubic.quaternions.elements[start_index + 1];
-    let z_coeffs = cubic.quaternions.elements[start_index + 2];
-    let w_coeffs = cubic.quaternions.elements[start_index + 3];
-    Quat::from_xyzw(x_coeffs[3], y_coeffs[3], z_coeffs[3], w_coeffs[3])
 }
 
 #[tracing::instrument]

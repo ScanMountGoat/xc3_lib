@@ -1,4 +1,5 @@
 // TODO: Rework public API
+pub mod animation;
 pub mod material;
 pub mod model;
 pub mod pipeline;

@@ -1,4 +1,7 @@
-use std::path::Path;
+use std::{
+    path::Path,
+    time::{Duration, Instant},
+};
 
 use clap::Parser;
 use futures::executor::block_on;
@@ -10,6 +13,7 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
     window::{Window, WindowBuilder},
 };
+use xc3_lib::bc::Anim;
 use xc3_wgpu::{
     model::ModelGroup,
     renderer::{CameraData, Xc3Renderer},
@@ -30,12 +34,18 @@ struct State {
     size: winit::dpi::PhysicalSize<u32>,
     config: wgpu::SurfaceConfiguration,
 
+    // Camera
     translation: Vec3,
     rotation_xyz: Vec3,
 
     renderer: Xc3Renderer,
 
     models: Vec<ModelGroup>,
+
+    // Animation
+    anim: Option<Anim>,
+    current_frame: f32,
+    previous_frame_start: Instant,
 
     input_state: InputState,
 }
@@ -146,15 +156,13 @@ impl State {
         );
 
         // TODO: Store the data to support loading multiple frames.
+        let mut anim = None;
         if let Some(anim_path) = anim_path {
-            let entry = &xc3_lib::sar1::Sar1::from_file(anim_path).unwrap().entries[anim_index];
-            if let xc3_lib::sar1::EntryData::Bc(bc) = &entry.read_data().unwrap() {
-                if let xc3_lib::bc::BcData::Anim(anim) = &bc.data {
-                    for model in &models {
-                        for models in &model.models {
-                            models.update_bone_transforms(&queue, anim);
-                        }
-                    }
+            let sar1 = xc3_lib::sar1::Sar1::from_file(anim_path).unwrap();
+            if let xc3_lib::sar1::EntryData::Bc(bc) = sar1.entries[anim_index].read_data().unwrap()
+            {
+                if let xc3_lib::bc::BcData::Anim(data) = bc.data {
+                    anim = Some(data);
                 }
             }
         }
@@ -169,7 +177,10 @@ impl State {
             rotation_xyz,
             models,
             renderer,
+            anim,
+            current_frame: 0.0,
             input_state: Default::default(),
+            previous_frame_start: Instant::now(),
         }
     }
 
@@ -196,6 +207,18 @@ impl State {
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+        // Framerate independent animation timing.
+        // TODO: Final frame for looping?
+        let current_frame_start = std::time::Instant::now();
+        self.current_frame = next_frame(
+            self.current_frame,
+            current_frame_start.duration_since(self.previous_frame_start),
+            1000.0,
+            1.0,
+            false,
+        );
+        self.previous_frame_start = current_frame_start;
+
         let output = self.surface.get_current_texture()?;
         let output_view = output
             .texture
@@ -206,6 +229,14 @@ impl State {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Render Encoder"),
             });
+
+        if let Some(anim) = &self.anim {
+            for model in &self.models {
+                for models in &model.models {
+                    models.update_bone_transforms(&self.queue, anim, self.current_frame);
+                }
+            }
+        }
 
         self.renderer
             .render_models(&output_view, &mut encoder, &self.models);
@@ -319,6 +350,42 @@ fn calculate_camera_data(
         view_projection,
         position,
     }
+}
+
+pub fn next_frame(
+    current_frame: f32,
+    time_since_last_frame: Duration,
+    final_frame_index: f32,
+    playback_speed: f32,
+    should_loop: bool,
+) -> f32 {
+    // Convert elapsed time to a delta in frames.
+    // This relies on interpolation or frame skipping.
+    // TODO: How robust is this implementation?
+
+    // TODO: Pass in the frames per second?
+    let millis_per_frame = 1000.0f64 / 30.0f64;
+    let delta_t_frames = time_since_last_frame.as_millis() as f64 / millis_per_frame;
+
+    let mut next_frame = current_frame + (delta_t_frames as f32 * playback_speed);
+
+    if next_frame > final_frame_index {
+        if should_loop {
+            // Wrap around to loop the animation.
+            // This may not be seamless if the animations have different lengths.
+            next_frame = if final_frame_index > 0.0 {
+                next_frame.rem_euclid(final_frame_index)
+            } else {
+                // Use 0.0 instead of NaN for empty animations.
+                0.0
+            };
+        } else {
+            // Reduce chances of overflow.
+            next_frame = final_frame_index;
+        }
+    }
+
+    next_frame
 }
 
 #[derive(Parser)]
