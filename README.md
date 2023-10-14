@@ -15,7 +15,7 @@ xc3_lib supports a number of in game formats. All formats support reading. Write
 | [Msmd](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/msmd.rs) | DMSM | `wismhd` | ✔️ | ❌ | 
 | [Msrd](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/msrd.rs) | DRSM |  `wismt` | ✔️ | ✔️* |
 | [Mxmd](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/mxmd.rs) | DMXM | `wimdo` | ✔️ | ✔️* | 
-| [Sar1](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/sar1.rs) | 1RAS | `chr`, `mot` | ✔️ | ✔️ | 
+| [Sar1](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/sar1.rs) | 1RAS | `arc`, `chr`, `mot` | ✔️ | ✔️ | 
 | [Spch](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/spch.rs) | HCPS | `wishp` | ✔️ | ✔️ | 
 | [Xbc1](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/xbc1.rs) | xbc1 | `wismt` | ✔️ | ✔️ | 
 

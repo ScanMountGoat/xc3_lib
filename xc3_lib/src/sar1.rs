@@ -1,4 +1,4 @@
-//! Simple archive data in `.chr` or `.mot` files.
+//! Simple archive data in `.arc`, `.chr`, or `.mot` files.
 //!
 //! XC3: `chr/{ch,en,oj,wp}/*.{chr,mot}`
 use std::io::Cursor;
