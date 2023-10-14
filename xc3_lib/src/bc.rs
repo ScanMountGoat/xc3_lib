@@ -381,17 +381,24 @@ pub struct CubicTrack {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct KeyFrameCubicVec3 {
     pub frame: f32,
+    /// Coefficients `[a,b,c,d]` for `a*x^3 + b*x^2 + c*x + d` for frame index `x`.
     pub x: [f32; 4],
+    /// Coefficients `[a,b,c,d]` for `a*x^3 + b*x^2 + c*x + d` for frame index `x`.
     pub y: [f32; 4],
+    /// Coefficients `[a,b,c,d]` for `a*x^3 + b*x^2 + c*x + d` for frame index `x`.
     pub z: [f32; 4],
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct KeyFrameCubicQuaternion {
     pub frame: f32,
+    /// Coefficients `[a,b,c,d]` for `a*x^3 + b*x^2 + c*x + d` for frame index `x`.
     pub x: [f32; 4],
+    /// Coefficients `[a,b,c,d]` for `a*x^3 + b*x^2 + c*x + d` for frame index `x`.
     pub y: [f32; 4],
+    /// Coefficients `[a,b,c,d]` for `a*x^3 + b*x^2 + c*x + d` for frame index `x`.
     pub z: [f32; 4],
+    /// Coefficients `[a,b,c,d]` for `a*x^3 + b*x^2 + c*x + d` for frame index `x`.
     pub w: [f32; 4],
 }
 
@@ -400,10 +407,10 @@ pub struct PackedCubic {
     // TODO: same length and ordering as bone indices and hashes?
     pub tracks: BcList<PackedCubicTrack>,
 
-    // TODO: [a,b,c,d] for a*x^3 + b*x^2 + c*x + d?
+    /// Coefficients `[a,b,c,d]` for `a*x^3 + b*x^2 + c*x + d` for frame index `x`.
     pub vectors: BcList<[f32; 4]>,
 
-    // TODO: same equation as above?
+    /// Coefficients `[a,b,c,d]` for `a*x^3 + b*x^2 + c*x + d` for frame index `x`.
     pub quaternions: BcList<[f32; 4]>,
 
     // TODO: Are these keyframe times?

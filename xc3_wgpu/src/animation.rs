@@ -71,21 +71,13 @@ pub fn animate_skeleton(
                 .iter()
                 .zip(anim.binding.bone_indices.elements.iter())
             {
-                // TODO: cubic interpolation?
-                // TODO: Add sample methods to the keyframe types?
-                // TODO: Will the first key always be at time 0?
-                let key = &track.translation.elements[0];
-                let translation = vec3(key.x[3], key.y[3], key.z[3]);
-
-                let key = &track.rotation.elements[0];
-                let rotation = Quat::from_xyzw(key.x[3], key.y[3], key.z[3], key.w[3]);
-
-                let key = &track.scale.elements[0];
-                let scale = vec3(key.x[3], key.y[3], key.z[3]);
-
                 // TODO: How to handle index values of -1?
                 // TODO: Not all bones are being animated properly?
                 if *bone_index >= 0 {
+                    let translation = sample_vec3_cubic(&track.translation.elements, frame);
+                    let rotation = sample_quat_cubic(&track.rotation.elements, frame);
+                    let scale = sample_vec3_cubic(&track.scale.elements, frame);
+
                     let bone_name = &anim.binding.bone_names.elements[*bone_index as usize].name;
 
                     if let Some(bone_index) = animated_skeleton
@@ -147,6 +139,35 @@ pub fn animate_skeleton(
     animated_transforms
 }
 
+// TODO: Add tests for this.
+fn sample_vec3_cubic(values: &[xc3_lib::bc::KeyFrameCubicVec3], frame: f32) -> Vec3 {
+    // Assume the keyframes are in ascending order.
+    // TODO: Avoid allocating here.
+    let keyframes: Vec<_> = values.iter().map(|v| v.frame).collect();
+    let (keyframe_index, x) = keyframe_index_position(&keyframes, frame);
+
+    vec3(
+        interpolate_cubic(values[keyframe_index].x, x),
+        interpolate_cubic(values[keyframe_index].y, x),
+        interpolate_cubic(values[keyframe_index].z, x),
+    )
+}
+
+// TODO: Add tests for this.
+fn sample_quat_cubic(values: &[xc3_lib::bc::KeyFrameCubicQuaternion], frame: f32) -> Quat {
+    // Assume the keyframes are in ascending order.
+    // TODO: Avoid allocating here.
+    let keyframes: Vec<_> = values.iter().map(|v| v.frame).collect();
+    let (keyframe_index, x) = keyframe_index_position(&keyframes, frame);
+
+    Quat::from_xyzw(
+        interpolate_cubic(values[keyframe_index].x, x),
+        interpolate_cubic(values[keyframe_index].y, x),
+        interpolate_cubic(values[keyframe_index].z, x),
+        interpolate_cubic(values[keyframe_index].w, x),
+    )
+}
+
 fn sample_vec3_packed_cubic(
     cubic: &xc3_lib::bc::PackedCubic,
     sub_track: &xc3_lib::bc::SubTrack,
@@ -180,7 +201,7 @@ fn sample_quat_packed_cubic(
 // TODO: Add tests for this.
 fn sample_packed_cubic(
     keyframes: &[u16],
-    values: &[[f32; 4]],
+    coeffs: &[[f32; 4]],
     component_count: usize,
     sub_track: &xc3_lib::bc::SubTrack,
     frame: f32,
@@ -194,13 +215,16 @@ fn sample_packed_cubic(
 
     let mut value = [0.0; 4];
     for c in 0..component_count {
-        value[c] = sample_cubic(values[start_index + c], x)
+        value[c] = interpolate_cubic(coeffs[start_index + c], x)
     }
 
     value
 }
 
-fn keyframe_index_position(keyframes: &[u16], frame: f32) -> (usize, f32) {
+fn keyframe_index_position<K>(keyframes: &[K], frame: f32) -> (usize, f32)
+where
+    K: Into<f32> + PartialEq + Copy,
+{
     // Find the keyframe range and position within that range.
     // Assume keyframes are in ascending order.
     // TODO: Is there a way to make this not O(N)?
@@ -211,21 +235,21 @@ fn keyframe_index_position(keyframes: &[u16], frame: f32) -> (usize, f32) {
         // TODO: Find a cleaner way to handle the final frame.
         let current_frame = keyframes[i];
         let next_frame = *keyframes.get(i + 1).unwrap_or(&current_frame);
-        let frame_range = current_frame as f32..=next_frame as f32;
+        let frame_range = current_frame.into()..=next_frame.into();
 
         if frame_range.contains(&frame)
-            || (current_frame == next_frame && frame > current_frame as f32)
+            || (current_frame == next_frame && frame > current_frame.into())
         {
             keyframe_index = i;
             // The final keyframe should persist for the rest of the animation.
-            position = frame.min(next_frame as f32) - current_frame as f32;
+            position = frame.min(next_frame.into()) - current_frame.into();
         }
     }
 
     (keyframe_index, position)
 }
 
-fn sample_cubic(coeffs: [f32; 4], x: f32) -> f32 {
+fn interpolate_cubic(coeffs: [f32; 4], x: f32) -> f32 {
     coeffs[0] * (x * x * x) + coeffs[1] * (x * x) + coeffs[2] * x + coeffs[3]
 }
 
@@ -234,32 +258,32 @@ mod tests {
     use super::*;
 
     #[test]
-    fn sample_cubic_frames() {
+    fn interpolate_cubic_values() {
         let coeffs = [1.0, 2.0, 3.0, 4.0];
-        assert_eq!(4.0, sample_cubic(coeffs, 0.0));
-        assert_eq!(10.0, sample_cubic(coeffs, 1.0));
-        assert_eq!(26.0, sample_cubic(coeffs, 2.0));
-        assert_eq!(58.0, sample_cubic(coeffs, 3.0));
+        assert_eq!(4.0, interpolate_cubic(coeffs, 0.0));
+        assert_eq!(10.0, interpolate_cubic(coeffs, 1.0));
+        assert_eq!(26.0, interpolate_cubic(coeffs, 2.0));
+        assert_eq!(58.0, interpolate_cubic(coeffs, 3.0));
     }
 
     #[test]
     fn index_position_first_keyframe() {
-        assert_eq!((0, 0.0), keyframe_index_position(&[0, 5, 9, 13, 18], 0.0));
-        assert_eq!((0, 2.5), keyframe_index_position(&[0, 5, 9, 13, 18], 2.5));
-        assert_eq!((0, 4.9), keyframe_index_position(&[0, 5, 9, 13, 18], 4.9));
+        assert_eq!((0, 0.0), keyframe_index_position(&[0u16, 5u16, 9u16], 0.0));
+        assert_eq!((0, 2.5), keyframe_index_position(&[0u16, 5u16, 9u16], 2.5));
+        assert_eq!((0, 4.9), keyframe_index_position(&[0u16, 5u16, 9u16], 4.9));
     }
 
     #[test]
     fn index_position_second_keyframe() {
-        assert_eq!((1, 0.0), keyframe_index_position(&[0, 5, 9, 13, 18], 5.0));
-        assert_eq!((1, 2.0), keyframe_index_position(&[0, 5, 9, 13, 18], 7.0));
-        assert_eq!((1, 3.5), keyframe_index_position(&[0, 5, 9, 13, 18], 8.5));
+        assert_eq!((1, 0.0), keyframe_index_position(&[0u16, 5u16, 9u16], 5.0));
+        assert_eq!((1, 2.0), keyframe_index_position(&[0u16, 5u16, 9u16], 7.0));
+        assert_eq!((1, 3.5), keyframe_index_position(&[0u16, 5u16, 9u16], 8.5));
     }
 
     #[test]
     fn index_position_last_keyframe() {
         // This should clamp to the final keyframe instead of extrapolating.
-        assert_eq!((4, 0.0), keyframe_index_position(&[0, 5, 9, 13, 18], 18.0));
-        assert_eq!((4, 0.0), keyframe_index_position(&[0, 5, 9, 13, 18], 20.5));
+        assert_eq!((2, 0.0), keyframe_index_position(&[0u16, 5u16, 9u16], 10.0));
+        assert_eq!((2, 0.0), keyframe_index_position(&[0u16, 5u16, 9u16], 12.5));
     }
 }
