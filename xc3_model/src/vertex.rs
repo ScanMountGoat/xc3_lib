@@ -86,12 +86,8 @@ pub fn read_vertex_buffers(
                 if let Some(targets) = vertex_morphs.targets.get(start..start + count) {
                     // TODO: Lots of morph targets use the exact same bytes?
                     for target in targets {
-                        let vertex_count = buffer.vertex_count();
-                        let attributes = read_animation_buffer_attributes(
-                            &vertex_data.buffer,
-                            vertex_count,
-                            target,
-                        );
+                        let attributes =
+                            read_animation_buffer_attributes(&vertex_data.buffer, target);
                         buffer.morph_targets.push(MorphTarget { attributes })
                     }
                 }
@@ -316,16 +312,16 @@ fn read_unorm16x4(reader: &mut Cursor<&[u8]>) -> Vec4 {
 
 pub fn read_animation_buffer_attributes(
     model_bytes: &[u8],
-    vertex_count: usize,
     morph_target: &xc3_lib::vertex::MorphTarget,
 ) -> Vec<AttributeData> {
     let mut reader = Cursor::new(model_bytes);
 
-    let mut positions = Vec::with_capacity(vertex_count);
-    let mut normals = Vec::with_capacity(vertex_count);
-    let mut tangents = Vec::with_capacity(vertex_count);
+    let mut positions = Vec::with_capacity(morph_target.vertex_count as usize);
+    let mut normals = Vec::with_capacity(morph_target.vertex_count as usize);
+    let mut tangents = Vec::with_capacity(morph_target.vertex_count as usize);
 
-    for i in 0..vertex_count as u64 {
+    // TODO: The morph vertex count doesn't always match the vertex buffer?
+    for i in 0..morph_target.vertex_count as u64 {
         reader
             .seek(SeekFrom::Start(
                 morph_target.data_offset as u64 + i * morph_target.vertex_size as u64,
