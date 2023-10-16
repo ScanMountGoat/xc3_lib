@@ -21,7 +21,7 @@ pub fn extract_shader_binaries<P: AsRef<Path>>(
             // Generate the name to avoid any ambiguity.
             let name = format!("nvsd{program_index}");
 
-            let slct = program.read_slct(&spch.slct_section);
+            let slct = program.read_slct(&spch.slct_section).unwrap();
             let binaries = vertex_fragment_binaries(spch, &slct);
 
             for (i, (vertex, fragment)) in binaries.into_iter().enumerate() {

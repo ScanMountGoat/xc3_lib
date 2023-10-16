@@ -15,10 +15,12 @@ pub fn annotate_fragment(glsl: String, metadata: &NvsdMetadata) -> String {
 }
 
 fn annotate_samplers(glsl: &mut String, metadata: &NvsdMetadata) {
-    for sampler in &metadata.samplers {
-        let handle = sampler.handle.handle * 2 + 8;
-        let texture_name = format!("fp_t_tcb_{handle:X}");
-        *glsl = glsl.replace(&texture_name, &sampler.name);
+    if let Some(samplers) = &metadata.samplers {
+        for sampler in samplers {
+            let handle = sampler.handle.handle * 2 + 8;
+            let texture_name = format!("fp_t_tcb_{handle:X}");
+            *glsl = glsl.replace(&texture_name, &sampler.name);
+        }
     }
 }
 
@@ -40,52 +42,56 @@ fn annotate_buffers(glsl: &mut String, prefix: &str, metadata: &NvsdMetadata) {
     // TODO: How to determine which constant elements are actually used?
     // TODO: are all uniforms vec4 params?
     // TODO: add initialization code so that annotated shaders still compile.
-    for buffer in &metadata.uniform_buffers {
-        // TODO: why is this always off by 3?
-        // TODO: Is there an fp_c2?
-        let handle = buffer.handle.handle + 3;
-        let buffer_name = format!("{prefix}_c{handle}");
-        *glsl = glsl.replace(&buffer_name, &buffer.name);
+    if let Some(uniform_buffers) = &metadata.uniform_buffers {
+        for buffer in uniform_buffers {
+            // TODO: why is this always off by 3?
+            // TODO: Is there an fp_c2?
+            let handle = buffer.handle.handle + 3;
+            let buffer_name = format!("{prefix}_c{handle}");
+            *glsl = glsl.replace(&buffer_name, &buffer.name);
 
-        let start = buffer.uniform_start_index as usize;
-        let count = buffer.uniform_count as usize;
+            let start = buffer.uniform_start_index as usize;
+            let count = buffer.uniform_count as usize;
 
-        // Sort to make it easier to convert offsets to sizes.
-        let mut uniforms = metadata.uniforms[start..start + count].to_vec();
-        uniforms.sort_by_key(|u| u.buffer_offset);
+            // Sort to make it easier to convert offsets to sizes.
+            let mut uniforms = metadata.uniforms[start..start + count].to_vec();
+            uniforms.sort_by_key(|u| u.buffer_offset);
 
-        for (uniform_index, uniform) in uniforms.iter().enumerate() {
-            let vec4_index = uniform.buffer_offset / VEC4_SIZE;
-            if let Some(bracket_index) = uniform.name.find('[') {
-                // Handle array uniforms like "array[0]".
-                // The array has elements until the next uniform.
-                if let Some(length) = uniforms
-                    .get(uniform_index + 1)
-                    .map(|u| (u.buffer_offset - uniform.buffer_offset) / VEC4_SIZE)
-                {
-                    // Annotate all elments from array[0] to array[length-1].
-                    // This avoids unannotated entries in the gbuffer database.
-                    for i in 0..length {
-                        let pattern = format!("{}.data[{}]", buffer.name, vec4_index + i);
-                        // Reindex the array starting from the base offset.
-                        let uniform_name =
-                            format!("{}_{}[{i}]", buffer.name, &uniform.name[..bracket_index]);
-                        *glsl = glsl.replace(&pattern, &uniform_name);
+            for (uniform_index, uniform) in uniforms.iter().enumerate() {
+                let vec4_index = uniform.buffer_offset / VEC4_SIZE;
+                if let Some(bracket_index) = uniform.name.find('[') {
+                    // Handle array uniforms like "array[0]".
+                    // The array has elements until the next uniform.
+                    if let Some(length) = uniforms
+                        .get(uniform_index + 1)
+                        .map(|u| (u.buffer_offset - uniform.buffer_offset) / VEC4_SIZE)
+                    {
+                        // Annotate all elments from array[0] to array[length-1].
+                        // This avoids unannotated entries in the gbuffer database.
+                        for i in 0..length {
+                            let pattern = format!("{}.data[{}]", buffer.name, vec4_index + i);
+                            // Reindex the array starting from the base offset.
+                            let uniform_name =
+                                format!("{}_{}[{i}]", buffer.name, &uniform.name[..bracket_index]);
+                            *glsl = glsl.replace(&pattern, &uniform_name);
+                        }
                     }
+                } else {
+                    // Convert "buffer.data[3].x" to "buffer_uniform.x".
+                    let pattern = format!("{}.data[{vec4_index}]", buffer.name);
+                    let uniform_name = format!("{}_{}", buffer.name, uniform.name);
+                    *glsl = glsl.replace(&pattern, &uniform_name);
                 }
-            } else {
-                // Convert "buffer.data[3].x" to "buffer_uniform.x".
-                let pattern = format!("{}.data[{vec4_index}]", buffer.name);
-                let uniform_name = format!("{}_{}", buffer.name, uniform.name);
-                *glsl = glsl.replace(&pattern, &uniform_name);
             }
         }
     }
 
-    for buffer in &metadata.storage_buffers {
-        let handle = buffer.handle.handle;
-        let buffer_name = format!("{prefix}_s{handle}");
-        *glsl = glsl.replace(&buffer_name, &buffer.name);
+    if let Some(storage_buffers) = &metadata.storage_buffers {
+        for buffer in storage_buffers {
+            let handle = buffer.handle.handle;
+            let buffer_name = format!("{prefix}_s{handle}");
+            *glsl = glsl.replace(&buffer_name, &buffer.name);
+        }
     }
 }
 
@@ -99,7 +105,7 @@ mod tests {
 
     fn metadata() -> NvsdMetadata {
         NvsdMetadata {
-            uniform_buffers: vec![
+            uniform_buffers: Some(vec![
                 UniformBuffer {
                     name: "U_CamoflageCalc".to_string(),
                     uniform_count: 1,
@@ -166,8 +172,8 @@ mod tests {
                     },
                     unk5: 176,
                 },
-            ],
-            storage_buffers: vec![
+            ]),
+            storage_buffers: Some(vec![
                 UniformBuffer {
                     name: "U_Bone".to_string(),
                     uniform_count: 1,
@@ -190,7 +196,7 @@ mod tests {
                     },
                     unk5: 48,
                 },
-            ],
+            ]),
             attributes: vec![
                 InputAttribute {
                     name: "nWgtIdx".to_string(),
@@ -339,7 +345,7 @@ mod tests {
                     buffer_offset: 0,
                 },
             ],
-            samplers: vec![
+            samplers: Some(vec![
                 Sampler {
                     name: "gTResidentTex04".to_string(),
                     unk1: 694,
@@ -412,7 +418,7 @@ mod tests {
                     },
                     unk: 0,
                 },
-            ],
+            ]),
             ..Default::default()
         }
     }

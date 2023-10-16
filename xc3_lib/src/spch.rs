@@ -7,7 +7,7 @@ use crate::{
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
     parse_string_ptr32,
 };
-use binrw::{args, binread, BinRead, BinReaderExt};
+use binrw::{args, binread, BinRead, BinReaderExt, BinResult};
 use xc3_write::{VecOffsets, Xc3Write, Xc3WriteOffsets};
 
 /// .wishp, embedded in .wismt and .wimdo
@@ -164,19 +164,19 @@ pub struct NvsdMetadata {
     pub buffers1_index_count: u16,
 
     // TODO: Make a parsing helper for this?
-    #[br(parse_with = parse_ptr32)]
+    #[br(parse_with = parse_opt_ptr32)]
     #[br(args {
         offset: base_offset,
         inner: args! { count: buffers1_count as usize, inner: args! { base_offset } }
     })]
-    pub uniform_buffers: Vec<UniformBuffer>,
+    pub uniform_buffers: Option<Vec<UniformBuffer>>,
 
-    #[br(parse_with = parse_ptr32)]
+    #[br(parse_with = parse_opt_ptr32)]
     #[br(args {
         offset: base_offset,
         inner: args! { count: buffers1_index_count as usize }
     })]
-    pub buffers1_indices: Vec<i8>,
+    pub buffers1_indices: Option<Vec<i8>>,
 
     pub buffers2_count: u16,
     // TODO: not always the same as above?
@@ -184,39 +184,39 @@ pub struct NvsdMetadata {
 
     // TODO: SSBOs in Ryujinx?
     // TODO: make a separate type for this?
-    #[br(parse_with = parse_ptr32)]
+    #[br(parse_with = parse_opt_ptr32)]
     #[br(args {
         offset: base_offset,
         inner: args! { count: buffers2_count as usize, inner: args! { base_offset } }
     })]
-    pub storage_buffers: Vec<UniformBuffer>,
+    pub storage_buffers: Option<Vec<UniformBuffer>>,
 
-    #[br(parse_with = parse_ptr32)]
+    #[br(parse_with = parse_opt_ptr32)]
     #[br(args {
         offset: base_offset,
         inner: args! { count: buffers2_index_count as usize }
     })]
-    pub buffers2_indices: Vec<i8>,
+    pub buffers2_indices: Option<Vec<i8>>,
 
     // Count of non negative indices?
     pub sampler_count: u16,
     pub sampler_index_count: u16,
 
-    #[br(parse_with = parse_ptr32)]
+    #[br(parse_with = parse_opt_ptr32)]
     #[br(args {
         offset: base_offset,
         inner: args! { count: sampler_count as usize, inner: args! { base_offset } }
     })]
-    pub samplers: Vec<Sampler>,
+    pub samplers: Option<Vec<Sampler>>,
 
     // TODO: The index of each sampler in the shader?
     // TODO: is this ordering based on sampler.unk2 handle?
-    #[br(parse_with = parse_ptr32)]
+    #[br(parse_with = parse_opt_ptr32)]
     #[br(args {
         offset: base_offset,
         inner: args! { count: sampler_index_count as usize }
     })]
-    pub samplers_indices: Vec<i8>,
+    pub samplers_indices: Option<Vec<i8>>,
 
     pub unks2_1: [u32; 3],
 
@@ -333,19 +333,19 @@ pub struct InputAttribute {
 }
 
 impl ShaderProgram {
-    pub fn read_slct(&self, slct_section: &[u8]) -> Slct {
+    pub fn read_slct(&self, slct_section: &[u8]) -> BinResult<Slct> {
         // Select the bytes first to avoid needing base offsets.
         let bytes = &slct_section[self.slct_offset as usize..];
         let mut reader = Cursor::new(bytes);
-        reader.read_le().unwrap()
+        reader.read_le()
     }
 }
 
 impl Slct {
-    pub fn read_unk_item(&self, unk_section: &[u8]) -> UnkItem {
+    pub fn read_unk_item(&self, unk_section: &[u8]) -> BinResult<UnkItem> {
         let bytes = &unk_section[self.unk_item_offset as usize..];
         let mut reader = Cursor::new(bytes);
-        reader.read_le().unwrap()
+        reader.read_le()
     }
 }
 

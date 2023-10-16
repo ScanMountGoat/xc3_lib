@@ -175,14 +175,14 @@ fn check_all_mibl<P: AsRef<Path>>(root: P) {
         });
 }
 
-fn check_msrd(msrd: Msrd, path: Option<&Path>) {
+fn check_msrd(msrd: Msrd, path: &Path, check_read_write: bool) {
     msrd.extract_shader_data();
     let vertex_data = msrd.extract_vertex_data();
     msrd.extract_low_texture_data();
     // TODO: High textures?
     // TODO: Check mibl?
 
-    if let Some(path) = path {
+    if check_read_write {
         let original = std::fs::read(path).unwrap();
         let mut writer = Cursor::new(Vec::new());
         msrd.write(&mut writer).unwrap();
@@ -200,9 +200,9 @@ fn check_msrd(msrd: Msrd, path: Option<&Path>) {
     }
 }
 
-fn check_msmd(msmd: Msmd, path: Option<&Path>) {
-    if let Some(path) = path {
-        // Parse all the data from the .wismda
+fn check_msmd(msmd: Msmd, path: &Path, check_read_write: bool) {
+    // Parse all the data from the .wismda
+    if check_read_write {
         let mut reader =
             BufReader::new(std::fs::File::open(path.with_extension("wismda")).unwrap());
 
@@ -288,8 +288,8 @@ fn read_wismt_single_tex<P: AsRef<Path>>(path: P) -> (Vec<u8>, Mibl) {
     (decompressed, mibl)
 }
 
-fn check_dhal(dhal: Dhal, path: Option<&Path>) {
-    if let Some(path) = path {
+fn check_dhal(dhal: Dhal, path: &Path, check_read_write: bool) {
+    if check_read_write {
         if let Some(textures) = &dhal.textures {
             for texture in &textures.textures {
                 let mibl = Mibl::from_bytes(&texture.mibl_data).unwrap();
@@ -317,8 +317,9 @@ fn check_dhal(dhal: Dhal, path: Option<&Path>) {
     }
 }
 
-fn check_mxmd(mxmd: Mxmd, path: Option<&Path>) {
-    if let Some(path) = path {
+// TODO: Don't make this optional?
+fn check_mxmd(mxmd: Mxmd, path: &Path, check_read_write: bool) {
+    if check_read_write {
         // Check read/write.
         let original = std::fs::read(path).unwrap();
         let mut writer = Cursor::new(Vec::new());
@@ -330,7 +331,7 @@ fn check_mxmd(mxmd: Mxmd, path: Option<&Path>) {
 
     if let Some(spch) = mxmd.spch {
         // TODO: Check read/write for inner data?
-        check_spch(spch, None);
+        check_spch(spch, path, false);
     }
 
     if let Some(packed_textures) = &mxmd.packed_textures {
@@ -342,14 +343,15 @@ fn check_mxmd(mxmd: Mxmd, path: Option<&Path>) {
     }
 }
 
-fn check_spch(spch: Spch, path: Option<&Path>) {
+fn check_spch(spch: Spch, path: &Path, check_read_write: bool) {
     // TODO: Check reading other sections.
-    for program in &spch.shader_programs {
-        program.read_slct(&spch.slct_section);
+    for (i, program) in spch.shader_programs.iter().enumerate() {
+        if let Err(e) = program.read_slct(&spch.slct_section) {
+            println!("Error reading Slct {i} for {path:?}: {e}");
+        }
     }
 
-    if let Some(path) = path {
-        // Check read/write.
+    if check_read_write {
         let original = std::fs::read(path).unwrap();
         let mut writer = Cursor::new(Vec::new());
         spch.write(&mut writer).unwrap();
@@ -359,8 +361,8 @@ fn check_spch(spch: Spch, path: Option<&Path>) {
     }
 }
 
-fn check_ltpc(ltpc: Ltpc, path: Option<&Path>) {
-    if let Some(path) = path {
+fn check_ltpc(ltpc: Ltpc, path: &Path, check_read_write: bool) {
+    if check_read_write {
         // Check read/write.
         let original = std::fs::read(path).unwrap();
         let mut writer = Cursor::new(Vec::new());
@@ -371,7 +373,7 @@ fn check_ltpc(ltpc: Ltpc, path: Option<&Path>) {
     }
 }
 
-fn check_sar1(sar1: Sar1, path: Option<&Path>) {
+fn check_sar1(sar1: Sar1, path: &Path, check_read_write: bool) {
     for entry in &sar1.entries {
         match entry.read_data() {
             // Check read/write for the inner data.
@@ -391,7 +393,7 @@ fn check_sar1(sar1: Sar1, path: Option<&Path>) {
         }
     }
 
-    if let Some(path) = path {
+    if check_read_write {
         // Check read/write for the archive.
         // TODO: Also read/write entry data?
         let original = std::fs::read(path).unwrap();
@@ -403,8 +405,8 @@ fn check_sar1(sar1: Sar1, path: Option<&Path>) {
     }
 }
 
-fn check_bc(bc: Bc, path: Option<&Path>) {
-    if let Some(path) = path {
+fn check_bc(bc: Bc, path: &Path, check_read_write: bool) {
+    if check_read_write {
         // Check read/write.
         let original = std::fs::read(path).unwrap();
         let mut writer = Cursor::new(Vec::new());
@@ -415,8 +417,8 @@ fn check_bc(bc: Bc, path: Option<&Path>) {
     }
 }
 
-fn check_eva(eva: Eva, path: Option<&Path>) {
-    if let Some(path) = path {
+fn check_eva(eva: Eva, path: &Path, check_read_write: bool) {
+    if check_read_write {
         // Check read/write.
         let original = std::fs::read(path).unwrap();
         let mut writer = Cursor::new(Vec::new());
@@ -451,7 +453,7 @@ fn check_all<P, T, F>(root: P, patterns: &[&str], check_file: F)
 where
     P: AsRef<Path>,
     T: Xc3File,
-    F: Fn(T, Option<&Path>) + Sync,
+    F: Fn(T, &Path, bool) + Sync,
 {
     globwalk::GlobWalkerBuilder::from_patterns(root, patterns)
         .build()
@@ -460,7 +462,7 @@ where
         .for_each(|entry| {
             let path = entry.as_ref().unwrap().path();
             match T::from_file(path) {
-                Ok(file) => check_file(file, Some(path)),
+                Ok(file) => check_file(file, path, true),
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }
         });
