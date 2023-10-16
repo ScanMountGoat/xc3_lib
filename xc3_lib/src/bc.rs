@@ -1,5 +1,8 @@
-//! Animation and skeleton data for [Sar1](crate::sar1::Sar1) archives.
-use crate::{parse_offset64_count32, parse_opt_ptr64, parse_ptr64, parse_string_ptr64};
+//! Animation and skeleton data in `.anm` or `.motstm_data` files or [Sar1](crate::sar1::Sar1) archives.
+use crate::{
+    parse_offset64_count32, parse_opt_ptr64, parse_ptr64, parse_string_opt_ptr64,
+    parse_string_ptr64,
+};
 use binrw::{args, binread, BinRead, BinWrite};
 use xc3_write::{xc3_write_binwrite_impl, VecOffsets, Xc3Write, Xc3WriteOffsets};
 
@@ -19,6 +22,7 @@ pub struct Bc {
     pub data: BcData,
 
     // TODO: A list of offsets to data items?
+    // TODO: relocatable addresses?
     #[br(parse_with = parse_ptr64)]
     #[br(args { inner: args! { count: unk_count as usize}})]
     #[xc3(offset64)]
@@ -134,7 +138,7 @@ pub struct DynamicsUnk2ItemUnk1 {
     #[xc3(offset64)]
     pub name2: String,
 
-    pub unk1: [f32; 7],
+    pub unk1: [f32; 5],
     pub unk2: u32,
 }
 
@@ -144,7 +148,7 @@ pub struct DynamicsUnk2ItemUnk3 {
     #[xc3(offset64)]
     pub name: String,
 
-    pub unk1: [f32; 8],
+    pub unk1: [f32; 4],
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -167,8 +171,7 @@ pub struct AnimationBinding {
     // TODO: More data?
     pub unk1: BcList<()>,
 
-    // u64?
-    pub unk2: u64,
+    pub unk2: u64, // 0?
 
     #[br(parse_with = parse_ptr64)]
     #[xc3(offset64)]
@@ -176,7 +179,18 @@ pub struct AnimationBinding {
 
     // TODO: Assigns tracks to entries in bone_names?
     pub bone_indices: BcList<i16>,
-    pub bone_names: BcList<StringOffset>,
+
+    // TODO: offset64_count32 for Vec<ExtraTrackAnimation>?
+    // TODO: Not always bone names?
+    // TODO: just u64 count32?
+    // TODO: type 1 ch01027000_event.mot has this?
+    // TODO: type 1 bl200202.mot btidle.anm does not?
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset64_count32)]
+    pub bone_names: Vec<StringOffset>,
+
+    // TODO: not always present?
+    pub unk3: i32,
 
     #[br(args_raw(animation.animation_type))]
     pub extra_track_animation: ExtraTrackAnimation,
@@ -198,8 +212,9 @@ pub struct Animation {
     pub frames_per_second: f32,
     pub seconds_per_frame: f32,
     pub frame_count: u32,
-    pub unk2: BcList<()>,
-    pub unk3: u64,
+
+    pub unk2: BcList<()>, // notifies?
+    pub unk3: u64,        // locomotion?
 
     #[br(args { animation_type })]
     pub data: AnimationData,
@@ -208,9 +223,9 @@ pub struct Animation {
 // TODO: Is this the right type?
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct StringOffset {
-    #[br(parse_with = parse_string_ptr64)]
+    #[br(parse_with = parse_string_opt_ptr64)]
     #[xc3(offset64)]
-    pub name: String,
+    pub name: Option<String>,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -279,8 +294,8 @@ pub struct CubicExtraData {
     pub unk2: u32,
     pub unk3: i32,
 
-    pub unk6: u32,
-    pub unk7: u32,
+    // TODO: root motion?
+    pub unk4: u64,
 
     #[br(parse_with = parse_ptr64)]
     #[xc3(offset64)]
@@ -333,7 +348,9 @@ pub struct PackedCubicExtraDataInner {
 
     // The MurmurHash3 32-bit hash of the bone names.
     // TODO: type alias for hash?
-    pub bone_name_hashes: BcList<u32>,
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset64_count32)]
+    pub bone_name_hashes: Vec<u32>,
 }
 
 #[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy)]
@@ -463,7 +480,6 @@ pub struct Skeleton {
     pub unk_table3: BcList<StringOffset>,
     pub unk_table4: BcList<[[f32; 4]; 3]>,
     pub unk_table5: BcList<u64>,
-
     // TODO: Not all skeletons have these fields?
     // TODO: These may only be pointed to by the offsets at the end of the file?
     #[br(parse_with = parse_opt_ptr64)]
@@ -587,6 +603,7 @@ where
     pub elements: Vec<T>,
 
     // TODO: Does this field do anything?
+    // #[br(assert(unk1 == -1))]
     pub unk1: i32,
 }
 

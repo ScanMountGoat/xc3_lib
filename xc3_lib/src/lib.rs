@@ -53,6 +53,7 @@ pub mod apmd;
 pub mod bc;
 pub mod dds;
 pub mod dhal;
+pub mod eva;
 pub mod ltpc;
 pub mod map;
 pub mod mibl;
@@ -241,6 +242,15 @@ fn parse_string_ptr64<R: Read + Seek>(
     Ok(value.to_string())
 }
 
+fn parse_string_opt_ptr64<R: Read + Seek>(
+    reader: &mut R,
+    endian: binrw::Endian,
+    args: FilePtrArgs<()>,
+) -> BinResult<Option<String>> {
+    let value: Option<NullString> = parse_opt_ptr64(reader, endian, args)?;
+    Ok(value.map(|value| value.to_string()))
+}
+
 fn parse_ptr32<T, R, Args>(
     reader: &mut R,
     endian: binrw::Endian,
@@ -339,7 +349,9 @@ file_write_full_impl!(
     vertex::VertexData,
     sar1::Sar1,
     msmd::Msmd,
-    dhal::Dhal
+    dhal::Dhal,
+    bc::Bc,
+    eva::Eva
 );
 
 // TODO: Dedicated error types?
@@ -375,5 +387,7 @@ file_read_impl!(
     vertex::VertexData,
     dhal::Dhal,
     ltpc::Ltpc,
-    apmd::Apmd
+    apmd::Apmd,
+    bc::Bc,
+    eva::Eva
 );

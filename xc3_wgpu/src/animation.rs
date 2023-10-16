@@ -78,12 +78,12 @@ pub fn animate_skeleton(
                     let rotation = sample_quat_cubic(&track.rotation.elements, frame);
                     let scale = sample_vec3_cubic(&track.scale.elements, frame);
 
-                    let bone_name = &anim.binding.bone_names.elements[*bone_index as usize].name;
+                    let bone_name = &anim.binding.bone_names[*bone_index as usize].name;
 
                     if let Some(bone_index) = animated_skeleton
                         .bones
                         .iter()
-                        .position(|b| &b.name == bone_name)
+                        .position(|b| Some(&b.name) == bone_name.as_ref())
                     {
                         let transform = Mat4::from_translation(translation)
                             * Mat4::from_quat(rotation)
@@ -106,7 +106,7 @@ pub fn animate_skeleton(
                     .tracks
                     .elements
                     .iter()
-                    .zip(extra.data.bone_name_hashes.elements.iter())
+                    .zip(extra.data.bone_name_hashes.iter())
                 {
                     // Interpolate based on the current frame.
                     // TODO: Correctly account for animation speed here?

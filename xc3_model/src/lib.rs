@@ -289,7 +289,7 @@ pub fn load_model<P: AsRef<Path>>(
     // TODO: Does something control the chr name used?
     // TODO: make this optional?
     let chr = Sar1::from_file(&wimdo_path.with_extension("chr"))
-        .or_else(|_| Sar1::from_file(&wimdo_path.with_extension("arc")))
+        .or_else(|_| Sar1::from_file(wimdo_path.with_extension("arc")))
         .or_else(|_| {
             // TODO: Is the last digit always 0 like in ch01012013.wimdo -> ch01012010.chr?
             let mut chr_name = model_name.clone();
@@ -297,7 +297,7 @@ pub fn load_model<P: AsRef<Path>>(
             chr_name.push('0');
 
             let chr_path = wimdo_path.with_file_name(chr_name).with_extension("chr");
-            Sar1::from_file(&chr_path)
+            Sar1::from_file(chr_path)
         })
         .ok();
 

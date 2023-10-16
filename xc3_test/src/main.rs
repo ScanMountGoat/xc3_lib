@@ -8,8 +8,10 @@ use clap::Parser;
 use image::ImageDecoder;
 use rayon::prelude::*;
 use xc3_lib::{
+    bc::Bc,
     dds::{create_dds, create_mibl},
     dhal::Dhal,
+    eva::Eva,
     ltpc::Ltpc,
     mibl::Mibl,
     msmd::Msmd,
@@ -59,6 +61,14 @@ struct Cli {
     /// Process LTPC texture files from .wiltp
     #[arg(long)]
     ltpc: bool,
+
+    /// Process BC files from .anm and .motstm_data
+    #[arg(long)]
+    bc: bool,
+
+    /// Process EVA files from .eva
+    #[arg(long)]
+    eva: bool,
 
     /// Process all file types
     #[arg(long)]
@@ -121,6 +131,16 @@ fn main() {
     if cli.ltpc || cli.all {
         println!("Checking LTPC files ...");
         check_all(root, &["*.wiltp"], check_ltpc);
+    }
+
+    if cli.bc || cli.all {
+        println!("Checking BC files ...");
+        check_all(root, &["*.anm", "*.motstm_data"], check_bc);
+    }
+
+    if cli.eva || cli.all {
+        println!("Checking EVA files ...");
+        check_all(root, &["*.eva"], check_eva);
     }
 
     println!("Finished in {:?}", start.elapsed());
@@ -383,6 +403,30 @@ fn check_sar1(sar1: Sar1, path: Option<&Path>) {
     }
 }
 
+fn check_bc(bc: Bc, path: Option<&Path>) {
+    if let Some(path) = path {
+        // Check read/write.
+        let original = std::fs::read(path).unwrap();
+        let mut writer = Cursor::new(Vec::new());
+        bc.write(&mut writer).unwrap();
+        if writer.into_inner() != original {
+            println!("Bc read/write not 1:1 for {path:?}");
+        }
+    }
+}
+
+fn check_eva(eva: Eva, path: Option<&Path>) {
+    if let Some(path) = path {
+        // Check read/write.
+        let original = std::fs::read(path).unwrap();
+        let mut writer = Cursor::new(Vec::new());
+        eva.write(&mut writer).unwrap();
+        if writer.into_inner() != original {
+            println!("Eva read/write not 1:1 for {path:?}");
+        }
+    }
+}
+
 trait Xc3File
 where
     Self: Sized,
@@ -401,7 +445,7 @@ macro_rules! file_impl {
         )*
     };
 }
-file_impl!(Mxmd, Msrd, Msmd, Spch, Dhal, Sar1, Ltpc);
+file_impl!(Mxmd, Msrd, Msmd, Spch, Dhal, Sar1, Ltpc, Bc, Eva);
 
 fn check_all<P, T, F>(root: P, patterns: &[&str], check_file: F)
 where

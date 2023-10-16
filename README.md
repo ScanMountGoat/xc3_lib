@@ -9,7 +9,9 @@ xc3_lib supports a number of in game formats. All formats support reading. Write
 | Format | Magic | Extensions | Read | Write |
 | --- | --- | --- | --- | --- |
 | [Apmd](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/apmd.rs) | DMPA | `wimdo` | ✔️ | ✔️ | 
+| [Bc](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/bc.rs) | BC | `anm`, `motstm_data` | ✔️ | ✔️* | 
 | [Dhal](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/dhal.rs) | LAHD | `wilay` | ✔️ | ✔️* | 
+| [Eva](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/eva.rs) | eva | `eva` | ✔️ | ✔️* | 
 | [Ltpc](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/ltpc.rs) | LTPC |  | ✔️ | ✔️ | 
 | [Mibl](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/mibl.rs) | LBIM | `wismt`, `witex`, `witx` | ✔️ | ✔️ | 
 | [Msmd](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/msmd.rs) | DMSM | `wismhd` | ✔️ | ❌ | 
