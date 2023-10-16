@@ -233,6 +233,15 @@ fn parse_string_ptr32<R: Read + Seek>(
     Ok(value.to_string())
 }
 
+fn parse_string_opt_ptr32<R: Read + Seek>(
+    reader: &mut R,
+    endian: binrw::Endian,
+    args: FilePtrArgs<()>,
+) -> BinResult<Option<String>> {
+    let value: Option<NullString> = parse_opt_ptr32(reader, endian, args)?;
+    Ok(value.map(|value| value.to_string()))
+}
+
 fn parse_string_ptr64<R: Read + Seek>(
     reader: &mut R,
     endian: binrw::Endian,

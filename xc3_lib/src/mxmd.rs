@@ -3,7 +3,7 @@
 //! XC3: `chr/{ch,en,oj,wp}/*.wimdo`, `monolib/shader/*.wimdo`
 use crate::{
     msrd::TextureResource, parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32,
-    parse_ptr32, parse_string_ptr32, spch::Spch, vertex::VertexData,
+    parse_ptr32, parse_string_opt_ptr32, parse_string_ptr32, spch::Spch, vertex::VertexData,
 };
 use bilge::prelude::*;
 use binrw::{args, binread, BinRead, BinWrite};
@@ -14,6 +14,8 @@ use xc3_write::{round_up, xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
 #[br(magic(b"DMXM"))]
 #[xc3(magic(b"DMXM"))]
 pub struct Mxmd {
+    // TODO: Version differences?
+    #[br(assert(version == 10111 || version == 10112))]
     pub version: u32,
 
     #[br(parse_with = parse_ptr32)]
@@ -81,10 +83,10 @@ pub struct Materials {
     #[xc3(offset32_count32)]
     pub ints: Vec<(u8, u8, u16)>, // shader vars?
 
-    #[br(parse_with = parse_ptr32)]
+    #[br(parse_with = parse_opt_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(offset32)]
-    pub unk_offset1: MaterialUnk1, // callbacks?
+    pub unk_offset1: Option<MaterialUnk1>, // callbacks?
 
     // TODO: is this ever not 0?
     pub unk4: u32,
@@ -577,9 +579,9 @@ pub struct MorphController {
     #[xc3(offset32)]
     name1: String,
 
-    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[br(parse_with = parse_string_opt_ptr32, offset = base_offset)]
     #[xc3(offset32)]
-    name2: String,
+    name2: Option<String>,
 
     unk1: u32,
     unk2: u32,
@@ -677,26 +679,28 @@ pub struct MeshUnk1 {
     #[xc3(offset32_count32)]
     pub items2: Vec<MeshUnk1Item2>,
 
-    // TODO: Don't hardcode count
     #[br(parse_with = parse_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: 4 }})]
+    #[br(args { offset: base_offset, inner: args! { count: items1.len() }})]
     #[xc3(offset32)]
-    pub items3: Vec<[f32; 2]>,
-    pub unk1: u32,
+    pub items3: Vec<f32>,
+    pub unk1: u32, // 0 or 1?
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     pub items4: Vec<[u32; 5]>,
 
+    // flags?
     pub unk4: u32,
     pub unk5: u32,
 
-    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    // TODO: Is this the correct check?
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset32)]
-    pub unk_inner: MeshUnk1Inner,
-
-    // TODO: padding?
-    pub unk: [u32; 4],
+    #[br(if(unk4 != 0 || unk5 != 0))]
+    pub unk_inner: Option<MeshUnk1Inner>,
+    // TODO: padding if unk_inner?
+    // TODO: only 12 bytes for chr/ch/ch01022012.wimdo?
+    // pub unk: [u32; 4],
 }
 
 #[binread]
@@ -958,49 +962,44 @@ pub struct Skinning {
     #[xc3(offset32, align(16))]
     pub transforms1: Vec<[[f32; 4]; 4]>,
 
-    // TODO: offset for some sort of buffer?
-    // TODO: Don't hardcode count.
-    #[br(parse_with = parse_ptr32)]
+    // TODO: Count related to bone unk_type?
+    #[br(parse_with = parse_opt_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: 4 } })]
     #[xc3(offset32)]
-    pub transforms2: Vec<[f32; 4]>,
+    pub transforms2: Option<Vec<[f32; 4]>>,
 
     // TODO: related to max unk index on bone?
-    #[br(parse_with = parse_ptr32)]
+    #[br(parse_with = parse_opt_ptr32)]
     #[br(args {
         offset: base_offset,
         inner: args! { count: bones.iter().map(|b| b.unk_index as usize + 1).max().unwrap_or_default() }
     })]
     #[xc3(offset32)]
-    pub transforms3: Vec<[[f32; 4]; 2]>,
+    pub transforms3: Option<Vec<[[f32; 4]; 2]>>,
 
     // TODO: 0..count-1?
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count32_offset32)]
     pub bone_indices: Vec<u16>,
 
-    // TODO: Not all models have these fields?
-    // TODO: Doesn't work for xenoblade 2?
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset })]
-    // #[br(if(transforms2.is_some()))]
+    #[br(if(transforms2.is_some()))]
     #[xc3(offset32)]
     pub unk_offset4: Option<SkeletonUnk4>,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    // #[br(if(transforms2.is_some()))]
+    #[br(if(transforms3.is_some()))]
     #[xc3(offset32)]
     pub unk_offset5: Option<SkeletonUnk5>,
 
-    // TODO: Disabled by something above for XC2?
     // TODO: procedural bones?
     #[br(parse_with = parse_opt_ptr32, args { offset: base_offset, inner: base_offset })]
     #[br(if(!bone_indices.is_empty()))]
     #[xc3(offset32)]
     pub as_bone_data: Option<AsBoneData>,
-
-    // TODO: padding?
-    pub unk: [u32; 4],
+    // TODO: padding if as bone data is present??
+    // pub unk: [u32; 4],
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -1010,7 +1009,7 @@ pub struct Bone {
     #[xc3(offset32)]
     pub name: String,
     pub unk1: f32,
-    pub unk_type: u32,
+    pub unk_type: (u16, u16),
     /// Index into [transforms3](struct.Skinning.html#structfield.transforms3).
     pub unk_index: u32,
     // TODO: padding?
