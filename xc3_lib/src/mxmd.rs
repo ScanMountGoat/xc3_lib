@@ -713,13 +713,18 @@ pub struct MeshUnk1Inner {
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
-    pub items1: Vec<u32>,
+    pub items1: Vec<(u16, u16)>,
 
-    // TODO: Don't hardcode count.
+    // 0..N-1 arranged in a different order?
     #[br(parse_with = parse_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: 4 }})]
+    #[br(args { 
+        offset: base_offset, 
+        inner: args! { 
+            count: items1.iter().map(|(a,_)| *a).max().unwrap_or_default() as usize * 2
+        }
+    })]
     #[xc3(offset32)]
-    pub unk_offset: Vec<u32>,
+    pub unk_offset: Vec<u16>,
 
     // TODO: padding?
     pub unks: [u32; 5],
@@ -1053,7 +1058,6 @@ pub struct SkeletonUnk5 {
     pub unk: [u32; 5],
 }
 
-// TODO: Compare counts across mxmd files.
 // TODO: Data for AS_ bones?
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(import_raw(base_offset: u64))]
@@ -1062,15 +1066,12 @@ pub struct AsBoneData {
     #[xc3(offset32_count32)]
     pub bones: Vec<AsBone>,
 
-    // TODO: Some of these aren't floats?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
     pub unk1: Vec<AsBoneValue>,
 
-    // TODO: distance from offset to first bone name?
-    // TODO: Don't hardcode count.
     #[br(parse_with = parse_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: 42 }})]
+    #[br(args { offset: base_offset, inner: args! { count: bones.len() * 3 }})]
     #[xc3(offset32)]
     pub unk2: Vec<[[f32; 4]; 4]>,
 
@@ -1089,6 +1090,7 @@ pub struct AsBone {
     pub unk: [u32; 19],
 }
 
+// TODO: Some of these aren't floats?
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct AsBoneValue {
     unk1: [f32; 4],
