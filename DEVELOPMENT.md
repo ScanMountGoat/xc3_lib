@@ -46,7 +46,14 @@ The rendering can be tested by batch rendering files to PNG. This tests xc3_lib,
 `cargo run -p xc3_wgpu_batch --release "xenoblade 3 dump/map" wismhd gbuffer.json`  
 
 ## In Game Testing
-The easiest way to test files is using an emulator like Ryujinx and the [xc3-file-loader](https://github.com/RoccoDev/xc3-file-loader) plugin for loading modded files. Files can be extracted from a dump of the game by dumping the romfs from Ryujinx and then dumping the ard and arh archive files using [XbTool](https://github.com/AlexCSDev/XbTool/releases).
+ Files can be extracted from a dump of the game by dumping the romfs from Yuzu or Ryujinx and then dumping the ard and arh archive files using [XbTool](https://github.com/AlexCSDev/XbTool/releases).
+ 
+### Xenoblade Chronicles 2
+Files can be loaded without repacking the ard and arh files by using a romfs mod with the DLC. This also includes the free language pack DLC. 
+The files should match the folder structure of the archive and use the title ID of the DLC like `yuzu/load/modded files/model/bl/bl000101.arc`.
+
+### Xenoblade Chronicles 3
+The easiest way to test files is using an emulator like Ryujinx and the [xc3-file-loader](https://github.com/RoccoDev/xc3-file-loader) plugin for loading modded files.
 
 ## Code Generation
 For seeing the generated code from procedural macros, use [cargo expand](https://github.com/dtolnay/cargo-expand). For example, call `cargo expand -p xc3_lib mxmd > expanded.rs` to output the expanded contents of `mxmd.rs`.
