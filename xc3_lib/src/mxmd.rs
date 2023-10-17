@@ -157,7 +157,7 @@ pub struct ShaderProgramInfo {
 }
 
 /// `ml::MdsMatVariableTbl` in the Xenoblade 2 binary.
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct MaterialParameter {
     pub param_type: ParamType,
     pub floats_index_offset: u16, // added to floats start index?
@@ -207,16 +207,20 @@ pub struct MaterialUnk1 {
     pub unk: [u32; 8],
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[binread]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[br(stream = r)]
+#[xc3(base_offset)]
 pub struct Samplers {
-    pub count: u32, // count?
-    pub unk2: u32,  // offset?
-    pub unk3: u32,  // pad?
-    pub unk4: u32,  // pad?
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
 
-    // TODO: pointed to by above?
-    #[br(count = count)]
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count32_offset32)]
     pub samplers: Vec<Sampler>,
+
+    // TODO: padding?
+    pub unk: [u32; 2],
 }
 
 #[derive(Debug, BinRead, BinWrite)]
@@ -405,7 +409,7 @@ pub enum CullMode {
 }
 
 /// `ml::MdsMatMaterialTechnique` in the Xenoblade 2 binary.
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct ShaderProgram {
     /// Index into [shader_programs](struct.Materials.html#structfield.shader_programs).
     pub program_index: u32,
@@ -1164,15 +1168,7 @@ pub struct Unk1Unk4 {
     pub unk4: u32,
 }
 
-xc3_write_binwrite_impl!(
-    MaterialParameter,
-    ParamType,
-    Samplers,
-    Sampler,
-    ShaderProgram,
-    ShaderUnkType,
-    StateFlags
-);
+xc3_write_binwrite_impl!(ParamType, Sampler, ShaderUnkType, StateFlags);
 
 impl Xc3Write for MaterialFlags {
     type Offsets<'a> = ();

@@ -3,10 +3,7 @@
 //! XC3: `monolib/shader/*.wishp`
 use std::io::{Cursor, SeekFrom};
 
-use crate::{
-    parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
-    parse_string_ptr32,
-};
+use crate::{parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_string_ptr32};
 use binrw::{args, binread, BinRead, BinReaderExt, BinResult};
 use xc3_write::{VecOffsets, Xc3Write, Xc3WriteOffsets};
 
@@ -85,9 +82,9 @@ pub struct StringOffset {
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct ShaderProgram {
-    // TODO: 64-bit offset?
+    /// The offset into [slct_section](struct.Spch.html#structfield.slct_section).
     pub slct_offset: u32,
-    // TODO: Always 0?
+    // TODO: flags?
     pub unk1: u32,
 }
 
@@ -141,22 +138,15 @@ pub struct UnkString {
 
 #[derive(BinRead, Debug)]
 pub struct NvsdMetadataOffset {
-    // TODO: parse this as Vec<u8> to avoid needing a base offset?
-    #[br(parse_with = parse_ptr32)]
-    pub inner: NvsdMetadata,
-    pub size: u32,
+    #[br(parse_with = parse_offset32_count32)]
+    pub nvsd_data: Vec<u8>,
 }
 
-#[binread]
-#[derive(Debug, Default)]
-#[br(stream = r)]
+#[derive(Debug, BinRead, Default)]
 pub struct NvsdMetadata {
-    #[br(temp, try_calc = r.stream_position())]
-    base_offset: u64,
-
     pub unks2: [u32; 6],
 
-    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32)]
     pub nvsd_shaders: Vec<NvsdShaders>,
 
     pub buffers1_count: u16,
@@ -165,17 +155,11 @@ pub struct NvsdMetadata {
 
     // TODO: Make a parsing helper for this?
     #[br(parse_with = parse_opt_ptr32)]
-    #[br(args {
-        offset: base_offset,
-        inner: args! { count: buffers1_count as usize, inner: args! { base_offset } }
-    })]
+    #[br(args { inner: args! { count: buffers1_count as usize } })]
     pub uniform_buffers: Option<Vec<UniformBuffer>>,
 
     #[br(parse_with = parse_opt_ptr32)]
-    #[br(args {
-        offset: base_offset,
-        inner: args! { count: buffers1_index_count as usize }
-    })]
+    #[br(args { inner: args! { count: buffers1_index_count as usize } })]
     pub buffers1_indices: Option<Vec<i8>>,
 
     pub buffers2_count: u16,
@@ -185,17 +169,11 @@ pub struct NvsdMetadata {
     // TODO: SSBOs in Ryujinx?
     // TODO: make a separate type for this?
     #[br(parse_with = parse_opt_ptr32)]
-    #[br(args {
-        offset: base_offset,
-        inner: args! { count: buffers2_count as usize, inner: args! { base_offset } }
-    })]
+    #[br(args { inner: args! { count: buffers2_count as usize } })]
     pub storage_buffers: Option<Vec<UniformBuffer>>,
 
     #[br(parse_with = parse_opt_ptr32)]
-    #[br(args {
-        offset: base_offset,
-        inner: args! { count: buffers2_index_count as usize }
-    })]
+    #[br(args { inner: args! { count: buffers2_index_count as usize } })]
     pub buffers2_indices: Option<Vec<i8>>,
 
     // Count of non negative indices?
@@ -203,28 +181,22 @@ pub struct NvsdMetadata {
     pub sampler_index_count: u16,
 
     #[br(parse_with = parse_opt_ptr32)]
-    #[br(args {
-        offset: base_offset,
-        inner: args! { count: sampler_count as usize, inner: args! { base_offset } }
-    })]
+    #[br(args { inner: args! { count: sampler_count as usize } })]
     pub samplers: Option<Vec<Sampler>>,
 
     // TODO: The index of each sampler in the shader?
     // TODO: is this ordering based on sampler.unk2 handle?
     #[br(parse_with = parse_opt_ptr32)]
-    #[br(args {
-        offset: base_offset,
-        inner: args! { count: sampler_index_count as usize }
-    })]
+    #[br(args { inner: args! { count: sampler_index_count as usize } })]
     pub samplers_indices: Option<Vec<i8>>,
 
     pub unks2_1: [u32; 3],
 
-    #[br(parse_with = parse_count32_offset32, args { offset: base_offset, inner: base_offset })]
+    #[br(parse_with = parse_count32_offset32)]
     pub attributes: Vec<InputAttribute>,
 
     // TODO: uniforms for buffers1 and then buffers2 buffers in order?
-    #[br(parse_with = parse_count32_offset32, args { offset: base_offset, inner: base_offset })]
+    #[br(parse_with = parse_count32_offset32)]
     pub uniforms: Vec<Uniform>,
 
     pub unk3_1: u32,
@@ -274,9 +246,8 @@ pub struct NvsdShaders {
 
 // TODO: CBuffer?
 #[derive(BinRead, Debug)]
-#[br(import { base_offset: u64 })]
 pub struct UniformBuffer {
-    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[br(parse_with = parse_string_ptr32)]
     pub name: String,
     pub uniform_count: u16,
     pub uniform_start_index: u16,
@@ -301,9 +272,8 @@ pub enum Visibility {
 }
 
 #[derive(BinRead, Debug)]
-#[br(import { base_offset: u64 })]
 pub struct Sampler {
-    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[br(parse_with = parse_string_ptr32)]
     pub name: String,
     pub unk1: u32,
     // TODO: upper byte never set since samplers are fragment only?
@@ -313,10 +283,9 @@ pub struct Sampler {
 
 /// A `vec4` parameter in a [UniformBuffer].
 #[derive(BinRead, Debug, Clone)]
-#[br(import_raw(base_offset: u64))]
 pub struct Uniform {
     /// The name used to refer to the uniform like `gMatCol`.
-    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[br(parse_with = parse_string_ptr32)]
     pub name: String,
 
     /// The offset into the parent buffer in bytes.
@@ -325,9 +294,8 @@ pub struct Uniform {
 }
 
 #[derive(BinRead, Debug)]
-#[br(import_raw(base_offset: u64))]
 pub struct InputAttribute {
-    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[br(parse_with = parse_string_ptr32)]
     pub name: String,
     pub location: u32,
 }
@@ -345,6 +313,13 @@ impl Slct {
     pub fn read_unk_item(&self, unk_section: &[u8]) -> BinResult<UnkItem> {
         let bytes = &unk_section[self.unk_item_offset as usize..];
         let mut reader = Cursor::new(bytes);
+        reader.read_le()
+    }
+}
+
+impl NvsdMetadataOffset {
+    pub fn read_nvsd(&self) -> BinResult<NvsdMetadata> {
+        let mut reader = Cursor::new(&self.nvsd_data);
         reader.read_le()
     }
 }

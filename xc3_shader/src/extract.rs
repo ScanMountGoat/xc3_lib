@@ -33,7 +33,7 @@ pub fn extract_shader_binaries<P: AsRef<Path>>(
                 std::fs::write(&frag_file, &fragment[48..]).unwrap();
 
                 // Each NVSD has separate metadata since the shaders are different.
-                let metadata = &slct.nvsds[i].inner;
+                let metadata = slct.nvsds[i].read_nvsd().unwrap();
 
                 // This doesn't need to be parsed, so just use debug output for now.
                 let txt_file = output_folder.join(&format!("{name}.txt"));
@@ -43,7 +43,7 @@ pub fn extract_shader_binaries<P: AsRef<Path>>(
                 // Decompile using Ryujinx.ShaderTools.exe.
                 // There isn't Rust code for this, so just take an exe path.
                 if let Some(shader_tools) = &ryujinx_shader_tools {
-                    decompile_glsl_shaders(shader_tools, &frag_file, &vert_file, metadata);
+                    decompile_glsl_shaders(shader_tools, &frag_file, &vert_file, &metadata);
                 }
 
                 // We needed to temporarily create binaries for ShaderTools to decompile.
@@ -93,8 +93,9 @@ fn vertex_fragment_binaries<'a>(spch: &'a Spch, slct: &Slct) -> Vec<(&'a [u8], &
 
     let mut binaries = Vec::new();
     for nvsd in &slct.nvsds {
-        let vertex = nvsd.inner.vertex_binary(offset, &spch.xv4_section);
-        let fragment = nvsd.inner.fragment_binary(offset, &spch.xv4_section);
+        let metadata = nvsd.read_nvsd().unwrap();
+        let vertex = metadata.vertex_binary(offset, &spch.xv4_section);
+        let fragment = metadata.fragment_binary(offset, &spch.xv4_section);
         binaries.push((vertex, fragment));
     }
 
