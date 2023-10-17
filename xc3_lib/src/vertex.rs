@@ -86,7 +86,7 @@ pub struct VertexBufferDescriptor {
 ///
 /// Attributes are tightly packed, so the relative offset is
 /// the sum of previous attribute sizes.
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct VertexAttribute {
     pub data_type: DataType,
     /// The size in bytes of [data_type](#structfield.data_type).
@@ -132,7 +132,7 @@ pub enum DataType {
 }
 
 // TODO: Is this data always u16?
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct IndexBufferDescriptor {
     /// The offset into [buffer](struct.VertexData.html#structfield.buffer).
     pub data_offset: u32,
@@ -312,8 +312,7 @@ pub struct UnkData {
     pub unk: [u32; 17],
 }
 
-// TODO: Just derive Xc3Write?
-xc3_write_binwrite_impl!(VertexAttribute, DataType, IndexBufferDescriptor, Unk1, Unk2);
+xc3_write_binwrite_impl!(DataType, Unk1, Unk2);
 
 impl<'a> Xc3WriteOffsets for VertexDataOffsets<'a> {
     fn write_offsets<W: std::io::Write + std::io::Seek>(

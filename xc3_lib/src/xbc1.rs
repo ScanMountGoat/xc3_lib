@@ -11,12 +11,11 @@ use xc3_write::Xc3Write;
 #[derive(BinRead, BinWrite, Debug)]
 #[brw(magic(b"xbc1"))]
 pub struct Xbc1 {
-    unk1: u32,
+    pub unk1: u32,
     pub decomp_size: u32,
-    // temp + calc?
-    comp_size: u32,
+    pub comp_size: u32,
 
-    unk2: u32, // TODO: hash of string data?
+    pub unk2: u32, // TODO: hash of string data?
 
     #[br(map = |x: NullString| x.to_string())]
     #[bw(map = |x: &String| NullString::from(x.as_str()))]

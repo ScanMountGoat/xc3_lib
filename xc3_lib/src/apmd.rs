@@ -6,7 +6,7 @@ use crate::{
     mxmd::Mxmd,
     parse_offset32_count32,
 };
-use binrw::{BinRead, BinReaderExt, BinWrite};
+use binrw::{BinRead, BinReaderExt, BinResult, BinWrite};
 use xc3_write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
 
 /// A packed model container with entries like [Mxmd](crate::mxmd::Mxmd) or [Gibl](crate::msmd::Gibl).
@@ -55,16 +55,15 @@ pub enum EntryData {
 }
 
 impl Entry {
-    pub fn read_data(&self) -> EntryData {
-        // TODO: Avoid unwrap.
+    pub fn read_data(&self) -> BinResult<EntryData> {
         let mut reader = Cursor::new(&self.entry_data);
         match self.entry_type {
-            EntryType::Mxmd => EntryData::Mxmd(reader.read_le().unwrap()),
-            EntryType::Dmis => EntryData::Dmis,
-            EntryType::Dlgt => EntryData::Dlgt(reader.read_le().unwrap()),
-            EntryType::Gibl => EntryData::Gibl(reader.read_le().unwrap()),
-            EntryType::Nerd => EntryData::Nerd(reader.read_le().unwrap()),
-            EntryType::Dlgt2 => EntryData::Dlgt2(reader.read_le().unwrap()),
+            EntryType::Mxmd => Ok(EntryData::Mxmd(reader.read_le()?)),
+            EntryType::Dmis => Ok(EntryData::Dmis),
+            EntryType::Dlgt => Ok(EntryData::Dlgt(reader.read_le()?)),
+            EntryType::Gibl => Ok(EntryData::Gibl(reader.read_le()?)),
+            EntryType::Nerd => Ok(EntryData::Nerd(reader.read_le()?)),
+            EntryType::Dlgt2 => Ok(EntryData::Dlgt2(reader.read_le()?)),
         }
     }
 }

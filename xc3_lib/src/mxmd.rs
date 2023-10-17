@@ -717,9 +717,9 @@ pub struct MeshUnk1Inner {
 
     // 0..N-1 arranged in a different order?
     #[br(parse_with = parse_ptr32)]
-    #[br(args { 
-        offset: base_offset, 
-        inner: args! { 
+    #[br(args {
+        offset: base_offset,
+        inner: args! {
             count: items1.iter().map(|(a,_)| *a).max().unwrap_or_default() as usize * 2
         }
     })]

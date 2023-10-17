@@ -20,7 +20,6 @@ pub use sampler::{AddressMode, FilterMode, Sampler};
 pub use skeleton::{Bone, Skeleton};
 pub use texture::{ImageFormat, ImageTexture, ViewDimension};
 
-// TODO: Export from a shader module instead of the crate root?
 pub use xc3_shader::gbuffer_database::{GBufferDatabase, Shader};
 
 pub mod gltf;
@@ -256,7 +255,7 @@ pub fn load_model<P: AsRef<Path>>(
             .entries
             .iter()
             .find_map(|e| {
-                if let xc3_lib::apmd::EntryData::Mxmd(mxmd) = e.read_data() {
+                if let Ok(xc3_lib::apmd::EntryData::Mxmd(mxmd)) = e.read_data() {
                     Some(mxmd)
                 } else {
                     None

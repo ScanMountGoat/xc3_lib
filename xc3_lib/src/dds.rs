@@ -13,13 +13,11 @@ use crate::{
 };
 use xc3_write::round_up;
 
-// TODO: Create a write_dds and save_dds helper functions or trait?
 pub fn save_dds<P: AsRef<Path>>(path: P, dds: &Dds) {
     let mut writer = BufWriter::new(std::fs::File::create(path).unwrap());
     dds.write(&mut writer).unwrap();
 }
 
-// TODO: Publicly export ddsfile from image_dds?
 pub fn create_dds(mibl: &Mibl) -> Result<Dds> {
     Surface {
         width: mibl.footer.width,

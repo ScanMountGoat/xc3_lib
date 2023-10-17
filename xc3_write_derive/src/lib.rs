@@ -42,8 +42,6 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
 
     let write_magic = options.magic.map(|m| quote!(#m.write_le(writer)?;));
 
-    // TODO: How to also handle enums?
-    // TODO: make this code work for enums as well as structs?
     let (write_data, define_offsets, initialize_offsets) = match &input.data {
         Data::Struct(DataStruct {
             fields: Fields::Named(fields),

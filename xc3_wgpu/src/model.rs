@@ -53,7 +53,6 @@ pub struct Mesh {
     vertex_buffer_index: usize,
     index_buffer_index: usize,
     material_index: usize,
-    // TODO: how to handle LOD?
     lod: u16,
 }
 
@@ -84,7 +83,6 @@ impl ModelGroup {
                         // TODO: Group these into passes with separate shaders for each pass?
                         // TODO: The main pass is shared with outline, ope, and zpre?
                         // TODO: How to handle transparency?
-                        // TODO: Characters render as solid white?
                         if (is_transparent != material.pipeline_key.write_to_all_outputs)
                             && !material.name.ends_with("_outline")
                             && !material.name.contains("_speff_")
