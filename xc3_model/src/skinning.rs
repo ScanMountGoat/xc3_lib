@@ -163,7 +163,7 @@ mod tests {
         xc3_lib::mxmd::Bone {
             name: name.to_string(),
             unk1: 0.0,
-            unk_type: 0,
+            unk_type: (0, 0),
             unk_index: 0,
             unk: [0; 2],
         }

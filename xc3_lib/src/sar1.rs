@@ -3,8 +3,8 @@
 //! XC3: `chr/{ch,en,oj,wp}/*.{chr,mot}`
 use std::io::Cursor;
 
-use crate::{bc::Bc, eva::Eva, parse_count32_offset32, parse_offset32_count32, parse_ptr32};
-use binrw::{binread, BinRead, BinReaderExt, BinResult, NullString};
+use crate::{bc::Bc, eva::Eva, parse_count32_offset32, parse_offset32_count32};
+use binrw::{BinRead, BinReaderExt, BinResult, NullString};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]

@@ -265,6 +265,8 @@ impl State {
                         VirtualKeyCode::Key4 => self.update_debug_settings(4),
                         VirtualKeyCode::Key5 => self.update_debug_settings(5),
                         VirtualKeyCode::Key6 => self.update_debug_settings(6),
+                        // Animation playback.
+                        VirtualKeyCode::Space => self.current_frame = 0.0,
                         _ => (),
                     }
                 }
