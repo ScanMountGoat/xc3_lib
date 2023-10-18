@@ -177,8 +177,11 @@ pub struct AnimationBinding {
     #[xc3(offset64)]
     pub animation: Animation,
 
-    // TODO: Assigns tracks to entries in bone_names?
-    pub bone_indices: BcList<i16>,
+    /// The index of the track in [animation](#structfield.animation) for each bone
+    /// or `-1` if no track is assigned.
+    // TODO: mxmd or chr bone ordering?
+    // TODO: ordering can be changed by bone names below?
+    pub bone_track_indices: BcList<i16>,
 
     // TODO: offset64_count32 for Vec<ExtraTrackAnimation>?
     // TODO: Not always bone names?
@@ -235,7 +238,7 @@ pub enum ExtraTrackAnimation {
     Uncompressed(UncompressedExtraData),
 
     #[br(pre_assert(animation_type == AnimationType::Cubic))]
-    Cubic(CubicExtraData),
+    Cubic,
 
     #[br(pre_assert(animation_type == AnimationType::Unk2))]
     Unk2,
@@ -482,32 +485,32 @@ pub struct Skeleton {
     pub unk_table5: BcList<u64>,
     // TODO: Not all skeletons have these fields?
     // TODO: These may only be pointed to by the offsets at the end of the file?
-    #[br(parse_with = parse_opt_ptr64)]
-    #[xc3(offset64)]
-    pub unk6: Option<SkeletonUnk6>,
+    // #[br(parse_with = parse_opt_ptr64)]
+    // #[xc3(offset64)]
+    // pub unk6: Option<SkeletonUnk6>,
 
-    #[br(parse_with = parse_opt_ptr64)]
-    #[xc3(offset64)]
-    pub unk7: Option<SkeletonUnk7>,
+    // #[br(parse_with = parse_opt_ptr64)]
+    // #[xc3(offset64)]
+    // pub unk7: Option<SkeletonUnk7>,
 
-    #[br(parse_with = parse_opt_ptr64)]
-    #[xc3(offset64)]
-    pub unk8: Option<SkeletonUnk8>,
+    // #[br(parse_with = parse_opt_ptr64)]
+    // #[xc3(offset64)]
+    // pub unk8: Option<SkeletonUnk8>,
 
-    #[br(parse_with = parse_opt_ptr64)]
-    #[xc3(offset64)]
-    pub unk9: Option<SkeletonUnk9>,
+    // #[br(parse_with = parse_opt_ptr64)]
+    // #[xc3(offset64)]
+    // pub unk9: Option<SkeletonUnk9>,
 
-    #[br(parse_with = parse_opt_ptr64)]
-    #[xc3(offset64)]
-    pub unk10: Option<SkeletonUnk10>,
+    // #[br(parse_with = parse_opt_ptr64)]
+    // #[xc3(offset64)]
+    // pub unk10: Option<SkeletonUnk10>,
 
-    #[br(parse_with = parse_opt_ptr64)]
-    #[xc3(offset64)]
-    pub unk11: Option<SkeletonUnk11>,
+    // #[br(parse_with = parse_opt_ptr64)]
+    // #[xc3(offset64)]
+    // pub unk11: Option<SkeletonUnk11>,
 
-    pub unk12: u64,
-    pub unk13: i64,
+    // pub unk12: u64,
+    // pub unk13: i64,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]

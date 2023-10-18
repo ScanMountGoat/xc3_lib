@@ -65,33 +65,22 @@ pub fn animate_skeleton(
             }
         }
         xc3_lib::bc::AnimationData::Cubic(cubic) => {
-            for (track, bone_index) in cubic
-                .tracks
-                .elements
-                .iter()
-                .zip(anim.binding.bone_indices.elements.iter())
-            {
+            // TODO: Assigns bones to tracks?
+            // TODO: Doesn't work for mio anim 0?
+            // TODO: bone names replace the ordering of bones if present?
+            for (i, index) in anim.binding.bone_track_indices.elements.iter().enumerate() {
                 // TODO: How to handle index values of -1?
                 // TODO: Not all bones are being animated properly?
-                if *bone_index >= 0 {
+                if *index >= 0 {
+                    let track = &cubic.tracks.elements[*index as usize];
                     let translation = sample_vec3_cubic(&track.translation.elements, frame);
                     let rotation = sample_quat_cubic(&track.rotation.elements, frame);
                     let scale = sample_vec3_cubic(&track.scale.elements, frame);
 
-                    let bone_name = &anim.binding.bone_names[*bone_index as usize].name;
-
-                    if let Some(bone_index) = animated_skeleton
-                        .bones
-                        .iter()
-                        .position(|b| Some(&b.name) == bone_name.as_ref())
-                    {
-                        let transform = Mat4::from_translation(translation)
-                            * Mat4::from_quat(rotation)
-                            * Mat4::from_scale(scale);
-                        animated_skeleton.bones[bone_index].transform = transform;
-                    } else {
-                        error!("No matching bone for {:?}", bone_name);
-                    }
+                    let transform = Mat4::from_translation(translation)
+                        * Mat4::from_quat(rotation)
+                        * Mat4::from_scale(scale);
+                    animated_skeleton.bones[i].transform = transform;
                 }
             }
         }

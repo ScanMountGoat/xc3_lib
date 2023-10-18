@@ -43,7 +43,8 @@ struct State {
     models: Vec<ModelGroup>,
 
     // Animation
-    anim: Option<Anim>,
+    anims: Vec<Anim>,
+    anim_index: usize,
     current_frame: f32,
     previous_frame_start: Instant,
 
@@ -155,17 +156,19 @@ impl State {
             elapsed
         );
 
-        // TODO: Store the data to support loading multiple frames.
-        let mut anim = None;
+        let mut anims = Vec::new();
         if let Some(anim_path) = anim_path {
             let sar1 = xc3_lib::sar1::Sar1::from_file(anim_path).unwrap();
-            if let xc3_lib::sar1::EntryData::Bc(bc) = sar1.entries[anim_index].read_data().unwrap()
-            {
-                if let xc3_lib::bc::BcData::Anim(data) = bc.data {
-                    anim = Some(data);
+            for entry in &sar1.entries {
+                if let xc3_lib::sar1::EntryData::Bc(bc) = entry.read_data().unwrap() {
+                    if let xc3_lib::bc::BcData::Anim(anim) = bc.data {
+                        // println!("{:#?}", data);
+                        anims.push(anim);
+                    }
                 }
             }
         }
+        update_window_title(window, &anims, anim_index);
 
         Self {
             surface,
@@ -177,7 +180,8 @@ impl State {
             rotation_xyz,
             models,
             renderer,
-            anim,
+            anims,
+            anim_index,
             current_frame: 0.0,
             input_state: Default::default(),
             previous_frame_start: Instant::now(),
@@ -207,17 +211,24 @@ impl State {
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
-        // Framerate independent animation timing.
-        // TODO: Final frame for looping?
-        let current_frame_start = std::time::Instant::now();
-        self.current_frame = next_frame(
-            self.current_frame,
-            current_frame_start.duration_since(self.previous_frame_start),
-            1000.0,
-            1.0,
-            false,
-        );
-        self.previous_frame_start = current_frame_start;
+        if let Some(anim) = self.anims.get(self.anim_index) {
+            // Framerate independent animation timing.
+            let current_frame_start = std::time::Instant::now();
+            self.current_frame = next_frame(
+                self.current_frame,
+                current_frame_start.duration_since(self.previous_frame_start),
+                anim.binding.animation.frame_count as f32,
+                1.0,
+                false,
+            );
+            self.previous_frame_start = current_frame_start;
+
+            for model in &self.models {
+                for models in &model.models {
+                    models.update_bone_transforms(&self.queue, anim, self.current_frame);
+                }
+            }
+        }
 
         let output = self.surface.get_current_texture()?;
         let output_view = output
@@ -230,14 +241,6 @@ impl State {
                 label: Some("Render Encoder"),
             });
 
-        if let Some(anim) = &self.anim {
-            for model in &self.models {
-                for models in &model.models {
-                    models.update_bone_transforms(&self.queue, anim, self.current_frame);
-                }
-            }
-        }
-
         self.renderer
             .render_models(&output_view, &mut encoder, &self.models);
 
@@ -247,7 +250,7 @@ impl State {
     }
 
     // Make this a reusable library that only requires glam?
-    fn handle_input(&mut self, event: &WindowEvent) {
+    fn handle_input(&mut self, event: &WindowEvent, window: &Window) {
         match event {
             WindowEvent::KeyboardInput { input, .. } => {
                 // Basic camera controls using arrow keys.
@@ -267,6 +270,20 @@ impl State {
                         VirtualKeyCode::Key6 => self.update_debug_settings(6),
                         // Animation playback.
                         VirtualKeyCode::Space => self.current_frame = 0.0,
+                        VirtualKeyCode::PageUp => {
+                            if input.state == ElementState::Released {
+                                self.current_frame = 0.0;
+                                self.anim_index += 1;
+                                update_window_title(window, &self.anims, self.anim_index);
+                            }
+                        }
+                        VirtualKeyCode::PageDown => {
+                            if input.state == ElementState::Released {
+                                self.current_frame = 0.0;
+                                self.anim_index = self.anim_index.saturating_sub(1);
+                                update_window_title(window, &self.anims, self.anim_index);
+                            }
+                        }
                         _ => (),
                     }
                 }
@@ -326,6 +343,16 @@ impl State {
             }
             _ => (),
         }
+    }
+}
+
+fn update_window_title(window: &Window, anims: &Vec<Anim>, anim_index: usize) {
+    if let Some(anim) = anims.get(anim_index) {
+        window.set_title(&format!(
+            "{} - {}",
+            concat!("xc3_wgpu ", env!("CARGO_PKG_VERSION")),
+            anim.binding.animation.name
+        ));
     }
 }
 
@@ -469,7 +496,7 @@ fn main() {
                 state.resize(**new_inner_size);
             }
             _ => {
-                state.handle_input(event);
+                state.handle_input(event, &window);
                 state.update_camera(window.inner_size());
             }
         },
