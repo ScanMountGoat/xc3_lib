@@ -378,7 +378,13 @@ fn check_sar1(sar1: Sar1, path: &Path, check_read_write: bool) {
         match entry.read_data() {
             // Check read/write for the inner data.
             Ok(entry_data) => match entry_data {
-                xc3_lib::sar1::EntryData::Bc(_) => (),
+                xc3_lib::sar1::EntryData::Bc(bc) => {
+                    let mut writer = Cursor::new(Vec::new());
+                    xc3_write::write_full(&bc, &mut writer, 0, &mut 0).unwrap();
+                    if writer.into_inner() != entry.entry_data {
+                        println!("Bc read/write not 1:1 for {path:?}");
+                    }
+                }
                 xc3_lib::sar1::EntryData::ChCl(_) => (),
                 xc3_lib::sar1::EntryData::Csvb(csvb) => {
                     let mut writer = Cursor::new(Vec::new());
@@ -387,7 +393,13 @@ fn check_sar1(sar1: Sar1, path: &Path, check_read_write: bool) {
                         println!("Csvb read/write not 1:1 for {path:?}");
                     }
                 }
-                xc3_lib::sar1::EntryData::Eva(_) => (),
+                xc3_lib::sar1::EntryData::Eva(eva) => {
+                    let mut writer = Cursor::new(Vec::new());
+                    xc3_write::write_full(&eva, &mut writer, 0, &mut 0).unwrap();
+                    if writer.into_inner() != entry.entry_data {
+                        println!("Eva read/write not 1:1 for {path:?}");
+                    }
+                }
             },
             Err(e) => println!("Error reading entry for {path:?}: {e}"),
         }

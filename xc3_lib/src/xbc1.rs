@@ -7,7 +7,6 @@ use zune_inflate::{errors::InflateDecodeErrors, DeflateDecoder, DeflateOptions};
 
 use xc3_write::Xc3Write;
 
-// TODO: test read + write
 #[derive(BinRead, BinWrite, Debug)]
 #[brw(magic(b"xbc1"))]
 pub struct Xbc1 {
