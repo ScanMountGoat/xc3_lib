@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
-use glam::{vec3, Mat4, Quat, Vec3};
+use glam::{vec3, Mat4, Quat, Vec3, Vec4, Vec4Swizzles};
 use log::error;
-use xc3_lib::bc::murmur3;
+use xc3_lib::bc::{murmur3, BlendMode};
+use xc3_model::Bone;
 
 pub fn animate_skeleton(
     skeleton: &xc3_model::Skeleton,
@@ -20,44 +21,29 @@ pub fn animate_skeleton(
     // Just create a copy of the skeleton to simplify the code for now.
     let mut animated_skeleton = skeleton.clone();
 
-    // TODO: Load all key frames?
+    // Update bone transforms by sampling the current frame.
+    // The current frame is a float, so animations can decide how to interpolate.
+    // Decoupling animation and rendering FPS simplifies consuming code.
     match &anim.binding.animation.data {
         xc3_lib::bc::AnimationData::Uncompressed(uncompressed) => {
             if let xc3_lib::bc::ExtraTrackAnimation::Uncompressed(extra) =
                 &anim.binding.extra_track_animation
             {
-                // TODO: Are the transforms in order for each hash for each frame?
-                // TODO: Correctly interpolate keyframes.
-                let frame_index = frame as usize;
-                let start_index = frame_index * extra.unk3.bone_name_hashes.len();
-
                 // TODO: Apply the root motion at each frame?
-                for (transform, hash) in uncompressed
-                    .transforms
-                    .elements
-                    .iter()
-                    .skip(start_index)
-                    .zip(extra.unk3.bone_name_hashes.iter())
-                {
+                for hash in &extra.unk3.bone_name_hashes {
                     if let Some(bone_index) = hash_to_index.get(hash) {
-                        let translation = vec3(
-                            transform.translation[0],
-                            transform.translation[1],
-                            transform.translation[2],
+                        let transform = sample_transform_linear(
+                            &uncompressed.transforms.elements,
+                            *bone_index,
+                            extra.unk3.bone_name_hashes.len(),
+                            frame,
                         );
-                        let rotation = Quat::from_xyzw(
-                            transform.rotation_quaternion[0],
-                            transform.rotation_quaternion[1],
-                            transform.rotation_quaternion[2],
-                            transform.rotation_quaternion[3],
-                        );
-                        let scale =
-                            vec3(transform.scale[0], transform.scale[1], transform.scale[2]);
 
-                        let transform = Mat4::from_translation(translation)
-                            * Mat4::from_quat(rotation)
-                            * Mat4::from_scale(scale);
-                        animated_skeleton.bones[*bone_index].transform = transform;
+                        apply_transform(
+                            &mut animated_skeleton.bones[*bone_index],
+                            transform,
+                            anim.binding.animation.blend_mode,
+                        );
                     } else {
                         error!("No matching bone for hash {hash:x}");
                     }
@@ -80,11 +66,18 @@ pub fn animate_skeleton(
                     let transform = Mat4::from_translation(translation)
                         * Mat4::from_quat(rotation)
                         * Mat4::from_scale(scale);
-                    animated_skeleton.bones[i].transform = transform;
+
+                    apply_transform(
+                        &mut animated_skeleton.bones[i],
+                        transform,
+                        anim.binding.animation.blend_mode,
+                    );
                 }
             }
         }
-        xc3_lib::bc::AnimationData::Unk2 => todo!(),
+        xc3_lib::bc::AnimationData::Empty => {
+            // TODO: how to handle this?
+        }
         xc3_lib::bc::AnimationData::PackedCubic(cubic) => {
             // TODO: Does each of these tracks have a corresponding hash?
             // TODO: Also check the bone indices?
@@ -108,7 +101,12 @@ pub fn animate_skeleton(
                         let transform = Mat4::from_translation(translation)
                             * Mat4::from_quat(rotation)
                             * Mat4::from_scale(scale);
-                        animated_skeleton.bones[*bone_index].transform = transform;
+
+                        apply_transform(
+                            &mut animated_skeleton.bones[*bone_index],
+                            transform,
+                            anim.binding.animation.blend_mode,
+                        );
                     } else {
                         error!("No matching bone for hash {hash:x}");
                     }
@@ -126,6 +124,38 @@ pub fn animate_skeleton(
     }
 
     animated_transforms
+}
+
+fn apply_transform(bone: &mut Bone, transform: Mat4, blend_mode: BlendMode) {
+    // TODO: Is this the correct way to implement additive blending?
+    match blend_mode {
+        BlendMode::Blend => bone.transform = transform,
+        BlendMode::Add => bone.transform *= transform,
+    }
+}
+
+// TODO: Add tests for this.
+fn sample_transform_linear(
+    values: &[xc3_lib::bc::Transform],
+    bone_index: usize,
+    bone_count: usize,
+    frame: f32,
+) -> Mat4 {
+    // Assume each bone has a transform for each frame in order.
+    // TODO: How to handle empty animations?
+    let current = (frame.floor() as usize * bone_count + bone_index).min(values.len() - 1);
+    let next = (frame.ceil() as usize * bone_count + bone_index).min(values.len() - 1);
+    let factor = frame.fract();
+
+    let translation =
+        Vec4::from(values[current].translation).lerp(Vec4::from(values[next].translation), factor);
+    let rotation = Vec4::from(values[current].rotation_quaternion)
+        .lerp(Vec4::from(values[next].rotation_quaternion), factor);
+    let scale = Vec4::from(values[current].scale).lerp(Vec4::from(values[next].scale), factor);
+
+    Mat4::from_translation(translation.xyz())
+        * Mat4::from_quat(Quat::from_array(rotation.to_array()))
+        * Mat4::from_scale(scale.xyz())
 }
 
 // TODO: Add tests for this.

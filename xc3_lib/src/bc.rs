@@ -211,7 +211,7 @@ pub struct Animation {
     pub animation_type: AnimationType,
     pub space_mode: u8,
     pub play_mode: u8,
-    pub blend_mode: u8,
+    pub blend_mode: BlendMode,
     pub frames_per_second: f32,
     pub seconds_per_frame: f32,
     pub frame_count: u32,
@@ -221,6 +221,13 @@ pub struct Animation {
 
     #[br(args { animation_type })]
     pub data: AnimationData,
+}
+
+#[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy)]
+#[brw(repr(u8))]
+pub enum BlendMode {
+    Blend = 0,
+    Add = 1,
 }
 
 // TODO: Is this the right type?
@@ -240,8 +247,9 @@ pub enum ExtraTrackAnimation {
     #[br(pre_assert(animation_type == AnimationType::Cubic))]
     Cubic,
 
-    #[br(pre_assert(animation_type == AnimationType::Unk2))]
-    Unk2,
+    // TODO: This has extra data?
+    #[br(pre_assert(animation_type == AnimationType::Empty))]
+    Empty,
 
     #[br(pre_assert(animation_type == AnimationType::PackedCubic))]
     PackedCubic(PackedCubicExtraData),
@@ -252,9 +260,9 @@ pub struct UncompressedExtraData {
     // TODO: type?
     pub unk1: BcList<u8>,
 
-    #[br(parse_with = parse_ptr64)]
+    #[br(parse_with = parse_opt_ptr64)]
     #[xc3(offset64)]
-    pub motion: UncompressedExtraDataMotion,
+    pub motion: Option<UncompressedExtraDataMotion>,
 
     #[br(parse_with = parse_ptr64)]
     #[xc3(offset64)]
@@ -361,7 +369,7 @@ pub struct PackedCubicExtraDataInner {
 pub enum AnimationType {
     Uncompressed = 0,
     Cubic = 1,
-    Unk2 = 2,
+    Empty = 2,
     PackedCubic = 3,
 }
 
@@ -374,8 +382,8 @@ pub enum AnimationData {
     #[br(pre_assert(animation_type == AnimationType::Cubic))]
     Cubic(Cubic),
 
-    #[br(pre_assert(animation_type == AnimationType::Unk2))]
-    Unk2,
+    #[br(pre_assert(animation_type == AnimationType::Empty))]
+    Empty,
 
     #[br(pre_assert(animation_type == AnimationType::PackedCubic))]
     PackedCubic(PackedCubic),
@@ -615,7 +623,7 @@ pub fn murmur3(bytes: &[u8]) -> u32 {
     murmur3::murmur3_32(&mut std::io::Cursor::new(bytes), 0).unwrap()
 }
 
-xc3_write_binwrite_impl!(AnimationType);
+xc3_write_binwrite_impl!(AnimationType, BlendMode);
 
 #[cfg(test)]
 mod tests {

@@ -346,7 +346,7 @@ impl State {
     }
 }
 
-fn update_window_title(window: &Window, anims: &Vec<Anim>, anim_index: usize) {
+fn update_window_title(window: &Window, anims: &[Anim], anim_index: usize) {
     if let Some(anim) = anims.get(anim_index) {
         window.set_title(&format!(
             "{} - {}",
