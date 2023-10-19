@@ -13,7 +13,7 @@ pub struct Ltpc {
 
     /// A collection of typically 3D texture files.
     #[br(parse_with = parse_count32_offset32)]
-    #[xc3(count32_offset32)]
+    #[xc3(count_offset(u32, u32))]
     pub textures: Vec<Texture>,
 
     // TODO: padding?
@@ -24,7 +24,7 @@ pub struct Ltpc {
 pub struct Texture {
     // TODO: Support alignment constants.
     #[br(parse_with = parse_offset32_count32)]
-    #[xc3(offset32_count32, align(4096))]
+    #[xc3(offset_count(u32, u32), align(4096))]
     pub mibl_data: Vec<u8>,
     pub unk1: u32,
     // TODO: padding?

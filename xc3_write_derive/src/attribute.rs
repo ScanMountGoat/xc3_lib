@@ -1,5 +1,5 @@
-use proc_macro2::TokenStream;
-use syn::{parenthesized, Attribute, LitInt};
+use proc_macro2::{Ident, TokenStream};
+use syn::{ext::IdentExt, parenthesized, Attribute, LitInt};
 
 pub struct FieldOptions {
     pub field_type: Option<FieldType>,
@@ -11,12 +11,9 @@ pub struct FieldOptions {
 pub enum FieldType {
     SavePosition,
     SharedOffset,
-    Offset16,
-    Offset32,
-    Offset64,
-    Offset32Count32,
-    Offset64Count32,
-    Count32Offset32,
+    Offset(Ident),
+    OffsetCount(Ident, Ident),
+    CountOffset(Ident, Ident),
 }
 
 impl FieldOptions {
@@ -30,24 +27,17 @@ impl FieldOptions {
                 // TODO: add types like offset32 or offset64_count32
                 // TODO: separate offset and count fields?
                 let _ = a.parse_nested_meta(|meta| {
-                    if meta.path.is_ident("offset16") {
-                        // #[xc3(offset16)]
-                        field_type = Some(FieldType::Offset16);
-                    } else if meta.path.is_ident("offset32") {
-                        // #[xc3(offset32)]
-                        field_type = Some(FieldType::Offset32);
-                    } else if meta.path.is_ident("offset64") {
-                        // #[xc3(offset64)]
-                        field_type = Some(FieldType::Offset64);
-                    } else if meta.path.is_ident("offset32_count32") {
-                        // #[xc3(offset32_count32)]
-                        field_type = Some(FieldType::Offset32Count32);
-                    } else if meta.path.is_ident("offset64_count32") {
-                        // #[xc3(offset64_count32)]
-                        field_type = Some(FieldType::Offset64Count32);
-                    } else if meta.path.is_ident("count32_offset32") {
-                        // #[xc3(count32_offset32)]
-                        field_type = Some(FieldType::Count32Offset32);
+                    if meta.path.is_ident("offset") {
+                        // #[xc3(offset(u32))]
+                        field_type = Some(FieldType::Offset(parse_ident(&meta)?));
+                    } else if meta.path.is_ident("offset_count") {
+                        // #[xc3(offset_count(u32, u32))]
+                        let (offset, count) = parse_two_idents(&meta)?;
+                        field_type = Some(FieldType::OffsetCount(offset, count));
+                    } else if meta.path.is_ident("count_offset") {
+                        // #[xc3(count_offset(u32, u32)]
+                        let (count, offset) = parse_two_idents(&meta)?;
+                        field_type = Some(FieldType::CountOffset(count, offset));
                     } else if meta.path.is_ident("align") {
                         // #[xc3(align(4096))]
                         align = Some(parse_u64(&meta)?);
@@ -79,6 +69,20 @@ fn parse_u64(meta: &syn::meta::ParseNestedMeta<'_>) -> Result<u64, syn::Error> {
     parenthesized!(content in meta.input);
     let lit: LitInt = content.parse().unwrap();
     lit.base10_parse()
+}
+
+fn parse_ident(meta: &syn::meta::ParseNestedMeta<'_>) -> Result<Ident, syn::Error> {
+    let content;
+    parenthesized!(content in meta.input);
+    let ty: Ident = content.parse()?;
+    Ok(ty)
+}
+
+fn parse_two_idents(meta: &syn::meta::ParseNestedMeta<'_>) -> Result<(Ident, Ident), syn::Error> {
+    let content;
+    parenthesized!(content in meta.input);
+    let types = content.parse_terminated(Ident::parse_any, syn::Token![,])?;
+    Ok((types[0].clone(), types[1].clone()))
 }
 
 pub struct TypeOptions {

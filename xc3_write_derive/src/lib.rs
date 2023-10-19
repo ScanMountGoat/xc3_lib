@@ -272,7 +272,7 @@ struct FieldData {
 }
 
 impl FieldData {
-    fn offset(name: &Ident, alignment: Option<u64>, pointer: &TokenStream2, ty: &Type) -> Self {
+    fn offset(name: &Ident, alignment: Option<u64>, pointer: &Ident, ty: &Type) -> Self {
         Self {
             name: name.clone(),
             offset_field: offset_field(name, pointer, ty),
@@ -283,10 +283,10 @@ impl FieldData {
         }
     }
 
-    fn shared_offset(name: &Ident, alignment: Option<u64>, pointer: &TokenStream2) -> Self {
+    fn shared_offset(name: &Ident, alignment: Option<u64>, pointer: &Type) -> Self {
         Self {
             name: name.clone(),
-            offset_field: offset_field(name, pointer, &Type::Verbatim(quote!(()))),
+            offset_field: quote!(pub #name: ::xc3_write::Offset<'offsets, #pointer, ()>),
             write_impl: write_dummy_shared_offset(name, alignment, pointer),
             write_offset_impl: quote! {
                 self.#name.write_full(writer, base_offset, data_ptr)?;
@@ -304,11 +304,7 @@ impl FieldData {
     }
 }
 
-fn write_dummy_offset(
-    name: &Ident,
-    alignment: Option<u64>,
-    pointer: &TokenStream2,
-) -> TokenStream2 {
+fn write_dummy_offset(name: &Ident, alignment: Option<u64>, pointer: &Ident) -> TokenStream2 {
     let alignment = match alignment {
         Some(align) => quote!(Some(#align)),
         None => quote!(None),
@@ -320,11 +316,7 @@ fn write_dummy_offset(
     }
 }
 
-fn write_dummy_shared_offset(
-    name: &Ident,
-    alignment: Option<u64>,
-    pointer: &TokenStream2,
-) -> TokenStream2 {
+fn write_dummy_shared_offset(name: &Ident, alignment: Option<u64>, pointer: &Type) -> TokenStream2 {
     let alignment = match alignment {
         Some(align) => quote!(Some(#align)),
         None => quote!(None),
@@ -369,23 +361,17 @@ fn parse_named_fields(fields: &FieldsNamed) -> Vec<FieldData> {
         // Use a null offset as a placeholder.
         // TODO: Reduce repeated code?
         match options.field_type {
-            Some(FieldType::Offset16) => {
-                offset_fields.push(FieldData::offset(name, options.align, &quote!(u16), ty));
+            Some(FieldType::Offset(offset_ty)) => {
+                offset_fields.push(FieldData::offset(name, options.align, &offset_ty, ty));
             }
-            Some(FieldType::Offset32) => {
-                offset_fields.push(FieldData::offset(name, options.align, &quote!(u32), ty));
-            }
-            Some(FieldType::Offset64) => {
-                offset_fields.push(FieldData::offset(name, options.align, &quote!(u64), ty));
-            }
-            Some(FieldType::Count32Offset32) => {
-                let write_offset = write_dummy_offset(name, options.align, &quote!(u32));
+            Some(FieldType::CountOffset(count_ty, offset_ty)) => {
+                let write_offset = write_dummy_offset(name, options.align, &offset_ty);
 
                 offset_fields.push(FieldData {
                     name: name.clone(),
-                    offset_field: offset_field(name, &quote!(u32), ty),
+                    offset_field: offset_field(name, &offset_ty, ty),
                     write_impl: quote! {
-                        (self.#name.len() as u32).write_le(writer)?;
+                        (self.#name.len() as #count_ty).write_le(writer)?;
                         #write_offset
                     },
                     write_offset_impl: quote! {
@@ -393,30 +379,15 @@ fn parse_named_fields(fields: &FieldsNamed) -> Vec<FieldData> {
                     },
                 });
             }
-            Some(FieldType::Offset32Count32) => {
-                let write_offset = write_dummy_offset(name, options.align, &quote!(u32));
+            Some(FieldType::OffsetCount(offset_ty, count_ty)) => {
+                let write_offset = write_dummy_offset(name, options.align, &offset_ty);
 
                 offset_fields.push(FieldData {
                     name: name.clone(),
-                    offset_field: offset_field(name, &quote!(u32), ty),
+                    offset_field: offset_field(name, &offset_ty, ty),
                     write_impl: quote! {
                         #write_offset
-                        (self.#name.len() as u32).write_le(writer)?;
-                    },
-                    write_offset_impl: quote! {
-                        self.#name.write_full(writer, base_offset, data_ptr)?;
-                    },
-                });
-            }
-            Some(FieldType::Offset64Count32) => {
-                let write_offset = write_dummy_offset(name, options.align, &quote!(u64));
-
-                offset_fields.push(FieldData {
-                    name: name.clone(),
-                    offset_field: offset_field(name, &quote!(u64), ty),
-                    write_impl: quote! {
-                        #write_offset
-                        (self.#name.len() as u32).write_le(writer)?;
+                        (self.#name.len() as #count_ty).write_le(writer)?;
                     },
                     write_offset_impl: quote! {
                         self.#name.write_full(writer, base_offset, data_ptr)?;
@@ -426,7 +397,7 @@ fn parse_named_fields(fields: &FieldsNamed) -> Vec<FieldData> {
             Some(FieldType::SharedOffset) => {
                 // Shared offsets don't actually contain any data.
                 // The pointer type is the type of the field itself.
-                offset_fields.push(FieldData::shared_offset(name, options.align, &quote!(#ty)));
+                offset_fields.push(FieldData::shared_offset(name, options.align, ty));
             }
             Some(FieldType::SavePosition) => {
                 // Store the information for later shared offsets.
@@ -462,6 +433,6 @@ fn parse_named_fields(fields: &FieldsNamed) -> Vec<FieldData> {
     offset_fields
 }
 
-fn offset_field(name: &Ident, pointer: &TokenStream2, ty: &Type) -> TokenStream2 {
+fn offset_field(name: &Ident, pointer: &Ident, ty: &Type) -> TokenStream2 {
     quote!(pub #name: ::xc3_write::Offset<'offsets, #pointer, #ty>)
 }

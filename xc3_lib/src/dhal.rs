@@ -15,36 +15,36 @@ pub struct Dhal {
 
     // TODO: alignment is sometimes 16?
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset32)]
+    #[xc3(offset(u32))]
     pub unk1: Unk1,
 
     pub unk2: u32,
 
     #[br(parse_with = parse_opt_ptr32)]
-    #[xc3(offset32, align(4))]
+    #[xc3(offset(u32), align(4))]
     pub unk3: Option<Unk3>,
 
     #[br(parse_with = parse_opt_ptr32)]
-    #[xc3(offset32)]
+    #[xc3(offset(u32))]
     pub unk4: Option<Unk4>,
 
     #[br(parse_with = parse_opt_ptr32)]
-    #[xc3(offset32)]
+    #[xc3(offset(u32))]
     pub unk5: Option<[u32; 4]>,
 
     #[br(parse_with = parse_opt_ptr32)]
-    #[xc3(offset32)]
+    #[xc3(offset(u32))]
     pub unk6: Option<[u32; 3]>,
 
     #[br(parse_with = parse_opt_ptr32)]
-    #[xc3(offset32)]
+    #[xc3(offset(u32))]
     pub textures: Option<Textures>,
 
     // TODO: more fields?
     pub unks1: [u32; 7],
 
     #[br(parse_with = parse_opt_ptr32)]
-    #[xc3(offset32)]
+    #[xc3(offset(u32))]
     pub uncompressed_textures: Option<UncompressedTextures>,
 
     // TODO: padding?
@@ -92,15 +92,15 @@ pub struct Unk3 {
     base_offset: u64,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset32_count32)]
+    #[xc3(offset_count(u32, u32))]
     pub unk1: Vec<[u32; 7]>,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset32_count32)]
+    #[xc3(offset_count(u32, u32))]
     pub unk2: Vec<[u32; 4]>,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset32_count32)]
+    #[xc3(offset_count(u32, u32))]
     pub unk3: Vec<[u32; 5]>,
 
     // TODO: padding?
@@ -119,7 +119,7 @@ pub struct Unk4 {
 
     #[br(parse_with = parse_offset32_count32)]
     #[br(args { offset: base_offset, inner: base_offset })]
-    #[xc3(offset32_count32)]
+    #[xc3(offset_count(u32, u32))]
     pub unk2: Vec<Unk4Unk2>,
 
     pub unk4: u32,
@@ -127,11 +127,11 @@ pub struct Unk4 {
     pub unk6: u32,
 
     #[br(parse_with = parse_ptr32, offset = base_offset)]
-    #[xc3(offset32)]
+    #[xc3(offset(u32))]
     pub unk7: Unk4Unk7,
 
     #[br(parse_with = parse_ptr32, offset = base_offset)]
-    #[xc3(offset32)]
+    #[xc3(offset(u32))]
     pub unk8: [u32; 4],
 
     // TODO: padding?
@@ -143,11 +143,11 @@ pub struct Unk4 {
 pub struct Unk4Unk2 {
     // TODO: more offsets
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
-    #[xc3(count32_offset32)]
+    #[xc3(count_offset(u32, u32))]
     pub unk1: Vec<u32>,
 
     #[br(parse_with = parse_ptr32, offset = base_offset)]
-    #[xc3(offset32)]
+    #[xc3(offset(u32))]
     pub unk3: [u32; 2],
 
     pub unk4: u32,
@@ -155,7 +155,7 @@ pub struct Unk4Unk2 {
     pub unk6: u32,
 
     #[br(parse_with = parse_ptr32, offset = base_offset)]
-    #[xc3(offset32)]
+    #[xc3(offset(u32))]
     pub unk7: u32,
 
     pub unk8: u32,
@@ -180,7 +180,7 @@ pub struct Unk4Unk7 {
     // TODO: strings?
     // TODO: size and type?
     // #[br(parse_with = parse_offset_count, offset = base_offset)]
-    // #[xc3(offset32_count32)]
+    // #[xc3(offset_count(u32, u32))]
     // pub unk1: Vec<[i32; 5]>,
     pub unk1: u32,
     pub unk2: u32,
@@ -199,7 +199,7 @@ pub struct Textures {
 
     #[br(parse_with = parse_offset32_count32)]
     #[br(args { offset: base_offset, inner: base_offset })]
-    #[xc3(offset32_count32)]
+    #[xc3(offset_count(u32, u32))]
     pub textures: Vec<Texture>,
 
     // TODO: padding?
@@ -211,7 +211,7 @@ pub struct Textures {
 pub struct Texture {
     pub unk1: u32,
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset32_count32, align(4096))]
+    #[xc3(offset_count(u32, u32), align(4096))]
     pub mibl_data: Vec<u8>,
 }
 
@@ -219,7 +219,7 @@ pub struct Texture {
 pub struct UncompressedTextures {
     // TODO: does this always use base offset 0?
     #[br(parse_with = parse_offset32_count32)]
-    #[xc3(offset32_count32)]
+    #[xc3(offset_count(u32, u32))]
     pub textures: Vec<UncompressedTexture>,
 
     // TODO: padding?
@@ -231,7 +231,7 @@ pub struct UncompressedTexture {
     // TODO: always JFIF?
     /// JFIF/JPEG image file data commonly saved with the `.jfif` or `.jpeg` extension.
     #[br(parse_with = parse_offset32_count32)]
-    #[xc3(offset32_count32)]
+    #[xc3(offset_count(u32, u32))]
     pub jpeg_data: Vec<u8>,
 
     pub unk3: u32,

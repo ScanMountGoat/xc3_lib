@@ -1,5 +1,8 @@
 //! Vertex and geometry data for model formats.
-use crate::{parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32};
+use crate::{
+    parse_count16_offset32, parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32,
+    parse_ptr32,
+};
 use binrw::{args, binread, BinRead, BinResult, BinWrite};
 use xc3_write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
 
@@ -13,11 +16,11 @@ pub struct VertexData {
     base_offset: u64,
 
     #[br(parse_with = parse_offset32_count32, args { offset: base_offset, inner: base_offset })]
-    #[xc3(offset32_count32)]
+    #[xc3(offset_count(u32, u32))]
     pub vertex_buffers: Vec<VertexBufferDescriptor>,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset32_count32)]
+    #[xc3(offset_count(u32, u32))]
     pub index_buffers: Vec<IndexBufferDescriptor>,
 
     // padding?
@@ -28,35 +31,35 @@ pub struct VertexData {
     // TODO: Extra data for every buffer except the single weights buffer?
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: vertex_buffers.len() - 1 }})]
-    #[xc3(offset32)]
+    #[xc3(offset(u32))]
     pub vertex_buffer_info: Vec<VertexBufferInfo>,
 
     // 332 bytes of data?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset32_count32)]
+    #[xc3(offset_count(u32, u32))]
     pub outline_buffers: Vec<OutlineBuffer>,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset32)]
+    #[xc3(offset(u32))]
     pub vertex_morphs: Option<VertexMorphs>,
 
     /// The data buffer containing all the geometry data.
     // TODO: Optimized function for reading bytes?
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
-    #[xc3(count32_offset32, align(4096))]
+    #[xc3(count_offset(u32, u32), align(4096))]
     pub buffer: Vec<u8>,
 
     // TODO: particles?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset32)]
+    #[xc3(offset(u32))]
     pub unk_data: Option<UnkData>,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset32)]
+    #[xc3(offset(u32))]
     pub weights: Option<Weights>,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset32)]
+    #[xc3(offset(u32))]
     pub unk7: Option<Unk>,
 
     // TODO: padding?
@@ -74,7 +77,7 @@ pub struct VertexBufferDescriptor {
 
     /// A tightly packed list of attributes for the data for this buffer.
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset32_count32)]
+    #[xc3(offset_count(u32, u32))]
     pub attributes: Vec<VertexAttribute>,
 
     pub unk1: u32,
@@ -161,11 +164,11 @@ pub enum Unk2 {
 #[derive(Debug, BinRead, Xc3Write)]
 pub struct VertexMorphs {
     #[br(parse_with = parse_count32_offset32)]
-    #[xc3(count32_offset32)]
+    #[xc3(count_offset(u32, u32))]
     pub descriptors: Vec<MorphDescriptor>,
 
     #[br(parse_with = parse_count32_offset32)]
-    #[xc3(count32_offset32)]
+    #[xc3(count_offset(u32, u32))]
     pub targets: Vec<MorphTarget>,
 
     // TODO: padding?
@@ -183,7 +186,7 @@ pub struct MorphDescriptor {
     // start and ending frame for each target?
     #[br(parse_with = parse_ptr32)]
     #[br(args { inner: args! { count: target_count as usize }})]
-    #[xc3(offset32)]
+    #[xc3(offset(u32))]
     pub unk1: Vec<u16>,
 
     pub unk2: u32,
@@ -206,18 +209,15 @@ pub struct MorphTarget {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct Weights {
     #[br(parse_with = parse_count32_offset32)]
-    #[xc3(count32_offset32)]
+    #[xc3(count_offset(u32, u32))]
     pub groups: Vec<WeightGroup>,
 
     /// The descriptor in [vertex_buffers](struct.VertexData.html#structfield.vertex_buffer) containing the weight data.
     /// This is typically the last element.
     pub vertex_buffer_index: u16,
 
-    // TODO: parse_count16_offset32?
-    lod_count: u16,
-    #[br(parse_with = parse_ptr32)]
-    #[br(args { inner: args! { count: lod_count as usize }})]
-    #[xc3(offset32)]
+    #[br(parse_with = parse_count16_offset32)]
+    #[xc3(count_offset(u16, u32))]
     pub weight_lods: Vec<WeightLod>,
 
     pub unk4: u32,
@@ -264,7 +264,7 @@ pub struct Unk {
     base_offset: u64,
 
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
-    #[xc3(count32_offset32)]
+    #[xc3(count_offset(u32, u32))]
     pub unk1: Vec<UnkInner>,
 
     // The length of the data in bytes.

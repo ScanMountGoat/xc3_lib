@@ -1,5 +1,5 @@
 //! Camera animations images in `.eva` files or embedded in `.mot` files.
-use crate::{parse_offset32_count32, parse_ptr32};
+use crate::parse_ptr32;
 use binrw::{binread, BinRead};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
@@ -9,7 +9,7 @@ use xc3_write::{Xc3Write, Xc3WriteOffsets};
 pub struct Eva {
     pub unk1: u32,
     pub item_count: u32,
-    pub unk3: u32, // frame count?
+    pub frame_count: u32, // frame count?
 
     #[br(count = item_count)]
     pub items: Vec<EvaItem1>,
@@ -21,7 +21,7 @@ pub struct EvaItem1 {
     pub unk1: u32,
 
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset32)]
+    #[xc3(offset(u32))]
     pub item2: EvaItem2,
 }
 
@@ -33,12 +33,16 @@ pub struct EvaItem2 {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
+    // TODO: The float array isn't always present?
     // TODO: type?
-    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset32)]
-    pub items: Vec<u8>,
+    // #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    // #[xc3(offset_count(u32, u32))]
+    // pub items: Vec<u8>,
+    pub unk1: u32, // TODO: offset to next EvaItem2?
+    pub unk2: u32,
 
-    pub float_count: u32,
-    #[br(args { count: float_count as usize })]
-    pub floats: Vec<f32>,
+    pub frame_count: u32,
+    // TODO: What controls if there is a float array here?
+    // #[br(args { count: float_count as usize })]
+    // pub floats: Vec<f32>,
 }
