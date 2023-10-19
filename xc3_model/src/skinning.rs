@@ -34,13 +34,17 @@ pub fn indices_weights_to_influences(
         })
         .collect();
 
-    // Weights and bone indices are shared among all buffers.
+    eprintln!("{:?}, {:?}", weight_indices.iter().min(), weight_indices.iter().max());
+
+    // The weights buffer contains both the bone indices and weights.
+    // Vertex buffers only contain an index into the weights buffer.
     // TODO: The actual lookup is more complex than this.
     // TODO: Handle weight groups and lods?
-    for (vertex_index, index) in weight_indices.iter().enumerate() {
+    for (vertex_index, weight_index) in weight_indices.iter().enumerate() {
         for i in 0..4 {
-            let bone_index = bone_indices[*index as usize][i] as usize;
-            let weight = skin_weights[*index as usize][i];
+            // The weight index selects an entry in the weights buffer.
+            let bone_index = bone_indices[*weight_index as usize][i] as usize;
+            let weight = skin_weights[*weight_index as usize][i];
 
             // Skip zero weights since they have no effect.
             if weight > 0.0 {

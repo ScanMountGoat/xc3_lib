@@ -228,6 +228,7 @@ pub struct Weights {
 // TODO: How to select the weight group for each mesh in the model?
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct WeightGroup {
+    /// Index into the skinning buffer used in the shader that combines weights and transforms.
     pub output_start_index: u32,
     /// Start of the items in the weights buffer at [vertex_buffer_index](struct.Weights.html#structfield.vertex_buffer_index).
     // TODO: Why does this sometimes offset the starting index but not always?

@@ -194,7 +194,7 @@ impl Models {
             base_lod_indices: models
                 .lod_data
                 .as_ref()
-                .map(|data| data.items2.iter().map(|i| i.base_lod_index).collect()),
+                .map(|data| data.groups.iter().map(|i| i.base_lod_index).collect()),
             min_xyz: models.min_xyz,
             max_xyz: models.max_xyz,
         }

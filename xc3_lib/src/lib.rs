@@ -67,7 +67,7 @@ pub mod xbc1;
 
 const PAGE_SIZE: u64 = 4096;
 
-pub struct Ptr<P> {
+struct Ptr<P> {
     phantom: PhantomData<P>,
 }
 
@@ -321,6 +321,7 @@ macro_rules! file_write_impl {
                     self.write_le(writer).map_err(Into::into)
                 }
 
+                /// Write to `path` using a buffered writer for better performance.
                 pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Box<dyn Error>> {
                     let mut writer = BufWriter::new(std::fs::File::create(path)?);
                     self.write_le(&mut writer).map_err(Into::into)
@@ -340,6 +341,7 @@ macro_rules! file_write_full_impl {
                     write_full(self, writer, 0, &mut 0).map_err(Into::into)
                 }
 
+                /// Write to `path` using a buffered writer for better performance.
                 pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Box<dyn Error>> {
                     let mut writer = BufWriter::new(std::fs::File::create(path)?);
                     self.write(&mut writer)
@@ -372,11 +374,13 @@ macro_rules! file_read_impl {
                     reader.read_le().map_err(Into::into)
                 }
 
+                /// Read from `path` using a fully buffered reader for performance.
                 pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn Error>> {
                     let mut reader = Cursor::new(std::fs::read(path)?);
                     reader.read_le().map_err(Into::into)
                 }
 
+                /// Read from `bytes` using a fully buffered reader for performance.
                 pub fn from_bytes(bytes: &[u8]) -> Result<Self, Box<dyn Error>> {
                     Self::read(&mut Cursor::new(bytes))
                 }

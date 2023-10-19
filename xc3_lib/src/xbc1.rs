@@ -14,7 +14,7 @@ pub struct Xbc1 {
     pub decomp_size: u32,
     pub comp_size: u32,
 
-    pub unk2: u32, // TODO: hash of string data?
+    pub hash: u32, // TODO: hash of string data?
 
     #[br(map = |x: NullString| x.to_string())]
     #[bw(map = |x: &String| NullString::from(x.as_str()))]
@@ -29,6 +29,7 @@ pub struct Xbc1 {
 }
 
 impl Xbc1 {
+    /// Compresses the data in `decompressed` using ZLIB.
     pub fn from_decompressed(name: String, decompressed: &[u8]) -> Self {
         let mut encoder = ZlibEncoder::new(decompressed, Compression::best());
         let mut deflate_stream = Vec::new();
@@ -40,12 +41,13 @@ impl Xbc1 {
             comp_size: deflate_stream.len() as u32,
             // TODO: get from name and hash of name?
             // TODO: Is the "hash" important?
-            unk2: 0xEFE353FC,
+            hash: 0xEFE353FC,
             text: name,
             deflate_stream,
         }
     }
 
+    /// Decompresses the data by assuming ZLIB compression.
     pub fn decompress(&self) -> Result<Vec<u8>, InflateDecodeErrors> {
         let mut decoder = DeflateDecoder::new_with_options(
             &self.deflate_stream,

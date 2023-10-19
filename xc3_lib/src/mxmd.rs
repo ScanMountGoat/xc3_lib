@@ -9,7 +9,6 @@ use bilge::prelude::*;
 use binrw::{args, binread, BinRead, BinWrite};
 use xc3_write::{round_up, xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
 
-/// .wimdo files
 #[derive(Debug, BinRead, Xc3Write)]
 #[br(magic(b"DMXM"))]
 #[xc3(magic(b"DMXM"))]
@@ -527,14 +526,20 @@ pub struct Model {
 pub struct Mesh {
     pub render_flags: u32,
     pub skin_flags: u32,
+    /// Index into [vertex_buffers](../vertex/struct.VertexData.html#structfield.vertex_buffers)
+    /// for the associated [VertexData].
     pub vertex_buffer_index: u16,
+    /// Index into [index_buffers](../vertex/struct.VertexData.html#structfield.index_buffers)
+    /// for the associated [VertexData].
     pub index_buffer_index: u16,
     pub unk_index: u16,
+    /// Index into [materials](struct.Materials.html#structfield.materials).
     pub material_index: u16,
     pub unk2: u32,
     pub unk3: u32,
     pub unk4: u32,
     pub unk5: u16,
+    /// The index of the level of detail typically starting from 1.
     pub lod: u16, // TODO: flags?
     // TODO: groups?
     pub unks6: [i32; 4],
@@ -770,7 +775,7 @@ pub struct LodData {
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset32_count32)]
-    pub items2: Vec<LodItem2>,
+    pub groups: Vec<LodGroup>,
 
     pub unks: [u32; 4],
 }
@@ -786,10 +791,11 @@ pub struct LodItem1 {
     pub unk4: [u32; 2],
 }
 
-// TODO: lod group?
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
-pub struct LodItem2 {
+pub struct LodGroup {
+    /// One minus the [lod](struct.Mesh.html#structfield.lod) for [Mesh] with the highest level of detail.
     pub base_lod_index: u16,
+    /// The number of LOD levels in this group.
     pub lod_count: u16,
     // TODO: padding?
     pub unk1: u32,
@@ -1307,7 +1313,7 @@ impl<'a> Xc3WriteOffsets for LodDataOffsets<'a> {
     ) -> binrw::BinResult<()> {
         let base_offset = self.base_offset;
         // Different order than field order.
-        self.items2.write_full(writer, base_offset, data_ptr)?;
+        self.groups.write_full(writer, base_offset, data_ptr)?;
         self.items1.write_full(writer, base_offset, data_ptr)?;
         Ok(())
     }

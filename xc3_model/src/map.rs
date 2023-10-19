@@ -228,7 +228,7 @@ fn load_prop_model_group(
             .models
             .lod_data
             .as_ref()
-            .map(|data| data.items2.iter().map(|i| i.base_lod_index).collect()),
+            .map(|data| data.groups.iter().map(|i| i.base_lod_index).collect()),
         min_xyz: model_data.models.min_xyz,
         max_xyz: model_data.models.max_xyz,
     };
@@ -375,7 +375,7 @@ fn load_map_model_group(
                     .models
                     .lod_data
                     .as_ref()
-                    .map(|data| data.items2.iter().map(|i| i.base_lod_index).collect()),
+                    .map(|data| data.groups.iter().map(|i| i.base_lod_index).collect()),
                 min_xyz: model_data.models.min_xyz,
                 max_xyz: model_data.models.max_xyz,
             }
@@ -469,7 +469,7 @@ fn load_foliage_model(
                 base_lod_indices: model_data
                     .models
                     .lod_data
-                    .map(|data| data.items2.iter().map(|i| i.base_lod_index).collect()),
+                    .map(|data| data.groups.iter().map(|i| i.base_lod_index).collect()),
                 min_xyz: model_data.models.min_xyz,
                 max_xyz: model_data.models.max_xyz,
             }],
