@@ -154,9 +154,11 @@ fn create_buffers(
         .map(|e| {
             // Assume maps have no skeletons for now.
             let vertex_data = e.extract(&mut Cursor::new(wismda), compressed);
+            let (vertex_buffers, skin_weights) = read_vertex_buffers(&vertex_data, None);
             ModelBuffers {
-                vertex_buffers: read_vertex_buffers(&vertex_data, None),
+                vertex_buffers,
                 index_buffers: read_index_buffers(&vertex_data),
+                skin_weights,
             }
         })
         .collect()
@@ -407,7 +409,7 @@ fn load_env_model(
         .and_then(|database| database.map_files.get(model_folder))
         .and_then(|map| map.env_models.get(model_index));
 
-    let vertex_buffers = read_vertex_buffers(&model_data.vertex_data, None);
+    let (vertex_buffers, skin_weights) = read_vertex_buffers(&model_data.vertex_data, None);
     let index_buffers = read_index_buffers(&model_data.vertex_data);
 
     ModelRoot {
@@ -421,6 +423,7 @@ fn load_env_model(
             buffers: vec![ModelBuffers {
                 vertex_buffers,
                 index_buffers,
+                skin_weights,
             }],
         }],
         image_textures,
@@ -454,7 +457,7 @@ fn load_foliage_model(
         .map(|model| Model::from_model(model, vec![Mat4::IDENTITY], 0))
         .collect();
 
-    let vertex_buffers = read_vertex_buffers(&model_data.vertex_data, None);
+    let (vertex_buffers, skin_weights) = read_vertex_buffers(&model_data.vertex_data, None);
     let index_buffers = read_index_buffers(&model_data.vertex_data);
 
     // TODO: foliage samplers?
@@ -476,6 +479,7 @@ fn load_foliage_model(
             buffers: vec![ModelBuffers {
                 vertex_buffers,
                 index_buffers,
+                skin_weights,
             }],
         }],
         image_textures,

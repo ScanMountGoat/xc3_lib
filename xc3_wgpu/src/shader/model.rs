@@ -91,26 +91,21 @@ const _: () = assert!(
 );
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct PerModel {
-    pub matrix: glam::Mat4,
-}
-const _: () = assert!(
-    std::mem::size_of:: < PerModel > () == 64, "size of PerModel does not match WGSL"
-);
-const _: () = assert!(
-    memoffset::offset_of!(PerModel, matrix) == 0,
-    "offset of PerModel.matrix does not match WGSL"
-);
-#[repr(C)]
-#[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct VertexInput {
     pub position: glam::Vec3,
-    pub bone_indices: u32,
-    pub skin_weights: glam::Vec4,
+    pub weight_index: u32,
     pub vertex_color: glam::Vec4,
     pub normal: glam::Vec4,
     pub tangent: glam::Vec4,
     pub uv1: glam::Vec4,
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct InstanceInput {
+    pub model_matrix_0: glam::Vec4,
+    pub model_matrix_1: glam::Vec4,
+    pub model_matrix_2: glam::Vec4,
+    pub model_matrix_3: glam::Vec4,
 }
 pub mod bind_groups {
     pub struct BindGroup0(wgpu::BindGroup);
@@ -549,7 +544,8 @@ pub mod bind_groups {
     }
     pub struct BindGroup3(wgpu::BindGroup);
     pub struct BindGroupLayout3<'a> {
-        pub per_model: wgpu::BufferBinding<'a>,
+        pub bone_indices: wgpu::BufferBinding<'a>,
+        pub skin_weights: wgpu::BufferBinding<'a>,
     }
     const LAYOUT_DESCRIPTOR3: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
         label: None,
@@ -558,7 +554,21 @@ pub mod bind_groups {
                 binding: 0,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
+                    ty: wgpu::BufferBindingType::Storage {
+                        read_only: true,
+                    },
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 1,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage {
+                        read_only: true,
+                    },
                     has_dynamic_offset: false,
                     min_binding_size: None,
                 },
@@ -579,7 +589,15 @@ pub mod bind_groups {
                         entries: &[
                             wgpu::BindGroupEntry {
                                 binding: 0,
-                                resource: wgpu::BindingResource::Buffer(bindings.per_model),
+                                resource: wgpu::BindingResource::Buffer(
+                                    bindings.bone_indices,
+                                ),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 1,
+                                resource: wgpu::BindingResource::Buffer(
+                                    bindings.skin_weights,
+                                ),
                             },
                         ],
                         label: None,
@@ -609,7 +627,7 @@ pub mod bind_groups {
 }
 pub mod vertex {
     impl super::VertexInput {
-        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 7] = [
+        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 6] = [
             wgpu::VertexAttribute {
                 format: wgpu::VertexFormat::Float32x3,
                 offset: memoffset::offset_of!(super::VertexInput, position) as u64,
@@ -617,33 +635,28 @@ pub mod vertex {
             },
             wgpu::VertexAttribute {
                 format: wgpu::VertexFormat::Uint32,
-                offset: memoffset::offset_of!(super::VertexInput, bone_indices) as u64,
+                offset: memoffset::offset_of!(super::VertexInput, weight_index) as u64,
                 shader_location: 2,
             },
             wgpu::VertexAttribute {
                 format: wgpu::VertexFormat::Float32x4,
-                offset: memoffset::offset_of!(super::VertexInput, skin_weights) as u64,
+                offset: memoffset::offset_of!(super::VertexInput, vertex_color) as u64,
                 shader_location: 3,
             },
             wgpu::VertexAttribute {
                 format: wgpu::VertexFormat::Float32x4,
-                offset: memoffset::offset_of!(super::VertexInput, vertex_color) as u64,
+                offset: memoffset::offset_of!(super::VertexInput, normal) as u64,
                 shader_location: 4,
             },
             wgpu::VertexAttribute {
                 format: wgpu::VertexFormat::Float32x4,
-                offset: memoffset::offset_of!(super::VertexInput, normal) as u64,
+                offset: memoffset::offset_of!(super::VertexInput, tangent) as u64,
                 shader_location: 5,
             },
             wgpu::VertexAttribute {
                 format: wgpu::VertexFormat::Float32x4,
-                offset: memoffset::offset_of!(super::VertexInput, tangent) as u64,
-                shader_location: 6,
-            },
-            wgpu::VertexAttribute {
-                format: wgpu::VertexFormat::Float32x4,
                 offset: memoffset::offset_of!(super::VertexInput, uv1) as u64,
-                shader_location: 7,
+                shader_location: 6,
             },
         ];
         pub const fn vertex_buffer_layout(
@@ -653,6 +666,43 @@ pub mod vertex {
                 array_stride: std::mem::size_of::<super::VertexInput>() as u64,
                 step_mode,
                 attributes: &super::VertexInput::VERTEX_ATTRIBUTES,
+            }
+        }
+    }
+    impl super::InstanceInput {
+        pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 4] = [
+            wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x4,
+                offset: memoffset::offset_of!(super::InstanceInput, model_matrix_0)
+                    as u64,
+                shader_location: 7,
+            },
+            wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x4,
+                offset: memoffset::offset_of!(super::InstanceInput, model_matrix_1)
+                    as u64,
+                shader_location: 8,
+            },
+            wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x4,
+                offset: memoffset::offset_of!(super::InstanceInput, model_matrix_2)
+                    as u64,
+                shader_location: 9,
+            },
+            wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x4,
+                offset: memoffset::offset_of!(super::InstanceInput, model_matrix_3)
+                    as u64,
+                shader_location: 10,
+            },
+        ];
+        pub const fn vertex_buffer_layout(
+            step_mode: wgpu::VertexStepMode,
+        ) -> wgpu::VertexBufferLayout<'static> {
+            wgpu::VertexBufferLayout {
+                array_stride: std::mem::size_of::<super::InstanceInput>() as u64,
+                step_mode,
+                attributes: &super::InstanceInput::VERTEX_ATTRIBUTES,
             }
         }
     }
@@ -673,10 +723,16 @@ pub fn vertex_state<'a, const N: usize>(
         buffers: &entry.buffers,
     }
 }
-pub fn vs_main_entry(vertex_input: wgpu::VertexStepMode) -> VertexEntry<1> {
+pub fn vs_main_entry(
+    vertex_input: wgpu::VertexStepMode,
+    instance_input: wgpu::VertexStepMode,
+) -> VertexEntry<2> {
     VertexEntry {
         entry_point: ENTRY_VS_MAIN,
-        buffers: [VertexInput::vertex_buffer_layout(vertex_input)],
+        buffers: [
+            VertexInput::vertex_buffer_layout(vertex_input),
+            InstanceInput::vertex_buffer_layout(instance_input),
+        ],
     }
 }
 pub fn create_shader_module(device: &wgpu::Device) -> wgpu::ShaderModule {

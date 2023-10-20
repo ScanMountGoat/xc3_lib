@@ -8,8 +8,10 @@ struct Camera {
 @group(0) @binding(0)
 var<uniform> camera: Camera;
 
-// PerGroup values.
+// PerGroup values for ModelGroup and Models types.
 struct PerGroup {
+    // TODO: Should this be with the model?
+    // TODO: rename to has skeleton?
     enable_skinning: vec4<u32>,
     // TODO: Is 256 the max bone count if index attributes use u8?
     // bone_world.inv() * animated_bone_world
@@ -52,7 +54,6 @@ var s8: texture_2d<f32>;
 @group(2) @binding(9)
 var s9: texture_2d<f32>;
 
-// TODO: Multiple samplers?
 @group(2) @binding(10)
 var s0_sampler: sampler;
 
@@ -106,23 +107,28 @@ struct PerMaterial {
 
 // TODO: Where to store skeleton?
 // PerModel values
-struct PerModel {
-    matrix: mat4x4<f32>
-}
-
 @group(3) @binding(0)
-var<uniform> per_model: PerModel;
+var<storage> bone_indices: array<vec4<u32>>;
+
+@group(3) @binding(1)
+var<storage> skin_weights: array<vec4<f32>>;
 
 // Define all possible attributes even if unused.
 // This avoids needing separate shaders.
 struct VertexInput {
     @location(0) position: vec3<f32>,
-    @location(2) bone_indices: u32,
-    @location(3) skin_weights: vec4<f32>,
-    @location(4) vertex_color: vec4<f32>,
-    @location(5) normal: vec4<f32>,
-    @location(6) tangent: vec4<f32>,
-    @location(7) uv1: vec4<f32>, // TODO: padding?
+    @location(2) weight_index: u32,
+    @location(3) vertex_color: vec4<f32>,
+    @location(4) normal: vec4<f32>,
+    @location(5) tangent: vec4<f32>,
+    @location(6) uv1: vec4<f32>, // TODO: padding?
+}
+
+struct InstanceInput {
+    @location(7) model_matrix_0: vec4<f32>,
+    @location(8) model_matrix_1: vec4<f32>,
+    @location(9) model_matrix_2: vec4<f32>,
+    @location(10) model_matrix_3: vec4<f32>,
 }
 
 struct VertexOutput {
@@ -145,7 +151,7 @@ struct FragmentOutput {
 }
 
 @vertex
-fn vs_main(vertex: VertexInput) -> VertexOutput {
+fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
     var out: VertexOutput;
 
     // Linear blend skinning.
@@ -157,23 +163,36 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
         position = vec3(0.0);
         normal_xyz = vec3(0.0);
         tangent_xyz = vec3(0.0);
+
+        // Weights require an extra layer of indirection.
+        let bone_indices = bone_indices[vertex.weight_index];
+        let skin_weights = skin_weights[vertex.weight_index];
+
         for (var i = 0u; i < 4u; i = i + 1u) {
-            // Indices are packed into a u32 since WGSL lacks a u8x4 attribute type.
-            let bone_index = (vertex.bone_indices >> (i * 8u)) & 0xFFu;
-            position += vertex.skin_weights[i] * (per_group.animated_transforms[bone_index] * vec4(vertex.position.xyz, 1.0)).xyz;
+            let bone_index = bone_indices[i];
+            let skin_weight = skin_weights[i];
+
+            position += skin_weight * (per_group.animated_transforms[bone_index] * vec4(vertex.position.xyz, 1.0)).xyz;
             // TODO: does this need the inverse transpose?
-            tangent_xyz += vertex.skin_weights[i] * (per_group.animated_transforms[bone_index] * vec4(vertex.tangent.xyz, 0.0)).xyz;
-            normal_xyz += vertex.skin_weights[i] * (per_group.animated_transforms[bone_index] * vec4(vertex.normal.xyz, 0.0)).xyz;
+            tangent_xyz += skin_weight * (per_group.animated_transforms[bone_index] * vec4(vertex.tangent.xyz, 0.0)).xyz;
+            normal_xyz += skin_weight * (per_group.animated_transforms[bone_index] * vec4(vertex.normal.xyz, 0.0)).xyz;
         }
     }
 
-    out.clip_position = camera.view_projection * per_model.matrix * vec4(position, 1.0);
+    let model_matrix = mat4x4<f32>(
+        instance.model_matrix_0,
+        instance.model_matrix_1,
+        instance.model_matrix_2,
+        instance.model_matrix_3,
+    );
+
+    out.clip_position = camera.view_projection * model_matrix * vec4(position, 1.0);
     out.position = position;
     out.uv1 = vertex.uv1.xy;
     out.vertex_color = vertex.vertex_color;
     // Transform any direction vectors by the instance transform.
-    out.normal = (per_model.matrix * vec4(normal_xyz, 0.0)).xyz;
-    out.tangent = vec4((per_model.matrix * vec4(tangent_xyz, 0.0)).xyz, vertex.tangent.w);
+    out.normal = (model_matrix * vec4(normal_xyz, 0.0)).xyz;
+    out.tangent = vec4((model_matrix * vec4(tangent_xyz, 0.0)).xyz, vertex.tangent.w);
     return out;
 }
 

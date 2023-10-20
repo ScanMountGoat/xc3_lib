@@ -89,7 +89,10 @@ pub fn model_pipeline(
         layout: Some(&data.layout),
         vertex: crate::shader::model::vertex_state(
             &data.module,
-            &crate::shader::model::vs_main_entry(wgpu::VertexStepMode::Vertex),
+            &crate::shader::model::vs_main_entry(
+                wgpu::VertexStepMode::Vertex,
+                wgpu::VertexStepMode::Instance,
+            ),
         ),
         fragment: Some(wgpu::FragmentState {
             module: &data.module,

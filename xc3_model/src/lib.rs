@@ -5,7 +5,7 @@ use std::path::Path;
 
 use glam::Mat4;
 use log::warn;
-use skinning::Influence;
+use skinning::SkinWeights;
 use texture::load_textures;
 use vertex::{read_index_buffers, read_vertex_buffers, AttributeData};
 use xc3_lib::{
@@ -47,6 +47,8 @@ pub struct ModelGroup {
 pub struct ModelBuffers {
     pub vertex_buffers: Vec<VertexBuffer>,
     pub index_buffers: Vec<IndexBuffer>,
+    // TODO: have each Models have its own reindexed set of indices based on skeleton names?
+    pub skin_weights: Option<SkinWeights>,
 }
 
 // TODO: Should samplers be optional?
@@ -152,8 +154,6 @@ pub struct VertexBuffer {
     /// Animation targets for vertex attributes like positions and normals.
     /// The first target can be assumed to be the base target.
     pub morph_targets: Vec<MorphTarget>,
-    // TODO: Buffers can be shared between models with different bone names?
-    pub influences: Vec<Influence>,
 }
 
 #[derive(Debug)]
@@ -302,7 +302,8 @@ pub fn load_model<P: AsRef<Path>>(
 
     let skeleton = create_skeleton(chr.as_ref(), &mxmd);
 
-    let vertex_buffers = read_vertex_buffers(vertex_data, mxmd.models.skinning.as_ref());
+    let (vertex_buffers, skin_weights) =
+        read_vertex_buffers(vertex_data, mxmd.models.skinning.as_ref());
     let index_buffers = read_index_buffers(vertex_data);
 
     let models = Models::from_models(&mxmd.models, &mxmd.materials, spch, skeleton);
@@ -313,6 +314,7 @@ pub fn load_model<P: AsRef<Path>>(
             buffers: vec![ModelBuffers {
                 vertex_buffers,
                 index_buffers,
+                skin_weights,
             }],
         }],
         image_textures,

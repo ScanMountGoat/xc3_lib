@@ -21,6 +21,9 @@ impl Skeleton {
     // TODO: Test this?
     pub fn from_skel(skeleton: &xc3_lib::bc::Skeleton, skinning: &xc3_lib::mxmd::Skinning) -> Self {
         // Start with the chr skeleton since it has parenting information.
+        // The chr bones also tend to appear after their parents.
+        // This makes accumulating transforms efficient when animating.
+        // TODO: enforce this ordering?
         let mut bones: Vec<_> = skeleton
             .names
             .elements

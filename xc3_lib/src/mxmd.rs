@@ -413,8 +413,8 @@ pub struct ShaderProgram {
     /// Index into [shader_programs](struct.Materials.html#structfield.shader_programs).
     pub program_index: u32,
     pub unk_type: ShaderUnkType,
-    pub parent_material_index: u16, // buffer index?
-    pub flags: u32,                 // always 1?
+    pub material_buffer_index: u16,
+    pub flags: u32, // always 1?
 }
 
 // Affects what pass the object renders in?
@@ -499,6 +499,7 @@ pub struct Models {
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
+    #[br(if(false))]
     pub model_unk5: Option<ModelUnk5>,
 
     // TODO: padding?
@@ -525,7 +526,7 @@ pub struct Model {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct Mesh {
     pub render_flags: u32,
-    pub skin_flags: u32,
+    pub skin_flags: u32, // 0x1, 0x2, 0x4001 (16385), 0x4008 (16392)
     /// Index into [vertex_buffers](../vertex/struct.VertexData.html#structfield.vertex_buffers)
     /// for the associated [VertexData].
     pub vertex_buffer_index: u16,
@@ -540,7 +541,7 @@ pub struct Mesh {
     pub unk4: u32,
     pub unk5: u16,
     /// The index of the level of detail typically starting from 1.
-    pub lod: u16, // TODO: flags?
+    pub lod: u16, // TODO: flags with one byte being lod?
     // TODO: groups?
     pub unks6: [i32; 4],
 }

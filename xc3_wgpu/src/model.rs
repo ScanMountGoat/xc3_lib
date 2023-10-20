@@ -4,7 +4,7 @@ use glam::{uvec4, vec4, Mat4, Vec3, Vec4};
 use log::info;
 use rayon::prelude::*;
 use wgpu::util::DeviceExt;
-use xc3_model::{skinning::bone_indices_weights, vertex::AttributeData};
+use xc3_model::vertex::AttributeData;
 
 use crate::{
     animation::animate_skeleton,
@@ -21,6 +21,7 @@ pub struct ModelGroup {
     buffers: Vec<ModelBuffers>,
 }
 
+#[derive(Debug)]
 pub struct ModelBuffers {
     vertex_buffers: Vec<VertexBuffer>,
     index_buffers: Vec<IndexBuffer>,
@@ -39,12 +40,9 @@ pub struct Models {
 
 pub struct Model {
     pub meshes: Vec<Mesh>,
-    // Use a collection to support "instancing" for map props.
-    pub instances: Vec<ModelInstance>,
-    pub model_buffers_index: usize,
-}
-
-pub struct ModelInstance {
+    instance_buffer: wgpu::Buffer,
+    pub instance_count: usize,
+    model_buffers_index: usize,
     per_model: crate::shader::model::bind_groups::BindGroup3,
 }
 
@@ -56,10 +54,12 @@ pub struct Mesh {
     lod: u16,
 }
 
+#[derive(Debug)]
 struct VertexBuffer {
     vertex_buffer: wgpu::Buffer,
 }
 
+#[derive(Debug)]
 struct IndexBuffer {
     index_buffer: wgpu::Buffer,
     vertex_index_count: u32,
@@ -73,29 +73,26 @@ impl ModelGroup {
 
             // TODO: Is this the best way to "instance" models?
             for model in &models.models {
-                for instance in &model.instances {
-                    instance.per_model.set(render_pass);
+                model.per_model.set(render_pass);
 
-                    // Each "instance" repeats the same meshes with different transforms.
-                    for mesh in &model.meshes {
-                        let material = &models.materials[mesh.material_index];
+                for mesh in &model.meshes {
+                    let material = &models.materials[mesh.material_index];
 
-                        // TODO: Group these into passes with separate shaders for each pass?
-                        // TODO: The main pass is shared with outline, ope, and zpre?
-                        // TODO: How to handle transparency?
-                        if (is_transparent != material.pipeline_key.write_to_all_outputs)
-                            && !material.name.ends_with("_outline")
-                            && !material.name.contains("_speff_")
-                            && mesh.should_render_lod(models)
-                        {
-                            // TODO: How to make sure the pipeline outputs match the render pass?
-                            let pipeline = &models.pipelines[&material.pipeline_key];
-                            render_pass.set_pipeline(pipeline);
+                    // TODO: Group these into passes with separate shaders for each pass?
+                    // TODO: The main pass is shared with outline, ope, and zpre?
+                    // TODO: How to handle transparency?
+                    if (is_transparent != material.pipeline_key.write_to_all_outputs)
+                        && !material.name.ends_with("_outline")
+                        && !material.name.contains("_speff_")
+                        && mesh.should_render_lod(models)
+                    {
+                        // TODO: How to make sure the pipeline outputs match the render pass?
+                        let pipeline = &models.pipelines[&material.pipeline_key];
+                        render_pass.set_pipeline(pipeline);
 
-                            material.bind_group2.set(render_pass);
+                        material.bind_group2.set(render_pass);
 
-                            self.draw_mesh(model, mesh, render_pass);
-                        }
+                        self.draw_mesh(model, mesh, render_pass);
                     }
                 }
             }
@@ -111,6 +108,7 @@ impl ModelGroup {
         let vertex_data =
             &self.buffers[model.model_buffers_index].vertex_buffers[mesh.vertex_buffer_index];
         render_pass.set_vertex_buffer(0, vertex_data.vertex_buffer.slice(..));
+        render_pass.set_vertex_buffer(1, model.instance_buffer.slice(..));
 
         // TODO: Are all indices u16?
         let index_buffer =
@@ -120,7 +118,11 @@ impl ModelGroup {
             wgpu::IndexFormat::Uint16,
         );
 
-        render_pass.draw_indexed(0..index_buffer.vertex_index_count, 0, 0..1);
+        render_pass.draw_indexed(
+            0..index_buffer.vertex_index_count,
+            0,
+            0..model.instance_count as u32,
+        );
     }
 }
 
@@ -208,11 +210,27 @@ fn create_model_group(
     textures: &[(wgpu::TextureViewDimension, wgpu::TextureView)],
     pipeline_data: &ModelPipelineData,
 ) -> ModelGroup {
+    let buffers: Vec<_> = group
+        .buffers
+        .iter()
+        .map(|buffers| {
+            // TODO: How to handle vertex buffers being used with multiple skeletons?
+            let vertex_buffers = model_vertex_buffers(device, buffers);
+            let index_buffers = model_index_buffers(device, buffers);
+
+            ModelBuffers {
+                vertex_buffers,
+                index_buffers,
+            }
+        })
+        .collect();
+
     let models = group
         .models
         .iter()
         .map(|models| {
             let skeleton = models.skeleton.clone();
+
             let (per_group, per_group_buffer) = per_group_bind_group(device, skeleton.as_ref());
 
             let base_lod_indices = models.base_lod_indices.clone();
@@ -235,7 +253,7 @@ fn create_model_group(
             let models = models
                 .models
                 .iter()
-                .map(|model| create_model(device, model))
+                .map(|model| create_model(device, model, &group.buffers, skeleton.as_ref()))
                 .collect();
 
             // TODO: Store the samplers?
@@ -247,25 +265,6 @@ fn create_model_group(
                 pipelines,
                 skeleton,
                 base_lod_indices,
-            }
-        })
-        .collect();
-
-    let buffers = group
-        .buffers
-        .iter()
-        .map(|buffers| {
-            // TODO: How to handle vertex buffers being used with multiple skeletons?
-            let vertex_buffers = model_vertex_buffers(
-                device,
-                buffers,
-                group.models.first().and_then(|m| m.skeleton.as_ref()),
-            );
-            let index_buffers = model_index_buffers(device, buffers);
-
-            ModelBuffers {
-                vertex_buffers,
-                index_buffers,
             }
         })
         .collect();
@@ -296,7 +295,12 @@ fn model_index_buffers(
 }
 
 #[tracing::instrument]
-fn create_model(device: &wgpu::Device, model: &xc3_model::Model) -> Model {
+fn create_model(
+    device: &wgpu::Device,
+    model: &xc3_model::Model,
+    buffers: &[xc3_model::ModelBuffers],
+    skeleton: Option<&xc3_model::Skeleton>,
+) -> Model {
     let meshes = model
         .meshes
         .iter()
@@ -308,27 +312,26 @@ fn create_model(device: &wgpu::Device, model: &xc3_model::Model) -> Model {
         })
         .collect();
 
-    let instances = model
-        .instances
-        .iter()
-        .map(|t| {
-            let per_model = per_model_bind_group(device, *t);
+    let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("instance buffer"),
+        contents: bytemuck::cast_slice(&model.instances),
+        usage: wgpu::BufferUsages::VERTEX,
+    });
 
-            ModelInstance { per_model }
-        })
-        .collect();
+    let per_model = per_model_bind_group(device, &buffers[model.model_buffers_index], skeleton);
 
     Model {
         meshes,
-        instances,
+        instance_buffer,
+        instance_count: model.instances.len(),
         model_buffers_index: model.model_buffers_index,
+        per_model,
     }
 }
 
 fn model_vertex_buffers(
     device: &wgpu::Device,
     buffer: &xc3_model::ModelBuffers,
-    skeleton: Option<&xc3_model::Skeleton>,
 ) -> Vec<VertexBuffer> {
     buffer
         .vertex_buffers
@@ -337,8 +340,7 @@ fn model_vertex_buffers(
             let mut vertices = vec![
                 shader::model::VertexInput {
                     position: Vec3::ZERO,
-                    bone_indices: 0,
-                    skin_weights: Vec4::ZERO,
+                    weight_index: 0,
                     vertex_color: Vec4::ZERO,
                     normal: Vec4::ZERO,
                     tangent: Vec4::ZERO,
@@ -350,7 +352,7 @@ fn model_vertex_buffers(
             // Convert the attributes back to an interleaved representation for rendering.
             // Unused attributes will use the default values defined above.
             // Using a single vertex representation reduces the number of shaders.
-            set_attributes(&mut vertices, buffer, skeleton);
+            set_attributes(&mut vertices, buffer);
 
             let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("vertex buffer"),
@@ -363,11 +365,7 @@ fn model_vertex_buffers(
         .collect()
 }
 
-fn set_attributes(
-    verts: &mut [shader::model::VertexInput],
-    buffer: &xc3_model::VertexBuffer,
-    skeleton: Option<&xc3_model::Skeleton>,
-) {
+fn set_attributes(verts: &mut [shader::model::VertexInput], buffer: &xc3_model::VertexBuffer) {
     set_buffer_attributes(verts, &buffer.attributes);
 
     // Just apply the base morph target for now.
@@ -375,18 +373,6 @@ fn set_attributes(
     // TODO: Render morph target animations?
     if let Some(target) = buffer.morph_targets.first() {
         set_buffer_attributes(verts, &target.attributes);
-    }
-
-    if let Some(skeleton) = skeleton {
-        // TODO: Avoid collect?
-        let bone_names: Vec<_> = skeleton.bones.iter().map(|b| b.name.as_str()).collect();
-        let (indices, weights) = bone_indices_weights(&buffer.influences, verts.len(), &bone_names);
-
-        set_attribute(verts, &indices, |v, t| {
-            // TODO: Will this always work as little endian?
-            v.bone_indices = u32::from_le_bytes(t)
-        });
-        set_attribute(verts, &weights, |v, t| v.skin_weights = t);
     }
 }
 
@@ -404,7 +390,9 @@ fn set_buffer_attributes(verts: &mut [shader::model::VertexInput], attributes: &
                 set_attribute(verts, vals, |v, t| v.vertex_color = t)
             }
             // Bone influences are handled separately.
-            AttributeData::WeightIndex(_) => {}
+            AttributeData::WeightIndex(vals) => {
+                set_attribute(verts, vals, |v, t| v.weight_index = t)
+            }
             AttributeData::SkinWeights(_) => (),
             AttributeData::BoneIndices(_) => (),
         }
@@ -462,18 +450,64 @@ fn per_group_bind_group(
 
 fn per_model_bind_group(
     device: &wgpu::Device,
-    transform: glam::Mat4,
+    buffers: &xc3_model::ModelBuffers,
+    skeleton: Option<&xc3_model::Skeleton>,
 ) -> shader::model::bind_groups::BindGroup3 {
-    let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("per model buffer"),
-        contents: bytemuck::cast_slice(&[crate::shader::model::PerModel { matrix: transform }]),
-        usage: wgpu::BufferUsages::UNIFORM,
+    // TODO: Avoid unwrap?
+    // Reindex to match the ordering defined in the current skeleton.
+    // Convert to u32 since WGSL lacks a vec4<u8> type.
+    let skin_weights = buffers.skin_weights.as_ref().map(|skin_weights| {
+        skeleton
+            .map(|skeleton| {
+                let bone_names = skeleton.bones.iter().map(|b| b.name.clone()).collect();
+                buffers
+                    .skin_weights
+                    .as_ref()
+                    .unwrap()
+                    .reindex_bones(bone_names)
+            })
+            .unwrap_or_else(|| skin_weights.clone())
     });
 
+    // TODO: How to correctly handle a missing skeleton or weights?
+    // This assumes the skinning shader code is skipped if anything is missing.
+    let indices: Vec<_> = skin_weights
+        .as_ref()
+        .map(|skin_weights| {
+            skin_weights
+                .bone_indices
+                .iter()
+                .map(|indices| indices.map(|i| i as u32))
+                .collect()
+        })
+        .unwrap_or_else(|| vec![[0; 4]]);
+
+    let weights = skin_weights
+        .as_ref()
+        .map(|skin_weights| skin_weights.weights.as_slice())
+        .unwrap_or(&[Vec4::ZERO]);
+
+    let bone_indices = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("bone indices buffer"),
+        contents: bytemuck::cast_slice(&indices),
+        usage: wgpu::BufferUsages::STORAGE,
+    });
+
+    let skin_weights = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("skin weights buffer"),
+        contents: bytemuck::cast_slice(weights),
+        usage: wgpu::BufferUsages::STORAGE,
+    });
+
+    // Skin weights are technically part of the model's buffers.
+    // The reindexed weights depend on the skeleton and buffer index.
+    // Store skinning here so we can reindex to match the skeleton.
     crate::shader::model::bind_groups::BindGroup3::from_bindings(
         device,
         crate::shader::model::bind_groups::BindGroupLayout3 {
-            per_model: buffer.as_entire_buffer_binding(),
+            // TODO: The binding range should depend on the mesh.
+            bone_indices: bone_indices.as_entire_buffer_binding(),
+            skin_weights: skin_weights.as_entire_buffer_binding(),
         },
     )
 }

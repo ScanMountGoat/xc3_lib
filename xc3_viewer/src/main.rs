@@ -144,7 +144,7 @@ impl State {
                         models
                             .models
                             .iter()
-                            .map(|model| model.meshes.len() * model.instances.len())
+                            .map(|model| model.meshes.len() * model.instance_count)
                     })
                     .sum::<usize>()
             })
@@ -162,7 +162,6 @@ impl State {
             for entry in &sar1.entries {
                 if let xc3_lib::sar1::EntryData::Bc(bc) = entry.read_data().unwrap() {
                     if let xc3_lib::bc::BcData::Anim(anim) = bc.data {
-                        // println!("{:#?}", data);
                         anims.push(anim);
                     }
                 }

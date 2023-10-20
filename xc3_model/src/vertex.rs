@@ -12,13 +12,9 @@ use std::io::{Cursor, Seek, SeekFrom};
 
 use binrw::BinReaderExt;
 use glam::{Vec2, Vec3, Vec4};
-use log::error;
 use xc3_lib::vertex::{DataType, IndexBufferDescriptor, VertexBufferDescriptor, VertexData};
 
-use crate::{
-    skinning::{indices_weights_to_influences, Influence},
-    IndexBuffer, MorphTarget, VertexBuffer,
-};
+use crate::{skinning::SkinWeights, IndexBuffer, MorphTarget, VertexBuffer};
 
 // TODO: Add an option to convert a collection of these to the vertex above?
 // TODO: How to handle normalized attributes?
@@ -31,8 +27,9 @@ pub enum AttributeData {
     Tangent(Vec<Vec4>),
     Uv1(Vec<Vec2>),
     Uv2(Vec<Vec2>),
-    VertexColor(Vec<Vec4>), // TODO: [u8; 4]?
-    WeightIndex(Vec<u32>),
+    VertexColor(Vec<Vec4>),
+    WeightIndex(Vec<u32>), // TODO: [u8; 4]?
+    // TODO: Should these be handled separately?
     SkinWeights(Vec<Vec4>),
     BoneIndices(Vec<[u8; 4]>),
 }
@@ -60,8 +57,10 @@ impl AttributeData {
 pub fn read_vertex_buffers(
     vertex_data: &VertexData,
     skinning: Option<&xc3_lib::mxmd::Skinning>,
-) -> Vec<VertexBuffer> {
+) -> (Vec<VertexBuffer>, Option<SkinWeights>) {
     // TODO: avoid unwrap?
+    // TODO: Don't save the weights buffer.
+    // TODO: Panic if the weights buffer is not the last buffer?
     let mut buffers: Vec<_> = vertex_data
         .vertex_buffers
         .iter()
@@ -69,7 +68,6 @@ pub fn read_vertex_buffers(
             let attributes = read_vertex_attributes(descriptor, &vertex_data.buffer);
             VertexBuffer {
                 attributes,
-                influences: Vec::new(),
                 morph_targets: Vec::new(),
             }
         })
@@ -86,8 +84,7 @@ pub fn read_vertex_buffers(
                 if let Some(targets) = vertex_morphs.targets.get(start..start + count) {
                     // TODO: Lots of morph targets use the exact same bytes?
                     for target in targets {
-                        let attributes =
-                            read_animation_buffer_attributes(&vertex_data.buffer, target);
+                        let attributes = read_morph_attributes(&vertex_data.buffer, target);
                         buffer.morph_targets.push(MorphTarget { attributes })
                     }
                 }
@@ -97,45 +94,19 @@ pub fn read_vertex_buffers(
 
     // TODO: Buffers have skinning indices but not weights?
     // TODO: Is this the best place to do this?
-    if let Some(skinning) = skinning {
-        for i in 0..buffers.len() {
-            if let Some(weights) = &vertex_data.weights {
-                if let Some(weights_buffer) = buffers.get(weights.vertex_buffer_index as usize) {
-                    buffers[i].influences = bone_influences(&buffers[i], weights_buffer, skinning);
-                } else {
-                    // TODO: Why is this sometimes out of range?
-                    error!(
-                        "Weights buffer index {} is out of range for length {}.",
-                        weights.vertex_buffer_index,
-                        buffers.len()
-                    );
-                }
-            }
-        }
-    }
-
-    buffers
-}
-
-fn bone_influences(
-    buffer: &VertexBuffer,
-    weights_buffer: &VertexBuffer,
-    skinning: &xc3_lib::mxmd::Skinning,
-) -> Vec<Influence> {
-    skin_weights_bone_indices(weights_buffer)
-        .as_ref()
-        .and_then(|(skin_weights, bone_indices)| {
-            buffer.attributes.iter().find_map(|a| match a {
-                AttributeData::WeightIndex(indices) => Some(indices_weights_to_influences(
-                    indices,
-                    skin_weights,
-                    bone_indices,
-                    &skinning.bones,
-                )),
-                _ => None,
-            })
+    let skin_weights = skinning.and_then(|skinning| {
+        let weights_index = vertex_data.weights.as_ref()?.vertex_buffer_index as usize;
+        let weights_buffer = buffers.get(weights_index)?;
+        let (weights, bone_indices) = skin_weights_bone_indices(weights_buffer)?;
+        Some(SkinWeights {
+            bone_indices,
+            weights,
+            // TODO: Will this cover all bone indices?
+            bone_names: skinning.bones.iter().map(|b| b.name.clone()).collect(),
         })
-        .unwrap_or_default()
+    });
+
+    (buffers, skin_weights)
 }
 
 fn skin_weights_bone_indices(buffer: &VertexBuffer) -> Option<(Vec<Vec4>, Vec<[u8; 4]>)> {
@@ -310,7 +281,7 @@ fn read_unorm16x4(reader: &mut Cursor<&[u8]>) -> Vec4 {
     value.map(|u| u as f32 / 65535.0).into()
 }
 
-pub fn read_animation_buffer_attributes(
+pub fn read_morph_attributes(
     model_bytes: &[u8],
     morph_target: &xc3_lib::vertex::MorphTarget,
 ) -> Vec<AttributeData> {

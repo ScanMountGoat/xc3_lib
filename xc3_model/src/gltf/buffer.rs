@@ -3,7 +3,7 @@ use std::{
     io::{Cursor, Seek, Write},
 };
 
-use crate::{skinning::bone_indices_weights, vertex::AttributeData, ModelRoot};
+use crate::{vertex::AttributeData, ModelRoot};
 use binrw::BinWrite;
 use glam::{Mat4, Vec2, Vec3, Vec4, Vec4Swizzles};
 use gltf::{
@@ -92,31 +92,45 @@ impl Buffers {
             }
 
             if let Some(skeleton) = skeleton {
-                // TODO: Avoid collect?
-                let bone_names: Vec<_> = skeleton.bones.iter().map(|b| &b.name).collect();
+                // TODO: Should skinning be duplicated for every vertex buffer?
+                if let Some(skin_weights) = &buffers.skin_weights {
+                    if let Some(weight_indices) =
+                        vertex_buffer.attributes.iter().find_map(|a| match a {
+                            AttributeData::WeightIndex(indices) => Some(indices),
+                            _ => None,
+                        })
+                    {
+                        let bone_names: Vec<_> =
+                            skeleton.bones.iter().map(|b| b.name.clone()).collect();
 
-                let (indices, weights) = bone_indices_weights(
-                    &vertex_buffer.influences,
-                    vertex_buffer.attributes[0].len(),
-                    &bone_names,
-                );
+                        let skin_weights = skin_weights.reindex_bones(bone_names);
 
-                self.add_attribute_values(
-                    &weights,
-                    gltf::Semantic::Weights(0),
-                    gltf::json::accessor::Type::Vec4,
-                    gltf::json::accessor::ComponentType::F32,
-                    Some(Valid(Target::ArrayBuffer)),
-                    &mut attributes,
-                );
-                self.add_attribute_values(
-                    &indices,
-                    gltf::Semantic::Joints(0),
-                    gltf::json::accessor::Type::Vec4,
-                    gltf::json::accessor::ComponentType::U8,
-                    Some(Valid(Target::ArrayBuffer)),
-                    &mut attributes,
-                );
+                        // TODO: Make this a method?
+                        let mut weights = Vec::new();
+                        let mut bone_indices = Vec::new();
+                        for i in weight_indices {
+                            weights.push(skin_weights.weights[*i as usize]);
+                            bone_indices.push(skin_weights.bone_indices[*i as usize]);
+                        }
+
+                        self.add_attribute_values(
+                            &weights,
+                            gltf::Semantic::Weights(0),
+                            gltf::json::accessor::Type::Vec4,
+                            gltf::json::accessor::ComponentType::F32,
+                            Some(Valid(Target::ArrayBuffer)),
+                            &mut attributes,
+                        );
+                        self.add_attribute_values(
+                            &bone_indices,
+                            gltf::Semantic::Joints(0),
+                            gltf::json::accessor::Type::Vec4,
+                            gltf::json::accessor::ComponentType::U8,
+                            Some(Valid(Target::ArrayBuffer)),
+                            &mut attributes,
+                        );
+                    }
+                }
             }
 
             self.vertex_buffer_attributes.insert(

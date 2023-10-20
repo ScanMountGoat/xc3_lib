@@ -216,6 +216,7 @@ pub struct Weights {
     /// This is typically the last element.
     pub vertex_buffer_index: u16,
 
+    // TODO: same count as WeightLod in mxmd?
     #[br(parse_with = parse_count16_offset32)]
     #[xc3(count_offset(u16, u32))]
     pub weight_lods: Vec<WeightLod>,
@@ -235,7 +236,7 @@ pub struct WeightGroup {
     pub input_start_index: u32,
     /// Number of items in the weights buffer.
     pub count: u32,
-    pub unks: [u32; 4],
+    pub unks: [u32; 4], // TODO: always 0?
     /// Index into [group_indices_plus_one](struct.WeightLod.html#structfield.group_indices_plus_one)
     /// pointing back to this group.
     pub lod_group_index: u8,
@@ -248,6 +249,14 @@ pub struct WeightGroup {
     pub unks2: [u32; 2],
 }
 
+// TODO: The material's pass index indexes into this?
+// [unk0, ???, ???, unk7, ???, ???, ???, ???, ???]
+
+// group_index = weights.weight_lods[mesh.lod].group_indices_plus_one[material.program.pass_index] - 1
+// group = weights.groups[group_index]
+
+// TODO: What indexes into this?
+// TODO: something related to render pass?
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct WeightLod {
     /// One plus the indices pointing back to [groups](struct.Weights.html#structfield.groups).
