@@ -430,7 +430,7 @@ pub struct ShaderProgram {
 // _ope = 0,1,7
 // _zpre = 0
 // _outline = 0
-#[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy, Hash)]
 #[brw(repr(u16))]
 pub enum ShaderUnkType {
     Unk0 = 0, // main opaque + some transparent?

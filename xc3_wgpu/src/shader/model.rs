@@ -108,7 +108,9 @@ pub struct InstanceInput {
     pub model_matrix_3: glam::Vec4,
 }
 pub mod bind_groups {
+    #[derive(Debug)]
     pub struct BindGroup0(wgpu::BindGroup);
+    #[derive(Debug)]
     pub struct BindGroupLayout0<'a> {
         pub camera: wgpu::BufferBinding<'a>,
     }
@@ -152,7 +154,9 @@ pub mod bind_groups {
             render_pass.set_bind_group(0, &self.0, &[]);
         }
     }
+    #[derive(Debug)]
     pub struct BindGroup1(wgpu::BindGroup);
+    #[derive(Debug)]
     pub struct BindGroupLayout1<'a> {
         pub per_group: wgpu::BufferBinding<'a>,
     }
@@ -196,7 +200,9 @@ pub mod bind_groups {
             render_pass.set_bind_group(1, &self.0, &[]);
         }
     }
+    #[derive(Debug)]
     pub struct BindGroup2(wgpu::BindGroup);
+    #[derive(Debug)]
     pub struct BindGroupLayout2<'a> {
         pub s0: &'a wgpu::TextureView,
         pub s1: &'a wgpu::TextureView,
@@ -542,7 +548,9 @@ pub mod bind_groups {
             render_pass.set_bind_group(2, &self.0, &[]);
         }
     }
+    #[derive(Debug)]
     pub struct BindGroup3(wgpu::BindGroup);
+    #[derive(Debug)]
     pub struct BindGroupLayout3<'a> {
         pub bone_indices: wgpu::BufferBinding<'a>,
         pub skin_weights: wgpu::BufferBinding<'a>,
@@ -609,6 +617,7 @@ pub mod bind_groups {
             render_pass.set_bind_group(3, &self.0, &[]);
         }
     }
+    #[derive(Debug)]
     pub struct BindGroups<'a> {
         pub bind_group0: &'a BindGroup0,
         pub bind_group1: &'a BindGroup1,
@@ -709,6 +718,7 @@ pub mod vertex {
 }
 pub const ENTRY_VS_MAIN: &str = "vs_main";
 pub const ENTRY_FS_MAIN: &str = "fs_main";
+#[derive(Debug)]
 pub struct VertexEntry<const N: usize> {
     entry_point: &'static str,
     buffers: [wgpu::VertexBufferLayout<'static>; N],

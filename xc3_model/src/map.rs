@@ -159,6 +159,8 @@ fn create_buffers(
                 vertex_buffers,
                 index_buffers: read_index_buffers(&vertex_data),
                 skin_weights,
+                weight_groups: Vec::new(),
+                weight_lods: Vec::new(),
             }
         })
         .collect()
@@ -424,6 +426,8 @@ fn load_env_model(
                 vertex_buffers,
                 index_buffers,
                 skin_weights,
+                weight_groups: Vec::new(),
+                weight_lods: Vec::new(),
             }],
         }],
         image_textures,
@@ -480,6 +484,8 @@ fn load_foliage_model(
                 vertex_buffers,
                 index_buffers,
                 skin_weights,
+                weight_groups: Vec::new(),
+                weight_lods: Vec::new(),
             }],
         }],
         image_textures,

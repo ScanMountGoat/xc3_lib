@@ -106,7 +106,7 @@ struct PerMaterial {
 }
 
 // TODO: Where to store skeleton?
-// PerModel values
+// PerMesh values.
 @group(3) @binding(0)
 var<storage> bone_indices: array<vec4<u32>>;
 
@@ -165,6 +165,7 @@ fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
         tangent_xyz = vec3(0.0);
 
         // Weights require an extra layer of indirection.
+        // Assume the weight lod ranges have already been applied.
         let bone_indices = bone_indices[vertex.weight_index];
         let skin_weights = skin_weights[vertex.weight_index];
 

@@ -18,4 +18,4 @@ log = "0.4.19"
 tracing = "0.1.0"
 
 [build-dependencies]
-wgsl_to_wgpu = "0.4.1"
+wgsl_to_wgpu = { git = "https://github.com/ScanMountGoat/wgsl_to_wgpu", rev = "36caa57" }

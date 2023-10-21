@@ -43,7 +43,6 @@ pub struct Model {
     instance_buffer: wgpu::Buffer,
     pub instance_count: usize,
     model_buffers_index: usize,
-    per_model: crate::shader::model::bind_groups::BindGroup3,
 }
 
 #[derive(Debug)]
@@ -52,6 +51,7 @@ pub struct Mesh {
     index_buffer_index: usize,
     material_index: usize,
     lod: u16,
+    per_mesh: crate::shader::model::bind_groups::BindGroup3,
 }
 
 #[derive(Debug)]
@@ -66,22 +66,20 @@ struct IndexBuffer {
 }
 
 impl ModelGroup {
-    // TODO: How to handle other unk types?
     pub fn draw<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, is_transparent: bool) {
         for models in &self.models {
             models.per_group.set(render_pass);
 
-            // TODO: Is this the best way to "instance" models?
             for model in &models.models {
-                model.per_model.set(render_pass);
-
                 for mesh in &model.meshes {
+                    mesh.per_mesh.set(render_pass);
+
                     let material = &models.materials[mesh.material_index];
 
                     // TODO: Group these into passes with separate shaders for each pass?
                     // TODO: The main pass is shared with outline, ope, and zpre?
                     // TODO: How to handle transparency?
-                    if (is_transparent != material.pipeline_key.write_to_all_outputs)
+                    if (is_transparent != material.pipeline_key.write_to_all_outputs())
                         && !material.name.ends_with("_outline")
                         && !material.name.contains("_speff_")
                         && mesh.should_render_lod(models)
@@ -253,7 +251,9 @@ fn create_model_group(
             let models = models
                 .models
                 .iter()
-                .map(|model| create_model(device, model, &group.buffers, skeleton.as_ref()))
+                .map(|model| {
+                    create_model(device, model, &group.buffers, skeleton.as_ref(), &materials)
+                })
                 .collect();
 
             // TODO: Store the samplers?
@@ -300,6 +300,7 @@ fn create_model(
     model: &xc3_model::Model,
     buffers: &[xc3_model::ModelBuffers],
     skeleton: Option<&xc3_model::Skeleton>,
+    materials: &[Material],
 ) -> Model {
     let meshes = model
         .meshes
@@ -309,6 +310,14 @@ fn create_model(
             index_buffer_index: mesh.index_buffer_index,
             material_index: mesh.material_index,
             lod: mesh.lod,
+            per_mesh: per_mesh_bind_group(
+                device,
+                &buffers[model.model_buffers_index],
+                skeleton,
+                mesh.lod,
+                mesh.skin_flags,
+                &materials[mesh.material_index],
+            ),
         })
         .collect();
 
@@ -318,14 +327,11 @@ fn create_model(
         usage: wgpu::BufferUsages::VERTEX,
     });
 
-    let per_model = per_model_bind_group(device, &buffers[model.model_buffers_index], skeleton);
-
     Model {
         meshes,
         instance_buffer,
         instance_count: model.instances.len(),
         model_buffers_index: model.model_buffers_index,
-        per_model,
     }
 }
 
@@ -448,10 +454,13 @@ fn per_group_bind_group(
     )
 }
 
-fn per_model_bind_group(
+fn per_mesh_bind_group(
     device: &wgpu::Device,
     buffers: &xc3_model::ModelBuffers,
     skeleton: Option<&xc3_model::Skeleton>,
+    lod: u16,
+    skin_flags: u32,
+    material: &Material,
 ) -> shader::model::bind_groups::BindGroup3 {
     // TODO: Avoid unwrap?
     // Reindex to match the ordering defined in the current skeleton.
@@ -469,6 +478,14 @@ fn per_model_bind_group(
             .unwrap_or_else(|| skin_weights.clone())
     });
 
+    let start = weights_starting_index(
+        &buffers.weight_groups,
+        &buffers.weight_lods,
+        skin_flags,
+        lod,
+        material.pipeline_key.unk_type,
+    );
+
     // TODO: How to correctly handle a missing skeleton or weights?
     // This assumes the skinning shader code is skipped if anything is missing.
     let indices: Vec<_> = skin_weights
@@ -477,6 +494,7 @@ fn per_model_bind_group(
             skin_weights
                 .bone_indices
                 .iter()
+                .skip(start)
                 .map(|indices| indices.map(|i| i as u32))
                 .collect()
         })
@@ -484,7 +502,7 @@ fn per_model_bind_group(
 
     let weights = skin_weights
         .as_ref()
-        .map(|skin_weights| skin_weights.weights.as_slice())
+        .map(|skin_weights| &skin_weights.weights.as_slice()[start..])
         .unwrap_or(&[Vec4::ZERO]);
 
     let bone_indices = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -499,15 +517,44 @@ fn per_model_bind_group(
         usage: wgpu::BufferUsages::STORAGE,
     });
 
-    // Skin weights are technically part of the model's buffers.
-    // The reindexed weights depend on the skeleton and buffer index.
-    // Store skinning here so we can reindex to match the skeleton.
+    // Bone indices and skin weights are technically part of the model buffers.
+    // Each mesh selects a range of values based on weight lods.
+    // Define skinning per mesh to avoid alignment requirements on buffer bindings.
     crate::shader::model::bind_groups::BindGroup3::from_bindings(
         device,
         crate::shader::model::bind_groups::BindGroupLayout3 {
-            // TODO: The binding range should depend on the mesh.
             bone_indices: bone_indices.as_entire_buffer_binding(),
             skin_weights: skin_weights.as_entire_buffer_binding(),
         },
     )
+}
+
+// TODO: Module and tests for this?
+fn weights_starting_index(
+    weight_groups: &[xc3_lib::vertex::WeightGroup],
+    weight_lods: &[xc3_lib::vertex::WeightLod],
+    skin_flags: u32,
+    lod: u16,
+    unk_type: xc3_lib::mxmd::ShaderUnkType,
+) -> usize {
+    // TODO: disabled if skin_flags & 0x1?
+    if matches!(skin_flags, 2 | 16392) {
+        let lod_index = lod.saturating_sub(1) as usize;
+        let weight_lod = &weight_lods[lod_index];
+
+        // TODO: bit mask?
+        let pass_index = match unk_type {
+            xc3_lib::mxmd::ShaderUnkType::Unk0 => 0,
+            xc3_lib::mxmd::ShaderUnkType::Unk1 => 1,
+            xc3_lib::mxmd::ShaderUnkType::Unk6 => todo!(),
+            xc3_lib::mxmd::ShaderUnkType::Unk7 => 3,
+            xc3_lib::mxmd::ShaderUnkType::Unk9 => todo!(),
+        };
+        let group_index = weight_lod.group_indices_plus_one[pass_index].saturating_sub(1);
+        let weight_group = &weight_groups[group_index as usize];
+
+        weight_group.input_start_index as usize
+    } else {
+        0
+    }
 }

@@ -17,10 +17,16 @@ impl ModelPipelineData {
 }
 
 /// The non shared components of a pipeline for use with pipeline caching.
-#[derive(Hash, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Hash, Clone, Copy, PartialEq, Eq)]
 pub struct PipelineKey {
-    pub write_to_all_outputs: bool,
+    pub unk_type: xc3_lib::mxmd::ShaderUnkType,
     pub flags: StateFlags,
+}
+
+impl PipelineKey {
+    pub fn write_to_all_outputs(&self) -> bool {
+        self.unk_type == xc3_lib::mxmd::ShaderUnkType::Unk0
+    }
 }
 
 // TODO: Always set depth and stencil state?
@@ -31,7 +37,7 @@ pub fn model_pipeline(
 ) -> wgpu::RenderPipeline {
     // Some shaders only write to the albedo output.
     // TODO: Is there a better of handling this than modifying the render pass?
-    let targets = if key.write_to_all_outputs {
+    let targets = if key.write_to_all_outputs() {
         // TODO: alpha blending?
         // Create a target for each of the G-Buffer textures.
         // TODO: check outputs in wgsl_to_wgpu?

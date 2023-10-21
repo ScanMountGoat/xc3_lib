@@ -35,7 +35,9 @@ const _: () = assert!(
     "offset of Camera.position does not match WGSL"
 );
 pub mod bind_groups {
+    #[derive(Debug)]
     pub struct BindGroup0(wgpu::BindGroup);
+    #[derive(Debug)]
     pub struct BindGroupLayout0<'a> {
         pub g0: &'a wgpu::TextureView,
         pub g1: &'a wgpu::TextureView,
@@ -183,7 +185,9 @@ pub mod bind_groups {
             render_pass.set_bind_group(0, &self.0, &[]);
         }
     }
+    #[derive(Debug)]
     pub struct BindGroup1(wgpu::BindGroup);
+    #[derive(Debug)]
     pub struct BindGroupLayout1<'a> {
         pub shared_sampler: &'a wgpu::Sampler,
         pub camera: wgpu::BufferBinding<'a>,
@@ -257,6 +261,7 @@ pub mod bind_groups {
             render_pass.set_bind_group(1, &self.0, &[]);
         }
     }
+    #[derive(Debug)]
     pub struct BindGroups<'a> {
         pub bind_group0: &'a BindGroup0,
         pub bind_group1: &'a BindGroup1,
@@ -271,6 +276,7 @@ pub mod bind_groups {
 }
 pub const ENTRY_VS_MAIN: &str = "vs_main";
 pub const ENTRY_FS_MAIN: &str = "fs_main";
+#[derive(Debug)]
 pub struct VertexEntry<const N: usize> {
     entry_point: &'static str,
     buffers: [wgpu::VertexBufferLayout<'static>; N],

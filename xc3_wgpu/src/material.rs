@@ -3,10 +3,7 @@ use std::collections::HashMap;
 use glam::{ivec4, uvec4, IVec4, Vec4};
 use log::error;
 use wgpu::util::DeviceExt;
-use xc3_lib::{
-    map::FoliageMaterials,
-    mxmd::{ShaderUnkType, StateFlags},
-};
+use xc3_lib::{map::FoliageMaterials, mxmd::StateFlags};
 
 use crate::{
     pipeline::{model_pipeline, ModelPipelineData, PipelineKey},
@@ -15,6 +12,7 @@ use crate::{
 
 // TODO: Don't make this public outside the crate?
 // TODO: Store material parameter values.
+#[derive(Debug)]
 pub struct Material {
     pub name: String,
     pub bind_group2: crate::shader::model::bind_groups::BindGroup2,
@@ -167,7 +165,7 @@ pub fn materials(
             // Each material only goes in exactly one pass?
             // TODO: Is it redundant to also store the unk type?
             let pipeline_key = PipelineKey {
-                write_to_all_outputs: material.unk_type == ShaderUnkType::Unk0,
+                unk_type: material.unk_type,
                 flags: material.flags,
             };
             pipelines
@@ -269,7 +267,7 @@ pub fn foliage_materials(
 
             // TODO: Flags?
             let pipeline_key = PipelineKey {
-                write_to_all_outputs: true,
+                unk_type: xc3_lib::mxmd::ShaderUnkType::Unk0,
                 flags: StateFlags {
                     flag0: 0,
                     blend_state: xc3_lib::mxmd::BlendState::Disabled,

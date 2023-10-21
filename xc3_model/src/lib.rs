@@ -49,6 +49,10 @@ pub struct ModelBuffers {
     pub index_buffers: Vec<IndexBuffer>,
     // TODO: have each Models have its own reindexed set of indices based on skeleton names?
     pub skin_weights: Option<SkinWeights>,
+
+    // TODO: Is this the best way to represent this information?
+    pub weight_groups: Vec<xc3_lib::vertex::WeightGroup>,
+    pub weight_lods: Vec<xc3_lib::vertex::WeightLod>,
 }
 
 // TODO: Should samplers be optional?
@@ -86,6 +90,7 @@ pub struct Mesh {
     pub index_buffer_index: usize,
     pub material_index: usize,
     pub lod: u16,
+    pub skin_flags: u32,
 }
 
 #[derive(Debug)]
@@ -215,6 +220,7 @@ impl Model {
                 index_buffer_index: mesh.index_buffer_index as usize,
                 material_index: mesh.material_index as usize,
                 lod: mesh.lod,
+                skin_flags: mesh.skin_flags
             })
             .collect();
 
@@ -315,6 +321,16 @@ pub fn load_model<P: AsRef<Path>>(
                 vertex_buffers,
                 index_buffers,
                 skin_weights,
+                weight_groups: vertex_data
+                    .weights
+                    .as_ref()
+                    .map(|weights| weights.groups.clone())
+                    .unwrap_or_default(),
+                weight_lods: vertex_data
+                    .weights
+                    .as_ref()
+                    .map(|weights| weights.weight_lods.clone())
+                    .unwrap_or_default(),
             }],
         }],
         image_textures,
