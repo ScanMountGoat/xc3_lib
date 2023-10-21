@@ -8,18 +8,8 @@ use clap::Parser;
 use image::ImageDecoder;
 use rayon::prelude::*;
 use xc3_lib::{
-    bc::Bc,
-    dds::{create_dds, create_mibl},
-    dhal::Dhal,
-    eva::Eva,
-    ltpc::Ltpc,
-    mibl::Mibl,
-    msmd::Msmd,
-    msrd::Msrd,
-    mxmd::Mxmd,
-    sar1::Sar1,
-    spch::Spch,
-    xbc1::Xbc1,
+    bc::Bc, dhal::Dhal, eva::Eva, ltpc::Ltpc, mibl::Mibl, msmd::Msmd, msrd::Msrd, mxmd::Mxmd,
+    sar1::Sar1, spch::Spch, xbc1::Xbc1,
 };
 
 #[derive(Parser)]
@@ -267,8 +257,8 @@ fn check_msmd(msmd: Msmd, path: &Path, check_read_write: bool) {
 }
 
 fn check_mibl(original_bytes: &[u8], mibl: Mibl, path: &Path) {
-    let dds = create_dds(&mibl).unwrap();
-    let new_mibl = create_mibl(&dds).unwrap();
+    let dds = mibl.to_dds().unwrap();
+    let new_mibl = Mibl::from_dds(&dds).unwrap();
 
     let mut writer = Cursor::new(Vec::new());
     new_mibl.write(&mut writer).unwrap();

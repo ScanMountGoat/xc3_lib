@@ -41,7 +41,7 @@ pub struct PropModelData {
     #[xc3(offset_count(u32, u32))]
     pub textures: Vec<Texture>,
 
-    /// The index of the [VertexData](crate::vertex::VertexData)
+    /// The index of the [VertexData]
     /// in [prop_vertex_data](../msmd/struct.Msmd.html#structfield.prop_vertex_data)
     /// for each of the models in [models](#structfield.models).
     #[br(parse_with = parse_offset32_count32)]
@@ -244,8 +244,7 @@ pub struct MapModelGroup {
     pub max_xyz: [f32; 3],
     pub min_xyz: [f32; 3],
 
-    /// The index of the [VertexData](crate::vertex::VertexData)
-    /// in [map_vertex_data](../msmd/struct.Msmd.html#structfield.map_vertex_data).
+    /// The index of the [VertexData] in [map_vertex_data](../msmd/struct.Msmd.html#structfield.map_vertex_data).
     pub vertex_data_index: u32,
     // TODO: lod vertex data index?
     // TODO: This is also used in indices?

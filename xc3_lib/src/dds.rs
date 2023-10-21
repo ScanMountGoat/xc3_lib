@@ -18,74 +18,81 @@ pub fn save_dds<P: AsRef<Path>>(path: P, dds: &Dds) {
     dds.write(&mut writer).unwrap();
 }
 
-pub fn create_dds(mibl: &Mibl) -> Result<Dds> {
-    Surface {
-        width: mibl.footer.width,
-        height: mibl.footer.height,
-        depth: mibl.footer.depth,
-        layers: if mibl.footer.view_dimension == ViewDimension::Cube {
-            6
-        } else {
-            1
-        },
-        mipmaps: mibl.footer.mipmap_count,
-        image_format: surface_image_format(mibl.footer.image_format).unwrap(),
-        data: mibl.deswizzled_image_data()?,
-    }
-    .to_dds()
-    .map_err(Into::into)
-}
-
-// TODO: Add a more general from_image_data function.
-pub fn create_mibl(dds: &Dds) -> Result<Mibl> {
-    // TODO: Avoid unwrap.
-    let Surface {
-        width,
-        height,
-        depth,
-        layers,
-        mipmaps,
-        image_format,
-        data,
-    } = image_dds::Surface::from_dds(dds).unwrap();
-    let image_format = image_format_from_surface(image_format).unwrap();
-
-    let mut image_data = tegra_swizzle::surface::swizzle_surface(
-        width as usize,
-        height as usize,
-        depth as usize,
-        data,
-        image_format.block_dim(),
-        None,
-        image_format.bytes_per_pixel(),
-        mipmaps as usize,
-        layers as usize,
-    )?;
-
-    // TODO: expose round up in tegra_swizzle?
-    let aligned_size = round_up(image_data.len() as u64, PAGE_SIZE);
-    image_data.resize(aligned_size as usize, 0);
-
-    Ok(Mibl {
-        image_data,
-        footer: MiblFooter {
-            image_size: aligned_size as u32,
-            unk: 4096,
-            width: dds.get_width(),
-            height: dds.get_height(),
-            depth: dds.get_depth(),
-            view_dimension: if dds.get_depth() > 1 {
-                ViewDimension::D3
-            } else if layers == 6 {
-                ViewDimension::Cube
+impl Mibl {
+    /// Deswizzles all layers and mipmaps to a Direct Draw Surface (DDS).
+    pub fn to_dds(&self) -> Result<Dds> {
+        Surface {
+            width: self.footer.width,
+            height: self.footer.height,
+            depth: self.footer.depth,
+            layers: if self.footer.view_dimension == ViewDimension::Cube {
+                6
             } else {
-                ViewDimension::D2
+                1
             },
+            mipmaps: self.footer.mipmap_count,
+            image_format: surface_image_format(self.footer.image_format).unwrap(),
+            data: self.deswizzled_image_data()?,
+        }
+        .to_dds()
+        .map_err(Into::into)
+    }
+
+    // TODO: Add a more general from_image_data function.
+    /// Swizzles all layers and mipmaps in `dds` to an equivalent [Mibl].
+    ///
+    /// Returns an error if the conversion fails or the image format is
+    /// not supported.
+    pub fn from_dds(dds: &Dds) -> Result<Self> {
+        // TODO: Avoid unwrap.
+        let Surface {
+            width,
+            height,
+            depth,
+            layers,
+            mipmaps,
             image_format,
-            mipmap_count: dds.get_num_mipmap_levels(),
-            version: 10001,
-        },
-    })
+            data,
+        } = image_dds::Surface::from_dds(dds).unwrap();
+        let image_format = image_format_from_surface(image_format).unwrap();
+
+        let mut image_data = tegra_swizzle::surface::swizzle_surface(
+            width as usize,
+            height as usize,
+            depth as usize,
+            data,
+            image_format.block_dim(),
+            None,
+            image_format.bytes_per_pixel(),
+            mipmaps as usize,
+            layers as usize,
+        )?;
+
+        // TODO: expose round up in tegra_swizzle?
+        let aligned_size = round_up(image_data.len() as u64, PAGE_SIZE);
+        image_data.resize(aligned_size as usize, 0);
+
+        Ok(Self {
+            image_data,
+            footer: MiblFooter {
+                image_size: aligned_size as u32,
+                unk: 4096,
+                width: dds.get_width(),
+                height: dds.get_height(),
+                depth: dds.get_depth(),
+                view_dimension: if dds.get_depth() > 1 {
+                    ViewDimension::D3
+                } else if layers == 6 {
+                    ViewDimension::Cube
+                } else {
+                    ViewDimension::D2
+                },
+                image_format,
+                mipmap_count: dds.get_num_mipmap_levels(),
+                version: 10001,
+            },
+        })
+    }
 }
 
 // TODO: try_into?

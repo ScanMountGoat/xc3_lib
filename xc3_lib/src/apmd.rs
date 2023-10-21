@@ -9,7 +9,7 @@ use crate::{
 use binrw::{BinRead, BinReaderExt, BinResult, BinWrite};
 use xc3_write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
 
-/// A packed model container with entries like [Mxmd](crate::mxmd::Mxmd) or [Gibl](crate::msmd::Gibl).
+/// A packed model container with entries like [Mxmd] or [Gibl].
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(magic(b"DMPA"))]
 #[xc3(magic(b"DMPA"))]

@@ -17,10 +17,12 @@ pub struct Mxmd {
     #[br(assert(version == 10111 || version == 10112))]
     pub version: u32,
 
+    /// A collection of [Model] and associated data.
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]
     pub models: Models,
 
+    /// A collection of [Material] and associated data.
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32), align(16))]
     pub materials: Materials,
@@ -39,13 +41,14 @@ pub struct Mxmd {
     #[xc3(offset(u32))]
     pub spch: Option<Spch>,
 
+    /// Textures included within this file.
     #[br(parse_with = parse_opt_ptr32)]
     #[xc3(offset(u32))]
     pub packed_textures: Option<PackedTextures>,
 
     pub unk5: u32,
 
-    // unpacked textures?
+    /// References to textures stored externally like in an [Msrd](crate::msrd::Msrd).
     #[br(parse_with = parse_opt_ptr32)]
     #[xc3(offset(u32))]
     pub textures: Option<Textures>,
@@ -54,6 +57,7 @@ pub struct Mxmd {
     pub unk: [u32; 10],
 }
 
+/// A collection of [Material], [Sampler], and material parameters.
 #[binread]
 #[derive(Debug, Xc3Write)]
 #[br(stream = r)]
@@ -206,6 +210,7 @@ pub struct MaterialUnk1 {
     pub unk: [u32; 8],
 }
 
+/// A collection of [Sampler].
 #[binread]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets)]
 #[br(stream = r)]
@@ -222,6 +227,7 @@ pub struct Samplers {
     pub unk: [u32; 2],
 }
 
+/// State for controlling how textures are sampled.
 #[derive(Debug, BinRead, BinWrite)]
 pub struct Sampler {
     #[br(map(|x: u32| x.into()))]
@@ -331,6 +337,7 @@ pub struct MaterialFlags {
     pub unk: u28,
 }
 
+/// Flags controlling pipeline state for rasterizer and fragment state.
 #[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct StateFlags {
     pub flag0: u8, // depth write?
@@ -441,6 +448,7 @@ pub struct Texture {
     pub unk3: u16,
 }
 
+/// A collection of [Model] as well as skinning and animation information.
 #[binread]
 #[derive(Debug, Xc3Write)]
 #[br(stream = r)]
@@ -508,7 +516,7 @@ pub struct Models {
 
 /// A collection of meshes where each [Mesh] represents one draw call.
 ///
-/// Each [Model] has an associated [VertexData](crate::vertex::VertexData) containing vertex and index buffers.
+/// Each [Model] has an associated [VertexData] containing vertex and index buffers.
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(import_raw(base_offset: u64))]
 pub struct Model {
@@ -523,6 +531,7 @@ pub struct Model {
     pub unks: [u32; 7],
 }
 
+/// Flags and resources associated with a single draw call.
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct Mesh {
     pub render_flags: u32,
@@ -888,6 +897,7 @@ pub struct TexturesUnk {
     pub unk3: u32,
 }
 
+/// A collection of [Mibl](crate::mibl::Mibl) textures embedded in the current file.
 #[binread]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets)]
 #[br(stream = r)]
@@ -919,6 +929,7 @@ pub struct PackedTexture {
     pub name: String,
 }
 
+/// References to [Mibl](crate::mibl::Mibl) textures in a separate file.
 #[binread]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets)]
 #[br(stream = r)]

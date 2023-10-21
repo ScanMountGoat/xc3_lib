@@ -158,7 +158,7 @@ pub struct Msmd {
     pub unk7: [u32; 8],
 }
 
-/// References to medium and high resolution [Mibl](crate::mibl::Mibl) textures.
+/// References to medium and high resolution [Mibl] textures.
 #[derive(Debug, BinRead, BinWrite)]
 pub struct Texture {
     pub mid: StreamEntry<Mibl>,
@@ -560,10 +560,10 @@ pub struct MapPart {
     pub unk: u16,
 }
 
-/// A reference to an [Xbc1](crate::xbc1::Xbc1) in `.wismda` file.
+/// A reference to an [Xbc1] in `.wismda` file.
 #[derive(Debug, BinRead, BinWrite)]
 pub struct StreamEntry<T> {
-    /// The offset of the [Xbc1](crate::xbc1::Xbc1) in `.wismda` file.
+    /// The offset of the [Xbc1] in `.wismda` file.
     pub offset: u32,
     pub decompressed_size: u32,
     #[bw(ignore)]

@@ -5,33 +5,37 @@ use std::io::SeekFrom;
 
 use anyhow::Result;
 use binrw::{binrw, BinRead, BinWrite};
-use ddsfile::Dds;
 use tegra_swizzle::{surface::BlockDim, SwizzleError};
 
-use crate::dds::create_dds;
-
-/// Image texture data.
-/// Used in `.witex` or `.witx` files or embedded in `.wismt` files.
-// TODO: also .wiltp and .wilay?
+/// Data for an image texture surface.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Mibl {
+    /// The combined swizzled image surface data.
+    /// Ordered as `Layer 0 Mip 0, Layer 0 Mip 1, ... Layer L-1 Mip M-1`
+    /// for L layers and M mipmaps similar to DDS files.
     pub image_data: Vec<u8>,
+    /// A description of the surface in [image_data](#structfield.image_data).
     pub footer: MiblFooter,
 }
 
 const MIBL_FOOTER_SIZE: usize = 40;
 
+/// A description of the image surface.
 #[binrw]
 #[derive(Debug, PartialEq, Eq)]
 pub struct MiblFooter {
     /// Swizzled image size for the entire surface aligned to 4096 (0x1000).
     pub image_size: u32,
     pub unk: u32, // TODO: is this actually 0x1000 for swizzled like with nutexb?
+    /// The width of the base mip level in pixels.
     pub width: u32,
+    /// The height of the base mip level in pixels.
     pub height: u32,
+    /// The depth of the base mip level in pixels.
     pub depth: u32,
     pub view_dimension: ViewDimension,
     pub image_format: ImageFormat,
+    /// The number of mip levels or 1 if there are no mipmaps.
     pub mipmap_count: u32,
     pub version: u32,
 
@@ -161,6 +165,7 @@ impl BinWrite for Mibl {
 }
 
 impl Mibl {
+    /// Deswizzles all layers and mipmaps to a standard row-major memory layout.
     pub fn deswizzled_image_data(&self) -> Result<Vec<u8>, SwizzleError> {
         tegra_swizzle::surface::deswizzle_surface(
             self.footer.width as usize,
@@ -177,9 +182,5 @@ impl Mibl {
                 1
             },
         )
-    }
-
-    pub fn to_dds(&self) -> Result<Dds> {
-        create_dds(self)
     }
 }

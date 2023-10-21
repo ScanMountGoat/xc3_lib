@@ -6,11 +6,7 @@ use std::{
 
 use clap::Parser;
 use image_dds::{ddsfile::Dds, image};
-use xc3_lib::{
-    dds::{create_dds, create_mibl, save_dds},
-    mibl::Mibl,
-    xbc1::Xbc1,
-};
+use xc3_lib::{dds::save_dds, mibl::Mibl, xbc1::Xbc1};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -37,7 +33,7 @@ fn main() {
     let dds = match input.extension().unwrap().to_str().unwrap() {
         "witex" | "witx" => {
             let mibl = Mibl::from_file(input).unwrap();
-            create_dds(&mibl).unwrap()
+            mibl.to_dds().unwrap()
         }
         // TODO: image and single tex wismt
         "dds" => {
@@ -46,7 +42,7 @@ fn main() {
         }
         "wismt" => {
             let mibl = read_wismt_single_tex(input);
-            create_dds(&mibl).unwrap()
+            mibl.to_dds().unwrap()
         }
         _ => {
             // Assume other formats are image formats for now.
@@ -69,13 +65,13 @@ fn main() {
             save_dds(output, &dds);
         }
         "witex" | "witx" => {
-            let mibl = create_mibl(&dds).unwrap();
+            let mibl = Mibl::from_dds(&dds).unwrap();
             mibl.write_to_file(output).unwrap();
         }
         // TODO: single tex wismt
         // TODO: Also create base level?
         "wismt" => {
-            let mibl = create_mibl(&dds).unwrap();
+            let mibl = Mibl::from_dds(&dds).unwrap();
             let xbc1 = create_wismt_single_tex(&mibl);
             xbc1.write_to_file(output).unwrap();
         }
