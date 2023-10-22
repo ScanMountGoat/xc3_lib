@@ -537,8 +537,8 @@ fn weights_starting_index(
     lod: u16,
     unk_type: xc3_lib::mxmd::ShaderUnkType,
 ) -> usize {
-    // TODO: disabled if skin_flags & 0x1?
-    if matches!(skin_flags, 2 | 16392) {
+    // TODO: Is this the correct flags check?
+    if (skin_flags & 0x1) == 0 {
         let lod_index = lod.saturating_sub(1) as usize;
         let weight_lod = &weight_lods[lod_index];
 
