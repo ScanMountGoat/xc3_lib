@@ -51,6 +51,22 @@ impl SkinWeights {
             bone_names,
         }
     }
+
+    // TODO: tests for this?
+    /// Reindex the weights and indices using [WeightIndex](xc3_lib::vertex::DataType::WeightIndex) values.
+    pub fn reindex(&self, weight_indices: &[u32]) -> Self {
+        let mut weights = Vec::new();
+        let mut bone_indices = Vec::new();
+        for i in weight_indices {
+            weights.push(self.weights[*i as usize]);
+            bone_indices.push(self.bone_indices[*i as usize]);
+        }
+        Self {
+            bone_indices,
+            weights,
+            bone_names: self.bone_names.clone(),
+        }
+    }
 }
 
 // TODO: handle weight_indices separately?

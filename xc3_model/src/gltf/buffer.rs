@@ -93,7 +93,7 @@ impl Buffers {
 
             if let Some(skeleton) = skeleton {
                 // TODO: Should skinning be duplicated for every vertex buffer?
-                if let Some(skin_weights) = &buffers.skin_weights {
+                if let Some(weights) = &buffers.weights {
                     if let Some(weight_indices) =
                         vertex_buffer.attributes.iter().find_map(|a| match a {
                             AttributeData::WeightIndex(indices) => Some(indices),
@@ -102,19 +102,14 @@ impl Buffers {
                     {
                         let bone_names: Vec<_> =
                             skeleton.bones.iter().map(|b| b.name.clone()).collect();
-
-                        let skin_weights = skin_weights.reindex_bones(bone_names);
-
-                        // TODO: Make this a method?
-                        let mut weights = Vec::new();
-                        let mut bone_indices = Vec::new();
-                        for i in weight_indices {
-                            weights.push(skin_weights.weights[*i as usize]);
-                            bone_indices.push(skin_weights.bone_indices[*i as usize]);
-                        }
+                        // TODO: Use the weights offset for each mesh.
+                        let skin_weights = weights
+                            .skin_weights
+                            .reindex_bones(bone_names)
+                            .reindex(weight_indices);
 
                         self.add_attribute_values(
-                            &weights,
+                            &skin_weights.weights,
                             gltf::Semantic::Weights(0),
                             gltf::json::accessor::Type::Vec4,
                             gltf::json::accessor::ComponentType::F32,
@@ -122,7 +117,7 @@ impl Buffers {
                             &mut attributes,
                         );
                         self.add_attribute_values(
-                            &bone_indices,
+                            &skin_weights.bone_indices,
                             gltf::Semantic::Joints(0),
                             gltf::json::accessor::Type::Vec4,
                             gltf::json::accessor::ComponentType::U8,

@@ -465,26 +465,22 @@ fn per_mesh_bind_group(
     // TODO: Avoid unwrap?
     // Reindex to match the ordering defined in the current skeleton.
     // Convert to u32 since WGSL lacks a vec4<u8> type.
-    let skin_weights = buffers.skin_weights.as_ref().map(|skin_weights| {
+    let skin_weights = buffers.weights.as_ref().map(|weights| {
         skeleton
             .map(|skeleton| {
                 let bone_names = skeleton.bones.iter().map(|b| b.name.clone()).collect();
-                buffers
-                    .skin_weights
-                    .as_ref()
-                    .unwrap()
-                    .reindex_bones(bone_names)
+                weights.skin_weights.reindex_bones(bone_names)
             })
-            .unwrap_or_else(|| skin_weights.clone())
+            .unwrap_or_else(|| weights.skin_weights.clone())
     });
 
-    let start = weights_starting_index(
-        &buffers.weight_groups,
-        &buffers.weight_lods,
-        skin_flags,
-        lod,
-        material.pipeline_key.unk_type,
-    );
+    let start = buffers
+        .weights
+        .as_ref()
+        .map(|weights| {
+            weights.weights_starting_index(skin_flags, lod, material.pipeline_key.unk_type)
+        })
+        .unwrap_or_default();
 
     // TODO: How to correctly handle a missing skeleton or weights?
     // This assumes the skinning shader code is skipped if anything is missing.
@@ -527,34 +523,4 @@ fn per_mesh_bind_group(
             skin_weights: skin_weights.as_entire_buffer_binding(),
         },
     )
-}
-
-// TODO: Module and tests for this?
-fn weights_starting_index(
-    weight_groups: &[xc3_lib::vertex::WeightGroup],
-    weight_lods: &[xc3_lib::vertex::WeightLod],
-    skin_flags: u32,
-    lod: u16,
-    unk_type: xc3_lib::mxmd::ShaderUnkType,
-) -> usize {
-    // TODO: Is this the correct flags check?
-    if (skin_flags & 0x1) == 0 {
-        let lod_index = lod.saturating_sub(1) as usize;
-        let weight_lod = &weight_lods[lod_index];
-
-        // TODO: bit mask?
-        let pass_index = match unk_type {
-            xc3_lib::mxmd::ShaderUnkType::Unk0 => 0,
-            xc3_lib::mxmd::ShaderUnkType::Unk1 => 1,
-            xc3_lib::mxmd::ShaderUnkType::Unk6 => todo!(),
-            xc3_lib::mxmd::ShaderUnkType::Unk7 => 3,
-            xc3_lib::mxmd::ShaderUnkType::Unk9 => todo!(),
-        };
-        let group_index = weight_lod.group_indices_plus_one[pass_index].saturating_sub(1);
-        let weight_group = &weight_groups[group_index as usize];
-
-        weight_group.input_start_index as usize
-    } else {
-        0
-    }
 }

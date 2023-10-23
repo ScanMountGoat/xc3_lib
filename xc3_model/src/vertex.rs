@@ -14,7 +14,7 @@ use binrw::BinReaderExt;
 use glam::{Vec2, Vec3, Vec4};
 use xc3_lib::vertex::{DataType, IndexBufferDescriptor, VertexBufferDescriptor, VertexData};
 
-use crate::{skinning::SkinWeights, IndexBuffer, MorphTarget, VertexBuffer};
+use crate::{skinning::SkinWeights, IndexBuffer, MorphTarget, VertexBuffer, Weights};
 
 // TODO: Add an option to convert a collection of these to the vertex above?
 // TODO: How to handle normalized attributes?
@@ -57,7 +57,7 @@ impl AttributeData {
 pub fn read_vertex_buffers(
     vertex_data: &VertexData,
     skinning: Option<&xc3_lib::mxmd::Skinning>,
-) -> (Vec<VertexBuffer>, Option<SkinWeights>) {
+) -> (Vec<VertexBuffer>, Option<Weights>) {
     // TODO: avoid unwrap?
     // TODO: Don't save the weights buffer.
     // TODO: Panic if the weights buffer is not the last buffer?
@@ -95,14 +95,19 @@ pub fn read_vertex_buffers(
     // TODO: Buffers have skinning indices but not weights?
     // TODO: Is this the best place to do this?
     let skin_weights = skinning.and_then(|skinning| {
-        let weights_index = vertex_data.weights.as_ref()?.vertex_buffer_index as usize;
+        let vertex_weights = vertex_data.weights.as_ref()?;
+        let weights_index = vertex_weights.vertex_buffer_index as usize;
         let weights_buffer = buffers.get(weights_index)?;
         let (weights, bone_indices) = skin_weights_bone_indices(weights_buffer)?;
-        Some(SkinWeights {
-            bone_indices,
-            weights,
-            // TODO: Will this cover all bone indices?
-            bone_names: skinning.bones.iter().map(|b| b.name.clone()).collect(),
+        Some(Weights {
+            skin_weights: SkinWeights {
+                bone_indices,
+                weights,
+                // TODO: Will this cover all bone indices?
+                bone_names: skinning.bones.iter().map(|b| b.name.clone()).collect(),
+            },
+            weight_groups: vertex_weights.groups.clone(),
+            weight_lods: vertex_weights.weight_lods.clone(),
         })
     });
 

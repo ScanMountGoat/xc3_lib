@@ -47,8 +47,14 @@ pub struct ModelGroup {
 pub struct ModelBuffers {
     pub vertex_buffers: Vec<VertexBuffer>,
     pub index_buffers: Vec<IndexBuffer>,
+    pub weights: Option<Weights>,
+}
+
+// TODO: come up with a better name?
+#[derive(Debug)]
+pub struct Weights {
     // TODO: have each Models have its own reindexed set of indices based on skeleton names?
-    pub skin_weights: Option<SkinWeights>,
+    pub skin_weights: SkinWeights,
 
     // TODO: Is this the best way to represent this information?
     pub weight_groups: Vec<xc3_lib::vertex::WeightGroup>,
@@ -220,7 +226,7 @@ impl Model {
                 index_buffer_index: mesh.index_buffer_index as usize,
                 material_index: mesh.material_index as usize,
                 lod: mesh.lod,
-                skin_flags: mesh.skin_flags
+                skin_flags: mesh.skin_flags,
             })
             .collect();
 
@@ -308,8 +314,7 @@ pub fn load_model<P: AsRef<Path>>(
 
     let skeleton = create_skeleton(chr.as_ref(), &mxmd);
 
-    let (vertex_buffers, skin_weights) =
-        read_vertex_buffers(vertex_data, mxmd.models.skinning.as_ref());
+    let (vertex_buffers, weights) = read_vertex_buffers(vertex_data, mxmd.models.skinning.as_ref());
     let index_buffers = read_index_buffers(vertex_data);
 
     let models = Models::from_models(&mxmd.models, &mxmd.materials, spch, skeleton);
@@ -320,17 +325,7 @@ pub fn load_model<P: AsRef<Path>>(
             buffers: vec![ModelBuffers {
                 vertex_buffers,
                 index_buffers,
-                skin_weights,
-                weight_groups: vertex_data
-                    .weights
-                    .as_ref()
-                    .map(|weights| weights.groups.clone())
-                    .unwrap_or_default(),
-                weight_lods: vertex_data
-                    .weights
-                    .as_ref()
-                    .map(|weights| weights.weight_lods.clone())
-                    .unwrap_or_default(),
+                weights,
             }],
         }],
         image_textures,
@@ -502,4 +497,35 @@ fn model_name(model_path: &Path) -> String {
         .unwrap()
         .to_string_lossy()
         .to_string()
+}
+
+// TODO: Module and tests for this?
+impl Weights {
+    pub fn weights_starting_index(
+        &self,
+        skin_flags: u32,
+        lod: u16,
+        unk_type: xc3_lib::mxmd::ShaderUnkType,
+    ) -> usize {
+        // TODO: Is this the correct flags check?
+        if (skin_flags & 0x1) == 0 {
+            let lod_index = lod.saturating_sub(1) as usize;
+            let weight_lod = &self.weight_lods[lod_index];
+
+            // TODO: bit mask?
+            let pass_index = match unk_type {
+                xc3_lib::mxmd::ShaderUnkType::Unk0 => 0,
+                xc3_lib::mxmd::ShaderUnkType::Unk1 => 1,
+                xc3_lib::mxmd::ShaderUnkType::Unk6 => todo!(),
+                xc3_lib::mxmd::ShaderUnkType::Unk7 => 3,
+                xc3_lib::mxmd::ShaderUnkType::Unk9 => todo!(),
+            };
+            let group_index = weight_lod.group_indices_plus_one[pass_index].saturating_sub(1);
+            let weight_group = &self.weight_groups[group_index as usize];
+
+            weight_group.input_start_index as usize
+        } else {
+            0
+        }
+    }
 }
