@@ -26,9 +26,10 @@ const _: () = assert!(
 pub struct PerGroup {
     pub enable_skinning: glam::UVec4,
     pub animated_transforms: [glam::Mat4; 256],
+    pub animated_transforms_inv_transpose: [glam::Mat4; 256],
 }
 const _: () = assert!(
-    std::mem::size_of:: < PerGroup > () == 16400, "size of PerGroup does not match WGSL"
+    std::mem::size_of:: < PerGroup > () == 32784, "size of PerGroup does not match WGSL"
 );
 const _: () = assert!(
     memoffset::offset_of!(PerGroup, enable_skinning) == 0,
@@ -37,6 +38,10 @@ const _: () = assert!(
 const _: () = assert!(
     memoffset::offset_of!(PerGroup, animated_transforms) == 16,
     "offset of PerGroup.animated_transforms does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(PerGroup, animated_transforms_inv_transpose) == 16400,
+    "offset of PerGroup.animated_transforms_inv_transpose does not match WGSL"
 );
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
@@ -64,9 +69,10 @@ pub struct PerMaterial {
     pub gbuffer_defaults: [glam::Vec4; 6],
     pub alpha_test_texture: glam::IVec4,
     pub alpha_test_ref: glam::Vec4,
+    pub is_single_channel: [glam::UVec4; 10],
 }
 const _: () = assert!(
-    std::mem::size_of:: < PerMaterial > () == 336,
+    std::mem::size_of:: < PerMaterial > () == 496,
     "size of PerMaterial does not match WGSL"
 );
 const _: () = assert!(
@@ -88,6 +94,10 @@ const _: () = assert!(
 const _: () = assert!(
     memoffset::offset_of!(PerMaterial, alpha_test_ref) == 320,
     "offset of PerMaterial.alpha_test_ref does not match WGSL"
+);
+const _: () = assert!(
+    memoffset::offset_of!(PerMaterial, is_single_channel) == 336,
+    "offset of PerMaterial.is_single_channel does not match WGSL"
 );
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]

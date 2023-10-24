@@ -16,6 +16,7 @@ struct PerGroup {
     // TODO: Is 256 the max bone count if index attributes use u8?
     // bone_world.inv() * animated_bone_world
     animated_transforms: array<mat4x4<f32>, 256>,
+    animated_transforms_inv_transpose: array<mat4x4<f32>, 256>,
 }
 
 @group(1) @binding(0)
@@ -103,6 +104,8 @@ struct PerMaterial {
     // texture index, channel, index, 0, 0
     alpha_test_texture: vec4<i32>,
     alpha_test_ref: vec4<f32>,
+    // Workaround for BC4 swizzle mask.
+    is_single_channel: array<vec4<u32>, 10>,
 }
 
 // TODO: Where to store skeleton?
@@ -174,9 +177,8 @@ fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
             let skin_weight = skin_weights[i];
 
             position += skin_weight * (per_group.animated_transforms[bone_index] * vec4(vertex.position.xyz, 1.0)).xyz;
-            // TODO: does this need the inverse transpose?
-            tangent_xyz += skin_weight * (per_group.animated_transforms[bone_index] * vec4(vertex.tangent.xyz, 0.0)).xyz;
-            normal_xyz += skin_weight * (per_group.animated_transforms[bone_index] * vec4(vertex.normal.xyz, 0.0)).xyz;
+            tangent_xyz += skin_weight * (per_group.animated_transforms_inv_transpose[bone_index] * vec4(vertex.tangent.xyz, 0.0)).xyz;
+            normal_xyz += skin_weight * (per_group.animated_transforms_inv_transpose[bone_index] * vec4(vertex.normal.xyz, 0.0)).xyz;
         }
     }
 
@@ -192,6 +194,7 @@ fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
     out.uv1 = vertex.uv1.xy;
     out.vertex_color = vertex.vertex_color;
     // Transform any direction vectors by the instance transform.
+    // TODO: This assumes no scaling?
     out.normal = (model_matrix * vec4(normal_xyz, 0.0)).xyz;
     out.tangent = vec4((model_matrix * vec4(tangent_xyz, 0.0)).xyz, vertex.tangent.w);
     return out;
@@ -206,6 +209,14 @@ fn assign_gbuffer_texture(assignment: GBufferAssignment, s_colors: array<vec4<f3
 }
 
 fn assign_channel(sampler_index: i32, channel_index: u32, s_colors: array<vec4<f32>, 10>, default_value: f32) -> f32 {
+    // Workaround for BC4 swizzle mask of RRR1.
+    var channel_index = channel_index;
+    if sampler_index >= 0 {
+        if per_material.is_single_channel[sampler_index].x == 1u {
+            channel_index = 0u;
+        }
+    }
+
     // TODO: Is there a way to avoid needing a switch?
     switch (sampler_index) {
         case 0: {
@@ -313,7 +324,6 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     let g4 = assign_gbuffer_texture(assignments[4], s_colors, defaults[4]);
     let g5 = assign_gbuffer_texture(assignments[5], s_colors, defaults[5]);
 
-    // TODO: How much of this goes into deferred?
     // Assume each G-Buffer texture and channel always has the same usage.
     let normal_map = g2.xy;
 

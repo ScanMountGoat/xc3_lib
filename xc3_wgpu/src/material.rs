@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use glam::{ivec4, uvec4, IVec4, Vec4};
+use glam::{ivec4, uvec4, IVec4, UVec4, Vec4};
 use log::error;
 use wgpu::util::DeviceExt;
 use xc3_lib::{map::FoliageMaterials, mxmd::StateFlags};
@@ -68,7 +68,7 @@ pub fn materials(
     queue: &wgpu::Queue,
     pipeline_data: &ModelPipelineData,
     materials: &[xc3_model::Material],
-    textures: &[(wgpu::TextureViewDimension, wgpu::TextureView)],
+    textures: &[wgpu::Texture],
     samplers: &[wgpu::Sampler],
 ) -> (Vec<Material>, HashMap<PipelineKey, wgpu::RenderPipeline>) {
     // TODO: Is there a better way to handle missing textures?
@@ -104,6 +104,18 @@ pub fn materials(
                 .map(|s| parse_gbuffer_params_consts(s, &material.parameters))
                 .unwrap_or(GBUFFER_DEFAULTS);
 
+            let mut texture_views: [Option<_>; 10] = std::array::from_fn(|_| None);
+            let mut is_single_channel = [UVec4::ZERO; 10];
+            for i in 0..10 {
+                if let Some(texture) = material_texture(material, textures, i) {
+                    texture_views[i] = Some(texture.create_view(&Default::default()));
+                    // TODO: Better way of doing this?
+                    if texture.format() == wgpu::TextureFormat::Bc4RUnorm {
+                        is_single_channel[i] = uvec4(1, 0, 0, 0);
+                    }
+                }
+            }
+
             // TODO: This is normally done using a depth prepass.
             // TODO: Is it ok to combine the prepass alpha in the main pass like this?
             let per_material = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -127,6 +139,7 @@ pub fn materials(
                             .map(|a| a.ref_value)
                             .unwrap_or(1.0),
                     ),
+                    is_single_channel,
                 }]),
                 usage: wgpu::BufferUsages::UNIFORM,
             });
@@ -137,16 +150,16 @@ pub fn materials(
             let bind_group2 = crate::shader::model::bind_groups::BindGroup2::from_bindings(
                 device,
                 crate::shader::model::bind_groups::BindGroupLayout2 {
-                    s0: material_texture(material, textures, 0).unwrap_or(&default_black),
-                    s1: material_texture(material, textures, 1).unwrap_or(&default_black),
-                    s2: material_texture(material, textures, 2).unwrap_or(&default_black),
-                    s3: material_texture(material, textures, 3).unwrap_or(&default_black),
-                    s4: material_texture(material, textures, 4).unwrap_or(&default_black),
-                    s5: material_texture(material, textures, 5).unwrap_or(&default_black),
-                    s6: material_texture(material, textures, 6).unwrap_or(&default_black),
-                    s7: material_texture(material, textures, 7).unwrap_or(&default_black),
-                    s8: material_texture(material, textures, 8).unwrap_or(&default_black),
-                    s9: material_texture(material, textures, 9).unwrap_or(&default_black),
+                    s0: texture_views[0].as_ref().unwrap_or(&default_black),
+                    s1: texture_views[1].as_ref().unwrap_or(&default_black),
+                    s2: texture_views[2].as_ref().unwrap_or(&default_black),
+                    s3: texture_views[3].as_ref().unwrap_or(&default_black),
+                    s4: texture_views[4].as_ref().unwrap_or(&default_black),
+                    s5: texture_views[5].as_ref().unwrap_or(&default_black),
+                    s6: texture_views[6].as_ref().unwrap_or(&default_black),
+                    s7: texture_views[7].as_ref().unwrap_or(&default_black),
+                    s8: texture_views[8].as_ref().unwrap_or(&default_black),
+                    s9: texture_views[9].as_ref().unwrap_or(&default_black),
                     s0_sampler: material_sampler(material, samplers, 0).unwrap_or(&default_sampler),
                     s1_sampler: material_sampler(material, samplers, 1).unwrap_or(&default_sampler),
                     s2_sampler: material_sampler(material, samplers, 2).unwrap_or(&default_sampler),
@@ -234,6 +247,7 @@ pub fn foliage_materials(
                     gbuffer_defaults,
                     alpha_test_texture: IVec4::splat(-1),
                     alpha_test_ref: Vec4::splat(1.0),
+                    is_single_channel: [UVec4::ZERO; 10],
                 }]),
                 usage: wgpu::BufferUsages::UNIFORM,
             });
@@ -377,20 +391,23 @@ fn extract_parameter(
 
 fn material_texture<'a>(
     material: &xc3_model::Material,
-    textures: &'a [(wgpu::TextureViewDimension, wgpu::TextureView)],
+    textures: &'a [wgpu::Texture],
     index: usize,
-) -> Option<&'a wgpu::TextureView> {
+) -> Option<&'a wgpu::Texture> {
     // TODO: Why is this sometimes out of range for XC2 maps?
     material
         .textures
         .get(index)
         .and_then(|texture| textures.get(texture.image_texture_index))
-        .and_then(|(d, t)| {
+        .and_then(|texture| {
             // TODO: How to handle 3D textures within the shader?
-            if *d == wgpu::TextureViewDimension::D2 {
-                Some(t)
+            if texture.dimension() == wgpu::TextureDimension::D2 {
+                Some(texture)
             } else {
-                error!("Expected 2D texture but found dimension {d:?}.");
+                error!(
+                    "Expected 2D texture but found dimension {:?}.",
+                    texture.dimension()
+                );
                 None
             }
         })

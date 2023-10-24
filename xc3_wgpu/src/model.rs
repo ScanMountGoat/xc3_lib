@@ -133,12 +133,15 @@ impl Models {
     ) {
         if let Some(skeleton) = &self.skeleton {
             let animated_transforms = animate_skeleton(skeleton, anim, frame);
+            let animated_transforms_inv_transpose =
+                animated_transforms.map(|t| t.inverse().transpose());
             queue.write_buffer(
                 &self.per_group_buffer,
                 0,
                 bytemuck::cast_slice(&[crate::shader::model::PerGroup {
                     enable_skinning: uvec4(1, 0, 0, 0),
                     animated_transforms,
+                    animated_transforms_inv_transpose,
                 }]),
             );
         }
@@ -182,20 +185,10 @@ fn load_textures(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     root: &xc3_model::ModelRoot,
-) -> Vec<(wgpu::TextureViewDimension, wgpu::TextureView)> {
+) -> Vec<wgpu::Texture> {
     root.image_textures
         .iter()
-        .map(|texture| {
-            // Track the view dimension since shaders expect 2D.
-            let dimension = match &texture.view_dimension {
-                xc3_model::ViewDimension::D2 => wgpu::TextureViewDimension::D2,
-                xc3_model::ViewDimension::D3 => wgpu::TextureViewDimension::D3,
-                xc3_model::ViewDimension::Cube => wgpu::TextureViewDimension::Cube,
-            };
-            let texture = create_texture(device, queue, texture)
-                .create_view(&wgpu::TextureViewDescriptor::default());
-            (dimension, texture)
-        })
+        .map(|texture| create_texture(device, queue, texture))
         .collect()
 }
 
@@ -205,7 +198,7 @@ fn create_model_group(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     group: &xc3_model::ModelGroup,
-    textures: &[(wgpu::TextureViewDimension, wgpu::TextureView)],
+    textures: &[wgpu::Texture],
     pipeline_data: &ModelPipelineData,
 ) -> ModelGroup {
     let buffers: Vec<_> = group
@@ -433,12 +426,14 @@ fn per_group_bind_group(
             result
         })
         .unwrap_or([Mat4::IDENTITY; 256]);
+    let animated_transforms_inv_transpose = animated_transforms.map(|t| t.inverse().transpose());
 
     let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("per group buffer"),
         contents: bytemuck::cast_slice(&[crate::shader::model::PerGroup {
             enable_skinning: uvec4(skeleton.is_some() as u32, 0, 0, 0),
             animated_transforms,
+            animated_transforms_inv_transpose,
         }]),
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
     });
