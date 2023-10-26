@@ -7,7 +7,7 @@ use gltf::json::validation::Checked::Valid;
 use rayon::prelude::*;
 
 use self::{
-    buffer::{BufferKey, Buffers},
+    buffer::{BufferKey, Buffers, WeightGroup, WeightGroupKey},
     texture::{
         albedo_generated_key, image_name, metallic_roughness_generated_key, normal_generated_key,
         TextureCache,
@@ -110,18 +110,44 @@ impl GltfFile {
 
                         for mesh in &model.meshes {
                             // TODO: Make LOD selection configurable?
-                            if should_render_lod(mesh.lod, &models.base_lod_indices) {
+                            // TODO: Why do these materials have weight issues?
+                            let material = &models.materials[mesh.material_index];
+                            if should_render_lod(mesh.lod, &models.base_lod_indices)
+                                && !material.name.ends_with("_outline")
+                                && !material.name.contains("_speff_")
+                            {
                                 let attributes_key = BufferKey {
                                     root_index,
                                     group_index,
                                     buffers_index: model.model_buffers_index,
                                     buffer_index: mesh.vertex_buffer_index,
                                 };
-                                let attributes = buffers
+                                let mut attributes = buffers
                                     .vertex_buffer_attributes
                                     .get(&attributes_key)
                                     .unwrap()
                                     .clone();
+
+                                // Load skinning attributes separately to handle per mesh indexing.
+                                // TODO: This doesn't work for outline and speff materials?
+                                if let Some(weight_group) = get_weight_group(
+                                    &mut buffers,
+                                    models.skeleton.as_ref(),
+                                    attributes_key,
+                                    group,
+                                    models,
+                                    model,
+                                    mesh,
+                                ) {
+                                    attributes.insert(
+                                        weight_group.weights.0.clone(),
+                                        weight_group.weights.1,
+                                    );
+                                    attributes.insert(
+                                        weight_group.indices.0.clone(),
+                                        weight_group.indices.1,
+                                    );
+                                }
 
                                 let indices_key = BufferKey {
                                     root_index,
@@ -330,6 +356,34 @@ impl GltfFile {
             image.save(output).unwrap();
         });
     }
+}
+
+fn get_weight_group<'a>(
+    buffers: &'a mut Buffers,
+    skeleton: Option<&crate::skeleton::Skeleton>,
+    attributes_key: BufferKey,
+    group: &crate::ModelGroup,
+    models: &crate::Models,
+    model: &crate::Model,
+    mesh: &crate::Mesh,
+) -> Option<&'a WeightGroup> {
+    let model_buffers = &group.buffers[model.model_buffers_index];
+    let weights = model_buffers.weights.as_ref()?;
+    let weight_group_index = weights.weight_group_index(
+        mesh.skin_flags,
+        mesh.lod,
+        models.materials[mesh.material_index].unk_type,
+    );
+
+    // TODO: Why do we need lazy loading to avoid indexing errors?
+    buffers.get_weight_group_lazy(
+        model_buffers,
+        skeleton,
+        WeightGroupKey {
+            weight_group_index,
+            buffer: attributes_key,
+        },
+    )
 }
 
 fn create_skin(

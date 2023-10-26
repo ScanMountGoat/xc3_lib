@@ -15,6 +15,10 @@ type GltfAttributes = BTreeMap<
     gltf::json::validation::Checked<gltf::Semantic>,
     gltf::json::Index<gltf::json::Accessor>,
 >;
+type GltfAttribute = (
+    gltf::json::validation::Checked<gltf::Semantic>,
+    gltf::json::Index<gltf::json::Accessor>,
+);
 
 // gltf stores flat lists of attributes and accessors at the root level.
 // Create mappings to properly differentiate models and groups.
@@ -23,10 +27,18 @@ pub struct BufferKey {
     pub root_index: usize,
     pub group_index: usize,
     pub buffers_index: usize,
+    /// Vertex or index buffer index.
     pub buffer_index: usize,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct WeightGroupKey {
+    pub weight_group_index: Option<usize>,
+    pub buffer: BufferKey,
+}
+
 // Combined vertex data for a gltf buffer.
+#[derive(Default)]
 pub struct Buffers {
     pub buffer_bytes: Vec<u8>,
     pub buffer_views: Vec<gltf::json::buffer::View>,
@@ -34,17 +46,17 @@ pub struct Buffers {
     // Map group and model specific indices to flattened indices.
     pub vertex_buffer_attributes: BTreeMap<BufferKey, GltfAttributes>,
     pub index_buffer_accessors: BTreeMap<BufferKey, usize>,
+    pub weight_groups: BTreeMap<WeightGroupKey, WeightGroup>,
+}
+
+pub struct WeightGroup {
+    pub weights: GltfAttribute,
+    pub indices: GltfAttribute,
 }
 
 impl Buffers {
     pub fn new(roots: &[ModelRoot]) -> Self {
-        let mut combined_buffers = Buffers {
-            buffer_bytes: Vec::new(),
-            buffer_views: Vec::new(),
-            accessors: Vec::new(),
-            vertex_buffer_attributes: BTreeMap::new(),
-            index_buffer_accessors: BTreeMap::new(),
-        };
+        let mut combined_buffers = Buffers::default();
 
         for (root_index, root) in roots.iter().enumerate() {
             for (group_index, group) in root.groups.iter().enumerate() {
@@ -52,7 +64,6 @@ impl Buffers {
                     // TODO: How to handle buffers shared between multiple skeletons?
                     combined_buffers.add_vertex_buffers(
                         buffers,
-                        group.models.first().and_then(|m| m.skeleton.as_ref()),
                         root_index,
                         group_index,
                         buffers_index,
@@ -76,7 +87,6 @@ impl Buffers {
     fn add_vertex_buffers(
         &mut self,
         buffers: &crate::ModelBuffers,
-        skeleton: Option<&crate::skeleton::Skeleton>,
         root_index: usize,
         group_index: usize,
         buffers_index: usize,
@@ -91,43 +101,6 @@ impl Buffers {
                 self.add_attributes(&mut attributes, &target.attributes);
             }
 
-            if let Some(skeleton) = skeleton {
-                // TODO: Should skinning be duplicated for every vertex buffer?
-                if let Some(weights) = &buffers.weights {
-                    if let Some(weight_indices) =
-                        vertex_buffer.attributes.iter().find_map(|a| match a {
-                            AttributeData::WeightIndex(indices) => Some(indices),
-                            _ => None,
-                        })
-                    {
-                        let bone_names: Vec<_> =
-                            skeleton.bones.iter().map(|b| b.name.clone()).collect();
-                        // TODO: Use the weights offset for each mesh.
-                        let skin_weights = weights
-                            .skin_weights
-                            .reindex_bones(bone_names)
-                            .reindex(weight_indices);
-
-                        self.add_attribute_values(
-                            &skin_weights.weights,
-                            gltf::Semantic::Weights(0),
-                            gltf::json::accessor::Type::Vec4,
-                            gltf::json::accessor::ComponentType::F32,
-                            Some(Valid(Target::ArrayBuffer)),
-                            &mut attributes,
-                        );
-                        self.add_attribute_values(
-                            &skin_weights.bone_indices,
-                            gltf::Semantic::Joints(0),
-                            gltf::json::accessor::Type::Vec4,
-                            gltf::json::accessor::ComponentType::U8,
-                            Some(Valid(Target::ArrayBuffer)),
-                            &mut attributes,
-                        );
-                    }
-                }
-            }
-
             self.vertex_buffer_attributes.insert(
                 BufferKey {
                     root_index,
@@ -137,6 +110,75 @@ impl Buffers {
                 },
                 attributes,
             );
+        }
+    }
+
+    pub fn get_weight_group_lazy(
+        &mut self,
+        buffers: &crate::ModelBuffers,
+        skeleton: Option<&crate::Skeleton>,
+        key: WeightGroupKey,
+    ) -> Option<&WeightGroup> {
+        if !self.weight_groups.contains_key(&key) {
+            if let Some(skeleton) = skeleton {
+                if let Some(weights) = &buffers.weights {
+                    let vertex_buffer = &buffers.vertex_buffers[key.buffer.buffer_index];
+                    if let Some(weight_indices) =
+                        vertex_buffer.attributes.iter().find_map(|a| match a {
+                            AttributeData::WeightIndex(indices) => Some(indices),
+                            _ => None,
+                        })
+                    {
+                        let weight_group = self.add_weight_group(
+                            skeleton,
+                            weights,
+                            weight_indices,
+                            key.weight_group_index,
+                        );
+                        self.weight_groups.insert(key, weight_group);
+                    }
+                }
+            }
+        }
+
+        self.weight_groups.get(&key)
+    }
+
+    fn add_weight_group(
+        &mut self,
+        skeleton: &crate::Skeleton,
+        weights: &crate::Weights,
+        weight_indices: &[u32],
+        weight_group_index: Option<usize>,
+    ) -> WeightGroup {
+        // The weights may be defined with a different bone ordering.
+        let bone_names: Vec<_> = skeleton.bones.iter().map(|b| b.name.clone()).collect();
+        let skin_weights = weights.skin_weights.reindex_bones(bone_names);
+
+        // Each group has a different starting offset.
+        // This needs to be applied during reindexing.
+        // No offset is needed if no groups are assigned.
+        let starting_index = weight_group_index
+            .and_then(|i| weights.weight_groups.get(i).map(|g| g.input_start_index))
+            .unwrap_or_default();
+        let skin_weights = skin_weights.reindex(weight_indices, starting_index);
+
+        let weights_accessor = self.add_values(
+            &skin_weights.weights,
+            gltf::json::accessor::Type::Vec4,
+            gltf::json::accessor::ComponentType::F32,
+            Some(Valid(Target::ArrayBuffer)),
+        );
+        let indices_accessor = self.add_values(
+            &skin_weights.bone_indices,
+            gltf::json::accessor::Type::Vec4,
+            gltf::json::accessor::ComponentType::U8,
+            Some(Valid(Target::ArrayBuffer)),
+        );
+
+        WeightGroup {
+            weights: (Valid(gltf::Semantic::Weights(0)), weights_accessor),
+            indices: (Valid(gltf::Semantic::Joints(0)), indices_accessor),
         }
     }
 

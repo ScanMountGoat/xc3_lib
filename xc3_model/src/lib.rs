@@ -501,13 +501,14 @@ fn model_name(model_path: &Path) -> String {
 
 // TODO: Module and tests for this?
 impl Weights {
-    pub fn weights_starting_index(
+    pub fn weight_group_index(
         &self,
         skin_flags: u32,
         lod: u16,
         unk_type: xc3_lib::mxmd::ShaderUnkType,
-    ) -> usize {
+    ) -> Option<usize> {
         // TODO: Is this the correct flags check?
+        // TODO: This doesn't work for other unk type or lod?
         if (skin_flags & 0x1) == 0 {
             let lod_index = lod.saturating_sub(1) as usize;
             let weight_lod = &self.weight_lods[lod_index];
@@ -520,12 +521,21 @@ impl Weights {
                 xc3_lib::mxmd::ShaderUnkType::Unk7 => 3,
                 xc3_lib::mxmd::ShaderUnkType::Unk9 => todo!(),
             };
-            let group_index = weight_lod.group_indices_plus_one[pass_index].saturating_sub(1);
-            let weight_group = &self.weight_groups[group_index as usize];
-
-            weight_group.input_start_index as usize
+            Some(weight_lod.group_indices_plus_one[pass_index].saturating_sub(1) as usize)
+            // None
         } else {
-            0
+            None
         }
+    }
+
+    pub fn weights_starting_index(
+        &self,
+        skin_flags: u32,
+        lod: u16,
+        unk_type: xc3_lib::mxmd::ShaderUnkType,
+    ) -> usize {
+        self.weight_group_index(skin_flags, lod, unk_type)
+            .map(|group_index| self.weight_groups[group_index].input_start_index as usize)
+            .unwrap_or_default()
     }
 }
