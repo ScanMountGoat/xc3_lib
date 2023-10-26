@@ -295,6 +295,17 @@ fn create_model(
     skeleton: Option<&xc3_model::Skeleton>,
     materials: &[Material],
 ) -> Model {
+    let model_buffers = &buffers[model.model_buffers_index];
+    // Reindex to match the ordering defined in the current skeleton.
+    let skin_weights = model_buffers.weights.as_ref().map(|weights| {
+        skeleton
+            .map(|skeleton| {
+                let bone_names = skeleton.bones.iter().map(|b| b.name.clone()).collect();
+                weights.skin_weights.reindex_bones(bone_names)
+            })
+            .unwrap_or_else(|| weights.skin_weights.clone())
+    });
+
     let meshes = model
         .meshes
         .iter()
@@ -305,8 +316,8 @@ fn create_model(
             lod: mesh.lod,
             per_mesh: per_mesh_bind_group(
                 device,
-                &buffers[model.model_buffers_index],
-                skeleton,
+                model_buffers,
+                skin_weights.as_ref(),
                 mesh.lod,
                 mesh.skin_flags,
                 &materials[mesh.material_index],
@@ -452,23 +463,11 @@ fn per_group_bind_group(
 fn per_mesh_bind_group(
     device: &wgpu::Device,
     buffers: &xc3_model::ModelBuffers,
-    skeleton: Option<&xc3_model::Skeleton>,
+    skin_weights: Option<&xc3_model::skinning::SkinWeights>,
     lod: u16,
     skin_flags: u32,
     material: &Material,
 ) -> shader::model::bind_groups::BindGroup3 {
-    // TODO: Avoid unwrap?
-    // Reindex to match the ordering defined in the current skeleton.
-    // Convert to u32 since WGSL lacks a vec4<u8> type.
-    let skin_weights = buffers.weights.as_ref().map(|weights| {
-        skeleton
-            .map(|skeleton| {
-                let bone_names = skeleton.bones.iter().map(|b| b.name.clone()).collect();
-                weights.skin_weights.reindex_bones(bone_names)
-            })
-            .unwrap_or_else(|| weights.skin_weights.clone())
-    });
-
     let start = buffers
         .weights
         .as_ref()
@@ -477,8 +476,9 @@ fn per_mesh_bind_group(
         })
         .unwrap_or_default();
 
-    // TODO: How to correctly handle a missing skeleton or weights?
+    // Convert to u32 since WGSL lacks a vec4<u8> type.
     // This assumes the skinning shader code is skipped if anything is missing.
+    // TODO: How to correctly handle a missing skeleton or weights?
     let indices: Vec<_> = skin_weights
         .as_ref()
         .map(|skin_weights| {
