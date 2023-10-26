@@ -423,28 +423,12 @@ fn per_group_bind_group(
     device: &wgpu::Device,
     skeleton: Option<&xc3_model::Skeleton>,
 ) -> (shader::model::bind_groups::BindGroup1, wgpu::Buffer) {
-    // TODO: Store the buffer to support animation?
-    let animated_transforms = skeleton
-        .map(|skeleton| {
-            let mut result = [Mat4::IDENTITY; 256];
-            for (transform, result) in skeleton
-                .world_transforms()
-                .into_iter()
-                .zip(result.iter_mut())
-            {
-                *result = transform * transform.inverse();
-            }
-            result
-        })
-        .unwrap_or([Mat4::IDENTITY; 256]);
-    let animated_transforms_inv_transpose = animated_transforms.map(|t| t.inverse().transpose());
-
     let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("per group buffer"),
         contents: bytemuck::cast_slice(&[crate::shader::model::PerGroup {
             enable_skinning: uvec4(skeleton.is_some() as u32, 0, 0, 0),
-            animated_transforms,
-            animated_transforms_inv_transpose,
+            animated_transforms: [Mat4::IDENTITY; 256],
+            animated_transforms_inv_transpose: [Mat4::IDENTITY; 256],
         }]),
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
     });
