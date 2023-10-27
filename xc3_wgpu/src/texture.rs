@@ -1,7 +1,6 @@
 use log::warn;
 use wgpu::util::DeviceExt;
-use xc3_lib::mibl::ImageFormat;
-use xc3_model::ImageTexture;
+use xc3_model::{ImageFormat, ImageTexture, ViewDimension};
 
 pub fn create_texture(
     device: &wgpu::Device,
@@ -11,7 +10,7 @@ pub fn create_texture(
     let format = texture_format(texture.image_format);
 
     let layers = match texture.view_dimension {
-        xc3_lib::mibl::ViewDimension::Cube => 6,
+        ViewDimension::Cube => 6,
         _ => 1,
     };
 
@@ -46,9 +45,9 @@ pub fn create_texture(
     };
 
     let dimension = match texture.view_dimension {
-        xc3_lib::mibl::ViewDimension::D2 => wgpu::TextureDimension::D2,
-        xc3_lib::mibl::ViewDimension::D3 => wgpu::TextureDimension::D3,
-        xc3_lib::mibl::ViewDimension::Cube => wgpu::TextureDimension::D2,
+        ViewDimension::D2 => wgpu::TextureDimension::D2,
+        ViewDimension::D3 => wgpu::TextureDimension::D3,
+        ViewDimension::Cube => wgpu::TextureDimension::D2,
     };
 
     device.create_texture_with_data(

@@ -2,8 +2,7 @@ use std::collections::HashMap;
 
 use glam::Mat4;
 use log::error;
-use xc3_lib::bc::{murmur3, BlendMode};
-use xc3_model::animation::Animation;
+use xc3_model::animation::{murmur3, Animation, BlendMode};
 
 pub fn animate_skeleton(
     skeleton: &xc3_model::Skeleton,

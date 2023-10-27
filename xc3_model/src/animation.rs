@@ -1,5 +1,5 @@
 use glam::{vec4, Quat, Vec3, Vec4, Vec4Swizzles};
-pub use xc3_lib::bc::{BlendMode, PlayMode, SpaceMode};
+pub use xc3_lib::bc::{murmur3, BlendMode, PlayMode, SpaceMode};
 
 pub struct Animation {
     pub name: String,
