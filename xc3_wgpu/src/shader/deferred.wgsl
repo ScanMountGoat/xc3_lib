@@ -64,9 +64,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let g5 = textureSample(g5, shared_sampler, in.uv);
 
     let albedo = g0.rgb;
-
     let metalness = g1.r;
-
+    let glossiness = g1.g;
     let ambient_occlusion = g2.z;
 
     // Unpack the view space normals.
@@ -81,11 +80,21 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let view = vec3(0.0, 0.0, 1.0);
     let reflection = reflect(view, normal);
 
-    // Basic lambertian diffuse and phong specular for testing purposes.
-    let diffuse_lighting = max(dot(view, normal), 0.0);
-    let specular_lighting = pow(max(dot(view, reflection), 0.0), 8.0);
+    // Basic lambertian diffuse and ggx specular for testing purposes.
+    let n_dot_v = max(dot(view, normal), 0.0);
+    let diffuse_indirect = 0.35 * ambient_occlusion;
+    let diffuse_direct = 1.0;
+    let diffuse_lighting = mix(diffuse_indirect, diffuse_direct, n_dot_v);
 
-    let specular_color = mix(albedo, vec3(0.25), metalness);
+    let a = max(1.0 - glossiness, 0.01);
+    let a2 = a * a;
+    let pi = 3.14159;
+    let n_dot_h2 = n_dot_v * n_dot_v;
+    let denominator = ((n_dot_h2) * (a2 - 1.0) + 1.0);
+    let ggx = a2 / (pi * denominator * denominator);
+    let specular_lighting = ggx * 0.15;
+
+    let specular_color = mix(albedo, vec3(1.0), metalness) * ambient_occlusion;
 
     output = albedo * diffuse_lighting + specular_lighting * specular_color;
 
