@@ -65,35 +65,31 @@ fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
                         // Assume each bone has a transform for each frame in order.
                         for frame in 0..anim.binding.animation.frame_count {
                             let index = frame as usize * track_count + i;
-                            // Just convert linear to cubic coefficients for now.
-                            // TODO: Better way of doing this to use linear interpolation?
-                            // TODO: Get slope to next frame value?
+                            let next_index = (frame as usize + 1) * track_count + i;
+
+                            // Convert to cubic instead of having separate interpolation types.
                             let translation = transforms[index].translation;
-                            translation_keyframes.push(Keyframe {
-                                frame: frame as f32,
-                                x_coeffs: vec4(0.0, 0.0, 0.0, translation[0]),
-                                y_coeffs: vec4(0.0, 0.0, 0.0, translation[1]),
-                                z_coeffs: vec4(0.0, 0.0, 0.0, translation[2]),
-                                w_coeffs: vec4(0.0, 0.0, 0.0, translation[3]),
-                            });
+                            let next_translation =
+                                transforms.get(next_index).map(|t| t.translation);
+                            translation_keyframes.push(linear_to_cubic_keyframe(
+                                frame,
+                                translation,
+                                next_translation,
+                            ));
 
                             let rotation = transforms[index].rotation_quaternion;
-                            rotation_keyframes.push(Keyframe {
-                                frame: frame as f32,
-                                x_coeffs: vec4(0.0, 0.0, 0.0, rotation[0]),
-                                y_coeffs: vec4(0.0, 0.0, 0.0, rotation[1]),
-                                z_coeffs: vec4(0.0, 0.0, 0.0, rotation[2]),
-                                w_coeffs: vec4(0.0, 0.0, 0.0, rotation[3]),
-                            });
+                            let next_rotation =
+                                transforms.get(next_index).map(|t| t.rotation_quaternion);
+                            rotation_keyframes.push(linear_to_cubic_keyframe(
+                                frame,
+                                rotation,
+                                next_rotation,
+                            ));
 
                             let scale = transforms[index].scale;
-                            scale_keyframes.push(Keyframe {
-                                frame: frame as f32,
-                                x_coeffs: vec4(0.0, 0.0, 0.0, scale[0]),
-                                y_coeffs: vec4(0.0, 0.0, 0.0, scale[1]),
-                                z_coeffs: vec4(0.0, 0.0, 0.0, scale[2]),
-                                w_coeffs: vec4(0.0, 0.0, 0.0, scale[3]),
-                            });
+                            let next_scale = transforms.get(next_index).map(|t| t.scale);
+                            scale_keyframes
+                                .push(linear_to_cubic_keyframe(frame, scale, next_scale));
                         }
 
                         Track {
@@ -223,6 +219,34 @@ fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
     }
 }
 
+fn linear_to_cubic_keyframe(
+    frame: u32,
+    current_frame: [f32; 4],
+    next_frame: Option<[f32; 4]>,
+) -> Keyframe {
+    match next_frame {
+        Some(next_frame) => {
+            // Linearly interpolate between this frame and the next.
+            // Assume the next frame is at frame + 1.0.
+            let delta = Vec4::from(next_frame) - Vec4::from(current_frame);
+            Keyframe {
+                frame: frame as f32,
+                x_coeffs: vec4(0.0, 0.0, delta.x, current_frame[0]),
+                y_coeffs: vec4(0.0, 0.0, delta.y, current_frame[1]),
+                z_coeffs: vec4(0.0, 0.0, delta.z, current_frame[2]),
+                w_coeffs: vec4(0.0, 0.0, delta.w, current_frame[3]),
+            }
+        }
+        None => Keyframe {
+            frame: frame as f32,
+            x_coeffs: vec4(0.0, 0.0, 0.0, current_frame[0]),
+            y_coeffs: vec4(0.0, 0.0, 0.0, current_frame[1]),
+            z_coeffs: vec4(0.0, 0.0, 0.0, current_frame[2]),
+            w_coeffs: vec4(0.0, 0.0, 0.0, current_frame[3]),
+        },
+    }
+}
+
 fn packed_cubic_vec3_keyframes(
     sub_track: &xc3_lib::bc::SubTrack,
     keyframe_times: &[u16],
@@ -277,8 +301,6 @@ impl Track {
     }
 }
 
-// TODO: add linear interpolation.
-
 // TODO: Add tests for this.
 fn sample_keyframe_cubic(values: &[Keyframe], frame: f32) -> Vec4 {
     // Assume the keyframes are in ascending order.
@@ -323,7 +345,7 @@ where
 }
 
 fn interpolate_cubic(coeffs: Vec4, x: f32) -> f32 {
-    coeffs[0] * (x * x * x) + coeffs[1] * (x * x) + coeffs[2] * x + coeffs[3]
+    coeffs.x * (x * x * x) + coeffs.y * (x * x) + coeffs.z * x + coeffs.w
 }
 
 #[cfg(test)]
