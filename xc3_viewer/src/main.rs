@@ -13,7 +13,7 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
     window::{Window, WindowBuilder},
 };
-use xc3_lib::bc::Anim;
+use xc3_model::animation::Animation;
 use xc3_wgpu::{
     model::ModelGroup,
     renderer::{CameraData, Xc3Renderer},
@@ -40,10 +40,10 @@ struct State {
 
     renderer: Xc3Renderer,
 
-    models: Vec<ModelGroup>,
+    groups: Vec<ModelGroup>,
 
     // Animation
-    anims: Vec<Anim>,
+    anims: Vec<Animation>,
     anim_index: usize,
     current_frame: f32,
     previous_frame_start: Instant,
@@ -118,7 +118,7 @@ impl State {
         let start = std::time::Instant::now();
 
         // Infer the type of model to load based on the extension.
-        let models = match Path::new(model_path).extension().unwrap().to_str().unwrap() {
+        let groups = match Path::new(model_path).extension().unwrap().to_str().unwrap() {
             "wimdo" => {
                 // TODO: Dropping vertex buffers is expensive?
                 let root = xc3_model::load_model(model_path, database.as_ref());
@@ -135,7 +135,7 @@ impl State {
 
         let elapsed = start.elapsed();
 
-        let mesh_count: usize = models
+        let mesh_count: usize = groups
             .iter()
             .map(|m| {
                 m.models
@@ -151,7 +151,7 @@ impl State {
             .sum();
         info!(
             "Load {:?} groups and {:?} meshes: {:?}",
-            models.len(),
+            groups.len(),
             mesh_count,
             elapsed
         );
@@ -162,7 +162,7 @@ impl State {
             for entry in &sar1.entries {
                 if let xc3_lib::sar1::EntryData::Bc(bc) = entry.read_data().unwrap() {
                     if let xc3_lib::bc::BcData::Anim(anim) = bc.data {
-                        anims.push(anim);
+                        anims.push(Animation::from_anim(&anim));
                     }
                 }
             }
@@ -177,7 +177,7 @@ impl State {
             config,
             translation,
             rotation_xyz,
-            models,
+            groups,
             renderer,
             anims,
             anim_index,
@@ -216,14 +216,14 @@ impl State {
             self.current_frame = next_frame(
                 self.current_frame,
                 current_frame_start.duration_since(self.previous_frame_start),
-                anim.binding.animation.frame_count as f32,
+                anim.frame_count as f32,
                 1.0,
                 false,
             );
             self.previous_frame_start = current_frame_start;
 
-            for model in &self.models {
-                for models in &model.models {
+            for group in &self.groups {
+                for models in &group.models {
                     models.update_bone_transforms(&self.queue, anim, self.current_frame);
                 }
             }
@@ -241,7 +241,7 @@ impl State {
             });
 
         self.renderer
-            .render_models(&output_view, &mut encoder, &self.models);
+            .render_models(&output_view, &mut encoder, &self.groups);
 
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
@@ -345,12 +345,12 @@ impl State {
     }
 }
 
-fn update_window_title(window: &Window, anims: &[Anim], anim_index: usize) {
+fn update_window_title(window: &Window, anims: &[Animation], anim_index: usize) {
     if let Some(anim) = anims.get(anim_index) {
         window.set_title(&format!(
             "{} - {}",
             concat!("xc3_wgpu ", env!("CARGO_PKG_VERSION")),
-            anim.binding.animation.name
+            anim.name
         ));
     }
 }

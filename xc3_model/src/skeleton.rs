@@ -104,7 +104,7 @@ impl Skeleton {
 }
 
 fn update_bone(
-    bones: &mut Vec<Bone>,
+    bones: &mut [Bone],
     skinning: &xc3_lib::mxmd::Skinning,
     bone_index: u16,
     parent_index: u16,
@@ -118,6 +118,8 @@ fn update_bone(
         let bone_world =
             Mat4::from_cols_array_2d(&skinning.inverse_bind_transforms[bone_index as usize])
                 .inverse();
+        // bone.transform = bone_world;
+        // TODO: index out of range?
         bone.transform = parent_index
             .map(|parent_index| {
                 let parent_world_inv =

@@ -22,6 +22,7 @@ pub use texture::{ImageFormat, ImageTexture, ViewDimension};
 
 pub use xc3_shader::gbuffer_database::{GBufferDatabase, Shader};
 
+pub mod animation;
 pub mod gltf;
 mod map;
 mod sampler;
