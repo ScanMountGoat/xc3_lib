@@ -120,7 +120,8 @@ pub fn animate_skeleton(
 
     let mut animated_transforms = [Mat4::IDENTITY; 256];
     for i in (0..skeleton.bones.len()).take(animated_transforms.len()) {
-        animated_transforms[i] = animated_world[i] * rest_pose_world[i].inverse();
+        let inverse_bind = rest_pose_world[i].inverse();
+        animated_transforms[i] = animated_world[i] * inverse_bind;
     }
 
     animated_transforms

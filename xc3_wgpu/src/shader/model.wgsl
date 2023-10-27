@@ -14,7 +14,8 @@ struct PerGroup {
     // TODO: rename to has skeleton?
     enable_skinning: vec4<u32>,
     // TODO: Is 256 the max bone count if index attributes use u8?
-    // bone_world.inv() * animated_bone_world
+    // animated_bone_world * bone_world.inv()
+    // i.e. animated_world * inverse_bind
     animated_transforms: array<mat4x4<f32>, 256>,
     animated_transforms_inv_transpose: array<mat4x4<f32>, 256>,
 }

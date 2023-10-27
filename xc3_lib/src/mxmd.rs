@@ -982,12 +982,11 @@ pub struct Skinning {
     #[xc3(offset(u32))]
     pub bones: Vec<Bone>,
 
-    // TODO: inverse bind matrix?
-    /// Column-major transformation matrices for each of the bones in [bones](#structfield.bones).
+    /// Column-major inverse of the world transform for each bone in [bones](#structfield.bones).
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: count1 as usize } })]
     #[xc3(offset(u32), align(16))]
-    pub transforms1: Vec<[[f32; 4]; 4]>,
+    pub inverse_bind_transforms: Vec<[[f32; 4]; 4]>,
 
     // TODO: Count related to bone unk_type?
     #[br(parse_with = parse_opt_ptr32)]
@@ -1013,7 +1012,7 @@ pub struct Skinning {
     #[br(args { offset: base_offset, inner: base_offset })]
     #[br(if(transforms2.is_some()))]
     #[xc3(offset(u32))]
-    pub unk_offset4: Option<SkeletonUnk4>,
+    pub unk_offset4: Option<UnkBones>,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[br(if(transforms3.is_some()))]
@@ -1025,7 +1024,7 @@ pub struct Skinning {
     #[br(if(!bone_indices.is_empty()))]
     #[xc3(offset(u32))]
     pub as_bone_data: Option<AsBoneData>,
-    // TODO: padding if as bone data is present??
+    // TODO: padding if AS_ bone data is present??
     // pub unk: [u32; 4],
 }
 
@@ -1045,17 +1044,27 @@ pub struct Bone {
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(import_raw(base_offset: u64))]
-pub struct SkeletonUnk4 {
-    // TODO: u16 indices?
+pub struct UnkBones {
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub unk1: Vec<[u16; 21]>,
+    pub bones: Vec<UnkBone>,
 
     #[br(parse_with = parse_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: unk1.len() }})]
+    #[br(args { offset: base_offset, inner: args! { count: bones.len() }})]
     #[xc3(offset(u32))]
     pub unk_offset: Vec<[[f32; 4]; 4]>,
     // TODO: no padding?
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct UnkBone {
+    pub unk1: u32,
+    /// The index in [bones](struct.Skeleton.html#structfield.bones).
+    pub bone_index: u16,
+    /// The index in [bones](struct.Skeleton.html#structfield.bones) of the parent bone.
+    pub parent_index: u16,
+    // TODO: padding?
+    pub unks: [u32; 7],
 }
 
 #[binread]
@@ -1267,7 +1276,8 @@ impl<'a> Xc3WriteOffsets for SkinningOffsets<'a> {
         self.bone_indices
             .write_full(writer, base_offset, data_ptr)?;
 
-        self.transforms1.write_full(writer, base_offset, data_ptr)?;
+        self.inverse_bind_transforms
+            .write_full(writer, base_offset, data_ptr)?;
 
         self.transforms2.write_full(writer, base_offset, data_ptr)?;
         self.transforms3.write_full(writer, base_offset, data_ptr)?;
