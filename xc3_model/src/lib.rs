@@ -11,7 +11,7 @@ use vertex::{read_index_buffers, read_vertex_buffers, AttributeData};
 use xc3_lib::{
     apmd::Apmd,
     msrd::Msrd,
-    mxmd::{Materials, Mxmd, ShaderUnkType, StateFlags},
+    mxmd::{Materials, Mxmd},
     sar1::Sar1,
 };
 
@@ -19,6 +19,7 @@ pub use map::load_map;
 pub use sampler::{AddressMode, FilterMode, Sampler};
 pub use skeleton::{Bone, Skeleton};
 pub use texture::{ImageFormat, ImageTexture, ViewDimension};
+pub use xc3_lib::mxmd::{BlendState, ShaderUnkType, StateFlags};
 
 pub use xc3_shader::gbuffer_database::{GBufferDatabase, Shader};
 
@@ -506,21 +507,22 @@ impl Weights {
         &self,
         skin_flags: u32,
         lod: u16,
-        unk_type: xc3_lib::mxmd::ShaderUnkType,
+        unk_type: ShaderUnkType,
     ) -> Option<usize> {
         // TODO: Is this the correct flags check?
         // TODO: This doesn't work for other unk type or lod?
         if (skin_flags & 0x1) == 0 {
+            // TODO: Is this actually some sort of flags?
             let lod_index = lod.saturating_sub(1) as usize;
-            let weight_lod = &self.weight_lods[lod_index];
+            let weight_lod = self.weight_lods.get(lod_index)?;
 
             // TODO: bit mask?
             let pass_index = match unk_type {
-                xc3_lib::mxmd::ShaderUnkType::Unk0 => 0,
-                xc3_lib::mxmd::ShaderUnkType::Unk1 => 1,
-                xc3_lib::mxmd::ShaderUnkType::Unk6 => todo!(),
-                xc3_lib::mxmd::ShaderUnkType::Unk7 => 3,
-                xc3_lib::mxmd::ShaderUnkType::Unk9 => todo!(),
+                ShaderUnkType::Unk0 => 0,
+                ShaderUnkType::Unk1 => 1,
+                ShaderUnkType::Unk6 => todo!(),
+                ShaderUnkType::Unk7 => 3,
+                ShaderUnkType::Unk9 => todo!(),
             };
             Some(weight_lod.group_indices_plus_one[pass_index].saturating_sub(1) as usize)
             // None
