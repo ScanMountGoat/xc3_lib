@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use glam::{vec3, Mat4, Quat, Vec3, Vec4, Vec4Swizzles};
 use log::error;
 use xc3_lib::bc::{murmur3, BlendMode};
-use xc3_model::Bone;
 
 pub fn animate_skeleton(
     skeleton: &xc3_model::Skeleton,
@@ -18,8 +17,8 @@ pub fn animate_skeleton(
         .map(|(i, b)| (murmur3(b.name.as_bytes()), i))
         .collect();
 
-    // Just create a copy of the skeleton to simplify the code for now.
-    let mut animated_skeleton = skeleton.clone();
+    // Keep track of which bones have animations applied.
+    let mut animated_transforms = vec![None; skeleton.bones.len()];
 
     // Update bone transforms by sampling the current frame.
     // The current frame is a float, so animations can decide how to interpolate.
@@ -39,11 +38,11 @@ pub fn animate_skeleton(
                             frame,
                         );
 
-                        apply_transform(
-                            &mut animated_skeleton.bones[*bone_index],
+                        animated_transforms[*bone_index] = Some(apply_transform(
+                            skeleton.bones[*bone_index].transform,
                             transform,
                             anim.binding.animation.blend_mode,
-                        );
+                        ));
                     } else {
                         error!("No matching bone for hash {hash:x}");
                     }
@@ -67,11 +66,11 @@ pub fn animate_skeleton(
                         * Mat4::from_quat(rotation)
                         * Mat4::from_scale(scale);
 
-                    apply_transform(
-                        &mut animated_skeleton.bones[i],
+                    animated_transforms[i] = Some(apply_transform(
+                        skeleton.bones[i].transform,
                         transform,
                         anim.binding.animation.blend_mode,
-                    );
+                    ));
                 }
             }
         }
@@ -102,11 +101,11 @@ pub fn animate_skeleton(
                             * Mat4::from_quat(rotation)
                             * Mat4::from_scale(scale);
 
-                        apply_transform(
-                            &mut animated_skeleton.bones[*bone_index],
+                        animated_transforms[*bone_index] = Some(apply_transform(
+                            skeleton.bones[*bone_index].transform,
                             transform,
                             anim.binding.animation.blend_mode,
-                        );
+                        ));
                     } else {
                         error!("No matching bone for hash {hash:x}");
                     }
@@ -116,22 +115,62 @@ pub fn animate_skeleton(
     }
 
     let rest_pose_world = skeleton.world_transforms();
-    let animated_world = animated_skeleton.world_transforms();
+
+    // Assume parents appear before their children.
+    // TODO: Does this code correctly handle all cases?
+    let mut anim_world = rest_pose_world.clone();
+    match anim.binding.animation.space_mode {
+        xc3_lib::bc::SpaceMode::Local => {
+            for i in 0..anim_world.len() {
+                match animated_transforms[i] {
+                    Some(transform) => {
+                        // Local space is relative to the parent bone.
+                        if let Some(parent) = skeleton.bones[i].parent_index {
+                            anim_world[i] = anim_world[parent] * transform;
+                        } else {
+                            anim_world[i] = transform;
+                        }
+                    }
+                    None => {
+                        if let Some(parent) = skeleton.bones[i].parent_index {
+                            anim_world[i] = anim_world[parent] * skeleton.bones[i].transform;
+                        }
+                    }
+                }
+            }
+        }
+        xc3_lib::bc::SpaceMode::Model => {
+            for i in 0..anim_world.len() {
+                match animated_transforms[i] {
+                    Some(transform) => {
+                        // Model space is relative to the model root.
+                        // TODO: Is it worth distinguishing between model and world space?
+                        anim_world[i] = transform;
+                    }
+                    None => {
+                        if let Some(parent) = skeleton.bones[i].parent_index {
+                            anim_world[i] = anim_world[parent] * skeleton.bones[i].transform;
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     let mut animated_transforms = [Mat4::IDENTITY; 256];
     for i in (0..skeleton.bones.len()).take(animated_transforms.len()) {
         let inverse_bind = rest_pose_world[i].inverse();
-        animated_transforms[i] = animated_world[i] * inverse_bind;
+        animated_transforms[i] = anim_world[i] * inverse_bind;
     }
 
     animated_transforms
 }
 
-fn apply_transform(bone: &mut Bone, transform: Mat4, blend_mode: BlendMode) {
+fn apply_transform(target: Mat4, source: Mat4, blend_mode: BlendMode) -> Mat4 {
     // TODO: Is this the correct way to implement additive blending?
     match blend_mode {
-        BlendMode::Blend => bone.transform = transform,
-        BlendMode::Add => bone.transform *= transform,
+        BlendMode::Blend => source,
+        BlendMode::Add => target * source,
     }
 }
 

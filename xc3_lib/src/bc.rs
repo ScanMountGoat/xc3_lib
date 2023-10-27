@@ -15,7 +15,7 @@ use xc3_write::{xc3_write_binwrite_impl, VecOffsets, Xc3Write, Xc3WriteOffsets};
 pub struct Bc {
     pub unk1: u32,
     pub data_size: u32, // TODO: bc data size?
-    pub unk_count: u32,
+    pub address_count: u32,
 
     #[br(parse_with = parse_ptr64)]
     #[xc3(offset(u64))]
@@ -24,9 +24,9 @@ pub struct Bc {
     // TODO: A list of offsets to data items?
     // TODO: relocatable addresses?
     #[br(parse_with = parse_ptr64)]
-    #[br(args { inner: args! { count: unk_count as usize}})]
+    #[br(args { inner: args! { count: address_count as usize}})]
     #[xc3(offset(u64))]
-    pub unks: Vec<u64>,
+    pub addresses: Vec<u64>,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -65,6 +65,7 @@ pub struct Skdy {
     pub dynamics: Dynamics,
 }
 
+// TODO: All names should be written at the end.
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct Dynamics {
     pub unk1: BcList<()>,
@@ -138,6 +139,7 @@ pub struct DynamicsUnk2ItemUnk1 {
     #[xc3(offset(u64))]
     pub name2: String,
 
+    // TODO: variable length?
     pub unk1: [f32; 5],
     pub unk2: u32,
 }
@@ -148,7 +150,9 @@ pub struct DynamicsUnk2ItemUnk3 {
     #[xc3(offset(u64))]
     pub name: String,
 
-    pub unk1: [f32; 4],
+    // TODO: variable length?
+    pub unk1: [f32; 3],
+    pub unk2: u32,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -209,8 +213,8 @@ pub struct Animation {
     pub name: String,
 
     pub animation_type: AnimationType,
-    pub space_mode: u8,
-    pub play_mode: u8,
+    pub space_mode: SpaceMode,
+    pub play_mode: PlayMode,
     pub blend_mode: BlendMode,
     pub frames_per_second: f32,
     pub seconds_per_frame: f32,
@@ -221,6 +225,20 @@ pub struct Animation {
 
     #[br(args { animation_type })]
     pub data: AnimationData,
+}
+
+#[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy)]
+#[brw(repr(u8))]
+pub enum SpaceMode {
+    Local = 0,
+    Model = 1,
+}
+
+#[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy)]
+#[brw(repr(u8))]
+pub enum PlayMode {
+    Loop = 0,
+    Single = 1,
 }
 
 #[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy)]
@@ -623,7 +641,7 @@ pub fn murmur3(bytes: &[u8]) -> u32 {
     murmur3::murmur3_32(&mut std::io::Cursor::new(bytes), 0).unwrap()
 }
 
-xc3_write_binwrite_impl!(AnimationType, BlendMode);
+xc3_write_binwrite_impl!(AnimationType, BlendMode, PlayMode, SpaceMode);
 
 #[cfg(test)]
 mod tests {
