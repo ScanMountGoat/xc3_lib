@@ -1,5 +1,5 @@
 use clap::Parser;
-use xc3_model::{gltf::GltfFile, load_model, GBufferDatabase};
+use xc3_model::{gltf::GltfFile, load_model, shader_database::ShaderDatabase};
 
 /// Convert wimdo and wismhd models to glTF for
 /// Xenoblade 1 DE, Xenoblade 2, and Xenoblade 3.
@@ -20,7 +20,7 @@ fn main() {
     let cli = Cli::parse();
     let start = std::time::Instant::now();
 
-    let database = cli.database.map(GBufferDatabase::from_file);
+    let database = cli.database.map(ShaderDatabase::from_file);
 
     let roots = if cli.input.ends_with(".wismhd") {
         xc3_model::load_map(&cli.input, database.as_ref())

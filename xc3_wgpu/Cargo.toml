@@ -6,7 +6,6 @@ edition = "2021"
 [dependencies]
 wgpu = "0.18.0"
 xc3_model = { path = "../xc3_model" }
-xc3_shader = { path = "../xc3_shader" }
 bytemuck = { version = "1.13", features = [ "derive" ] }
 glam = { version = "0.24.0", features = ["bytemuck"] }
 memoffset = "0.8.0"

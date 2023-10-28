@@ -113,7 +113,7 @@ impl State {
         let camera_data = calculate_camera_data(size, translation, rotation_xyz);
         renderer.update_camera(&queue, &camera_data);
 
-        let database = database_path.map(xc3_model::GBufferDatabase::from_file);
+        let database = database_path.map(xc3_model::shader_database::ShaderDatabase::from_file);
 
         let start = std::time::Instant::now();
 

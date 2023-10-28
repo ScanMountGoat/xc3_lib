@@ -201,7 +201,7 @@ pub fn materials(
 // TODO: Store this information already parsed in the JSON?
 // TODO: Test cases for this
 fn parse_gbuffer_assignments(
-    shader: &xc3_shader::gbuffer_database::Shader,
+    shader: &xc3_model::shader_database::Shader,
 ) -> [crate::shader::model::GBufferAssignment; 6] {
     [0, 1, 2, 3, 4, 5].map(|i| {
         // Each output channel may have a different input sampler and channel.
@@ -235,7 +235,7 @@ fn parse_gbuffer_assignments(
 }
 
 fn parse_gbuffer_params_consts(
-    shader: &xc3_shader::gbuffer_database::Shader,
+    shader: &xc3_model::shader_database::Shader,
     parameters: &xc3_model::MaterialParameters,
 ) -> [Vec4; 6] {
     // TODO: Update the database to also handle parameters?
@@ -251,7 +251,7 @@ fn parse_gbuffer_params_consts(
 
 // TODO: Tests for this?
 fn param_const_or_default(
-    shader: &xc3_shader::gbuffer_database::Shader,
+    shader: &xc3_model::shader_database::Shader,
     parameters: &xc3_model::MaterialParameters,
     i: usize,
     c: usize,
@@ -265,7 +265,7 @@ fn param_const_or_default(
 }
 
 fn extract_parameter(
-    p: xc3_shader::gbuffer_database::BufferParameter,
+    p: xc3_model::shader_database::BufferParameter,
     parameters: &xc3_model::MaterialParameters,
 ) -> Option<f32> {
     // TODO: Also check for U_Mate?

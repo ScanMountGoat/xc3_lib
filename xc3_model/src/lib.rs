@@ -5,6 +5,7 @@ use std::path::Path;
 
 use glam::Mat4;
 use log::warn;
+use shader_database::{Shader, ShaderDatabase};
 use skinning::SkinWeights;
 use texture::load_textures;
 use vertex::{read_index_buffers, read_vertex_buffers, AttributeData};
@@ -21,12 +22,11 @@ pub use skeleton::{Bone, Skeleton};
 pub use texture::{ImageFormat, ImageTexture, ViewDimension};
 pub use xc3_lib::mxmd::{BlendState, ShaderUnkType, StateFlags};
 
-pub use xc3_shader::gbuffer_database::{GBufferDatabase, Shader};
-
 pub mod animation;
 pub mod gltf;
 mod map;
 mod sampler;
+pub mod shader_database;
 mod skeleton;
 pub mod skinning;
 mod texture;
@@ -192,7 +192,7 @@ impl Models {
     pub fn from_models(
         models: &xc3_lib::mxmd::Models,
         materials: &xc3_lib::mxmd::Materials,
-        spch: Option<&xc3_shader::gbuffer_database::Spch>,
+        spch: Option<&shader_database::Spch>,
         skeleton: Option<Skeleton>,
     ) -> Models {
         Models {
@@ -257,7 +257,7 @@ pub fn should_render_lod(lod: u16, base_lod_indices: &Option<Vec<u16>>) -> bool 
 /// Load a character (ch), object (oj), weapon (wp), or enemy (en) model.
 pub fn load_model<P: AsRef<Path>>(
     wimdo_path: P,
-    shader_database: Option<&GBufferDatabase>,
+    shader_database: Option<&ShaderDatabase>,
 ) -> ModelRoot {
     let wimdo_path = wimdo_path.as_ref();
 
@@ -360,10 +360,7 @@ fn create_skeleton(chr: Option<&Sar1>, mxmd: &Mxmd) -> Option<Skeleton> {
 }
 
 // TODO: material module?
-fn create_materials(
-    materials: &Materials,
-    spch: Option<&xc3_shader::gbuffer_database::Spch>,
-) -> Vec<Material> {
+fn create_materials(materials: &Materials, spch: Option<&shader_database::Spch>) -> Vec<Material> {
     materials
         .materials
         .iter()

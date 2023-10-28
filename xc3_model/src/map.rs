@@ -8,10 +8,10 @@ use xc3_lib::{
     mxmd::{ShaderUnkType, StateFlags},
     vertex::VertexData,
 };
-use xc3_shader::gbuffer_database::GBufferDatabase;
 
 use crate::{
     create_materials, create_samplers, model_name,
+    shader_database::ShaderDatabase,
     texture::ImageTexture,
     vertex::{read_index_buffers, read_vertex_buffers},
     Material, Model, ModelBuffers, ModelGroup, ModelRoot, Models, Texture,
@@ -22,7 +22,7 @@ use crate::{
 /// The corresponding `.wismda` should be in the same directory.
 pub fn load_map<P: AsRef<Path>>(
     wismhd_path: P,
-    shader_database: Option<&GBufferDatabase>,
+    shader_database: Option<&ShaderDatabase>,
 ) -> Vec<ModelRoot> {
     let msmd = Msmd::from_file(wismhd_path.as_ref()).unwrap();
     let wismda = std::fs::read(wismhd_path.as_ref().with_extension("wismda")).unwrap();
@@ -88,7 +88,7 @@ fn map_models_group(
     wismda: &Vec<u8>,
     compressed: bool,
     model_folder: &str,
-    shader_database: Option<&GBufferDatabase>,
+    shader_database: Option<&ShaderDatabase>,
 ) -> ModelGroup {
     let buffers = create_buffers(&msmd.map_vertex_data, wismda, compressed);
 
@@ -111,7 +111,7 @@ fn props_group(
     wismda: &Vec<u8>,
     compressed: bool,
     model_folder: String,
-    shader_database: Option<&GBufferDatabase>,
+    shader_database: Option<&ShaderDatabase>,
 ) -> ModelGroup {
     let buffers = create_buffers(&msmd.prop_vertex_data, wismda, compressed);
 
@@ -170,7 +170,7 @@ fn load_prop_model_group(
     parts: Option<&MapParts>,
     prop_positions: &[PropPositions],
     model_folder: &str,
-    shader_database: Option<&GBufferDatabase>,
+    shader_database: Option<&ShaderDatabase>,
 ) -> Models {
     let spch = shader_database
         .and_then(|database| database.map_files.get(model_folder))
@@ -328,7 +328,7 @@ fn load_map_model_group(
     model_data: &xc3_lib::map::MapModelData,
     model_index: usize,
     model_folder: &str,
-    shader_database: Option<&GBufferDatabase>,
+    shader_database: Option<&ShaderDatabase>,
 ) -> Vec<Models> {
     let spch = shader_database
         .and_then(|database| database.map_files.get(model_folder))
@@ -391,7 +391,7 @@ fn load_env_model(
     model: &xc3_lib::msmd::EnvModel,
     model_index: usize,
     model_folder: &str,
-    shader_database: Option<&GBufferDatabase>,
+    shader_database: Option<&ShaderDatabase>,
 ) -> ModelRoot {
     let mut wismda = Cursor::new(&wismda);
 
