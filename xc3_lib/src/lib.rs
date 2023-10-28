@@ -6,7 +6,7 @@
 //! type from Xenoblade 2 binary symbols where appropriate.
 //!
 //! # Getting Started
-//! Each format has its own module based on the name of type representing the root of the file.
+//! Each format has its own module based on the name of the type representing the root of the file.
 //! Only these top level types support reading and writing from files.
 //!
 //! ```rust no_run
