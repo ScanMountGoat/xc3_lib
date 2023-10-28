@@ -35,11 +35,18 @@ pub fn animate_skeleton(
                 * Mat4::from_quat(rotation)
                 * Mat4::from_scale(scale);
 
-            animated_transforms[bone_index] = Some(apply_transform(
-                skeleton.bones[bone_index].transform,
-                transform,
-                animation.blend_mode,
-            ));
+            if bone_index < skeleton.bones.len() {
+                animated_transforms[bone_index] = Some(apply_transform(
+                    skeleton.bones[bone_index].transform,
+                    transform,
+                    animation.blend_mode,
+                ));
+            } else {
+                error!(
+                    "Bone index {bone_index} out of range for {} bones",
+                    skeleton.bones.len()
+                );
+            }
         } else {
             error!("No matching bone for hash {:x}", track.bone_hash.unwrap());
         }

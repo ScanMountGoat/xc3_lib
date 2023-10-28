@@ -166,17 +166,15 @@ fn main() {
 fn apply_anim(queue: &wgpu::Queue, groups: &[xc3_wgpu::model::ModelGroup], path: &std::path::Path) {
     if let Ok(sar1) = xc3_lib::sar1::Sar1::from_file(path) {
         for entry in &sar1.entries {
-            if let xc3_lib::sar1::EntryData::Bc(bc) = entry.read_data().unwrap() {
+            if let Ok(xc3_lib::sar1::EntryData::Bc(bc)) = entry.read_data() {
                 if let xc3_lib::bc::BcData::Anim(anim) = bc.data {
                     let animation = Animation::from_anim(&anim);
-                    if animation.name.contains("idle") {
-                        for group in groups {
-                            for models in &group.models {
-                                models.update_bone_transforms(queue, &animation, 0.0);
-                            }
+                    for group in groups {
+                        for models in &group.models {
+                            models.update_bone_transforms(queue, &animation, 0.0);
                         }
-                        return;
                     }
+                    return;
                 }
             }
         }

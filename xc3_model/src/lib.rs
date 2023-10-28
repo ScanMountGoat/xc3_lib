@@ -345,16 +345,13 @@ fn create_samplers(materials: &Materials) -> Vec<Sampler> {
 fn create_skeleton(chr: Option<&Sar1>, mxmd: &Mxmd) -> Option<Skeleton> {
     // Merge both skeletons since the bone lists may be different.
     // TODO: Create a skeleton even without the chr?
-    let skel = chr?
-        .entries
-        .iter()
-        .find_map(|e| match e.read_data().unwrap() {
-            xc3_lib::sar1::EntryData::Bc(bc) => match bc.data {
-                xc3_lib::bc::BcData::Skel(skel) => Some(skel),
-                _ => None,
-            },
+    let skel = chr?.entries.iter().find_map(|e| match e.read_data() {
+        Ok(xc3_lib::sar1::EntryData::Bc(bc)) => match bc.data {
+            xc3_lib::bc::BcData::Skel(skel) => Some(skel),
             _ => None,
-        })?;
+        },
+        _ => None,
+    })?;
 
     Some(Skeleton::from_skel(
         &skel.skeleton,

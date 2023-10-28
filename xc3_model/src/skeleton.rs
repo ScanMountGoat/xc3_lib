@@ -118,21 +118,8 @@ fn update_bone(
         let bone_world =
             Mat4::from_cols_array_2d(&skinning.inverse_bind_transforms[bone_index as usize])
                 .inverse();
-        // bone.transform = bone_world;
-        // TODO: index out of range?
-        bone.transform = parent_index
-            .map(|parent_index| {
-                let parent_world_inv =
-                    Mat4::from_cols_array_2d(&skinning.inverse_bind_transforms[parent_index])
-                        .inverse();
-
-                // world.inv = (parent_world * local).inv
-                // world = parent_world * local
-                // local = world * parent_world.inv
-                bone_world * parent_world_inv
-            })
-            .unwrap_or(bone_world);
-
+        // TODO: Is this the right transform?
+        bone.transform = bone_world;
         bone.parent_index = parent_index;
     }
 }

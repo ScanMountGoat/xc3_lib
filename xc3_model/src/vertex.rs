@@ -10,7 +10,7 @@
 //! A collection of [AttributeData] can always be packed into an interleaved form for rendering.
 use std::io::{Cursor, Seek, SeekFrom};
 
-use binrw::BinReaderExt;
+use binrw::{BinReaderExt, BinResult};
 use glam::{Vec2, Vec3, Vec4};
 use xc3_lib::vertex::{DataType, IndexBufferDescriptor, VertexBufferDescriptor, VertexData};
 
@@ -58,7 +58,6 @@ pub fn read_vertex_buffers(
     vertex_data: &VertexData,
     skinning: Option<&xc3_lib::mxmd::Skinning>,
 ) -> (Vec<VertexBuffer>, Option<Weights>) {
-    // TODO: avoid unwrap?
     // TODO: Don't save the weights buffer.
     // TODO: Panic if the weights buffer is not the last buffer?
     let mut buffers: Vec<_> = vertex_data
@@ -84,7 +83,8 @@ pub fn read_vertex_buffers(
                 if let Some(targets) = vertex_morphs.targets.get(start..start + count) {
                     // TODO: Lots of morph targets use the exact same bytes?
                     for target in targets {
-                        let attributes = read_morph_attributes(&vertex_data.buffer, target);
+                        let attributes =
+                            read_morph_attributes(&vertex_data.buffer, target).unwrap();
                         buffer.morph_targets.push(MorphTarget { attributes })
                     }
                 }
@@ -132,24 +132,22 @@ pub fn read_index_buffers(vertex_data: &VertexData) -> Vec<IndexBuffer> {
         .index_buffers
         .iter()
         .map(|descriptor| IndexBuffer {
-            indices: read_indices(descriptor, &vertex_data.buffer),
+            indices: read_indices(descriptor, &vertex_data.buffer).unwrap(),
         })
         .collect()
 }
 
-pub fn read_indices(descriptor: &IndexBufferDescriptor, buffer: &[u8]) -> Vec<u16> {
+pub fn read_indices(descriptor: &IndexBufferDescriptor, buffer: &[u8]) -> BinResult<Vec<u16>> {
     // TODO: Are all index buffers using u16 for indices?
     let mut reader = Cursor::new(buffer);
-    reader
-        .seek(SeekFrom::Start(descriptor.data_offset as u64))
-        .unwrap();
+    reader.seek(SeekFrom::Start(descriptor.data_offset as u64))?;
 
     let mut indices = Vec::with_capacity(descriptor.index_count as usize);
     for _ in 0..descriptor.index_count {
-        let index: u16 = reader.read_le().unwrap();
+        let index: u16 = reader.read_le()?;
         indices.push(index);
     }
-    indices
+    Ok(indices)
 }
 
 pub fn read_vertex_attributes(
@@ -177,57 +175,46 @@ fn read_attribute(
 ) -> Option<AttributeData> {
     // TODO: handle all cases and don't return option.
     match a.data_type {
-        DataType::Position => Some(AttributeData::Position(read_data(
-            d, offset, buffer, read_f32x3,
-        ))),
+        DataType::Position => Some(AttributeData::Position(
+            read_data(d, offset, buffer, read_f32x3).ok()?,
+        )),
         DataType::Unk1 => None,
         DataType::Unk2 => None,
-        DataType::WeightIndex => Some(AttributeData::WeightIndex(read_data(
-            d, offset, buffer, read_u32,
-        ))),
+        DataType::WeightIndex => Some(AttributeData::WeightIndex(
+            read_data(d, offset, buffer, read_u32).ok()?,
+        )),
         DataType::Unk4 => None,
-        DataType::Uv1 => Some(AttributeData::Uv1(read_data(d, offset, buffer, read_f32x2))),
-        DataType::Uv2 => Some(AttributeData::Uv2(read_data(d, offset, buffer, read_f32x2))),
+        DataType::Uv1 => Some(AttributeData::Uv1(
+            read_data(d, offset, buffer, read_f32x2).ok()?,
+        )),
+        DataType::Uv2 => Some(AttributeData::Uv2(
+            read_data(d, offset, buffer, read_f32x2).ok()?,
+        )),
         DataType::Uv3 => None,
         DataType::Uv4 => None,
         DataType::Unk14 => None,
         DataType::Unk15 => None,
         DataType::Unk16 => None,
-        DataType::VertexColor => Some(AttributeData::VertexColor(read_data(
-            d,
-            offset,
-            buffer,
-            read_unorm8x4,
-        ))),
+        DataType::VertexColor => Some(AttributeData::VertexColor(
+            read_data(d, offset, buffer, read_unorm8x4).ok()?,
+        )),
         DataType::Unk18 => None,
-        DataType::Normal => Some(AttributeData::Normal(read_data(
-            d,
-            offset,
-            buffer,
-            read_snorm8x4,
-        ))),
-        DataType::Tangent => Some(AttributeData::Tangent(read_data(
-            d,
-            offset,
-            buffer,
-            read_snorm8x4,
-        ))),
-        DataType::Normal2 => Some(AttributeData::Normal(read_data(
-            d,
-            offset,
-            buffer,
-            read_snorm8x4,
-        ))),
+        DataType::Normal => Some(AttributeData::Normal(
+            read_data(d, offset, buffer, read_snorm8x4).ok()?,
+        )),
+        DataType::Tangent => Some(AttributeData::Tangent(
+            read_data(d, offset, buffer, read_snorm8x4).ok()?,
+        )),
+        DataType::Normal2 => Some(AttributeData::Normal(
+            read_data(d, offset, buffer, read_snorm8x4).ok()?,
+        )),
         DataType::Unk33 => None,
-        DataType::SkinWeights => Some(AttributeData::SkinWeights(read_data(
-            d,
-            offset,
-            buffer,
-            read_unorm16x4,
-        ))),
-        DataType::BoneIndices => Some(AttributeData::BoneIndices(read_data(
-            d, offset, buffer, read_u8x4,
-        ))),
+        DataType::SkinWeights => Some(AttributeData::SkinWeights(
+            read_data(d, offset, buffer, read_unorm16x4).ok()?,
+        )),
+        DataType::BoneIndices => Some(AttributeData::BoneIndices(
+            read_data(d, offset, buffer, read_u8x4).ok()?,
+        )),
         DataType::Unk52 => None,
     }
 }
@@ -237,9 +224,9 @@ fn read_data<T, F>(
     offset: u64,
     buffer: &[u8],
     read_item: F,
-) -> Vec<T>
+) -> BinResult<Vec<T>>
 where
-    F: Fn(&mut Cursor<&[u8]>) -> T,
+    F: Fn(&mut Cursor<&[u8]>) -> BinResult<T>,
 {
     let mut reader = Cursor::new(buffer);
 
@@ -248,48 +235,48 @@ where
         let offset = descriptor.data_offset as u64 + i * descriptor.vertex_size as u64 + offset;
         reader.seek(SeekFrom::Start(offset)).unwrap();
 
-        values.push(read_item(&mut reader));
+        values.push(read_item(&mut reader)?);
     }
-    values
+    Ok(values)
 }
 
-fn read_u32(reader: &mut Cursor<&[u8]>) -> u32 {
-    reader.read_le().unwrap()
+fn read_u32(reader: &mut Cursor<&[u8]>) -> BinResult<u32> {
+    reader.read_le()
 }
 
-fn read_u8x4(reader: &mut Cursor<&[u8]>) -> [u8; 4] {
-    reader.read_le().unwrap()
+fn read_u8x4(reader: &mut Cursor<&[u8]>) -> BinResult<[u8; 4]> {
+    reader.read_le()
 }
 
-fn read_f32x2(reader: &mut Cursor<&[u8]>) -> Vec2 {
-    let value: [f32; 2] = reader.read_le().unwrap();
-    value.into()
+fn read_f32x2(reader: &mut Cursor<&[u8]>) -> BinResult<Vec2> {
+    let value: [f32; 2] = reader.read_le()?;
+    Ok(value.into())
 }
 
-fn read_f32x3(reader: &mut Cursor<&[u8]>) -> Vec3 {
-    let value: [f32; 3] = reader.read_le().unwrap();
-    value.into()
+fn read_f32x3(reader: &mut Cursor<&[u8]>) -> BinResult<Vec3> {
+    let value: [f32; 3] = reader.read_le()?;
+    Ok(value.into())
 }
 
-fn read_unorm8x4(reader: &mut Cursor<&[u8]>) -> Vec4 {
-    let value: [u8; 4] = reader.read_le().unwrap();
-    value.map(|u| u as f32 / 255.0).into()
+fn read_unorm8x4(reader: &mut Cursor<&[u8]>) -> BinResult<Vec4> {
+    let value: [u8; 4] = reader.read_le()?;
+    Ok(value.map(|u| u as f32 / 255.0).into())
 }
 
-fn read_snorm8x4(reader: &mut Cursor<&[u8]>) -> Vec4 {
-    let value: [i8; 4] = reader.read_le().unwrap();
-    value.map(|i| i as f32 / 255.0).into()
+fn read_snorm8x4(reader: &mut Cursor<&[u8]>) -> BinResult<Vec4> {
+    let value: [i8; 4] = reader.read_le()?;
+    Ok(value.map(|i| i as f32 / 255.0).into())
 }
 
-fn read_unorm16x4(reader: &mut Cursor<&[u8]>) -> Vec4 {
-    let value: [u16; 4] = reader.read_le().unwrap();
-    value.map(|u| u as f32 / 65535.0).into()
+fn read_unorm16x4(reader: &mut Cursor<&[u8]>) -> BinResult<Vec4> {
+    let value: [u16; 4] = reader.read_le()?;
+    Ok(value.map(|u| u as f32 / 65535.0).into())
 }
 
 pub fn read_morph_attributes(
     model_bytes: &[u8],
     morph_target: &xc3_lib::vertex::MorphTarget,
-) -> Vec<AttributeData> {
+) -> BinResult<Vec<AttributeData>> {
     let mut reader = Cursor::new(model_bytes);
 
     let mut positions = Vec::with_capacity(morph_target.vertex_count as usize);
@@ -310,20 +297,20 @@ pub fn read_morph_attributes(
         positions.push(value.into());
 
         // TODO: Does the vertex shader always apply this transform?
-        normals.push(read_unorm8x4(&mut reader) * 2.0 - 1.0);
+        normals.push(read_unorm8x4(&mut reader)? * 2.0 - 1.0);
 
         // Second position?
         let _unk1: [f32; 3] = reader.read_le().unwrap();
 
         // TODO: Does the vertex shader always apply this transform?
-        tangents.push(read_unorm8x4(&mut reader) * 2.0 - 1.0);
+        tangents.push(read_unorm8x4(&mut reader)? * 2.0 - 1.0);
     }
 
-    vec![
+    Ok(vec![
         AttributeData::Position(positions),
         AttributeData::Normal(normals),
         AttributeData::Tangent(tangents),
-    ]
+    ])
 }
 
 #[cfg(test)]
