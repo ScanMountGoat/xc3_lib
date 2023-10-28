@@ -149,10 +149,12 @@ impl Xc3Renderer {
                 view: &self.depth_view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
-                    store: true,
+                    store: wgpu::StoreOp::Store,
                 }),
                 stencil_ops: None,
             }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
         });
 
         // TODO: organize into per frame, per model, etc?
@@ -174,7 +176,7 @@ impl Xc3Renderer {
                     ops: wgpu::Operations {
                         // TODO: Does in game actually use load?
                         load: wgpu::LoadOp::Load,
-                        store: true,
+                        store: wgpu::StoreOp::Store,
                     },
                 }),
                 color_attachment_disabled(&self.gbuffer_textures[1]),
@@ -189,10 +191,12 @@ impl Xc3Renderer {
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Load,
                     // TODO: Write to depth buffer?
-                    store: true,
+                    store: wgpu::StoreOp::Store,
                 }),
                 stencil_ops: None,
             }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
         });
 
         // TODO: organize into per frame, per model, etc?
@@ -212,10 +216,12 @@ impl Xc3Renderer {
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                    store: true,
+                    store: wgpu::StoreOp::Store,
                 },
             })],
             depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
         });
 
         render_pass.set_pipeline(&self.deferred_pipeline);
@@ -259,7 +265,7 @@ fn color_attachment(
         resolve_target: None,
         ops: wgpu::Operations {
             load: wgpu::LoadOp::Clear(color),
-            store: true,
+            store: wgpu::StoreOp::Store,
         },
     })
 }
@@ -272,7 +278,7 @@ fn color_attachment_disabled(view: &wgpu::TextureView) -> Option<wgpu::RenderPas
         resolve_target: None,
         ops: wgpu::Operations {
             load: wgpu::LoadOp::Load,
-            store: true,
+            store: wgpu::StoreOp::Store,
         },
     })
 }

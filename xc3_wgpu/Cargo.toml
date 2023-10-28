@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-wgpu = "0.16.0"
+wgpu = "0.18.0"
 xc3_model = { path = "../xc3_model" }
 xc3_shader = { path = "../xc3_shader" }
 bytemuck = { version = "1.13", features = [ "derive" ] }
@@ -17,4 +17,4 @@ log = "0.4.19"
 tracing = "0.1.0"
 
 [build-dependencies]
-wgsl_to_wgpu = { git = "https://github.com/ScanMountGoat/wgsl_to_wgpu", rev = "36caa57" }
+wgsl_to_wgpu = "0.5.0"

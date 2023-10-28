@@ -211,44 +211,44 @@ fn assign_gbuffer_texture(assignment: GBufferAssignment, s_colors: array<vec4<f3
 
 fn assign_channel(sampler_index: i32, channel_index: u32, s_colors: array<vec4<f32>, 10>, default_value: f32) -> f32 {
     // Workaround for BC4 swizzle mask of RRR1.
-    var channel_index = channel_index;
+    var channel = channel_index;
     if sampler_index >= 0 {
         if per_material.is_single_channel[sampler_index].x == 1u {
-            channel_index = 0u;
+            channel = 0u;
         }
     }
 
     // TODO: Is there a way to avoid needing a switch?
     switch (sampler_index) {
         case 0: {
-            return s_colors[0][channel_index];
+            return s_colors[0][channel];
         }
         case 1: {
-            return s_colors[1][channel_index];
+            return s_colors[1][channel];
         }
         case 2: {
-            return s_colors[2][channel_index];
+            return s_colors[2][channel];
         }
         case 3: {
-            return s_colors[3][channel_index];
+            return s_colors[3][channel];
         }
         case 4: {
-            return s_colors[4][channel_index];
+            return s_colors[4][channel];
         }
         case 5: {
-            return s_colors[5][channel_index];
+            return s_colors[5][channel];
         }
         case 6: {
-            return s_colors[6][channel_index];
+            return s_colors[6][channel];
         }
         case 7: {
-            return s_colors[7][channel_index];
+            return s_colors[7][channel];
         }
         case 8: {
-            return s_colors[8][channel_index];
+            return s_colors[8][channel];
         }
         case 9: {
-            return s_colors[9][channel_index];
+            return s_colors[9][channel];
         }
         default: {
             return default_value;

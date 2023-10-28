@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 futures = "0.3.27"
-wgpu = "0.16.0"
+wgpu = "0.18.0"
 winit = "0.28.3"
 glam = "0.24.0"
 xc3_wgpu = { path = "../xc3_wgpu" }
