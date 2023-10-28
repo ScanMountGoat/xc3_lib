@@ -372,32 +372,32 @@ fn check_sar1(sar1: Sar1, path: &Path, check_read_write: bool) {
                     let mut writer = Cursor::new(Vec::new());
                     xc3_write::write_full(&bc, &mut writer, 0, &mut 0).unwrap();
                     if writer.into_inner() != entry.entry_data {
-                        println!("Bc read/write not 1:1 for {path:?}");
+                        println!("Bc read/write not 1:1 for {:?} in {path:?}", entry.name);
                     }
                 }
                 xc3_lib::sar1::EntryData::ChCl(chcl) => {
                     let mut writer = Cursor::new(Vec::new());
                     xc3_write::write_full(&chcl, &mut writer, 0, &mut 0).unwrap();
                     if writer.into_inner() != entry.entry_data {
-                        println!("ChCl read/write not 1:1 for {path:?}");
+                        println!("ChCl read/write not 1:1 for {:?} in {path:?}", entry.name);
                     }
                 }
                 xc3_lib::sar1::EntryData::Csvb(csvb) => {
                     let mut writer = Cursor::new(Vec::new());
                     xc3_write::write_full(&csvb, &mut writer, 0, &mut 0).unwrap();
                     if writer.into_inner() != entry.entry_data {
-                        println!("Csvb read/write not 1:1 for {path:?}");
+                        println!("Csvb read/write not 1:1 for {:?} in {path:?}", entry.name);
                     }
                 }
                 xc3_lib::sar1::EntryData::Eva(eva) => {
                     let mut writer = Cursor::new(Vec::new());
                     xc3_write::write_full(&eva, &mut writer, 0, &mut 0).unwrap();
                     if writer.into_inner() != entry.entry_data {
-                        println!("Eva read/write not 1:1 for {path:?}");
+                        println!("Eva read/write not 1:1 for {:?} in {path:?}", entry.name);
                     }
                 }
             },
-            Err(e) => println!("Error reading entry for {path:?}: {e}"),
+            Err(e) => println!("Error reading {:?} for {path:?}: {e}", entry.name),
         }
     }
 

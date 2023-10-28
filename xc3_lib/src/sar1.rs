@@ -127,15 +127,7 @@ pub struct ChClUnk2 {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct ChClUnk7 {
     pub unk1: [[f32; 4]; 3],
-    pub unk2: f32,
-
-    // TODO: Appears before strings?
-    #[br(parse_with = parse_ptr32)]
-    #[xc3(offset(u32))]
-    pub idcm: Idcm,
-
-    // TODO: padding?
-    pub unks: [u32; 3],
+    // TODO: Pointer to Idcm?
 }
 
 #[binread]

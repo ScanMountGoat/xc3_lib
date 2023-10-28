@@ -75,20 +75,25 @@ pub struct Dynamics {
     #[xc3(offset(u64))]
     pub unk3: DynamicsUnk1,
 
+    // TODO: not always present?
     #[br(parse_with = parse_ptr64)]
+    #[br(if(!unk3.unk1.elements.is_empty()))]
     #[xc3(offset(u64))]
-    pub unk4: DynamicsUnk2,
+    pub unk4: Option<DynamicsUnk2>,
 
+    // TODO: not always present?
     #[br(parse_with = parse_ptr64)]
+    #[br(if(!unk3.unk1.elements.is_empty()))]
     #[xc3(offset(u64))]
-    pub unk5: DynamicsUnk3,
+    pub unk5: Option<DynamicsUnk3>,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct DynamicsUnk1 {
     pub unk1: BcList<DynamicsUnk1Item>,
-    pub unk2: BcList<()>,
-    pub unk3: BcList<()>,
+    // TODO: type?
+    pub unk2: BcList<u8>,
+    pub unk3: BcList<u8>,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -139,8 +144,7 @@ pub struct DynamicsUnk2ItemUnk1 {
     #[xc3(offset(u64))]
     pub name2: String,
 
-    // TODO: variable length?
-    pub unk1: [f32; 5],
+    pub unk1: [f32; 7],
     pub unk2: u32,
 }
 
@@ -150,8 +154,7 @@ pub struct DynamicsUnk2ItemUnk3 {
     #[xc3(offset(u64))]
     pub name: String,
 
-    // TODO: variable length?
-    pub unk1: [f32; 3],
+    pub unk1: [f32; 7],
     pub unk2: u32,
 }
 
@@ -197,6 +200,7 @@ pub struct AnimationBinding {
     pub bone_names: Vec<StringOffset>,
 
     // TODO: not always present?
+    // TODO: Check the offsets as a hack for now?
     pub unk3: i32,
 
     #[br(args_raw(animation.animation_type))]
