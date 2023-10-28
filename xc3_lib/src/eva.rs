@@ -31,7 +31,7 @@ pub struct EvaItem1 {
 #[xc3(base_offset)]
 pub struct EvaItem2 {
     #[br(temp, try_calc = r.stream_position())]
-    base_offset: u64,
+    _base_offset: u64,
 
     // TODO: The float array isn't always present?
     // TODO: type?

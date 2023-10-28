@@ -375,7 +375,13 @@ fn check_sar1(sar1: Sar1, path: &Path, check_read_write: bool) {
                         println!("Bc read/write not 1:1 for {path:?}");
                     }
                 }
-                xc3_lib::sar1::EntryData::ChCl(_) => (),
+                xc3_lib::sar1::EntryData::ChCl(chcl) => {
+                    let mut writer = Cursor::new(Vec::new());
+                    xc3_write::write_full(&chcl, &mut writer, 0, &mut 0).unwrap();
+                    if writer.into_inner() != entry.entry_data {
+                        println!("ChCl read/write not 1:1 for {path:?}");
+                    }
+                }
                 xc3_lib::sar1::EntryData::Csvb(csvb) => {
                     let mut writer = Cursor::new(Vec::new());
                     xc3_write::write_full(&csvb, &mut writer, 0, &mut 0).unwrap();
@@ -397,7 +403,6 @@ fn check_sar1(sar1: Sar1, path: &Path, check_read_write: bool) {
 
     if check_read_write {
         // Check read/write for the archive.
-        // TODO: Also read/write entry data?
         let original = std::fs::read(path).unwrap();
         let mut writer = Cursor::new(Vec::new());
         sar1.write(&mut writer).unwrap();

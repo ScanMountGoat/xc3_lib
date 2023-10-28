@@ -3,9 +3,12 @@
 //! XC3: `chr/{ch,en,oj,wp}/*.{chr,mot}`
 use std::io::Cursor;
 
-use crate::{bc::Bc, eva::Eva, parse_count32_offset32, parse_offset32_count32};
-use binrw::{BinRead, BinReaderExt, BinResult, NullString};
-use xc3_write::{Xc3Write, Xc3WriteOffsets};
+use crate::{
+    bc::Bc, eva::Eva, parse_count32_offset32, parse_offset32_count32, parse_ptr32,
+    parse_string_ptr32,
+};
+use binrw::{binread, BinRead, BinReaderExt, BinResult, NullString};
+use xc3_write::{round_up, Xc3Write, Xc3WriteOffsets};
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(magic(b"1RAS"))]
@@ -61,10 +64,131 @@ pub enum EntryData {
 }
 
 // character collision?
-#[derive(Debug, BinRead)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(magic(b"CHCL"))]
+#[xc3(magic(b"CHCL"))]
+#[xc3(align_after(64))]
 pub struct ChCl {
+    pub version: u32,
     pub unk1: u32,
+
+    #[br(parse_with = parse_ptr32)]
+    #[xc3(offset(u32))]
+    pub inner: ChClInner,
+
+    // TODO: padding?
+    pub unks: [u32; 10],
+}
+
+#[derive(Debug, BinRead, Xc3Write)]
+pub struct ChClInner {
+    #[br(parse_with = parse_offset32_count32)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk1: Vec<[f32; 26]>,
+
+    #[br(parse_with = parse_offset32_count32)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk2: Vec<ChClUnk2>,
+
+    #[br(parse_with = parse_offset32_count32)]
+    #[xc3(offset_count(u32, u32), align(8))]
+    pub unk3: Vec<u16>,
+
+    #[br(parse_with = parse_offset32_count32)]
+    #[xc3(offset_count(u32, u32), align(2))]
+    pub unk4: Vec<u16>,
+
+    #[br(parse_with = parse_offset32_count32)]
+    #[xc3(offset_count(u32, u32), align(2))]
+    pub unk5: Vec<u16>,
+
+    #[br(parse_with = parse_offset32_count32)]
+    #[xc3(offset_count(u32, u32), align(2))]
+    pub unk6: Vec<u16>,
+
+    #[br(parse_with = parse_offset32_count32)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk7: Vec<ChClUnk7>,
+
+    // TODO: padding?
+    pub unks: [u32; 4],
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct ChClUnk2 {
+    pub unk1: [[f32; 4]; 4],
+
+    // TODO: bone names?
+    #[br(parse_with = parse_string_ptr32)]
+    #[xc3(offset(u32))]
+    pub name: String,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct ChClUnk7 {
+    pub unk1: [[f32; 4]; 3],
+    pub unk2: f32,
+
+    // TODO: Appears before strings?
+    #[br(parse_with = parse_ptr32)]
+    #[xc3(offset(u32))]
+    pub idcm: Idcm,
+
+    // TODO: padding?
+    pub unks: [u32; 3],
+}
+
+#[binread]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[br(stream = r)]
+#[br(magic(b"IDCM"))]
+#[xc3(base_offset)]
+#[xc3(magic(b"IDCM"))]
+pub struct Idcm {
+    // Subtract the magic size.
+    #[br(temp, try_calc = r.stream_position().map(|p| p - 4))]
+    base_offset: u64,
+
+    pub version: u32,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk1: Vec<[u32; 19]>,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk2: Vec<[u32; 3]>,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk3: Vec<u64>,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk4: Vec<[u32; 17]>,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk5: Vec<u32>,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk6: Vec<u32>,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk7: Vec<[u32; 4]>,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk8: Vec<[f32; 4]>,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk9: Vec<u32>,
+
+    pub unk10: u64,
+    // TODO: more fields
 }
 
 // TODO: Is the padding always aligned?
@@ -101,4 +225,34 @@ pub struct CvsbItem {
     pub unk3: u32,
     pub unk4: u32,
     pub unk5: u32,
+}
+
+impl<'a> Xc3WriteOffsets for ChClInnerOffsets<'a> {
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> BinResult<()> {
+        // Different order than field order.
+        self.unk1.write_full(writer, base_offset, data_ptr)?;
+        let unk2 = self.unk2.write_offset(writer, base_offset, data_ptr)?;
+        if !self.unk7.data.is_empty() {
+            self.unk7.write_full(writer, base_offset, data_ptr)?;
+        }
+        self.unk3.write_full(writer, base_offset, data_ptr)?;
+        if !self.unk4.data.is_empty() {
+            self.unk4.write_full(writer, base_offset, data_ptr)?;
+        }
+        self.unk5.write_full(writer, base_offset, data_ptr)?;
+        self.unk6.write_full(writer, base_offset, data_ptr)?;
+
+        // Strings appear at the end of the file.
+        *data_ptr = round_up(*data_ptr, 4);
+        for item in unk2.0 {
+            item.name.write_full(writer, base_offset, data_ptr)?;
+        }
+
+        Ok(())
+    }
 }
