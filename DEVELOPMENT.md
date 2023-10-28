@@ -62,7 +62,7 @@ For seeing the generated code from procedural macros, use [cargo expand](https:/
 Multiple projects rely on a generated JSON databases of shader metadata to properly assign textures and material parameters. This database is specific to a particular game version like Xenoblade 3 or Xenoblade 1 DE. The first step is to decompile and annotate the shaders. This requires `Ryujinx.ShaderTools`, which can be compiled from source from [Ryujinx](https://github.com/Ryujinx/Ryujinx). Note that this may took up to 30 minutes depending on your system and the number of shaders to decompile. The final step is to convert the decompiled shaders into a JSON database. Example commands for Xenoblade 3 are listed below.  
 
 `cargo run --release -p xc3_shader -- decompile-shaders "Xeno3 Dump" "xc3_shader_dump" Ryujinx.ShaderTools.exe`  
-`cargo run --release -p xc3_shader -- g-buffer-database "xc3_shader_dump" xc3.json`
+`cargo run --release -p xc3_shader -- shader-database "xc3_shader_dump" xc3.json`
 
 ## Debugging File Parsing
 The easiest way to test file parsing is by running xc3_test on an extracted game dump and noting any errors printed to the console. The `binrw` library used to generate parsing code also supports debugging the location and values of specific fields by adding the `#[br(dbg)]` attribute like in the example below. This makes it easy to identify the offset to use when hex editing for in game tests.

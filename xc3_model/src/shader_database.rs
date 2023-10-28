@@ -1,3 +1,12 @@
+//! Database for compiled shader metadata for more accurate rendering.
+//!
+//! In game shaders are precompiled and embedded in files like `.wismt`.
+//! These types represent precomputed metadata like assignments to G-Buffer textures.
+//! This is necessary for determining the usage of a texture like albedo or normal map
+//! since the assignments are compiled into the shader code itself.
+//! Shader database JSON files should be generated using the xc3_shader CLI tool.
+//! Applications can use the generated database to avoid needing to generate this data at runtime.
+
 use std::path::Path;
 
 use indexmap::IndexMap;
@@ -8,9 +17,9 @@ use serde::{Deserialize, Serialize};
 // TODO: Binary representation?
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct ShaderDatabase {
-    /// The `.wismt` file name without the extension and shader data for each file.
+    /// The `.wimdo` file name without the extension and shader data for each file.
     pub files: IndexMap<String, Spch>,
-    // TODO: Put maps here?
+    /// The `.wismhd` file name without the extension and shader data for each map.
     pub map_files: IndexMap<String, Map>,
 }
 

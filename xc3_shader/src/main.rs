@@ -2,12 +2,17 @@ use std::io::BufReader;
 use std::path::Path;
 
 use clap::{Parser, Subcommand};
+use extract::extract_shader_binaries;
 use rayon::prelude::*;
+use shader_database::create_shader_database;
 use xc3_lib::msmd::Msmd;
 use xc3_lib::msrd::Msrd;
 use xc3_lib::mxmd::Mxmd;
-use xc3_shader::extract::extract_shader_binaries;
-use xc3_shader::gbuffer_database::create_shader_database;
+
+mod annotation;
+mod dependencies;
+mod extract;
+mod shader_database;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -30,7 +35,7 @@ enum Commands {
         shader_tools: Option<String>,
     },
     /// Create a JSON file containing textures used for fragment output attributes.
-    GBufferDatabase {
+    ShaderDatabase {
         /// The output folder from decompiling shaders.
         input_folder: String,
         /// The output JSON file.
@@ -49,7 +54,7 @@ fn main() {
             output_folder,
             shader_tools,
         } => extract_and_decompile_shaders(&input_folder, &output_folder, shader_tools.as_deref()),
-        Commands::GBufferDatabase {
+        Commands::ShaderDatabase {
             input_folder,
             output_file,
         } => {
