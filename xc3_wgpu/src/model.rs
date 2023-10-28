@@ -128,11 +128,11 @@ impl Models {
     pub fn update_bone_transforms(
         &self,
         queue: &wgpu::Queue,
-        anim: &xc3_model::animation::Animation,
+        animation: &xc3_model::animation::Animation,
         frame: f32,
     ) {
         if let Some(skeleton) = &self.skeleton {
-            let animated_transforms = animate_skeleton(skeleton, anim, frame);
+            let animated_transforms = animate_skeleton(skeleton, animation, frame);
             let animated_transforms_inv_transpose =
                 animated_transforms.map(|t| t.inverse().transpose());
             queue.write_buffer(

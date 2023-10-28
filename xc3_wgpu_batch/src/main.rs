@@ -2,7 +2,7 @@ use clap::{Parser, ValueEnum};
 use futures::executor::block_on;
 use glam::{vec3, Mat4, Vec3};
 use image::ImageBuffer;
-use xc3_model::GBufferDatabase;
+use xc3_model::{animation::Animation, GBufferDatabase};
 use xc3_wgpu::renderer::{CameraData, Xc3Renderer};
 
 const WIDTH: u32 = 512;
@@ -23,6 +23,10 @@ struct Cli {
     /// The GBuffer JSON database for texture assignments.
     /// If not specified, the first texture is assumed to be albedo color.
     shader_database: Option<String>,
+
+    /// Apply the first entry of the corresponding animation if found.
+    #[arg(long)]
+    anim: bool,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
@@ -132,6 +136,10 @@ fn main() {
 
             let groups = xc3_wgpu::model::load_model(&device, &queue, &roots);
 
+            if cli.anim {
+                apply_anim(&queue, &groups, &path.with_extension("mot"));
+            }
+
             let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Render Encoder"),
             });
@@ -153,6 +161,26 @@ fn main() {
             queue.submit(std::iter::empty());
             device.poll(wgpu::Maintain::Wait);
         });
+}
+
+fn apply_anim(queue: &wgpu::Queue, groups: &[xc3_wgpu::model::ModelGroup], path: &std::path::Path) {
+    if let Ok(sar1) = xc3_lib::sar1::Sar1::from_file(path) {
+        for entry in &sar1.entries {
+            if let xc3_lib::sar1::EntryData::Bc(bc) = entry.read_data().unwrap() {
+                if let xc3_lib::bc::BcData::Anim(anim) = bc.data {
+                    let animation = Animation::from_anim(&anim);
+                    if animation.name.contains("idle") {
+                        for group in groups {
+                            for models in &group.models {
+                                models.update_bone_transforms(queue, &animation, 0.0);
+                            }
+                        }
+                        return;
+                    }
+                }
+            }
+        }
+    }
 }
 
 fn frame_model_bounds(queue: &wgpu::Queue, roots: &[xc3_model::ModelRoot], renderer: &Xc3Renderer) {
