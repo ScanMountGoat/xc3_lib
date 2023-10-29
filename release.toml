@@ -1,0 +1,3 @@
+consolidate-commits = true
+tag-name = "v{{version}}"
+pre-release-commit-message = "(cargo-release) bump versions"
