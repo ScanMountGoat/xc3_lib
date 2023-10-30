@@ -25,7 +25,7 @@ xc3_lib supports a number of in game formats. All formats support reading. Write
 
 ## Projects
 See [Architecture](https://github.com/ScanMountGoat/xc3_lib/blob/main/ARCHITECTURE.md) for a design overview of the various projects. 
-Click on the docs.rs links below to see the generated cargo doc documentation.
+Click on the docs.rs links below to see the generated rustdoc documentation.
 
 ### Libraries
 [![Crates.io](https://img.shields.io/crates/v/xc3_lib.svg?label=xc3_lib)](https://crates.io/crates/xc3_lib) [![docs.rs](https://docs.rs/xc3_lib/badge.svg)](https://docs.rs/xc3_lib/)  
@@ -34,7 +34,7 @@ Click on the docs.rs links below to see the generated cargo doc documentation.
 [![Crates.io](https://img.shields.io/crates/v/xc3_write.svg?label=xc3_write)](https://crates.io/crates/xc3_write) [![docs.rs](https://docs.rs/xc3_write/badge.svg)](https://docs.rs/xc3_write/)  
 
 ## Usage
-These projects are still highly unstable. When adding any of these projects to the Cargo.toml, specify a specific git revision or commit the Cargo.lock file to source control. This locks the version and avoids any breaking changes. The debug or JSON output has not stabilized and should not be assumed to be the same between commits.
+These projects are still highly unstable. When using the latest version from github, specify a specific git revision or commit the Cargo.lock file to source control. This locks the version and avoids any breaking changes. The debug or JSON output has not stabilized and should not be assumed to be the same between commits.
 
 ```toml
 xc3_model = { git = "https://github.com/ScanMountGoat/xc3_lib", rev = "commit_hash" }
