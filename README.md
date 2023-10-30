@@ -1,7 +1,7 @@
 # xc3_lib
 Rust libraries and tools for working with rendering related file formats for Xenoblade Chronicles 2 and Xenoblade Chronicles 3. Files from Xenoblade Chronicles 1 DE should work but are not well tested. 
 
-See [Architecture](https://github.com/ScanMountGoat/xc3_lib/blob/main/ARCHITECTURE.md) for an overview of the various projects. Report any bugs or request new features in [issues](https://github.com/ScanMountGoat/xc3_lib/issues). Python bindings for xc3_model are available with [xc3_model_py](https://github.com/ScanMountGoat/xc3_model_py).
+Report any bugs or request new features in [issues](https://github.com/ScanMountGoat/xc3_lib/issues). Python bindings for xc3_model are available with [xc3_model_py](https://github.com/ScanMountGoat/xc3_model_py).
 
 ## Formats
 xc3_lib supports a number of in game formats. All formats support reading. Write support is still a WIP for some formats. Click on the links to open the corresponding Rust module in xc3_lib.
@@ -23,6 +23,16 @@ xc3_lib supports a number of in game formats. All formats support reading. Write
 
 \* *Some files are not binary identical with the originals after saving.*
 
+## Projects
+See [Architecture](https://github.com/ScanMountGoat/xc3_lib/blob/main/ARCHITECTURE.md) for a design overview of the various projects. 
+Click on the docs.rs links below to see the generated cargo doc documentation.
+
+### Libraries
+[![Crates.io](https://img.shields.io/crates/v/xc3_lib.svg?label=xc3_lib)](https://crates.io/crates/xc3_lib) [![docs.rs](https://docs.rs/xc3_lib/badge.svg)](https://docs.rs/xc3_lib/)  
+[![Crates.io](https://img.shields.io/crates/v/xc3_model.svg?label=xc3_model)](https://crates.io/crates/xc3_model) [![docs.rs](https://docs.rs/xc3_model/badge.svg)](https://docs.rs/xc3_model/)  
+[![Crates.io](https://img.shields.io/crates/v/xc3_wgpu.svg?label=xc3_wgpu)](https://crates.io/crates/xc3_wgpu) [![docs.rs](https://docs.rs/xc3_wgpu/badge.svg)](https://docs.rs/xc3_wgpu/)  
+[![Crates.io](https://img.shields.io/crates/v/xc3_write.svg?label=xc3_write)](https://crates.io/crates/xc3_write) [![docs.rs](https://docs.rs/xc3_write/badge.svg)](https://docs.rs/xc3_write/)  
+
 ## Usage
 These projects are still highly unstable. When adding any of these projects to the Cargo.toml, specify a specific git revision or commit the Cargo.lock file to source control. This locks the version and avoids any breaking changes. The debug or JSON output has not stabilized and should not be assumed to be the same between commits.
 
@@ -35,9 +45,6 @@ xc3_lib = { git = "https://github.com/ScanMountGoat/xc3_lib", rev = "commit_hash
 ## Building
 After installing the [Rust toolchain](https://www.rust-lang.org/tools/install), run `cargo build --release` in the repository directory.
 Running `cargo build` without the `--release` will result in faster compile times during development but dramatically worse runtime performance. The tools can be run using `cargo run --release -p <project> <args>`. xc3_tex uses [image_dds](https://github.com/ScanMountGoat/image_dds), which supports Windows x86, Linux x86, MacOS x86, and MacOS Apple Silicon due to using precompiled kernels for DDS encoding. Other projects should build on other platforms without issues.
-
-## Documentation
-The projects are not currently published to crates.io, so run `cargo doc -p xc3_lib --open` to generate and view the rustdoc output in the browser. Replace xc3_lib with the name of other packages to view the corresponding documentation. Contributors should see [Architecture](https://github.com/ScanMountGoat/xc3_lib/blob/main/ARCHITECTURE.md) and [Development](https://github.com/ScanMountGoat/xc3_lib/blob/main/DEVELOPMENT.md) for information.
 
 ## Credits
 This project is based on previous reverse engineering work, including work done for Xenoblade 2.
