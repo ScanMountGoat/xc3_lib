@@ -154,11 +154,12 @@ impl State {
 
         let mut anims = Vec::new();
         if let Some(anim_path) = anim_path {
-            let sar1 = xc3_lib::sar1::Sar1::from_file(anim_path).unwrap();
-            for entry in &sar1.entries {
-                if let xc3_lib::sar1::EntryData::Bc(bc) = entry.read_data().unwrap() {
-                    if let xc3_lib::bc::BcData::Anim(anim) = bc.data {
-                        anims.push(Animation::from_anim(&anim));
+            if let Ok(sar1) = xc3_lib::sar1::Sar1::from_file(anim_path) {
+                for entry in &sar1.entries {
+                    if let Ok(bc) = entry.read_data::<xc3_lib::bc::Bc>() {
+                        if let xc3_lib::bc::BcData::Anim(anim) = bc.data {
+                            anims.push(Animation::from_anim(&anim));
+                        }
                     }
                 }
             }
@@ -387,7 +388,7 @@ pub fn next_frame(
 ) -> f32 {
     // Convert elapsed time to a delta in frames.
     // This relies on interpolation or frame skipping.
-    let delta_t_frames = time_since_last_frame.as_secs_f64() as f64 * frames_per_second as f64;
+    let delta_t_frames = time_since_last_frame.as_secs_f64() * frames_per_second as f64;
 
     let next_frame = current_frame + (delta_t_frames as f32 * playback_speed);
 

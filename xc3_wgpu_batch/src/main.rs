@@ -166,7 +166,7 @@ fn main() {
 fn apply_anim(queue: &wgpu::Queue, groups: &[xc3_wgpu::ModelGroup], path: &std::path::Path) {
     if let Ok(sar1) = xc3_lib::sar1::Sar1::from_file(path) {
         for entry in &sar1.entries {
-            if let Ok(xc3_lib::sar1::EntryData::Bc(bc)) = entry.read_data() {
+            if let Ok(bc) = entry.read_data::<xc3_lib::bc::Bc>() {
                 if let xc3_lib::bc::BcData::Anim(anim) = bc.data {
                     let animation = Animation::from_anim(&anim);
                     for group in groups {

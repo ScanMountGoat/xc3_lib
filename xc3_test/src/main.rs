@@ -169,6 +169,8 @@ fn check_msrd(msrd: Msrd, path: &Path, check_read_write: bool) {
     msrd.extract_shader_data();
     let vertex_data = msrd.extract_vertex_data();
     msrd.extract_low_texture_data();
+    println!("{}, {path:?}", msrd.revision);
+
     // TODO: High textures?
     // TODO: Check mibl?
 
@@ -365,39 +367,31 @@ fn check_ltpc(ltpc: Ltpc, path: &Path, check_read_write: bool) {
 
 fn check_sar1(sar1: Sar1, path: &Path, check_read_write: bool) {
     for entry in &sar1.entries {
-        match entry.read_data() {
-            // Check read/write for the inner data.
-            Ok(entry_data) => match entry_data {
-                xc3_lib::sar1::EntryData::Bc(bc) => {
-                    let mut writer = Cursor::new(Vec::new());
-                    xc3_write::write_full(&bc, &mut writer, 0, &mut 0).unwrap();
-                    if writer.into_inner() != entry.entry_data {
-                        println!("Bc read/write not 1:1 for {:?} in {path:?}", entry.name);
-                    }
-                }
-                xc3_lib::sar1::EntryData::ChCl(chcl) => {
-                    let mut writer = Cursor::new(Vec::new());
-                    xc3_write::write_full(&chcl, &mut writer, 0, &mut 0).unwrap();
-                    if writer.into_inner() != entry.entry_data {
-                        println!("ChCl read/write not 1:1 for {:?} in {path:?}", entry.name);
-                    }
-                }
-                xc3_lib::sar1::EntryData::Csvb(csvb) => {
-                    let mut writer = Cursor::new(Vec::new());
-                    xc3_write::write_full(&csvb, &mut writer, 0, &mut 0).unwrap();
-                    if writer.into_inner() != entry.entry_data {
-                        println!("Csvb read/write not 1:1 for {:?} in {path:?}", entry.name);
-                    }
-                }
-                xc3_lib::sar1::EntryData::Eva(eva) => {
-                    let mut writer = Cursor::new(Vec::new());
-                    xc3_write::write_full(&eva, &mut writer, 0, &mut 0).unwrap();
-                    if writer.into_inner() != entry.entry_data {
-                        println!("Eva read/write not 1:1 for {:?} in {path:?}", entry.name);
-                    }
-                }
-            },
-            Err(e) => println!("Error reading {:?} for {path:?}: {e}", entry.name),
+        // Check read/write for the inner data.
+        if let Ok(bc) = entry.read_data::<xc3_lib::bc::Bc>() {
+            let mut writer = Cursor::new(Vec::new());
+            xc3_write::write_full(&bc, &mut writer, 0, &mut 0).unwrap();
+            if writer.into_inner() != entry.entry_data {
+                println!("Bc read/write not 1:1 for {:?} in {path:?}", entry.name);
+            }
+        } else if let Ok(chcl) = entry.read_data::<xc3_lib::sar1::ChCl>() {
+            let mut writer = Cursor::new(Vec::new());
+            xc3_write::write_full(&chcl, &mut writer, 0, &mut 0).unwrap();
+            if writer.into_inner() != entry.entry_data {
+                println!("ChCl read/write not 1:1 for {:?} in {path:?}", entry.name);
+            }
+        } else if let Ok(csvb) = entry.read_data::<xc3_lib::sar1::Csvb>() {
+            let mut writer = Cursor::new(Vec::new());
+            xc3_write::write_full(&csvb, &mut writer, 0, &mut 0).unwrap();
+            if writer.into_inner() != entry.entry_data {
+                println!("Csvb read/write not 1:1 for {:?} in {path:?}", entry.name);
+            }
+        } else if let Ok(eva) = entry.read_data::<xc3_lib::eva::Eva>() {
+            let mut writer = Cursor::new(Vec::new());
+            xc3_write::write_full(&eva, &mut writer, 0, &mut 0).unwrap();
+            if writer.into_inner() != entry.entry_data {
+                println!("Eva read/write not 1:1 for {:?} in {path:?}", entry.name);
+            }
         }
     }
 

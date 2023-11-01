@@ -47,19 +47,14 @@ pub struct Entry {
     pub name: String,
 }
 
-// TODO: Is there a better way of expressing this?
 impl Entry {
-    pub fn read_data(&self) -> BinResult<EntryData> {
+    /// Attempt to read an item from the data for this entry.
+    pub fn read_data<T>(&self) -> BinResult<T>
+    where
+        for<'a> T: BinRead<Args<'a> = ()>,
+    {
         Cursor::new(&self.entry_data).read_le()
     }
-}
-
-#[derive(Debug, BinRead)]
-pub enum EntryData {
-    Bc(Bc),
-    ChCl(ChCl),
-    Csvb(Csvb),
-    Eva(Eva),
 }
 
 // character collision?
