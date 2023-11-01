@@ -28,10 +28,17 @@ See [Architecture](https://github.com/ScanMountGoat/xc3_lib/blob/main/ARCHITECTU
 Click on the docs.rs links below to see the generated rustdoc documentation.
 
 ### Libraries
-[![Crates.io](https://img.shields.io/crates/v/xc3_lib.svg?label=xc3_lib)](https://crates.io/crates/xc3_lib) [![docs.rs](https://docs.rs/xc3_lib/badge.svg)](https://docs.rs/xc3_lib/)  
-[![Crates.io](https://img.shields.io/crates/v/xc3_model.svg?label=xc3_model)](https://crates.io/crates/xc3_model) [![docs.rs](https://docs.rs/xc3_model/badge.svg)](https://docs.rs/xc3_model/)  
-[![Crates.io](https://img.shields.io/crates/v/xc3_wgpu.svg?label=xc3_wgpu)](https://crates.io/crates/xc3_wgpu) [![docs.rs](https://docs.rs/xc3_wgpu/badge.svg)](https://docs.rs/xc3_wgpu/)  
-[![Crates.io](https://img.shields.io/crates/v/xc3_write.svg?label=xc3_write)](https://crates.io/crates/xc3_write) [![docs.rs](https://docs.rs/xc3_write/badge.svg)](https://docs.rs/xc3_write/)  
+- [![Crates.io](https://img.shields.io/crates/v/xc3_lib.svg?label=xc3_lib)](https://crates.io/crates/xc3_lib) [![docs.rs](https://docs.rs/xc3_lib/badge.svg)](https://docs.rs/xc3_lib/) - file format library
+- [![Crates.io](https://img.shields.io/crates/v/xc3_model.svg?label=xc3_model)](https://crates.io/crates/xc3_model) [![docs.rs](https://docs.rs/xc3_model/badge.svg)](https://docs.rs/xc3_model/) - higher level API for xc3_lib
+- [![Crates.io](https://img.shields.io/crates/v/xc3_wgpu.svg?label=xc3_wgpu)](https://crates.io/crates/xc3_wgpu) [![docs.rs](https://docs.rs/xc3_wgpu/badge.svg)](https://docs.rs/xc3_wgpu/) - model and map renderer
+- [![Crates.io](https://img.shields.io/crates/v/xc3_write.svg?label=xc3_write)](https://crates.io/crates/xc3_write) [![docs.rs](https://docs.rs/xc3_write/badge.svg)](https://docs.rs/xc3_write/) - binary writing and layout
+
+### Binaries
+- `xc3_gltf` - convert models and maps to glTF
+- `xc3_test` - test against files in an extracted dump
+- `xc3_tex` - convert textures to and from DDS and images
+- `xc3_viewer` - simple model viewer for testing `xc3_wgpu`
+- `xc3_wgpu_batch` - batch render models and maps to PNG
 
 ## Usage
 These projects are still highly unstable. When using the latest version from github, specify a specific git revision or commit the Cargo.lock file to source control. This locks the version and avoids any breaking changes. The debug or JSON output has not stabilized and should not be assumed to be the same between commits.
