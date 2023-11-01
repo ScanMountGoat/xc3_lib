@@ -1,5 +1,27 @@
 //! # xc3_model
 //! xc3_model provides high level data access for the files that make up a model.
+//!
+//! # Getting Started
+//! Loading a normal model returns a single [ModelRoot].
+//! Loading a map returns multiple [ModelRoot].
+//! Each [ModelRoot] has its own set of images.
+//!
+//! The [ShaderDatabase] is optional and improves the accuracy of texture and material assignments.
+//!
+//! ```rust no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use xc3_model::shader_database::ShaderDatabase;
+//!
+//! let database = ShaderDatabase::from_file("xc3.json");
+//!
+//! let root = xc3_model::load_model("ch01011013.wimdo", Some(&database));
+//! println!("{}", root.image_textures.len());
+//!
+//! let roots = xc3_model::load_map("ma59a.wismhd", Some(&database));
+//! println!("{}", root.image_textures.len());
+//! # Ok(())
+//! # }
+//! ```
 
 use std::path::Path;
 
@@ -87,11 +109,12 @@ pub struct Models {
 #[derive(Debug)]
 pub struct Model {
     pub meshes: Vec<Mesh>,
-    /// Each mesh has instance for every transform in [instances](#structfield.instances).
+    /// Each mesh has an instance for every transform in [instances](#structfield.instances).
     pub instances: Vec<Mat4>,
     pub model_buffers_index: usize,
 }
 
+/// See [Mesh](xc3_lib::mxmd::Mesh).
 #[derive(Debug)]
 pub struct Mesh {
     pub vertex_buffer_index: usize,
@@ -101,6 +124,7 @@ pub struct Mesh {
     pub skin_flags: u32,
 }
 
+/// See [Material](xc3_lib::mxmd::Material) and [FoliageMaterial](xc3_lib::map::FoliageMaterial).
 #[derive(Debug)]
 pub struct Material {
     pub name: String,
@@ -153,6 +177,7 @@ impl Default for MaterialParameters {
     }
 }
 
+/// Selects an [ImageTexture] and [Sampler].
 #[derive(Debug)]
 pub struct Texture {
     /// The index of the [ImageTexture] in [image_textures](struct.ModelRoot.html#structfield.image_textures).

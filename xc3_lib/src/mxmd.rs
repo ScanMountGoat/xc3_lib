@@ -7,7 +7,7 @@ use crate::{
 };
 use bilge::prelude::*;
 use binrw::{args, binread, BinRead, BinWrite};
-use xc3_write::{round_up, xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
+use xc3_write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
 
 #[derive(Debug, BinRead, Xc3Write)]
 #[br(magic(b"DMXM"))]
