@@ -14,7 +14,7 @@ pub struct Xbc1 {
     pub decomp_size: u32,
     pub comp_size: u32,
 
-    pub hash: u32, // TODO: hash of string data?
+    pub hash: u32, // TODO: hash of contents?
 
     #[br(map = |x: NullString| x.to_string())]
     #[bw(map = |x: &String| NullString::from(x.as_str()))]

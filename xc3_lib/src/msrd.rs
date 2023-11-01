@@ -5,6 +5,7 @@ use crate::{
     mibl::Mibl, mxmd::PackedExternalTextures, parse_count32_offset32, parse_opt_ptr32, parse_ptr32,
     spch::Spch, vertex::VertexData, xbc1::Xbc1,
 };
+use bilge::prelude::*;
 use binrw::{binread, BinRead, BinResult, BinWrite};
 use xc3_write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
 
@@ -15,14 +16,13 @@ use xc3_write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
 #[xc3(magic(b"DRSM"))]
 pub struct Msrd {
     pub version: u32,
-    pub header_size: u32, // xbc1 offset - 16?
-
-    // TODO: Pointer to an inner type?
-    offset: u32,
+    pub header_size: u32, // TODO: xbc1 offset - 16?
+    pub offset: u32,      // TODO: Pointer to an inner type?
 
     pub tag: u32, // 4097?
-    // TODO: This affects the fields in the file?
-    pub revision: u32,
+
+    #[br(map(|x: u32| x.into()))]
+    pub stream_flags: StreamFlags,
 
     #[br(parse_with = parse_count32_offset32, offset = offset as u64)]
     #[xc3(count_offset(u32, u32))]
@@ -71,10 +71,23 @@ pub struct StreamEntry {
     pub unk: [u32; 2],
 }
 
+#[bitsize(32)]
+#[derive(DebugBits, FromBits, Clone, Copy)]
+pub struct StreamFlags {
+    pub has_vertex: bool,
+    pub has_spch: bool,
+    pub has_packed_textures: bool,
+    pub has_textures: bool,
+    pub unk1: bool,
+    pub unk2: bool,
+    pub unk3: bool,
+    pub unk: u25,
+}
+
 #[derive(Debug, BinRead, BinWrite, PartialEq, Eq)]
 #[brw(repr(u16))]
 pub enum EntryType {
-    Model = 0,
+    Vertex = 0,
     Shader = 1,
     PackedTexture = 2,
     Texture = 3,
@@ -153,6 +166,19 @@ impl Msrd {
 }
 
 xc3_write_binwrite_impl!(StreamEntry);
+
+// TODO: make a macro or attribute for this?
+impl Xc3Write for StreamFlags {
+    type Offsets<'a> = ();
+
+    fn xc3_write<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        data_ptr: &mut u64,
+    ) -> BinResult<Self::Offsets<'_>> {
+        u32::from(*self).xc3_write(writer, data_ptr)
+    }
+}
 
 impl<'a> Xc3WriteOffsets for MsrdOffsets<'a> {
     fn write_offsets<W: std::io::Write + std::io::Seek>(

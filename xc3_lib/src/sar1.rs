@@ -280,7 +280,7 @@ const CRC: [u32; 256] = [
     0x06be014b, 0xd642fa7b, 0x10aa7c90, 0x8082c88e, 0x1afcba79, 0x7519549d, 0x490a87ff, 0x8820c3a0,
 ];
 
-/// `mm::mtl::HashStrCrc()` in the Xenoblade 2 binary.
+/// `mm::mtl::hashStrCrc` function in the Xenoblade 2 binary.
 pub fn hash_str_crc(s: &str) -> u32 {
     // Adapted from code decompiled with ghidra.
     if s.is_empty() {
@@ -291,6 +291,20 @@ pub fn hash_str_crc(s: &str) -> u32 {
             result = CRC[((result ^ b as u32) & 0xFF) as usize] ^ (result >> 8);
         }
         CRC[s.len().min(CRC.len() - 1)] ^ (result >> 8)
+    }
+}
+
+/// `mm::mtl::hashCrc` function in the Xenoblade 2 binary.
+pub fn hash_crc(bytes: &[u8]) -> u32 {
+    // Adapted from code decompiled with ghidra.
+    if bytes.is_empty() {
+        0
+    } else {
+        let mut result = bytes.len() as u32;
+        for b in bytes {
+            result = CRC[((result ^ *b as u32) & 0xFF) as usize] ^ (result >> 8);
+        }
+        result
     }
 }
 
