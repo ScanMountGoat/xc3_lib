@@ -474,13 +474,15 @@ pub struct Models {
 
     pub unks3_1: [u32; 14],
 
-    // TODO: previous string section size aligned to 16?
+    // offset 100
     #[br(parse_with = parse_offset32_count32, args { offset: base_offset, inner: base_offset })]
     #[xc3(offset_count(u32, u32), align(16))]
     pub model_unks: Vec<ModelUnk>,
 
+    // TODO: always 0?
     pub unks3_2: [u32; 5],
 
+    // offset 128
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub morph_controllers: Option<MorphControllers>,
@@ -506,13 +508,16 @@ pub struct Models {
     // TODO: What controls the up to 44 optional bytes?
     // offset 160
     pub unk_field3: u32,
-    pub unk_field4: u32,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub model_unk5: Option<ModelUnk5>,
 
-    pub model_unk6: u32,
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub model_unk6: Option<ModelUnk6>,
+
+    pub model_unk7: u32,
 
     // TODO: padding?
     // TODO: add asserts to all padding fields
@@ -671,6 +676,32 @@ pub struct ModelUnk4 {
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct ModelUnk5 {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    // TODO: DS_ names?
+    #[br(parse_with = parse_count32_offset32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(count_offset(u32, u32))]
+    pub items: Vec<StringOffset>,
+
+    // TODO: padding?
+    pub unks: [u32; 4],
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[br(import_raw(base_offset: u64))]
+pub struct StringOffset {
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub name: String,
+}
+
+#[binread]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[br(stream = r)]
+#[xc3(base_offset)]
+pub struct ModelUnk6 {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
@@ -1220,7 +1251,7 @@ impl<'a> Xc3WriteOffsets for SkinningOffsets<'a> {
         let base_offset = self.base_offset;
 
         // TODO: variable padding?
-        if self.as_bone_data.data.is_some() {
+        if self.as_bone_data.data.is_some() || self.unk_offset5.data.is_some() {
             *data_ptr += 16;
         }
 
@@ -1299,6 +1330,7 @@ impl<'a> Xc3WriteOffsets for LodDataOffsets<'a> {
     }
 }
 
+// TODO: Add derive attribute for skipping empty vecs?
 impl<'a> Xc3WriteOffsets for ModelsOffsets<'a> {
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
@@ -1310,7 +1342,11 @@ impl<'a> Xc3WriteOffsets for ModelsOffsets<'a> {
 
         self.models.write_full(writer, base_offset, data_ptr)?;
         self.skinning.write_full(writer, base_offset, data_ptr)?;
-        self.model_unks.write_full(writer, base_offset, data_ptr)?;
+        if !self.model_unks.data.is_empty() {
+            self.model_unks.write_full(writer, base_offset, data_ptr)?;
+        }
+
+        // TODO: Padding before this?
         self.morph_controllers
             .write_full(writer, base_offset, data_ptr)?;
 

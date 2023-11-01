@@ -3,6 +3,7 @@ use crate::{
     parse_count16_offset32, parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32,
     parse_ptr32,
 };
+use bilge::prelude::*;
 use binrw::{args, binread, BinRead, BinResult, BinWrite};
 use xc3_write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
 
@@ -189,18 +190,31 @@ pub struct MorphDescriptor {
     #[xc3(offset(u32))]
     pub unk1: Vec<u16>,
 
+    // flags?
     pub unk2: u32,
 }
 
 // TODO: vertex attributes for vertex animation data?
 /// A set of target vertex values similar to a keyframe in traditional animations.
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, BinWrite)]
 pub struct MorphTarget {
     /// Relative to [data_base_offset](struct.ModelData.html#structfield.data_base_offset)
     pub data_offset: u32,
     pub vertex_count: u32,
     pub vertex_size: u32,
-    pub unk1: u32,
+
+    #[br(map(|x: u32| x.into()))]
+    #[bw(map(|x| u32::from(*x)))]
+    pub flags: MorphTargetFlags,
+}
+
+#[bitsize(32)]
+#[derive(DebugBits, FromBits, Clone, Copy)]
+pub struct MorphTargetFlags {
+    pub blend_target_buffer: bool,
+    pub default_buffer: bool,
+    pub param_buffer: bool,
+    pub unk: u29,
 }
 
 // TODO: How are weights assigned to vertices?
@@ -322,7 +336,7 @@ pub struct UnkData {
     pub unk: [u32; 17],
 }
 
-xc3_write_binwrite_impl!(DataType, Unk1, Unk2);
+xc3_write_binwrite_impl!(DataType, Unk1, Unk2, MorphTarget);
 
 impl<'a> Xc3WriteOffsets for VertexDataOffsets<'a> {
     fn write_offsets<W: std::io::Write + std::io::Seek>(
