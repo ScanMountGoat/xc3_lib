@@ -213,6 +213,7 @@ impl State {
                 self.current_frame,
                 current_frame_start.duration_since(self.previous_frame_start),
                 anim.frame_count as f32,
+                anim.frames_per_second,
                 1.0,
                 false,
             );
@@ -380,36 +381,33 @@ pub fn next_frame(
     current_frame: f32,
     time_since_last_frame: Duration,
     final_frame_index: f32,
+    frames_per_second: f32,
     playback_speed: f32,
     should_loop: bool,
 ) -> f32 {
     // Convert elapsed time to a delta in frames.
     // This relies on interpolation or frame skipping.
-    // TODO: How robust is this implementation?
+    let delta_t_frames = time_since_last_frame.as_secs_f64() as f64 * frames_per_second as f64;
 
-    // TODO: Pass in the frames per second?
-    let millis_per_frame = 1000.0f64 / 30.0f64;
-    let delta_t_frames = time_since_last_frame.as_millis() as f64 / millis_per_frame;
-
-    let mut next_frame = current_frame + (delta_t_frames as f32 * playback_speed);
+    let next_frame = current_frame + (delta_t_frames as f32 * playback_speed);
 
     if next_frame > final_frame_index {
         if should_loop {
             // Wrap around to loop the animation.
             // This may not be seamless if the animations have different lengths.
-            next_frame = if final_frame_index > 0.0 {
+            if final_frame_index > 0.0 {
                 next_frame.rem_euclid(final_frame_index)
             } else {
                 // Use 0.0 instead of NaN for empty animations.
                 0.0
-            };
+            }
         } else {
             // Reduce chances of overflow.
-            next_frame = final_frame_index;
+            final_frame_index
         }
+    } else {
+        next_frame
     }
-
-    next_frame
 }
 
 #[derive(Parser)]
