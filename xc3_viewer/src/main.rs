@@ -14,11 +14,7 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 use xc3_model::animation::Animation;
-use xc3_wgpu::{
-    model::ModelGroup,
-    renderer::{CameraData, Xc3Renderer},
-    COLOR_FORMAT,
-};
+use xc3_wgpu::{CameraData, ModelGroup, Xc3Renderer, COLOR_FORMAT};
 
 #[cfg(feature = "tracing")]
 use tracing_subscriber::prelude::*;
@@ -123,12 +119,12 @@ impl State {
                 // TODO: Dropping vertex buffers is expensive?
                 let root = xc3_model::load_model(model_path, database.as_ref());
                 info!("Load root: {:?}", start.elapsed());
-                xc3_wgpu::model::load_model(&device, &queue, &[root])
+                xc3_wgpu::load_model(&device, &queue, &[root])
             }
             "wismhd" => {
                 let roots = xc3_model::load_map(model_path, database.as_ref());
                 info!("Load {} roots: {:?}", roots.len(), start.elapsed());
-                xc3_wgpu::model::load_model(&device, &queue, &roots)
+                xc3_wgpu::load_model(&device, &queue, &roots)
             }
             _ => todo!(),
         };

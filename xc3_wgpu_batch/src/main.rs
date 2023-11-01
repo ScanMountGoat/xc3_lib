@@ -3,7 +3,7 @@ use futures::executor::block_on;
 use glam::{vec3, Mat4, Vec3};
 use image::ImageBuffer;
 use xc3_model::{animation::Animation, shader_database::ShaderDatabase};
-use xc3_wgpu::renderer::{CameraData, Xc3Renderer};
+use xc3_wgpu::{CameraData, Xc3Renderer};
 
 const WIDTH: u32 = 512;
 const HEIGHT: u32 = 512;
@@ -134,7 +134,7 @@ fn main() {
 
             frame_model_bounds(&queue, &roots, &renderer);
 
-            let groups = xc3_wgpu::model::load_model(&device, &queue, &roots);
+            let groups = xc3_wgpu::load_model(&device, &queue, &roots);
 
             if cli.anim {
                 apply_anim(&queue, &groups, &path.with_extension("mot"));
@@ -163,7 +163,7 @@ fn main() {
         });
 }
 
-fn apply_anim(queue: &wgpu::Queue, groups: &[xc3_wgpu::model::ModelGroup], path: &std::path::Path) {
+fn apply_anim(queue: &wgpu::Queue, groups: &[xc3_wgpu::ModelGroup], path: &std::path::Path) {
     if let Ok(sar1) = xc3_lib::sar1::Sar1::from_file(path) {
         for entry in &sar1.entries {
             if let Ok(xc3_lib::sar1::EntryData::Bc(bc)) = entry.read_data() {
