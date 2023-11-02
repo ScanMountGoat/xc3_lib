@@ -93,7 +93,6 @@ fn read_wismt_single_tex<P: AsRef<Path>>(path: P) -> Mibl {
 }
 
 fn create_wismt_single_tex(mibl: &Mibl) -> Xbc1 {
-    let mut writer = Cursor::new(Vec::new());
-    mibl.write(&mut writer).unwrap();
-    Xbc1::from_decompressed("b2062367_middle.witx".to_string(), &writer.into_inner())
+    // TODO: Set the name properly.
+    Xbc1::new("b2062367_middle.witx".to_string(), mibl)
 }

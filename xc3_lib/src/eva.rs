@@ -1,4 +1,4 @@
-//! Camera animations images in `.eva` files or embedded in `.mot` files.
+//! Camera animations in `.eva` files or embedded in `.mot` files.
 use crate::parse_ptr32;
 use binrw::{binread, BinRead};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};

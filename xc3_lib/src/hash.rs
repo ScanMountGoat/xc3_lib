@@ -37,6 +37,8 @@ const CRC: [u32; 256] = [
 ];
 
 /// `mm::mtl::hashStrCrc` function in the Xenoblade 2 binary.
+///
+/// Null pointers should use a hash value of `0`.
 pub fn hash_str_crc(s: &str) -> u32 {
     // Adapted from code decompiled with ghidra.
     if s.is_empty() {

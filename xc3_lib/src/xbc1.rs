@@ -1,17 +1,19 @@
 //! Compressed container used to store data in other formats.
-use std::io::Read;
+use std::io::{Cursor, Read};
 
 use binrw::{BinRead, BinResult, BinWrite, NullString};
 use flate2::{bufread::ZlibEncoder, Compression};
 use zune_inflate::{errors::InflateDecodeErrors, DeflateDecoder, DeflateOptions};
 
-use xc3_write::Xc3Write;
+use xc3_write::{write_full, Xc3Write, Xc3WriteOffsets};
 
 use crate::hash::hash_crc;
 
-#[derive(BinRead, BinWrite, Debug)]
+#[derive(Debug, BinRead, BinWrite, PartialEq)]
 #[brw(magic(b"xbc1"))]
 pub struct Xbc1 {
+    // TODO: Not always zlib?
+    #[br(assert(unk1 == 1))]
     pub unk1: u32,
     pub decomp_size: u32,
     pub comp_size: u32,
@@ -20,10 +22,12 @@ pub struct Xbc1 {
     /// for [compressed_stream](#structfield.compressed_stream) using [hash_crc](crate::hash::hash_crc).
     pub decompressed_hash: u32,
 
+    /// The name for this archive.
+    /// This is often the name of the original file like `3d4f4c6_middle.witx`.
     #[br(map = |x: NullString| x.to_string())]
     #[bw(map = |x: &String| NullString::from(x.as_str()))]
     #[brw(pad_size_to = 28)]
-    pub text: String,
+    pub name: String,
 
     /// A zlib encoded compressed stream.
     /// The decompressed or "inflated" stream will have size [decomp_size](#structfield.decomp_size).
@@ -33,7 +37,20 @@ pub struct Xbc1 {
 }
 
 impl Xbc1 {
-    /// Compresses the data in `decompressed` using ZLIB.
+    /// Write and compress `data` using ZLIB.
+    pub fn new<'a, T>(name: String, data: &'a T) -> Self
+    where
+        T: Xc3Write + 'static,
+        T::Offsets<'a>: Xc3WriteOffsets,
+    {
+        let mut writer = Cursor::new(Vec::new());
+        write_full(data, &mut writer, 0, &mut 0).unwrap();
+        let decompressed = writer.into_inner();
+
+        Self::from_decompressed(name, &decompressed)
+    }
+
+    /// Compress `decompressed` using ZLIB.
     pub fn from_decompressed(name: String, decompressed: &[u8]) -> Self {
         let mut encoder = ZlibEncoder::new(decompressed, Compression::best());
         let mut compressed_stream = Vec::new();
@@ -43,8 +60,8 @@ impl Xbc1 {
             unk1: 1,
             decomp_size: decompressed.len() as u32,
             comp_size: compressed_stream.len() as u32,
-            decompressed_hash: hash_crc(decompressed),
-            text: name,
+            decompressed_hash: hash_crc(&decompressed),
+            name,
             compressed_stream,
         }
     }

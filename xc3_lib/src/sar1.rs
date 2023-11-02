@@ -3,10 +3,14 @@
 //! XC3: `chr/{ch,en,oj,wp}/*.{chr,mot}`
 use std::io::Cursor;
 
-use crate::{parse_count32_offset32, parse_offset32_count32, parse_ptr32, parse_string_ptr32};
+use crate::{
+    hash::hash_str_crc, parse_count32_offset32, parse_offset32_count32, parse_ptr32,
+    parse_string_ptr32,
+};
 use binrw::{binread, BinRead, BinReaderExt, BinResult, NullString};
-use xc3_write::{round_up, Xc3Write, Xc3WriteOffsets};
+use xc3_write::{round_up, write_full, Xc3Write, Xc3WriteOffsets};
 
+/// A simple archive containing named entries.
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(magic(b"1RAS"))]
 #[xc3(magic(b"1RAS"))]
@@ -45,7 +49,29 @@ pub struct Entry {
 }
 
 impl Entry {
-    /// Attempt to read an item from the data for this entry.
+    /// Write the bytes from `data` to a new [Entry].
+    pub fn new<T>(name: String, data: &T) -> Self
+    where
+        T: Xc3Write + 'static,
+        for<'a> T::Offsets<'a>: Xc3WriteOffsets,
+    {
+        let mut writer = Cursor::new(Vec::new());
+        write_full(data, &mut writer, 0, &mut 0).unwrap();
+
+        Self::from_entry_data(name, writer.into_inner())
+    }
+
+    /// Create a new [Entry] from `entry_data`.
+    pub fn from_entry_data(name: String, entry_data: Vec<u8>) -> Self {
+        Self {
+            entry_data,
+            name_hash: hash_str_crc(&name),
+            name,
+        }
+    }
+
+    // TODO: table of type and names
+    /// Attempt to read an item from the bytes for this entry.
     pub fn read_data<T>(&self) -> BinResult<T>
     where
         for<'a> T: BinRead<Args<'a> = ()>,
