@@ -369,3 +369,11 @@ impl Xc3WriteOffsets for () {
 pub const fn round_up(x: u64, n: u64) -> u64 {
     ((x + n - 1) / n) * n
 }
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! assert_hex_eq {
+    ($a:expr, $b:expr) => {
+        pretty_assertions::assert_str_eq!(hex::encode($a), hex::encode($b))
+    };
+}
