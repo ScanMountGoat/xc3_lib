@@ -169,7 +169,6 @@ fn check_msrd(msrd: Msrd, path: &Path, check_read_write: bool) {
     msrd.extract_shader_data();
     let vertex_data = msrd.extract_vertex_data();
     msrd.extract_low_texture_data();
-    println!("{}, {path:?}", msrd.revision);
 
     // TODO: High textures?
     // TODO: Check mibl?
@@ -272,10 +271,15 @@ fn check_mibl(original_bytes: &[u8], mibl: Mibl, path: &Path) {
     };
 }
 
-fn read_wismt_single_tex<P: AsRef<Path>>(path: P) -> (Vec<u8>, Mibl) {
+fn read_wismt_single_tex(path: &Path) -> (Vec<u8>, Mibl) {
     let xbc1 = Xbc1::from_file(path).unwrap();
 
     let decompressed = xbc1.decompress().unwrap();
+
+    if xc3_lib::hash::hash_crc(&decompressed) != xbc1.decompressed_hash {
+        println!("Incorrect xbc1 hash for {path:?}");
+    }
+
     let mibl = Mibl::from_bytes(&decompressed).unwrap();
     (decompressed, mibl)
 }
@@ -367,6 +371,10 @@ fn check_ltpc(ltpc: Ltpc, path: &Path, check_read_write: bool) {
 
 fn check_sar1(sar1: Sar1, path: &Path, check_read_write: bool) {
     for entry in &sar1.entries {
+        if xc3_lib::hash::hash_str_crc(&entry.name) != entry.name_hash {
+            println!("Incorrect hash for {:?}", entry.name);
+        }
+
         // Check read/write for the inner data.
         if let Ok(bc) = entry.read_data::<xc3_lib::bc::Bc>() {
             let mut writer = Cursor::new(Vec::new());

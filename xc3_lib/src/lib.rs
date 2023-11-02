@@ -54,6 +54,7 @@ pub mod bc;
 pub mod dds;
 pub mod dhal;
 pub mod eva;
+pub mod hash;
 pub mod ltpc;
 pub mod map;
 pub mod mibl;

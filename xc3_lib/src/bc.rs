@@ -640,23 +640,4 @@ where
     pub unk1: i32,
 }
 
-/// Produce the 32-bit hash for a value like a bone name.
-pub fn murmur3(bytes: &[u8]) -> u32 {
-    murmur3::murmur3_32(&mut std::io::Cursor::new(bytes), 0).unwrap()
-}
-
 xc3_write_binwrite_impl!(AnimationType, BlendMode, PlayMode, SpaceMode);
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn hash_bones_murmur3() {
-        // Check that bone name hashes match the animation.
-        // Bones: xeno3/chr/ch/ch01012013.wimdo
-        // Hashes: xeno3/chr/ch/ch01011000_battle.mot
-        assert_eq!(0x47df19d5, murmur3("J_thumb_A_R".as_bytes()));
-        assert_eq!(0xfd011736, murmur3("J_hip".as_bytes()));
-    }
-}

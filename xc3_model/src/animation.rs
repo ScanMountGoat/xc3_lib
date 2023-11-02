@@ -3,7 +3,8 @@ use std::ops::Bound::*;
 
 use glam::{vec4, Quat, Vec3, Vec4, Vec4Swizzles};
 use ordered_float::OrderedFloat;
-pub use xc3_lib::bc::{murmur3, BlendMode, PlayMode, SpaceMode};
+pub use xc3_lib::bc::{BlendMode, PlayMode, SpaceMode};
+pub use xc3_lib::hash::murmur3;
 
 #[derive(Debug, PartialEq)]
 pub struct Animation {
