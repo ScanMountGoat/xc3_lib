@@ -2,7 +2,6 @@ use std::{error::Error, path::Path};
 
 use image_dds::Surface;
 use xc3_lib::{
-    dds::surface_image_format,
     mibl::{Mibl, SwizzleError},
     msrd::Msrd,
     mxmd::{Mxmd, PackedTexture},
@@ -186,7 +185,7 @@ impl ImageTexture {
                 1
             },
             mipmaps: self.mipmap_count,
-            image_format: surface_image_format(self.image_format).unwrap(),
+            image_format: self.image_format.into(),
             data: &self.image_data,
         }
         .to_dds()

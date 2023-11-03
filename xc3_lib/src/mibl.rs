@@ -3,7 +3,6 @@
 //! XC3: `chr/tex/nx/*/*.wismt`, `monolib/shader/*.{witex,witx}`
 use std::io::SeekFrom;
 
-use anyhow::Result;
 use binrw::{binrw, BinRead, BinWrite};
 use tegra_swizzle::surface::BlockDim;
 use xc3_write::{xc3_write_binwrite_impl, Xc3Write};
