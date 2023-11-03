@@ -5,8 +5,10 @@ use std::io::SeekFrom;
 
 use anyhow::Result;
 use binrw::{binrw, BinRead, BinWrite};
-use tegra_swizzle::{surface::BlockDim, SwizzleError};
+use tegra_swizzle::surface::BlockDim;
 use xc3_write::{xc3_write_binwrite_impl, Xc3Write};
+
+pub use tegra_swizzle::SwizzleError;
 
 /// Data for an image texture surface.
 #[derive(Debug, PartialEq, Eq)]
@@ -183,6 +185,37 @@ impl Mibl {
                 1
             },
         )
+    }
+
+    /// Deswizzle the combined data from `self` and `base_mip_level` to a standard row-major memory layout.
+    pub fn deswizzle_image_data_base_mip(
+        &self,
+        base_mip_level: Vec<u8>,
+    ) -> Result<Vec<u8>, SwizzleError> {
+        // The high resolution texture is only a single mip level.
+        // TODO: double depth?
+        let mut image_data = tegra_swizzle::surface::deswizzle_surface(
+            (self.footer.width * 2) as usize,
+            (self.footer.height * 2) as usize,
+            self.footer.depth as usize,
+            &base_mip_level,
+            self.footer.image_format.block_dim(),
+            None,
+            self.footer.image_format.bytes_per_pixel(),
+            1,
+            if self.footer.view_dimension == ViewDimension::Cube {
+                6
+            } else {
+                1
+            },
+        )
+        .unwrap();
+
+        // Non swizzled data has no alignment requirements.
+        // We can just combine the two surfaces.
+        image_data.extend_from_slice(&self.deswizzled_image_data().unwrap());
+
+        Ok(image_data)
     }
 }
 

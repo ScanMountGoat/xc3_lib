@@ -1,9 +1,8 @@
 //! Conversions between [Mibl] and [ddsfile::Dds].
 use std::{io::BufWriter, path::Path};
 
-use ddsfile::Dds;
-
 use anyhow::Result;
+use image_dds::ddsfile::Dds;
 use image_dds::Surface;
 
 use crate::{

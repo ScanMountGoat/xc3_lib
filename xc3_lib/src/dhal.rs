@@ -1,4 +1,6 @@
 //! User interface [Mibl](crate::mibl::Mibl) images in `.wilay` files.
+use std::io::Cursor;
+
 use crate::{parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32};
 use binrw::{binread, BinRead, BinWrite};
 use xc3_write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
@@ -236,6 +238,17 @@ pub struct UncompressedTexture {
 
     pub unk3: u32,
     pub unk4: u32,
+}
+
+impl UncompressedTexture {
+    /// Decode the JPEG/JFIF data to an RGB image.
+    pub fn to_image(
+        &self,
+    ) -> Result<image_dds::image::RgbImage, image_dds::image::error::ImageError> {
+        let mut reader = image_dds::image::io::Reader::new(Cursor::new(&self.jpeg_data));
+        reader.set_format(image_dds::image::ImageFormat::Jpeg);
+        Ok(reader.decode()?.into_rgb8())
+    }
 }
 
 xc3_write_binwrite_impl!(Unk0);

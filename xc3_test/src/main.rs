@@ -5,7 +5,6 @@ use std::{
 };
 
 use clap::Parser;
-use image::ImageDecoder;
 use rayon::prelude::*;
 use xc3_lib::{
     bc::Bc, dhal::Dhal, eva::Eva, ltpc::Ltpc, mibl::Mibl, msmd::Msmd, msrd::Msrd, mxmd::Mxmd,
@@ -17,7 +16,6 @@ use xc3_lib::{
 #[command(propagate_version = true)]
 struct Cli {
     /// The root folder that contains folders like `map/` and `monolib/`.
-    /// Supports Xenoblade 2 and Xenoblade 3.
     root_folder: String,
 
     /// Process LIBM image files from .witex, .witx, .wismt
@@ -87,6 +85,8 @@ fn main() {
         println!("Checking MXMD files ...");
         check_all(root, &["*.wimdo", "!map/**"], check_mxmd);
     }
+
+    // TODO: Check apmd separately by checking the initial magic?
 
     if cli.msrd || cli.all {
         // Skip the .wismt textures in the XC3 tex folder.
@@ -280,8 +280,9 @@ fn read_wismt_single_tex(path: &Path) -> (Vec<u8>, Mibl) {
         println!("Incorrect xbc1 hash for {path:?}");
     }
 
-    let mibl = Mibl::from_bytes(&decompressed).unwrap();
-    (decompressed, mibl)
+    // TODO: Test merging.
+    let mibl_m = Mibl::from_bytes(&decompressed).unwrap();
+    (decompressed, mibl_m)
 }
 
 fn check_dhal(dhal: Dhal, path: &Path, check_read_write: bool) {
@@ -296,10 +297,9 @@ fn check_dhal(dhal: Dhal, path: &Path, check_read_write: bool) {
         if let Some(textures) = &dhal.uncompressed_textures {
             for texture in &textures.textures {
                 // Check for valid JFIF/JPEG data.
-                let mut reader = Cursor::new(&texture.jpeg_data);
-                let decoder = image::codecs::jpeg::JpegDecoder::new(&mut reader).unwrap();
-                let mut bytes = vec![0u8; decoder.total_bytes() as usize];
-                decoder.read_image(&mut bytes).unwrap();
+                if let Err(e) = texture.to_image() {
+                    println!("Error decoding JPEG for {path:?}: {e}");
+                }
             }
         }
 

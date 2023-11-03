@@ -21,7 +21,7 @@ pub struct GltfFile {
     pub root: gltf::json::Root,
     pub buffer_name: String,
     pub buffer: Vec<u8>,
-    pub images: Vec<(String, image::RgbaImage)>,
+    pub images: Vec<(String, image_dds::image::RgbaImage)>,
 }
 
 impl GltfFile {

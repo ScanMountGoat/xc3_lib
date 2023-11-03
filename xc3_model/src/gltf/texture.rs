@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use crate::ModelRoot;
+use image_dds::image::RgbaImage;
 use rayon::prelude::*;
 
 // TODO: This will eventually need to account for parameters and constants.
@@ -24,9 +25,9 @@ pub struct ImageKey {
 #[derive(Default)]
 pub struct TextureCache {
     pub textures: Vec<gltf::json::Texture>,
-    pub generated_images: BTreeMap<GeneratedImageKey, image::RgbaImage>,
+    pub generated_images: BTreeMap<GeneratedImageKey, RgbaImage>,
     pub generated_texture_indices: BTreeMap<GeneratedImageKey, u32>,
-    pub original_images: BTreeMap<ImageKey, image::RgbaImage>,
+    pub original_images: BTreeMap<ImageKey, RgbaImage>,
 }
 
 impl TextureCache {
@@ -135,8 +136,8 @@ pub fn metallic_roughness_generated_key(
 
 fn generate_image(
     key: GeneratedImageKey,
-    original_images: &BTreeMap<ImageKey, image::RgbaImage>,
-) -> Option<image::RgbaImage> {
+    original_images: &BTreeMap<ImageKey, RgbaImage>,
+) -> Option<RgbaImage> {
     let find_image_channel = |index: Option<(usize, usize)>| {
         index.and_then(|(image_index, channel)| {
             original_images
@@ -160,7 +161,7 @@ fn generate_image(
         .max()?;
 
     // Start with a fully opaque black image.
-    let mut image = image::RgbaImage::new(width, height);
+    let mut image = RgbaImage::new(width, height);
     for pixel in image.pixels_mut() {
         pixel[3] = 255u8;
     }
@@ -192,19 +193,19 @@ fn generate_image(
 }
 
 fn assign_channel(
-    output: &mut image::RgbaImage,
-    image_channel: Option<(&image::RgbaImage, usize)>,
+    output: &mut RgbaImage,
+    image_channel: Option<(&RgbaImage, usize)>,
     output_channel: usize,
 ) {
     if let Some((input, input_channel)) = image_channel {
         // Ensure the input and output images have the same dimensions.
         // TODO: Is it worth caching this operation?
         if input.dimensions() != output.dimensions() {
-            let resized = image::imageops::resize(
+            let resized = image_dds::image::imageops::resize(
                 input,
                 output.width(),
                 output.height(),
-                image::imageops::FilterType::Triangle,
+                image_dds::image::imageops::FilterType::Triangle,
             );
             assign_pixels(output, &resized, output_channel, input_channel);
         } else {
@@ -214,8 +215,8 @@ fn assign_channel(
 }
 
 fn assign_pixels(
-    output: &mut image::RgbaImage,
-    input: &image::RgbaImage,
+    output: &mut RgbaImage,
+    input: &RgbaImage,
     output_channel: usize,
     input_channel: usize,
 ) {
@@ -259,7 +260,7 @@ fn texture_channel_index(
         .map(|t| (t.image_texture_index, channel_index as usize))
 }
 
-pub fn create_images(roots: &[ModelRoot]) -> BTreeMap<ImageKey, image::RgbaImage> {
+pub fn create_images(roots: &[ModelRoot]) -> BTreeMap<ImageKey, RgbaImage> {
     let mut png_images = BTreeMap::new();
     for (root_index, root) in roots.iter().enumerate() {
         // Decode images in parallel to boost performance.
