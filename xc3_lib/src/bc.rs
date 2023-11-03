@@ -494,6 +494,7 @@ pub struct Skel {
     pub skeleton: Skeleton,
 }
 
+// TODO: variable size?
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct Skeleton {
     pub unk1: BcList<u8>,
@@ -509,11 +510,11 @@ pub struct Skeleton {
     pub transforms: BcList<Transform>,
 
     pub unk_table1: BcList<SkeletonUnk1>,
-    pub unk_table2: BcList<u64>,
+    pub unk_table2: BcList<[i8; 8]>, // indices?
     pub unk_table3: BcList<StringOffset>,
     pub unk_table4: BcList<[[f32; 4]; 3]>,
-    pub unk_table5: BcList<u64>,
-    // TODO: Not all skeletons have these fields?
+    pub unk_table5: BcList<SkeletonUnkItem5>,
+    // TODO: 80 bytes of optional data?
     // TODO: These may only be pointed to by the offsets at the end of the file?
     // #[br(parse_with = parse_opt_ptr64)]
     // #[xc3(offset(u64))]
@@ -541,6 +542,14 @@ pub struct Skeleton {
 
     // pub unk12: u64,
     // pub unk13: i64,
+}
+
+// Related to relocatable addresses?
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct SkeletonUnkItem5 {
+    pub index: u32, // address index?
+    pub unk2: u16,  // incremented if index is the same?
+    pub unk3: u16,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
