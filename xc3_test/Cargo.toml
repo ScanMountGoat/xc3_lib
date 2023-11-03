@@ -8,6 +8,5 @@ xc3_lib = { path = "../xc3_lib" }
 xc3_write = { path = "../xc3_write" }
 rayon = "1.7.0"
 globwalk = "0.8.1"
-binrw = "0.11.2"
 clap = { version = "4.2.7", features = ["derive"] }
 image = "0.24.7"
