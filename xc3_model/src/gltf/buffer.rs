@@ -256,7 +256,6 @@ impl Buffers {
                     );
                 }
                 // Skin weights are handled separately.
-                // TODO: remove these attributes?
                 AttributeData::WeightIndex(_) => (),
                 AttributeData::SkinWeights(_) => (),
                 AttributeData::BoneIndices(_) => (),

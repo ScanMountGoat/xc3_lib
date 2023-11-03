@@ -60,7 +60,7 @@ impl Xbc1 {
             unk1: 1,
             decomp_size: decompressed.len() as u32,
             comp_size: compressed_stream.len() as u32,
-            decompressed_hash: hash_crc(&decompressed),
+            decompressed_hash: hash_crc(decompressed),
             name,
             compressed_stream,
         }

@@ -260,7 +260,6 @@ fn texture_channel_index(
 }
 
 pub fn create_images(roots: &[ModelRoot]) -> BTreeMap<ImageKey, image::RgbaImage> {
-    // TODO: Is it worth giving images their in game names?
     let mut png_images = BTreeMap::new();
     for (root_index, root) in roots.iter().enumerate() {
         // Decode images in parallel to boost performance.

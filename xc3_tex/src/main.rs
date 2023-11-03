@@ -1,5 +1,5 @@
 use std::{
-    io::{BufReader, Cursor},
+    io::BufReader,
     path::{Path, PathBuf},
     str::FromStr,
 };
