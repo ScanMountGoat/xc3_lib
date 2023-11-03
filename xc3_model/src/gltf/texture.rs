@@ -68,10 +68,7 @@ impl TextureCache {
 }
 
 // TODO: Create consts for the gbuffer texture indices?
-pub fn albedo_generated_key(
-    material: &crate::Material,
-    root_index: usize,
-) -> Option<GeneratedImageKey> {
+pub fn albedo_generated_key(material: &crate::Material, root_index: usize) -> GeneratedImageKey {
     let red_index = texture_channel_index(material, 0, 'x');
     let green_index = texture_channel_index(material, 0, 'y');
     let blue_index = texture_channel_index(material, 0, 'z');
@@ -89,7 +86,7 @@ pub fn albedo_generated_key(
         .or_else(|| texture_channel_index(material, 0, 'w'));
 
     // TODO: Default to the first texture for albedo if no database entry?
-    Some(GeneratedImageKey {
+    GeneratedImageKey {
         root_index,
         red_index,
         green_index,
@@ -97,17 +94,14 @@ pub fn albedo_generated_key(
         alpha_index,
         recalculate_normal_z: false,
         invert_green: false,
-    })
+    }
 }
 
-pub fn normal_generated_key(
-    material: &crate::Material,
-    root_index: usize,
-) -> Option<GeneratedImageKey> {
+pub fn normal_generated_key(material: &crate::Material, root_index: usize) -> GeneratedImageKey {
     let red_index = texture_channel_index(material, 2, 'x');
     let green_index = texture_channel_index(material, 2, 'y');
 
-    Some(GeneratedImageKey {
+    GeneratedImageKey {
         root_index,
         red_index,
         green_index,
@@ -115,20 +109,20 @@ pub fn normal_generated_key(
         alpha_index: None,
         recalculate_normal_z: true,
         invert_green: false,
-    })
+    }
 }
 
 pub fn metallic_roughness_generated_key(
     material: &crate::Material,
     root_index: usize,
-) -> Option<GeneratedImageKey> {
+) -> GeneratedImageKey {
     // The red channel is unused, we can pack occlusion here.
     let occlusion_index = texture_channel_index(material, 2, 'z');
     let metalness_index = texture_channel_index(material, 1, 'x');
     let glossiness_index = texture_channel_index(material, 1, 'y');
 
     // Invert the glossiness since glTF uses roughness.
-    Some(GeneratedImageKey {
+    GeneratedImageKey {
         root_index,
         red_index: occlusion_index,
         green_index: glossiness_index,
@@ -136,7 +130,7 @@ pub fn metallic_roughness_generated_key(
         alpha_index: None,
         recalculate_normal_z: false,
         invert_green: true,
-    })
+    }
 }
 
 fn generate_image(

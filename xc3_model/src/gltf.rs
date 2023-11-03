@@ -51,15 +51,14 @@ impl GltfFile {
                 for (models_index, models) in group.models.iter().enumerate() {
                     for (material_index, material) in models.materials.iter().enumerate() {
                         let albedo_key = albedo_generated_key(material, root_index);
-                        let albedo_index = albedo_key.and_then(|key| texture_cache.insert(key));
+                        let albedo_index = texture_cache.insert(albedo_key);
 
                         let normal_key = normal_generated_key(material, root_index);
-                        let normal_index = normal_key.and_then(|key| texture_cache.insert(key));
+                        let normal_index = texture_cache.insert(normal_key);
 
                         let metallic_roughness_key =
                             metallic_roughness_generated_key(material, root_index);
-                        let metallic_roughness_index =
-                            metallic_roughness_key.and_then(|key| texture_cache.insert(key));
+                        let metallic_roughness_index = texture_cache.insert(metallic_roughness_key);
 
                         let material = create_material(
                             material,
