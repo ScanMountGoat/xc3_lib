@@ -504,24 +504,23 @@ pub struct Models {
     pub model_unk4: Option<ModelUnk4>,
     pub unk_field2: u32,
     pub unk_fields: [u32; 2],
-
     // TODO: What controls the up to 44 optional bytes?
     // offset 160
-    pub unk_field3: u32,
+    // pub unk_field3: u32,
 
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
-    pub model_unk5: Option<ModelUnk5>,
+    // #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    // #[xc3(offset(u32))]
+    // pub model_unk5: Option<ModelUnk5>,
 
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
-    pub model_unk6: Option<ModelUnk6>,
+    // #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    // #[xc3(offset(u32))]
+    // pub model_unk6: Option<ModelUnk6>,
 
-    pub model_unk7: u32,
+    // pub model_unk7: u32,
 
-    // TODO: padding?
-    // TODO: add asserts to all padding fields
-    pub unk: [u32; 7],
+    // // TODO: padding?
+    // // TODO: add asserts to all padding fields
+    // pub unk: [u32; 7],
 }
 
 /// A collection of meshes where each [Mesh] represents one draw call.
@@ -1355,7 +1354,7 @@ impl<'a> Xc3WriteOffsets for ModelsOffsets<'a> {
         self.unk_offset1.write_full(writer, base_offset, data_ptr)?;
         self.model_unk4.write_full(writer, base_offset, data_ptr)?;
         self.model_unk3.write_full(writer, base_offset, data_ptr)?;
-        self.model_unk5.write_full(writer, base_offset, data_ptr)?;
+        // self.model_unk5.write_full(writer, base_offset, data_ptr)?;
 
         Ok(())
     }

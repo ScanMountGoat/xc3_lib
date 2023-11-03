@@ -373,7 +373,13 @@ fn create_skeleton(chr: Option<&Sar1>, mxmd: &Mxmd) -> Option<Skeleton> {
     let skel = chr?
         .entries
         .iter()
-        .find_map(|e| e.read_data::<xc3_lib::bc::Skel>().ok())?;
+        .find_map(|e| match e.read_data::<xc3_lib::bc::Bc>() {
+            Ok(bc) => match bc.data {
+                xc3_lib::bc::BcData::Skel(skel) => Some(skel),
+                _ => None,
+            },
+            _ => None,
+        })?;
 
     Some(Skeleton::from_skel(
         &skel.skeleton,
