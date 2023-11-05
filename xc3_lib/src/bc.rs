@@ -6,6 +6,7 @@ use crate::{
 use binrw::{args, binread, BinRead, BinWrite};
 use xc3_write::{xc3_write_binwrite_impl, VecOffsets, Xc3Write, Xc3WriteOffsets};
 
+// TODO: Add class names from xenoblade 2 binary where appropriate.
 // Assume the BC is at the beginning of the reader to simplify offsets.
 #[binread]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets)]
@@ -498,7 +499,6 @@ pub struct Skel {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct Skeleton {
     pub unk1: BcList<u8>,
-
     pub unk2: u64, // 0
 
     #[br(parse_with = parse_string_ptr64)]
@@ -506,15 +506,22 @@ pub struct Skeleton {
     pub root_bone_name: String,
 
     pub parent_indices: BcList<i16>,
+
     pub names: BcList<BoneName>,
+
+    #[br(restore_position)]
+    pub transforms_offset: u32,
     pub transforms: BcList<Transform>,
 
-    pub unk_table1: BcList<SkeletonUnk1>,
-    pub unk_table2: BcList<[i8; 8]>, // indices?
-    pub unk_table3: BcList<StringOffset>,
-    pub unk_table4: BcList<[[f32; 4]; 3]>,
-    pub unk_table5: BcList<SkeletonUnkItem5>,
-    // TODO: 80 bytes of optional data?
+    pub extra_track_slots: BcList<SkeletonExtraTrackSlot>,
+
+    // MT_ or mount bones?
+    pub mt_indices: BcList<[i8; 8]>,
+    pub mt_names: BcList<StringOffset>,
+    pub mt_transforms: BcList<Transform>,
+
+    pub labels: BcList<SkeletonLabel>,
+    // TODO: 80 bytes of optional data not present for xc2?
     // TODO: These may only be pointed to by the offsets at the end of the file?
     // #[br(parse_with = parse_opt_ptr64)]
     // #[xc3(offset(u64))]
@@ -544,12 +551,11 @@ pub struct Skeleton {
     // pub unk13: i64,
 }
 
-// Related to relocatable addresses?
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
-pub struct SkeletonUnkItem5 {
-    pub index: u32, // address index?
-    pub unk2: u16,  // incremented if index is the same?
-    pub unk3: u16,
+pub struct SkeletonLabel {
+    pub bone_type: u32, // enum?
+    pub index: u16,     // incremented if type is the same?
+    pub bone_index: u16,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -570,7 +576,7 @@ pub struct BoneName {
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
-pub struct SkeletonUnk1 {
+pub struct SkeletonExtraTrackSlot {
     #[br(parse_with = parse_string_ptr64)]
     #[xc3(offset(u64))]
     pub unk1: String,

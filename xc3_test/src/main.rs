@@ -313,8 +313,11 @@ fn check_dhal(dhal: Dhal, path: &Path, check_read_write: bool) {
     }
 }
 
-// TODO: Don't make this optional?
 fn check_mxmd(mxmd: Mxmd, path: &Path, check_read_write: bool) {
+    if !is_valid_models_flags(&mxmd) {
+        println!("Inconsistent ModelsFlags for {path:?}");
+    }
+
     if check_read_write {
         // Check read/write.
         let original = std::fs::read(path).unwrap();
@@ -337,6 +340,18 @@ fn check_mxmd(mxmd: Mxmd, path: &Path, check_read_write: bool) {
             }
         }
     }
+}
+
+fn is_valid_models_flags(mxmd: &Mxmd) -> bool {
+    // Check that flags are consistent with nullability of offsets.
+    let flags = mxmd.models.models_flags;
+    flags.has_model_unk8() == mxmd.models.model_unk8.is_some()
+        && flags.has_model_unk7() == mxmd.models.model_unk7.is_some()
+        && flags.has_morph_controllers() == mxmd.models.morph_controllers.is_some()
+        && flags.has_model_unk1() == mxmd.models.model_unk1.is_some()
+        && flags.has_skinning() == mxmd.models.skinning.is_some()
+        && flags.has_lod_data() == mxmd.models.lod_data.is_some()
+        && flags.has_model_unk4() == mxmd.models.model_unk4.is_some()
 }
 
 fn check_spch(spch: Spch, path: &Path, check_read_write: bool) {
@@ -400,6 +415,8 @@ fn check_sar1(sar1: Sar1, path: &Path, check_read_write: bool) {
             if writer.into_inner() != entry.entry_data {
                 println!("Eva read/write not 1:1 for {:?} in {path:?}", entry.name);
             }
+        } else {
+            println!("Error reading {:?} in {path:?}", entry.name);
         }
     }
 

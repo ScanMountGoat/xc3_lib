@@ -6,14 +6,14 @@ use crate::{
     parse_ptr32, parse_string_opt_ptr32, parse_string_ptr32, spch::Spch, vertex::VertexData,
 };
 use bilge::prelude::*;
-use binrw::{args, binread, BinRead, BinWrite};
+use binrw::{args, binread, BinRead, BinResult, BinWrite};
 use xc3_write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
 
 #[derive(Debug, BinRead, Xc3Write)]
 #[br(magic(b"DMXM"))]
 #[xc3(magic(b"DMXM"))]
 pub struct Mxmd {
-    // TODO: Version differences?
+    // TODO: 10111 for xc2 has different fields
     #[br(assert(version == 10111 || version == 10112))]
     pub version: u32,
 
@@ -89,7 +89,7 @@ pub struct Materials {
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(offset(u32))]
-    pub unk_offset1: Option<MaterialUnk1>, // callbacks?
+    pub model_unk1: Option<MaterialUnk1>, // callbacks?
 
     // TODO: is this ever not 0?
     pub unk4: u32,
@@ -448,6 +448,7 @@ pub struct Texture {
     pub unk3: u16,
 }
 
+// TODO: variable size?
 /// A collection of [Model] as well as skinning and animation information.
 #[binread]
 #[derive(Debug, Xc3Write)]
@@ -457,7 +458,8 @@ pub struct Models {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    pub unk1: u32,
+    #[br(map(|x: u32| x.into()))]
+    pub models_flags: ModelsFlags,
 
     pub max_xyz: [f32; 3],
     pub min_xyz: [f32; 3],
@@ -480,7 +482,18 @@ pub struct Models {
     pub model_unks: Vec<ModelUnk>,
 
     // TODO: always 0?
-    pub unks3_2: [u32; 5],
+    pub unks3_2: [u32; 2],
+
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset(u32))]
+    pub model_unk8: Option<ModelUnk8>,
+
+    pub unk3_3: u32,
+
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub model_unk7: Option<ModelUnk7>,
 
     // offset 128
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
@@ -489,7 +502,7 @@ pub struct Models {
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(16))]
-    pub unk_offset1: Option<ModelUnk1>,
+    pub model_unk1: Option<ModelUnk1>,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
@@ -516,7 +529,7 @@ pub struct Models {
     // #[xc3(offset(u32))]
     // pub model_unk6: Option<ModelUnk6>,
 
-    // pub model_unk7: u32,
+    // pub model_unk7_1: u32,
 
     // // TODO: padding?
     // // TODO: add asserts to all padding fields
@@ -562,6 +575,32 @@ pub struct Mesh {
     pub lod: u16, // TODO: flags with one byte being lod?
     // TODO: groups?
     pub unks6: [i32; 4],
+}
+
+/// Flags to determine what data is present in [Models].
+#[bitsize(32)]
+#[derive(DebugBits, FromBits, Clone, Copy)]
+pub struct ModelsFlags {
+    pub unk1: bool,
+    pub has_model_unk8: bool, // ModelUnk8?
+    pub unk3: bool,
+    pub unk4: bool,
+    pub unk5: bool,
+    pub unk6: bool,
+    pub has_model_unk7: bool,
+    pub unk8: bool,
+    pub unk9: bool,
+    pub unk10: bool,
+    pub has_morph_controllers: bool,
+    pub has_model_unk1: bool,
+    pub has_model_unk3: bool,
+    pub unk14: bool,
+    pub unk15: bool,
+    pub has_skinning: bool,
+    pub unk17: bool,
+    pub has_lod_data: bool,
+    pub has_model_unk4: bool,
+    pub unk: u13,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -711,6 +750,39 @@ pub struct ModelUnk6 {
 
     // TODO: padding?
     pub unks: [u32; 4],
+}
+
+#[binread]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[br(stream = r)]
+#[xc3(base_offset)]
+pub struct ModelUnk7 {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    // TODO: What type is this?
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub items: Vec<[f32; 9]>,
+
+    // TODO: padding?
+    pub unks: [u32; 4],
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[br(import_raw(base_offset: u64))]
+pub struct ModelUnk8 {
+    // TODO: What type is this?
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk1: Vec<[u32; 5]>,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk2: Vec<[f32; 4]>,
+
+    // TODO: padding?
+    pub unks: [u32; 2],
 }
 
 // TODO: eye animations?
@@ -1226,6 +1298,19 @@ pub struct Unk1Unk4 {
 
 xc3_write_binwrite_impl!(ParamType, Sampler, ShaderUnkType, StateFlags);
 
+// TODO: make a macro or attribute for this?
+impl Xc3Write for ModelsFlags {
+    type Offsets<'a> = ();
+
+    fn xc3_write<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        data_ptr: &mut u64,
+    ) -> BinResult<Self::Offsets<'_>> {
+        u32::from(*self).xc3_write(writer, data_ptr)
+    }
+}
+
 impl Xc3Write for MaterialFlags {
     type Offsets<'a> = ();
 
@@ -1345,13 +1430,16 @@ impl<'a> Xc3WriteOffsets for ModelsOffsets<'a> {
             self.model_unks.write_full(writer, base_offset, data_ptr)?;
         }
 
+        self.model_unk8.write_full(writer, base_offset, data_ptr)?;
+
         // TODO: Padding before this?
         self.morph_controllers
             .write_full(writer, base_offset, data_ptr)?;
 
         // Different order than field order.
         self.lod_data.write_full(writer, base_offset, data_ptr)?;
-        self.unk_offset1.write_full(writer, base_offset, data_ptr)?;
+        self.model_unk7.write_full(writer, base_offset, data_ptr)?;
+        self.model_unk1.write_full(writer, base_offset, data_ptr)?;
         self.model_unk4.write_full(writer, base_offset, data_ptr)?;
         self.model_unk3.write_full(writer, base_offset, data_ptr)?;
         // self.model_unk5.write_full(writer, base_offset, data_ptr)?;
@@ -1417,7 +1505,7 @@ impl<'a> Xc3WriteOffsets for MaterialsOffsets<'a> {
             self.alpha_test_textures
                 .write_full(writer, base_offset, data_ptr)?;
         }
-        self.unk_offset1.write_full(writer, base_offset, data_ptr)?;
+        self.model_unk1.write_full(writer, base_offset, data_ptr)?;
         self.samplers.write_full(writer, base_offset, data_ptr)?;
         self.shader_programs
             .write_full(writer, base_offset, data_ptr)?;
