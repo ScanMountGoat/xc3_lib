@@ -465,8 +465,8 @@ pub struct Models {
     pub max_xyz: [f32; 3],
     pub min_xyz: [f32; 3],
 
-    // TODO: add xc3(skip) attribute.
     #[br(restore_position)]
+    #[xc3(skip)]
     pub models_offset: u32,
 
     #[br(parse_with = parse_offset32_count32, args { offset: base_offset, inner: base_offset })]

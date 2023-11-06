@@ -9,6 +9,7 @@ pub struct FieldOptions {
 
 // TODO: Separate count field similar to #[bw(calc(...))]?
 pub enum FieldType {
+    Skip,
     SavePosition,
     SharedOffset,
     Offset(Ident),
@@ -50,6 +51,9 @@ impl FieldOptions {
                     } else if meta.path.is_ident("save_position") {
                         // #[xc3(save_position)]
                         field_type = Some(FieldType::SavePosition);
+                    } else if meta.path.is_ident("skip") {
+                        // #[xc3(skip)]
+                        field_type = Some(FieldType::Skip);
                     }
                     Ok(())
                 });

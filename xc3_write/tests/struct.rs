@@ -9,6 +9,8 @@ struct A {
     b: u8,
     c: Vec<i8>,
     d: String,
+    #[xc3(skip)]
+    _e: f32,
 }
 
 #[test]
@@ -18,6 +20,7 @@ fn write_struct_no_offsets() {
         b: 2,
         c: vec![-1, -1],
         d: "abc".to_string(),
+        _e: 1.0,
     };
 
     let mut writer = Cursor::new(Vec::new());

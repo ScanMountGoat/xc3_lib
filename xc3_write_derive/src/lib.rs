@@ -404,6 +404,9 @@ fn parse_named_fields(fields: &FieldsNamed) -> Vec<FieldData> {
                 // Store the information for later shared offsets.
                 offset_fields.push(FieldData::field_position(name, ty));
             }
+            Some(FieldType::Skip) => {
+                // Don't write or store this field.
+            }
             None => {
                 // Also include fields not marked as offsets in the struct.
                 // The field type may have offsets that need to be written later.
