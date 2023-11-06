@@ -203,13 +203,13 @@ pub struct MorphTarget {
     pub vertex_count: u32,
     pub vertex_size: u32,
 
-    #[br(map(|x: u32| x.into()))]
-    #[bw(map(|x| u32::from(*x)))]
     pub flags: MorphTargetFlags,
 }
 
 #[bitsize(32)]
-#[derive(DebugBits, FromBits, Clone, Copy)]
+#[derive(DebugBits, FromBits, BinRead, BinWrite, Clone, Copy)]
+#[br(map = u32::into)]
+#[bw(map = |&x| u32::from(x))]
 pub struct MorphTargetFlags {
     pub blend_target_buffer: bool,
     pub default_buffer: bool,

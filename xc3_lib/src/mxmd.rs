@@ -6,7 +6,7 @@ use crate::{
     parse_ptr32, parse_string_opt_ptr32, parse_string_ptr32, spch::Spch, vertex::VertexData,
 };
 use bilge::prelude::*;
-use binrw::{args, binread, BinRead, BinResult, BinWrite};
+use binrw::{args, binread, BinRead, BinWrite};
 use xc3_write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
 
 #[derive(Debug, BinRead, Xc3Write)]
@@ -228,10 +228,8 @@ pub struct Samplers {
 }
 
 /// State for controlling how textures are sampled.
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct Sampler {
-    #[br(map(|x: u32| x.into()))]
-    #[bw(map(|x| u32::from(*x)))]
     pub flags: SamplerFlags,
 
     // Is this actually a float?
@@ -240,7 +238,9 @@ pub struct Sampler {
 
 /// Texture sampler settings for addressing and filtering.
 #[bitsize(32)]
-#[derive(DebugBits, FromBits, Clone, Copy)]
+#[derive(DebugBits, FromBits, BinRead, BinWrite, Clone, Copy)]
+#[br(map = u32::into)]
+#[bw(map = |&x| u32::from(x))]
 pub struct SamplerFlags {
     /// Sets wrap U to repeat when `true`.
     pub repeat_u: bool,
@@ -272,7 +272,6 @@ pub struct Material {
     #[xc3(offset(u32))]
     pub name: String,
 
-    #[br(map(|x: u32| x.into()))]
     pub flags: MaterialFlags,
 
     pub render_flags: u32,
@@ -325,7 +324,9 @@ pub struct Material {
 }
 
 #[bitsize(32)]
-#[derive(DebugBits, FromBits, Clone, Copy)]
+#[derive(DebugBits, FromBits, BinRead, BinWrite, Clone, Copy)]
+#[br(map = u32::into)]
+#[bw(map = |&x| u32::from(x))]
 pub struct MaterialFlags {
     pub unk1: bool,
     pub unk2: bool,
@@ -458,7 +459,6 @@ pub struct Models {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    #[br(map(|x: u32| x.into()))]
     pub models_flags: ModelsFlags,
 
     pub max_xyz: [f32; 3],
@@ -597,7 +597,9 @@ pub struct Mesh {
 
 /// Flags to determine what data is present in [Models].
 #[bitsize(32)]
-#[derive(DebugBits, FromBits, Clone, Copy)]
+#[derive(DebugBits, FromBits, BinRead, BinWrite, Clone, Copy)]
+#[br(map = u32::into)]
+#[bw(map = |&x| u32::from(x))]
 pub struct ModelsFlags {
     pub unk1: bool,
     pub has_model_unk8: bool,
@@ -1349,20 +1351,13 @@ pub struct Unk1Unk4 {
     pub unk4: u32,
 }
 
-xc3_write_binwrite_impl!(ParamType, Sampler, ShaderUnkType, StateFlags);
-
-// TODO: make a macro or attribute for this?
-impl Xc3Write for ModelsFlags {
-    type Offsets<'a> = ();
-
-    fn xc3_write<W: std::io::Write + std::io::Seek>(
-        &self,
-        writer: &mut W,
-        data_ptr: &mut u64,
-    ) -> BinResult<Self::Offsets<'_>> {
-        u32::from(*self).xc3_write(writer, data_ptr)
-    }
-}
+xc3_write_binwrite_impl!(
+    ParamType,
+    ShaderUnkType,
+    StateFlags,
+    ModelsFlags,
+    SamplerFlags
+);
 
 impl Xc3Write for MaterialFlags {
     type Offsets<'a> = ();

@@ -15,15 +15,18 @@ use xc3_write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
 #[br(magic(b"DRSM"))]
 #[xc3(magic(b"DRSM"))]
 pub struct Msrd {
+    /// Version `10001`
     pub version: u32,
+    // rounded or aligned in some way?
     pub header_size: u32, // TODO: xbc1 offset - 16?
     pub offset: u32,      // TODO: Pointer to an inner type?
 
+    // TODO: variable size?
     pub tag: u32, // 4097?
 
-    #[br(map(|x: u32| x.into()))]
     pub stream_flags: StreamFlags,
 
+    // TODO: This offset depends on flags like with mxmd models?
     #[br(parse_with = parse_count32_offset32, offset = offset as u64)]
     #[xc3(count_offset(u32, u32))]
     pub stream_entries: Vec<StreamEntry>,
@@ -32,10 +35,13 @@ pub struct Msrd {
     #[xc3(count_offset(u32, u32))]
     pub streams: Vec<Stream>,
 
+    // offset 24
     pub vertex_data_entry_index: u32,
     pub shader_entry_index: u32,
+
     pub low_textures_entry_index: u32,
     pub low_textures_stream_index: u32,
+
     pub middle_textures_stream_index: u32,
     pub middle_textures_stream_entry_start_index: u32,
     pub middle_textures_stream_entry_count: u32,
@@ -45,6 +51,8 @@ pub struct Msrd {
     #[xc3(count_offset(u32, u32))]
     pub texture_ids: Vec<u16>,
 
+    // TODO: Some of these use actual names?
+    // TODO: Possible to figure out the hash function used?
     #[br(parse_with = parse_opt_ptr32, offset = offset as u64)]
     #[xc3(offset(u32), align(2))]
     pub textures: Option<PackedExternalTextures>,
@@ -57,14 +65,16 @@ pub struct Msrd {
     #[xc3(count_offset(u32, u32))]
     pub texture_resources: Vec<TextureResource>,
 
-    // TODO: padding:
-    pub unk: [u32; 4],
+    // TODO: offset 76?
+    // TODO: optional 16 bytes of padding?
+    pub unks: [u32; 4],
 }
 
 #[derive(Debug, BinRead, BinWrite)]
 pub struct StreamEntry {
     pub offset: u32,
     pub size: u32,
+    // TODO: high res mip?
     pub unk_index: u16, // TODO: what does this do?
     pub item_type: EntryType,
     // TODO: padding?
@@ -72,15 +82,15 @@ pub struct StreamEntry {
 }
 
 #[bitsize(32)]
-#[derive(DebugBits, FromBits, Clone, Copy)]
+#[derive(DebugBits, FromBits, BinRead, BinWrite, Clone, Copy)]
+#[br(map = u32::into)]
+#[bw(map = |&x| u32::from(x))]
 pub struct StreamFlags {
     pub has_vertex: bool,
     pub has_spch: bool,
     pub has_packed_textures: bool,
     pub has_textures: bool,
-    pub unk1: bool,
-    pub unk2: bool,
-    pub unk3: bool,
+    pub unk1: u3,
     pub unk: u25,
 }
 
@@ -165,20 +175,7 @@ impl Msrd {
     }
 }
 
-xc3_write_binwrite_impl!(StreamEntry);
-
-// TODO: make a macro or attribute for this?
-impl Xc3Write for StreamFlags {
-    type Offsets<'a> = ();
-
-    fn xc3_write<W: std::io::Write + std::io::Seek>(
-        &self,
-        writer: &mut W,
-        data_ptr: &mut u64,
-    ) -> BinResult<Self::Offsets<'_>> {
-        u32::from(*self).xc3_write(writer, data_ptr)
-    }
-}
+xc3_write_binwrite_impl!(StreamEntry, StreamFlags);
 
 impl<'a> Xc3WriteOffsets for MsrdOffsets<'a> {
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -190,19 +187,31 @@ impl<'a> Xc3WriteOffsets for MsrdOffsets<'a> {
         // TODO: Rework the msrd types to handle this.
         let base_offset = 16;
 
+        // TODO: find a better way to express variable padding.
+        // if self.stream_flags.data.unk1() {
+        // *data_ptr += 16;
+        // }
+
         // Write offset data in the order items appear in the binary file.
         self.stream_entries
             .write_offset(writer, base_offset, data_ptr)?;
 
         let stream_offsets = self.streams.write_offset(writer, base_offset, data_ptr)?;
 
+        // if !self.texture_resources.data.is_empty() {
         self.texture_resources
             .write_offset(writer, base_offset, data_ptr)?;
+        // }
 
         self.texture_ids
             .write_offset(writer, base_offset, data_ptr)?;
 
         self.textures.write_full(writer, base_offset, data_ptr)?;
+
+        // TODO: Variable padding?
+        // if self.stream_flags.data.unk1().value() == 6 {
+        //     *data_ptr += 16;
+        // }
 
         for offsets in stream_offsets.0 {
             offsets.xbc1.write_offset(writer, 0, data_ptr)?;
