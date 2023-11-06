@@ -420,3 +420,29 @@ file_read_impl!(
     bc::Bc,
     eva::Eva
 );
+
+#[macro_export]
+macro_rules! xc3_write_binwrite_impl {
+    ($($ty:ty),*) => {
+        $(
+            impl Xc3Write for $ty {
+                // This also enables write_full since () implements Xc3WriteOffsets.
+                type Offsets<'a> = ();
+
+                fn xc3_write<W: std::io::Write + std::io::Seek>(
+                    &self,
+                    writer: &mut W,
+                    data_ptr: &mut u64,
+                ) -> xc3_write::Xc3Result<Self::Offsets<'_>> {
+                    self.write_le(writer)?;
+                    *data_ptr = (*data_ptr).max(writer.stream_position()?);
+                    Ok(())
+                }
+
+                // TODO: Should this be specified manually?
+                const ALIGNMENT: u64 = std::mem::align_of::<$ty>() as u64;
+            }
+        )*
+
+    };
+}

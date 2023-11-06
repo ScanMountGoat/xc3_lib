@@ -3,11 +3,11 @@
 //! XC3: `chr/{ch,en,oj,wp}/*.wismt`
 use crate::{
     mibl::Mibl, mxmd::PackedExternalTextures, parse_count32_offset32, parse_opt_ptr32, parse_ptr32,
-    spch::Spch, vertex::VertexData, xbc1::Xbc1,
+    spch::Spch, vertex::VertexData, xbc1::Xbc1, xc3_write_binwrite_impl,
 };
 use bilge::prelude::*;
-use binrw::{binread, BinRead, BinResult, BinWrite};
-use xc3_write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
+use binrw::{binread, BinRead, BinWrite};
+use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 /// .wismt model files in `chr/bt`, `chr/ch/`, `chr/en`, `chr/oj`, and `chr/wp`.
 #[binread]
@@ -183,7 +183,7 @@ impl<'a> Xc3WriteOffsets for MsrdOffsets<'a> {
         writer: &mut W,
         _base_offset: u64,
         data_ptr: &mut u64,
-    ) -> BinResult<()> {
+    ) -> xc3_write::Xc3Result<()> {
         // TODO: Rework the msrd types to handle this.
         let base_offset = 16;
 

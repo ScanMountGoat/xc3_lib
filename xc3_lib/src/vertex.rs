@@ -1,11 +1,11 @@
 //! Vertex and geometry data for model formats.
 use crate::{
     parse_count16_offset32, parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32,
-    parse_ptr32,
+    parse_ptr32, xc3_write_binwrite_impl,
 };
 use bilge::prelude::*;
-use binrw::{args, binread, BinRead, BinResult, BinWrite};
-use xc3_write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
+use binrw::{args, binread, BinRead, BinWrite};
+use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 /// Vertex and vertex index buffer data used by a [Model](crate::mxmd::Model).
 #[binread]
@@ -344,7 +344,7 @@ impl<'a> Xc3WriteOffsets for VertexDataOffsets<'a> {
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
-    ) -> BinResult<()> {
+    ) -> xc3_write::Xc3Result<()> {
         let vertex_buffers = self
             .vertex_buffers
             .write_offset(writer, base_offset, data_ptr)?;

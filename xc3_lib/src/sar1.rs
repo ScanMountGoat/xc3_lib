@@ -242,7 +242,7 @@ impl<'a> Xc3WriteOffsets for ChClInnerOffsets<'a> {
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
-    ) -> BinResult<()> {
+    ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
         self.unk1.write_full(writer, base_offset, data_ptr)?;
         let unk2 = self.unk2.write_offset(writer, base_offset, data_ptr)?;

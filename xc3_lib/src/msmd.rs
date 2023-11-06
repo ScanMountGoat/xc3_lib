@@ -7,7 +7,7 @@ use std::{
 };
 
 use binrw::{binread, BinRead, BinWrite};
-use xc3_write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
+use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 use crate::{
     map::{
@@ -19,6 +19,7 @@ use crate::{
     parse_string_ptr32,
     vertex::VertexData,
     xbc1::Xbc1,
+    xc3_write_binwrite_impl,
 };
 
 // TODO: write support?
@@ -602,7 +603,7 @@ impl<T> Xc3Write for StreamEntry<T> {
         &self,
         writer: &mut W,
         data_ptr: &mut u64,
-    ) -> binrw::BinResult<Self::Offsets<'_>> {
+    ) -> xc3_write::Xc3Result<Self::Offsets<'_>> {
         self.write_le(writer)?;
         *data_ptr = (*data_ptr).max(writer.stream_position()?);
         Ok(())

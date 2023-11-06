@@ -4,10 +4,10 @@ use std::io::Cursor;
 use crate::{
     msmd::{Dlgt, Gibl, Nerd},
     mxmd::Mxmd,
-    parse_offset32_count32,
+    parse_offset32_count32, xc3_write_binwrite_impl,
 };
 use binrw::{BinRead, BinReaderExt, BinResult, BinWrite};
-use xc3_write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
+use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 /// A packed model container with entries like [Mxmd] or [Gibl].
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]

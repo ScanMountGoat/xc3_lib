@@ -1,10 +1,10 @@
 //! Animation and skeleton data in `.anm` or `.motstm_data` files or [Sar1](crate::sar1::Sar1) archives.
 use crate::{
     parse_offset64_count32, parse_opt_ptr64, parse_ptr64, parse_string_opt_ptr64,
-    parse_string_ptr64,
+    parse_string_ptr64, xc3_write_binwrite_impl,
 };
 use binrw::{args, binread, BinRead, BinWrite};
-use xc3_write::{xc3_write_binwrite_impl, VecOffsets, Xc3Write, Xc3WriteOffsets};
+use xc3_write::{VecOffsets, Xc3Write, Xc3WriteOffsets};
 
 // TODO: Add class names from xenoblade 2 binary where appropriate.
 // Assume the BC is at the beginning of the reader to simplify offsets.

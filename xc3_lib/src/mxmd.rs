@@ -4,10 +4,11 @@
 use crate::{
     msrd::TextureResource, parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32,
     parse_ptr32, parse_string_opt_ptr32, parse_string_ptr32, spch::Spch, vertex::VertexData,
+    xc3_write_binwrite_impl,
 };
 use bilge::prelude::*;
 use binrw::{args, binread, BinRead, BinWrite};
-use xc3_write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
+use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 #[derive(Debug, BinRead, Xc3Write)]
 #[br(magic(b"DMXM"))]
@@ -84,7 +85,7 @@ pub struct Materials {
     // TODO: Some sort of index or offset?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub ints: Vec<(u8, u8, u16)>, // shader vars?
+    pub ints: Vec<(u16, u16)>, // shader vars (u8, u8, u16)?
 
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset })]
@@ -1366,7 +1367,7 @@ impl Xc3Write for MaterialFlags {
         &self,
         writer: &mut W,
         data_ptr: &mut u64,
-    ) -> binrw::BinResult<Self::Offsets<'_>> {
+    ) -> xc3_write::Xc3Result<Self::Offsets<'_>> {
         u32::from(*self).write_le(writer)?;
         *data_ptr = (*data_ptr).max(writer.stream_position()?);
         Ok(())
@@ -1379,7 +1380,7 @@ impl<'a> Xc3WriteOffsets for SkinningOffsets<'a> {
         writer: &mut W,
         _base_offset: u64,
         data_ptr: &mut u64,
-    ) -> binrw::BinResult<()> {
+    ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
 
         // TODO: variable padding?
@@ -1419,7 +1420,7 @@ impl<'a> Xc3WriteOffsets for ModelUnk1Offsets<'a> {
         writer: &mut W,
         _base_offset: u64,
         data_ptr: &mut u64,
-    ) -> binrw::BinResult<()> {
+    ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
 
         // TODO: variable padding?
@@ -1453,7 +1454,7 @@ impl<'a> Xc3WriteOffsets for LodDataOffsets<'a> {
         writer: &mut W,
         _base_offset: u64,
         data_ptr: &mut u64,
-    ) -> binrw::BinResult<()> {
+    ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
         // Different order than field order.
         self.groups.write_full(writer, base_offset, data_ptr)?;
@@ -1469,7 +1470,7 @@ impl<'a> Xc3WriteOffsets for ModelsOffsets<'a> {
         writer: &mut W,
         _base_offset: u64,
         data_ptr: &mut u64,
-    ) -> binrw::BinResult<()> {
+    ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
 
         self.models.write_full(writer, base_offset, data_ptr)?;
@@ -1502,7 +1503,7 @@ impl<'a> Xc3WriteOffsets for ShaderProgramInfoOffsets<'a> {
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
-    ) -> binrw::BinResult<()> {
+    ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
         self.unk1.write_full(writer, base_offset, data_ptr)?;
         if !self.textures.data.is_empty() {
@@ -1527,7 +1528,7 @@ impl<'a> Xc3WriteOffsets for MaterialsOffsets<'a> {
         writer: &mut W,
         _base_offset: u64,
         data_ptr: &mut u64,
-    ) -> binrw::BinResult<()> {
+    ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
 
         // Material fields get split up and written in a different order.
@@ -1573,7 +1574,7 @@ impl<'a> Xc3WriteOffsets for MxmdOffsets<'a> {
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
-    ) -> binrw::BinResult<()> {
+    ) -> xc3_write::Xc3Result<()> {
         self.models.write_full(writer, base_offset, data_ptr)?;
         self.materials.write_full(writer, base_offset, data_ptr)?;
 
@@ -1598,7 +1599,7 @@ impl<'a> Xc3WriteOffsets for Textures2Offsets<'a> {
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
-    ) -> binrw::BinResult<()> {
+    ) -> xc3_write::Xc3Result<()> {
         self.unk2.write_full(writer, base_offset, data_ptr)?;
         self.unk3.write_full(writer, base_offset, data_ptr)?;
 
@@ -1618,7 +1619,7 @@ impl<'a> Xc3WriteOffsets for Unk1Offsets<'a> {
         writer: &mut W,
         _base_offset: u64,
         data_ptr: &mut u64,
-    ) -> binrw::BinResult<()> {
+    ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
         self.unk1.write_full(writer, base_offset, data_ptr)?;
         self.unk2.write_full(writer, base_offset, data_ptr)?;

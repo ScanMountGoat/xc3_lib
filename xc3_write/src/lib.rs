@@ -1,9 +1,11 @@
+use std::error::Error;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
 use std::marker::PhantomData;
 
-use binrw::{BinResult, BinWrite};
+// TODO: Create a dedicated error type?
+pub type Xc3Result<T> = Result<T, Box<dyn Error>>;
 
 /// The write pass that writes fields and placeholder offsets.
 pub trait Xc3Write {
@@ -15,7 +17,7 @@ pub trait Xc3Write {
         &self,
         writer: &mut W,
         data_ptr: &mut u64,
-    ) -> BinResult<Self::Offsets<'_>>;
+    ) -> Xc3Result<Self::Offsets<'_>>;
 
     const ALIGNMENT: u64 = 4;
 }
@@ -27,7 +29,7 @@ pub trait Xc3WriteOffsets {
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
-    ) -> BinResult<()>;
+    ) -> Xc3Result<()>;
 }
 
 // A complete write uses a two pass approach to handle offsets.
@@ -38,7 +40,7 @@ pub fn write_full<'a, T, W>(
     writer: &mut W,
     base_offset: u64,
     data_ptr: &mut u64,
-) -> BinResult<()>
+) -> Xc3Result<()>
 where
     W: Write + Seek,
     T: Xc3Write + 'static,
@@ -104,13 +106,12 @@ impl<'a, P, T> Offset<'a, P, T> {
         base_offset: u64,
         data_ptr: &mut u64,
         type_alignment: u64,
-    ) -> Result<(), binrw::Error>
+    ) -> Xc3Result<()>
     where
         W: Write + Seek,
         // TODO: Create a trait for this?
-        P: TryFrom<u64>,
+        P: TryFrom<u64> + Xc3Write,
         <P as TryFrom<u64>>::Error: std::fmt::Debug,
-        for<'b> P: BinWrite<Args<'b> = ()>,
     {
         // Account for the type or field alignment.
         let alignment = self.field_alignment.unwrap_or(type_alignment);
@@ -119,7 +120,7 @@ impl<'a, P, T> Offset<'a, P, T> {
         // Update the offset value.
         writer.seek(SeekFrom::Start(self.position))?;
         let offset = P::try_from(*data_ptr - base_offset).unwrap();
-        offset.write_le(writer)?;
+        offset.xc3_write(writer, data_ptr)?;
 
         // Seek to the data position.
         writer.seek(SeekFrom::Start(*data_ptr))?;
@@ -130,16 +131,15 @@ impl<'a, P, T> Offset<'a, P, T> {
 impl<'a, P, T> Offset<'a, P, T>
 where
     T: Xc3Write,
-    P: TryFrom<u64>,
+    P: TryFrom<u64> + Xc3Write,
     <P as TryFrom<u64>>::Error: std::fmt::Debug,
-    for<'b> P: BinWrite<Args<'b> = ()>,
 {
     pub fn write_offset<W: Write + Seek>(
         &self,
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
-    ) -> BinResult<T::Offsets<'_>> {
+    ) -> Xc3Result<T::Offsets<'_>> {
         // TODO: How to avoid setting this for empty vecs?
         self.set_offset_seek(writer, base_offset, data_ptr, T::ALIGNMENT)?;
         let offsets = self.data.xc3_write(writer, data_ptr)?;
@@ -151,16 +151,15 @@ where
 impl<'a, P, T> Offset<'a, P, Option<T>>
 where
     T: Xc3Write,
-    P: TryFrom<u64>,
+    P: TryFrom<u64> + Xc3Write,
     <P as TryFrom<u64>>::Error: std::fmt::Debug,
-    for<'b> P: BinWrite<Args<'b> = ()>,
 {
     pub fn write_offset<W: Write + Seek>(
         &self,
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
-    ) -> BinResult<Option<T::Offsets<'_>>> {
+    ) -> Xc3Result<Option<T::Offsets<'_>>> {
         // Only update the offset if there is data.
         if let Some(data) = self.data {
             self.set_offset_seek(writer, base_offset, data_ptr, T::ALIGNMENT)?;
@@ -176,16 +175,15 @@ impl<'a, P, T> Offset<'a, P, T>
 where
     T: Xc3Write + 'static,
     T::Offsets<'a>: Xc3WriteOffsets,
-    P: TryFrom<u64>,
+    P: TryFrom<u64> + Xc3Write,
     <P as TryFrom<u64>>::Error: std::fmt::Debug,
-    for<'b> P: BinWrite<Args<'b> = ()>,
 {
     pub fn write_full<W: Write + Seek>(
         &self,
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
-    ) -> BinResult<()> {
+    ) -> Xc3Result<()> {
         // TODO: How to avoid setting this for empty vecs?
         self.set_offset_seek(writer, base_offset, data_ptr, T::ALIGNMENT)?;
         write_full(self.data, writer, base_offset, data_ptr)?;
@@ -198,16 +196,15 @@ impl<'a, P, T> Offset<'a, P, Option<T>>
 where
     T: Xc3Write + 'static,
     T::Offsets<'a>: Xc3WriteOffsets,
-    P: TryFrom<u64>,
+    P: TryFrom<u64> + Xc3Write,
     <P as TryFrom<u64>>::Error: std::fmt::Debug,
-    for<'b> P: BinWrite<Args<'b> = ()>,
 {
     pub fn write_full<W: Write + Seek>(
         &self,
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
-    ) -> BinResult<()> {
+    ) -> Xc3Result<()> {
         // Only update the offset if there is data.
         if let Some(data) = self.data {
             self.set_offset_seek(writer, base_offset, data_ptr, T::ALIGNMENT)?;
@@ -217,9 +214,8 @@ where
     }
 }
 
-// TODO: This won't work as a blanket impl because of Vec?
 #[macro_export]
-macro_rules! xc3_write_binwrite_impl {
+macro_rules! xc3_write_impl {
     ($($ty:ty),*) => {
         $(
             impl Xc3Write for $ty {
@@ -230,8 +226,8 @@ macro_rules! xc3_write_binwrite_impl {
                     &self,
                     writer: &mut W,
                     data_ptr: &mut u64,
-                ) -> binrw::BinResult<Self::Offsets<'_>> {
-                    self.write_le(writer)?;
+                ) -> Xc3Result<Self::Offsets<'_>> {
+                    writer.write_all(&self.to_le_bytes())?;
                     *data_ptr = (*data_ptr).max(writer.stream_position()?);
                     Ok(())
                 }
@@ -244,19 +240,34 @@ macro_rules! xc3_write_binwrite_impl {
     };
 }
 
-xc3_write_binwrite_impl!(
-    i8,
-    i16,
-    i32,
-    i64,
-    u8,
-    u16,
-    u32,
-    u64,
-    f32,
-    (u16, u16),
-    (u8, u8, u16)
-);
+xc3_write_impl!(i8, i16, i32, i64, u8, u16, u32, u64, f32);
+
+// TODO: macro for handling larger tuples?
+impl<A: Xc3Write, B: Xc3Write> Xc3Write for (A, B) {
+    type Offsets<'a> = (A::Offsets<'a>, B::Offsets<'a>) where A: 'a, B: 'a;
+
+    fn xc3_write<W: Write + Seek>(
+        &self,
+        writer: &mut W,
+        data_ptr: &mut u64,
+    ) -> Xc3Result<Self::Offsets<'_>> {
+        Ok((
+            self.0.xc3_write(writer, data_ptr)?,
+            self.1.xc3_write(writer, data_ptr)?,
+        ))
+    }
+}
+
+impl<A: Xc3WriteOffsets, B: Xc3WriteOffsets> Xc3WriteOffsets for (A, B) {
+    fn write_offsets<W: Write + Seek>(
+        &self,
+        _writer: &mut W,
+        _base_offset: u64,
+        _data_ptr: &mut u64,
+    ) -> Xc3Result<()> {
+        Ok(())
+    }
+}
 
 // TODO: Support types with offsets?
 impl<const N: usize, T> Xc3Write for [T; N]
@@ -269,7 +280,7 @@ where
         &self,
         writer: &mut W,
         data_ptr: &mut u64,
-    ) -> BinResult<Self::Offsets<'_>> {
+    ) -> Xc3Result<Self::Offsets<'_>> {
         for value in self {
             value.xc3_write(writer, data_ptr)?;
         }
@@ -284,9 +295,9 @@ impl Xc3Write for String {
         &self,
         writer: &mut W,
         data_ptr: &mut u64,
-    ) -> BinResult<Self::Offsets<'_>> {
-        self.as_bytes().write_le(writer)?;
-        0u8.write_le(writer)?;
+    ) -> Xc3Result<Self::Offsets<'_>> {
+        writer.write_all(self.as_bytes())?;
+        writer.write_all(&[0u8])?;
         *data_ptr = (*data_ptr).max(writer.stream_position()?);
         Ok(())
     }
@@ -308,7 +319,7 @@ where
         &self,
         writer: &mut W,
         data_ptr: &mut u64,
-    ) -> BinResult<Self::Offsets<'_>> {
+    ) -> Xc3Result<Self::Offsets<'_>> {
         // TODO: Find a less hacky way to specialize Vec<u8>.
         let offsets = if let Some(bytes) = <dyn core::any::Any>::downcast_ref::<Vec<u8>>(self) {
             // Avoiding writing buffers byte by byte to drastically improve performance.
@@ -333,7 +344,7 @@ where
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
-    ) -> BinResult<()> {
+    ) -> Xc3Result<()> {
         for item in &self.0 {
             item.write_offsets(writer, base_offset, data_ptr)?;
         }
@@ -348,7 +359,7 @@ impl Xc3Write for () {
         &self,
         _writer: &mut W,
         _data_ptr: &mut u64,
-    ) -> BinResult<Self::Offsets<'_>> {
+    ) -> Xc3Result<Self::Offsets<'_>> {
         Ok(())
     }
 
@@ -361,7 +372,7 @@ impl Xc3WriteOffsets for () {
         _writer: &mut W,
         _base_offset: u64,
         _data_ptr: &mut u64,
-    ) -> BinResult<()> {
+    ) -> Xc3Result<()> {
         Ok(())
     }
 }

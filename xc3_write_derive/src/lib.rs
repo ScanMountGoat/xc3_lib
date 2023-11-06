@@ -40,7 +40,9 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
         .has_base_offset
         .then_some(quote!(let base_offset = writer.stream_position()?;));
 
-    let write_magic = options.magic.map(|m| quote!(#m.write_le(writer)?;));
+    let write_magic = options
+        .magic
+        .map(|m| quote!(#m.xc3_write(writer, data_ptr)?;));
 
     let (write_data, define_offsets, initialize_offsets) = match &input.data {
         Data::Struct(DataStruct {
@@ -105,7 +107,7 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
                 // TODO: Use xc3_write for this?
                 let write_magic = variant_options
                     .magic
-                    .map(|magic| quote!(#magic.write_le(writer)?;));
+                    .map(|magic| quote!(#magic.xc3_write(writer, data_ptr)?;));
                 match &variant.fields {
                     Fields::Named(_) => todo!(),
                     // TODO: Don't assume one field.
@@ -141,8 +143,7 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
                 &self,
                 writer: &mut W,
                 data_ptr: &mut u64,
-            ) -> binrw::BinResult<Self::Offsets<'_>> {
-                use binrw::BinWrite;
+            ) -> ::xc3_write::Xc3Result<Self::Offsets<'_>> {
                 #set_base_offset
 
                 #write_magic
@@ -244,7 +245,7 @@ pub fn xc3_write_offsets_derive(input: TokenStream) -> TokenStream {
                 writer: &mut W,
                 base_offset: u64,
                 data_ptr: &mut u64,
-            ) -> binrw::BinResult<()> {
+            ) -> ::xc3_write::Xc3Result<()> {
                 // Assume data is arranged in order by field.
                 // TODO: investigate deriving other orderings.
                 let base_offset = #self_base_offset;
@@ -312,7 +313,7 @@ fn write_dummy_offset(name: &Ident, alignment: Option<u64>, pointer: &Ident) -> 
     quote! {
         let #name = ::xc3_write::Offset::new(writer.stream_position()?, &self.#name, #alignment);
         // Assume 0 is the default for the pointer type.
-        #pointer::default().write_le(writer)?;
+        #pointer::default().xc3_write(writer, data_ptr)?;
     }
 }
 
@@ -324,7 +325,7 @@ fn write_dummy_shared_offset(name: &Ident, alignment: Option<u64>, pointer: &Typ
     quote! {
         let #name = ::xc3_write::Offset::new(writer.stream_position()?, &(), #alignment);
         // Assume 0 is the default for the pointer type.
-        #pointer::default().write_le(writer)?;
+        #pointer::default().xc3_write(writer, data_ptr)?;
     }
 }
 
@@ -371,7 +372,7 @@ fn parse_named_fields(fields: &FieldsNamed) -> Vec<FieldData> {
                     name: name.clone(),
                     offset_field: offset_field(name, &offset_ty, ty),
                     write_impl: quote! {
-                        (self.#name.len() as #count_ty).write_le(writer)?;
+                        (self.#name.len() as #count_ty).xc3_write(writer, data_ptr)?;
                         #write_offset
                     },
                     write_offset_impl: quote! {
@@ -387,7 +388,7 @@ fn parse_named_fields(fields: &FieldsNamed) -> Vec<FieldData> {
                     offset_field: offset_field(name, &offset_ty, ty),
                     write_impl: quote! {
                         #write_offset
-                        (self.#name.len() as #count_ty).write_le(writer)?;
+                        (self.#name.len() as #count_ty).xc3_write(writer, data_ptr)?;
                     },
                     write_offset_impl: quote! {
                         self.#name.write_full(writer, base_offset, data_ptr)?;

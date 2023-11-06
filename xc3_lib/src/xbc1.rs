@@ -1,7 +1,7 @@
 //! Compressed container used to store data in other formats.
 use std::io::{Cursor, Read};
 
-use binrw::{BinRead, BinResult, BinWrite, NullString};
+use binrw::{BinRead, BinWrite, NullString};
 use flate2::{bufread::ZlibEncoder, Compression};
 use zune_inflate::{errors::InflateDecodeErrors, DeflateDecoder, DeflateOptions};
 
@@ -76,6 +76,7 @@ impl Xbc1 {
     }
 }
 
+// TODO: Derive this?
 impl Xc3Write for Xbc1 {
     type Offsets<'a> = ();
 
@@ -83,10 +84,10 @@ impl Xc3Write for Xbc1 {
         &self,
         writer: &mut W,
         data_ptr: &mut u64,
-    ) -> BinResult<Self::Offsets<'_>> {
-        let result = self.write_le(writer);
+    ) -> xc3_write::Xc3Result<Self::Offsets<'_>> {
+        self.write_le(writer)?;
         *data_ptr = (*data_ptr).max(writer.stream_position()?);
-        result
+        Ok(())
     }
 
     const ALIGNMENT: u64 = 16;

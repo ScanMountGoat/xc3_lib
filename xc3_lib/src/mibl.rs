@@ -5,9 +5,11 @@ use std::io::SeekFrom;
 
 use binrw::{binrw, BinRead, BinWrite};
 use tegra_swizzle::surface::BlockDim;
-use xc3_write::{xc3_write_binwrite_impl, Xc3Write};
+use xc3_write::Xc3Write;
 
 pub use tegra_swizzle::SwizzleError;
+
+use crate::xc3_write_binwrite_impl;
 
 /// Data for an image texture surface.
 #[derive(Debug, PartialEq, Eq)]

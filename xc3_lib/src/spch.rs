@@ -354,7 +354,7 @@ impl Xc3Write for StringSection {
         &self,
         writer: &mut W,
         data_ptr: &mut u64,
-    ) -> binrw::BinResult<Self::Offsets<'_>> {
+    ) -> xc3_write::Xc3Result<Self::Offsets<'_>> {
         self.program_names.xc3_write(writer, data_ptr)
     }
 }
@@ -365,7 +365,7 @@ impl<'a> Xc3WriteOffsets for SpchOffsets<'a> {
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
-    ) -> binrw::BinResult<()> {
+    ) -> xc3_write::Xc3Result<()> {
         // The ordering is slightly different than the field order.
         self.shader_programs
             .write_full(writer, base_offset, data_ptr)?;

@@ -1,9 +1,12 @@
 //! User interface [Mibl](crate::mibl::Mibl) images in `.wilay` files.
 use std::io::Cursor;
 
-use crate::{parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32};
+use crate::{
+    parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
+    xc3_write_binwrite_impl,
+};
 use binrw::{binread, BinRead, BinWrite};
-use xc3_write::{xc3_write_binwrite_impl, Xc3Write, Xc3WriteOffsets};
+use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 // TODO: LAGP files are similar?
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -259,7 +262,7 @@ impl<'a> Xc3WriteOffsets for Unk4Offsets<'a> {
         writer: &mut W,
         _base_offset: u64,
         data_ptr: &mut u64,
-    ) -> binrw::BinResult<()> {
+    ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
         let base_offset = self.base_offset;
         self.unk2.write_full(writer, base_offset, data_ptr)?;
