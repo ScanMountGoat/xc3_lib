@@ -41,7 +41,7 @@ struct State {
     // Animation
     anims: Vec<Animation>,
     anim_index: usize,
-    current_frame: f32,
+    current_time_seconds: f32,
     previous_frame_start: Instant,
 
     input_state: InputState,
@@ -178,7 +178,7 @@ impl State {
             renderer,
             anims,
             anim_index,
-            current_frame: 0.0,
+            current_time_seconds: 0.0,
             input_state: Default::default(),
             previous_frame_start: Instant::now(),
         }
@@ -209,20 +209,17 @@ impl State {
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         if let Some(anim) = self.anims.get(self.anim_index) {
             // Framerate independent animation timing.
+            // This relies on interpolation or frame skipping.
             let current_frame_start = std::time::Instant::now();
-            self.current_frame = next_frame(
-                self.current_frame,
-                current_frame_start.duration_since(self.previous_frame_start),
-                anim.frame_count as f32,
-                anim.frames_per_second,
-                1.0,
-                false,
-            );
+            let delta_t = current_frame_start
+                .duration_since(self.previous_frame_start)
+                .as_secs_f64() as f32;
+            self.current_time_seconds += delta_t;
             self.previous_frame_start = current_frame_start;
 
             for group in &self.groups {
                 for models in &group.models {
-                    models.update_bone_transforms(&self.queue, anim, self.current_frame);
+                    models.update_bone_transforms(&self.queue, anim, self.current_time_seconds);
                 }
             }
         }
@@ -266,17 +263,17 @@ impl State {
                         VirtualKeyCode::Key5 => self.update_debug_settings(5),
                         VirtualKeyCode::Key6 => self.update_debug_settings(6),
                         // Animation playback.
-                        VirtualKeyCode::Space => self.current_frame = 0.0,
+                        VirtualKeyCode::Space => self.current_time_seconds = 0.0,
                         VirtualKeyCode::PageUp => {
                             if input.state == ElementState::Released {
-                                self.current_frame = 0.0;
+                                self.current_time_seconds = 0.0;
                                 self.anim_index += 1;
                                 update_window_title(window, &self.anims, self.anim_index);
                             }
                         }
                         VirtualKeyCode::PageDown => {
                             if input.state == ElementState::Released {
-                                self.current_frame = 0.0;
+                                self.current_time_seconds = 0.0;
                                 self.anim_index = self.anim_index.saturating_sub(1);
                                 update_window_title(window, &self.anims, self.anim_index);
                             }
@@ -378,37 +375,15 @@ fn calculate_camera_data(
     }
 }
 
-pub fn next_frame(
-    current_frame: f32,
+pub fn current_time_seconds(
+    current_time_seconds: f32,
     time_since_last_frame: Duration,
-    final_frame_index: f32,
-    frames_per_second: f32,
     playback_speed: f32,
-    should_loop: bool,
 ) -> f32 {
-    // Convert elapsed time to a delta in frames.
+    // Calculate the time since the start of the animation in seconds.
     // This relies on interpolation or frame skipping.
-    let delta_t_frames = time_since_last_frame.as_secs_f64() * frames_per_second as f64;
-
-    let next_frame = current_frame + (delta_t_frames as f32 * playback_speed);
-
-    if next_frame > final_frame_index {
-        if should_loop {
-            // Wrap around to loop the animation.
-            // This may not be seamless if the animations have different lengths.
-            if final_frame_index > 0.0 {
-                next_frame.rem_euclid(final_frame_index)
-            } else {
-                // Use 0.0 instead of NaN for empty animations.
-                0.0
-            }
-        } else {
-            // Reduce chances of overflow.
-            final_frame_index
-        }
-    } else {
-        next_frame
-    }
+    let delta_t = time_since_last_frame.as_secs_f64() as f32;
+    current_time_seconds + delta_t * playback_speed
 }
 
 #[derive(Parser)]

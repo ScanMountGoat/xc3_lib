@@ -129,10 +129,10 @@ impl Models {
         &self,
         queue: &wgpu::Queue,
         animation: &xc3_model::animation::Animation,
-        frame: f32,
+        current_time_seconds: f32,
     ) {
         if let Some(skeleton) = &self.skeleton {
-            let animated_transforms = animate_skeleton(skeleton, animation, frame);
+            let animated_transforms = animate_skeleton(skeleton, animation, current_time_seconds);
             let animated_transforms_inv_transpose =
                 animated_transforms.map(|t| t.inverse().transpose());
             queue.write_buffer(

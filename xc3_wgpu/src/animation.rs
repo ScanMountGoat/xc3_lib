@@ -7,8 +7,10 @@ use xc3_model::animation::{murmur3, Animation, BlendMode};
 pub fn animate_skeleton(
     skeleton: &xc3_model::Skeleton,
     animation: &Animation,
-    frame: f32,
+    current_time_seconds: f32,
 ) -> [Mat4; 256] {
+    let frame = animation.current_frame(current_time_seconds);
+    
     // TODO: Is it worth precomputing this?
     let hash_to_index: HashMap<_, _> = skeleton
         .bones

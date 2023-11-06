@@ -50,6 +50,12 @@ impl Animation {
             tracks: anim_tracks(anim),
         }
     }
+
+    /// Convert `current_time_seconds` to frames based on the animation parameters.
+    pub fn current_frame(&self, current_time_seconds: f32) -> f32 {
+        // TODO: looping?
+        current_time_seconds * self.frames_per_second
+    }
 }
 
 fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
