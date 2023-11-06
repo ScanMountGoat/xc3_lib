@@ -119,6 +119,11 @@ impl GltfFile {
                                     })
                                     .unwrap();
 
+                                let targets = morph_targets(&buffers, attributes_key);
+                                // The first target is baked into vertices, so don't set weights.
+                                let weights =
+                                    targets.as_ref().map(|targets| vec![0.0; targets.len()]);
+
                                 let primitive = gltf::json::mesh::Primitive {
                                     attributes,
                                     extensions: Default::default(),
@@ -126,7 +131,7 @@ impl GltfFile {
                                     indices: Some(gltf::json::Index::new(index_accessor)),
                                     material: Some(gltf::json::Index::new(*material_index as u32)),
                                     mode: Valid(gltf::json::mesh::Mode::Triangles),
-                                    targets: None,
+                                    targets,
                                 };
 
                                 // TODO: Add an option to export all material passes?
@@ -140,7 +145,7 @@ impl GltfFile {
                                         extras: Default::default(),
                                         name: material_name,
                                         primitives: vec![primitive],
-                                        weights: None,
+                                        weights,
                                     };
                                     let mesh_index = meshes.len() as u32;
                                     meshes.push(mesh);
@@ -307,6 +312,22 @@ impl GltfFile {
             image.save(output).unwrap();
         });
     }
+}
+
+fn morph_targets(
+    buffers: &Buffers,
+    attributes_key: BufferKey,
+) -> Option<Vec<gltf::json::mesh::MorphTarget>> {
+    buffers.morph_targets.get(&attributes_key).map(|targets| {
+        targets
+            .iter()
+            .map(|attributes| gltf::json::mesh::MorphTarget {
+                positions: attributes.get(&Valid(gltf::Semantic::Positions)).copied(),
+                normals: attributes.get(&Valid(gltf::Semantic::Normals)).copied(),
+                tangents: attributes.get(&Valid(gltf::Semantic::Tangents)).copied(),
+            })
+            .collect()
+    })
 }
 
 fn get_weight_group<'a>(

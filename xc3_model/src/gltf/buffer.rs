@@ -43,8 +43,9 @@ pub struct Buffers {
     pub buffer_bytes: Vec<u8>,
     pub buffer_views: Vec<gltf::json::buffer::View>,
     pub accessors: Vec<gltf::json::Accessor>,
-    // Map group and model specific indices to flattened indices.
+
     pub vertex_buffer_attributes: BTreeMap<BufferKey, GltfAttributes>,
+    pub morph_targets: BTreeMap<BufferKey, Vec<GltfAttributes>>,
     pub index_buffer_accessors: BTreeMap<BufferKey, usize>,
     pub weight_groups: BTreeMap<WeightGroupKey, WeightGroup>,
 }
@@ -95,10 +96,42 @@ impl Buffers {
             let mut attributes = BTreeMap::new();
             self.add_attributes(&mut attributes, &vertex_buffer.attributes);
 
-            // TODO: Save morph targets separately?
-            // Just apply the base morph target for now.
+            // We still need to apply the base target to avoid invisible meshes.
             if let Some(target) = vertex_buffer.morph_targets.first() {
                 self.add_attributes(&mut attributes, &target.attributes);
+            }
+
+            // Morph targets have their own attribute data.
+            // TODO: Skip the base target?
+            if !vertex_buffer.morph_targets.is_empty() {
+                // TODO: Why are there so many empty morph targets?
+                let targets: Vec<_> = vertex_buffer
+                    .morph_targets
+                    .iter()
+                    .filter_map(|target| {
+                        // Morph targets should match the base attribute count.
+                        let mut attributes = attributes.clone();
+                        self.add_attributes(&mut attributes, &target.attributes);
+
+                        if !attributes.is_empty() {
+                            Some(attributes)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                if !targets.is_empty() {
+                    self.morph_targets.insert(
+                        BufferKey {
+                            root_index,
+                            group_index,
+                            buffers_index,
+                            buffer_index: i,
+                        },
+                        targets,
+                    );
+                }
             }
 
             self.vertex_buffer_attributes.insert(
@@ -326,10 +359,13 @@ impl Buffers {
         target: Option<Checked<Target>>,
         attributes: &mut GltfAttributes,
     ) {
-        let index = self.add_values(values, components, component_type, target);
+        // Attributes should be non empty.
+        if !values.is_empty() {
+            let index = self.add_values(values, components, component_type, target);
 
-        // Assume the buffer has only one of each attribute semantic.
-        attributes.insert(Valid(semantic), index);
+            // Assume the buffer has only one of each attribute semantic.
+            attributes.insert(Valid(semantic), index);
+        }
     }
 
     pub fn add_values<T: WriteBytes>(
