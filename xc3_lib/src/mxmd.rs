@@ -464,6 +464,10 @@ pub struct Models {
     pub max_xyz: [f32; 3],
     pub min_xyz: [f32; 3],
 
+    // TODO: add xc3(skip) attribute.
+    #[br(restore_position)]
+    pub models_offset: u32,
+
     #[br(parse_with = parse_offset32_count32, args { offset: base_offset, inner: base_offset })]
     #[xc3(offset_count(u32, u32))]
     pub models: Vec<Model>,
@@ -482,6 +486,7 @@ pub struct Models {
     pub model_unks: Vec<ModelUnk>,
 
     // TODO: always 0?
+    // TODO: offset for 10111?
     pub unks3_2: [u32; 2],
 
     #[br(parse_with = parse_opt_ptr32)]
@@ -516,24 +521,37 @@ pub struct Models {
     #[xc3(offset(u32))]
     pub model_unk4: Option<ModelUnk4>,
     pub unk_field2: u32,
-    pub unk_fields: [u32; 2],
+
+    // TODO: only for 10111?
+    // TODO: offset for 10112?
+    // #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    // #[xc3(offset_count(u32, u32))]
+    // pub model_unk9: Vec<ModelUnk9>,
+    pub model_unk9: [u32; 2],
+
     // TODO: What controls the up to 44 optional bytes?
+    // TODO: How to estimate models offset from these fields?
     // offset 160
-    // pub unk_field3: u32,
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[br(if(models_offset > 160))]
+    #[xc3(offset(u32))]
+    pub model_unk10: Option<ModelUnk10>,
 
-    // #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    // #[xc3(offset(u32))]
-    // pub model_unk5: Option<ModelUnk5>,
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[br(if(models_offset > 164))]
+    #[xc3(offset(u32))]
+    pub model_unk5: Option<ModelUnk5>,
 
-    // #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    // #[xc3(offset(u32))]
-    // pub model_unk6: Option<ModelUnk6>,
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    #[br(if(models_offset > 168))]
+    pub model_unk6: Option<ModelUnk6>,
 
-    // pub model_unk7_1: u32,
-
-    // // TODO: padding?
-    // // TODO: add asserts to all padding fields
-    // pub unk: [u32; 7],
+    // TODO: padding?
+    // TODO: add asserts to all padding fields
+    #[br(if(models_offset > 200))]
+    pub unk: [u32; 8],
 }
 
 /// A collection of meshes where each [Mesh] represents one draw call.
@@ -582,7 +600,7 @@ pub struct Mesh {
 #[derive(DebugBits, FromBits, Clone, Copy)]
 pub struct ModelsFlags {
     pub unk1: bool,
-    pub has_model_unk8: bool, // ModelUnk8?
+    pub has_model_unk8: bool,
     pub unk3: bool,
     pub unk4: bool,
     pub unk5: bool,
@@ -679,15 +697,15 @@ pub struct ModelUnk3Inner {
     // DECL_GBL_CALC
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    name: String,
+    pub name: String,
 
-    unk1: u32,
-    unk2: u32,
-    unk3: u32,
-    unk4: u32,
-    unk5: u32,
-    unk6: u32,
-    unk7: u32,
+    pub unk1: u32,
+    pub unk2: u32,
+    pub unk3: u32,
+    pub unk4: u32,
+    pub unk5: u32,
+    pub unk6: u32,
+    pub unk7: u32,
 }
 
 #[binread]
@@ -698,15 +716,13 @@ pub struct ModelUnk4 {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    // 0 ... N-1
+    // (index, group index)?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    items: Vec<u32>,
+    pub items: Vec<(u16, u16)>,
 
-    unk1: u32,
-    unk2: u32,
-    unk3: u32,
-    unk4: u32,
+    // TODO: padding?
+    pub unks: [u32; 4],
 }
 
 #[binread]
@@ -783,6 +799,43 @@ pub struct ModelUnk8 {
 
     // TODO: padding?
     pub unks: [u32; 2],
+}
+
+#[binread]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[br(stream = r)]
+#[xc3(base_offset)]
+pub struct ModelUnk9 {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = parse_count32_offset32, args { offset: base_offset, inner: base_offset })]
+    #[xc3(count_offset(u32, u32))]
+    pub items: Vec<ModelUnk9Item>,
+
+    // TODO: padding?
+    pub unk: [u32; 4],
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[br(import_raw(base_offset: u64))]
+pub struct ModelUnk10 {
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk1: Vec<u32>,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[br(import_raw(base_offset: u64))]
+pub struct ModelUnk9Item {
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub name: String,
+
+    pub unk1: u32,
+    pub unk2: u32,
+    pub unk3: u32,
+    pub unk4: u32,
 }
 
 // TODO: eye animations?
