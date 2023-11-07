@@ -126,6 +126,7 @@ impl From<ImageFormat> for image_dds::ImageFormat {
             ImageFormat::BC4Unorm => image_dds::ImageFormat::BC4Unorm,
             ImageFormat::BC5Unorm => image_dds::ImageFormat::BC5Unorm,
             ImageFormat::BC7Unorm => image_dds::ImageFormat::BC7Unorm,
+            ImageFormat::BC6UFloat => image_dds::ImageFormat::BC6Ufloat,
             ImageFormat::B8G8R8A8Unorm => image_dds::ImageFormat::B8G8R8A8Unorm,
         }
     }

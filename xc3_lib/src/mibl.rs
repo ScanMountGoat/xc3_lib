@@ -57,6 +57,7 @@ pub enum ViewDimension {
     Cube = 8,
 }
 
+/// nvn image format types used for Xenoblade 1 DE, Xenoblade 2, and Xenoblade 3.
 #[derive(BinRead, BinWrite, Debug, Clone, Copy, PartialEq, Eq)]
 #[brw(repr(u32))]
 pub enum ImageFormat {
@@ -69,6 +70,7 @@ pub enum ImageFormat {
     BC4Unorm = 73,
     BC5Unorm = 75,
     BC7Unorm = 77,
+    BC6UFloat = 80,
     B8G8R8A8Unorm = 109,
 }
 
@@ -84,6 +86,7 @@ impl ImageFormat {
             ImageFormat::BC4Unorm => BlockDim::block_4x4(),
             ImageFormat::BC5Unorm => BlockDim::block_4x4(),
             ImageFormat::BC7Unorm => BlockDim::block_4x4(),
+            ImageFormat::BC6UFloat => BlockDim::block_4x4(),
             ImageFormat::B8G8R8A8Unorm => BlockDim::uncompressed(),
         }
     }
@@ -99,6 +102,7 @@ impl ImageFormat {
             ImageFormat::BC4Unorm => 8,
             ImageFormat::BC5Unorm => 16,
             ImageFormat::BC7Unorm => 16,
+            ImageFormat::BC6UFloat => 16,
             ImageFormat::B8G8R8A8Unorm => 4,
         }
     }

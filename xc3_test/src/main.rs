@@ -169,7 +169,7 @@ fn check_msrd(msrd: Msrd, path: &Path, check_read_write: bool) {
     msrd.extract_shader_data();
     let vertex_data = msrd.extract_vertex_data();
     msrd.extract_low_texture_data();
-
+    msrd.extract_middle_textures();
     // TODO: High textures?
     // TODO: Check mibl?
 

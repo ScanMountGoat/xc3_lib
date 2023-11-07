@@ -99,6 +99,7 @@ fn texture_format(format: ImageFormat) -> wgpu::TextureFormat {
         ImageFormat::BC4Unorm => wgpu::TextureFormat::Bc4RUnorm,
         ImageFormat::BC5Unorm => wgpu::TextureFormat::Bc5RgUnorm,
         ImageFormat::BC7Unorm => wgpu::TextureFormat::Bc7RgbaUnorm,
+        ImageFormat::BC6UFloat => wgpu::TextureFormat::Bc6hRgbUfloat,
         ImageFormat::B8G8R8A8Unorm => wgpu::TextureFormat::Bgra8Unorm,
     }
 }
