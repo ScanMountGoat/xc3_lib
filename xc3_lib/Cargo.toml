@@ -17,7 +17,7 @@ flate2 = "1.0"
 zune-inflate = "0.2.0"
 thiserror = "1.0"
 tegra_swizzle = "0.3.1"
-bilge = "0.1.4"
+bilge = "0.2.0"
 log = "0.4.19"
 murmur3 = "0.5.2"
 

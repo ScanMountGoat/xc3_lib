@@ -10,7 +10,7 @@
 //! A collection of [AttributeData] can always be packed into an interleaved form for rendering.
 use std::io::{Cursor, Seek, SeekFrom};
 
-use binrw::{BinReaderExt, BinResult};
+use binrw::{BinRead, BinReaderExt, BinResult};
 use glam::{Vec2, Vec3, Vec4};
 use xc3_lib::vertex::{DataType, IndexBufferDescriptor, VertexBufferDescriptor, VertexData};
 
@@ -82,9 +82,10 @@ pub fn read_vertex_buffers(
                 let count = descriptor.target_count as usize;
                 if let Some(targets) = vertex_morphs.targets.get(start..start + count) {
                     // TODO: Lots of morph targets use the exact same bytes?
+                    dbg!(&vertex_data.vertex_buffers[descriptor.vertex_buffer_index as usize]);
                     for target in targets {
                         let attributes =
-                            read_morph_attributes(&vertex_data.buffer, target).unwrap();
+                            read_morph_attributes(target, &vertex_data.buffer).unwrap();
                         buffer.morph_targets.push(MorphTarget { attributes })
                     }
                 }
@@ -192,6 +193,11 @@ fn read_attribute(
         )),
         DataType::Uv3 => None,
         DataType::Uv4 => None,
+        DataType::Unk9 => None,
+        DataType::Unk10 => None,
+        DataType::Unk11 => None,
+        DataType::Unk12 => None,
+        DataType::Unk13 => None,
         DataType::Unk14 => None,
         DataType::Unk15 => None,
         DataType::Unk16 => None,
@@ -273,9 +279,33 @@ fn read_unorm16x4(reader: &mut Cursor<&[u8]>) -> BinResult<Vec4> {
     Ok(value.map(|u| u as f32 / 65535.0).into())
 }
 
-pub fn read_morph_attributes(
-    model_bytes: &[u8],
+// The base target matches vertex attributes from RenderDoc.
+// 0 Float32x3 Position
+// 1 Unorm8x4 Normals
+// 2 Float32x3 Position
+// 3 Unorm8x4 Tangent
+#[derive(BinRead)]
+struct MorphBlendTargetVertex {
+    position1: [f32; 3],
+    normal: [u8; 4],
+    _position2: [f32; 3],
+    tangent: [u8; 4],
+}
+
+// Default and param buffer attributes.
+#[derive(BinRead)]
+struct MorphBufferVertex {
+    position1: [f32; 3],
+    _unk1: u32,
+    normal: [u8; 4],
+    tangent: [u8; 4],
+    _unk2: u32,
+    vertex_index: u32,
+}
+
+fn read_morph_attributes(
     morph_target: &xc3_lib::vertex::MorphTarget,
+    model_bytes: &[u8],
 ) -> BinResult<Vec<AttributeData>> {
     let mut reader = Cursor::new(model_bytes);
 
@@ -283,6 +313,10 @@ pub fn read_morph_attributes(
     let mut normals = Vec::with_capacity(morph_target.vertex_count as usize);
     let mut tangents = Vec::with_capacity(morph_target.vertex_count as usize);
 
+    // TODO: Compare xc3_wgpu to renderdoc for mio face.
+    // TODO: Morph buffers other than the base have indices to overwrite values in the base target?
+    // TODO: Preapply these adjustments so all targets have the base length?
+    // TODO: Don't even save the base target as a morph target?
     // TODO: The morph vertex count doesn't always match the vertex buffer?
     for i in 0..morph_target.vertex_count as u64 {
         reader
@@ -291,19 +325,21 @@ pub fn read_morph_attributes(
             ))
             .unwrap();
 
-        // TODO: What are the attributes for these buffers?
-        // Values taken from RenderDoc until the attributes can be found.
-        let value: [f32; 3] = reader.read_le().unwrap();
-        positions.push(value.into());
-
-        // TODO: Does the vertex shader always apply this transform?
-        normals.push(read_unorm8x4(&mut reader)? * 2.0 - 1.0);
-
-        // Second position?
-        let _unk1: [f32; 3] = reader.read_le().unwrap();
-
-        // TODO: Does the vertex shader always apply this transform?
-        tangents.push(read_unorm8x4(&mut reader)? * 2.0 - 1.0);
+        // These three bits define an enum for the buffer type.
+        // Assume only one bit can be set.
+        // TODO: Find a way to express this with bitflags?
+        if morph_target.flags.blend_target_buffer() {
+            let vertex: MorphBlendTargetVertex = reader.read_le().unwrap();
+            positions.push(vertex.position1.into());
+            normals.push(vertex.normal.map(|u| u as f32 / 255.0 * 2.0 - 1.0).into());
+            tangents.push(vertex.tangent.map(|u| u as f32 / 255.0 * 2.0 - 1.0).into());
+        } else {
+            // TODO: How to handle the vertex index?
+            let vertex: MorphBufferVertex = reader.read_le().unwrap();
+            positions.push(vertex.position1.into());
+            normals.push(vertex.normal.map(|u| u as f32 / 255.0 * 2.0 - 1.0).into());
+            tangents.push(vertex.tangent.map(|u| u as f32 / 255.0 * 2.0 - 1.0).into());
+        }
     }
 
     Ok(vec![
@@ -405,16 +441,14 @@ mod tests {
         );
     }
 
-    // TODO: Test morph/animation buffer
-
     #[test]
     fn read_weight_buffer_vertices() {
         // chr/ch/ch01012013.wismt, vertex buffer 12
         let data = hex!(
             // vertex 0
-            AEC75138 00000000 18170000
+            aec75138 00000000 18170000
             // vertex 1
-            0x1EC5E13A 00000000 18170000
+            0x1ec5e13a 00000000 18170000
         );
 
         let descriptor = VertexBufferDescriptor {
@@ -446,6 +480,135 @@ mod tests {
                 AttributeData::BoneIndices(vec![[24, 23, 0, 0], [24, 23, 0, 0]]),
             ],
             read_vertex_attributes(&descriptor, &data)
+        );
+    }
+
+    #[test]
+    fn read_morph_blend_target_vertices() {
+        // xeno3/chr/ch/ch01027000.wismt, "face_D2_shape", target 324.
+        let data = hex!(
+            // vertex 0
+            2828333d 9bdcae3f e9c508bd
+            e7415a01
+            2828333d 9bdcae3f e9c508bd
+            7dbe11ff
+            // vertex 1
+            52c6463d 8cddaf3f 56bf0abd
+            ed4c5901
+            52c6463d 8cddaf3f 56bf0abd
+            7bc516ff
+        );
+
+        let target = xc3_lib::vertex::MorphTarget {
+            data_offset: 0,
+            vertex_count: 2,
+            vertex_size: 32,
+            flags: xc3_lib::vertex::MorphTargetFlags::new(0u16, true, false, false, 0u8.into()),
+        };
+
+        // TODO: Use strict equality for float comparisons?
+        assert_eq!(
+            vec![
+                AttributeData::Position(vec![
+                    vec3(0.043739468, 1.3661073, -0.033391867),
+                    vec3(0.048528977, 1.3739486, -0.03387388)
+                ]),
+                AttributeData::Normal(vec![
+                    vec4(0.8117647, -0.49019605, -0.29411763, -0.99215686),
+                    vec4(0.85882354, -0.40392154, -0.30196077, -0.99215686)
+                ]),
+                AttributeData::Tangent(vec![
+                    vec4(-0.019607842, 0.4901961, -0.8666667, 1.0),
+                    vec4(-0.035294116, 0.54509807, -0.827451, 1.0)
+                ])
+            ],
+            read_morph_attributes(&target, &data).unwrap()
+        );
+    }
+
+    #[test]
+    fn read_morph_default_buffer_vertices() {
+        // xeno3/chr/ch/ch01027000.wismt, "face_D2_shape", target index 325.
+        let data = hex!(
+            // vertex 0
+            8c54023d bc27ac3f 72dd93bc 00000000
+            d6237601
+            a0a90cff
+            00000000
+            04000000
+            // vertex 1
+            2b28153d 27e7ac3f 06d8b2bc 00000000
+            dd2c6b01
+            0x8ead0aff
+            00000000
+            06000000
+        );
+
+        let target = xc3_lib::vertex::MorphTarget {
+            data_offset: 0,
+            vertex_count: 2,
+            vertex_size: 32,
+            flags: xc3_lib::vertex::MorphTargetFlags::new(0u16, false, true, false, 0u8.into()),
+        };
+
+        // TODO: Use strict equality for float comparisons?
+        assert_eq!(
+            vec![
+                AttributeData::Position(vec![
+                    vec3(0.03181891, 1.3449626, -0.01804993),
+                    vec3(0.03641526, 1.3508042, -0.021831524)
+                ]),
+                AttributeData::Normal(vec![
+                    vec4(0.6784314, -0.7254902, -0.0745098, -0.99215686),
+                    vec4(0.73333335, -0.654902, -0.1607843, -0.99215686)
+                ]),
+                AttributeData::Tangent(vec![
+                    vec4(0.254902, 0.32549024, -0.90588236, 1.0),
+                    vec4(0.11372554, 0.35686278, -0.92156863, 1.0)
+                ])
+            ],
+            read_morph_attributes(&target, &data).unwrap()
+        );
+    }
+
+    #[test]
+    fn read_morph_param_buffer_vertices() {
+        // xeno3/chr/ch/ch01027000.wismt, "face_D2_shape", target index 326.
+        let data = hex!(
+            // vertex 0
+            f0462abb 00f0a4bb 80b31a39 00000000
+            f770a800 6ad3ddff 00000000
+            d8000000
+            // vertex 1
+            c03fd9ba 005245bb 002027b7 00000000
+            f66fa900 90fd83ff 00000000
+            d9000000
+        );
+
+        let target = xc3_lib::vertex::MorphTarget {
+            data_offset: 0,
+            vertex_count: 2,
+            vertex_size: 32,
+            flags: xc3_lib::vertex::MorphTargetFlags::new(0u16, false, false, true, 0u8.into()),
+        };
+
+        // TODO: Use strict equality for float comparisons?
+        assert_eq!(
+            vec![
+                AttributeData::Position(vec![
+                    vec3(-0.0025982223, -0.005033493, 0.00014753453),
+                    vec3(-0.0016574785, -0.003010869, -9.961426e-6)
+                ]),
+                AttributeData::Normal(vec![
+                    vec4(0.9372549, -0.12156862, 0.3176471, -1.0),
+                    vec4(0.92941177, -0.12941176, 0.32549024, -1.0)
+                ]),
+                AttributeData::Tangent(vec![
+                    vec4(-0.16862744, 0.654902, 0.73333335, 1.0),
+                    vec4(0.12941182, 0.9843137, 0.027451038, 1.0)
+                ])
+            ],
+            read_morph_attributes(&target, &data).unwrap()
         );
     }
 }

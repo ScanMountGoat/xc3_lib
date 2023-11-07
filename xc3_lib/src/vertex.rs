@@ -115,6 +115,14 @@ pub enum DataType {
     Uv2 = 6,
     Uv3 = 7,
     Uv4 = 8,
+
+    // 1 DE?
+    Unk9 = 9,
+    Unk10 = 10,
+    Unk11 = 11,
+    Unk12 = 12,
+    Unk13 = 13,
+
     Unk14 = 14,
     Unk15 = 15,
     Unk16 = 16,
@@ -211,10 +219,11 @@ pub struct MorphTarget {
 #[br(map = u32::into)]
 #[bw(map = |&x| u32::from(x))]
 pub struct MorphTargetFlags {
-    pub blend_target_buffer: bool,
-    pub default_buffer: bool,
+    pub unk1: u16,                 // always 0?
+    pub blend_target_buffer: bool, // once per descriptor?
+    pub default_buffer: bool,      // once per descriptor?
     pub param_buffer: bool,
-    pub unk: u29,
+    pub unk5: u13, // always 0?
 }
 
 // TODO: How are weights assigned to vertices?
