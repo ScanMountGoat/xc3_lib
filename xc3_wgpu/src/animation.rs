@@ -10,7 +10,7 @@ pub fn animate_skeleton(
     current_time_seconds: f32,
 ) -> [Mat4; 256] {
     let frame = animation.current_frame(current_time_seconds);
-    
+
     // TODO: Is it worth precomputing this?
     let hash_to_index: HashMap<_, _> = skeleton
         .bones

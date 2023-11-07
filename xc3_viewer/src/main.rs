@@ -13,7 +13,7 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
     window::{Window, WindowBuilder},
 };
-use xc3_model::animation::Animation;
+use xc3_model::{animation::Animation, load_animations};
 use xc3_wgpu::{CameraData, ModelGroup, Xc3Renderer, COLOR_FORMAT};
 
 #[cfg(feature = "tracing")]
@@ -39,8 +39,8 @@ struct State {
     groups: Vec<ModelGroup>,
 
     // Animation
-    anims: Vec<Animation>,
-    anim_index: usize,
+    animations: Vec<Animation>,
+    animation_index: usize,
     current_time_seconds: f32,
     previous_frame_start: Instant,
 
@@ -59,7 +59,7 @@ impl State {
         window: &Window,
         model_path: &str,
         anim_path: Option<&String>,
-        anim_index: usize,
+        animation_index: usize,
         database_path: Option<&String>,
     ) -> Self {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
@@ -152,19 +152,10 @@ impl State {
             elapsed
         );
 
-        let mut anims = Vec::new();
-        if let Some(anim_path) = anim_path {
-            if let Ok(sar1) = xc3_lib::sar1::Sar1::from_file(anim_path) {
-                for entry in &sar1.entries {
-                    if let Ok(bc) = entry.read_data::<xc3_lib::bc::Bc>() {
-                        if let xc3_lib::bc::BcData::Anim(anim) = bc.data {
-                            anims.push(Animation::from_anim(&anim));
-                        }
-                    }
-                }
-            }
-        }
-        update_window_title(window, &anims, anim_index);
+        let animations = anim_path
+            .map(|anim_path| load_animations(anim_path))
+            .unwrap_or_default();
+        update_window_title(window, &animations, animation_index);
 
         Self {
             surface,
@@ -176,8 +167,8 @@ impl State {
             rotation_xyz,
             groups,
             renderer,
-            anims,
-            anim_index,
+            animations,
+            animation_index,
             current_time_seconds: 0.0,
             input_state: Default::default(),
             previous_frame_start: Instant::now(),
@@ -207,7 +198,7 @@ impl State {
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
-        if let Some(anim) = self.anims.get(self.anim_index) {
+        if let Some(anim) = self.animations.get(self.animation_index) {
             // Framerate independent animation timing.
             // This relies on interpolation or frame skipping.
             let current_frame_start = std::time::Instant::now();
@@ -267,15 +258,15 @@ impl State {
                         VirtualKeyCode::PageUp => {
                             if input.state == ElementState::Released {
                                 self.current_time_seconds = 0.0;
-                                self.anim_index += 1;
-                                update_window_title(window, &self.anims, self.anim_index);
+                                self.animation_index += 1;
+                                update_window_title(window, &self.animations, self.animation_index);
                             }
                         }
                         VirtualKeyCode::PageDown => {
                             if input.state == ElementState::Released {
                                 self.current_time_seconds = 0.0;
-                                self.anim_index = self.anim_index.saturating_sub(1);
-                                update_window_title(window, &self.anims, self.anim_index);
+                                self.animation_index = self.animation_index.saturating_sub(1);
+                                update_window_title(window, &self.animations, self.animation_index);
                             }
                         }
                         _ => (),

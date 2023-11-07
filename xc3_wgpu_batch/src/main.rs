@@ -2,7 +2,7 @@ use clap::{Parser, ValueEnum};
 use futures::executor::block_on;
 use glam::{vec3, Mat4, Vec3};
 use image::ImageBuffer;
-use xc3_model::{animation::Animation, shader_database::ShaderDatabase};
+use xc3_model::{animation::Animation, load_animations, shader_database::ShaderDatabase};
 use xc3_wgpu::{CameraData, Xc3Renderer};
 
 const WIDTH: u32 = 512;
@@ -164,18 +164,11 @@ fn main() {
 }
 
 fn apply_anim(queue: &wgpu::Queue, groups: &[xc3_wgpu::ModelGroup], path: &std::path::Path) {
-    if let Ok(sar1) = xc3_lib::sar1::Sar1::from_file(path) {
-        for entry in &sar1.entries {
-            if let Ok(bc) = entry.read_data::<xc3_lib::bc::Bc>() {
-                if let xc3_lib::bc::BcData::Anim(anim) = bc.data {
-                    let animation = Animation::from_anim(&anim);
-                    for group in groups {
-                        for models in &group.models {
-                            models.update_bone_transforms(queue, &animation, 0.0);
-                        }
-                    }
-                    return;
-                }
+    let animations = load_animations(path);
+    if let Some(animation) = animations.first() {
+        for group in groups {
+            for models in &group.models {
+                models.update_bone_transforms(queue, &animation, 0.0);
             }
         }
     }

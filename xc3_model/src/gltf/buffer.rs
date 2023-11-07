@@ -105,6 +105,7 @@ impl Buffers {
             // TODO: Skip the base target?
             if !vertex_buffer.morph_targets.is_empty() {
                 // TODO: Why are there so many empty morph targets?
+                // TODO: These need to be converted to differences with the base target?
                 let targets: Vec<_> = vertex_buffer
                     .morph_targets
                     .iter()

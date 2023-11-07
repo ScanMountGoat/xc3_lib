@@ -82,7 +82,6 @@ pub fn read_vertex_buffers(
                 let count = descriptor.target_count as usize;
                 if let Some(targets) = vertex_morphs.targets.get(start..start + count) {
                     // TODO: Lots of morph targets use the exact same bytes?
-                    dbg!(&vertex_data.vertex_buffers[descriptor.vertex_buffer_index as usize]);
                     for target in targets {
                         let attributes =
                             read_morph_attributes(target, &vertex_data.buffer).unwrap();

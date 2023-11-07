@@ -25,6 +25,7 @@
 
 use std::path::Path;
 
+use animation::Animation;
 use glam::Mat4;
 use log::warn;
 use shader_database::{Shader, ShaderDatabase};
@@ -279,7 +280,7 @@ pub fn should_render_lod(lod: u16, base_lod_indices: &Option<Vec<u16>>) -> bool 
 }
 
 // TODO: Document loading the database in an example.
-/// Load a character (ch), object (oj), weapon (wp), or enemy (en) model.
+/// Load a character (ch), object (oj), weapon (wp), or enemy (en) model from a `.wimdo` file.
 pub fn load_model<P: AsRef<Path>>(
     wimdo_path: P,
     shader_database: Option<&ShaderDatabase>,
@@ -357,6 +358,43 @@ pub fn load_model<P: AsRef<Path>>(
         }],
         image_textures,
     }
+}
+
+/// Load animations from a `.anm`, `.mot`, or `.motstm_data` file.
+pub fn load_animations<P: AsRef<Path>>(anim_path: P) -> Vec<Animation> {
+    // TODO: Avoid unwrap and return errors.
+    // TODO: Avoid repetition.
+    let mut animations = Vec::new();
+    if let Ok(sar1) = xc3_lib::sar1::Sar1::from_file(anim_path.as_ref()) {
+        // Most xenoblade 2 and xenoblade 3 animations are in sar archives.
+        for entry in &sar1.entries {
+            if let Ok(bc) = entry.read_data::<xc3_lib::bc::Bc>() {
+                if let xc3_lib::bc::BcData::Anim(anim) = bc.data {
+                    let animation = Animation::from_anim(&anim);
+                    animations.push(animation);
+                }
+            }
+        }
+    } else if let Ok(bc) = xc3_lib::bc::Bc::from_file(anim_path.as_ref()) {
+        // Some animations are in standalone BC archives.
+        if let xc3_lib::bc::BcData::Anim(anim) = bc.data {
+            let animation = Animation::from_anim(&anim);
+            animations.push(animation);
+        }
+    } else if let Ok(xbc1) = xc3_lib::xbc1::Xbc1::from_file(anim_path.as_ref()) {
+        // Xenoblade 1 DE compresses the sar archive.
+        if let Ok(sar1) = xc3_lib::sar1::Sar1::from_bytes(&xbc1.decompress().unwrap()) {
+            for entry in &sar1.entries {
+                if let Ok(bc) = entry.read_data::<xc3_lib::bc::Bc>() {
+                    if let xc3_lib::bc::BcData::Anim(anim) = bc.data {
+                        let animation = Animation::from_anim(&anim);
+                        animations.push(animation);
+                    }
+                }
+            }
+        }
+    }
+    animations
 }
 
 fn create_samplers(materials: &Materials) -> Vec<Sampler> {
