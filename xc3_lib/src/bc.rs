@@ -196,6 +196,7 @@ pub struct AnimationBinding {
     // TODO: just u64 count32?
     // TODO: type 1 ch01027000_event.mot has this?
     // TODO: type 1 bl200202.mot btidle.anm does not?
+    /// An alternative bone name list for [bone_track_indices](#structfield.bone_track_indices).
     #[br(parse_with = parse_offset64_count32)]
     #[xc3(offset_count(u64, u32))]
     pub bone_names: Vec<StringOffset>,

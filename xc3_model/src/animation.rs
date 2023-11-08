@@ -175,14 +175,31 @@ fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
                             );
                         }
 
-                        // TODO: Map tracks to bones instead of creating a track for each bone?
-                        Some(Track {
-                            translation_keyframes,
-                            rotation_keyframes,
-                            scale_keyframes,
-                            bone_index: Some(i),
-                            bone_hash: None,
-                        })
+                        // TODO: XC2 animations have different data instead of names?
+                        if anim.binding.bone_names.len() > 1 {
+                            anim.binding
+                                .bone_names
+                                .get(i)
+                                .and_then(|n| n.name.as_ref())
+                                .map(|name| {
+                                    // Some XC1 and XC3 animations don't use the chr bone ordering.
+                                    Track {
+                                        translation_keyframes,
+                                        rotation_keyframes,
+                                        scale_keyframes,
+                                        bone_index: None,
+                                        bone_hash: Some(murmur3(name.as_bytes())),
+                                    }
+                                })
+                        } else {
+                            Some(Track {
+                                translation_keyframes,
+                                rotation_keyframes,
+                                scale_keyframes,
+                                bone_index: Some(i),
+                                bone_hash: None,
+                            })
+                        }
                     } else {
                         None
                     }
