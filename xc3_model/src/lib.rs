@@ -307,7 +307,9 @@ pub fn load_model<P: AsRef<Path>>(
     // TODO: Some files don't have a wismt?
     let msrd = Msrd::from_file(wimdo_path.with_extension("wismt")).ok();
     // TODO: Avoid unwrap.
-    let msrd_vertex_data = msrd.as_ref().map(|msrd| msrd.extract_vertex_data());
+    let msrd_vertex_data = msrd
+        .as_ref()
+        .map(|msrd| msrd.extract_vertex_data().unwrap());
     let vertex_data = mxmd
         .vertex_data
         .as_ref()
@@ -327,7 +329,7 @@ pub fn load_model<P: AsRef<Path>>(
     // TODO: Does every wimdo have a chr file?
     // TODO: Does something control the chr name used?
     // TODO: make this optional?
-    let chr = Sar1::from_file(&wimdo_path.with_extension("chr"))
+    let chr = Sar1::from_file(wimdo_path.with_extension("chr"))
         .or_else(|_| Sar1::from_file(wimdo_path.with_extension("arc")))
         .or_else(|_| {
             // TODO: Is the last digit always 0 like in ch01012013.wimdo -> ch01012010.chr?

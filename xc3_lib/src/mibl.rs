@@ -64,6 +64,7 @@ pub enum ImageFormat {
     R8Unorm = 1,
     R8G8B8A8Unorm = 37,
     R16G16B16A16Float = 41,
+    R4G4B4A4 = 57, // TODO: try using this format in xc3 in renderdoc to check channels?
     BC1Unorm = 66,
     BC2Unorm = 67,
     BC3Unorm = 68,
@@ -80,6 +81,7 @@ impl ImageFormat {
             ImageFormat::R8Unorm => BlockDim::uncompressed(),
             ImageFormat::R8G8B8A8Unorm => BlockDim::uncompressed(),
             ImageFormat::R16G16B16A16Float => BlockDim::uncompressed(),
+            ImageFormat::R4G4B4A4 => BlockDim::uncompressed(),
             ImageFormat::BC1Unorm => BlockDim::block_4x4(),
             ImageFormat::BC2Unorm => BlockDim::block_4x4(),
             ImageFormat::BC3Unorm => BlockDim::block_4x4(),
@@ -96,6 +98,7 @@ impl ImageFormat {
             ImageFormat::R8Unorm => 1,
             ImageFormat::R8G8B8A8Unorm => 4,
             ImageFormat::R16G16B16A16Float => 8,
+            ImageFormat::R4G4B4A4 => 2,
             ImageFormat::BC1Unorm => 8,
             ImageFormat::BC2Unorm => 16,
             ImageFormat::BC3Unorm => 16,

@@ -152,9 +152,7 @@ impl State {
             elapsed
         );
 
-        let animations = anim_path
-            .map(|anim_path| load_animations(anim_path))
-            .unwrap_or_default();
+        let animations = anim_path.map(load_animations).unwrap_or_default();
         update_window_title(window, &animations, animation_index);
 
         Self {

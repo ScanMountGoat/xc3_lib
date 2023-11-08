@@ -120,6 +120,7 @@ impl From<ImageFormat> for image_dds::ImageFormat {
             ImageFormat::R8Unorm => image_dds::ImageFormat::R8Unorm,
             ImageFormat::R8G8B8A8Unorm => image_dds::ImageFormat::R8G8B8A8Unorm,
             ImageFormat::R16G16B16A16Float => image_dds::ImageFormat::R16G16B16A16Float,
+            ImageFormat::R4G4B4A4 => image_dds::ImageFormat::B4G4R4A4Unorm,
             ImageFormat::BC1Unorm => image_dds::ImageFormat::BC1Unorm,
             ImageFormat::BC2Unorm => image_dds::ImageFormat::BC2Unorm,
             ImageFormat::BC3Unorm => image_dds::ImageFormat::BC3Unorm,
@@ -147,6 +148,7 @@ impl TryFrom<image_dds::ImageFormat> for ImageFormat {
             image_dds::ImageFormat::BC4Unorm => Ok(ImageFormat::BC4Unorm),
             image_dds::ImageFormat::BC5Unorm => Ok(ImageFormat::BC5Unorm),
             image_dds::ImageFormat::BC7Unorm => Ok(ImageFormat::BC7Unorm),
+            image_dds::ImageFormat::B4G4R4A4Unorm => Ok(ImageFormat::R4G4B4A4),
             _ => Err(CreateMiblError::UnsupportedImageFormat(value)),
         }
     }

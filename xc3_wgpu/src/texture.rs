@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use log::warn;
 use wgpu::util::DeviceExt;
 use xc3_model::{ImageFormat, ImageTexture, ViewDimension};
@@ -7,7 +9,7 @@ pub fn create_texture(
     queue: &wgpu::Queue,
     texture: &ImageTexture,
 ) -> wgpu::Texture {
-    let format = texture_format(texture.image_format);
+    let (format, data) = image_format_data(texture);
 
     let layers = match texture.view_dimension {
         ViewDimension::Cube => 6,
@@ -63,8 +65,19 @@ pub fn create_texture(
             usage: wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         },
-        &texture.image_data,
+        &data,
     )
+}
+
+fn image_format_data(texture: &ImageTexture) -> (wgpu::TextureFormat, Cow<'_, Vec<u8>>) {
+    // Convert unsupported formats to rgba8 for compatibility.
+    match texture_format(texture.image_format) {
+        Some(format) => (format, Cow::Borrowed(&texture.image_data)),
+        None => {
+            let rgba8 = texture.to_surface().decode_rgba8().unwrap();
+            (wgpu::TextureFormat::Rgba8Unorm, Cow::Owned(rgba8.data))
+        }
+    }
 }
 
 pub fn create_default_black_texture(device: &wgpu::Device, queue: &wgpu::Queue) -> wgpu::Texture {
@@ -88,18 +101,19 @@ pub fn create_default_black_texture(device: &wgpu::Device, queue: &wgpu::Queue) 
     )
 }
 
-fn texture_format(format: ImageFormat) -> wgpu::TextureFormat {
+fn texture_format(format: ImageFormat) -> Option<wgpu::TextureFormat> {
     match format {
-        ImageFormat::R8Unorm => wgpu::TextureFormat::R8Unorm,
-        ImageFormat::R8G8B8A8Unorm => wgpu::TextureFormat::Rgba8Unorm,
-        ImageFormat::R16G16B16A16Float => wgpu::TextureFormat::Rgba16Float,
-        ImageFormat::BC1Unorm => wgpu::TextureFormat::Bc1RgbaUnorm,
-        ImageFormat::BC2Unorm => wgpu::TextureFormat::Bc2RgbaUnorm,
-        ImageFormat::BC3Unorm => wgpu::TextureFormat::Bc3RgbaUnorm,
-        ImageFormat::BC4Unorm => wgpu::TextureFormat::Bc4RUnorm,
-        ImageFormat::BC5Unorm => wgpu::TextureFormat::Bc5RgUnorm,
-        ImageFormat::BC7Unorm => wgpu::TextureFormat::Bc7RgbaUnorm,
-        ImageFormat::BC6UFloat => wgpu::TextureFormat::Bc6hRgbUfloat,
-        ImageFormat::B8G8R8A8Unorm => wgpu::TextureFormat::Bgra8Unorm,
+        ImageFormat::R8Unorm => Some(wgpu::TextureFormat::R8Unorm),
+        ImageFormat::R8G8B8A8Unorm => Some(wgpu::TextureFormat::Rgba8Unorm),
+        ImageFormat::R16G16B16A16Float => Some(wgpu::TextureFormat::Rgba16Float),
+        ImageFormat::R4G4B4A4 => None,
+        ImageFormat::BC1Unorm => Some(wgpu::TextureFormat::Bc1RgbaUnorm),
+        ImageFormat::BC2Unorm => Some(wgpu::TextureFormat::Bc2RgbaUnorm),
+        ImageFormat::BC3Unorm => Some(wgpu::TextureFormat::Bc3RgbaUnorm),
+        ImageFormat::BC4Unorm => Some(wgpu::TextureFormat::Bc4RUnorm),
+        ImageFormat::BC5Unorm => Some(wgpu::TextureFormat::Bc5RgUnorm),
+        ImageFormat::BC7Unorm => Some(wgpu::TextureFormat::Bc7RgbaUnorm),
+        ImageFormat::BC6UFloat => Some(wgpu::TextureFormat::Bc6hRgbUfloat),
+        ImageFormat::B8G8R8A8Unorm => Some(wgpu::TextureFormat::Bgra8Unorm),
     }
 }

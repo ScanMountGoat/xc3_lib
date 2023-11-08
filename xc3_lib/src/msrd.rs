@@ -6,7 +6,7 @@ use crate::{
     spch::Spch, vertex::VertexData, xbc1::Xbc1, xc3_write_binwrite_impl,
 };
 use bilge::prelude::*;
-use binrw::{binread, BinRead, BinWrite};
+use binrw::{binread, BinRead, BinResult, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 /// .wismt model files in `chr/bt`, `chr/ch/`, `chr/en`, `chr/oj`, and `chr/wp`.
@@ -124,11 +124,21 @@ pub struct TextureResource {
 }
 
 impl Msrd {
+    // TODO: make an error type for this.
+    pub fn decompress_stream(&self, stream_index: u32, entry_index: u32) -> Vec<u8> {
+        let entry = &self.stream_entries[entry_index as usize];
+        let stream = &self.streams[stream_index as usize]
+            .xbc1
+            .decompress()
+            .unwrap();
+        stream[entry.offset as usize..entry.offset as usize + entry.size as usize].to_vec()
+    }
+
     // TODO: Avoid unwrap.
-    pub fn extract_vertex_data(&self) -> VertexData {
+    pub fn extract_vertex_data(&self) -> BinResult<VertexData> {
         // TODO: is this always in the first stream?
         let bytes = self.decompress_stream(0, self.vertex_data_entry_index);
-        VertexData::from_bytes(&bytes).unwrap()
+        VertexData::from_bytes(&bytes)
     }
 
     // TODO: Return mibl instead?
@@ -139,7 +149,7 @@ impl Msrd {
         )
     }
 
-    pub fn extract_middle_textures(&self) -> Vec<Mibl> {
+    pub fn extract_middle_textures(&self) -> BinResult<Vec<Mibl>> {
         // The middle textures are packed into a single stream.
         // TODO: Where are the high textures?
         let stream = &self.streams[self.middle_textures_stream_index as usize]
@@ -154,7 +164,7 @@ impl Msrd {
             .map(|entry| {
                 let bytes =
                     &stream[entry.offset as usize..entry.offset as usize + entry.size as usize];
-                Mibl::from_bytes(bytes).unwrap()
+                Mibl::from_bytes(bytes)
             })
             .collect()
     }
@@ -163,15 +173,6 @@ impl Msrd {
         // TODO: is this always in the first stream?
         let bytes = self.decompress_stream(0, self.shader_entry_index);
         Spch::from_bytes(&bytes).unwrap()
-    }
-
-    pub fn decompress_stream(&self, stream_index: u32, entry_index: u32) -> Vec<u8> {
-        let entry = &self.stream_entries[entry_index as usize];
-        let stream = &self.streams[stream_index as usize]
-            .xbc1
-            .decompress()
-            .unwrap();
-        stream[entry.offset as usize..entry.offset as usize + entry.size as usize].to_vec()
     }
 }
 

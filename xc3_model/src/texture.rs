@@ -67,6 +67,33 @@ impl ImageTexture {
         let mibl = Mibl::from_bytes(&texture.mibl_data).unwrap();
         Self::from_mibl(&mibl, Some(texture.name.clone())).unwrap()
     }
+
+    pub fn to_image(&self) -> Result<image_dds::image::RgbaImage, Box<dyn Error>> {
+        let dds = self.to_dds()?;
+        image_dds::image_from_dds(&dds, 0).map_err(Into::into)
+    }
+
+    pub fn to_surface(&self) -> image_dds::Surface<&[u8]> {
+        Surface {
+            width: self.width,
+            height: self.height,
+            depth: self.depth,
+            layers: if self.view_dimension == ViewDimension::Cube {
+                6
+            } else {
+                1
+            },
+            mipmaps: self.mipmap_count,
+            image_format: self.image_format.into(),
+            data: &self.image_data,
+        }
+    }
+
+    pub fn to_dds(&self) -> Result<image_dds::ddsfile::Dds, Box<dyn Error>> {
+        self.to_surface().to_dds().map_err(Into::into)
+    }
+
+    // TODO: from_dds
 }
 
 pub(crate) fn load_textures(
@@ -86,7 +113,7 @@ pub(crate) fn load_textures(
 
         let packed_texture_data = msrd.unwrap().extract_low_texture_data();
         // TODO: These textures aren't in the same order?
-        let middle_textures = msrd.unwrap().extract_middle_textures();
+        let middle_textures = msrd.unwrap().extract_middle_textures().unwrap();
 
         // TODO: Same as msrd?
         let texture_ids = &msrd.as_ref().unwrap().texture_ids;
@@ -157,7 +184,7 @@ fn load_wismt_texture(
     let mibl_m = Mibl::from_bytes(&xbc1.decompress().unwrap()).unwrap();
 
     let base_mip_level =
-        Xbc1::from_file(&h_texture_folder.join(texture_name).with_extension("wismt"))
+        Xbc1::from_file(h_texture_folder.join(texture_name).with_extension("wismt"))
             .unwrap()
             .decompress()
             .unwrap();
@@ -166,31 +193,4 @@ fn load_wismt_texture(
         ImageTexture::from_mibl_base_mip(base_mip_level, mibl_m, Some(texture_name.to_string()))
             .unwrap(),
     )
-}
-
-impl ImageTexture {
-    pub fn to_image(&self) -> Result<image_dds::image::RgbaImage, Box<dyn Error>> {
-        let dds = self.to_dds()?;
-        image_dds::image_from_dds(&dds, 0).map_err(Into::into)
-    }
-
-    pub fn to_dds(&self) -> Result<image_dds::ddsfile::Dds, Box<dyn Error>> {
-        Surface {
-            width: self.width,
-            height: self.height,
-            depth: self.depth,
-            layers: if self.view_dimension == ViewDimension::Cube {
-                6
-            } else {
-                1
-            },
-            mipmaps: self.mipmap_count,
-            image_format: self.image_format.into(),
-            data: &self.image_data,
-        }
-        .to_dds()
-        .map_err(Into::into)
-    }
-
-    // TODO: from_dds
 }

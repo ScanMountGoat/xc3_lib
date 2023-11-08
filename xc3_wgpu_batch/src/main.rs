@@ -2,7 +2,7 @@ use clap::{Parser, ValueEnum};
 use futures::executor::block_on;
 use glam::{vec3, Mat4, Vec3};
 use image::ImageBuffer;
-use xc3_model::{animation::Animation, load_animations, shader_database::ShaderDatabase};
+use xc3_model::{load_animations, shader_database::ShaderDatabase};
 use xc3_wgpu::{CameraData, Xc3Renderer};
 
 const WIDTH: u32 = 512;
@@ -115,6 +115,8 @@ fn main() {
 
             // TODO: Fix files that don't load.
             let paths = [
+                // XC1
+                "pc062700.wimdo",
                 // XC2
                 "oj108004.wimdo",
                 "we010601.wimdo",
@@ -168,7 +170,7 @@ fn apply_anim(queue: &wgpu::Queue, groups: &[xc3_wgpu::ModelGroup], path: &std::
     if let Some(animation) = animations.first() {
         for group in groups {
             for models in &group.models {
-                models.update_bone_transforms(queue, &animation, 0.0);
+                models.update_bone_transforms(queue, animation, 0.0);
             }
         }
     }

@@ -103,6 +103,7 @@ fn main() {
         check_all(root, &["*.wismhd"], check_msmd);
     }
 
+    // TODO: XC1 anims are in xbc1 archives?
     if cli.sar1 || cli.all {
         println!("Checking SAR1 files ...");
         check_all(root, &["*.arc", "*.chr", "*.mot"], check_sar1);
@@ -113,6 +114,7 @@ fn main() {
         check_all(root, &["*.wishp"], check_spch);
     }
 
+    // TODO: XC1 dhal are in xbc1 archives?
     if cli.dhal || cli.all {
         println!("Checking DHAL files ...");
         check_all(root, &["*.wilay"], check_dhal);
@@ -167,11 +169,15 @@ fn check_all_mibl<P: AsRef<Path>>(root: P) {
 
 fn check_msrd(msrd: Msrd, path: &Path, check_read_write: bool) {
     msrd.extract_shader_data();
-    let vertex_data = msrd.extract_vertex_data();
+    let vertex_data = msrd.extract_vertex_data().unwrap();
     msrd.extract_low_texture_data();
-    msrd.extract_middle_textures();
-    // TODO: High textures?
+
     // TODO: Check mibl?
+    match msrd.extract_middle_textures() {
+        Ok(textures) => (),
+        Err(e) => println!("Error extracting middle textures {path:?}: {e}"),
+    }
+    // TODO: High textures?
 
     if check_read_write {
         let original = std::fs::read(path).unwrap();
@@ -467,7 +473,7 @@ macro_rules! file_impl {
         $(
             impl Xc3File for $type_name {
                 fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn Error>> {
-                    Self::from_file(path)
+                    Self::from_file(path).map_err(Into::into)
                 }
             }
         )*
