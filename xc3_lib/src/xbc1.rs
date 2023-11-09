@@ -1,7 +1,7 @@
 //! Compressed container used to store data in other formats.
 use std::io::{Cursor, Read};
 
-use binrw::{BinRead, BinWrite, NullString};
+use binrw::{BinRead, BinResult, BinWrite, NullString};
 use flate2::{bufread::ZlibEncoder, Compression};
 use zune_inflate::{errors::InflateDecodeErrors, DeflateDecoder, DeflateOptions};
 
@@ -73,6 +73,16 @@ impl Xbc1 {
             DeflateOptions::default().set_size_hint(self.decomp_size as usize),
         );
         decoder.decode_zlib()
+    }
+
+    // TODO: Error type for this?
+    /// Decompress and read the data by assuming ZLIB compression.
+    pub fn extract<T>(&self) -> BinResult<T>
+    where
+        for<'a> T: BinRead<Args<'a> = ()>,
+    {
+        let bytes = self.decompress().unwrap();
+        T::read_le(&mut Cursor::new(bytes))
     }
 }
 

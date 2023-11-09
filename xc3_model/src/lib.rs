@@ -385,7 +385,7 @@ pub fn load_animations<P: AsRef<Path>>(anim_path: P) -> Vec<Animation> {
         }
     } else if let Ok(xbc1) = xc3_lib::xbc1::Xbc1::from_file(anim_path.as_ref()) {
         // Xenoblade 1 DE compresses the sar archive.
-        if let Ok(sar1) = xc3_lib::sar1::Sar1::from_bytes(&xbc1.decompress().unwrap()) {
+        if let Ok(sar1) = xbc1.extract::<xc3_lib::sar1::Sar1>() {
             for entry in &sar1.entries {
                 if let Ok(bc) = entry.read_data::<xc3_lib::bc::Bc>() {
                     if let xc3_lib::bc::BcData::Anim(anim) = bc.data {

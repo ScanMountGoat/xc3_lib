@@ -181,7 +181,7 @@ fn load_wismt_texture(
 ) -> Option<ImageTexture> {
     // TODO: Create a helper function in xc3_lib for this?
     let xbc1 = Xbc1::from_file(m_texture_folder.join(texture_name).with_extension("wismt")).ok()?;
-    let mibl_m = Mibl::from_bytes(&xbc1.decompress().unwrap()).unwrap();
+    let mibl_m: Mibl = xbc1.extract().unwrap();
 
     let base_mip_level =
         Xbc1::from_file(h_texture_folder.join(texture_name).with_extension("wismt"))

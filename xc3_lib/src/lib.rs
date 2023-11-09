@@ -397,7 +397,7 @@ macro_rules! file_read_impl {
                 }
 
                 /// Read from `bytes` using a fully buffered reader for performance.
-                pub fn from_bytes(bytes: &[u8]) -> binrw::BinResult<Self> {
+                pub fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> binrw::BinResult<Self> {
                     Self::read(&mut Cursor::new(bytes))
                 }
             }

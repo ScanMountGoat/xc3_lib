@@ -86,10 +86,7 @@ fn main() {
 
 // TODO: Move this to xc3_lib?
 fn read_wismt_single_tex<P: AsRef<Path>>(path: P) -> Mibl {
-    let xbc1 = Xbc1::from_file(path).unwrap();
-
-    let decompressed = xbc1.decompress().unwrap();
-    Mibl::from_bytes(&decompressed).unwrap()
+    Xbc1::from_file(path).unwrap().extract().unwrap()
 }
 
 fn create_wismt_single_tex(mibl: &Mibl) -> Xbc1 {
