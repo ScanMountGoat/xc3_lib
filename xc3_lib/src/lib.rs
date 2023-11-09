@@ -66,8 +66,6 @@ pub mod spch;
 pub mod vertex;
 pub mod xbc1;
 
-const PAGE_SIZE: u64 = 4096;
-
 struct Ptr<P> {
     phantom: PhantomData<P>,
 }

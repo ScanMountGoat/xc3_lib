@@ -311,7 +311,6 @@ fn check_msmd(msmd: Msmd, path: &Path, _original_bytes: &[u8], _check_read_write
 fn check_mibl(mibl: Mibl, path: &Path, original_bytes: &[u8], check_read_write: bool) {
     // DDS should support all MIBL image formats.
     // MIBL <-> DDS should be 1:1.
-    // TODO: Why does this not work but writing does?
     let dds = mibl.to_dds().unwrap();
     let new_mibl = Mibl::from_dds(&dds).unwrap();
     if mibl != new_mibl {

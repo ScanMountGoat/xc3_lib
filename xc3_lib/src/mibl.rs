@@ -4,8 +4,10 @@
 use std::io::SeekFrom;
 
 use binrw::{binrw, BinRead, BinWrite};
+use image_dds::Surface;
 use tegra_swizzle::surface::BlockDim;
-use xc3_write::Xc3Write;
+use thiserror::Error;
+use xc3_write::{round_up, Xc3Write};
 
 pub use tegra_swizzle::SwizzleError;
 
@@ -22,13 +24,16 @@ pub struct Mibl {
     pub footer: MiblFooter,
 }
 
-const MIBL_FOOTER_SIZE: usize = 40;
+const MIBL_FOOTER_SIZE: u64 = 40;
 
 /// A description of the image surface.
 #[binrw]
 #[derive(Debug, PartialEq, Eq)]
 pub struct MiblFooter {
-    /// Swizzled image size for the entire surface aligned to 4096 (0x1000).
+    /// The size of [image_data](struct.Mibl.html#structfield.image_data)
+    /// aligned to the page size of 4096 (0x1000) bytes.
+    /// This may include the bytes for the footer for some files
+    /// and will not always equal the file size.
     pub image_size: u32,
     pub unk: u32, // TODO: is this actually 0x1000 for swizzled like with nutexb?
     /// The width of the base mip level in pixels.
@@ -125,7 +130,10 @@ impl BinRead for Mibl {
 
         reader.seek(SeekFrom::Start(0))?;
 
-        let mut image_data = vec![0u8; footer.image_size as usize];
+        // Avoid potentially storing the footer in the image data.
+        // Alignment will be applied when writing.
+        let unaligned_size = footer.swizzled_surface_size();
+        let mut image_data = vec![0u8; unaligned_size];
         reader.read_exact(&mut image_data)?;
 
         Ok(Mibl { image_data, footer })
@@ -141,30 +149,18 @@ impl BinWrite for Mibl {
         endian: binrw::Endian,
         _args: Self::Args<'_>,
     ) -> binrw::BinResult<()> {
-        let unaligned_size = tegra_swizzle::surface::swizzled_surface_size(
-            self.footer.width as usize,
-            self.footer.height as usize,
-            self.footer.depth as usize,
-            self.footer.image_format.block_dim(),
-            None,
-            self.footer.image_format.bytes_per_pixel(),
-            self.footer.mipmap_count as usize,
-            if self.footer.view_dimension == ViewDimension::Cube {
-                6
-            } else {
-                1
-            },
-        );
-
-        // Assume the data is already aligned to 4096.
-        // TODO: Better to just store unpadded data?
-        let aligned_size = self.image_data.len();
+        // Assume the image data isn't aligned to the page size.
+        let unaligned_size = self.image_data.len() as u64;
+        let aligned_size = round_up(unaligned_size, 4096);
 
         self.image_data.write_options(writer, endian, ())?;
 
         // Fit the footer within the padding if possible.
         // Otherwise, create another 4096 bytes for the footer.
-        if (aligned_size - unaligned_size) < MIBL_FOOTER_SIZE {
+        let padding_size = aligned_size - unaligned_size;
+        writer.write_all(&vec![0u8; padding_size as usize])?;
+
+        if padding_size < MIBL_FOOTER_SIZE {
             writer.write_all(&[0u8; 4096])?;
         }
 
@@ -173,6 +169,18 @@ impl BinWrite for Mibl {
 
         Ok(())
     }
+}
+
+#[derive(Debug, Error)]
+pub enum CreateMiblError {
+    #[error("error swizzling surface: {0}")]
+    SwizzleError(#[from] tegra_swizzle::SwizzleError),
+
+    #[error("error creating surface from DDS: {0}")]
+    DdsError(#[from] image_dds::error::SurfaceError),
+
+    #[error("image format {0:?} is not supported by Mibl")]
+    UnsupportedImageFormat(image_dds::ImageFormat),
 }
 
 impl Mibl {
@@ -224,6 +232,93 @@ impl Mibl {
         image_data.extend_from_slice(&self.deswizzled_image_data().unwrap());
 
         Ok(image_data)
+    }
+
+    /// Deswizzles all layers and mipmaps to a compatible surface for easier conversions.
+    pub fn to_surface(&self) -> Result<Surface<Vec<u8>>, SwizzleError> {
+        Ok(Surface {
+            width: self.footer.width,
+            height: self.footer.height,
+            depth: self.footer.depth,
+            layers: if self.footer.view_dimension == ViewDimension::Cube {
+                6
+            } else {
+                1
+            },
+            mipmaps: self.footer.mipmap_count,
+            image_format: self.footer.image_format.into(),
+            data: self.deswizzled_image_data()?,
+        })
+    }
+
+    /// Swizzles all layers and mipmaps in `dds` to an equivalent [Mibl].
+    ///
+    /// Returns an error if the conversion fails or the image format is not supported.
+    pub fn from_surface<T: AsRef<[u8]>>(surface: Surface<T>) -> Result<Self, CreateMiblError> {
+        let Surface {
+            width,
+            height,
+            depth,
+            layers,
+            mipmaps,
+            image_format,
+            data,
+        } = surface;
+        let image_format = ImageFormat::try_from(image_format)?;
+
+        let image_data = tegra_swizzle::surface::swizzle_surface(
+            width as usize,
+            height as usize,
+            depth as usize,
+            data.as_ref(),
+            image_format.block_dim(),
+            None,
+            image_format.bytes_per_pixel(),
+            mipmaps as usize,
+            layers as usize,
+        )?;
+
+        let image_size = round_up(image_data.len() as u64, 4096) as u32;
+
+        Ok(Self {
+            image_data,
+            footer: MiblFooter {
+                image_size,
+                unk: 4096,
+                width,
+                height,
+                depth,
+                view_dimension: if depth > 1 {
+                    ViewDimension::D3
+                } else if layers == 6 {
+                    ViewDimension::Cube
+                } else {
+                    ViewDimension::D2
+                },
+                image_format,
+                mipmap_count: mipmaps,
+                version: 10001,
+            },
+        })
+    }
+}
+
+impl MiblFooter {
+    fn swizzled_surface_size(&self) -> usize {
+        tegra_swizzle::surface::swizzled_surface_size(
+            self.width as usize,
+            self.height as usize,
+            self.depth as usize,
+            self.image_format.block_dim(),
+            None,
+            self.image_format.bytes_per_pixel(),
+            self.mipmap_count as usize,
+            if self.view_dimension == ViewDimension::Cube {
+                6
+            } else {
+                1
+            },
+        )
     }
 }
 

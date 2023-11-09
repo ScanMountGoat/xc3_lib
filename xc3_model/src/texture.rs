@@ -93,7 +93,8 @@ impl ImageTexture {
         self.to_surface().to_dds().map_err(Into::into)
     }
 
-    // TODO: from_dds
+    // TODO: from_dds and from_surface?
+    // TODO: to_mibl?
 }
 
 pub(crate) fn load_textures(
