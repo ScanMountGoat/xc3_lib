@@ -12,10 +12,8 @@ It's recommended to use an editor like [Visual Studio Code](https://code.visuals
 Rust code should be formatted by running the cargo fmt command. This can also be done in VS Code using the Rust Analyzer extension and using the format document command (Alt+Shift+F). Running code lints with cargo clippy is also recommended. Running formatting and linting regularly during development helps keep the code easy to read for other Rust developers. WGSL shader files should be formatted using [wgsl_analyzer](https://github.com/wgsl-analyzer/wgsl-analyzer).
 
 ## CPU Profiling
-For Linux and MacOS, an easy way to identify performance bottlenecks is by using [cargo-flamegraph](https://github.com/flamegraph-rs/flamegraph).
-This tool is difficult to get working on Windows even with WSL. Windows users can install the latest version of Visual Studio and use its builtin performance profiler. 
-Visual Studio can profile the generated Rust executable and even view the data as a flamegraph. 
-Make sure to profile in release mode with debug info enabled by temporarily adding the following lines to the `Cargo.toml` in the root directory.
+For Linux and MacOS, an easy way to identify performance bottlenecks is by using [cargo-flamegraph](https://github.com/flamegraph-rs/flamegraph) or [samply](https://github.com/mstange/samply). Windows users can install the latest version of Visual Studio and use its builtin performance profiler. Visual Studio can profile the generated Rust executable and even view the data as a flamegraph. Make sure to profile in release mode with debug info enabled by temporarily adding the following lines to the `Cargo.toml` in the root directory.  
+
 ```toml
 [profile.release]
 debug = true
