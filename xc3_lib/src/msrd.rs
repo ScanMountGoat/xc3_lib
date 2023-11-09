@@ -172,7 +172,7 @@ impl Msrd {
     pub fn extract_shader_data(&self) -> Spch {
         // TODO: is this always in the first stream?
         let bytes = self.decompress_stream(0, self.shader_entry_index);
-        Spch::from_bytes(&bytes).unwrap()
+        Spch::from_bytes(bytes).unwrap()
     }
 }
 
