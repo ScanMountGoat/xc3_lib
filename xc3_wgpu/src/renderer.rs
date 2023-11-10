@@ -335,12 +335,10 @@ fn deferred_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Deferred Pipeline"),
         layout: Some(&render_pipeline_layout),
-        // TODO: Derive this with wgsl_to_wgpu?
-        vertex: wgpu::VertexState {
-            module: &module,
-            entry_point: crate::shader::deferred::ENTRY_VS_MAIN,
-            buffers: &[],
-        },
+        vertex: crate::shader::deferred::vertex_state(
+            &module,
+            &crate::shader::deferred::vs_main_entry(),
+        ),
         fragment: Some(wgpu::FragmentState {
             module: &module,
             entry_point: crate::shader::deferred::ENTRY_FS_MAIN,

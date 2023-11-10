@@ -111,7 +111,7 @@ fn create_shader_programs(folder: &Path) -> Vec<ShaderProgram> {
     // Shaders are generated as "nvsd{program_index}_FS{i}.glsl".
     // Sort by {program_index} to process files in the right order.
     // TODO: Find a simpler way of doing this?
-    paths.sort_by_cached_key(extract_program_index);
+    paths.sort_by_cached_key(|p| extract_program_index(p));
 
     paths
         .par_iter()
@@ -126,7 +126,7 @@ fn create_shader_programs(folder: &Path) -> Vec<ShaderProgram> {
         .collect()
 }
 
-fn extract_program_index(p: &std::path::PathBuf) -> usize {
+fn extract_program_index(p: &Path) -> usize {
     let name = p.file_name().unwrap().to_string_lossy();
     let start = name.find('d').unwrap();
     let end = name.find('_').unwrap();
@@ -141,7 +141,7 @@ mod tests {
     fn extract_program_index_multiple_digits() {
         assert_eq!(
             89,
-            extract_program_index(&"xc3_shader_dump/ch01027000/nvsd89_FS1.glsl".into())
+            extract_program_index(Path::new("xc3_shader_dump/ch01027000/nvsd89_FS1.glsl"))
         )
     }
 }

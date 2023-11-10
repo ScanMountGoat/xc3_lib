@@ -138,7 +138,7 @@ impl Msrd {
     pub fn extract_vertex_data(&self) -> BinResult<VertexData> {
         // TODO: is this always in the first stream?
         let bytes = self.decompress_stream(0, self.vertex_data_entry_index);
-        VertexData::from_bytes(&bytes)
+        VertexData::from_bytes(bytes)
     }
 
     // TODO: Return mibl instead?
