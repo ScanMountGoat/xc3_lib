@@ -27,7 +27,15 @@ pub enum AttributeData {
     Tangent(Vec<Vec4>),
     Uv1(Vec<Vec2>),
     Uv2(Vec<Vec2>),
+    Uv3(Vec<Vec2>),
+    Uv4(Vec<Vec2>),
+    Uv5(Vec<Vec2>),
+    Uv6(Vec<Vec2>),
+    Uv7(Vec<Vec2>),
+    Uv8(Vec<Vec2>),
+    Uv9(Vec<Vec2>),
     VertexColor(Vec<Vec4>),
+    VertexColor2(Vec<Vec4>),
     WeightIndex(Vec<u32>), // TODO: [u8; 4]?
     // TODO: Should these be handled separately?
     SkinWeights(Vec<Vec4>),
@@ -42,7 +50,15 @@ impl AttributeData {
             AttributeData::Tangent(v) => v.len(),
             AttributeData::Uv1(v) => v.len(),
             AttributeData::Uv2(v) => v.len(),
+            AttributeData::Uv3(v) => v.len(),
+            AttributeData::Uv4(v) => v.len(),
+            AttributeData::Uv5(v) => v.len(),
+            AttributeData::Uv6(v) => v.len(),
+            AttributeData::Uv7(v) => v.len(),
+            AttributeData::Uv8(v) => v.len(),
+            AttributeData::Uv9(v) => v.len(),
             AttributeData::VertexColor(v) => v.len(),
+            AttributeData::VertexColor2(v) => v.len(),
             AttributeData::WeightIndex(v) => v.len(),
             AttributeData::SkinWeights(v) => v.len(),
             AttributeData::BoneIndices(v) => v.len(),
@@ -234,17 +250,33 @@ fn read_attribute(
         DataType::Uv2 => Some(AttributeData::Uv2(
             read_data(d, offset, buffer, read_f32x2).ok()?,
         )),
-        DataType::Uv3 => None,
-        DataType::Uv4 => None,
-        DataType::Unk9 => None,
-        DataType::Unk10 => None,
-        DataType::Unk11 => None,
-        DataType::Unk12 => None,
-        DataType::Unk13 => None,
-        DataType::Unk14 => None,
+        DataType::Uv3 => Some(AttributeData::Uv3(
+            read_data(d, offset, buffer, read_f32x2).ok()?,
+        )),
+        DataType::Uv4 => Some(AttributeData::Uv4(
+            read_data(d, offset, buffer, read_f32x2).ok()?,
+        )),
+        DataType::Uv5 => Some(AttributeData::Uv5(
+            read_data(d, offset, buffer, read_f32x2).ok()?,
+        )),
+        DataType::Uv6 => Some(AttributeData::Uv6(
+            read_data(d, offset, buffer, read_f32x2).ok()?,
+        )),
+        DataType::Uv7 => Some(AttributeData::Uv7(
+            read_data(d, offset, buffer, read_f32x2).ok()?,
+        )),
+        DataType::Uv8 => Some(AttributeData::Uv8(
+            read_data(d, offset, buffer, read_f32x2).ok()?,
+        )),
+        DataType::Uv9 => Some(AttributeData::Uv9(
+            read_data(d, offset, buffer, read_f32x2).ok()?,
+        )),
+        DataType::VertexColorUnk14 => Some(AttributeData::VertexColor(
+            read_data(d, offset, buffer, read_unorm8x4).ok()?,
+        )),
         DataType::Unk15 => None,
         DataType::Unk16 => None,
-        DataType::VertexColor => Some(AttributeData::VertexColor(
+        DataType::VertexColorUnk17 => Some(AttributeData::VertexColor(
             read_data(d, offset, buffer, read_unorm8x4).ok()?,
         )),
         DataType::Unk18 => None,
@@ -433,7 +465,7 @@ mod tests {
 
     #[test]
     fn read_vertex_buffer_vertices() {
-        // chr/ch/ch01012013.wismt, vertex buffer 0
+        // xeno3/chr/ch/ch01012013.wismt, vertex buffer 0
         let data = hex!(
             // vertex 0
             0x459ecd3d 8660673f f2ad923d
@@ -469,7 +501,7 @@ mod tests {
                     data_size: 8,
                 },
                 VertexAttribute {
-                    data_type: DataType::VertexColor,
+                    data_type: DataType::VertexColorUnk17,
                     data_size: 4,
                 },
                 VertexAttribute {
@@ -516,7 +548,7 @@ mod tests {
 
     #[test]
     fn read_weight_buffer_vertices() {
-        // chr/ch/ch01012013.wismt, vertex buffer 12
+        // xeno3/chr/ch/ch01012013.wismt, vertex buffer 12
         let data = hex!(
             // vertex 0
             aec75138 00000000 18170000
@@ -550,6 +582,172 @@ mod tests {
                     vec4(0.77000076, 0.22999924, 0.0, 0.0)
                 ]),
                 AttributeData::BoneIndices(vec![[24, 23, 0, 0], [24, 23, 0, 0]]),
+            ],
+            read_vertex_attributes(&descriptor, &data)
+        );
+    }
+
+    #[test]
+    fn read_map_vertex_buffer_vertices() {
+        // xeno1/map/ma0301.wismhd, map vertex data 4, vertex buffer 13
+        let data = hex!(
+            // vertex 0
+            3c873845 d0a15c43 988cbcc3
+            dc92fd3f c6913dc2
+            588b0e40 9a103ec2
+            dc92fd3f c6913dc2
+            8e691940 d8cd16c0
+            b4401a40 113a17c0
+            8e691940 d8cd16c0
+            bca0333e d801133f
+            493e223f dec2e33e
+            0e5cd2be e062dd3d
+            7f007f00
+            ffffffff
+            f1782300
+            7d10017f
+            // vertex 1
+            42823845 fe6b5c43 c159bcc3
+            42a1f83f 955b3dc2
+            0x1ecd0b40 3de23dc2
+            8898f83f ef5e3dc2
+            ce471940 9a9f16c0
+            401b1a40 811217c0
+            92471940 77a216c0
+            c0674f3e 8a09163f
+            1c78233f f2c31b3f
+            fbaedabe 20fa093e
+            0000ff00
+            ffffffff
+            e8752a00
+            7c1a007f
+        );
+
+        let descriptor = VertexBufferDescriptor {
+            data_offset: 0,
+            vertex_count: 2,
+            vertex_size: 100,
+            attributes: vec![
+                VertexAttribute {
+                    data_type: DataType::Position,
+                    data_size: 12,
+                },
+                VertexAttribute {
+                    data_type: DataType::Uv1,
+                    data_size: 8,
+                },
+                VertexAttribute {
+                    data_type: DataType::Uv2,
+                    data_size: 8,
+                },
+                VertexAttribute {
+                    data_type: DataType::Uv3,
+                    data_size: 8,
+                },
+                VertexAttribute {
+                    data_type: DataType::Uv4,
+                    data_size: 8,
+                },
+                VertexAttribute {
+                    data_type: DataType::Uv5,
+                    data_size: 8,
+                },
+                VertexAttribute {
+                    data_type: DataType::Uv6,
+                    data_size: 8,
+                },
+                VertexAttribute {
+                    data_type: DataType::Uv7,
+                    data_size: 8,
+                },
+                VertexAttribute {
+                    data_type: DataType::Uv8,
+                    data_size: 8,
+                },
+                VertexAttribute {
+                    data_type: DataType::Uv9,
+                    data_size: 8,
+                },
+                VertexAttribute {
+                    data_type: DataType::VertexColorUnk14,
+                    data_size: 4,
+                },
+                VertexAttribute {
+                    data_type: DataType::VertexColorUnk17,
+                    data_size: 4,
+                },
+                VertexAttribute {
+                    data_type: DataType::Normal,
+                    data_size: 4,
+                },
+                VertexAttribute {
+                    data_type: DataType::Tangent,
+                    data_size: 4,
+                },
+            ],
+            unk1: 0,
+            unk2: 0,
+            unk3: 0,
+        };
+
+        assert_eq!(
+            vec![
+                AttributeData::Position(vec![
+                    vec3(2952.4521, 220.63208, -377.0984),
+                    vec3(2952.141, 220.42184, -376.7012)
+                ]),
+                AttributeData::Uv1(vec![
+                    vec2(1.9810443, -47.392357),
+                    vec2(1.9424212, -47.339436)
+                ]),
+                AttributeData::Uv2(vec![
+                    vec2(2.2272549, -47.516212),
+                    vec2(2.1843944, -47.470936)
+                ]),
+                AttributeData::Uv3(vec![
+                    vec2(1.9810443, -47.392357),
+                    vec2(1.9421549, -47.34271)
+                ]),
+                AttributeData::Uv4(vec![
+                    vec2(2.3970675, -2.3563137),
+                    vec2(2.3950076, -2.3534913)
+                ]),
+                AttributeData::Uv5(vec![
+                    vec2(2.4101992, -2.362919),
+                    vec2(2.4079132, -2.3605044)
+                ]),
+                AttributeData::Uv6(vec![
+                    vec2(2.3970675, -2.3563137),
+                    vec2(2.3949933, -2.353666)
+                ]),
+                AttributeData::Uv7(vec![
+                    vec2(0.17541784, 0.5742469),
+                    vec2(0.20254421, 0.58608305)
+                ]),
+                AttributeData::Uv8(vec![
+                    vec2(0.6337629, 0.4448461),
+                    vec2(0.6385515, 0.60845864)
+                ]),
+                AttributeData::Uv9(vec![
+                    vec2(-0.41085857, 0.108098745),
+                    vec2(-0.42711625, 0.13474321)
+                ]),
+                AttributeData::VertexColor(vec![
+                    vec4(0.49803922, 0.0, 0.49803922, 0.0),
+                    vec4(0.0, 0.0, 1.0, 0.0)
+                ]),
+                AttributeData::VertexColor(vec![
+                    vec4(1.0, 1.0, 1.0, 1.0),
+                    vec4(1.0, 1.0, 1.0, 1.0)
+                ]),
+                AttributeData::Normal(vec![
+                    vec4(-0.05882353, 0.47058824, 0.13725491, 0.0),
+                    vec4(-0.09411765, 0.45882353, 0.16470589, 0.0)
+                ]),
+                AttributeData::Tangent(vec![
+                    vec4(0.49019608, 0.0627451, 0.003921569, 0.49803922),
+                    vec4(0.4862745, 0.101960786, 0.0, 0.49803922)
+                ])
             ],
             read_vertex_attributes(&descriptor, &data)
         );

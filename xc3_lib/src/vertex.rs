@@ -98,7 +98,7 @@ pub struct VertexAttribute {
 }
 
 /// The data type, usage, and component count for a [VertexAttribute].
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy)]
 #[brw(repr(u16))]
 pub enum DataType {
     /// Float32x3 position.
@@ -112,22 +112,21 @@ pub enum DataType {
     Unk4 = 4,
     /// Float32x2 UV coordinates.
     Uv1 = 5,
+    // TODO: Are these actually UV coordinates?
     Uv2 = 6,
     Uv3 = 7,
     Uv4 = 8,
-
-    // 1 DE?
-    Unk9 = 9,
-    Unk10 = 10,
-    Unk11 = 11,
-    Unk12 = 12,
-    Unk13 = 13,
-
-    Unk14 = 14,
+    Uv5 = 9,
+    Uv6 = 10,
+    Uv7 = 11,
+    Uv8 = 12,
+    Uv9 = 13,
+    /// Unorm8x4 vertex RGBA color.
+    VertexColorUnk14 = 14,
     Unk15 = 15,
     Unk16 = 16,
     /// Unorm8x4 vertex RGBA color.
-    VertexColor = 17,
+    VertexColorUnk17 = 17,
     Unk18 = 18,
     /// Snorm8x4 normal vector.
     Normal = 28,

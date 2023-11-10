@@ -390,13 +390,21 @@ fn set_buffer_attributes(verts: &mut [shader::model::VertexInput], attributes: &
                 set_attribute(verts, vals, |v, t| v.uv1 = vec4(t.x, t.y, 0.0, 0.0))
             }
             AttributeData::Uv2(_) => (),
+            AttributeData::Uv3(_) => (),
+            AttributeData::Uv4(_) => (),
+            AttributeData::Uv5(_) => (),
+            AttributeData::Uv6(_) => (),
+            AttributeData::Uv7(_) => (),
+            AttributeData::Uv8(_) => (),
+            AttributeData::Uv9(_) => (),
             AttributeData::VertexColor(vals) => {
                 set_attribute(verts, vals, |v, t| v.vertex_color = t)
             }
-            // Bone influences are handled separately.
+            AttributeData::VertexColor2(_) => (),
             AttributeData::WeightIndex(vals) => {
                 set_attribute(verts, vals, |v, t| v.weight_index = t)
             }
+            // Bone influences are handled separately.
             AttributeData::SkinWeights(_) => (),
             AttributeData::BoneIndices(_) => (),
         }

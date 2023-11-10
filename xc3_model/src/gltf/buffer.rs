@@ -295,6 +295,76 @@ impl Buffers {
                         attributes,
                     );
                 }
+                AttributeData::Uv3(values) => {
+                    self.insert_attribute_values(
+                        values,
+                        gltf::Semantic::TexCoords(2),
+                        gltf::json::accessor::Type::Vec2,
+                        gltf::json::accessor::ComponentType::F32,
+                        Some(Valid(Target::ArrayBuffer)),
+                        attributes,
+                    );
+                }
+                AttributeData::Uv4(values) => {
+                    self.insert_attribute_values(
+                        values,
+                        gltf::Semantic::TexCoords(3),
+                        gltf::json::accessor::Type::Vec2,
+                        gltf::json::accessor::ComponentType::F32,
+                        Some(Valid(Target::ArrayBuffer)),
+                        attributes,
+                    );
+                }
+                AttributeData::Uv5(values) => {
+                    self.insert_attribute_values(
+                        values,
+                        gltf::Semantic::TexCoords(4),
+                        gltf::json::accessor::Type::Vec2,
+                        gltf::json::accessor::ComponentType::F32,
+                        Some(Valid(Target::ArrayBuffer)),
+                        attributes,
+                    );
+                }
+                AttributeData::Uv6(values) => {
+                    self.insert_attribute_values(
+                        values,
+                        gltf::Semantic::TexCoords(5),
+                        gltf::json::accessor::Type::Vec2,
+                        gltf::json::accessor::ComponentType::F32,
+                        Some(Valid(Target::ArrayBuffer)),
+                        attributes,
+                    );
+                }
+                AttributeData::Uv7(values) => {
+                    self.insert_attribute_values(
+                        values,
+                        gltf::Semantic::TexCoords(6),
+                        gltf::json::accessor::Type::Vec2,
+                        gltf::json::accessor::ComponentType::F32,
+                        Some(Valid(Target::ArrayBuffer)),
+                        attributes,
+                    );
+                }
+                AttributeData::Uv8(values) => {
+                    self.insert_attribute_values(
+                        values,
+                        gltf::Semantic::TexCoords(7),
+                        gltf::json::accessor::Type::Vec2,
+                        gltf::json::accessor::ComponentType::F32,
+                        Some(Valid(Target::ArrayBuffer)),
+                        attributes,
+                    );
+                }
+                AttributeData::Uv9(values) => {
+                    self.insert_attribute_values(
+                        values,
+                        gltf::Semantic::TexCoords(8),
+                        gltf::json::accessor::Type::Vec2,
+                        gltf::json::accessor::ComponentType::F32,
+                        Some(Valid(Target::ArrayBuffer)),
+                        attributes,
+                    );
+                }
                 AttributeData::VertexColor(values) => {
                     // TODO: Vertex color isn't always an RGB multiplier?
                     // Use a custom attribute to avoid rendering issues.
@@ -307,6 +377,7 @@ impl Buffers {
                         attributes,
                     );
                 }
+                AttributeData::VertexColor2(_) => (),
                 // Skin weights are handled separately.
                 AttributeData::WeightIndex(_) => (),
                 AttributeData::SkinWeights(_) => (),
