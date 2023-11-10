@@ -46,7 +46,7 @@ pub struct MiblFooter {
     pub image_format: ImageFormat,
     /// The number of mip levels or 1 if there are no mipmaps.
     pub mipmap_count: u32,
-    pub version: u32,
+    pub version: u32, // 10001?
 
     #[brw(magic(b"LBIM"))]
     #[br(temp)]

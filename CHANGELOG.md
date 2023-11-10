@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Reduced dependencies for various projects.
 * Changed animation playback functions to take time in seconds to properly handle animation speed.
 * Adjusted how MIBl alignment is handled to ensure the MIBL <-> DDS conversion is always 1:1.
+* Adjusted glTF texture assignment to assume first texture is albedo by default.
 
 ## 0.1.0 - 2023-10-29
 First release! 

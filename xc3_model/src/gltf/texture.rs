@@ -70,9 +70,26 @@ impl TextureCache {
 
 // TODO: Create consts for the gbuffer texture indices?
 pub fn albedo_generated_key(material: &crate::Material, root_index: usize) -> GeneratedImageKey {
-    let red_index = texture_channel_index(material, 0, 'x');
-    let green_index = texture_channel_index(material, 0, 'y');
-    let blue_index = texture_channel_index(material, 0, 'z');
+    // Assume the first texture is albedo if no assignments are possible.
+    let red_index = texture_channel_index(material, 0, 'x').or_else(|| {
+        material
+            .textures
+            .first()
+            .map(|t| (t.image_texture_index, 0))
+    });
+    let green_index = texture_channel_index(material, 0, 'y').or_else(|| {
+        material
+            .textures
+            .first()
+            .map(|t| (t.image_texture_index, 1))
+    });
+    let blue_index = texture_channel_index(material, 0, 'z').or_else(|| {
+        material
+            .textures
+            .first()
+            .map(|t| (t.image_texture_index, 2))
+    });
+
     // Some materials have alpha testing in a separate depth prepass.
     // glTF expects the alpha to be part of the main albedo texture.
     // We'll cheat a little here and convert the mask texture to albedo alpha.

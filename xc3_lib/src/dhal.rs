@@ -131,13 +131,13 @@ pub struct Unk4 {
     pub unk5: u32,
     pub unk6: u32,
 
-    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    pub unk7: Unk4Unk7,
+    pub unk7: Option<Unk4Unk7>,
 
-    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    pub unk8: [u32; 4],
+    pub unk8: Option<[u32; 4]>,
 
     // TODO: padding?
     pub unk: [u32; 4],
@@ -214,6 +214,7 @@ pub struct Textures {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(import_raw(base_offset: u64))]
 pub struct Texture {
+    // TODO: 1000, 1001, 1002?
     pub unk1: u32,
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32), align(4096))]
