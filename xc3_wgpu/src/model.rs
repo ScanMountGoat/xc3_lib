@@ -377,13 +377,7 @@ fn model_vertex_buffers(
 
 fn set_attributes(verts: &mut [shader::model::VertexInput], buffer: &xc3_model::VertexBuffer) {
     set_buffer_attributes(verts, &buffer.attributes);
-
-    // Just apply the base morph target for now.
-    // TODO: Do the morph attributes always override the buffer attributes?
     // TODO: Render morph target animations?
-    if let Some(target) = buffer.morph_targets.first() {
-        set_buffer_attributes(verts, &target.attributes);
-    }
 }
 
 fn set_buffer_attributes(verts: &mut [shader::model::VertexInput], attributes: &[AttributeData]) {

@@ -26,7 +26,7 @@
 use std::path::Path;
 
 use animation::Animation;
-use glam::Mat4;
+use glam::{Mat4, Vec3, Vec4};
 use log::warn;
 use shader_database::{Shader, ShaderDatabase};
 use skinning::SkinWeights;
@@ -191,14 +191,20 @@ pub struct Texture {
 pub struct VertexBuffer {
     pub attributes: Vec<AttributeData>,
     /// Animation targets for vertex attributes like positions and normals.
-    /// The first target can be assumed to be the base target.
+    /// The base target is already applied to [attributes](#structfield.attributes).
     pub morph_targets: Vec<MorphTarget>,
 }
 
+/// Morph target attributes defined as a difference or deformation from the base target.
+/// The final attribute values are simply `base + target * weight`.
 #[derive(Debug)]
 pub struct MorphTarget {
     // TODO: add names from mxmd?
-    pub attributes: Vec<AttributeData>,
+    // TODO: Add a method with tests to blend with base target?
+    pub position_deltas: Vec<Vec3>,
+    // TODO: Exclude the 4th sign component?
+    pub normal_deltas: Vec<Vec4>,
+    pub tangent_deltas: Vec<Vec4>,
 }
 
 #[derive(Debug)]

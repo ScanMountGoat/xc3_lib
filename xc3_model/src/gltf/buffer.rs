@@ -93,46 +93,64 @@ impl Buffers {
         buffers_index: usize,
     ) {
         for (i, vertex_buffer) in buffers.vertex_buffers.iter().enumerate() {
+            // Assume the base morph target is already applied.
             let mut attributes = BTreeMap::new();
             self.add_attributes(&mut attributes, &vertex_buffer.attributes);
 
-            // We still need to apply the base target to avoid invisible meshes.
-            if let Some(target) = vertex_buffer.morph_targets.first() {
-                self.add_attributes(&mut attributes, &target.attributes);
-            }
-
             // Morph targets have their own attribute data.
-            // TODO: Skip the base target?
             if !vertex_buffer.morph_targets.is_empty() {
-                // TODO: Why are there so many empty morph targets?
-                // TODO: These need to be converted to differences with the base target?
                 let targets: Vec<_> = vertex_buffer
                     .morph_targets
                     .iter()
-                    .filter_map(|target| {
-                        // Morph targets should match the base attribute count.
+                    .map(|target| {
+                        // glTF morph targets are defined as a difference with the base target.
                         let mut attributes = attributes.clone();
-                        self.add_attributes(&mut attributes, &target.attributes);
+                        self.insert_attribute_values(
+                            &target.position_deltas,
+                            gltf::Semantic::Positions,
+                            gltf::json::accessor::Type::Vec3,
+                            gltf::json::accessor::ComponentType::F32,
+                            Some(Valid(Target::ArrayBuffer)),
+                            &mut attributes,
+                        );
 
-                        if !attributes.is_empty() {
-                            Some(attributes)
-                        } else {
-                            None
-                        }
+                        // Normals and tangents also use deltas.
+                        // These should use Vec3 to avoid displacing the sign in tangent.w.
+                        let normal_deltas: Vec<_> =
+                            target.normal_deltas.iter().map(|n| n.xyz()).collect();
+                        self.insert_attribute_values(
+                            &normal_deltas,
+                            gltf::Semantic::Normals,
+                            gltf::json::accessor::Type::Vec3,
+                            gltf::json::accessor::ComponentType::F32,
+                            Some(Valid(Target::ArrayBuffer)),
+                            &mut attributes,
+                        );
+
+                        let tangent_deltas: Vec<_> =
+                            target.tangent_deltas.iter().map(|t| t.xyz()).collect();
+                        self.insert_attribute_values(
+                            &tangent_deltas,
+                            gltf::Semantic::Tangents,
+                            gltf::json::accessor::Type::Vec3,
+                            gltf::json::accessor::ComponentType::F32,
+                            Some(Valid(Target::ArrayBuffer)),
+                            &mut attributes,
+                        );
+
+                        attributes
                     })
                     .collect();
 
-                if !targets.is_empty() {
-                    self.morph_targets.insert(
-                        BufferKey {
-                            root_index,
-                            group_index,
-                            buffers_index,
-                            buffer_index: i,
-                        },
-                        targets,
-                    );
-                }
+                self.morph_targets.insert(
+                    BufferKey {
+                        root_index,
+                        group_index,
+                        buffers_index,
+                        buffer_index: i,
+                    },
+                    targets,
+                );
             }
 
             self.vertex_buffer_attributes.insert(
@@ -224,7 +242,7 @@ impl Buffers {
         for attribute in buffer_attributes {
             match attribute {
                 AttributeData::Position(values) => {
-                    self.add_attribute_values(
+                    self.insert_attribute_values(
                         values,
                         gltf::Semantic::Positions,
                         gltf::json::accessor::Type::Vec3,
@@ -237,7 +255,7 @@ impl Buffers {
                     // Not all applications will normalize the vertex normals.
                     // Use Vec3 instead of Vec4 since it's better supported.
                     let values: Vec<_> = values.iter().map(|v| v.xyz().normalize()).collect();
-                    self.add_attribute_values(
+                    self.insert_attribute_values(
                         &values,
                         gltf::Semantic::Normals,
                         gltf::json::accessor::Type::Vec3,
@@ -248,7 +266,7 @@ impl Buffers {
                 }
                 AttributeData::Tangent(values) => {
                     // TODO: do these values need to be scaled/normalized?
-                    self.add_attribute_values(
+                    self.insert_attribute_values(
                         values,
                         gltf::Semantic::Tangents,
                         gltf::json::accessor::Type::Vec4,
@@ -258,7 +276,7 @@ impl Buffers {
                     );
                 }
                 AttributeData::Uv1(values) => {
-                    self.add_attribute_values(
+                    self.insert_attribute_values(
                         values,
                         gltf::Semantic::TexCoords(0),
                         gltf::json::accessor::Type::Vec2,
@@ -268,7 +286,7 @@ impl Buffers {
                     );
                 }
                 AttributeData::Uv2(values) => {
-                    self.add_attribute_values(
+                    self.insert_attribute_values(
                         values,
                         gltf::Semantic::TexCoords(1),
                         gltf::json::accessor::Type::Vec2,
@@ -280,7 +298,7 @@ impl Buffers {
                 AttributeData::VertexColor(values) => {
                     // TODO: Vertex color isn't always an RGB multiplier?
                     // Use a custom attribute to avoid rendering issues.
-                    self.add_attribute_values(
+                    self.insert_attribute_values(
                         values,
                         gltf::Semantic::Extras("_Color".to_string()),
                         gltf::json::accessor::Type::Vec4,
@@ -351,7 +369,7 @@ impl Buffers {
         }
     }
 
-    pub fn add_attribute_values<T: WriteBytes>(
+    pub fn insert_attribute_values<T: WriteBytes>(
         &mut self,
         values: &[T],
         semantic: gltf::Semantic,
