@@ -86,6 +86,7 @@ impl TryFrom<image_dds::ImageFormat> for ImageFormat {
             image_dds::ImageFormat::BC3Unorm => Ok(ImageFormat::BC3Unorm),
             image_dds::ImageFormat::BC4Unorm => Ok(ImageFormat::BC4Unorm),
             image_dds::ImageFormat::BC5Unorm => Ok(ImageFormat::BC5Unorm),
+            image_dds::ImageFormat::BC6Ufloat => Ok(ImageFormat::BC6UFloat),
             image_dds::ImageFormat::BC7Unorm => Ok(ImageFormat::BC7Unorm),
             image_dds::ImageFormat::B4G4R4A4Unorm => Ok(ImageFormat::R4G4B4A4),
             _ => Err(CreateMiblError::UnsupportedImageFormat(value)),
