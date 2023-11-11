@@ -24,7 +24,8 @@ pub fn extract_shader_binaries<P: AsRef<Path>>(
             let slct = program.read_slct(&spch.slct_section).unwrap();
             let binaries = vertex_fragment_binaries(spch, &slct);
 
-            for (i, (vertex, fragment)) in binaries.into_iter().enumerate() {
+            // TODO: Why do additional binaries sometimes fail to decompile?
+            for (i, (vertex, fragment)) in binaries.into_iter().enumerate().take(1) {
                 // Strip the xv4 headers to work with Ryujinx.ShaderTools.
                 let vert_file = output_folder.join(&format!("{name}_VS{i}.bin"));
                 std::fs::write(&vert_file, &vertex[48..]).unwrap();

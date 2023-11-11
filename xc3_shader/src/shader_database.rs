@@ -102,6 +102,8 @@ fn create_map_spchs(folder: &Path) -> Vec<Spch> {
 }
 
 fn create_shader_programs(folder: &Path) -> Vec<ShaderProgram> {
+    // Only check the first shader for now.
+    // TODO: What do additional shader entries do?
     let mut paths: Vec<_> = globwalk::GlobWalkerBuilder::from_patterns(folder, &["*FS0.glsl"])
         .build()
         .unwrap()
