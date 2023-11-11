@@ -93,7 +93,7 @@ fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Option
 
             match Msrd::from_file(path.with_extension("wismt")) {
                 Ok(msrd) => {
-                    let spch = msrd.extract_shader_data();
+                    let spch = msrd.extract_shader_data().unwrap();
                     extract_shader_binaries(&spch, &output_folder, shader_tools, false);
                 }
                 Err(e) => println!("Error reading {path:?}: {e}"),
@@ -136,7 +136,7 @@ fn extract_and_decompile_msmd_shaders(
     let mut wismda = BufReader::new(std::fs::File::open(path.with_extension("wismda")).unwrap());
 
     for (i, model) in msmd.map_models.iter().enumerate() {
-        let data = model.entry.extract(&mut wismda, true);
+        let data = model.entry.extract(&mut wismda, true).unwrap();
 
         let model_folder = output_folder.join("map").join(i.to_string());
         std::fs::create_dir_all(&model_folder).unwrap();
@@ -145,7 +145,7 @@ fn extract_and_decompile_msmd_shaders(
     }
 
     for (i, model) in msmd.prop_models.iter().enumerate() {
-        let data = model.entry.extract(&mut wismda, true);
+        let data = model.entry.extract(&mut wismda, true).unwrap();
 
         let model_folder = output_folder.join("prop").join(i.to_string());
         std::fs::create_dir_all(&model_folder).unwrap();
@@ -154,7 +154,7 @@ fn extract_and_decompile_msmd_shaders(
     }
 
     for (i, model) in msmd.env_models.iter().enumerate() {
-        let data = model.entry.extract(&mut wismda, true);
+        let data = model.entry.extract(&mut wismda, true).unwrap();
 
         let model_folder = output_folder.join("env").join(i.to_string());
         std::fs::create_dir_all(&model_folder).unwrap();

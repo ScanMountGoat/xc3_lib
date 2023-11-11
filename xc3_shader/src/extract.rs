@@ -95,8 +95,8 @@ fn vertex_fragment_binaries<'a>(spch: &'a Spch, slct: &Slct) -> Vec<(&'a [u8], &
     let mut binaries = Vec::new();
     for nvsd in &slct.nvsds {
         let metadata = nvsd.read_nvsd().unwrap();
-        let vertex = metadata.vertex_binary(offset, &spch.xv4_section);
-        let fragment = metadata.fragment_binary(offset, &spch.xv4_section);
+        let vertex = metadata.vertex_binary(offset, &spch.xv4_section).unwrap();
+        let fragment = metadata.fragment_binary(offset, &spch.xv4_section).unwrap();
         binaries.push((vertex, fragment));
     }
 

@@ -70,7 +70,7 @@ pub fn load_map<P: AsRef<Path>>(
             // TODO: Merging doesn't always work?
             // TODO: Do all textures load a separate base mip level?
             let mut wismda = Cursor::new(&wismda);
-            let mibl_m = texture.mid.extract(&mut wismda, compressed);
+            let mibl_m = texture.mid.extract(&mut wismda, compressed).unwrap();
             ImageTexture::from_mibl(&mibl_m, None).unwrap()
         })
         .collect();
@@ -98,7 +98,10 @@ fn map_models_group(
             .par_iter()
             .enumerate()
             .flat_map(|(i, model)| {
-                let model_data = model.entry.extract(&mut Cursor::new(wismda), compressed);
+                let model_data = model
+                    .entry
+                    .extract(&mut Cursor::new(wismda), compressed)
+                    .unwrap();
                 load_map_model_group(&model_data, i, model_folder, shader_database)
             }),
     );
@@ -118,7 +121,7 @@ fn props_group(
     let prop_positions: Vec<_> = msmd
         .prop_positions
         .par_iter()
-        .map(|p| p.extract(&mut Cursor::new(wismda), compressed))
+        .map(|p| p.extract(&mut Cursor::new(wismda), compressed).unwrap())
         .collect();
 
     let models = msmd
@@ -126,7 +129,10 @@ fn props_group(
         .par_iter()
         .enumerate()
         .map(|(i, model)| {
-            let model_data = model.entry.extract(&mut Cursor::new(wismda), compressed);
+            let model_data = model
+                .entry
+                .extract(&mut Cursor::new(wismda), compressed)
+                .unwrap();
 
             load_prop_model_group(
                 &model_data,
@@ -153,7 +159,7 @@ fn create_buffers(
         .par_iter()
         .map(|e| {
             // Assume maps have no skeletons for now.
-            let vertex_data = e.extract(&mut Cursor::new(wismda), compressed);
+            let vertex_data = e.extract(&mut Cursor::new(wismda), compressed).unwrap();
             let (vertex_buffers, weights) = read_vertex_buffers(&vertex_data, None);
             ModelBuffers {
                 vertex_buffers,
@@ -395,7 +401,7 @@ fn load_env_model(
 ) -> ModelRoot {
     let mut wismda = Cursor::new(&wismda);
 
-    let model_data = model.entry.extract(&mut wismda, compressed);
+    let model_data = model.entry.extract(&mut wismda, compressed).unwrap();
 
     // Environment models embed their own textures instead of using the MSMD.
     let image_textures: Vec<_> = model_data
@@ -437,7 +443,7 @@ fn load_foliage_model(
 ) -> ModelRoot {
     let mut wismda = Cursor::new(&wismda);
 
-    let model_data = model.entry.extract(&mut wismda, compressed);
+    let model_data = model.entry.extract(&mut wismda, compressed).unwrap();
 
     // Foliage models embed their own textures instead of using the MSMD.
     let image_textures: Vec<_> = model_data

@@ -6,8 +6,10 @@ use crate::{
     spch::Spch, vertex::VertexData, xbc1::Xbc1, xc3_write_binwrite_impl,
 };
 use bilge::prelude::*;
-use binrw::{binread, BinRead, BinResult, BinWrite};
+use binrw::{binread, BinRead, BinWrite};
+use thiserror::Error;
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
+use zune_inflate::errors::InflateDecodeErrors;
 
 /// .wismt model files in `chr/bt`, `chr/ch/`, `chr/en`, `chr/oj`, and `chr/wp`.
 #[binread]
@@ -123,39 +125,52 @@ pub struct TextureResource {
     pub unk5: u32,
 }
 
+// TODO: Share with msmd?
+#[derive(Debug, Error)]
+pub enum DecompressStreamError {
+    #[error("error decoding compressed stream: {0}")]
+    Decode(#[from] InflateDecodeErrors),
+
+    #[error("error reading data: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("error reading data: {0}")]
+    Binrw(#[from] binrw::Error),
+}
+
 impl Msrd {
     // TODO: make an error type for this.
-    pub fn decompress_stream(&self, stream_index: u32, entry_index: u32) -> Vec<u8> {
+
+    pub fn decompress_stream(
+        &self,
+        stream_index: u32,
+        entry_index: u32,
+    ) -> Result<Vec<u8>, InflateDecodeErrors> {
         let entry = &self.stream_entries[entry_index as usize];
-        let stream = &self.streams[stream_index as usize]
-            .xbc1
-            .decompress()
-            .unwrap();
-        stream[entry.offset as usize..entry.offset as usize + entry.size as usize].to_vec()
+        let stream = &self.streams[stream_index as usize].xbc1.decompress()?;
+        Ok(stream[entry.offset as usize..entry.offset as usize + entry.size as usize].to_vec())
     }
 
-    // TODO: Avoid unwrap.
-    pub fn extract_vertex_data(&self) -> BinResult<VertexData> {
+    pub fn extract_vertex_data(&self) -> Result<VertexData, DecompressStreamError> {
         // TODO: is this always in the first stream?
-        let bytes = self.decompress_stream(0, self.vertex_data_entry_index);
-        VertexData::from_bytes(bytes)
+        let bytes = self.decompress_stream(0, self.vertex_data_entry_index)?;
+        VertexData::from_bytes(bytes).map_err(Into::into)
     }
 
     // TODO: Return mibl instead?
-    pub fn extract_low_texture_data(&self) -> Vec<u8> {
+    pub fn extract_low_texture_data(&self) -> Result<Vec<u8>, InflateDecodeErrors> {
         self.decompress_stream(
             self.low_textures_stream_index,
             self.low_textures_entry_index,
         )
     }
 
-    pub fn extract_middle_textures(&self) -> BinResult<Vec<Mibl>> {
+    pub fn extract_middle_textures(&self) -> Result<Vec<Mibl>, DecompressStreamError> {
         // The middle textures are packed into a single stream.
         // TODO: Where are the high textures?
         let stream = &self.streams[self.middle_textures_stream_index as usize]
             .xbc1
-            .decompress()
-            .unwrap();
+            .decompress()?;
 
         let start = self.middle_textures_stream_entry_start_index as usize;
         let count = self.middle_textures_stream_entry_count as usize;
@@ -164,15 +179,15 @@ impl Msrd {
             .map(|entry| {
                 let bytes =
                     &stream[entry.offset as usize..entry.offset as usize + entry.size as usize];
-                Mibl::from_bytes(bytes)
+                Mibl::from_bytes(bytes).map_err(Into::into)
             })
-            .collect()
+            .collect::<Result<_, _>>()
     }
 
-    pub fn extract_shader_data(&self) -> Spch {
+    pub fn extract_shader_data(&self) -> Result<Spch, DecompressStreamError> {
         // TODO: is this always in the first stream?
-        let bytes = self.decompress_stream(0, self.shader_entry_index);
-        Spch::from_bytes(bytes).unwrap()
+        let bytes = self.decompress_stream(0, self.shader_entry_index)?;
+        Spch::from_bytes(bytes).map_err(Into::into)
     }
 }
 

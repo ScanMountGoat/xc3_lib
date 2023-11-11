@@ -237,7 +237,9 @@ fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: 
     }
 
     // Check read/write for embedded data.
-    let original = msrd.decompress_stream(0, msrd.vertex_data_entry_index);
+    let original = msrd
+        .decompress_stream(0, msrd.vertex_data_entry_index)
+        .unwrap();
     let mut writer = Cursor::new(Vec::new());
     vertex_data.write(&mut writer).unwrap();
     if writer.into_inner() != original {
@@ -252,59 +254,59 @@ fn check_msmd(msmd: Msmd, path: &Path, _original_bytes: &[u8], _check_read_write
     let compressed = msmd.wismda_info.compressed_length != msmd.wismda_info.decompressed_length;
 
     for model in msmd.map_models {
-        model.entry.extract(&mut reader, compressed);
+        model.entry.extract(&mut reader, compressed).unwrap();
     }
 
     for model in msmd.prop_models {
-        model.entry.extract(&mut reader, compressed);
+        model.entry.extract(&mut reader, compressed).unwrap();
     }
 
     // TODO: Test mibl read/write?
     for model in msmd.env_models {
-        let entry = model.entry.extract(&mut reader, compressed);
+        let entry = model.entry.extract(&mut reader, compressed).unwrap();
         for texture in entry.textures.textures {
             Mibl::from_bytes(&texture.mibl_data).unwrap();
         }
     }
 
     for entry in msmd.prop_vertex_data {
-        entry.extract(&mut reader, compressed);
+        entry.extract(&mut reader, compressed).unwrap();
     }
 
     for texture in msmd.textures {
         // TODO: Test combining mid and high files?
-        texture.mid.extract(&mut reader, compressed);
+        texture.mid.extract(&mut reader, compressed).unwrap();
         // texture.high.extract(&mut reader, compressed);
     }
 
     for model in msmd.foliage_models {
-        let entry = model.entry.extract(&mut reader, compressed);
+        let entry = model.entry.extract(&mut reader, compressed).unwrap();
         for texture in entry.textures.textures {
             Mibl::from_bytes(&texture.mibl_data).unwrap();
         }
     }
 
     for entry in msmd.prop_positions {
-        entry.extract(&mut reader, compressed);
+        entry.extract(&mut reader, compressed).unwrap();
     }
 
     for entry in msmd.low_textures {
-        let entry = entry.extract(&mut reader, compressed);
+        let entry = entry.extract(&mut reader, compressed).unwrap();
         for texture in entry.textures {
             Mibl::from_bytes(&texture.mibl_data).unwrap();
         }
     }
 
     for model in msmd.low_models {
-        model.entry.extract(&mut reader, compressed);
+        model.entry.extract(&mut reader, compressed).unwrap();
     }
 
     for entry in msmd.unk_foliage_data {
-        entry.extract(&mut reader, compressed);
+        entry.extract(&mut reader, compressed).unwrap();
     }
 
     for entry in msmd.map_vertex_data {
-        entry.extract(&mut reader, compressed);
+        entry.extract(&mut reader, compressed).unwrap();
     }
 }
 

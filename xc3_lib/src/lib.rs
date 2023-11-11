@@ -221,7 +221,7 @@ where
     trace!(
         "{:?}: {:?}",
         std::any::type_name::<Vec<T>>(),
-        reader.stream_position().unwrap()
+        reader.stream_position()?
     );
 
     let values = Vec::<T>::read_options(

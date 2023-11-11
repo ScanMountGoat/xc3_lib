@@ -1,8 +1,9 @@
 //! Compressed container used to store data in other formats.
 use std::io::{Cursor, Read};
 
-use binrw::{BinRead, BinResult, BinWrite, NullString};
+use binrw::{BinRead, BinWrite, NullString};
 use flate2::{bufread::ZlibEncoder, Compression};
+use thiserror::Error;
 use zune_inflate::{errors::InflateDecodeErrors, DeflateDecoder, DeflateOptions};
 
 use xc3_write::{write_full, Xc3Write, Xc3WriteOffsets};
@@ -36,34 +37,56 @@ pub struct Xbc1 {
     pub compressed_stream: Vec<u8>,
 }
 
+#[derive(Debug, Error)]
+pub enum CreateXbc1Error {
+    #[error("error reading data: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("error writing data: {0}")]
+    Xc3Write(#[from] Box<dyn std::error::Error>),
+}
+
+// TODO: Share with msmd?
+#[derive(Debug, Error)]
+pub enum DecompressStreamError {
+    #[error("error decoding compressed stream: {0}")]
+    Decode(#[from] InflateDecodeErrors),
+
+    #[error("error reading data: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("error reading data: {0}")]
+    Binrw(#[from] binrw::Error),
+}
+
 impl Xbc1 {
     /// Write and compress `data` using ZLIB.
-    pub fn new<'a, T>(name: String, data: &'a T) -> Self
+    pub fn new<'a, T>(name: String, data: &'a T) -> Result<Self, CreateXbc1Error>
     where
         T: Xc3Write + 'static,
         T::Offsets<'a>: Xc3WriteOffsets,
     {
         let mut writer = Cursor::new(Vec::new());
-        write_full(data, &mut writer, 0, &mut 0).unwrap();
+        write_full(data, &mut writer, 0, &mut 0)?;
         let decompressed = writer.into_inner();
 
         Self::from_decompressed(name, &decompressed)
     }
 
     /// Compress `decompressed` using ZLIB.
-    pub fn from_decompressed(name: String, decompressed: &[u8]) -> Self {
+    pub fn from_decompressed(name: String, decompressed: &[u8]) -> Result<Self, CreateXbc1Error> {
         let mut encoder = ZlibEncoder::new(decompressed, Compression::best());
         let mut compressed_stream = Vec::new();
-        encoder.read_to_end(&mut compressed_stream).unwrap();
+        encoder.read_to_end(&mut compressed_stream)?;
 
-        Self {
+        Ok(Self {
             unk1: 1,
             decomp_size: decompressed.len() as u32,
             comp_size: compressed_stream.len() as u32,
             decompressed_hash: hash_crc(decompressed),
             name,
             compressed_stream,
-        }
+        })
     }
 
     /// Decompresses the data by assuming ZLIB compression.
@@ -77,12 +100,12 @@ impl Xbc1 {
 
     // TODO: Error type for this?
     /// Decompress and read the data by assuming ZLIB compression.
-    pub fn extract<T>(&self) -> BinResult<T>
+    pub fn extract<T>(&self) -> Result<T, DecompressStreamError>
     where
         for<'a> T: BinRead<Args<'a> = ()>,
     {
-        let bytes = self.decompress().unwrap();
-        T::read_le(&mut Cursor::new(bytes))
+        let bytes = self.decompress()?;
+        T::read_le(&mut Cursor::new(bytes)).map_err(Into::into)
     }
 }
 

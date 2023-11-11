@@ -112,7 +112,7 @@ pub(crate) fn load_textures(
             xc3_lib::mxmd::TexturesInner::Unk1(t) => t.textures.as_ref().map(|t| &t.textures),
         };
 
-        let packed_texture_data = msrd.unwrap().extract_low_texture_data();
+        let packed_texture_data = msrd.unwrap().extract_low_texture_data().unwrap();
         // TODO: These textures aren't in the same order?
         let middle_textures = msrd.unwrap().extract_middle_textures().unwrap();
 

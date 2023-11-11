@@ -7,7 +7,9 @@ use std::{
 };
 
 use binrw::{binread, BinRead, BinWrite};
+use thiserror::Error;
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
+use zune_inflate::errors::InflateDecodeErrors;
 
 use crate::{
     map::{
@@ -571,26 +573,47 @@ pub struct StreamEntry<T> {
     phantom: PhantomData<T>,
 }
 
+#[derive(Debug, Error)]
+pub enum DecompressStreamError {
+    #[error("error decoding compressed stream: {0}")]
+    Decode(#[from] InflateDecodeErrors),
+
+    #[error("error reading data: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("error reading data: {0}")]
+    Binrw(#[from] binrw::Error),
+}
+
 impl<T> StreamEntry<T>
 where
     for<'a> T: BinRead<Args<'a> = ()>,
 {
     /// Decompress and read the data from a reader for a `.wismda` file.
-    pub fn extract<R: Read + Seek>(&self, wismda: &mut R, is_compressed: bool) -> T {
-        let bytes = self.decompress(wismda, is_compressed);
-        T::read_le(&mut Cursor::new(bytes)).unwrap()
+    pub fn extract<R: Read + Seek>(
+        &self,
+        wismda: &mut R,
+        is_compressed: bool,
+    ) -> Result<T, DecompressStreamError> {
+        let bytes = self.decompress(wismda, is_compressed)?;
+        T::read_le(&mut Cursor::new(bytes)).map_err(Into::into)
     }
 
     /// Decompress the data from a reader for a `.wismda` file.
-    pub fn decompress<R: Read + Seek>(&self, wismda: &mut R, is_compressed: bool) -> Vec<u8> {
+    pub fn decompress<R: Read + Seek>(
+        &self,
+        wismda: &mut R,
+        is_compressed: bool,
+    ) -> Result<Vec<u8>, DecompressStreamError> {
         // Not all wismda files use XBC1 archives to store data.
-        wismda.seek(SeekFrom::Start(self.offset as u64)).unwrap();
+        wismda.seek(SeekFrom::Start(self.offset as u64))?;
         if is_compressed {
-            Xbc1::read(wismda).unwrap().decompress().unwrap()
+            let bytes = Xbc1::read(wismda)?.decompress()?;
+            Ok(bytes)
         } else {
             let mut bytes = vec![0u8; self.decompressed_size as usize];
-            wismda.read_exact(&mut bytes).unwrap();
-            bytes
+            wismda.read_exact(&mut bytes)?;
+            Ok(bytes)
         }
     }
 }

@@ -327,23 +327,31 @@ impl NvsdMetadataOffset {
 impl NvsdMetadata {
     // TODO: Add option to strip xv4 header?
     /// Returns the bytes for the compiled fragment shader, including the 48-byte xv4 header.
-    pub fn vertex_binary<'a>(&self, slct_xv4_offset: u32, xv4_section: &'a [u8]) -> &'a [u8] {
-        // TODO: Do all models use the second item?
-        let shaders = &self.nvsd_shaders[1];
+    pub fn vertex_binary<'a>(
+        &self,
+        slct_xv4_offset: u32,
+        xv4_section: &'a [u8],
+    ) -> Option<&'a [u8]> {
+        // TODO: Do all models use the last item?
+        let shaders = self.nvsd_shaders.get(1)?;
 
         // The first offset is the vertex shader.
         let offset = slct_xv4_offset as usize;
-        &xv4_section[offset..offset + shaders.vertex_xv4_size as usize]
+        xv4_section.get(offset..offset + shaders.vertex_xv4_size as usize)
     }
 
     /// Returns the bytes for the compiled vertex shader, including the 48-byte xv4 header.
-    pub fn fragment_binary<'a>(&self, slct_xv4_offset: u32, xv4_section: &'a [u8]) -> &'a [u8] {
-        // TODO: Do all models use the second item?
-        let shaders = &self.nvsd_shaders.last().unwrap();
+    pub fn fragment_binary<'a>(
+        &self,
+        slct_xv4_offset: u32,
+        xv4_section: &'a [u8],
+    ) -> Option<&'a [u8]> {
+        // TODO: Do all models use the last item?
+        let shaders = &self.nvsd_shaders.last()?;
 
         // The fragment shader immediately follows the vertex shader.
         let offset = slct_xv4_offset as usize + shaders.vertex_xv4_size as usize;
-        &xv4_section[offset..offset + shaders.fragment_xv4_size as usize]
+        xv4_section.get(offset..offset + shaders.fragment_xv4_size as usize)
     }
 }
 
