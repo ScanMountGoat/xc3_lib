@@ -217,9 +217,9 @@ fn check_sar1_data(
 }
 
 fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    msrd.extract_shader_data();
+    msrd.extract_shader_data().unwrap();
     let vertex_data = msrd.extract_vertex_data().unwrap();
-    msrd.extract_low_texture_data();
+    msrd.extract_low_texture_data().unwrap();
 
     // TODO: Check mibl?
     match msrd.extract_middle_textures() {
@@ -353,24 +353,23 @@ fn check_dhal_data(
 }
 
 fn check_dhal(dhal: Dhal, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+    if let Some(textures) = &dhal.textures {
+        for texture in &textures.textures {
+            let mibl = Mibl::from_bytes(&texture.mibl_data).unwrap();
+            check_mibl(mibl, path, &texture.mibl_data, check_read_write);
+        }
+    }
+
+    if let Some(textures) = &dhal.uncompressed_textures {
+        for texture in &textures.textures {
+            // Check for valid JFIF/JPEG data.
+            if let Err(e) = texture.to_image() {
+                println!("Error decoding JPEG for {path:?}: {e}");
+            }
+        }
+    }
+
     if check_read_write {
-        if let Some(textures) = &dhal.textures {
-            for texture in &textures.textures {
-                let mibl = Mibl::from_bytes(&texture.mibl_data).unwrap();
-                check_mibl(mibl, path, &texture.mibl_data, check_read_write);
-            }
-        }
-
-        if let Some(textures) = &dhal.uncompressed_textures {
-            for texture in &textures.textures {
-                // Check for valid JFIF/JPEG data.
-                if let Err(e) = texture.to_image() {
-                    println!("Error decoding JPEG for {path:?}: {e}");
-                }
-            }
-        }
-
-        // Check read/write.
         let mut writer = Cursor::new(Vec::new());
         dhal.write(&mut writer).unwrap();
         if writer.into_inner() != original_bytes {
