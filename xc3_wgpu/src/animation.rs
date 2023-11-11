@@ -28,6 +28,10 @@ pub fn animate_skeleton(
             .bone_hash
             .and_then(|hash| hash_to_index.get(&hash).copied())
             .or(track.bone_index)
+            .or(skeleton
+                .bones
+                .iter()
+                .position(|b| Some(&b.name) == track.bone_name.as_ref()))
         {
             let translation = track.sample_translation(frame);
             let rotation = track.sample_rotation(frame);
@@ -50,7 +54,10 @@ pub fn animate_skeleton(
                 );
             }
         } else {
-            error!("No matching bone for hash {:x}", track.bone_hash.unwrap());
+            error!(
+                "No matching bone for hash {:?}, index: {:?}, name: {:?}",
+                track.bone_hash, track.bone_index, track.bone_name
+            );
         }
     }
 

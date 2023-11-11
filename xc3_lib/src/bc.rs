@@ -174,38 +174,85 @@ pub struct Anim {
     pub binding: AnimationBinding,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[binread]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[br(stream = r)]
 pub struct AnimationBinding {
-    // TODO: More data?
-    pub unk1: BcList<()>,
+    // Use temp fields to estimate the struct size.
+    // These fields will be skipped when writing.
+    // TODO: is there a better way to handle game specific differences?
+    #[br(temp, try_calc = r.stream_position())]
+    pub base_offset: u64,
 
+    pub unk1: BcList<()>,
     pub unk2: u64, // 0?
 
     #[br(parse_with = parse_ptr64)]
     #[xc3(offset(u64))]
     pub animation: Animation,
 
+    // Store the offset for the next field.
+    #[br(temp, restore_position)]
+    indices_offset: u64,
+
     /// The index of the track in [animation](#structfield.animation) for each bone
     /// or `-1` if no track is assigned.
-    // TODO: mxmd or chr bone ordering?
-    // TODO: ordering can be changed by bone names below?
+    // TODO: chr bone ordering?
+    // TODO: ordering can be changed by bone names or hashes?
     pub bone_track_indices: BcList<i16>,
 
-    // TODO: offset64_count32 for Vec<ExtraTrackAnimation>?
-    // TODO: Not always bone names?
-    // TODO: just u64 count32?
-    // TODO: type 1 ch01027000_event.mot has this?
-    // TODO: type 1 bl200202.mot btidle.anm does not?
-    /// An alternative bone name list for [bone_track_indices](#structfield.bone_track_indices).
+    #[br(args { size: indices_offset - base_offset, animation_type: animation.animation_type })]
+    pub inner: AnimationBindingInner,
+}
+
+// TODO: Is there a simpler way of doing this?
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[br(import { size: u64, animation_type: AnimationType })]
+pub enum AnimationBindingInner {
+    // XC2 has 60 total bytes.
+    #[br(pre_assert(size == 60))]
+    Unk1(AnimationBindingInner1),
+
+    // XC1 and XC3 have 76 total bytes.
+    #[br(pre_assert(size == 76))]
+    Unk2(AnimationBindingInner2),
+
+    // XC3 sometimes has 120 or 128 total bytes.
+    #[br(pre_assert(size >= 120))]
+    Unk3(#[br(args_raw(animation_type))] AnimationBindingInner3),
+}
+
+// 60 total bytes for xc2
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct AnimationBindingInner1 {
+    // TODO: offset64_count32 for Vec<ExtraTrackAnimation> just for xc2?
     #[br(parse_with = parse_offset64_count32)]
     #[xc3(offset_count(u64, u32))]
     pub bone_names: Vec<StringOffset>,
+}
 
-    // TODO: not always present?
-    // TODO: Check the offsets as a hack for now?
-    pub unk3: i32,
+// 76 total bytes for xc1 or xc3
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct AnimationBindingInner2 {
+    /// An alternative bone name list for
+    /// [bone_track_indices](struct.AnimationBinding.html#structfield.bone_track_indices).
+    pub bone_names: BcList<StringOffset>,
 
-    #[br(args_raw(animation.animation_type))]
+    // TODO: type?
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32))]
+    pub unk1: Vec<u32>,
+}
+
+// 120 total bytes for xc3
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[br(import_raw(animation_type: AnimationType))]
+pub struct AnimationBindingInner3 {
+    /// An alternative bone name list for
+    /// [bone_track_indices](struct.AnimationBinding.html#structfield.bone_track_indices).
+    pub bone_names: BcList<StringOffset>,
+
+    #[br(args_raw(animation_type))]
     pub extra_track_animation: ExtraTrackAnimation,
 }
 
@@ -262,6 +309,7 @@ pub struct StringOffset {
     pub name: Option<String>,
 }
 
+// TODO: is this only for XC3?
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(import_raw(animation_type: AnimationType))]
 pub enum ExtraTrackAnimation {
@@ -269,7 +317,7 @@ pub enum ExtraTrackAnimation {
     Uncompressed(UncompressedExtraData),
 
     #[br(pre_assert(animation_type == AnimationType::Cubic))]
-    Cubic,
+    Cubic(CubicExtraData),
 
     // TODO: This has extra data?
     #[br(pre_assert(animation_type == AnimationType::Empty))]
@@ -356,6 +404,7 @@ pub struct CubicExtraDataInner2 {
     pub unk2: BcList<u8>,
 }
 
+// TODO: up to 64 bytes?
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct PackedCubicExtraData {
     // pointer to start of strings?
@@ -373,6 +422,7 @@ pub struct PackedCubicExtraData {
     pub data: PackedCubicExtraDataInner,
 
     pub unk_offset: u64,
+    // TODO: optional padding?
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]

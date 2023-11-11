@@ -26,6 +26,7 @@ pub struct Track {
     // TODO: Make this an enum instead?
     pub bone_index: Option<usize>,
     pub bone_hash: Option<u32>,
+    pub bone_name: Option<String>,
 }
 
 // TODO: Should this always be cubic?
@@ -59,71 +60,84 @@ impl Animation {
 }
 
 fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
+    // Tracks are assigned to bones using indices, names, or name hashes.
+    // Tracks have optional data depending on the anim type and game version.
+    // This makes the conversion to a unified format somewhat complex.
     match &anim.binding.animation.data {
         xc3_lib::bc::AnimationData::Uncompressed(uncompressed) => {
-            if let xc3_lib::bc::ExtraTrackAnimation::Uncompressed(extra) =
-                &anim.binding.extra_track_animation
-            {
-                // TODO: Apply the root motion at each frame?
-                let hashes = &extra.unk3.bone_name_hashes;
-                let track_count = hashes.len();
-                let transforms = &uncompressed.transforms.elements;
-                hashes
-                    .iter()
-                    .enumerate()
-                    .map(|(i, hash)| {
-                        let mut translation_keyframes = BTreeMap::new();
-                        let mut rotation_keyframes = BTreeMap::new();
-                        let mut scale_keyframes = BTreeMap::new();
-
-                        for frame in 0..anim.binding.animation.frame_count {
-                            let index = frame as usize * track_count + i;
-                            let next_index = (frame as usize + 1) * track_count + i;
-
-                            // Convert to cubic instead of having separate interpolation types.
-                            let translation = transforms[index].translation;
-                            let next_translation =
-                                transforms.get(next_index).map(|t| t.translation);
-                            translation_keyframes.insert(
-                                (frame as f32).into(),
-                                linear_to_cubic_keyframe(translation, next_translation),
-                            );
-
-                            let rotation = transforms[index].rotation_quaternion;
-                            let next_rotation =
-                                transforms.get(next_index).map(|t| t.rotation_quaternion);
-                            rotation_keyframes.insert(
-                                (frame as f32).into(),
-                                linear_to_cubic_keyframe(rotation, next_rotation),
-                            );
-
-                            let scale = transforms[index].scale;
-                            let next_scale = transforms.get(next_index).map(|t| t.scale);
-                            scale_keyframes.insert(
-                                (frame as f32).into(),
-                                linear_to_cubic_keyframe(scale, next_scale),
-                            );
+            // TODO: Is this the best way to handle this?
+            let (bone_names, hashes) = match &anim.binding.inner {
+                xc3_lib::bc::AnimationBindingInner::Unk1(_) => (None, None),
+                xc3_lib::bc::AnimationBindingInner::Unk2(inner) => {
+                    (Some(&inner.bone_names.elements), None)
+                }
+                xc3_lib::bc::AnimationBindingInner::Unk3(inner) => {
+                    let hashes = match &inner.extra_track_animation {
+                        xc3_lib::bc::ExtraTrackAnimation::Uncompressed(extra) => {
+                            Some(&extra.unk3.bone_name_hashes)
                         }
+                        _ => None,
+                    };
+                    (Some(&inner.bone_names.elements), hashes)
+                }
+            };
 
-                        Track {
-                            translation_keyframes,
-                            rotation_keyframes,
-                            scale_keyframes,
-                            bone_index: None,
-                            bone_hash: Some(*hash),
-                        }
-                    })
-                    .collect()
-            } else {
-                // TODO: error?
-                Vec::new()
-            }
+            // TODO: Apply the root motion at each frame?
+            let track_count = anim.binding.bone_track_indices.elements.len();
+            let transforms = &uncompressed.transforms.elements;
+
+            // TODO: Are these always the elements 0..N-1?
+            anim.binding
+                .bone_track_indices
+                .elements
+                .iter()
+                .map(|i| {
+                    let mut translation_keyframes = BTreeMap::new();
+                    let mut rotation_keyframes = BTreeMap::new();
+                    let mut scale_keyframes = BTreeMap::new();
+
+                    for frame in 0..anim.binding.animation.frame_count {
+                        let index = frame as usize * track_count + *i as usize;
+                        let next_index = (frame as usize + 1) * track_count + *i as usize;
+
+                        // Convert to cubic instead of having separate interpolation types.
+                        let translation = transforms[index].translation;
+                        let next_translation = transforms.get(next_index).map(|t| t.translation);
+                        translation_keyframes.insert(
+                            (frame as f32).into(),
+                            linear_to_cubic_keyframe(translation, next_translation),
+                        );
+
+                        let rotation = transforms[index].rotation_quaternion;
+                        let next_rotation =
+                            transforms.get(next_index).map(|t| t.rotation_quaternion);
+                        rotation_keyframes.insert(
+                            (frame as f32).into(),
+                            linear_to_cubic_keyframe(rotation, next_rotation),
+                        );
+
+                        let scale = transforms[index].scale;
+                        let next_scale = transforms.get(next_index).map(|t| t.scale);
+                        scale_keyframes.insert(
+                            (frame as f32).into(),
+                            linear_to_cubic_keyframe(scale, next_scale),
+                        );
+                    }
+
+                    Track {
+                        translation_keyframes,
+                        rotation_keyframes,
+                        scale_keyframes,
+                        bone_index: None,
+                        bone_hash: hashes.and_then(|hashes| hashes.get(*i as usize)).copied(),
+                        bone_name: bone_names
+                            .and_then(|names| names.get(*i as usize).and_then(|n| n.name.clone())),
+                    }
+                })
+                .collect()
         }
-        xc3_lib::bc::AnimationData::Cubic(cubic) => {
-            // TODO: Assigns bones to tracks?
-            // TODO: Doesn't work for mio anim 0?
-            // TODO: bone names replace the ordering of bones if present?
 
+        xc3_lib::bc::AnimationData::Cubic(cubic) => {
             // TODO: Some anims have more tracks than bones for bl200202?
             anim.binding
                 .bone_track_indices
@@ -136,7 +150,6 @@ fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
                     let mut scale_keyframes = BTreeMap::new();
 
                     // TODO: How to handle index values of -1?
-                    // TODO: Not all bones are being animated properly?
                     if *index >= 0 {
                         let track = &cubic.tracks.elements[*index as usize];
 
@@ -176,21 +189,28 @@ fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
                         }
 
                         // TODO: XC2 animations have different data instead of names?
-                        if anim.binding.bone_names.len() > 1 {
-                            anim.binding
-                                .bone_names
-                                .get(i)
-                                .and_then(|n| n.name.as_ref())
-                                .map(|name| {
-                                    // Some XC1 and XC3 animations don't use the chr bone ordering.
-                                    Track {
-                                        translation_keyframes,
-                                        rotation_keyframes,
-                                        scale_keyframes,
-                                        bone_index: None,
-                                        bone_hash: Some(murmur3(name.as_bytes())),
-                                    }
-                                })
+                        let bone_names = match &anim.binding.inner {
+                            xc3_lib::bc::AnimationBindingInner::Unk1(_) => None,
+                            xc3_lib::bc::AnimationBindingInner::Unk2(inner) => {
+                                Some(&inner.bone_names.elements)
+                            }
+                            xc3_lib::bc::AnimationBindingInner::Unk3(inner) => {
+                                Some(&inner.bone_names.elements)
+                            }
+                        };
+
+                        if let Some(bone_names) = bone_names {
+                            bone_names.get(i).and_then(|n| n.name.as_ref()).map(|name| {
+                                // Some XC1 and XC3 animations don't use the chr bone ordering.
+                                Track {
+                                    translation_keyframes,
+                                    rotation_keyframes,
+                                    scale_keyframes,
+                                    bone_index: None,
+                                    bone_hash: None,
+                                    bone_name: Some(name.clone()),
+                                }
+                            })
                         } else {
                             Some(Track {
                                 translation_keyframes,
@@ -198,6 +218,7 @@ fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
                                 scale_keyframes,
                                 bone_index: Some(i),
                                 bone_hash: None,
+                                bone_name: None,
                             })
                         }
                     } else {
@@ -213,40 +234,46 @@ fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
         xc3_lib::bc::AnimationData::PackedCubic(cubic) => {
             // TODO: Does each of these tracks have a corresponding hash?
             // TODO: Also check the bone indices?
-            if let xc3_lib::bc::ExtraTrackAnimation::PackedCubic(extra) =
-                &anim.binding.extra_track_animation
-            {
-                cubic
-                    .tracks
-                    .elements
-                    .iter()
-                    .zip(extra.data.bone_name_hashes.iter())
-                    .map(|(track, hash)| {
-                        let translation_keyframes = packed_cubic_vec3_keyframes(
-                            &track.translation,
-                            &cubic.keyframes.elements,
-                            &cubic.vectors.elements,
-                        );
-                        let rotation_keyframes = packed_cubic_vec4_keyframes(
-                            &track.rotation,
-                            &cubic.keyframes.elements,
-                            &cubic.quaternions.elements,
-                        );
-                        let scale_keyframes = packed_cubic_vec3_keyframes(
-                            &track.scale,
-                            &cubic.keyframes.elements,
-                            &cubic.vectors.elements,
-                        );
+            if let xc3_lib::bc::AnimationBindingInner::Unk3(inner) = &anim.binding.inner {
+                if let xc3_lib::bc::ExtraTrackAnimation::PackedCubic(extra) =
+                    &inner.extra_track_animation
+                {
+                    cubic
+                        .tracks
+                        .elements
+                        .iter()
+                        .zip(extra.data.bone_name_hashes.iter())
+                        .map(|(track, hash)| {
+                            let translation_keyframes = packed_cubic_vec3_keyframes(
+                                &track.translation,
+                                &cubic.keyframes.elements,
+                                &cubic.vectors.elements,
+                            );
+                            let rotation_keyframes = packed_cubic_vec4_keyframes(
+                                &track.rotation,
+                                &cubic.keyframes.elements,
+                                &cubic.quaternions.elements,
+                            );
+                            let scale_keyframes = packed_cubic_vec3_keyframes(
+                                &track.scale,
+                                &cubic.keyframes.elements,
+                                &cubic.vectors.elements,
+                            );
 
-                        Track {
-                            translation_keyframes,
-                            rotation_keyframes,
-                            scale_keyframes,
-                            bone_index: None,
-                            bone_hash: Some(*hash),
-                        }
-                    })
-                    .collect()
+                            Track {
+                                translation_keyframes,
+                                rotation_keyframes,
+                                scale_keyframes,
+                                bone_index: None,
+                                bone_hash: Some(*hash),
+                                bone_name: None,
+                            }
+                        })
+                        .collect()
+                } else {
+                    // TODO: error?
+                    Vec::new()
+                }
             } else {
                 // TODO: error?
                 Vec::new()
