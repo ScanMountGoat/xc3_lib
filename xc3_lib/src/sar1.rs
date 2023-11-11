@@ -50,15 +50,15 @@ pub struct Entry {
 
 impl Entry {
     /// Write the bytes from `data` to a new [Entry].
-    pub fn new<T>(name: String, data: &T) -> Self
+    pub fn new<T>(name: String, data: &T) -> xc3_write::Xc3Result<Self>
     where
         T: Xc3Write + 'static,
         for<'a> T::Offsets<'a>: Xc3WriteOffsets,
     {
         let mut writer = Cursor::new(Vec::new());
-        write_full(data, &mut writer, 0, &mut 0).unwrap();
+        write_full(data, &mut writer, 0, &mut 0)?;
 
-        Self::from_entry_data(name, writer.into_inner())
+        Ok(Self::from_entry_data(name, writer.into_inner()))
     }
 
     /// Create a new [Entry] from `entry_data`.

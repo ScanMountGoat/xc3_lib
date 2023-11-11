@@ -195,7 +195,7 @@ where
     trace!(
         "{}: {:?}",
         std::any::type_name::<T>(),
-        reader.stream_position().unwrap()
+        reader.stream_position()?
     );
     let value = T::read_options(reader, endian, args.inner)?;
     reader.seek(SeekFrom::Start(saved_pos))?;

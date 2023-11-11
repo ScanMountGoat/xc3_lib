@@ -224,12 +224,11 @@ impl Mibl {
             } else {
                 1
             },
-        )
-        .unwrap();
+        )?;
 
         // Non swizzled data has no alignment requirements.
         // We can just combine the two surfaces.
-        image_data.extend_from_slice(&self.deswizzled_image_data().unwrap());
+        image_data.extend_from_slice(&self.deswizzled_image_data()?);
 
         Ok(image_data)
     }
