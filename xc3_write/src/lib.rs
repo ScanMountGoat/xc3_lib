@@ -1,3 +1,4 @@
+//! A binary writing and layout implementation using separate write and layout passes.
 use std::error::Error;
 use std::io::Seek;
 use std::io::SeekFrom;
@@ -9,21 +10,33 @@ pub type Xc3Result<T> = Result<T, Box<dyn Error>>;
 
 /// The write pass that writes fields and placeholder offsets.
 pub trait Xc3Write {
+    /// The type storing offset data to be used in [Xc3WriteOffsets].
     type Offsets<'a>
     where
         Self: 'a;
 
+    /// Write all fields and placeholder offsets
+    /// and set `data_ptr` to the position after writing.
+    /// This should almost always be derived for non primitive types.
     fn xc3_write<W: Write + Seek>(
         &self,
         writer: &mut W,
         data_ptr: &mut u64,
     ) -> Xc3Result<Self::Offsets<'_>>;
 
+    /// The alignment of absolute offsets for this type in bytes.
     const ALIGNMENT: u64 = 4;
 }
 
 /// The layout pass that updates and writes data for all fields in [Xc3Write::Offsets] recursively.
 pub trait Xc3WriteOffsets {
+    /// Update and write pointed to data for all fields in [Xc3Write::Offsets].
+    ///
+    /// The goal is to call [Offset::write_offset] or [Xc3WriteOffsets::write_offsets]
+    /// in increasing order by absolute offset stored in `data_ptr`.
+    /// For writing in order by field recursively, simply derive [Xc3WriteOffsets].
+    /// Manually implementing this trait allows flexibility for cases like placing strings
+    /// for all types at the end of the file.
     fn write_offsets<W: Write + Seek>(
         &self,
         writer: &mut W,
@@ -32,9 +45,10 @@ pub trait Xc3WriteOffsets {
     ) -> Xc3Result<()>;
 }
 
-// A complete write uses a two pass approach to handle offsets.
-// We can fully write any type that can fully write its offset values.
-// This includes types with an offset type of () like primitive types.
+/// A complete write uses a two pass approach to handle offsets.
+///
+/// We can fully write any type that can fully write its offset values.
+/// This includes types with an offset type of () like primitive types.
 pub fn write_full<'a, T, W>(
     value: &'a T,
     writer: &mut W,
@@ -214,7 +228,6 @@ where
     }
 }
 
-#[macro_export]
 macro_rules! xc3_write_impl {
     ($($ty:ty),*) => {
         $(
@@ -377,6 +390,7 @@ impl Xc3WriteOffsets for () {
     }
 }
 
+/// A small helper function for manually aligning the `data_ptr`.
 pub const fn round_up(x: u64, n: u64) -> u64 {
     ((x + n - 1) / n) * n
 }
