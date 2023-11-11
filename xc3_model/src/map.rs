@@ -404,7 +404,7 @@ fn load_env_model(
     let model_data = model.entry.extract(&mut wismda, compressed).unwrap();
 
     // Environment models embed their own textures instead of using the MSMD.
-    let image_textures: Vec<_> = model_data
+    let image_textures: Result<Vec<_>, _> = model_data
         .textures
         .textures
         .iter()
@@ -432,7 +432,7 @@ fn load_env_model(
                 weights,
             }],
         }],
-        image_textures,
+        image_textures: image_textures.unwrap(),
     }
 }
 
@@ -446,7 +446,7 @@ fn load_foliage_model(
     let model_data = model.entry.extract(&mut wismda, compressed).unwrap();
 
     // Foliage models embed their own textures instead of using the MSMD.
-    let image_textures: Vec<_> = model_data
+    let image_textures: Result<Vec<_>, _> = model_data
         .textures
         .textures
         .iter()
@@ -488,7 +488,7 @@ fn load_foliage_model(
                 weights,
             }],
         }],
-        image_textures,
+        image_textures: image_textures.unwrap(),
     }
 }
 

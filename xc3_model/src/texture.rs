@@ -1,6 +1,7 @@
 use std::{error::Error, path::Path};
 
 use image_dds::Surface;
+use thiserror::Error;
 use xc3_lib::{
     mibl::{Mibl, SwizzleError},
     msrd::Msrd,
@@ -9,6 +10,18 @@ use xc3_lib::{
 };
 
 pub use xc3_lib::mibl::{ImageFormat, ViewDimension};
+
+#[derive(Debug, Error)]
+pub enum CreateImageTextureError {
+    #[error("error deswizzling surface: {0}")]
+    Swizzle(#[from] SwizzleError),
+
+    #[error("error reading data: {0}")]
+    Binrw(#[from] binrw::Error),
+
+    #[error("error decompressing stream: {0}")]
+    Stream(#[from] xc3_lib::error::DecompressStreamError),
+}
 
 /// A non swizzled version of an [Mibl] texture.
 #[derive(Debug, Clone)]
@@ -63,9 +76,9 @@ impl ImageTexture {
         })
     }
 
-    pub fn from_packed_texture(texture: &PackedTexture) -> Self {
-        let mibl = Mibl::from_bytes(&texture.mibl_data).unwrap();
-        Self::from_mibl(&mibl, Some(texture.name.clone())).unwrap()
+    pub fn from_packed_texture(texture: &PackedTexture) -> Result<Self, CreateImageTextureError> {
+        let mibl = Mibl::from_bytes(&texture.mibl_data)?;
+        Self::from_mibl(&mibl, Some(texture.name.clone())).map_err(Into::into)
     }
 
     pub fn to_image(&self) -> Result<image_dds::image::RgbaImage, Box<dyn Error>> {
@@ -129,6 +142,7 @@ pub(crate) fn load_textures(
                     .enumerate()
                     .map(|(i, texture)| {
                         load_wismt_texture(m_tex_folder, h_tex_folder, &texture.name)
+                            .ok()
                             .or_else(|| {
                                 // TODO: Assign in a second pass to avoid O(N) find.
                                 texture_ids
@@ -146,7 +160,7 @@ pub(crate) fn load_textures(
                             })
                             .unwrap_or_else(|| {
                                 // Some textures only appear in the packed textures and have no high res version.
-                                load_packed_texture(&packed_texture_data, texture)
+                                load_packed_texture(&packed_texture_data, texture).unwrap()
                             })
                     })
                     .collect()
@@ -156,7 +170,7 @@ pub(crate) fn load_textures(
         packed_textures
             .textures
             .iter()
-            .map(ImageTexture::from_packed_texture)
+            .map(|t| ImageTexture::from_packed_texture(t).unwrap())
             .collect()
     } else {
         // TODO: How to handle this case?
@@ -167,31 +181,27 @@ pub(crate) fn load_textures(
 fn load_packed_texture(
     packed_texture_data: &[u8],
     item: &xc3_lib::mxmd::PackedExternalTexture,
-) -> ImageTexture {
+) -> Result<ImageTexture, CreateImageTextureError> {
     let data = &packed_texture_data
         [item.mibl_offset as usize..item.mibl_offset as usize + item.mibl_length as usize];
 
-    let mibl = Mibl::from_bytes(data).unwrap();
-    ImageTexture::from_mibl(&mibl, Some(item.name.clone())).unwrap()
+    let mibl = Mibl::from_bytes(data)?;
+    ImageTexture::from_mibl(&mibl, Some(item.name.clone())).map_err(Into::into)
 }
 
 fn load_wismt_texture(
     m_texture_folder: &Path,
     h_texture_folder: &Path,
     texture_name: &str,
-) -> Option<ImageTexture> {
+) -> Result<ImageTexture, CreateImageTextureError> {
     // TODO: Create a helper function in xc3_lib for this?
-    let xbc1 = Xbc1::from_file(m_texture_folder.join(texture_name).with_extension("wismt")).ok()?;
-    let mibl_m: Mibl = xbc1.extract().unwrap();
+    let xbc1 = Xbc1::from_file(m_texture_folder.join(texture_name).with_extension("wismt"))?;
+    let mibl_m: Mibl = xbc1.extract()?;
 
     let base_mip_level =
-        Xbc1::from_file(h_texture_folder.join(texture_name).with_extension("wismt"))
-            .unwrap()
-            .decompress()
-            .unwrap();
+        Xbc1::from_file(h_texture_folder.join(texture_name).with_extension("wismt"))?
+            .decompress()?;
 
-    Some(
-        ImageTexture::from_mibl_base_mip(base_mip_level, mibl_m, Some(texture_name.to_string()))
-            .unwrap(),
-    )
+    ImageTexture::from_mibl_base_mip(base_mip_level, mibl_m, Some(texture_name.to_string()))
+        .map_err(Into::into)
 }

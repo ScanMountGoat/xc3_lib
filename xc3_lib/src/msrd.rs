@@ -2,14 +2,13 @@
 //!
 //! XC3: `chr/{ch,en,oj,wp}/*.wismt`
 use crate::{
-    mibl::Mibl, mxmd::PackedExternalTextures, parse_count32_offset32, parse_opt_ptr32, parse_ptr32,
-    spch::Spch, vertex::VertexData, xbc1::Xbc1, xc3_write_binwrite_impl,
+    error::DecompressStreamError, mibl::Mibl, mxmd::PackedExternalTextures, parse_count32_offset32,
+    parse_opt_ptr32, parse_ptr32, spch::Spch, vertex::VertexData, xbc1::Xbc1,
+    xc3_write_binwrite_impl,
 };
 use bilge::prelude::*;
 use binrw::{binread, BinRead, BinWrite};
-use thiserror::Error;
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
-use zune_inflate::errors::InflateDecodeErrors;
 
 /// .wismt model files in `chr/bt`, `chr/ch/`, `chr/en`, `chr/oj`, and `chr/wp`.
 #[binread]
@@ -125,27 +124,12 @@ pub struct TextureResource {
     pub unk5: u32,
 }
 
-// TODO: Share with msmd?
-#[derive(Debug, Error)]
-pub enum DecompressStreamError {
-    #[error("error decoding compressed stream: {0}")]
-    Decode(#[from] InflateDecodeErrors),
-
-    #[error("error reading data: {0}")]
-    Io(#[from] std::io::Error),
-
-    #[error("error reading data: {0}")]
-    Binrw(#[from] binrw::Error),
-}
-
 impl Msrd {
-    // TODO: make an error type for this.
-
     pub fn decompress_stream(
         &self,
         stream_index: u32,
         entry_index: u32,
-    ) -> Result<Vec<u8>, InflateDecodeErrors> {
+    ) -> Result<Vec<u8>, DecompressStreamError> {
         let entry = &self.stream_entries[entry_index as usize];
         let stream = &self.streams[stream_index as usize].xbc1.decompress()?;
         Ok(stream[entry.offset as usize..entry.offset as usize + entry.size as usize].to_vec())
@@ -158,7 +142,7 @@ impl Msrd {
     }
 
     // TODO: Return mibl instead?
-    pub fn extract_low_texture_data(&self) -> Result<Vec<u8>, InflateDecodeErrors> {
+    pub fn extract_low_texture_data(&self) -> Result<Vec<u8>, DecompressStreamError> {
         self.decompress_stream(
             self.low_textures_stream_index,
             self.low_textures_entry_index,

@@ -53,6 +53,7 @@ pub mod apmd;
 pub mod bc;
 pub mod dds;
 pub mod dhal;
+pub mod error;
 pub mod eva;
 pub mod hash;
 pub mod ltpc;

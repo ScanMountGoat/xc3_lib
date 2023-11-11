@@ -4,11 +4,11 @@ use std::io::{Cursor, Read};
 use binrw::{BinRead, BinWrite, NullString};
 use flate2::{bufread::ZlibEncoder, Compression};
 use thiserror::Error;
-use zune_inflate::{errors::InflateDecodeErrors, DeflateDecoder, DeflateOptions};
+use zune_inflate::{DeflateDecoder, DeflateOptions};
 
 use xc3_write::{write_full, Xc3Write, Xc3WriteOffsets};
 
-use crate::hash::hash_crc;
+use crate::{error::DecompressStreamError, hash::hash_crc};
 
 #[derive(Debug, BinRead, BinWrite, PartialEq)]
 #[brw(magic(b"xbc1"))]
@@ -46,19 +46,6 @@ pub enum CreateXbc1Error {
     Xc3Write(#[from] Box<dyn std::error::Error>),
 }
 
-// TODO: Share with msmd?
-#[derive(Debug, Error)]
-pub enum DecompressStreamError {
-    #[error("error decoding compressed stream: {0}")]
-    Decode(#[from] InflateDecodeErrors),
-
-    #[error("error reading data: {0}")]
-    Io(#[from] std::io::Error),
-
-    #[error("error reading data: {0}")]
-    Binrw(#[from] binrw::Error),
-}
-
 impl Xbc1 {
     /// Write and compress `data` using ZLIB.
     pub fn new<'a, T>(name: String, data: &'a T) -> Result<Self, CreateXbc1Error>
@@ -90,15 +77,14 @@ impl Xbc1 {
     }
 
     /// Decompresses the data by assuming ZLIB compression.
-    pub fn decompress(&self) -> Result<Vec<u8>, InflateDecodeErrors> {
+    pub fn decompress(&self) -> Result<Vec<u8>, DecompressStreamError> {
         let mut decoder = DeflateDecoder::new_with_options(
             &self.compressed_stream,
             DeflateOptions::default().set_size_hint(self.decomp_size as usize),
         );
-        decoder.decode_zlib()
+        decoder.decode_zlib().map_err(Into::into)
     }
 
-    // TODO: Error type for this?
     /// Decompress and read the data by assuming ZLIB compression.
     pub fn extract<T>(&self) -> Result<T, DecompressStreamError>
     where

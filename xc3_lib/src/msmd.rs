@@ -7,11 +7,10 @@ use std::{
 };
 
 use binrw::{binread, BinRead, BinWrite};
-use thiserror::Error;
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
-use zune_inflate::errors::InflateDecodeErrors;
 
 use crate::{
+    error::DecompressStreamError,
     map::{
         EnvModelData, FoliageModelData, FoliageUnkData, FoliageVertexData, MapLowModelData,
         MapModelData, PropInstance, PropModelData, PropPositions,
@@ -23,8 +22,6 @@ use crate::{
     xbc1::Xbc1,
     xc3_write_binwrite_impl,
 };
-
-// TODO: write support?
 
 /// The main map data for a `.wismhd` file.
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -571,18 +568,6 @@ pub struct StreamEntry<T> {
     pub decompressed_size: u32,
     #[bw(ignore)]
     phantom: PhantomData<T>,
-}
-
-#[derive(Debug, Error)]
-pub enum DecompressStreamError {
-    #[error("error decoding compressed stream: {0}")]
-    Decode(#[from] InflateDecodeErrors),
-
-    #[error("error reading data: {0}")]
-    Io(#[from] std::io::Error),
-
-    #[error("error reading data: {0}")]
-    Binrw(#[from] binrw::Error),
 }
 
 impl<T> StreamEntry<T>
