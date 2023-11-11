@@ -74,7 +74,11 @@ impl Shader {
     /// or `None` if the output does not use a sampler.
     ///
     /// For example, an assignment of `"s3.y"` results in a sampler index of `3` and a channel index of `1`.
-    pub fn sampler_channel_index(&self, output_index: usize, channel: char) -> Option<(u32, u32)> {
+    pub fn sampler_channel_index(
+        &self,
+        output_index: usize,
+        channel: char,
+    ) -> Option<(usize, usize)> {
         let output = format!("o{output_index}.{channel}");
 
         // Find the first material referenced sampler like "s0" or "s1".
@@ -97,7 +101,7 @@ impl Shader {
         } else {
             channels.chars().next().unwrap()
         };
-        let channel_index = "xyzw".find(c).unwrap() as u32;
+        let channel_index = "xyzw".find(c).unwrap();
         Some((sampler_index, channel_index))
     }
 
@@ -133,7 +137,7 @@ impl Shader {
     }
 }
 
-fn material_sampler_index(sampler: &str) -> Option<u32> {
+fn material_sampler_index(sampler: &str) -> Option<usize> {
     // TODO: Just parse int?
     match sampler {
         "s0" => Some(0),

@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added helper functions for extracting from archives and creating archives from data.
 * Added support for additional vertex data types used in Xenoblade 1 DE.
 * Added support for morph targets to glTF export.
+* Added support for texture samplers to glTF export.
 
 ### Fixed
 * Fixed some cubic (type 1) animations not using the correct bone list during playback.

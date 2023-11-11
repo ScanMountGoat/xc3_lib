@@ -33,7 +33,8 @@ impl GltfFile {
     pub fn new(model_name: &str, roots: &[ModelRoot]) -> Self {
         let mut texture_cache = TextureCache::new(roots);
 
-        let (materials, material_indices) = create_materials(roots, &mut texture_cache);
+        let (materials, material_indices, textures, samplers) =
+            create_materials(roots, &mut texture_cache);
 
         let mut buffers = Buffers::new(roots);
 
@@ -268,9 +269,10 @@ impl GltfFile {
                 nodes: scene_nodes,
             }],
             materials,
-            textures: texture_cache.textures,
+            textures,
             images,
             skins,
+            samplers,
             ..Default::default()
         };
 

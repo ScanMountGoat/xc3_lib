@@ -7,13 +7,20 @@ use rayon::prelude::*;
 // TODO: This will eventually need to account for parameters and constants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct GeneratedImageKey {
-    root_index: usize,
-    red_index: Option<(usize, usize)>,
-    green_index: Option<(usize, usize)>,
-    blue_index: Option<(usize, usize)>,
-    alpha_index: Option<(usize, usize)>,
-    recalculate_normal_z: bool,
-    invert_green: bool,
+    pub root_index: usize,
+    pub red_index: Option<ImageIndex>,
+    pub green_index: Option<ImageIndex>,
+    pub blue_index: Option<ImageIndex>,
+    pub alpha_index: Option<ImageIndex>,
+    pub recalculate_normal_z: bool,
+    pub invert_green: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ImageIndex {
+    pub image_texture: usize,
+    pub sampler: usize,
+    pub channel: usize,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -24,7 +31,6 @@ pub struct ImageKey {
 
 #[derive(Default)]
 pub struct TextureCache {
-    pub textures: Vec<gltf::json::Texture>,
     pub generated_images: BTreeMap<GeneratedImageKey, RgbaImage>,
     pub generated_texture_indices: BTreeMap<GeneratedImageKey, u32>,
     pub original_images: BTreeMap<ImageKey, RgbaImage>,
@@ -36,7 +42,6 @@ impl TextureCache {
         let original_images = create_images(roots);
 
         Self {
-            textures: Vec::new(),
             generated_images: BTreeMap::new(),
             generated_texture_indices: BTreeMap::new(),
             original_images,
@@ -51,17 +56,9 @@ impl TextureCache {
             .or_else(|| {
                 // Only create an image if it has at least one input.
                 generate_image(key, &self.original_images).map(|image| {
-                    let texture_index = self.textures.len() as u32;
-                    self.textures.push(gltf::json::Texture {
-                        name: None,
-                        sampler: None,
-                        source: gltf::json::Index::new(texture_index),
-                        extensions: None,
-                        extras: Default::default(),
-                    });
+                    let texture_index = self.generated_images.len() as u32;
                     self.generated_images.insert(key, image);
                     self.generated_texture_indices.insert(key, texture_index);
-
                     texture_index
                 })
             })
@@ -72,22 +69,25 @@ impl TextureCache {
 pub fn albedo_generated_key(material: &crate::Material, root_index: usize) -> GeneratedImageKey {
     // Assume the first texture is albedo if no assignments are possible.
     let red_index = texture_channel_index(material, 0, 'x').or_else(|| {
-        material
-            .textures
-            .first()
-            .map(|t| (t.image_texture_index, 0))
+        material.textures.first().map(|t| ImageIndex {
+            image_texture: t.image_texture_index,
+            sampler: 0,
+            channel: 0,
+        })
     });
     let green_index = texture_channel_index(material, 0, 'y').or_else(|| {
-        material
-            .textures
-            .first()
-            .map(|t| (t.image_texture_index, 1))
+        material.textures.first().map(|t| ImageIndex {
+            image_texture: t.image_texture_index,
+            sampler: 0,
+            channel: 1,
+        })
     });
     let blue_index = texture_channel_index(material, 0, 'z').or_else(|| {
-        material
-            .textures
-            .first()
-            .map(|t| (t.image_texture_index, 2))
+        material.textures.first().map(|t| ImageIndex {
+            image_texture: t.image_texture_index,
+            sampler: 0,
+            channel: 2,
+        })
     });
 
     // Some materials have alpha testing in a separate depth prepass.
@@ -98,8 +98,12 @@ pub fn albedo_generated_key(material: &crate::Material, root_index: usize) -> Ge
         .alpha_test
         .as_ref()
         .map(|a| {
-            let texture_index = material.textures[a.texture_index].image_texture_index;
-            (texture_index, a.channel_index)
+            let texture = &material.textures[a.texture_index];
+            ImageIndex {
+                image_texture: texture.image_texture_index,
+                sampler: texture.sampler_index,
+                channel: a.channel_index,
+            }
         })
         .or_else(|| texture_channel_index(material, 0, 'w'));
 
@@ -155,14 +159,14 @@ fn generate_image(
     key: GeneratedImageKey,
     original_images: &BTreeMap<ImageKey, RgbaImage>,
 ) -> Option<RgbaImage> {
-    let find_image_channel = |index: Option<(usize, usize)>| {
-        index.and_then(|(image_index, channel)| {
+    let find_image_channel = |index: Option<ImageIndex>| {
+        index.and_then(|index| {
             original_images
                 .get(&ImageKey {
                     root_index: key.root_index,
-                    image_index,
+                    image_index: index.image_texture,
                 })
-                .map(|image| (image, channel))
+                .map(|image| (image, index.channel))
         })
     };
 
@@ -244,17 +248,37 @@ fn assign_pixels(
 
 pub fn image_name(key: &GeneratedImageKey, model_name: &str) -> String {
     let mut name = format!("{model_name}_root{}", key.root_index);
-    if let Some((i, c)) = key.red_index {
-        name += &format!("_r{i}[{c}]");
+    if let Some(ImageIndex {
+        image_texture: image_texture_index,
+        channel: channel_index,
+        ..
+    }) = key.red_index
+    {
+        name += &format!("_r{image_texture_index}[{channel_index}]");
     }
-    if let Some((i, c)) = key.green_index {
-        name += &format!("_g{i}[{c}]");
+    if let Some(ImageIndex {
+        image_texture: image_texture_index,
+        channel: channel_index,
+        ..
+    }) = key.green_index
+    {
+        name += &format!("_g{image_texture_index}[{channel_index}]");
     }
-    if let Some((i, c)) = key.blue_index {
-        name += &format!("_b{i}[{c}]");
+    if let Some(ImageIndex {
+        image_texture: image_texture_index,
+        channel: channel_index,
+        ..
+    }) = key.blue_index
+    {
+        name += &format!("_b{image_texture_index}[{channel_index}]");
     }
-    if let Some((i, c)) = key.alpha_index {
-        name += &format!("_a{i}[{c}]");
+    if let Some(ImageIndex {
+        image_texture: image_texture_index,
+        channel: channel_index,
+        ..
+    }) = key.alpha_index
+    {
+        name += &format!("_a{image_texture_index}[{channel_index}]");
     }
     name + ".png"
 }
@@ -263,7 +287,7 @@ fn texture_channel_index(
     material: &crate::Material,
     gbuffer_index: usize,
     channel: char,
-) -> Option<(usize, usize)> {
+) -> Option<ImageIndex> {
     // Find the sampler from the material.
     let (sampler_index, channel_index) = material
         .shader
@@ -271,10 +295,11 @@ fn texture_channel_index(
         .sampler_channel_index(gbuffer_index, channel)?;
 
     // Find the texture referenced by this sampler.
-    material
-        .textures
-        .get(sampler_index as usize)
-        .map(|t| (t.image_texture_index, channel_index as usize))
+    material.textures.get(sampler_index).map(|t| ImageIndex {
+        image_texture: t.image_texture_index,
+        sampler: t.sampler_index,
+        channel: channel_index,
+    })
 }
 
 pub fn create_images(roots: &[ModelRoot]) -> BTreeMap<ImageKey, RgbaImage> {

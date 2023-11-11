@@ -229,7 +229,7 @@ fn parse_gbuffer_assignments(
 
         crate::shader::model::GBufferAssignment {
             sampler_indices: ivec4(s0, s1, s2, s3),
-            channel_indices: uvec4(c0, c1, c2, c3),
+            channel_indices: uvec4(c0 as u32, c1 as u32, c2 as u32, c3 as u32),
         }
     })
 }
