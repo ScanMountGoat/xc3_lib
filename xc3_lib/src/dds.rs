@@ -1,5 +1,5 @@
 //! Conversions between [Mibl] and [ddsfile::Dds].
-use std::{io::BufWriter, path::Path};
+use std::{io::Cursor, path::Path};
 
 use image_dds::ddsfile::Dds;
 use image_dds::Surface;
@@ -10,6 +10,27 @@ use crate::{
     mibl::{ImageFormat, ViewDimension},
 };
 
+pub trait DdsExt: Sized {
+    type Error;
+
+    fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Self::Error>;
+    fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), Self::Error>;
+}
+
+impl DdsExt for Dds {
+    type Error = image_dds::ddsfile::Error;
+    fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Self::Error> {
+        let mut reader = Cursor::new(std::fs::read(path)?);
+        Dds::read(&mut reader)
+    }
+
+    fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), Self::Error> {
+        let mut writer = Cursor::new(Vec::new());
+        self.write(&mut writer)?;
+        std::fs::write(path, writer.into_inner()).map_err(Into::into)
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum CreateDdsError {
     #[error("error deswizzling surface: {0}")]
@@ -17,11 +38,6 @@ pub enum CreateDdsError {
 
     #[error("error creating DDS: {0}")]
     DdsError(#[from] image_dds::CreateDdsError),
-}
-
-pub fn save_dds<P: AsRef<Path>>(path: P, dds: &Dds) {
-    let mut writer = BufWriter::new(std::fs::File::create(path).unwrap());
-    dds.write(&mut writer).unwrap();
 }
 
 impl Mibl {

@@ -1,12 +1,11 @@
 use std::{
-    io::BufReader,
     path::{Path, PathBuf},
     str::FromStr,
 };
 
 use clap::Parser;
 use image_dds::{ddsfile::Dds, image};
-use xc3_lib::{dds::save_dds, mibl::Mibl, xbc1::Xbc1};
+use xc3_lib::{dds::DdsExt, mibl::Mibl, xbc1::Xbc1};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -36,10 +35,7 @@ fn main() {
             mibl.to_dds().unwrap()
         }
         // TODO: image and single tex wismt
-        "dds" => {
-            let mut reader = BufReader::new(std::fs::File::open(input).unwrap());
-            Dds::read(&mut reader).unwrap()
-        }
+        "dds" => Dds::from_file(input).unwrap(),
         "wismt" => {
             let mibl = read_wismt_single_tex(input);
             mibl.to_dds().unwrap()
@@ -62,7 +58,7 @@ fn main() {
 
     match output.extension().unwrap().to_str().unwrap() {
         "dds" => {
-            save_dds(output, &dds);
+            dds.save(output).unwrap();
         }
         "witex" | "witx" => {
             let mibl = Mibl::from_dds(&dds).unwrap();
