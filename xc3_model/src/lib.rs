@@ -27,7 +27,7 @@ use std::path::Path;
 
 use animation::Animation;
 use glam::{Mat4, Vec3, Vec4};
-use log::warn;
+use log::{error, warn};
 use shader_database::{Shader, ShaderDatabase};
 use skinning::SkinWeights;
 use texture::load_textures;
@@ -334,19 +334,24 @@ pub fn load_model<P: AsRef<Path>>(
 
     // TODO: Does every wimdo have a chr file?
     // TODO: Does something control the chr name used?
-    // TODO: make this optional?
     let chr = Sar1::from_file(wimdo_path.with_extension("chr"))
-        .or_else(|_| Sar1::from_file(wimdo_path.with_extension("arc")))
-        .or_else(|_| {
-            // TODO: Is the last digit always 0 like in ch01012013.wimdo -> ch01012010.chr?
-            let mut chr_name = model_name.clone();
-            chr_name.pop();
-            chr_name.push('0');
+        .ok()
+        .or_else(|| Sar1::from_file(wimdo_path.with_extension("arc")).ok())
+        .or_else(|| {
+            // Keep trying with more 0's at the end to match in game naming conventions.
+            // XC1: pc010101.wimdo -> pc010000.chr.
+            // XC3: ch01012013.wimdo -> ch01012010.chr.
+            (0..model_name.len()).find_map(|i| {
+                let mut chr_name = model_name.clone();
+                chr_name.replace_range(chr_name.len() - i.., &"0".repeat(i));
+                let chr_path = wimdo_path.with_file_name(chr_name).with_extension("chr");
+                Sar1::from_file(chr_path).ok()
+            })
+        });
 
-            let chr_path = wimdo_path.with_file_name(chr_name).with_extension("chr");
-            Sar1::from_file(chr_path)
-        })
-        .ok();
+    if mxmd.models.skinning.is_some() && chr.is_none() {
+        error!("Failed to load .arc or .chr skeleton for model with vertex skinning.");
+    }
 
     let skeleton = create_skeleton(chr.as_ref(), &mxmd);
 
