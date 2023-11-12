@@ -36,6 +36,7 @@ struct State {
 
     renderer: Xc3Renderer,
 
+    model_name: String,
     groups: Vec<ModelGroup>,
 
     // Animation
@@ -152,8 +153,14 @@ impl State {
             elapsed
         );
 
+        let model_name = Path::new(model_path)
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
+
         let animations = anim_path.map(load_animations).unwrap_or_default();
-        update_window_title(window, &animations, animation_index);
+        update_window_title(window, &model_name, &animations, animation_index);
 
         Self {
             surface,
@@ -163,6 +170,7 @@ impl State {
             config,
             translation,
             rotation_xyz,
+            model_name,
             groups,
             renderer,
             animations,
@@ -257,14 +265,24 @@ impl State {
                             if input.state == ElementState::Released {
                                 self.current_time_seconds = 0.0;
                                 self.animation_index += 1;
-                                update_window_title(window, &self.animations, self.animation_index);
+                                update_window_title(
+                                    window,
+                                    &self.model_name,
+                                    &self.animations,
+                                    self.animation_index,
+                                );
                             }
                         }
                         VirtualKeyCode::PageDown => {
                             if input.state == ElementState::Released {
                                 self.current_time_seconds = 0.0;
                                 self.animation_index = self.animation_index.saturating_sub(1);
-                                update_window_title(window, &self.animations, self.animation_index);
+                                update_window_title(
+                                    window,
+                                    &self.model_name,
+                                    &self.animations,
+                                    self.animation_index,
+                                );
                             }
                         }
                         _ => (),
@@ -329,11 +347,12 @@ impl State {
     }
 }
 
-fn update_window_title(window: &Window, anims: &[Animation], anim_index: usize) {
+fn update_window_title(window: &Window, model_name: &str, anims: &[Animation], anim_index: usize) {
     if let Some(anim) = anims.get(anim_index) {
         window.set_title(&format!(
-            "{} - {}",
+            "{} - {} - {}",
             concat!("xc3_wgpu ", env!("CARGO_PKG_VERSION")),
+            model_name,
             anim.name
         ));
     }
@@ -403,18 +422,17 @@ fn main() {
     }
 
     #[cfg(feature = "tracing")]
-    {
-        let (chrome_layer, _guard) = tracing_chrome::ChromeLayerBuilder::new().build();
-        tracing_subscriber::registry()
-            .with(
-                // Limit tracing to these projects.
-                chrome_layer.with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
-                    metadata.target().starts_with("xc3_wgpu")
-                        || metadata.target().starts_with("xc3_viewer")
-                })),
-            )
-            .init();
-    }
+    let (chrome_layer, _guard) = tracing_chrome::ChromeLayerBuilder::new().build();
+    #[cfg(feature = "tracing")]
+    tracing_subscriber::registry()
+        .with(
+            // Limit tracing to these projects.
+            chrome_layer.with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
+                metadata.target().starts_with("xc3_wgpu")
+                    || metadata.target().starts_with("xc3_viewer")
+            })),
+        )
+        .init();
 
     let cli = Cli::parse();
 
