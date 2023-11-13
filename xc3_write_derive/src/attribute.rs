@@ -1,10 +1,16 @@
 use proc_macro2::{Ident, TokenStream};
-use syn::{ext::IdentExt, parenthesized, Attribute, LitInt};
+use syn::{parenthesized, Attribute, LitInt, Token};
 
 pub struct FieldOptions {
     pub field_type: Option<FieldType>,
-    pub align: Option<u64>,
-    pub pad_size_to: Option<u64>,
+    pub align: Option<Padding>,
+    pub pad_size_to: Option<Padding>,
+}
+
+#[derive(Clone, Copy)]
+pub struct Padding {
+    pub size: u64,
+    pub value: u8,
 }
 
 // TODO: Separate count field similar to #[bw(calc(...))]?
@@ -41,10 +47,12 @@ impl FieldOptions {
                         field_type = Some(FieldType::CountOffset(count, offset));
                     } else if meta.path.is_ident("align") {
                         // #[xc3(align(4096))]
-                        align = Some(parse_u64(&meta)?);
+                        // #[xc3(align(8, 0xFF))]
+                        align = Some(parse_padding(&meta)?);
                     } else if meta.path.is_ident("pad_size_to") {
                         // #[xc3(pad_size_to(128))]
-                        pad_size_to = Some(parse_u64(&meta)?);
+                        // #[xc3(pad_size_to(12, 0xFF))]
+                        pad_size_to = Some(parse_padding(&meta)?);
                     } else if meta.path.is_ident("shared_offset") {
                         // #[xc3(shared_offset)]
                         field_type = Some(FieldType::SharedOffset);
@@ -75,6 +83,22 @@ fn parse_u64(meta: &syn::meta::ParseNestedMeta<'_>) -> Result<u64, syn::Error> {
     lit.base10_parse()
 }
 
+fn parse_padding(meta: &syn::meta::ParseNestedMeta<'_>) -> Result<Padding, syn::Error> {
+    let content;
+    parenthesized!(content in meta.input);
+
+    let lit: LitInt = content.parse()?;
+    let size = lit.base10_parse()?;
+
+    // Default to 0 for padding if not present.
+    let value = content
+        .parse::<Token![,]>()
+        .and_then(|_| (content.parse::<LitInt>()?.base10_parse()))
+        .unwrap_or_default();
+
+    Ok(Padding { size, value })
+}
+
 fn parse_ident(meta: &syn::meta::ParseNestedMeta<'_>) -> Result<Ident, syn::Error> {
     let content;
     parenthesized!(content in meta.input);
@@ -85,8 +109,12 @@ fn parse_ident(meta: &syn::meta::ParseNestedMeta<'_>) -> Result<Ident, syn::Erro
 fn parse_two_idents(meta: &syn::meta::ParseNestedMeta<'_>) -> Result<(Ident, Ident), syn::Error> {
     let content;
     parenthesized!(content in meta.input);
-    let types = content.parse_terminated(Ident::parse_any, syn::Token![,])?;
-    Ok((types[0].clone(), types[1].clone()))
+
+    let ty0: Ident = content.parse()?;
+    let _: Token![,] = content.parse()?;
+    let ty1: Ident = content.parse()?;
+
+    Ok((ty0, ty1))
 }
 
 pub struct TypeOptions {

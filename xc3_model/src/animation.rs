@@ -72,8 +72,8 @@ fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
                     (Some(&inner.bone_names.elements), None)
                 }
                 xc3_lib::bc::AnimationBindingInner::Unk3(inner) => {
-                    let hashes = match &inner.extra_track_animation {
-                        xc3_lib::bc::ExtraTrackAnimation::Uncompressed(extra) => {
+                    let hashes = match &inner.extra_track_data {
+                        xc3_lib::bc::ExtraTrackData::Uncompressed(extra) => {
                             Some(&extra.unk3.bone_name_hashes)
                         }
                         _ => None,
@@ -235,9 +235,7 @@ fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
             // TODO: Does each of these tracks have a corresponding hash?
             // TODO: Also check the bone indices?
             if let xc3_lib::bc::AnimationBindingInner::Unk3(inner) = &anim.binding.inner {
-                if let xc3_lib::bc::ExtraTrackAnimation::PackedCubic(extra) =
-                    &inner.extra_track_animation
-                {
+                if let xc3_lib::bc::ExtraTrackData::PackedCubic(extra) = &inner.extra_track_data {
                     cubic
                         .tracks
                         .elements

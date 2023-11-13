@@ -6,6 +6,7 @@ use crate::{
 use binrw::{args, binread, BinRead, BinWrite};
 use xc3_write::{VecOffsets, Xc3Write, Xc3WriteOffsets};
 
+// TODO: is the 64 byte alignment on the sar1 entry size?
 // TODO: Add class names from xenoblade 2 binary where appropriate.
 // Assume the BC is at the beginning of the reader to simplify offsets.
 #[binread]
@@ -13,9 +14,11 @@ use xc3_write::{VecOffsets, Xc3Write, Xc3WriteOffsets};
 #[br(magic(b"BC\x00\x00"))]
 #[br(stream = r)]
 #[xc3(magic(b"BC\x00\x00"))]
+#[xc3(align_after(64))]
 pub struct Bc {
     pub unk1: u32,
-    pub data_size: u32, // TODO: bc data size?
+    // TODO: not always equal to the sar1 size?
+    pub data_size: u32,
     pub address_count: u32,
 
     #[br(parse_with = parse_ptr64)]
@@ -165,7 +168,7 @@ pub struct DynamicsUnk3 {
     pub unk1: BcList<()>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write)]
 #[br(magic(b"ANIM"))]
 #[xc3(magic(b"ANIM"))]
 pub struct Anim {
@@ -175,7 +178,7 @@ pub struct Anim {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write)]
 #[br(stream = r)]
 pub struct AnimationBinding {
     // Use temp fields to estimate the struct size.
@@ -223,12 +226,40 @@ pub enum AnimationBindingInner {
 }
 
 // 60 total bytes for xc2
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct AnimationBindingInner1 {
-    // TODO: offset64_count32 for Vec<ExtraTrackAnimation> just for xc2?
     #[br(parse_with = parse_offset64_count32)]
-    #[xc3(offset_count(u64, u32))]
-    pub bone_names: Vec<StringOffset>,
+    #[xc3(offset_count(u64, u32), align(8, 0xff))]
+    pub extra_track_bindings: Vec<ExtraTrackAnimationBinding>,
+}
+
+// TODO: write string at the end?
+#[derive(Debug, BinRead, Xc3Write)]
+pub struct ExtraTrackAnimationBinding {
+    #[br(parse_with = parse_ptr64)]
+    #[xc3(offset(u64))]
+    pub extra_track_animation: ExtraTrackAnimation,
+
+    pub track_indices: BcList<i16>,
+}
+
+#[derive(Debug, BinRead, Xc3Write)]
+pub struct ExtraTrackAnimation {
+    pub unk1: u64,
+
+    #[br(parse_with = parse_string_ptr64)]
+    #[xc3(offset(u64), align(8, 0xff))]
+    pub name: String,
+
+    pub animation_type: AnimationType,
+    pub blend_mode: BlendMode,
+    pub unk2: u8,
+    pub unk3: u8,
+
+    pub unk4: i32,
+
+    // TODO: depends on type?
+    pub values: BcList<f32>,
 }
 
 // 76 total bytes for xc1 or xc3
@@ -253,10 +284,10 @@ pub struct AnimationBindingInner3 {
     pub bone_names: BcList<StringOffset>,
 
     #[br(args_raw(animation_type))]
-    pub extra_track_animation: ExtraTrackAnimation,
+    pub extra_track_data: ExtraTrackData,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct Animation {
     pub unk1: BcList<()>,
     pub unk_offset1: u64,
@@ -312,7 +343,7 @@ pub struct StringOffset {
 // TODO: is this only for XC3?
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(import_raw(animation_type: AnimationType))]
-pub enum ExtraTrackAnimation {
+pub enum ExtraTrackData {
     #[br(pre_assert(animation_type == AnimationType::Uncompressed))]
     Uncompressed(UncompressedExtraData),
 
@@ -707,3 +738,74 @@ where
 }
 
 xc3_write_binwrite_impl!(AnimationType, BlendMode, PlayMode, SpaceMode);
+
+impl<'a> Xc3WriteOffsets for AnimOffsets<'a> {
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> xc3_write::Xc3Result<()> {
+        // The binding points backwards to the animation.
+        // This means the animation needs to be written first.
+        let animation_position = *data_ptr;
+        let animation = self.binding.data.animation.xc3_write(writer, data_ptr)?;
+        animation
+            .data
+            .write_offsets(writer, base_offset, data_ptr)?;
+
+        let binding = self.binding.write_offset(writer, base_offset, data_ptr)?;
+        binding
+            .bone_track_indices
+            .write_offsets(writer, base_offset, data_ptr)?;
+        binding.inner.write_offsets(writer, base_offset, data_ptr)?;
+        // Set the animation offset to the animation written earlier.
+        // TODO: make a method for this?
+        writer.seek(std::io::SeekFrom::Start(binding.animation.position))?;
+        writer.write_all(&animation_position.to_le_bytes())?;
+
+        // The animation name is just before the addresses.
+        animation.name.write_offset(writer, base_offset, data_ptr)?;
+        Ok(())
+    }
+}
+
+// TODO: Add a skip(condition) attribute to derive this.
+impl<'a> Xc3WriteOffsets for AnimationBindingInner1Offsets<'a> {
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> xc3_write::Xc3Result<()> {
+        if !self.extra_track_bindings.data.is_empty() {
+            self.extra_track_bindings
+                .write_full(writer, base_offset, data_ptr)?;
+        }
+        Ok(())
+    }
+}
+
+impl<'a> Xc3WriteOffsets for ExtraTrackAnimationBindingOffsets<'a> {
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> xc3_write::Xc3Result<()> {
+        // The name needs to be written at the end.
+        let animation = self
+            .extra_track_animation
+            .write_offset(writer, base_offset, data_ptr)?;
+        animation
+            .values
+            .write_offsets(writer, base_offset, data_ptr)?;
+
+        self.track_indices
+            .write_offsets(writer, base_offset, data_ptr)?;
+
+        animation.name.write_full(writer, base_offset, data_ptr)?;
+
+        Ok(())
+    }
+}

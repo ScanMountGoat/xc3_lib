@@ -91,6 +91,9 @@ pub struct Offset<'a, P, T> {
     pub data: &'a T,
     /// Alignment override applied at the field level.
     pub field_alignment: Option<u64>,
+    /// The byte used for padding or alignment.
+    /// This is usually `0u8`.
+    pub padding_byte: u8,
     phantom: PhantomData<P>,
 }
 
@@ -105,11 +108,12 @@ impl<'a, P, T: Xc3Write> std::fmt::Debug for Offset<'a, P, T> {
 }
 
 impl<'a, P, T> Offset<'a, P, T> {
-    pub fn new(position: u64, data: &'a T, field_alignment: Option<u64>) -> Self {
+    pub fn new(position: u64, data: &'a T, field_alignment: Option<u64>, padding_byte: u8) -> Self {
         Self {
             position,
             data,
             field_alignment,
+            padding_byte,
             phantom: PhantomData,
         }
     }
@@ -129,15 +133,19 @@ impl<'a, P, T> Offset<'a, P, T> {
     {
         // Account for the type or field alignment.
         let alignment = self.field_alignment.unwrap_or(type_alignment);
-        *data_ptr = round_up(*data_ptr, alignment);
+        let aligned_data_pr = round_up(*data_ptr, alignment);
 
         // Update the offset value.
         writer.seek(SeekFrom::Start(self.position))?;
-        let offset = P::try_from(*data_ptr - base_offset).unwrap();
+        let offset = P::try_from(aligned_data_pr - base_offset).unwrap();
         offset.xc3_write(writer, data_ptr)?;
 
         // Seek to the data position.
+        // Handle any padding up the desired alignment.
         writer.seek(SeekFrom::Start(*data_ptr))?;
+        vec![self.padding_byte; (aligned_data_pr - *data_ptr) as usize]
+            .xc3_write(writer, data_ptr)?;
+
         Ok(())
     }
 }

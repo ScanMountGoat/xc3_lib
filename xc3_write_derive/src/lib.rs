@@ -1,4 +1,4 @@
-use attribute::{FieldOptions, FieldType, TypeOptions, VariantOptions};
+use attribute::{FieldOptions, FieldType, Padding, TypeOptions, VariantOptions};
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{quote, ToTokens};
@@ -273,7 +273,7 @@ struct FieldData {
 }
 
 impl FieldData {
-    fn offset(name: &Ident, alignment: Option<u64>, pointer: &Ident, ty: &Type) -> Self {
+    fn offset(name: &Ident, alignment: Option<Padding>, pointer: &Ident, ty: &Type) -> Self {
         Self {
             name: name.clone(),
             offset_field: offset_field(name, pointer, ty),
@@ -284,7 +284,7 @@ impl FieldData {
         }
     }
 
-    fn shared_offset(name: &Ident, alignment: Option<u64>, pointer: &Type) -> Self {
+    fn shared_offset(name: &Ident, alignment: Option<Padding>, pointer: &Type) -> Self {
         Self {
             name: name.clone(),
             offset_field: quote!(pub #name: ::xc3_write::Offset<'offsets, #pointer, ()>),
@@ -305,25 +305,33 @@ impl FieldData {
     }
 }
 
-fn write_dummy_offset(name: &Ident, alignment: Option<u64>, pointer: &Ident) -> TokenStream2 {
-    let alignment = match alignment {
+fn write_dummy_offset(name: &Ident, alignment: Option<Padding>, pointer: &Ident) -> TokenStream2 {
+    let align = match alignment.map(|a| a.size) {
         Some(align) => quote!(Some(#align)),
         None => quote!(None),
     };
+    let padding_byte = alignment.map(|a| a.value).unwrap_or_default();
+
     quote! {
-        let #name = ::xc3_write::Offset::new(writer.stream_position()?, &self.#name, #alignment);
+        let #name = ::xc3_write::Offset::new(writer.stream_position()?, &self.#name, #align, #padding_byte);
         // Assume 0 is the default for the pointer type.
         #pointer::default().xc3_write(writer, data_ptr)?;
     }
 }
 
-fn write_dummy_shared_offset(name: &Ident, alignment: Option<u64>, pointer: &Type) -> TokenStream2 {
-    let alignment = match alignment {
+fn write_dummy_shared_offset(
+    name: &Ident,
+    alignment: Option<Padding>,
+    pointer: &Type,
+) -> TokenStream2 {
+    let align = match alignment.map(|a| a.size) {
         Some(align) => quote!(Some(#align)),
         None => quote!(None),
     };
+    let padding_byte = alignment.map(|a| a.value).unwrap_or_default();
+
     quote! {
-        let #name = ::xc3_write::Offset::new(writer.stream_position()?, &(), #alignment);
+        let #name = ::xc3_write::Offset::new(writer.stream_position()?, &(), #align, #padding_byte);
         // Assume 0 is the default for the pointer type.
         #pointer::default().xc3_write(writer, data_ptr)?;
     }
@@ -346,6 +354,8 @@ fn parse_named_fields(fields: &FieldsNamed) -> Vec<FieldData> {
         let options = FieldOptions::from_attrs(&f.attrs);
 
         let pad_size_to = options.pad_size_to.map(|desired_size| {
+            // TODO: padding value?
+            let desired_size = desired_size.size;
             quote! {
                 // Add appropriate padding until desired size.
                 let after_pos = writer.stream_position()?;
