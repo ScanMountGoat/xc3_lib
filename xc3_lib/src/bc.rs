@@ -29,7 +29,7 @@ pub struct Bc {
     // TODO: relocatable addresses?
     #[br(parse_with = parse_ptr64)]
     #[br(args { inner: args! { count: address_count as usize}})]
-    #[xc3(offset(u64))]
+    #[xc3(offset(u64), align(8, 0xff))]
     pub addresses: Vec<u64>,
 }
 
@@ -173,7 +173,7 @@ pub struct DynamicsUnk3 {
 #[xc3(magic(b"ANIM"))]
 pub struct Anim {
     #[br(parse_with = parse_ptr64)]
-    #[xc3(offset(u64))]
+    #[xc3(offset(u64), align(8, 0xff))]
     pub binding: AnimationBinding,
 }
 
@@ -236,9 +236,9 @@ pub struct AnimationBindingInner1 {
 // TODO: write string at the end?
 #[derive(Debug, BinRead, Xc3Write)]
 pub struct ExtraTrackAnimationBinding {
-    #[br(parse_with = parse_ptr64)]
+    #[br(parse_with = parse_opt_ptr64)]
     #[xc3(offset(u64))]
-    pub extra_track_animation: ExtraTrackAnimation,
+    pub extra_track_animation: Option<ExtraTrackAnimation>,
 
     pub track_indices: BcList<i16>,
 }
@@ -293,7 +293,7 @@ pub struct Animation {
     pub unk_offset1: u64,
 
     #[br(parse_with = parse_string_ptr64)]
-    #[xc3(offset(u64))]
+    #[xc3(offset(u64), align(8, 0xff))]
     pub name: String,
 
     pub animation_type: AnimationType,
@@ -304,8 +304,11 @@ pub struct Animation {
     pub seconds_per_frame: f32,
     pub frame_count: u32,
 
-    pub unk2: BcList<()>, // notifies?
-    pub unk3: u64,        // locomotion?
+    pub notifies: BcList<AnimationNotify>,
+
+    #[br(parse_with = parse_opt_ptr64)]
+    #[xc3(offset(u64), align(16, 0xff))]
+    pub locomotion: Option<AnimationLocomotion>,
 
     #[br(args { animation_type })]
     pub data: AnimationData,
@@ -330,6 +333,32 @@ pub enum PlayMode {
 pub enum BlendMode {
     Blend = 0,
     Add = 1,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct AnimationNotify {
+    pub time: f32,
+    pub unk2: i32,
+
+    #[br(parse_with = parse_string_ptr64)]
+    #[xc3(offset(u64))]
+    pub unk3: String,
+
+    #[br(parse_with = parse_string_ptr64)]
+    #[xc3(offset(u64))]
+    pub unk4: String,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct AnimationLocomotion {
+    pub unk1: [u32; 4],
+    pub seconds_per_frame: f32,
+    pub unk2: i32,
+
+    // TODO: type?
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32), align(16, 0xff))]
+    pub unk3: Vec<[u32; 4]>,
 }
 
 // TODO: Is this the right type?
@@ -754,6 +783,10 @@ impl<'a> Xc3WriteOffsets for AnimOffsets<'a> {
             .data
             .write_offsets(writer, base_offset, data_ptr)?;
 
+        animation
+            .locomotion
+            .write_full(writer, base_offset, data_ptr)?;
+
         let binding = self.binding.write_offset(writer, base_offset, data_ptr)?;
         binding
             .bone_track_indices
@@ -764,8 +797,27 @@ impl<'a> Xc3WriteOffsets for AnimOffsets<'a> {
         writer.seek(std::io::SeekFrom::Start(binding.animation.position))?;
         writer.write_all(&animation_position.to_le_bytes())?;
 
-        // The animation name is just before the addresses.
-        animation.name.write_offset(writer, base_offset, data_ptr)?;
+        // TODO: Nicer way of writing this?
+        let notifies = if !animation.notifies.elements.data.is_empty() {
+            Some(
+                animation
+                    .notifies
+                    .elements
+                    .write_offset(writer, base_offset, data_ptr)?,
+            )
+        } else {
+            None
+        };
+
+        // The names are just before the addresses.
+        animation.name.write_full(writer, base_offset, data_ptr)?;
+        if let Some(notifies) = notifies {
+            for n in notifies.0 {
+                // TODO: Avoid duplicating these strings?
+                n.unk3.write_full(writer, base_offset, data_ptr)?;
+                n.unk4.write_full(writer, base_offset, data_ptr)?;
+            }
+        }
         Ok(())
     }
 }
@@ -793,18 +845,25 @@ impl<'a> Xc3WriteOffsets for ExtraTrackAnimationBindingOffsets<'a> {
         base_offset: u64,
         data_ptr: &mut u64,
     ) -> xc3_write::Xc3Result<()> {
-        // The name needs to be written at the end.
         let animation = self
             .extra_track_animation
             .write_offset(writer, base_offset, data_ptr)?;
-        animation
-            .values
-            .write_offsets(writer, base_offset, data_ptr)?;
 
-        self.track_indices
-            .write_offsets(writer, base_offset, data_ptr)?;
+        if let Some(animation) = &animation {
+            animation
+                .values
+                .write_offsets(writer, base_offset, data_ptr)?;
+        }
 
-        animation.name.write_full(writer, base_offset, data_ptr)?;
+        if !self.track_indices.elements.data.is_empty() {
+            self.track_indices
+                .write_offsets(writer, base_offset, data_ptr)?;
+        }
+
+        // The name needs to be written at the end.
+        if let Some(animation) = &animation {
+            animation.name.write_full(writer, base_offset, data_ptr)?;
+        }
 
         Ok(())
     }
