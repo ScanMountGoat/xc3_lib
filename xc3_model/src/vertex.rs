@@ -8,9 +8,9 @@
 //! The vertex buffers in game use an interleaved or "array of structs" approach.
 //! This makes rendering each vertex cache friendly.
 //! A collection of [AttributeData] can always be packed into an interleaved form for rendering.
-use std::io::{Cursor, Seek, SeekFrom};
+use std::io::{Cursor, Seek, SeekFrom, Write};
 
-use binrw::{BinRead, BinReaderExt, BinResult};
+use binrw::{BinRead, BinReaderExt, BinResult, BinWrite};
 use glam::{Vec2, Vec3, Vec4};
 use xc3_lib::vertex::{DataType, IndexBufferDescriptor, VertexBufferDescriptor, VertexData};
 
@@ -67,6 +67,124 @@ impl AttributeData {
 
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    pub fn write<W: Write + Seek>(
+        &self,
+        writer: &mut W,
+        offset: u64,
+        stride: u64,
+    ) -> BinResult<()> {
+        match self {
+            AttributeData::Position(values) => {
+                write_data(writer, values, offset, stride, write_f32x3)
+            }
+            AttributeData::Normal(values) => {
+                write_data(writer, values, offset, stride, write_snorm8x4)
+            }
+            AttributeData::Tangent(values) => {
+                write_data(writer, values, offset, stride, write_snorm8x4)
+            }
+            AttributeData::Uv1(values) => write_data(writer, values, offset, stride, write_f32x2),
+            AttributeData::Uv2(values) => write_data(writer, values, offset, stride, write_f32x2),
+            AttributeData::Uv3(values) => write_data(writer, values, offset, stride, write_f32x2),
+            AttributeData::Uv4(values) => write_data(writer, values, offset, stride, write_f32x2),
+            AttributeData::Uv5(values) => write_data(writer, values, offset, stride, write_f32x2),
+            AttributeData::Uv6(values) => write_data(writer, values, offset, stride, write_f32x2),
+            AttributeData::Uv7(values) => write_data(writer, values, offset, stride, write_f32x2),
+            AttributeData::Uv8(values) => write_data(writer, values, offset, stride, write_f32x2),
+            AttributeData::Uv9(values) => write_data(writer, values, offset, stride, write_f32x2),
+            AttributeData::VertexColor(values) => {
+                write_data(writer, values, offset, stride, write_unorm8x4)
+            }
+            AttributeData::VertexColor2(values) => {
+                write_data(writer, values, offset, stride, write_unorm8x4)
+            }
+            AttributeData::WeightIndex(values) => {
+                write_data(writer, values, offset, stride, write_u32)
+            }
+            AttributeData::SkinWeights(values) => {
+                write_data(writer, values, offset, stride, write_unorm16x4)
+            }
+            AttributeData::BoneIndices(values) => {
+                write_data(writer, values, offset, stride, write_u8x4)
+            }
+        }
+    }
+}
+
+impl From<&AttributeData> for xc3_lib::vertex::VertexAttribute {
+    fn from(value: &AttributeData) -> Self {
+        match value {
+            AttributeData::Position(_) => xc3_lib::vertex::VertexAttribute {
+                data_type: xc3_lib::vertex::DataType::Position,
+                data_size: 12,
+            },
+            AttributeData::Normal(_) => xc3_lib::vertex::VertexAttribute {
+                data_type: xc3_lib::vertex::DataType::Normal,
+                data_size: 4,
+            },
+            AttributeData::Tangent(_) => xc3_lib::vertex::VertexAttribute {
+                data_type: xc3_lib::vertex::DataType::Tangent,
+                data_size: 4,
+            },
+            AttributeData::Uv1(_) => xc3_lib::vertex::VertexAttribute {
+                data_type: xc3_lib::vertex::DataType::Uv1,
+                data_size: 8,
+            },
+            AttributeData::Uv2(_) => xc3_lib::vertex::VertexAttribute {
+                data_type: xc3_lib::vertex::DataType::Uv2,
+                data_size: 8,
+            },
+            AttributeData::Uv3(_) => xc3_lib::vertex::VertexAttribute {
+                data_type: xc3_lib::vertex::DataType::Uv3,
+                data_size: 8,
+            },
+            AttributeData::Uv4(_) => xc3_lib::vertex::VertexAttribute {
+                data_type: xc3_lib::vertex::DataType::Uv4,
+                data_size: 8,
+            },
+            AttributeData::Uv5(_) => xc3_lib::vertex::VertexAttribute {
+                data_type: xc3_lib::vertex::DataType::Uv5,
+                data_size: 8,
+            },
+            AttributeData::Uv6(_) => xc3_lib::vertex::VertexAttribute {
+                data_type: xc3_lib::vertex::DataType::Uv6,
+                data_size: 8,
+            },
+            AttributeData::Uv7(_) => xc3_lib::vertex::VertexAttribute {
+                data_type: xc3_lib::vertex::DataType::Uv7,
+                data_size: 8,
+            },
+            AttributeData::Uv8(_) => xc3_lib::vertex::VertexAttribute {
+                data_type: xc3_lib::vertex::DataType::Uv8,
+                data_size: 8,
+            },
+            AttributeData::Uv9(_) => xc3_lib::vertex::VertexAttribute {
+                data_type: xc3_lib::vertex::DataType::Uv9,
+                data_size: 8,
+            },
+            AttributeData::VertexColor(_) => xc3_lib::vertex::VertexAttribute {
+                data_type: xc3_lib::vertex::DataType::VertexColorUnk17,
+                data_size: 4,
+            },
+            AttributeData::VertexColor2(_) => xc3_lib::vertex::VertexAttribute {
+                data_type: xc3_lib::vertex::DataType::VertexColorUnk14,
+                data_size: 4,
+            },
+            AttributeData::WeightIndex(_) => xc3_lib::vertex::VertexAttribute {
+                data_type: xc3_lib::vertex::DataType::WeightIndex,
+                data_size: 4,
+            },
+            AttributeData::SkinWeights(_) => xc3_lib::vertex::VertexAttribute {
+                data_type: xc3_lib::vertex::DataType::SkinWeights,
+                data_size: 8,
+            },
+            AttributeData::BoneIndices(_) => xc3_lib::vertex::VertexAttribute {
+                data_type: xc3_lib::vertex::DataType::BoneIndices,
+                data_size: 4,
+            },
+        }
     }
 }
 
@@ -271,7 +389,7 @@ fn read_attribute(
         DataType::Uv9 => Some(AttributeData::Uv9(
             read_data(d, offset, buffer, read_f32x2).ok()?,
         )),
-        DataType::VertexColorUnk14 => Some(AttributeData::VertexColor(
+        DataType::VertexColorUnk14 => Some(AttributeData::VertexColor2(
             read_data(d, offset, buffer, read_unorm8x4).ok()?,
         )),
         DataType::Unk15 => None,
@@ -455,16 +573,146 @@ fn read_morph_buffer_target(
         .collect()
 }
 
+// TODO: support u32?
+pub fn write_index_buffer<W: Write + Seek>(
+    writer: &mut W,
+    indices: &[u16],
+) -> BinResult<IndexBufferDescriptor> {
+    let data_offset = writer.stream_position()? as u32;
+
+    indices.write_le(writer)?;
+
+    Ok(IndexBufferDescriptor {
+        data_offset,
+        index_count: indices.len() as u32,
+        unk1: xc3_lib::vertex::Unk1::Unk0,
+        unk2: xc3_lib::vertex::Unk2::Unk0,
+        unk3: 0,
+        unk4: 0,
+    })
+}
+
+pub fn write_vertex_buffer<W: Write + Seek>(
+    writer: &mut W,
+    attribute_data: &[AttributeData],
+) -> BinResult<VertexBufferDescriptor> {
+    let data_offset = writer.stream_position()? as u32;
+
+    let attributes: Vec<_> = attribute_data
+        .iter()
+        .map(xc3_lib::vertex::VertexAttribute::from)
+        .collect();
+
+    let vertex_size = attributes.iter().map(|a| a.data_size as u32).sum();
+
+    // TODO: Check if all the arrays have the same length.
+    let vertex_count = attribute_data[0].len() as u32;
+
+    // TODO: Include a base offset?
+    let mut offset = writer.stream_position()?;
+    for (a, data) in attributes.iter().zip(attribute_data) {
+        data.write(writer, offset, vertex_size as u64)?;
+        offset += a.data_size as u64;
+    }
+
+    Ok(VertexBufferDescriptor {
+        data_offset,
+        vertex_count,
+        vertex_size,
+        attributes,
+        unk1: 0,
+        unk2: 0,
+        unk3: 0,
+    })
+}
+
+fn write_data<T, F, W>(
+    writer: &mut W,
+    values: &[T],
+    offset: u64,
+    stride: u64,
+    write_item: F,
+) -> BinResult<()>
+where
+    W: Write + Seek,
+    F: Fn(&mut W, &T) -> BinResult<()>,
+{
+    for (i, value) in values.iter().enumerate() {
+        writer.seek(SeekFrom::Start(offset + i as u64 * stride))?;
+        write_item(writer, value)?;
+    }
+
+    Ok(())
+}
+
+fn write_u32<W: Write + Seek>(writer: &mut W, value: &u32) -> BinResult<()> {
+    value.write_le(writer)
+}
+
+fn write_u8x4<W: Write + Seek>(writer: &mut W, value: &[u8; 4]) -> BinResult<()> {
+    value.write_le(writer)
+}
+
+fn write_f32x2<W: Write + Seek>(writer: &mut W, value: &Vec2) -> BinResult<()> {
+    value.to_array().write_le(writer)
+}
+
+fn write_f32x3<W: Write + Seek>(writer: &mut W, value: &Vec3) -> BinResult<()> {
+    value.to_array().write_le(writer)
+}
+
+fn write_unorm8x4<W: Write + Seek>(writer: &mut W, value: &Vec4) -> BinResult<()> {
+    value.to_array().map(|f| (f * 255.0) as u8).write_le(writer)
+}
+
+fn write_unorm16x4<W: Write + Seek>(writer: &mut W, value: &Vec4) -> BinResult<()> {
+    value
+        .to_array()
+        .map(|f| (f * 65535.0) as u16)
+        .write_le(writer)
+}
+
+fn write_snorm8x4<W: Write + Seek>(writer: &mut W, value: &Vec4) -> BinResult<()> {
+    value.to_array().map(|f| (f * 255.0) as i8).write_le(writer)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use crate::assert_hex_eq;
 
     use glam::{vec2, vec3, vec4};
     use hexlit::hex;
     use xc3_lib::vertex::{DataType, VertexAttribute};
 
     #[test]
-    fn read_vertex_buffer_vertices() {
+    fn vertex_buffer_indices() {
+        // xeno3/chr/ch/ch01012013.wismt, index buffer 0
+        let data = hex!(00000100 02000100);
+
+        let descriptor = IndexBufferDescriptor {
+            data_offset: 0,
+            index_count: 4,
+            unk1: xc3_lib::vertex::Unk1::Unk0,
+            unk2: xc3_lib::vertex::Unk2::Unk0,
+            unk3: 0,
+            unk4: 0,
+        };
+
+        // Test read.
+        let indices = read_indices(&descriptor, &data).unwrap();
+        assert_eq!(vec![0, 1, 2, 1], indices);
+
+        // Test write.
+        let mut writer = Cursor::new(Vec::new());
+        let new_descriptor = write_index_buffer(&mut writer, &indices).unwrap();
+        assert_eq!(new_descriptor, descriptor);
+        assert_hex_eq!(data, writer.into_inner());
+    }
+
+    #[test]
+    fn vertex_buffer_vertices() {
         // xeno3/chr/ch/ch01012013.wismt, vertex buffer 0
         let data = hex!(
             // vertex 0
@@ -518,36 +766,41 @@ mod tests {
             unk3: 0,
         };
 
-        assert_eq!(
-            vec![
-                AttributeData::Position(vec![
-                    vec3(0.10039953, 0.9038166, 0.07162084),
-                    vec3(0.14499485, 0.91730505, 0.050502136)
-                ]),
-                AttributeData::WeightIndex(vec![275, 276]),
-                AttributeData::Uv1(vec![
-                    vec2(0.75997907, 0.6079358),
-                    vec2(0.79126656, 0.6000591)
-                ]),
-                AttributeData::VertexColor(vec![
-                    vec4(0.49803922, 0.0, 1.0, 1.0),
-                    vec4(0.49803922, 0.0, 1.0, 1.0)
-                ]),
-                AttributeData::Normal(vec![
-                    vec4(0.12941177, -0.019607844, 0.47843137, 0.0),
-                    vec4(0.38431373, 0.047058824, 0.30980393, 0.0)
-                ]),
-                AttributeData::Tangent(vec![
-                    vec4(0.47843137, 0.0, -0.12941177, 0.49803922),
-                    vec4(0.30980393, 0.0, -0.38431373, 0.49803922)
-                ])
-            ],
-            read_vertex_attributes(&descriptor, &data)
-        );
+        // Test read.
+        let attributes = vec![
+            AttributeData::Position(vec![
+                vec3(0.10039953, 0.9038166, 0.07162084),
+                vec3(0.14499485, 0.91730505, 0.050502136),
+            ]),
+            AttributeData::WeightIndex(vec![275, 276]),
+            AttributeData::Uv1(vec![
+                vec2(0.75997907, 0.6079358),
+                vec2(0.79126656, 0.6000591),
+            ]),
+            AttributeData::VertexColor(vec![
+                vec4(0.49803922, 0.0, 1.0, 1.0),
+                vec4(0.49803922, 0.0, 1.0, 1.0),
+            ]),
+            AttributeData::Normal(vec![
+                vec4(0.12941177, -0.019607844, 0.47843137, 0.0),
+                vec4(0.38431373, 0.047058824, 0.30980393, 0.0),
+            ]),
+            AttributeData::Tangent(vec![
+                vec4(0.47843137, 0.0, -0.12941177, 0.49803922),
+                vec4(0.30980393, 0.0, -0.38431373, 0.49803922),
+            ]),
+        ];
+        assert_eq!(attributes, read_vertex_attributes(&descriptor, &data));
+
+        // Test write.
+        let mut writer = Cursor::new(Vec::new());
+        let new_descriptor = write_vertex_buffer(&mut writer, &attributes).unwrap();
+        assert_eq!(new_descriptor, descriptor);
+        assert_hex_eq!(data, writer.into_inner());
     }
 
     #[test]
-    fn read_weight_buffer_vertices() {
+    fn weight_buffer_vertices() {
         // xeno3/chr/ch/ch01012013.wismt, vertex buffer 12
         let data = hex!(
             // vertex 0
@@ -575,20 +828,25 @@ mod tests {
             unk3: 0,
         };
 
-        assert_eq!(
-            vec![
-                AttributeData::SkinWeights(vec![
-                    vec4(0.7800107, 0.21998931, 0.0, 0.0),
-                    vec4(0.77000076, 0.22999924, 0.0, 0.0)
-                ]),
-                AttributeData::BoneIndices(vec![[24, 23, 0, 0], [24, 23, 0, 0]]),
-            ],
-            read_vertex_attributes(&descriptor, &data)
-        );
+        // Test read.
+        let attributes = vec![
+            AttributeData::SkinWeights(vec![
+                vec4(0.7800107, 0.21998931, 0.0, 0.0),
+                vec4(0.77000076, 0.22999924, 0.0, 0.0),
+            ]),
+            AttributeData::BoneIndices(vec![[24, 23, 0, 0], [24, 23, 0, 0]]),
+        ];
+        assert_eq!(attributes, read_vertex_attributes(&descriptor, &data));
+
+        // Test write.
+        let mut writer = Cursor::new(Vec::new());
+        let new_descriptor = write_vertex_buffer(&mut writer, &attributes).unwrap();
+        assert_eq!(new_descriptor, descriptor);
+        assert_hex_eq!(data, writer.into_inner());
     }
 
     #[test]
-    fn read_map_vertex_buffer_vertices() {
+    fn map_vertex_buffer_vertices() {
         // xeno1/map/ma0301.wismhd, map vertex data 4, vertex buffer 13
         let data = hex!(
             // vertex 0
@@ -690,67 +948,69 @@ mod tests {
             unk3: 0,
         };
 
-        assert_eq!(
-            vec![
-                AttributeData::Position(vec![
-                    vec3(2952.4521, 220.63208, -377.0984),
-                    vec3(2952.141, 220.42184, -376.7012)
-                ]),
-                AttributeData::Uv1(vec![
-                    vec2(1.9810443, -47.392357),
-                    vec2(1.9424212, -47.339436)
-                ]),
-                AttributeData::Uv2(vec![
-                    vec2(2.2272549, -47.516212),
-                    vec2(2.1843944, -47.470936)
-                ]),
-                AttributeData::Uv3(vec![
-                    vec2(1.9810443, -47.392357),
-                    vec2(1.9421549, -47.34271)
-                ]),
-                AttributeData::Uv4(vec![
-                    vec2(2.3970675, -2.3563137),
-                    vec2(2.3950076, -2.3534913)
-                ]),
-                AttributeData::Uv5(vec![
-                    vec2(2.4101992, -2.362919),
-                    vec2(2.4079132, -2.3605044)
-                ]),
-                AttributeData::Uv6(vec![
-                    vec2(2.3970675, -2.3563137),
-                    vec2(2.3949933, -2.353666)
-                ]),
-                AttributeData::Uv7(vec![
-                    vec2(0.17541784, 0.5742469),
-                    vec2(0.20254421, 0.58608305)
-                ]),
-                AttributeData::Uv8(vec![
-                    vec2(0.6337629, 0.4448461),
-                    vec2(0.6385515, 0.60845864)
-                ]),
-                AttributeData::Uv9(vec![
-                    vec2(-0.41085857, 0.108098745),
-                    vec2(-0.42711625, 0.13474321)
-                ]),
-                AttributeData::VertexColor(vec![
-                    vec4(0.49803922, 0.0, 0.49803922, 0.0),
-                    vec4(0.0, 0.0, 1.0, 0.0)
-                ]),
-                AttributeData::VertexColor(vec![
-                    vec4(1.0, 1.0, 1.0, 1.0),
-                    vec4(1.0, 1.0, 1.0, 1.0)
-                ]),
-                AttributeData::Normal(vec![
-                    vec4(-0.05882353, 0.47058824, 0.13725491, 0.0),
-                    vec4(-0.09411765, 0.45882353, 0.16470589, 0.0)
-                ]),
-                AttributeData::Tangent(vec![
-                    vec4(0.49019608, 0.0627451, 0.003921569, 0.49803922),
-                    vec4(0.4862745, 0.101960786, 0.0, 0.49803922)
-                ])
-            ],
-            read_vertex_attributes(&descriptor, &data)
-        );
+        // Test read.
+        let attributes = vec![
+            AttributeData::Position(vec![
+                vec3(2952.4521, 220.63208, -377.0984),
+                vec3(2952.141, 220.42184, -376.7012),
+            ]),
+            AttributeData::Uv1(vec![
+                vec2(1.9810443, -47.392357),
+                vec2(1.9424212, -47.339436),
+            ]),
+            AttributeData::Uv2(vec![
+                vec2(2.2272549, -47.516212),
+                vec2(2.1843944, -47.470936),
+            ]),
+            AttributeData::Uv3(vec![
+                vec2(1.9810443, -47.392357),
+                vec2(1.9421549, -47.34271),
+            ]),
+            AttributeData::Uv4(vec![
+                vec2(2.3970675, -2.3563137),
+                vec2(2.3950076, -2.3534913),
+            ]),
+            AttributeData::Uv5(vec![
+                vec2(2.4101992, -2.362919),
+                vec2(2.4079132, -2.3605044),
+            ]),
+            AttributeData::Uv6(vec![
+                vec2(2.3970675, -2.3563137),
+                vec2(2.3949933, -2.353666),
+            ]),
+            AttributeData::Uv7(vec![
+                vec2(0.17541784, 0.5742469),
+                vec2(0.20254421, 0.58608305),
+            ]),
+            AttributeData::Uv8(vec![
+                vec2(0.6337629, 0.4448461),
+                vec2(0.6385515, 0.60845864),
+            ]),
+            AttributeData::Uv9(vec![
+                vec2(-0.41085857, 0.108098745),
+                vec2(-0.42711625, 0.13474321),
+            ]),
+            AttributeData::VertexColor2(vec![
+                vec4(0.49803922, 0.0, 0.49803922, 0.0),
+                vec4(0.0, 0.0, 1.0, 0.0),
+            ]),
+            AttributeData::VertexColor(vec![vec4(1.0, 1.0, 1.0, 1.0), vec4(1.0, 1.0, 1.0, 1.0)]),
+            AttributeData::Normal(vec![
+                vec4(-0.05882353, 0.47058824, 0.13725491, 0.0),
+                vec4(-0.09411765, 0.45882353, 0.16470589, 0.0),
+            ]),
+            AttributeData::Tangent(vec![
+                vec4(0.49019608, 0.0627451, 0.003921569, 0.49803922),
+                vec4(0.4862745, 0.101960786, 0.0, 0.49803922),
+            ]),
+        ];
+        assert_eq!(attributes, read_vertex_attributes(&descriptor, &data));
+
+        // Test write.
+        let mut writer = Cursor::new(Vec::new());
+        let new_descriptor = write_vertex_buffer(&mut writer, &attributes).unwrap();
+        assert_eq!(new_descriptor, descriptor);
+        assert_hex_eq!(data, writer.into_inner());
     }
 
     #[test]

@@ -67,7 +67,7 @@ pub struct VertexData {
     pub unks: [u32; 5],
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Eq)]
 #[br(import_raw(base_offset: u64))]
 pub struct VertexBufferDescriptor {
     /// The offset into [buffer](struct.VertexData.html#structfield.buffer).
@@ -90,7 +90,7 @@ pub struct VertexBufferDescriptor {
 ///
 /// Attributes are tightly packed, so the relative offset is
 /// the sum of previous attribute sizes.
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Eq)]
 pub struct VertexAttribute {
     pub data_type: DataType,
     /// The size in bytes of [data_type](#structfield.data_type).
@@ -143,7 +143,7 @@ pub enum DataType {
 }
 
 // TODO: Is this data always u16?
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Eq)]
 pub struct IndexBufferDescriptor {
     /// The offset into [buffer](struct.VertexData.html#structfield.buffer).
     pub data_offset: u32,
@@ -151,18 +151,18 @@ pub struct IndexBufferDescriptor {
     pub unk1: Unk1, // TODO: primitive type?
     pub unk2: Unk2, // TODO: index format?
     // TODO: padding?
-    unk3: u32,
-    unk4: u32,
+    pub unk3: u32,
+    pub unk4: u32,
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Eq)]
 #[brw(repr(u16))]
 pub enum Unk1 {
     Unk0 = 0,
     Unk3 = 3,
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Eq)]
 #[brw(repr(u16))]
 pub enum Unk2 {
     Unk0 = 0,

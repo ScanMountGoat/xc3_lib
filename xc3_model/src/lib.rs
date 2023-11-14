@@ -285,6 +285,8 @@ pub fn should_render_lod(lod: u16, base_lod_indices: &Option<Vec<u16>>) -> bool 
         .unwrap_or(true)
 }
 
+// TODO: Take an iterator for wimdo paths and merge to support xc1?
+// TODO: Document using iter::once?
 // TODO: Document loading the database in an example.
 /// Load a character (ch), object (oj), weapon (wp), or enemy (en) model from a `.wimdo` file.
 pub fn load_model<P: AsRef<Path>>(
@@ -614,4 +616,12 @@ impl Weights {
             .map(|group_index| self.weight_groups[group_index].input_start_index as usize)
             .unwrap_or_default()
     }
+}
+
+#[cfg(test)]
+#[macro_export]
+macro_rules! assert_hex_eq {
+    ($a:expr, $b:expr) => {
+        pretty_assertions::assert_str_eq!(hex::encode($a), hex::encode($b))
+    };
 }

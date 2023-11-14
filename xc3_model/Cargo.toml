@@ -24,3 +24,5 @@ thiserror = "1.0"
 
 [dev-dependencies]
 hexlit = "0.5.5"
+pretty_assertions = "1.4.0"
+hex = "0.4.3"
