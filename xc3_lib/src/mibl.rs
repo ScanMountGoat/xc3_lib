@@ -62,7 +62,7 @@ pub enum ViewDimension {
     Cube = 8,
 }
 
-/// nvn image format types used for Xenoblade 1 DE, Xenoblade 2, and Xenoblade 3.
+/// nvn image format types used by Xenoblade 1 DE, Xenoblade 2, and Xenoblade 3.
 #[derive(BinRead, BinWrite, Debug, Clone, Copy, PartialEq, Eq)]
 #[brw(repr(u32))]
 pub enum ImageFormat {

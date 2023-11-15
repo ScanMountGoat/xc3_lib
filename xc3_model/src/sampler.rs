@@ -1,19 +1,26 @@
+/// See [SamplerFlags](xc3_lib::mxmd::SamplerFlags).
 #[derive(Debug, PartialEq, Eq)]
 pub struct Sampler {
+    /// Addressing for the U or S texture coordinate.
     pub address_mode_u: AddressMode,
+    /// Addressing for the V or T texture coordinate.
     pub address_mode_v: AddressMode,
+    /// Addressing for the W or R texture coordinate.
     pub address_mode_w: AddressMode,
     pub min_filter: FilterMode,
     pub mag_filter: FilterMode,
+    /// Enables rendering mipmaps past the base mip when `true`.
     pub mipmaps: bool,
 }
 
+/// Texel mixing mode when sampling between texels.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum FilterMode {
     Nearest,
     Linear,
 }
 
+/// How edges should be handled in texture addressing.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum AddressMode {
     ClampToEdge,

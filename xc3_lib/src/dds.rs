@@ -1,4 +1,4 @@
-//! Conversions between [Mibl] and [ddsfile::Dds].
+//! Conversions between [Mibl] and [Dds].
 use std::{io::Cursor, path::Path};
 
 use image_dds::ddsfile::Dds;

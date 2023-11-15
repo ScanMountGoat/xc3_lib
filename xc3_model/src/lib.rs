@@ -1,6 +1,11 @@
 //! # xc3_model
 //! xc3_model provides high level data access for the files that make up a model.
 //!
+//! Each type typically represents the decoded data associated with one or more types in [xc3_lib].
+//! This simplifies the processing that needs to be done to access model data
+//! and abstracts away most of the game specific complexities.
+//! This conversion is currently one way, so saving types back to files is not yet supported.
+//!
 //! # Getting Started
 //! Loading a normal model returns a single [ModelRoot].
 //! Loading a map returns multiple [ModelRoot].
@@ -59,15 +64,20 @@ pub mod vertex;
 #[derive(Debug)]
 pub struct ModelRoot {
     pub groups: Vec<ModelGroup>,
+    /// The textures selected by each [Material].
+    /// This includes all packed and embedded textures after
+    /// combining all mip levels.
     pub image_textures: Vec<ImageTexture>,
 }
 
 #[derive(Debug)]
 pub struct ModelGroup {
     pub models: Vec<Models>,
+    /// The vertex data selected by each [Model].
     pub buffers: Vec<ModelBuffers>,
 }
 
+/// See [VertexData](xc3_lib::vertex::VertexData).
 #[derive(Debug)]
 pub struct ModelBuffers {
     pub vertex_buffers: Vec<VertexBuffer>,
@@ -76,6 +86,7 @@ pub struct ModelBuffers {
 }
 
 // TODO: come up with a better name?
+/// See [Weights](xc3_lib::vertex::Weights).
 #[derive(Debug)]
 pub struct Weights {
     // TODO: have each Models have its own reindexed set of indices based on skeleton names?
@@ -88,6 +99,7 @@ pub struct Weights {
 
 // TODO: Should samplers be optional?
 // TODO: Come up with a better name?
+/// See [Models](xc3_lib::mxmd::Models).
 #[derive(Debug)]
 pub struct Models {
     pub models: Vec<Model>,
@@ -107,11 +119,14 @@ pub struct Models {
     pub min_xyz: [f32; 3],
 }
 
+/// See [Model](xc3_lib::mxmd::Model).
 #[derive(Debug)]
 pub struct Model {
     pub meshes: Vec<Mesh>,
     /// Each mesh has an instance for every transform in [instances](#structfield.instances).
     pub instances: Vec<Mat4>,
+    /// The index of the [ModelBuffers] in [buffers](struct.ModelGroup.html#structfield.buffers).
+    /// This will only be non zero for some map models.
     pub model_buffers_index: usize,
 }
 
@@ -187,6 +202,7 @@ pub struct Texture {
     pub sampler_index: usize,
 }
 
+/// See [VertexBufferDescriptor](xc3_lib::vertex::VertexBufferDescriptor).
 #[derive(Debug)]
 pub struct VertexBuffer {
     pub attributes: Vec<AttributeData>,
@@ -196,6 +212,7 @@ pub struct VertexBuffer {
 }
 
 /// Morph target attributes defined as a difference or deformation from the base target.
+///
 /// The final attribute values are simply `base + target * weight`.
 #[derive(Debug)]
 pub struct MorphTarget {
@@ -207,6 +224,7 @@ pub struct MorphTarget {
     pub tangent_deltas: Vec<Vec4>,
 }
 
+/// See [IndexBufferDescriptor](xc3_lib::vertex::IndexBufferDescriptor).
 #[derive(Debug)]
 pub struct IndexBuffer {
     // TODO: support u32?
@@ -288,7 +306,8 @@ pub fn should_render_lod(lod: u16, base_lod_indices: &Option<Vec<u16>>) -> bool 
 // TODO: Take an iterator for wimdo paths and merge to support xc1?
 // TODO: Document using iter::once?
 // TODO: Document loading the database in an example.
-/// Load a character (ch), object (oj), weapon (wp), or enemy (en) model from a `.wimdo` file.
+/// Load a model from a `.wimdo` file.
+/// The corresponding `.chr` or `.arc` should be in the same directory.
 pub fn load_model<P: AsRef<Path>>(
     wimdo_path: P,
     shader_database: Option<&ShaderDatabase>,
@@ -375,7 +394,7 @@ pub fn load_model<P: AsRef<Path>>(
     }
 }
 
-/// Load animations from a `.anm`, `.mot`, or `.motstm_data` file.
+/// Load all animations from a `.anm`, `.mot`, or `.motstm_data` file.
 pub fn load_animations<P: AsRef<Path>>(anim_path: P) -> Vec<Animation> {
     // TODO: Avoid unwrap and return errors.
     // TODO: Avoid repetition.

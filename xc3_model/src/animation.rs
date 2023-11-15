@@ -1,3 +1,4 @@
+//! Utilities for working with animation data.
 use std::collections::BTreeMap;
 use std::ops::Bound::*;
 

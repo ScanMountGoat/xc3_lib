@@ -20,7 +20,7 @@ pub struct Xbc1 {
     pub comp_size: u32,
 
     /// Hash of the original decompressed bytes
-    /// for [compressed_stream](#structfield.compressed_stream) using [hash_crc](crate::hash::hash_crc).
+    /// for [compressed_stream](#structfield.compressed_stream) using [hash_crc].
     pub decompressed_hash: u32,
 
     /// The name for this archive.

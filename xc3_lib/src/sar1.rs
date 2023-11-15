@@ -40,7 +40,7 @@ pub struct Entry {
     #[xc3(offset_count(u32, u32), align(64))]
     pub entry_data: Vec<u8>,
 
-    /// Hash of [name](#structfield.name) using [hash_str_crc](crate::hash::hash_str_crc).
+    /// Hash of [name](#structfield.name) using [hash_str_crc].
     pub name_hash: u32,
 
     #[br(map = |x: NullString| x.to_string(), pad_size_to = 52)]

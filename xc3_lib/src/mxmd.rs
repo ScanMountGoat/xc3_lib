@@ -426,7 +426,7 @@ pub struct ShaderProgram {
     pub flags: u32, // always 1?
 }
 
-// Affects what pass the object renders in?
+/// Determines the render pass for an object.
 // Each "pass" has different render targets?
 // _trans = 1,
 // _ope = 0,1,7
