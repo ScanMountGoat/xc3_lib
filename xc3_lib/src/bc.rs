@@ -1,10 +1,12 @@
 //! Animation and skeleton data in `.anm` or `.motstm_data` files or [Sar1](crate::sar1::Sar1) archives.
+use std::collections::{BTreeMap, BTreeSet};
+
 use crate::{
     parse_offset64_count32, parse_opt_ptr64, parse_ptr64, parse_string_opt_ptr64,
     parse_string_ptr64, xc3_write_binwrite_impl,
 };
 use binrw::{args, binread, BinRead, BinWrite};
-use xc3_write::{VecOffsets, Xc3Write, Xc3WriteOffsets};
+use xc3_write::{round_up, VecOffsets, Xc3Write, Xc3WriteOffsets};
 
 // TODO: is the 64 byte alignment on the sar1 entry size?
 // TODO: Add class names from xenoblade 2 binary where appropriate.
@@ -233,14 +235,19 @@ pub struct AnimationBindingInner1 {
     pub extra_track_bindings: Vec<ExtraTrackAnimationBinding>,
 }
 
-// TODO: write string at the end?
 #[derive(Debug, BinRead, Xc3Write)]
 pub struct ExtraTrackAnimationBinding {
     #[br(parse_with = parse_opt_ptr64)]
     #[xc3(offset(u64))]
     pub extra_track_animation: Option<ExtraTrackAnimation>,
 
-    pub track_indices: BcList<i16>,
+    // TODO: This can have 0 offset but nonzero count?
+    // TODO: Is it worth preserving the count if the offset is 0?
+    // TODO: Should this be ignored if extra_track_animation is None?
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32), align(8, 0xff))]
+    pub track_indices: Vec<i16>,
+    pub unk1: i32,
 }
 
 #[derive(Debug, BinRead, Xc3Write)]
@@ -304,7 +311,11 @@ pub struct Animation {
     pub seconds_per_frame: f32,
     pub frame_count: u32,
 
-    pub notifies: BcList<AnimationNotify>,
+    // TODO: Add alignment customization to BcList?
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32), align(8, 0xff))]
+    pub notifies: Vec<AnimationNotify>,
+    pub unk2: i32,
 
     #[br(parse_with = parse_opt_ptr64)]
     #[xc3(offset(u64), align(16, 0xff))]
@@ -525,7 +536,11 @@ pub enum AnimationData {
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct Uncompressed {
-    pub transforms: BcList<Transform>,
+    // TODO: Is every BcList aligned like this?
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32), align(16, 0xff))]
+    pub transforms: Vec<Transform>,
+    pub unk1: i32,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -783,6 +798,17 @@ impl<'a> Xc3WriteOffsets for AnimOffsets<'a> {
             .data
             .write_offsets(writer, base_offset, data_ptr)?;
 
+        // TODO: Nicer way of writing this?
+        let notifies = if !animation.notifies.data.is_empty() {
+            Some(
+                animation
+                    .notifies
+                    .write_offset(writer, base_offset, data_ptr)?,
+            )
+        } else {
+            None
+        };
+
         animation
             .locomotion
             .write_full(writer, base_offset, data_ptr)?;
@@ -791,31 +817,54 @@ impl<'a> Xc3WriteOffsets for AnimOffsets<'a> {
         binding
             .bone_track_indices
             .write_offsets(writer, base_offset, data_ptr)?;
-        binding.inner.write_offsets(writer, base_offset, data_ptr)?;
-        // Set the animation offset to the animation written earlier.
-        // TODO: make a method for this?
-        writer.seek(std::io::SeekFrom::Start(binding.animation.position))?;
-        writer.write_all(&animation_position.to_le_bytes())?;
+        match binding.inner {
+            AnimationBindingInnerOffsets::Unk1(unk1) => {
+                unk1.write_offsets(writer, base_offset, data_ptr)?
+            }
+            AnimationBindingInnerOffsets::Unk2(unk2) => {
+                unk2.write_offsets(writer, base_offset, data_ptr)?
+            }
+            AnimationBindingInnerOffsets::Unk3(unk3) => {
+                unk3.write_offsets(writer, base_offset, data_ptr)?
+            }
+        }
 
-        // TODO: Nicer way of writing this?
-        let notifies = if !animation.notifies.elements.data.is_empty() {
-            Some(
-                animation
-                    .notifies
-                    .elements
-                    .write_offset(writer, base_offset, data_ptr)?,
-            )
-        } else {
-            None
-        };
+        binding.animation.set_offset(writer, animation_position)?;
 
-        // The names are just before the addresses.
-        animation.name.write_full(writer, base_offset, data_ptr)?;
-        if let Some(notifies) = notifies {
-            for n in notifies.0 {
-                // TODO: Avoid duplicating these strings?
-                n.unk3.write_full(writer, base_offset, data_ptr)?;
-                n.unk4.write_full(writer, base_offset, data_ptr)?;
+        // TODO: This should also include the bone names from the extra data?
+        // TODO: Create a StringSection that takes Offset<String> references?
+        // The names are the last item before the addresses.
+        // TODO: Avoid duplicating these strings?
+        // TODO: Strings are stored in alphabetical order?
+        let mut names = BTreeSet::new();
+        names.insert(animation.name.data);
+        if let Some(notifies) = &notifies {
+            for n in &notifies.0 {
+                names.insert(n.unk3.data);
+                names.insert(n.unk4.data);
+            }
+        }
+        // TODO: Cleaner way to handle alignment?
+        let mut name_to_offset = BTreeMap::new();
+        writer.seek(std::io::SeekFrom::Start(*data_ptr))?;
+        let aligned = round_up(*data_ptr, 8);
+        writer.write_all(&vec![0xff; (aligned - *data_ptr) as usize])?;
+
+        for name in names {
+            let offset = writer.stream_position()?;
+            writer.write_all(name.as_bytes())?;
+            writer.write_all(&[0u8])?;
+            name_to_offset.insert(name, offset);
+        }
+        *data_ptr = (*data_ptr).max(writer.stream_position()?);
+
+        animation
+            .name
+            .set_offset(writer, name_to_offset[animation.name.data])?;
+        if let Some(notifies) = &notifies {
+            for n in &notifies.0 {
+                n.unk3.set_offset(writer, name_to_offset[n.unk3.data])?;
+                n.unk4.set_offset(writer, name_to_offset[n.unk4.data])?;
             }
         }
         Ok(())
@@ -855,9 +904,9 @@ impl<'a> Xc3WriteOffsets for ExtraTrackAnimationBindingOffsets<'a> {
                 .write_offsets(writer, base_offset, data_ptr)?;
         }
 
-        if !self.track_indices.elements.data.is_empty() {
+        if !self.track_indices.data.is_empty() {
             self.track_indices
-                .write_offsets(writer, base_offset, data_ptr)?;
+                .write_full(writer, base_offset, data_ptr)?;
         }
 
         // The name needs to be written at the end.

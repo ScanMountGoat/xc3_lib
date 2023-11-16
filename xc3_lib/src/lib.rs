@@ -128,8 +128,17 @@ where
     R: std::io::Read + std::io::Seek,
     Args: Clone,
 {
+    let pos = reader.stream_position()?;
     let offset = u32::read_options(reader, endian, ())?;
     let count = u32::read_options(reader, endian, ())?;
+
+    if offset == 0 && count != 0 {
+        return Err(binrw::Error::AssertFail {
+            pos,
+            message: format!("unexpected null offset for count {count}"),
+        });
+    }
+
     parse_vec(reader, endian, args, offset as u64, count as usize)
 }
 
@@ -144,7 +153,16 @@ where
     Args: Clone,
 {
     let count = u16::read_options(reader, endian, ())?;
+    let pos = reader.stream_position()?;
     let offset = u32::read_options(reader, endian, ())?;
+
+    if offset == 0 && count != 0 {
+        return Err(binrw::Error::AssertFail {
+            pos,
+            message: format!("unexpected null offset for count {count}"),
+        });
+    }
+
     parse_vec(reader, endian, args, offset as u64, count as usize)
 }
 
@@ -159,7 +177,16 @@ where
     Args: Clone,
 {
     let count = u32::read_options(reader, endian, ())?;
+    let pos = reader.stream_position()?;
     let offset = u32::read_options(reader, endian, ())?;
+
+    if offset == 0 && count != 0 {
+        return Err(binrw::Error::AssertFail {
+            pos,
+            message: format!("unexpected null offset for count {count}"),
+        });
+    }
+
     parse_vec(reader, endian, args, offset as u64, count as usize)
 }
 
@@ -173,8 +200,17 @@ where
     R: std::io::Read + std::io::Seek,
     Args: Clone,
 {
+    let pos = reader.stream_position()?;
     let offset = u64::read_options(reader, endian, ())?;
     let count = u32::read_options(reader, endian, ())?;
+
+    if offset == 0 && count != 0 {
+        return Err(binrw::Error::AssertFail {
+            pos,
+            message: format!("unexpected null offset for count {count}"),
+        });
+    }
+
     parse_vec(reader, endian, args, offset, count as usize)
 }
 

@@ -85,7 +85,7 @@ fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
 
             // TODO: Apply the root motion at each frame?
             let track_count = anim.binding.bone_track_indices.elements.len();
-            let transforms = &uncompressed.transforms.elements;
+            let transforms = &uncompressed.transforms;
 
             // TODO: Are these always the elements 0..N-1?
             anim.binding

@@ -118,6 +118,20 @@ impl<'a, P, T> Offset<'a, P, T> {
         }
     }
 
+    pub fn set_offset<W>(&self, writer: &mut W, offset: u64) -> Xc3Result<()>
+    where
+        W: Write + Seek,
+        // TODO: Create a trait for this?
+        P: TryFrom<u64> + Xc3Write,
+        <P as TryFrom<u64>>::Error: std::fmt::Debug,
+    {
+        // Assume the data pointer was already updated in the first pass.
+        writer.seek(SeekFrom::Start(self.position))?;
+        let offset = P::try_from(offset).unwrap();
+        offset.xc3_write(writer, &mut 0)?;
+        Ok(())
+    }
+
     fn set_offset_seek<W>(
         &self,
         writer: &mut W,
@@ -136,9 +150,7 @@ impl<'a, P, T> Offset<'a, P, T> {
         let aligned_data_pr = round_up(*data_ptr, alignment);
 
         // Update the offset value.
-        writer.seek(SeekFrom::Start(self.position))?;
-        let offset = P::try_from(aligned_data_pr - base_offset).unwrap();
-        offset.xc3_write(writer, data_ptr)?;
+        self.set_offset(writer, aligned_data_pr - base_offset)?;
 
         // Seek to the data position.
         // Handle any padding up the desired alignment.
