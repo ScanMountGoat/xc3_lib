@@ -154,7 +154,7 @@ impl Mesh {
     }
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip_all)]
 pub fn load_model(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
@@ -180,7 +180,7 @@ pub fn load_model(
     groups
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip_all)]
 fn load_textures(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
@@ -193,7 +193,7 @@ fn load_textures(
 }
 
 // TODO: Make this a method?
-#[tracing::instrument]
+#[tracing::instrument(skip_all)]
 fn create_model_group(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
@@ -287,7 +287,7 @@ fn model_index_buffers(
         .collect()
 }
 
-#[tracing::instrument]
+#[tracing::instrument(skip_all)]
 fn create_model(
     device: &wgpu::Device,
     model: &xc3_model::Model,

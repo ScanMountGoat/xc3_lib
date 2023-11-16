@@ -422,17 +422,10 @@ fn main() {
     }
 
     #[cfg(feature = "tracing")]
-    let (chrome_layer, _guard) = tracing_chrome::ChromeLayerBuilder::new().build();
-    #[cfg(feature = "tracing")]
-    tracing_subscriber::registry()
-        .with(
-            // Limit tracing to these projects.
-            chrome_layer.with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
-                metadata.target().starts_with("xc3_wgpu")
-                    || metadata.target().starts_with("xc3_viewer")
-            })),
-        )
-        .init();
+    tracing::subscriber::set_global_default(
+        tracing_subscriber::registry().with(tracing_tracy::TracyLayer::new()),
+    )
+    .unwrap();
 
     let cli = Cli::parse();
 

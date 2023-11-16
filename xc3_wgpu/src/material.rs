@@ -61,7 +61,7 @@ const DEFAULT_GBUFFER_ASSIGNMENTS: [crate::shader::model::GBufferAssignment; 6] 
     },
 ];
 
-#[tracing::instrument]
+#[tracing::instrument(skip_all)]
 pub fn materials(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
