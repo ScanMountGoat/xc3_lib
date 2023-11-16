@@ -1,9 +1,9 @@
 //! Animation and skeleton data in `.anm` or `.motstm_data` files or [Sar1](crate::sar1::Sar1) archives.
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use crate::{
-    parse_offset64_count32, parse_opt_ptr64, parse_ptr64, parse_string_opt_ptr64,
-    parse_string_ptr64, xc3_write_binwrite_impl,
+    parse_offset64_count32, parse_opt_ptr64, parse_ptr64, parse_string_ptr64,
+    xc3_write_binwrite_impl,
 };
 use binrw::{args, binread, BinRead, BinWrite};
 use xc3_write::{round_up, VecOffsets, Xc3Write, Xc3WriteOffsets};
@@ -247,7 +247,7 @@ pub struct ExtraTrackAnimationBinding {
     #[br(parse_with = parse_offset64_count32)]
     #[xc3(offset_count(u64, u32), align(8, 0xff))]
     pub track_indices: Vec<i16>,
-    pub unk1: i32,
+    pub unk1: i32, // -1
 }
 
 #[derive(Debug, BinRead, Xc3Write)]
@@ -274,12 +274,15 @@ pub struct ExtraTrackAnimation {
 pub struct AnimationBindingInner2 {
     /// An alternative bone name list for
     /// [bone_track_indices](struct.AnimationBinding.html#structfield.bone_track_indices).
-    pub bone_names: BcList<StringOffset>,
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32), align(8, 0xff))]
+    pub bone_names: Vec<StringOffset>,
+    pub unk2: i32,
 
     // TODO: type?
     #[br(parse_with = parse_offset64_count32)]
     #[xc3(offset_count(u64, u32))]
-    pub unk1: Vec<u32>,
+    pub unk1: Vec<[u32; 5]>,
 }
 
 // 120 total bytes for xc3
@@ -315,7 +318,7 @@ pub struct Animation {
     #[br(parse_with = parse_offset64_count32)]
     #[xc3(offset_count(u64, u32), align(8, 0xff))]
     pub notifies: Vec<AnimationNotify>,
-    pub unk2: i32,
+    pub unk2: i32, // -1
 
     #[br(parse_with = parse_opt_ptr64)]
     #[xc3(offset(u64), align(16, 0xff))]
@@ -375,9 +378,9 @@ pub struct AnimationLocomotion {
 // TODO: Is this the right type?
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct StringOffset {
-    #[br(parse_with = parse_string_opt_ptr64)]
+    #[br(parse_with = parse_string_ptr64)]
     #[xc3(offset(u64))]
-    pub name: Option<String>,
+    pub name: String,
 }
 
 // TODO: is this only for XC3?
@@ -540,7 +543,7 @@ pub struct Uncompressed {
     #[br(parse_with = parse_offset64_count32)]
     #[xc3(offset_count(u64, u32), align(16, 0xff))]
     pub transforms: Vec<Transform>,
-    pub unk1: i32,
+    pub unk1: i32, // -1
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -783,6 +786,52 @@ where
 
 xc3_write_binwrite_impl!(AnimationType, BlendMode, PlayMode, SpaceMode);
 
+#[derive(Default)]
+struct StringSection<'a> {
+    // Unique strings are stored in alphabetical order.
+    name_to_offsets: BTreeMap<&'a String, Vec<&'a xc3_write::Offset<'a, u64, String>>>,
+}
+
+impl<'a> StringSection<'a> {
+    fn insert_offset(&mut self, offset: &'a xc3_write::Offset<'a, u64, String>) {
+        self.name_to_offsets
+            .entry(offset.data)
+            .or_insert(Vec::new())
+            .push(offset);
+    }
+
+    fn write<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        data_ptr: &mut u64,
+    ) -> xc3_write::Xc3Result<()> {
+        // Write the string data.
+        // TODO: Cleaner way to handle alignment?
+        let mut name_to_position = BTreeMap::new();
+        writer.seek(std::io::SeekFrom::Start(*data_ptr))?;
+        let aligned = round_up(*data_ptr, 8);
+        writer.write_all(&vec![0xff; (aligned - *data_ptr) as usize])?;
+
+        for name in self.name_to_offsets.keys() {
+            let offset = writer.stream_position()?;
+            writer.write_all(name.as_bytes())?;
+            writer.write_all(&[0u8])?;
+            name_to_position.insert(name, offset);
+        }
+        *data_ptr = (*data_ptr).max(writer.stream_position()?);
+
+        // Update offsets.
+        for (name, offsets) in &self.name_to_offsets {
+            for offset in offsets {
+                let position = name_to_position[name];
+                offset.set_offset(writer, position)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
 impl<'a> Xc3WriteOffsets for AnimOffsets<'a> {
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
@@ -814,59 +863,55 @@ impl<'a> Xc3WriteOffsets for AnimOffsets<'a> {
             .write_full(writer, base_offset, data_ptr)?;
 
         let binding = self.binding.write_offset(writer, base_offset, data_ptr)?;
-        binding
-            .bone_track_indices
-            .write_offsets(writer, base_offset, data_ptr)?;
-        match binding.inner {
-            AnimationBindingInnerOffsets::Unk1(unk1) => {
-                unk1.write_offsets(writer, base_offset, data_ptr)?
-            }
-            AnimationBindingInnerOffsets::Unk2(unk2) => {
-                unk2.write_offsets(writer, base_offset, data_ptr)?
-            }
-            AnimationBindingInnerOffsets::Unk3(unk3) => {
-                unk3.write_offsets(writer, base_offset, data_ptr)?
-            }
-        }
 
         binding.animation.set_offset(writer, animation_position)?;
 
-        // TODO: This should also include the bone names from the extra data?
-        // TODO: Create a StringSection that takes Offset<String> references?
+        binding
+            .bone_track_indices
+            .write_offsets(writer, base_offset, data_ptr)?;
+
+        // The names are written out later for XC1 and XC3.
+        let bone_names = match &binding.inner {
+            AnimationBindingInnerOffsets::Unk1(unk1) => {
+                unk1.write_offsets(writer, base_offset, data_ptr)?;
+                None
+            }
+            AnimationBindingInnerOffsets::Unk2(unk2) => {
+                let bone_names = unk2
+                    .bone_names
+                    .write_offset(writer, base_offset, data_ptr)?;
+                if !unk2.unk1.data.is_empty() {
+                    unk2.unk1.write_full(writer, base_offset, data_ptr)?;
+                }
+                Some(bone_names)
+            }
+            AnimationBindingInnerOffsets::Unk3(unk3) => {
+                let bone_names =
+                    unk3.bone_names
+                        .elements
+                        .write_offset(writer, base_offset, data_ptr)?;
+                // TODO: Other fields?
+                Some(bone_names)
+            }
+        };
+
         // The names are the last item before the addresses.
-        // TODO: Avoid duplicating these strings?
-        // TODO: Strings are stored in alphabetical order?
-        let mut names = BTreeSet::new();
-        names.insert(animation.name.data);
+        let mut string_section = StringSection::default();
+        string_section.insert_offset(&animation.name);
         if let Some(notifies) = &notifies {
             for n in &notifies.0 {
-                names.insert(n.unk3.data);
-                names.insert(n.unk4.data);
+                string_section.insert_offset(&n.unk3);
+                string_section.insert_offset(&n.unk4);
             }
         }
-        // TODO: Cleaner way to handle alignment?
-        let mut name_to_offset = BTreeMap::new();
-        writer.seek(std::io::SeekFrom::Start(*data_ptr))?;
-        let aligned = round_up(*data_ptr, 8);
-        writer.write_all(&vec![0xff; (aligned - *data_ptr) as usize])?;
-
-        for name in names {
-            let offset = writer.stream_position()?;
-            writer.write_all(name.as_bytes())?;
-            writer.write_all(&[0u8])?;
-            name_to_offset.insert(name, offset);
-        }
-        *data_ptr = (*data_ptr).max(writer.stream_position()?);
-
-        animation
-            .name
-            .set_offset(writer, name_to_offset[animation.name.data])?;
-        if let Some(notifies) = &notifies {
-            for n in &notifies.0 {
-                n.unk3.set_offset(writer, name_to_offset[n.unk3.data])?;
-                n.unk4.set_offset(writer, name_to_offset[n.unk4.data])?;
+        if let Some(bone_names) = &bone_names {
+            for bone_name in &bone_names.0 {
+                string_section.insert_offset(&bone_name.name);
             }
         }
+
+        string_section.write(writer, data_ptr)?;
+
         Ok(())
     }
 }

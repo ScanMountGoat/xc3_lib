@@ -69,9 +69,7 @@ fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
             // TODO: Is this the best way to handle this?
             let (bone_names, hashes) = match &anim.binding.inner {
                 xc3_lib::bc::AnimationBindingInner::Unk1(_) => (None, None),
-                xc3_lib::bc::AnimationBindingInner::Unk2(inner) => {
-                    (Some(&inner.bone_names.elements), None)
-                }
+                xc3_lib::bc::AnimationBindingInner::Unk2(inner) => (Some(&inner.bone_names), None),
                 xc3_lib::bc::AnimationBindingInner::Unk3(inner) => {
                     let hashes = match &inner.extra_track_data {
                         xc3_lib::bc::ExtraTrackData::Uncompressed(extra) => {
@@ -132,7 +130,7 @@ fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
                         bone_index: None,
                         bone_hash: hashes.and_then(|hashes| hashes.get(*i as usize)).copied(),
                         bone_name: bone_names
-                            .and_then(|names| names.get(*i as usize).and_then(|n| n.name.clone())),
+                            .and_then(|names| names.get(*i as usize).map(|n| n.name.clone())),
                     }
                 })
                 .collect()
@@ -193,7 +191,7 @@ fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
                         let bone_names = match &anim.binding.inner {
                             xc3_lib::bc::AnimationBindingInner::Unk1(_) => None,
                             xc3_lib::bc::AnimationBindingInner::Unk2(inner) => {
-                                Some(&inner.bone_names.elements)
+                                Some(&inner.bone_names)
                             }
                             xc3_lib::bc::AnimationBindingInner::Unk3(inner) => {
                                 Some(&inner.bone_names.elements)
@@ -201,7 +199,7 @@ fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
                         };
 
                         if let Some(bone_names) = bone_names {
-                            bone_names.get(i).and_then(|n| n.name.as_ref()).map(|name| {
+                            bone_names.get(i).map(|name| {
                                 // Some XC1 and XC3 animations don't use the chr bone ordering.
                                 Track {
                                     translation_keyframes,
@@ -209,7 +207,7 @@ fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
                                     scale_keyframes,
                                     bone_index: None,
                                     bone_hash: None,
-                                    bone_name: Some(name.clone()),
+                                    bone_name: Some(name.name.clone()),
                                 }
                             })
                         } else {
