@@ -211,7 +211,7 @@ pub struct AnimationBinding {
 }
 
 // TODO: Is there a simpler way of doing this?
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write)]
 #[br(import { size: u64, animation_type: AnimationType })]
 pub enum AnimationBindingInner {
     // XC2 has 60 total bytes.
@@ -270,7 +270,7 @@ pub struct ExtraTrackAnimation {
 }
 
 // 76 total bytes for xc1 or xc3
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct AnimationBindingInner2 {
     /// An alternative bone name list for
     /// [bone_track_indices](struct.AnimationBinding.html#structfield.bone_track_indices).
@@ -279,10 +279,9 @@ pub struct AnimationBindingInner2 {
     pub bone_names: Vec<StringOffset>,
     pub unk2: i32,
 
-    // TODO: type?
     #[br(parse_with = parse_offset64_count32)]
     #[xc3(offset_count(u64, u32))]
-    pub unk1: Vec<[u32; 5]>,
+    pub extra_track_bindings: Vec<ExtraTrackAnimationBinding>,
 }
 
 // 120 total bytes for xc3
@@ -787,17 +786,17 @@ where
 xc3_write_binwrite_impl!(AnimationType, BlendMode, PlayMode, SpaceMode);
 
 #[derive(Default)]
-struct StringSection<'a> {
+struct StringSection {
     // Unique strings are stored in alphabetical order.
-    name_to_offsets: BTreeMap<&'a String, Vec<&'a xc3_write::Offset<'a, u64, String>>>,
+    name_to_offsets: BTreeMap<String, Vec<u64>>,
 }
 
-impl<'a> StringSection<'a> {
-    fn insert_offset(&mut self, offset: &'a xc3_write::Offset<'a, u64, String>) {
+impl StringSection {
+    fn insert_offset(&mut self, offset: &xc3_write::Offset<'_, u64, String>) {
         self.name_to_offsets
-            .entry(offset.data)
+            .entry(offset.data.clone())
             .or_insert(Vec::new())
-            .push(offset);
+            .push(offset.position);
     }
 
     fn write<W: std::io::Write + std::io::Seek>(
@@ -824,7 +823,9 @@ impl<'a> StringSection<'a> {
         for (name, offsets) in &self.name_to_offsets {
             for offset in offsets {
                 let position = name_to_position[name];
-                offset.set_offset(writer, position)?;
+                // Assume all string pointers are 8 bytes.
+                writer.seek(std::io::SeekFrom::Start(*offset))?;
+                position.write_le(writer)?;
             }
         }
 
@@ -870,33 +871,54 @@ impl<'a> Xc3WriteOffsets for AnimOffsets<'a> {
             .bone_track_indices
             .write_offsets(writer, base_offset, data_ptr)?;
 
-        // The names are written out later for XC1 and XC3.
-        let bone_names = match &binding.inner {
+        // The names are stored in a single section for XC1 and XC3.
+        let mut string_section = StringSection::default();
+
+        match &binding.inner {
             AnimationBindingInnerOffsets::Unk1(unk1) => {
                 unk1.write_offsets(writer, base_offset, data_ptr)?;
-                None
             }
             AnimationBindingInnerOffsets::Unk2(unk2) => {
                 let bone_names = unk2
                     .bone_names
                     .write_offset(writer, base_offset, data_ptr)?;
-                if !unk2.unk1.data.is_empty() {
-                    unk2.unk1.write_full(writer, base_offset, data_ptr)?;
+                for bone_name in &bone_names.0 {
+                    string_section.insert_offset(&bone_name.name);
                 }
-                Some(bone_names)
+
+                if !unk2.extra_track_bindings.data.is_empty() {
+                    let items =
+                        unk2.extra_track_bindings
+                            .write_offset(writer, base_offset, data_ptr)?;
+
+                    for item in &items.0 {
+                        let extra = item.extra_track_animation.write_offset(
+                            writer,
+                            base_offset,
+                            data_ptr,
+                        )?;
+                        if let Some(extra) = extra {
+                            extra.values.write_offsets(writer, base_offset, data_ptr)?;
+                            string_section.insert_offset(&extra.name);
+                        }
+
+                        item.track_indices
+                            .write_full(writer, base_offset, data_ptr)?;
+                    }
+                }
             }
             AnimationBindingInnerOffsets::Unk3(unk3) => {
                 let bone_names =
                     unk3.bone_names
                         .elements
                         .write_offset(writer, base_offset, data_ptr)?;
+                for bone_name in &bone_names.0 {
+                    string_section.insert_offset(&bone_name.name);
+                }
                 // TODO: Other fields?
-                Some(bone_names)
             }
-        };
+        }
 
-        // The names are the last item before the addresses.
-        let mut string_section = StringSection::default();
         string_section.insert_offset(&animation.name);
         if let Some(notifies) = &notifies {
             for n in &notifies.0 {
@@ -904,12 +926,8 @@ impl<'a> Xc3WriteOffsets for AnimOffsets<'a> {
                 string_section.insert_offset(&n.unk4);
             }
         }
-        if let Some(bone_names) = &bone_names {
-            for bone_name in &bone_names.0 {
-                string_section.insert_offset(&bone_name.name);
-            }
-        }
 
+        // The names are the last item before the addresses.
         string_section.write(writer, data_ptr)?;
 
         Ok(())
