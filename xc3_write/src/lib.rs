@@ -24,6 +24,11 @@ pub trait Xc3Write {
         data_ptr: &mut u64,
     ) -> Xc3Result<Self::Offsets<'_>>;
 
+    /// Return `true` if this type has no data and should not be written.
+    fn is_empty(&self) -> bool {
+        false
+    }
+
     /// The alignment of absolute offsets for this type in bytes.
     const ALIGNMENT: u64 = 4;
 }
@@ -138,6 +143,7 @@ impl<'a, P, T> Offset<'a, P, T> {
         base_offset: u64,
         data_ptr: &mut u64,
         type_alignment: u64,
+        should_write: bool,
     ) -> Xc3Result<()>
     where
         W: Write + Seek,
@@ -152,11 +158,13 @@ impl<'a, P, T> Offset<'a, P, T> {
         // Update the offset value.
         self.set_offset(writer, aligned_data_pr - base_offset)?;
 
-        // Seek to the data position.
-        // Handle any padding up the desired alignment.
-        writer.seek(SeekFrom::Start(*data_ptr))?;
-        vec![self.padding_byte; (aligned_data_pr - *data_ptr) as usize]
-            .xc3_write(writer, data_ptr)?;
+        if should_write {
+            // Seek to the data position.
+            // Handle any padding up the desired alignment.
+            writer.seek(SeekFrom::Start(*data_ptr))?;
+            vec![self.padding_byte; (aligned_data_pr - *data_ptr) as usize]
+                .xc3_write(writer, data_ptr)?;
+        }
 
         Ok(())
     }
@@ -174,8 +182,13 @@ where
         base_offset: u64,
         data_ptr: &mut u64,
     ) -> Xc3Result<T::Offsets<'_>> {
-        // TODO: How to avoid setting this for empty vecs?
-        self.set_offset_seek(writer, base_offset, data_ptr, T::ALIGNMENT)?;
+        self.set_offset_seek(
+            writer,
+            base_offset,
+            data_ptr,
+            T::ALIGNMENT,
+            !self.data.is_empty(),
+        )?;
         let offsets = self.data.xc3_write(writer, data_ptr)?;
         Ok(offsets)
     }
@@ -196,7 +209,7 @@ where
     ) -> Xc3Result<Option<T::Offsets<'_>>> {
         // Only update the offset if there is data.
         if let Some(data) = self.data {
-            self.set_offset_seek(writer, base_offset, data_ptr, T::ALIGNMENT)?;
+            self.set_offset_seek(writer, base_offset, data_ptr, T::ALIGNMENT, true)?;
             let offsets = data.xc3_write(writer, data_ptr)?;
             Ok(Some(offsets))
         } else {
@@ -218,8 +231,13 @@ where
         base_offset: u64,
         data_ptr: &mut u64,
     ) -> Xc3Result<()> {
-        // TODO: How to avoid setting this for empty vecs?
-        self.set_offset_seek(writer, base_offset, data_ptr, T::ALIGNMENT)?;
+        self.set_offset_seek(
+            writer,
+            base_offset,
+            data_ptr,
+            T::ALIGNMENT,
+            !self.data.is_empty(),
+        )?;
         write_full(self.data, writer, base_offset, data_ptr)?;
         Ok(())
     }
@@ -241,7 +259,7 @@ where
     ) -> Xc3Result<()> {
         // Only update the offset if there is data.
         if let Some(data) = self.data {
-            self.set_offset_seek(writer, base_offset, data_ptr, T::ALIGNMENT)?;
+            self.set_offset_seek(writer, base_offset, data_ptr, T::ALIGNMENT, true)?;
             write_full(data, writer, base_offset, data_ptr)?;
         }
         Ok(())
@@ -365,6 +383,10 @@ where
         };
         *data_ptr = (*data_ptr).max(writer.stream_position()?);
         Ok(VecOffsets(offsets))
+    }
+
+    fn is_empty(&self) -> bool {
+        self.is_empty()
     }
 }
 

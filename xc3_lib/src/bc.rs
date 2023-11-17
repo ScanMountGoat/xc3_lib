@@ -222,6 +222,7 @@ pub enum AnimationBindingInner {
     #[br(pre_assert(size == 76))]
     Unk2(AnimationBindingInner2),
 
+    // TODO: Detect the 120 bytes case?
     // XC3 sometimes has 120 or 128 total bytes.
     #[br(pre_assert(size >= 120))]
     Unk3(#[br(args_raw(animation_type))] AnimationBindingInner3),
@@ -478,36 +479,67 @@ pub struct CubicExtraDataInner2 {
 }
 
 // TODO: up to 64 bytes?
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct PackedCubicExtraData {
-    // pointer to start of strings?
-    #[br(parse_with = parse_string_ptr64)]
-    #[xc3(offset(u64))]
-    pub unk1: String,
-    pub unk2: u32,
-    pub unk3: i32,
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32), align(8))]
+    pub extra_track_bindings: Vec<ExtraTrackAnimationBinding>,
+    pub unk2: i32, // -1
 
     pub unk6: u32,
     pub unk7: u32,
 
     #[br(parse_with = parse_ptr64)]
-    #[xc3(offset(u64))]
+    #[xc3(offset(u64), align(8, 0xff))]
     pub data: PackedCubicExtraDataInner,
 
-    pub unk_offset: u64,
+    pub unk_offset1: u64,
+
+    #[br(parse_with = parse_opt_ptr64)]
+    #[xc3(offset(u64), align(8, 0xff))]
+    pub unk_offset2: Option<PackedCubicExtraDataUnk2>,
+
     // TODO: optional padding?
+    #[br(parse_with = parse_opt_ptr64)]
+    #[xc3(offset(u64), align(8, 0xff))]
+    pub unk_offset3: Option<PackedCubicExtraDataUnk3>,
+
+    pub unk: [u32; 2],
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct PackedCubicExtraDataUnk2 {
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32))]
+    pub items: Vec<f32>,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct PackedCubicExtraDataUnk3 {
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32), align(16, 0xff))]
+    pub items1: Vec<[f32; 4]>,
+    pub unk1: i32, // -1
+
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32))]
+    pub items2: Vec<i16>,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct PackedCubicExtraDataInner {
     // TODO: buffers?
     pub unk1: BcList<u8>,
-    pub unk2: BcList<u8>,
+
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32), align(8, 0xff))]
+    pub unk2: Vec<u16>,
+    pub unk3: i32, // -1
 
     // The MurmurHash3 32-bit hash of the bone names.
     // TODO: type alias for hash?
     #[br(parse_with = parse_offset64_count32)]
-    #[xc3(offset_count(u64, u32))]
+    #[xc3(offset_count(u64, u32), align(8, 0xff))]
     pub bone_name_hashes: Vec<u32>,
 }
 
@@ -587,7 +619,10 @@ pub struct PackedCubic {
     pub tracks: BcList<PackedCubicTrack>,
 
     /// Coefficients `[a,b,c,d]` for `a*x^3 + b*x^2 + c*x + d` for frame index `x`.
-    pub vectors: BcList<[f32; 4]>,
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32), align(16, 0xff))]
+    pub vectors: Vec<[f32; 4]>,
+    pub unk1: i32, // -1
 
     /// Coefficients `[a,b,c,d]` for `a*x^3 + b*x^2 + c*x + d` for frame index `x`.
     pub quaternions: BcList<[f32; 4]>,
@@ -766,6 +801,7 @@ pub struct SkeletonUnk11 {
     pub unk1: Vec<u8>,
 }
 
+// TODO: Make this generic over the alignment and padding byte?
 #[binread]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets)]
 pub struct BcList<T>
@@ -908,14 +944,18 @@ impl<'a> Xc3WriteOffsets for AnimOffsets<'a> {
                 }
             }
             AnimationBindingInnerOffsets::Unk3(unk3) => {
-                let bone_names =
-                    unk3.bone_names
-                        .elements
-                        .write_offset(writer, base_offset, data_ptr)?;
-                for bone_name in &bone_names.0 {
-                    string_section.insert_offset(&bone_name.name);
+                if !unk3.bone_names.elements.data.is_empty() {
+                    let bone_names =
+                        unk3.bone_names
+                            .elements
+                            .write_offset(writer, base_offset, data_ptr)?;
+                    for bone_name in &bone_names.0 {
+                        string_section.insert_offset(&bone_name.name);
+                    }
                 }
-                // TODO: Other fields?
+
+                unk3.extra_track_data
+                    .write_offsets(writer, base_offset, data_ptr)?;
             }
         }
 
@@ -977,6 +1017,23 @@ impl<'a> Xc3WriteOffsets for ExtraTrackAnimationBindingOffsets<'a> {
             animation.name.write_full(writer, base_offset, data_ptr)?;
         }
 
+        Ok(())
+    }
+}
+
+impl<'a> Xc3WriteOffsets for PackedCubicExtraDataOffsets<'a> {
+    fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> xc3_write::Xc3Result<()> {
+        // Different order than field order.
+        self.data.write_full(writer, base_offset, data_ptr)?;
+        self.unk_offset2.write_full(writer, base_offset, data_ptr)?;
+        self.unk_offset3.write_full(writer, base_offset, data_ptr)?;
+        self.extra_track_bindings
+            .write_full(writer, base_offset, data_ptr)?;
         Ok(())
     }
 }

@@ -244,7 +244,7 @@ fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
                             let translation_keyframes = packed_cubic_vec3_keyframes(
                                 &track.translation,
                                 &cubic.keyframes.elements,
-                                &cubic.vectors.elements,
+                                &cubic.vectors,
                             );
                             let rotation_keyframes = packed_cubic_vec4_keyframes(
                                 &track.rotation,
@@ -254,7 +254,7 @@ fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
                             let scale_keyframes = packed_cubic_vec3_keyframes(
                                 &track.scale,
                                 &cubic.keyframes.elements,
-                                &cubic.vectors.elements,
+                                &cubic.vectors,
                             );
 
                             Track {
