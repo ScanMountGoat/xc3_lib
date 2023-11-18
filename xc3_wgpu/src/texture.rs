@@ -106,7 +106,7 @@ fn texture_format(format: ImageFormat) -> Option<wgpu::TextureFormat> {
         ImageFormat::R8Unorm => Some(wgpu::TextureFormat::R8Unorm),
         ImageFormat::R8G8B8A8Unorm => Some(wgpu::TextureFormat::Rgba8Unorm),
         ImageFormat::R16G16B16A16Float => Some(wgpu::TextureFormat::Rgba16Float),
-        ImageFormat::R4G4B4A4 => None,
+        ImageFormat::R4G4B4A4Unorm => None,
         ImageFormat::BC1Unorm => Some(wgpu::TextureFormat::Bc1RgbaUnorm),
         ImageFormat::BC2Unorm => Some(wgpu::TextureFormat::Bc2RgbaUnorm),
         ImageFormat::BC3Unorm => Some(wgpu::TextureFormat::Bc3RgbaUnorm),
