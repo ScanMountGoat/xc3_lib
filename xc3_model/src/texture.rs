@@ -24,7 +24,7 @@ pub enum CreateImageTextureError {
 }
 
 /// A non swizzled version of an [Mibl] texture.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ImageTexture {
     /// An optional name assigned to some textures.
     /// This will typically be [None]

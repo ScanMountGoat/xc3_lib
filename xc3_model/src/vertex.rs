@@ -20,7 +20,7 @@ use crate::{skinning::SkinWeights, IndexBuffer, MorphTarget, VertexBuffer, Weigh
 // TODO: How to handle normalized attributes?
 // TODO: Link to appropriate xc3_lib types and fields.
 /// The per vertex values for a vertex attribute.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum AttributeData {
     Position(Vec<Vec3>),
     Normal(Vec<Vec4>),

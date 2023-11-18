@@ -61,7 +61,7 @@ mod texture;
 pub mod vertex;
 
 // TODO: Come up with a better name
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ModelRoot {
     pub groups: Vec<ModelGroup>,
     /// The textures selected by each [Material].
@@ -70,7 +70,7 @@ pub struct ModelRoot {
     pub image_textures: Vec<ImageTexture>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ModelGroup {
     pub models: Vec<Models>,
     /// The vertex data selected by each [Model].
@@ -78,7 +78,7 @@ pub struct ModelGroup {
 }
 
 /// See [VertexData](xc3_lib::vertex::VertexData).
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ModelBuffers {
     pub vertex_buffers: Vec<VertexBuffer>,
     pub index_buffers: Vec<IndexBuffer>,
@@ -87,7 +87,7 @@ pub struct ModelBuffers {
 
 // TODO: come up with a better name?
 /// See [Weights](xc3_lib::vertex::Weights).
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Weights {
     // TODO: have each Models have its own reindexed set of indices based on skeleton names?
     pub skin_weights: SkinWeights,
@@ -100,7 +100,7 @@ pub struct Weights {
 // TODO: Should samplers be optional?
 // TODO: Come up with a better name?
 /// See [Models](xc3_lib::mxmd::Models).
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Models {
     pub models: Vec<Model>,
     pub materials: Vec<Material>,
@@ -120,7 +120,7 @@ pub struct Models {
 }
 
 /// See [Model](xc3_lib::mxmd::Model).
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Model {
     pub meshes: Vec<Mesh>,
     /// Each mesh has an instance for every transform in [instances](#structfield.instances).
@@ -131,7 +131,7 @@ pub struct Model {
 }
 
 /// See [Mesh](xc3_lib::mxmd::Mesh).
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Mesh {
     pub vertex_buffer_index: usize,
     pub index_buffer_index: usize,
@@ -141,7 +141,7 @@ pub struct Mesh {
 }
 
 /// See [Material](xc3_lib::mxmd::Material) and [FoliageMaterial](xc3_lib::map::FoliageMaterial).
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Material {
     pub name: String,
     pub flags: StateFlags,
@@ -160,7 +160,7 @@ pub struct Material {
 }
 
 /// Information for alpha testing based on sampled texture values.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TextureAlphaTest {
     /// The texture in [textures](struct.Material.html#structfield.textures) used for alpha testing.
     pub texture_index: usize,
@@ -171,7 +171,7 @@ pub struct TextureAlphaTest {
 }
 
 /// Values assigned to known shader uniforms or `None` if not present.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MaterialParameters {
     pub mat_color: [f32; 4],
     pub alpha_test_ref: f32,
@@ -194,7 +194,7 @@ impl Default for MaterialParameters {
 }
 
 /// Selects an [ImageTexture] and [Sampler].
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Texture {
     /// The index of the [ImageTexture] in [image_textures](struct.ModelRoot.html#structfield.image_textures).
     pub image_texture_index: usize,
@@ -203,7 +203,7 @@ pub struct Texture {
 }
 
 /// See [VertexBufferDescriptor](xc3_lib::vertex::VertexBufferDescriptor).
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct VertexBuffer {
     pub attributes: Vec<AttributeData>,
     /// Animation targets for vertex attributes like positions and normals.
@@ -214,7 +214,7 @@ pub struct VertexBuffer {
 /// Morph target attributes defined as a difference or deformation from the base target.
 ///
 /// The final attribute values are simply `base + target * weight`.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MorphTarget {
     // TODO: add names from mxmd?
     // TODO: Add a method with tests to blend with base target?
@@ -225,7 +225,7 @@ pub struct MorphTarget {
 }
 
 /// See [IndexBufferDescriptor](xc3_lib::vertex::IndexBufferDescriptor).
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct IndexBuffer {
     // TODO: support u32?
     pub indices: Vec<u16>,

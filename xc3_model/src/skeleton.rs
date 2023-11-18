@@ -2,14 +2,14 @@ use glam::{vec3, Mat4, Quat};
 
 /// See [Skeleton](xc3_lib::bc::Skeleton) and [Skinning](xc3_lib::mxmd::Skinning).
 // TODO: Assume bones appear after their parents?
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Skeleton {
     /// The hierarchy of bones in the skeleton.
     pub bones: Vec<Bone>,
 }
 
 /// A single node in the skeleton heirarchy.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Bone {
     /// The name used by some animations to identify this bone.
     pub name: String,

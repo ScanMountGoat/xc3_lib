@@ -249,7 +249,7 @@ pub struct Weights {
 
 // TODO: Counts up to the total number of "vertices" in the skin weights buffer?
 // TODO: How to select the weight group for each mesh in the model?
-#[derive(Debug, Clone, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Clone, PartialEq, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct WeightGroup {
     /// Index into the skinning buffer used in the shader that combines weights and transforms.
     pub output_start_index: u32,
@@ -279,7 +279,7 @@ pub struct WeightGroup {
 
 // TODO: What indexes into this?
 // TODO: something related to render pass?
-#[derive(Debug, Clone, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Clone, PartialEq, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct WeightLod {
     /// One plus the indices pointing back to [groups](struct.Weights.html#structfield.groups).
     /// Unused entries use the value `0`.
