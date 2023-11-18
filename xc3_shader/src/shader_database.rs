@@ -110,7 +110,7 @@ fn create_shader_programs(folder: &Path) -> Vec<ShaderProgram> {
         .filter_map(|e| e.map(|e| e.path().to_owned()).ok())
         .collect();
 
-    // Shaders are generated as "nvsd{program_index}_FS{i}.glsl".
+    // Shaders are generated as "slct{program_index}_FS{i}.glsl".
     // Sort by {program_index} to process files in the right order.
     // TODO: Find a simpler way of doing this?
     paths.sort_by_cached_key(|p| extract_program_index(p));

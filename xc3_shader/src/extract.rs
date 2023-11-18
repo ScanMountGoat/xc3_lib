@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::annotation::{annotate_fragment, annotate_vertex};
 use rayon::prelude::*;
-use xc3_lib::spch::{NvsdMetadata, Slct, Spch};
+use xc3_lib::spch::{Nvsd, Spch};
 
 // TODO: profile performance using a single thread and check threading with tracing?
 pub fn extract_shader_binaries<P: AsRef<Path>>(
@@ -13,16 +13,22 @@ pub fn extract_shader_binaries<P: AsRef<Path>>(
 ) {
     let output_folder = output_folder.as_ref();
 
-    spch.shader_programs
+    spch.slct_offsets
         .par_iter()
         .enumerate()
-        .for_each(|(program_index, program)| {
+        .for_each(|(slct_index, slct_offset)| {
             // Not all programs have associated names.
             // Generate the name to avoid any ambiguity.
-            let name = format!("nvsd{program_index}");
+            let name = format!("slct{slct_index}");
 
-            let slct = program.read_slct(&spch.slct_section).unwrap();
-            let binaries = vertex_fragment_binaries(spch, &slct);
+            let slct = slct_offset.read_slct(&spch.slct_section).unwrap();
+            let nvsds: Vec<_> = slct
+                .programs
+                .iter()
+                .map(|p| p.read_nvsd().unwrap())
+                .collect();
+
+            let binaries = vertex_fragment_binaries(&nvsds, &spch.xv4_section, slct.xv4_offset);
 
             // TODO: Why do additional binaries sometimes fail to decompile?
             for (i, (vertex, fragment)) in binaries.into_iter().enumerate().take(1) {
@@ -34,17 +40,17 @@ pub fn extract_shader_binaries<P: AsRef<Path>>(
                 std::fs::write(&frag_file, &fragment[48..]).unwrap();
 
                 // Each NVSD has separate metadata since the shaders are different.
-                let metadata = slct.nvsds[i].read_nvsd().unwrap();
+                let nvsd = slct.programs[i].read_nvsd().unwrap();
 
                 // This doesn't need to be parsed, so just use debug output for now.
                 let txt_file = output_folder.join(&format!("{name}.txt"));
-                let text = format!("{:#?}", &metadata);
+                let text = format!("{:#?}", &nvsd);
                 std::fs::write(txt_file, text).unwrap();
 
                 // Decompile using Ryujinx.ShaderTools.exe.
                 // There isn't Rust code for this, so just take an exe path.
                 if let Some(shader_tools) = &ryujinx_shader_tools {
-                    decompile_glsl_shaders(shader_tools, &frag_file, &vert_file, &metadata);
+                    decompile_glsl_shaders(shader_tools, &frag_file, &vert_file, &nvsd);
                 }
 
                 // We needed to temporarily create binaries for ShaderTools to decompile.
@@ -57,12 +63,7 @@ pub fn extract_shader_binaries<P: AsRef<Path>>(
         });
 }
 
-fn decompile_glsl_shaders(
-    shader_tools: &str,
-    frag_file: &Path,
-    vert_file: &Path,
-    metadata: &NvsdMetadata,
-) {
+fn decompile_glsl_shaders(shader_tools: &str, frag_file: &Path, vert_file: &Path, nvsd: &Nvsd) {
     // Spawn multiple process to increase utilization and boost performance.
     let frag_process = extract_shader(shader_tools, frag_file);
     let vert_process = extract_shader(shader_tools, vert_file);
@@ -72,10 +73,10 @@ fn decompile_glsl_shaders(
     let mut vert_glsl = String::from_utf8(vert_process.wait_with_output().unwrap().stdout).unwrap();
 
     // Perform annotation here since we need to know the file names.
-    vert_glsl = annotate_vertex(vert_glsl, metadata);
+    vert_glsl = annotate_vertex(vert_glsl, nvsd);
     std::fs::write(vert_file.with_extension("glsl"), vert_glsl).unwrap();
 
-    frag_glsl = annotate_fragment(frag_glsl, metadata);
+    frag_glsl = annotate_fragment(frag_glsl, nvsd);
     std::fs::write(frag_file.with_extension("glsl"), frag_glsl).unwrap();
 }
 
@@ -87,18 +88,19 @@ fn extract_shader(shader_tools: &str, binary_file: &Path) -> std::process::Child
         .unwrap()
 }
 
-fn vertex_fragment_binaries<'a>(spch: &'a Spch, slct: &Slct) -> Vec<(&'a [u8], &'a [u8])> {
+fn vertex_fragment_binaries<'a>(
+    nvsds: &[Nvsd],
+    xv4_section: &'a [u8],
+    xv4_offset: u32,
+) -> Vec<(&'a [u8], &'a [u8])> {
     // Each SLCT can have multiple NVSD.
     // Each NVSD has a vertex and fragment shader.
-    let offset = slct.xv4_offset;
-
-    let mut binaries = Vec::new();
-    for nvsd in &slct.nvsds {
-        let metadata = nvsd.read_nvsd().unwrap();
-        let vertex = metadata.vertex_binary(offset, &spch.xv4_section).unwrap();
-        let fragment = metadata.fragment_binary(offset, &spch.xv4_section).unwrap();
-        binaries.push((vertex, fragment));
-    }
-
-    binaries
+    nvsds
+        .iter()
+        .map(|nvsd| {
+            let vertex = nvsd.vertex_binary(xv4_offset, xv4_section).unwrap();
+            let fragment = nvsd.fragment_binary(xv4_offset, xv4_section).unwrap();
+            (vertex, fragment)
+        })
+        .collect()
 }

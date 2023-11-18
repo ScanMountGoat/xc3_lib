@@ -75,6 +75,8 @@ pub enum SourceInput {
         channels: String,
     },
     Texture {
+        // TODO: Include the texture coordinate attribute name and UV scale
+        // TODO: This will require analyzing the vertex shader as well as the fragment shader.
         name: String,
         channels: String,
     },

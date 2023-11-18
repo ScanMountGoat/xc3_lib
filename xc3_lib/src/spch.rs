@@ -7,6 +7,7 @@ use crate::{parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, par
 use binrw::{args, binread, BinRead, BinReaderExt, BinResult};
 use xc3_write::{VecOffsets, Xc3Write, Xc3WriteOffsets};
 
+// TODO: Add example code for extracting shaders.
 /// .wishp, embedded in .wismt and .wimdo
 #[binread]
 #[derive(Debug, Xc3Write)]
@@ -22,7 +23,7 @@ pub struct Spch {
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub shader_programs: Vec<ShaderProgram>,
+    pub slct_offsets: Vec<SlctOffset>,
 
     // TODO: Related to string section?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
@@ -51,11 +52,11 @@ pub struct Spch {
     #[xc3(offset_count(u32, u32), align(8))]
     pub unk_section: Vec<u8>,
 
-    // TODO: Does this actually need the program count?
+    // TODO: Does this actually need the slct count?
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args {
         offset: base_offset,
-        inner: args! { base_offset, count: shader_programs.len()
+        inner: args! { base_offset, count: slct_offsets.len()
     }})]
     #[xc3(offset(u32))]
     pub string_section: Option<StringSection>,
@@ -77,13 +78,13 @@ pub struct StringSection {
 pub struct StringOffset {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    pub string: String,
+    pub name: String,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
-pub struct ShaderProgram {
-    /// The offset into [slct_section](struct.Spch.html#structfield.slct_section).
-    pub slct_offset: u32,
+pub struct SlctOffset {
+    /// The offset into [slct_section](struct.Spch.html#structfield.slct_section) for the [Slct].
+    pub offset: u32,
     // TODO: flags?
     pub unk1: u32,
 }
@@ -106,7 +107,7 @@ pub struct Slct {
     pub unk_strings: Vec<UnkString>,
 
     #[br(parse_with = parse_count32_offset32)]
-    pub nvsds: Vec<NvsdMetadataOffset>,
+    pub programs: Vec<ShaderProgram>,
 
     pub unk5_count: u32,
     pub unk5_offset: u32,
@@ -119,13 +120,12 @@ pub struct Slct {
     pub unk_item_offset: u32,
     pub unk_item_total_size: u32,
 
-    // relative to xv4 base offset
+    /// Relative to xv4 base offset.
     pub xv4_offset: u32,
-    // vertex + fragment size for all NVSDs
+    /// Vertex + fragment size for all NVSDs.
     pub xv4_total_size: u32,
 
     pub unks1: [u32; 4],
-    // end of slct main header?
 }
 
 #[derive(BinRead, Debug)]
@@ -137,13 +137,14 @@ pub struct UnkString {
 }
 
 #[derive(BinRead, Debug)]
-pub struct NvsdMetadataOffset {
+pub struct ShaderProgram {
+    /// Raw data for [Nvsd] for Switch files and [Nvsp] for PC files.
     #[br(parse_with = parse_offset32_count32)]
-    pub nvsd_data: Vec<u8>,
+    pub program_data: Vec<u8>,
 }
 
 #[derive(Debug, BinRead, Default)]
-pub struct NvsdMetadata {
+pub struct Nvsd {
     pub unks2: [u32; 6],
 
     #[br(parse_with = parse_offset32_count32)]
@@ -300,10 +301,28 @@ pub struct InputAttribute {
     pub location: u32,
 }
 
-impl ShaderProgram {
+// TODO: This still has the 256 byte constant buffer at the end of the file?
+// TODO: Does anything actually point to the NVSP magic?
+#[derive(Debug, BinRead, Default)]
+pub struct Nvsp {
+    /// GLSL shader source compressed with ZLF compression.
+    #[br(parse_with = parse_offset32_count32)]
+    pub shader_source: Vec<u8>,
+    /// The size of [shader_source](#structfield.shader_source) after decompression.
+    pub decompressed_size: u32,
+    // offsets and sizes for different shaders in decompressed binary?
+    pub vertex_offset: u32,
+    pub vertex_length: u32,
+    pub fragment_offset: u32,
+    pub fragment_length: u32,
+    // TODO: padding?
+    pub unk: [u32; 10],
+}
+
+impl SlctOffset {
     pub fn read_slct(&self, slct_section: &[u8]) -> BinResult<Slct> {
         // Select the bytes first to avoid needing base offsets.
-        let bytes = &slct_section[self.slct_offset as usize..];
+        let bytes = &slct_section[self.offset as usize..];
         let mut reader = Cursor::new(bytes);
         reader.read_le()
     }
@@ -317,14 +336,20 @@ impl Slct {
     }
 }
 
-impl NvsdMetadataOffset {
-    pub fn read_nvsd(&self) -> BinResult<NvsdMetadata> {
-        let mut reader = Cursor::new(&self.nvsd_data);
+impl ShaderProgram {
+    pub fn read_nvsd(&self) -> BinResult<Nvsd> {
+        let mut reader = Cursor::new(&self.program_data);
+        reader.read_le()
+    }
+
+    // TODO: just for pc?
+    pub fn read_nvsp(&self) -> BinResult<Nvsp> {
+        let mut reader = Cursor::new(&self.program_data);
         reader.read_le()
     }
 }
 
-impl NvsdMetadata {
+impl Nvsd {
     // TODO: Add option to strip xv4 header?
     /// Returns the bytes for the compiled fragment shader, including the 48-byte xv4 header.
     pub fn vertex_binary<'a>(
@@ -355,6 +380,36 @@ impl NvsdMetadata {
     }
 }
 
+impl Nvsp {
+    /// Decompress the GLSL source code for the vertex and fragment shader.
+    pub fn vertex_fragment_source(&self) -> Option<(String, String)> {
+        let decompressed =
+            lzf::decompress(&self.shader_source, self.decompressed_size as usize).ok()?;
+
+        let vertex = String::from_utf8(
+            decompressed
+                .get(
+                    self.vertex_offset as usize
+                        ..self.vertex_offset as usize + self.vertex_length as usize,
+                )?
+                .to_vec(),
+        )
+        .unwrap();
+
+        let fragment = String::from_utf8(
+            decompressed
+                .get(
+                    self.fragment_offset as usize
+                        ..self.fragment_offset as usize + self.fragment_length as usize,
+                )?
+                .to_vec(),
+        )
+        .unwrap();
+
+        Some((vertex, fragment))
+    }
+}
+
 impl Xc3Write for StringSection {
     type Offsets<'a> = VecOffsets<StringOffsetOffsets<'a>>;
 
@@ -375,7 +430,7 @@ impl<'a> Xc3WriteOffsets for SpchOffsets<'a> {
         data_ptr: &mut u64,
     ) -> xc3_write::Xc3Result<()> {
         // The ordering is slightly different than the field order.
-        self.shader_programs
+        self.slct_offsets
             .write_full(writer, base_offset, data_ptr)?;
         self.unk4s.write_full(writer, base_offset, data_ptr)?;
         self.string_section

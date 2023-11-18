@@ -71,9 +71,12 @@ pub struct Msrd {
     pub unks: [u32; 4],
 }
 
+/// A file contained in a [Stream].
 #[derive(Debug, BinRead, BinWrite)]
 pub struct StreamEntry {
+    /// The offset in bytes for the decompressed data range in the stream.
     pub offset: u32,
+    /// The size in bytes of the decompressed data range in the stream.
     pub size: u32,
     // TODO: high res mip?
     pub unk_index: u16, // TODO: what does this do?
@@ -104,6 +107,7 @@ pub enum EntryType {
     Texture = 3,
 }
 
+/// A compressed archive with items determined by [StreamEntry].
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct Stream {
     pub comp_size: u32,
@@ -130,8 +134,8 @@ impl Msrd {
         stream_index: u32,
         entry_index: u32,
     ) -> Result<Vec<u8>, DecompressStreamError> {
-        let entry = &self.stream_entries[entry_index as usize];
         let stream = &self.streams[stream_index as usize].xbc1.decompress()?;
+        let entry = &self.stream_entries[entry_index as usize];
         Ok(stream[entry.offset as usize..entry.offset as usize + entry.size as usize].to_vec())
     }
 

@@ -402,11 +402,14 @@ pub fn load_animations<P: AsRef<Path>>(anim_path: P) -> Vec<Animation> {
     if let Ok(sar1) = xc3_lib::sar1::Sar1::from_file(anim_path.as_ref()) {
         // Most xenoblade 2 and xenoblade 3 animations are in sar archives.
         for entry in &sar1.entries {
-            if let Ok(bc) = entry.read_data::<xc3_lib::bc::Bc>() {
-                if let xc3_lib::bc::BcData::Anim(anim) = bc.data {
-                    let animation = Animation::from_anim(&anim);
-                    animations.push(animation);
+            match entry.read_data::<xc3_lib::bc::Bc>() {
+                Ok(bc) => {
+                    if let xc3_lib::bc::BcData::Anim(anim) = bc.data {
+                        let animation = Animation::from_anim(&anim);
+                        animations.push(animation);
+                    }
                 }
+                Err(e) => error!("error reading {}; {e}", entry.name),
             }
         }
     } else if let Ok(bc) = xc3_lib::bc::Bc::from_file(anim_path.as_ref()) {

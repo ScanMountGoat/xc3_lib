@@ -1,4 +1,4 @@
-use xc3_lib::spch::NvsdMetadata;
+use xc3_lib::spch::Nvsd;
 
 // TODO: A more reliable way to do replacement is to visit each identifier.
 // Names should be replaced using a lookup table in a single pass.
@@ -6,7 +6,7 @@ use xc3_lib::spch::NvsdMetadata;
 // TODO: What is the performance cost of annotation?
 const VEC4_SIZE: u32 = 16;
 
-pub fn annotate_fragment(glsl: String, metadata: &NvsdMetadata) -> String {
+pub fn annotate_fragment(glsl: String, metadata: &Nvsd) -> String {
     let mut glsl = glsl;
     annotate_samplers(&mut glsl, metadata);
     annotate_buffers(&mut glsl, "fp", metadata);
@@ -14,7 +14,7 @@ pub fn annotate_fragment(glsl: String, metadata: &NvsdMetadata) -> String {
     glsl
 }
 
-fn annotate_samplers(glsl: &mut String, metadata: &NvsdMetadata) {
+fn annotate_samplers(glsl: &mut String, metadata: &Nvsd) {
     if let Some(samplers) = &metadata.samplers {
         for sampler in samplers {
             let handle = sampler.handle.handle * 2 + 8;
@@ -24,7 +24,7 @@ fn annotate_samplers(glsl: &mut String, metadata: &NvsdMetadata) {
     }
 }
 
-pub fn annotate_vertex(glsl: String, metadata: &NvsdMetadata) -> String {
+pub fn annotate_vertex(glsl: String, metadata: &Nvsd) -> String {
     // TODO: Handle overlaps like in_attr1 and in_attr10 properly.
     let mut glsl = glsl;
     for attribute in &metadata.attributes {
@@ -37,7 +37,7 @@ pub fn annotate_vertex(glsl: String, metadata: &NvsdMetadata) -> String {
     glsl
 }
 
-fn annotate_buffers(glsl: &mut String, prefix: &str, metadata: &NvsdMetadata) {
+fn annotate_buffers(glsl: &mut String, prefix: &str, metadata: &Nvsd) {
     // TODO: annotate constants from fp_v1 or vp_c1.
     // TODO: How to determine which constant elements are actually used?
     // TODO: are all uniforms vec4 params?
@@ -103,8 +103,8 @@ mod tests {
     use pretty_assertions::assert_eq;
     use xc3_lib::spch::{Handle, InputAttribute, Sampler, Uniform, UniformBuffer, Visibility};
 
-    fn metadata() -> NvsdMetadata {
-        NvsdMetadata {
+    fn metadata() -> Nvsd {
+        Nvsd {
             uniform_buffers: Some(vec![
                 UniformBuffer {
                     name: "U_CamoflageCalc".to_string(),

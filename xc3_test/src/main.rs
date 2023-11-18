@@ -216,7 +216,7 @@ fn check_sar1_data(
 }
 
 fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    msrd.extract_shader_data().unwrap();
+    let spch = msrd.extract_shader_data().unwrap();
     let vertex_data = msrd.extract_vertex_data().unwrap();
     msrd.extract_low_texture_data().unwrap();
 
@@ -235,14 +235,28 @@ fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: 
         }
     }
 
-    // Check read/write for embedded data.
-    let original = msrd
+    // Check embedded data.
+    let vertex_bytes = msrd
         .decompress_stream(0, msrd.vertex_data_entry_index)
         .unwrap();
-    let mut writer = Cursor::new(Vec::new());
-    vertex_data.write(&mut writer).unwrap();
-    if writer.into_inner() != original {
-        println!("VertexData read/write not 1:1 for {path:?}");
+    check_vertex_data(vertex_data, path, &vertex_bytes, check_read_write);
+
+    let spch_bytes = msrd.decompress_stream(0, msrd.shader_entry_index).unwrap();
+    check_spch(spch, path, &spch_bytes, check_read_write);
+}
+
+fn check_vertex_data(
+    vertex_data: xc3_lib::vertex::VertexData,
+    path: &Path,
+    original_bytes: &[u8],
+    check_read_write: bool,
+) {
+    if check_read_write {
+        let mut writer = Cursor::new(Vec::new());
+        vertex_data.write(&mut writer).unwrap();
+        if writer.into_inner() != original_bytes {
+            println!("VertexData read/write not 1:1 for {path:?}");
+        }
     }
 }
 
@@ -480,10 +494,16 @@ fn is_valid_models_flags(mxmd: &Mxmd) -> bool {
 }
 
 fn check_spch(spch: Spch, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    // TODO: Check reading other sections.
-    for (i, program) in spch.shader_programs.iter().enumerate() {
-        if let Err(e) = program.read_slct(&spch.slct_section) {
-            println!("Error reading Slct {i} for {path:?}: {e}");
+    for (i, slct) in spch.slct_offsets.iter().enumerate() {
+        match slct.read_slct(&spch.slct_section) {
+            Ok(slct) => {
+                for (p, program) in slct.programs.iter().enumerate() {
+                    if let Err(e) = program.read_nvsd() {
+                        println!("Error reading Slct {i} and Nvsd {p} for {path:?}: {e}");
+                    }
+                }
+            }
+            Err(e) => println!("Error reading Slct {i} for {path:?}: {e}"),
         }
     }
 
