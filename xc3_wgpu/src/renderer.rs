@@ -11,8 +11,7 @@ pub struct Xc3Renderer {
     deferred_pipeline: wgpu::RenderPipeline,
     deferred_bind_group0: crate::shader::deferred::bind_groups::BindGroup0,
     deferred_bind_group1: crate::shader::deferred::bind_groups::BindGroup1,
-    // TODO: Is it worth rendering all of these?
-    gbuffer_textures: [wgpu::TextureView; 7],
+    gbuffer: GBuffer,
     debug_settings_buffer: wgpu::Buffer,
 
     depth_view: wgpu::TextureView,
@@ -22,6 +21,17 @@ pub struct CameraData {
     pub view: Mat4,
     pub view_projection: Mat4,
     pub position: Vec4,
+}
+
+// Fragment outputs for all 3 games to use in the deferred pass.
+// TODO: Are there ever more than 6 outputs?
+pub struct GBuffer {
+    color: wgpu::TextureView,
+    etc_buffer: wgpu::TextureView,
+    normal: wgpu::TextureView,
+    velocity: wgpu::TextureView,
+    depth: wgpu::TextureView,
+    lgt_color: wgpu::TextureView,
 }
 
 impl Xc3Renderer {
@@ -47,8 +57,8 @@ impl Xc3Renderer {
 
         let depth_view = create_depth_texture(device, width, height);
 
-        let gbuffer_textures = create_gbuffer_textures(device, width, height);
-        let deferred_bind_group0 = create_deferred_bind_group0(device, &gbuffer_textures);
+        let gbuffer = create_gbuffer(device, width, height);
+        let deferred_bind_group0 = create_deferred_bind_group0(device, &gbuffer);
 
         // The resolution should match the screen resolution, so a default sampler is fine.
         let shared_sampler = device.create_sampler(&wgpu::SamplerDescriptor::default());
@@ -77,7 +87,7 @@ impl Xc3Renderer {
             depth_view,
             deferred_bind_group0,
             deferred_bind_group1,
-            gbuffer_textures,
+            gbuffer,
             debug_settings_buffer,
         }
     }
@@ -111,8 +121,8 @@ impl Xc3Renderer {
         // Update each resource that depends on window size.
         self.depth_view = create_depth_texture(device, width, height);
 
-        self.gbuffer_textures = create_gbuffer_textures(device, width, height);
-        self.deferred_bind_group0 = create_deferred_bind_group0(device, &self.gbuffer_textures);
+        self.gbuffer = create_gbuffer(device, width, height);
+        self.deferred_bind_group0 = create_deferred_bind_group0(device, &self.gbuffer);
     }
 
     pub fn update_debug_settings(&self, queue: &wgpu::Queue, index: u32) {
@@ -129,10 +139,10 @@ impl Xc3Renderer {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Model Pass"),
             color_attachments: &[
-                color_attachment(&self.gbuffer_textures[0], wgpu::Color::BLACK),
-                color_attachment(&self.gbuffer_textures[1], wgpu::Color::BLACK),
+                color_attachment(&self.gbuffer.color, wgpu::Color::BLACK),
+                color_attachment(&self.gbuffer.etc_buffer, wgpu::Color::BLACK),
                 color_attachment(
-                    &self.gbuffer_textures[2],
+                    &self.gbuffer.normal,
                     wgpu::Color {
                         r: 0.5,
                         g: 0.5,
@@ -140,10 +150,9 @@ impl Xc3Renderer {
                         a: 1.0,
                     },
                 ),
-                color_attachment(&self.gbuffer_textures[3], wgpu::Color::BLACK),
-                color_attachment(&self.gbuffer_textures[4], wgpu::Color::BLACK),
-                color_attachment(&self.gbuffer_textures[5], wgpu::Color::BLACK),
-                color_attachment(&self.gbuffer_textures[6], wgpu::Color::BLACK),
+                color_attachment(&self.gbuffer.velocity, wgpu::Color::BLACK),
+                color_attachment(&self.gbuffer.depth, wgpu::Color::BLACK),
+                color_attachment(&self.gbuffer.lgt_color, wgpu::Color::BLACK),
             ],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.depth_view,
@@ -171,7 +180,7 @@ impl Xc3Renderer {
             label: Some("Transparent Pass"),
             color_attachments: &[
                 Some(wgpu::RenderPassColorAttachment {
-                    view: &self.gbuffer_textures[0],
+                    view: &self.gbuffer.color,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         // TODO: Does in game actually use load?
@@ -179,12 +188,11 @@ impl Xc3Renderer {
                         store: wgpu::StoreOp::Store,
                     },
                 }),
-                color_attachment_disabled(&self.gbuffer_textures[1]),
-                color_attachment_disabled(&self.gbuffer_textures[2]),
-                color_attachment_disabled(&self.gbuffer_textures[3]),
-                color_attachment_disabled(&self.gbuffer_textures[4]),
-                color_attachment_disabled(&self.gbuffer_textures[5]),
-                color_attachment_disabled(&self.gbuffer_textures[6]),
+                color_attachment_disabled(&self.gbuffer.etc_buffer),
+                color_attachment_disabled(&self.gbuffer.normal),
+                color_attachment_disabled(&self.gbuffer.velocity),
+                color_attachment_disabled(&self.gbuffer.depth),
+                color_attachment_disabled(&self.gbuffer.lgt_color),
             ],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.depth_view,
@@ -240,18 +248,17 @@ impl Xc3Renderer {
 
 fn create_deferred_bind_group0(
     device: &wgpu::Device,
-    views: &[wgpu::TextureView],
+    gbuffer: &GBuffer,
 ) -> crate::shader::deferred::bind_groups::BindGroup0 {
     crate::shader::deferred::bind_groups::BindGroup0::from_bindings(
         device,
         crate::shader::deferred::bind_groups::BindGroupLayout0 {
-            g0: &views[0],
-            g1: &views[1],
-            g2: &views[2],
-            g3: &views[3],
-            g4: &views[4],
-            g5: &views[5],
-            g6: &views[6],
+            g_color: &gbuffer.color,
+            g_etc_buffer: &gbuffer.etc_buffer,
+            g_normal: &gbuffer.normal,
+            g_velocity: &gbuffer.velocity,
+            g_depth: &gbuffer.depth,
+            g_lgt_color: &gbuffer.lgt_color,
         },
     )
 }
@@ -283,30 +290,39 @@ fn color_attachment_disabled(view: &wgpu::TextureView) -> Option<wgpu::RenderPas
     })
 }
 
-fn create_gbuffer_textures(
+fn create_gbuffer(device: &wgpu::Device, width: u32, height: u32) -> GBuffer {
+    GBuffer {
+        color: create_gbuffer_texture(device, width, height, "g_color"),
+        etc_buffer: create_gbuffer_texture(device, width, height, "g_etc_buffer"),
+        normal: create_gbuffer_texture(device, width, height, "g_normal"),
+        velocity: create_gbuffer_texture(device, width, height, "g_velocity"),
+        depth: create_gbuffer_texture(device, width, height, "g_depth"),
+        lgt_color: create_gbuffer_texture(device, width, height, "g_lgt_color"),
+    }
+}
+
+fn create_gbuffer_texture(
     device: &wgpu::Device,
     width: u32,
     height: u32,
-) -> [wgpu::TextureView; 7] {
-    [0, 1, 2, 3, 4, 5, 6].map(|i| {
-        device
-            .create_texture(&wgpu::TextureDescriptor {
-                label: Some(&format!("g{i}")),
-                size: wgpu::Extent3d {
-                    width,
-                    height,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: GBUFFER_COLOR_FORMAT,
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-                    | wgpu::TextureUsages::TEXTURE_BINDING,
-                view_formats: &[],
-            })
-            .create_view(&wgpu::TextureViewDescriptor::default())
-    })
+    name: &str,
+) -> wgpu::TextureView {
+    device
+        .create_texture(&wgpu::TextureDescriptor {
+            label: Some(name),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: GBUFFER_COLOR_FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        })
+        .create_view(&wgpu::TextureViewDescriptor::default())
 }
 
 fn create_depth_texture(device: &wgpu::Device, width: u32, height: u32) -> wgpu::TextureView {

@@ -48,7 +48,7 @@ pub fn model_pipeline(
                 blend: None,
                 write_mask: wgpu::ColorWrites::all(),
             });
-            7
+            6
         ]
     } else {
         vec![
@@ -56,11 +56,6 @@ pub fn model_pipeline(
                 format: GBUFFER_COLOR_FORMAT,
                 blend: blend_state(key.flags.blend_state),
                 write_mask: wgpu::ColorWrites::all(),
-            }),
-            Some(wgpu::ColorTargetState {
-                format: GBUFFER_COLOR_FORMAT,
-                blend: None,
-                write_mask: wgpu::ColorWrites::empty(),
             }),
             Some(wgpu::ColorTargetState {
                 format: GBUFFER_COLOR_FORMAT,

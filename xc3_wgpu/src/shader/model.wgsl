@@ -151,7 +151,6 @@ struct FragmentOutput {
     @location(3) g3: vec4<f32>,
     @location(4) g4: vec4<f32>,
     @location(5) g5: vec4<f32>,
-    @location(6) g6: vec4<f32>,
 }
 
 @vertex
@@ -276,7 +275,6 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     // TODO: Normalize vectors?
     let tangent = normalize(in.tangent.xyz);
     let vertex_normal = normalize(in.normal.xyz);
-    // TODO: Flip the sign?
     let bitangent = cross(vertex_normal, tangent) * in.tangent.w;
 
     let s0_color = textureSample(s0, s0_sampler, in.uv1);
@@ -350,6 +348,5 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     out.g3 = g3;
     out.g4 = g4;
     out.g5 = g5;
-    out.g6 = vec4(0.0);
     return out;
 }

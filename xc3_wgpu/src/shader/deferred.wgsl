@@ -1,23 +1,20 @@
 @group(0) @binding(0)
-var g0: texture_2d<f32>;
+var g_color: texture_2d<f32>;
 
 @group(0) @binding(1)
-var g1: texture_2d<f32>;
+var g_etc_buffer: texture_2d<f32>;
 
 @group(0) @binding(2)
-var g2: texture_2d<f32>;
+var g_normal: texture_2d<f32>;
 
 @group(0) @binding(3)
-var g3: texture_2d<f32>;
+var g_velocity: texture_2d<f32>;
 
 @group(0) @binding(4)
-var g4: texture_2d<f32>;
+var g_depth: texture_2d<f32>;
 
 @group(0) @binding(5)
-var g5: texture_2d<f32>;
-
-@group(0) @binding(6)
-var g6: texture_2d<f32>;
+var g_lgt_color: texture_2d<f32>;
 
 @group(1) @binding(0)
 var shared_sampler: sampler;
@@ -56,21 +53,21 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> VertexOutput {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let g0 = textureSample(g0, shared_sampler, in.uv);
-    let g1 = textureSample(g1, shared_sampler, in.uv);
-    let g2 = textureSample(g2, shared_sampler, in.uv);
-    let g3 = textureSample(g3, shared_sampler, in.uv);
-    let g4 = textureSample(g4, shared_sampler, in.uv);
-    let g5 = textureSample(g5, shared_sampler, in.uv);
+    let g_color = textureSample(g_color, shared_sampler, in.uv);
+    let g_etc_buffer = textureSample(g_etc_buffer, shared_sampler, in.uv);
+    let g_normal = textureSample(g_normal, shared_sampler, in.uv);
+    let g_velocity = textureSample(g_velocity, shared_sampler, in.uv);
+    let g_depth = textureSample(g_depth, shared_sampler, in.uv);
+    let g_lgt_color = textureSample(g_lgt_color, shared_sampler, in.uv);
 
-    let albedo = g0.rgb;
-    let metalness = g1.r;
-    let glossiness = g1.g;
-    let ambient_occlusion = g2.z;
+    let albedo = g_color.rgb;
+    let metalness = g_etc_buffer.r;
+    let glossiness = g_etc_buffer.g;
+    let ambient_occlusion = g_normal.z;
 
     // Unpack the view space normals.
-    let normal_x = g2.x * 2.0 - 1.0;
-    let normal_y = g2.y * 2.0 - 1.0;
+    let normal_x = g_normal.x * 2.0 - 1.0;
+    let normal_y = g_normal.y * 2.0 - 1.0;
     let normal_z = sqrt(abs(1.0 - normal_x * normal_x - normal_y * normal_y));
     let normal = vec3(normal_x, normal_y, normal_z);
 
@@ -100,22 +97,22 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     switch (debug_settings.index.x) {
         case 1u: {
-            return g0;
+            return g_color;
         }
         case 2u: {
-            return g1;
+            return g_etc_buffer;
         }
         case 3u: {
-            return g2;
+            return g_normal;
         }
         case 4u: {
-            return g3;
+            return g_velocity;
         }
         case 5u: {
-            return g4;
+            return g_depth;
         }
         case 6u: {
-            return g5;
+            return g_lgt_color;
         }
         default: {
             return vec4(output, 1.0);
