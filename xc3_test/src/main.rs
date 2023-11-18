@@ -7,6 +7,7 @@ use binrw::{BinRead, BinReaderExt};
 use clap::Parser;
 use rayon::prelude::*;
 use xc3_lib::{
+    apmd::Apmd,
     bc::Bc,
     dhal::Dhal,
     eva::Eva,
@@ -31,7 +32,7 @@ struct Cli {
     #[arg(long)]
     mibl: bool,
 
-    /// Process DMXM model files from .wimdo
+    /// Process DMXM or DMPA model files from .wimdo
     #[arg(long)]
     mxmd: bool,
 
@@ -93,10 +94,8 @@ fn main() {
     }
 
     if cli.mxmd || cli.all {
-        // TODO: The map folder .wimdo files for XC3 are a different format?
-        // TODO: b"APMD" magic in "chr/oj/oj03010100.wimdo"?
-        println!("Checking MXMD files ...");
-        check_all(root, &["*.wimdo", "!map/**"], check_mxmd, cli.rw);
+        println!("Checking MXMD and APMD files ...");
+        check_all(root, &["*.wimdo"], check_mxmd_or_apmd, cli.rw);
     }
 
     // TODO: Check apmd separately by checking the initial magic?
@@ -378,13 +377,75 @@ fn check_dhal(dhal: Dhal, path: &Path, original_bytes: &[u8], check_read_write: 
     }
 }
 
+#[derive(BinRead)]
+enum MxmdApmd {
+    Mxmd(Mxmd),
+    Apmd(Apmd),
+}
+
+fn check_mxmd_or_apmd(data: MxmdApmd, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+    match data {
+        MxmdApmd::Mxmd(mxmd) => {
+            if !is_valid_models_flags(&mxmd) {
+                println!("Inconsistent ModelsFlags for {path:?}");
+            }
+
+            if check_read_write {
+                let mut writer = Cursor::new(Vec::new());
+                mxmd.write(&mut writer).unwrap();
+                if writer.into_inner() != original_bytes {
+                    println!("Mxmd read/write not 1:1 for {path:?}");
+                }
+            }
+
+            if let Some(spch) = mxmd.spch {
+                // TODO: Check read/write for inner data?
+                check_spch(spch, path, &[], false);
+            }
+
+            if let Some(packed_textures) = &mxmd.packed_textures {
+                for texture in &packed_textures.textures {
+                    if let Err(e) = Mibl::from_bytes(&texture.mibl_data) {
+                        println!("Error reading Mibl for {path:?}: {e}");
+                    }
+                }
+            }
+        }
+        MxmdApmd::Apmd(apmd) => {
+            for entry in &apmd.entries {
+                // TODO: check inner data.
+                match entry.read_data() {
+                    Ok(data) => match data {
+                        xc3_lib::apmd::EntryData::Mxmd(mxmd) => {
+                            check_mxmd(mxmd, path, &entry.entry_data, check_read_write)
+                        }
+                        xc3_lib::apmd::EntryData::Dmis => (),
+                        xc3_lib::apmd::EntryData::Dlgt(_) => (),
+                        xc3_lib::apmd::EntryData::Gibl(_) => (),
+                        xc3_lib::apmd::EntryData::Nerd(_) => (),
+                        xc3_lib::apmd::EntryData::Dlgt2(_) => (),
+                    },
+                    Err(e) => println!("Error reading entry in {path:?}: {e}"),
+                }
+            }
+
+            if check_read_write {
+                let mut writer = Cursor::new(Vec::new());
+                apmd.write(&mut writer).unwrap();
+                if writer.into_inner() != original_bytes {
+                    println!("Apmd read/write not 1:1 for {path:?}");
+                }
+            }
+        }
+    }
+}
+
 fn check_mxmd(mxmd: Mxmd, path: &Path, original_bytes: &[u8], check_read_write: bool) {
     if !is_valid_models_flags(&mxmd) {
         println!("Inconsistent ModelsFlags for {path:?}");
     }
 
     if check_read_write {
-        // Check read/write.
         let mut writer = Cursor::new(Vec::new());
         mxmd.write(&mut writer).unwrap();
         if writer.into_inner() != original_bytes {
@@ -437,7 +498,6 @@ fn check_spch(spch: Spch, path: &Path, original_bytes: &[u8], check_read_write: 
 
 fn check_ltpc(ltpc: Ltpc, path: &Path, original_bytes: &[u8], check_read_write: bool) {
     if check_read_write {
-        // Check read/write.
         let mut writer = Cursor::new(Vec::new());
         ltpc.write(&mut writer).unwrap();
         if writer.into_inner() != original_bytes {
@@ -507,7 +567,6 @@ fn check_sar1(sar1: Sar1, path: &Path, original_bytes: &[u8], check_read_write: 
     }
 
     if check_read_write {
-        // Check read/write for the archive.
         let mut writer = Cursor::new(Vec::new());
         sar1.write(&mut writer).unwrap();
         if writer.into_inner() != original_bytes {
@@ -518,7 +577,6 @@ fn check_sar1(sar1: Sar1, path: &Path, original_bytes: &[u8], check_read_write: 
 
 fn check_bc(bc: Bc, path: &Path, original_bytes: &[u8], check_read_write: bool) {
     if check_read_write {
-        // Check read/write.
         let mut writer = Cursor::new(Vec::new());
         bc.write(&mut writer).unwrap();
         if writer.into_inner() != original_bytes {
@@ -529,7 +587,6 @@ fn check_bc(bc: Bc, path: &Path, original_bytes: &[u8], check_read_write: bool) 
 
 fn check_eva(eva: Eva, path: &Path, original_bytes: &[u8], check_read_write: bool) {
     if check_read_write {
-        // Check read/write.
         let mut writer = Cursor::new(Vec::new());
         eva.write(&mut writer).unwrap();
         if writer.into_inner() != original_bytes {
