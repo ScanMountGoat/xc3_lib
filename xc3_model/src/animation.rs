@@ -73,11 +73,20 @@ fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
                 xc3_lib::bc::AnimationBindingInner::Unk3(inner) => {
                     let hashes = match &inner.extra_track_data {
                         xc3_lib::bc::ExtraTrackData::Uncompressed(extra) => {
-                            Some(&extra.unk3.bone_name_hashes)
+                            Some(&extra.hashes.bone_name_hashes)
                         }
                         _ => None,
                     };
-                    (Some(&inner.bone_names.elements), hashes)
+                    (Some(&inner.bone_names), hashes)
+                }
+                xc3_lib::bc::AnimationBindingInner::Unk4(inner) => {
+                    let hashes = match &inner.extra_track_data {
+                        xc3_lib::bc::ExtraTrackData::Uncompressed(extra) => {
+                            Some(&extra.hashes.bone_name_hashes)
+                        }
+                        _ => None,
+                    };
+                    (Some(&inner.bone_names), hashes)
                 }
             };
 
@@ -194,7 +203,10 @@ fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
                                 Some(&inner.bone_names)
                             }
                             xc3_lib::bc::AnimationBindingInner::Unk3(inner) => {
-                                Some(&inner.bone_names.elements)
+                                Some(&inner.bone_names)
+                            }
+                            xc3_lib::bc::AnimationBindingInner::Unk4(inner) => {
+                                Some(&inner.bone_names)
                             }
                         };
 
@@ -239,7 +251,7 @@ fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
                         .tracks
                         .elements
                         .iter()
-                        .zip(extra.data.bone_name_hashes.iter())
+                        .zip(extra.hashes.bone_name_hashes.iter())
                         .map(|(track, hash)| {
                             let translation_keyframes = packed_cubic_vec3_keyframes(
                                 &track.translation,

@@ -222,10 +222,12 @@ pub enum AnimationBindingInner {
     #[br(pre_assert(size == 76))]
     Unk2(AnimationBindingInner2),
 
-    // TODO: Detect the 120 bytes case?
     // XC3 sometimes has 120 or 128 total bytes.
-    #[br(pre_assert(size >= 120))]
+    #[br(pre_assert(size == 120))]
     Unk3(#[br(args_raw(animation_type))] AnimationBindingInner3),
+
+    #[br(pre_assert(size == 128))]
+    Unk4(#[br(args_raw(animation_type))] AnimationBindingInner4),
 }
 
 // 60 total bytes for xc2
@@ -285,16 +287,37 @@ pub struct AnimationBindingInner2 {
     pub extra_track_bindings: Vec<ExtraTrackAnimationBinding>,
 }
 
-// 120 total bytes for xc3
+// 120 or 128 total bytes for xc3
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(import_raw(animation_type: AnimationType))]
 pub struct AnimationBindingInner3 {
     /// An alternative bone name list for
     /// [bone_track_indices](struct.AnimationBinding.html#structfield.bone_track_indices).
-    pub bone_names: BcList<StringOffset>,
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32), align(8, 0xff))]
+    pub bone_names: Vec<StringOffset>,
+    pub unk2: i32,
 
     #[br(args_raw(animation_type))]
     pub extra_track_data: ExtraTrackData,
+}
+
+// 128 total bytes for xc3
+// TODO: Is it worth making a whole separate type for this?
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[br(import_raw(animation_type: AnimationType))]
+pub struct AnimationBindingInner4 {
+    /// An alternative bone name list for
+    /// [bone_track_indices](struct.AnimationBinding.html#structfield.bone_track_indices).
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32), align(8, 0xff))]
+    pub bone_names: Vec<StringOffset>,
+    pub unk2: i32,
+
+    #[br(args_raw(animation_type))]
+    pub extra_track_data: ExtraTrackData,
+
+    pub unk1: u64,
 }
 
 #[derive(Debug, BinRead, Xc3Write)]
@@ -401,18 +424,23 @@ pub enum ExtraTrackData {
     PackedCubic(PackedCubicExtraData),
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct UncompressedExtraData {
     // TODO: type?
-    pub unk1: BcList<u8>,
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32), align(8, 0xff))]
+    pub unk1: Vec<u8>,
+    pub unk2: i32, // -1
 
     #[br(parse_with = parse_opt_ptr64)]
     #[xc3(offset(u64))]
     pub motion: Option<UncompressedExtraDataMotion>,
 
     #[br(parse_with = parse_ptr64)]
-    #[xc3(offset(u64))]
-    pub unk3: UncompressedExtraDataUnk3,
+    #[xc3(offset(u64), align(8, 0xff))]
+    pub hashes: TrackHashes,
+
+    pub unk4: [u32; 6],
 }
 
 // TODO: Default transform for a single bone at each frame?
@@ -429,38 +457,27 @@ pub struct UncompressedExtraDataMotion {
     pub scale_indices: BcList<u16>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
-pub struct UncompressedExtraDataUnk3 {
-    // max of 254?
-    // TODO: same length as hash indices?
-    pub unk1: BcList<u8>,
-    // TODO: assigns hashes to something?
-    pub hash_indices: BcList<u16>,
-
-    #[br(parse_with = parse_offset64_count32)]
-    #[xc3(offset_count(u64, u32))]
-    pub bone_name_hashes: Vec<u32>,
-}
-
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write)]
 pub struct CubicExtraData {
-    // pointer to start of strings?
-    #[br(parse_with = parse_string_ptr64)]
-    #[xc3(offset(u64))]
-    pub unk1: String,
-    pub unk2: u32,
-    pub unk3: i32,
+    // TODO: type?
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32), align(8, 0xff))]
+    pub unk1: Vec<u8>,
+    pub unk2: i32, // -1
 
     // TODO: root motion?
     pub unk4: u64,
 
     #[br(parse_with = parse_ptr64)]
-    #[xc3(offset(u64))]
+    #[xc3(offset(u64), align(8, 0xff))]
     pub data1: CubicExtraDataInner1,
 
     #[br(parse_with = parse_ptr64)]
-    #[xc3(offset(u64))]
+    #[xc3(offset(u64), align(8, 0xff))]
     pub data2: CubicExtraDataInner2,
+
+    // TODO: padding?
+    pub unk: [u32; 4],
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -468,17 +485,20 @@ pub struct CubicExtraDataInner1 {
     // TODO: buffer?
     pub unk1: BcList<u8>,
 
-    pub unk2: BcList<u16>,
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32), align(8, 0xff))]
+    pub unk2: Vec<u16>,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct CubicExtraDataInner2 {
-    // TODO: type?
-    pub unk1: BcList<u8>, // ends with 0xFFFFFFFF?
-    pub unk2: BcList<u8>,
+    pub unk1: BcList<u8>,
+
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32), align(8, 0xff))]
+    pub unk2: Vec<u16>,
 }
 
-// TODO: up to 64 bytes?
 #[derive(Debug, BinRead, Xc3Write)]
 pub struct PackedCubicExtraData {
     #[br(parse_with = parse_offset64_count32)]
@@ -491,7 +511,7 @@ pub struct PackedCubicExtraData {
 
     #[br(parse_with = parse_ptr64)]
     #[xc3(offset(u64), align(8, 0xff))]
-    pub data: PackedCubicExtraDataInner,
+    pub hashes: TrackHashes,
 
     pub unk_offset1: u64,
 
@@ -499,12 +519,9 @@ pub struct PackedCubicExtraData {
     #[xc3(offset(u64), align(8, 0xff))]
     pub unk_offset2: Option<PackedCubicExtraDataUnk2>,
 
-    // TODO: optional padding?
     #[br(parse_with = parse_opt_ptr64)]
     #[xc3(offset(u64), align(8, 0xff))]
     pub unk_offset3: Option<PackedCubicExtraDataUnk3>,
-
-    pub unk: [u32; 2],
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -527,7 +544,7 @@ pub struct PackedCubicExtraDataUnk3 {
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
-pub struct PackedCubicExtraDataInner {
+pub struct TrackHashes {
     // TODO: buffers?
     pub unk1: BcList<u8>,
 
@@ -944,17 +961,29 @@ impl<'a> Xc3WriteOffsets for AnimOffsets<'a> {
                 }
             }
             AnimationBindingInnerOffsets::Unk3(unk3) => {
-                if !unk3.bone_names.elements.data.is_empty() {
-                    let bone_names =
-                        unk3.bone_names
-                            .elements
-                            .write_offset(writer, base_offset, data_ptr)?;
+                if !unk3.bone_names.data.is_empty() {
+                    let bone_names = unk3
+                        .bone_names
+                        .write_offset(writer, base_offset, data_ptr)?;
                     for bone_name in &bone_names.0 {
                         string_section.insert_offset(&bone_name.name);
                     }
                 }
 
                 unk3.extra_track_data
+                    .write_offsets(writer, base_offset, data_ptr)?;
+            }
+            AnimationBindingInnerOffsets::Unk4(unk4) => {
+                if !unk4.bone_names.data.is_empty() {
+                    let bone_names = unk4
+                        .bone_names
+                        .write_offset(writer, base_offset, data_ptr)?;
+                    for bone_name in &bone_names.0 {
+                        string_section.insert_offset(&bone_name.name);
+                    }
+                }
+
+                unk4.extra_track_data
                     .write_offsets(writer, base_offset, data_ptr)?;
             }
         }
@@ -1029,11 +1058,41 @@ impl<'a> Xc3WriteOffsets for PackedCubicExtraDataOffsets<'a> {
         data_ptr: &mut u64,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
-        self.data.write_full(writer, base_offset, data_ptr)?;
+        self.hashes.write_full(writer, base_offset, data_ptr)?;
         self.unk_offset2.write_full(writer, base_offset, data_ptr)?;
         self.unk_offset3.write_full(writer, base_offset, data_ptr)?;
         self.extra_track_bindings
             .write_full(writer, base_offset, data_ptr)?;
+        Ok(())
+    }
+}
+
+impl<'a> Xc3WriteOffsets for UncompressedExtraDataOffsets<'a> {
+    fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> xc3_write::Xc3Result<()> {
+        // Different order than field order.
+        self.motion.write_full(writer, base_offset, data_ptr)?;
+        self.hashes.write_full(writer, base_offset, data_ptr)?;
+        self.unk1.write_full(writer, base_offset, data_ptr)?;
+        Ok(())
+    }
+}
+
+impl<'a> Xc3WriteOffsets for CubicExtraDataOffsets<'a> {
+    fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> xc3_write::Xc3Result<()> {
+        // Different order than field order.
+        self.data1.write_full(writer, base_offset, data_ptr)?;
+        self.data2.write_full(writer, base_offset, data_ptr)?;
+        self.unk1.write_full(writer, base_offset, data_ptr)?;
         Ok(())
     }
 }
