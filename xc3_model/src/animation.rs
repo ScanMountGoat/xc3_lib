@@ -18,16 +18,27 @@ pub struct Animation {
     pub tracks: Vec<Track>,
 }
 
-// TODO: Are fractional keyframes used in practice?
 #[derive(Debug, PartialEq)]
 pub struct Track {
+    // TODO: Are fractional keyframes used in practice?
     pub translation_keyframes: BTreeMap<OrderedFloat<f32>, Keyframe>,
     pub rotation_keyframes: BTreeMap<OrderedFloat<f32>, Keyframe>,
     pub scale_keyframes: BTreeMap<OrderedFloat<f32>, Keyframe>,
-    // TODO: Make this an enum instead?
-    pub bone_index: Option<usize>,
-    pub bone_hash: Option<u32>,
-    pub bone_name: Option<String>,
+    pub bone_index: BoneIndex,
+}
+
+/// Index for selecting the appropriate bone in a [Skeleton](crate::skeleton::Skeleton).
+#[derive(Debug, PartialEq)]
+pub enum BoneIndex {
+    /// Index into [bones](../skeleton/struct.Skeleton.html#structfield.bones).
+    /// Used for Xenoblade 2 animations.
+    Index(usize),
+    /// [murmur3] hash of the bone in [bones](../skeleton/struct.Skeleton.html#structfield.bones).
+    /// Used for Xenoblade 1 DE and Xenoblade 3 animations.
+    Hash(u32),
+    /// Name of the bone in [bones](../skeleton/struct.Skeleton.html#structfield.bones).
+    /// Used for Xenoblade 1 DE and Xenoblade 3 animations.
+    Name(String),
 }
 
 // TODO: Should this always be cubic?
@@ -64,32 +75,10 @@ fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
     // Tracks are assigned to bones using indices, names, or name hashes.
     // Tracks have optional data depending on the anim type and game version.
     // This makes the conversion to a unified format somewhat complex.
+    let (bone_names, hashes) = names_hashes(anim);
+
     match &anim.binding.animation.data {
         xc3_lib::bc::AnimationData::Uncompressed(uncompressed) => {
-            // TODO: Is this the best way to handle this?
-            let (bone_names, hashes) = match &anim.binding.inner {
-                xc3_lib::bc::AnimationBindingInner::Unk1(_) => (None, None),
-                xc3_lib::bc::AnimationBindingInner::Unk2(inner) => (Some(&inner.bone_names), None),
-                xc3_lib::bc::AnimationBindingInner::Unk3(inner) => {
-                    let hashes = match &inner.extra_track_data {
-                        xc3_lib::bc::ExtraTrackData::Uncompressed(extra) => {
-                            Some(&extra.hashes.bone_name_hashes)
-                        }
-                        _ => None,
-                    };
-                    (Some(&inner.bone_names), hashes)
-                }
-                xc3_lib::bc::AnimationBindingInner::Unk4(inner) => {
-                    let hashes = match &inner.extra_track_data {
-                        xc3_lib::bc::ExtraTrackData::Uncompressed(extra) => {
-                            Some(&extra.hashes.bone_name_hashes)
-                        }
-                        _ => None,
-                    };
-                    (Some(&inner.bone_names), hashes)
-                }
-            };
-
             // TODO: Apply the root motion at each frame?
             let track_count = anim.binding.bone_track_indices.elements.len();
             let transforms = &uncompressed.transforms;
@@ -132,14 +121,13 @@ fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
                         );
                     }
 
+                    let bone_index = track_bone_index(*i as usize, bone_names, hashes);
+
                     Track {
                         translation_keyframes,
                         rotation_keyframes,
                         scale_keyframes,
-                        bone_index: None,
-                        bone_hash: hashes.and_then(|hashes| hashes.get(*i as usize)).copied(),
-                        bone_name: bone_names
-                            .and_then(|names| names.get(*i as usize).map(|n| n.name.clone())),
+                        bone_index,
                     }
                 })
                 .collect()
@@ -196,42 +184,14 @@ fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
                             );
                         }
 
-                        // TODO: XC2 animations have different data instead of names?
-                        let bone_names = match &anim.binding.inner {
-                            xc3_lib::bc::AnimationBindingInner::Unk1(_) => None,
-                            xc3_lib::bc::AnimationBindingInner::Unk2(inner) => {
-                                Some(&inner.bone_names)
-                            }
-                            xc3_lib::bc::AnimationBindingInner::Unk3(inner) => {
-                                Some(&inner.bone_names)
-                            }
-                            xc3_lib::bc::AnimationBindingInner::Unk4(inner) => {
-                                Some(&inner.bone_names)
-                            }
-                        };
+                        let bone_index = track_bone_index(i, bone_names, hashes);
 
-                        if let Some(bone_names) = bone_names {
-                            bone_names.get(i).map(|name| {
-                                // Some XC1 and XC3 animations don't use the chr bone ordering.
-                                Track {
-                                    translation_keyframes,
-                                    rotation_keyframes,
-                                    scale_keyframes,
-                                    bone_index: None,
-                                    bone_hash: None,
-                                    bone_name: Some(name.name.clone()),
-                                }
-                            })
-                        } else {
-                            Some(Track {
-                                translation_keyframes,
-                                rotation_keyframes,
-                                scale_keyframes,
-                                bone_index: Some(i),
-                                bone_hash: None,
-                                bone_name: None,
-                            })
-                        }
+                        Some(Track {
+                            translation_keyframes,
+                            rotation_keyframes,
+                            scale_keyframes,
+                            bone_index,
+                        })
                     } else {
                         None
                     }
@@ -243,51 +203,83 @@ fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
             Vec::new()
         }
         xc3_lib::bc::AnimationData::PackedCubic(cubic) => {
-            // TODO: Does each of these tracks have a corresponding hash?
-            // TODO: Also check the bone indices?
-            if let xc3_lib::bc::AnimationBindingInner::Unk3(inner) = &anim.binding.inner {
-                if let xc3_lib::bc::ExtraTrackData::PackedCubic(extra) = &inner.extra_track_data {
-                    cubic
-                        .tracks
-                        .elements
-                        .iter()
-                        .zip(extra.hashes.bone_name_hashes.iter())
-                        .map(|(track, hash)| {
-                            let translation_keyframes = packed_cubic_vec3_keyframes(
-                                &track.translation,
-                                &cubic.keyframes.elements,
-                                &cubic.vectors,
-                            );
-                            let rotation_keyframes = packed_cubic_vec4_keyframes(
-                                &track.rotation,
-                                &cubic.keyframes.elements,
-                                &cubic.quaternions.elements,
-                            );
-                            let scale_keyframes = packed_cubic_vec3_keyframes(
-                                &track.scale,
-                                &cubic.keyframes.elements,
-                                &cubic.vectors,
-                            );
+            anim.binding
+                .bone_track_indices
+                .elements
+                .iter()
+                .map(|i| {
+                    // TODO: Will the index ever be negative?
+                    let track = &cubic.tracks.elements[*i as usize];
 
-                            Track {
-                                translation_keyframes,
-                                rotation_keyframes,
-                                scale_keyframes,
-                                bone_index: None,
-                                bone_hash: Some(*hash),
-                                bone_name: None,
-                            }
-                        })
-                        .collect()
-                } else {
-                    // TODO: error?
-                    Vec::new()
-                }
-            } else {
-                // TODO: error?
-                Vec::new()
-            }
+                    let translation_keyframes = packed_cubic_vec3_keyframes(
+                        &track.translation,
+                        &cubic.keyframes.elements,
+                        &cubic.vectors,
+                    );
+                    let rotation_keyframes = packed_cubic_vec4_keyframes(
+                        &track.rotation,
+                        &cubic.keyframes.elements,
+                        &cubic.quaternions.elements,
+                    );
+                    let scale_keyframes = packed_cubic_vec3_keyframes(
+                        &track.scale,
+                        &cubic.keyframes.elements,
+                        &cubic.vectors,
+                    );
+
+                    let bone_index = track_bone_index(*i as usize, bone_names, hashes);
+
+                    Track {
+                        translation_keyframes,
+                        rotation_keyframes,
+                        scale_keyframes,
+                        bone_index,
+                    }
+                })
+                .collect()
         }
+    }
+}
+
+fn names_hashes(
+    anim: &xc3_lib::bc::Anim,
+) -> (Option<&Vec<xc3_lib::bc::StringOffset>>, Option<&Vec<u32>>) {
+    match &anim.binding.inner {
+        xc3_lib::bc::AnimationBindingInner::Unk1(_) => (None, None),
+        xc3_lib::bc::AnimationBindingInner::Unk2(inner) => (Some(&inner.bone_names), None),
+        xc3_lib::bc::AnimationBindingInner::Unk3(inner) => (
+            Some(&inner.bone_names),
+            extra_track_hashes(&inner.extra_track_data),
+        ),
+        xc3_lib::bc::AnimationBindingInner::Unk4(inner) => (
+            Some(&inner.bone_names),
+            extra_track_hashes(&inner.extra_track_data),
+        ),
+    }
+}
+
+fn track_bone_index(
+    i: usize,
+    bone_names: Option<&Vec<xc3_lib::bc::StringOffset>>,
+    hashes: Option<&Vec<u32>>,
+) -> BoneIndex {
+    // Some XC1 and XC3 animations don't use the chr bone ordering.
+    // XC2 always uses the index directly since it doesn't store names.
+    if let Some(name) = bone_names.and_then(|names| names.get(i)) {
+        BoneIndex::Name(name.name.clone())
+    } else if let Some(hash) = hashes.and_then(|hashes| hashes.get(i)).copied() {
+        BoneIndex::Hash(hash)
+    } else {
+        BoneIndex::Index(i)
+    }
+}
+
+fn extra_track_hashes(data: &xc3_lib::bc::ExtraTrackData) -> Option<&Vec<u32>> {
+    match data {
+        xc3_lib::bc::ExtraTrackData::Uncompressed(extra) => Some(&extra.hashes.bone_name_hashes),
+        xc3_lib::bc::ExtraTrackData::Cubic(_) => None,
+        xc3_lib::bc::ExtraTrackData::Empty => None,
+        xc3_lib::bc::ExtraTrackData::PackedCubic(extra) => Some(&extra.hashes.bone_name_hashes),
     }
 }
 

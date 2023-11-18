@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use glam::Mat4;
 use log::error;
-use xc3_model::animation::{murmur3, Animation, BlendMode};
+use xc3_model::animation::{murmur3, Animation, BlendMode, BoneIndex};
 
 pub fn animate_skeleton(
     skeleton: &xc3_model::Skeleton,
@@ -23,16 +23,11 @@ pub fn animate_skeleton(
     let mut animated_transforms = vec![None; skeleton.bones.len()];
 
     for track in &animation.tracks {
-        // TODO: Why does the hash lookup fail?
-        if let Some(bone_index) = track
-            .bone_hash
-            .and_then(|hash| hash_to_index.get(&hash).copied())
-            .or(track.bone_index)
-            .or(skeleton
-                .bones
-                .iter()
-                .position(|b| Some(&b.name) == track.bone_name.as_ref()))
-        {
+        if let Some(bone_index) = match &track.bone_index {
+            BoneIndex::Index(i) => Some(*i),
+            BoneIndex::Hash(hash) => hash_to_index.get(hash).copied(),
+            BoneIndex::Name(name) => skeleton.bones.iter().position(|b| &b.name == name),
+        } {
             let translation = track.sample_translation(frame);
             let rotation = track.sample_rotation(frame);
             let scale = track.sample_scale(frame);
@@ -48,16 +43,15 @@ pub fn animate_skeleton(
                     animation.blend_mode,
                 ));
             } else {
+                // TODO: Why does this happen?
                 error!(
                     "Bone index {bone_index} out of range for {} bones",
                     skeleton.bones.len()
                 );
             }
         } else {
-            error!(
-                "No matching bone for hash {:?}, index: {:?}, name: {:?}",
-                track.bone_hash, track.bone_index, track.bone_name
-            );
+            // TODO: Why does this happen?
+            error!("No matching bone for index {:?}", track.bone_index);
         }
     }
 
