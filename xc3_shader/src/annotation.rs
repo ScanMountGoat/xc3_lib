@@ -1,7 +1,11 @@
 use std::collections::HashMap;
 
 use glsl_lang::{
-    ast::{Identifier, TranslationUnit},
+    ast::{
+        ArraySpecifierData, ArraySpecifierDimensionData, ArrayedIdentifierData, Block, ExprData,
+        Identifier, Node, StructFieldSpecifierData, TranslationUnit, TypeSpecifierData,
+        TypeSpecifierNonArrayData,
+    },
     parse::DefaultParse,
     transpiler::glsl::{show_translation_unit, FormattingState},
     visitor::{HostMut, Visit, VisitorMut},
@@ -14,46 +18,90 @@ use xc3_lib::spch::Nvsd;
 // TODO: What is the performance cost of annotation?
 const VEC4_SIZE: u32 = 16;
 
-pub fn annotate_fragment(glsl: String, metadata: &Nvsd) -> String {
-    let mut glsl = glsl;
-    annotate_samplers(&mut glsl, metadata);
-    // annotate_buffers(&mut glsl, "fp", metadata);
-
-    glsl
-}
-
-fn annotate_samplers(glsl: &mut String, metadata: &Nvsd) {
-    if let Some(samplers) = &metadata.samplers {
-        for sampler in samplers {
-            let handle = sampler.handle.handle * 2 + 8;
-            let texture_name = format!("fp_t_tcb_{handle:X}");
-            *glsl = glsl.replace(&texture_name, &sampler.name);
-        }
-    }
-}
-
-struct IdentVisitor {
+struct Annotator {
     replacements: HashMap<String, String>,
+    struct_fields: HashMap<String, Vec<Field>>,
 }
 
-impl VisitorMut for IdentVisitor {
+struct Field {
+    name: String,
+    ty: TypeSpecifierNonArrayData,
+    array_length: Option<i32>,
+}
+
+impl VisitorMut for Annotator {
     fn visit_identifier(&mut self, ident: &mut Identifier) -> Visit {
         if let Some(name) = self.replacements.get(ident.as_str()) {
             ident.0 = name.into();
         }
         Visit::Children
     }
+
+    fn visit_block(&mut self, block: &mut Block) -> Visit {
+        // TODO: Only set fields based on some sort of map.
+        block.fields = vec![
+            field(&Field {
+                name: "a".to_string(),
+                ty: TypeSpecifierNonArrayData::Vec4,
+                array_length: Some(5),
+            }),
+            field(&Field {
+                name: "b".to_string(),
+                ty: TypeSpecifierNonArrayData::Vec4,
+                array_length: None,
+            }),
+        ];
+
+        Visit::Children
+    }
 }
 
-pub fn annotate_vertex(glsl: String, metadata: &Nvsd) -> String {
-    let mut replacements = HashMap::new();
-    for attribute in &metadata.attributes {
-        let attribute_name = format!("in_attr{}", attribute.location);
-        replacements.insert(attribute_name, attribute.name.clone());
-    }
-    annotate_buffers(&mut replacements, "vp", metadata);
+fn field(field: &Field) -> Node<StructFieldSpecifierData> {
+    Node::new(
+        StructFieldSpecifierData {
+            qualifier: None,
+            ty: Node::new(
+                TypeSpecifierData {
+                    ty: Node::new(field.ty.clone(), None),
+                    array_specifier: None,
+                },
+                None,
+            ),
+            identifiers: vec![Node::new(
+                ArrayedIdentifierData {
+                    ident: Node::new(field.name.as_str().into(), None),
+                    array_spec: field.array_length.map(|i| {
+                        Node::new(
+                            ArraySpecifierData {
+                                dimensions: vec![Node::new(
+                                    ArraySpecifierDimensionData::ExplicitlySized(Box::new(
+                                        Node::new(ExprData::IntConst(i), None),
+                                    )),
+                                    None,
+                                )],
+                            },
+                            None,
+                        )
+                    }),
+                },
+                None,
+            )],
+        },
+        None,
+    )
+}
 
-    let mut visitor = IdentVisitor { replacements };
+pub fn annotate_fragment(glsl: String, metadata: &Nvsd) -> String {
+    let mut replacements = HashMap::new();
+    let mut struct_fields = HashMap::new();
+
+    annotate_samplers(&mut replacements, metadata);
+    annotate_buffers(&mut replacements, "fp", metadata);
+
+    let mut visitor = Annotator {
+        replacements,
+        struct_fields,
+    };
 
     let mut translation_unit = TranslationUnit::parse(&glsl).unwrap();
     translation_unit.visit_mut(&mut visitor);
@@ -63,6 +111,42 @@ pub fn annotate_vertex(glsl: String, metadata: &Nvsd) -> String {
 
     text
 }
+
+fn annotate_samplers(replacements: &mut HashMap<String, String>, metadata: &Nvsd) {
+    if let Some(samplers) = &metadata.samplers {
+        for sampler in samplers {
+            let handle = sampler.handle.handle * 2 + 8;
+            let texture_name = format!("fp_t_tcb_{handle:X}");
+            replacements.insert(texture_name, sampler.name.clone());
+        }
+    }
+}
+
+pub fn annotate_vertex(glsl: String, metadata: &Nvsd) -> String {
+    let mut replacements = HashMap::new();
+    let mut struct_fields = HashMap::new();
+
+    for attribute in &metadata.attributes {
+        let attribute_name = format!("in_attr{}", attribute.location);
+        replacements.insert(attribute_name, attribute.name.clone());
+    }
+    annotate_buffers(&mut replacements, "vp", metadata);
+
+    let mut visitor = Annotator {
+        replacements,
+        struct_fields,
+    };
+
+    let mut translation_unit = TranslationUnit::parse(&glsl).unwrap();
+    translation_unit.visit_mut(&mut visitor);
+
+    let mut text = String::new();
+    show_translation_unit(&mut text, &translation_unit, FormattingState::default()).unwrap();
+
+    text
+}
+
+// TODO: Modify the uniform buffer datablocks?
 
 fn annotate_buffers(replacements: &mut HashMap<String, String>, prefix: &str, metadata: &Nvsd) {
     // TODO: annotate constants from fp_v1 or vp_c1.
@@ -75,7 +159,7 @@ fn annotate_buffers(replacements: &mut HashMap<String, String>, prefix: &str, me
             // TODO: Is there an fp_c2?
             let handle = buffer.handle.handle + 3;
             replacements.insert(format!("_{prefix}_c{handle}"), buffer.name.clone());
-            replacements.insert(format!("{prefix}_c{handle}"), String::new());
+            replacements.insert(format!("{prefix}_c{handle}"), format!("_{}", buffer.name));
 
             let start = buffer.uniform_start_index as usize;
             let count = buffer.uniform_count as usize;
@@ -89,13 +173,13 @@ fn annotate_buffers(replacements: &mut HashMap<String, String>, prefix: &str, me
                 if let Some(bracket_index) = uniform.name.find('[') {
                     // Handle array uniforms like "array[0]".
                     // The array has elements until the next uniform.
-                    if let Some(length) = uniforms
+                    if let Some(array_length) = uniforms
                         .get(uniform_index + 1)
                         .map(|u| (u.buffer_offset - uniform.buffer_offset) / VEC4_SIZE)
                     {
                         // Annotate all elments from array[0] to array[length-1].
                         // This avoids unannotated entries in the gbuffer database.
-                        for i in 0..length {
+                        for i in 0..array_length {
                             let pattern = format!("{}.data[{}]", buffer.name, vec4_index + i);
                             // Reindex the array starting from the base offset.
                             let uniform_name =
@@ -117,7 +201,7 @@ fn annotate_buffers(replacements: &mut HashMap<String, String>, prefix: &str, me
         for buffer in storage_buffers {
             let handle = buffer.handle.handle;
             replacements.insert(format!("_{prefix}_s{handle}"), buffer.name.clone());
-            replacements.insert(format!("{prefix}_s{handle}"), String::new());
+            replacements.insert(format!("{prefix}_s{handle}"), format!("_{}", buffer.name));
         }
     }
 }
@@ -498,22 +582,22 @@ mod tests {
             indoc! {"
                 layout(binding = 9, std140) uniform U_CamoflageCalc {
                     precise vec4 data[4096];
-                };
+                }_U_CamoflageCalc;
                 layout(binding = 4, std140) uniform U_Static {
                     precise vec4 data[4096];
-                };
+                }_U_Static;
                 layout(binding = 5, std140) uniform U_Mate {
                     precise vec4 data[4096];
-                };
+                }_U_Mate;
                 layout(binding = 6, std140) uniform U_Mdl {
                     precise vec4 data[4096];
-                };
+                }_U_Mdl;
                 layout(binding = 0, std430) buffer U_Bone {
                     uint data[];
-                };
+                }_U_Bone;
                 layout(binding = 1, std430) buffer U_OdB {
                     uint data[];
-                };
+                }_U_OdB;
                 layout(binding = 0) uniform sampler2D vp_t_tcb_E;
                 layout(location = 0) in vec4 vPos;
                 layout(location = 1) in vec4 nWgtIdx;
@@ -529,6 +613,7 @@ mod tests {
     #[test]
     fn annotate_ch01011013_shd0056_fragment() {
         // Main function modified to test more indices.
+        // TODO: Include uniform buffers.
         let glsl = indoc! {"
             layout (binding = 0) uniform sampler2D fp_t_tcb_C;
             layout (binding = 1) uniform sampler3D fp_t_tcb_10;
@@ -563,13 +648,12 @@ mod tests {
                 layout (binding = 4) uniform sampler2D gTResidentTex04;
                 layout (binding = 5) uniform sampler2D s0;
                 layout (binding = 6) uniform sampler2D gTSpEffNoise1;
-
                 void main() {
-                    out_attr0.x = U_Mate_gWrkFl4[0].x;
-                    out_attr0.y = U_Mate_gWrkFl4[1].y;
-                    out_attr0.z = U_Mate_gWrkFl4[2].z;
+                    out_attr0.x = _U_Mate_gWrkFl4[0].x;
+                    out_attr0.y = _U_Mate_gWrkFl4[1].y;
+                    out_attr0.z = _U_Mate_gWrkFl4[2].z;
                     out_attr0.w = temp_620;
-                    out_attr1.x = U_Mate_gWrkCol.x;
+                    out_attr1.x = _U_Mate_gWrkCol.x;
                     out_attr1.y = temp_623;
                     out_attr1.z = 0.0;
                     out_attr1.w = 0.00823529344;
