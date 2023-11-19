@@ -1,3 +1,11 @@
+use std::collections::HashMap;
+
+use glsl_lang::{
+    ast::{Identifier, TranslationUnit},
+    parse::DefaultParse,
+    transpiler::glsl::{show_translation_unit, FormattingState},
+    visitor::{HostMut, Visit, VisitorMut},
+};
 use xc3_lib::spch::Nvsd;
 
 // TODO: A more reliable way to do replacement is to visit each identifier.
@@ -9,7 +17,7 @@ const VEC4_SIZE: u32 = 16;
 pub fn annotate_fragment(glsl: String, metadata: &Nvsd) -> String {
     let mut glsl = glsl;
     annotate_samplers(&mut glsl, metadata);
-    annotate_buffers(&mut glsl, "fp", metadata);
+    // annotate_buffers(&mut glsl, "fp", metadata);
 
     glsl
 }
@@ -24,20 +32,39 @@ fn annotate_samplers(glsl: &mut String, metadata: &Nvsd) {
     }
 }
 
-pub fn annotate_vertex(glsl: String, metadata: &Nvsd) -> String {
-    // TODO: Handle overlaps like in_attr1 and in_attr10 properly.
-    let mut glsl = glsl;
-    for attribute in &metadata.attributes {
-        let attribute_name = format!("in_attr{}", attribute.location);
-        glsl = glsl.replace(&attribute_name, &attribute.name);
-    }
-
-    annotate_buffers(&mut glsl, "vp", metadata);
-
-    glsl
+struct IdentVisitor {
+    replacements: HashMap<String, String>,
 }
 
-fn annotate_buffers(glsl: &mut String, prefix: &str, metadata: &Nvsd) {
+impl VisitorMut for IdentVisitor {
+    fn visit_identifier(&mut self, ident: &mut Identifier) -> Visit {
+        if let Some(name) = self.replacements.get(ident.as_str()) {
+            ident.0 = name.into();
+        }
+        Visit::Children
+    }
+}
+
+pub fn annotate_vertex(glsl: String, metadata: &Nvsd) -> String {
+    let mut replacements = HashMap::new();
+    for attribute in &metadata.attributes {
+        let attribute_name = format!("in_attr{}", attribute.location);
+        replacements.insert(attribute_name, attribute.name.clone());
+    }
+    annotate_buffers(&mut replacements, "vp", metadata);
+
+    let mut visitor = IdentVisitor { replacements };
+
+    let mut translation_unit = TranslationUnit::parse(&glsl).unwrap();
+    translation_unit.visit_mut(&mut visitor);
+
+    let mut text = String::new();
+    show_translation_unit(&mut text, &translation_unit, FormattingState::default()).unwrap();
+
+    text
+}
+
+fn annotate_buffers(replacements: &mut HashMap<String, String>, prefix: &str, metadata: &Nvsd) {
     // TODO: annotate constants from fp_v1 or vp_c1.
     // TODO: How to determine which constant elements are actually used?
     // TODO: are all uniforms vec4 params?
@@ -47,8 +74,8 @@ fn annotate_buffers(glsl: &mut String, prefix: &str, metadata: &Nvsd) {
             // TODO: why is this always off by 3?
             // TODO: Is there an fp_c2?
             let handle = buffer.handle.handle + 3;
-            let buffer_name = format!("{prefix}_c{handle}");
-            *glsl = glsl.replace(&buffer_name, &buffer.name);
+            replacements.insert(format!("_{prefix}_c{handle}"), buffer.name.clone());
+            replacements.insert(format!("{prefix}_c{handle}"), String::new());
 
             let start = buffer.uniform_start_index as usize;
             let count = buffer.uniform_count as usize;
@@ -73,14 +100,14 @@ fn annotate_buffers(glsl: &mut String, prefix: &str, metadata: &Nvsd) {
                             // Reindex the array starting from the base offset.
                             let uniform_name =
                                 format!("{}_{}[{i}]", buffer.name, &uniform.name[..bracket_index]);
-                            *glsl = glsl.replace(&pattern, &uniform_name);
+                            replacements.insert(pattern, uniform_name);
                         }
                     }
                 } else {
                     // Convert "buffer.data[3].x" to "buffer_uniform.x".
                     let pattern = format!("{}.data[{vec4_index}]", buffer.name);
                     let uniform_name = format!("{}_{}", buffer.name, uniform.name);
-                    *glsl = glsl.replace(&pattern, &uniform_name);
+                    replacements.insert(pattern, uniform_name);
                 }
             }
         }
@@ -89,8 +116,8 @@ fn annotate_buffers(glsl: &mut String, prefix: &str, metadata: &Nvsd) {
     if let Some(storage_buffers) = &metadata.storage_buffers {
         for buffer in storage_buffers {
             let handle = buffer.handle.handle;
-            let buffer_name = format!("{prefix}_s{handle}");
-            *glsl = glsl.replace(&buffer_name, &buffer.name);
+            replacements.insert(format!("_{prefix}_s{handle}"), buffer.name.clone());
+            replacements.insert(format!("{prefix}_s{handle}"), String::new());
         }
     }
 }
@@ -469,44 +496,32 @@ mod tests {
 
         assert_eq!(
             indoc! {"
-                layout (binding = 9, std140) uniform _U_CamoflageCalc
-                {
+                layout(binding = 9, std140) uniform U_CamoflageCalc {
                     precise vec4 data[4096];
-                } U_CamoflageCalc;
-                
-                layout (binding = 4, std140) uniform _U_Static
-                {
+                };
+                layout(binding = 4, std140) uniform U_Static {
                     precise vec4 data[4096];
-                } U_Static;
-                
-                layout (binding = 5, std140) uniform _U_Mate
-                {
+                };
+                layout(binding = 5, std140) uniform U_Mate {
                     precise vec4 data[4096];
-                } U_Mate;
-                
-                layout (binding = 6, std140) uniform _U_Mdl
-                {
+                };
+                layout(binding = 6, std140) uniform U_Mdl {
                     precise vec4 data[4096];
-                } U_Mdl;
-                
-                layout (binding = 0, std430) buffer _U_Bone
-                {
+                };
+                layout(binding = 0, std430) buffer U_Bone {
                     uint data[];
-                } U_Bone;
-                
-                layout (binding = 1, std430) buffer _U_OdB
-                {
+                };
+                layout(binding = 1, std430) buffer U_OdB {
                     uint data[];
-                } U_OdB;
-
-                layout (binding = 0) uniform sampler2D vp_t_tcb_E;
-                layout (location = 0) in vec4 vPos;
-                layout (location = 1) in vec4 nWgtIdx;
-                layout (location = 2) in vec4 vTex0;
-                layout (location = 3) in vec4 vColor;
-                layout (location = 4) in vec4 vNormal;
-                layout (location = 5) in vec4 vTan;
-            "},
+                };
+                layout(binding = 0) uniform sampler2D vp_t_tcb_E;
+                layout(location = 0) in vec4 vPos;
+                layout(location = 1) in vec4 nWgtIdx;
+                layout(location = 2) in vec4 vTex0;
+                layout(location = 3) in vec4 vColor;
+                layout(location = 4) in vec4 vNormal;
+                layout(location = 5) in vec4 vTan;"
+            },
             annotate_vertex(glsl.to_string(), &metadata)
         );
     }
