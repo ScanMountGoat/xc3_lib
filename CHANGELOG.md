@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added support for additional vertex data types used in Xenoblade 1 DE.
 * Added support for morph targets to glTF export.
 * Added support for texture samplers to glTF export.
+* Added support for exporting GLSL shader code from Nvsp in Spch to xc3_lib.
 
 ### Fixed
 * Fixed some cubic (type 1) animations not using the correct bone list during playback.
@@ -27,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Changed animation playback functions to take time in seconds to properly handle animation speed.
 * Adjusted how MIBl alignment is handled to ensure the MIBL <-> DDS conversion is always 1:1.
 * Adjusted glTF texture assignment to assume first texture is albedo by default.
+* Switched to tracy for viewing traces.
 
 ## 0.1.0 - 2023-10-29
 First release! 
