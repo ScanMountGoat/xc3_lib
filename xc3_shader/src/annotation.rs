@@ -28,7 +28,7 @@ struct Field {
     // Index of the start of this field.
     vec4_index: u32,
     ty: TypeSpecifierNonArrayData,
-    array_length: Option<i32>,
+    array_length: Option<u32>,
 }
 
 // TODO: Clean up usage of AST.
@@ -47,7 +47,9 @@ impl VisitorMut for Annotator {
             .map(|ident| &ident.ident.0)
             .and_then(|i| self.struct_fields.get(i.as_str()))
         {
-            block.fields = fields.iter().map(field).collect();
+            if !fields.is_empty() {
+                block.fields = fields.iter().map(field).collect();
+            }
         }
 
         Visit::Children
@@ -118,7 +120,7 @@ fn find_field(fields: &[Field], vec4_index: u32) -> Option<(&String, Option<u32>
         match f.array_length {
             Some(length) => {
                 // Check if the vec4 index falls within this array field.
-                if vec4_index - f.vec4_index < length as u32 {
+                if vec4_index - f.vec4_index < length {
                     Some((&f.name, Some(vec4_index - f.vec4_index)))
                 } else {
                     None
@@ -154,7 +156,7 @@ fn field(field: &Field) -> Node<StructFieldSpecifierData> {
                             ArraySpecifierData {
                                 dimensions: vec![Node::new(
                                     ArraySpecifierDimensionData::ExplicitlySized(Box::new(
-                                        Node::new(ExprData::IntConst(i), None),
+                                        Node::new(ExprData::IntConst(i as i32), None),
                                     )),
                                     None,
                                 )],
@@ -256,61 +258,51 @@ fn annotate_buffers(
 
             for (uniform_index, uniform) in uniforms.iter().enumerate() {
                 let vec4_index = uniform.buffer_offset / VEC4_SIZE;
-                if let Some(bracket_index) = uniform.name.find('[') {
-                    // Handle array uniforms like "array[0]".
-                    // The array has elements until the next uniform.
-                    let uniform_name = uniform.name[..bracket_index].to_string();
 
-                    if let Some(array_length) = uniforms
-                        .get(uniform_index + 1)
-                        .map(|u| (u.buffer_offset - uniform.buffer_offset) / VEC4_SIZE)
-                    {
-                        // Annotate all elments from array[0] to array[length-1].
-                        // This avoids unannotated entries in the gbuffer database.
-                        for i in 0..array_length {
-                            let pattern = format!("{}.data[{}]", buffer.name, vec4_index + i);
-                            // Reindex the array starting from the base offset.
-                            let uniform_name = format!("{}_{}[{i}]", buffer.name, &uniform_name);
-                            replacements.insert(pattern, uniform_name);
-                        }
+                // "array[0]" -> "array"
+                let uniform_name = uniform
+                    .name
+                    .find('[')
+                    .map(|bracket_index| uniform.name[..bracket_index].to_string())
+                    .unwrap_or_else(|| uniform.name.to_string());
 
-                        // Add a single field to the uniform buffer.
-                        // All uniforms are vec4, so we don't need to worry about std140 alignment.
-                        // Treat matrix types as vec4 arrays for now to match the decompiled code.
-                        struct_fields
-                            .entry(buffer_name.clone())
-                            .and_modify(|e| {
-                                e.push(Field {
-                                    name: uniform_name,
-                                    vec4_index,
-                                    ty: TypeSpecifierNonArrayData::Vec4,
-                                    array_length: Some(array_length as i32),
-                                })
-                            })
-                            .or_insert_with(Vec::new);
+                // The array has elements until the next uniform.
+                // All uniforms are vec4, so we don't need to worry about std140 alignment.
+                // Treat matrix types as vec4 arrays for now to match the decompiled code.
+                let array_length = uniforms.get(uniform_index + 1).and_then(|u| {
+                    let length = (u.buffer_offset - uniform.buffer_offset) / VEC4_SIZE;
+                    if length > 1 {
+                        Some(length)
                     } else {
                         // TODO: Infer the length from the highest accessed index?
+                        None
                     }
-                } else {
-                    // Convert "buffer.data[3].x" to "buffer_uniform.x".
-                    let pattern = format!("{}.data[{vec4_index}]", buffer.name);
-                    let uniform_name = format!("{}_{}", buffer.name, uniform.name);
-                    replacements.insert(pattern, uniform_name);
+                });
 
-                    // Add a single field to the uniform buffer.
-                    // All uniforms are vec4, so we don't need to worry about std140 alignment.
-                    struct_fields
-                        .entry(buffer_name.clone())
-                        .and_modify(|e| {
-                            e.push(Field {
-                                name: uniform.name.clone(),
-                                vec4_index,
-                                ty: TypeSpecifierNonArrayData::Vec4,
-                                array_length: None,
-                            })
-                        })
-                        .or_insert_with(Vec::new);
+                if let Some(array_length) = array_length {
+                    // Annotate all elments from array[0] to array[length-1].
+                    // This avoids unannotated entries in the gbuffer database.
+                    for i in 0..array_length {
+                        let pattern = format!("{}.data[{}]", buffer.name, vec4_index + i);
+                        // Reindex the array starting from the base offset.
+                        let uniform_name = format!("{}_{}[{i}]", buffer.name, &uniform_name);
+                        replacements.insert(pattern, uniform_name);
+                    }
                 }
+
+                // Add a single field to the uniform buffer.
+                // All uniforms are vec4, so we don't need to worry about std140 alignment.
+                struct_fields
+                    .entry(buffer_name.clone())
+                    .and_modify(|e| {
+                        e.push(Field {
+                            name: uniform_name.clone(),
+                            vec4_index,
+                            ty: TypeSpecifierNonArrayData::Vec4,
+                            array_length,
+                        })
+                    })
+                    .or_default();
             }
         }
     }
@@ -702,30 +694,31 @@ mod tests {
                     precise vec4 data[4096];
                 }U_CamoflageCalc;
                 layout(binding = 4, std140) uniform _U_Static {
-                    vec4 gmProj;
-                    vec4 gmViewProj;
-                    vec4 gmInvView;
-                    vec4 gBilMat;
-                    vec4 gBilYJiku;
+                    vec4 gmProj[4];
+                    vec4 gmViewProj[4];
+                    vec4 gmInvView[3];
+                    vec4 gBilMat[3];
+                    vec4 gBilYJiku[3];
                     vec4 gEtcParm;
                     vec4 gViewYVec;
                     vec4 gCDep;
                     vec4 gDitVal;
-                    vec4 gPreMat;
+                    vec4 gPreMat[4];
                     vec4 gScreenSize;
                     vec4 gJitter;
                     vec4 gDitTMAAVal;
-                    vec4 gmProjNonJitter;
-                    vec4 gmDiffPreMat;
+                    vec4 gmProjNonJitter[4];
+                    vec4 gmDiffPreMat[4];
                     vec4 gLightShaft;
+                    vec4 gWetParam;
                 }U_Static;
                 layout(binding = 5, std140) uniform _U_Mate {
                     vec4 gWrkFl4[3];
                     vec4 gWrkCol;
                 }U_Mate;
                 layout(binding = 6, std140) uniform _U_Mdl {
-                    vec4 gmWorld;
-                    vec4 gmWorldView;
+                    vec4 gmWorld[3];
+                    vec4 gmWorldView[3];
                     vec4 gMdlParm;
                 }U_Mdl;
                 layout(binding = 0, std430) buffer _U_Bone {
@@ -818,22 +811,23 @@ mod tests {
                     vec4 gWrkCol;
                 }U_Mate;
                 layout(binding = 4, std140) uniform _U_Static {
-                    vec4 gmProj;
-                    vec4 gmViewProj;
-                    vec4 gmInvView;
-                    vec4 gBilMat;
-                    vec4 gBilYJiku;
+                    vec4 gmProj[4];
+                    vec4 gmViewProj[4];
+                    vec4 gmInvView[3];
+                    vec4 gBilMat[3];
+                    vec4 gBilYJiku[3];
                     vec4 gEtcParm;
                     vec4 gViewYVec;
                     vec4 gCDep;
                     vec4 gDitVal;
-                    vec4 gPreMat;
+                    vec4 gPreMat[4];
                     vec4 gScreenSize;
                     vec4 gJitter;
                     vec4 gDitTMAAVal;
-                    vec4 gmProjNonJitter;
-                    vec4 gmDiffPreMat;
+                    vec4 gmProjNonJitter[4];
+                    vec4 gmDiffPreMat[4];
                     vec4 gLightShaft;
+                    vec4 gWetParam;
                 }U_Static;
                 layout(binding = 2, std140) uniform _fp_c1 {
                     precise vec4 data[4096];
