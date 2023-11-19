@@ -2,9 +2,9 @@ use std::collections::HashMap;
 
 use glsl_lang::{
     ast::{
-        ArraySpecifierData, ArraySpecifierDimensionData, ArrayedIdentifierData, Block, ExprData,
-        Identifier, Node, StructFieldSpecifierData, TranslationUnit, TypeSpecifierData,
-        TypeSpecifierNonArrayData,
+        ArraySpecifier, ArraySpecifierData, ArraySpecifierDimensionData, ArrayedIdentifierData,
+        Block, Expr, ExprData, Identifier, Node, StructFieldSpecifierData, TranslationUnit,
+        TypeSpecifierData, TypeSpecifierNonArrayData,
     },
     parse::DefaultParse,
     transpiler::glsl::{show_translation_unit, FormattingState},
@@ -25,10 +25,13 @@ struct Annotator {
 
 struct Field {
     name: String,
+    // Index of the start of this field.
+    vec4_index: u32,
     ty: TypeSpecifierNonArrayData,
     array_length: Option<i32>,
 }
 
+// TODO: Clean up usage of AST.
 impl VisitorMut for Annotator {
     fn visit_identifier(&mut self, ident: &mut Identifier) -> Visit {
         if let Some(name) = self.replacements.get(ident.as_str()) {
@@ -38,22 +41,98 @@ impl VisitorMut for Annotator {
     }
 
     fn visit_block(&mut self, block: &mut Block) -> Visit {
-        // TODO: Only set fields based on some sort of map.
-        block.fields = vec![
-            field(&Field {
-                name: "a".to_string(),
-                ty: TypeSpecifierNonArrayData::Vec4,
-                array_length: Some(5),
-            }),
-            field(&Field {
-                name: "b".to_string(),
-                ty: TypeSpecifierNonArrayData::Vec4,
-                array_length: None,
-            }),
-        ];
+        if let Some(fields) = block
+            .identifier
+            .as_ref()
+            .map(|ident| &ident.ident.0)
+            .and_then(|i| self.struct_fields.get(i.as_str()))
+        {
+            block.fields = fields.iter().map(field).collect();
+        }
 
         Visit::Children
     }
+
+    fn visit_expr(&mut self, expr: &mut Expr) -> Visit {
+        if let ExprData::Bracket(var, specifier) = &mut expr.content {
+            if let ExprData::IntConst(index) = &mut specifier.content {
+                match &mut var.content {
+                    ExprData::Variable(_id) => {
+                        // buffer[index].x
+                        // TODO: How to handle this case?
+                    }
+                    ExprData::Dot(e, _field) => {
+                        if let ExprData::Variable(id) = &e.content {
+                            // buffer.field[index].x
+                            if let Some(buffer_name) = self.replacements.get(id.as_str()) {
+                                if let Some(fields) = self.struct_fields.get(id.as_str()) {
+                                    if let Some((uniform, array_index)) =
+                                        find_field(fields, *index as u32)
+                                    {
+                                        // Assume the field is always "data" for now to match Ryujinx.
+                                        let variable = ExprData::Variable(Identifier::new(
+                                            buffer_name.as_str().into(),
+                                            None,
+                                        ));
+
+                                        // buffer.uniform
+                                        let new_expr = Expr::new(
+                                            ExprData::Dot(
+                                                Box::new(Expr::new(variable, None)),
+                                                Identifier::new(uniform.as_str().into(), None),
+                                            ),
+                                            None,
+                                        );
+
+                                        *expr = match array_index {
+                                            // buffer.uniform[array_index].x
+                                            Some(array_index) => Expr::new(
+                                                ExprData::Bracket(
+                                                    Box::new(new_expr),
+                                                    Box::new(Node::new(
+                                                        ExprData::IntConst(array_index as i32),
+                                                        None,
+                                                    )),
+                                                ),
+                                                None,
+                                            ),
+                                            // buffer.uniform.x
+                                            None => new_expr,
+                                        };
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    _ => (),
+                }
+            }
+        }
+
+        Visit::Children
+    }
+}
+
+fn find_field(fields: &[Field], vec4_index: u32) -> Option<(&String, Option<u32>)> {
+    fields.iter().find_map(|f| {
+        match f.array_length {
+            Some(length) => {
+                // Check if the vec4 index falls within this array field.
+                if vec4_index - f.vec4_index < length as u32 {
+                    Some((&f.name, Some(vec4_index - f.vec4_index)))
+                } else {
+                    None
+                }
+            }
+            None => {
+                if f.vec4_index == vec4_index {
+                    Some((&f.name, None))
+                } else {
+                    None
+                }
+            }
+        }
+    })
 }
 
 fn field(field: &Field) -> Node<StructFieldSpecifierData> {
@@ -69,9 +148,9 @@ fn field(field: &Field) -> Node<StructFieldSpecifierData> {
             ),
             identifiers: vec![Node::new(
                 ArrayedIdentifierData {
-                    ident: Node::new(field.name.as_str().into(), None),
+                    ident: Identifier::new(field.name.as_str().into(), None),
                     array_spec: field.array_length.map(|i| {
-                        Node::new(
+                        ArraySpecifier::new(
                             ArraySpecifierData {
                                 dimensions: vec![Node::new(
                                     ArraySpecifierDimensionData::ExplicitlySized(Box::new(
@@ -96,7 +175,7 @@ pub fn annotate_fragment(glsl: String, metadata: &Nvsd) -> String {
     let mut struct_fields = HashMap::new();
 
     annotate_samplers(&mut replacements, metadata);
-    annotate_buffers(&mut replacements, "fp", metadata);
+    annotate_buffers(&mut replacements, &mut struct_fields, "fp", metadata);
 
     let mut visitor = Annotator {
         replacements,
@@ -130,7 +209,7 @@ pub fn annotate_vertex(glsl: String, metadata: &Nvsd) -> String {
         let attribute_name = format!("in_attr{}", attribute.location);
         replacements.insert(attribute_name, attribute.name.clone());
     }
-    annotate_buffers(&mut replacements, "vp", metadata);
+    annotate_buffers(&mut replacements, &mut struct_fields, "vp", metadata);
 
     let mut visitor = Annotator {
         replacements,
@@ -146,9 +225,12 @@ pub fn annotate_vertex(glsl: String, metadata: &Nvsd) -> String {
     text
 }
 
-// TODO: Modify the uniform buffer datablocks?
-
-fn annotate_buffers(replacements: &mut HashMap<String, String>, prefix: &str, metadata: &Nvsd) {
+fn annotate_buffers(
+    replacements: &mut HashMap<String, String>,
+    struct_fields: &mut HashMap<String, Vec<Field>>,
+    prefix: &str,
+    metadata: &Nvsd,
+) {
     // TODO: annotate constants from fp_v1 or vp_c1.
     // TODO: How to determine which constant elements are actually used?
     // TODO: are all uniforms vec4 params?
@@ -158,8 +240,12 @@ fn annotate_buffers(replacements: &mut HashMap<String, String>, prefix: &str, me
             // TODO: why is this always off by 3?
             // TODO: Is there an fp_c2?
             let handle = buffer.handle.handle + 3;
-            replacements.insert(format!("_{prefix}_c{handle}"), buffer.name.clone());
-            replacements.insert(format!("{prefix}_c{handle}"), format!("_{}", buffer.name));
+
+            let buffer_name = format!("{prefix}_c{handle}");
+            let buffer_name_prefixed = format!("_{prefix}_c{handle}");
+
+            replacements.insert(buffer_name.clone(), buffer.name.clone());
+            replacements.insert(buffer_name_prefixed.clone(), format!("_{}", buffer.name));
 
             let start = buffer.uniform_start_index as usize;
             let count = buffer.uniform_count as usize;
@@ -173,6 +259,8 @@ fn annotate_buffers(replacements: &mut HashMap<String, String>, prefix: &str, me
                 if let Some(bracket_index) = uniform.name.find('[') {
                     // Handle array uniforms like "array[0]".
                     // The array has elements until the next uniform.
+                    let uniform_name = uniform.name[..bracket_index].to_string();
+
                     if let Some(array_length) = uniforms
                         .get(uniform_index + 1)
                         .map(|u| (u.buffer_offset - uniform.buffer_offset) / VEC4_SIZE)
@@ -182,16 +270,46 @@ fn annotate_buffers(replacements: &mut HashMap<String, String>, prefix: &str, me
                         for i in 0..array_length {
                             let pattern = format!("{}.data[{}]", buffer.name, vec4_index + i);
                             // Reindex the array starting from the base offset.
-                            let uniform_name =
-                                format!("{}_{}[{i}]", buffer.name, &uniform.name[..bracket_index]);
+                            let uniform_name = format!("{}_{}[{i}]", buffer.name, &uniform_name);
                             replacements.insert(pattern, uniform_name);
                         }
+
+                        // Add a single field to the uniform buffer.
+                        // All uniforms are vec4, so we don't need to worry about std140 alignment.
+                        // Treat matrix types as vec4 arrays for now to match the decompiled code.
+                        struct_fields
+                            .entry(buffer_name.clone())
+                            .and_modify(|e| {
+                                e.push(Field {
+                                    name: uniform_name,
+                                    vec4_index,
+                                    ty: TypeSpecifierNonArrayData::Vec4,
+                                    array_length: Some(array_length as i32),
+                                })
+                            })
+                            .or_insert_with(Vec::new);
+                    } else {
+                        // TODO: Infer the length from the highest accessed index?
                     }
                 } else {
                     // Convert "buffer.data[3].x" to "buffer_uniform.x".
                     let pattern = format!("{}.data[{vec4_index}]", buffer.name);
                     let uniform_name = format!("{}_{}", buffer.name, uniform.name);
                     replacements.insert(pattern, uniform_name);
+
+                    // Add a single field to the uniform buffer.
+                    // All uniforms are vec4, so we don't need to worry about std140 alignment.
+                    struct_fields
+                        .entry(buffer_name.clone())
+                        .and_modify(|e| {
+                            e.push(Field {
+                                name: uniform.name.clone(),
+                                vec4_index,
+                                ty: TypeSpecifierNonArrayData::Vec4,
+                                array_length: None,
+                            })
+                        })
+                        .or_insert_with(Vec::new);
                 }
             }
         }
@@ -200,8 +318,8 @@ fn annotate_buffers(replacements: &mut HashMap<String, String>, prefix: &str, me
     if let Some(storage_buffers) = &metadata.storage_buffers {
         for buffer in storage_buffers {
             let handle = buffer.handle.handle;
-            replacements.insert(format!("_{prefix}_s{handle}"), buffer.name.clone());
-            replacements.insert(format!("{prefix}_s{handle}"), format!("_{}", buffer.name));
+            replacements.insert(format!("{prefix}_s{handle}"), buffer.name.clone());
+            replacements.insert(format!("_{prefix}_s{handle}"), format!("_{}", buffer.name));
         }
     }
 }
@@ -580,24 +698,42 @@ mod tests {
 
         assert_eq!(
             indoc! {"
-                layout(binding = 9, std140) uniform U_CamoflageCalc {
+                layout(binding = 9, std140) uniform _U_CamoflageCalc {
                     precise vec4 data[4096];
-                }_U_CamoflageCalc;
-                layout(binding = 4, std140) uniform U_Static {
-                    precise vec4 data[4096];
-                }_U_Static;
-                layout(binding = 5, std140) uniform U_Mate {
-                    precise vec4 data[4096];
-                }_U_Mate;
-                layout(binding = 6, std140) uniform U_Mdl {
-                    precise vec4 data[4096];
-                }_U_Mdl;
-                layout(binding = 0, std430) buffer U_Bone {
+                }U_CamoflageCalc;
+                layout(binding = 4, std140) uniform _U_Static {
+                    vec4 gmProj;
+                    vec4 gmViewProj;
+                    vec4 gmInvView;
+                    vec4 gBilMat;
+                    vec4 gBilYJiku;
+                    vec4 gEtcParm;
+                    vec4 gViewYVec;
+                    vec4 gCDep;
+                    vec4 gDitVal;
+                    vec4 gPreMat;
+                    vec4 gScreenSize;
+                    vec4 gJitter;
+                    vec4 gDitTMAAVal;
+                    vec4 gmProjNonJitter;
+                    vec4 gmDiffPreMat;
+                    vec4 gLightShaft;
+                }U_Static;
+                layout(binding = 5, std140) uniform _U_Mate {
+                    vec4 gWrkFl4[3];
+                    vec4 gWrkCol;
+                }U_Mate;
+                layout(binding = 6, std140) uniform _U_Mdl {
+                    vec4 gmWorld;
+                    vec4 gmWorldView;
+                    vec4 gMdlParm;
+                }U_Mdl;
+                layout(binding = 0, std430) buffer _U_Bone {
                     uint data[];
-                }_U_Bone;
-                layout(binding = 1, std430) buffer U_OdB {
+                }U_Bone;
+                layout(binding = 1, std430) buffer _U_OdB {
                     uint data[];
-                }_U_OdB;
+                }U_OdB;
                 layout(binding = 0) uniform sampler2D vp_t_tcb_E;
                 layout(location = 0) in vec4 vPos;
                 layout(location = 1) in vec4 nWgtIdx;
@@ -613,8 +749,37 @@ mod tests {
     #[test]
     fn annotate_ch01011013_shd0056_fragment() {
         // Main function modified to test more indices.
-        // TODO: Include uniform buffers.
         let glsl = indoc! {"
+            layout (binding = 8, std140) uniform _fp_c7
+            {
+                precise vec4 data[4096];
+            } fp_c7;
+
+            layout (binding = 7, std140) uniform _fp_c6
+            {
+                precise vec4 data[4096];
+            } fp_c6;
+
+            layout (binding = 9, std140) uniform _fp_c8
+            {
+                precise vec4 data[4096];
+            } fp_c8;
+
+            layout (binding = 5, std140) uniform _fp_c4
+            {
+                precise vec4 data[4096];
+            } fp_c4;
+
+            layout (binding = 4, std140) uniform _fp_c3
+            {
+                precise vec4 data[4096];
+            } fp_c3;
+
+            layout (binding = 2, std140) uniform _fp_c1
+            {
+                precise vec4 data[4096];
+            } fp_c1;
+
             layout (binding = 0) uniform sampler2D fp_t_tcb_C;
             layout (binding = 1) uniform sampler3D fp_t_tcb_10;
             layout (binding = 2) uniform sampler2D fp_t_tcb_A;
@@ -637,26 +802,58 @@ mod tests {
 
         let metadata = metadata();
 
-        // TODO: Test declarations.
-        // TODO: create a vec4[] to support array indexing syntax?
         assert_eq!(
             indoc! {"
-                layout (binding = 0) uniform sampler2D s2;
-                layout (binding = 1) uniform sampler3D volTex0;
-                layout (binding = 2) uniform sampler2D s1;
-                layout (binding = 3) uniform sampler2D gTResidentTex05;
-                layout (binding = 4) uniform sampler2D gTResidentTex04;
-                layout (binding = 5) uniform sampler2D s0;
-                layout (binding = 6) uniform sampler2D gTSpEffNoise1;
+                layout(binding = 8, std140) uniform _U_RimBloomCalc {
+                    precise vec4 data[4096];
+                }U_RimBloomCalc;
+                layout(binding = 7, std140) uniform _U_VolTexCalc {
+                    precise vec4 data[4096];
+                }U_VolTexCalc;
+                layout(binding = 9, std140) uniform _U_CamoflageCalc {
+                    precise vec4 data[4096];
+                }U_CamoflageCalc;
+                layout(binding = 5, std140) uniform _U_Mate {
+                    vec4 gWrkFl4[3];
+                    vec4 gWrkCol;
+                }U_Mate;
+                layout(binding = 4, std140) uniform _U_Static {
+                    vec4 gmProj;
+                    vec4 gmViewProj;
+                    vec4 gmInvView;
+                    vec4 gBilMat;
+                    vec4 gBilYJiku;
+                    vec4 gEtcParm;
+                    vec4 gViewYVec;
+                    vec4 gCDep;
+                    vec4 gDitVal;
+                    vec4 gPreMat;
+                    vec4 gScreenSize;
+                    vec4 gJitter;
+                    vec4 gDitTMAAVal;
+                    vec4 gmProjNonJitter;
+                    vec4 gmDiffPreMat;
+                    vec4 gLightShaft;
+                }U_Static;
+                layout(binding = 2, std140) uniform _fp_c1 {
+                    precise vec4 data[4096];
+                }fp_c1;
+                layout(binding = 0) uniform sampler2D s2;
+                layout(binding = 1) uniform sampler3D volTex0;
+                layout(binding = 2) uniform sampler2D s1;
+                layout(binding = 3) uniform sampler2D gTResidentTex05;
+                layout(binding = 4) uniform sampler2D gTResidentTex04;
+                layout(binding = 5) uniform sampler2D s0;
+                layout(binding = 6) uniform sampler2D gTSpEffNoise1;
                 void main() {
-                    out_attr0.x = _U_Mate_gWrkFl4[0].x;
-                    out_attr0.y = _U_Mate_gWrkFl4[1].y;
-                    out_attr0.z = _U_Mate_gWrkFl4[2].z;
+                    out_attr0.x = U_Mate.gWrkFl4[0].x;
+                    out_attr0.y = U_Mate.gWrkFl4[1].y;
+                    out_attr0.z = U_Mate.gWrkFl4[2].z;
                     out_attr0.w = temp_620;
-                    out_attr1.x = _U_Mate_gWrkCol.x;
+                    out_attr1.x = U_Mate.gWrkCol.x;
                     out_attr1.y = temp_623;
-                    out_attr1.z = 0.0;
-                    out_attr1.w = 0.00823529344;
+                    out_attr1.z = 0.;
+                    out_attr1.w = 0.008235293;
                 }
             "},
             annotate_fragment(glsl.to_string(), &metadata)
