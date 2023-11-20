@@ -386,21 +386,21 @@ fn set_buffer_attributes(verts: &mut [shader::model::VertexInput], attributes: &
             AttributeData::Position(vals) => set_attribute(verts, vals, |v, t| v.position = t),
             AttributeData::Normal(vals) => set_attribute(verts, vals, |v, t| v.normal = t),
             AttributeData::Tangent(vals) => set_attribute(verts, vals, |v, t| v.tangent = t),
-            AttributeData::Uv1(vals) => {
+            AttributeData::TexCoord0(vals) => {
                 set_attribute(verts, vals, |v, t| v.uv1 = vec4(t.x, t.y, 0.0, 0.0))
             }
-            AttributeData::Uv2(_) => (),
-            AttributeData::Uv3(_) => (),
-            AttributeData::Uv4(_) => (),
-            AttributeData::Uv5(_) => (),
-            AttributeData::Uv6(_) => (),
-            AttributeData::Uv7(_) => (),
-            AttributeData::Uv8(_) => (),
-            AttributeData::Uv9(_) => (),
+            AttributeData::TexCoord1(_) => (),
+            AttributeData::TexCoord2(_) => (),
+            AttributeData::TexCoord3(_) => (),
+            AttributeData::TexCoord4(_) => (),
+            AttributeData::TexCoord5(_) => (),
+            AttributeData::TexCoord6(_) => (),
+            AttributeData::TexCoord7(_) => (),
+            AttributeData::TexCoord8(_) => (),
             AttributeData::VertexColor(vals) => {
                 set_attribute(verts, vals, |v, t| v.vertex_color = t)
             }
-            AttributeData::VertexColor2(_) => (),
+            AttributeData::Blend(_) => (),
             AttributeData::WeightIndex(vals) => {
                 set_attribute(verts, vals, |v, t| v.weight_index = t)
             }

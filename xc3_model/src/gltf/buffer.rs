@@ -275,7 +275,7 @@ impl Buffers {
                         attributes,
                     );
                 }
-                AttributeData::Uv1(values) => {
+                AttributeData::TexCoord0(values) => {
                     self.insert_attribute_values(
                         values,
                         gltf::Semantic::TexCoords(0),
@@ -285,7 +285,7 @@ impl Buffers {
                         attributes,
                     );
                 }
-                AttributeData::Uv2(values) => {
+                AttributeData::TexCoord1(values) => {
                     self.insert_attribute_values(
                         values,
                         gltf::Semantic::TexCoords(1),
@@ -295,7 +295,7 @@ impl Buffers {
                         attributes,
                     );
                 }
-                AttributeData::Uv3(values) => {
+                AttributeData::TexCoord2(values) => {
                     self.insert_attribute_values(
                         values,
                         gltf::Semantic::TexCoords(2),
@@ -305,7 +305,7 @@ impl Buffers {
                         attributes,
                     );
                 }
-                AttributeData::Uv4(values) => {
+                AttributeData::TexCoord3(values) => {
                     self.insert_attribute_values(
                         values,
                         gltf::Semantic::TexCoords(3),
@@ -315,7 +315,7 @@ impl Buffers {
                         attributes,
                     );
                 }
-                AttributeData::Uv5(values) => {
+                AttributeData::TexCoord4(values) => {
                     self.insert_attribute_values(
                         values,
                         gltf::Semantic::TexCoords(4),
@@ -325,7 +325,7 @@ impl Buffers {
                         attributes,
                     );
                 }
-                AttributeData::Uv6(values) => {
+                AttributeData::TexCoord5(values) => {
                     self.insert_attribute_values(
                         values,
                         gltf::Semantic::TexCoords(5),
@@ -335,7 +335,7 @@ impl Buffers {
                         attributes,
                     );
                 }
-                AttributeData::Uv7(values) => {
+                AttributeData::TexCoord6(values) => {
                     self.insert_attribute_values(
                         values,
                         gltf::Semantic::TexCoords(6),
@@ -345,7 +345,7 @@ impl Buffers {
                         attributes,
                     );
                 }
-                AttributeData::Uv8(values) => {
+                AttributeData::TexCoord7(values) => {
                     self.insert_attribute_values(
                         values,
                         gltf::Semantic::TexCoords(7),
@@ -355,7 +355,7 @@ impl Buffers {
                         attributes,
                     );
                 }
-                AttributeData::Uv9(values) => {
+                AttributeData::TexCoord8(values) => {
                     self.insert_attribute_values(
                         values,
                         gltf::Semantic::TexCoords(8),
@@ -377,7 +377,17 @@ impl Buffers {
                         attributes,
                     );
                 }
-                AttributeData::VertexColor2(_) => (),
+                AttributeData::Blend(values) => {
+                    // Used for color blending for some stages.
+                    self.insert_attribute_values(
+                        values,
+                        gltf::Semantic::Extras("Blend".to_string()),
+                        gltf::json::accessor::Type::Vec4,
+                        gltf::json::accessor::ComponentType::F32,
+                        Some(Valid(Target::ArrayBuffer)),
+                        attributes,
+                    );
+                }
                 // Skin weights are handled separately.
                 AttributeData::WeightIndex(_) => (),
                 AttributeData::SkinWeights(_) => (),

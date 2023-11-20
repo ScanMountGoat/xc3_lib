@@ -97,60 +97,69 @@ pub struct VertexAttribute {
     pub data_size: u16,
 }
 
-// TODO: Check in renderdoc for format.
-// TODO: Get names from shader annotations?
-// TODO: Use the in game names?
+// Format is taken from RenderDoc debugging.
+// Names are taken from shader attribute metadata.
 /// The data type, usage, and component count for a [VertexAttribute].
 #[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy)]
 #[brw(repr(u16))]
 pub enum DataType {
     /// Float32x3 "vPos" in shaders.
     Position = 0,
+    /// ??? "fWeight" in shaders.
     Unk1 = 1,
     Unk2 = 2,
-    /// Uint16x2 "nWgtIdx" with the actual index in the first component.
+    /// Uint16x2 "nWgtIdx" in shaders.
     ///
-    /// Selects elements in the weights buffer
-    /// at index [vertex_buffer_index](struct.Weights.html#structfield.vertex_buffer_index)
+    /// The index in the first component selects elements in the weights buffer
     /// for the [DataType::SkinWeights] and [DataType::BoneIndices] attributes.
     WeightIndex = 3,
-    Unk4 = 4,
+    /// Uint16x2 "nWgtIdx" in shaders.
+    ///
+    /// Used for some stage models.
+    WeightIndex2 = 4,
     /// Float32x2 "vTex0" in shaders.
-    Uv1 = 5,
-    // TODO: Are these actually?
-    /// Float32x2 in shaders.
-    Uv2 = 6,
-    /// Float32x2 in shaders.
-    Uv3 = 7,
-    /// Float32x2 in shaders.
-    Uv4 = 8,
-    /// Float32x2 in shaders.
-    Uv5 = 9,
-    /// Float32x2 in shaders.
-    Uv6 = 10,
-    /// Float32x2 in shaders.
-    Uv7 = 11,
-    /// Float32x2 in shaders.
-    Uv8 = 12,
-    /// Float32x2 in shaders.
-    Uv9 = 13,
-    /// Unorm8x4 in shaders.
-    VertexColor = 14,
+    TexCoord0 = 5,
+    /// Float32x2 "vTex1" in shaders.
+    TexCoord1 = 6,
+    /// Float32x2 "vTex2" in shaders.
+    TexCoord2 = 7,
+    /// Float32x2 "vTex3" in shaders.
+    TexCoord3 = 8,
+    /// Float32x2 "vTex4" in shaders.
+    TexCoord4 = 9,
+    /// Float32x2 "vTex5" in shaders.
+    TexCoord5 = 10,
+    /// Float32x2 "vTex6" in shaders.
+    TexCoord6 = 11,
+    /// Float32x2 "vTex7" in shaders.
+    TexCoord7 = 12,
+    /// Float32x2 "vTex8" in shaders.
+    TexCoord9 = 13,
+    /// Unorm8x4 "vBlend" in shaders.
+    Blend = 14,
     Unk15 = 15,
     Unk16 = 16,
     /// Unorm8x4 "vColor" in shaders.
-    VertexColor2 = 17,
+    VertexColor = 17,
     Unk18 = 18,
+    /// ??? "vGmCal1" in shaders.
+    Unk24 = 24,
+    /// ??? "vGmCal2" in shaders.
+    Unk25 = 25,
+    /// ??? "vGmCal3" in shaders.
+    Unk26 = 26,
     /// Snorm8x4 "vNormal" in shaders.
     Normal = 28,
     /// Snorm8x4 "vTan" in shaders with bitangent sign in the fourth component.
     Tangent = 29,
-    /// Snorm8x4 in shaders.
+    /// ??? "fGmAl" in shaders.
+    Unk30 = 30,
+    /// Snorm8x4 "vNormal" in shaders.
     Normal2 = 32,
     Unk33 = 33,
-    /// Snorm8x4 "vNormal"
+    /// Snorm8x4 "vNormal" in shaders.
     Normal3 = 34,
-    /// Unorm8x4 "vColor"
+    /// Unorm8x4 "vColor" in shaders.
     VertexColor3 = 35,
     /// Float32x3 "vPos" in shaders.
     Position2 = 36,
@@ -162,9 +171,10 @@ pub enum DataType {
     Tangent2 = 40,
     /// Unorm16x4 skin weights for up to 4 bone influences.
     SkinWeights = 41,
-    /// u8x4 bone indices for up to 4 bone infuences in the [Skinning](crate::mxmd::Skinning) in the [Mxmd](crate::mxmd::Mxmd).
+    /// Uint8x4 bone indices for up to 4 bone infuences in the [Skinning](crate::mxmd::Skinning) in the [Mxmd](crate::mxmd::Mxmd).
     BoneIndices = 42,
-    Unk52 = 52,
+    /// ??? "vFlow" in shaders.
+    Flow = 52,
 }
 
 // TODO: Is this data always u16?

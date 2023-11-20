@@ -25,18 +25,18 @@ pub enum AttributeData {
     Position(Vec<Vec3>),
     Normal(Vec<Vec4>),
     Tangent(Vec<Vec4>),
-    Uv1(Vec<Vec2>),
-    Uv2(Vec<Vec2>),
-    Uv3(Vec<Vec2>),
-    Uv4(Vec<Vec2>),
-    Uv5(Vec<Vec2>),
-    Uv6(Vec<Vec2>),
-    Uv7(Vec<Vec2>),
-    Uv8(Vec<Vec2>),
-    Uv9(Vec<Vec2>),
+    TexCoord0(Vec<Vec2>),
+    TexCoord1(Vec<Vec2>),
+    TexCoord2(Vec<Vec2>),
+    TexCoord3(Vec<Vec2>),
+    TexCoord4(Vec<Vec2>),
+    TexCoord5(Vec<Vec2>),
+    TexCoord6(Vec<Vec2>),
+    TexCoord7(Vec<Vec2>),
+    TexCoord8(Vec<Vec2>),
     VertexColor(Vec<Vec4>),
-    VertexColor2(Vec<Vec4>),
-    WeightIndex(Vec<u32>), // TODO: [u8; 4]?
+    Blend(Vec<Vec4>),
+    WeightIndex(Vec<u32>), // TODO: [u16; 2]?
     // TODO: Should these be handled separately?
     SkinWeights(Vec<Vec4>),
     BoneIndices(Vec<[u8; 4]>),
@@ -48,17 +48,17 @@ impl AttributeData {
             AttributeData::Position(v) => v.len(),
             AttributeData::Normal(v) => v.len(),
             AttributeData::Tangent(v) => v.len(),
-            AttributeData::Uv1(v) => v.len(),
-            AttributeData::Uv2(v) => v.len(),
-            AttributeData::Uv3(v) => v.len(),
-            AttributeData::Uv4(v) => v.len(),
-            AttributeData::Uv5(v) => v.len(),
-            AttributeData::Uv6(v) => v.len(),
-            AttributeData::Uv7(v) => v.len(),
-            AttributeData::Uv8(v) => v.len(),
-            AttributeData::Uv9(v) => v.len(),
+            AttributeData::TexCoord0(v) => v.len(),
+            AttributeData::TexCoord1(v) => v.len(),
+            AttributeData::TexCoord2(v) => v.len(),
+            AttributeData::TexCoord3(v) => v.len(),
+            AttributeData::TexCoord4(v) => v.len(),
+            AttributeData::TexCoord5(v) => v.len(),
+            AttributeData::TexCoord6(v) => v.len(),
+            AttributeData::TexCoord7(v) => v.len(),
+            AttributeData::TexCoord8(v) => v.len(),
             AttributeData::VertexColor(v) => v.len(),
-            AttributeData::VertexColor2(v) => v.len(),
+            AttributeData::Blend(v) => v.len(),
             AttributeData::WeightIndex(v) => v.len(),
             AttributeData::SkinWeights(v) => v.len(),
             AttributeData::BoneIndices(v) => v.len(),
@@ -85,19 +85,37 @@ impl AttributeData {
             AttributeData::Tangent(values) => {
                 write_data(writer, values, offset, stride, write_snorm8x4)
             }
-            AttributeData::Uv1(values) => write_data(writer, values, offset, stride, write_f32x2),
-            AttributeData::Uv2(values) => write_data(writer, values, offset, stride, write_f32x2),
-            AttributeData::Uv3(values) => write_data(writer, values, offset, stride, write_f32x2),
-            AttributeData::Uv4(values) => write_data(writer, values, offset, stride, write_f32x2),
-            AttributeData::Uv5(values) => write_data(writer, values, offset, stride, write_f32x2),
-            AttributeData::Uv6(values) => write_data(writer, values, offset, stride, write_f32x2),
-            AttributeData::Uv7(values) => write_data(writer, values, offset, stride, write_f32x2),
-            AttributeData::Uv8(values) => write_data(writer, values, offset, stride, write_f32x2),
-            AttributeData::Uv9(values) => write_data(writer, values, offset, stride, write_f32x2),
+            AttributeData::TexCoord0(values) => {
+                write_data(writer, values, offset, stride, write_f32x2)
+            }
+            AttributeData::TexCoord1(values) => {
+                write_data(writer, values, offset, stride, write_f32x2)
+            }
+            AttributeData::TexCoord2(values) => {
+                write_data(writer, values, offset, stride, write_f32x2)
+            }
+            AttributeData::TexCoord3(values) => {
+                write_data(writer, values, offset, stride, write_f32x2)
+            }
+            AttributeData::TexCoord4(values) => {
+                write_data(writer, values, offset, stride, write_f32x2)
+            }
+            AttributeData::TexCoord5(values) => {
+                write_data(writer, values, offset, stride, write_f32x2)
+            }
+            AttributeData::TexCoord6(values) => {
+                write_data(writer, values, offset, stride, write_f32x2)
+            }
+            AttributeData::TexCoord7(values) => {
+                write_data(writer, values, offset, stride, write_f32x2)
+            }
+            AttributeData::TexCoord8(values) => {
+                write_data(writer, values, offset, stride, write_f32x2)
+            }
             AttributeData::VertexColor(values) => {
                 write_data(writer, values, offset, stride, write_unorm8x4)
             }
-            AttributeData::VertexColor2(values) => {
+            AttributeData::Blend(values) => {
                 write_data(writer, values, offset, stride, write_unorm8x4)
             }
             AttributeData::WeightIndex(values) => {
@@ -128,48 +146,48 @@ impl From<&AttributeData> for xc3_lib::vertex::VertexAttribute {
                 data_type: xc3_lib::vertex::DataType::Tangent,
                 data_size: 4,
             },
-            AttributeData::Uv1(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::Uv1,
+            AttributeData::TexCoord0(_) => xc3_lib::vertex::VertexAttribute {
+                data_type: xc3_lib::vertex::DataType::TexCoord0,
                 data_size: 8,
             },
-            AttributeData::Uv2(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::Uv2,
+            AttributeData::TexCoord1(_) => xc3_lib::vertex::VertexAttribute {
+                data_type: xc3_lib::vertex::DataType::TexCoord1,
                 data_size: 8,
             },
-            AttributeData::Uv3(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::Uv3,
+            AttributeData::TexCoord2(_) => xc3_lib::vertex::VertexAttribute {
+                data_type: xc3_lib::vertex::DataType::TexCoord2,
                 data_size: 8,
             },
-            AttributeData::Uv4(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::Uv4,
+            AttributeData::TexCoord3(_) => xc3_lib::vertex::VertexAttribute {
+                data_type: xc3_lib::vertex::DataType::TexCoord3,
                 data_size: 8,
             },
-            AttributeData::Uv5(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::Uv5,
+            AttributeData::TexCoord4(_) => xc3_lib::vertex::VertexAttribute {
+                data_type: xc3_lib::vertex::DataType::TexCoord4,
                 data_size: 8,
             },
-            AttributeData::Uv6(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::Uv6,
+            AttributeData::TexCoord5(_) => xc3_lib::vertex::VertexAttribute {
+                data_type: xc3_lib::vertex::DataType::TexCoord5,
                 data_size: 8,
             },
-            AttributeData::Uv7(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::Uv7,
+            AttributeData::TexCoord6(_) => xc3_lib::vertex::VertexAttribute {
+                data_type: xc3_lib::vertex::DataType::TexCoord6,
                 data_size: 8,
             },
-            AttributeData::Uv8(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::Uv8,
+            AttributeData::TexCoord7(_) => xc3_lib::vertex::VertexAttribute {
+                data_type: xc3_lib::vertex::DataType::TexCoord7,
                 data_size: 8,
             },
-            AttributeData::Uv9(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::Uv9,
+            AttributeData::TexCoord8(_) => xc3_lib::vertex::VertexAttribute {
+                data_type: xc3_lib::vertex::DataType::TexCoord9,
                 data_size: 8,
             },
             AttributeData::VertexColor(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::VertexColor2,
+                data_type: xc3_lib::vertex::DataType::VertexColor,
                 data_size: 4,
             },
-            AttributeData::VertexColor2(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::VertexColor,
+            AttributeData::Blend(_) => xc3_lib::vertex::VertexAttribute {
+                data_type: xc3_lib::vertex::DataType::Blend,
                 data_size: 4,
             },
             AttributeData::WeightIndex(_) => xc3_lib::vertex::VertexAttribute {
@@ -361,49 +379,53 @@ fn read_attribute(
         DataType::WeightIndex => Some(AttributeData::WeightIndex(
             read_data(d, offset, buffer, read_u32).ok()?,
         )),
-        DataType::Unk4 => None,
-        DataType::Uv1 => Some(AttributeData::Uv1(
+        DataType::WeightIndex2 => None,
+        DataType::TexCoord0 => Some(AttributeData::TexCoord0(
             read_data(d, offset, buffer, read_f32x2).ok()?,
         )),
-        DataType::Uv2 => Some(AttributeData::Uv2(
+        DataType::TexCoord1 => Some(AttributeData::TexCoord1(
             read_data(d, offset, buffer, read_f32x2).ok()?,
         )),
-        DataType::Uv3 => Some(AttributeData::Uv3(
+        DataType::TexCoord2 => Some(AttributeData::TexCoord2(
             read_data(d, offset, buffer, read_f32x2).ok()?,
         )),
-        DataType::Uv4 => Some(AttributeData::Uv4(
+        DataType::TexCoord3 => Some(AttributeData::TexCoord3(
             read_data(d, offset, buffer, read_f32x2).ok()?,
         )),
-        DataType::Uv5 => Some(AttributeData::Uv5(
+        DataType::TexCoord4 => Some(AttributeData::TexCoord4(
             read_data(d, offset, buffer, read_f32x2).ok()?,
         )),
-        DataType::Uv6 => Some(AttributeData::Uv6(
+        DataType::TexCoord5 => Some(AttributeData::TexCoord5(
             read_data(d, offset, buffer, read_f32x2).ok()?,
         )),
-        DataType::Uv7 => Some(AttributeData::Uv7(
+        DataType::TexCoord6 => Some(AttributeData::TexCoord6(
             read_data(d, offset, buffer, read_f32x2).ok()?,
         )),
-        DataType::Uv8 => Some(AttributeData::Uv8(
+        DataType::TexCoord7 => Some(AttributeData::TexCoord7(
             read_data(d, offset, buffer, read_f32x2).ok()?,
         )),
-        DataType::Uv9 => Some(AttributeData::Uv9(
+        DataType::TexCoord9 => Some(AttributeData::TexCoord8(
             read_data(d, offset, buffer, read_f32x2).ok()?,
         )),
-        DataType::VertexColor => Some(AttributeData::VertexColor2(
+        DataType::Blend => Some(AttributeData::Blend(
             read_data(d, offset, buffer, read_unorm8x4).ok()?,
         )),
         DataType::Unk15 => None,
         DataType::Unk16 => None,
-        DataType::VertexColor2 => Some(AttributeData::VertexColor(
+        DataType::VertexColor => Some(AttributeData::VertexColor(
             read_data(d, offset, buffer, read_unorm8x4).ok()?,
         )),
         DataType::Unk18 => None,
+        DataType::Unk24 => None,
+        DataType::Unk25 => None,
+        DataType::Unk26 => None,
         DataType::Normal => Some(AttributeData::Normal(
             read_data(d, offset, buffer, read_snorm8x4).ok()?,
         )),
         DataType::Tangent => Some(AttributeData::Tangent(
             read_data(d, offset, buffer, read_snorm8x4).ok()?,
         )),
+        DataType::Unk30 => None,
         DataType::Normal2 => Some(AttributeData::Normal(
             read_data(d, offset, buffer, read_snorm8x4).ok()?,
         )),
@@ -420,7 +442,7 @@ fn read_attribute(
         DataType::BoneIndices => Some(AttributeData::BoneIndices(
             read_data(d, offset, buffer, read_u8x4).ok()?,
         )),
-        DataType::Unk52 => None,
+        DataType::Flow => None,
     }
 }
 
@@ -751,11 +773,11 @@ mod tests {
                     data_size: 4,
                 },
                 VertexAttribute {
-                    data_type: DataType::Uv1,
+                    data_type: DataType::TexCoord0,
                     data_size: 8,
                 },
                 VertexAttribute {
-                    data_type: DataType::VertexColor2,
+                    data_type: DataType::VertexColor,
                     data_size: 4,
                 },
                 VertexAttribute {
@@ -779,7 +801,7 @@ mod tests {
                 vec3(0.14499485, 0.91730505, 0.050502136),
             ]),
             AttributeData::WeightIndex(vec![275, 276]),
-            AttributeData::Uv1(vec![
+            AttributeData::TexCoord0(vec![
                 vec2(0.75997907, 0.6079358),
                 vec2(0.79126656, 0.6000591),
             ]),
@@ -897,47 +919,47 @@ mod tests {
                     data_size: 12,
                 },
                 VertexAttribute {
-                    data_type: DataType::Uv1,
+                    data_type: DataType::TexCoord0,
                     data_size: 8,
                 },
                 VertexAttribute {
-                    data_type: DataType::Uv2,
+                    data_type: DataType::TexCoord1,
                     data_size: 8,
                 },
                 VertexAttribute {
-                    data_type: DataType::Uv3,
+                    data_type: DataType::TexCoord2,
                     data_size: 8,
                 },
                 VertexAttribute {
-                    data_type: DataType::Uv4,
+                    data_type: DataType::TexCoord3,
                     data_size: 8,
                 },
                 VertexAttribute {
-                    data_type: DataType::Uv5,
+                    data_type: DataType::TexCoord4,
                     data_size: 8,
                 },
                 VertexAttribute {
-                    data_type: DataType::Uv6,
+                    data_type: DataType::TexCoord5,
                     data_size: 8,
                 },
                 VertexAttribute {
-                    data_type: DataType::Uv7,
+                    data_type: DataType::TexCoord6,
                     data_size: 8,
                 },
                 VertexAttribute {
-                    data_type: DataType::Uv8,
+                    data_type: DataType::TexCoord7,
                     data_size: 8,
                 },
                 VertexAttribute {
-                    data_type: DataType::Uv9,
+                    data_type: DataType::TexCoord9,
                     data_size: 8,
                 },
                 VertexAttribute {
-                    data_type: DataType::VertexColor,
+                    data_type: DataType::Blend,
                     data_size: 4,
                 },
                 VertexAttribute {
-                    data_type: DataType::VertexColor2,
+                    data_type: DataType::VertexColor,
                     data_size: 4,
                 },
                 VertexAttribute {
@@ -960,43 +982,43 @@ mod tests {
                 vec3(2952.4521, 220.63208, -377.0984),
                 vec3(2952.141, 220.42184, -376.7012),
             ]),
-            AttributeData::Uv1(vec![
+            AttributeData::TexCoord0(vec![
                 vec2(1.9810443, -47.392357),
                 vec2(1.9424212, -47.339436),
             ]),
-            AttributeData::Uv2(vec![
+            AttributeData::TexCoord1(vec![
                 vec2(2.2272549, -47.516212),
                 vec2(2.1843944, -47.470936),
             ]),
-            AttributeData::Uv3(vec![
+            AttributeData::TexCoord2(vec![
                 vec2(1.9810443, -47.392357),
                 vec2(1.9421549, -47.34271),
             ]),
-            AttributeData::Uv4(vec![
+            AttributeData::TexCoord3(vec![
                 vec2(2.3970675, -2.3563137),
                 vec2(2.3950076, -2.3534913),
             ]),
-            AttributeData::Uv5(vec![
+            AttributeData::TexCoord4(vec![
                 vec2(2.4101992, -2.362919),
                 vec2(2.4079132, -2.3605044),
             ]),
-            AttributeData::Uv6(vec![
+            AttributeData::TexCoord5(vec![
                 vec2(2.3970675, -2.3563137),
                 vec2(2.3949933, -2.353666),
             ]),
-            AttributeData::Uv7(vec![
+            AttributeData::TexCoord6(vec![
                 vec2(0.17541784, 0.5742469),
                 vec2(0.20254421, 0.58608305),
             ]),
-            AttributeData::Uv8(vec![
+            AttributeData::TexCoord7(vec![
                 vec2(0.6337629, 0.4448461),
                 vec2(0.6385515, 0.60845864),
             ]),
-            AttributeData::Uv9(vec![
+            AttributeData::TexCoord8(vec![
                 vec2(-0.41085857, 0.108098745),
                 vec2(-0.42711625, 0.13474321),
             ]),
-            AttributeData::VertexColor2(vec![
+            AttributeData::Blend(vec![
                 vec4(0.49803922, 0.0, 0.49803922, 0.0),
                 vec4(0.0, 0.0, 1.0, 0.0),
             ]),
