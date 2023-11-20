@@ -2,8 +2,11 @@
 //!
 //! XC3: `chr/{ch,en,oj,wp}/*.wimdo`, `monolib/shader/*.wimdo`
 use crate::{
-    msrd::TextureResource, parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32,
-    parse_ptr32, parse_string_opt_ptr32, parse_string_ptr32, spch::Spch, vertex::VertexData,
+    msrd::TextureResource,
+    parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
+    parse_string_opt_ptr32, parse_string_ptr32,
+    spch::Spch,
+    vertex::{DataType, VertexData},
     xc3_write_binwrite_impl,
 };
 use bilge::prelude::*;
@@ -131,7 +134,7 @@ pub struct AlphaTestTexture {
 pub struct ShaderProgramInfo {
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub unk1: Vec<u64>, // vertex attributes?
+    pub attributes: Vec<VertexAttribute>,
 
     pub unk3: u32, // 0
     pub unk4: u32, // 0
@@ -158,6 +161,14 @@ pub struct ShaderProgramInfo {
 
     // TODO: padding?
     pub padding: [u32; 5],
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct VertexAttribute {
+    pub data_type: DataType,
+    pub relative_offset: u16,
+    pub buffer_index: u16,
+    pub unk4: u16, // always 0?
 }
 
 /// `ml::MdsMatVariableTbl` in the Xenoblade 2 binary.
@@ -1505,7 +1516,7 @@ impl<'a> Xc3WriteOffsets for ShaderProgramInfoOffsets<'a> {
         data_ptr: &mut u64,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
-        self.unk1.write_full(writer, base_offset, data_ptr)?;
+        self.attributes.write_full(writer, base_offset, data_ptr)?;
         if !self.textures.data.is_empty() {
             // TODO: Always skip offset for empty vec?
             self.textures.write_full(writer, base_offset, data_ptr)?;

@@ -165,11 +165,11 @@ impl From<&AttributeData> for xc3_lib::vertex::VertexAttribute {
                 data_size: 8,
             },
             AttributeData::VertexColor(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::VertexColorUnk17,
+                data_type: xc3_lib::vertex::DataType::VertexColor2,
                 data_size: 4,
             },
             AttributeData::VertexColor2(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::VertexColorUnk14,
+                data_type: xc3_lib::vertex::DataType::VertexColor,
                 data_size: 4,
             },
             AttributeData::WeightIndex(_) => xc3_lib::vertex::VertexAttribute {
@@ -389,12 +389,12 @@ fn read_attribute(
         DataType::Uv9 => Some(AttributeData::Uv9(
             read_data(d, offset, buffer, read_f32x2).ok()?,
         )),
-        DataType::VertexColorUnk14 => Some(AttributeData::VertexColor2(
+        DataType::VertexColor => Some(AttributeData::VertexColor2(
             read_data(d, offset, buffer, read_unorm8x4).ok()?,
         )),
         DataType::Unk15 => None,
         DataType::Unk16 => None,
-        DataType::VertexColorUnk17 => Some(AttributeData::VertexColor(
+        DataType::VertexColor2 => Some(AttributeData::VertexColor(
             read_data(d, offset, buffer, read_unorm8x4).ok()?,
         )),
         DataType::Unk18 => None,
@@ -408,6 +408,12 @@ fn read_attribute(
             read_data(d, offset, buffer, read_snorm8x4).ok()?,
         )),
         DataType::Unk33 => None,
+        DataType::Normal3 => None,
+        DataType::VertexColor3 => None,
+        DataType::Position2 => None,
+        DataType::Normal4 => None,
+        DataType::OldPosition => None,
+        DataType::Tangent2 => None,
         DataType::SkinWeights => Some(AttributeData::SkinWeights(
             read_data(d, offset, buffer, read_unorm16x4).ok()?,
         )),
@@ -749,7 +755,7 @@ mod tests {
                     data_size: 8,
                 },
                 VertexAttribute {
-                    data_type: DataType::VertexColorUnk17,
+                    data_type: DataType::VertexColor2,
                     data_size: 4,
                 },
                 VertexAttribute {
@@ -927,11 +933,11 @@ mod tests {
                     data_size: 8,
                 },
                 VertexAttribute {
-                    data_type: DataType::VertexColorUnk14,
+                    data_type: DataType::VertexColor,
                     data_size: 4,
                 },
                 VertexAttribute {
-                    data_type: DataType::VertexColorUnk17,
+                    data_type: DataType::VertexColor2,
                     data_size: 4,
                 },
                 VertexAttribute {

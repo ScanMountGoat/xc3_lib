@@ -184,7 +184,9 @@ pub fn annotate_fragment(glsl: String, metadata: &Nvsd) -> String {
         struct_fields,
     };
 
-    let mut translation_unit = TranslationUnit::parse(&glsl).unwrap();
+    // TODO: Find a better way to skip unsupported extensions.
+    let modified_source = glsl.get(glsl.find("#pragma").unwrap()..).unwrap();
+    let mut translation_unit = TranslationUnit::parse(&modified_source).unwrap();
     translation_unit.visit_mut(&mut visitor);
 
     let mut text = String::new();
@@ -218,7 +220,9 @@ pub fn annotate_vertex(glsl: String, metadata: &Nvsd) -> String {
         struct_fields,
     };
 
-    let mut translation_unit = TranslationUnit::parse(&glsl).unwrap();
+    // TODO: Find a better way to skip unsupported extensions.
+    let modified_source = glsl.get(glsl.find("#pragma").unwrap()..).unwrap();
+    let mut translation_unit = TranslationUnit::parse(&modified_source).unwrap();
     translation_unit.visit_mut(&mut visitor);
 
     let mut text = String::new();

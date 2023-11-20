@@ -97,44 +97,69 @@ pub struct VertexAttribute {
     pub data_size: u16,
 }
 
+// TODO: Check in renderdoc for format.
+// TODO: Get names from shader annotations?
+// TODO: Use the in game names?
 /// The data type, usage, and component count for a [VertexAttribute].
 #[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy)]
 #[brw(repr(u16))]
 pub enum DataType {
-    /// Float32x3 position.
+    /// Float32x3 "vPos" in shaders.
     Position = 0,
     Unk1 = 1,
     Unk2 = 2,
-    /// u32 index for the element in the weights buffer
+    /// Uint16x2 "nWgtIdx" with the actual index in the first component.
+    ///
+    /// Selects elements in the weights buffer
     /// at index [vertex_buffer_index](struct.Weights.html#structfield.vertex_buffer_index)
-    /// containing the [DataType::SkinWeights] and [DataType::BoneIndices] attributes.
+    /// for the [DataType::SkinWeights] and [DataType::BoneIndices] attributes.
     WeightIndex = 3,
     Unk4 = 4,
-    /// Float32x2 UV coordinates.
+    /// Float32x2 "vTex0" in shaders.
     Uv1 = 5,
-    // TODO: Are these actually UV coordinates?
+    // TODO: Are these actually?
+    /// Float32x2 in shaders.
     Uv2 = 6,
+    /// Float32x2 in shaders.
     Uv3 = 7,
+    /// Float32x2 in shaders.
     Uv4 = 8,
+    /// Float32x2 in shaders.
     Uv5 = 9,
+    /// Float32x2 in shaders.
     Uv6 = 10,
+    /// Float32x2 in shaders.
     Uv7 = 11,
+    /// Float32x2 in shaders.
     Uv8 = 12,
+    /// Float32x2 in shaders.
     Uv9 = 13,
-    /// Unorm8x4 vertex RGBA color.
-    VertexColorUnk14 = 14,
+    /// Unorm8x4 in shaders.
+    VertexColor = 14,
     Unk15 = 15,
     Unk16 = 16,
-    /// Unorm8x4 vertex RGBA color.
-    VertexColorUnk17 = 17,
+    /// Unorm8x4 "vColor" in shaders.
+    VertexColor2 = 17,
     Unk18 = 18,
-    /// Snorm8x4 normal vector.
+    /// Snorm8x4 "vNormal" in shaders.
     Normal = 28,
-    /// Snorm8x4 tangent vector with bitangent sign in the fourth component.
+    /// Snorm8x4 "vTan" in shaders with bitangent sign in the fourth component.
     Tangent = 29,
-    /// Snorm8x4 normal vector.
+    /// Snorm8x4 in shaders.
     Normal2 = 32,
     Unk33 = 33,
+    /// Snorm8x4 "vNormal"
+    Normal3 = 34,
+    /// Unorm8x4 "vColor"
+    VertexColor3 = 35,
+    /// Float32x3 "vPos" in shaders.
+    Position2 = 36,
+    /// Unorm8x4 "vNormal" in shaders.
+    Normal4 = 37,
+    /// Float32x3 "vOldPos" in shaders.
+    OldPosition = 39,
+    /// Unorm8x4 "vTan" in shaders.
+    Tangent2 = 40,
     /// Unorm16x4 skin weights for up to 4 bone influences.
     SkinWeights = 41,
     /// u8x4 bone indices for up to 4 bone infuences in the [Skinning](crate::mxmd::Skinning) in the [Mxmd](crate::mxmd::Mxmd).
