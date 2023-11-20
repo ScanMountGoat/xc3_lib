@@ -93,18 +93,13 @@ fn map_models_group(
     let buffers = create_buffers(&msmd.map_vertex_data, wismda, compressed);
 
     let mut models = Vec::new();
-    models.par_extend(
-        msmd.map_models
-            .par_iter()
-            .enumerate()
-            .flat_map(|(i, model)| {
-                let model_data = model
-                    .entry
-                    .extract(&mut Cursor::new(wismda), compressed)
-                    .unwrap();
-                load_map_model_group(&model_data, i, model_folder, shader_database)
-            }),
-    );
+    models.par_extend(msmd.map_models.par_iter().enumerate().map(|(i, model)| {
+        let model_data = model
+            .entry
+            .extract(&mut Cursor::new(wismda), compressed)
+            .unwrap();
+        load_map_model_group(&model_data, i, model_folder, shader_database)
+    }));
 
     ModelGroup { models, buffers }
 }
@@ -221,7 +216,6 @@ fn load_prop_model_group(
     // TODO: Group by vertex data index?
     // TODO: empty groups?
 
-    // TODO: Create material data only once.
     let mut materials = create_materials(&model_data.materials, spch);
     apply_material_texture_indices(&mut materials, &model_data.textures);
 
@@ -291,6 +285,12 @@ fn add_animated_part_instances(
         // Get the first frame of the animation channels.
         let mut translation: Vec3 = animation.translation.into();
 
+        let mut scale = Vec3::ONE;
+
+        let mut rot_x = 0.0;
+        let mut rot_y = 0.0;
+        let mut rot_z = 0.0;
+
         // TODO: Do these add to or replace the base values?
         for channel in &animation.channels {
             match channel.channel_type {
@@ -315,17 +315,43 @@ fn add_animated_part_instances(
                         .map(|f| f.value)
                         .unwrap_or_default()
                 }
-                // TODO: Handle other transforms.
-                ChannelType::RotationX => (),
-                ChannelType::RotationY => (),
-                ChannelType::RotationZ => (),
-                ChannelType::ScaleX => (),
-                ChannelType::ScaleY => (),
-                ChannelType::ScaleZ => (),
+                ChannelType::RotationX => {
+                    rot_x = channel
+                        .keyframes
+                        .get(0)
+                        .map(|f| f.value)
+                        .unwrap_or_default()
+                }
+                ChannelType::RotationY => {
+                    rot_y = channel
+                        .keyframes
+                        .get(0)
+                        .map(|f| f.value)
+                        .unwrap_or_default()
+                }
+                ChannelType::RotationZ => {
+                    rot_z = channel
+                        .keyframes
+                        .get(0)
+                        .map(|f| f.value)
+                        .unwrap_or_default()
+                }
+                ChannelType::ScaleX => {
+                    scale.x = channel.keyframes.get(0).map(|f| f.value).unwrap_or(1.0)
+                }
+                ChannelType::ScaleY => {
+                    scale.y = channel.keyframes.get(0).map(|f| f.value).unwrap_or(1.0)
+                }
+                ChannelType::ScaleZ => {
+                    scale.z = channel.keyframes.get(0).map(|f| f.value).unwrap_or(1.0)
+                }
             }
         }
         // TODO: transform order?
-        transform = Mat4::from_translation(translation) * transform;
+        transform = Mat4::from_translation(translation)
+            * Mat4::from_euler(glam::EulerRot::XYZ, rot_x, rot_y, rot_z)
+            * Mat4::from_scale(scale)
+            * transform;
         model_instances[instance.prop_index as usize].push(transform);
     }
 }
@@ -335,60 +361,50 @@ fn load_map_model_group(
     model_index: usize,
     model_folder: &str,
     shader_database: Option<&ShaderDatabase>,
-) -> Vec<Models> {
+) -> Models {
     let spch = shader_database
         .and_then(|database| database.map_files.get(model_folder))
         .and_then(|map| map.map_models.get(model_index));
 
-    model_data
+    let mut materials = create_materials(&model_data.materials, spch);
+    apply_material_texture_indices(&mut materials, &model_data.textures);
+
+    let samplers = create_samplers(&model_data.materials);
+
+    // Each group has a base and low detail vertex data index.
+    // Each model has an assigned vertex data index.
+    // Find all the base detail models for each group.
+    let models = model_data
         .groups
-        .groups
+        .model_group_index
         .iter()
-        .enumerate()
-        .map(|(group_index, group)| {
-            let vertex_data_index = group.vertex_data_index as usize;
-
-            // Each group has a base and low detail vertex data index.
-            // Each model has an assigned vertex data index.
-            // Find all the base detail models and meshes for each group.
-            // TODO: Why is the largest index twice the group count?
-            // TODO: Are the larger indices LOD models?
-            let mut models = Vec::new();
-            for (model, index) in model_data
-                .models
-                .models
-                .iter()
-                .zip(model_data.groups.model_group_index.iter())
-            {
-                // TODO: Faster to just make empty groups and assign each model in a loop?
-                if *index as usize == group_index {
-                    let new_model =
-                        Model::from_model(model, vec![Mat4::IDENTITY], vertex_data_index);
-                    models.push(new_model);
-                }
-            }
-
-            // TODO: Create material data only once.
-            let mut materials = create_materials(&model_data.materials, spch);
-            apply_material_texture_indices(&mut materials, &model_data.textures);
-
-            let samplers = create_samplers(&model_data.materials);
-
-            Models {
-                models,
-                materials,
-                samplers,
-                skeleton: None,
-                base_lod_indices: model_data
-                    .models
-                    .lod_data
-                    .as_ref()
-                    .map(|data| data.groups.iter().map(|i| i.base_lod_index).collect()),
-                min_xyz: model_data.models.min_xyz,
-                max_xyz: model_data.models.max_xyz,
-            }
+        .zip(model_data.models.models.iter())
+        .filter_map(|(group_index, model)| {
+            // TODO: Will filtering like this correctly select only the base LOD?
+            model_data
+                .groups
+                .groups
+                .get(*group_index as usize)
+                .map(|group| {
+                    let vertex_data_index = group.vertex_data_index as usize;
+                    Model::from_model(model, vec![Mat4::IDENTITY], vertex_data_index)
+                })
         })
-        .collect()
+        .collect();
+
+    Models {
+        models,
+        materials,
+        samplers,
+        skeleton: None,
+        base_lod_indices: model_data
+            .models
+            .lod_data
+            .as_ref()
+            .map(|data| data.groups.iter().map(|i| i.base_lod_index).collect()),
+        min_xyz: model_data.models.min_xyz,
+        max_xyz: model_data.models.max_xyz,
+    }
 }
 
 fn load_env_model(
