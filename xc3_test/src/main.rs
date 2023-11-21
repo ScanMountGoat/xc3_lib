@@ -330,17 +330,7 @@ fn check_msmd(msmd: Msmd, path: &Path, _original_bytes: &[u8], check_read_write:
 
     for (i, model) in msmd.low_models.iter().enumerate() {
         match model.entry.extract(&mut reader, compressed) {
-            Ok(model) => {
-                for (p, program) in model.materials.shader_programs.iter().enumerate() {
-                    if program
-                        .attributes
-                        .iter()
-                        .any(|a| a.data_type == xc3_lib::vertex::DataType::Normal2)
-                    {
-                        println!("l{i}, {p}, {path:?}, {:#?}", program.attributes);
-                    }
-                }
-            }
+            Ok(_) => (),
             Err(e) => println!("Error extracting low model {i} in {path:?}: {e}"),
         }
     }
@@ -488,16 +478,6 @@ fn check_mxmd_or_apmd(data: MxmdApmd, path: &Path, original_bytes: &[u8], check_
 fn check_mxmd(mxmd: Mxmd, path: &Path, original_bytes: &[u8], check_read_write: bool) {
     if !is_valid_models_flags(&mxmd) {
         println!("Inconsistent ModelsFlags for {path:?}");
-    }
-
-    for (i, program) in mxmd.materials.shader_programs.iter().enumerate() {
-        if program
-            .attributes
-            .iter()
-            .any(|a| a.data_type == xc3_lib::vertex::DataType::Normal2)
-        {
-            println!("{i}, {path:?}, {:#?}", program.attributes);
-        }
     }
 
     if check_read_write {
