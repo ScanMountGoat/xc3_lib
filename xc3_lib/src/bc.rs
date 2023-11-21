@@ -247,7 +247,7 @@ pub struct ExtraTrackAnimationBinding {
     // TODO: This can have 0 offset but nonzero count?
     // TODO: Is it worth preserving the count if the offset is 0?
     // TODO: Should this be ignored if extra_track_animation is None?
-    #[br(parse_with = parse_offset64_count32)]
+    #[br(parse_with = parse_offset64_count32_unchecked)]
     #[xc3(offset_count(u64, u32), align(8, 0xff))]
     pub track_indices: Vec<i16>,
     pub unk1: i32, // -1
@@ -702,12 +702,15 @@ pub struct Skeleton {
     #[br(temp, restore_position)]
     transforms_offset: u32,
 
-    pub transforms: BcList<Transform>,
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32), align(16, 0xff))]
+    pub transforms: Vec<Transform>,
+    pub unk3: i32, // -1
 
     #[br(parse_with = parse_offset64_count32)]
     #[xc3(offset_count(u64, u32), align(8, 0xff))]
     pub extra_track_slots: Vec<SkeletonExtraTrackSlot>,
-    pub unk3: i32, // -1
+    pub unk4: i32, // -1
 
     // MT_ or mount bones?
     #[br(parse_with = parse_offset64_count32)]
@@ -738,12 +741,65 @@ pub struct Skeleton {
 pub enum SkeletonExtra {
     #[br(pre_assert(size == 160))]
     Unk0,
-    #[br(pre_assert(size == 240))]
+
+    #[br(pre_assert(size == 192))]
     Unk1(SkeletonExtraUnk1),
+
+    #[br(pre_assert(size == 224))]
+    Unk2(SkeletonExtraUnk2),
+
+    #[br(pre_assert(size == 240))]
+    Unk3(SkeletonExtraUnk3),
+}
+
+// TODO: Fix writing.
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct SkeletonExtraUnk1 {
+    #[br(parse_with = parse_opt_ptr64)]
+    #[xc3(offset(u64), align(16, 0xff))]
+    pub unk6: Option<SkeletonUnk6Unk1>,
+
+    #[br(parse_with = parse_opt_ptr64)]
+    #[xc3(offset(u64), align(16, 0xff))]
+    pub unk7: Option<SkeletonUnk7>,
+
+    #[br(parse_with = parse_opt_ptr64)]
+    #[xc3(offset(u64), align(16, 0xff))]
+    pub unk8: Option<SkeletonUnk8>,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct SkeletonExtraUnk2 {
+    #[br(parse_with = parse_opt_ptr64)]
+    #[xc3(offset(u64), align(16, 0xff))]
+    pub unk6: Option<SkeletonUnk6>,
+
+    #[br(parse_with = parse_opt_ptr64)]
+    #[xc3(offset(u64), align(16, 0xff))]
+    pub unk7: Option<SkeletonUnk7>,
+
+    #[br(parse_with = parse_opt_ptr64)]
+    #[xc3(offset(u64), align(16, 0xff))]
+    pub unk8: Option<SkeletonUnk8>,
+
+    #[br(parse_with = parse_opt_ptr64)]
+    #[xc3(offset(u64), align(16, 0xff))]
+    pub unk9: Option<SkeletonUnk9>,
+
+    #[br(parse_with = parse_opt_ptr64)]
+    #[xc3(offset(u64), align(16, 0xff))]
+    pub unk10: Option<SkeletonUnk10>,
+
+    #[br(parse_with = parse_opt_ptr64)]
+    #[xc3(offset(u64), align(16, 0xff))]
+    pub unk11: Option<SkeletonUnk11>,
+
+    pub unk2: u64,
+    pub unk3: i64,
 }
 
 #[derive(Debug, BinRead, Xc3Write)]
-pub struct SkeletonExtraUnk1 {
+pub struct SkeletonExtraUnk3 {
     #[br(parse_with = parse_opt_ptr64)]
     #[xc3(offset(u64), align(16, 0xff))]
     pub unk6: Option<SkeletonUnk6>,
@@ -776,8 +832,8 @@ pub struct SkeletonExtraUnk1 {
     #[xc3(offset(u64), align(8, 0xff))]
     pub unk13: Option<SkeletonUnk13>,
 
-    pub unk14: u64,
-    pub unk15: i64,
+    pub unk2: u64,
+    pub unk3: i64,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -832,6 +888,16 @@ pub struct SkeletonUnk6 {
     #[br(parse_with = parse_offset64_count32)]
     #[xc3(offset_count(u64, u32), align(8, 0xff))]
     pub unk3: Vec<u32>,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct SkeletonUnk6Unk1 {
+    pub unk1: BcList<u8>,
+
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32), align(4, 0xff))]
+    pub unk2: Vec<u16>,
+    pub unk2_1: i32, // -1
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -1188,8 +1254,7 @@ impl<'a> Xc3WriteOffsets for SkeletonOffsets<'a> {
         if !self.unk1.elements.data.is_empty() {
             self.unk1.write_offsets(writer, base_offset, data_ptr)?;
         }
-        self.transforms
-            .write_offsets(writer, base_offset, data_ptr)?;
+        self.transforms.write_full(writer, base_offset, data_ptr)?;
 
         let names = self
             .names
@@ -1257,6 +1322,8 @@ impl<'a> Xc3WriteOffsets for SkeletonOffsets<'a> {
         let alignment = match self.extra {
             SkeletonExtraOffsets::Unk0 => 4,
             SkeletonExtraOffsets::Unk1(_) => 8,
+            SkeletonExtraOffsets::Unk2(_) => 8,
+            SkeletonExtraOffsets::Unk3(_) => 8,
         };
         string_section.write(writer, data_ptr, alignment)?;
 
@@ -1286,7 +1353,7 @@ fn weird_skel_alignment<W: std::io::Write + std::io::Seek>(
     Ok(())
 }
 
-impl<'a> Xc3WriteOffsets for SkeletonExtraUnk1Offsets<'a> {
+impl<'a> Xc3WriteOffsets for SkeletonExtraUnk3Offsets<'a> {
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
         &self,
         writer: &mut W,
@@ -1304,4 +1371,20 @@ impl<'a> Xc3WriteOffsets for SkeletonExtraUnk1Offsets<'a> {
         self.unk13.write_full(writer, base_offset, data_ptr)?;
         Ok(())
     }
+}
+
+fn parse_offset64_count32_unchecked<T, R, Args>(
+    reader: &mut R,
+    endian: binrw::Endian,
+    args: binrw::file_ptr::FilePtrArgs<Args>,
+) -> binrw::BinResult<Vec<T>>
+where
+    for<'a> T: BinRead<Args<'a> = Args> + 'static,
+    R: std::io::Read + std::io::Seek,
+    Args: Clone,
+{
+    let offset = u64::read_options(reader, endian, ())?;
+    let count = u32::read_options(reader, endian, ())?;
+
+    crate::parse_vec(reader, endian, args, offset, count as usize)
 }

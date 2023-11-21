@@ -31,7 +31,7 @@ impl Skeleton {
             .names
             .elements
             .iter()
-            .zip(skeleton.transforms.elements.iter())
+            .zip(skeleton.transforms.iter())
             .zip(skeleton.parent_indices.elements.iter())
             .map(|((name, transform), parent)| Bone {
                 name: name.name.clone(),
