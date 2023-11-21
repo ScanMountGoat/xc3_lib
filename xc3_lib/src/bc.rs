@@ -187,7 +187,7 @@ pub struct AnimationBinding {
     // These fields will be skipped when writing.
     // TODO: is there a better way to handle game specific differences?
     #[br(temp, try_calc = r.stream_position())]
-    pub base_offset: u64,
+    base_offset: u64,
 
     pub unk1: BcList<()>,
     pub unk2: u64, // 0?
@@ -676,8 +676,17 @@ pub struct Skel {
 }
 
 // TODO: variable size?
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+// 160, 192, 224, 240
+#[binread]
+#[derive(Debug, Xc3Write)]
+#[br(stream = r)]
 pub struct Skeleton {
+    // Use temp fields to estimate the struct size.
+    // These fields will be skipped when writing.
+    // TODO: is there a better way to handle game specific differences?
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
     pub unk1: BcList<u8>,
     pub unk2: u64, // 0
 
@@ -689,18 +698,27 @@ pub struct Skeleton {
 
     pub names: BcList<BoneName>,
 
-    #[br(restore_position)]
-    pub transforms_offset: u32,
+    // Store the offset for the next field.
+    #[br(temp, restore_position)]
+    transforms_offset: u32,
+
     pub transforms: BcList<Transform>,
 
-    pub extra_track_slots: BcList<SkeletonExtraTrackSlot>,
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32), align(8, 0xff))]
+    pub extra_track_slots: Vec<SkeletonExtraTrackSlot>,
+    pub unk3: i32, // -1
 
     // MT_ or mount bones?
     pub mt_indices: BcList<[i8; 8]>,
     pub mt_names: BcList<StringOffset>,
     pub mt_transforms: BcList<Transform>,
 
-    pub labels: BcList<SkeletonLabel>,
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32))]
+    pub labels: Vec<SkeletonLabel>,
+    pub unk4: i32, // -1
+
     // TODO: 80 bytes of optional data not present for xc2?
     // TODO: These may only be pointed to by the offsets at the end of the file?
     // #[br(parse_with = parse_opt_ptr64)]
@@ -762,8 +780,13 @@ pub struct SkeletonExtraTrackSlot {
     pub unk1: String,
 
     pub unk2: BcList<StringOffset>,
+
     pub unk3: BcList<f32>,
-    pub unk4: BcList<[f32; 2]>,
+
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32), align(8, 0xff))]
+    pub unk4: Vec<[f32; 2]>,
+    pub unk1_1: i32, // -1
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -856,12 +879,13 @@ impl StringSection {
         &self,
         writer: &mut W,
         data_ptr: &mut u64,
+        alignment: u64,
     ) -> xc3_write::Xc3Result<()> {
         // Write the string data.
         // TODO: Cleaner way to handle alignment?
         let mut name_to_position = BTreeMap::new();
         writer.seek(std::io::SeekFrom::Start(*data_ptr))?;
-        let aligned = round_up(*data_ptr, 8);
+        let aligned = round_up(*data_ptr, alignment);
         writer.write_all(&vec![0xff; (aligned - *data_ptr) as usize])?;
 
         for name in self.name_to_offsets.keys() {
@@ -997,7 +1021,7 @@ impl<'a> Xc3WriteOffsets for AnimOffsets<'a> {
         }
 
         // The names are the last item before the addresses.
-        string_section.write(writer, data_ptr)?;
+        string_section.write(writer, data_ptr, 8)?;
 
         Ok(())
     }
@@ -1095,4 +1119,100 @@ impl<'a> Xc3WriteOffsets for CubicExtraDataOffsets<'a> {
         self.unk1.write_full(writer, base_offset, data_ptr)?;
         Ok(())
     }
+}
+
+impl<'a> Xc3WriteOffsets for SkeletonOffsets<'a> {
+    fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> xc3_write::Xc3Result<()> {
+        // The names are stored in a single section.
+        let mut string_section = StringSection::default();
+        string_section.insert_offset(&self.root_bone_name);
+
+        // Different order than field order.
+        if !self.unk1.elements.data.is_empty() {
+            self.unk1.write_offsets(writer, base_offset, data_ptr)?;
+        }
+        self.transforms
+            .write_offsets(writer, base_offset, data_ptr)?;
+
+        let names = self
+            .names
+            .elements
+            .write_offset(writer, base_offset, data_ptr)?;
+        for name in names.0 {
+            string_section.insert_offset(&name.name);
+        }
+
+        self.parent_indices
+            .write_offsets(writer, base_offset, data_ptr)?;
+
+        if !self.extra_track_slots.data.is_empty() {
+            let slots = self
+                .extra_track_slots
+                .write_offset(writer, base_offset, data_ptr)?;
+            for slot in slots.0 {
+                string_section.insert_offset(&slot.unk1);
+
+                let names = slot
+                    .unk2
+                    .elements
+                    .write_offset(writer, base_offset, data_ptr)?;
+                for name in names.0 {
+                    string_section.insert_offset(&name.name);
+                }
+
+                slot.unk3.write_offsets(writer, base_offset, data_ptr)?;
+                slot.unk4.write_full(writer, base_offset, data_ptr)?;
+            }
+        }
+
+        if !self.mt_indices.elements.data.is_empty() {
+            self.mt_indices
+                .write_offsets(writer, base_offset, data_ptr)?;
+        }
+        if !self.mt_names.elements.data.is_empty() {
+            self.mt_names.write_offsets(writer, base_offset, data_ptr)?;
+        }
+        if !self.mt_transforms.elements.data.is_empty() {
+            self.mt_transforms
+                .write_offsets(writer, base_offset, data_ptr)?;
+        }
+
+        // TODO: What is this strange padding?
+        // TODO: SOmetimes aligned by ff to 8 and then the weird padding?
+        if !self.labels.data.is_empty() {
+            self.labels.write_full(writer, base_offset, data_ptr)?;
+
+            weird_skel_align16(writer, data_ptr, true)?;
+        } else {
+            // TODO: Sometimes true and sometimes false?
+            weird_skel_align16(writer, data_ptr, true)?;
+        }
+
+        // The names are the last item before the addresses.
+        string_section.write(writer, data_ptr, 4)?;
+
+        Ok(())
+    }
+}
+
+fn weird_skel_align16<W: std::io::Write + std::io::Seek>(
+    writer: &mut W,
+    data_ptr: &mut u64,
+    prepend_zero: bool,
+) -> xc3_write::Xc3Result<()> {
+    // TODO: What is this strange padding?
+    // 0000 FF... 000000
+    if prepend_zero {
+        [0u8; 2].xc3_write(writer, data_ptr)?;
+    }
+    let pos = writer.stream_position()?;
+    let aligned_pos = round_up(pos, 16);
+    writer.write_all(&vec![0xff; (aligned_pos - pos) as usize])?;
+    [0u8; 4].xc3_write(writer, data_ptr)?;
+    Ok(())
 }
