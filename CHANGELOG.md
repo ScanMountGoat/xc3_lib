@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Adjusted how MIBl alignment is handled to ensure the MIBL <-> DDS conversion is always 1:1.
 * Adjusted glTF texture assignment to assume first texture is albedo by default.
 * Switched to tracy for viewing traces.
-* Adjusted decompiled shader annotation to uniform buffers fields when possible.
+* Adjusted decompiled shader annotation to include uniform buffers fields when possible.
 
 ## 0.1.0 - 2023-10-29
 First release! 
