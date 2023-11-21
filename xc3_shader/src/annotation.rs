@@ -184,8 +184,7 @@ pub fn annotate_fragment(glsl: String, metadata: &Nvsd) -> String {
         struct_fields,
     };
 
-    // TODO: Find a better way to skip unsupported extensions.
-    let modified_source = glsl.get(glsl.find("#pragma").unwrap()..).unwrap();
+    let modified_source = shader_source_no_extensions(glsl);
     let mut translation_unit = TranslationUnit::parse(&modified_source).unwrap();
     translation_unit.visit_mut(&mut visitor);
 
@@ -221,7 +220,7 @@ pub fn annotate_vertex(glsl: String, metadata: &Nvsd) -> String {
     };
 
     // TODO: Find a better way to skip unsupported extensions.
-    let modified_source = glsl.get(glsl.find("#pragma").unwrap()..).unwrap();
+    let modified_source = shader_source_no_extensions(glsl);
     let mut translation_unit = TranslationUnit::parse(&modified_source).unwrap();
     translation_unit.visit_mut(&mut visitor);
 
@@ -318,6 +317,13 @@ fn annotate_buffers(
             replacements.insert(format!("_{prefix}_s{handle}"), format!("_{}", buffer.name));
         }
     }
+}
+
+fn shader_source_no_extensions(glsl: String) -> String {
+    // TODO: Find a better way to skip unsupported extensions.
+    glsl.find("#pragma")
+        .map(|i| glsl[i..].to_string())
+        .unwrap_or(glsl)
 }
 
 #[cfg(test)]
