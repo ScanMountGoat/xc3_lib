@@ -710,15 +710,22 @@ pub struct Skeleton {
     pub unk3: i32, // -1
 
     // MT_ or mount bones?
-    pub mt_indices: BcList<[i8; 8]>,
-    pub mt_names: BcList<StringOffset>,
-    pub mt_transforms: BcList<Transform>,
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32), align(8, 0xff))]
+    pub mt_indices: Vec<i16>,
+    pub unk5: i32, // -1
 
     #[br(parse_with = parse_offset64_count32)]
-    #[xc3(offset_count(u64, u32))]
-    pub labels: Vec<SkeletonLabel>,
-    pub unk4: i32, // -1
+    #[xc3(offset_count(u64, u32), align(8, 0xff))]
+    pub mt_names: Vec<StringOffset>,
+    pub unk6: i32, // -1
 
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32), align(16, 0xff))]
+    pub mt_transforms: Vec<Transform>,
+    pub unk7: i32, // -1
+
+    pub labels: BcList<SkeletonLabel>,
     // TODO: 80 bytes of optional data not present for xc2?
     // TODO: These may only be pointed to by the offsets at the end of the file?
     // #[br(parse_with = parse_opt_ptr64)]
@@ -1157,40 +1164,46 @@ impl<'a> Xc3WriteOffsets for SkeletonOffsets<'a> {
             for slot in slots.0 {
                 string_section.insert_offset(&slot.unk1);
 
-                let names = slot
-                    .unk2
-                    .elements
-                    .write_offset(writer, base_offset, data_ptr)?;
-                for name in names.0 {
-                    string_section.insert_offset(&name.name);
+                if !slot.unk2.elements.data.is_empty() {
+                    let names = slot
+                        .unk2
+                        .elements
+                        .write_offset(writer, base_offset, data_ptr)?;
+                    for name in names.0 {
+                        string_section.insert_offset(&name.name);
+                    }
                 }
 
-                slot.unk3.write_offsets(writer, base_offset, data_ptr)?;
-                slot.unk4.write_full(writer, base_offset, data_ptr)?;
+                if !slot.unk3.elements.data.is_empty() {
+                    slot.unk3.write_offsets(writer, base_offset, data_ptr)?;
+                }
+                if !slot.unk4.data.is_empty() {
+                    slot.unk4.write_full(writer, base_offset, data_ptr)?;
+                }
             }
         }
 
-        if !self.mt_indices.elements.data.is_empty() {
-            self.mt_indices
-                .write_offsets(writer, base_offset, data_ptr)?;
+        if !self.mt_indices.data.is_empty() {
+            self.mt_indices.write_full(writer, base_offset, data_ptr)?;
         }
-        if !self.mt_names.elements.data.is_empty() {
-            self.mt_names.write_offsets(writer, base_offset, data_ptr)?;
+        if !self.mt_names.data.is_empty() {
+            let names = self.mt_names.write_offset(writer, base_offset, data_ptr)?;
+            for name in names.0 {
+                string_section.insert_offset(&name.name);
+            }
         }
-        if !self.mt_transforms.elements.data.is_empty() {
+        if !self.mt_transforms.data.is_empty() {
             self.mt_transforms
-                .write_offsets(writer, base_offset, data_ptr)?;
+                .write_full(writer, base_offset, data_ptr)?;
         }
 
-        // TODO: What is this strange padding?
-        // TODO: SOmetimes aligned by ff to 8 and then the weird padding?
-        if !self.labels.data.is_empty() {
-            self.labels.write_full(writer, base_offset, data_ptr)?;
+        // TODO: Only padded if MT data is not present?
+        if self.mt_indices.data.is_empty() {
+            weird_skel_alignment(writer, data_ptr)?;
+        }
 
-            weird_skel_align16(writer, data_ptr, true)?;
-        } else {
-            // TODO: Sometimes true and sometimes false?
-            weird_skel_align16(writer, data_ptr, true)?;
+        if !self.labels.elements.data.is_empty() {
+            self.labels.write_offsets(writer, base_offset, data_ptr)?;
         }
 
         // The names are the last item before the addresses.
@@ -1200,19 +1213,24 @@ impl<'a> Xc3WriteOffsets for SkeletonOffsets<'a> {
     }
 }
 
-fn weird_skel_align16<W: std::io::Write + std::io::Seek>(
+fn weird_skel_alignment<W: std::io::Write + std::io::Seek>(
     writer: &mut W,
     data_ptr: &mut u64,
-    prepend_zero: bool,
 ) -> xc3_write::Xc3Result<()> {
     // TODO: What is this strange padding?
-    // 0000 FF... 000000
-    if prepend_zero {
-        [0u8; 2].xc3_write(writer, data_ptr)?;
-    }
+    // First align to 8.
+    // FF...
+    let pos = writer.stream_position()?;
+    let aligned_pos = round_up(pos, 8);
+    writer.write_all(&vec![0xff; (aligned_pos - pos) as usize])?;
+
+    // Now align to 16.
+    // 0000 FF...
+    [0u8; 2].xc3_write(writer, data_ptr)?;
     let pos = writer.stream_position()?;
     let aligned_pos = round_up(pos, 16);
     writer.write_all(&vec![0xff; (aligned_pos - pos) as usize])?;
+    // 0000
     [0u8; 4].xc3_write(writer, data_ptr)?;
     Ok(())
 }
