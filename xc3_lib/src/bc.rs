@@ -726,34 +726,58 @@ pub struct Skeleton {
     pub unk7: i32, // -1
 
     pub labels: BcList<SkeletonLabel>,
-    // TODO: 80 bytes of optional data not present for xc2?
-    // TODO: These may only be pointed to by the offsets at the end of the file?
-    // #[br(parse_with = parse_opt_ptr64)]
-    // #[xc3(offset(u64))]
-    // pub unk6: Option<SkeletonUnk6>,
 
-    // #[br(parse_with = parse_opt_ptr64)]
-    // #[xc3(offset(u64))]
-    // pub unk7: Option<SkeletonUnk7>,
+    #[br(args_raw(transforms_offset as u64 - base_offset))]
+    pub extra: SkeletonExtra,
+}
 
-    // #[br(parse_with = parse_opt_ptr64)]
-    // #[xc3(offset(u64))]
-    // pub unk8: Option<SkeletonUnk8>,
+// TODO: Make this an option instead?
+// Up to 80 bytes of optional data for XC3.
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[br(import_raw(size: u64))]
+pub enum SkeletonExtra {
+    #[br(pre_assert(size == 160))]
+    Unk0,
+    #[br(pre_assert(size == 240))]
+    Unk1(SkeletonExtraUnk1),
+}
 
-    // #[br(parse_with = parse_opt_ptr64)]
-    // #[xc3(offset(u64))]
-    // pub unk9: Option<SkeletonUnk9>,
+#[derive(Debug, BinRead, Xc3Write)]
+pub struct SkeletonExtraUnk1 {
+    #[br(parse_with = parse_opt_ptr64)]
+    #[xc3(offset(u64), align(16, 0xff))]
+    pub unk6: Option<SkeletonUnk6>,
 
-    // #[br(parse_with = parse_opt_ptr64)]
-    // #[xc3(offset(u64))]
-    // pub unk10: Option<SkeletonUnk10>,
+    #[br(parse_with = parse_opt_ptr64)]
+    #[xc3(offset(u64), align(16, 0xff))]
+    pub unk7: Option<SkeletonUnk7>,
 
-    // #[br(parse_with = parse_opt_ptr64)]
-    // #[xc3(offset(u64))]
-    // pub unk11: Option<SkeletonUnk11>,
+    #[br(parse_with = parse_opt_ptr64)]
+    #[xc3(offset(u64), align(16, 0xff))]
+    pub unk8: Option<SkeletonUnk8>,
 
-    // pub unk12: u64,
-    // pub unk13: i64,
+    #[br(parse_with = parse_opt_ptr64)]
+    #[xc3(offset(u64), align(16, 0xff))]
+    pub unk9: Option<SkeletonUnk9>,
+
+    #[br(parse_with = parse_opt_ptr64)]
+    #[xc3(offset(u64), align(16, 0xff))]
+    pub unk10: Option<SkeletonUnk10>,
+
+    #[br(parse_with = parse_opt_ptr64)]
+    #[xc3(offset(u64), align(16, 0xff))]
+    pub unk11: Option<SkeletonUnk11>,
+
+    #[br(parse_with = parse_opt_ptr64)]
+    #[xc3(offset(u64), align(8, 0xff))]
+    pub unk12: Option<SkeletonUnk12>,
+
+    #[br(parse_with = parse_opt_ptr64)]
+    #[xc3(offset(u64), align(8, 0xff))]
+    pub unk13: Option<SkeletonUnk13>,
+
+    pub unk14: u64,
+    pub unk15: i64,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -799,21 +823,29 @@ pub struct SkeletonExtraTrackSlot {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct SkeletonUnk6 {
     pub unk1: BcList<u8>,
-    pub unk2: BcList<u16>,
 
     #[br(parse_with = parse_offset64_count32)]
-    #[xc3(offset_count(u64, u32))]
+    #[xc3(offset_count(u64, u32), align(4, 0xff))]
+    pub unk2: Vec<u16>,
+    pub unk2_1: i32, // -1
+
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32), align(8, 0xff))]
     pub unk3: Vec<u32>,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct SkeletonUnk7 {
     pub unk1: BcList<u8>,
-    pub unk2: BcList<u16>,
+
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32), align(4, 0xff))]
+    pub unk2: Vec<u16>,
+    pub unk2_1: i32, // -1
 
     // TODO: type?
     #[br(parse_with = parse_offset64_count32)]
-    #[xc3(offset_count(u64, u32))]
+    #[xc3(offset_count(u64, u32), align(8, 0xff))]
     pub unk3: Vec<u32>,
 }
 
@@ -832,7 +864,7 @@ pub struct SkeletonUnk9 {
     // TODO: type?
     #[br(parse_with = parse_offset64_count32)]
     #[xc3(offset_count(u64, u32))]
-    pub unk2: Vec<u32>,
+    pub unk2: Vec<u64>,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -846,6 +878,19 @@ pub struct SkeletonUnk11 {
     #[br(parse_with = parse_offset64_count32)]
     #[xc3(offset_count(u64, u32))]
     pub unk1: Vec<u8>,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct SkeletonUnk12 {
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32))]
+    pub unk1: Vec<u16>,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct SkeletonUnk13 {
+    pub unk1: BcList<[f32; 4]>,
+    pub unk2: BcList<i16>,
 }
 
 // TODO: Make this generic over the alignment and padding byte?
@@ -1206,8 +1251,14 @@ impl<'a> Xc3WriteOffsets for SkeletonOffsets<'a> {
             self.labels.write_offsets(writer, base_offset, data_ptr)?;
         }
 
+        self.extra.write_offsets(writer, base_offset, data_ptr)?;
+
         // The names are the last item before the addresses.
-        string_section.write(writer, data_ptr, 4)?;
+        let alignment = match self.extra {
+            SkeletonExtraOffsets::Unk0 => 4,
+            SkeletonExtraOffsets::Unk1(_) => 8,
+        };
+        string_section.write(writer, data_ptr, alignment)?;
 
         Ok(())
     }
@@ -1233,4 +1284,24 @@ fn weird_skel_alignment<W: std::io::Write + std::io::Seek>(
     // 0000
     [0u8; 4].xc3_write(writer, data_ptr)?;
     Ok(())
+}
+
+impl<'a> Xc3WriteOffsets for SkeletonExtraUnk1Offsets<'a> {
+    fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> xc3_write::Xc3Result<()> {
+        // Different order than field order.
+        self.unk6.write_full(writer, base_offset, data_ptr)?;
+        self.unk7.write_full(writer, base_offset, data_ptr)?;
+        self.unk12.write_full(writer, base_offset, data_ptr)?;
+        self.unk9.write_full(writer, base_offset, data_ptr)?;
+        self.unk8.write_full(writer, base_offset, data_ptr)?;
+        self.unk10.write_full(writer, base_offset, data_ptr)?;
+        self.unk11.write_full(writer, base_offset, data_ptr)?;
+        self.unk13.write_full(writer, base_offset, data_ptr)?;
+        Ok(())
+    }
 }
