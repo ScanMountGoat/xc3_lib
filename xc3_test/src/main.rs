@@ -260,30 +260,43 @@ fn check_vertex_data(
     }
 }
 
-fn check_msmd(msmd: Msmd, path: &Path, _original_bytes: &[u8], _check_read_write: bool) {
+fn check_msmd(msmd: Msmd, path: &Path, _original_bytes: &[u8], check_read_write: bool) {
     // Parse all the data from the .wismda
     let mut reader = BufReader::new(std::fs::File::open(path.with_extension("wismda")).unwrap());
 
     let compressed = msmd.wismda_info.compressed_length != msmd.wismda_info.decompressed_length;
 
-    for model in msmd.map_models {
-        model.entry.extract(&mut reader, compressed).unwrap();
-    }
-
-    for model in msmd.prop_models {
-        model.entry.extract(&mut reader, compressed).unwrap();
-    }
-
-    // TODO: Test mibl read/write?
-    for model in msmd.env_models {
-        let entry = model.entry.extract(&mut reader, compressed).unwrap();
-        for texture in entry.textures.textures {
-            Mibl::from_bytes(&texture.mibl_data).unwrap();
+    for (i, model) in msmd.map_models.iter().enumerate() {
+        match model.entry.extract(&mut reader, compressed) {
+            Ok(_) => (),
+            Err(e) => println!("Error extracting map model {i} in {path:?}: {e}"),
         }
     }
 
-    for entry in msmd.prop_vertex_data {
-        entry.extract(&mut reader, compressed).unwrap();
+    for (i, model) in msmd.prop_models.iter().enumerate() {
+        match model.entry.extract(&mut reader, compressed) {
+            Ok(_) => (),
+            Err(e) => println!("Error extracting prop model {i} in {path:?}: {e}"),
+        }
+    }
+
+    for (i, model) in msmd.env_models.iter().enumerate() {
+        match model.entry.extract(&mut reader, compressed) {
+            Ok(model) => {
+                for texture in model.textures.textures {
+                    let mibl = Mibl::from_bytes(&texture.mibl_data).unwrap();
+                    check_mibl(mibl, path, &texture.mibl_data, check_read_write);
+                }
+            }
+            Err(e) => println!("Error extracting env model {i} in {path:?}: {e}"),
+        }
+    }
+
+    // TODO: Add a check_vertex_data?
+    for (i, entry) in msmd.prop_vertex_data.iter().enumerate() {
+        if let Err(e) = entry.extract(&mut reader, compressed) {
+            println!("Error extracting VertexData {i} in {path:?}: {e}");
+        }
     }
 
     for texture in msmd.textures {
@@ -292,10 +305,15 @@ fn check_msmd(msmd: Msmd, path: &Path, _original_bytes: &[u8], _check_read_write
         // texture.high.extract(&mut reader, compressed);
     }
 
-    for model in msmd.foliage_models {
-        let entry = model.entry.extract(&mut reader, compressed).unwrap();
-        for texture in entry.textures.textures {
-            Mibl::from_bytes(&texture.mibl_data).unwrap();
+    for (i, model) in msmd.foliage_models.iter().enumerate() {
+        match model.entry.extract(&mut reader, compressed) {
+            Ok(model) => {
+                for texture in model.textures.textures {
+                    let mibl = Mibl::from_bytes(&texture.mibl_data).unwrap();
+                    check_mibl(mibl, path, &texture.mibl_data, check_read_write);
+                }
+            }
+            Err(e) => println!("Error extracting foliage model {i} in {path:?}: {e}"),
         }
     }
 
@@ -310,8 +328,21 @@ fn check_msmd(msmd: Msmd, path: &Path, _original_bytes: &[u8], _check_read_write
         }
     }
 
-    for model in msmd.low_models {
-        model.entry.extract(&mut reader, compressed).unwrap();
+    for (i, model) in msmd.low_models.iter().enumerate() {
+        match model.entry.extract(&mut reader, compressed) {
+            Ok(model) => {
+                for (p, program) in model.materials.shader_programs.iter().enumerate() {
+                    if program
+                        .attributes
+                        .iter()
+                        .any(|a| a.data_type == xc3_lib::vertex::DataType::Normal2)
+                    {
+                        println!("l{i}, {p}, {path:?}, {:#?}", program.attributes);
+                    }
+                }
+            }
+            Err(e) => println!("Error extracting low model {i} in {path:?}: {e}"),
+        }
     }
 
     for entry in msmd.unk_foliage_data {
@@ -459,6 +490,16 @@ fn check_mxmd(mxmd: Mxmd, path: &Path, original_bytes: &[u8], check_read_write: 
         println!("Inconsistent ModelsFlags for {path:?}");
     }
 
+    for (i, program) in mxmd.materials.shader_programs.iter().enumerate() {
+        if program
+            .attributes
+            .iter()
+            .any(|a| a.data_type == xc3_lib::vertex::DataType::Normal2)
+        {
+            println!("{i}, {path:?}, {:#?}", program.attributes);
+        }
+    }
+
     if check_read_write {
         let mut writer = Cursor::new(Vec::new());
         mxmd.write(&mut writer).unwrap();
@@ -546,6 +587,9 @@ fn check_sar1(sar1: Sar1, path: &Path, original_bytes: &[u8], check_read_write: 
         match reader.read_le() {
             Ok(data) => match data {
                 Sar1EntryData::Bc(bc) => {
+                    // if let xc3_lib::bc::BcData::Skel(skel) = &bc.data {
+                    //     println!("{}, {path:?}", skel.skeleton.transforms_offset as u64 - skel.skeleton.base_offset);
+                    // }
                     if check_read_write {
                         let mut writer = Cursor::new(Vec::new());
                         xc3_write::write_full(&bc, &mut writer, 0, &mut 0).unwrap();

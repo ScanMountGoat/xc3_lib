@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use clap::{Parser, ValueEnum};
 use futures::executor::block_on;
 use glam::{vec3, Mat4, Vec3};
@@ -139,7 +141,16 @@ fn main() {
             let groups = xc3_wgpu::load_model(&device, &queue, &roots);
 
             if cli.anim {
-                apply_anim(&queue, &groups, &path.with_extension("mot"));
+                // Search for paths with non empty anims using in game naming conventions.
+                // TODO: Better heuristics based on all game versions.
+                let possible_anim_paths = vec![
+                    path.with_extension("mot"),
+                    path.with_extension("_obj.mot"),
+                    path.with_extension("_field.mot"),
+                ];
+                possible_anim_paths
+                    .iter()
+                    .find(|p| apply_anim(&queue, &groups, p));
             }
 
             let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -165,7 +176,7 @@ fn main() {
         });
 }
 
-fn apply_anim(queue: &wgpu::Queue, groups: &[xc3_wgpu::ModelGroup], path: &std::path::Path) {
+fn apply_anim(queue: &wgpu::Queue, groups: &[xc3_wgpu::ModelGroup], path: &Path) -> bool {
     let animations = load_animations(path);
     if let Some(animation) = animations.first() {
         for group in groups {
@@ -173,6 +184,9 @@ fn apply_anim(queue: &wgpu::Queue, groups: &[xc3_wgpu::ModelGroup], path: &std::
                 models.update_bone_transforms(queue, animation, 0.0);
             }
         }
+        true
+    } else {
+        false
     }
 }
 
