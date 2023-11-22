@@ -17,12 +17,14 @@ jobs:
       run: cargo build
     - name: Create Release Zip
       run: |
-        zip -r xc3_lib_linux_x64.zip target/debug
+        cd target/debug
+        zip xc3_lib_linux_x64.zip xc3_gltf xc3_shader xc3_tex xc3_viewer xc3_wgpu_batch
+        cd ../..
     - name: Upload Zip
       uses: actions/upload-artifact@v3
       with:
         name: xc3_lib_linux
-        path: xc3_lib_linux_x64.zip
+        path: target/debug/xc3_lib_linux_x64.zip
     - name: Release
       uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/')
@@ -39,12 +41,14 @@ jobs:
       run: cargo build
     - name: Create Release Zip
       run: |
-        Compress-Archive -path target/debug -destinationPath xc3_lib_win_x64.zip 
+        cd target/debug
+        Compress-Archive -path xc3_gltf xc3_shader xc3_tex xc3_viewer xc3_wgpu_batch -destinationPath xc3_lib_win_x64.zip
+        cd ../..
     - name: Upload Zip
       uses: actions/upload-artifact@v3
       with:
         name: xc3_lib_win
-        path: xc3_lib_win_x64.zip
+        path: target/debug/xc3_lib_win_x64.zip
     - name: Release
       uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/')
@@ -82,12 +86,14 @@ jobs:
         cd ../../..
     - name: Create Release Zip
       run: |
-        zip -r xc3_lib_macos_${{matrix.desc}}.zip target/${{matrix.target}}/debug
+        cd target/${{matrix.target}}/debug
+        zip xc3_lib_macos_${{matrix.desc}}.zip xc3_gltf xc3_shader xc3_tex xc3_viewer xc3_wgpu_batch
+        cd ../../..
     - name: Upload Zip
       uses: actions/upload-artifact@v3
       with:
         name: xc3_lib_macos_${{matrix.desc}}
-        path: xc3_lib_macos_${{matrix.desc}}.zip
+        path: target/${{matrix.target}}/debug/xc3_lib_macos_${{matrix.desc}}.zip
     - name: Release
       uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/')
