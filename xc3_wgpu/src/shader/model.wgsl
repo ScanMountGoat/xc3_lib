@@ -145,12 +145,12 @@ struct VertexOutput {
 }
 
 struct FragmentOutput {
-    @location(0) g0: vec4<f32>,
-    @location(1) g1: vec4<f32>,
-    @location(2) g2: vec4<f32>,
-    @location(3) g3: vec4<f32>,
-    @location(4) g4: vec4<f32>,
-    @location(5) g5: vec4<f32>,
+    @location(0) g_color: vec4<f32>,
+    @location(1) g_etc_buffer: vec4<f32>,
+    @location(2) g_normal: vec4<f32>,
+    @location(3) g_velocity: vec4<f32>,
+    @location(4) g_depth: vec4<f32>,
+    @location(5) g_lgt_color: vec4<f32>,
 }
 
 @vertex
@@ -316,15 +316,15 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     let assignments = per_material.gbuffer_assignments;
     // Defaults incorporate constants, parameters, and default values.
     let defaults = per_material.gbuffer_defaults;
-    let g0 = assign_gbuffer_texture(assignments[0], s_colors, defaults[0]);
-    let g1 = assign_gbuffer_texture(assignments[1], s_colors, defaults[1]);
-    let g2 = assign_gbuffer_texture(assignments[2], s_colors, defaults[2]);
-    let g3 = assign_gbuffer_texture(assignments[3], s_colors, defaults[3]);
-    let g4 = assign_gbuffer_texture(assignments[4], s_colors, defaults[4]);
-    let g5 = assign_gbuffer_texture(assignments[5], s_colors, defaults[5]);
+    let g_color = assign_gbuffer_texture(assignments[0], s_colors, defaults[0]);
+    let g_etc_buffer = assign_gbuffer_texture(assignments[1], s_colors, defaults[1]);
+    let g_normal = assign_gbuffer_texture(assignments[2], s_colors, defaults[2]);
+    let g_velocity = assign_gbuffer_texture(assignments[3], s_colors, defaults[3]);
+    let g_depth = assign_gbuffer_texture(assignments[4], s_colors, defaults[4]);
+    let g_lgt_color = assign_gbuffer_texture(assignments[5], s_colors, defaults[5]);
 
     // Assume each G-Buffer texture and channel always has the same usage.
-    let normal_map = g2.xy;
+    let normal_map = g_normal.xy;
 
     // Not all materials and shaders use normal mapping.
     // TODO: Is this a good way to check for this?
@@ -342,11 +342,11 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     // TODO: How much shading is done in this pass?
     // TODO: Is it ok to always apply gMatCol like this?
     var out: FragmentOutput;
-    out.g0 = g0 * vec4(per_material.mat_color.rgb, 1.0);
-    out.g1 = g1;
-    out.g2 = vec4(normalize(view_normal).xy * 0.5 + 0.5, g2.zw);
-    out.g3 = g3;
-    out.g4 = g4;
-    out.g5 = g5;
+    out.g_color = g_color * vec4(per_material.mat_color.rgb, 1.0);
+    out.g_etc_buffer = g_etc_buffer;
+    out.g_normal = vec4(normalize(view_normal).xy * 0.5 + 0.5, g_normal.zw);
+    out.g_velocity = g_velocity;
+    out.g_depth = g_depth;
+    out.g_lgt_color = g_lgt_color;
     return out;
 }
