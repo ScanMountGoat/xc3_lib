@@ -20,6 +20,7 @@ Cargo.lock
 *.glsl
 *.txt
 *.gltf
+*.json
 
 # Development Scripts
 *.sh
