@@ -1,19 +1,97 @@
 name: Compile Release
 
-on:
+on: 
+  release:
+    types: [created]
   workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+  build-linux:
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
     - name: Build
       run: cargo build
-      
+    - name: Create Release Zip
+      run: |
+        zip -r xc3_lib_linux_x64.zip target/debug
+    - name: Upload Zip
+      uses: actions/upload-artifact@v3
+      with:
+        name: xc3_lib_linux
+        path: xc3_lib_linux_x64.zip
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: xc3_lib_linux_x64.zip
+      env:
+        GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        
+  build-windows:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Build
+      run: cargo build
+    - name: Create Release Zip
+      run: |
+        Compress-Archive -path target/debug -destinationPath xc3_lib_win_x64.zip 
+    - name: Upload Zip
+      uses: actions/upload-artifact@v3
+      with:
+        name: xc3_lib_win
+        path: xc3_lib_win_x64.zip
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: xc3_lib_win_x64.zip
+      env:
+        GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+
+  build-macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        target: [x86_64-apple-darwin]
+        desc: [intel]
+        include:
+          - target: aarch64-apple-darwin
+            desc: apple_silicon
+    steps:
+    - uses: actions/checkout@v3
+    - name: Install Rust Toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        target: ${{matrix.target}}
+    - name: Build
+      run: cargo build
+    - name: Sign Binaries
+      run: |
+        cd target/${{matrix.target}}/debug
+        codesign -s - xc3_gltf
+        codesign -s - xc3_shader
+        codesign -s - xc3_tex
+        codesign -s - xc3_viewer
+        codesign -s - xc3_wgpu_batch
+        cd ../../..
+    - name: Create Release Zip
+      run: |
+        zip -r xc3_lib_macos_${{matrix.desc}}.zip target/${{matrix.target}}/debug
+    - name: Upload Zip
+      uses: actions/upload-artifact@v3
+      with:
+        name: xc3_lib_macos_${{matrix.desc}}
+        path: xc3_lib_macos_${{matrix.desc}}.zip
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: xc3_lib_macos_${{matrix.desc}}.zip
+      env:
+        GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
