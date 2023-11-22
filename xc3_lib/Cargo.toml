@@ -1,6 +1,6 @@
 [package]
 name = "xc3_lib"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["ScanMountGoat <>"]
 description = "Xenoblade Chronicles file format library"
 license = "MIT"
@@ -10,7 +10,7 @@ readme = "../README.md"
 edition = "2021"
 
 [dependencies]
-xc3_write = { version = "0.1.0", path = "../xc3_write" }
+xc3_write = { version = "0.2.0", path = "../xc3_write" }
 image_dds = { version = "0.3.0", default_features = false, features = ["ddsfile", "image" ] }
 binrw = "0.11.2"
 flate2 = "1.0"
