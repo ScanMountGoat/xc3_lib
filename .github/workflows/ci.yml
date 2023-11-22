@@ -29,7 +29,7 @@ jobs:
       uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/')
       with:
-        files: xc3_lib_linux_x64.zip
+        files: target/release/xc3_lib_linux_x64.zip
       env:
         GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
         
@@ -53,7 +53,7 @@ jobs:
       uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/')
       with:
-        files: xc3_lib_win_x64.zip
+        files: target/release/xc3_lib_win_x64.zip
       env:
         GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
@@ -98,6 +98,6 @@ jobs:
       uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/')
       with:
-        files: xc3_lib_macos_${{matrix.desc}}.zip
+        files: target/${{matrix.target}}/release/xc3_lib_macos_${{matrix.desc}}.zip
       env:
         GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
