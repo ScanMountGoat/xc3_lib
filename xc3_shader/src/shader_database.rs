@@ -7,10 +7,8 @@ use xc3_model::shader_database::{Map, Shader, ShaderDatabase, ShaderProgram, Spc
 use crate::dependencies::input_dependencies;
 
 fn shader_from_glsl(source: &str) -> Shader {
-    // TODO: Find a better way to skip unsupported extensions.
-    let modified_source = source.get(source.find("#pragma").unwrap()..).unwrap();
     // Only parse the source code once.
-    let translation_unit = &TranslationUnit::parse(modified_source).unwrap();
+    let translation_unit = &TranslationUnit::parse(source).unwrap();
 
     // Get the textures used to initialize each fragment output channel.
     // Unused outputs will have an empty dependency list.
@@ -130,9 +128,9 @@ fn create_shader_programs(folder: &Path) -> Vec<ShaderProgram> {
 
 fn extract_program_index(p: &Path) -> usize {
     let name = p.file_name().unwrap().to_string_lossy();
-    let start = name.find('d').unwrap();
+    let start = "slct".len();
     let end = name.find('_').unwrap();
-    name[start + 1..end].parse::<usize>().unwrap()
+    name[start..end].parse::<usize>().unwrap()
 }
 
 #[cfg(test)]
