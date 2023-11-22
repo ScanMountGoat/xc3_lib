@@ -42,7 +42,7 @@ jobs:
     - name: Create Release Zip
       run: |
         cd target/debug
-        Compress-Archive -path xc3_gltfe.ex xc3_shader.exe xc3_tex.exe xc3_viewer.exe xc3_wgpu_batch.exe -destinationPath xc3_lib_win_x64.zip
+        Compress-Archive -path xc3_gltf.exe xc3_shader.exe xc3_tex.exe xc3_viewer.exe xc3_wgpu_batch.exe -destinationPath xc3_lib_win_x64.zip
         cd ../..
     - name: Upload Zip
       uses: actions/upload-artifact@v3
