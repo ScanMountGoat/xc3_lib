@@ -12,11 +12,11 @@ const HEIGHT: u32 = 512;
 const FOV_Y: f32 = 0.5;
 
 #[derive(Parser)]
-#[command(author, version, about, long_about = None)]
+#[command(author, version, about)]
 #[command(propagate_version = true)]
 struct Cli {
     /// The root folder containing model files to search recursively.
-    /// Supports Xenoblade 2 and Xenoblade 3.
+    /// Supports Xenoblade 1 DE, Xenoblade 2 and Xenoblade 3.
     root_folder: String,
 
     /// The file extension to load.

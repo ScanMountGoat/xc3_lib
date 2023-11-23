@@ -395,7 +395,7 @@ pub fn current_time_seconds(
 }
 
 #[derive(Parser)]
-#[command(author, version, about, long_about = None)]
+#[command(author, version, about)]
 #[command(propagate_version = true)]
 struct Cli {
     /// The .wimdo or .wismhd file.
