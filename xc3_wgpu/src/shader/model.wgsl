@@ -119,13 +119,17 @@ var<storage> skin_weights: array<vec4<f32>>;
 
 // Define all possible attributes even if unused.
 // This avoids needing separate shaders.
-struct VertexInput {
-    @location(0) position: vec3<f32>,
-    @location(2) weight_index: u32,
+struct VertexInput0 {
+    @location(0) position: vec4<f32>,
+    @location(1) normal: vec4<f32>,
+    @location(2) tangent: vec4<f32>,
+}
+
+// Store attributes unaffected by skinning or morphs separately.
+struct VertexInput1 {
     @location(3) vertex_color: vec4<f32>,
-    @location(4) normal: vec4<f32>,
-    @location(5) tangent: vec4<f32>,
-    @location(6) uv1: vec4<f32>, // TODO: padding?
+    @location(4) uv1: vec3<f32>,
+    @location(5) weight_index: u32,
 }
 
 struct InstanceInput {
@@ -154,13 +158,13 @@ struct FragmentOutput {
 }
 
 @vertex
-fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
+fn vs_main(in0: VertexInput0, in1: VertexInput1, instance: InstanceInput) -> VertexOutput {
     var out: VertexOutput;
 
     // Linear blend skinning.
-    var position = vertex.position.xyz;
-    var normal_xyz = vertex.normal.xyz;
-    var tangent_xyz = vertex.tangent.xyz;
+    var position = in0.position.xyz;
+    var normal_xyz = in0.normal.xyz;
+    var tangent_xyz = in0.tangent.xyz;
 
     if per_group.enable_skinning.x == 1u {
         position = vec3(0.0);
@@ -169,16 +173,16 @@ fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
 
         // Weights require an extra layer of indirection.
         // Assume the weight lod ranges have already been applied.
-        let bone_indices = bone_indices[vertex.weight_index];
-        let skin_weights = skin_weights[vertex.weight_index];
+        let bone_indices = bone_indices[in1.weight_index];
+        let skin_weights = skin_weights[in1.weight_index];
 
         for (var i = 0u; i < 4u; i = i + 1u) {
             let bone_index = bone_indices[i];
             let skin_weight = skin_weights[i];
 
-            position += skin_weight * (per_group.animated_transforms[bone_index] * vec4(vertex.position.xyz, 1.0)).xyz;
-            tangent_xyz += skin_weight * (per_group.animated_transforms_inv_transpose[bone_index] * vec4(vertex.tangent.xyz, 0.0)).xyz;
-            normal_xyz += skin_weight * (per_group.animated_transforms_inv_transpose[bone_index] * vec4(vertex.normal.xyz, 0.0)).xyz;
+            position += skin_weight * (per_group.animated_transforms[bone_index] * vec4(in0.position.xyz, 1.0)).xyz;
+            tangent_xyz += skin_weight * (per_group.animated_transforms_inv_transpose[bone_index] * vec4(in0.tangent.xyz, 0.0)).xyz;
+            normal_xyz += skin_weight * (per_group.animated_transforms_inv_transpose[bone_index] * vec4(in0.normal.xyz, 0.0)).xyz;
         }
     }
 
@@ -191,12 +195,12 @@ fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
 
     out.clip_position = camera.view_projection * model_matrix * vec4(position, 1.0);
     out.position = out.clip_position.xyz;
-    out.uv1 = vertex.uv1.xy;
-    out.vertex_color = vertex.vertex_color;
+    out.uv1 = in1.uv1.xy;
+    out.vertex_color = in1.vertex_color;
     // Transform any direction vectors by the instance transform.
     // TODO: This assumes no scaling?
     out.normal = (model_matrix * vec4(normal_xyz, 0.0)).xyz;
-    out.tangent = vec4((model_matrix * vec4(tangent_xyz, 0.0)).xyz, vertex.tangent.w);
+    out.tangent = vec4((model_matrix * vec4(tangent_xyz, 0.0)).xyz, in0.tangent.w);
     return out;
 }
 

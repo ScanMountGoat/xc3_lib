@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use glam::{uvec4, vec4, Mat4, Vec3, Vec4};
+use glam::{uvec4, Mat4, Vec3, Vec4};
 use log::info;
 use rayon::prelude::*;
 use wgpu::util::DeviceExt;
@@ -56,7 +56,8 @@ pub struct Mesh {
 
 #[derive(Debug)]
 struct VertexBuffer {
-    vertex_buffer: wgpu::Buffer,
+    vertex_buffer0: wgpu::Buffer,
+    vertex_buffer1: wgpu::Buffer,
 }
 
 #[derive(Debug)]
@@ -105,8 +106,9 @@ impl ModelGroup {
     ) {
         let vertex_data =
             &self.buffers[model.model_buffers_index].vertex_buffers[mesh.vertex_buffer_index];
-        render_pass.set_vertex_buffer(0, vertex_data.vertex_buffer.slice(..));
-        render_pass.set_vertex_buffer(1, model.instance_buffer.slice(..));
+        render_pass.set_vertex_buffer(0, vertex_data.vertex_buffer0.slice(..));
+        render_pass.set_vertex_buffer(1, vertex_data.vertex_buffer1.slice(..));
+        render_pass.set_vertex_buffer(2, model.instance_buffer.slice(..));
 
         // TODO: Are all indices u16?
         let index_buffer =
@@ -347,74 +349,104 @@ fn model_vertex_buffers(
         .vertex_buffers
         .iter()
         .map(|buffer| {
-            let mut vertices = vec![
-                shader::model::VertexInput {
-                    position: Vec3::ZERO,
-                    weight_index: 0,
-                    vertex_color: Vec4::ZERO,
+            // Convert the attributes back to an interleaved representation for rendering.
+            // Unused attributes will use a default value.
+            // Using a single vertex representation reduces shader permutations.
+            let mut buffer0_vertices = vec![
+                shader::model::VertexInput0 {
+                    position: Vec4::ZERO,
                     normal: Vec4::ZERO,
                     tangent: Vec4::ZERO,
-                    uv1: Vec4::ZERO,
                 };
                 buffer.vertex_count()
             ];
 
-            // Convert the attributes back to an interleaved representation for rendering.
-            // Unused attributes will use the default values defined above.
-            // Using a single vertex representation reduces the number of shaders.
-            set_attributes(&mut vertices, buffer);
+            let mut buffer1_vertices = vec![
+                shader::model::VertexInput1 {
+                    vertex_color: Vec4::ZERO,
+                    uv1: Vec3::ZERO,
+                    weight_index: 0
+                };
+                buffer.vertex_count()
+            ];
 
-            let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("vertex buffer"),
-                contents: bytemuck::cast_slice(&vertices),
+            set_attributes(&mut buffer0_vertices, &mut buffer1_vertices, buffer);
+
+            let vertex_buffer0 = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("vertex buffer 0"),
+                contents: bytemuck::cast_slice(&buffer0_vertices),
                 usage: wgpu::BufferUsages::VERTEX,
             });
 
-            VertexBuffer { vertex_buffer }
+            let vertex_buffer1 = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("vertex buffer 1"),
+                contents: bytemuck::cast_slice(&buffer1_vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+
+            VertexBuffer {
+                vertex_buffer0,
+                vertex_buffer1,
+            }
         })
         .collect()
 }
 
-fn set_attributes(verts: &mut [shader::model::VertexInput], buffer: &xc3_model::VertexBuffer) {
-    set_buffer_attributes(verts, &buffer.attributes);
+fn set_attributes(
+    buffer0_vertices: &mut [shader::model::VertexInput0],
+    buffer1_vertices: &mut [shader::model::VertexInput1],
+    buffer: &xc3_model::VertexBuffer,
+) {
+    set_buffer0_attributes(buffer0_vertices, &buffer.attributes);
+    set_buffer1_attributes(buffer1_vertices, &buffer.attributes);
+
     // TODO: Render morph target animations?
 }
 
-fn set_buffer_attributes(verts: &mut [shader::model::VertexInput], attributes: &[AttributeData]) {
+fn set_buffer0_attributes(verts: &mut [shader::model::VertexInput0], attributes: &[AttributeData]) {
     for attribute in attributes {
         match attribute {
-            AttributeData::Position(vals) => set_attribute(verts, vals, |v, t| v.position = t),
-            AttributeData::Normal(vals) => set_attribute(verts, vals, |v, t| v.normal = t),
-            AttributeData::Tangent(vals) => set_attribute(verts, vals, |v, t| v.tangent = t),
-            AttributeData::TexCoord0(vals) => {
-                set_attribute(verts, vals, |v, t| v.uv1 = vec4(t.x, t.y, 0.0, 0.0))
+            AttributeData::Position(vals) => {
+                set_attribute0(verts, vals, |v, t| v.position = t.extend(1.0))
             }
-            AttributeData::TexCoord1(_) => (),
-            AttributeData::TexCoord2(_) => (),
-            AttributeData::TexCoord3(_) => (),
-            AttributeData::TexCoord4(_) => (),
-            AttributeData::TexCoord5(_) => (),
-            AttributeData::TexCoord6(_) => (),
-            AttributeData::TexCoord7(_) => (),
-            AttributeData::TexCoord8(_) => (),
-            AttributeData::VertexColor(vals) => {
-                set_attribute(verts, vals, |v, t| v.vertex_color = t)
-            }
-            AttributeData::Blend(_) => (),
-            AttributeData::WeightIndex(vals) => {
-                set_attribute(verts, vals, |v, t| v.weight_index = t)
-            }
-            // Bone influences are handled separately.
-            AttributeData::SkinWeights(_) => (),
-            AttributeData::BoneIndices(_) => (),
+            AttributeData::Normal(vals) => set_attribute0(verts, vals, |v, t| v.normal = t),
+            AttributeData::Tangent(vals) => set_attribute0(verts, vals, |v, t| v.tangent = t),
+            _ => (),
         }
     }
 }
 
-fn set_attribute<T, F>(vertices: &mut [shader::model::VertexInput], values: &[T], assign: F)
+fn set_buffer1_attributes(verts: &mut [shader::model::VertexInput1], attributes: &[AttributeData]) {
+    for attribute in attributes {
+        match attribute {
+            AttributeData::TexCoord0(vals) => {
+                set_attribute1(verts, vals, |v, t| v.uv1 = t.extend(0.0))
+            }
+            AttributeData::VertexColor(vals) => {
+                set_attribute1(verts, vals, |v, t| v.vertex_color = t)
+            }
+            AttributeData::WeightIndex(vals) => {
+                set_attribute1(verts, vals, |v, t| v.weight_index = t)
+            }
+            _ => (),
+        }
+    }
+}
+
+fn set_attribute0<T, F>(vertices: &mut [shader::model::VertexInput0], values: &[T], assign: F)
 where
     T: Copy,
-    F: Fn(&mut shader::model::VertexInput, T),
+    F: Fn(&mut shader::model::VertexInput0, T),
+{
+    for (vertex, value) in vertices.iter_mut().zip(values) {
+        assign(vertex, *value);
+    }
+}
+
+fn set_attribute1<T, F>(vertices: &mut [shader::model::VertexInput1], values: &[T], assign: F)
+where
+    T: Copy,
+    F: Fn(&mut shader::model::VertexInput1, T),
 {
     for (vertex, value) in vertices.iter_mut().zip(values) {
         assign(vertex, *value);

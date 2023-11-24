@@ -92,6 +92,7 @@ pub fn model_pipeline(
             &data.module,
             &crate::shader::model::vs_main_entry(
                 wgpu::VertexStepMode::Vertex,
+                wgpu::VertexStepMode::Vertex,
                 wgpu::VertexStepMode::Instance,
             ),
         ),
