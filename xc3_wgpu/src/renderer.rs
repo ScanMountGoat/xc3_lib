@@ -103,6 +103,8 @@ impl Xc3Renderer {
         encoder: &mut wgpu::CommandEncoder,
         models: &[ModelGroup],
     ) {
+        // The passes and their ordering only loosely matches in game.
+        // This enables better performance, portability, etc.
         self.compute_morphs(encoder, models);
 
         // Deferred rendering requires a second forward pass for transparent meshes.
@@ -261,8 +263,13 @@ impl Xc3Renderer {
     }
 
     fn compute_morphs(&self, encoder: &mut wgpu::CommandEncoder, models: &[ModelGroup]) {
+        // Reset the buffers each frame before updating them.
+        for model in models {
+            model.reset_morphs(encoder);
+        }
+
         let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-            label: Some("Morph Compute"),
+            label: Some("Compute Morphs"),
             timestamp_writes: None,
         });
         compute_pass.set_pipeline(&self.morph_pipeline);
