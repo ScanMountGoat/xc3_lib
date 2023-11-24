@@ -151,7 +151,15 @@ impl Xc3Renderer {
                     },
                 ),
                 color_attachment(&self.gbuffer.velocity, wgpu::Color::BLACK),
-                color_attachment(&self.gbuffer.depth, wgpu::Color::BLACK),
+                color_attachment(
+                    &self.gbuffer.depth,
+                    wgpu::Color {
+                        r: 1.0,
+                        g: 1.0,
+                        b: 1.0,
+                        a: 0.0,
+                    },
+                ),
                 color_attachment(&self.gbuffer.lgt_color, wgpu::Color::BLACK),
             ],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {

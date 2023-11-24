@@ -24,12 +24,13 @@ pub struct Material {
 }
 
 // Choose defaults that have as close to no effect as possible.
+// TODO: Make a struct for this instead?
 const GBUFFER_DEFAULTS: [Vec4; 6] = [
     Vec4::ONE,
     Vec4::ZERO,
     Vec4::new(0.5, 0.5, 1.0, 0.0),
     Vec4::ZERO,
-    Vec4::ZERO,
+    Vec4::new(1.0, 1.0, 1.0, 0.0),
     Vec4::ZERO,
 ];
 

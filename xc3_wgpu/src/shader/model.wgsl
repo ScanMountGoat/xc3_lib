@@ -190,7 +190,7 @@ fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
     );
 
     out.clip_position = camera.view_projection * model_matrix * vec4(position, 1.0);
-    out.position = position;
+    out.position = out.clip_position.xyz;
     out.uv1 = vertex.uv1.xy;
     out.vertex_color = vertex.vertex_color;
     // Transform any direction vectors by the instance transform.
@@ -255,19 +255,26 @@ fn assign_channel(sampler_index: i32, channel_index: u32, s_colors: array<vec4<f
     }
 }
 
-// TODO: Is it worth porting the in game code for this?
+// Adapted from shd00036 GLSL from ch11021013.pcsmt (xc3). 
 fn apply_normal_map(normal: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<f32>, normal_map: vec2<f32>) -> vec3<f32> {
     // Remap the tangent space normal map to the correct range.
-    let x = 2.0 * normal_map.x - 1.0;
-    let y = 2.0 * normal_map.y - 1.0;
+    // The additional offset determines the "neutral" normal map value.
+    let x = 2.0 * normal_map.x - 1.0 - (1.0 / 256.0);
+    let y = 2.0 * normal_map.y - 1.0 - (1.0 / 256.0);
 
     // Calculate z based on the fact that x*x + y*y + z*z = 1.
     let z = sqrt(abs(1.0 - (x * x) + (y * y)));
 
     // Normal mapping is a change of basis using the TBN vectors.
-    let nor = vec3(x, y, z);
-    let newNormal = tangent * nor.x + bitangent * nor.y + normal * nor.z;
-    return normalize(newNormal);
+    return normalize(tangent * x + bitangent * y + normal * z);
+}
+
+// Adapted from shd00036 GLSL from ch11021013.pcsmt (xc3). 
+// TODO: What is this conversion doing?
+fn mrt_depth(depth: f32, param: f32) -> vec4<f32> {
+    var o = vec2(depth * 8.0, floor(depth * 8.0) / 255.0);
+    let t = floor(o);
+    return vec4(o.xy - t.xy, t.y / 255.0, param);
 }
 
 @fragment
@@ -346,7 +353,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     out.g_etc_buffer = g_etc_buffer;
     out.g_normal = vec4(normalize(view_normal).xy * 0.5 + 0.5, g_normal.zw);
     out.g_velocity = g_velocity;
-    out.g_depth = g_depth;
+    out.g_depth = mrt_depth(in.position.z, 0.0);
     out.g_lgt_color = g_lgt_color;
     return out;
 }
