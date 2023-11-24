@@ -12,6 +12,11 @@ fn main() {
         "src/shader/model.wgsl",
         &format!("{out_dir}/model.rs"),
     );
+    write_shader(
+        include_str!("src/shader/morph.wgsl"),
+        "src/shader/morph.wgsl",
+        &format!("{out_dir}/morph.rs"),
+    );
 }
 
 fn write_shader(wgsl_source: &str, wgsl_path: &str, output_path: &str) {

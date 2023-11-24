@@ -272,27 +272,37 @@ fn assign_morph_targets(
                     // TODO: Find a way to express this with bitflags?
                     let base = read_morph_blend_target(base_target, &vertex_data.buffer).unwrap();
 
+                    // TODO: Skip the first two targets?
                     buffer.morph_targets = targets
                         .iter()
                         .map(|target| {
                             // Apply remaining targets onto the base target values.
                             let vertices =
                                 read_morph_buffer_target(target, &vertex_data.buffer).unwrap();
-                            let mut position_deltas = vec![Vec3::ZERO; base.positions.len()];
-                            let mut normal_deltas = base.normals.clone();
-                            let mut tangent_deltas = base.tangents.clone();
 
+                            let mut position_deltas = Vec::new();
+                            let mut normal_deltas = Vec::new();
+                            let mut tangent_deltas = Vec::new();
+                            let mut vertex_indices = Vec::new();
+
+                            // Keep the sparse representation to save space.
+                            // The vertex indices only contain affected vertices.
                             for vertex in vertices {
                                 let i = vertex.vertex_index as usize;
-                                position_deltas[i] = vertex.position_delta;
-                                normal_deltas[i] = vertex.normal - base.normals[i];
-                                tangent_deltas[i] = vertex.tangent - base.tangents[i];
+                                vertex_indices.push(vertex.vertex_index);
+
+                                position_deltas.push(vertex.position_delta);
+
+                                // Convert every attribute to a delta for consistency.
+                                normal_deltas.push(vertex.normal - base.normals[i]);
+                                tangent_deltas.push(vertex.tangent - base.tangents[i]);
                             }
 
                             MorphTarget {
                                 position_deltas,
                                 normal_deltas,
                                 tangent_deltas,
+                                vertex_indices,
                             }
                         })
                         .collect();

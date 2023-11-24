@@ -103,10 +103,21 @@ impl Buffers {
                     .morph_targets
                     .iter()
                     .map(|target| {
+                        // Convert from a sparse to a dense representation.
+                        let vertex_count = vertex_buffer.attributes[0].len();
+                        let mut position_deltas = vec![Vec3::ZERO; vertex_count];
+                        let mut normal_deltas = vec![Vec3::ZERO; vertex_count];
+                        let mut tangent_deltas = vec![Vec3::ZERO; vertex_count];
+                        for (i, vertex_index) in target.vertex_indices.iter().enumerate() {
+                            position_deltas[*vertex_index as usize] = target.position_deltas[i];
+                            normal_deltas[*vertex_index as usize] = target.normal_deltas[i].xyz();
+                            tangent_deltas[*vertex_index as usize] = target.tangent_deltas[i].xyz();
+                        }
+
                         // glTF morph targets are defined as a difference with the base target.
                         let mut attributes = attributes.clone();
                         self.insert_attribute_values(
-                            &target.position_deltas,
+                            &position_deltas,
                             gltf::Semantic::Positions,
                             gltf::json::accessor::Type::Vec3,
                             gltf::json::accessor::ComponentType::F32,
@@ -116,8 +127,6 @@ impl Buffers {
 
                         // Normals and tangents also use deltas.
                         // These should use Vec3 to avoid displacing the sign in tangent.w.
-                        let normal_deltas: Vec<_> =
-                            target.normal_deltas.iter().map(|n| n.xyz()).collect();
                         self.insert_attribute_values(
                             &normal_deltas,
                             gltf::Semantic::Normals,
@@ -127,8 +136,6 @@ impl Buffers {
                             &mut attributes,
                         );
 
-                        let tangent_deltas: Vec<_> =
-                            target.tangent_deltas.iter().map(|t| t.xyz()).collect();
                         self.insert_attribute_values(
                             &tangent_deltas,
                             gltf::Semantic::Tangents,

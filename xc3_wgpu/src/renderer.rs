@@ -14,6 +14,8 @@ pub struct Xc3Renderer {
     gbuffer: GBuffer,
     debug_settings_buffer: wgpu::Buffer,
 
+    morph_pipeline: wgpu::ComputePipeline,
+
     depth_view: wgpu::TextureView,
 }
 
@@ -80,6 +82,8 @@ impl Xc3Renderer {
             },
         );
 
+        let morph_pipeline = crate::shader::morph::compute::create_main_pipeline(device);
+
         Self {
             camera_buffer,
             model_bind_group0,
@@ -89,6 +93,7 @@ impl Xc3Renderer {
             deferred_bind_group1,
             gbuffer,
             debug_settings_buffer,
+            morph_pipeline,
         }
     }
 
@@ -98,6 +103,8 @@ impl Xc3Renderer {
         encoder: &mut wgpu::CommandEncoder,
         models: &[ModelGroup],
     ) {
+        self.compute_morphs(encoder, models);
+
         // Deferred rendering requires a second forward pass for transparent meshes.
         // TODO: Research more about how this is implemented in game.
         self.model_pass(encoder, models);
@@ -251,6 +258,18 @@ impl Xc3Renderer {
         );
 
         render_pass.draw(0..3, 0..1);
+    }
+
+    fn compute_morphs(&self, encoder: &mut wgpu::CommandEncoder, models: &[ModelGroup]) {
+        let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+            label: Some("Morph Compute"),
+            timestamp_writes: None,
+        });
+        compute_pass.set_pipeline(&self.morph_pipeline);
+
+        for model in models {
+            model.compute_morphs(&mut compute_pass);
+        }
     }
 }
 

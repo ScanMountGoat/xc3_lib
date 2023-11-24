@@ -222,7 +222,11 @@ pub struct MorphTarget {
     // TODO: Exclude the 4th sign component?
     pub normal_deltas: Vec<Vec4>,
     pub tangent_deltas: Vec<Vec4>,
+    /// The index of the vertex affected by each offset deltas.
+    pub vertex_indices: Vec<u32>,
 }
+
+// TODO: method to convert to a non sparse format?
 
 /// See [IndexBufferDescriptor](xc3_lib::vertex::IndexBufferDescriptor).
 #[derive(Debug, Clone, PartialEq)]

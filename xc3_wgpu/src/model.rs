@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use glam::{uvec4, Mat4, Vec3, Vec4};
+use glam::{uvec4, Mat4, Vec3, Vec4, Vec4Swizzles};
 use log::info;
 use rayon::prelude::*;
 use wgpu::util::DeviceExt;
@@ -21,7 +21,6 @@ pub struct ModelGroup {
     buffers: Vec<ModelBuffers>,
 }
 
-#[derive(Debug)]
 pub struct ModelBuffers {
     vertex_buffers: Vec<VertexBuffer>,
     index_buffers: Vec<IndexBuffer>,
@@ -45,7 +44,6 @@ pub struct Model {
     model_buffers_index: usize,
 }
 
-#[derive(Debug)]
 pub struct Mesh {
     vertex_buffer_index: usize,
     index_buffer_index: usize,
@@ -54,13 +52,18 @@ pub struct Mesh {
     per_mesh: crate::shader::model::bind_groups::BindGroup3,
 }
 
-#[derive(Debug)]
 struct VertexBuffer {
     vertex_buffer0: wgpu::Buffer,
     vertex_buffer1: wgpu::Buffer,
+    morph_buffers: Option<MorphBuffers>,
 }
 
-#[derive(Debug)]
+struct MorphBuffers {
+    vertex_buffer0_output: wgpu::Buffer,
+    bind_group0: crate::shader::morph::bind_groups::BindGroup0,
+    morph_delta_count: usize,
+}
+
 struct IndexBuffer {
     index_buffer: wgpu::Buffer,
     vertex_index_count: u32,
@@ -104,10 +107,16 @@ impl ModelGroup {
         mesh: &Mesh,
         render_pass: &mut wgpu::RenderPass<'a>,
     ) {
-        let vertex_data =
+        let vertex_buffers =
             &self.buffers[model.model_buffers_index].vertex_buffers[mesh.vertex_buffer_index];
-        render_pass.set_vertex_buffer(0, vertex_data.vertex_buffer0.slice(..));
-        render_pass.set_vertex_buffer(1, vertex_data.vertex_buffer1.slice(..));
+
+        if let Some(morph_buffers) = &vertex_buffers.morph_buffers {
+            render_pass.set_vertex_buffer(0, morph_buffers.vertex_buffer0_output.slice(..));
+        } else {
+            render_pass.set_vertex_buffer(0, vertex_buffers.vertex_buffer0.slice(..));
+        }
+
+        render_pass.set_vertex_buffer(1, vertex_buffers.vertex_buffer1.slice(..));
         render_pass.set_vertex_buffer(2, model.instance_buffer.slice(..));
 
         // TODO: Are all indices u16?
@@ -124,6 +133,23 @@ impl ModelGroup {
             0..model.instance_count as u32,
         );
     }
+
+    pub fn compute_morphs<'a>(&'a self, compute_pass: &mut wgpu::ComputePass<'a>) {
+        for buffers in &self.buffers {
+            for vertex_buffer in &buffers.vertex_buffers {
+                if let Some(morph_buffers) = &vertex_buffer.morph_buffers {
+                    morph_buffers.bind_group0.set(compute_pass);
+                    let [size_x, _, _] = crate::shader::morph::compute::MAIN_WORKGROUP_SIZE;
+                    let x = div_round_up(morph_buffers.morph_delta_count as u32, size_x);
+                    compute_pass.dispatch_workgroups(x, 1, 1);
+                }
+            }
+        }
+    }
+}
+
+const fn div_round_up(x: u32, d: u32) -> u32 {
+    (x + d - 1) / d
 }
 
 impl Models {
@@ -375,7 +401,7 @@ fn model_vertex_buffers(
             let vertex_buffer0 = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("vertex buffer 0"),
                 contents: bytemuck::cast_slice(&buffer0_vertices),
-                usage: wgpu::BufferUsages::VERTEX,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE,
             });
 
             let vertex_buffer1 = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -384,9 +410,80 @@ fn model_vertex_buffers(
                 usage: wgpu::BufferUsages::VERTEX,
             });
 
+            // TODO: morph targets?
+            let morph_buffers = if !buffer.morph_targets.is_empty() {
+                // Initialize to the unmodified vertices.
+                let vertex_buffer0_output =
+                    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("vertex buffer 0 morph output"),
+                        contents: bytemuck::cast_slice(&buffer0_vertices),
+                        usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE,
+                    });
+
+                let deltas: Vec<_> = buffer
+                    .morph_targets
+                    .iter()
+                    .enumerate()
+                    .flat_map(|(i, target)| {
+                        if i == 56 {
+                            dbg!(i, target.position_deltas.iter().copied().reduce(Vec3::max));
+                        }
+                        target
+                            .position_deltas
+                            .iter()
+                            .zip(target.normal_deltas.iter())
+                            .zip(target.tangent_deltas.iter())
+                            .zip(target.vertex_indices.iter())
+                            .map(
+                                move |(((p, n), t), v)| crate::shader::morph::MorphVertexDelta {
+                                    position_delta: p.extend(0.0),
+                                    normal_delta: n.xyz(),
+                                    tangent_delta: t.xyz(),
+                                    morph_index: i as u32,
+                                    vertex_index: *v,
+                                },
+                            )
+                    })
+                    .collect();
+
+                let morph_deltas = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("morph deltas"),
+                    contents: bytemuck::cast_slice(&deltas),
+                    usage: wgpu::BufferUsages::STORAGE,
+                });
+
+                let mut weights = vec![0.0f32; buffer.morph_targets.len()];
+                weights[56] = 1.0;
+
+                let morph_weights = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("morph weights"),
+                    contents: bytemuck::cast_slice(&weights),
+                    usage: wgpu::BufferUsages::STORAGE,
+                });
+
+                let bind_group0 = crate::shader::morph::bind_groups::BindGroup0::from_bindings(
+                    device,
+                    crate::shader::morph::bind_groups::BindGroupLayout0 {
+                        input: vertex_buffer0.as_entire_buffer_binding(),
+                        output: vertex_buffer0_output.as_entire_buffer_binding(),
+                        morph_deltas: morph_deltas.as_entire_buffer_binding(),
+                        morph_weights: morph_weights.as_entire_buffer_binding(),
+                    },
+                );
+
+                Some(MorphBuffers {
+                    vertex_buffer0_output,
+                    bind_group0,
+                    morph_delta_count: deltas.len(),
+                })
+            } else {
+                None
+            };
+
             VertexBuffer {
                 vertex_buffer0,
                 vertex_buffer1,
+                morph_buffers,
             }
         })
         .collect()
@@ -399,8 +496,6 @@ fn set_attributes(
 ) {
     set_buffer0_attributes(buffer0_vertices, &buffer.attributes);
     set_buffer1_attributes(buffer1_vertices, &buffer.attributes);
-
-    // TODO: Render morph target animations?
 }
 
 fn set_buffer0_attributes(verts: &mut [shader::model::VertexInput0], attributes: &[AttributeData]) {

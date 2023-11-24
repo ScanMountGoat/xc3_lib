@@ -6,3 +6,6 @@ pub mod deferred {
 pub mod model {
     include!(concat!(env!("OUT_DIR"), "/model.rs"));
 }
+pub mod morph {
+    include!(concat!(env!("OUT_DIR"), "/morph.rs"));
+}
