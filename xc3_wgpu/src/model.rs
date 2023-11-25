@@ -134,7 +134,7 @@ impl ModelGroup {
         );
     }
 
-    pub fn reset_morphs<'a>(&'a self, encoder: &mut wgpu::CommandEncoder) {
+    pub fn reset_morphs(&self, encoder: &mut wgpu::CommandEncoder) {
         for buffers in &self.buffers {
             for vertex_buffer in &buffers.vertex_buffers {
                 if let Some(morph_buffers) = &vertex_buffer.morph_buffers {

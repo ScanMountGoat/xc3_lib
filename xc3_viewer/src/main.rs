@@ -10,7 +10,8 @@ use log::{debug, error, info};
 use winit::{
     dpi::PhysicalPosition,
     event::*,
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
+    keyboard::NamedKey,
     window::{Window, WindowBuilder},
 };
 use xc3_model::{animation::Animation, load_animations};
@@ -243,26 +244,18 @@ impl State {
     // Make this a reusable library that only requires glam?
     fn handle_input(&mut self, event: &WindowEvent, window: &Window) {
         match event {
-            WindowEvent::KeyboardInput { input, .. } => {
+            WindowEvent::KeyboardInput { event, .. } => {
                 // Basic camera controls using arrow keys.
-                if let Some(keycode) = input.virtual_keycode {
-                    match keycode {
-                        VirtualKeyCode::Left => self.translation.x += 0.1,
-                        VirtualKeyCode::Right => self.translation.x -= 0.1,
-                        VirtualKeyCode::Up => self.translation.y -= 0.1,
-                        VirtualKeyCode::Down => self.translation.y += 0.1,
-                        // Debug a selected G-Buffer texture.
-                        VirtualKeyCode::Key0 => self.update_debug_settings(0),
-                        VirtualKeyCode::Key1 => self.update_debug_settings(1),
-                        VirtualKeyCode::Key2 => self.update_debug_settings(2),
-                        VirtualKeyCode::Key3 => self.update_debug_settings(3),
-                        VirtualKeyCode::Key4 => self.update_debug_settings(4),
-                        VirtualKeyCode::Key5 => self.update_debug_settings(5),
-                        VirtualKeyCode::Key6 => self.update_debug_settings(6),
+                match &event.logical_key {
+                    winit::keyboard::Key::Named(named) => match named {
+                        NamedKey::ArrowLeft => self.translation.x += 0.1,
+                        NamedKey::ArrowRight => self.translation.x -= 0.1,
+                        NamedKey::ArrowUp => self.translation.y -= 0.1,
+                        NamedKey::ArrowDown => self.translation.y += 0.1,
                         // Animation playback.
-                        VirtualKeyCode::Space => self.current_time_seconds = 0.0,
-                        VirtualKeyCode::PageUp => {
-                            if input.state == ElementState::Released {
+                        NamedKey::Space => self.current_time_seconds = 0.0,
+                        NamedKey::PageUp => {
+                            if event.state == ElementState::Released {
                                 self.current_time_seconds = 0.0;
                                 self.animation_index += 1;
                                 update_window_title(
@@ -273,8 +266,8 @@ impl State {
                                 );
                             }
                         }
-                        VirtualKeyCode::PageDown => {
-                            if input.state == ElementState::Released {
+                        NamedKey::PageDown => {
+                            if event.state == ElementState::Released {
                                 self.current_time_seconds = 0.0;
                                 self.animation_index = self.animation_index.saturating_sub(1);
                                 update_window_title(
@@ -286,7 +279,21 @@ impl State {
                             }
                         }
                         _ => (),
+                    },
+                    winit::keyboard::Key::Character(c) => {
+                        match c.as_str() {
+                            // Debug a selected G-Buffer texture.
+                            "0" => self.update_debug_settings(0),
+                            "1" => self.update_debug_settings(1),
+                            "2" => self.update_debug_settings(2),
+                            "3" => self.update_debug_settings(3),
+                            "4" => self.update_debug_settings(4),
+                            "5" => self.update_debug_settings(5),
+                            "6" => self.update_debug_settings(6),
+                            _ => (),
+                        }
                     }
+                    _ => (),
                 }
             }
             WindowEvent::MouseInput { button, state, .. } => {
@@ -429,7 +436,7 @@ fn main() {
 
     let cli = Cli::parse();
 
-    let event_loop = EventLoop::new();
+    let event_loop = EventLoop::new().unwrap();
     let window = WindowBuilder::new()
         .with_title(concat!("xc3_wgpu ", env!("CARGO_PKG_VERSION")))
         .build(&event_loop)
@@ -442,42 +449,35 @@ fn main() {
         cli.anim_index.unwrap_or_default(),
         cli.database.as_ref(),
     ));
-    event_loop.run(move |event, _, control_flow| match event {
-        Event::WindowEvent {
-            ref event,
-            window_id,
-        } if window_id == window.id() => match event {
-            WindowEvent::CloseRequested
-            | WindowEvent::KeyboardInput {
-                input:
-                    KeyboardInput {
-                        state: ElementState::Pressed,
-                        virtual_keycode: Some(VirtualKeyCode::Escape),
-                        ..
-                    },
-                ..
-            } => *control_flow = ControlFlow::Exit,
-            WindowEvent::Resized(physical_size) => {
-                state.resize(*physical_size);
-                state.update_camera(*physical_size);
-            }
-            WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                state.resize(**new_inner_size);
-            }
-            _ => {
-                state.handle_input(event, &window);
-                state.update_camera(window.inner_size());
-            }
-        },
-        Event::RedrawRequested(_) => match state.render() {
-            Ok(_) => {}
-            Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
-            Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
-            Err(e) => error!("{e:?}"),
-        },
-        Event::MainEventsCleared => {
-            window.request_redraw();
-        }
-        _ => (),
-    });
+    event_loop
+        .run(move |event, target| match event {
+            Event::WindowEvent {
+                ref event,
+                window_id,
+            } if window_id == window.id() => match event {
+                WindowEvent::CloseRequested => target.exit(),
+                WindowEvent::Resized(physical_size) => {
+                    state.resize(*physical_size);
+                    state.update_camera(*physical_size);
+                    window.request_redraw();
+                }
+                WindowEvent::ScaleFactorChanged { .. } => {}
+                WindowEvent::RedrawRequested => {
+                    match state.render() {
+                        Ok(_) => {}
+                        Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
+                        Err(wgpu::SurfaceError::OutOfMemory) => target.exit(),
+                        Err(e) => error!("{e:?}"),
+                    }
+                    window.request_redraw();
+                }
+                _ => {
+                    state.handle_input(event, &window);
+                    state.update_camera(window.inner_size());
+                    window.request_redraw();
+                }
+            },
+            _ => (),
+        })
+        .unwrap();
 }
