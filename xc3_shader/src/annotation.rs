@@ -278,6 +278,7 @@ fn annotate_buffers(
                         Some(length)
                     } else {
                         // TODO: Infer the length from the highest accessed index?
+                        // TODO: Fix this.
                         None
                     }
                 });
@@ -319,7 +320,7 @@ fn annotate_buffers(
     }
 }
 
-fn shader_source_no_extensions(glsl: String) -> String {
+pub fn shader_source_no_extensions(glsl: String) -> String {
     // TODO: Find a better way to skip unsupported extensions.
     glsl.find("#pragma")
         .map(|i| glsl[i..].to_string())

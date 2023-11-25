@@ -9,6 +9,8 @@ use xc3_lib::msmd::Msmd;
 use xc3_lib::msrd::Msrd;
 use xc3_lib::mxmd::Mxmd;
 
+use crate::dependencies::glsl_dependencies;
+
 mod annotation;
 mod dependencies;
 mod extract;
@@ -41,6 +43,15 @@ enum Commands {
         /// The output JSON file.
         output_file: String,
     },
+    /// Find all lines of GLSL code influencing the final assignment of a variable.
+    GlslDependencies {
+        /// The input GLSL file.
+        input: String,
+        /// The output GLSL file.
+        output: String,
+        /// The name of the variable to analyze.
+        var: String,
+    },
 }
 
 fn main() {
@@ -61,6 +72,11 @@ fn main() {
             let files = create_shader_database(&input_folder);
             let json = serde_json::to_string(&files).unwrap();
             std::fs::write(output_file, json).unwrap()
+        }
+        Commands::GlslDependencies { input, output, var } => {
+            let source = std::fs::read_to_string(input).unwrap();
+            let source_out = glsl_dependencies(&source, &var);
+            std::fs::write(output, source_out).unwrap();
         }
     }
 

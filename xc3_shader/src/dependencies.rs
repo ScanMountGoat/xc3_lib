@@ -7,9 +7,12 @@ use glsl_lang::{
         DeclarationData, Expr, ExprData, FunIdentifierData, InitializerData, Statement,
         StatementData, TranslationUnit,
     },
+    parse::DefaultParse,
     transpiler::glsl::{show_expr, FormattingState},
     visitor::{Host, Visit, Visitor},
 };
+
+use crate::annotation::shader_source_no_extensions;
 
 #[derive(Debug, Default)]
 struct AssignmentVisitor {
@@ -413,32 +416,33 @@ fn add_dependencies(
     }
 }
 
+pub fn glsl_dependencies(source: &str, var: &str) -> String {
+    let source = shader_source_no_extensions(source.to_string());
+    let translation_unit = TranslationUnit::parse(&source).unwrap();
+    line_dependencies(&translation_unit, var)
+        .map(|dependencies| {
+            // Combine all the lines into source code again.
+            // These won't exactly match the originals due to formatting differences.
+            dependencies
+                .dependent_lines
+                .into_iter()
+                .map(|d| {
+                    let a = &dependencies.assignments[d];
+                    format!("{} = {};", a.output, print_expr(&a.input_expr))
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+                + "\n"
+        })
+        .unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use glsl_lang::{ast::TranslationUnit, parse::DefaultParse};
+    use glsl_lang::ast::TranslationUnit;
     use indoc::indoc;
-
-    fn line_dependencies_glsl(source: &str, var: &str) -> String {
-        let translation_unit = TranslationUnit::parse(source).unwrap();
-        line_dependencies(&translation_unit, var)
-            .map(|dependencies| {
-                // Combine all the lines into source code again.
-                // These won't exactly match the originals due to formatting differences.
-                dependencies
-                    .dependent_lines
-                    .into_iter()
-                    .map(|d| {
-                        let a = &dependencies.assignments[d];
-                        format!("{} = {};", a.output, print_expr(&a.input_expr))
-                    })
-                    .collect::<Vec<_>>()
-                    .join("\n")
-                    + "\n"
-            })
-            .unwrap_or_default()
-    }
 
     #[test]
     fn line_dependencies_final_assignment() {
@@ -468,7 +472,7 @@ mod tests {
                 d = d + 1.;
                 OUT_Color.x = c + d;
             "},
-            line_dependencies_glsl(glsl, "OUT_Color.x")
+            glsl_dependencies(glsl, "OUT_Color.x")
         );
     }
 
@@ -491,7 +495,7 @@ mod tests {
                 b = 2.;
                 c = 2 * b;
             "},
-            line_dependencies_glsl(glsl, "c")
+            glsl_dependencies(glsl, "c")
         );
     }
 
@@ -513,7 +517,7 @@ mod tests {
                 b = uint(a) >> 2;
                 c = data[int(b)];
             "},
-            line_dependencies_glsl(glsl, "c")
+            glsl_dependencies(glsl, "c")
         );
     }
 
@@ -526,7 +530,7 @@ mod tests {
             }
         "};
 
-        assert_eq!("", line_dependencies_glsl(glsl, "d"));
+        assert_eq!("", glsl_dependencies(glsl, "d"));
     }
 
     #[test]
@@ -546,7 +550,7 @@ mod tests {
                 b = texture(texture1, vec2(a + 2., 1.)).x;
                 c = data[int(b)];
             "},
-            line_dependencies_glsl(glsl, "c")
+            glsl_dependencies(glsl, "c")
         );
     }
 
