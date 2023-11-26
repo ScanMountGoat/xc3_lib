@@ -8,6 +8,7 @@ use shader_database::create_shader_database;
 use xc3_lib::msmd::Msmd;
 use xc3_lib::msrd::Msrd;
 use xc3_lib::mxmd::Mxmd;
+use xc3_lib::spch::Spch;
 
 use crate::dependencies::glsl_dependencies;
 
@@ -130,6 +131,25 @@ fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Option
                     println!("{output_folder:?}");
 
                     extract_and_decompile_msmd_shaders(path, msmd, output_folder, shader_tools);
+                }
+                Err(e) => println!("Error reading {path:?}: {e}"),
+            }
+        });
+
+    globwalk::GlobWalkerBuilder::from_patterns(input, &["*.wishp"])
+        .build()
+        .unwrap()
+        .par_bridge()
+        .for_each(|entry| {
+            let path = entry.as_ref().unwrap().path();
+            match Spch::from_file(path) {
+                Ok(spch) => {
+                    // Get the embedded shaders from the map files.
+                    let output_folder = decompiled_output_folder(output, path);
+                    std::fs::create_dir_all(&output_folder).unwrap();
+                    println!("{output_folder:?}");
+
+                    extract_shader_binaries(&spch, &output_folder, shader_tools, false);
                 }
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }

@@ -98,6 +98,7 @@ fn vertex_fragment_binaries<'a>(
     nvsds
         .iter()
         .map(|nvsd| {
+            // TODO: Why is this sometimes none?
             let vertex = nvsd.vertex_binary(xv4_offset, xv4_section).unwrap();
             let fragment = nvsd.fragment_binary(xv4_offset, xv4_section).unwrap();
             (vertex, fragment)

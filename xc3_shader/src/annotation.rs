@@ -262,6 +262,7 @@ fn annotate_buffers(
             for (uniform_index, uniform) in uniforms.iter().enumerate() {
                 let vec4_index = uniform.buffer_offset / VEC4_SIZE;
 
+                // TODO: Handle struct fields like "pointLights[0].col" for shd_lgt.
                 // "array[0]" -> "array"
                 let uniform_name = uniform
                     .name
