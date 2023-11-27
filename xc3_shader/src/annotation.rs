@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, error::Error};
 
 use glsl_lang::{
     ast::{
@@ -172,7 +172,7 @@ fn field(field: &Field) -> Node<StructFieldSpecifierData> {
     )
 }
 
-pub fn annotate_fragment(glsl: String, metadata: &Nvsd) -> String {
+pub fn annotate_fragment(glsl: &str, metadata: &Nvsd) -> Result<String, Box<dyn Error>> {
     let mut replacements = HashMap::new();
     let mut struct_fields = HashMap::new();
 
@@ -185,13 +185,13 @@ pub fn annotate_fragment(glsl: String, metadata: &Nvsd) -> String {
     };
 
     let modified_source = shader_source_no_extensions(glsl);
-    let mut translation_unit = TranslationUnit::parse(&modified_source).unwrap();
+    let mut translation_unit = TranslationUnit::parse(modified_source)?;
     translation_unit.visit_mut(&mut visitor);
 
     let mut text = String::new();
-    show_translation_unit(&mut text, &translation_unit, FormattingState::default()).unwrap();
+    show_translation_unit(&mut text, &translation_unit, FormattingState::default())?;
 
-    text
+    Ok(text)
 }
 
 fn annotate_samplers(replacements: &mut HashMap<String, String>, metadata: &Nvsd) {
@@ -204,7 +204,7 @@ fn annotate_samplers(replacements: &mut HashMap<String, String>, metadata: &Nvsd
     }
 }
 
-pub fn annotate_vertex(glsl: String, metadata: &Nvsd) -> String {
+pub fn annotate_vertex(glsl: &str, metadata: &Nvsd) -> Result<String, Box<dyn Error>> {
     let mut replacements = HashMap::new();
     let mut struct_fields = HashMap::new();
 
@@ -221,13 +221,13 @@ pub fn annotate_vertex(glsl: String, metadata: &Nvsd) -> String {
 
     // TODO: Find a better way to skip unsupported extensions.
     let modified_source = shader_source_no_extensions(glsl);
-    let mut translation_unit = TranslationUnit::parse(&modified_source).unwrap();
+    let mut translation_unit = TranslationUnit::parse(modified_source)?;
     translation_unit.visit_mut(&mut visitor);
 
     let mut text = String::new();
-    show_translation_unit(&mut text, &translation_unit, FormattingState::default()).unwrap();
+    show_translation_unit(&mut text, &translation_unit, FormattingState::default())?;
 
-    text
+    Ok(text)
 }
 
 fn annotate_buffers(
@@ -306,11 +306,9 @@ fn annotate_buffers(
     }
 }
 
-pub fn shader_source_no_extensions(glsl: String) -> String {
+pub fn shader_source_no_extensions(glsl: &str) -> &str {
     // TODO: Find a better way to skip unsupported extensions.
-    glsl.find("#pragma")
-        .map(|i| glsl[i..].to_string())
-        .unwrap_or(glsl)
+    glsl.find("#pragma").map(|i| &glsl[i..]).unwrap_or(glsl)
 }
 
 #[cfg(test)]
@@ -735,7 +733,7 @@ mod tests {
                 layout(location = 4) in vec4 vNormal;
                 layout(location = 5) in vec4 vTan;"
             },
-            annotate_vertex(glsl.to_string(), &metadata)
+            annotate_vertex(glsl, &metadata).unwrap()
         );
     }
 
@@ -852,7 +850,7 @@ mod tests {
                     out_attr1.w = 0.008235293;
                 }
             "},
-            annotate_fragment(glsl.to_string(), &metadata)
+            annotate_fragment(glsl, &metadata).unwrap()
         );
     }
 }

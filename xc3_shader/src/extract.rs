@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use crate::annotation::{annotate_fragment, annotate_vertex};
+use log::error;
 use rayon::prelude::*;
 use xc3_lib::spch::{Nvsd, Spch};
 
@@ -69,15 +70,25 @@ fn decompile_glsl_shaders(shader_tools: &str, frag_file: &Path, vert_file: &Path
     let vert_process = extract_shader(shader_tools, vert_file);
 
     // TODO: Check exit code?
-    let mut frag_glsl = String::from_utf8(frag_process.wait_with_output().unwrap().stdout).unwrap();
-    let mut vert_glsl = String::from_utf8(vert_process.wait_with_output().unwrap().stdout).unwrap();
+    let frag_glsl = String::from_utf8(frag_process.wait_with_output().unwrap().stdout).unwrap();
+    let vert_glsl = String::from_utf8(vert_process.wait_with_output().unwrap().stdout).unwrap();
 
     // Perform annotation here since we need to know the file names.
-    vert_glsl = annotate_vertex(vert_glsl, nvsd);
-    std::fs::write(vert_file.with_extension("glsl"), vert_glsl).unwrap();
+    match annotate_vertex(&vert_glsl, nvsd) {
+        Ok(glsl) => std::fs::write(vert_file.with_extension("glsl"), glsl).unwrap(),
+        Err(e) => {
+            error!("Error annotating {vert_file:?}: {e}");
+            std::fs::write(vert_file.with_extension("glsl"), vert_glsl).unwrap();
+        }
+    }
 
-    frag_glsl = annotate_fragment(frag_glsl, nvsd);
-    std::fs::write(frag_file.with_extension("glsl"), frag_glsl).unwrap();
+    match annotate_fragment(&frag_glsl, nvsd) {
+        Ok(glsl) => std::fs::write(frag_file.with_extension("glsl"), glsl).unwrap(),
+        Err(e) => {
+            error!("Error annotating {frag_file:?}: {e}");
+            std::fs::write(frag_file.with_extension("glsl"), frag_glsl).unwrap();
+        }
+    }
 }
 
 fn extract_shader(shader_tools: &str, binary_file: &Path) -> std::process::Child {
@@ -97,11 +108,17 @@ fn vertex_fragment_binaries<'a>(
     // Each NVSD has a vertex and fragment shader.
     nvsds
         .iter()
-        .map(|nvsd| {
+        .filter_map(|nvsd| {
             // TODO: Why is this sometimes none?
-            let vertex = nvsd.vertex_binary(xv4_offset, xv4_section).unwrap();
-            let fragment = nvsd.fragment_binary(xv4_offset, xv4_section).unwrap();
-            (vertex, fragment)
+            let vertex = nvsd.vertex_binary(xv4_offset, xv4_section).or_else(|| {
+                error!("No vertex binary for NVSD");
+                None
+            })?;
+            let fragment = nvsd.fragment_binary(xv4_offset, xv4_section).or_else(|| {
+                error!("No vertex binary for NVSD");
+                None
+            })?;
+            Some((vertex, fragment))
         })
         .collect()
 }

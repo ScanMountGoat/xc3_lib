@@ -173,14 +173,12 @@ fn texture_dependencies(dependencies: &LineDependencies) -> Vec<SourceInput> {
         .iter()
         .filter_map(|d| {
             let assignment = &dependencies.assignments[*d];
-            texture_identifier_name(&assignment.input_expr).map(|name| {
+            texture_identifier_name(&assignment.input_expr).and_then(|name| {
                 // Get the initial channels used for the texture function call.
                 // This defines the possible channels if we assume one access per texture.
-                let mut channels = assignment.input_last_assignments[0]
-                    .1
-                    .as_ref()
-                    .unwrap()
-                    .clone();
+                // TODO: Why is this sometimes none?
+                let mut channels = assignment.input_last_assignments[0].1.as_ref()?.clone();
+
                 // If only a single channel is accessed initially, there's nothing more to do.
                 if channels.len() > 1 {
                     channels = actual_channels(
@@ -191,7 +189,7 @@ fn texture_dependencies(dependencies: &LineDependencies) -> Vec<SourceInput> {
                     );
                 }
 
-                SourceInput::Texture { name, channels }
+                Some(SourceInput::Texture { name, channels })
             })
         })
         .collect()
@@ -417,8 +415,8 @@ fn add_dependencies(
 }
 
 pub fn glsl_dependencies(source: &str, var: &str) -> String {
-    let source = shader_source_no_extensions(source.to_string());
-    let translation_unit = TranslationUnit::parse(&source).unwrap();
+    let source = shader_source_no_extensions(source);
+    let translation_unit = TranslationUnit::parse(source).unwrap();
     line_dependencies(&translation_unit, var)
         .map(|dependencies| {
             // Combine all the lines into source code again.

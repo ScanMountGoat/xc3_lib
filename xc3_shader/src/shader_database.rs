@@ -1,15 +1,13 @@
 use std::path::Path;
 
 use glsl_lang::{ast::TranslationUnit, parse::DefaultParse};
+use log::error;
 use rayon::prelude::*;
 use xc3_model::shader_database::{Map, Shader, ShaderDatabase, ShaderProgram, Spch};
 
 use crate::dependencies::input_dependencies;
 
-fn shader_from_glsl(source: &str) -> Shader {
-    // Only parse the source code once.
-    let translation_unit = &TranslationUnit::parse(source).unwrap();
-
+fn shader_from_glsl(translation_unit: &TranslationUnit) -> Shader {
     // Get the textures used to initialize each fragment output channel.
     // Unused outputs will have an empty dependency list.
     Shader {
@@ -115,12 +113,21 @@ fn create_shader_programs(folder: &Path) -> Vec<ShaderProgram> {
 
     paths
         .par_iter()
-        .map(|path| {
+        .filter_map(|path| {
             let source = std::fs::read_to_string(path).unwrap();
-
-            // TODO: Add FS0 and FS1 to the same program?
-            ShaderProgram {
-                shaders: vec![shader_from_glsl(&source)],
+            // Only parse the source code once.
+            // let modified_source = shader_source_no_extensions(source.to_string());
+            match TranslationUnit::parse(&source) {
+                Ok(translation_unit) => Some(
+                    // TODO: Add FS0 and FS1 to the same program?
+                    ShaderProgram {
+                        shaders: vec![shader_from_glsl(&translation_unit)],
+                    },
+                ),
+                Err(e) => {
+                    error!("Error parsing {path:?}: {e}");
+                    None
+                }
             }
         })
         .collect()
