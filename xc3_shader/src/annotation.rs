@@ -238,8 +238,6 @@ fn annotate_buffers(
 ) {
     // TODO: annotate constants from fp_v1 or vp_c1.
     // TODO: How to determine which constant elements are actually used?
-    // TODO: are all uniforms vec4 params?
-    // TODO: add initialization code so that annotated shaders still compile.
     if let Some(uniform_buffers) = &metadata.uniform_buffers {
         for buffer in uniform_buffers {
             // TODO: why is this always off by 3?
@@ -284,30 +282,17 @@ fn annotate_buffers(
                     }
                 });
 
-                if let Some(array_length) = array_length {
-                    // Annotate all elments from array[0] to array[length-1].
-                    // This avoids unannotated entries in the gbuffer database.
-                    for i in 0..array_length {
-                        let pattern = format!("{}.data[{}]", buffer.name, vec4_index + i);
-                        // Reindex the array starting from the base offset.
-                        let uniform_name = format!("{}_{}[{i}]", buffer.name, &uniform_name);
-                        replacements.insert(pattern, uniform_name);
-                    }
-                }
-
                 // Add a single field to the uniform buffer.
                 // All uniforms are vec4, so we don't need to worry about std140 alignment.
                 struct_fields
                     .entry(buffer_name.clone())
-                    .and_modify(|e| {
-                        e.push(Field {
-                            name: uniform_name.clone(),
-                            vec4_index,
-                            ty: TypeSpecifierNonArrayData::Vec4,
-                            array_length,
-                        })
-                    })
-                    .or_default();
+                    .or_default()
+                    .push(Field {
+                        name: uniform_name.clone(),
+                        vec4_index,
+                        ty: TypeSpecifierNonArrayData::Vec4,
+                        array_length,
+                    });
             }
         }
     }
@@ -703,9 +688,10 @@ mod tests {
         assert_eq!(
             indoc! {"
                 layout(binding = 9, std140) uniform _U_CamoflageCalc {
-                    precise vec4 data[4096];
+                    vec4 gCamouflageCalcWork;
                 }U_CamoflageCalc;
                 layout(binding = 4, std140) uniform _U_Static {
+                    vec4 gmView[3];
                     vec4 gmProj[4];
                     vec4 gmViewProj[4];
                     vec4 gmInvView[3];
@@ -725,10 +711,12 @@ mod tests {
                     vec4 gWetParam;
                 }U_Static;
                 layout(binding = 5, std140) uniform _U_Mate {
+                    vec4 gTexMat[2];
                     vec4 gWrkFl4[3];
                     vec4 gWrkCol;
                 }U_Mate;
                 layout(binding = 6, std140) uniform _U_Mdl {
+                    vec4 gmWVP[4];
                     vec4 gmWorld[3];
                     vec4 gmWorldView[3];
                     vec4 gMdlParm;
@@ -810,19 +798,21 @@ mod tests {
         assert_eq!(
             indoc! {"
                 layout(binding = 8, std140) uniform _U_RimBloomCalc {
-                    precise vec4 data[4096];
+                    vec4 gRimBloomCalcWork;
                 }U_RimBloomCalc;
                 layout(binding = 7, std140) uniform _U_VolTexCalc {
-                    precise vec4 data[4096];
+                    vec4 gVolTexCalcWork;
                 }U_VolTexCalc;
                 layout(binding = 9, std140) uniform _U_CamoflageCalc {
-                    precise vec4 data[4096];
+                    vec4 gCamouflageCalcWork;
                 }U_CamoflageCalc;
                 layout(binding = 5, std140) uniform _U_Mate {
+                    vec4 gTexMat[2];
                     vec4 gWrkFl4[3];
                     vec4 gWrkCol;
                 }U_Mate;
                 layout(binding = 4, std140) uniform _U_Static {
+                    vec4 gmView[3];
                     vec4 gmProj[4];
                     vec4 gmViewProj[4];
                     vec4 gmInvView[3];

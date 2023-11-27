@@ -122,9 +122,9 @@ impl Shader {
         // If a parameter is assigned, it will be the only dependency.
         let text = self.output_dependencies.get(&output)?.first()?;
 
-        // Parse U_Mate_gWrkFl4[0].x into "U_Mate", "gWrkFl4", 0, 'x'.
+        // Parse U_Mate.gWrkFl4[0].x into "U_Mate", "gWrkFl4", 0, 'x'.
+        let (buffer, text) = text.split_once('.')?;
         let (text, c) = text.split_once('.')?;
-        let (buffer, text) = text.rsplit_once('_')?;
         let (uniform, index) = text.split_once('[')?;
         let (index, _) = index.rsplit_once(']')?;
 
@@ -217,7 +217,7 @@ mod tests {
                     "o0.y".to_string(),
                     vec!["tex.xyz".to_string(), "s2.z".to_string()],
                 ),
-                ("o1.z".to_string(), vec!["U_Mate_param[31].w".to_string()]),
+                ("o1.z".to_string(), vec!["U_Mate.param[31].w".to_string()]),
             ]
             .into(),
         };

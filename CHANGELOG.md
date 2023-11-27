@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 * Added `glsl-dependencies` command to xc3_shader for printing lines affecting a particular variable.
 
+### Fixed
+* Fixed an issue where material parameters were not annotated correctly in decompiled shaders.
+* Fixed an issue where material parameters were not handled correctly in the shader JSON.
+
 ## 0.2.0 - 2023-11-22
 ### Added
 * Added animation support to xc3_model.

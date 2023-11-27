@@ -239,7 +239,6 @@ fn parse_gbuffer_params_consts(
     shader: &xc3_model::shader_database::Shader,
     parameters: &xc3_model::MaterialParameters,
 ) -> [Vec4; 6] {
-    // TODO: Update the database to also handle parameters?
     [0, 1, 2, 3, 4, 5].map(|i| {
         Vec4::new(
             param_const_or_default(shader, parameters, i, 0),
@@ -269,11 +268,10 @@ fn extract_parameter(
     p: xc3_model::shader_database::BufferParameter,
     parameters: &xc3_model::MaterialParameters,
 ) -> Option<f32> {
-    // TODO: Also check for U_Mate?
     let c = "xyzw".find(p.channel).unwrap();
-    match p.uniform.as_str() {
-        "gWrkFl4" => Some(parameters.work_float4.as_ref()?.get(p.index)?[c]),
-        "gWrkCol" => Some(parameters.work_color.as_ref()?.get(p.index)?[c]),
+    match (p.buffer.as_str(), p.uniform.as_str()) {
+        ("U_Mate", "gWrkFl4") => Some(parameters.work_float4.as_ref()?.get(p.index)?[c]),
+        ("U_Mate", "gWrkCol") => Some(parameters.work_color.as_ref()?.get(p.index)?[c]),
         _ => None,
     }
 }
