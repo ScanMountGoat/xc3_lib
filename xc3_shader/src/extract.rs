@@ -1,9 +1,12 @@
-use std::path::Path;
+use std::{
+    error::Error,
+    path::{Path, PathBuf},
+};
 
 use crate::annotation::{annotate_fragment, annotate_vertex};
 use log::error;
 use rayon::prelude::*;
-use xc3_lib::spch::{Nvsd, Spch};
+use xc3_lib::spch::{vertex_fragment_binaries, Nvsd, Spch};
 
 // TODO: profile performance using a single thread and check threading with tracing?
 pub fn extract_shader_binaries<P: AsRef<Path>>(
@@ -18,10 +21,6 @@ pub fn extract_shader_binaries<P: AsRef<Path>>(
         .par_iter()
         .enumerate()
         .for_each(|(slct_index, slct_offset)| {
-            // Not all programs have associated names.
-            // Generate the name to avoid any ambiguity.
-            let name = format!("slct{slct_index}");
-
             let slct = slct_offset.read_slct(&spch.slct_section).unwrap();
             let nvsds: Vec<_> = slct
                 .programs
@@ -31,62 +30,94 @@ pub fn extract_shader_binaries<P: AsRef<Path>>(
 
             let binaries = vertex_fragment_binaries(&nvsds, &spch.xv4_section, slct.xv4_offset);
 
-            // TODO: Why do additional binaries sometimes fail to decompile?
-            for (i, (vertex, fragment)) in binaries.into_iter().enumerate().take(1) {
-                // Strip the xv4 headers to work with Ryujinx.ShaderTools.
-                let vert_file = output_folder.join(&format!("{name}_VS{i}.bin"));
-                std::fs::write(&vert_file, &vertex[48..]).unwrap();
-
-                let frag_file = output_folder.join(&format!("{name}_FS{i}.bin"));
-                std::fs::write(&frag_file, &fragment[48..]).unwrap();
-
+            for (nvsd_index, (vertex, fragment)) in binaries.into_iter().enumerate() {
                 // Each NVSD has separate metadata since the shaders are different.
-                let nvsd = slct.programs[i].read_nvsd().unwrap();
+                let nvsd = &nvsds[nvsd_index];
 
-                // This doesn't need to be parsed, so just use debug output for now.
+                // Not all programs have associated names.
+                // Generate the name to avoid any ambiguity.
+                let name = format!("slct{slct_index}_nvsd{nvsd_index}");
+
+                // Metadata doesn't need to be parsed from strings later.
+                // Just use the debug output for now.
                 let txt_file = output_folder.join(&format!("{name}.txt"));
                 let text = format!("{:#?}", &nvsd);
                 std::fs::write(txt_file, text).unwrap();
 
-                // Decompile using Ryujinx.ShaderTools.exe.
-                // There isn't Rust code for this, so just take an exe path.
-                if let Some(shader_tools) = &ryujinx_shader_tools {
-                    decompile_glsl_shaders(shader_tools, &frag_file, &vert_file, &nvsd);
+                // TODO: Why are these binaries sometimes empty?
+                if let Some(vertex) = vertex {
+                    process_shader(
+                        output_folder.join(&format!("{name}.vert.bin")),
+                        output_folder.join(&format!("{name}.vert")),
+                        vertex,
+                        ryujinx_shader_tools,
+                        nvsd,
+                        save_binaries,
+                        annotate_vertex,
+                    );
                 }
 
-                // We needed to temporarily create binaries for ShaderTools to decompile.
-                // Delete them if they are no longer needed.
-                if !save_binaries {
-                    std::fs::remove_file(vert_file).unwrap();
-                    std::fs::remove_file(frag_file).unwrap();
+                if let Some(fragment) = fragment {
+                    process_shader(
+                        output_folder.join(&format!("{name}.frag.bin")),
+                        output_folder.join(&format!("{name}.frag")),
+                        fragment,
+                        ryujinx_shader_tools,
+                        nvsd,
+                        save_binaries,
+                        annotate_fragment,
+                    );
                 }
             }
         });
 }
 
-fn decompile_glsl_shaders(shader_tools: &str, frag_file: &Path, vert_file: &Path, nvsd: &Nvsd) {
-    // Spawn multiple process to increase utilization and boost performance.
-    let frag_process = extract_shader(shader_tools, frag_file);
-    let vert_process = extract_shader(shader_tools, vert_file);
+fn process_shader<F>(
+    binary_path: PathBuf,
+    glsl_path: PathBuf,
+    binary: &[u8],
+    ryujinx_shader_tools: Option<&str>,
+    nvsd: &Nvsd,
+    save_binaries: bool,
+    annotate: F,
+) where
+    F: Fn(&str, &Nvsd) -> Result<String, Box<dyn Error>>,
+{
+    // Strip the xv4 headers to work with Ryujinx.ShaderTools.
+    std::fs::write(&binary_path, &binary[48..]).unwrap();
 
-    // TODO: Check exit code?
-    let frag_glsl = String::from_utf8(frag_process.wait_with_output().unwrap().stdout).unwrap();
-    let vert_glsl = String::from_utf8(vert_process.wait_with_output().unwrap().stdout).unwrap();
-
-    // Perform annotation here since we need to know the file names.
-    match annotate_vertex(&vert_glsl, nvsd) {
-        Ok(glsl) => std::fs::write(vert_file.with_extension("glsl"), glsl).unwrap(),
-        Err(e) => {
-            error!("Error annotating {vert_file:?}: {e}");
-            std::fs::write(vert_file.with_extension("glsl"), vert_glsl).unwrap();
-        }
+    // Decompile using Ryujinx.ShaderTools.exe.
+    // There isn't Rust code for this, so just take an exe path.
+    if let Some(shader_tools) = &ryujinx_shader_tools {
+        decompile_glsl_shader(shader_tools, &binary_path, &glsl_path, nvsd, annotate);
     }
 
-    match annotate_fragment(&frag_glsl, nvsd) {
-        Ok(glsl) => std::fs::write(frag_file.with_extension("glsl"), glsl).unwrap(),
+    // We needed to temporarily create binaries for ShaderTools to decompile.
+    // Delete them if they are no longer needed.
+    if !save_binaries {
+        std::fs::remove_file(binary_path).unwrap();
+    }
+}
+
+fn decompile_glsl_shader<F>(
+    shader_tools: &str,
+    binary_path: &Path,
+    glsl_path: &Path,
+    nvsd: &Nvsd,
+    annotate: F,
+) where
+    F: Fn(&str, &Nvsd) -> Result<String, Box<dyn Error>>,
+{
+    let process = extract_shader(shader_tools, binary_path);
+
+    // TODO: Check exit code?
+    let glsl = String::from_utf8(process.wait_with_output().unwrap().stdout).unwrap();
+
+    match annotate(&glsl, nvsd) {
+        Ok(glsl) => std::fs::write(glsl_path, glsl).unwrap(),
         Err(e) => {
-            error!("Error annotating {frag_file:?}: {e}");
-            std::fs::write(frag_file.with_extension("glsl"), frag_glsl).unwrap();
+            error!("Error annotating {binary_path:?}: {e}");
+            std::fs::write(glsl_path, glsl).unwrap();
         }
     }
 }
@@ -97,28 +128,4 @@ fn extract_shader(shader_tools: &str, binary_file: &Path) -> std::process::Child
         .stdout(std::process::Stdio::piped())
         .spawn()
         .unwrap()
-}
-
-fn vertex_fragment_binaries<'a>(
-    nvsds: &[Nvsd],
-    xv4_section: &'a [u8],
-    xv4_offset: u32,
-) -> Vec<(&'a [u8], &'a [u8])> {
-    // Each SLCT can have multiple NVSD.
-    // Each NVSD has a vertex and fragment shader.
-    nvsds
-        .iter()
-        .filter_map(|nvsd| {
-            // TODO: Why is this sometimes none?
-            let vertex = nvsd.vertex_binary(xv4_offset, xv4_section).or_else(|| {
-                error!("No vertex binary for NVSD");
-                None
-            })?;
-            let fragment = nvsd.fragment_binary(xv4_offset, xv4_section).or_else(|| {
-                error!("No vertex binary for NVSD");
-                None
-            })?;
-            Some((vertex, fragment))
-        })
-        .collect()
 }

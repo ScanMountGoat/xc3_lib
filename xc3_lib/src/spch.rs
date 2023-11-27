@@ -106,6 +106,10 @@ pub struct Slct {
     #[br(parse_with = parse_count32_offset32)]
     pub unk_strings: Vec<UnkString>,
 
+    /// The compiled program binaries and associated metadata.
+    ///
+    /// This will have length 1 unless there are multiple shader permutations.
+    /// Permutations may have different defines in the original source or even completely different code.
     #[br(parse_with = parse_count32_offset32)]
     pub programs: Vec<ShaderProgram>,
 
@@ -351,32 +355,24 @@ impl ShaderProgram {
 
 impl Nvsd {
     // TODO: Add option to strip xv4 header?
-    /// Returns the bytes for the compiled fragment shader, including the 48-byte xv4 header.
-    pub fn vertex_binary<'a>(
-        &self,
-        slct_xv4_offset: u32,
-        xv4_section: &'a [u8],
-    ) -> Option<&'a [u8]> {
-        // TODO: Do all models use the last item?
-        let shaders = self.nvsd_shaders.get(1)?;
-
-        // The first offset is the vertex shader.
-        let offset = slct_xv4_offset as usize;
-        xv4_section.get(offset..offset + shaders.vertex_xv4_size as usize)
+    fn vertex_binary<'a>(&self, offset: usize, xv4_section: &'a [u8]) -> Option<&'a [u8]> {
+        // TODO: Always use the last item?
+        let shaders = self.nvsd_shaders.last()?;
+        if shaders.vertex_xv4_size > 0 {
+            xv4_section.get(offset..offset + shaders.vertex_xv4_size as usize)
+        } else {
+            None
+        }
     }
 
-    /// Returns the bytes for the compiled vertex shader, including the 48-byte xv4 header.
-    pub fn fragment_binary<'a>(
-        &self,
-        slct_xv4_offset: u32,
-        xv4_section: &'a [u8],
-    ) -> Option<&'a [u8]> {
-        // TODO: Do all models use the last item?
+    fn fragment_binary<'a>(&self, offset: usize, xv4_section: &'a [u8]) -> Option<&'a [u8]> {
+        // TODO: Always use the last item?
         let shaders = &self.nvsd_shaders.last()?;
-
-        // The fragment shader immediately follows the vertex shader.
-        let offset = slct_xv4_offset as usize + shaders.vertex_xv4_size as usize;
-        xv4_section.get(offset..offset + shaders.fragment_xv4_size as usize)
+        if shaders.fragment_xv4_size > 0 {
+            xv4_section.get(offset..offset + shaders.fragment_xv4_size as usize)
+        } else {
+            None
+        }
     }
 }
 
@@ -408,6 +404,29 @@ impl Nvsp {
 
         Some((vertex, fragment))
     }
+}
+
+/// Extract the vertex and fragment binary for each of the [Nvsd] in `nvsds`.
+pub fn vertex_fragment_binaries<'a>(
+    nvsds: &[Nvsd],
+    xv4_section: &'a [u8],
+    xv4_offset: u32,
+) -> Vec<(Option<&'a [u8]>, Option<&'a [u8]>)> {
+    // Each SLCT can have multiple NVSD.
+    // Each NVSD has a vertex and fragment shader.
+    let mut offset = xv4_offset as usize;
+    nvsds
+        .iter()
+        .map(|nvsd| {
+            // TODO: Why is this sometimes none?
+            let vertex = nvsd.vertex_binary(offset, xv4_section);
+            offset += vertex.map(|v| v.len()).unwrap_or_default();
+
+            let fragment = nvsd.fragment_binary(offset, xv4_section);
+            offset += fragment.map(|f| f.len()).unwrap_or_default();
+            (vertex, fragment)
+        })
+        .collect()
 }
 
 impl Xc3Write for StringSection {
