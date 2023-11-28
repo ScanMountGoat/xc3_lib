@@ -3,6 +3,8 @@ use wgpu::util::DeviceExt;
 
 use crate::{model::ModelGroup, COLOR_FORMAT, GBUFFER_COLOR_FORMAT};
 
+const MAT_ID_DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth16Unorm;
+
 pub struct Xc3Renderer {
     camera_buffer: wgpu::Buffer,
 
@@ -11,10 +13,15 @@ pub struct Xc3Renderer {
     deferred_pipeline: wgpu::RenderPipeline,
     deferred_bind_group0: crate::shader::deferred::bind_groups::BindGroup0,
     deferred_bind_group1: crate::shader::deferred::bind_groups::BindGroup1,
-    gbuffer: GBuffer,
     debug_settings_buffer: wgpu::Buffer,
 
+    gbuffer: GBuffer,
+
     morph_pipeline: wgpu::ComputePipeline,
+
+    unbranch_to_depth_pipeline: wgpu::RenderPipeline,
+    unbranch_to_depth_bind_group0: crate::shader::unbranch_to_depth::bind_groups::BindGroup0,
+    mat_id_depth_view: wgpu::TextureView,
 
     depth_view: wgpu::TextureView,
 }
@@ -84,6 +91,11 @@ impl Xc3Renderer {
 
         let morph_pipeline = crate::shader::morph::compute::create_main_pipeline(device);
 
+        let unbranch_to_depth_pipeline = unbranch_to_depth_pipeline(device);
+        let unbranch_to_depth_bind_group0 = create_unbranch_to_depth_bindgroup(device, &gbuffer);
+
+        let mat_id_depth_view = create_mat_id_depth_texture(device, width, height);
+
         Self {
             camera_buffer,
             model_bind_group0,
@@ -94,6 +106,9 @@ impl Xc3Renderer {
             gbuffer,
             debug_settings_buffer,
             morph_pipeline,
+            unbranch_to_depth_pipeline,
+            unbranch_to_depth_bind_group0,
+            mat_id_depth_view,
         }
     }
 
@@ -111,6 +126,7 @@ impl Xc3Renderer {
         // TODO: Research more about how this is implemented in game.
         self.model_pass(encoder, models);
         self.transparent_pass(encoder, models);
+        self.unbranch_to_depth_pass(encoder);
         self.deferred_pass(encoder, output_view);
     }
 
@@ -129,9 +145,11 @@ impl Xc3Renderer {
     pub fn resize(&mut self, device: &wgpu::Device, width: u32, height: u32) {
         // Update each resource that depends on window size.
         self.depth_view = create_depth_texture(device, width, height);
-
+        self.mat_id_depth_view = create_mat_id_depth_texture(device, width, height);
         self.gbuffer = create_gbuffer(device, width, height);
         self.deferred_bind_group0 = create_deferred_bind_group0(device, &self.gbuffer);
+        self.unbranch_to_depth_bind_group0 =
+            create_unbranch_to_depth_bindgroup(device, &self.gbuffer);
     }
 
     pub fn update_debug_settings(&self, queue: &wgpu::Queue, index: u32) {
@@ -148,8 +166,8 @@ impl Xc3Renderer {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Model Pass"),
             color_attachments: &[
-                color_attachment(&self.gbuffer.color, wgpu::Color::BLACK),
-                color_attachment(&self.gbuffer.etc_buffer, wgpu::Color::BLACK),
+                color_attachment(&self.gbuffer.color, wgpu::Color::TRANSPARENT),
+                color_attachment(&self.gbuffer.etc_buffer, wgpu::Color::TRANSPARENT),
                 color_attachment(
                     &self.gbuffer.normal,
                     wgpu::Color {
@@ -159,7 +177,7 @@ impl Xc3Renderer {
                         a: 1.0,
                     },
                 ),
-                color_attachment(&self.gbuffer.velocity, wgpu::Color::BLACK),
+                color_attachment(&self.gbuffer.velocity, wgpu::Color::TRANSPARENT),
                 color_attachment(
                     &self.gbuffer.depth,
                     wgpu::Color {
@@ -169,7 +187,7 @@ impl Xc3Renderer {
                         a: 0.0,
                     },
                 ),
-                color_attachment(&self.gbuffer.lgt_color, wgpu::Color::BLACK),
+                color_attachment(&self.gbuffer.lgt_color, wgpu::Color::TRANSPARENT),
             ],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.depth_view,
@@ -192,7 +210,7 @@ impl Xc3Renderer {
     }
 
     fn transparent_pass(&self, encoder: &mut wgpu::CommandEncoder, models: &[ModelGroup]) {
-        // The transparent pass only writes to the albedo output.
+        // The transparent pass only writes to the color output.
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Transparent Pass"),
             color_attachments: &[
@@ -233,6 +251,34 @@ impl Xc3Renderer {
         }
     }
 
+    fn unbranch_to_depth_pass(&self, encoder: &mut wgpu::CommandEncoder) {
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Unbranch to Depth Pass"),
+            color_attachments: &[],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.mat_id_depth_view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(0.0),
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+
+        render_pass.set_pipeline(&self.unbranch_to_depth_pipeline);
+
+        crate::shader::unbranch_to_depth::bind_groups::set_bind_groups(
+            &mut render_pass,
+            crate::shader::unbranch_to_depth::bind_groups::BindGroups {
+                bind_group0: &self.unbranch_to_depth_bind_group0,
+            },
+        );
+
+        render_pass.draw(0..3, 0..1);
+    }
+
     fn deferred_pass(&self, encoder: &mut wgpu::CommandEncoder, output_view: &wgpu::TextureView) {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Deferred Pass"),
@@ -249,6 +295,9 @@ impl Xc3Renderer {
             occlusion_query_set: None,
         });
 
+        // TODO: Create pipelines for each of the 5-6 shaders used in game?
+        // TODO: Use the matid and depth buffer trick for masking each shader?
+        // TODO: Add a separate pipeline for debugging?
         render_pass.set_pipeline(&self.deferred_pipeline);
 
         crate::shader::deferred::bind_groups::set_bind_groups(
@@ -278,6 +327,20 @@ impl Xc3Renderer {
             model.compute_morphs(&mut compute_pass);
         }
     }
+}
+
+fn create_unbranch_to_depth_bindgroup(
+    device: &wgpu::Device,
+    gbuffer: &GBuffer,
+) -> crate::shader::unbranch_to_depth::bind_groups::BindGroup0 {
+    let shared_sampler = device.create_sampler(&wgpu::SamplerDescriptor::default());
+    crate::shader::unbranch_to_depth::bind_groups::BindGroup0::from_bindings(
+        device,
+        crate::shader::unbranch_to_depth::bind_groups::BindGroupLayout0 {
+            g_etc_buffer: &gbuffer.etc_buffer,
+            shared_sampler: &shared_sampler,
+        },
+    )
 }
 
 fn create_deferred_bind_group0(
@@ -378,6 +441,31 @@ fn create_depth_texture(device: &wgpu::Device, width: u32, height: u32) -> wgpu:
     depth_texture.create_view(&Default::default())
 }
 
+fn create_mat_id_depth_texture(
+    device: &wgpu::Device,
+    width: u32,
+    height: u32,
+) -> wgpu::TextureView {
+    let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("material ID depth texture"),
+        size: wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: MAT_ID_DEPTH_FORMAT,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+        view_formats: &[],
+    });
+
+    depth_texture.create_view(&Default::default())
+}
+
+// TODO: Create 5-6 pipelines for each material type.
+// TODO: Just change the fragment entry point?
 fn deferred_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
     let module = crate::shader::deferred::create_shader_module(device);
     let render_pipeline_layout = crate::shader::deferred::create_pipeline_layout(device);
@@ -392,21 +480,43 @@ fn deferred_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
         fragment: Some(wgpu::FragmentState {
             module: &module,
             entry_point: crate::shader::deferred::ENTRY_FS_MAIN,
-            // TODO: alpha blending?
             targets: &[Some(wgpu::ColorTargetState {
                 format: COLOR_FORMAT,
                 blend: None,
                 write_mask: wgpu::ColorWrites::all(),
             })],
         }),
-        primitive: wgpu::PrimitiveState {
-            // TODO: Do all meshes using indexed triangle lists?
-            topology: wgpu::PrimitiveTopology::TriangleList,
-            polygon_mode: wgpu::PolygonMode::Fill,
-            cull_mode: Some(wgpu::Face::Back),
-            ..Default::default()
-        },
+        primitive: wgpu::PrimitiveState::default(),
         depth_stencil: None,
+        multisample: wgpu::MultisampleState::default(),
+        multiview: None,
+    })
+}
+
+fn unbranch_to_depth_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
+    let module = crate::shader::unbranch_to_depth::create_shader_module(device);
+    let render_pipeline_layout = crate::shader::unbranch_to_depth::create_pipeline_layout(device);
+
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("Unbranch to Depth Pipeline"),
+        layout: Some(&render_pipeline_layout),
+        vertex: crate::shader::unbranch_to_depth::vertex_state(
+            &module,
+            &crate::shader::unbranch_to_depth::vs_main_entry(),
+        ),
+        fragment: Some(wgpu::FragmentState {
+            module: &module,
+            entry_point: crate::shader::unbranch_to_depth::ENTRY_FS_MAIN,
+            targets: &[],
+        }),
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: MAT_ID_DEPTH_FORMAT,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::Always,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
     })

@@ -17,6 +17,11 @@ fn main() {
         "src/shader/morph.wgsl",
         &format!("{out_dir}/morph.rs"),
     );
+    write_shader(
+        include_str!("src/shader/unbranch_to_depth.wgsl"),
+        "src/shader/unbranch_to_depth.wgsl",
+        &format!("{out_dir}/unbranch_to_depth.rs"),
+    );
 }
 
 fn write_shader(wgsl_source: &str, wgsl_path: &str, output_path: &str) {
