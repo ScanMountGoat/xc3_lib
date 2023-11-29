@@ -37,7 +37,6 @@
 //! Operations that would be impossible to reverse accurately like compression or byte buffers must be decoded and encoded in
 //! a separate step. This allows identical outputs when no modifications are needed to binary buffers.
 use std::{
-    error::Error,
     io::{BufWriter, Cursor, Read, Seek, SeekFrom, Write},
     marker::PhantomData,
     path::Path,
@@ -359,12 +358,12 @@ macro_rules! file_write_impl {
     ($($type_name:path),*) => {
         $(
             impl $type_name {
-                pub fn write<W: Write + Seek>(&self, writer: &mut W) -> Result<(), Box<dyn Error>> {
+                pub fn write<W: Write + Seek>(&self, writer: &mut W) -> xc3_write::Xc3Result<()> {
                     self.write_le(writer).map_err(Into::into)
                 }
 
                 /// Write to `path` using a buffered writer for better performance.
-                pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Box<dyn Error>> {
+                pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> xc3_write::Xc3Result<()> {
                     let mut writer = BufWriter::new(std::fs::File::create(path)?);
                     self.write_le(&mut writer).map_err(Into::into)
                 }
@@ -379,12 +378,12 @@ macro_rules! file_write_full_impl {
     ($($type_name:path),*) => {
         $(
             impl $type_name {
-                pub fn write<W: Write + Seek>(&self, writer: &mut W) -> Result<(), Box<dyn Error>> {
+                pub fn write<W: Write + Seek>(&self, writer: &mut W) -> xc3_write::Xc3Result<()> {
                     write_full(self, writer, 0, &mut 0).map_err(Into::into)
                 }
 
                 /// Write to `path` using a buffered writer for better performance.
-                pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Box<dyn Error>> {
+                pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> xc3_write::Xc3Result<()> {
                     let mut writer = BufWriter::new(std::fs::File::create(path)?);
                     self.write(&mut writer)
                 }

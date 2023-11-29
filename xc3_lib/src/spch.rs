@@ -14,6 +14,7 @@ use xc3_write::{VecOffsets, Xc3Write, Xc3WriteOffsets};
 #[br(magic(b"HCPS"))]
 #[xc3(magic(b"HCPS"))]
 #[br(stream = r)]
+#[xc3(base_offset)]
 pub struct Spch {
     // Subtract the magic size.
     #[br(temp, try_calc = r.stream_position().map(|p| p - 4))]
@@ -443,10 +444,11 @@ impl<'a> Xc3WriteOffsets for SpchOffsets<'a> {
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
-        base_offset: u64,
+        _base_offset: u64,
         data_ptr: &mut u64,
     ) -> xc3_write::Xc3Result<()> {
         // The ordering is slightly different than the field order.
+        let base_offset = self.base_offset;
         self.slct_offsets
             .write_full(writer, base_offset, data_ptr)?;
         self.unk4s.write_full(writer, base_offset, data_ptr)?;

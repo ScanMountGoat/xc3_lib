@@ -1,6 +1,8 @@
 //! Model resources like shaders, geometry, or textures in `.wismt` files.
 //!
 //! XC3: `chr/{ch,en,oj,wp}/*.wismt`
+use std::io::{Cursor, Seek};
+
 use crate::{
     error::DecompressStreamError, mibl::Mibl, mxmd::PackedExternalTextures, parse_count32_offset32,
     parse_opt_ptr32, parse_ptr32, spch::Spch, vertex::VertexData, xbc1::Xbc1,
@@ -8,7 +10,7 @@ use crate::{
 };
 use bilge::prelude::*;
 use binrw::{binread, BinRead, BinWrite};
-use xc3_write::{Xc3Write, Xc3WriteOffsets};
+use xc3_write::{write_full, Xc3Write, Xc3WriteOffsets};
 
 #[binread]
 #[derive(Debug, Xc3Write)]
@@ -128,7 +130,7 @@ pub enum EntryType {
 /// A compressed [Xbc1] stream with items determined by [StreamEntry].
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct Stream {
-    pub comp_size: u32,
+    pub comp_size: u32,   // TODO: rounded up?
     pub decomp_size: u32, // TODO: slightly larger than xbc1 decomp size?
     // TODO: Why does this sometimes have an extra 16 bytes of padding?
     #[br(parse_with = parse_ptr32)]
@@ -208,6 +210,46 @@ impl Msrd {
     }
 }
 
+// TODO: Create the stream struct itself?
+// TODO: Create the entire Msrd from files?
+pub fn create_stream0(
+    vertex: &VertexData,
+    spch: &Spch,
+    low_textures: &Vec<Mibl>,
+) -> (Vec<StreamEntry>, Vec<u8>) {
+    // Data in streams is tightly packed.
+    let mut writer = Cursor::new(Vec::new());
+    let entries = vec![
+        write_stream_data(&mut writer, vertex, EntryType::Vertex),
+        write_stream_data(&mut writer, spch, EntryType::Shader),
+        write_stream_data(&mut writer, low_textures, EntryType::LowTextures),
+    ];
+
+    (entries, writer.into_inner())
+}
+
+fn write_stream_data<'a, T>(
+    writer: &mut Cursor<Vec<u8>>,
+    data: &'a T,
+    item_type: EntryType,
+) -> StreamEntry
+where
+    T: Xc3Write + 'static,
+    T::Offsets<'a>: Xc3WriteOffsets,
+{
+    let offset = writer.stream_position().unwrap() as u32;
+    write_full(data, writer, 0, &mut 0).unwrap();
+    let end_offset = writer.stream_position().unwrap() as u32;
+
+    StreamEntry {
+        offset,
+        size: end_offset - offset,
+        texture_index: 0,
+        item_type,
+        unk: [0; 2],
+    }
+}
+
 xc3_write_binwrite_impl!(StreamEntry, StreamFlags);
 
 impl<'a> Xc3WriteOffsets for MsrdOffsets<'a> {
@@ -220,21 +262,14 @@ impl<'a> Xc3WriteOffsets for MsrdOffsets<'a> {
         // TODO: Rework the msrd types to handle this.
         let base_offset = 16;
 
-        // TODO: find a better way to express variable padding.
-        // if self.stream_flags.data.unk1() {
-        // *data_ptr += 16;
-        // }
-
         // Write offset data in the order items appear in the binary file.
         self.stream_entries
             .write_offset(writer, base_offset, data_ptr)?;
 
         let stream_offsets = self.streams.write_offset(writer, base_offset, data_ptr)?;
 
-        // if !self.texture_resources.data.is_empty() {
         self.texture_resources
             .write_offset(writer, base_offset, data_ptr)?;
-        // }
 
         self.texture_indices
             .write_offset(writer, base_offset, data_ptr)?;
@@ -243,10 +278,6 @@ impl<'a> Xc3WriteOffsets for MsrdOffsets<'a> {
             .write_full(writer, base_offset, data_ptr)?;
 
         // TODO: Variable padding?
-        // if self.stream_flags.data.unk1().value() == 6 {
-        //     *data_ptr += 16;
-        // }
-
         for offsets in stream_offsets.0 {
             offsets.xbc1.write_offset(writer, 0, data_ptr)?;
         }
