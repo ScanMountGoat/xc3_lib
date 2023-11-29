@@ -10,7 +10,6 @@ use bilge::prelude::*;
 use binrw::{binread, BinRead, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
-/// .wismt model files in `chr/bt`, `chr/ch/`, `chr/en`, `chr/oj`, and `chr/wp`.
 #[binread]
 #[derive(Debug, Xc3Write)]
 #[br(magic(b"DRSM"))]
@@ -28,34 +27,45 @@ pub struct Msrd {
     pub stream_flags: StreamFlags,
 
     // TODO: This offset depends on flags like with mxmd models?
+    /// Files contained within [streams](#structfield.streams).
     #[br(parse_with = parse_count32_offset32, offset = offset as u64)]
     #[xc3(count_offset(u32, u32))]
     pub stream_entries: Vec<StreamEntry>,
 
+    /// A collection of [Xbc1] streams with decompressed layout
+    /// specified in [stream_entries](#structfield.stream_entries).
     #[br(parse_with = parse_count32_offset32, offset = offset as u64)]
     #[xc3(count_offset(u32, u32))]
     pub streams: Vec<Stream>,
 
-    // offset 24
+    /// The [StreamEntry] for [Self::extract_vertex_data] with [EntryType::Vertex].
     pub vertex_data_entry_index: u32,
+    /// The [StreamEntry] for [Self::extract_shader_data] with [EntryType::Shader].
     pub shader_entry_index: u32,
 
+    /// The [StreamEntry] for [Self::extract_low_textures] with [EntryType::LowTextures].
     pub low_textures_entry_index: u32,
+    /// The [Stream] for [Self::extract_low_textures].
     pub low_textures_stream_index: u32,
 
+    /// The [Stream] for [Self::extract_textures].
     pub textures_stream_index: u32,
+    /// The first [StreamEntry] for [Self::extract_textures].
     pub textures_stream_entry_start_index: u32,
+    /// The number of [StreamEntry] corresponding
+    /// to the number of textures in [Self::extract_textures].
     pub textures_stream_entry_count: u32,
 
-    // TODO: identical to indices in mxmd?
+    /// Index into [low_textures](#structfield.low_textures) for each of the textures in [Self::extract_textures].
+    /// This allows assigning higher resolution versions to only some of the textures.
     #[br(parse_with = parse_count32_offset32, offset = offset as u64)]
     #[xc3(count_offset(u32, u32))]
     pub texture_indices: Vec<u16>,
 
     // TODO: Some of these use actual names?
     // TODO: Possible to figure out the hash function used?
-    /// Information on the [Mibl] for [low_textures_entry_index](#structfield.low_textures_entry_index).
-    /// Identical to the entries in the Mxmd [textures](../mxmd/struct.Mxmd.html#structfield.textures).
+    /// Name and data range for each of the textures in [Self::extract_low_textures].
+    /// Identical to Mxmd [textures](../mxmd/struct.Mxmd.html#structfield.textures).
     #[br(parse_with = parse_opt_ptr32, offset = offset as u64)]
     #[xc3(offset(u32), align(2))]
     pub low_textures: Option<PackedExternalTextures>,
@@ -80,13 +90,14 @@ pub struct StreamEntry {
     pub offset: u32,
     /// The size in bytes of the decompressed data range in the stream.
     pub size: u32,
-    // TODO: high res mip?
-    pub unk_index: u16, // TODO: what does this do?
+    // TODO: index into textures or low textures?
+    pub texture_index: u16, // TODO: what does this do?
     pub item_type: EntryType,
     // TODO: padding?
     pub unk: [u32; 2],
 }
 
+/// Flags indicating what stream data is present.
 #[bitsize(32)]
 #[derive(DebugBits, FromBits, BinRead, BinWrite, Clone, Copy)]
 #[br(map = u32::into)]
@@ -100,6 +111,7 @@ pub struct StreamFlags {
     pub unk: u25,
 }
 
+/// The type of data for a [StreamEntry].
 #[derive(Debug, BinRead, BinWrite, PartialEq, Eq)]
 #[brw(repr(u16))]
 pub enum EntryType {
@@ -113,7 +125,7 @@ pub enum EntryType {
     Texture = 3,
 }
 
-/// A compressed archive with items determined by [StreamEntry].
+/// A compressed [Xbc1] stream with items determined by [StreamEntry].
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct Stream {
     pub comp_size: u32,

@@ -218,14 +218,13 @@ fn check_sar1_data(
 fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: bool) {
     let spch = msrd.extract_shader_data().unwrap();
     let vertex_data = msrd.extract_vertex_data().unwrap();
-    msrd.extract_low_texture_data().unwrap();
+    msrd.extract_low_textures().unwrap();
 
     // TODO: Check mibl?
-    match msrd.extract_middle_textures() {
+    match msrd.extract_textures() {
         Ok(_textures) => (),
-        Err(e) => println!("Error extracting middle textures {path:?}: {e}"),
+        Err(e) => println!("Error extracting textures for {path:?}: {e}"),
     }
-    // TODO: High textures?
 
     if check_read_write {
         let mut writer = Cursor::new(Vec::new());
@@ -519,6 +518,7 @@ fn check_spch(spch: Spch, path: &Path, original_bytes: &[u8], check_read_write: 
         match slct.read_slct(&spch.slct_section) {
             Ok(slct) => {
                 for (p, program) in slct.programs.iter().enumerate() {
+                    // TODO: Check that the extracted binary sizes add up to the total size.
                     if let Err(e) = program.read_nvsd() {
                         println!("Error reading Slct {i} and Nvsd {p} for {path:?}: {e}");
                     }
