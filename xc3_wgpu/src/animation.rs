@@ -51,7 +51,7 @@ pub fn animate_skeleton(
             }
         } else {
             // TODO: Why does this happen?
-            error!("No matching bone for index {:?}", track.bone_index);
+            error!("No matching bone for {:?}", track.bone_index);
         }
     }
 

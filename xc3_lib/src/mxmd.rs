@@ -1085,12 +1085,12 @@ pub struct PackedTextures {
     pub strings_offset: u32,
 }
 
+/// A single [Mibl](crate::mibl::Mibl) texture.
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(import_raw(base_offset: u64))]
 pub struct PackedTexture {
     pub unk1: u32,
 
-    // TODO: Optimized function for reading bytes?
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
     pub mibl_data: Vec<u8>,

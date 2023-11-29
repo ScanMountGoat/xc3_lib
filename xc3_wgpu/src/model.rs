@@ -495,7 +495,7 @@ fn morph_buffers(
         usage: wgpu::BufferUsages::STORAGE,
     });
 
-    let mut weights = vec![0.0f32; buffer.morph_targets.len()];
+    let weights = vec![0.0f32; buffer.morph_targets.len()];
     let morph_weights = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("morph weights"),
         contents: bytemuck::cast_slice(&weights),

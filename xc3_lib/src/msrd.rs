@@ -43,20 +43,22 @@ pub struct Msrd {
     pub low_textures_entry_index: u32,
     pub low_textures_stream_index: u32,
 
-    pub middle_textures_stream_index: u32,
-    pub middle_textures_stream_entry_start_index: u32,
-    pub middle_textures_stream_entry_count: u32,
+    pub textures_stream_index: u32,
+    pub textures_stream_entry_start_index: u32,
+    pub textures_stream_entry_count: u32,
 
     // TODO: identical to indices in mxmd?
     #[br(parse_with = parse_count32_offset32, offset = offset as u64)]
     #[xc3(count_offset(u32, u32))]
-    pub texture_ids: Vec<u16>,
+    pub texture_indices: Vec<u16>,
 
     // TODO: Some of these use actual names?
     // TODO: Possible to figure out the hash function used?
+    /// Information on the [Mibl] for [low_textures_entry_index](#structfield.low_textures_entry_index).
+    /// Identical to the entries in the Mxmd [textures](../mxmd/struct.Mxmd.html#structfield.textures).
     #[br(parse_with = parse_opt_ptr32, offset = offset as u64)]
     #[xc3(offset(u32), align(2))]
-    pub textures: Option<PackedExternalTextures>,
+    pub low_textures: Option<PackedExternalTextures>,
 
     pub unk1: u32,
 
@@ -92,7 +94,7 @@ pub struct StreamEntry {
 pub struct StreamFlags {
     pub has_vertex: bool,
     pub has_spch: bool,
-    pub has_packed_textures: bool,
+    pub has_low_textures: bool,
     pub has_textures: bool,
     pub unk1: u3,
     pub unk: u25,
@@ -101,9 +103,13 @@ pub struct StreamFlags {
 #[derive(Debug, BinRead, BinWrite, PartialEq, Eq)]
 #[brw(repr(u16))]
 pub enum EntryType {
+    /// A single [VertexData].
     Vertex = 0,
+    /// A single [Spch].
     Shader = 1,
-    PackedTexture = 2,
+    /// A collection of [Mibl].
+    LowTextures = 2,
+    /// A single [Mibl].
     Texture = 3,
 }
 
@@ -145,23 +151,34 @@ impl Msrd {
         VertexData::from_bytes(bytes).map_err(Into::into)
     }
 
-    // TODO: Return mibl instead?
-    pub fn extract_low_texture_data(&self) -> Result<Vec<u8>, DecompressStreamError> {
-        self.decompress_stream(
+    pub fn extract_low_textures(&self) -> Result<Vec<Mibl>, DecompressStreamError> {
+        let bytes = self.decompress_stream(
             self.low_textures_stream_index,
             self.low_textures_entry_index,
-        )
+        )?;
+
+        // TODO: Avoid unwrap?
+        self.low_textures
+            .as_ref()
+            .unwrap()
+            .textures
+            .iter()
+            .map(|t| {
+                let mibl_bytes =
+                    &bytes[t.mibl_offset as usize..t.mibl_offset as usize + t.mibl_length as usize];
+                Mibl::from_bytes(mibl_bytes).map_err(Into::into)
+            })
+            .collect()
     }
 
-    pub fn extract_middle_textures(&self) -> Result<Vec<Mibl>, DecompressStreamError> {
-        // The middle textures are packed into a single stream.
-        // TODO: Where are the high textures?
-        let stream = &self.streams[self.middle_textures_stream_index as usize]
+    pub fn extract_textures(&self) -> Result<Vec<Mibl>, DecompressStreamError> {
+        // The textures are packed into a single stream.
+        let stream = &self.streams[self.textures_stream_index as usize]
             .xbc1
             .decompress()?;
 
-        let start = self.middle_textures_stream_entry_start_index as usize;
-        let count = self.middle_textures_stream_entry_count as usize;
+        let start = self.textures_stream_entry_start_index as usize;
+        let count = self.textures_stream_entry_count as usize;
         self.stream_entries[start..start + count]
             .iter()
             .map(|entry| {
@@ -207,10 +224,11 @@ impl<'a> Xc3WriteOffsets for MsrdOffsets<'a> {
             .write_offset(writer, base_offset, data_ptr)?;
         // }
 
-        self.texture_ids
+        self.texture_indices
             .write_offset(writer, base_offset, data_ptr)?;
 
-        self.textures.write_full(writer, base_offset, data_ptr)?;
+        self.low_textures
+            .write_full(writer, base_offset, data_ptr)?;
 
         // TODO: Variable padding?
         // if self.stream_flags.data.unk1().value() == 6 {

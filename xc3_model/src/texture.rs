@@ -1,6 +1,7 @@
 use std::{error::Error, path::Path};
 
 use image_dds::Surface;
+use log::error;
 use thiserror::Error;
 use xc3_lib::{
     mibl::{Mibl, SwizzleError},
@@ -126,40 +127,38 @@ pub(crate) fn load_textures(
     m_tex_folder: &Path,
     h_tex_folder: &Path,
 ) -> Vec<ImageTexture> {
-    // TODO: packed mxmd, external mxmd, low res msrd, msrd,
-    // TODO: Is this the correct way to handle this?
-    // TODO: Is it possible to have both packed and external mxmd textures?
+    // TODO: what is the correct priority for the different texture sources?
     if let Some(textures) = &mxmd.textures {
         let mxmd_textures = match &textures.inner {
             xc3_lib::mxmd::TexturesInner::Unk0(t) => Some(&t.textures1.textures),
             xc3_lib::mxmd::TexturesInner::Unk1(t) => t.textures.as_ref().map(|t| &t.textures),
         };
 
-        let packed_texture_data = msrd.unwrap().extract_low_texture_data().unwrap();
+        let low_textures = msrd.unwrap().extract_low_textures().unwrap();
         // TODO: These textures aren't in the same order?
-        let middle_textures = msrd.unwrap().extract_middle_textures().unwrap();
+        let textures = msrd.unwrap().extract_textures().unwrap();
 
-        // TODO: Same as msrd?
-        let texture_ids = &msrd.as_ref().unwrap().texture_ids;
+        // TODO: Same as mxmd?
+        // TODO: Assigns textures to packed mxmd textures?
+        let texture_indices = &msrd.as_ref().unwrap().texture_indices;
 
         // Assume the packed and non packed textures have the same ordering.
-        // Xenoblade 3 has some textures in the chr/tex folder.
         // TODO: Are the mxmd and msrd packed texture lists always identical?
         mxmd_textures
-            .map(|packed_textures| {
-                packed_textures
+            .map(|external_textures| {
+                external_textures
                     .iter()
                     .enumerate()
                     .map(|(i, texture)| {
-                        load_wismt_texture(m_tex_folder, h_tex_folder, &texture.name)
+                        load_chr_tex_texture(m_tex_folder, h_tex_folder, &texture.name)
                             .ok()
                             .or_else(|| {
                                 // TODO: Assign in a second pass to avoid O(N) find.
-                                texture_ids
+                                texture_indices
                                     .iter()
                                     .position(|id| *id as usize == i)
                                     .and_then(|index| {
-                                        middle_textures.get(index).map(|mibl| {
+                                        textures.get(index).map(|mibl| {
                                             ImageTexture::from_mibl(
                                                 mibl,
                                                 Some(texture.name.clone()),
@@ -169,8 +168,12 @@ pub(crate) fn load_textures(
                                     })
                             })
                             .unwrap_or_else(|| {
-                                // Some textures only appear in the packed textures and have no high res version.
-                                load_packed_texture(&packed_texture_data, texture).unwrap()
+                                // Some textures only have a low resolution version.
+                                ImageTexture::from_mibl(
+                                    &low_textures[i],
+                                    Some(texture.name.clone()),
+                                )
+                                .unwrap()
                             })
                     })
                     .collect()
@@ -184,27 +187,17 @@ pub(crate) fn load_textures(
             .collect()
     } else {
         // TODO: How to handle this case?
+        error!("Failed to load textures");
         Vec::new()
     }
 }
 
-fn load_packed_texture(
-    packed_texture_data: &[u8],
-    item: &xc3_lib::mxmd::PackedExternalTexture,
-) -> Result<ImageTexture, CreateImageTextureError> {
-    let data = &packed_texture_data
-        [item.mibl_offset as usize..item.mibl_offset as usize + item.mibl_length as usize];
-
-    let mibl = Mibl::from_bytes(data)?;
-    ImageTexture::from_mibl(&mibl, Some(item.name.clone())).map_err(Into::into)
-}
-
-fn load_wismt_texture(
+fn load_chr_tex_texture(
     m_texture_folder: &Path,
     h_texture_folder: &Path,
     texture_name: &str,
 ) -> Result<ImageTexture, CreateImageTextureError> {
-    // TODO: Create a helper function in xc3_lib for this?
+    // Xenoblade 3 has some textures in the chr/tex folder.
     let xbc1 = Xbc1::from_file(m_texture_folder.join(texture_name).with_extension("wismt"))?;
     let mibl_m: Mibl = xbc1.extract()?;
 

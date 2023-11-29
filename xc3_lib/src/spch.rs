@@ -37,7 +37,6 @@ pub struct Spch {
 
     /// Compiled shader binaries.
     /// Alternates between vertex and fragment shaders.
-    // TODO: Optimized function for reading bytes?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32), align(4096))]
     pub xv4_section: Vec<u8>,
@@ -45,7 +44,6 @@ pub struct Spch {
     // data before the xV4 section
     // same count as xV4 but with magic 0x34127698?
     // each has length 2176 (referenced in shaders?)
-    // TODO: Optimized function for reading bytes?
     /// A collection of [UnkItem].
     // TODO: xc2 tg_ui_hitpoint.wimdo has some sort of assembly code?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]

@@ -45,7 +45,6 @@ pub struct VertexData {
     pub vertex_morphs: Option<VertexMorphs>,
 
     /// The data buffer containing all the geometry data.
-    // TODO: Optimized function for reading bytes?
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32), align(4096))]
     pub buffer: Vec<u8>,

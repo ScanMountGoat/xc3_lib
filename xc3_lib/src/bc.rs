@@ -989,7 +989,7 @@ impl StringSection {
     fn insert_offset(&mut self, offset: &xc3_write::Offset<'_, u64, String>) {
         self.name_to_offsets
             .entry(offset.data.clone())
-            .or_insert(Vec::new())
+            .or_default()
             .push(offset.position);
     }
 

@@ -403,7 +403,6 @@ pub struct LowTextures {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct LowTexture {
     pub unk1: u32,
-    // TODO: Optimized function for reading bytes?
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
     pub mibl_data: Vec<u8>,
