@@ -2,7 +2,6 @@
 //!
 //! XC3: `chr/{ch,en,oj,wp}/*.wimdo`, `monolib/shader/*.wimdo`
 use crate::{
-    msrd::TextureResource,
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
     parse_string_opt_ptr32, parse_string_ptr32,
     spch::Spch,
@@ -992,12 +991,14 @@ pub struct Textures {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
+    // TODO: Is this related to the msrd tag?
     pub tag: u32, // 4097 or sometimes 0?
 
     #[br(args { base_offset, tag })]
     pub inner: TexturesInner,
 }
 
+// TODO: related to tag in msrd?
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(import { base_offset: u64, tag: u32 })]
 pub enum TexturesInner {
@@ -1027,7 +1028,7 @@ pub struct Textures1 {
     // TODO: more fields?
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(import_raw(base_offset: u64))]
 pub struct Textures2 {
     pub unk1: u32, // 103
@@ -1038,34 +1039,62 @@ pub struct Textures2 {
 
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
-    pub unk3: Vec<TexturesUnk>,
+    pub streams: Vec<TextureStream>,
 
     pub unk4: [u32; 7],
 
-    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
-    #[xc3(count_offset(u32, u32))]
-    pub indices: Vec<u16>,
-
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
-    pub textures: Option<PackedExternalTextures>,
-
-    pub unk5: u32,
-
-    // TODO: same as the type in msrd?
-    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
-    #[xc3(count_offset(u32, u32))]
-    pub resources: Vec<TextureResource>,
+    #[br(args_raw(base_offset))]
+    pub texture_resources: TextureResources,
 
     // TODO: padding?
     pub unk: [u32; 4],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
-pub struct TexturesUnk {
+// TODO: Better name?
+// TODO: Are these fields shared with msrd?
+// TODO: Always identical to msrd?
+#[derive(Debug, BinRead, Xc3Write)]
+#[br(import_raw(base_offset: u64))]
+pub struct TextureResources {
+    /// Index into [low_textures](#structfield.low_textures)
+    /// for each of the textures in [Msrd::extract_textures](crate::msrd::Msrd::extract_textures).
+    /// This allows assigning higher resolution versions to only some of the textures.
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub texture_indices: Vec<u16>,
+
+    // TODO: Some of these use actual names?
+    // TODO: Possible to figure out the hash function used?
+    /// Name and data range for each of the [Mibl](crate::mibl::Mibl) textures.
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub low_textures: Option<PackedExternalTextures>,
+
+    /// Always `0`.
     pub unk1: u32,
+
+    // TODO: only used for xc3 models with chr/tex textures?
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub chr_textures: Vec<ChrTexTexture>,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct ChrTexTexture {
+    // TODO: The the texture name hash as an integer for xc3?
+    pub hash: u32,
     pub unk2: u32,
     pub unk3: u32,
+    pub unk4: u32,
+    pub unk5: u32,
+}
+
+/// A reference to a [Stream](crate::msrd::Stream) in the [Msrd](crate::msrd::Msrd) with texture data.
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct TextureStream {
+    pub compressed_size: u32,
+    pub decompressed_size: u32,
+    pub compressed_offset: u32, // TODO: related to compressed_size?
 }
 
 /// A collection of [Mibl](crate::mibl::Mibl) textures embedded in the current file.
@@ -1109,11 +1138,13 @@ pub struct PackedExternalTextures {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
+    // TODO: Always identical to low textures in msrd?
     #[br(parse_with = parse_count32_offset32, args { offset: base_offset, inner: base_offset })]
     #[xc3(count_offset(u32, u32), align(2))]
     pub textures: Vec<PackedExternalTexture>,
 
-    pub unk2: u32,
+    pub unk2: u32, // 0
+    // TODO: Calculate this offset when writing?
     pub strings_offset: u32,
 }
 
@@ -1604,20 +1635,20 @@ impl<'a> Xc3WriteOffsets for MxmdOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for Textures2Offsets<'a> {
+impl<'a> Xc3WriteOffsets for TextureResourcesOffsets<'a> {
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
     ) -> xc3_write::Xc3Result<()> {
-        self.unk2.write_full(writer, base_offset, data_ptr)?;
-        self.unk3.write_full(writer, base_offset, data_ptr)?;
-
         // Different order than field order.
-        self.resources.write_full(writer, base_offset, data_ptr)?;
-        self.indices.write_full(writer, base_offset, data_ptr)?;
-        self.textures.write_full(writer, base_offset, data_ptr)?;
+        self.chr_textures
+            .write_full(writer, base_offset, data_ptr)?;
+        self.texture_indices
+            .write_full(writer, base_offset, data_ptr)?;
+        self.low_textures
+            .write_full(writer, base_offset, data_ptr)?;
 
         Ok(())
     }

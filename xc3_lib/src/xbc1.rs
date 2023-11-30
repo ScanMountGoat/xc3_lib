@@ -16,8 +16,8 @@ pub struct Xbc1 {
     // TODO: Not always zlib?
     #[br(assert(unk1 == 1))]
     pub unk1: u32,
-    pub decomp_size: u32,
-    pub comp_size: u32,
+    pub decompressed_size: u32,
+    pub compressed_size: u32,
 
     /// Hash of the original decompressed bytes
     /// for [compressed_stream](#structfield.compressed_stream) using [hash_crc].
@@ -31,8 +31,8 @@ pub struct Xbc1 {
     pub name: String,
 
     /// A zlib encoded compressed stream.
-    /// The decompressed or "inflated" stream will have size [decomp_size](#structfield.decomp_size).
-    #[br(count = comp_size)]
+    /// The decompressed or "inflated" stream will have size [decompressed_size](#structfield.decompressed_size).
+    #[br(count = compressed_size)]
     #[brw(align_after = 16)]
     pub compressed_stream: Vec<u8>,
 }
@@ -68,8 +68,8 @@ impl Xbc1 {
 
         Ok(Self {
             unk1: 1,
-            decomp_size: decompressed.len() as u32,
-            comp_size: compressed_stream.len() as u32,
+            decompressed_size: decompressed.len() as u32,
+            compressed_size: compressed_stream.len() as u32,
             decompressed_hash: hash_crc(decompressed),
             name,
             compressed_stream,
@@ -80,7 +80,7 @@ impl Xbc1 {
     pub fn decompress(&self) -> Result<Vec<u8>, DecompressStreamError> {
         let mut decoder = DeflateDecoder::new_with_options(
             &self.compressed_stream,
-            DeflateOptions::default().set_size_hint(self.decomp_size as usize),
+            DeflateOptions::default().set_size_hint(self.decompressed_size as usize),
         );
         decoder.decode_zlib().map_err(Into::into)
     }

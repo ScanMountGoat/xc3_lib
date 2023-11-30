@@ -131,7 +131,11 @@ pub(crate) fn load_textures(
     if let Some(textures) = &mxmd.textures {
         let mxmd_textures = match &textures.inner {
             xc3_lib::mxmd::TexturesInner::Unk0(t) => Some(&t.textures1.textures),
-            xc3_lib::mxmd::TexturesInner::Unk1(t) => t.textures.as_ref().map(|t| &t.textures),
+            xc3_lib::mxmd::TexturesInner::Unk1(t) => t
+                .texture_resources
+                .low_textures
+                .as_ref()
+                .map(|t| &t.textures),
         };
 
         let low_textures = msrd.unwrap().extract_low_textures().unwrap();
@@ -140,7 +144,7 @@ pub(crate) fn load_textures(
 
         // TODO: Same as mxmd?
         // TODO: Assigns textures to packed mxmd textures?
-        let texture_indices = &msrd.as_ref().unwrap().texture_indices;
+        let texture_indices = &msrd.as_ref().unwrap().texture_resources.texture_indices;
 
         // Assume the packed and non packed textures have the same ordering.
         // TODO: Are the mxmd and msrd packed texture lists always identical?
