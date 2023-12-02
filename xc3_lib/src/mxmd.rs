@@ -2,6 +2,7 @@
 //!
 //! XC3: `chr/{ch,en,oj,wp}/*.wimdo`, `monolib/shader/*.wimdo`
 use crate::{
+    msrd::{StreamingData, StreamingDataOffsets},
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
     parse_string_opt_ptr32, parse_string_ptr32,
     spch::Spch,
@@ -51,6 +52,7 @@ pub struct Mxmd {
 
     pub unk5: u32,
 
+    // TODO: This is actually streaming data?
     /// References to textures stored externally like in an [Msrd](crate::msrd::Msrd).
     #[br(parse_with = parse_opt_ptr32)]
     #[xc3(offset(u32))]
@@ -983,6 +985,7 @@ pub struct LodGroup {
     pub unk2: u32,
 }
 
+// TODO: Move this to msrd?
 #[binread]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets)]
 #[br(stream = r)]
@@ -991,27 +994,34 @@ pub struct Textures {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    // TODO: Is this related to the msrd tag?
+    // TODO: Identical to Msrd type but without xbc1?
     pub tag: u32, // 4097 or sometimes 0?
 
     #[br(args { base_offset, tag })]
-    pub inner: TexturesInner,
+    pub inner: StreamingDataInner,
 }
 
-// TODO: related to tag in msrd?
+// TODO: Find a way to use the generic type directly.
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[br(import_raw(base_offset: u64))]
+pub struct StreamingDataMxmd {
+    #[br(args_raw(base_offset))]
+    pub inner: StreamingData<TextureStream>,
+}
+
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(import { base_offset: u64, tag: u32 })]
-pub enum TexturesInner {
+pub enum StreamingDataInner {
     #[br(pre_assert(tag == 0))]
-    Unk0(#[br(args_raw(base_offset))] Textures1),
+    Unk0(#[br(args_raw(base_offset))] StreamingDataLegacy),
 
     #[br(pre_assert(tag == 4097))]
-    Unk1(#[br(args_raw(base_offset))] Textures2),
+    Unk1(#[br(args_raw(base_offset))] StreamingDataMxmd),
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(import_raw(base_offset: u64))]
-pub struct Textures1 {
+pub struct StreamingDataLegacy {
     pub unk1: u32, // TODO: count for multiple packed textures?
     // low textures?
     #[br(parse_with = parse_ptr32, offset = base_offset)]
@@ -1026,67 +1036,6 @@ pub struct Textures1 {
     pub unk4: u32,
     pub unk5: u32,
     // TODO: more fields?
-}
-
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
-#[br(import_raw(base_offset: u64))]
-pub struct Textures2 {
-    pub unk1: u32, // 103
-
-    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
-    #[xc3(count_offset(u32, u32))]
-    pub unk2: Vec<[u32; 5]>,
-
-    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
-    #[xc3(count_offset(u32, u32))]
-    pub streams: Vec<TextureStream>,
-
-    pub unk4: [u32; 7],
-
-    #[br(args_raw(base_offset))]
-    pub texture_resources: TextureResources,
-
-    // TODO: padding?
-    pub unk: [u32; 4],
-}
-
-// TODO: Better name?
-// TODO: Are these fields shared with msrd?
-// TODO: Always identical to msrd?
-#[derive(Debug, BinRead, Xc3Write)]
-#[br(import_raw(base_offset: u64))]
-pub struct TextureResources {
-    /// Index into [low_textures](#structfield.low_textures)
-    /// for each of the textures in [Msrd::extract_textures](crate::msrd::Msrd::extract_textures).
-    /// This allows assigning higher resolution versions to only some of the textures.
-    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
-    #[xc3(count_offset(u32, u32))]
-    pub texture_indices: Vec<u16>,
-
-    // TODO: Some of these use actual names?
-    // TODO: Possible to figure out the hash function used?
-    /// Name and data range for each of the [Mibl](crate::mibl::Mibl) textures.
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
-    pub low_textures: Option<PackedExternalTextures>,
-
-    /// Always `0`.
-    pub unk1: u32,
-
-    // TODO: only used for xc3 models with chr/tex textures?
-    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
-    #[xc3(count_offset(u32, u32))]
-    pub chr_textures: Vec<ChrTexTexture>,
-}
-
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
-pub struct ChrTexTexture {
-    // TODO: The the texture name hash as an integer for xc3?
-    pub hash: u32,
-    pub unk2: u32,
-    pub unk3: u32,
-    pub unk4: u32,
-    pub unk5: u32,
 }
 
 /// A reference to a [Stream](crate::msrd::Stream) in the [Msrd](crate::msrd::Msrd) with texture data.
@@ -1533,7 +1482,8 @@ impl<'a> Xc3WriteOffsets for ModelsOffsets<'a> {
         self.model_unk1.write_full(writer, base_offset, data_ptr)?;
         self.model_unk4.write_full(writer, base_offset, data_ptr)?;
         self.model_unk3.write_full(writer, base_offset, data_ptr)?;
-        // self.model_unk5.write_full(writer, base_offset, data_ptr)?;
+        self.model_unk5.write_full(writer, base_offset, data_ptr)?;
+        self.model_unk6.write_full(writer, base_offset, data_ptr)?;
 
         Ok(())
     }
@@ -1635,25 +1585,6 @@ impl<'a> Xc3WriteOffsets for MxmdOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for TextureResourcesOffsets<'a> {
-    fn write_offsets<W: std::io::Write + std::io::Seek>(
-        &self,
-        writer: &mut W,
-        base_offset: u64,
-        data_ptr: &mut u64,
-    ) -> xc3_write::Xc3Result<()> {
-        // Different order than field order.
-        self.chr_textures
-            .write_full(writer, base_offset, data_ptr)?;
-        self.texture_indices
-            .write_full(writer, base_offset, data_ptr)?;
-        self.low_textures
-            .write_full(writer, base_offset, data_ptr)?;
-
-        Ok(())
-    }
-}
-
 // TODO: Add derive attribute for skipping empty vecs?
 impl<'a> Xc3WriteOffsets for Unk1Offsets<'a> {
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -1669,6 +1600,23 @@ impl<'a> Xc3WriteOffsets for Unk1Offsets<'a> {
         if !self.unk4.data.is_empty() {
             self.unk4.write_full(writer, base_offset, data_ptr)?;
         }
+        Ok(())
+    }
+}
+
+// TODO: Find a way to derive this.
+impl<'a> Xc3WriteOffsets for StreamingDataOffsets<'a, TextureStream> {
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> xc3_write::Xc3Result<()> {
+        self.stream_entries
+            .write_full(writer, base_offset, data_ptr)?;
+        self.streams.write_full(writer, base_offset, data_ptr)?;
+        self.texture_resources
+            .write_offsets(writer, base_offset, data_ptr)?;
         Ok(())
     }
 }

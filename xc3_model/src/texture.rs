@@ -130,8 +130,9 @@ pub(crate) fn load_textures(
     // TODO: what is the correct priority for the different texture sources?
     if let Some(textures) = &mxmd.textures {
         let mxmd_textures = match &textures.inner {
-            xc3_lib::mxmd::TexturesInner::Unk0(t) => Some(&t.textures1.textures),
-            xc3_lib::mxmd::TexturesInner::Unk1(t) => t
+            xc3_lib::mxmd::StreamingDataInner::Unk0(t) => Some(&t.textures1.textures),
+            xc3_lib::mxmd::StreamingDataInner::Unk1(t) => t
+                .inner
                 .texture_resources
                 .low_textures
                 .as_ref()
@@ -144,7 +145,12 @@ pub(crate) fn load_textures(
 
         // TODO: Same as mxmd?
         // TODO: Assigns textures to packed mxmd textures?
-        let texture_indices = &msrd.as_ref().unwrap().texture_resources.texture_indices;
+        let texture_indices = &msrd
+            .as_ref()
+            .unwrap()
+            .data
+            .texture_resources
+            .texture_indices;
 
         // Assume the packed and non packed textures have the same ordering.
         // TODO: Are the mxmd and msrd packed texture lists always identical?

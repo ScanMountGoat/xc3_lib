@@ -336,6 +336,7 @@ pub fn load_model<P: AsRef<Path>>(
     });
 
     // TODO: Some files don't have a wismt?
+    // TODO: Create a generic function for maybe xbc1 to use for msrd as well as sar1.
     let msrd = Msrd::from_file(wimdo_path.with_extension("wismt")).ok();
     // TODO: Avoid unwrap.
     let msrd_vertex_data = msrd
@@ -546,14 +547,17 @@ fn assign_parameters(
     let floats = &materials.floats;
     let start_index = material.floats_start_index;
 
+    // TODO: alpha test ref?
     let mut parameters = MaterialParameters {
         mat_color: material.color,
-        alpha_test_ref: 0.5, //material.alpha_test_ref,
+        alpha_test_ref: 0.5,
         tex_matrix: None,
         work_float4: None,
         work_color: None,
     };
 
+    // TODO: Not set properly for WorkFloat4 for Mio o1.z?
+    // TODO: Some values need to be divided by 255?
     for param in &info.parameters {
         match param.param_type {
             xc3_lib::mxmd::ParamType::Unk0 => (),

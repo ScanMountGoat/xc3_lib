@@ -4,15 +4,16 @@
 use std::io::{Cursor, Seek};
 
 use crate::{
-    error::DecompressStreamError, mibl::Mibl, mxmd::TextureResources, parse_count32_offset32,
-    parse_ptr32, spch::Spch, vertex::VertexData, xbc1::Xbc1, xc3_write_binwrite_impl,
+    error::DecompressStreamError, mibl::Mibl, mxmd::PackedExternalTextures, parse_count32_offset32,
+    parse_opt_ptr32, parse_ptr32, spch::Spch, vertex::VertexData, xbc1::Xbc1,
+    xc3_write_binwrite_impl,
 };
 use bilge::prelude::*;
 use binrw::{binread, BinRead, BinWrite};
 use xc3_write::{write_full, Xc3Write, Xc3WriteOffsets};
 
 #[binread]
-#[derive(Debug, Xc3Write)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
 #[br(magic(b"DRSM"))]
 #[xc3(magic(b"DRSM"))]
 pub struct Msrd {
@@ -23,46 +24,96 @@ pub struct Msrd {
     pub offset: u32,      // TODO: Pointer to an inner type?
 
     // TODO: variable size?
+    #[br(assert(tag == 4097))]
     pub tag: u32, // 4097?
 
+    // TODO: This offset depends on flags like with mxmd models?
+    #[br(args_raw(offset as u64))]
+    pub data: StreamingData<Stream>,
+    // TODO: optional 16 bytes of padding?
+}
+
+#[derive(Debug, BinRead, Xc3Write)]
+#[br(import_raw(base_offset: u64))]
+pub struct StreamingData<S>
+where
+    S: Xc3Write + 'static,
+    for<'a> S: BinRead<Args<'a> = ()>,
+{
     pub stream_flags: StreamFlags,
 
-    // TODO: This offset depends on flags like with mxmd models?
     /// Files contained within [streams](#structfield.streams).
-    #[br(parse_with = parse_count32_offset32, offset = offset as u64)]
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
     pub stream_entries: Vec<StreamEntry>,
 
     /// A collection of [Xbc1] streams with decompressed layout
     /// specified in [stream_entries](#structfield.stream_entries).
-    #[br(parse_with = parse_count32_offset32, offset = offset as u64)]
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
-    pub streams: Vec<Stream>,
+    pub streams: Vec<S>,
 
-    /// The [StreamEntry] for [Self::extract_vertex_data] with [EntryType::Vertex].
+    /// The [StreamEntry] for [Msrd::extract_vertex_data] with [EntryType::Vertex].
     pub vertex_data_entry_index: u32,
-    /// The [StreamEntry] for [Self::extract_shader_data] with [EntryType::Shader].
+    /// The [StreamEntry] for [Msrd::extract_shader_data] with [EntryType::Shader].
     pub shader_entry_index: u32,
 
-    /// The [StreamEntry] for [Self::extract_low_textures] with [EntryType::LowTextures].
+    /// The [StreamEntry] for [Msrd::extract_low_textures] with [EntryType::LowTextures].
     pub low_textures_entry_index: u32,
-    /// The [Stream] for [Self::extract_low_textures].
+    /// The [Stream] for [Msrd::extract_low_textures].
     pub low_textures_stream_index: u32,
 
-    /// The [Stream] for [Self::extract_textures].
+    /// The [Stream] for [Msrd::extract_textures].
     pub textures_stream_index: u32,
-    /// The first [StreamEntry] for [Self::extract_textures].
+    /// The first [StreamEntry] for [Msrd::extract_textures].
     pub textures_stream_entry_start_index: u32,
     /// The number of [StreamEntry] corresponding
-    /// to the number of textures in [Self::extract_textures].
+    /// to the number of textures in [Msrd::extract_textures].
     pub textures_stream_entry_count: u32,
 
-    #[br(args_raw(offset as u64))]
+    #[br(args_raw(base_offset))]
     pub texture_resources: TextureResources,
 
-    // TODO: offset 76?
-    // TODO: optional 16 bytes of padding?
     pub unks: [u32; 4],
+}
+
+// TODO: Better name?
+// TODO: Always identical to mxmf?
+#[derive(Debug, BinRead, Xc3Write)]
+#[br(import_raw(base_offset: u64))]
+pub struct TextureResources {
+    // TODO: also used for chr textures?
+    /// Index into [low_textures](#structfield.low_textures)
+    /// for each of the textures in [Msrd::extract_textures](crate::msrd::Msrd::extract_textures).
+    /// This allows assigning higher resolution versions to only some of the textures.
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub texture_indices: Vec<u16>,
+
+    // TODO: Some of these use actual names?
+    // TODO: Possible to figure out the hash function used?
+    /// Name and data range for each of the [Mibl] textures.
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub low_textures: Option<PackedExternalTextures>,
+
+    /// Always `0`.
+    pub unk1: u32,
+
+    // TODO: only used for xc3 models with chr/tex textures?
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub chr_textures: Vec<ChrTexTexture>,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct ChrTexTexture {
+    // TODO: The the texture name hash as an integer for xc3?
+    pub hash: u32,
+    pub unk2: (u16, u16),
+    pub unk3: (u16, u16),
+    pub unk4: (u16, u16),
+    pub unk5: (u16, u16),
 }
 
 /// A file contained in a [Stream].
@@ -126,24 +177,24 @@ impl Msrd {
         stream_index: u32,
         entry_index: u32,
     ) -> Result<Vec<u8>, DecompressStreamError> {
-        let stream = &self.streams[stream_index as usize].xbc1.decompress()?;
-        let entry = &self.stream_entries[entry_index as usize];
+        let stream = &self.data.streams[stream_index as usize].xbc1.decompress()?;
+        let entry = &self.data.stream_entries[entry_index as usize];
         Ok(stream[entry.offset as usize..entry.offset as usize + entry.size as usize].to_vec())
     }
 
     pub fn extract_vertex_data(&self) -> Result<VertexData, DecompressStreamError> {
         // TODO: is this always in the first stream?
-        let bytes = self.decompress_stream(0, self.vertex_data_entry_index)?;
+        let bytes = self.decompress_stream(0, self.data.vertex_data_entry_index)?;
         VertexData::from_bytes(bytes).map_err(Into::into)
     }
 
     pub fn extract_low_textures(&self) -> Result<Vec<Mibl>, DecompressStreamError> {
         let bytes = self.decompress_stream(
-            self.low_textures_stream_index,
-            self.low_textures_entry_index,
+            self.data.low_textures_stream_index,
+            self.data.low_textures_entry_index,
         )?;
 
-        match &self.texture_resources.low_textures {
+        match &self.data.texture_resources.low_textures {
             Some(low_textures) => low_textures
                 .textures
                 .iter()
@@ -159,13 +210,13 @@ impl Msrd {
 
     pub fn extract_textures(&self) -> Result<Vec<Mibl>, DecompressStreamError> {
         // The textures are packed into a single stream.
-        let stream = &self.streams[self.textures_stream_index as usize]
+        let stream = &self.data.streams[self.data.textures_stream_index as usize]
             .xbc1
             .decompress()?;
 
-        let start = self.textures_stream_entry_start_index as usize;
-        let count = self.textures_stream_entry_count as usize;
-        self.stream_entries[start..start + count]
+        let start = self.data.textures_stream_entry_start_index as usize;
+        let count = self.data.textures_stream_entry_count as usize;
+        self.data.stream_entries[start..start + count]
             .iter()
             .map(|entry| {
                 let bytes =
@@ -177,7 +228,7 @@ impl Msrd {
 
     pub fn extract_shader_data(&self) -> Result<Spch, DecompressStreamError> {
         // TODO: is this always in the first stream?
-        let bytes = self.decompress_stream(0, self.shader_entry_index)?;
+        let bytes = self.decompress_stream(0, self.data.shader_entry_index)?;
         Spch::from_bytes(bytes).map_err(Into::into)
     }
 
@@ -199,33 +250,35 @@ impl Msrd {
             header_size: 976, // TODO: calculate this during writing
             offset: 16,
             tag: 4097,
-            stream_flags: StreamFlags::new(
-                true,
-                true,
-                true,
-                false,
-                false,
-                false,
-                false,
-                0u8.into(),
-            ),
-            stream_entries,
-            streams: vec![stream],
-            vertex_data_entry_index: 0,
-            shader_entry_index: 1,
-            low_textures_entry_index: 2,
-            low_textures_stream_index: 0,
-            textures_stream_index: 0,
-            textures_stream_entry_start_index: 0,
-            textures_stream_entry_count: 0,
-            // TODO: How to properly create these fields?
-            texture_resources: TextureResources {
-                texture_indices: todo!(),
-                low_textures: todo!(),
-                unk1: 0,
-                chr_textures: todo!(),
+            data: StreamingData {
+                stream_flags: StreamFlags::new(
+                    true,
+                    true,
+                    true,
+                    false,
+                    false,
+                    false,
+                    false,
+                    0u8.into(),
+                ),
+                stream_entries,
+                streams: vec![stream],
+                vertex_data_entry_index: 0,
+                shader_entry_index: 1,
+                low_textures_entry_index: 2,
+                low_textures_stream_index: 0,
+                textures_stream_index: 0,
+                textures_stream_entry_start_index: 0,
+                textures_stream_entry_count: 0,
+                // TODO: How to properly create these fields?
+                texture_resources: TextureResources {
+                    texture_indices: todo!(),
+                    low_textures: todo!(),
+                    unk1: 0,
+                    chr_textures: todo!(),
+                },
+                unks: [0; 4],
             },
-            unks: [0; 4],
         }
     }
 }
@@ -270,8 +323,8 @@ where
 
 xc3_write_binwrite_impl!(StreamEntry, StreamFlags);
 
-impl<'a> Xc3WriteOffsets for MsrdOffsets<'a> {
-    fn write_offsets<W: std::io::Write + std::io::Seek>(
+impl<'a> Xc3WriteOffsets for StreamingDataOffsets<'a, Stream> {
+    fn write_offsets<W: std::io::prelude::Write + Seek>(
         &self,
         writer: &mut W,
         _base_offset: u64,
@@ -293,6 +346,25 @@ impl<'a> Xc3WriteOffsets for MsrdOffsets<'a> {
         for offsets in stream_offsets.0 {
             offsets.xbc1.write_offset(writer, 0, data_ptr)?;
         }
+
+        Ok(())
+    }
+}
+
+impl<'a> Xc3WriteOffsets for TextureResourcesOffsets<'a> {
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> xc3_write::Xc3Result<()> {
+        // Different order than field order.
+        self.chr_textures
+            .write_full(writer, base_offset, data_ptr)?;
+        self.texture_indices
+            .write_full(writer, base_offset, data_ptr)?;
+        self.low_textures
+            .write_full(writer, base_offset, data_ptr)?;
 
         Ok(())
     }
