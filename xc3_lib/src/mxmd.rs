@@ -52,11 +52,10 @@ pub struct Mxmd {
 
     pub unk5: u32,
 
-    // TODO: This is actually streaming data?
-    /// References to textures stored externally like in an [Msrd](crate::msrd::Msrd).
+    /// References to streaming data stored externally like in an [Msrd](crate::msrd::Msrd).
     #[br(parse_with = parse_opt_ptr32)]
     #[xc3(offset(u32))]
-    pub textures: Option<Textures>,
+    pub streaming: Option<Streaming>,
 
     // TODO: padding?
     pub unk: [u32; 10],
@@ -990,7 +989,7 @@ pub struct LodGroup {
 #[derive(Debug, Xc3Write, Xc3WriteOffsets)]
 #[br(stream = r)]
 #[xc3(base_offset)]
-pub struct Textures {
+pub struct Streaming {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
@@ -1013,29 +1012,46 @@ pub struct StreamingDataMxmd {
 #[br(import { base_offset: u64, tag: u32 })]
 pub enum StreamingDataInner {
     #[br(pre_assert(tag == 0))]
-    Unk0(#[br(args_raw(base_offset))] StreamingDataLegacy),
+    StreamingLegacy(#[br(args_raw(base_offset))] StreamingDataLegacy),
 
     #[br(pre_assert(tag == 4097))]
-    Unk1(#[br(args_raw(base_offset))] StreamingDataMxmd),
+    Streaming(#[br(args_raw(base_offset))] StreamingDataMxmd),
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(import_raw(base_offset: u64))]
 pub struct StreamingDataLegacy {
-    pub unk1: u32, // TODO: count for multiple packed textures?
-    // low textures?
+    pub flags: u32,
+
     #[br(parse_with = parse_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    pub textures1: PackedExternalTextures,
+    pub low_textures: PackedExternalTextures,
 
-    // high textures?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    pub textures2: Option<PackedExternalTextures>,
+    pub textures: Option<PackedExternalTextures>,
 
-    pub unk4: u32,
-    pub unk5: u32,
-    // TODO: more fields?
+    #[br(parse_with = parse_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: low_textures.textures.len() }})]
+    #[xc3(offset(u32))]
+    pub low_texture_indices: Vec<u16>,
+
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args {
+        offset: base_offset,
+        inner: args! { count: textures.as_ref().map(|t| t.textures.len()).unwrap_or_default() }
+    })]
+    #[xc3(offset(u32))]
+    pub texture_indices: Option<Vec<u16>>,
+
+    pub low_texture_data_offset: u32,
+    pub texture_data_offset: u32,
+
+    pub low_texture_data_compressed_size: u32,
+    pub texture_data_compressed_size: u32,
+
+    pub low_texture_data_uncompressed_size: u32,
+    pub texture_data_uncompressed_size: u32,
 }
 
 /// A reference to a [Stream](crate::msrd::Stream) in the [Msrd](crate::msrd::Msrd) with texture data.
@@ -1571,7 +1587,7 @@ impl<'a> Xc3WriteOffsets for MxmdOffsets<'a> {
         self.materials.write_full(writer, base_offset, data_ptr)?;
 
         // Different order than field order.
-        self.textures.write_full(writer, base_offset, data_ptr)?;
+        self.streaming.write_full(writer, base_offset, data_ptr)?;
 
         // TODO: 16 bytes of padding before this?
         self.unk1.write_full(writer, base_offset, data_ptr)?;

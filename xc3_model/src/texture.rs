@@ -121,6 +121,7 @@ impl ImageTexture {
     // TODO: to_mibl?
 }
 
+// TODO: clean this up.
 pub(crate) fn load_textures(
     mxmd: &Mxmd,
     msrd: Option<&Msrd>,
@@ -128,67 +129,66 @@ pub(crate) fn load_textures(
     h_tex_folder: &Path,
 ) -> Vec<ImageTexture> {
     // TODO: what is the correct priority for the different texture sources?
-    if let Some(textures) = &mxmd.textures {
-        let mxmd_textures = match &textures.inner {
-            xc3_lib::mxmd::StreamingDataInner::Unk0(t) => Some(&t.textures1.textures),
-            xc3_lib::mxmd::StreamingDataInner::Unk1(t) => t
-                .inner
-                .texture_resources
-                .low_textures
-                .as_ref()
-                .map(|t| &t.textures),
-        };
+    if let Some(streaming) = &mxmd.streaming {
+        match &streaming.inner {
+            xc3_lib::mxmd::StreamingDataInner::StreamingLegacy(_streaming) => {
+                // TODO: get the wismt bytes directly?
+                todo!()
+            }
+            xc3_lib::mxmd::StreamingDataInner::Streaming(streaming) => {
+                let mxmd_textures = streaming
+                    .inner
+                    .texture_resources
+                    .low_textures
+                    .as_ref()
+                    .map(|t| &t.textures);
 
-        let low_textures = msrd.unwrap().extract_low_textures().unwrap();
-        // TODO: These textures aren't in the same order?
-        let textures = msrd.unwrap().extract_textures().unwrap();
+                let low_textures = msrd.unwrap().extract_low_textures().unwrap();
+                // TODO: These textures aren't in the same order?
+                let textures = msrd.unwrap().extract_textures().unwrap();
 
-        // TODO: Same as mxmd?
-        // TODO: Assigns textures to packed mxmd textures?
-        let texture_indices = &msrd
-            .as_ref()
-            .unwrap()
-            .data
-            .texture_resources
-            .texture_indices;
+                let texture_indices = &streaming.inner.texture_resources.texture_indices;
 
-        // Assume the packed and non packed textures have the same ordering.
-        // TODO: Are the mxmd and msrd packed texture lists always identical?
-        mxmd_textures
-            .map(|external_textures| {
-                external_textures
-                    .iter()
-                    .enumerate()
-                    .map(|(i, texture)| {
-                        load_chr_tex_texture(m_tex_folder, h_tex_folder, &texture.name)
-                            .ok()
-                            .or_else(|| {
-                                // TODO: Assign in a second pass to avoid O(N) find.
-                                texture_indices
-                                    .iter()
-                                    .position(|id| *id as usize == i)
-                                    .and_then(|index| {
-                                        textures.get(index).map(|mibl| {
-                                            ImageTexture::from_mibl(
-                                                mibl,
-                                                Some(texture.name.clone()),
-                                            )
-                                            .unwrap()
-                                        })
+                // Assume the packed and non packed textures have the same ordering.
+                // TODO: Are the mxmd and msrd packed texture lists always identical?
+                // TODO: Only assign chr textures if the appropriate fields are present?
+                mxmd_textures
+                    .map(|external_textures| {
+                        external_textures
+                            .iter()
+                            .enumerate()
+                            .map(|(i, texture)| {
+                                load_chr_tex_texture(m_tex_folder, h_tex_folder, &texture.name)
+                                    .ok()
+                                    .or_else(|| {
+                                        // TODO: Assign in a second pass to avoid O(N) find.
+                                        texture_indices
+                                            .iter()
+                                            .position(|id| *id as usize == i)
+                                            .and_then(|index| {
+                                                textures.get(index).map(|mibl| {
+                                                    ImageTexture::from_mibl(
+                                                        mibl,
+                                                        Some(texture.name.clone()),
+                                                    )
+                                                    .unwrap()
+                                                })
+                                            })
+                                    })
+                                    .unwrap_or_else(|| {
+                                        // Some textures only have a low resolution version.
+                                        ImageTexture::from_mibl(
+                                            &low_textures[i],
+                                            Some(texture.name.clone()),
+                                        )
+                                        .unwrap()
                                     })
                             })
-                            .unwrap_or_else(|| {
-                                // Some textures only have a low resolution version.
-                                ImageTexture::from_mibl(
-                                    &low_textures[i],
-                                    Some(texture.name.clone()),
-                                )
-                                .unwrap()
-                            })
+                            .collect()
                     })
-                    .collect()
-            })
-            .unwrap_or_default()
+                    .unwrap_or_default()
+            }
+        }
     } else if let Some(packed_textures) = &mxmd.packed_textures {
         packed_textures
             .textures
