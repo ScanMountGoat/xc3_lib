@@ -6,6 +6,8 @@ Report any bugs or request new features in [issues](https://github.com/ScanMount
 ## Formats
 xc3_lib supports a number of in game formats. All formats support reading. Write support is still a WIP for some formats. Click on the links to open the corresponding Rust module in xc3_lib.
 
+Extensions starting with `wi` are for the Switch. Some formats have equivalent formats for desktop PCs starting with `pc` like `pcmdo` instead of `wimdo`. The PC formats aren't as well supported by xc3_lib since they aren't used in game and have few example files.
+
 | Format | Magic | Extensions | Read | Write |
 | --- | --- | --- | --- | --- |
 | [Apmd](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/apmd.rs) | DMPA | `wimdo` | ✔️ | ✔️ | 
