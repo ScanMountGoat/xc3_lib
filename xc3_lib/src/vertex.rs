@@ -16,6 +16,7 @@ pub struct VertexData {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
+    // TODO: Sometimes 80 and sometimes 84?
     #[br(parse_with = parse_offset32_count32, args { offset: base_offset, inner: base_offset })]
     #[xc3(offset_count(u32, u32))]
     pub vertex_buffers: Vec<VertexBufferDescriptor>,
@@ -29,9 +30,8 @@ pub struct VertexData {
     pub unk1: u32,
     pub unk2: u32,
 
-    // TODO: Extra data for every buffer except the single weights buffer?
     #[br(parse_with = parse_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: vertex_buffers.len() - 1 }})]
+    #[br(args { offset: base_offset, inner: args! { count: buffer_info_count(&vertex_buffers) }})]
     #[xc3(offset(u32))]
     pub vertex_buffer_info: Vec<VertexBufferInfo>,
 
@@ -379,6 +379,18 @@ pub struct UnkData {
 }
 
 xc3_write_binwrite_impl!(DataType, Unk1, Unk2, MorphTarget);
+
+fn buffer_info_count(vertex_buffers: &[VertexBufferDescriptor]) -> usize {
+    // TODO: Extra data for every buffer except the single weights buffer?
+    vertex_buffers
+        .iter()
+        .filter(|b| {
+            !b.attributes
+                .iter()
+                .any(|a| a.data_type == DataType::SkinWeights)
+        })
+        .count()
+}
 
 impl<'a> Xc3WriteOffsets for VertexDataOffsets<'a> {
     fn write_offsets<W: std::io::Write + std::io::Seek>(
