@@ -384,9 +384,11 @@ impl<'a> Xc3WriteOffsets for VertexDataOffsets<'a> {
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
-        base_offset: u64,
+        _base_offset: u64,
         data_ptr: &mut u64,
     ) -> xc3_write::Xc3Result<()> {
+        let base_offset = self.base_offset;
+
         let vertex_buffers = self
             .vertex_buffers
             .write_offset(writer, base_offset, data_ptr)?;
