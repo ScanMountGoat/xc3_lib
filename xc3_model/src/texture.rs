@@ -5,12 +5,13 @@ use log::error;
 use thiserror::Error;
 use xc3_lib::{
     mibl::{Mibl, SwizzleError},
-    msrd::Msrd,
     mxmd::{Mxmd, PackedTexture},
     xbc1::Xbc1,
 };
 
 pub use xc3_lib::mibl::{ImageFormat, ViewDimension};
+
+use crate::StreamingData;
 
 #[derive(Debug, Error)]
 pub enum CreateImageTextureError {
@@ -124,18 +125,14 @@ impl ImageTexture {
 // TODO: clean this up.
 pub(crate) fn load_textures(
     mxmd: &Mxmd,
-    msrd: Option<&Msrd>,
+    streaming_data: Option<&StreamingData>,
     m_tex_folder: &Path,
     h_tex_folder: &Path,
 ) -> Vec<ImageTexture> {
     // TODO: what is the correct priority for the different texture sources?
-    if let Some(streaming) = &mxmd.streaming {
-        match &streaming.inner {
-            xc3_lib::mxmd::StreamingDataInner::StreamingLegacy(_streaming) => {
-                // TODO: get the wismt bytes directly?
-                todo!()
-            }
-            xc3_lib::mxmd::StreamingDataInner::Streaming(streaming) => {
+    if let Some(data) = streaming_data {
+        match data {
+            StreamingData::Msrd { streaming, msrd } => {
                 let mxmd_textures = streaming
                     .inner
                     .texture_resources
@@ -143,9 +140,8 @@ pub(crate) fn load_textures(
                     .as_ref()
                     .map(|t| &t.textures);
 
-                let low_textures = msrd.unwrap().extract_low_textures().unwrap();
-                // TODO: These textures aren't in the same order?
-                let textures = msrd.unwrap().extract_textures().unwrap();
+                let low_textures = msrd.extract_low_textures().unwrap();
+                let textures = msrd.extract_textures().unwrap();
 
                 let texture_indices = &streaming.inner.texture_resources.texture_indices;
 
@@ -187,6 +183,22 @@ pub(crate) fn load_textures(
                             .collect()
                     })
                     .unwrap_or_default()
+            }
+            StreamingData::Legacy { legacy, data } => {
+                // TODO: high resolution textures?
+                legacy
+                    .low_textures
+                    .textures
+                    .iter()
+                    .map(|t| {
+                        let offset = legacy.low_texture_data_offset + t.mibl_offset;
+                        let mibl = Mibl::from_bytes(
+                            &data[offset as usize..offset as usize + t.mibl_length as usize],
+                        )
+                        .unwrap();
+                        ImageTexture::from_mibl(&mibl, Some(t.name.clone())).unwrap()
+                    })
+                    .collect()
             }
         }
     } else if let Some(packed_textures) = &mxmd.packed_textures {

@@ -28,7 +28,7 @@
 //! # }
 //! ```
 
-use std::path::Path;
+use std::{borrow::Cow, path::Path};
 
 use animation::Animation;
 use glam::{Mat4, Vec3, Vec4};
@@ -40,8 +40,10 @@ use vertex::{read_index_buffers, read_vertex_buffers, AttributeData};
 use xc3_lib::{
     apmd::Apmd,
     msrd::Msrd,
-    mxmd::{Materials, Mxmd},
+    mxmd::{Materials, Mxmd, StreamingDataLegacy, StreamingDataMxmd},
     sar1::Sar1,
+    vertex::VertexData,
+    xbc1::Xbc1,
 };
 
 pub use map::load_map;
@@ -311,7 +313,7 @@ pub fn should_render_lod(lod: u16, base_lod_indices: &Option<Vec<u16>>) -> bool 
 // TODO: Document using iter::once?
 // TODO: Document loading the database in an example.
 /// Load a model from a `.wimdo` file.
-/// The corresponding `.chr` or `.arc` should be in the same directory.
+/// The corresponding `.wismt` and `.chr` or `.arc` should be in the same directory.
 pub fn load_model<P: AsRef<Path>>(
     wimdo_path: P,
     shader_database: Option<&ShaderDatabase>,
@@ -335,17 +337,10 @@ pub fn load_model<P: AsRef<Path>>(
             .unwrap()
     });
 
-    // TODO: Some files don't have a wismt?
-    // TODO: Create a generic function for maybe xbc1 to use for msrd as well as sar1.
-    let msrd = Msrd::from_file(wimdo_path.with_extension("wismt")).ok();
+    let streaming_data = load_streaming_data(&mxmd, wimdo_path);
+
     // TODO: Avoid unwrap.
-    let msrd_vertex_data = msrd
-        .as_ref()
-        .map(|msrd| msrd.extract_vertex_data().unwrap());
-    let vertex_data = mxmd
-        .vertex_data
-        .as_ref()
-        .unwrap_or_else(|| msrd_vertex_data.as_ref().unwrap());
+    let vertex_data = load_vertex_data(&mxmd, streaming_data.as_ref());
 
     // "chr/en/file.wismt" -> "chr/tex/nx/m"
     // TODO: Don't assume model_path is in the chr/ch or chr/en folders.
@@ -353,7 +348,8 @@ pub fn load_model<P: AsRef<Path>>(
     let m_tex_folder = chr_folder.join("tex").join("nx").join("m");
     let h_tex_folder = chr_folder.join("tex").join("nx").join("h");
 
-    let image_textures = load_textures(&mxmd, msrd.as_ref(), &m_tex_folder, &h_tex_folder);
+    let image_textures =
+        load_textures(&mxmd, streaming_data.as_ref(), &m_tex_folder, &h_tex_folder);
 
     let model_name = model_name(wimdo_path);
     let spch = shader_database.and_then(|database| database.files.get(&model_name));
@@ -381,8 +377,9 @@ pub fn load_model<P: AsRef<Path>>(
 
     let skeleton = create_skeleton(chr.as_ref(), &mxmd);
 
-    let (vertex_buffers, weights) = read_vertex_buffers(vertex_data, mxmd.models.skinning.as_ref());
-    let index_buffers = read_index_buffers(vertex_data);
+    let (vertex_buffers, weights) =
+        read_vertex_buffers(&vertex_data, mxmd.models.skinning.as_ref());
+    let index_buffers = read_index_buffers(&vertex_data);
 
     let models = Models::from_models(&mxmd.models, &mxmd.materials, spch, skeleton);
 
@@ -396,6 +393,56 @@ pub fn load_model<P: AsRef<Path>>(
             }],
         }],
         image_textures,
+    }
+}
+
+enum StreamingData<'a> {
+    Msrd {
+        streaming: &'a StreamingDataMxmd,
+        msrd: Msrd,
+    },
+    Legacy {
+        legacy: &'a StreamingDataLegacy,
+        data: Vec<u8>,
+    },
+}
+
+fn load_streaming_data<'a>(mxmd: &'a Mxmd, wimdo_path: &Path) -> Option<StreamingData<'a>> {
+    // Handle the different ways to store the streaming data.
+    mxmd.streaming
+        .as_ref()
+        .map(|streaming| match &streaming.inner {
+            xc3_lib::mxmd::StreamingDataInner::StreamingLegacy(legacy) => {
+                let data = match legacy.flags {
+                    xc3_lib::mxmd::StreamingFlagsLegacy::Uncompressed => {
+                        std::fs::read(wimdo_path.with_extension("wismt")).unwrap()
+                    }
+                    xc3_lib::mxmd::StreamingFlagsLegacy::Xbc1 => {
+                        Xbc1::from_file(wimdo_path.with_extension("wismt"))
+                            .unwrap()
+                            .decompress()
+                            .unwrap()
+                    }
+                };
+                StreamingData::Legacy { legacy, data }
+            }
+            xc3_lib::mxmd::StreamingDataInner::Streaming(streaming) => StreamingData::Msrd {
+                streaming,
+                msrd: Msrd::from_file(wimdo_path.with_extension("wismt")).unwrap(),
+            },
+        })
+}
+
+fn load_vertex_data<'a>(
+    mxmd: &'a Mxmd,
+    streaming_data: Option<&StreamingData>,
+) -> Cow<'a, VertexData> {
+    match streaming_data {
+        Some(data) => match data {
+            StreamingData::Msrd { msrd, .. } => Cow::Owned(msrd.extract_vertex_data().unwrap()),
+            StreamingData::Legacy { .. } => Cow::Borrowed(mxmd.vertex_data.as_ref().unwrap()),
+        },
+        None => Cow::Borrowed(mxmd.vertex_data.as_ref().unwrap()),
     }
 }
 

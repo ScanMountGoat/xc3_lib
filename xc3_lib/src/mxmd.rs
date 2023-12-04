@@ -52,7 +52,7 @@ pub struct Mxmd {
 
     pub unk5: u32,
 
-    /// References to streaming data stored externally like in an [Msrd](crate::msrd::Msrd).
+    /// Streaming information for the `wismt` file or [None] if no `wismt` file.
     #[br(parse_with = parse_opt_ptr32)]
     #[xc3(offset(u32))]
     pub streaming: Option<Streaming>,
@@ -1021,7 +1021,7 @@ pub enum StreamingDataInner {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(import_raw(base_offset: u64))]
 pub struct StreamingDataLegacy {
-    pub flags: u32,
+    pub flags: StreamingFlagsLegacy,
 
     #[br(parse_with = parse_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
@@ -1052,6 +1052,14 @@ pub struct StreamingDataLegacy {
 
     pub low_texture_data_uncompressed_size: u32,
     pub texture_data_uncompressed_size: u32,
+}
+
+/// Flags indicating the way data is stored in the model's `wismt` file.
+#[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
+#[brw(repr(u32))]
+pub enum StreamingFlagsLegacy {
+    Uncompressed = 1,
+    Xbc1 = 2,
 }
 
 /// A reference to a [Stream](crate::msrd::Stream) in the [Msrd](crate::msrd::Msrd) with texture data.
@@ -1364,7 +1372,8 @@ xc3_write_binwrite_impl!(
     ShaderUnkType,
     StateFlags,
     ModelsFlags,
-    SamplerFlags
+    SamplerFlags,
+    StreamingFlagsLegacy
 );
 
 impl Xc3Write for MaterialFlags {
