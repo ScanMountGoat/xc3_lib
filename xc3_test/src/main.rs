@@ -20,6 +20,7 @@ use xc3_lib::{
     spch::Spch,
     xbc1::Xbc1,
 };
+use xc3_write::round_up;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -239,7 +240,10 @@ fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: 
         let (stream0_entries, stream0) =
             xc3_lib::msrd::create_stream0(&vertex_data, &spch, &low_textures);
         if stream0 != msrd.data.streams[0].xbc1.decompress().unwrap() {
-            println!("Stream0 not 1:1 for {path:?}");
+            println!("Stream 0 not 1:1 for {path:?}");
+        }
+        if stream0_entries != msrd.data.stream_entries {
+            println!("Stream 0 entries not 1:1 for {path:?}");
         }
     }
 

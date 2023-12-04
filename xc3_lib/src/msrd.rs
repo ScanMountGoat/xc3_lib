@@ -1,7 +1,7 @@
 //! Model resources like shaders, geometry, or textures in `.wismt` files.
 //!
 //! XC3: `chr/{ch,en,oj,wp}/*.wismt`
-use std::io::{Cursor, Seek};
+use std::io::{Cursor, Seek, Write};
 
 use crate::{
     error::DecompressStreamError, mibl::Mibl, mxmd::PackedExternalTextures, parse_count32_offset32,
@@ -10,7 +10,7 @@ use crate::{
 };
 use bilge::prelude::*;
 use binrw::{binread, BinRead, BinWrite};
-use xc3_write::{write_full, Xc3Write, Xc3WriteOffsets};
+use xc3_write::{round_up, write_full, Xc3Write, Xc3WriteOffsets};
 
 #[binread]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets)]
@@ -117,7 +117,7 @@ pub struct ChrTexTexture {
 }
 
 /// A file contained in a [Stream].
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone)]
 pub struct StreamEntry {
     /// The offset in bytes for the decompressed data range in the stream.
     pub offset: u32,
@@ -147,7 +147,7 @@ pub struct StreamFlags {
 }
 
 /// The type of data for a [StreamEntry].
-#[derive(Debug, BinRead, BinWrite, PartialEq, Eq)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy)]
 #[brw(repr(u16))]
 pub enum EntryType {
     /// A single [VertexData].
@@ -163,12 +163,25 @@ pub enum EntryType {
 /// A compressed [Xbc1] stream with items determined by [StreamEntry].
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct Stream {
-    pub compressed_size: u32,   // TODO: rounded up?
-    pub decompressed_size: u32, // TODO: slightly larger than xbc1 decomp size?
-    // TODO: Why does this sometimes have an extra 16 bytes of padding?
+    /// The size of [xbc1](#structfield.xbc1), including the header.
+    pub compressed_size: u32,
+    /// The size of the decompressed data in [xbc1](#structfield.xbc1).
+    /// Aligned to 4096 (0x1000).
+    pub decompressed_size: u32,
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]
     pub xbc1: Xbc1,
+}
+
+impl Stream {
+    pub fn from_xbc1(xbc1: Xbc1) -> Self {
+        // TODO: Should this make sure the xbc1 decompressed data is actually aligned?
+        Self {
+            compressed_size: (round_up(xbc1.compressed_stream.len() as u64, 16) + 48) as u32,
+            decompressed_size: round_up(xbc1.decompressed_size as u64, 4096) as u32,
+            xbc1,
+        }
+    }
 }
 
 impl Msrd {
@@ -238,11 +251,7 @@ impl Msrd {
         let (stream_entries, stream0) = create_stream0(vertex, spch, low_textures);
 
         let xbc1 = Xbc1::from_decompressed("0000".to_string(), &stream0).unwrap();
-        let stream = Stream {
-            compressed_size: xbc1.compressed_size,
-            decompressed_size: xbc1.decompressed_size,
-            xbc1,
-        };
+        let stream = Stream::from_xbc1(xbc1);
 
         // TODO: Search stream entries to get indices?
         Self {
@@ -308,13 +317,21 @@ where
     T: Xc3Write + 'static,
     T::Offsets<'a>: Xc3WriteOffsets,
 {
-    let offset = writer.stream_position().unwrap() as u32;
+    let offset = writer.stream_position().unwrap();
     write_full(data, writer, 0, &mut 0).unwrap();
-    let end_offset = writer.stream_position().unwrap() as u32;
+    let end_offset = writer.stream_position().unwrap();
+
+    // Stream data is aligned to 4096 bytes.
+    // TODO: Create a function for padding to an alignment?
+    let size = end_offset - offset;
+    let desired_size = round_up(size, 4096);
+    let padding = desired_size - size;
+    writer.write_all(&vec![0u8; padding as usize]).unwrap();
+    let end_offset = writer.stream_position().unwrap();
 
     StreamEntry {
-        offset,
-        size: end_offset - offset,
+        offset: offset as u32,
+        size: (end_offset - offset) as u32,
         texture_index: 0,
         item_type,
         unk: [0; 2],

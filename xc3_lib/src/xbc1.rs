@@ -16,7 +16,9 @@ pub struct Xbc1 {
     // TODO: Not always zlib?
     #[br(assert(unk1 == 1))]
     pub unk1: u32,
+    /// The number of bytes in [Self::decompress].
     pub decompressed_size: u32,
+    /// The number of bytes in [compressed_stream](#structfield.compressed_stream).
     pub compressed_size: u32,
 
     /// Hash of the original decompressed bytes
