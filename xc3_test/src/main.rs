@@ -218,7 +218,7 @@ fn check_sar1_data(
 fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: bool) {
     let spch = msrd.extract_shader_data().unwrap();
     let vertex_data = msrd.extract_vertex_data().unwrap();
-    msrd.extract_low_textures().unwrap();
+    let low_textures = msrd.extract_low_textures().unwrap();
 
     // TODO: Check mibl?
     match msrd.extract_textures() {
@@ -234,13 +234,24 @@ fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: 
         }
     }
 
+    // Check streams.
+    if check_read_write {
+        let (stream0_entries, stream0) =
+            xc3_lib::msrd::create_stream0(&vertex_data, &spch, &low_textures);
+        if stream0 != msrd.data.streams[0].xbc1.decompress().unwrap() {
+            println!("Stream0 not 1:1 for {path:?}");
+        }
+    }
+
     // Check embedded data.
     let vertex_bytes = msrd
-        .decompress_stream(0, msrd.vertex_data_entry_index)
+        .decompress_stream(0, msrd.data.vertex_data_entry_index)
         .unwrap();
     check_vertex_data(vertex_data, path, &vertex_bytes, check_read_write);
 
-    let spch_bytes = msrd.decompress_stream(0, msrd.shader_entry_index).unwrap();
+    let spch_bytes = msrd
+        .decompress_stream(0, msrd.data.shader_entry_index)
+        .unwrap();
     check_spch(spch, path, &spch_bytes, check_read_write);
 }
 
