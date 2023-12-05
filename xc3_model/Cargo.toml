@@ -13,7 +13,7 @@ xc3_lib = { version = "0.2.0", path = "../xc3_lib" }
 glam = { version = "0.24.0", features = ["bytemuck"] }
 gltf = { version = "1.3.0", features = ["extras"] }
 binrw = "0.11.2"
-image_dds = "0.3.0"
+image_dds = { git = "https://github.com/ScanMountGoat/image_dds", rev = "9d7193c" }
 rayon = "1.7.0"
 log = "0.4.19"
 ordered-float = "4.1.1"

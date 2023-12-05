@@ -121,11 +121,6 @@ fn main() {
             let paths = [
                 // XC1
                 "pc062700.wimdo",
-                // Unsupported DDS formats.
-                "pc140401.pcmdo",
-                "pc150401.pcmdo",
-                "pc160100.pcmdo",
-                "pc160110.pcmdo",
             ];
             if paths.iter().any(|p| model_path.ends_with(p)) {
                 return;
