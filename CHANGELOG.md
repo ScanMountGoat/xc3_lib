@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 * Added `glsl-dependencies` command to xc3_shader for printing lines affecting a particular variable.
 * Added support for legacy streaming data used for some Xenoblade 2 models.
+* Added support for PC files like `.pcmdo` and `.pcsmt`.
 
 ### Fixed
 * Fixed an issue where material parameters were not annotated correctly in decompiled shaders.

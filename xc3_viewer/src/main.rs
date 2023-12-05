@@ -117,7 +117,7 @@ impl State {
 
         // Infer the type of model to load based on the extension.
         let groups = match Path::new(model_path).extension().unwrap().to_str().unwrap() {
-            "wimdo" => {
+            "wimdo" | "pcmdo" => {
                 // TODO: Dropping vertex buffers is expensive?
                 let root = xc3_model::load_model(model_path, database.as_ref());
                 info!("Load root: {:?}", start.elapsed());

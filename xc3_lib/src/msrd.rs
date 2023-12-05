@@ -10,6 +10,7 @@ use crate::{
 };
 use bilge::prelude::*;
 use binrw::{binread, BinRead, BinWrite};
+use image_dds::ddsfile::Dds;
 use xc3_write::{round_up, write_full, Xc3Write, Xc3WriteOffsets};
 
 #[binread]
@@ -142,7 +143,7 @@ pub struct StreamFlags {
     pub has_textures: bool,
     pub unk5: bool,
     pub unk6: bool,
-    pub has_texture_resources: bool,
+    pub has_chr_textures: bool,
     pub unk: u25,
 }
 
@@ -201,6 +202,7 @@ impl Msrd {
         VertexData::from_bytes(bytes).map_err(Into::into)
     }
 
+    /// Extract low resolution textures for `wismt` files.
     pub fn extract_low_textures(&self) -> Result<Vec<Mibl>, DecompressStreamError> {
         let bytes = self.decompress_stream(
             self.data.low_textures_stream_index,
@@ -221,6 +223,31 @@ impl Msrd {
         }
     }
 
+    /// Extract low resolution textures for `pcsmt` files.
+    pub fn extract_low_pc_textures(&self) -> Vec<Dds> {
+        // TODO: Avoid unwrap.
+        let bytes = self
+            .decompress_stream(
+                self.data.low_textures_stream_index,
+                self.data.low_textures_entry_index,
+            )
+            .unwrap();
+
+        match &self.data.texture_resources.low_textures {
+            Some(low_textures) => low_textures
+                .textures
+                .iter()
+                .map(|t| {
+                    let dds_bytes = &bytes
+                        [t.mibl_offset as usize..t.mibl_offset as usize + t.mibl_length as usize];
+                    Dds::read(dds_bytes).unwrap()
+                })
+                .collect(),
+            None => Vec::new(),
+        }
+    }
+
+    /// Extract high resolution textures for `wismt` files.
     pub fn extract_textures(&self) -> Result<Vec<Mibl>, DecompressStreamError> {
         // The textures are packed into a single stream.
         let stream = &self.data.streams[self.data.textures_stream_index as usize]
@@ -237,6 +264,28 @@ impl Msrd {
                 Mibl::from_bytes(bytes).map_err(Into::into)
             })
             .collect::<Result<_, _>>()
+    }
+
+    // TODO: share code with above?
+    /// Extract high resolution textures for `pcsmt` files.
+    pub fn extract_pc_textures(&self) -> Vec<Dds> {
+        // The textures are packed into a single stream.
+        let stream = &self.data.streams[self.data.textures_stream_index as usize]
+            .xbc1
+            .decompress()
+            .unwrap();
+
+        // TODO: avoid unwrap.
+        let start = self.data.textures_stream_entry_start_index as usize;
+        let count = self.data.textures_stream_entry_count as usize;
+        self.data.stream_entries[start..start + count]
+            .iter()
+            .map(|entry| {
+                let bytes =
+                    &stream[entry.offset as usize..entry.offset as usize + entry.size as usize];
+                Dds::read(bytes).unwrap()
+            })
+            .collect()
     }
 
     pub fn extract_shader_data(&self) -> Result<Spch, DecompressStreamError> {

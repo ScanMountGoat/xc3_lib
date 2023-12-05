@@ -471,6 +471,7 @@ pub struct Models {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
+    // TODO: not present in older version
     pub models_flags: ModelsFlags,
 
     pub max_xyz: [f32; 3],

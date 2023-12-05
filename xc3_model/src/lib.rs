@@ -42,7 +42,7 @@ use xc3_lib::{
     msrd::Msrd,
     mxmd::{Materials, Mxmd, StreamingDataLegacy, StreamingDataMxmd},
     sar1::Sar1,
-    vertex::VertexData,
+    vertex::{VertexData, WeightLod},
     xbc1::Xbc1,
 };
 
@@ -178,7 +178,7 @@ pub struct MaterialParameters {
     pub mat_color: [f32; 4],
     pub alpha_test_ref: f32,
     // Assume each param type is used at most once.
-    pub tex_matrix: Option<Vec<[f32; 8]>>,
+    pub tex_matrix: Option<Vec<[f32; 16]>>,
     pub work_float4: Option<Vec<[f32; 4]>>,
     pub work_color: Option<Vec<[f32; 4]>>,
 }
@@ -312,8 +312,8 @@ pub fn should_render_lod(lod: u16, base_lod_indices: &Option<Vec<u16>>) -> bool 
 // TODO: Take an iterator for wimdo paths and merge to support xc1?
 // TODO: Document using iter::once?
 // TODO: Document loading the database in an example.
-/// Load a model from a `.wimdo` file.
-/// The corresponding `.wismt` and `.chr` or `.arc` should be in the same directory.
+/// Load a model from a `.wimdo` or `.pcmdo` file.
+/// The corresponding `.wismt` or `.pcsmt` and `.chr` or `.arc` should be in the same directory.
 pub fn load_model<P: AsRef<Path>>(
     wimdo_path: P,
     shader_database: Option<&ShaderDatabase>,
@@ -336,8 +336,16 @@ pub fn load_model<P: AsRef<Path>>(
             })
             .unwrap()
     });
+    std::fs::write("mxmd.txt", format!("{:#?}", mxmd)).unwrap();
 
-    let streaming_data = load_streaming_data(&mxmd, wimdo_path);
+    // Desktop PC models aren't used in game but are straightforward to support.
+    let is_pc = wimdo_path.extension().and_then(|e| e.to_str()) == Some("pcmdo");
+    let wismt_path = if is_pc {
+        wimdo_path.with_extension("pcsmt")
+    } else {
+        wimdo_path.with_extension("wismt")
+    };
+    let streaming_data = load_streaming_data(&mxmd, &wismt_path);
 
     // TODO: Avoid unwrap.
     let vertex_data = load_vertex_data(&mxmd, streaming_data.as_ref());
@@ -348,8 +356,13 @@ pub fn load_model<P: AsRef<Path>>(
     let m_tex_folder = chr_folder.join("tex").join("nx").join("m");
     let h_tex_folder = chr_folder.join("tex").join("nx").join("h");
 
-    let image_textures =
-        load_textures(&mxmd, streaming_data.as_ref(), &m_tex_folder, &h_tex_folder);
+    let image_textures = load_textures(
+        &mxmd,
+        streaming_data.as_ref(),
+        &m_tex_folder,
+        &h_tex_folder,
+        is_pc,
+    );
 
     let model_name = model_name(wimdo_path);
     let spch = shader_database.and_then(|database| database.files.get(&model_name));
@@ -407,7 +420,7 @@ enum StreamingData<'a> {
     },
 }
 
-fn load_streaming_data<'a>(mxmd: &'a Mxmd, wimdo_path: &Path) -> Option<StreamingData<'a>> {
+fn load_streaming_data<'a>(mxmd: &'a Mxmd, wismt_path: &Path) -> Option<StreamingData<'a>> {
     // Handle the different ways to store the streaming data.
     mxmd.streaming
         .as_ref()
@@ -415,20 +428,17 @@ fn load_streaming_data<'a>(mxmd: &'a Mxmd, wimdo_path: &Path) -> Option<Streamin
             xc3_lib::mxmd::StreamingDataInner::StreamingLegacy(legacy) => {
                 let data = match legacy.flags {
                     xc3_lib::mxmd::StreamingFlagsLegacy::Uncompressed => {
-                        std::fs::read(wimdo_path.with_extension("wismt")).unwrap()
+                        std::fs::read(wismt_path).unwrap()
                     }
                     xc3_lib::mxmd::StreamingFlagsLegacy::Xbc1 => {
-                        Xbc1::from_file(wimdo_path.with_extension("wismt"))
-                            .unwrap()
-                            .decompress()
-                            .unwrap()
+                        Xbc1::from_file(wismt_path).unwrap().decompress().unwrap()
                     }
                 };
                 StreamingData::Legacy { legacy, data }
             }
             xc3_lib::mxmd::StreamingDataInner::Streaming(streaming) => StreamingData::Msrd {
                 streaming,
-                msrd: Msrd::from_file(wimdo_path.with_extension("wismt")).unwrap(),
+                msrd: Msrd::from_file(wismt_path).unwrap(),
             },
         })
 }
@@ -610,6 +620,7 @@ fn assign_parameters(
             xc3_lib::mxmd::ParamType::Unk0 => (),
             xc3_lib::mxmd::ParamType::TexMatrix => {
                 parameters.tex_matrix = Some(read_param(param, floats, start_index));
+                // dbg!(&material.name, &parameters.tex_matrix);
             }
             xc3_lib::mxmd::ParamType::WorkFloat4 => {
                 parameters.work_float4 = Some(read_param(param, floats, start_index));
@@ -653,7 +664,6 @@ fn model_name(model_path: &Path) -> String {
         .to_string()
 }
 
-// TODO: Module and tests for this?
 impl Weights {
     pub fn weight_group_index(
         &self,
@@ -661,26 +671,7 @@ impl Weights {
         lod: u16,
         unk_type: ShaderUnkType,
     ) -> Option<usize> {
-        // TODO: Is this the correct flags check?
-        // TODO: This doesn't work for other unk type or lod?
-        if (skin_flags & 0x1) == 0 {
-            // TODO: Is this actually some sort of flags?
-            let lod_index = lod.saturating_sub(1) as usize;
-            let weight_lod = self.weight_lods.get(lod_index)?;
-
-            // TODO: bit mask?
-            let pass_index = match unk_type {
-                ShaderUnkType::Unk0 => 0,
-                ShaderUnkType::Unk1 => 1,
-                ShaderUnkType::Unk6 => todo!(),
-                ShaderUnkType::Unk7 => 3,
-                ShaderUnkType::Unk9 => todo!(),
-            };
-            Some(weight_lod.group_indices_plus_one[pass_index].saturating_sub(1) as usize)
-            // None
-        } else {
-            None
-        }
+        weight_group_index(&self.weight_lods, skin_flags, lod, unk_type)
     }
 
     pub fn weights_starting_index(
@@ -695,10 +686,47 @@ impl Weights {
     }
 }
 
+fn weight_group_index(
+    weight_lods: &[WeightLod],
+    skin_flags: u32,
+    lod: u16,
+    unk_type: ShaderUnkType,
+) -> Option<usize> {
+    // TODO: Is this the correct flags check?
+    // TODO: This doesn't work for other unk type or lod?
+    if (skin_flags & 0x1) == 0 {
+        // TODO: Is this actually some sort of flags?
+        let lod_index = lod.saturating_sub(1) as usize;
+        let weight_lod = weight_lods.get(lod_index)?;
+
+        // TODO: bit mask?
+        let pass_index = match unk_type {
+            ShaderUnkType::Unk0 => 0,
+            ShaderUnkType::Unk1 => 1,
+            ShaderUnkType::Unk6 => todo!(),
+            ShaderUnkType::Unk7 => 3,
+            ShaderUnkType::Unk9 => todo!(),
+        };
+        Some(weight_lod.group_indices_plus_one[pass_index].saturating_sub(1) as usize)
+        // None
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 #[macro_export]
 macro_rules! assert_hex_eq {
     ($a:expr, $b:expr) => {
         pretty_assertions::assert_str_eq!(hex::encode($a), hex::encode($b))
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // TODO: Tests for this based on example meshes from all game versions.
+    #[test]
+    fn weight_group_index() {}
 }

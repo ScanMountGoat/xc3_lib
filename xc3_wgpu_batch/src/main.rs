@@ -34,6 +34,7 @@ struct Cli {
 #[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
 enum FileExtension {
     Wimdo,
+    Pcmdo,
     Wismhd,
 }
 
@@ -106,6 +107,7 @@ fn main() {
     // TODO: Work through mxmd in wiefb files in xc2?
     let ext = match cli.extension {
         FileExtension::Wimdo => "wimdo",
+        FileExtension::Pcmdo => "pcmdo",
         FileExtension::Wismhd => "wismhd",
     };
     globwalk::GlobWalkerBuilder::from_patterns(&cli.root_folder, &[format!("*.{ext}")])
@@ -119,6 +121,11 @@ fn main() {
             let paths = [
                 // XC1
                 "pc062700.wimdo",
+                // Unsupported DDS formats.
+                "pc140401.pcmdo",
+                "pc150401.pcmdo",
+                "pc160100.pcmdo",
+                "pc160110.pcmdo",
             ];
             if paths.iter().any(|p| model_path.ends_with(p)) {
                 return;
@@ -126,7 +133,7 @@ fn main() {
 
             println!("{:?}", model_path);
             let roots = match cli.extension {
-                FileExtension::Wimdo => {
+                FileExtension::Wimdo | FileExtension::Pcmdo => {
                     vec![xc3_model::load_model(model_path, database.as_ref())]
                 }
                 FileExtension::Wismhd => xc3_model::load_map(model_path, database.as_ref()),

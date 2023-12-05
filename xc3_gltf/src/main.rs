@@ -7,7 +7,7 @@ use xc3_model::{gltf::GltfFile, load_model, shader_database::ShaderDatabase};
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]
 struct Cli {
-    /// The input `.wimdo` or `.wismhd` file.
+    /// The input `.wimdo`, `.pcmdo`, or `.wismhd` file.
     input: String,
     /// The output `.gltf` file.
     /// Images will be saved to the same directory as the output.

@@ -1,6 +1,6 @@
 use std::{error::Error, path::Path};
 
-use image_dds::Surface;
+use image_dds::{ddsfile::Dds, Surface};
 use log::error;
 use thiserror::Error;
 use xc3_lib::{
@@ -114,20 +114,47 @@ impl ImageTexture {
         }
     }
 
-    pub fn to_dds(&self) -> Result<image_dds::ddsfile::Dds, Box<dyn Error>> {
+    // TODO: use a dedicated error type
+    pub fn to_dds(&self) -> Result<Dds, Box<dyn Error>> {
         self.to_surface().to_dds().map_err(Into::into)
     }
 
-    // TODO: from_dds and from_surface?
+    pub fn from_surface<T: AsRef<[u8]>>(
+        surface: Surface<T>,
+        name: Option<String>,
+    ) -> Result<Self, Box<dyn Error>> {
+        Ok(Self {
+            name,
+            width: surface.width,
+            height: surface.height,
+            depth: surface.depth,
+            view_dimension: if surface.layers == 6 {
+                ViewDimension::Cube
+            } else if surface.depth > 1 {
+                ViewDimension::D3
+            } else {
+                ViewDimension::D2
+            },
+            image_format: surface.image_format.try_into()?,
+            mipmap_count: surface.mipmaps,
+            image_data: surface.data.as_ref().to_vec(),
+        })
+    }
+
+    pub fn from_dds(dds: &Dds, name: Option<String>) -> Result<Self, Box<dyn Error>> {
+        Self::from_surface(Surface::from_dds(dds)?, name)
+    }
+
     // TODO: to_mibl?
 }
 
 // TODO: clean this up.
-pub(crate) fn load_textures(
+pub fn load_textures(
     mxmd: &Mxmd,
     streaming_data: Option<&StreamingData>,
     m_tex_folder: &Path,
     h_tex_folder: &Path,
+    is_pc: bool,
 ) -> Vec<ImageTexture> {
     // TODO: what is the correct priority for the different texture sources?
     if let Some(data) = streaming_data {
@@ -140,8 +167,25 @@ pub(crate) fn load_textures(
                     .as_ref()
                     .map(|t| &t.textures);
 
-                let low_textures = msrd.extract_low_textures().unwrap();
-                let textures = msrd.extract_textures().unwrap();
+                // TODO: Not all formats used by PC DDS files are supported.
+                let low_textures = if is_pc {
+                    msrd.extract_low_pc_textures()
+                } else {
+                    msrd.extract_low_textures()
+                        .unwrap()
+                        .iter()
+                        .map(|m| m.to_dds().unwrap())
+                        .collect()
+                };
+                let textures = if is_pc {
+                    msrd.extract_pc_textures()
+                } else {
+                    msrd.extract_textures()
+                        .unwrap()
+                        .iter()
+                        .map(|m| m.to_dds().unwrap())
+                        .collect()
+                };
 
                 let texture_indices = &streaming.inner.texture_resources.texture_indices;
 
@@ -162,9 +206,9 @@ pub(crate) fn load_textures(
                                             .iter()
                                             .position(|id| *id as usize == i)
                                             .and_then(|index| {
-                                                textures.get(index).map(|mibl| {
-                                                    ImageTexture::from_mibl(
-                                                        mibl,
+                                                textures.get(index).map(|dds| {
+                                                    ImageTexture::from_dds(
+                                                        dds,
                                                         Some(texture.name.clone()),
                                                     )
                                                     .unwrap()
@@ -173,7 +217,7 @@ pub(crate) fn load_textures(
                                     })
                                     .unwrap_or_else(|| {
                                         // Some textures only have a low resolution version.
-                                        ImageTexture::from_mibl(
+                                        ImageTexture::from_dds(
                                             &low_textures[i],
                                             Some(texture.name.clone()),
                                         )

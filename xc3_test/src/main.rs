@@ -20,7 +20,6 @@ use xc3_lib::{
     spch::Spch,
     xbc1::Xbc1,
 };
-use xc3_write::round_up;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -96,7 +95,7 @@ fn main() {
 
     if cli.mxmd || cli.all {
         println!("Checking MXMD and APMD files ...");
-        check_all(root, &["*.wimdo"], check_mxmd_or_apmd, cli.rw);
+        check_all(root, &["*.wimdo", "*.pcmdo"], check_mxmd_or_apmd, cli.rw);
     }
 
     // TODO: Check apmd separately by checking the initial magic?
