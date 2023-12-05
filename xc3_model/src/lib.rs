@@ -336,7 +336,6 @@ pub fn load_model<P: AsRef<Path>>(
             })
             .unwrap()
     });
-    std::fs::write("mxmd.txt", format!("{:#?}", mxmd)).unwrap();
 
     // Desktop PC models aren't used in game but are straightforward to support.
     let is_pc = wimdo_path.extension().and_then(|e| e.to_str()) == Some("pcmdo");
