@@ -17,28 +17,27 @@ var g_velocity: texture_2d<f32>;
 @group(0) @binding(4)
 var g_depth: texture_2d<f32>;
 
+// TODO: the output at index 5 can be specular color or emission?
 // "gTSpecularCol" in "clustered" in monolib/shader/shd_lgt.wishp.
 @group(0) @binding(5)
 var g_lgt_color: texture_2d<f32>;
 
-@group(1) @binding(0)
+@group(0) @binding(6)
 var shared_sampler: sampler;
 
 struct DebugSettings {
-    index: vec4<u32>
+    render_mode: u32
 }
 
-struct Camera {
-    view: mat4x4<f32>,
-    view_projection: mat4x4<f32>,
-    position: vec4<f32>
-}
-
-@group(1) @binding(1)
-var<uniform> camera: Camera;
-
-@group(1) @binding(2)
+@group(1) @binding(0)
 var<uniform> debug_settings: DebugSettings;
+
+struct RenderSettings {
+    mat_id: u32,
+}
+
+@group(2) @binding(0)
+var<uniform> render_settings: RenderSettings;
 
 // TODO: Create uniform arrays with max length 256 for these lights?
 // TODO: Hardcode lighting from the character menu in xc3 for now?
@@ -56,10 +55,22 @@ struct SpotLight {
     vector: vec4<f32>
 }
 
+struct ToonData {
+    head_left_dir: vec4<f32>,
+    head_up_dir: vec4<f32>,
+    head_forward_dir: vec4<f32>,
+}
+
+// wgpu recommends @invariant for position with depth func equals.
 struct VertexOutput {
-    @builtin(position) position: vec4<f32>,
+    @builtin(position) @invariant position: vec4<f32>,
     @location(0) uv: vec2<f32>,
 };
+
+struct FragmentOutput {
+    @location(0) color: vec4<f32>,
+    @builtin(frag_depth) depth: f32
+}
 
 @vertex
 fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> VertexOutput {
@@ -82,14 +93,19 @@ fn ggx_brdf(roughness: f32, n_dot_h: f32) -> f32 {
     return a2 / (pi * denominator * denominator);
 }
 
-@fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let g_color = textureSample(g_color, shared_sampler, in.uv);
-    let g_etc_buffer = textureSample(g_etc_buffer, shared_sampler, in.uv);
-    let g_normal = textureSample(g_normal, shared_sampler, in.uv);
-    let g_velocity = textureSample(g_velocity, shared_sampler, in.uv);
-    let g_depth = textureSample(g_depth, shared_sampler, in.uv);
-    let g_lgt_color = textureSample(g_lgt_color, shared_sampler, in.uv);
+fn mat_id_depth(id: u32) -> f32 {
+    // Assume a Depth16 depth buffer.
+    // wgpu maps [0.0, 1.0] to depth instead of [-1.0, 1.0].
+    return f32(id + 1u) / 65535.0;
+}
+
+fn calculate_color(uv: vec2<f32>) -> vec4<f32> {
+    let g_color = textureSample(g_color, shared_sampler, uv);
+    let g_etc_buffer = textureSample(g_etc_buffer, shared_sampler, uv);
+    let g_normal = textureSample(g_normal, shared_sampler, uv);
+    let g_velocity = textureSample(g_velocity, shared_sampler, uv);
+    let g_depth = textureSample(g_depth, shared_sampler, uv);
+    let g_lgt_color = textureSample(g_lgt_color, shared_sampler, uv);
 
     let albedo = g_color.rgb;
     let metalness = g_etc_buffer.r;
@@ -133,28 +149,58 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     output = albedo * k_diffuse * diffuse_lighting + specular_lighting * k_specular * ambient_occlusion;
 
-    // TODO: Depth test to avoid writing to all pixels?
-    switch (debug_settings.index.x) {
+    return vec4(output, 1.0);
+}
+
+// TODO: entry points for each of the mat id types in game.
+// 0, ouroboros core?
+// 1, PBR
+// 2, TOON
+// 3, vegetation and colony 9 tents (sss?)
+// 4, core crystal?
+// 5, HAIR (xc3 only)
+@fragment
+fn fs_main(in: VertexOutput) -> FragmentOutput {
+    // Each material type is "masked" using depth function equals.
+    var out: FragmentOutput;
+    out.color = calculate_color(in.uv);
+    out.depth = mat_id_depth(render_settings.mat_id);
+    return out;
+}
+
+@fragment
+fn fs_debug(in: VertexOutput) -> FragmentOutput {
+    let g_color = textureSample(g_color, shared_sampler, in.uv);
+    let g_etc_buffer = textureSample(g_etc_buffer, shared_sampler, in.uv);
+    let g_normal = textureSample(g_normal, shared_sampler, in.uv);
+    let g_velocity = textureSample(g_velocity, shared_sampler, in.uv);
+    let g_depth = textureSample(g_depth, shared_sampler, in.uv);
+    let g_lgt_color = textureSample(g_lgt_color, shared_sampler, in.uv);
+
+    var out: FragmentOutput;
+    switch (debug_settings.render_mode) {
         case 1u: {
-            return g_color;
+            out.color = g_color;
         }
         case 2u: {
-            return g_etc_buffer;
+            out.color = g_etc_buffer;
         }
         case 3u: {
-            return g_normal;
+            out.color = g_normal;
         }
         case 4u: {
-            return g_velocity;
+            out.color = g_velocity;
         }
         case 5u: {
-            return g_depth;
+            out.color = g_depth;
         }
         case 6u: {
-            return g_lgt_color;
+            out.color = g_lgt_color;
         }
         default: {
-            return vec4(output, 1.0);
+            out.color = vec4(0.0);
         }
     }
+
+    return out;
 }

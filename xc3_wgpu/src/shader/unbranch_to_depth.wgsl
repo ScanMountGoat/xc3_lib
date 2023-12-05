@@ -32,7 +32,6 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     let g_etc_buffer = textureSample(g_etc_buffer, shared_sampler, in.uv);
     let mat_id = u32(g_etc_buffer.a * 255.0 + 0.1) & 0x7u;
 
-
     // Assume a Depth16 output format.
     // This creates an ID mask to use with depth function equals.
     var output: FragmentOutput;

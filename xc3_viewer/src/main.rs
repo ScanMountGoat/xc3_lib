@@ -187,7 +187,7 @@ impl State {
         self.renderer.update_camera(&self.queue, &camera_data);
     }
 
-    fn update_debug_settings(&self, index: u32) {
+    fn update_debug_settings(&mut self, index: u32) {
         self.renderer.update_debug_settings(&self.queue, index);
     }
 

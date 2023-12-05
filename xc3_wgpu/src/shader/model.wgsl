@@ -98,7 +98,7 @@ var<uniform> per_material: PerMaterial;
 
 struct PerMaterial {
     mat_color: vec4<f32>,
-    // TODO: How to handle assignment of material params and constants?
+    // TODO: Make a struct with named fields instead of arrays?
     gbuffer_assignments: array<GBufferAssignment, 6>,
     // Parameters, constants, and defaults if no texture is assigned.
     gbuffer_defaults: array<vec4<f32>, 6>,

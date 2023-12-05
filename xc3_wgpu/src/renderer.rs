@@ -1,4 +1,4 @@
-use glam::{uvec4, Mat4, Vec4};
+use glam::{Mat4, Vec4};
 use wgpu::util::DeviceExt;
 
 use crate::{model::ModelGroup, COLOR_FORMAT, GBUFFER_COLOR_FORMAT};
@@ -11,9 +11,13 @@ pub struct Xc3Renderer {
     model_bind_group0: crate::shader::model::bind_groups::BindGroup0,
 
     deferred_pipeline: wgpu::RenderPipeline,
+    deferred_debug_pipeline: wgpu::RenderPipeline,
     deferred_bind_group0: crate::shader::deferred::bind_groups::BindGroup0,
     deferred_bind_group1: crate::shader::deferred::bind_groups::BindGroup1,
     debug_settings_buffer: wgpu::Buffer,
+    deferred_bind_group2: [crate::shader::deferred::bind_groups::BindGroup2; 6],
+
+    render_mode: u32,
 
     gbuffer: GBuffer,
 
@@ -62,20 +66,16 @@ impl Xc3Renderer {
             },
         );
 
-        let deferred_pipeline = deferred_pipeline(device);
-
         let depth_view = create_depth_texture(device, width, height);
 
         let gbuffer = create_gbuffer(device, width, height);
         let deferred_bind_group0 = create_deferred_bind_group0(device, &gbuffer);
 
-        // The resolution should match the screen resolution, so a default sampler is fine.
-        let shared_sampler = device.create_sampler(&wgpu::SamplerDescriptor::default());
-
+        let render_mode = 0;
         let debug_settings_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Debug Settings"),
             contents: bytemuck::cast_slice(&[crate::shader::deferred::DebugSettings {
-                index: uvec4(0, 0, 0, 0),
+                render_mode,
             }]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
@@ -83,11 +83,27 @@ impl Xc3Renderer {
         let deferred_bind_group1 = crate::shader::deferred::bind_groups::BindGroup1::from_bindings(
             device,
             crate::shader::deferred::bind_groups::BindGroupLayout1 {
-                shared_sampler: &shared_sampler,
-                camera: camera_buffer.as_entire_buffer_binding(),
                 debug_settings: debug_settings_buffer.as_entire_buffer_binding(),
             },
         );
+
+        // TODO: Is is better to just create separate pipelines?
+        let deferred_bind_group2 = [0, 1, 2, 3, 4, 5].map(|mat_id| {
+            let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Render Settings"),
+                contents: bytemuck::cast_slice(&[crate::shader::deferred::RenderSettings {
+                    mat_id,
+                }]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            });
+
+            crate::shader::deferred::bind_groups::BindGroup2::from_bindings(
+                device,
+                crate::shader::deferred::bind_groups::BindGroupLayout2 {
+                    render_settings: buffer.as_entire_buffer_binding(),
+                },
+            )
+        });
 
         let morph_pipeline = crate::shader::morph::compute::create_main_pipeline(device);
 
@@ -96,19 +112,25 @@ impl Xc3Renderer {
 
         let mat_id_depth_view = create_mat_id_depth_texture(device, width, height);
 
+        let deferred_pipeline = deferred_pipeline(device);
+        let deferred_debug_pipeline = deferred_debug_pipeline(device);
+
         Self {
             camera_buffer,
             model_bind_group0,
             deferred_pipeline,
+            deferred_debug_pipeline,
             depth_view,
             deferred_bind_group0,
             deferred_bind_group1,
+            deferred_bind_group2,
             gbuffer,
             debug_settings_buffer,
             morph_pipeline,
             unbranch_to_depth_pipeline,
             unbranch_to_depth_bind_group0,
             mat_id_depth_view,
+            render_mode,
         }
     }
 
@@ -152,13 +174,13 @@ impl Xc3Renderer {
             create_unbranch_to_depth_bindgroup(device, &self.gbuffer);
     }
 
-    pub fn update_debug_settings(&self, queue: &wgpu::Queue, index: u32) {
+    pub fn update_debug_settings(&mut self, queue: &wgpu::Queue, render_mode: u32) {
+        // TODO: enum for render mode?
+        self.render_mode = render_mode;
         queue.write_buffer(
             &self.debug_settings_buffer,
             0,
-            bytemuck::cast_slice(&[crate::shader::deferred::DebugSettings {
-                index: uvec4(index, 0, 0, 0),
-            }]),
+            bytemuck::cast_slice(&[crate::shader::deferred::DebugSettings { render_mode }]),
         );
     }
 
@@ -290,25 +312,48 @@ impl Xc3Renderer {
                     store: wgpu::StoreOp::Store,
                 },
             })],
-            depth_stencil_attachment: None,
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.mat_id_depth_view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Discard,
+                }),
+                stencil_ops: None,
+            }),
             timestamp_writes: None,
             occlusion_query_set: None,
         });
 
-        // TODO: Create pipelines for each of the 5-6 shaders used in game?
-        // TODO: Use the matid and depth buffer trick for masking each shader?
-        // TODO: Add a separate pipeline for debugging?
-        render_pass.set_pipeline(&self.deferred_pipeline);
+        if self.render_mode == 0 {
+            // Each material ID renders with a separate pipeline in game.
+            render_pass.set_pipeline(&self.deferred_pipeline);
 
-        crate::shader::deferred::bind_groups::set_bind_groups(
-            &mut render_pass,
-            crate::shader::deferred::bind_groups::BindGroups {
-                bind_group0: &self.deferred_bind_group0,
-                bind_group1: &self.deferred_bind_group1,
-            },
-        );
+            for bind_group2 in &self.deferred_bind_group2 {
+                crate::shader::deferred::bind_groups::set_bind_groups(
+                    &mut render_pass,
+                    crate::shader::deferred::bind_groups::BindGroups {
+                        bind_group0: &self.deferred_bind_group0,
+                        bind_group1: &self.deferred_bind_group1,
+                        bind_group2,
+                    },
+                );
 
-        render_pass.draw(0..3, 0..1);
+                render_pass.draw(0..3, 0..1);
+            }
+        } else {
+            render_pass.set_pipeline(&self.deferred_debug_pipeline);
+
+            crate::shader::deferred::bind_groups::set_bind_groups(
+                &mut render_pass,
+                crate::shader::deferred::bind_groups::BindGroups {
+                    bind_group0: &self.deferred_bind_group0,
+                    bind_group1: &self.deferred_bind_group1,
+                    bind_group2: &self.deferred_bind_group2[0],
+                },
+            );
+
+            render_pass.draw(0..3, 0..1);
+        }
     }
 
     fn compute_morphs(&self, encoder: &mut wgpu::CommandEncoder, models: &[ModelGroup]) {
@@ -334,6 +379,7 @@ fn create_unbranch_to_depth_bindgroup(
     gbuffer: &GBuffer,
 ) -> crate::shader::unbranch_to_depth::bind_groups::BindGroup0 {
     let shared_sampler = device.create_sampler(&wgpu::SamplerDescriptor::default());
+
     crate::shader::unbranch_to_depth::bind_groups::BindGroup0::from_bindings(
         device,
         crate::shader::unbranch_to_depth::bind_groups::BindGroupLayout0 {
@@ -347,6 +393,8 @@ fn create_deferred_bind_group0(
     device: &wgpu::Device,
     gbuffer: &GBuffer,
 ) -> crate::shader::deferred::bind_groups::BindGroup0 {
+    let shared_sampler = device.create_sampler(&wgpu::SamplerDescriptor::default());
+
     crate::shader::deferred::bind_groups::BindGroup0::from_bindings(
         device,
         crate::shader::deferred::bind_groups::BindGroupLayout0 {
@@ -356,6 +404,7 @@ fn create_deferred_bind_group0(
             g_velocity: &gbuffer.velocity,
             g_depth: &gbuffer.depth,
             g_lgt_color: &gbuffer.lgt_color,
+            shared_sampler: &shared_sampler,
         },
     )
 }
@@ -470,6 +519,7 @@ fn deferred_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
     let module = crate::shader::deferred::create_shader_module(device);
     let render_pipeline_layout = crate::shader::deferred::create_pipeline_layout(device);
 
+    // TODO: Debug pipeline should use func always?
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Deferred Pipeline"),
         layout: Some(&render_pipeline_layout),
@@ -487,7 +537,47 @@ fn deferred_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
             })],
         }),
         primitive: wgpu::PrimitiveState::default(),
-        depth_stencil: None,
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: MAT_ID_DEPTH_FORMAT,
+            depth_write_enabled: false,
+            depth_compare: wgpu::CompareFunction::Equal,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState::default(),
+        multiview: None,
+    })
+}
+
+fn deferred_debug_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
+    let module = crate::shader::deferred::create_shader_module(device);
+    let render_pipeline_layout = crate::shader::deferred::create_pipeline_layout(device);
+
+    // Make sure the depth test always passes to avoid needing multiple draws.
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("Deferred Debug Pipeline"),
+        layout: Some(&render_pipeline_layout),
+        vertex: crate::shader::deferred::vertex_state(
+            &module,
+            &crate::shader::deferred::vs_main_entry(),
+        ),
+        fragment: Some(wgpu::FragmentState {
+            module: &module,
+            entry_point: crate::shader::deferred::ENTRY_FS_DEBUG,
+            targets: &[Some(wgpu::ColorTargetState {
+                format: COLOR_FORMAT,
+                blend: None,
+                write_mask: wgpu::ColorWrites::all(),
+            })],
+        }),
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: MAT_ID_DEPTH_FORMAT,
+            depth_write_enabled: false,
+            depth_compare: wgpu::CompareFunction::Always,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
     })
