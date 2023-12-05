@@ -693,7 +693,7 @@ fn weight_group_index(
 ) -> Option<usize> {
     // TODO: Is this the correct flags check?
     // TODO: This doesn't work for other unk type or lod?
-    if (skin_flags & 0x1) == 0 {
+    if (skin_flags & 0x1) == 0 && skin_flags != 16400 {
         // TODO: Is this actually some sort of flags?
         let lod_index = lod.saturating_sub(1) as usize;
         let weight_lod = weight_lods.get(lod_index)?;
@@ -725,7 +725,75 @@ macro_rules! assert_hex_eq {
 mod tests {
     use super::*;
 
-    // TODO: Tests for this based on example meshes from all game versions.
     #[test]
-    fn weight_group_index() {}
+    fn weight_group_index_pc082402_fiora() {
+        // xeno1/chr/pc/pc082402.wimdo
+        let weight_lods = [WeightLod {
+            group_indices_plus_one: [1, 0, 0, 2, 0, 0, 0, 0, 0],
+        }];
+        assert_eq!(
+            None,
+            weight_group_index(&weight_lods, 16385, 0, ShaderUnkType::Unk0)
+        );
+        assert_eq!(
+            Some(1),
+            weight_group_index(&weight_lods, 16392, 0, ShaderUnkType::Unk7)
+        );
+    }
+
+    #[test]
+    fn weight_group_index_bl301501_ursula() {
+        // xeno2/model/bl/bl301501.wimdo
+        let weight_lods = [
+            WeightLod {
+                group_indices_plus_one: [1, 2, 0, 0, 0, 0, 0, 0, 0],
+            },
+            WeightLod {
+                group_indices_plus_one: [3, 4, 0, 0, 0, 0, 0, 0, 0],
+            },
+            WeightLod {
+                group_indices_plus_one: [5, 6, 0, 0, 0, 0, 0, 0, 0],
+            },
+        ];
+        assert_eq!(
+            None,
+            weight_group_index(&weight_lods, 16385, 1, ShaderUnkType::Unk0)
+        );
+        assert_eq!(
+            None,
+            weight_group_index(&weight_lods, 1, 1, ShaderUnkType::Unk0)
+        );
+        assert_eq!(
+            Some(3),
+            weight_group_index(&weight_lods, 2, 2, ShaderUnkType::Unk1)
+        );
+        assert_eq!(
+            Some(5),
+            weight_group_index(&weight_lods, 2, 3, ShaderUnkType::Unk1)
+        );
+    }
+
+    #[test]
+    fn weight_group_index_ch01011023_noah() {
+        // xeno3/chr/ch/ch01011023.wimdo
+        let weight_lods = [
+            WeightLod {
+                group_indices_plus_one: [4, 0, 0, 3, 0, 1, 2, 0, 0],
+            },
+            WeightLod {
+                group_indices_plus_one: [7, 0, 0, 6, 0, 5, 0, 0, 0],
+            },
+            WeightLod {
+                group_indices_plus_one: [10, 0, 0, 9, 0, 8, 0, 0, 0],
+            },
+        ];
+        assert_eq!(
+            Some(3),
+            weight_group_index(&weight_lods, 64, 1, ShaderUnkType::Unk0)
+        );
+        assert_eq!(
+            None,
+            weight_group_index(&weight_lods, 16400, 2, ShaderUnkType::Unk0)
+        );
+    }
 }
