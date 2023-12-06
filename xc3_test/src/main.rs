@@ -236,28 +236,31 @@ fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: 
         }
     }
 
-    // Check streams.
-    if check_read_write {
-        let (stream0_entries, stream0) =
-            xc3_lib::msrd::create_stream0(&vertex_data, &spch, &low_textures);
-        if stream0 != msrd.data.streams[0].xbc1.decompress().unwrap() {
-            println!("Stream 0 not 1:1 for {path:?}");
-        }
-        if stream0_entries != msrd.data.stream_entries {
-            println!("Stream 0 entries not 1:1 for {path:?}");
+    match &msrd.data.inner {
+        xc3_lib::msrd::StreamingDataInner::StreamingLegacy(_) => todo!(),
+        xc3_lib::msrd::StreamingDataInner::Streaming(data) => {
+            // Check streams.
+            if check_read_write {
+                let (stream0_entries, stream0) =
+                    xc3_lib::msrd::create_stream0(&vertex_data, &spch, &low_textures);
+                if stream0 != data.streams[0].xbc1.decompress().unwrap() {
+                    println!("Stream 0 not 1:1 for {path:?}");
+                }
+                if stream0_entries != data.stream_entries {
+                    println!("Stream 0 entries not 1:1 for {path:?}");
+                }
+            }
+
+            // Check embedded data.
+            let vertex_bytes = msrd
+                .decompress_stream(0, data.vertex_data_entry_index)
+                .unwrap();
+            check_vertex_data(vertex_data, path, &vertex_bytes, check_read_write);
+
+            let spch_bytes = msrd.decompress_stream(0, data.shader_entry_index).unwrap();
+            check_spch(spch, path, &spch_bytes, check_read_write);
         }
     }
-
-    // Check embedded data.
-    let vertex_bytes = msrd
-        .decompress_stream(0, msrd.data.vertex_data_entry_index)
-        .unwrap();
-    check_vertex_data(vertex_data, path, &vertex_bytes, check_read_write);
-
-    let spch_bytes = msrd
-        .decompress_stream(0, msrd.data.shader_entry_index)
-        .unwrap();
-    check_spch(spch, path, &spch_bytes, check_read_write);
 }
 
 fn check_vertex_data(

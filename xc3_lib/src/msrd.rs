@@ -22,17 +22,10 @@ pub struct Msrd {
     pub version: u32,
     // rounded or aligned in some way?
     pub header_size: u32, // TODO: xbc1 offset - 16?
-    pub offset: u32,      // TODO: Pointer to an inner type?
 
-    // TODO: Use streaming type?
-    // TODO: variable size?
-    #[br(assert(tag == 4097))]
-    pub tag: u32, // 4097?
-
-    // TODO: This offset depends on flags like with mxmd models?
-    #[br(args_raw(offset as u64))]
-    pub data: StreamingData<Stream>,
-    // TODO: optional 16 bytes of padding?
+    #[br(parse_with = parse_ptr32)]
+    #[xc3(offset(u32))]
+    pub data: Streaming<Stream>,
 }
 
 #[binread]
@@ -121,11 +114,7 @@ where
     S: Xc3Write + 'static,
     for<'a> S: BinRead<Args<'a> = ()>,
 {
-    // #[br(dbg)]
     pub stream_flags: StreamFlags,
-
-    #[br(restore_position)]
-    pub indices_offset: (u32, u32),
 
     /// Files contained within [streams](#structfield.streams).
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
@@ -278,25 +267,91 @@ impl Msrd {
         stream_index: u32,
         entry_index: u32,
     ) -> Result<Vec<u8>, DecompressStreamError> {
-        let stream = &self.data.streams[stream_index as usize].xbc1.decompress()?;
-        let entry = &self.data.stream_entries[entry_index as usize];
+        match &self.data.inner {
+            StreamingDataInner::StreamingLegacy(_) => todo!(),
+            StreamingDataInner::Streaming(data) => {
+                data.decompress_stream(stream_index, entry_index)
+            }
+        }
+    }
+
+    // TODO: also add these methods to StreamingData<Stream>?
+    /// Extract geometry for `wismt` and `pcsmt` files.
+    pub fn extract_vertex_data(&self) -> Result<VertexData, DecompressStreamError> {
+        match &self.data.inner {
+            StreamingDataInner::StreamingLegacy(_) => todo!(),
+            StreamingDataInner::Streaming(data) => data.extract_vertex_data(),
+        }
+    }
+
+    /// Extract low resolution textures for `wismt` files.
+    pub fn extract_low_textures(&self) -> Result<Vec<Mibl>, DecompressStreamError> {
+        match &self.data.inner {
+            StreamingDataInner::StreamingLegacy(_) => todo!(),
+            StreamingDataInner::Streaming(data) => data.extract_low_textures(),
+        }
+    }
+
+    /// Extract low resolution textures for `pcsmt` files.
+    pub fn extract_low_pc_textures(&self) -> Vec<Dds> {
+        match &self.data.inner {
+            StreamingDataInner::StreamingLegacy(_) => todo!(),
+            StreamingDataInner::Streaming(data) => data.extract_low_pc_textures(),
+        }
+    }
+
+    /// Extract high resolution textures for `wismt` files.
+    pub fn extract_textures(&self) -> Result<Vec<Mibl>, DecompressStreamError> {
+        match &self.data.inner {
+            StreamingDataInner::StreamingLegacy(_) => todo!(),
+            StreamingDataInner::Streaming(data) => data.extract_textures(),
+        }
+    }
+
+    // TODO: share code with above?
+    /// Extract high resolution textures for `pcsmt` files.
+    pub fn extract_pc_textures(&self) -> Vec<Dds> {
+        match &self.data.inner {
+            StreamingDataInner::StreamingLegacy(_) => todo!(),
+            StreamingDataInner::Streaming(data) => data.extract_pc_textures(),
+        }
+    }
+
+    /// Extract shader programs for `wismt` and `pcsmt` files.
+    pub fn extract_shader_data(&self) -> Result<Spch, DecompressStreamError> {
+        match &self.data.inner {
+            StreamingDataInner::StreamingLegacy(_) => todo!(),
+            StreamingDataInner::Streaming(data) => data.extract_shader_data(),
+        }
+    }
+}
+
+impl StreamingData<Stream> {
+    pub fn decompress_stream(
+        &self,
+        stream_index: u32,
+        entry_index: u32,
+    ) -> Result<Vec<u8>, DecompressStreamError> {
+        let stream = &self.streams[stream_index as usize].xbc1.decompress()?;
+        let entry = &self.stream_entries[entry_index as usize];
         Ok(stream[entry.offset as usize..entry.offset as usize + entry.size as usize].to_vec())
     }
 
+    /// Extract geometry for `wismt` and `pcsmt` files.
     pub fn extract_vertex_data(&self) -> Result<VertexData, DecompressStreamError> {
         // TODO: is this always in the first stream?
-        let bytes = self.decompress_stream(0, self.data.vertex_data_entry_index)?;
+        let bytes = self.decompress_stream(0, self.vertex_data_entry_index)?;
         VertexData::from_bytes(bytes).map_err(Into::into)
     }
 
     /// Extract low resolution textures for `wismt` files.
     pub fn extract_low_textures(&self) -> Result<Vec<Mibl>, DecompressStreamError> {
         let bytes = self.decompress_stream(
-            self.data.low_textures_stream_index,
-            self.data.low_textures_entry_index,
+            self.low_textures_stream_index,
+            self.low_textures_entry_index,
         )?;
 
-        match &self.data.texture_resources.low_textures {
+        match &self.texture_resources.low_textures {
             Some(low_textures) => low_textures
                 .textures
                 .iter()
@@ -315,12 +370,12 @@ impl Msrd {
         // TODO: Avoid unwrap.
         let bytes = self
             .decompress_stream(
-                self.data.low_textures_stream_index,
-                self.data.low_textures_entry_index,
+                self.low_textures_stream_index,
+                self.low_textures_entry_index,
             )
             .unwrap();
 
-        match &self.data.texture_resources.low_textures {
+        match &self.texture_resources.low_textures {
             Some(low_textures) => low_textures
                 .textures
                 .iter()
@@ -337,13 +392,13 @@ impl Msrd {
     /// Extract high resolution textures for `wismt` files.
     pub fn extract_textures(&self) -> Result<Vec<Mibl>, DecompressStreamError> {
         // The textures are packed into a single stream.
-        let stream = &self.data.streams[self.data.textures_stream_index as usize]
+        let stream = &self.streams[self.textures_stream_index as usize]
             .xbc1
             .decompress()?;
 
-        let start = self.data.textures_stream_entry_start_index as usize;
-        let count = self.data.textures_stream_entry_count as usize;
-        self.data.stream_entries[start..start + count]
+        let start = self.textures_stream_entry_start_index as usize;
+        let count = self.textures_stream_entry_count as usize;
+        self.stream_entries[start..start + count]
             .iter()
             .map(|entry| {
                 let bytes =
@@ -357,15 +412,15 @@ impl Msrd {
     /// Extract high resolution textures for `pcsmt` files.
     pub fn extract_pc_textures(&self) -> Vec<Dds> {
         // The textures are packed into a single stream.
-        let stream = &self.data.streams[self.data.textures_stream_index as usize]
+        let stream = &self.streams[self.textures_stream_index as usize]
             .xbc1
             .decompress()
             .unwrap();
 
         // TODO: avoid unwrap.
-        let start = self.data.textures_stream_entry_start_index as usize;
-        let count = self.data.textures_stream_entry_count as usize;
-        self.data.stream_entries[start..start + count]
+        let start = self.textures_stream_entry_start_index as usize;
+        let count = self.textures_stream_entry_count as usize;
+        self.stream_entries[start..start + count]
             .iter()
             .map(|entry| {
                 let bytes =
@@ -375,13 +430,14 @@ impl Msrd {
             .collect()
     }
 
+    /// Extract shader programs for `wismt` and `pcsmt` files.
     pub fn extract_shader_data(&self) -> Result<Spch, DecompressStreamError> {
         // TODO: is this always in the first stream?
-        let bytes = self.decompress_stream(0, self.data.shader_entry_index)?;
+        let bytes = self.decompress_stream(0, self.shader_entry_index)?;
         Spch::from_bytes(bytes).map_err(Into::into)
     }
 
-    /// Pack and compress the files into a new [Msrd] archive file.
+    /// Pack and compress the files into new archive data.
     pub fn from_unpacked_files(vertex: &VertexData, spch: &Spch, low_textures: &Vec<Mibl>) -> Self {
         // TODO: handle other streams.
         let (stream_entries, stream0) = create_stream0(vertex, spch, low_textures);
@@ -390,42 +446,34 @@ impl Msrd {
         let stream = Stream::from_xbc1(xbc1);
 
         // TODO: Search stream entries to get indices?
-        Self {
-            version: 10001,
-            header_size: 976, // TODO: calculate this during writing
-            offset: 16,
-            tag: 4097,
-            data: StreamingData {
-                stream_flags: StreamFlags::new(
-                    true,
-                    true,
-                    true,
-                    false,
-                    false,
-                    false,
-                    false,
-                    0u8.into(),
-                ),
-                stream_entries,
-                streams: vec![stream],
-                vertex_data_entry_index: 0,
-                shader_entry_index: 1,
-                low_textures_entry_index: 2,
-                low_textures_stream_index: 0,
-                textures_stream_index: 0,
-                textures_stream_entry_start_index: 0,
-                textures_stream_entry_count: 0,
-                // TODO: How to properly create these fields?
-                texture_resources: TextureResources {
-                    texture_indices: todo!(),
-                    low_textures: todo!(),
-                    unk1: 0,
-                    chr_textures: todo!(),
-                },
-                indices_offset: (0, 0),
-
-                unks: [0; 4],
+        StreamingData {
+            stream_flags: StreamFlags::new(
+                true,
+                true,
+                true,
+                false,
+                false,
+                false,
+                false,
+                0u8.into(),
+            ),
+            stream_entries,
+            streams: vec![stream],
+            vertex_data_entry_index: 0,
+            shader_entry_index: 1,
+            low_textures_entry_index: 2,
+            low_textures_stream_index: 0,
+            textures_stream_index: 0,
+            textures_stream_entry_start_index: 0,
+            textures_stream_entry_count: 0,
+            // TODO: How to properly create these fields?
+            texture_resources: TextureResources {
+                texture_indices: todo!(),
+                low_textures: todo!(),
+                unk1: 0,
+                chr_textures: todo!(),
             },
+            unks: [0; 4],
         }
     }
 }
@@ -487,12 +535,9 @@ where
     fn write_offsets<W: std::io::prelude::Write + Seek>(
         &self,
         writer: &mut W,
-        _base_offset: u64,
+        base_offset: u64,
         data_ptr: &mut u64,
     ) -> xc3_write::Xc3Result<()> {
-        // TODO: Rework the msrd types to handle this.
-        let base_offset = 16;
-
         // Write offset data in the order items appear in the binary file.
         self.stream_entries
             .write_offset(writer, base_offset, data_ptr)?;
@@ -507,7 +552,8 @@ where
         // Write the xbc1 data at the end.
         // This also works for mxmd streams that don't need to write anything.
         for offsets in stream_offsets.0 {
-            offsets.write_offsets(writer, base_offset, data_ptr)?;
+            // The xbc1 offset is relative to the start of the file.
+            offsets.write_offsets(writer, 0, data_ptr)?;
         }
 
         Ok(())
