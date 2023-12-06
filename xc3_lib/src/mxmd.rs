@@ -2,7 +2,7 @@
 //!
 //! XC3: `chr/{ch,en,oj,wp}/*.wimdo`, `monolib/shader/*.wimdo`
 use crate::{
-    msrd::{StreamingData, StreamingDataOffsets},
+    msrd::Streaming,
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
     parse_string_opt_ptr32, parse_string_ptr32,
     spch::Spch,
@@ -55,7 +55,7 @@ pub struct Mxmd {
     /// Streaming information for the `wismt` file or [None] if no `wismt` file.
     #[br(parse_with = parse_opt_ptr32)]
     #[xc3(offset(u32))]
-    pub streaming: Option<Streaming>,
+    pub streaming: Option<Streaming<TextureStream>>,
 
     // TODO: padding?
     pub unk: [u32; 10],
@@ -985,84 +985,6 @@ pub struct LodGroup {
     pub unk2: u32,
 }
 
-// TODO: Move this to msrd?
-#[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
-#[br(stream = r)]
-#[xc3(base_offset)]
-pub struct Streaming {
-    #[br(temp, try_calc = r.stream_position())]
-    base_offset: u64,
-
-    // TODO: Identical to Msrd type but without xbc1?
-    pub tag: u32, // 4097 or sometimes 0?
-
-    #[br(args { base_offset, tag })]
-    pub inner: StreamingDataInner,
-}
-
-// TODO: Find a way to use the generic type directly.
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
-#[br(import_raw(base_offset: u64))]
-pub struct StreamingDataMxmd {
-    #[br(args_raw(base_offset))]
-    pub inner: StreamingData<TextureStream>,
-}
-
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
-#[br(import { base_offset: u64, tag: u32 })]
-pub enum StreamingDataInner {
-    #[br(pre_assert(tag == 0))]
-    StreamingLegacy(#[br(args_raw(base_offset))] StreamingDataLegacy),
-
-    #[br(pre_assert(tag == 4097))]
-    Streaming(#[br(args_raw(base_offset))] StreamingDataMxmd),
-}
-
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
-#[br(import_raw(base_offset: u64))]
-pub struct StreamingDataLegacy {
-    pub flags: StreamingFlagsLegacy,
-
-    #[br(parse_with = parse_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
-    pub low_textures: PackedExternalTextures,
-
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
-    pub textures: Option<PackedExternalTextures>,
-
-    #[br(parse_with = parse_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: low_textures.textures.len() }})]
-    #[xc3(offset(u32))]
-    pub low_texture_indices: Vec<u16>,
-
-    #[br(parse_with = parse_opt_ptr32)]
-    #[br(args {
-        offset: base_offset,
-        inner: args! { count: textures.as_ref().map(|t| t.textures.len()).unwrap_or_default() }
-    })]
-    #[xc3(offset(u32))]
-    pub texture_indices: Option<Vec<u16>>,
-
-    pub low_texture_data_offset: u32,
-    pub texture_data_offset: u32,
-
-    pub low_texture_data_compressed_size: u32,
-    pub texture_data_compressed_size: u32,
-
-    pub low_texture_data_uncompressed_size: u32,
-    pub texture_data_uncompressed_size: u32,
-}
-
-/// Flags indicating the way data is stored in the model's `wismt` file.
-#[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
-#[brw(repr(u32))]
-pub enum StreamingFlagsLegacy {
-    Uncompressed = 1,
-    Xbc1 = 2,
-}
-
 /// A reference to a [Stream](crate::msrd::Stream) in the [Msrd](crate::msrd::Msrd) with texture data.
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct TextureStream {
@@ -1373,8 +1295,7 @@ xc3_write_binwrite_impl!(
     ShaderUnkType,
     StateFlags,
     ModelsFlags,
-    SamplerFlags,
-    StreamingFlagsLegacy
+    SamplerFlags
 );
 
 impl Xc3Write for MaterialFlags {
@@ -1626,23 +1547,6 @@ impl<'a> Xc3WriteOffsets for Unk1Offsets<'a> {
         if !self.unk4.data.is_empty() {
             self.unk4.write_full(writer, base_offset, data_ptr)?;
         }
-        Ok(())
-    }
-}
-
-// TODO: Find a way to derive this.
-impl<'a> Xc3WriteOffsets for StreamingDataOffsets<'a, TextureStream> {
-    fn write_offsets<W: std::io::Write + std::io::Seek>(
-        &self,
-        writer: &mut W,
-        base_offset: u64,
-        data_ptr: &mut u64,
-    ) -> xc3_write::Xc3Result<()> {
-        self.stream_entries
-            .write_full(writer, base_offset, data_ptr)?;
-        self.streams.write_full(writer, base_offset, data_ptr)?;
-        self.texture_resources
-            .write_offsets(writer, base_offset, data_ptr)?;
         Ok(())
     }
 }

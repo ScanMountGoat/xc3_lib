@@ -216,6 +216,8 @@ fn check_sar1_data(
 }
 
 fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+    // TODO: check stream flags?
+
     let spch = msrd.extract_shader_data().unwrap();
     let vertex_data = msrd.extract_vertex_data().unwrap();
     let low_textures = msrd.extract_low_textures().unwrap();
@@ -434,30 +436,7 @@ enum MxmdApmd {
 fn check_mxmd_or_apmd(data: MxmdApmd, path: &Path, original_bytes: &[u8], check_read_write: bool) {
     match data {
         MxmdApmd::Mxmd(mxmd) => {
-            if !is_valid_models_flags(&mxmd) {
-                println!("Inconsistent ModelsFlags for {path:?}");
-            }
-
-            if check_read_write {
-                let mut writer = Cursor::new(Vec::new());
-                mxmd.write(&mut writer).unwrap();
-                if writer.into_inner() != original_bytes {
-                    println!("Mxmd read/write not 1:1 for {path:?}");
-                }
-            }
-
-            if let Some(spch) = mxmd.spch {
-                // TODO: Check read/write for inner data?
-                check_spch(spch, path, &[], false);
-            }
-
-            if let Some(packed_textures) = &mxmd.packed_textures {
-                for texture in &packed_textures.textures {
-                    if let Err(e) = Mibl::from_bytes(&texture.mibl_data) {
-                        println!("Error reading Mibl for {path:?}: {e}");
-                    }
-                }
-            }
+            check_mxmd(mxmd, path, original_bytes, check_read_write);
         }
         MxmdApmd::Apmd(apmd) => {
             for entry in &apmd.entries {

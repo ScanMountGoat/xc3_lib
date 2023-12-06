@@ -161,7 +161,6 @@ pub fn load_textures(
         match data {
             StreamingData::Msrd { streaming, msrd } => {
                 let mxmd_textures = streaming
-                    .inner
                     .texture_resources
                     .low_textures
                     .as_ref()
@@ -187,7 +186,7 @@ pub fn load_textures(
                         .collect()
                 };
 
-                let texture_indices = &streaming.inner.texture_resources.texture_indices;
+                let texture_indices = &streaming.texture_resources.texture_indices;
 
                 // Assume the packed and non packed textures have the same ordering.
                 // TODO: Are the mxmd and msrd packed texture lists always identical?

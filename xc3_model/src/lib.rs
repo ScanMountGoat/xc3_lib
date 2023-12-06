@@ -39,8 +39,8 @@ use texture::load_textures;
 use vertex::{read_index_buffers, read_vertex_buffers, AttributeData};
 use xc3_lib::{
     apmd::Apmd,
-    msrd::Msrd,
-    mxmd::{Materials, Mxmd, StreamingDataLegacy, StreamingDataMxmd},
+    msrd::{Msrd, StreamingDataLegacy},
+    mxmd::{Materials, Mxmd, TextureStream},
     sar1::Sar1,
     vertex::{VertexData, WeightLod},
     xbc1::Xbc1,
@@ -337,6 +337,8 @@ pub fn load_model<P: AsRef<Path>>(
             .unwrap()
     });
 
+    std::fs::write("mxmd.txt", format!("{:#?}", mxmd)).unwrap();
+
     // Desktop PC models aren't used in game but are straightforward to support.
     let is_pc = wimdo_path.extension().and_then(|e| e.to_str()) == Some("pcmdo");
     let wismt_path = if is_pc {
@@ -410,7 +412,7 @@ pub fn load_model<P: AsRef<Path>>(
 
 enum StreamingData<'a> {
     Msrd {
-        streaming: &'a StreamingDataMxmd,
+        streaming: &'a xc3_lib::msrd::StreamingData<TextureStream>,
         msrd: Msrd,
     },
     Legacy {
@@ -424,18 +426,18 @@ fn load_streaming_data<'a>(mxmd: &'a Mxmd, wismt_path: &Path) -> Option<Streamin
     mxmd.streaming
         .as_ref()
         .map(|streaming| match &streaming.inner {
-            xc3_lib::mxmd::StreamingDataInner::StreamingLegacy(legacy) => {
+            xc3_lib::msrd::StreamingDataInner::StreamingLegacy(legacy) => {
                 let data = match legacy.flags {
-                    xc3_lib::mxmd::StreamingFlagsLegacy::Uncompressed => {
+                    xc3_lib::msrd::StreamingFlagsLegacy::Uncompressed => {
                         std::fs::read(wismt_path).unwrap()
                     }
-                    xc3_lib::mxmd::StreamingFlagsLegacy::Xbc1 => {
+                    xc3_lib::msrd::StreamingFlagsLegacy::Xbc1 => {
                         Xbc1::from_file(wismt_path).unwrap().decompress().unwrap()
                     }
                 };
                 StreamingData::Legacy { legacy, data }
             }
-            xc3_lib::mxmd::StreamingDataInner::Streaming(streaming) => StreamingData::Msrd {
+            xc3_lib::msrd::StreamingDataInner::Streaming(streaming) => StreamingData::Msrd {
                 streaming,
                 msrd: Msrd::from_file(wismt_path).unwrap(),
             },

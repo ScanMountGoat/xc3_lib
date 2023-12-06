@@ -9,7 +9,7 @@ use crate::{
     xc3_write_binwrite_impl,
 };
 use bilge::prelude::*;
-use binrw::{binread, BinRead, BinWrite};
+use binrw::{args, binread, BinRead, BinWrite};
 use image_dds::ddsfile::Dds;
 use xc3_write::{round_up, write_full, Xc3Write, Xc3WriteOffsets};
 
@@ -24,6 +24,7 @@ pub struct Msrd {
     pub header_size: u32, // TODO: xbc1 offset - 16?
     pub offset: u32,      // TODO: Pointer to an inner type?
 
+    // TODO: Use streaming type?
     // TODO: variable size?
     #[br(assert(tag == 4097))]
     pub tag: u32, // 4097?
@@ -34,6 +35,85 @@ pub struct Msrd {
     // TODO: optional 16 bytes of padding?
 }
 
+#[binread]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[br(stream = r)]
+#[xc3(base_offset)]
+pub struct Streaming<S>
+where
+    S: Xc3Write + 'static,
+    for<'a> <S as Xc3Write>::Offsets<'a>: Xc3WriteOffsets,
+    for<'a> S: BinRead<Args<'a> = ()>,
+{
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    pub tag: u32, // 4097 or sometimes 0?
+
+    #[br(args { base_offset, tag })]
+    pub inner: StreamingDataInner<S>,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[br(import { base_offset: u64, tag: u32 })]
+pub enum StreamingDataInner<S>
+where
+    S: Xc3Write + 'static,
+    for<'b> <S as Xc3Write>::Offsets<'b>: Xc3WriteOffsets,
+    for<'a> S: BinRead<Args<'a> = ()>,
+{
+    #[br(pre_assert(tag == 0))]
+    StreamingLegacy(#[br(args_raw(base_offset))] StreamingDataLegacy),
+
+    #[br(pre_assert(tag == 4097))]
+    Streaming(#[br(args_raw(base_offset))] StreamingData<S>),
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[br(import_raw(base_offset: u64))]
+pub struct StreamingDataLegacy {
+    pub flags: StreamingFlagsLegacy,
+
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub low_textures: PackedExternalTextures,
+
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub textures: Option<PackedExternalTextures>,
+
+    #[br(parse_with = parse_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: low_textures.textures.len() }})]
+    #[xc3(offset(u32))]
+    pub low_texture_indices: Vec<u16>,
+
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args {
+        offset: base_offset,
+        inner: args! { count: textures.as_ref().map(|t| t.textures.len()).unwrap_or_default() }
+    })]
+    #[xc3(offset(u32))]
+    pub texture_indices: Option<Vec<u16>>,
+
+    pub low_texture_data_offset: u32,
+    pub texture_data_offset: u32,
+
+    pub low_texture_data_compressed_size: u32,
+    pub texture_data_compressed_size: u32,
+
+    pub low_texture_data_uncompressed_size: u32,
+    pub texture_data_uncompressed_size: u32,
+}
+
+/// Flags indicating the way data is stored in the model's `wismt` file.
+#[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
+#[brw(repr(u32))]
+pub enum StreamingFlagsLegacy {
+    Uncompressed = 1,
+    Xbc1 = 2,
+}
+
+// TODO: 76 or 92 bytes?
 #[derive(Debug, BinRead, Xc3Write)]
 #[br(import_raw(base_offset: u64))]
 pub struct StreamingData<S>
@@ -41,7 +121,11 @@ where
     S: Xc3Write + 'static,
     for<'a> S: BinRead<Args<'a> = ()>,
 {
+    // #[br(dbg)]
     pub stream_flags: StreamFlags,
+
+    #[br(restore_position)]
+    pub indices_offset: (u32, u32),
 
     /// Files contained within [streams](#structfield.streams).
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
@@ -75,6 +159,8 @@ where
     #[br(args_raw(base_offset))]
     pub texture_resources: TextureResources,
 
+    // TODO: not always present?
+    // #[br(assert(unks.iter().all(|u| *u == 0)))]
     pub unks: [u32; 4],
 }
 
@@ -109,12 +195,13 @@ pub struct TextureResources {
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct ChrTexTexture {
-    // TODO: The the texture name hash as an integer for xc3?
+    // TODO: The texture name hash as an integer for xc3?
     pub hash: u32,
-    pub unk2: (u16, u16),
-    pub unk3: (u16, u16),
-    pub unk4: (u16, u16),
-    pub unk5: (u16, u16),
+    // TODO: related to packed texture unk1?
+    pub unk2: u32,
+    pub unk3: u32,
+    pub unk4: u32,
+    pub unk5: u32,
 }
 
 /// A file contained in a [Stream].
@@ -133,7 +220,7 @@ pub struct StreamEntry {
 
 /// Flags indicating what stream data is present.
 #[bitsize(32)]
-#[derive(DebugBits, FromBits, BinRead, BinWrite, Clone, Copy)]
+#[derive(DebugBits, FromBits, BinRead, BinWrite, PartialEq, Eq, Clone, Copy)]
 #[br(map = u32::into)]
 #[bw(map = |&x| u32::from(x))]
 pub struct StreamFlags {
@@ -335,6 +422,8 @@ impl Msrd {
                     unk1: 0,
                     chr_textures: todo!(),
                 },
+                indices_offset: (0, 0),
+
                 unks: [0; 4],
             },
         }
@@ -387,9 +476,14 @@ where
     }
 }
 
-xc3_write_binwrite_impl!(StreamEntry, StreamFlags);
+xc3_write_binwrite_impl!(StreamEntry, StreamFlags, StreamingFlagsLegacy);
 
-impl<'a> Xc3WriteOffsets for StreamingDataOffsets<'a, Stream> {
+impl<'a, S> Xc3WriteOffsets for StreamingDataOffsets<'a, S>
+where
+    S: Xc3Write + 'static,
+    for<'b> <S as Xc3Write>::Offsets<'b>: Xc3WriteOffsets,
+    for<'b> S: BinRead<Args<'b> = ()>,
+{
     fn write_offsets<W: std::io::prelude::Write + Seek>(
         &self,
         writer: &mut W,
@@ -408,9 +502,12 @@ impl<'a> Xc3WriteOffsets for StreamingDataOffsets<'a, Stream> {
         self.texture_resources
             .write_offsets(writer, base_offset, data_ptr)?;
 
-        // TODO: Variable padding?
+        // TODO: Variable padding of 0 or 16 bytes?
+
+        // Write the xbc1 data at the end.
+        // This also works for mxmd streams that don't need to write anything.
         for offsets in stream_offsets.0 {
-            offsets.xbc1.write_offset(writer, 0, data_ptr)?;
+            offsets.write_offsets(writer, base_offset, data_ptr)?;
         }
 
         Ok(())

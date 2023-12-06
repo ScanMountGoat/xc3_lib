@@ -1,7 +1,7 @@
 use attribute::{FieldOptions, FieldType, Padding, TypeOptions, VariantOptions};
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
-use quote::{quote, ToTokens};
+use quote::quote;
 use syn::{
     parse_macro_input, Data, DataEnum, DataStruct, DeriveInput, Fields, FieldsNamed, GenericParam,
     Ident, Lifetime, LifetimeParam, Type,
@@ -78,17 +78,8 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
                     Fields::Named(_) => todo!(),
                     Fields::Unnamed(unnamed) => {
                         // TODO: Don't assume just one field.
-                        // TODO: Possible to use <T as Xc3Write>::Offsets?
-                        let field0 = unnamed
-                            .unnamed
-                            .first()
-                            .unwrap()
-                            .ty
-                            .clone()
-                            .into_token_stream()
-                            .to_string();
-                        let variant_offsets = Ident::new(&(field0 + "Offsets"), Span::call_site());
-                        quote!(#name(#variant_offsets<'offsets>))
+                        let field0 = &unnamed.unnamed.first().unwrap().ty;
+                        quote!(#name(<#field0 as ::xc3_write::Xc3Write>::Offsets<'offsets>))
                     }
                     Fields::Unit => quote!(#name),
                 }
@@ -96,7 +87,7 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
 
             let define_offsets = quote! {
                 #[doc(hidden)]
-                pub enum #offsets<'offsets> {
+                pub enum #offsets_type #where_clause {
                     #(#offset_fields),*
                 }
             };
