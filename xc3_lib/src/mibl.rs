@@ -1,6 +1,13 @@
-//! Textures in `.witx`, `.witex`, or `.wismt` files or embedded in other formats.
+//! Textures in `.witx` or `.witex` files or embedded in `.wismt` files and other formats.
 //!
-//! XC3: `chr/tex/nx/*/*.wismt`, `monolib/shader/*.{witex,witx}`
+//! # File Paths
+//! Xenoblade 3 `.wismt` [Mibl] are in [Xbc1](crate::xbc1::Xbc1) archives.
+//!
+//! | Game | File Patterns |
+//! | --- | --- |
+//! | Xenoblade Chronicles 1 DE | `monolib/shader/*.{witex,witx}` |
+//! | Xenoblade Chronicles 2 | `monolib/shader/*.{witex,witx}` |
+//! | Xenoblade Chronicles 3 | `chr/tex/nx/{h,m}/*.wismt`, `monolib/shader/*.{witex,witx}` |
 use std::io::SeekFrom;
 
 use binrw::{binrw, BinRead, BinWrite};

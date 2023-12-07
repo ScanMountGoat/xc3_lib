@@ -1,6 +1,11 @@
-//! Model resources like shaders, geometry, or textures in `.wismt` files.
+//! Streamed model resources like shaders, geometry, or textures in `.wismt` files.
 //!
-//! XC3: `chr/{ch,en,oj,wp}/*.wismt`
+//! # File Paths
+//! | Game | File Patterns |
+//! | --- | --- |
+//! | Xenoblade Chronicles 1 DE | `chr/{en,np,obj,pc,wp}/*.wismt` |
+//! | Xenoblade Chronicles 2 | `model/{bl,en,np,oj,pc,we,wp}/*.wismt` |
+//! | Xenoblade Chronicles 3 | `chr/{bt,ch,en,oj,wp}/*.wismt`, `map/*.wismt` |
 use std::io::{Cursor, Seek, Write};
 
 use crate::{

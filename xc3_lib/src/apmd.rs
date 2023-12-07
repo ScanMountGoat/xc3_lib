@@ -19,10 +19,10 @@ pub struct Apmd {
     #[br(parse_with = parse_offset32_count32)]
     #[xc3(offset_count(u32, u32))]
     pub entries: Vec<Entry>,
-    pub unk2: u32,
-    pub unk3: u32,
-    // TODO: padding?
-    pub unk: [u32; 7],
+    pub unk2: u32, // entry count - 3?
+    pub unk3: u32, // 0 or 1?
+    // TODO: variable padding?
+    pub unk: [u32; 8],
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -33,7 +33,7 @@ pub struct Entry {
     pub entry_data: Vec<u8>,
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy)]
 #[brw(repr(u32))]
 pub enum EntryType {
     Mxmd = 0,
@@ -55,6 +55,28 @@ pub enum EntryData {
 }
 
 impl Entry {
+    pub fn from_entry_data(data: EntryData) -> xc3_write::Xc3Result<Self> {
+        // TODO: Create a to_bytes method?
+        // TODO: Finish write support and test in xc3_test?
+        let mut writer = Cursor::new(Vec::new());
+        let entry_type = match data {
+            EntryData::Mxmd(v) => {
+                v.write(&mut writer)?;
+                EntryType::Mxmd
+            }
+            EntryData::Dmis => EntryType::Dmis,
+            EntryData::Dlgt(v) => EntryType::Dlgt,
+            EntryData::Gibl(v) => EntryType::Gibl,
+            EntryData::Nerd(v) => EntryType::Nerd,
+            EntryData::Dlgt2(v) => EntryType::Dlgt2,
+        };
+
+        Ok(Self {
+            entry_type,
+            entry_data: writer.into_inner(),
+        })
+    }
+
     pub fn read_data(&self) -> BinResult<EntryData> {
         let mut reader = Cursor::new(&self.entry_data);
         match self.entry_type {

@@ -1,6 +1,11 @@
 //! Model data in `.wimdo` files.
 //!
-//! XC3: `chr/{ch,en,oj,wp}/*.wimdo`, `monolib/shader/*.wimdo`
+//! # File Paths
+//! | Game | File Patterns |
+//! | --- | --- |
+//! | Xenoblade Chronicles 1 DE | `chr/{en,np,obj,pc,wp}/*.wimdo`, `monolib/shader/*.wimdo` |
+//! | Xenoblade Chronicles 2 | `model/{bl,en,np,oj,pc,we,wp}/*.wimdo`, `monolib/shader/*.wimdo` |
+//! | Xenoblade Chronicles 3 | `chr/{bt,ch,en,oj,wp}/*.wimdo`, `map/*.wimdo`, `monolib/shader/*.wimdo` |
 use crate::{
     msrd::Streaming,
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,

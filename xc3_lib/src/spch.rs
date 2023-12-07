@@ -1,6 +1,11 @@
 //! Compiled shaders in `.wishp` files or embedded in other formats.
 //!
-//! XC3: `monolib/shader/*.wishp`
+//! # File Paths
+//! | Game | File Patterns |
+//! | --- | --- |
+//! | Xenoblade Chronicles 1 DE | `monolib/shader/*.wishp` |
+//! | Xenoblade Chronicles 2 | `monolib/shader/*.wishp` |
+//! | Xenoblade Chronicles 3 | `monolib/shader/*.wishp` |
 use std::io::{Cursor, SeekFrom};
 
 use crate::{parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_string_ptr32};
