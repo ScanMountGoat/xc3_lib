@@ -89,7 +89,7 @@ pub struct Unk1 {
     pub unk5: f32,
     pub unk6: f32,
     pub unk7: u32,
-    pub unk8: u32,
+    pub unk8: f32,
     pub unk9: f32,
     pub unk10: f32,
     pub unk11: f32,
@@ -161,17 +161,17 @@ pub struct Unk4Unk2 {
     #[xc3(count_offset(u32, u32))]
     pub unk1: Vec<u32>,
 
-    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    pub unk3: [u32; 2],
+    pub unk3: Option<[u32; 2]>,
 
     pub unk4: u32,
     pub unk5: u32,
     pub unk6: u32,
 
-    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    pub unk7: u32,
+    pub unk7: Option<u32>,
 
     pub unk8: u32,
     pub unk9: u32,
