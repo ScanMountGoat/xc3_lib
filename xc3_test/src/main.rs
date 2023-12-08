@@ -126,7 +126,7 @@ fn main() {
 
     if cli.wilay || cli.all {
         println!("Checking DHAL and LAGP files ...");
-        check_all(root, &["*.wilay"], check_wilay, cli.rw);
+        check_all(root, &["*.wilay"], check_wilay_data, cli.rw);
     }
 
     if cli.ltpc || cli.all {
@@ -396,18 +396,23 @@ fn read_wismt_single_tex(path: &Path) -> (Vec<u8>, Mibl) {
 
 #[derive(BinRead)]
 enum Wilay {
-    Dhal(MaybeXbc1<Dhal>),
-    Lagp(MaybeXbc1<Lagp>),
+    Dhal(Dhal),
+    Lagp(Lagp),
+}
+
+fn check_wilay_data(
+    data: MaybeXbc1<Wilay>,
+    path: &Path,
+    original_bytes: &[u8],
+    check_read_write: bool,
+) {
+    check_maybe_xbc1(data, path, check_read_write, original_bytes, check_wilay);
 }
 
 fn check_wilay(data: Wilay, path: &Path, original_bytes: &[u8], check_read_write: bool) {
     match data {
-        Wilay::Dhal(data) => {
-            check_maybe_xbc1(data, path, check_read_write, original_bytes, check_dhal)
-        }
-        Wilay::Lagp(data) => {
-            check_maybe_xbc1(data, path, check_read_write, original_bytes, check_lagp)
-        }
+        Wilay::Dhal(dhal) => check_dhal(dhal, path, original_bytes, check_read_write),
+        Wilay::Lagp(lagp) => check_lagp(lagp, path, original_bytes, check_read_write),
     }
 }
 
