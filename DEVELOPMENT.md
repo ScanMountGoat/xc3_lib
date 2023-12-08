@@ -82,12 +82,23 @@ Values can also be pretty printed using the appropriate debug format specifier. 
 
 ```rust
 fn main() {
-   let value = xc3_lib::mxmd::Mxmd::from_file("ch01012013.wimdo");
-   println!("{:#?}", value);
+    let value = xc3_lib::mxmd::Mxmd::from_file("ch01012013.wimdo").unwrap();;
+    println!("{:#?}", value);
 }
 ```
 
 ## Debugging File Writing
 The easiest way to test errors when writing a file is to parse a file and then write it again without making changes. This should result in a binary identical output file. This can be checked using a hex editor like [HxD](https://mh-nexus.de/en/hxd/) or [ImHex](https://github.com/WerWolv/ImHex) for visual diff checking. See xc3_test for Rust code examples.
 
-Another useful test is to write the file to binary and then read it again. The two data structures like `Mxmd` or `Msrd` should compare as equal. Differences can indicate that data isn't being written properly. For more visual output, pretty print the debug representation before and after to text files using the `"{:#?}"` format specifier. The text can be diffed using an online diffing tool or directly in some editors like VsCode.
+Another useful test is to write the file to binary and then read it again. The two data structures like `Mxmd` or `Msrd` should compare as equal. Differences can indicate that data isn't being written properly. For more visual output, pretty print the debug representation before and after to text files using the `"{:#?}"` format specifier. The text can be diffed using an online diffing tool or directly in some editors like Visual Studio Code.
+
+```rust
+fn main() {
+    let value = xc3_lib::mxmd::Mxmd::from_file("ch01012013.wimdo").unwrap();;
+    std::fs::write!("mxmd.txt", format!("{:#?}", value)).unwrap();
+    value.write_to_file("ch01012013.out.wimdo").unwrap();
+
+    let new_value = xc3_lib::mxmd::Mxmd::from_file("ch01012013.out.wimdo").unwrap();
+    std::fs::write!("mxmd.out.txt", format!("{:#?}", new_value)).unwrap();
+}
+```

@@ -11,6 +11,7 @@ use xc3_lib::{
     bc::Bc,
     dhal::Dhal,
     eva::Eva,
+    lagp::Lagp,
     ltpc::Ltpc,
     mibl::Mibl,
     msmd::Msmd,
@@ -34,7 +35,7 @@ struct Cli {
 
     /// Process DMXM or DMPA model files from .wimdo
     #[arg(long)]
-    mxmd: bool,
+    wimdo: bool,
 
     /// Process DRSM model files from .wismt
     #[arg(long)]
@@ -54,7 +55,7 @@ struct Cli {
 
     /// Process LAHD texture files from .wilay
     #[arg(long)]
-    dhal: bool,
+    wilay: bool,
 
     /// Process LTPC texture files from .wiltp
     #[arg(long)]
@@ -93,12 +94,10 @@ fn main() {
         check_all_mibl(root, cli.rw);
     }
 
-    if cli.mxmd || cli.all {
+    if cli.wimdo || cli.all {
         println!("Checking MXMD and APMD files ...");
-        check_all(root, &["*.wimdo", "*.pcmdo"], check_mxmd_or_apmd, cli.rw);
+        check_all(root, &["*.wimdo", "*.pcmdo"], check_wimdo, cli.rw);
     }
-
-    // TODO: Check apmd separately by checking the initial magic?
 
     if cli.msrd || cli.all {
         // Skip the .wismt textures in the XC3 tex folder.
@@ -125,9 +124,9 @@ fn main() {
         check_all(root, &["*.wishp"], check_spch, cli.rw);
     }
 
-    if cli.dhal || cli.all {
-        println!("Checking DHAL files ...");
-        check_all(root, &["*.wilay"], check_dhal_data, cli.rw);
+    if cli.wilay || cli.all {
+        println!("Checking DHAL and LAGP files ...");
+        check_all(root, &["*.wilay"], check_wilay, cli.rw);
     }
 
     if cli.ltpc || cli.all {
@@ -186,7 +185,7 @@ where
     Xbc1(Xbc1),
 }
 
-fn check_maybe_xbc1_data<T, F>(
+fn check_maybe_xbc1<T, F>(
     data: MaybeXbc1<T>,
     path: &Path,
     check_read_write: bool,
@@ -212,7 +211,7 @@ fn check_sar1_data(
     original_bytes: &[u8],
     check_read_write: bool,
 ) {
-    check_maybe_xbc1_data(data, path, check_read_write, original_bytes, check_sar1);
+    check_maybe_xbc1(data, path, check_read_write, original_bytes, check_sar1);
 }
 
 fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: bool) {
@@ -395,13 +394,21 @@ fn read_wismt_single_tex(path: &Path) -> (Vec<u8>, Mibl) {
     (decompressed, mibl_m)
 }
 
-fn check_dhal_data(
-    data: MaybeXbc1<Dhal>,
-    path: &Path,
-    original_bytes: &[u8],
-    check_read_write: bool,
-) {
-    check_maybe_xbc1_data(data, path, check_read_write, original_bytes, check_dhal);
+#[derive(BinRead)]
+enum Wilay {
+    Dhal(MaybeXbc1<Dhal>),
+    Lagp(MaybeXbc1<Lagp>),
+}
+
+fn check_wilay(data: Wilay, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+    match data {
+        Wilay::Dhal(data) => {
+            check_maybe_xbc1(data, path, check_read_write, original_bytes, check_dhal)
+        }
+        Wilay::Lagp(data) => {
+            check_maybe_xbc1(data, path, check_read_write, original_bytes, check_lagp)
+        }
+    }
 }
 
 fn check_dhal(dhal: Dhal, path: &Path, original_bytes: &[u8], check_read_write: bool) {
@@ -430,18 +437,35 @@ fn check_dhal(dhal: Dhal, path: &Path, original_bytes: &[u8], check_read_write: 
     }
 }
 
+fn check_lagp(lagp: Lagp, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+    if let Some(textures) = &lagp.textures {
+        for texture in &textures.textures {
+            let mibl = Mibl::from_bytes(&texture.mibl_data).unwrap();
+            check_mibl(mibl, path, &texture.mibl_data, check_read_write);
+        }
+    }
+
+    if check_read_write {
+        let mut writer = Cursor::new(Vec::new());
+        lagp.write(&mut writer).unwrap();
+        if writer.into_inner() != original_bytes {
+            println!("Lagp read/write not 1:1 for {path:?}");
+        }
+    }
+}
+
 #[derive(BinRead)]
-enum MxmdApmd {
+enum Wimdo {
     Mxmd(Mxmd),
     Apmd(Apmd),
 }
 
-fn check_mxmd_or_apmd(data: MxmdApmd, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+fn check_wimdo(data: Wimdo, path: &Path, original_bytes: &[u8], check_read_write: bool) {
     match data {
-        MxmdApmd::Mxmd(mxmd) => {
+        Wimdo::Mxmd(mxmd) => {
             check_mxmd(mxmd, path, original_bytes, check_read_write);
         }
-        MxmdApmd::Apmd(apmd) => {
+        Wimdo::Apmd(apmd) => {
             for entry in &apmd.entries {
                 // TODO: check inner data.
                 match entry.read_data() {

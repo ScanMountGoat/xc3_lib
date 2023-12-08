@@ -1,4 +1,13 @@
 //! User interface [Mibl](crate::mibl::Mibl) images in `.wilay` files.
+
+//! # File Paths
+//! Xenoblade 1 `.wilay` [Dhal] are in [Xbc1](crate::xbc1::Xbc1) archives.
+//!
+//! | Game | File Patterns |
+//! | --- | --- |
+//! | Xenoblade Chronicles 1 DE | `menu/image/*.wilay` |
+//! | Xenoblade Chronicles 2 | `menu/image/*.wilay` |
+//! | Xenoblade Chronicles 3 | `menu/image/*.wilay` |
 use std::io::Cursor;
 
 use crate::{
@@ -9,6 +18,7 @@ use binrw::{binread, BinRead, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 // TODO: LAGP files are similar?
+// TODO: LAPS files are similar?
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(magic(b"LAHD"))]
 #[xc3(magic(b"LAHD"))]

@@ -55,6 +55,7 @@ pub mod dhal;
 pub mod error;
 pub mod eva;
 pub mod hash;
+pub mod lagp;
 pub mod ltpc;
 pub mod map;
 pub mod mibl;
@@ -403,7 +404,8 @@ file_write_full_impl!(
     msmd::Msmd,
     dhal::Dhal,
     bc::Bc,
-    eva::Eva
+    eva::Eva,
+    lagp::Lagp
 );
 
 // TODO: Dedicated error types?
@@ -443,7 +445,8 @@ file_read_impl!(
     ltpc::Ltpc,
     apmd::Apmd,
     bc::Bc,
-    eva::Eva
+    eva::Eva,
+    lagp::Lagp
 );
 
 #[macro_export]
