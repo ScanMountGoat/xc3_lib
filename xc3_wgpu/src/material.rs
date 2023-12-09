@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use glam::{ivec4, uvec4, vec4, IVec4, UVec4, Vec4};
 use log::error;
 use wgpu::util::DeviceExt;
-use xc3_model::{ChannelAssignment, GBufferAssignment, GBufferAssignments};
+use xc3_model::{ChannelAssignment, GBufferAssignment, GBufferAssignments, ImageTexture};
 
 use crate::{
     pipeline::{model_pipeline, ModelPipelineData, PipelineKey},
@@ -24,11 +24,15 @@ pub struct Material {
     pub texture_count: usize,
 }
 
+// TODO: Create a special ID for unrecognized materials?
+const MAT_ID_PBR: f32 = (2.0 + 1.0) / 255.0;
+
 // Choose defaults that have as close to no effect as possible.
 // TODO: Make a struct for this instead?
+// TODO: Move these defaults to xc3_model?
 const GBUFFER_DEFAULTS: [Vec4; 6] = [
     Vec4::ONE,
-    Vec4::ZERO,
+    Vec4::new(0.0, 0.0, 0.0, MAT_ID_PBR),
     Vec4::new(0.5, 0.5, 1.0, 0.0),
     Vec4::ZERO,
     Vec4::new(1.0, 1.0, 1.0, 0.0),
@@ -72,6 +76,7 @@ pub fn materials(
     materials: &[xc3_model::Material],
     textures: &[wgpu::Texture],
     samplers: &[wgpu::Sampler],
+    image_textures: &[ImageTexture],
 ) -> (Vec<Material>, HashMap<PipelineKey, wgpu::RenderPipeline>) {
     // TODO: Is there a better way to handle missing textures?
     // TODO: Is it worth creating a separate shaders for each material?
@@ -95,7 +100,7 @@ pub fn materials(
         .iter()
         .map(|material| {
             // TODO: how to get access to the texture usage here?
-            let assignments = material.gbuffer_assignments();
+            let assignments = material.gbuffer_assignments(image_textures);
             let gbuffer_assignments = assignments
                 .as_ref()
                 .map(gbuffer_assignments)

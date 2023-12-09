@@ -4,7 +4,7 @@ use glam::{uvec4, Mat4, Vec3, Vec4};
 use log::info;
 use rayon::prelude::*;
 use wgpu::util::DeviceExt;
-use xc3_model::vertex::AttributeData;
+use xc3_model::{vertex::AttributeData, ImageTexture};
 
 use crate::{
     animation::animate_skeleton,
@@ -212,11 +212,16 @@ pub fn load_model(
     let mut groups = Vec::new();
     for root in roots {
         let textures = load_textures(device, queue, root);
-        groups.par_extend(
-            root.groups
-                .par_iter()
-                .map(|group| create_model_group(device, queue, group, &textures, &pipeline_data)),
-        );
+        groups.par_extend(root.groups.par_iter().map(|group| {
+            create_model_group(
+                device,
+                queue,
+                group,
+                &textures,
+                &root.image_textures,
+                &pipeline_data,
+            )
+        }));
     }
 
     info!("Load {} model groups: {:?}", roots.len(), start.elapsed());
@@ -230,6 +235,7 @@ fn load_textures(
     queue: &wgpu::Queue,
     root: &xc3_model::ModelRoot,
 ) -> Vec<wgpu::Texture> {
+    // TODO: Store the texture usage?
     root.image_textures
         .iter()
         .map(|texture| create_texture(device, queue, texture))
@@ -243,6 +249,7 @@ fn create_model_group(
     queue: &wgpu::Queue,
     group: &xc3_model::ModelGroup,
     textures: &[wgpu::Texture],
+    image_textures: &[ImageTexture],
     pipeline_data: &ModelPipelineData,
 ) -> ModelGroup {
     let buffers: Vec<_> = group
@@ -283,6 +290,7 @@ fn create_model_group(
                 &models.materials,
                 textures,
                 &samplers,
+                &image_textures,
             );
 
             let models = models

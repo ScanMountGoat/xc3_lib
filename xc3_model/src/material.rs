@@ -1,6 +1,10 @@
-use xc3_lib::mxmd::{Materials, ShaderUnkType, StateFlags};
+use log::warn;
+use xc3_lib::mxmd::{Materials, ShaderUnkType, StateFlags, TextureUsage};
 
-use crate::shader_database::{BufferParameter, Shader, Spch};
+use crate::{
+    shader_database::{BufferParameter, Shader, Spch},
+    ImageTexture,
+};
 
 /// See [Material](xc3_lib::mxmd::Material) and [FoliageMaterial](xc3_lib::map::FoliageMaterial).
 #[derive(Debug, Clone, PartialEq)]
@@ -195,11 +199,13 @@ fn read_param<const N: usize>(
 // TODO: create get methods for naming the outputs?
 /// Assignment information for the channels of each output.
 /// This includes channels from textures, material parameters, or shader constants.
+#[derive(Debug)]
 pub struct GBufferAssignments {
     pub assignments: [GBufferAssignment; 6],
 }
 
 // TODO: Add some sort of default?
+#[derive(Debug, Default)]
 pub struct GBufferAssignment {
     pub x: Option<ChannelAssignment>,
     pub y: Option<ChannelAssignment>,
@@ -207,6 +213,7 @@ pub struct GBufferAssignment {
     pub w: Option<ChannelAssignment>,
 }
 
+#[derive(Debug)]
 pub enum ChannelAssignment {
     Texture {
         material_texture_index: usize,
@@ -219,10 +226,66 @@ pub enum ChannelAssignment {
 // TODO: Test cases for this?
 impl Material {
     // TODO: Store these values instead of making them a method?
-    pub fn gbuffer_assignments(&self) -> Option<GBufferAssignments> {
+    pub fn gbuffer_assignments(&self, textures: &[ImageTexture]) -> Option<GBufferAssignments> {
         self.shader
             .as_ref()
             .map(|s| gbuffer_assignments(s, &self.parameters))
+            .or_else(|| {
+                warn!("Inferring assignments from texture types due to unrecognized shader");
+                self.infer_assignment_from_usage(textures)
+            })
+    }
+
+    fn infer_assignment_from_usage(&self, textures: &[ImageTexture]) -> Option<GBufferAssignments> {
+        // No assignment data is available.
+        // Guess reasonable defaults based on the texture types.
+        let assignment = |i: Option<usize>, c| {
+            i.map(|i| ChannelAssignment::Texture {
+                material_texture_index: i,
+                channel_index: c,
+            })
+        };
+
+        let color_index = self.textures.iter().position(|t| {
+            matches!(
+                textures[t.image_texture_index].usage,
+                Some(
+                    TextureUsage::Col
+                        | TextureUsage::Col2
+                        | TextureUsage::Col3
+                        | TextureUsage::Col4
+                )
+            )
+        });
+
+        // This may only have two channels since BC5 is common.
+        let normal_index = self.textures.iter().position(|t| {
+            matches!(
+                textures[t.image_texture_index].usage,
+                Some(TextureUsage::Nrm | TextureUsage::Nrm2)
+            )
+        });
+
+        Some(GBufferAssignments {
+            assignments: [
+                GBufferAssignment {
+                    x: assignment(color_index, 0),
+                    y: assignment(color_index, 1),
+                    z: assignment(color_index, 2),
+                    w: assignment(color_index, 3),
+                },
+                GBufferAssignment::default(),
+                GBufferAssignment {
+                    x: assignment(normal_index, 0),
+                    y: assignment(normal_index, 1),
+                    z: None,
+                    w: None,
+                },
+                GBufferAssignment::default(),
+                GBufferAssignment::default(),
+                GBufferAssignment::default(),
+            ],
+        })
     }
 }
 
