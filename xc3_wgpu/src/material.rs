@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
-use glam::{ivec4, uvec4, IVec4, UVec4, Vec4};
+use glam::{ivec4, uvec4, vec4, IVec4, UVec4, Vec4};
 use log::error;
 use wgpu::util::DeviceExt;
+use xc3_model::{ChannelAssignment, GBufferAssignment, GBufferAssignments};
 
 use crate::{
     pipeline::{model_pipeline, ModelPipelineData, PipelineKey},
@@ -34,6 +35,7 @@ const GBUFFER_DEFAULTS: [Vec4; 6] = [
     Vec4::ZERO,
 ];
 
+// TODO: This can be simplified if texture usage is included?
 // We can only assume that the first texture is probably albedo.
 const DEFAULT_GBUFFER_ASSIGNMENTS: [crate::shader::model::GBufferAssignment; 6] = [
     crate::shader::model::GBufferAssignment {
@@ -92,16 +94,16 @@ pub fn materials(
     let materials = materials
         .iter()
         .map(|material| {
-            let gbuffer_assignments = material
-                .shader
+            // TODO: how to get access to the texture usage here?
+            let assignments = material.gbuffer_assignments();
+            let gbuffer_assignments = assignments
                 .as_ref()
-                .map(parse_gbuffer_assignments)
+                .map(gbuffer_assignments)
                 .unwrap_or(DEFAULT_GBUFFER_ASSIGNMENTS);
 
-            let gbuffer_defaults = material
-                .shader
+            let gbuffer_defaults = assignments
                 .as_ref()
-                .map(|s| parse_gbuffer_params_consts(s, &material.parameters))
+                .map(gbuffer_defaults)
                 .unwrap_or(GBUFFER_DEFAULTS);
 
             let mut texture_views: [Option<_>; 10] = std::array::from_fn(|_| None);
@@ -198,81 +200,56 @@ pub fn materials(
     (materials, pipelines)
 }
 
-// TODO: submodule for this?
-// TODO: Store this information already parsed in the JSON?
 // TODO: Test cases for this
-fn parse_gbuffer_assignments(
-    shader: &xc3_model::shader_database::Shader,
+fn gbuffer_assignments(
+    assignments: &GBufferAssignments,
 ) -> [crate::shader::model::GBufferAssignment; 6] {
-    [0, 1, 2, 3, 4, 5].map(|i| {
-        // Each output channel may have a different input sampler and channel.
-        // TODO: How to properly handle missing assignment information?
-        // TODO: How to encode constants and buffer values?
-        let (s0, c0) = shader
-            .sampler_channel_index(i, 'x')
-            .map(|(s, c)| (s as i32, c))
-            .unwrap_or((-1, 0));
-
-        let (s1, c1) = shader
-            .sampler_channel_index(i, 'y')
-            .map(|(s, c)| (s as i32, c))
-            .unwrap_or((-1, 0));
-
-        let (s2, c2) = shader
-            .sampler_channel_index(i, 'z')
-            .map(|(s, c)| (s as i32, c))
-            .unwrap_or((-1, 0));
-
-        let (s3, c3) = shader
-            .sampler_channel_index(i, 'w')
-            .map(|(s, c)| (s as i32, c))
-            .unwrap_or((-1, 0));
-
-        crate::shader::model::GBufferAssignment {
-            sampler_indices: ivec4(s0, s1, s2, s3),
-            channel_indices: uvec4(c0 as u32, c1 as u32, c2 as u32, c3 as u32),
-        }
-    })
+    // Each output channel may have a different input sampler and channel.
+    [0, 1, 2, 3, 4, 5].map(|i| gbuffer_assignment(&assignments.assignments[i]))
 }
 
-fn parse_gbuffer_params_consts(
-    shader: &xc3_model::shader_database::Shader,
-    parameters: &xc3_model::MaterialParameters,
-) -> [Vec4; 6] {
-    [0, 1, 2, 3, 4, 5].map(|i| {
-        Vec4::new(
-            param_const_or_default(shader, parameters, i, 0),
-            param_const_or_default(shader, parameters, i, 1),
-            param_const_or_default(shader, parameters, i, 2),
-            param_const_or_default(shader, parameters, i, 3),
-        )
-    })
+fn gbuffer_assignment(a: &GBufferAssignment) -> crate::shader::model::GBufferAssignment {
+    let (s0, c0) = texture_channel_assignment(a.x.as_ref()).unwrap_or((-1, 0));
+    let (s1, c1) = texture_channel_assignment(a.y.as_ref()).unwrap_or((-1, 1));
+    let (s2, c2) = texture_channel_assignment(a.z.as_ref()).unwrap_or((-1, 2));
+    let (s3, c3) = texture_channel_assignment(a.w.as_ref()).unwrap_or((-1, 3));
+
+    crate::shader::model::GBufferAssignment {
+        sampler_indices: ivec4(s0, s1, s2, s3),
+        channel_indices: uvec4(c0, c1, c2, c3),
+    }
 }
 
-// TODO: Tests for this?
-fn param_const_or_default(
-    shader: &xc3_model::shader_database::Shader,
-    parameters: &xc3_model::MaterialParameters,
-    i: usize,
-    c: usize,
-) -> f32 {
-    let channel = ['x', 'y', 'z', 'w'][c];
-    shader
-        .buffer_parameter(i, channel)
-        .and_then(|p| extract_parameter(p, parameters))
-        .or_else(|| shader.float_constant(i, channel))
-        .unwrap_or(GBUFFER_DEFAULTS[i][c])
+fn texture_channel_assignment(assignment: Option<&ChannelAssignment>) -> Option<(i32, u32)> {
+    if let Some(ChannelAssignment::Texture {
+        material_texture_index,
+        channel_index,
+    }) = assignment
+    {
+        Some((*material_texture_index as i32, *channel_index as u32))
+    } else {
+        None
+    }
 }
 
-fn extract_parameter(
-    p: xc3_model::shader_database::BufferParameter,
-    parameters: &xc3_model::MaterialParameters,
-) -> Option<f32> {
-    let c = "xyzw".find(p.channel).unwrap();
-    match (p.buffer.as_str(), p.uniform.as_str()) {
-        ("U_Mate", "gWrkFl4") => Some(parameters.work_float4.as_ref()?.get(p.index)?[c]),
-        ("U_Mate", "gWrkCol") => Some(parameters.work_color.as_ref()?.get(p.index)?[c]),
-        _ => None,
+fn gbuffer_defaults(assignments: &GBufferAssignments) -> [Vec4; 6] {
+    [0, 1, 2, 3, 4, 5].map(|i| gbuffer_default(&assignments.assignments[i], i))
+}
+
+fn gbuffer_default(a: &GBufferAssignment, i: usize) -> Vec4 {
+    vec4(
+        value_channel_assignment(a.x.as_ref()).unwrap_or(GBUFFER_DEFAULTS[i][0]),
+        value_channel_assignment(a.y.as_ref()).unwrap_or(GBUFFER_DEFAULTS[i][1]),
+        value_channel_assignment(a.z.as_ref()).unwrap_or(GBUFFER_DEFAULTS[i][2]),
+        value_channel_assignment(a.w.as_ref()).unwrap_or(GBUFFER_DEFAULTS[i][3]),
+    )
+}
+
+fn value_channel_assignment(assignment: Option<&ChannelAssignment>) -> Option<f32> {
+    if let Some(ChannelAssignment::Value(f)) = assignment {
+        Some(*f)
+    } else {
+        None
     }
 }
 

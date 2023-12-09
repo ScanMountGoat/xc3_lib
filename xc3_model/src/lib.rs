@@ -48,7 +48,10 @@ use xc3_lib::{
 };
 
 pub use map::load_map;
-pub use material::{Material, MaterialParameters, Texture, TextureAlphaTest};
+pub use material::{
+    ChannelAssignment, GBufferAssignment, GBufferAssignments, Material, MaterialParameters,
+    Texture, TextureAlphaTest,
+};
 pub use sampler::{AddressMode, FilterMode, Sampler};
 pub use skeleton::{Bone, Skeleton};
 pub use texture::{ImageFormat, ImageTexture, ViewDimension};

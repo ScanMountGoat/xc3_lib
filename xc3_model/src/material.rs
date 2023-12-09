@@ -1,6 +1,6 @@
 use xc3_lib::mxmd::{Materials, ShaderUnkType, StateFlags};
 
-use crate::shader_database::{Shader, Spch};
+use crate::shader_database::{BufferParameter, Shader, Spch};
 
 /// See [Material](xc3_lib::mxmd::Material) and [FoliageMaterial](xc3_lib::map::FoliageMaterial).
 #[derive(Debug, Clone, PartialEq)]
@@ -56,7 +56,7 @@ impl Default for MaterialParameters {
 }
 
 /// Selects an [ImageTexture] and [Sampler].
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Texture {
     /// The index of the [ImageTexture] in [image_textures](struct.ModelRoot.html#structfield.image_textures).
     pub image_texture_index: usize,
@@ -190,4 +190,100 @@ fn read_param<const N: usize>(
         .take(param.count as usize)
         .map(|v| v.try_into().unwrap())
         .collect()
+}
+
+// TODO: create get methods for naming the outputs?
+/// Assignment information for the channels of each output.
+/// This includes channels from textures, material parameters, or shader constants.
+pub struct GBufferAssignments {
+    pub assignments: [GBufferAssignment; 6],
+}
+
+// TODO: Add some sort of default?
+pub struct GBufferAssignment {
+    pub x: Option<ChannelAssignment>,
+    pub y: Option<ChannelAssignment>,
+    pub z: Option<ChannelAssignment>,
+    pub w: Option<ChannelAssignment>,
+}
+
+pub enum ChannelAssignment {
+    Texture {
+        material_texture_index: usize,
+        channel_index: usize,
+    },
+    Value(f32),
+}
+
+// TODO: also include the texture usage as a fallback?
+// TODO: Test cases for this?
+impl Material {
+    // TODO: Store these values instead of making them a method?
+    pub fn gbuffer_assignments(&self) -> Option<GBufferAssignments> {
+        self.shader
+            .as_ref()
+            .map(|s| gbuffer_assignments(s, &self.parameters))
+    }
+}
+
+fn gbuffer_assignments(shader: &Shader, parameters: &MaterialParameters) -> GBufferAssignments {
+    GBufferAssignments {
+        assignments: [0, 1, 2, 3, 4, 5].map(|i| gbuffer_assignment(shader, parameters, i)),
+    }
+}
+
+fn gbuffer_assignment(
+    shader: &Shader,
+    parameters: &MaterialParameters,
+    output_index: usize,
+) -> GBufferAssignment {
+    GBufferAssignment {
+        x: channel_assignment(shader, parameters, output_index, 0),
+        y: channel_assignment(shader, parameters, output_index, 1),
+        z: channel_assignment(shader, parameters, output_index, 2),
+        w: channel_assignment(shader, parameters, output_index, 3),
+    }
+}
+
+fn channel_assignment(
+    shader: &Shader,
+    parameters: &MaterialParameters,
+    output_index: usize,
+    channel_index: usize,
+) -> Option<ChannelAssignment> {
+    // TODO: constant -> texture -> texture usage -> None?
+    let channel = ['x', 'y', 'z', 'w'][channel_index];
+    param_or_const(shader, parameters, output_index, channel_index)
+        .map(ChannelAssignment::Value)
+        .or_else(|| {
+            shader
+                .sampler_channel_index(output_index, channel)
+                .map(|(s, c)| ChannelAssignment::Texture {
+                    material_texture_index: s,
+                    channel_index: c,
+                })
+        })
+}
+
+// TODO: Tests for this?
+fn param_or_const(
+    shader: &Shader,
+    parameters: &MaterialParameters,
+    i: usize,
+    c: usize,
+) -> Option<f32> {
+    let channel = ['x', 'y', 'z', 'w'][c];
+    shader
+        .buffer_parameter(i, channel)
+        .and_then(|p| extract_parameter(p, parameters))
+        .or_else(|| shader.float_constant(i, channel))
+}
+
+fn extract_parameter(p: BufferParameter, parameters: &MaterialParameters) -> Option<f32> {
+    let c = "xyzw".find(p.channel).unwrap();
+    match (p.buffer.as_str(), p.uniform.as_str()) {
+        ("U_Mate", "gWrkFl4") => Some(parameters.work_float4.as_ref()?.get(p.index)?[c]),
+        ("U_Mate", "gWrkCol") => Some(parameters.work_color.as_ref()?.get(p.index)?[c]),
+        _ => None,
+    }
 }
