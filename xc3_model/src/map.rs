@@ -71,7 +71,7 @@ pub fn load_map<P: AsRef<Path>>(
             // TODO: Do all textures load a separate base mip level?
             let mut wismda = Cursor::new(&wismda);
             let mibl_m = texture.mid.extract(&mut wismda, compressed).unwrap();
-            ImageTexture::from_mibl(&mibl_m, None).unwrap()
+            ImageTexture::from_mibl(&mibl_m, None, None).unwrap()
         })
         .collect();
 

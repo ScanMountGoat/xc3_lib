@@ -10,6 +10,7 @@ use xc3_lib::{
 };
 
 pub use xc3_lib::mibl::{ImageFormat, ViewDimension};
+pub use xc3_lib::mxmd::TextureUsage;
 
 use crate::StreamingData;
 
@@ -32,6 +33,9 @@ pub struct ImageTexture {
     /// This will typically be [None]
     /// and can not be used for reliably identifying textures.
     pub name: Option<String>,
+    /// Hints on how the texture is used.
+    /// Actual usage is determined by the shader code.
+    pub usage: Option<TextureUsage>,
     /// The width of the base mip level in pixels.
     pub width: u32,
     /// The height of the base mip level in pixels.
@@ -50,10 +54,17 @@ pub struct ImageTexture {
 
 impl ImageTexture {
     /// Deswizzle the data from `mibl`.
+    ///
     /// The `name` is not required but creates more descriptive file names and debug information.
-    pub fn from_mibl(mibl: &Mibl, name: Option<String>) -> Result<Self, SwizzleError> {
+    /// The `usage` improves the accuracy of texture assignments if the shader database is not specified.
+    pub fn from_mibl(
+        mibl: &Mibl,
+        name: Option<String>,
+        usage: Option<TextureUsage>,
+    ) -> Result<Self, SwizzleError> {
         Ok(Self {
             name,
+            usage,
             width: mibl.footer.width,
             height: mibl.footer.height,
             depth: mibl.footer.depth,
@@ -69,6 +80,7 @@ impl ImageTexture {
         base_mip_level: Vec<u8>,
         mibl_m: Mibl,
         name: Option<String>,
+        usage: Option<TextureUsage>,
     ) -> Result<Self, SwizzleError> {
         // TODO: double depth?
         let width = mibl_m.footer.width * 2;
@@ -78,6 +90,7 @@ impl ImageTexture {
         let image_data = mibl_m.deswizzle_image_data_base_mip(base_mip_level)?;
         Ok(ImageTexture {
             name,
+            usage,
             width,
             height,
             depth,
@@ -90,7 +103,7 @@ impl ImageTexture {
 
     pub fn from_packed_texture(texture: &PackedTexture) -> Result<Self, CreateImageTextureError> {
         let mibl = Mibl::from_bytes(&texture.mibl_data)?;
-        Self::from_mibl(&mibl, Some(texture.name.clone())).map_err(Into::into)
+        Self::from_mibl(&mibl, Some(texture.name.clone()), Some(texture.usage)).map_err(Into::into)
     }
 
     pub fn to_image(&self) -> Result<image_dds::image::RgbaImage, Box<dyn Error>> {
@@ -122,9 +135,11 @@ impl ImageTexture {
     pub fn from_surface<T: AsRef<[u8]>>(
         surface: Surface<T>,
         name: Option<String>,
+        usage: Option<TextureUsage>,
     ) -> Result<Self, Box<dyn Error>> {
         Ok(Self {
             name,
+            usage,
             width: surface.width,
             height: surface.height,
             depth: surface.depth,
@@ -141,8 +156,12 @@ impl ImageTexture {
         })
     }
 
-    pub fn from_dds(dds: &Dds, name: Option<String>) -> Result<Self, Box<dyn Error>> {
-        Self::from_surface(Surface::from_dds(dds)?, name)
+    pub fn from_dds(
+        dds: &Dds,
+        name: Option<String>,
+        usage: Option<TextureUsage>,
+    ) -> Result<Self, Box<dyn Error>> {
+        Self::from_surface(Surface::from_dds(dds)?, name, usage)
     }
 
     // TODO: to_mibl?
@@ -209,6 +228,7 @@ pub fn load_textures(
                                                     ImageTexture::from_dds(
                                                         dds,
                                                         Some(texture.name.clone()),
+                                                        Some(texture.usage),
                                                     )
                                                     .unwrap()
                                                 })
@@ -219,6 +239,7 @@ pub fn load_textures(
                                         ImageTexture::from_dds(
                                             &low_textures[i],
                                             Some(texture.name.clone()),
+                                            Some(texture.usage),
                                         )
                                         .unwrap()
                                     })
@@ -239,7 +260,7 @@ pub fn load_textures(
                             &data[offset as usize..offset as usize + t.mibl_length as usize],
                         )
                         .unwrap();
-                        ImageTexture::from_mibl(&mibl, Some(t.name.clone())).unwrap()
+                        ImageTexture::from_mibl(&mibl, Some(t.name.clone()), Some(t.usage)).unwrap()
                     })
                     .collect()
             }
@@ -270,6 +291,7 @@ fn load_chr_tex_texture(
         Xbc1::from_file(h_texture_folder.join(texture_name).with_extension("wismt"))?
             .decompress()?;
 
-    ImageTexture::from_mibl_base_mip(base_mip_level, mibl_m, Some(texture_name.to_string()))
+    // TODO: Get usage from the base resolution texture?
+    ImageTexture::from_mibl_base_mip(base_mip_level, mibl_m, Some(texture_name.to_string()), None)
         .map_err(Into::into)
 }

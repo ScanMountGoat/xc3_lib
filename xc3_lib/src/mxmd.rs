@@ -1055,12 +1055,14 @@ pub struct PackedExternalTextures {
 #[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
 #[brw(repr(u32))]
 pub enum TextureUsage {
+    Unk0 = 0,
     /// MTL, AMB, GLO, SHY, MASK, SPC, DPT, VEL, temp0001, ...
     Temp = 1048576,
     Nrm = 1179648,
     WavePlus = 136314882,
     Col = 2097152,
     Alp = 2228224,
+    Unk = 268435456,
     Alp2 = 269484032,
     Col3 = 270532608,
     Alp3 = 273678336,
@@ -1069,11 +1071,12 @@ pub enum TextureUsage {
     Unk3 = 274857984,
     Unk2 = 275775488,
     F01 = 403701762, // 3D?
+    Unk4 = 4194304,
     /// AO, OCL2, temp0000, temp0001, ...
     Temp2 = 537919488,
     Col5 = 538968064,
     Alp4 = 539099136,
-    Unk = 807403520,
+    Unk5 = 807403520,
     VolTex = 811597824,
 }
 

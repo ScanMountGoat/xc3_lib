@@ -191,7 +191,6 @@ pub struct TextureResources {
 pub struct ChrTexTexture {
     // TODO: The texture name hash as an integer for xc3?
     pub hash: u32,
-    // TODO: related to packed texture unk1?
     pub unk2: u32,
     pub unk3: u32,
     pub unk4: u32,
