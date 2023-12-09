@@ -1019,7 +1019,7 @@ pub struct PackedTextures {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(import_raw(base_offset: u64))]
 pub struct PackedTexture {
-    pub unk1: u32,
+    pub usage: TextureUsage,
 
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
@@ -1049,10 +1049,38 @@ pub struct PackedExternalTextures {
     pub strings_offset: u32,
 }
 
+// TODO: Use these for default assignments without database?
+/// Hints on how the texture is used.
+/// Actual usage is determined by the shader.
+#[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
+#[brw(repr(u32))]
+pub enum TextureUsage {
+    /// MTL, AMB, GLO, SHY, MASK, SPC, DPT, VEL, temp0001, ...
+    Temp = 1048576,
+    Nrm = 1179648,
+    WavePlus = 136314882,
+    Col = 2097152,
+    Alp = 2228224,
+    Alp2 = 269484032,
+    Col3 = 270532608,
+    Alp3 = 273678336,
+    Nrm2 = 273809408,
+    Col4 = 274726912,
+    Unk3 = 274857984,
+    Unk2 = 275775488,
+    F01 = 403701762, // 3D?
+    /// AO, OCL2, temp0000, temp0001, ...
+    Temp2 = 537919488,
+    Col5 = 538968064,
+    Alp4 = 539099136,
+    Unk = 807403520,
+    VolTex = 811597824,
+}
+
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(import_raw(base_offset: u64))]
 pub struct PackedExternalTexture {
-    pub unk1: u32,
+    pub usage: TextureUsage,
 
     // TODO: These offsets are for different places for maps and characters?
     pub mibl_length: u32,
@@ -1300,7 +1328,8 @@ xc3_write_binwrite_impl!(
     ShaderUnkType,
     StateFlags,
     ModelsFlags,
-    SamplerFlags
+    SamplerFlags,
+    TextureUsage
 );
 
 impl Xc3Write for MaterialFlags {
