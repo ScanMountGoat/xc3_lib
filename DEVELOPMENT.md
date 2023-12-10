@@ -50,8 +50,9 @@ The rendering can be tested by batch rendering files to PNG. This tests xc3_lib,
  Files can be extracted from a dump of the game by dumping the romfs from Yuzu or Ryujinx and then dumping the ard and arh archive files using [XbTool](https://github.com/AlexCSDev/XbTool/releases).
  
 ### Xenoblade Chronicles 2
-Files can be loaded without repacking the ard and arh files by using a romfs mod with the DLC. This also includes the free language pack DLC. 
-The files should match the folder structure of the archive and use the title ID of the DLC like `yuzu/load/modded files/model/bl/bl000101.arc`.
+Files can be loaded without repacking the ard and arh files by using a romfs mod with the DLC. This also includes the free language pack DLC. The files should match the folder structure of the archive and use the title ID of the DLC. Example paths for the free Japanese voice DLC (0100E95004039063) for the US version of the game are listed below.  
+`yuzu/load/0100E95004039063/modded files/monolib/shader/lib_nx.ini`  
+`Ryujinx/mods/contents/0100E95004039063/romfs/monolib/shader/lib_nx.ini`  
 
 ### Xenoblade Chronicles 3
 The easiest way to test files is using an emulator like Ryujinx and the [xc3-file-loader](https://github.com/RoccoDev/xc3-file-loader) plugin for loading modded files.
