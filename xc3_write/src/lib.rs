@@ -400,6 +400,8 @@ where
     fn should_write(&self) -> Option<bool> {
         self.as_ref().map(|_| true)
     }
+
+    const ALIGNMENT: u64 = T::ALIGNMENT;
 }
 
 impl<T> Xc3WriteOffsets for Option<T>

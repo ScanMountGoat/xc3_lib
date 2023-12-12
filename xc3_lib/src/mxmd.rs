@@ -26,9 +26,11 @@ pub struct Mxmd {
     #[br(assert(version == 10111 || version == 10112))]
     pub version: u32,
 
+    // TODO: only aligned to 16 for 10112?
+    // TODO: support expressions for alignment?
     /// A collection of [Model] and associated data.
-    #[br(parse_with = parse_ptr32)]
-    #[xc3(offset(u32))]
+    #[br(parse_with = parse_ptr32, args { inner: version })]
+    #[xc3(offset(u32), align(16))]
     pub models: Models,
 
     /// A collection of [Material] and associated data.
@@ -63,9 +65,10 @@ pub struct Mxmd {
     pub streaming: Option<Streaming<TextureStream>>,
 
     // TODO: padding?
-    pub unk: [u32; 10],
+    pub unk: [u32; 9],
 }
 
+// TODO: 108 bytes for xc2 and 112 bytes for xc3?
 /// A collection of [Material], [Sampler], and material parameters.
 #[binread]
 #[derive(Debug, Xc3Write)]
@@ -98,7 +101,7 @@ pub struct Materials {
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(offset(u32))]
-    pub model_unk1: Option<MaterialUnk1>, // callbacks?
+    pub material_unk1: Option<MaterialUnk1>, // callbacks?
 
     // TODO: is this ever not 0?
     pub unk4: u32,
@@ -121,7 +124,7 @@ pub struct Materials {
     pub samplers: Option<Samplers>,
 
     // TODO: padding?
-    pub unks4: [u32; 4],
+    pub unks4: [u32; 3],
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -467,21 +470,26 @@ pub struct Texture {
 }
 
 // TODO: variable size?
+// xc1: 160, 164, 168 bytes
+// xc2: 160 bytes
+// xc3: 160, 164, 168, 200, 204 bytes
 /// A collection of [Model] as well as skinning and animation information.
 #[binread]
 #[derive(Debug, Xc3Write)]
 #[br(stream = r)]
+#[br(import_raw(version: u32))]
 #[xc3(base_offset)]
 pub struct Models {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    // TODO: not present in older version
-    pub models_flags: ModelsFlags,
+    #[br(if(version > 10111))]
+    pub models_flags: Option<ModelsFlags>,
 
     pub max_xyz: [f32; 3],
     pub min_xyz: [f32; 3],
 
+    // TODO: temp?
     #[br(restore_position)]
     #[xc3(skip)]
     pub models_offset: u32,
@@ -532,7 +540,7 @@ pub struct Models {
     pub model_unk3: Option<ModelUnk3>,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
+    #[xc3(offset(u32), align(16))]
     pub lod_data: Option<LodData>,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
@@ -546,30 +554,29 @@ pub struct Models {
     // #[xc3(offset_count(u32, u32))]
     // pub model_unk9: Vec<ModelUnk9>,
     pub model_unk9: [u32; 2],
-
     // TODO: What controls the up to 44 optional bytes?
     // TODO: How to estimate models offset from these fields?
     // offset 160
-    #[br(parse_with = parse_opt_ptr32)]
-    #[br(args { offset: base_offset, inner: base_offset })]
-    #[br(if(models_offset > 160))]
-    #[xc3(offset(u32))]
-    pub model_unk10: Option<ModelUnk10>,
+    // #[br(parse_with = parse_opt_ptr32)]
+    // #[br(args { offset: base_offset, inner: base_offset })]
+    // #[br(if(models_offset > 160))]
+    // #[xc3(offset(u32))]
+    // pub model_unk10: Option<ModelUnk10>,
 
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[br(if(models_offset > 164))]
-    #[xc3(offset(u32))]
-    pub model_unk5: Option<ModelUnk5>,
+    // #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    // #[br(if(models_offset > 164))]
+    // #[xc3(offset(u32))]
+    // pub model_unk5: Option<ModelUnk5>,
 
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
-    #[br(if(models_offset > 168))]
-    pub model_unk6: Option<ModelUnk6>,
+    // #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    // #[xc3(offset(u32))]
+    // #[br(if(models_offset > 168))]
+    // pub model_unk6: Option<ModelUnk6>,
 
-    // TODO: padding?
-    // TODO: add asserts to all padding fields
-    #[br(if(models_offset > 200))]
-    pub unk: [u32; 8],
+    // // TODO: padding?
+    // // TODO: add asserts to all padding fields
+    // #[br(if(models_offset > 200))]
+    // pub unk: [u32; 8],
 }
 
 /// A collection of meshes where each [Mesh] represents one draw call.
@@ -672,9 +679,9 @@ pub struct MorphControllers {
     controllers: Vec<MorphController>,
 
     unk1: u32,
-    unk2: u32,
-    unk3: u32,
-    unk4: u32,
+
+    // TODO: padding?
+    unk: [u32; 3],
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -688,11 +695,13 @@ pub struct MorphController {
     #[xc3(offset(u32))]
     name2: Option<String>,
 
-    unk1: u32,
-    unk2: u32,
-    unk3: u32,
-    unk4: u32,
-    unk5: u32,
+    unk1: u16,
+    unk2: u16, // index?
+    unk3: u16, // 0?
+    unk4: u16,
+
+    // TODO: padding?
+    unk: [u32; 3],
 }
 
 #[binread]
@@ -705,27 +714,25 @@ pub struct ModelUnk3 {
 
     #[br(parse_with = parse_count32_offset32, args { offset: base_offset, inner: base_offset })]
     #[xc3(count_offset(u32, u32))]
-    pub items: Vec<ModelUnk3Inner>,
+    pub items: Vec<ModelUnk3Item>,
 
     // TODO: padding?
     pub unk: [u32; 4],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write)]
 #[br(import_raw(base_offset: u64))]
-pub struct ModelUnk3Inner {
+pub struct ModelUnk3Item {
     // DECL_GBL_CALC
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub name: String,
-
-    pub unk1: u32,
+    pub unk1: u32, // 0?
     pub unk2: u32,
-    pub unk3: u32,
-    pub unk4: u32,
-    pub unk5: u32,
-    pub unk6: u32,
-    pub unk7: u32,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk3: Vec<u16>,
 }
 
 #[binread]
@@ -890,12 +897,13 @@ pub struct ModelUnk1 {
     // flags?
     pub unk4: u32,
     pub unk5: u32,
-
+    // TODO: not present for xc2?
     // TODO: Is this the correct check?
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
-    #[br(if(unk4 != 0 || unk5 != 0))]
-    pub unk_inner: Option<ModelUnk1Inner>,
+    // #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    // #[xc3(offset(u32))]
+    // #[br(if(unk4 != 0 || unk5 != 0))]
+    // pub unk_inner: Option<ModelUnk1Inner>,
+
     // TODO: padding if unk_inner?
     // TODO: only 12 bytes for chr/ch/ch01022012.wimdo?
 }
@@ -954,11 +962,11 @@ pub struct LodData {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    pub unk1: u32,
+    pub unk1: u32, // 0?
 
     // TODO: Count related to number of mesh lod values?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset_count(u32, u32))]
+    #[xc3(offset_count(u32, u32), align(8))]
     pub items1: Vec<LodItem1>,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
@@ -1050,6 +1058,7 @@ pub struct PackedExternalTextures {
 }
 
 // TODO: Use these for default assignments without database?
+// TODO: Possible to guess temp texture channels?
 /// Hints on how the texture is used.
 /// Actual usage is determined by the shader.
 #[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1058,6 +1067,7 @@ pub enum TextureUsage {
     Unk0 = 0,
     /// MTL, AMB, GLO, SHY, MASK, SPC, DPT, VEL, temp0001, ...
     Temp = 1048576,
+    Unk6 = 1074790400,
     Nrm = 1179648,
     WavePlus = 136314882,
     Col = 2097152,
@@ -1065,6 +1075,7 @@ pub enum TextureUsage {
     Unk = 268435456,
     Alp2 = 269484032,
     Col2 = 270532608,
+    Unk8 = 272629760,
     Alp3 = 273678336,
     Nrm2 = 273809408,
     Col3 = 274726912,
@@ -1072,6 +1083,7 @@ pub enum TextureUsage {
     Unk2 = 275775488,
     F01 = 403701762, // 3D?
     Unk4 = 4194304,
+    Unk7 = 536870912,
     /// AO, OCL2, temp0000, temp0001, ...
     Temp2 = 537919488,
     Col4 = 538968064,
@@ -1122,9 +1134,13 @@ pub struct Skinning {
     #[xc3(offset(u32), align(16))]
     pub inverse_bind_transforms: Vec<[[f32; 4]; 4]>,
 
+    // TODO: Possible to calcualte count directly?
+    #[br(temp, restore_position)]
+    offsets: [u32; 2],
+
     // TODO: Count related to bone unk_type?
     #[br(parse_with = parse_opt_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: 0 } })]
+    #[br(args { offset: base_offset, inner: args! { count: (offsets[1] - offsets[0]) as usize / 16 } })]
     #[xc3(offset(u32))]
     pub transforms2: Option<Vec<[f32; 4]>>,
 
@@ -1152,12 +1168,12 @@ pub struct Skinning {
     #[br(if(transforms3.is_some()))]
     #[xc3(offset(u32))]
     pub unk_offset5: Option<SkeletonUnk5>,
-
+    // TODO: not present in xc2?
     // TODO: procedural bones?
-    #[br(parse_with = parse_opt_ptr32, args { offset: base_offset, inner: base_offset })]
-    #[br(if(!bone_indices.is_empty()))]
-    #[xc3(offset(u32))]
-    pub as_bone_data: Option<AsBoneData>,
+    // #[br(parse_with = parse_opt_ptr32, args { offset: base_offset, inner: base_offset })]
+    // #[br(if(!bone_indices.is_empty()))]
+    // #[xc3(offset(u32))]
+    // pub as_bone_data: Option<AsBoneData>,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -1359,14 +1375,19 @@ impl<'a> Xc3WriteOffsets for SkinningOffsets<'a> {
         let base_offset = self.base_offset;
 
         // TODO: variable padding?
-        if self.as_bone_data.data.is_some() || self.unk_offset5.data.is_some() {
+        // if self.as_bone_data.data.is_some() || self.unk_offset5.data.is_some() {
+        //     *data_ptr += 16;
+        // }
+        if self.unk_offset5.data.is_some() {
             *data_ptr += 16;
         }
 
         let bones = self.bones.write_offset(writer, base_offset, data_ptr)?;
 
-        self.bone_indices
-            .write_full(writer, base_offset, data_ptr)?;
+        if !self.bone_indices.data.is_empty() {
+            self.bone_indices
+                .write_full(writer, base_offset, data_ptr)?;
+        }
 
         self.inverse_bind_transforms
             .write_full(writer, base_offset, data_ptr)?;
@@ -1376,8 +1397,8 @@ impl<'a> Xc3WriteOffsets for SkinningOffsets<'a> {
 
         self.unk_offset4.write_full(writer, base_offset, data_ptr)?;
 
-        self.as_bone_data
-            .write_full(writer, base_offset, data_ptr)?;
+        // self.as_bone_data
+        //     .write_full(writer, base_offset, data_ptr)?;
 
         self.unk_offset5.write_full(writer, base_offset, data_ptr)?;
 
@@ -1399,25 +1420,29 @@ impl<'a> Xc3WriteOffsets for ModelUnk1Offsets<'a> {
         let base_offset = self.base_offset;
 
         // TODO: variable padding?
-        if self.unk_inner.data.is_some() {
-            *data_ptr += 16;
-        }
+        // if self.unk_inner.data.is_some() {
+        //     *data_ptr += 16;
+        // }
 
         let items1 = self.items1.write_offset(writer, base_offset, data_ptr)?;
 
         self.items3.write_full(writer, base_offset, data_ptr)?;
 
-        self.items2.write_full(writer, base_offset, data_ptr)?;
+        if !self.items2.data.is_empty() {
+            self.items2.write_full(writer, base_offset, data_ptr)?;
+        }
 
         // TODO: Set alignment at type level for Xc3Write?
         // *data_ptr = round_up(*data_ptr, 16);
-        self.items4.write_full(writer, base_offset, data_ptr)?;
+        if !self.items4.data.is_empty() {
+            self.items4.write_full(writer, base_offset, data_ptr)?;
+        }
 
         for item in items1.0 {
             item.name.write_full(writer, base_offset, data_ptr)?;
         }
 
-        self.unk_inner.write_full(writer, base_offset, data_ptr)?;
+        // self.unk_inner.write_full(writer, base_offset, data_ptr)?;
 
         Ok(())
     }
@@ -1466,8 +1491,8 @@ impl<'a> Xc3WriteOffsets for ModelsOffsets<'a> {
         self.model_unk1.write_full(writer, base_offset, data_ptr)?;
         self.model_unk4.write_full(writer, base_offset, data_ptr)?;
         self.model_unk3.write_full(writer, base_offset, data_ptr)?;
-        self.model_unk5.write_full(writer, base_offset, data_ptr)?;
-        self.model_unk6.write_full(writer, base_offset, data_ptr)?;
+        // self.model_unk5.write_full(writer, base_offset, data_ptr)?;
+        // self.model_unk6.write_full(writer, base_offset, data_ptr)?;
 
         Ok(())
     }
@@ -1530,7 +1555,8 @@ impl<'a> Xc3WriteOffsets for MaterialsOffsets<'a> {
             self.alpha_test_textures
                 .write_full(writer, base_offset, data_ptr)?;
         }
-        self.model_unk1.write_full(writer, base_offset, data_ptr)?;
+        self.material_unk1
+            .write_full(writer, base_offset, data_ptr)?;
         self.samplers.write_full(writer, base_offset, data_ptr)?;
         self.shader_programs
             .write_full(writer, base_offset, data_ptr)?;
@@ -1558,6 +1584,8 @@ impl<'a> Xc3WriteOffsets for MxmdOffsets<'a> {
         self.streaming.write_full(writer, base_offset, data_ptr)?;
 
         // TODO: 16 bytes of padding before this?
+        // TODO: related to the optional 16 bytes before xbc1 in msrd?
+        *data_ptr += 16;
         self.unk1.write_full(writer, base_offset, data_ptr)?;
 
         self.vertex_data.write_full(writer, base_offset, data_ptr)?;
@@ -1584,6 +1612,20 @@ impl<'a> Xc3WriteOffsets for Unk1Offsets<'a> {
         if !self.unk4.data.is_empty() {
             self.unk4.write_full(writer, base_offset, data_ptr)?;
         }
+        Ok(())
+    }
+}
+
+impl<'a> Xc3WriteOffsets for ModelUnk3ItemOffsets<'a> {
+    fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> xc3_write::Xc3Result<()> {
+        // Different order than field order.
+        self.unk3.write_full(writer, base_offset, data_ptr)?;
+        self.name.write_full(writer, base_offset, data_ptr)?;
         Ok(())
     }
 }

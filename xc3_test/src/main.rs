@@ -528,14 +528,17 @@ fn check_mxmd(mxmd: Mxmd, path: &Path, original_bytes: &[u8], check_read_write: 
 
 fn is_valid_models_flags(mxmd: &Mxmd) -> bool {
     // Check that flags are consistent with nullability of offsets.
-    let flags = mxmd.models.models_flags;
-    flags.has_model_unk8() == mxmd.models.model_unk8.is_some()
-        && flags.has_model_unk7() == mxmd.models.model_unk7.is_some()
-        && flags.has_morph_controllers() == mxmd.models.morph_controllers.is_some()
-        && flags.has_model_unk1() == mxmd.models.model_unk1.is_some()
-        && flags.has_skinning() == mxmd.models.skinning.is_some()
-        && flags.has_lod_data() == mxmd.models.lod_data.is_some()
-        && flags.has_model_unk4() == mxmd.models.model_unk4.is_some()
+    if let Some(flags) = mxmd.models.models_flags {
+        flags.has_model_unk8() == mxmd.models.model_unk8.is_some()
+            && flags.has_model_unk7() == mxmd.models.model_unk7.is_some()
+            && flags.has_morph_controllers() == mxmd.models.morph_controllers.is_some()
+            && flags.has_model_unk1() == mxmd.models.model_unk1.is_some()
+            && flags.has_skinning() == mxmd.models.skinning.is_some()
+            && flags.has_lod_data() == mxmd.models.lod_data.is_some()
+            && flags.has_model_unk4() == mxmd.models.model_unk4.is_some()
+    } else {
+        true
+    }
 }
 
 fn check_spch(spch: Spch, path: &Path, original_bytes: &[u8], check_read_write: bool) {
