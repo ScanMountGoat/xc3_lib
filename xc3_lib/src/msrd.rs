@@ -111,8 +111,9 @@ pub enum StreamingFlagsLegacy {
     Xbc1 = 2,
 }
 
-// TODO: 76 or 92 bytes?
-#[derive(Debug, BinRead, Xc3Write)]
+// 76 (xc1, xc2, xc3) or 92 (xc3) bytes.
+#[binread]
+#[derive(Debug, Xc3Write)]
 #[br(import_raw(base_offset: u64))]
 pub struct StreamingData<S>
 where
@@ -120,6 +121,10 @@ where
     for<'a> S: BinRead<Args<'a> = ()>,
 {
     pub stream_flags: StreamFlags,
+
+    // Used for estimating the struct size.
+    #[br(temp, restore_position)]
+    offset: (u32, u32),
 
     /// Files contained within [streams](#structfield.streams).
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
@@ -150,18 +155,14 @@ where
     /// to the number of textures in [Msrd::extract_textures].
     pub textures_stream_entry_count: u32,
 
-    #[br(args_raw(base_offset))]
+    #[br(args { base_offset, size: offset.1 })]
     pub texture_resources: TextureResources,
-
-    // TODO: not always present?
-    // #[br(assert(unks.iter().all(|u| *u == 0)))]
-    pub unks: [u32; 4],
 }
 
 // TODO: Better name?
 // TODO: Always identical to mxmf?
 #[derive(Debug, BinRead, Xc3Write)]
-#[br(import_raw(base_offset: u64))]
+#[br(import { base_offset: u64, size: u32 })]
 pub struct TextureResources {
     // TODO: also used for chr textures?
     /// Index into [low_textures](#structfield.low_textures)
@@ -175,16 +176,29 @@ pub struct TextureResources {
     // TODO: Possible to figure out the hash function used?
     /// Name and data range for each of the [Mibl] textures.
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
+    #[xc3(offset(u32), align(2))]
     pub low_textures: Option<PackedExternalTextures>,
 
     /// Always `0`.
     pub unk1: u32,
 
-    // TODO: only used for xc3 models with chr/tex textures?
+    // TODO: only used for some xc3 models with chr/tex textures?
+    #[br(if(size == 92), args_raw(base_offset))]
+    pub chr_textures: Option<ChrTexTextures>,
+
+    // TODO: padding?
+    pub unk: [u32; 2],
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[br(import_raw(base_offset: u64))]
+pub struct ChrTexTextures {
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
     pub chr_textures: Vec<ChrTexTexture>,
+
+    // TODO: additional padding?
+    pub unk: [u32; 2],
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -476,8 +490,8 @@ impl StreamingData<Stream> {
                 low_textures: todo!(),
                 unk1: 0,
                 chr_textures: todo!(),
+                unk: [0; 2],
             },
-            unks: [0; 4],
         }
     }
 }
@@ -550,7 +564,6 @@ where
 
         self.texture_resources
             .write_offsets(writer, base_offset, data_ptr)?;
-
         // TODO: Variable padding of 0 or 16 bytes?
 
         // Write the xbc1 data at the end.
@@ -572,8 +585,9 @@ impl<'a> Xc3WriteOffsets for TextureResourcesOffsets<'a> {
         data_ptr: &mut u64,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
-        self.chr_textures
-            .write_full(writer, base_offset, data_ptr)?;
+        if let Some(chr_textures) = &self.chr_textures {
+            chr_textures.write_offsets(writer, base_offset, data_ptr)?;
+        }
         self.texture_indices
             .write_full(writer, base_offset, data_ptr)?;
         self.low_textures
