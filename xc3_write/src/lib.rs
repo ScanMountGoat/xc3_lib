@@ -25,8 +25,8 @@ pub trait Xc3Write {
     ) -> Xc3Result<Self::Offsets<'_>>;
 
     /// Return `true` if this type has no data and should not be written.
-    fn is_empty(&self) -> bool {
-        false
+    fn should_write(&self) -> Option<bool> {
+        Some(true)
     }
 
     /// The alignment of absolute offsets for this type in bytes.
@@ -182,39 +182,11 @@ where
         base_offset: u64,
         data_ptr: &mut u64,
     ) -> Xc3Result<T::Offsets<'_>> {
-        self.set_offset_seek(
-            writer,
-            base_offset,
-            data_ptr,
-            T::ALIGNMENT,
-            !self.data.is_empty(),
-        )?;
+        if let Some(should_write) = self.data.should_write() {
+            self.set_offset_seek(writer, base_offset, data_ptr, T::ALIGNMENT, should_write)?;
+        }
         let offsets = self.data.xc3_write(writer, data_ptr)?;
         Ok(offsets)
-    }
-}
-
-// This doesn't need specialization because Option does not impl Xc3Write.
-impl<'a, P, T> Offset<'a, P, Option<T>>
-where
-    T: Xc3Write,
-    P: TryFrom<u64> + Xc3Write,
-    <P as TryFrom<u64>>::Error: std::fmt::Debug,
-{
-    pub fn write_offset<W: Write + Seek>(
-        &self,
-        writer: &mut W,
-        base_offset: u64,
-        data_ptr: &mut u64,
-    ) -> Xc3Result<Option<T::Offsets<'_>>> {
-        // Only update the offset if there is data.
-        if let Some(data) = self.data {
-            self.set_offset_seek(writer, base_offset, data_ptr, T::ALIGNMENT, true)?;
-            let offsets = data.xc3_write(writer, data_ptr)?;
-            Ok(Some(offsets))
-        } else {
-            Ok(None)
-        }
     }
 }
 
@@ -231,36 +203,10 @@ where
         base_offset: u64,
         data_ptr: &mut u64,
     ) -> Xc3Result<()> {
-        self.set_offset_seek(
-            writer,
-            base_offset,
-            data_ptr,
-            T::ALIGNMENT,
-            !self.data.is_empty(),
-        )?;
-        write_full(self.data, writer, base_offset, data_ptr)?;
-        Ok(())
-    }
-}
-
-// This doesn't need specialization because Option does not impl Xc3WriteOffsets.
-impl<'a, P, T> Offset<'a, P, Option<T>>
-where
-    T: Xc3Write + 'static,
-    T::Offsets<'a>: Xc3WriteOffsets,
-    P: TryFrom<u64> + Xc3Write,
-    <P as TryFrom<u64>>::Error: std::fmt::Debug,
-{
-    pub fn write_full<W: Write + Seek>(
-        &self,
-        writer: &mut W,
-        base_offset: u64,
-        data_ptr: &mut u64,
-    ) -> Xc3Result<()> {
-        // Only update the offset if there is data.
-        if let Some(data) = self.data {
-            self.set_offset_seek(writer, base_offset, data_ptr, T::ALIGNMENT, true)?;
-            write_full(data, writer, base_offset, data_ptr)?;
+        // Always skip null offsets but not always empty vecs.
+        if let Some(should_write) = self.data.should_write() {
+            self.set_offset_seek(writer, base_offset, data_ptr, T::ALIGNMENT, should_write)?;
+            write_full(self.data, writer, base_offset, data_ptr)?;
         }
         Ok(())
     }
@@ -385,8 +331,8 @@ where
         Ok(VecOffsets(offsets))
     }
 
-    fn is_empty(&self) -> bool {
-        self.is_empty()
+    fn should_write(&self) -> Option<bool> {
+        Some(!self.is_empty())
     }
 }
 
@@ -428,6 +374,47 @@ impl Xc3WriteOffsets for () {
         _base_offset: u64,
         _data_ptr: &mut u64,
     ) -> Xc3Result<()> {
+        Ok(())
+    }
+}
+
+impl<T> Xc3Write for Option<T>
+where
+    T: Xc3Write,
+{
+    type Offsets<'a> = Option<T::Offsets<'a>>
+    where
+        Self: 'a;
+
+    fn xc3_write<W: Write + Seek>(
+        &self,
+        writer: &mut W,
+        data_ptr: &mut u64,
+    ) -> Xc3Result<Self::Offsets<'_>> {
+        match self {
+            Some(value) => Ok(Some(value.xc3_write(writer, data_ptr)?)),
+            None => Ok(None),
+        }
+    }
+
+    fn should_write(&self) -> Option<bool> {
+        self.as_ref().map(|_| true)
+    }
+}
+
+impl<T> Xc3WriteOffsets for Option<T>
+where
+    T: Xc3WriteOffsets,
+{
+    fn write_offsets<W: Write + Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> Xc3Result<()> {
+        if let Some(value) = self {
+            value.write_offsets(writer, base_offset, data_ptr)?;
+        }
         Ok(())
     }
 }
