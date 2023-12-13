@@ -68,6 +68,7 @@ pub struct Mxmd {
     pub unk: [u32; 9],
 }
 
+// TODO: more strict alignment for xc3?
 // TODO: 108 bytes for xc2 and 112 bytes for xc3?
 /// A collection of [Material], [Sampler], and material parameters.
 #[binread]
@@ -78,8 +79,9 @@ pub struct Materials {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
+    // TODO: Sometimes 108 and sometimes 112?
     #[br(parse_with = parse_offset32_count32, args { offset: base_offset, inner: base_offset })]
-    #[xc3(offset_count(u32, u32))]
+    #[xc3(offset_count(u32, u32), align(4))]
     pub materials: Vec<Material>,
 
     // offset?
@@ -89,7 +91,7 @@ pub struct Materials {
     // TODO: Materials have offsets into these arrays for parameter values?
     // material body has a uniform at shader offset 64 but offset 48 in this floats buffer
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset_count(u32, u32), align(16))]
+    #[xc3(offset_count(u32, u32), align(4))]
     pub floats: Vec<f32>, // work values?
 
     // TODO: final number counts up from 0?
@@ -117,7 +119,20 @@ pub struct Materials {
     #[xc3(count_offset(u32, u32))]
     pub alpha_test_textures: Vec<AlphaTestTexture>,
 
-    pub unks3: [u32; 7],
+    // TODO: extra fields that go before samplers?
+    pub unks3: [u32; 3],
+
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset(u32))]
+    pub material_unk2: Option<MaterialUnk2>,
+
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset(u32))]
+    pub material_unk3: Option<MaterialUnk3>,
+
+    pub unks3_1: [u32; 2],
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
@@ -228,6 +243,32 @@ pub struct MaterialUnk1 {
 
     // TODO: padding?
     pub unk: [u32; 8],
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[br(import_raw(base_offset: u64))]
+pub struct MaterialUnk2 {
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub unk1: Vec<[u32; 3]>,
+
+    // TODO: padding?
+    pub unk: [u32; 4],
+}
+
+#[derive(Debug, BinRead, Xc3Write)]
+#[br(import_raw(base_offset: u64))]
+pub struct MaterialUnk3 {
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub unk1: [u32; 8],
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk2: Vec<[f32; 5]>,
+
+    // TODO: padding?
+    pub unk: [u32; 4],
 }
 
 /// A collection of [Sampler].
@@ -528,7 +569,7 @@ pub struct Models {
 
     // offset 128
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
+    #[xc3(offset(u32), align(16))]
     pub morph_controllers: Option<MorphControllers>,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
@@ -539,6 +580,7 @@ pub struct Models {
     #[xc3(offset(u32))]
     pub model_unk3: Option<ModelUnk3>,
 
+    // TODO: not always aligned to 16?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(16))]
     pub lod_data: Option<LodData>,
@@ -1135,12 +1177,19 @@ pub struct Skinning {
     pub inverse_bind_transforms: Vec<[[f32; 4]; 4]>,
 
     // TODO: Possible to calcualte count directly?
-    #[br(temp, restore_position)]
-    offsets: [u32; 2],
+    #[br(restore_position)]
+    #[xc3(skip)]
+    pub offsets: [u32; 2],
 
     // TODO: Count related to bone unk_type?
+    // TODO: Count is 0, 2, or 4?
     #[br(parse_with = parse_opt_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: (offsets[1] - offsets[0]) as usize / 16 } })]
+    #[br(args {
+        offset: base_offset,
+        inner: args! {
+            count: if offsets[1] > 0 { (offsets[1] - offsets[0]) as usize / 16 } else { 0 }
+        }
+    })]
     #[xc3(offset(u32))]
     pub transforms2: Option<Vec<[f32; 4]>>,
 
@@ -1557,6 +1606,10 @@ impl<'a> Xc3WriteOffsets for MaterialsOffsets<'a> {
         }
         self.material_unk1
             .write_full(writer, base_offset, data_ptr)?;
+        self.material_unk2
+            .write_full(writer, base_offset, data_ptr)?;
+        self.material_unk3
+            .write_full(writer, base_offset, data_ptr)?;
         self.samplers.write_full(writer, base_offset, data_ptr)?;
         self.shader_programs
             .write_full(writer, base_offset, data_ptr)?;
@@ -1585,7 +1638,7 @@ impl<'a> Xc3WriteOffsets for MxmdOffsets<'a> {
 
         // TODO: 16 bytes of padding before this?
         // TODO: related to the optional 16 bytes before xbc1 in msrd?
-        *data_ptr += 16;
+        *data_ptr += 1;
         self.unk1.write_full(writer, base_offset, data_ptr)?;
 
         self.vertex_data.write_full(writer, base_offset, data_ptr)?;
@@ -1626,6 +1679,20 @@ impl<'a> Xc3WriteOffsets for ModelUnk3ItemOffsets<'a> {
         // Different order than field order.
         self.unk3.write_full(writer, base_offset, data_ptr)?;
         self.name.write_full(writer, base_offset, data_ptr)?;
+        Ok(())
+    }
+}
+
+impl<'a> Xc3WriteOffsets for MaterialUnk3Offsets<'a> {
+    fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> xc3_write::Xc3Result<()> {
+        // Different order than field order.
+        self.unk2.write_full(writer, base_offset, data_ptr)?;
+        self.unk1.write_full(writer, base_offset, data_ptr)?;
         Ok(())
     }
 }
