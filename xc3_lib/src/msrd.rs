@@ -218,9 +218,12 @@ pub struct StreamEntry {
     pub offset: u32,
     /// The size in bytes of the decompressed data range in the stream.
     pub size: u32,
-    // TODO: index into textures or low textures?
-    pub texture_index: u16, // TODO: what does this do?
-    pub item_type: EntryType,
+    /// Index into [streams](struct.StreamingData.html#structfield.streams)
+    /// for the high resolution base mip level starting from 1.
+    /// Has no effect if [entry_type](#structfield.entry_type) is not [EntryType::Texture]
+    /// or the index is 0.
+    pub texture_base_mip_stream_index: u16,
+    pub entry_type: EntryType,
     // TODO: padding?
     pub unk: [u32; 2],
 }
@@ -414,6 +417,7 @@ impl StreamingData<Stream> {
             .xbc1
             .decompress()?;
 
+        // TODO: Also get the high res versions?
         let start = self.textures_stream_entry_start_index as usize;
         let count = self.textures_stream_entry_count as usize;
         self.stream_entries[start..start + count]
@@ -421,7 +425,19 @@ impl StreamingData<Stream> {
             .map(|entry| {
                 let bytes =
                     &stream[entry.offset as usize..entry.offset as usize + entry.size as usize];
-                Mibl::from_bytes(bytes).map_err(Into::into)
+                let mibl = Mibl::from_bytes(bytes)?;
+
+                // Indices start from 1 for the base mip level.
+                let base_mip_stream_index = entry.texture_base_mip_stream_index.saturating_sub(1);
+                if base_mip_stream_index != 0 {
+                    let base_mip = self.streams[base_mip_stream_index as usize]
+                        .xbc1
+                        .decompress()
+                        .unwrap();
+                    Ok(mibl.with_base_mip(base_mip))
+                } else {
+                    Ok(mibl)
+                }
             })
             .collect::<Result<_, _>>()
     }
@@ -436,6 +452,7 @@ impl StreamingData<Stream> {
             .unwrap();
 
         // TODO: avoid unwrap.
+        // TODO: Does this have separate high resolution base mipmaps like for switch files?
         let start = self.textures_stream_entry_start_index as usize;
         let count = self.textures_stream_entry_count as usize;
         self.stream_entries[start..start + count]
@@ -536,8 +553,8 @@ where
     StreamEntry {
         offset: offset as u32,
         size: (end_offset - offset) as u32,
-        texture_index: 0,
-        item_type,
+        texture_base_mip_stream_index: 0,
+        entry_type: item_type,
         unk: [0; 2],
     }
 }

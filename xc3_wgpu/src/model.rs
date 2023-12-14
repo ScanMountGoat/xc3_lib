@@ -290,7 +290,7 @@ fn create_model_group(
                 &models.materials,
                 textures,
                 &samplers,
-                &image_textures,
+                image_textures,
             );
 
             let models = models

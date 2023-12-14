@@ -246,6 +246,7 @@ impl Material {
             })
         };
 
+        // TODO: Why does this sometimes index out of range?
         let color_index = self.textures.iter().position(|t| {
             matches!(
                 textures[t.image_texture_index].usage,

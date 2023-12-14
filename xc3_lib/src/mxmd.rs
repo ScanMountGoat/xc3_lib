@@ -524,7 +524,8 @@ pub struct Models {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    #[br(if(version > 10111))]
+    // TODO: Default value for version arg?
+    #[br(if(version != 10111))]
     pub models_flags: Option<ModelsFlags>,
 
     pub max_xyz: [f32; 3],

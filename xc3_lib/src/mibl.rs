@@ -210,34 +210,26 @@ impl Mibl {
         )
     }
 
-    /// Deswizzle the combined data from `self` and `base_mip_level` to a standard row-major memory layout.
-    pub fn deswizzle_image_data_base_mip(
-        &self,
-        base_mip_level: Vec<u8>,
-    ) -> Result<Vec<u8>, SwizzleError> {
-        // The high resolution texture is only a single mip level.
-        // TODO: double depth?
-        let mut image_data = tegra_swizzle::surface::deswizzle_surface(
-            (self.footer.width * 2) as usize,
-            (self.footer.height * 2) as usize,
-            self.footer.depth as usize,
-            &base_mip_level,
-            self.footer.image_format.block_dim(),
-            None,
-            self.footer.image_format.bytes_per_pixel(),
-            1,
-            if self.footer.view_dimension == ViewDimension::Cube {
-                6
-            } else {
-                1
+    /// Add the swizzled `base_mip_level` with the existing mipmaps.
+    /// The base mip should have twice current width and height.
+    pub fn with_base_mip(&self, base_mip_level: Vec<u8>) -> Self {
+        // TODO: Will this always have the appropriate mipmap alignment?
+        // TODO: How does this work for 3D or array layers?
+        let mut image_data = base_mip_level;
+        image_data.extend_from_slice(&self.image_data);
+
+        let image_size = round_up(image_data.len() as u64, 4096) as u32;
+
+        Self {
+            image_data,
+            footer: MiblFooter {
+                image_size,
+                width: self.footer.width * 2,
+                height: self.footer.height * 2,
+                mipmap_count: self.footer.mipmap_count + 1,
+                ..self.footer
             },
-        )?;
-
-        // Non swizzled data has no alignment requirements.
-        // We can just combine the two surfaces.
-        image_data.extend_from_slice(&self.deswizzled_image_data()?);
-
-        Ok(image_data)
+        }
     }
 
     /// Deswizzles all layers and mipmaps to a compatible surface for easier conversions.

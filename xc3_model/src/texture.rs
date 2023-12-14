@@ -75,32 +75,6 @@ impl ImageTexture {
         })
     }
 
-    /// Deswizzle and combine the data from `base_mip_level` for mip 0 and `mibl_m` for the remaining mip levels.
-    pub fn from_mibl_base_mip(
-        base_mip_level: Vec<u8>,
-        mibl_m: Mibl,
-        name: Option<String>,
-        usage: Option<TextureUsage>,
-    ) -> Result<Self, SwizzleError> {
-        // TODO: double depth?
-        let width = mibl_m.footer.width * 2;
-        let height = mibl_m.footer.height * 2;
-        let depth = mibl_m.footer.depth;
-
-        let image_data = mibl_m.deswizzle_image_data_base_mip(base_mip_level)?;
-        Ok(ImageTexture {
-            name,
-            usage,
-            width,
-            height,
-            depth,
-            view_dimension: mibl_m.footer.view_dimension,
-            image_format: mibl_m.footer.image_format,
-            mipmap_count: mibl_m.footer.mipmap_count + 1,
-            image_data,
-        })
-    }
-
     pub fn from_packed_texture(texture: &PackedTexture) -> Result<Self, CreateImageTextureError> {
         let mibl = Mibl::from_bytes(&texture.mibl_data)?;
         Self::from_mibl(&mibl, Some(texture.name.clone()), Some(texture.usage)).map_err(Into::into)
@@ -291,7 +265,7 @@ fn load_chr_tex_texture(
         Xbc1::from_file(h_texture_folder.join(texture_name).with_extension("wismt"))?
             .decompress()?;
 
-    // TODO: Get usage from the base resolution texture?
-    ImageTexture::from_mibl_base_mip(base_mip_level, mibl_m, Some(texture_name.to_string()), None)
-        .map_err(Into::into)
+    // TODO: Get texture usage from the base resolution texture?
+    let mibl = mibl_m.with_base_mip(base_mip_level);
+    ImageTexture::from_mibl(&mibl, Some(texture_name.to_string()), None).map_err(Into::into)
 }
