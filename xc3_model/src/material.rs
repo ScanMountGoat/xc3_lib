@@ -59,12 +59,12 @@ impl Default for MaterialParameters {
     }
 }
 
-/// Selects an [ImageTexture] and [Sampler].
+/// Selects an [ImageTexture] and [Sampler](crate::Sampler).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Texture {
     /// The index of the [ImageTexture] in [image_textures](struct.ModelRoot.html#structfield.image_textures).
     pub image_texture_index: usize,
-    /// The index of the [Sampler] in [samplers](struct.ModelGroup.html#structfield.samplers).
+    /// The index of the [Sampler](crate::Sampler) in [samplers](struct.ModelGroup.html#structfield.samplers).
     pub sampler_index: usize,
 }
 

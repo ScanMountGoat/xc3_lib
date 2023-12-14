@@ -17,9 +17,25 @@ use crate::{
     Material, Model, ModelBuffers, ModelGroup, ModelRoot, Models, Texture,
 };
 
-// TODO: Document loading the database in an example.
 /// Load a map from a `.wismhd` file.
 /// The corresponding `.wismda` should be in the same directory.
+///
+/// # Examples
+/// ``` rust no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// use xc3_model::{load_map, shader_database::ShaderDatabase};
+///
+/// let database = ShaderDatabase::from_file("xc1.json");
+/// let roots = load_map("xeno1/map/ma000.wismhd", Some(&database));
+///
+/// let database = ShaderDatabase::from_file("xc2.json");
+/// let roots = load_map("xeno2/map/ma01a.wismhd", Some(&database));
+///
+/// let database = ShaderDatabase::from_file("xc3.json");
+/// let roots = load_map("xeno3/map/ma01a.wismhd", Some(&database));
+/// # Ok(())
+/// # }
+/// ```
 pub fn load_map<P: AsRef<Path>>(
     wismhd_path: P,
     shader_database: Option<&ShaderDatabase>,

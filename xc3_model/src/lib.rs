@@ -85,7 +85,7 @@ pub struct ModelGroup {
     pub buffers: Vec<ModelBuffers>,
 }
 
-/// See [VertexData](xc3_lib::vertex::VertexData).
+/// See [VertexData].
 #[derive(Debug, Clone, PartialEq)]
 pub struct ModelBuffers {
     pub vertex_buffers: Vec<VertexBuffer>,
@@ -254,10 +254,28 @@ pub fn should_render_lod(lod: u16, base_lod_indices: &Option<Vec<u16>>) -> bool 
 }
 
 // TODO: Take an iterator for wimdo paths and merge to support xc1?
-// TODO: Document using iter::once?
-// TODO: Document loading the database in an example.
 /// Load a model from a `.wimdo` or `.pcmdo` file.
 /// The corresponding `.wismt` or `.pcsmt` and `.chr` or `.arc` should be in the same directory.
+///
+/// # Examples
+/// ``` rust no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// use xc3_model::{load_model, shader_database::ShaderDatabase};
+///
+/// // Shulk's hair
+/// let database = ShaderDatabase::from_file("xc1.json");
+/// let root = load_model("xeno1/chr/pc/pc010101.wimdo", Some(&database));
+///
+/// // Pyra
+/// let database = ShaderDatabase::from_file("xc2.json");
+/// let root = load_model("xeno2/model/bl/bl000101.wimdo", Some(&database));
+///
+/// // Mio military uniform
+/// let database = ShaderDatabase::from_file("xc3.json");
+/// let root = load_model("xeno3/chr/ch/ch01027000.wimdo", Some(&database));
+/// # Ok(())
+/// # }
+/// ```
 pub fn load_model<P: AsRef<Path>>(
     wimdo_path: P,
     shader_database: Option<&ShaderDatabase>,
