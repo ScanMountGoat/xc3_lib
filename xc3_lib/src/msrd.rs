@@ -15,7 +15,7 @@ use crate::{
     dds::DdsExt,
     error::DecompressStreamError,
     mibl::Mibl,
-    mxmd::{PackedExternalTextures, TextureUsage},
+    mxmd::{PackedExternalTexture, PackedExternalTextures, TextureUsage},
     parse_count32_offset32, parse_opt_ptr32, parse_ptr32,
     spch::Spch,
     vertex::VertexData,
@@ -171,7 +171,7 @@ where
 
 // TODO: Better name?
 // TODO: Always identical to mxmf?
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, PartialEq)]
 #[br(import { base_offset: u64, size: u32 })]
 pub struct TextureResources {
     // TODO: also used for chr textures?
@@ -200,7 +200,7 @@ pub struct TextureResources {
     pub unk: [u32; 2],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq)]
 #[br(import_raw(base_offset: u64))]
 pub struct ChrTexTextures {
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
@@ -211,7 +211,7 @@ pub struct ChrTexTextures {
     pub unk: [u32; 2],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq)]
 pub struct ChrTexTexture {
     // TODO: The texture name hash as an integer for xc3?
     pub hash: u32,
@@ -528,12 +528,7 @@ impl StreamingData<Stream> {
         textures: &[ExtractedTexture<Mibl>],
     ) -> Self {
         // TODO: handle other streams.
-        // TODO: Avoid allocating here.
-        let low_textures: Vec<_> = textures.iter().map(|t| t.low.clone()).collect();
-        let (stream_entries, stream0) = create_stream0(vertex, spch, &low_textures);
-
-        let xbc1 = Xbc1::from_decompressed("0000".to_string(), &stream0).unwrap();
-        let stream = Stream::from_xbc1(xbc1);
+        let (stream_entries, streams, low_textures) = create_streams(vertex, spch, textures);
 
         // TODO: Search stream entries to get indices?
         // TODO: How are entry indices set if there are no textures?
@@ -549,7 +544,7 @@ impl StreamingData<Stream> {
                 0u8.into(),
             ),
             stream_entries,
-            streams: vec![stream],
+            streams,
             vertex_data_entry_index: 0,
             shader_entry_index: 1,
             low_textures_entry_index: 2,
@@ -559,8 +554,16 @@ impl StreamingData<Stream> {
             textures_stream_entry_count: 0,
             // TODO: How to properly create these fields?
             texture_resources: TextureResources {
-                texture_indices: Vec::new(),
-                low_textures: None,
+                texture_indices: textures
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, t)| t.high.as_ref().map(|_| i as u16))
+                    .collect(),
+                low_textures: (!low_textures.is_empty()).then_some(PackedExternalTextures {
+                    textures: low_textures,
+                    unk2: 0,
+                    strings_offset: 0,
+                }),
                 unk1: 0,
                 chr_textures: None,
                 unk: [0; 2],
@@ -569,20 +572,91 @@ impl StreamingData<Stream> {
     }
 }
 
-pub fn create_stream0(
+fn create_streams(
     vertex: &VertexData,
     spch: &Spch,
-    low_textures: &Vec<Mibl>,
-) -> (Vec<StreamEntry>, Vec<u8>) {
+    textures: &[ExtractedTexture<Mibl>],
+) -> (Vec<StreamEntry>, Vec<Stream>, Vec<PackedExternalTexture>) {
+    // Entries are in ascending order by offset and stream.
+    // Data order is Vertex, Shader, LowTextures, Textures.
+    let mut streams = Vec::new();
+    let mut stream_entries = Vec::new();
+
+    let low_textures = write_stream0(&mut streams, &mut stream_entries, vertex, spch, textures);
+
+    let entry_start_index = stream_entries.len();
+    write_stream1(&mut streams, &mut stream_entries, textures);
+
+    write_base_mip_streams(
+        &mut streams,
+        &mut stream_entries,
+        textures,
+        entry_start_index,
+    );
+
+    (stream_entries, streams, low_textures)
+}
+
+fn write_stream0(
+    streams: &mut Vec<Stream>,
+    stream_entries: &mut Vec<StreamEntry>,
+    vertex: &VertexData,
+    spch: &Spch,
+    textures: &[ExtractedTexture<Mibl>],
+) -> Vec<PackedExternalTexture> {
     // Data in streams is tightly packed.
     let mut writer = Cursor::new(Vec::new());
-    let entries = vec![
-        write_stream_data(&mut writer, vertex, EntryType::Vertex),
-        write_stream_data(&mut writer, spch, EntryType::Shader),
-        write_stream_data(&mut writer, low_textures, EntryType::LowTextures),
-    ];
+    stream_entries.push(write_stream_data(&mut writer, vertex, EntryType::Vertex));
+    stream_entries.push(write_stream_data(&mut writer, spch, EntryType::Shader));
 
-    (entries, writer.into_inner())
+    let (entry, low_textures) = write_low_textures(&mut writer, textures);
+    stream_entries.push(entry);
+
+    let xbc1 = Xbc1::from_decompressed("0000".to_string(), &writer.into_inner()).unwrap();
+    let stream = Stream::from_xbc1(xbc1);
+
+    streams.push(stream);
+
+    low_textures
+}
+
+fn write_stream1(
+    streams: &mut Vec<Stream>,
+    stream_entries: &mut Vec<StreamEntry>,
+    textures: &[ExtractedTexture<Mibl>],
+) {
+    // Add higher resolution textures.
+    let mut writer = Cursor::new(Vec::new());
+
+    for texture in textures {
+        if let Some(high) = &texture.high {
+            let entry = write_stream_data(&mut writer, &high.mid, EntryType::Texture);
+            stream_entries.push(entry);
+        }
+    }
+
+    let xbc1 = Xbc1::from_decompressed("0000".to_string(), &writer.into_inner()).unwrap();
+    let stream = Stream::from_xbc1(xbc1);
+    streams.push(stream);
+}
+
+fn write_base_mip_streams(
+    streams: &mut Vec<Stream>,
+    stream_entries: &mut [StreamEntry],
+    textures: &[ExtractedTexture<Mibl>],
+    entry_start_index: usize,
+) {
+    // Only count textures with a higher resolution version to match entry ordering.
+    for (i, high) in textures.iter().filter_map(|t| t.high.as_ref()).enumerate() {
+        if let Some(base) = &high.base_mip {
+            stream_entries[entry_start_index + i].texture_base_mip_stream_index =
+                streams.len() as u16 + 1;
+
+            // TODO: Should this be aligned in any way?
+            let xbc1 = Xbc1::from_decompressed("0000".to_string(), base).unwrap();
+            streams.push(Stream::from_xbc1(xbc1));
+        }
+    }
 }
 
 fn write_stream_data<'a, T>(
@@ -613,6 +687,40 @@ where
         entry_type: item_type,
         unk: [0; 2],
     }
+}
+
+fn write_low_textures(
+    writer: &mut Cursor<Vec<u8>>,
+    textures: &[ExtractedTexture<Mibl>],
+) -> (StreamEntry, Vec<PackedExternalTexture>) {
+    let mut low_textures = Vec::new();
+
+    let offset = writer.stream_position().unwrap();
+    for texture in textures {
+        let mibl_offset = writer.stream_position().unwrap();
+        texture.low.write(writer).unwrap();
+        let mibl_length = writer.stream_position().unwrap() - mibl_offset;
+
+        low_textures.push(PackedExternalTexture {
+            usage: texture.usage,
+            mibl_length: mibl_length as u32,
+            mibl_offset: mibl_offset as u32 - offset as u32,
+            name: texture.name.clone(),
+        })
+    }
+    let end_offset = writer.stream_position().unwrap();
+
+    // Assume the Mibl already have the required 4096 byte alignment.
+    (
+        StreamEntry {
+            offset: offset as u32,
+            size: (end_offset - offset) as u32,
+            texture_base_mip_stream_index: 0,
+            entry_type: EntryType::LowTextures,
+            unk: [0; 2],
+        },
+        low_textures,
+    )
 }
 
 xc3_write_binwrite_impl!(StreamEntry, StreamFlags, StreamingFlagsLegacy);

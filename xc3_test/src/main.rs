@@ -231,20 +231,48 @@ fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: 
     match &msrd.data.inner {
         xc3_lib::msrd::StreamingDataInner::StreamingLegacy(_) => todo!(),
         xc3_lib::msrd::StreamingDataInner::Streaming(data) => {
+            // TODO: make this check optional?
             if check_read_write {
-                // TODO: Check all streams?
                 // Check that repacking and unpacking produces the original streaming data.
-                // TODO: Check everything except for compressed data?
                 let new_data =
                     xc3_lib::msrd::StreamingData::from_unpacked_files(&vertex, &spch, &textures);
-                if new_data.streams[0].xbc1.decompress().unwrap()
-                    != data.streams[0].xbc1.decompress().unwrap()
+
+                for (i, (new_stream, stream)) in
+                    new_data.streams.iter().zip(data.streams.iter()).enumerate()
                 {
-                    println!("Stream 0 not 1:1 for {path:?}");
+                    // Don't print large byte buffers to the console.
+                    if new_stream.xbc1.decompress().unwrap() != stream.xbc1.decompress().unwrap() {
+                        println!("Stream{i} not 1:1 for {path:?}");
+                    }
                 }
-                if new_data.stream_entries != data.stream_entries {
-                    println!("Stream 0 entries not 1:1 for {path:?}");
-                }
+
+                // TODO: Check everything except for compressed data?
+                check_equal(
+                    &new_data.stream_entries,
+                    &data.stream_entries,
+                    "stream_entries",
+                    path,
+                );
+                check_equal(
+                    &new_data.texture_resources.texture_indices,
+                    &data.texture_resources.texture_indices,
+                    "texture_indices",
+                    path,
+                );
+                check_equal(
+                    &new_data
+                        .texture_resources
+                        .low_textures
+                        .as_ref()
+                        .map(|l| &l.textures),
+                    &data
+                        .texture_resources
+                        .low_textures
+                        .as_ref()
+                        .map(|l| &l.textures),
+                    "low_textures",
+                    path,
+                );
             }
 
             // Check embedded data.
@@ -259,6 +287,15 @@ fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: 
     }
 
     // TODO: Check mibl in extracted textures?
+}
+
+fn check_equal<T>(a: T, b: T, field: &str, path: &Path)
+where
+    T: PartialEq + std::fmt::Debug,
+{
+    if a != b {
+        println!("{field} not 1:1 for {path:?}\n{a:?} != {b:?}");
+    }
 }
 
 fn check_vertex_data(

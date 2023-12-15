@@ -1083,7 +1083,7 @@ pub struct PackedTexture {
 
 /// References to [Mibl](crate::mibl::Mibl) textures in a separate file.
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct PackedExternalTextures {
@@ -1136,12 +1136,11 @@ pub enum TextureUsage {
     VolTex = 811597824,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq)]
 #[br(import_raw(base_offset: u64))]
 pub struct PackedExternalTexture {
     pub usage: TextureUsage,
 
-    // TODO: These offsets are for different places for maps and characters?
     pub mibl_length: u32,
     pub mibl_offset: u32,
 
