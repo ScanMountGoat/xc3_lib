@@ -6,11 +6,20 @@
 //! | Xenoblade Chronicles 1 DE | `chr/{en,np,obj,pc,wp}/*.wismt` |
 //! | Xenoblade Chronicles 2 | `model/{bl,en,np,oj,pc,we,wp}/*.wismt` |
 //! | Xenoblade Chronicles 3 | `chr/{bt,ch,en,oj,wp}/*.wismt`, `map/*.wismt` |
-use std::io::{Cursor, Seek, Write};
+use std::{
+    borrow::Cow,
+    io::{Cursor, Seek, Write},
+};
 
 use crate::{
-    error::DecompressStreamError, mibl::Mibl, mxmd::PackedExternalTextures, parse_count32_offset32,
-    parse_opt_ptr32, parse_ptr32, spch::Spch, vertex::VertexData, xbc1::Xbc1,
+    dds::DdsExt,
+    error::DecompressStreamError,
+    mibl::Mibl,
+    mxmd::{PackedExternalTextures, TextureUsage},
+    parse_count32_offset32, parse_opt_ptr32, parse_ptr32,
+    spch::Spch,
+    vertex::VertexData,
+    xbc1::Xbc1,
     xc3_write_binwrite_impl,
 };
 use bilge::prelude::*;
@@ -131,6 +140,7 @@ where
     #[xc3(count_offset(u32, u32))]
     pub stream_entries: Vec<StreamEntry>,
 
+    // TODO: Document the typical ordering of streams?
     /// A collection of [Xbc1] streams with decompressed layout
     /// specified in [stream_entries](#structfield.stream_entries).
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
@@ -282,6 +292,45 @@ impl Stream {
     }
 }
 
+#[derive(Debug)]
+pub struct ExtractedTexture<T> {
+    pub name: String,
+    pub usage: TextureUsage,
+    pub low: T,
+    pub high: Option<HighTexture<T>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct HighTexture<T> {
+    pub mid: T,
+    pub base_mip: Option<Vec<u8>>,
+}
+
+impl ExtractedTexture<Dds> {
+    /// Returns the highest possible quality [Dds] after trying low, high, or high + base mip level.
+    pub fn dds_final(&self) -> &Dds {
+        // TODO: Try and get the base mip level to work?
+        // TODO: use a surface instead?
+        self.high.as_ref().map(|h| &h.mid).unwrap_or(&self.low)
+    }
+}
+
+impl ExtractedTexture<Mibl> {
+    /// Returns the highest possible quality [Mibl] after trying low, high, or high + base mip level.
+    /// Only high + base mip level returns [Cow::Owned].
+    pub fn mibl_final(&self) -> Cow<'_, Mibl> {
+        self.high
+            .as_ref()
+            .map(|h| {
+                h.base_mip
+                    .as_ref()
+                    .map(|base| Cow::Owned(h.mid.with_base_mip(base)))
+                    .unwrap_or(Cow::Borrowed(&h.mid))
+            })
+            .unwrap_or(Cow::Borrowed(&self.low))
+    }
+}
+
 impl Msrd {
     pub fn decompress_stream(
         &self,
@@ -305,24 +354,8 @@ impl Msrd {
         }
     }
 
-    /// Extract low resolution textures for `wismt` files.
-    pub fn extract_low_textures(&self) -> Result<Vec<Mibl>, DecompressStreamError> {
-        match &self.data.inner {
-            StreamingDataInner::StreamingLegacy(_) => todo!(),
-            StreamingDataInner::Streaming(data) => data.extract_low_textures(),
-        }
-    }
-
-    /// Extract low resolution textures for `pcsmt` files.
-    pub fn extract_low_pc_textures(&self) -> Vec<Dds> {
-        match &self.data.inner {
-            StreamingDataInner::StreamingLegacy(_) => todo!(),
-            StreamingDataInner::Streaming(data) => data.extract_low_pc_textures(),
-        }
-    }
-
-    /// Extract high resolution textures for `wismt` files.
-    pub fn extract_textures(&self) -> Result<Vec<Mibl>, DecompressStreamError> {
+    /// Extract all textures for `wismt`` files.
+    pub fn extract_textures(&self) -> Result<Vec<ExtractedTexture<Mibl>>, DecompressStreamError> {
         match &self.data.inner {
             StreamingDataInner::StreamingLegacy(_) => todo!(),
             StreamingDataInner::Streaming(data) => data.extract_textures(),
@@ -331,7 +364,7 @@ impl Msrd {
 
     // TODO: share code with above?
     /// Extract high resolution textures for `pcsmt` files.
-    pub fn extract_pc_textures(&self) -> Vec<Dds> {
+    pub fn extract_pc_textures(&self) -> Result<Vec<ExtractedTexture<Dds>>, DecompressStreamError> {
         match &self.data.inner {
             StreamingDataInner::StreamingLegacy(_) => todo!(),
             StreamingDataInner::Streaming(data) => data.extract_pc_textures(),
@@ -365,8 +398,7 @@ impl StreamingData<Stream> {
         VertexData::from_bytes(bytes).map_err(Into::into)
     }
 
-    /// Extract low resolution textures for `wismt` files.
-    pub fn extract_low_textures(&self) -> Result<Vec<Mibl>, DecompressStreamError> {
+    fn extract_low_textures(&self) -> Result<Vec<ExtractedTexture<Mibl>>, DecompressStreamError> {
         let bytes = self.decompress_stream(
             self.low_textures_stream_index,
             self.low_textures_entry_index,
@@ -379,15 +411,19 @@ impl StreamingData<Stream> {
                 .map(|t| {
                     let mibl_bytes = &bytes
                         [t.mibl_offset as usize..t.mibl_offset as usize + t.mibl_length as usize];
-                    Mibl::from_bytes(mibl_bytes).map_err(Into::into)
+                    Ok(ExtractedTexture {
+                        name: t.name.clone(),
+                        usage: t.usage,
+                        low: Mibl::from_bytes(mibl_bytes)?,
+                        high: None,
+                    })
                 })
                 .collect(),
             None => Ok(Vec::new()),
         }
     }
 
-    /// Extract low resolution textures for `pcsmt` files.
-    pub fn extract_low_pc_textures(&self) -> Vec<Dds> {
+    fn extract_low_pc_textures(&self) -> Vec<ExtractedTexture<Dds>> {
         // TODO: Avoid unwrap.
         let bytes = self
             .decompress_stream(
@@ -403,66 +439,79 @@ impl StreamingData<Stream> {
                 .map(|t| {
                     let dds_bytes = &bytes
                         [t.mibl_offset as usize..t.mibl_offset as usize + t.mibl_length as usize];
-                    Dds::read(dds_bytes).unwrap()
+
+                    ExtractedTexture {
+                        name: t.name.clone(),
+                        usage: t.usage,
+                        low: Dds::read(dds_bytes).unwrap(),
+                        high: None,
+                    }
                 })
                 .collect(),
             None => Vec::new(),
         }
     }
 
-    /// Extract high resolution textures for `wismt` files.
-    pub fn extract_textures(&self) -> Result<Vec<Mibl>, DecompressStreamError> {
-        // The textures are packed into a single stream.
+    // TODO: avoid unwrap?
+    /// Extract all textures for `wismt` files.
+    pub fn extract_textures(&self) -> Result<Vec<ExtractedTexture<Mibl>>, DecompressStreamError> {
+        self.extract_textures_inner(
+            |s| s.extract_low_textures().unwrap(),
+            |b| Mibl::from_bytes(b).unwrap(),
+        )
+    }
+
+    /// Extract high resolution textures for `pcsmt` files.
+    pub fn extract_pc_textures(&self) -> Result<Vec<ExtractedTexture<Dds>>, DecompressStreamError> {
+        self.extract_textures_inner(Self::extract_low_pc_textures, |b| {
+            Dds::from_bytes(b).unwrap()
+        })
+    }
+
+    fn extract_textures_inner<T, F1, F2>(
+        &self,
+        read_low: F1,
+        read_t: F2,
+    ) -> Result<Vec<ExtractedTexture<T>>, DecompressStreamError>
+    where
+        F1: Fn(&Self) -> Vec<ExtractedTexture<T>>,
+        F2: Fn(&[u8]) -> T,
+    {
+        // Start with no high res textures or base mip levels.
+        let mut textures = read_low(self);
+
+        // The high resolution textures are packed into a single stream.
         let stream = &self.streams[self.textures_stream_index as usize]
             .xbc1
             .decompress()?;
 
-        // TODO: Also get the high res versions?
         let start = self.textures_stream_entry_start_index as usize;
         let count = self.textures_stream_entry_count as usize;
-        self.stream_entries[start..start + count]
+        for (i, entry) in self
+            .texture_resources
+            .texture_indices
             .iter()
-            .map(|entry| {
-                let bytes =
-                    &stream[entry.offset as usize..entry.offset as usize + entry.size as usize];
-                let mibl = Mibl::from_bytes(bytes)?;
+            .zip(self.stream_entries[start..start + count].iter())
+        {
+            let bytes = &stream[entry.offset as usize..entry.offset as usize + entry.size as usize];
+            let mid = read_t(bytes);
 
-                // Indices start from 1 for the base mip level.
-                let base_mip_stream_index = entry.texture_base_mip_stream_index.saturating_sub(1);
-                if base_mip_stream_index != 0 {
-                    let base_mip = self.streams[base_mip_stream_index as usize]
+            // Indices start from 1 for the base mip level.
+            let base_mip_stream_index = entry.texture_base_mip_stream_index.saturating_sub(1);
+            let base_mip = if base_mip_stream_index != 0 {
+                Some(
+                    self.streams[base_mip_stream_index as usize]
                         .xbc1
-                        .decompress()
-                        .unwrap();
-                    Ok(mibl.with_base_mip(base_mip))
-                } else {
-                    Ok(mibl)
-                }
-            })
-            .collect::<Result<_, _>>()
-    }
+                        .decompress()?,
+                )
+            } else {
+                None
+            };
 
-    // TODO: share code with above?
-    /// Extract high resolution textures for `pcsmt` files.
-    pub fn extract_pc_textures(&self) -> Vec<Dds> {
-        // The textures are packed into a single stream.
-        let stream = &self.streams[self.textures_stream_index as usize]
-            .xbc1
-            .decompress()
-            .unwrap();
+            textures[*i as usize].high = Some(HighTexture { mid, base_mip });
+        }
 
-        // TODO: avoid unwrap.
-        // TODO: Does this have separate high resolution base mipmaps like for switch files?
-        let start = self.textures_stream_entry_start_index as usize;
-        let count = self.textures_stream_entry_count as usize;
-        self.stream_entries[start..start + count]
-            .iter()
-            .map(|entry| {
-                let bytes =
-                    &stream[entry.offset as usize..entry.offset as usize + entry.size as usize];
-                Dds::read(bytes).unwrap()
-            })
-            .collect()
+        Ok(textures)
     }
 
     /// Extract shader programs for `wismt` and `pcsmt` files.
@@ -473,14 +522,21 @@ impl StreamingData<Stream> {
     }
 
     /// Pack and compress the files into new archive data.
-    pub fn from_unpacked_files(vertex: &VertexData, spch: &Spch, low_textures: &Vec<Mibl>) -> Self {
+    pub fn from_unpacked_files(
+        vertex: &VertexData,
+        spch: &Spch,
+        textures: &[ExtractedTexture<Mibl>],
+    ) -> Self {
         // TODO: handle other streams.
-        let (stream_entries, stream0) = create_stream0(vertex, spch, low_textures);
+        // TODO: Avoid allocating here.
+        let low_textures: Vec<_> = textures.iter().map(|t| t.low.clone()).collect();
+        let (stream_entries, stream0) = create_stream0(vertex, spch, &low_textures);
 
         let xbc1 = Xbc1::from_decompressed("0000".to_string(), &stream0).unwrap();
         let stream = Stream::from_xbc1(xbc1);
 
         // TODO: Search stream entries to get indices?
+        // TODO: How are entry indices set if there are no textures?
         StreamingData {
             stream_flags: StreamFlags::new(
                 true,
@@ -497,16 +553,16 @@ impl StreamingData<Stream> {
             vertex_data_entry_index: 0,
             shader_entry_index: 1,
             low_textures_entry_index: 2,
-            low_textures_stream_index: 0,
-            textures_stream_index: 0,
+            low_textures_stream_index: 0, // TODO: always 0?
+            textures_stream_index: 0,     // TODO: always 1 if textures are present?
             textures_stream_entry_start_index: 0,
             textures_stream_entry_count: 0,
             // TODO: How to properly create these fields?
             texture_resources: TextureResources {
-                texture_indices: todo!(),
-                low_textures: todo!(),
+                texture_indices: Vec::new(),
+                low_textures: None,
                 unk1: 0,
-                chr_textures: todo!(),
+                chr_textures: None,
                 unk: [0; 2],
             },
         }

@@ -21,7 +21,7 @@ pub use tegra_swizzle::SwizzleError;
 use crate::xc3_write_binwrite_impl;
 
 /// Data for an image texture surface.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Mibl {
     /// The combined swizzled image surface data.
     /// Ordered as `Layer 0 Mip 0, Layer 0 Mip 1, ... Layer L-1 Mip M-1`
@@ -35,7 +35,7 @@ const MIBL_FOOTER_SIZE: u64 = 40;
 
 /// A description of the image surface.
 #[binrw]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct MiblFooter {
     /// The size of [image_data](struct.Mibl.html#structfield.image_data)
     /// aligned to the page size of 4096 (0x1000) bytes.
@@ -212,10 +212,10 @@ impl Mibl {
 
     /// Add the swizzled `base_mip_level` with the existing mipmaps.
     /// The base mip should have twice current width and height.
-    pub fn with_base_mip(&self, base_mip_level: Vec<u8>) -> Self {
+    pub fn with_base_mip(&self, base_mip_level: &[u8]) -> Self {
         // TODO: Will this always have the appropriate mipmap alignment?
         // TODO: How does this work for 3D or array layers?
-        let mut image_data = base_mip_level;
+        let mut image_data = base_mip_level.to_vec();
         image_data.extend_from_slice(&self.image_data);
 
         let image_size = round_up(image_data.len() as u64, 4096) as u32;

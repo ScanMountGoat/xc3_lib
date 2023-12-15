@@ -13,12 +13,18 @@ use crate::{
 pub trait DdsExt: Sized {
     type Error;
 
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, Self::Error>;
     fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Self::Error>;
     fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), Self::Error>;
 }
 
 impl DdsExt for Dds {
     type Error = image_dds::ddsfile::Error;
+
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, Self::Error> {
+        Self::read(&mut Cursor::new(bytes))
+    }
+
     fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Self::Error> {
         let mut reader = Cursor::new(std::fs::read(path)?);
         Dds::read(&mut reader)

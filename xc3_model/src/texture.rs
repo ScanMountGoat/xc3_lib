@@ -152,77 +152,44 @@ pub fn load_textures(
     // TODO: what is the correct priority for the different texture sources?
     if let Some(data) = streaming_data {
         match data {
-            StreamingData::Msrd { streaming, msrd } => {
-                let mxmd_textures = streaming
-                    .texture_resources
-                    .low_textures
-                    .as_ref()
-                    .map(|t| &t.textures);
-
-                // TODO: Not all formats used by PC DDS files are supported.
-                let low_textures = if is_pc {
-                    msrd.extract_low_pc_textures()
-                } else {
-                    msrd.extract_low_textures()
+            StreamingData::Msrd { msrd, .. } => {
+                if is_pc {
+                    msrd.extract_pc_textures()
                         .unwrap()
                         .iter()
-                        .map(|m| m.to_dds().unwrap())
+                        .map(|texture| {
+                            load_chr_tex_texture(m_tex_folder, h_tex_folder, &texture.name)
+                                .unwrap_or_else(|_| {
+                                    ImageTexture::from_dds(
+                                        texture.dds_final(),
+                                        Some(texture.name.clone()),
+                                        Some(texture.usage),
+                                    )
+                                    .unwrap()
+                                })
+                        })
                         .collect()
-                };
-                let textures = if is_pc {
-                    msrd.extract_pc_textures()
                 } else {
+                    // TODO: Only assign chr textures if the appropriate fields are present?
                     msrd.extract_textures()
                         .unwrap()
                         .iter()
-                        .map(|m| m.to_dds().unwrap())
+                        .map(|texture| {
+                            load_chr_tex_texture(m_tex_folder, h_tex_folder, &texture.name)
+                                .unwrap_or_else(|_| {
+                                    ImageTexture::from_mibl(
+                                        &texture.mibl_final(),
+                                        Some(texture.name.clone()),
+                                        Some(texture.usage),
+                                    )
+                                    .unwrap()
+                                })
+                        })
                         .collect()
-                };
-
-                let texture_indices = &streaming.texture_resources.texture_indices;
-
-                // Assume the packed and non packed textures have the same ordering.
-                // TODO: Are the mxmd and msrd packed texture lists always identical?
-                // TODO: Only assign chr textures if the appropriate fields are present?
-                mxmd_textures
-                    .map(|external_textures| {
-                        external_textures
-                            .iter()
-                            .enumerate()
-                            .map(|(i, texture)| {
-                                load_chr_tex_texture(m_tex_folder, h_tex_folder, &texture.name)
-                                    .ok()
-                                    .or_else(|| {
-                                        // TODO: Assign in a second pass to avoid O(N) find.
-                                        texture_indices
-                                            .iter()
-                                            .position(|id| *id as usize == i)
-                                            .and_then(|index| {
-                                                textures.get(index).map(|dds| {
-                                                    ImageTexture::from_dds(
-                                                        dds,
-                                                        Some(texture.name.clone()),
-                                                        Some(texture.usage),
-                                                    )
-                                                    .unwrap()
-                                                })
-                                            })
-                                    })
-                                    .unwrap_or_else(|| {
-                                        // Some textures only have a low resolution version.
-                                        ImageTexture::from_dds(
-                                            &low_textures[i],
-                                            Some(texture.name.clone()),
-                                            Some(texture.usage),
-                                        )
-                                        .unwrap()
-                                    })
-                            })
-                            .collect()
-                    })
-                    .unwrap_or_default()
+                }
             }
             StreamingData::Legacy { legacy, data } => {
+                // Legacy streaming data does not use an msrd.
                 // TODO: high resolution textures?
                 legacy
                     .low_textures
@@ -240,6 +207,7 @@ pub fn load_textures(
             }
         }
     } else if let Some(packed_textures) = &mxmd.packed_textures {
+        // Assume the packed and non packed textures have the same ordering.
         packed_textures
             .textures
             .iter()
@@ -266,6 +234,6 @@ fn load_chr_tex_texture(
             .decompress()?;
 
     // TODO: Get texture usage from the base resolution texture?
-    let mibl = mibl_m.with_base_mip(base_mip_level);
+    let mibl = mibl_m.with_base_mip(&base_mip_level);
     ImageTexture::from_mibl(&mibl, Some(texture_name.to_string()), None).map_err(Into::into)
 }

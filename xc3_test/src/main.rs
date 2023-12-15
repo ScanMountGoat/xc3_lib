@@ -216,16 +216,9 @@ fn check_sar1_data(
 
 fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: bool) {
     // TODO: check stream flags?
-
     let spch = msrd.extract_shader_data().unwrap();
-    let vertex_data = msrd.extract_vertex_data().unwrap();
-    let low_textures = msrd.extract_low_textures().unwrap();
-
-    // TODO: Check mibl?
-    match msrd.extract_textures() {
-        Ok(_textures) => (),
-        Err(e) => println!("Error extracting textures for {path:?}: {e}"),
-    }
+    let vertex = msrd.extract_vertex_data().unwrap();
+    let textures = msrd.extract_textures().unwrap();
 
     if check_read_write {
         let mut writer = Cursor::new(Vec::new());
@@ -238,14 +231,18 @@ fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: 
     match &msrd.data.inner {
         xc3_lib::msrd::StreamingDataInner::StreamingLegacy(_) => todo!(),
         xc3_lib::msrd::StreamingDataInner::Streaming(data) => {
-            // Check streams.
             if check_read_write {
-                let (stream0_entries, stream0) =
-                    xc3_lib::msrd::create_stream0(&vertex_data, &spch, &low_textures);
-                if stream0 != data.streams[0].xbc1.decompress().unwrap() {
+                // TODO: Check all streams?
+                // Check that repacking and unpacking produces the original streaming data.
+                // TODO: Check everything except for compressed data?
+                let new_data =
+                    xc3_lib::msrd::StreamingData::from_unpacked_files(&vertex, &spch, &textures);
+                if new_data.streams[0].xbc1.decompress().unwrap()
+                    != data.streams[0].xbc1.decompress().unwrap()
+                {
                     println!("Stream 0 not 1:1 for {path:?}");
                 }
-                if stream0_entries != data.stream_entries {
+                if new_data.stream_entries != data.stream_entries {
                     println!("Stream 0 entries not 1:1 for {path:?}");
                 }
             }
@@ -254,12 +251,14 @@ fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: 
             let vertex_bytes = msrd
                 .decompress_stream(0, data.vertex_data_entry_index)
                 .unwrap();
-            check_vertex_data(vertex_data, path, &vertex_bytes, check_read_write);
+            check_vertex_data(vertex, path, &vertex_bytes, check_read_write);
 
             let spch_bytes = msrd.decompress_stream(0, data.shader_entry_index).unwrap();
             check_spch(spch, path, &spch_bytes, check_read_write);
         }
     }
+
+    // TODO: Check mibl in extracted textures?
 }
 
 fn check_vertex_data(
