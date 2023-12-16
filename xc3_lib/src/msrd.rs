@@ -88,6 +88,7 @@ pub struct StreamingDataLegacy {
     #[xc3(offset(u32))]
     pub textures: Option<PackedExternalTextures>,
 
+    // TODO: Why are these necessary?
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: low_textures.textures.len() }})]
     #[xc3(offset(u32))]
@@ -104,11 +105,11 @@ pub struct StreamingDataLegacy {
     pub low_texture_data_offset: u32,
     pub texture_data_offset: u32,
 
-    pub low_texture_data_compressed_size: u32,
-    pub texture_data_compressed_size: u32,
-
     pub low_texture_data_uncompressed_size: u32,
     pub texture_data_uncompressed_size: u32,
+
+    pub low_texture_data_compressed_size: u32,
+    pub texture_data_compressed_size: u32,
 }
 
 /// Flags indicating the way data is stored in the model's `wismt` file.

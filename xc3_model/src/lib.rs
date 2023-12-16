@@ -372,6 +372,7 @@ pub fn load_model<P: AsRef<Path>>(
     }
 }
 
+// TODO: Make this enum part of msrd with both variants storing data?
 enum StreamingData<'a> {
     Msrd {
         msrd: Msrd,
@@ -388,14 +389,7 @@ fn load_streaming_data<'a>(mxmd: &'a Mxmd, wismt_path: &Path) -> Option<Streamin
         .as_ref()
         .map(|streaming| match &streaming.inner {
             xc3_lib::msrd::StreamingInner::StreamingLegacy(legacy) => {
-                let data = match legacy.flags {
-                    xc3_lib::msrd::StreamingFlagsLegacy::Uncompressed => {
-                        std::fs::read(wismt_path).unwrap()
-                    }
-                    xc3_lib::msrd::StreamingFlagsLegacy::Xbc1 => {
-                        Xbc1::from_file(wismt_path).unwrap().decompress().unwrap()
-                    }
-                };
+                let data = std::fs::read(wismt_path).unwrap();
                 StreamingData::Legacy { legacy, data }
             }
             xc3_lib::msrd::StreamingInner::Streaming(_) => StreamingData::Msrd {
@@ -404,6 +398,7 @@ fn load_streaming_data<'a>(mxmd: &'a Mxmd, wismt_path: &Path) -> Option<Streamin
         })
 }
 
+// TODO: Also load textures here?
 fn load_vertex_data<'a>(
     mxmd: &'a Mxmd,
     streaming_data: Option<&StreamingData>,

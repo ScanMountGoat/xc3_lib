@@ -478,3 +478,70 @@ fn write_low_textures(
         low_textures,
     )
 }
+
+impl StreamingDataLegacy {
+    pub fn extract_textures(&self, data: &[u8]) -> Vec<ExtractedTexture<Mibl>> {
+        // Start with lower resolution textures.
+        let low_data = self.decompress_stream(
+            data,
+            self.low_texture_data_offset,
+            self.low_texture_data_compressed_size,
+        );
+
+        let mut textures: Vec<_> = self
+            .low_textures
+            .textures
+            .iter()
+            .map(|t| {
+                let mibl = Mibl::from_bytes(
+                    &low_data
+                        [t.mibl_offset as usize..t.mibl_offset as usize + t.mibl_length as usize],
+                )
+                .unwrap();
+                ExtractedTexture {
+                    name: t.name.clone(),
+                    usage: t.usage,
+                    low: mibl,
+                    high: None,
+                }
+            })
+            .collect();
+
+        // Apply higher resolution texture data if present.
+        if let (Some(texture_indices), Some(high_textures)) =
+            (&self.texture_indices, &self.textures)
+        {
+            let high_data = self.decompress_stream(
+                data,
+                self.texture_data_offset,
+                self.texture_data_compressed_size,
+            );
+
+            for (i, t) in texture_indices.iter().zip(high_textures.textures.iter()) {
+                let mibl = Mibl::from_bytes(
+                    &high_data
+                        [t.mibl_offset as usize..t.mibl_offset as usize + t.mibl_length as usize],
+                )
+                .unwrap();
+
+                textures[*i as usize].high = Some(HighTexture {
+                    mid: mibl,
+                    base_mip: None,
+                });
+            }
+        }
+
+        textures
+    }
+
+    fn decompress_stream<'a>(&self, data: &'a [u8], offset: u32, size: u32) -> Cow<'a, [u8]> {
+        let data = &data[offset as usize..offset as usize + size as usize];
+        match self.flags {
+            StreamingFlagsLegacy::Uncompressed => Cow::Borrowed(data),
+            StreamingFlagsLegacy::Xbc1 => {
+                let xbc1 = Xbc1::from_bytes(data).unwrap();
+                Cow::Owned(xbc1.decompress().unwrap())
+            }
+        }
+    }
+}

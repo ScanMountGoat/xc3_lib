@@ -152,21 +152,18 @@ pub fn load_textures(
     // TODO: what is the correct priority for the different texture sources?
     if let Some(data) = streaming_data {
         match data {
-            StreamingData::Msrd { msrd, .. } => {
+            StreamingData::Msrd { msrd } => {
                 if is_pc {
                     msrd.extract_pc_textures()
                         .unwrap()
                         .iter()
                         .map(|texture| {
-                            load_chr_tex_texture(m_tex_folder, h_tex_folder, &texture.name)
-                                .unwrap_or_else(|_| {
-                                    ImageTexture::from_dds(
-                                        texture.dds_final(),
-                                        Some(texture.name.clone()),
-                                        Some(texture.usage),
-                                    )
-                                    .unwrap()
-                                })
+                            ImageTexture::from_dds(
+                                texture.dds_final(),
+                                Some(texture.name.clone()),
+                                Some(texture.usage),
+                            )
+                            .unwrap()
                         })
                         .collect()
                 } else {
@@ -190,18 +187,16 @@ pub fn load_textures(
             }
             StreamingData::Legacy { legacy, data } => {
                 // Legacy streaming data does not use an msrd.
-                // TODO: high resolution textures?
                 legacy
-                    .low_textures
-                    .textures
+                    .extract_textures(data)
                     .iter()
-                    .map(|t| {
-                        let offset = legacy.low_texture_data_offset + t.mibl_offset;
-                        let mibl = Mibl::from_bytes(
-                            &data[offset as usize..offset as usize + t.mibl_length as usize],
+                    .map(|texture| {
+                        ImageTexture::from_mibl(
+                            &texture.mibl_final(),
+                            Some(texture.name.clone()),
+                            Some(texture.usage),
                         )
-                        .unwrap();
-                        ImageTexture::from_mibl(&mibl, Some(t.name.clone()), Some(t.usage)).unwrap()
+                        .unwrap()
                     })
                     .collect()
             }
