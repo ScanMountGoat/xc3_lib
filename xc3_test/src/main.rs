@@ -228,14 +228,14 @@ fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: 
         }
     }
 
-    match &msrd.data.inner {
+    match &msrd.streaming.inner {
         xc3_lib::msrd::StreamingInner::StreamingLegacy(_) => todo!(),
         xc3_lib::msrd::StreamingInner::Streaming(data) => {
             // TODO: make this check optional?
             if check_read_write {
                 // Check that repacking and unpacking produces the original streaming data.
                 let new_data =
-                    xc3_lib::msrd::StreamingData::from_unpacked_files(&vertex, &spch, &textures);
+                    xc3_lib::msrd::StreamingData::from_extracted_files(&vertex, &spch, &textures);
 
                 for (i, (new_stream, stream)) in
                     new_data.streams.iter().zip(data.streams.iter()).enumerate()
