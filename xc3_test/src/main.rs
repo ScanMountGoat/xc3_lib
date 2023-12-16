@@ -229,8 +229,8 @@ fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: 
     }
 
     match &msrd.data.inner {
-        xc3_lib::msrd::StreamingDataInner::StreamingLegacy(_) => todo!(),
-        xc3_lib::msrd::StreamingDataInner::Streaming(data) => {
+        xc3_lib::msrd::StreamingInner::StreamingLegacy(_) => todo!(),
+        xc3_lib::msrd::StreamingInner::Streaming(data) => {
             // TODO: make this check optional?
             if check_read_write {
                 // Check that repacking and unpacking produces the original streaming data.

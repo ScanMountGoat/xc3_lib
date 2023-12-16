@@ -62,7 +62,7 @@ pub struct Mxmd {
     /// Streaming information for the `wismt` file or [None] if no `wismt` file.
     #[br(parse_with = parse_opt_ptr32)]
     #[xc3(offset(u32))]
-    pub streaming: Option<Streaming<TextureStream>>,
+    pub streaming: Option<Streaming<Stream>>,
 
     // TODO: padding?
     pub unk: [u32; 9],
@@ -1041,12 +1041,14 @@ pub struct LodGroup {
     pub unk2: u32,
 }
 
-/// A reference to a [Stream](crate::msrd::Stream) in the [Msrd](crate::msrd::Msrd) with texture data.
+// TODO: use the same type and handle reading xbc1 differently?
+/// A reference to a [Stream](crate::msrd::Stream) in the [Msrd](crate::msrd::Msrd).
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
-pub struct TextureStream {
+pub struct Stream {
     pub compressed_size: u32,
     pub decompressed_size: u32,
-    pub compressed_offset: u32, // TODO: related to compressed_size?
+    // TODO: How to initialize this properly?
+    pub xbc1_offset: u32,
 }
 
 /// A collection of [Mibl](crate::mibl::Mibl) textures embedded in the current file.

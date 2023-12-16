@@ -41,7 +41,7 @@ use vertex::{read_index_buffers, read_vertex_buffers, AttributeData};
 use xc3_lib::{
     apmd::Apmd,
     msrd::{Msrd, StreamingDataLegacy},
-    mxmd::{Materials, Mxmd, TextureStream},
+    mxmd::{Materials, Mxmd},
     sar1::Sar1,
     vertex::{VertexData, WeightLod},
     xbc1::Xbc1,
@@ -374,7 +374,6 @@ pub fn load_model<P: AsRef<Path>>(
 
 enum StreamingData<'a> {
     Msrd {
-        streaming: &'a xc3_lib::msrd::StreamingData<TextureStream>,
         msrd: Msrd,
     },
     Legacy {
@@ -388,7 +387,7 @@ fn load_streaming_data<'a>(mxmd: &'a Mxmd, wismt_path: &Path) -> Option<Streamin
     mxmd.streaming
         .as_ref()
         .map(|streaming| match &streaming.inner {
-            xc3_lib::msrd::StreamingDataInner::StreamingLegacy(legacy) => {
+            xc3_lib::msrd::StreamingInner::StreamingLegacy(legacy) => {
                 let data = match legacy.flags {
                     xc3_lib::msrd::StreamingFlagsLegacy::Uncompressed => {
                         std::fs::read(wismt_path).unwrap()
@@ -399,8 +398,7 @@ fn load_streaming_data<'a>(mxmd: &'a Mxmd, wismt_path: &Path) -> Option<Streamin
                 };
                 StreamingData::Legacy { legacy, data }
             }
-            xc3_lib::msrd::StreamingDataInner::Streaming(streaming) => StreamingData::Msrd {
-                streaming,
+            xc3_lib::msrd::StreamingInner::Streaming(_) => StreamingData::Msrd {
                 msrd: Msrd::from_file(wismt_path).unwrap(),
             },
         })

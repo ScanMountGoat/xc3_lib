@@ -27,6 +27,8 @@ use binrw::{args, binread, BinRead, BinWrite};
 use image_dds::ddsfile::Dds;
 use xc3_write::{round_up, write_full, Xc3Write, Xc3WriteOffsets};
 
+// TODO: find a way to share the stream type with mxmd
+// TODO: how to set the offsets when repacking the msrd?
 #[binread]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets)]
 #[br(magic(b"DRSM"))]
@@ -34,6 +36,8 @@ use xc3_write::{round_up, write_full, Xc3Write, Xc3WriteOffsets};
 pub struct Msrd {
     /// Version `10001`
     pub version: u32,
+
+    // TODO: Can this be calculated without writing the data?
     // rounded or aligned in some way?
     pub header_size: u32, // TODO: xbc1 offset - 16?
 
@@ -55,24 +59,24 @@ where
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    pub tag: u32, // 4097 or sometimes 0?
-
-    #[br(args { base_offset, tag })]
-    pub inner: StreamingDataInner<S>,
+    #[br(args_raw(base_offset))]
+    pub inner: StreamingInner<S>,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
-#[br(import { base_offset: u64, tag: u32 })]
-pub enum StreamingDataInner<S>
+#[br(import_raw(base_offset: u64))]
+pub enum StreamingInner<S>
 where
     S: Xc3Write + 'static,
     for<'b> <S as Xc3Write>::Offsets<'b>: Xc3WriteOffsets,
     for<'a> S: BinRead<Args<'a> = ()>,
 {
-    #[br(pre_assert(tag == 0))]
+    #[br(magic(0u32))]
+    #[xc3(magic(0u32))]
     StreamingLegacy(#[br(args_raw(base_offset))] StreamingDataLegacy),
 
-    #[br(pre_assert(tag == 4097))]
+    #[br(magic(4097u32))]
+    #[xc3(magic(4097u32))]
     Streaming(#[br(args_raw(base_offset))] StreamingData<S>),
 }
 
@@ -292,6 +296,8 @@ impl Stream {
     }
 }
 
+// TODO: move to a stream.rs submodule?
+// TODO: Add a function to create an extractedtexture from a surface?
 #[derive(Debug)]
 pub struct ExtractedTexture<T> {
     pub name: String,
@@ -338,10 +344,8 @@ impl Msrd {
         entry_index: u32,
     ) -> Result<Vec<u8>, DecompressStreamError> {
         match &self.data.inner {
-            StreamingDataInner::StreamingLegacy(_) => todo!(),
-            StreamingDataInner::Streaming(data) => {
-                data.decompress_stream(stream_index, entry_index)
-            }
+            StreamingInner::StreamingLegacy(_) => todo!(),
+            StreamingInner::Streaming(data) => data.decompress_stream(stream_index, entry_index),
         }
     }
 
@@ -349,16 +353,16 @@ impl Msrd {
     /// Extract geometry for `wismt` and `pcsmt` files.
     pub fn extract_vertex_data(&self) -> Result<VertexData, DecompressStreamError> {
         match &self.data.inner {
-            StreamingDataInner::StreamingLegacy(_) => todo!(),
-            StreamingDataInner::Streaming(data) => data.extract_vertex_data(),
+            StreamingInner::StreamingLegacy(_) => todo!(),
+            StreamingInner::Streaming(data) => data.extract_vertex_data(),
         }
     }
 
     /// Extract all textures for `wismt`` files.
     pub fn extract_textures(&self) -> Result<Vec<ExtractedTexture<Mibl>>, DecompressStreamError> {
         match &self.data.inner {
-            StreamingDataInner::StreamingLegacy(_) => todo!(),
-            StreamingDataInner::Streaming(data) => data.extract_textures(),
+            StreamingInner::StreamingLegacy(_) => todo!(),
+            StreamingInner::Streaming(data) => data.extract_textures(),
         }
     }
 
@@ -366,16 +370,16 @@ impl Msrd {
     /// Extract high resolution textures for `pcsmt` files.
     pub fn extract_pc_textures(&self) -> Result<Vec<ExtractedTexture<Dds>>, DecompressStreamError> {
         match &self.data.inner {
-            StreamingDataInner::StreamingLegacy(_) => todo!(),
-            StreamingDataInner::Streaming(data) => data.extract_pc_textures(),
+            StreamingInner::StreamingLegacy(_) => todo!(),
+            StreamingInner::Streaming(data) => data.extract_pc_textures(),
         }
     }
 
     /// Extract shader programs for `wismt` and `pcsmt` files.
     pub fn extract_shader_data(&self) -> Result<Spch, DecompressStreamError> {
         match &self.data.inner {
-            StreamingDataInner::StreamingLegacy(_) => todo!(),
-            StreamingDataInner::Streaming(data) => data.extract_shader_data(),
+            StreamingInner::StreamingLegacy(_) => todo!(),
+            StreamingInner::Streaming(data) => data.extract_shader_data(),
         }
     }
 }
@@ -521,6 +525,7 @@ impl StreamingData<Stream> {
         Spch::from_bytes(bytes).map_err(Into::into)
     }
 
+    // TODO: This needs to create the entire Msrd since each stream offset depends on the header size?
     /// Pack and compress the files into new archive data.
     pub fn from_unpacked_files(
         vertex: &VertexData,
