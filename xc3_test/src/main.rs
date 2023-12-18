@@ -216,9 +216,7 @@ fn check_sar1_data(
 
 fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: bool) {
     // TODO: check stream flags?
-    let spch = msrd.extract_shader_data().unwrap();
-    let vertex = msrd.extract_vertex_data().unwrap();
-    let textures = msrd.extract_textures().unwrap();
+    let (vertex, spch, textures) = msrd.extract_files().unwrap();
 
     if check_read_write {
         let mut writer = Cursor::new(Vec::new());

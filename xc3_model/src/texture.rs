@@ -5,14 +5,14 @@ use log::error;
 use thiserror::Error;
 use xc3_lib::{
     mibl::{Mibl, SwizzleError},
-    mxmd::{Mxmd, PackedTexture},
+    mxmd::PackedTexture,
     xbc1::Xbc1,
 };
 
 pub use xc3_lib::mibl::{ImageFormat, ViewDimension};
 pub use xc3_lib::mxmd::TextureUsage;
 
-use crate::StreamingData;
+use crate::ExtractedTextures;
 
 #[derive(Debug, Error)]
 pub enum CreateImageTextureError {
@@ -141,77 +141,40 @@ impl ImageTexture {
     // TODO: to_mibl?
 }
 
-// TODO: clean this up.
 pub fn load_textures(
-    mxmd: &Mxmd,
-    streaming_data: Option<&StreamingData>,
+    textures: &ExtractedTextures,
     m_tex_folder: &Path,
     h_tex_folder: &Path,
-    is_pc: bool,
 ) -> Vec<ImageTexture> {
     // TODO: what is the correct priority for the different texture sources?
-    if let Some(data) = streaming_data {
-        match data {
-            StreamingData::Msrd { msrd } => {
-                if is_pc {
-                    msrd.extract_pc_textures()
-                        .unwrap()
-                        .iter()
-                        .map(|texture| {
-                            ImageTexture::from_dds(
-                                texture.dds_final(),
-                                Some(texture.name.clone()),
-                                Some(texture.usage),
-                            )
-                            .unwrap()
-                        })
-                        .collect()
-                } else {
-                    // TODO: Only assign chr textures if the appropriate fields are present?
-                    msrd.extract_textures()
-                        .unwrap()
-                        .iter()
-                        .map(|texture| {
-                            load_chr_tex_texture(m_tex_folder, h_tex_folder, &texture.name)
-                                .unwrap_or_else(|_| {
-                                    ImageTexture::from_mibl(
-                                        &texture.mibl_final(),
-                                        Some(texture.name.clone()),
-                                        Some(texture.usage),
-                                    )
-                                    .unwrap()
-                                })
-                        })
-                        .collect()
-                }
-            }
-            StreamingData::Legacy { legacy, data } => {
-                // Legacy streaming data does not use an msrd.
-                legacy
-                    .extract_textures(data)
-                    .iter()
-                    .map(|texture| {
+    match textures {
+        ExtractedTextures::Switch(textures) => textures
+            .iter()
+            .map(|texture| {
+                // TODO: Only assign chr textures if the appropriate fields are present?
+                load_chr_tex_texture(m_tex_folder, h_tex_folder, &texture.name).unwrap_or_else(
+                    |_| {
                         ImageTexture::from_mibl(
                             &texture.mibl_final(),
                             Some(texture.name.clone()),
                             Some(texture.usage),
                         )
                         .unwrap()
-                    })
-                    .collect()
-            }
-        }
-    } else if let Some(packed_textures) = &mxmd.packed_textures {
-        // Assume the packed and non packed textures have the same ordering.
-        packed_textures
-            .textures
+                    },
+                )
+            })
+            .collect(),
+        ExtractedTextures::Pc(textures) => textures
             .iter()
-            .map(|t| ImageTexture::from_packed_texture(t).unwrap())
-            .collect()
-    } else {
-        // TODO: How to handle this case?
-        error!("Failed to load textures");
-        Vec::new()
+            .map(|texture| {
+                ImageTexture::from_dds(
+                    texture.dds_final(),
+                    Some(texture.name.clone()),
+                    Some(texture.usage),
+                )
+                .unwrap()
+            })
+            .collect(),
     }
 }
 

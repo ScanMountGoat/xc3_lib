@@ -115,7 +115,7 @@ fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Option
 
             match Msrd::from_file(path.with_extension("wismt")) {
                 Ok(msrd) => {
-                    let spch = msrd.extract_shader_data().unwrap();
+                    let (_, spch, _) = msrd.extract_files().unwrap();
                     extract_shader_binaries(&spch, &output_folder, shader_tools, false);
                 }
                 Err(e) => println!("Error reading {path:?}: {e}"),

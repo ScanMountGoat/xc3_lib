@@ -32,6 +32,7 @@ use std::{borrow::Cow, path::Path};
 
 use animation::Animation;
 use glam::{Mat4, Vec3, Vec4};
+use image_dds::ddsfile::Dds;
 use log::{error, warn};
 use material::create_materials;
 use shader_database::ShaderDatabase;
@@ -40,11 +41,11 @@ use texture::load_textures;
 use vertex::{read_index_buffers, read_vertex_buffers, AttributeData};
 use xc3_lib::{
     apmd::Apmd,
-    msrd::{Msrd, StreamingDataLegacy},
+    mibl::Mibl,
+    msrd::{streaming::ExtractedTexture, Msrd},
     mxmd::{Materials, Mxmd},
     sar1::Sar1,
     vertex::{VertexData, WeightLod},
-    xbc1::Xbc1,
 };
 
 pub use map::load_map;
@@ -308,24 +309,16 @@ pub fn load_model<P: AsRef<Path>>(
     } else {
         wimdo_path.with_extension("wismt")
     };
-    let streaming_data = load_streaming_data(&mxmd, &wismt_path);
+    let streaming_data = load_streaming_data(&mxmd, &wismt_path, is_pc);
 
     // TODO: Avoid unwrap.
-    let vertex_data = load_vertex_data(&mxmd, streaming_data.as_ref());
-
     // "chr/en/file.wismt" -> "chr/tex/nx/m"
     // TODO: Don't assume model_path is in the chr/ch or chr/en folders.
     let chr_folder = wimdo_path.parent().unwrap().parent().unwrap();
     let m_tex_folder = chr_folder.join("tex").join("nx").join("m");
     let h_tex_folder = chr_folder.join("tex").join("nx").join("h");
 
-    let image_textures = load_textures(
-        &mxmd,
-        streaming_data.as_ref(),
-        &m_tex_folder,
-        &h_tex_folder,
-        is_pc,
-    );
+    let image_textures = load_textures(&streaming_data.textures, &m_tex_folder, &h_tex_folder);
 
     let model_name = model_name(wimdo_path);
     let spch = shader_database.and_then(|database| database.files.get(&model_name));
@@ -354,8 +347,8 @@ pub fn load_model<P: AsRef<Path>>(
     let skeleton = create_skeleton(chr.as_ref(), &mxmd);
 
     let (vertex_buffers, weights) =
-        read_vertex_buffers(&vertex_data, mxmd.models.skinning.as_ref());
-    let index_buffers = read_index_buffers(&vertex_data);
+        read_vertex_buffers(&streaming_data.vertex, mxmd.models.skinning.as_ref());
+    let index_buffers = read_index_buffers(&streaming_data.vertex);
 
     let models = Models::from_models(&mxmd.models, &mxmd.materials, spch, skeleton);
 
@@ -372,44 +365,67 @@ pub fn load_model<P: AsRef<Path>>(
     }
 }
 
-// TODO: Make this enum part of msrd with both variants storing data?
-enum StreamingData<'a> {
-    Msrd {
-        msrd: Msrd,
-    },
-    Legacy {
-        legacy: &'a StreamingDataLegacy,
-        data: Vec<u8>,
-    },
+// Use Cow::Borrowed to avoid copying data embedded in the mxmd.
+struct StreamingData<'a> {
+    vertex: Cow<'a, VertexData>,
+    textures: ExtractedTextures,
 }
 
-fn load_streaming_data<'a>(mxmd: &'a Mxmd, wismt_path: &Path) -> Option<StreamingData<'a>> {
+enum ExtractedTextures {
+    Switch(Vec<ExtractedTexture<Mibl>>),
+    Pc(Vec<ExtractedTexture<Dds>>),
+}
+
+fn load_streaming_data<'a>(mxmd: &'a Mxmd, wismt_path: &Path, is_pc: bool) -> StreamingData<'a> {
+    // TODO: Avoid unwrap.
     // Handle the different ways to store the streaming data.
     mxmd.streaming
         .as_ref()
         .map(|streaming| match &streaming.inner {
             xc3_lib::msrd::StreamingInner::StreamingLegacy(legacy) => {
                 let data = std::fs::read(wismt_path).unwrap();
-                StreamingData::Legacy { legacy, data }
-            }
-            xc3_lib::msrd::StreamingInner::Streaming(_) => StreamingData::Msrd {
-                msrd: Msrd::from_file(wismt_path).unwrap(),
-            },
-        })
-}
 
-// TODO: Also load textures here?
-fn load_vertex_data<'a>(
-    mxmd: &'a Mxmd,
-    streaming_data: Option<&StreamingData>,
-) -> Cow<'a, VertexData> {
-    match streaming_data {
-        Some(data) => match data {
-            StreamingData::Msrd { msrd, .. } => Cow::Owned(msrd.extract_vertex_data().unwrap()),
-            StreamingData::Legacy { .. } => Cow::Borrowed(mxmd.vertex_data.as_ref().unwrap()),
-        },
-        None => Cow::Borrowed(mxmd.vertex_data.as_ref().unwrap()),
-    }
+                StreamingData {
+                    vertex: Cow::Borrowed(mxmd.vertex_data.as_ref().unwrap()),
+                    textures: ExtractedTextures::Switch(legacy.extract_textures(&data)),
+                }
+            }
+            xc3_lib::msrd::StreamingInner::Streaming(_) => {
+                let msrd = Msrd::from_file(wismt_path).unwrap();
+                if is_pc {
+                    let (vertex, _, textures) = msrd.extract_files_pc().unwrap();
+
+                    StreamingData {
+                        vertex: Cow::Owned(vertex),
+                        textures: ExtractedTextures::Pc(textures),
+                    }
+                } else {
+                    let (vertex, _, textures) = msrd.extract_files().unwrap();
+
+                    StreamingData {
+                        vertex: Cow::Owned(vertex),
+                        textures: ExtractedTextures::Switch(textures),
+                    }
+                }
+            }
+        })
+        .unwrap_or_else(|| StreamingData {
+            vertex: Cow::Borrowed(mxmd.vertex_data.as_ref().unwrap()),
+            textures: ExtractedTextures::Switch(
+                mxmd.packed_textures
+                    .as_ref()
+                    .unwrap()
+                    .textures
+                    .iter()
+                    .map(|t| ExtractedTexture {
+                        name: t.name.clone(),
+                        usage: t.usage,
+                        low: Mibl::from_bytes(&t.mibl_data).unwrap(),
+                        high: None,
+                    })
+                    .collect(),
+            ),
+        })
 }
 
 /// Load all animations from a `.anm`, `.mot`, or `.motstm_data` file.

@@ -19,7 +19,7 @@ use bilge::prelude::*;
 use binrw::{args, binread, until_eof, BinRead, BinWrite};
 use xc3_write::{round_up, write_full, Xc3Write, Xc3WriteOffsets};
 
-mod streaming;
+pub mod streaming;
 
 // TODO: how to set the xbc1 offsets when repacking the msrd?
 #[binread]
