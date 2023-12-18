@@ -6,7 +6,7 @@
 //! | Xenoblade Chronicles 1 DE | `chr/{en,np,obj,pc,wp}/*.wismt` |
 //! | Xenoblade Chronicles 2 | `model/{bl,en,np,oj,pc,we,wp}/*.wismt` |
 //! | Xenoblade Chronicles 3 | `chr/{bt,ch,en,oj,wp}/*.wismt`, `map/*.wismt` |
-use std::io::{Cursor, Seek, Write};
+use std::io::{Cursor, Seek, SeekFrom, Write};
 
 use crate::{
     dds::DdsExt,
@@ -16,15 +16,14 @@ use crate::{
     xc3_write_binwrite_impl,
 };
 use bilge::prelude::*;
-use binrw::{args, binread, BinRead, BinWrite};
+use binrw::{args, binread, until_eof, BinRead, BinWrite};
 use xc3_write::{round_up, write_full, Xc3Write, Xc3WriteOffsets};
 
 mod streaming;
 
-// TODO: find a way to share the stream type with mxmd
-// TODO: how to set the offsets when repacking the msrd?
+// TODO: how to set the xbc1 offsets when repacking the msrd?
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
 #[br(magic(b"DRSM"))]
 #[xc3(magic(b"DRSM"))]
 pub struct Msrd {
@@ -35,47 +34,45 @@ pub struct Msrd {
     // rounded or aligned in some way?
     pub header_size: u32, // TODO: xbc1 offset - 16?
 
+    /// Information on the files in [data](#structfield.data).
+    /// Identical to [streaming](../mxmd/struct.Mxmd.html#structfield.streaming)
+    /// for the corresponding [Mxmd](crate::mxmd::Mxmd).
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]
-    pub streaming: Streaming<Stream>,
-    // TODO: Separate the xbc1 data section to avoid trait solver issues?
+    pub streaming: Streaming,
+
+    // TODO: How to ensure this is written at the end?
+    // TODO: xc3(skip) and write for offset impl?
+    // Don't have the streams own the data so mxmd can use the same types.
+    #[br(parse_with = until_eof, seek_before = SeekFrom::Start(header_size as u64 + 16))]
+    pub data: Vec<u8>,
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
 #[br(stream = r)]
 #[xc3(base_offset)]
-pub struct Streaming<S>
-where
-    S: Xc3Write + 'static,
-    for<'a> <S as Xc3Write>::Offsets<'a>: Xc3WriteOffsets,
-    for<'a> S: BinRead<Args<'a> = ()>,
-{
+pub struct Streaming {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
     #[br(args_raw(base_offset))]
-    pub inner: StreamingInner<S>,
+    pub inner: StreamingInner,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
 #[br(import_raw(base_offset: u64))]
-pub enum StreamingInner<S>
-where
-    S: Xc3Write + 'static,
-    for<'b> <S as Xc3Write>::Offsets<'b>: Xc3WriteOffsets,
-    for<'a> S: BinRead<Args<'a> = ()>,
-{
+pub enum StreamingInner {
     #[br(magic(0u32))]
     #[xc3(magic(0u32))]
     StreamingLegacy(#[br(args_raw(base_offset))] StreamingDataLegacy),
 
     #[br(magic(4097u32))]
     #[xc3(magic(4097u32))]
-    Streaming(#[br(args_raw(base_offset))] StreamingData<S>),
+    Streaming(#[br(args_raw(base_offset))] StreamingData),
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
 #[br(import_raw(base_offset: u64))]
 pub struct StreamingDataLegacy {
     pub flags: StreamingFlagsLegacy,
@@ -120,15 +117,12 @@ pub enum StreamingFlagsLegacy {
     Xbc1 = 2,
 }
 
+// TODO: Variable padding of 0 or 16 bytes?
 // 76 (xc1, xc2, xc3) or 92 (xc3) bytes.
 #[binread]
-#[derive(Debug, Xc3Write)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
 #[br(import_raw(base_offset: u64))]
-pub struct StreamingData<S>
-where
-    S: Xc3Write + 'static,
-    for<'a> S: BinRead<Args<'a> = ()>,
-{
+pub struct StreamingData {
     pub stream_flags: StreamFlags,
 
     // Used for estimating the struct size.
@@ -145,7 +139,7 @@ where
     /// specified in [stream_entries](#structfield.stream_entries).
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
-    pub streams: Vec<S>,
+    pub streams: Vec<Stream>,
 
     /// The [StreamEntry] for [Msrd::extract_vertex_data] with [EntryType::Vertex].
     pub vertex_data_entry_index: u32,
@@ -171,7 +165,7 @@ where
 
 // TODO: Better name?
 // TODO: Always identical to mxmf?
-#[derive(Debug, BinRead, Xc3Write, PartialEq)]
+#[derive(Debug, BinRead, Xc3Write, Clone, PartialEq)]
 #[br(import { base_offset: u64, size: u32 })]
 pub struct TextureResources {
     // TODO: also used for chr textures?
@@ -200,7 +194,7 @@ pub struct TextureResources {
     pub unk: [u32; 2],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
 #[br(import_raw(base_offset: u64))]
 pub struct ChrTexTextures {
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
@@ -211,7 +205,7 @@ pub struct ChrTexTextures {
     pub unk: [u32; 2],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
 pub struct ChrTexTexture {
     // TODO: The texture name hash as an integer for xc3?
     pub hash: u32,
@@ -269,63 +263,26 @@ pub enum EntryType {
 }
 
 /// A compressed [Xbc1] stream with items determined by [StreamEntry].
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
 pub struct Stream {
-    /// The size of [xbc1](#structfield.xbc1), including the header.
+    /// The size of the [Xbc1], including its header.
     pub compressed_size: u32,
     /// The size of the decompressed data in [xbc1](#structfield.xbc1).
     /// Aligned to 4096 (0x1000).
     pub decompressed_size: u32,
-    #[br(parse_with = parse_ptr32)]
-    #[xc3(offset(u32))]
-    pub xbc1: Xbc1,
+    // TODO: Document how this works.
+    pub xbc1_offset: u32,
 }
 
 impl Stream {
-    pub fn from_xbc1(xbc1: Xbc1) -> Self {
-        // TODO: Should this make sure the xbc1 decompressed data is actually aligned?
-        Self {
-            compressed_size: (round_up(xbc1.compressed_stream.len() as u64, 16) + 48) as u32,
-            decompressed_size: round_up(xbc1.decompressed_size as u64, 4096) as u32,
-            xbc1,
-        }
+    // TODO: Document how this works.
+    pub fn read_xbc1(&self, data: &[u8], header_size: u32) -> binrw::BinResult<Xbc1> {
+        let start = self.xbc1_offset - header_size - 16;
+        Xbc1::from_bytes(&data[start as usize..start as usize + self.compressed_size as usize])
     }
 }
 
 xc3_write_binwrite_impl!(StreamEntry, StreamFlags, StreamingFlagsLegacy);
-
-impl<'a, S> Xc3WriteOffsets for StreamingDataOffsets<'a, S>
-where
-    S: Xc3Write + 'static,
-    for<'b> <S as Xc3Write>::Offsets<'b>: Xc3WriteOffsets,
-    for<'b> S: BinRead<Args<'b> = ()>,
-{
-    fn write_offsets<W: std::io::prelude::Write + Seek>(
-        &self,
-        writer: &mut W,
-        base_offset: u64,
-        data_ptr: &mut u64,
-    ) -> xc3_write::Xc3Result<()> {
-        // Write offset data in the order items appear in the binary file.
-        self.stream_entries
-            .write_offset(writer, base_offset, data_ptr)?;
-
-        let stream_offsets = self.streams.write_offset(writer, base_offset, data_ptr)?;
-
-        self.texture_resources
-            .write_offsets(writer, base_offset, data_ptr)?;
-        // TODO: Variable padding of 0 or 16 bytes?
-
-        // Write the xbc1 data at the end.
-        // This also works for mxmd streams that don't need to write anything.
-        for offsets in stream_offsets.0 {
-            // The xbc1 offset is relative to the start of the file.
-            offsets.write_offsets(writer, 0, data_ptr)?;
-        }
-
-        Ok(())
-    }
-}
 
 impl<'a> Xc3WriteOffsets for TextureResourcesOffsets<'a> {
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -335,9 +292,8 @@ impl<'a> Xc3WriteOffsets for TextureResourcesOffsets<'a> {
         data_ptr: &mut u64,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
-        if let Some(chr_textures) = &self.chr_textures {
-            chr_textures.write_offsets(writer, base_offset, data_ptr)?;
-        }
+        self.chr_textures
+            .write_offsets(writer, base_offset, data_ptr)?;
         self.texture_indices
             .write_full(writer, base_offset, data_ptr)?;
         self.low_textures

@@ -60,9 +60,10 @@ pub struct Mxmd {
     pub unk5: u32,
 
     /// Streaming information for the `wismt` file or [None] if no `wismt` file.
+    /// Identical to the same field in the corresponding [Msrd](crate::msrd::Msrd).
     #[br(parse_with = parse_opt_ptr32)]
     #[xc3(offset(u32))]
-    pub streaming: Option<Streaming<Stream>>,
+    pub streaming: Option<Streaming>,
 
     // TODO: padding?
     pub unk: [u32; 9],
@@ -1041,16 +1042,6 @@ pub struct LodGroup {
     pub unk2: u32,
 }
 
-// TODO: use the same type and handle reading xbc1 differently?
-/// A reference to a [Stream](crate::msrd::Stream) in the [Msrd](crate::msrd::Msrd).
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
-pub struct Stream {
-    pub compressed_size: u32,
-    pub decompressed_size: u32,
-    // TODO: How to initialize this properly?
-    pub xbc1_offset: u32,
-}
-
 /// A collection of [Mibl](crate::mibl::Mibl) textures embedded in the current file.
 #[binread]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets)]
@@ -1085,7 +1076,7 @@ pub struct PackedTexture {
 
 /// References to [Mibl](crate::mibl::Mibl) textures in a separate file.
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct PackedExternalTextures {
@@ -1138,7 +1129,7 @@ pub enum TextureUsage {
     VolTex = 811597824,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
 #[br(import_raw(base_offset: u64))]
 pub struct PackedExternalTexture {
     pub usage: TextureUsage,

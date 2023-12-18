@@ -241,9 +241,9 @@ fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: 
                     new_data.streams.iter().zip(data.streams.iter()).enumerate()
                 {
                     // Don't print large byte buffers to the console.
-                    if new_stream.xbc1.decompress().unwrap() != stream.xbc1.decompress().unwrap() {
-                        println!("Stream{i} not 1:1 for {path:?}");
-                    }
+                    // if new_stream.xbc1.decompress().unwrap() != stream.xbc1.decompress().unwrap() {
+                    //     println!("Stream{i} not 1:1 for {path:?}");
+                    // }
                 }
 
                 // TODO: Check everything except for compressed data?

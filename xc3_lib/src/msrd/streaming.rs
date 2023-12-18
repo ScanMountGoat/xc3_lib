@@ -56,7 +56,9 @@ impl Msrd {
     ) -> Result<Vec<u8>, DecompressStreamError> {
         match &self.streaming.inner {
             StreamingInner::StreamingLegacy(_) => todo!(),
-            StreamingInner::Streaming(data) => data.decompress_stream(stream_index, entry_index),
+            StreamingInner::Streaming(data) => {
+                data.decompress_stream(stream_index, entry_index, &self.data, self.header_size)
+            }
         }
     }
 
@@ -65,7 +67,9 @@ impl Msrd {
     pub fn extract_vertex_data(&self) -> Result<VertexData, DecompressStreamError> {
         match &self.streaming.inner {
             StreamingInner::StreamingLegacy(_) => todo!(),
-            StreamingInner::Streaming(data) => data.extract_vertex_data(),
+            StreamingInner::Streaming(data) => {
+                data.extract_vertex_data(&self.data, self.header_size)
+            }
         }
     }
 
@@ -77,8 +81,10 @@ impl Msrd {
                 let low_texture_data = data.decompress_stream(
                     data.low_textures_stream_index,
                     data.low_textures_entry_index,
+                    &self.data,
+                    self.header_size,
                 )?;
-                data.extract_textures(&low_texture_data)
+                data.extract_textures(&low_texture_data, &self.data, self.header_size)
             }
         }
     }
@@ -88,7 +94,9 @@ impl Msrd {
     pub fn extract_pc_textures(&self) -> Result<Vec<ExtractedTexture<Dds>>, DecompressStreamError> {
         match &self.streaming.inner {
             StreamingInner::StreamingLegacy(_) => todo!(),
-            StreamingInner::Streaming(data) => data.extract_pc_textures(),
+            StreamingInner::Streaming(data) => {
+                data.extract_pc_textures(&self.data, self.header_size)
+            }
         }
     }
 
@@ -96,7 +104,9 @@ impl Msrd {
     pub fn extract_shader_data(&self) -> Result<Spch, DecompressStreamError> {
         match &self.streaming.inner {
             StreamingInner::StreamingLegacy(_) => todo!(),
-            StreamingInner::Streaming(data) => data.extract_shader_data(),
+            StreamingInner::Streaming(data) => {
+                data.extract_shader_data(&self.data, self.header_size)
+            }
         }
     }
 
@@ -106,18 +116,37 @@ impl Msrd {
     ) -> Result<(VertexData, Spch, Vec<ExtractedTexture<Mibl>>), DecompressStreamError> {
         match &self.streaming.inner {
             StreamingInner::StreamingLegacy(_) => todo!(),
-            StreamingInner::Streaming(data) => data.extract_files(),
+            StreamingInner::Streaming(data) => data.extract_files(&self.data, self.header_size),
         }
     }
 }
 
-impl StreamingData<Stream> {
+impl Streaming {
+    /// Pack and compress the files into new archive data.
+    pub fn from_extracted_files(
+        vertex: &VertexData,
+        spch: &Spch,
+        textures: &[ExtractedTexture<Mibl>],
+    ) -> Self {
+        Self {
+            inner: StreamingInner::Streaming(StreamingData::from_extracted_files(
+                vertex, spch, textures,
+            )),
+        }
+    }
+}
+
+impl StreamingData {
     pub fn decompress_stream(
         &self,
         stream_index: u32,
         entry_index: u32,
+        data: &[u8],
+        header_size: u32,
     ) -> Result<Vec<u8>, DecompressStreamError> {
-        let stream = &self.streams[stream_index as usize].xbc1.decompress()?;
+        let stream = &self.streams[stream_index as usize]
+            .read_xbc1(data, header_size)?
+            .decompress()?;
         let entry = &self.stream_entries[entry_index as usize];
         Ok(stream[entry.offset as usize..entry.offset as usize + entry.size as usize].to_vec())
     }
@@ -127,27 +156,31 @@ impl StreamingData<Stream> {
         &bytes[entry.offset as usize..entry.offset as usize + entry.size as usize]
     }
 
-    /// Extract all embedded files for a `wismt` file.
-    pub fn extract_files(
+    fn extract_files(
         &self,
+        data: &[u8],
+        header_size: u32,
     ) -> Result<(VertexData, Spch, Vec<ExtractedTexture<Mibl>>), DecompressStreamError> {
         // Extract all at once to avoid costly redundant decompression operations.
         // TODO: is this always in the first stream?
-        let stream0 = self.streams[0].xbc1.decompress()?;
+        let stream0 = self.streams[0].read_xbc1(data, header_size)?.decompress()?;
         let vertex =
             VertexData::from_bytes(self.entry_bytes(self.vertex_data_entry_index, &stream0))?;
         let spch = Spch::from_bytes(self.entry_bytes(self.shader_entry_index, &stream0))?;
 
         // TODO: is this always in the first stream?
         let low_texture_bytes = self.entry_bytes(self.low_textures_entry_index, &stream0);
-        let textures = self.extract_textures(low_texture_bytes)?;
+        let textures = self.extract_textures(low_texture_bytes, data, header_size)?;
 
         Ok((vertex, spch, textures))
     }
 
-    /// Extract geometry for `wismt` and `pcsmt` files.
-    pub fn extract_vertex_data(&self) -> Result<VertexData, DecompressStreamError> {
-        let bytes = self.decompress_stream(0, self.vertex_data_entry_index)?;
+    fn extract_vertex_data(
+        &self,
+        data: &[u8],
+        header_size: u32,
+    ) -> Result<VertexData, DecompressStreamError> {
+        let bytes = self.decompress_stream(0, self.vertex_data_entry_index, data, header_size)?;
         VertexData::from_bytes(bytes).map_err(Into::into)
     }
 
@@ -174,12 +207,14 @@ impl StreamingData<Stream> {
         }
     }
 
-    fn extract_low_pc_textures(&self) -> Vec<ExtractedTexture<Dds>> {
+    fn extract_low_pc_textures(&self, data: &[u8], header_size: u32) -> Vec<ExtractedTexture<Dds>> {
         // TODO: Avoid unwrap.
         let bytes = self
             .decompress_stream(
                 self.low_textures_stream_index,
                 self.low_textures_entry_index,
+                data,
+                header_size,
             )
             .unwrap();
 
@@ -204,39 +239,50 @@ impl StreamingData<Stream> {
     }
 
     // TODO: avoid unwrap?
-    /// Extract all textures for `wismt` files.
     fn extract_textures(
         &self,
         low_texture_data: &[u8],
+        data: &[u8],
+        header_size: u32,
     ) -> Result<Vec<ExtractedTexture<Mibl>>, DecompressStreamError> {
         self.extract_textures_inner(
-            |s| s.extract_low_textures(low_texture_data).unwrap(),
+            |s, _, _| s.extract_low_textures(low_texture_data).unwrap(),
             |b| Mibl::from_bytes(b).unwrap(),
+            data,
+            header_size,
         )
     }
 
-    /// Extract high resolution textures for `pcsmt` files.
-    pub fn extract_pc_textures(&self) -> Result<Vec<ExtractedTexture<Dds>>, DecompressStreamError> {
-        self.extract_textures_inner(Self::extract_low_pc_textures, |b| {
-            Dds::from_bytes(b).unwrap()
-        })
+    pub fn extract_pc_textures(
+        &self,
+        data: &[u8],
+        header_size: u32,
+    ) -> Result<Vec<ExtractedTexture<Dds>>, DecompressStreamError> {
+        self.extract_textures_inner(
+            Self::extract_low_pc_textures,
+            |b| Dds::from_bytes(b).unwrap(),
+            data,
+            header_size,
+        )
     }
 
     fn extract_textures_inner<T, F1, F2>(
         &self,
         read_low: F1,
         read_t: F2,
+        data: &[u8],
+        header_size: u32,
     ) -> Result<Vec<ExtractedTexture<T>>, DecompressStreamError>
     where
-        F1: Fn(&Self) -> Vec<ExtractedTexture<T>>,
+        F1: Fn(&Self, &[u8], u32) -> Vec<ExtractedTexture<T>>,
         F2: Fn(&[u8]) -> T,
     {
         // Start with no high res textures or base mip levels.
-        let mut textures = read_low(self);
+        let mut textures = read_low(self, data, header_size);
 
         // The high resolution textures are packed into a single stream.
         let stream = &self.streams[self.textures_stream_index as usize]
-            .xbc1
+            .read_xbc1(data, header_size)?
             .decompress()?;
 
         // TODO: Par iter?
@@ -256,7 +302,7 @@ impl StreamingData<Stream> {
             let base_mip = if base_mip_stream_index != 0 {
                 Some(
                     self.streams[base_mip_stream_index as usize]
-                        .xbc1
+                        .read_xbc1(data, header_size)?
                         .decompress()?,
                 )
             } else {
@@ -270,9 +316,13 @@ impl StreamingData<Stream> {
     }
 
     /// Extract shader programs for `wismt` and `pcsmt` files.
-    pub fn extract_shader_data(&self) -> Result<Spch, DecompressStreamError> {
+    pub fn extract_shader_data(
+        &self,
+        data: &[u8],
+        header_size: u32,
+    ) -> Result<Spch, DecompressStreamError> {
         // TODO: is this always in the first stream?
-        let bytes = self.decompress_stream(0, self.shader_entry_index)?;
+        let bytes = self.decompress_stream(0, self.shader_entry_index, data, header_size)?;
         Spch::from_bytes(bytes).map_err(Into::into)
     }
 
@@ -335,26 +385,37 @@ fn create_streams(
 ) -> (Vec<StreamEntry>, Vec<Stream>, Vec<PackedExternalTexture>) {
     // Entries are in ascending order by offset and stream.
     // Data order is Vertex, Shader, LowTextures, Textures.
-    let mut streams = Vec::new();
+    let mut xbc1s = Vec::new();
     let mut stream_entries = Vec::new();
 
-    let low_textures = write_stream0(&mut streams, &mut stream_entries, vertex, spch, textures);
+    let low_textures = write_stream0(&mut xbc1s, &mut stream_entries, vertex, spch, textures);
 
     let entry_start_index = stream_entries.len();
-    write_stream1(&mut streams, &mut stream_entries, textures);
+    write_stream1(&mut xbc1s, &mut stream_entries, textures);
 
-    write_base_mip_streams(
-        &mut streams,
-        &mut stream_entries,
-        textures,
-        entry_start_index,
-    );
+    write_base_mip_streams(&mut xbc1s, &mut stream_entries, textures, entry_start_index);
+
+    let mut streams = Vec::new();
+    let mut data = Cursor::new(Vec::new());
+    for xbc1 in xbc1s {
+        // TODO: This shoud be relative to the start of the msrd file.
+        let xbc1_offset = data.stream_position().unwrap() as u32;
+        xbc1.write(&mut data).unwrap();
+
+        // TODO: Should this make sure the xbc1 decompressed data is actually aligned?
+        streams.push(Stream {
+            compressed_size: (round_up(xbc1.compressed_stream.len() as u64, 16) + 48) as u32,
+            decompressed_size: round_up(xbc1.decompressed_size as u64, 4096) as u32,
+            xbc1_offset,
+        });
+    }
 
     (stream_entries, streams, low_textures)
 }
 
+// TODO: This should write to the data section.
 fn write_stream0(
-    streams: &mut Vec<Stream>,
+    streams: &mut Vec<Xbc1>,
     stream_entries: &mut Vec<StreamEntry>,
     vertex: &VertexData,
     spch: &Spch,
@@ -369,15 +430,13 @@ fn write_stream0(
     stream_entries.push(entry);
 
     let xbc1 = Xbc1::from_decompressed("0000".to_string(), &writer.into_inner()).unwrap();
-    let stream = Stream::from_xbc1(xbc1);
-
-    streams.push(stream);
+    streams.push(xbc1);
 
     low_textures
 }
 
 fn write_stream1(
-    streams: &mut Vec<Stream>,
+    streams: &mut Vec<Xbc1>,
     stream_entries: &mut Vec<StreamEntry>,
     textures: &[ExtractedTexture<Mibl>],
 ) {
@@ -392,12 +451,11 @@ fn write_stream1(
     }
 
     let xbc1 = Xbc1::from_decompressed("0000".to_string(), &writer.into_inner()).unwrap();
-    let stream = Stream::from_xbc1(xbc1);
-    streams.push(stream);
+    streams.push(xbc1);
 }
 
 fn write_base_mip_streams(
-    streams: &mut Vec<Stream>,
+    streams: &mut Vec<Xbc1>,
     stream_entries: &mut [StreamEntry],
     textures: &[ExtractedTexture<Mibl>],
     entry_start_index: usize,
@@ -410,7 +468,7 @@ fn write_base_mip_streams(
 
             // TODO: Should this be aligned in any way?
             let xbc1 = Xbc1::from_decompressed("0000".to_string(), base).unwrap();
-            streams.push(Stream::from_xbc1(xbc1));
+            streams.push(xbc1);
         }
     }
 }
