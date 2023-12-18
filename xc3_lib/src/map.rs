@@ -119,6 +119,7 @@ pub struct PropLod {
     // TODO: Do these actually index into the PropModelLod?
     /// The index of the base LOD (highest quality) [Model](crate::mxmd::Model)
     /// in [models](struct.PropModelData.html#structfield.models).
+    /// Only the first 28 bits (0xFFFFFFF) contain the actual index.
     pub base_lod_index: u32,
     /// The number of LOD models with higher indices having lower quality.
     pub lod_count: u32,

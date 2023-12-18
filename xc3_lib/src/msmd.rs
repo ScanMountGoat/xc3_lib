@@ -33,6 +33,7 @@ use crate::{
 #[br(magic(b"DMSM"))]
 #[xc3(magic(b"DMSM"))]
 pub struct Msmd {
+    /// 10112
     pub version: u32,
     // TODO: always 0?
     pub unk1: [u32; 4],

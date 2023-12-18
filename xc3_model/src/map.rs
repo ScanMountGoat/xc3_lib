@@ -207,6 +207,7 @@ fn load_prop_model_group(
     // Add additional instances if present.
     for info in &model_data.prop_info {
         let additional_instances = &prop_positions[info.prop_position_entry_index as usize];
+
         add_prop_instances(
             &mut model_instances,
             &model_data.lods.props,
@@ -277,7 +278,8 @@ fn add_prop_instances(
     if !model_instances.is_empty() {
         for instance in instances {
             let prop_lod = &props[instance.prop_index as usize];
-            let base_lod_index = prop_lod.base_lod_index as usize;
+            // Only the first 28 bits should be used to properly load XC3 DLC maps.
+            let base_lod_index = (prop_lod.base_lod_index & 0xFFFFFFF) as usize;
             // TODO: Should we also index into the PropModelLod?
             // TODO: Is PropModelLod.index always the same as its index in the list?
             model_instances[base_lod_index].push(Mat4::from_cols_array_2d(&instance.transform));
