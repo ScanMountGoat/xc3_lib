@@ -232,45 +232,11 @@ fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: 
             // TODO: make this check optional?
             if check_read_write {
                 // Check that repacking and unpacking produces the original streaming data.
-                let new_data =
-                    xc3_lib::msrd::StreamingData::from_extracted_files(&vertex, &spch, &textures);
-
-                for (i, (new_stream, stream)) in
-                    new_data.streams.iter().zip(data.streams.iter()).enumerate()
-                {
-                    // Don't print large byte buffers to the console.
-                    // if new_stream.xbc1.decompress().unwrap() != stream.xbc1.decompress().unwrap() {
-                    //     println!("Stream{i} not 1:1 for {path:?}");
-                    // }
+                let new_msrd = Msrd::from_extracted_files(&vertex, &spch, &textures);
+                if new_msrd.streaming != msrd.streaming {
+                    println!("Streaming not 1:1 for {path:?}");
                 }
-
-                // TODO: Check everything except for compressed data?
-                check_equal(
-                    &new_data.stream_entries,
-                    &data.stream_entries,
-                    "stream_entries",
-                    path,
-                );
-                check_equal(
-                    &new_data.texture_resources.texture_indices,
-                    &data.texture_resources.texture_indices,
-                    "texture_indices",
-                    path,
-                );
-                check_equal(
-                    &new_data
-                        .texture_resources
-                        .low_textures
-                        .as_ref()
-                        .map(|l| &l.textures),
-                    &data
-                        .texture_resources
-                        .low_textures
-                        .as_ref()
-                        .map(|l| &l.textures),
-                    "low_textures",
-                    path,
-                );
+                // TODO: Check decompressed streams.
             }
 
             // Check embedded data.

@@ -82,19 +82,33 @@ impl Msrd {
             StreamingInner::Streaming(data) => data.extract_files(&self.data, self.header_size),
         }
     }
-}
 
-impl Streaming {
     /// Pack and compress the files into new archive data.
     pub fn from_extracted_files(
         vertex: &VertexData,
         spch: &Spch,
         textures: &[ExtractedTexture<Mibl>],
     ) -> Self {
+        let (mut streaming, data) = pack_files(vertex, spch, textures);
+
+        // HACK: We won't know the first xbc1 offset until writing the header.
+        let mut writer = Cursor::new(Vec::new());
+        let mut data_ptr = 0;
+        write_full(&streaming, &mut writer, 0, &mut data_ptr).unwrap();
+        let header_size = round_up(data_ptr, 16) as u32;
+
+        // TODO: Does this acount for the occasional extra 16 bytes?
+        for stream in &mut streaming.streams {
+            stream.xbc1_offset += header_size + 16;
+        }
+
         Self {
-            inner: StreamingInner::Streaming(StreamingData::from_extracted_files(
-                vertex, spch, textures,
-            )),
+            version: 10001,
+            header_size,
+            streaming: Streaming {
+                inner: StreamingInner::Streaming(streaming),
+            },
+            data,
         }
     }
 }
@@ -222,19 +236,28 @@ impl StreamingData {
 
         Ok(textures)
     }
+}
 
-    // TODO: This needs to create the entire Msrd since each stream offset depends on the header size?
-    /// Pack and compress the files into new archive data.
-    pub fn from_extracted_files(
-        vertex: &VertexData,
-        spch: &Spch,
-        textures: &[ExtractedTexture<Mibl>],
-    ) -> Self {
-        // TODO: handle other streams.
-        let (stream_entries, streams, low_textures) = create_streams(vertex, spch, textures);
+fn pack_files(
+    vertex: &VertexData,
+    spch: &Spch,
+    textures: &[ExtractedTexture<Mibl>],
+) -> (StreamingData, Vec<u8>) {
+    let (stream_entries, streams, low_textures, data) = create_streams(vertex, spch, textures);
 
-        // TODO: Search stream entries to get indices?
-        // TODO: How are entry indices set if there are no textures?
+    let textures_stream_entry_start_index = stream_entries
+        .iter()
+        .position(|e| e.entry_type == EntryType::Texture)
+        .unwrap_or_default() as u32;
+
+    let textures_stream_entry_count = stream_entries
+        .iter()
+        .filter(|e| e.entry_type == EntryType::Texture)
+        .count() as u32;
+
+    // TODO: Search stream entries to get indices?
+    // TODO: How are entry indices set if there are no textures?
+    (
         StreamingData {
             stream_flags: StreamFlags::new(
                 true,
@@ -252,10 +275,9 @@ impl StreamingData {
             shader_entry_index: 1,
             low_textures_entry_index: 2,
             low_textures_stream_index: 0, // TODO: always 0?
-            textures_stream_index: 0,     // TODO: always 1 if textures are present?
-            textures_stream_entry_start_index: 0,
-            textures_stream_entry_count: 0,
-            // TODO: How to properly create these fields?
+            textures_stream_index: 1,     // TODO: always 1 if textures are present?
+            textures_stream_entry_start_index,
+            textures_stream_entry_count,
             texture_resources: TextureResources {
                 texture_indices: textures
                     .iter()
@@ -268,18 +290,25 @@ impl StreamingData {
                     strings_offset: 0,
                 }),
                 unk1: 0,
+                // TODO: How to properly create this field?
                 chr_textures: None,
                 unk: [0; 2],
             },
-        }
-    }
+        },
+        data,
+    )
 }
 
 fn create_streams(
     vertex: &VertexData,
     spch: &Spch,
     textures: &[ExtractedTexture<Mibl>],
-) -> (Vec<StreamEntry>, Vec<Stream>, Vec<PackedExternalTexture>) {
+) -> (
+    Vec<StreamEntry>,
+    Vec<Stream>,
+    Vec<PackedExternalTexture>,
+    Vec<u8>,
+) {
     // Entries are in ascending order by offset and stream.
     // Data order is Vertex, Shader, LowTextures, Textures.
     let mut xbc1s = Vec::new();
@@ -295,7 +324,7 @@ fn create_streams(
     let mut streams = Vec::new();
     let mut data = Cursor::new(Vec::new());
     for xbc1 in xbc1s {
-        // TODO: This shoud be relative to the start of the msrd file.
+        // This needs to be updated later to be relative to the start of the msrd.
         let xbc1_offset = data.stream_position().unwrap() as u32;
         xbc1.write(&mut data).unwrap();
 
@@ -307,10 +336,9 @@ fn create_streams(
         });
     }
 
-    (stream_entries, streams, low_textures)
+    (stream_entries, streams, low_textures, data.into_inner())
 }
 
-// TODO: This should write to the data section.
 fn write_stream0(
     streams: &mut Vec<Xbc1>,
     stream_entries: &mut Vec<StreamEntry>,
