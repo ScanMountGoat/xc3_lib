@@ -1093,6 +1093,7 @@ pub struct PackedExternalTextures {
     pub strings_offset: u32,
 }
 
+// TODO: Are these some sort of flags?
 // TODO: Use these for default assignments without database?
 // TODO: Possible to guess temp texture channels?
 /// Hints on how the texture is used.
@@ -1105,6 +1106,7 @@ pub enum TextureUsage {
     Temp = 1048576,
     Unk6 = 1074790400,
     Nrm = 1179648,
+    Unk13 = 131072,
     WavePlus = 136314882,
     Col = 2097152,
     Unk8 = 2162689,
@@ -1112,21 +1114,28 @@ pub enum TextureUsage {
     Unk = 268435456,
     Alp2 = 269484032,
     Col2 = 270532608,
+    Unk11 = 270663680,
     Unk9 = 272629760,
     Alp3 = 273678336,
     Nrm2 = 273809408,
     Col3 = 274726912,
     Unk3 = 274857984,
     Unk2 = 275775488,
+    Unk17 = 3276800,
     F01 = 403701762, // 3D?
     Unk4 = 4194304,
     Unk7 = 536870912,
+    Unk15 = 537001984,
     /// AO, OCL2, temp0000, temp0001, ...
     Temp2 = 537919488,
+    Unk14 = 538050560,
     Col4 = 538968064,
     Alp4 = 539099136,
+    Unk12 = 540147712,
     Unk5 = 807403520,
+    Unk10 = 807534592,
     VolTex = 811597824,
+    Unk16 = 811728896,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]

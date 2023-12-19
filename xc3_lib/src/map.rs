@@ -141,7 +141,7 @@ pub struct PropInstance {
     pub radius: f32,
     pub center: [f32; 3],
 
-    /// The index into [props](struct.PropLods.html#structfield.props).
+    /// Index into [props](struct.PropLods.html#structfield.props).
     pub prop_index: u32,
 
     pub unk1: u16,
@@ -164,7 +164,7 @@ pub struct PropUnk3 {
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct PropPositionInfo {
-    /// The index in [prop_positions](../msmd/struct.Msmd.html#structfield.prop_positions).
+    /// Index into [prop_positions](../msmd/struct.Msmd.html#structfield.prop_positions).
     pub prop_position_entry_index: u32,
     pub instance_start_index: u32,
     pub max_xyz: [f32; 3],
@@ -209,14 +209,15 @@ pub struct MapModelData {
 }
 
 // TODO: Shared with other formats?
-
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct Texture {
-    // TODO: What do these index into?
+    /// Index into [textures](../msmd/struct.LowTextures.html#structfield.textures)
+    /// for the corresponding [LowTextures](crate::msmd::LowTextures).
     pub low_texture_index: i16,
-    pub low_texture_container_index: i16,
-    pub texture_index: i16, // index into texture list in msmd?
-    pub texture_type: u16,
+    /// Index into [low_textures](../msmd/struct.Msmd.html#structfield.low_textures).
+    pub low_textures_entry_index: i16,
+    pub texture_index: i16, // TODO: index into texture list in msmd?
+    pub texture_type: u16, // TODO: enum?
 }
 
 // TODO: What to call this?

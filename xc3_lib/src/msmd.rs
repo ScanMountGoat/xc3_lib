@@ -25,7 +25,7 @@ use crate::{
     parse_string_ptr32,
     vertex::VertexData,
     xbc1::Xbc1,
-    xc3_write_binwrite_impl,
+    xc3_write_binwrite_impl, mxmd::TextureUsage,
 };
 
 /// The main map data for a `.wismhd` file.
@@ -69,7 +69,6 @@ pub struct Msmd {
     #[xc3(count_offset(u32, u32))]
     pub prop_vertex_data: Vec<StreamEntry<VertexData>>,
 
-    // TODO: What do these do?
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
     pub textures: Vec<Texture>,
@@ -168,9 +167,9 @@ pub struct Msmd {
 #[derive(Debug, BinRead, BinWrite)]
 pub struct Texture {
     pub mid: StreamEntry<Mibl>,
-    // TODO: This is just vec<u8>?
-    pub high: StreamEntry<Mibl>,
-    pub flags: u32,
+    // TODO: This isn't always used?
+    pub base_mip: StreamEntry<Vec<u8>>,
+    pub flags: u32, // TODO: What do these do?
 }
 
 // TODO: Better name for this?
@@ -408,11 +407,11 @@ pub struct LowTextures {
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct LowTexture {
-    pub unk1: u32,
+    pub usage: TextureUsage,
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
     pub mibl_data: Vec<u8>,
-    pub unk2: i32,
+    pub unk2: i32, // TODO: always -1?
 }
 
 #[derive(Debug, BinRead, BinWrite)]
@@ -576,19 +575,7 @@ pub struct StreamEntry<T> {
 }
 
 impl<T> StreamEntry<T>
-where
-    for<'a> T: BinRead<Args<'a> = ()>,
 {
-    /// Decompress and read the data from a reader for a `.wismda` file.
-    pub fn extract<R: Read + Seek>(
-        &self,
-        wismda: &mut R,
-        is_compressed: bool,
-    ) -> Result<T, DecompressStreamError> {
-        let bytes = self.decompress(wismda, is_compressed)?;
-        T::read_le(&mut Cursor::new(bytes)).map_err(Into::into)
-    }
-
     /// Decompress the data from a reader for a `.wismda` file.
     pub fn decompress<R: Read + Seek>(
         &self,
@@ -605,6 +592,21 @@ where
             wismda.read_exact(&mut bytes)?;
             Ok(bytes)
         }
+    }
+}
+
+impl<T> StreamEntry<T>
+where
+    for<'a> T: BinRead<Args<'a> = ()>,
+{
+    /// Decompress and read the data from a reader for a `.wismda` file.
+    pub fn extract<R: Read + Seek>(
+        &self,
+        wismda: &mut R,
+        is_compressed: bool,
+    ) -> Result<T, DecompressStreamError> {
+        let bytes = self.decompress(wismda, is_compressed)?;
+        T::read_le(&mut Cursor::new(bytes)).map_err(Into::into)
     }
 }
 

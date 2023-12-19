@@ -1,10 +1,11 @@
-use std::{io::Cursor, path::Path};
+use std::{collections::BTreeMap, io::Cursor, path::Path};
 
 use glam::{Mat4, Vec3};
 use rayon::prelude::*;
 use xc3_lib::{
     map::{FoliageMaterials, PropInstance, PropLod, PropPositions},
-    msmd::{ChannelType, MapParts, Msmd, StreamEntry},
+    mibl::Mibl,
+    msmd::{ChannelType, LowTexture, LowTextures, MapParts, Msmd, StreamEntry},
     mxmd::{ShaderUnkType, StateFlags},
     vertex::VertexData,
 };
@@ -71,32 +72,115 @@ pub fn load_map<P: AsRef<Path>>(
             .map(|foliage_model| load_foliage_model(&wismda, compressed, foliage_model)),
     );
 
-    let mut groups = Vec::new();
+    // TODO: How much does a mutable cache negatively impact parallelization?
+    // TODO: Is there enough reuse for it to be worth caching these?
+    let mut texture_cache = TextureCache::new(&msmd, &wismda, compressed);
 
-    let group = map_models_group(&msmd, &wismda, compressed, &model_folder, shader_database);
-    groups.push(group);
-
-    let group = props_group(&msmd, &wismda, compressed, model_folder, shader_database);
-    groups.push(group);
-
-    let image_textures: Vec<_> = msmd
-        .textures
-        .par_iter()
-        .map(|texture| {
-            // TODO: Merging doesn't always work?
-            // TODO: Do all textures load a separate base mip level?
-            let mut wismda = Cursor::new(&wismda);
-            let mibl_m = texture.mid.extract(&mut wismda, compressed).unwrap();
-            ImageTexture::from_mibl(&mibl_m, None, None).unwrap()
-        })
-        .collect();
+    let map_model_group = map_models_group(
+        &msmd,
+        &wismda,
+        compressed,
+        &model_folder,
+        &mut texture_cache,
+        shader_database,
+    );
+    let prop_model_group = props_group(
+        &msmd,
+        &wismda,
+        compressed,
+        model_folder,
+        &mut texture_cache,
+        shader_database,
+    );
 
     roots.push(ModelRoot {
-        groups,
-        image_textures,
+        groups: vec![map_model_group, prop_model_group],
+        image_textures: texture_cache.image_textures,
     });
 
     roots
+}
+
+// TODO: Is there a better way of doing this?
+// Lazy loading for the image textures.
+struct TextureCache {
+    low_textures: Vec<LowTextures>,
+    high_textures: Vec<Mibl>,
+    texture_to_image_texture_index: BTreeMap<(i16, i16, i16), usize>,
+    // Store separately to get a consistent ordering.
+    image_textures: Vec<ImageTexture>,
+}
+
+// TODO: Share logic with gltf?
+impl TextureCache {
+    fn new(msmd: &Msmd, wismda: &[u8], compressed: bool) -> Self {
+        let low_textures: Vec<_> = msmd
+            .low_textures
+            .iter()
+            .map(|e| e.extract(&mut Cursor::new(&wismda), compressed).unwrap())
+            .collect();
+
+        let high_textures: Vec<_> = msmd
+            .textures
+            .par_iter()
+            .map(|texture| {
+                // TODO: Merging doesn't always work?
+                // TODO: Do all textures load a separate base mip level?
+                let mut wismda = Cursor::new(&wismda);
+                let mibl_m = texture.mid.extract(&mut wismda, compressed).unwrap();
+
+                let base_mip_level = texture
+                    .base_mip
+                    .decompress(&mut wismda, compressed)
+                    .unwrap();
+                // TODO: Is this the correct way to check for this?
+                if base_mip_level.is_empty() {
+                    mibl_m
+                } else {
+                    mibl_m.with_base_mip(&base_mip_level)
+                }
+            })
+            .collect();
+
+        Self {
+            texture_to_image_texture_index: BTreeMap::new(),
+            low_textures,
+            high_textures,
+            image_textures: Vec::new(),
+        }
+    }
+    fn insert(&mut self, texture: &xc3_lib::map::Texture) -> usize {
+        let key = (
+            texture.low_texture_index,
+            texture.low_textures_entry_index,
+            texture.texture_index,
+        );
+        match self.texture_to_image_texture_index.get(&key) {
+            Some(index) => *index,
+            None => {
+                let next_index = self.image_textures.len();
+
+                let low = self
+                    .get_low_texture(texture.low_texture_index, texture.low_textures_entry_index);
+                // TODO: How to handle negative indices?
+                let mibl = &self.high_textures[texture.texture_index.max(0) as usize];
+
+                let image_texture =
+                    ImageTexture::from_mibl(mibl, None, low.map(|l| l.usage)).unwrap();
+                self.image_textures.push(image_texture);
+
+                self.texture_to_image_texture_index.insert(key, next_index);
+
+                next_index
+            }
+        }
+    }
+
+    fn get_low_texture(&self, entry_index: i16, index: i16) -> Option<&LowTexture> {
+        let entry_index = usize::try_from(entry_index).ok()?;
+        let index = usize::try_from(index).ok()?;
+        self.low_textures.get(entry_index)?.textures.get(index)
+    }
 }
 
 fn map_models_group(
@@ -104,17 +188,32 @@ fn map_models_group(
     wismda: &Vec<u8>,
     compressed: bool,
     model_folder: &str,
+    texture_cache: &mut TextureCache,
     shader_database: Option<&ShaderDatabase>,
 ) -> ModelGroup {
     let buffers = create_buffers(&msmd.map_vertex_data, wismda, compressed);
 
     let mut models = Vec::new();
-    models.par_extend(msmd.map_models.par_iter().enumerate().map(|(i, model)| {
+    models.extend(msmd.map_models.iter().enumerate().map(|(i, model)| {
         let model_data = model
             .entry
             .extract(&mut Cursor::new(wismda), compressed)
             .unwrap();
-        load_map_model_group(&model_data, i, model_folder, shader_database)
+
+        // Remove one layer of indirection from texture lookups.
+        let material_root_texture_indices: Vec<_> = model_data
+            .textures
+            .iter()
+            .map(|t| texture_cache.insert(t))
+            .collect();
+
+        load_map_model_group(
+            &model_data,
+            i,
+            model_folder,
+            &material_root_texture_indices,
+            shader_database,
+        )
     }));
 
     ModelGroup { models, buffers }
@@ -125,6 +224,7 @@ fn props_group(
     wismda: &Vec<u8>,
     compressed: bool,
     model_folder: String,
+    texture_cache: &mut TextureCache,
     shader_database: Option<&ShaderDatabase>,
 ) -> ModelGroup {
     let buffers = create_buffers(&msmd.prop_vertex_data, wismda, compressed);
@@ -137,7 +237,7 @@ fn props_group(
 
     let models = msmd
         .prop_models
-        .par_iter()
+        .iter()
         .enumerate()
         .map(|(i, model)| {
             let model_data = model
@@ -145,12 +245,20 @@ fn props_group(
                 .extract(&mut Cursor::new(wismda), compressed)
                 .unwrap();
 
+            // Remove one layer of indirection from texture lookups.
+            let material_root_texture_indices: Vec<_> = model_data
+                .textures
+                .iter()
+                .map(|t| texture_cache.insert(t))
+                .collect();
+
             load_prop_model_group(
                 &model_data,
                 i,
                 msmd.parts.as_ref(),
                 &prop_positions,
                 &model_folder,
+                &material_root_texture_indices,
                 shader_database,
             )
         })
@@ -187,6 +295,7 @@ fn load_prop_model_group(
     parts: Option<&MapParts>,
     prop_positions: &[PropPositions],
     model_folder: &str,
+    material_root_texture_indices: &[usize],
     shader_database: Option<&ShaderDatabase>,
 ) -> Models {
     let spch = shader_database
@@ -234,7 +343,7 @@ fn load_prop_model_group(
     // TODO: empty groups?
 
     let mut materials = create_materials(&model_data.materials, spch);
-    apply_material_texture_indices(&mut materials, &model_data.textures);
+    apply_material_texture_indices(&mut materials, material_root_texture_indices);
 
     let samplers = create_samplers(&model_data.materials);
 
@@ -378,6 +487,7 @@ fn load_map_model_group(
     model_data: &xc3_lib::map::MapModelData,
     model_index: usize,
     model_folder: &str,
+    material_root_texture_indices: &[usize],
     shader_database: Option<&ShaderDatabase>,
 ) -> Models {
     let spch = shader_database
@@ -385,7 +495,7 @@ fn load_map_model_group(
         .and_then(|map| map.map_models.get(model_index));
 
     let mut materials = create_materials(&model_data.materials, spch);
-    apply_material_texture_indices(&mut materials, &model_data.textures);
+    apply_material_texture_indices(&mut materials, material_root_texture_indices);
 
     let samplers = create_samplers(&model_data.materials);
 
@@ -569,14 +679,15 @@ fn foliage_materials(materials: &FoliageMaterials) -> Vec<Material> {
 
 fn apply_material_texture_indices(
     materials: &mut Vec<Material>,
-    textures: &[xc3_lib::map::Texture],
+    material_root_texture_indices: &[usize],
 ) {
+    // Maps use material textures -> model data textures -> msmd textures.
     // Not all textures are referenced by each material.
+    // xc3_model uses material textures -> root textures.
     // Apply indices here to reduce indirection for consuming code.
     for material in materials {
         for texture in &mut material.textures {
-            // TODO: How to handle texture index being -1?
-            let index = textures[texture.image_texture_index].texture_index.max(0) as usize;
+            let index = material_root_texture_indices[texture.image_texture_index];
             texture.image_texture_index = index;
         }
     }
