@@ -6,7 +6,7 @@
 //! | Xenoblade Chronicles 1 DE | `chr/{en,np,obj,pc,wp}/*.wismt` |
 //! | Xenoblade Chronicles 2 | `model/{bl,en,np,oj,pc,we,wp}/*.wismt` |
 //! | Xenoblade Chronicles 3 | `chr/{bt,ch,en,oj,wp}/*.wismt`, `map/*.wismt` |
-use std::io::{Cursor, Seek, SeekFrom, Write};
+use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 
 use crate::{
     dds::DdsExt,
@@ -16,23 +16,24 @@ use crate::{
     xc3_write_binwrite_impl,
 };
 use bilge::prelude::*;
-use binrw::{args, binread, until_eof, BinRead, BinWrite};
+use binrw::{args, binread, until_eof, BinRead, BinResult, BinWrite};
 use xc3_write::{round_up, write_full, Xc3Write, Xc3WriteOffsets};
 
 pub mod streaming;
 
 // TODO: how to set the xbc1 offsets when repacking the msrd?
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
+#[derive(Debug, Xc3Write, Clone, PartialEq)]
 #[br(magic(b"DRSM"))]
 #[xc3(magic(b"DRSM"))]
 pub struct Msrd {
     /// Version `10001`
     pub version: u32,
 
-    // TODO: Can this be calculated without writing the data?
-    // rounded or aligned in some way?
-    pub header_size: u32, // TODO: xbc1 offset - 16?
+    // Don't have the streams own the data so mxmd can use the same types.
+    #[br(parse_with = parse_data)]
+    #[xc3(offset(u32), align(16))]
+    pub data: Vec<u8>,
 
     /// Information on the files in [data](#structfield.data).
     /// Identical to [streaming](../mxmd/struct.Mxmd.html#structfield.streaming)
@@ -40,12 +41,6 @@ pub struct Msrd {
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]
     pub streaming: Streaming,
-
-    // TODO: How to ensure this is written at the end?
-    // TODO: xc3(skip) and write for offset impl?
-    // Don't have the streams own the data so mxmd can use the same types.
-    #[br(parse_with = until_eof, seek_before = SeekFrom::Start(header_size as u64 + 16))]
-    pub data: Vec<u8>,
 }
 
 #[binread]
@@ -270,22 +265,61 @@ pub struct Stream {
     /// The size of the decompressed data in [xbc1](#structfield.xbc1).
     /// Aligned to 4096 (0x1000).
     pub decompressed_size: u32,
-    // TODO: Document how this works.
+    /// The offset for the [Xbc1] relative to the start of the file.
     pub xbc1_offset: u32,
 }
 
 impl Stream {
-    // TODO: Document how this works.
-    pub fn read_xbc1(&self, data: &[u8], header_size: u32) -> binrw::BinResult<Xbc1> {
-        let start = self.xbc1_offset - header_size - 16;
+    /// Read the [Xbc1] from `data`.
+    /// This requires the [xbc1_offset](struct.Stream.html.structfield#xbc1_offset)
+    /// from the first stream to correctly calculate the offset in the data section.
+    pub fn read_xbc1(&self, data: &[u8], first_xbc1_offset: u32) -> binrw::BinResult<Xbc1> {
+        let start = self.xbc1_offset - first_xbc1_offset;
         Xbc1::from_bytes(&data[start as usize..start as usize + self.compressed_size as usize])
     }
 }
 
+fn parse_data<R>(reader: &mut R, endian: binrw::Endian, _args: ()) -> BinResult<Vec<u8>>
+where
+    R: Read + Seek,
+{
+    // This is technically the streaming header's size.
+    // Use it as an offset to the xbc1 to work with the write derive.
+    let offset = u32::read_options(reader, endian, ())?;
+    let saved_pos = reader.stream_position()?;
+
+    if offset == 0 {
+        return Err(binrw::Error::AssertFail {
+            pos: saved_pos,
+            message: "unexpected null offset".to_string(),
+        });
+    }
+
+    reader.seek(SeekFrom::Start(offset as u64 + 16))?;
+    let bytes = until_eof(reader, endian, ())?;
+    reader.seek(SeekFrom::Start(saved_pos))?;
+
+    Ok(bytes)
+}
+
 xc3_write_binwrite_impl!(StreamEntry, StreamFlags, StreamingFlagsLegacy);
 
+impl<'a> Xc3WriteOffsets for MsrdOffsets<'a> {
+    fn write_offsets<W: Write + Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> xc3_write::Xc3Result<()> {
+        // Different order than field order.
+        self.streaming.write_full(writer, base_offset, data_ptr)?;
+        self.data.write_full(writer, base_offset + 16, data_ptr)?;
+        Ok(())
+    }
+}
+
 impl<'a> Xc3WriteOffsets for TextureResourcesOffsets<'a> {
-    fn write_offsets<W: std::io::Write + std::io::Seek>(
+    fn write_offsets<W: Write + Seek>(
         &self,
         writer: &mut W,
         base_offset: u64,

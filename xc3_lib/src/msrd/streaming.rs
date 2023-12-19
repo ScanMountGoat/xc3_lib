@@ -57,7 +57,7 @@ impl Msrd {
         match &self.streaming.inner {
             StreamingInner::StreamingLegacy(_) => todo!(),
             StreamingInner::Streaming(data) => {
-                data.decompress_stream(stream_index, entry_index, &self.data, self.header_size)
+                data.decompress_stream(stream_index, entry_index, &self.data)
             }
         }
     }
@@ -69,7 +69,7 @@ impl Msrd {
         // TODO: Return just textures for legacy data?
         match &self.streaming.inner {
             StreamingInner::StreamingLegacy(_) => todo!(),
-            StreamingInner::Streaming(data) => data.extract_files(&self.data, self.header_size),
+            StreamingInner::Streaming(data) => data.extract_files(&self.data),
         }
     }
 
@@ -79,7 +79,7 @@ impl Msrd {
     ) -> Result<(VertexData, Spch, Vec<ExtractedTexture<Dds>>), DecompressStreamError> {
         match &self.streaming.inner {
             StreamingInner::StreamingLegacy(_) => todo!(),
-            StreamingInner::Streaming(data) => data.extract_files(&self.data, self.header_size),
+            StreamingInner::Streaming(data) => data.extract_files(&self.data),
         }
     }
 
@@ -95,16 +95,15 @@ impl Msrd {
         let mut writer = Cursor::new(Vec::new());
         let mut data_ptr = 0;
         write_full(&streaming, &mut writer, 0, &mut data_ptr).unwrap();
-        let header_size = round_up(data_ptr, 16) as u32;
+        let first_xbc1_offset = round_up(data_ptr, 16) as u32;
 
         // TODO: Does this acount for the occasional extra 16 bytes?
         for stream in &mut streaming.streams {
-            stream.xbc1_offset += header_size + 16;
+            stream.xbc1_offset += first_xbc1_offset + 16;
         }
 
         Self {
             version: 10001,
-            header_size,
             streaming: Streaming {
                 inner: StreamingInner::Streaming(streaming),
             },
@@ -136,10 +135,11 @@ impl StreamingData {
         stream_index: u32,
         entry_index: u32,
         data: &[u8],
-        header_size: u32,
     ) -> Result<Vec<u8>, DecompressStreamError> {
+        let first_xbc1_offset = self.streams[0].xbc1_offset;
+
         let stream = &self.streams[stream_index as usize]
-            .read_xbc1(data, header_size)?
+            .read_xbc1(data, first_xbc1_offset)?
             .decompress()?;
         let entry = &self.stream_entries[entry_index as usize];
         Ok(stream[entry.offset as usize..entry.offset as usize + entry.size as usize].to_vec())
@@ -153,18 +153,21 @@ impl StreamingData {
     fn extract_files<T: Texture>(
         &self,
         data: &[u8],
-        header_size: u32,
     ) -> Result<(VertexData, Spch, Vec<ExtractedTexture<T>>), DecompressStreamError> {
+        let first_xbc1_offset = self.streams[0].xbc1_offset;
+
         // Extract all at once to avoid costly redundant decompression operations.
         // TODO: is this always in the first stream?
-        let stream0 = self.streams[0].read_xbc1(data, header_size)?.decompress()?;
+        let stream0 = self.streams[0]
+            .read_xbc1(data, first_xbc1_offset)?
+            .decompress()?;
         let vertex =
             VertexData::from_bytes(self.entry_bytes(self.vertex_data_entry_index, &stream0))?;
         let spch = Spch::from_bytes(self.entry_bytes(self.shader_entry_index, &stream0))?;
 
         // TODO: is this always in the first stream?
         let low_texture_bytes = self.entry_bytes(self.low_textures_entry_index, &stream0);
-        let textures = self.extract_textures(data, header_size, low_texture_bytes)?;
+        let textures = self.extract_textures(data, low_texture_bytes)?;
 
         Ok((vertex, spch, textures))
     }
@@ -196,15 +199,15 @@ impl StreamingData {
     fn extract_textures<T: Texture>(
         &self,
         data: &[u8],
-        header_size: u32,
         low_texture_data: &[u8],
     ) -> Result<Vec<ExtractedTexture<T>>, DecompressStreamError> {
         // Start with no high res textures or base mip levels.
         let mut textures = self.extract_low_textures(low_texture_data)?;
 
         // The high resolution textures are packed into a single stream.
+        let first_xbc1_offset = self.streams[0].xbc1_offset;
         let stream = &self.streams[self.textures_stream_index as usize]
-            .read_xbc1(data, header_size)?
+            .read_xbc1(data, first_xbc1_offset)?
             .decompress()?;
 
         // TODO: Par iter?
@@ -224,7 +227,7 @@ impl StreamingData {
             let base_mip = if base_mip_stream_index != 0 {
                 Some(
                     self.streams[base_mip_stream_index as usize]
-                        .read_xbc1(data, header_size)?
+                        .read_xbc1(data, first_xbc1_offset)?
                         .decompress()?,
                 )
             } else {

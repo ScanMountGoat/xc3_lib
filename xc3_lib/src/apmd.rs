@@ -65,10 +65,10 @@ impl Entry {
                 EntryType::Mxmd
             }
             EntryData::Dmis => EntryType::Dmis,
-            EntryData::Dlgt(v) => EntryType::Dlgt,
-            EntryData::Gibl(v) => EntryType::Gibl,
-            EntryData::Nerd(v) => EntryType::Nerd,
-            EntryData::Dlgt2(v) => EntryType::Dlgt2,
+            EntryData::Dlgt(_) => EntryType::Dlgt,
+            EntryData::Gibl(_) => EntryType::Gibl,
+            EntryData::Nerd(_) => EntryType::Nerd,
+            EntryData::Dlgt2(_) => EntryType::Dlgt2,
         };
 
         Ok(Self {
