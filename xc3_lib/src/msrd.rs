@@ -181,7 +181,7 @@ pub struct TextureResources {
     /// Always `0`.
     pub unk1: u32,
 
-    // TODO: only used for some xc3 models with chr/tex textures?
+    // Only used for some xc3 files.
     #[br(if(size == 92), args_raw(base_offset))]
     pub chr_textures: Option<ChrTexTextures>,
 
@@ -200,14 +200,25 @@ pub struct ChrTexTextures {
     pub unk: [u32; 2],
 }
 
+/// A texture file in `xeno3/chr/tex/nx/m` with a base mipmap in `xeno3/chr/tex/nx/h`.
+///
+/// The texture [Mibl](crate::mibl) and base mip bytes both use [Xbc1] archives.
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
 pub struct ChrTexTexture {
-    // TODO: The texture name hash as an integer for xc3?
+    // TODO: The texture name hash as an integer?
     pub hash: u32,
-    pub unk2: u32,
-    pub unk3: u32,
-    pub unk4: u32,
-    pub unk5: u32,
+    /// The size of the decompressed data in the `.wismt` file in `chr/tex/m`.
+    /// Aligned to 4096 (0x1000).
+    pub decompressed_size: u32,
+    /// The size in bytes of the `.wismt` file in `chr/tex/m`.
+    /// Aligned to 16 (0x10).
+    pub compressed_size: u32,
+    /// The size of the decompressed data in the `.wismt` file in `chr/tex/h`.
+    /// Aligned to 4096 (0x1000).
+    pub base_mip_decompressed_size: u32,
+    /// The size in bytes of the `.wismt` file in `chr/tex/h`.
+    /// Aligned to 16 (0x10).
+    pub base_mip_compressed_size: u32,
 }
 
 /// A file contained in a [Stream].
@@ -262,7 +273,7 @@ pub enum EntryType {
 pub struct Stream {
     /// The size of the [Xbc1], including its header.
     pub compressed_size: u32,
-    /// The size of the decompressed data in [xbc1](#structfield.xbc1).
+    /// The size of the decompressed data in the [Xbc1].
     /// Aligned to 4096 (0x1000).
     pub decompressed_size: u32,
     /// The offset for the [Xbc1] relative to the start of the file.
