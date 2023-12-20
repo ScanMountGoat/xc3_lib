@@ -588,7 +588,7 @@ pub struct Models {
     pub lod_data: Option<LodData>,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
+    #[xc3(offset(u32), align(16))]
     pub model_unk4: Option<ModelUnk4>,
     pub unk_field2: u32,
 
@@ -1151,7 +1151,9 @@ pub struct PackedExternalTexture {
     pub name: String,
 }
 
-// TODO: Fix offset writing.
+// xc1: 40 bytes
+// xc2: 32, 36, 40 bytes
+// xc3: 52, 60 bytes
 #[binread]
 #[derive(Debug, Xc3Write)]
 #[br(stream = r)]
@@ -1162,6 +1164,10 @@ pub struct Skinning {
 
     pub count1: u32,
     pub count2: u32,
+
+    // Estimate the struct size based on its first offset.
+    #[br(temp, restore_position)]
+    bones_offset: u32,
 
     // TODO: Find a simpler way of writing this?
     // TODO: helper for separate count.
@@ -1179,10 +1185,9 @@ pub struct Skinning {
     #[xc3(offset(u32), align(16))]
     pub inverse_bind_transforms: Vec<[[f32; 4]; 4]>,
 
-    // TODO: Possible to calcualte count directly?
-    #[br(restore_position)]
-    #[xc3(skip)]
-    pub offsets: [u32; 2],
+    // TODO: Possible to calculate count directly?
+    #[br(temp, restore_position)]
+    offsets: [u32; 2],
 
     // TODO: Count related to bone unk_type?
     // TODO: Count is 0, 2, or 4?
@@ -1210,22 +1215,51 @@ pub struct Skinning {
     #[xc3(count_offset(u32, u32))]
     pub bone_indices: Vec<u16>,
 
-    #[br(parse_with = parse_opt_ptr32)]
-    #[br(args { offset: base_offset, inner: base_offset })]
+    // offset 32
+    // Use nested options to skip fields entirely if not present.
     #[br(if(transforms2.is_some()))]
-    #[xc3(offset(u32))]
-    pub unk_offset4: Option<UnkBones>,
+    #[br(args_raw(base_offset))]
+    pub unk_offset4: Option<SkinningUnkBones>,
 
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[br(if(transforms3.is_some()))]
-    #[xc3(offset(u32))]
-    pub unk_offset5: Option<SkeletonUnk5>,
+    #[br(args_raw(base_offset))]
+    pub unk_offset5: Option<SkinningUnk5>,
+
     // TODO: not present in xc2?
     // TODO: procedural bones?
-    // #[br(parse_with = parse_opt_ptr32, args { offset: base_offset, inner: base_offset })]
-    // #[br(if(!bone_indices.is_empty()))]
-    // #[xc3(offset(u32))]
-    // pub as_bone_data: Option<AsBoneData>,
+    #[br(if(!bone_indices.is_empty()))]
+    #[br(args_raw(base_offset))]
+    pub as_bone_data: Option<SkinningAsBoneData>,
+
+    // TODO: Optional padding for xc3?
+    #[br(if(bones_offset == 60))]
+    pub unk: Option<[u32; 4]>
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[br(import_raw(base_offset: u64))]
+pub struct SkinningUnkBones {
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset(u32))]
+    pub unk_offset4: Option<UnkBones>,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[br(import_raw(base_offset: u64))]
+pub struct SkinningUnk5 {
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub unk_offset5: Option<SkeletonUnk5>,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[br(import_raw(base_offset: u64))]
+pub struct SkinningAsBoneData {
+    // TODO: procedural bones?
+    #[br(parse_with = parse_opt_ptr32, args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset(u32))]
+    pub as_bone_data: Option<AsBoneData>,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -1426,14 +1460,6 @@ impl<'a> Xc3WriteOffsets for SkinningOffsets<'a> {
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
 
-        // TODO: variable padding?
-        // if self.as_bone_data.data.is_some() || self.unk_offset5.data.is_some() {
-        //     *data_ptr += 16;
-        // }
-        if self.unk_offset5.data.is_some() {
-            *data_ptr += 16;
-        }
-
         let bones = self.bones.write_offset(writer, base_offset, data_ptr)?;
 
         if !self.bone_indices.data.is_empty() {
@@ -1447,12 +1473,12 @@ impl<'a> Xc3WriteOffsets for SkinningOffsets<'a> {
         self.transforms2.write_full(writer, base_offset, data_ptr)?;
         self.transforms3.write_full(writer, base_offset, data_ptr)?;
 
-        self.unk_offset4.write_full(writer, base_offset, data_ptr)?;
-
-        // self.as_bone_data
-        //     .write_full(writer, base_offset, data_ptr)?;
-
-        self.unk_offset5.write_full(writer, base_offset, data_ptr)?;
+        self.unk_offset4
+            .write_offsets(writer, base_offset, data_ptr)?;
+        self.as_bone_data
+            .write_offsets(writer, base_offset, data_ptr)?;
+        self.unk_offset5
+            .write_offsets(writer, base_offset, data_ptr)?;
 
         for bone in bones.0 {
             bone.name.write_full(writer, base_offset, data_ptr)?;

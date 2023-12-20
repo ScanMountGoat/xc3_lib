@@ -63,18 +63,26 @@ impl Skeleton {
 
         // Add parenting and transform information for additional bones.
         // TODO: Does the mxmd have parenting information for all bones?
-        // if let Some(as_bone_data) = &skinning.as_bone_data {
-        //     for as_bone in &as_bone_data.bones {
-        //         update_bone(
-        //             &mut bones,
-        //             skinning,
-        //             as_bone.bone_index,
-        //             as_bone.parent_index,
-        //         );
-        //     }
-        // }
+        if let Some(as_bone_data) = skinning
+            .as_bone_data
+            .as_ref()
+            .and_then(|d| d.as_bone_data.as_ref())
+        {
+            for as_bone in &as_bone_data.bones {
+                update_bone(
+                    &mut bones,
+                    skinning,
+                    as_bone.bone_index,
+                    as_bone.parent_index,
+                );
+            }
+        }
 
-        if let Some(unk4) = &skinning.unk_offset4 {
+        if let Some(unk4) = skinning
+            .unk_offset4
+            .as_ref()
+            .and_then(|u| u.unk_offset4.as_ref())
+        {
             for unk_bone in &unk4.bones {
                 update_bone(
                     &mut bones,
