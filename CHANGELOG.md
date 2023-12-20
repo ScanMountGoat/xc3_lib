@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added support for PC files like `.pcmdo` and `.pcsmt`.
 * Added support for `LAGP` in `.wilay` files.
 * Added `TextureUsage` enum, enabling more accurate texture assignments when missing shader database information.
+* Added support to xc3_tex for extracting images from `.wilay` files to a folder.
 
 ### Fixed
 * Fixed an issue where material parameters were not annotated correctly in decompiled shaders.
