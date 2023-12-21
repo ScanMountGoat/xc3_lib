@@ -601,26 +601,96 @@ pub struct Models {
     // TODO: What controls the up to 44 optional bytes?
     // TODO: How to estimate models offset from these fields?
     // offset 160
-    // #[br(parse_with = parse_opt_ptr32)]
-    // #[br(args { offset: base_offset, inner: base_offset })]
-    // #[br(if(models_offset > 160))]
-    // #[xc3(offset(u32))]
-    // pub model_unk10: Option<ModelUnk10>,
+    #[br(args { size: models_offset, base_offset})]
+    pub extra: ModelsExtraData,
+}
 
-    // #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    // #[br(if(models_offset > 164))]
-    // #[xc3(offset(u32))]
-    // pub model_unk5: Option<ModelUnk5>,
+// Use an enum since even the largest size can have all offsets as null.
+// i.e. the nullability of the offsets does not determine the size.
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[br(import { size: u32, base_offset: u64 })]
+pub enum ModelsExtraData {
+    #[br(pre_assert(size == 160))]
+    Unk1,
 
-    // #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    // #[xc3(offset(u32))]
-    // #[br(if(models_offset > 168))]
-    // pub model_unk6: Option<ModelUnk6>,
+    #[br(pre_assert(size == 164))]
+    Unk2(#[br(args_raw(base_offset))] ModelsExtraDataUnk2),
 
-    // // TODO: padding?
-    // // TODO: add asserts to all padding fields
-    // #[br(if(models_offset > 200))]
-    // pub unk: [u32; 8],
+    #[br(pre_assert(size == 168))]
+    Unk3(#[br(args_raw(base_offset))] ModelsExtraDataUnk3),
+
+    #[br(pre_assert(size == 200))]
+    Unk4(#[br(args_raw(base_offset))] ModelsExtraDataUnk4),
+
+    #[br(pre_assert(size == 204))]
+    Unk5(#[br(args_raw(base_offset))] ModelsExtraDataUnk5),
+}
+
+// TODO: add asserts to all padding fields?
+// 164 total bytes
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[br(import_raw(base_offset: u64))]
+pub struct ModelsExtraDataUnk2 {
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset(u32))]
+    pub model_unk10: Option<ModelUnk10>,
+}
+
+// 168 total bytes
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[br(import_raw(base_offset: u64))]
+pub struct ModelsExtraDataUnk3 {
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset(u32))]
+    pub model_unk10: Option<ModelUnk10>,
+
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub model_unk5: Option<ModelUnk5>,
+}
+
+// 200 total bytes
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[br(import_raw(base_offset: u64))]
+pub struct ModelsExtraDataUnk4 {
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset(u32))]
+    pub model_unk10: Option<ModelUnk10>,
+
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub model_unk5: Option<ModelUnk5>,
+
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub model_unk6: Option<ModelUnk6>,
+
+    // TODO: padding?
+    pub unk: Option<[u32; 7]>,
+}
+
+// 204 total bytes
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[br(import_raw(base_offset: u64))]
+pub struct ModelsExtraDataUnk5 {
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset(u32))]
+    pub model_unk10: Option<ModelUnk10>,
+
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub model_unk5: Option<ModelUnk5>,
+
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub model_unk6: Option<ModelUnk6>,
+
+    // TODO: padding?
+    pub unk: Option<[u32; 8]>,
 }
 
 /// A collection of meshes where each [Mesh] represents one draw call.
@@ -689,7 +759,19 @@ pub struct ModelsFlags {
     pub unk17: bool,
     pub has_lod_data: bool,
     pub has_model_unk4: bool,
-    pub unk: u13,
+    pub unk20: bool,
+    pub unk21: bool,
+    pub unk22: bool,
+    pub unk23: bool,
+    pub unk24: bool,
+    pub unk25: bool,
+    pub unk26: bool,
+    pub unk27: bool,
+    pub unk28: bool,
+    pub unk29: bool,
+    pub unk30: bool,
+    pub unk31: bool,
+    pub unk32: bool,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -943,13 +1025,20 @@ pub struct ModelUnk1 {
     pub unk5: u32,
     // TODO: not present for xc2?
     // TODO: Is this the correct check?
-    // #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    // #[xc3(offset(u32))]
-    // #[br(if(unk4 != 0 || unk5 != 0))]
-    // pub unk_inner: Option<ModelUnk1Inner>,
+    #[br(if(unk4 != 0 || unk5 != 0))]
+    #[br(args_raw(base_offset))]
+    pub extra: Option<ModelUnk1Extra>,
+}
 
-    // TODO: padding if unk_inner?
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[br(import_raw(base_offset: u64))]
+pub struct ModelUnk1Extra {
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub unk_inner: Option<ModelUnk1Inner>,
+
     // TODO: only 12 bytes for chr/ch/ch01022012.wimdo?
+    pub unk: [u32; 4],
 }
 
 #[binread]
@@ -1233,7 +1322,7 @@ pub struct Skinning {
 
     // TODO: Optional padding for xc3?
     #[br(if(bones_offset == 60))]
-    pub unk: Option<[u32; 4]>
+    pub unk: Option<[u32; 4]>,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -1497,11 +1586,6 @@ impl<'a> Xc3WriteOffsets for ModelUnk1Offsets<'a> {
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
 
-        // TODO: variable padding?
-        // if self.unk_inner.data.is_some() {
-        //     *data_ptr += 16;
-        // }
-
         let items1 = self.items1.write_offset(writer, base_offset, data_ptr)?;
 
         self.items3.write_full(writer, base_offset, data_ptr)?;
@@ -1511,7 +1595,6 @@ impl<'a> Xc3WriteOffsets for ModelUnk1Offsets<'a> {
         }
 
         // TODO: Set alignment at type level for Xc3Write?
-        // *data_ptr = round_up(*data_ptr, 16);
         if !self.items4.data.is_empty() {
             self.items4.write_full(writer, base_offset, data_ptr)?;
         }
@@ -1520,7 +1603,7 @@ impl<'a> Xc3WriteOffsets for ModelUnk1Offsets<'a> {
             item.name.write_full(writer, base_offset, data_ptr)?;
         }
 
-        // self.unk_inner.write_full(writer, base_offset, data_ptr)?;
+        self.extra.write_offsets(writer, base_offset, data_ptr)?;
 
         Ok(())
     }
@@ -1569,8 +1652,7 @@ impl<'a> Xc3WriteOffsets for ModelsOffsets<'a> {
         self.model_unk1.write_full(writer, base_offset, data_ptr)?;
         self.model_unk4.write_full(writer, base_offset, data_ptr)?;
         self.model_unk3.write_full(writer, base_offset, data_ptr)?;
-        // self.model_unk5.write_full(writer, base_offset, data_ptr)?;
-        // self.model_unk6.write_full(writer, base_offset, data_ptr)?;
+        self.extra.write_offsets(writer, base_offset, data_ptr)?;
 
         Ok(())
     }
