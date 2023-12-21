@@ -21,11 +21,12 @@ use crate::{
         MapModelData, PropInstance, PropModelData, PropPositions,
     },
     mibl::Mibl,
+    mxmd::TextureUsage,
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
     parse_string_ptr32,
     vertex::VertexData,
     xbc1::Xbc1,
-    xc3_write_binwrite_impl, mxmd::TextureUsage,
+    xc3_write_binwrite_impl,
 };
 
 /// The main map data for a `.wismhd` file.
@@ -574,8 +575,7 @@ pub struct StreamEntry<T> {
     phantom: PhantomData<T>,
 }
 
-impl<T> StreamEntry<T>
-{
+impl<T> StreamEntry<T> {
     /// Decompress the data from a reader for a `.wismda` file.
     pub fn decompress<R: Read + Seek>(
         &self,

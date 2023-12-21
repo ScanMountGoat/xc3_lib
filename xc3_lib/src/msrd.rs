@@ -1,5 +1,28 @@
 //! Streamed model resources like shaders, geometry, or textures in `.wismt` files.
 //!
+//! # Introduction
+//! The `.wismt` holds streaming data that is loaded by the game as needed.
+//! This means that errors in `.wismt` files may appear later than errors in `.wimdo` files.
+//! The [Mxmd](crate::mxmd::Mxmd) also stores a copy of the streaming data to know how to load it.
+//! This must match the [Msrd] exactly for data to load properly.
+//! Some legacy files do not use [Msrd], so the [Mxmd](crate::mxmd::Mxmd) streaming is the only
+//! way to determine how to read the `.wismt` file.
+//!
+//! # Data Layout
+//! All 3 games store exactly the same data despite some differences in how the data is organized.
+//! Files are packed and compressed into compressed archives referenced by [Stream].
+//! Each file within a stream is referenced by a [StreamEntry].
+//!
+//! The first stream contains the [VertexData](crate::vertex::VertexData),
+//! [Spch](crate::spch::Spch), and low textures.
+//! The second stream contains the higher resolution textures if present.
+//! The remaining streams contain base mip levels for some textures for
+//! Xenoblade 1 DE and Xenoblade 2 to effectively double the resolution.
+//!
+//! Xenoblade 3 adds an option to instead store high resolution textures in `xeno3/chr/tex/nx/m`
+//! and base mip levels in `xeno3/chr/tex/nx/h`.
+//! The [ChrTexTexture] functions similarly to the [Stream] and [StreamEntry] in this case.
+//!
 //! # File Paths
 //! | Game | File Patterns |
 //! | --- | --- |
@@ -19,6 +42,7 @@ use bilge::prelude::*;
 use binrw::{args, binread, until_eof, BinRead, BinResult, BinWrite};
 use xc3_write::{round_up, write_full, Xc3Write, Xc3WriteOffsets};
 
+/// Utilities for extracting and rebuilding streaming data.
 pub mod streaming;
 
 // TODO: how to set the xbc1 offsets when repacking the msrd?
@@ -67,6 +91,8 @@ pub enum StreamingInner {
     Streaming(#[br(args_raw(base_offset))] StreamingData),
 }
 
+/// Legacy streaming format that does not use [Msrd] for the `.wismt` file.
+/// This type only appears in [Mxmd](crate::mxmd::Mxmd).
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
 #[br(import_raw(base_offset: u64))]
 pub struct StreamingDataLegacy {
@@ -104,7 +130,7 @@ pub struct StreamingDataLegacy {
     pub texture_data_compressed_size: u32,
 }
 
-/// Flags indicating the way data is stored in the model's `wismt` file.
+/// Flags indicating the way data is stored in the model's `.wismt` file.
 #[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
 #[brw(repr(u32))]
 pub enum StreamingFlagsLegacy {
@@ -129,29 +155,28 @@ pub struct StreamingData {
     #[xc3(count_offset(u32, u32))]
     pub stream_entries: Vec<StreamEntry>,
 
-    // TODO: Document the typical ordering of streams?
     /// A collection of [Xbc1] streams with decompressed layout
     /// specified in [stream_entries](#structfield.stream_entries).
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
     pub streams: Vec<Stream>,
 
-    /// The [StreamEntry] for [Msrd::extract_vertex_data] with [EntryType::Vertex].
+    /// The [StreamEntry] for the [VertexData](crate::vertex::VertexData) with [EntryType::Vertex].
     pub vertex_data_entry_index: u32,
-    /// The [StreamEntry] for [Msrd::extract_shader_data] with [EntryType::Shader].
+    /// The [StreamEntry] for [Spch](crate::spch::Spch) with [EntryType::Shader].
     pub shader_entry_index: u32,
 
-    /// The [StreamEntry] for [Msrd::extract_low_textures] with [EntryType::LowTextures].
+    /// The [StreamEntry] for the low resolution textures with [EntryType::LowTextures].
     pub low_textures_entry_index: u32,
-    /// The [Stream] for [Msrd::extract_low_textures].
+    /// The [Stream] for the packed low resolution textures.
+    /// This is typically stream index 1.
     pub low_textures_stream_index: u32,
 
-    /// The [Stream] for [Msrd::extract_textures].
+    /// The [Stream] for the high resolution textures.
     pub textures_stream_index: u32,
-    /// The first [StreamEntry] for [Msrd::extract_textures].
+    /// The first [StreamEntry] for the high resolution textures.
     pub textures_stream_entry_start_index: u32,
-    /// The number of [StreamEntry] corresponding
-    /// to the number of textures in [Msrd::extract_textures].
+    /// The the number of high resolution texture [StreamEntry].
     pub textures_stream_entry_count: u32,
 
     #[br(args { base_offset, size: offset.1 })]
@@ -164,8 +189,7 @@ pub struct StreamingData {
 #[br(import { base_offset: u64, size: u32 })]
 pub struct TextureResources {
     // TODO: also used for chr textures?
-    /// Index into [low_textures](#structfield.low_textures)
-    /// for each of the textures in [Msrd::extract_textures](crate::msrd::Msrd::extract_textures).
+    /// Index into [low_textures](#structfield.low_textures) for each of the higher resolution textures.
     /// This allows assigning higher resolution versions to only some of the textures.
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
@@ -173,7 +197,7 @@ pub struct TextureResources {
 
     // TODO: Some of these use actual names?
     // TODO: Possible to figure out the hash function used?
-    /// Name and data range for each of the [Mibl] textures.
+    /// Name and data range for each of the [Mibl](crate::mibl::Mibl) textures.
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(2))]
     pub low_textures: Option<PackedExternalTextures>,
@@ -258,13 +282,13 @@ pub struct StreamFlags {
 #[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy)]
 #[brw(repr(u16))]
 pub enum EntryType {
-    /// A single [VertexData].
+    /// A single [VertexData](crate::vertex::VertexData).
     Vertex = 0,
-    /// A single [Spch].
+    /// A single [Spch](crate::spch::Spch).
     Shader = 1,
-    /// A collection of [Mibl].
+    /// A collection of [Mibl](crate::mibl::Mibl).
     LowTextures = 2,
-    /// A single [Mibl].
+    /// A single [Mibl](crate::mibl::Mibl).
     Texture = 3,
 }
 

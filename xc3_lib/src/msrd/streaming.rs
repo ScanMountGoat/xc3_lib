@@ -9,6 +9,7 @@ use crate::{
 use super::*;
 
 // TODO: Add a function to create an extractedtexture from a surface?
+/// All the mip levels and metadata for an [Mibl] (Switch) or [Dds] (PC) texture.
 #[derive(Debug)]
 pub struct ExtractedTexture<T> {
     pub name: String,
@@ -17,6 +18,7 @@ pub struct ExtractedTexture<T> {
     pub high: Option<HighTexture<T>>,
 }
 
+/// An additional texture that replaces the low resolution texture.
 #[derive(Debug, Clone)]
 pub struct HighTexture<T> {
     pub mid: T,

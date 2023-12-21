@@ -253,15 +253,6 @@ fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: 
     // TODO: Check mibl in extracted textures?
 }
 
-fn check_equal<T>(a: T, b: T, field: &str, path: &Path)
-where
-    T: PartialEq + std::fmt::Debug,
-{
-    if a != b {
-        println!("{field} not 1:1 for {path:?}\n{a:?} != {b:?}");
-    }
-}
-
 fn check_vertex_data(
     vertex_data: xc3_lib::vertex::VertexData,
     path: &Path,

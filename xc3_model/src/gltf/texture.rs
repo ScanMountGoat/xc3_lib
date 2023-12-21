@@ -29,6 +29,7 @@ pub struct ImageKey {
     image_index: usize,
 }
 
+// TODO: Share this functionality with map texture loading?
 #[derive(Default)]
 pub struct TextureCache {
     pub generated_images: BTreeMap<GeneratedImageKey, RgbaImage>,

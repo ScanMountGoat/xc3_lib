@@ -75,7 +75,6 @@ fn write_offset_full_align_0xff() {
     assert_eq!(12, data_ptr);
 }
 
-
 #[test]
 fn write_offset_full_optional_offset_some() {
     #[derive(Xc3Write, Xc3WriteOffsets)]

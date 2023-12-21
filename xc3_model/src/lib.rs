@@ -259,6 +259,8 @@ pub fn should_render_lod(lod: u16, base_lod_indices: &Option<Vec<u16>>) -> bool 
 /// The corresponding `.wismt` or `.pcsmt` and `.chr` or `.arc` should be in the same directory.
 ///
 /// # Examples
+/// Most models use a single file and return a single root.
+///
 /// ``` rust no_run
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use xc3_model::{load_model, shader_database::ShaderDatabase};
@@ -274,6 +276,30 @@ pub fn should_render_lod(lod: u16, base_lod_indices: &Option<Vec<u16>>) -> bool 
 /// // Mio military uniform
 /// let database = ShaderDatabase::from_file("xc3.json");
 /// let root = load_model("xeno3/chr/ch/ch01027000.wimdo", Some(&database));
+/// # Ok(())
+/// # }
+/// ```
+///
+/// For models split into multiple files, simply combine the roots.
+/// ```rust no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// # use xc3_model::{load_model, shader_database::ShaderDatabase};
+/// let database = ShaderDatabase::from_file("xc1.json");
+///
+/// // Shulk's main outfit.
+/// let paths = [
+///     "xeno1/chr/pc/pc010201.wimdo",
+///     "xeno1/chr/pc/pc010202.wimdo",
+///     "xeno1/chr/pc/pc010203.wimdo",
+///     "xeno1/chr/pc/pc010204.wimdo",
+///     "xeno1/chr/pc/pc010205.wimdo",
+///     "xeno1/chr/pc/pc010109.wimdo",
+/// ];
+///
+/// let roots: Vec<_> = paths
+///     .iter()
+///     .map(|path| xc3_model::load_model(path, Some(&database)))
+///     .collect();
 /// # Ok(())
 /// # }
 /// ```

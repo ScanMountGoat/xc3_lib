@@ -217,7 +217,7 @@ pub struct Texture {
     /// Index into [low_textures](../msmd/struct.Msmd.html#structfield.low_textures).
     pub low_textures_entry_index: i16,
     pub texture_index: i16, // TODO: index into texture list in msmd?
-    pub texture_type: u16, // TODO: enum?
+    pub texture_type: u16,  // TODO: enum?
 }
 
 // TODO: What to call this?
