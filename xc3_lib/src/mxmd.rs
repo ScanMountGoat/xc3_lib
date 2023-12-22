@@ -505,7 +505,10 @@ pub enum ShaderUnkType {
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct Texture {
+    /// Index into the textures in [streaming](struct.Mxmd.html#structfield.streaming)
+    /// or [packed_textures](struct.Mxmd.html#structfield.packed_textures).
     pub texture_index: u16,
+    /// Index into the samplers in [samplers](struct.Materials.html#structfield.samplers).
     pub sampler_index: u16,
     pub unk2: u16,
     pub unk3: u16,
@@ -1133,7 +1136,7 @@ pub struct LodGroup {
 
 /// A collection of [Mibl](crate::mibl::Mibl) textures embedded in the current file.
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct PackedTextures {
@@ -1145,6 +1148,8 @@ pub struct PackedTextures {
     pub textures: Vec<PackedTexture>,
 
     pub unk2: u32,
+
+    #[xc3(shared_offset)]
     pub strings_offset: u32,
 }
 
@@ -1155,7 +1160,7 @@ pub struct PackedTexture {
     pub usage: TextureUsage,
 
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
-    #[xc3(count_offset(u32, u32))]
+    #[xc3(count_offset(u32, u32), align(4096))]
     pub mibl_data: Vec<u8>,
 
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
@@ -1165,7 +1170,7 @@ pub struct PackedTexture {
 
 /// References to [Mibl](crate::mibl::Mibl) textures in a separate file.
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
+#[derive(Debug, Xc3Write, Clone, PartialEq)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct PackedExternalTextures {
@@ -1178,8 +1183,22 @@ pub struct PackedExternalTextures {
     pub textures: Vec<PackedExternalTexture>,
 
     pub unk2: u32, // 0
-    // TODO: Calculate this offset when writing?
+
+    #[xc3(shared_offset)]
     pub strings_offset: u32,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
+#[br(import_raw(base_offset: u64))]
+pub struct PackedExternalTexture {
+    pub usage: TextureUsage,
+
+    pub mibl_length: u32,
+    pub mibl_offset: u32,
+
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub name: String,
 }
 
 // TODO: Are these some sort of flags?
@@ -1225,19 +1244,6 @@ pub enum TextureUsage {
     Unk10 = 807534592,
     VolTex = 811597824,
     Unk16 = 811728896,
-}
-
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
-#[br(import_raw(base_offset: u64))]
-pub struct PackedExternalTexture {
-    pub usage: TextureUsage,
-
-    pub mibl_length: u32,
-    pub mibl_offset: u32,
-
-    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
-    pub name: String,
 }
 
 // xc1: 40 bytes
@@ -1804,6 +1810,53 @@ impl<'a> Xc3WriteOffsets for MaterialUnk3Offsets<'a> {
         // Different order than field order.
         self.unk2.write_full(writer, base_offset, data_ptr)?;
         self.unk1.write_full(writer, base_offset, data_ptr)?;
+        Ok(())
+    }
+}
+
+impl<'a> Xc3WriteOffsets for PackedTexturesOffsets<'a> {
+    fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
+        &self,
+        writer: &mut W,
+        _base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> xc3_write::Xc3Result<()> {
+        let base_offset = self.base_offset;
+
+        // Names and data need to be written at the end.
+        let textures = self.textures.write_offset(writer, base_offset, data_ptr)?;
+
+        self.strings_offset
+            .write_full(writer, base_offset, data_ptr)?;
+        for texture in &textures.0 {
+            texture.name.write_full(writer, base_offset, data_ptr)?;
+        }
+        for texture in &textures.0 {
+            texture
+                .mibl_data
+                .write_full(writer, base_offset, data_ptr)?;
+        }
+        Ok(())
+    }
+}
+
+impl<'a> Xc3WriteOffsets for PackedExternalTexturesOffsets<'a> {
+    fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
+        &self,
+        writer: &mut W,
+        _base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> xc3_write::Xc3Result<()> {
+        let base_offset = self.base_offset;
+
+        // Names need to be written at the end.
+        let textures = self.textures.write_offset(writer, base_offset, data_ptr)?;
+
+        self.strings_offset
+            .write_full(writer, base_offset, data_ptr)?;
+        for texture in &textures.0 {
+            texture.name.write_full(writer, base_offset, data_ptr)?;
+        }
         Ok(())
     }
 }

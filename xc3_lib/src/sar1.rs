@@ -18,23 +18,24 @@ use binrw::{binread, BinRead, BinReaderExt, BinResult, NullString};
 use xc3_write::{round_up, write_full, Xc3Write, Xc3WriteOffsets};
 
 /// A simple archive containing named entries.
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write)]
 #[br(magic(b"1RAS"))]
 #[xc3(magic(b"1RAS"))]
-#[xc3(align_after(2048))]
 pub struct Sar1 {
-    // TODO: calculate this when writing.
+    #[xc3(shared_offset)]
     pub file_size: u32,
+
     pub version: u32,
 
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
     pub entries: Vec<Entry>,
 
-    pub unk_offset: u32, // pointer to start of data?
+    #[xc3(shared_offset, align(64))]
+    pub data_offset: u32,
 
-    pub unk4: u32,
-    pub unk5: u32,
+    pub unk4: u32, // 0?
+    pub unk5: u32, // 0?
 
     #[br(map = |x: NullString| x.to_string(), pad_size_to = 128)]
     #[xc3(pad_size_to(128))]
@@ -268,6 +269,29 @@ impl<'a> Xc3WriteOffsets for ChClInnerOffsets<'a> {
         for item in unk2.0 {
             item.name.write_full(writer, base_offset, data_ptr)?;
         }
+
+        Ok(())
+    }
+}
+
+impl<'a> Xc3WriteOffsets for Sar1Offsets<'a> {
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> xc3_write::Xc3Result<()> {
+        // Make sure the data offset points to the first entry data.
+        let entries = self.entries.write_offset(writer, base_offset, data_ptr)?;
+        self.data_offset.write_full(writer, base_offset, data_ptr)?;
+        for entry in entries.0 {
+            entry.write_offsets(writer, base_offset, data_ptr)?;
+        }
+
+        // Align the file size to 2048.
+        let padding = round_up(*data_ptr, 2048) - *data_ptr;
+        vec![0u8; padding as usize].xc3_write(writer, data_ptr)?;
+        self.file_size.write_full(writer, base_offset, data_ptr)?;
 
         Ok(())
     }
