@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added support for `LAGP` in `.wilay` files.
 * Added `TextureUsage` enum, enabling more accurate texture assignments when missing shader database information.
 * Added support to xc3_tex for extracting images from `.wilay` files to a folder.
+* Added support to xc3_tex for replacing images in `.wilay` files from a folder using the `edit-wilay` command.
 
 ### Fixed
 * Fixed an issue where material parameters were not annotated correctly in decompiled shaders.
