@@ -1,5 +1,20 @@
 //! Textures in `.witx` or `.witex` files or embedded in `.wismt` files and other formats.
 //!
+//! # Introduction
+//! An [Mibl] image texture consists of an image data section containing all array layers and mipmaps
+//! and a footer describing the surface dimensions and format.
+//! The image data is ordered by layer and mipmap like
+//! "Layer0 Mip 0 Layer 0 Mip 1 ... Layer L-1 Mip M-1" for L layers and M mipmaps.
+//! This is the same ordering expected by DDS and modern graphics APIs.
+//!
+//! The image data uses a "swizzled" memory layout optimized for the Tegra X1
+//! and must be decoded to a standard row-major layout using [Mibl::deswizzled_image_data]
+//! for use on other hardware.
+//!
+//! All of the image formats used in game are supported by DDS, enabling cheap conversions using [Mibl::to_dds]
+//! and [Mibl::from_dds]. For converting to and from uncompressed formats like PNG or TIFF,
+//! use the encoding and decoding provided by [image_dds].
+//!
 //! # File Paths
 //! Xenoblade 3 `.wismt` [Mibl] are in [Xbc1](crate::xbc1::Xbc1) archives.
 //!
@@ -20,7 +35,7 @@ pub use tegra_swizzle::SwizzleError;
 
 use crate::xc3_write_binwrite_impl;
 
-/// Data for an image texture surface.
+/// A swizzled image texture surface.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Mibl {
     /// The combined swizzled image surface data.

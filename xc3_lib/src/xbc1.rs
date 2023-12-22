@@ -1,4 +1,12 @@
 //! Compressed container used to store data in other formats.
+//!
+//! [Xbc1] are often used to compress an entire file like `.wismt` texture files for Xenoblade 3
+//! or some `.wilay` or `.mot` files for Xenoblade 1 DE.
+//! Files may also contain multiple [Xbc1] like model `.wismt` files or map `wismda` files.
+//!
+//! Decompress the data using [Xbc1::decompress].
+//! If the format for the data is known,
+//! the decompression and reading can be done in a single call using [Xbc1::extract].
 use std::io::{Cursor, Read};
 
 use binrw::{BinRead, BinWrite, NullString};
@@ -10,6 +18,7 @@ use xc3_write::{write_full, Xc3Write, Xc3WriteOffsets};
 
 use crate::{error::DecompressStreamError, hash::hash_crc};
 
+/// A compressed container for a single file or stream.
 #[derive(Debug, BinRead, BinWrite, PartialEq)]
 #[brw(magic(b"xbc1"))]
 pub struct Xbc1 {

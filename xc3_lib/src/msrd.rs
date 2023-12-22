@@ -8,7 +8,7 @@
 //! Some legacy files do not use [Msrd], so the [Mxmd](crate::mxmd::Mxmd) streaming is the only
 //! way to determine how to read the `.wismt` file.
 //!
-//! # Data Layout
+//! # Streams Layout
 //! All 3 games store exactly the same data despite some differences in how the data is organized.
 //! Files are packed and compressed into compressed archives referenced by [Stream].
 //! Each file within a stream is referenced by a [StreamEntry].

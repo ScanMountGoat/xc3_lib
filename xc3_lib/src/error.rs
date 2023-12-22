@@ -1,3 +1,4 @@
+//! Shared error types for read and write operations.
 use thiserror::Error;
 use zune_inflate::errors::InflateDecodeErrors;
 

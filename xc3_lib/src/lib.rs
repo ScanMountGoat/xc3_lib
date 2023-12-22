@@ -449,7 +449,6 @@ file_read_impl!(
     lagp::Lagp
 );
 
-#[macro_export]
 macro_rules! xc3_write_binwrite_impl {
     ($($ty:ty),*) => {
         $(
@@ -474,3 +473,4 @@ macro_rules! xc3_write_binwrite_impl {
 
     };
 }
+pub(crate) use xc3_write_binwrite_impl;
