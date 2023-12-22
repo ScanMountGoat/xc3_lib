@@ -280,7 +280,11 @@ fn pack_files(
             shader_entry_index: 1,
             low_textures_entry_index: 2,
             low_textures_stream_index: 0, // TODO: always 0?
-            textures_stream_index: 1,     // TODO: always 1 if textures are present?
+            textures_stream_index: if textures_stream_entry_count > 0 {
+                1
+            } else {
+                0
+            },
             textures_stream_entry_start_index,
             textures_stream_entry_count,
             texture_resources: TextureResources {
@@ -372,16 +376,20 @@ fn write_stream1(
 ) {
     // Add higher resolution textures.
     let mut writer = Cursor::new(Vec::new());
+    let mut is_empty = true;
 
     for texture in textures {
         if let Some(high) = &texture.high {
             let entry = write_stream_data(&mut writer, &high.mid, EntryType::Texture);
             stream_entries.push(entry);
+            is_empty = false;
         }
     }
 
-    let xbc1 = Xbc1::from_decompressed("0000".to_string(), &writer.into_inner()).unwrap();
-    streams.push(xbc1);
+    if !is_empty {
+        let xbc1 = Xbc1::from_decompressed("0000".to_string(), &writer.into_inner()).unwrap();
+        streams.push(xbc1);
+    }
 }
 
 fn write_base_mip_streams(
