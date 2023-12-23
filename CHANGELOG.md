@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Fixed an issue where some Xenoblade 3 models used incorrect vertex skinning weights.
 * Fixed an issue where Xenoblade 1 DE and Xenoblade 2 models did not load the high resolution base mip level.
 * Fixed an issue where some Xenoblade 3 DLC maps failed to load due to prop instance indexing issues.
+* Fixed an issue where gltf export would fail if the destination folder did not exist.
 
 ## 0.2.0 - 2023-11-22
 ### Added

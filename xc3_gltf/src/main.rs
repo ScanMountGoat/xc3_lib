@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use clap::Parser;
 use xc3_model::{gltf::GltfFile, load_model, shader_database::ShaderDatabase};
 
@@ -36,6 +38,10 @@ fn main() {
         .unwrap()
         .to_string_lossy()
         .to_string();
+
+    if let Some(parent) = Path::new(&cli.output).parent() {
+        std::fs::create_dir_all(parent).unwrap();
+    }
 
     let file = GltfFile::new(&name, &roots);
     file.save(&cli.output);
