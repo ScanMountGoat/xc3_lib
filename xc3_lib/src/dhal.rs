@@ -3,18 +3,18 @@
 //! # File Paths
 //! Xenoblade 1 `.wilay` [Dhal] are in [Xbc1](crate::xbc1::Xbc1) archives.
 //!
-//! | Game | File Patterns |
+//! | Game | Versions | File Patterns |
 //! | --- | --- |
-//! | Xenoblade Chronicles 1 DE | `menu/image/*.wilay` |
-//! | Xenoblade Chronicles 2 | `menu/image/*.wilay` |
-//! | Xenoblade Chronicles 3 | `menu/image/*.wilay` |
+//! | Xenoblade Chronicles 1 DE | 10001, 10003 | `menu/image/*.wilay` |
+//! | Xenoblade Chronicles 2 | 10001 | `menu/image/*.wilay` |
+//! | Xenoblade Chronicles 3 | 10003 | `menu/image/*.wilay` |
 use std::io::Cursor;
 
 use crate::{
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
     xc3_write_binwrite_impl,
 };
-use binrw::{binread, BinRead, BinWrite};
+use binrw::{args, binread, BinRead, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 // TODO: LAGP files are similar?
@@ -23,6 +23,7 @@ use xc3_write::{Xc3Write, Xc3WriteOffsets};
 #[br(magic(b"LAHD"))]
 #[xc3(magic(b"LAHD"))]
 pub struct Dhal {
+    // TODO: enum?
     pub version: u32,
 
     // TODO: changes remaining fields?
@@ -63,7 +64,7 @@ pub struct Dhal {
     pub uncompressed_textures: Option<UncompressedTextures>,
 
     // TODO: padding?
-    pub unk: [u32; 9],
+    pub unk: [u32; 10],
 }
 
 // TODO: Is this actually flags?
@@ -116,7 +117,7 @@ pub struct Unk3 {
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub unk3: Vec<[u32; 5]>,
+    pub unk3: Vec<[u32; 4]>,
 
     // TODO: padding?
     pub unk: [u32; 4],
@@ -137,13 +138,10 @@ pub struct Unk4 {
     #[xc3(offset_count(u32, u32))]
     pub unk2: Vec<Unk4Unk2>,
 
-    pub unk4: u32,
-    pub unk5: u32,
-    pub unk6: u32,
-
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
-    pub unk7: Option<Unk4Unk7>,
+    pub unk4: u32, // pointer before strings?
+    pub unk5: u32, // pointer to string offsets?
+    pub unk6: u32, // 0?
+    pub unk7: u32, // pointer before strings?
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
@@ -156,26 +154,32 @@ pub struct Unk4 {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(import_raw(base_offset: u64))]
 pub struct Unk4Unk2 {
-    // TODO: more offsets
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
     pub unk1: Vec<u32>,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    pub unk3: Option<[u32; 2]>,
-
-    pub unk4: u32,
-    pub unk5: u32,
-    pub unk6: u32,
+    pub unk3: Option<[f32; 2]>,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    pub unk7: Option<u32>,
+    pub unk4: Option<[u32; 9]>,
 
-    pub unk8: u32,
-    pub unk9: u32,
-    pub unk10: u32,
+    pub unk5: u32, // 0?
+    pub unk6: u32, // 0?
+
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub unk7: Option<[u32; 4]>,
+
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[br(args { inner: args! { count: unk1.len() }})]
+    #[xc3(offset(u32))]
+    pub unk8: Option<Vec<u8>>,
+
+    pub unk9: u32,  // 0
+    pub unk10: u32, // 0
     pub unk11: u32,
     pub unk12: u32,
     pub unk13: u32,
@@ -190,15 +194,13 @@ pub struct Unk4Unk2 {
 #[xc3(base_offset)]
 pub struct Unk4Unk7 {
     #[br(temp, try_calc = r.stream_position())]
-    _base_offset: u64,
+    base_offset: u64,
 
     // TODO: strings?
     // TODO: size and type?
-    // #[br(parse_with = parse_offset_count, offset = base_offset)]
-    // #[xc3(offset_count(u32, u32))]
-    // pub unk1: Vec<[i32; 5]>,
-    pub unk1: u32,
-    pub unk2: u32,
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk1: Vec<[i32; 5]>,
 
     // TODO: padding?
     pub unk: [u32; 4],
@@ -276,9 +278,20 @@ impl<'a> Xc3WriteOffsets for Unk4Offsets<'a> {
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
         let base_offset = self.base_offset;
-        self.unk2.write_full(writer, base_offset, data_ptr)?;
+
+        let unk2s = self.unk2.write_offset(writer, base_offset, data_ptr)?;
+        for unk2 in &unk2s.0 {
+            unk2.unk1.write_full(writer, base_offset, data_ptr)?;
+        }
+        for unk2 in &unk2s.0 {
+            unk2.unk3.write_full(writer, base_offset, data_ptr)?;
+            unk2.unk4.write_full(writer, base_offset, data_ptr)?;
+            unk2.unk7.write_full(writer, base_offset, data_ptr)?;
+            unk2.unk8.write_full(writer, base_offset, data_ptr)?;
+        }
+
         self.unk8.write_full(writer, base_offset, data_ptr)?;
-        self.unk7.write_full(writer, base_offset, data_ptr)?;
+        // self.unk7.write_full(writer, base_offset, data_ptr)?;
         Ok(())
     }
 }

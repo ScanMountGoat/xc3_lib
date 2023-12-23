@@ -3,11 +3,11 @@
 //! # File Paths
 //! Xenoblade 1 and some Xenoblade 3 `.wilay` [Lagp] are in [Xbc1](crate::xbc1::Xbc1) archives.
 //!
-//! | Game | File Patterns |
+//! | Game | Versions | File Patterns |
 //! | --- | --- |
-//! | Xenoblade Chronicles 1 DE | `menu/image/*.wilay` |
-//! | Xenoblade Chronicles 2 |  |
-//! | Xenoblade Chronicles 3 | `menu/image/*.wilay` |
+//! | Xenoblade Chronicles 1 DE | 10002, 10003 | `menu/image/*.wilay` |
+//! | Xenoblade Chronicles 2 |  | |
+//! | Xenoblade Chronicles 3 | 10003 | `menu/image/*.wilay` |
 use crate::{
     dhal::{Textures, Unk1, Unk3, Unk4},
     parse_offset32_count32, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
@@ -21,7 +21,8 @@ use xc3_write::{Xc3Write, Xc3WriteOffsets};
 #[br(magic(b"LAGP"))]
 #[xc3(magic(b"LAGP"))]
 pub struct Lagp {
-    pub version: u32, // 10003
+    // TODO: enum?
+    pub version: u32,
     // TODO: Different values than dhal?
     pub unk0: u32, // 0, 64, 256, 320?
 

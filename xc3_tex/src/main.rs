@@ -195,6 +195,10 @@ fn main() {
             std::fs::create_dir_all(&output).unwrap();
             save_wilay_to_folder(wilay, &input, &output);
         } else {
+            if let Some(parent) = output.parent() {
+                std::fs::create_dir_all(parent).unwrap();
+            }
+
             // All other formats save to single files.
             match output.extension().unwrap().to_str().unwrap() {
                 "dds" => {
@@ -282,7 +286,10 @@ fn image_index(path: &Path, input: &str) -> Option<usize> {
     let path = path.with_extension("");
     let file_name = path.file_name()?.to_str()?;
     let (file_name, index) = file_name.rsplit_once('.')?;
-    if file_name == input {
+
+    let input_file_name = Path::new(input).with_extension("");
+    let input_file_name = input_file_name.file_name()?.to_str()?;
+    if file_name == input_file_name {
         index.parse().ok()
     } else {
         None
@@ -339,4 +346,30 @@ fn read_wismt_single_tex<P: AsRef<Path>>(path: P) -> Mibl {
 fn create_wismt_single_tex(mibl: &Mibl) -> Xbc1 {
     // TODO: Set the name properly.
     Xbc1::new("b2062367_middle.witx".to_string(), mibl).unwrap()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn image_index_paths() {
+        assert_eq!(
+            Some(0),
+            image_index(&Path::new("a/b/file.0.dds"), "b/c/file.wilay")
+        );
+        assert_eq!(
+            Some(7),
+            image_index(&Path::new("file.7.dds"), "b/c/file.wilay")
+        );
+        assert_eq!(Some(7), image_index(&Path::new("file.7.dds"), "file.wilay"));
+        assert_eq!(
+            None,
+            image_index(&Path::new("file2.7.dds"), "b/c/file.wilay")
+        );
+        assert_eq!(
+            None,
+            image_index(&Path::new("a/b/file.0.dds"), "b/c/file2.wilay")
+        );
+    }
 }
