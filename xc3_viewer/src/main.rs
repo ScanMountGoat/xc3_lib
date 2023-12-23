@@ -417,10 +417,11 @@ struct Cli {
 
 fn main() {
     // TODO: Can these both be active at once?
-    // Ignore most wgpu logs to avoid flooding the console.
+    // Ignore most logs to avoid flooding the console.
     #[cfg(not(feature = "tracing"))]
     {
         simple_logger::SimpleLogger::new()
+            .with_level(log::LevelFilter::Warn)
             .with_module_level("wgpu", log::LevelFilter::Warn)
             .with_module_level("naga", log::LevelFilter::Warn)
             .with_module_level("xc3_lib", log::LevelFilter::Info)

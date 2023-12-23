@@ -152,16 +152,15 @@ pub fn load_textures(
             .iter()
             .map(|texture| {
                 // TODO: Only assign chr textures if the appropriate fields are present?
-                load_chr_tex_texture(m_tex_folder, h_tex_folder, &texture.name).unwrap_or_else(
-                    |_| {
+                load_chr_tex_texture(m_tex_folder, h_tex_folder, &texture.name, texture.usage)
+                    .unwrap_or_else(|_| {
                         ImageTexture::from_mibl(
                             &texture.mibl_final(),
                             Some(texture.name.clone()),
                             Some(texture.usage),
                         )
                         .unwrap()
-                    },
-                )
+                    })
             })
             .collect(),
         ExtractedTextures::Pc(textures) => textures
@@ -181,17 +180,16 @@ pub fn load_textures(
 fn load_chr_tex_texture(
     m_texture_folder: &Path,
     h_texture_folder: &Path,
-    texture_name: &str,
+    name: &str,
+    usage: TextureUsage,
 ) -> Result<ImageTexture, CreateImageTextureError> {
     // Xenoblade 3 has some textures in the chr/tex folder.
-    let xbc1 = Xbc1::from_file(m_texture_folder.join(texture_name).with_extension("wismt"))?;
+    let xbc1 = Xbc1::from_file(m_texture_folder.join(name).with_extension("wismt"))?;
     let mibl_m: Mibl = xbc1.extract()?;
 
     let base_mip_level =
-        Xbc1::from_file(h_texture_folder.join(texture_name).with_extension("wismt"))?
-            .decompress()?;
+        Xbc1::from_file(h_texture_folder.join(name).with_extension("wismt"))?.decompress()?;
 
-    // TODO: Get texture usage from the base resolution texture?
     let mibl = mibl_m.with_base_mip(&base_mip_level);
-    ImageTexture::from_mibl(&mibl, Some(texture_name.to_string()), None).map_err(Into::into)
+    ImageTexture::from_mibl(&mibl, Some(name.to_string()), Some(usage)).map_err(Into::into)
 }
