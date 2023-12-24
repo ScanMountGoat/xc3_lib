@@ -604,8 +604,10 @@ pub struct Models {
     // TODO: What controls the up to 44 optional bytes?
     // TODO: How to estimate models offset from these fields?
     // offset 160
+    // TODO: Investigate extra data for legacy mxmd files.
     #[br(args { size: models_offset, base_offset})]
-    pub extra: ModelsExtraData,
+    #[br(if(version > 10111))]
+    pub extra: Option<ModelsExtraData>,
 }
 
 // Use an enum since even the largest size can have all offsets as null.
@@ -1229,6 +1231,7 @@ pub enum TextureUsage {
     Col3 = 274726912,
     Unk3 = 274857984,
     Unk2 = 275775488,
+    Unk20 = 287309824,
     Unk17 = 3276800,
     F01 = 403701762, // 3D?
     Unk4 = 4194304,
@@ -1240,6 +1243,8 @@ pub enum TextureUsage {
     Col4 = 538968064,
     Alp4 = 539099136,
     Unk12 = 540147712,
+    Unk18 = 65537,
+    Unk19 = 805306368,
     Unk5 = 807403520,
     Unk10 = 807534592,
     VolTex = 811597824,

@@ -1,6 +1,7 @@
-use std::{collections::BTreeMap, io::Cursor, path::Path};
+use std::{borrow::Cow, collections::BTreeMap, io::Cursor, path::Path};
 
 use glam::{Mat4, Vec3};
+use log::error;
 use rayon::prelude::*;
 use xc3_lib::{
     map::{FoliageMaterials, PropInstance, PropLod, PropPositions},
@@ -133,8 +134,9 @@ impl TextureCache {
                     .base_mip
                     .decompress(&mut wismda, compressed)
                     .unwrap();
+
                 // TODO: Is this the correct way to check for this?
-                if base_mip_level.is_empty() {
+                if base_mip_level.is_empty() || texture.flags != 0 {
                     mibl_m
                 } else {
                     mibl_m.with_base_mip(&base_mip_level)
@@ -150,6 +152,7 @@ impl TextureCache {
         }
     }
     fn insert(&mut self, texture: &xc3_lib::map::Texture) -> usize {
+        // TODO: How is this supposed to work?
         let key = (
             texture.low_texture_index,
             texture.low_textures_entry_index,
@@ -158,20 +161,36 @@ impl TextureCache {
         match self.texture_to_image_texture_index.get(&key) {
             Some(index) => *index,
             None => {
-                let next_index = self.image_textures.len();
-
                 let low = self
                     .get_low_texture(texture.low_texture_index, texture.low_textures_entry_index);
-                // TODO: How to handle negative indices?
-                let mibl = &self.high_textures[texture.texture_index.max(0) as usize];
 
-                let image_texture =
-                    ImageTexture::from_mibl(mibl, None, low.map(|l| l.usage)).unwrap();
-                self.image_textures.push(image_texture);
+                if let Some(mibl) = self
+                    .get_high_texture(texture.texture_index)
+                    .map(Cow::Borrowed)
+                    .or_else(|| {
+                        low.map(|low| Cow::Owned(Mibl::from_bytes(&low.mibl_data).unwrap()))
+                    })
+                {
+                    match ImageTexture::from_mibl(&mibl, None, low.map(|l| l.usage)) {
+                        Ok(image_texture) => {
+                            let next_index = self.image_textures.len();
 
-                self.texture_to_image_texture_index.insert(key, next_index);
+                            self.image_textures.push(image_texture);
 
-                next_index
+                            self.texture_to_image_texture_index.insert(key, next_index);
+                            next_index
+                        }
+                        Err(e) => {
+                            // TODO: merging base mip is sometimes broken?
+                            error!("Error deswizzling Mibl: {e}");
+                            0
+                        }
+                    }
+                } else {
+                    // TODO: What do do if both indices are negative?
+                    error!("No mibl for texture: {texture:?}");
+                    0
+                }
             }
         }
     }
@@ -180,6 +199,11 @@ impl TextureCache {
         let entry_index = usize::try_from(entry_index).ok()?;
         let index = usize::try_from(index).ok()?;
         self.low_textures.get(entry_index)?.textures.get(index)
+    }
+
+    fn get_high_texture(&self, index: i16) -> Option<&Mibl> {
+        let index = usize::try_from(index).ok()?;
+        self.high_textures.get(index)
     }
 }
 

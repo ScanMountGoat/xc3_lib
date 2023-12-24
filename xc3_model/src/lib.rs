@@ -440,16 +440,19 @@ fn load_streaming_data<'a>(mxmd: &'a Mxmd, wismt_path: &Path, is_pc: bool) -> St
             textures: ExtractedTextures::Switch(
                 mxmd.packed_textures
                     .as_ref()
-                    .unwrap()
-                    .textures
-                    .iter()
-                    .map(|t| ExtractedTexture {
-                        name: t.name.clone(),
-                        usage: t.usage,
-                        low: Mibl::from_bytes(&t.mibl_data).unwrap(),
-                        high: None,
+                    .map(|textures| {
+                        textures
+                            .textures
+                            .iter()
+                            .map(|t| ExtractedTexture {
+                                name: t.name.clone(),
+                                usage: t.usage,
+                                low: Mibl::from_bytes(&t.mibl_data).unwrap(),
+                                high: None,
+                            })
+                            .collect()
                     })
-                    .collect(),
+                    .unwrap_or_default(),
             ),
         })
 }

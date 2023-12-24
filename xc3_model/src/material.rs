@@ -246,10 +246,10 @@ impl Material {
             })
         };
 
-        // TODO: Why does this sometimes index out of range?
         let color_index = self.textures.iter().position(|t| {
             matches!(
-                textures[t.image_texture_index].usage,
+                // TODO: Why does this index out of range for xc2 legacy mxmd?
+                textures.get(t.image_texture_index).and_then(|t| t.usage),
                 Some(
                     TextureUsage::Col
                         | TextureUsage::Col2
@@ -262,7 +262,7 @@ impl Material {
         // This may only have two channels since BC5 is common.
         let normal_index = self.textures.iter().position(|t| {
             matches!(
-                textures[t.image_texture_index].usage,
+                textures.get(t.image_texture_index).and_then(|t| t.usage),
                 Some(TextureUsage::Nrm | TextureUsage::Nrm2)
             )
         });

@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 
 use image_dds::ddsfile::Dds;
+use log::error;
 
 use crate::{
     error::DecompressStreamError, mibl::Mibl, mxmd::TextureUsage, spch::Spch, vertex::VertexData,
@@ -478,11 +479,7 @@ fn write_low_textures(
 impl StreamingDataLegacy {
     pub fn extract_textures(&self, data: &[u8]) -> Vec<ExtractedTexture<Mibl>> {
         // Start with lower resolution textures.
-        let low_data = self.decompress_stream(
-            data,
-            self.low_texture_data_offset,
-            self.low_texture_data_compressed_size,
-        );
+        let low_data = self.low_texture_data(data);
 
         let mut textures: Vec<_> = self
             .low_textures
@@ -507,33 +504,48 @@ impl StreamingDataLegacy {
         if let (Some(texture_indices), Some(high_textures)) =
             (&self.texture_indices, &self.textures)
         {
-            let high_data = self.decompress_stream(
-                data,
-                self.texture_data_offset,
-                self.texture_data_compressed_size,
-            );
+            let high_data = self.high_texture_data(data);
 
             for (i, t) in texture_indices.iter().zip(high_textures.textures.iter()) {
-                let mibl = Mibl::from_bytes(
-                    &high_data
-                        [t.mibl_offset as usize..t.mibl_offset as usize + t.mibl_length as usize],
-                )
-                .unwrap();
-
-                textures[*i as usize].high = Some(HighTexture {
-                    mid: mibl,
-                    base_mip: None,
-                });
+                // TODO: Are these sometimes base mip levels?
+                if let Some(bytes) = high_data
+                    .get(t.mibl_offset as usize..t.mibl_offset as usize + t.mibl_length as usize)
+                {
+                    match Mibl::from_bytes(bytes) {
+                        Ok(mibl) => {
+                            textures[*i as usize].high = Some(HighTexture {
+                                mid: mibl,
+                                base_mip: None,
+                            });
+                        }
+                        Err(e) => error!("Error loading legacy high resolution Mibl: {e}"),
+                    }
+                } else {
+                    error!("Legacy high resolution Mibl bytes out of range")
+                }
             }
         }
 
         textures
     }
 
-    fn decompress_stream<'a>(&self, data: &'a [u8], offset: u32, size: u32) -> Cow<'a, [u8]> {
-        let data = &data[offset as usize..offset as usize + size as usize];
+    fn low_texture_data<'a>(&self, data: &'a [u8]) -> Cow<'a, [u8]> {
         match self.flags {
-            StreamingFlagsLegacy::Uncompressed => Cow::Borrowed(data),
+            StreamingFlagsLegacy::Uncompressed => {
+                Cow::Borrowed(&data[self.low_texture_data_offset as usize..])
+            }
+            StreamingFlagsLegacy::Xbc1 => {
+                let xbc1 = Xbc1::from_bytes(data).unwrap();
+                Cow::Owned(xbc1.decompress().unwrap())
+            }
+        }
+    }
+
+    fn high_texture_data<'a>(&self, data: &'a [u8]) -> Cow<'a, [u8]> {
+        match self.flags {
+            StreamingFlagsLegacy::Uncompressed => {
+                Cow::Borrowed(&data[self.texture_data_offset as usize..])
+            }
             StreamingFlagsLegacy::Xbc1 => {
                 let xbc1 = Xbc1::from_bytes(data).unwrap();
                 Cow::Owned(xbc1.decompress().unwrap())

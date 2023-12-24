@@ -121,6 +121,7 @@ fn main() {
             let paths = [
                 // XC1
                 "pc062700.wimdo",
+                "ma0000.wismhd",
             ];
             if paths.iter().any(|p| model_path.ends_with(p)) {
                 return;

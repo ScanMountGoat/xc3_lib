@@ -20,8 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Fixed an issue where material parameters were not handled correctly in the shader JSON.
 * Fixed an issue where some Xenoblade 3 models used incorrect vertex skinning weights.
 * Fixed an issue where Xenoblade 1 DE and Xenoblade 2 models did not load the high resolution base mip level.
+* Fixed an issue where map textures did not load the high resolution base mip level.
 * Fixed an issue where some Xenoblade 3 DLC maps failed to load due to prop instance indexing issues.
 * Fixed an issue where gltf export would fail if the destination folder did not exist.
+
+### Changed
+* Improved accuracy for file rebuilding.
+* Combined Msrd extract methods into a single `Msrd::extract_files` method for better performance.
 
 ## 0.2.0 - 2023-11-22
 ### Added
@@ -44,7 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Improved accuracy for file rebuilding.
 * Reduced dependencies for various projects.
 * Changed animation playback functions to take time in seconds to properly handle animation speed.
-* Adjusted how MIBl alignment is handled to ensure the MIBL <-> DDS conversion is always 1:1.
+* Adjusted how Mibl alignment is handled to ensure the Mibl <-> DDS conversion is always 1:1.
 * Adjusted glTF texture assignment to assume first texture is albedo by default.
 * Switched to tracy for viewing traces.
 * Adjusted decompiled shader annotation to include uniform buffers fields when possible.

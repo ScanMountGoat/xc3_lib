@@ -269,13 +269,16 @@ fn material_texture<'a>(
         .get(index)
         .and_then(|texture| textures.get(texture.image_texture_index))
         .and_then(|texture| {
-            // TODO: How to handle 3D textures within the shader?
-            if texture.dimension() == wgpu::TextureDimension::D2 {
+            // TODO: How to handle 3D textures and cube maps within the shader?
+            if texture.dimension() == wgpu::TextureDimension::D2
+                && texture.depth_or_array_layers() == 1
+            {
                 Some(texture)
             } else {
                 error!(
-                    "Expected 2D texture but found dimension {:?}.",
-                    texture.dimension()
+                    "Expected 2D texture but found dimension {:?} and {} layers.",
+                    texture.dimension(),
+                    texture.depth_or_array_layers()
                 );
                 None
             }
