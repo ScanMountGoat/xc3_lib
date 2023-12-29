@@ -4,7 +4,7 @@ use std::ops::Bound::*;
 
 use glam::{vec4, Quat, Vec3, Vec4, Vec4Swizzles};
 use ordered_float::OrderedFloat;
-pub use xc3_lib::bc::{BlendMode, PlayMode, SpaceMode};
+pub use xc3_lib::bc::anim::{BlendMode, PlayMode, SpaceMode};
 pub use xc3_lib::hash::murmur3;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -52,7 +52,7 @@ pub struct Keyframe {
 }
 
 impl Animation {
-    pub fn from_anim(anim: &xc3_lib::bc::Anim) -> Self {
+    pub fn from_anim(anim: &xc3_lib::bc::anim::Anim) -> Self {
         Self {
             name: anim.binding.animation.name.clone(),
             space_mode: anim.binding.animation.space_mode,
@@ -71,14 +71,14 @@ impl Animation {
     }
 }
 
-fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
+fn anim_tracks(anim: &xc3_lib::bc::anim::Anim) -> Vec<Track> {
     // Tracks are assigned to bones using indices, names, or name hashes.
     // Tracks have optional data depending on the anim type and game version.
     // This makes the conversion to a unified format somewhat complex.
     let (bone_names, hashes) = names_hashes(anim);
 
     match &anim.binding.animation.data {
-        xc3_lib::bc::AnimationData::Uncompressed(uncompressed) => {
+        xc3_lib::bc::anim::AnimationData::Uncompressed(uncompressed) => {
             // TODO: Apply the root motion at each frame?
             let track_count = anim.binding.bone_track_indices.elements.len();
             let transforms = &uncompressed.transforms;
@@ -133,7 +133,7 @@ fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
                 .collect()
         }
 
-        xc3_lib::bc::AnimationData::Cubic(cubic) => {
+        xc3_lib::bc::anim::AnimationData::Cubic(cubic) => {
             // TODO: Some anims have more tracks than bones for bl200202?
             anim.binding
                 .bone_track_indices
@@ -198,11 +198,11 @@ fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
                 })
                 .collect()
         }
-        xc3_lib::bc::AnimationData::Empty => {
+        xc3_lib::bc::anim::AnimationData::Empty => {
             // TODO: how to handle this?
             Vec::new()
         }
-        xc3_lib::bc::AnimationData::PackedCubic(cubic) => {
+        xc3_lib::bc::anim::AnimationData::PackedCubic(cubic) => {
             anim.binding
                 .bone_track_indices
                 .elements
@@ -242,16 +242,16 @@ fn anim_tracks(anim: &xc3_lib::bc::Anim) -> Vec<Track> {
 }
 
 fn names_hashes(
-    anim: &xc3_lib::bc::Anim,
+    anim: &xc3_lib::bc::anim::Anim,
 ) -> (Option<&Vec<xc3_lib::bc::StringOffset>>, Option<&Vec<u32>>) {
     match &anim.binding.inner {
-        xc3_lib::bc::AnimationBindingInner::Unk1(_) => (None, None),
-        xc3_lib::bc::AnimationBindingInner::Unk2(inner) => (Some(&inner.bone_names), None),
-        xc3_lib::bc::AnimationBindingInner::Unk3(inner) => (
+        xc3_lib::bc::anim::AnimationBindingInner::Unk1(_) => (None, None),
+        xc3_lib::bc::anim::AnimationBindingInner::Unk2(inner) => (Some(&inner.bone_names), None),
+        xc3_lib::bc::anim::AnimationBindingInner::Unk3(inner) => (
             Some(&inner.bone_names),
             extra_track_hashes(&inner.extra_track_data),
         ),
-        xc3_lib::bc::AnimationBindingInner::Unk4(inner) => (
+        xc3_lib::bc::anim::AnimationBindingInner::Unk4(inner) => (
             Some(&inner.bone_names),
             extra_track_hashes(&inner.extra_track_data),
         ),
@@ -274,12 +274,16 @@ fn track_bone_index(
     }
 }
 
-fn extra_track_hashes(data: &xc3_lib::bc::ExtraTrackData) -> Option<&Vec<u32>> {
+fn extra_track_hashes(data: &xc3_lib::bc::anim::ExtraTrackData) -> Option<&Vec<u32>> {
     match data {
-        xc3_lib::bc::ExtraTrackData::Uncompressed(extra) => Some(&extra.hashes.bone_name_hashes),
-        xc3_lib::bc::ExtraTrackData::Cubic(_) => None,
-        xc3_lib::bc::ExtraTrackData::Empty => None,
-        xc3_lib::bc::ExtraTrackData::PackedCubic(extra) => Some(&extra.hashes.bone_name_hashes),
+        xc3_lib::bc::anim::ExtraTrackData::Uncompressed(extra) => {
+            Some(&extra.hashes.bone_name_hashes)
+        }
+        xc3_lib::bc::anim::ExtraTrackData::Cubic(_) => None,
+        xc3_lib::bc::anim::ExtraTrackData::Empty => None,
+        xc3_lib::bc::anim::ExtraTrackData::PackedCubic(extra) => {
+            Some(&extra.hashes.bone_name_hashes)
+        }
     }
 }
 
@@ -306,7 +310,7 @@ fn linear_to_cubic_keyframe(current_frame: [f32; 4], next_frame: Option<[f32; 4]
 }
 
 fn packed_cubic_vec3_keyframes(
-    sub_track: &xc3_lib::bc::SubTrack,
+    sub_track: &xc3_lib::bc::anim::SubTrack,
     keyframe_times: &[u16],
     coeffs: &[[f32; 4]],
 ) -> BTreeMap<OrderedFloat<f32>, Keyframe> {
@@ -328,7 +332,7 @@ fn packed_cubic_vec3_keyframes(
 }
 
 fn packed_cubic_vec4_keyframes(
-    sub_track: &xc3_lib::bc::SubTrack,
+    sub_track: &xc3_lib::bc::anim::SubTrack,
     keyframe_times: &[u16],
     coeffs: &[[f32; 4]],
 ) -> BTreeMap<OrderedFloat<f32>, Keyframe> {
