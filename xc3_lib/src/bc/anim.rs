@@ -382,7 +382,7 @@ pub struct TrackHashes {
     pub unk2: Vec<u16>,
     pub unk3: i32, // -1
 
-    // The MurmurHash3 32-bit hash of the bone names.
+    /// Hash of bone names using [murmur3](crate::hash::murmur3).
     // TODO: type alias for hash?
     #[br(parse_with = parse_offset64_count32)]
     #[xc3(offset_count(u64, u32), align(8, 0xff))]

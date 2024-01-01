@@ -448,53 +448,53 @@ fn add_animated_part_instances(
                 ChannelType::TranslationX => {
                     translation.x += channel
                         .keyframes
-                        .get(0)
+                        .first()
                         .map(|f| f.value)
                         .unwrap_or_default()
                 }
                 ChannelType::TranslationY => {
                     translation.y += channel
                         .keyframes
-                        .get(0)
+                        .first()
                         .map(|f| f.value)
                         .unwrap_or_default()
                 }
                 ChannelType::TranslationZ => {
                     translation.z += channel
                         .keyframes
-                        .get(0)
+                        .first()
                         .map(|f| f.value)
                         .unwrap_or_default()
                 }
                 ChannelType::RotationX => {
                     rot_x = channel
                         .keyframes
-                        .get(0)
+                        .first()
                         .map(|f| f.value)
                         .unwrap_or_default()
                 }
                 ChannelType::RotationY => {
                     rot_y = channel
                         .keyframes
-                        .get(0)
+                        .first()
                         .map(|f| f.value)
                         .unwrap_or_default()
                 }
                 ChannelType::RotationZ => {
                     rot_z = channel
                         .keyframes
-                        .get(0)
+                        .first()
                         .map(|f| f.value)
                         .unwrap_or_default()
                 }
                 ChannelType::ScaleX => {
-                    scale.x = channel.keyframes.get(0).map(|f| f.value).unwrap_or(1.0)
+                    scale.x = channel.keyframes.first().map(|f| f.value).unwrap_or(1.0)
                 }
                 ChannelType::ScaleY => {
-                    scale.y = channel.keyframes.get(0).map(|f| f.value).unwrap_or(1.0)
+                    scale.y = channel.keyframes.first().map(|f| f.value).unwrap_or(1.0)
                 }
                 ChannelType::ScaleZ => {
-                    scale.z = channel.keyframes.get(0).map(|f| f.value).unwrap_or(1.0)
+                    scale.z = channel.keyframes.first().map(|f| f.value).unwrap_or(1.0)
                 }
             }
         }

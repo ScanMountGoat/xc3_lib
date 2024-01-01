@@ -586,16 +586,7 @@ fn check_sar1(sar1: Sar1, path: &Path, original_bytes: &[u8], check_read_write: 
         match reader.read_le() {
             Ok(data) => match data {
                 Sar1EntryData::Bc(bc) => {
-                    // if let xc3_lib::bc::BcData::Skel(skel) = &bc.data {
-                    //     println!("{}, {path:?}", skel.skeleton.transforms_offset as u64 - skel.skeleton.base_offset);
-                    // }
-                    if check_read_write {
-                        let mut writer = Cursor::new(Vec::new());
-                        xc3_write::write_full(&bc, &mut writer, 0, &mut 0).unwrap();
-                        if writer.into_inner() != entry.entry_data {
-                            println!("Bc read/write not 1:1 for {:?} in {path:?}", entry.name);
-                        }
-                    }
+                    check_bc(bc, path, &entry.entry_data, check_read_write);
                 }
                 Sar1EntryData::ChCl(chcl) => {
                     if check_read_write {
@@ -644,6 +635,34 @@ fn check_bc(bc: Bc, path: &Path, original_bytes: &[u8], check_read_write: bool) 
         bc.write(&mut writer).unwrap();
         if writer.into_inner() != original_bytes {
             println!("Bc read/write not 1:1 for {path:?}");
+        }
+    }
+
+    match bc.data {
+        xc3_lib::bc::BcData::Skdy(_) => (),
+        xc3_lib::bc::BcData::Anim(_) => (),
+        xc3_lib::bc::BcData::Skel(_) => (),
+        xc3_lib::bc::BcData::Asmb(asmb) => {
+            for entry in asmb.inner.unk2.elements {
+                for e1 in entry.unk1.elements {
+                    if xc3_lib::hash::murmur3(e1.value.name.as_bytes()) != e1.value.name_hash {
+                        println!("Incorrect hash for {:?}", e1.value.name);
+                    }
+
+                    for e8 in e1.value.unk8.elements {
+                        if xc3_lib::hash::murmur3(e8.value.name2.as_bytes()) != e8.value.name2_hash
+                        {
+                            println!("Incorrect hash for {:?}", e8.value.name2);
+                        }
+                    }
+                }
+
+                for e2 in entry.unk2.elements {
+                    if xc3_lib::hash::murmur3(e2.value.name2.as_bytes()) != e2.value.name2_hash {
+                        println!("Incorrect hash for {:?}", e2.value.name2);
+                    }
+                }
+            }
         }
     }
 }

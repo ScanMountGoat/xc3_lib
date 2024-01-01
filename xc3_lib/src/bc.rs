@@ -6,9 +6,11 @@ use binrw::{args, binread, BinRead, BinWrite};
 use xc3_write::{round_up, VecOffsets, Xc3Write, Xc3WriteOffsets};
 
 use anim::Anim;
+use asmb::Asmb;
 use skel::Skel;
 
 pub mod anim;
+pub mod asmb;
 pub mod skel;
 
 // TODO: is the 64 byte alignment on the sar1 entry size?
@@ -55,21 +57,6 @@ pub enum BcData {
     #[br(magic(7u32))]
     #[xc3(magic(7u32))]
     Asmb(Asmb),
-}
-
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
-#[br(magic(b"ASMB"))]
-#[xc3(magic(b"ASMB"))]
-pub struct Asmb {
-    #[br(parse_with = parse_ptr64)]
-    #[xc3(offset(u64))]
-    pub inner: AsmbInner,
-}
-
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
-pub struct AsmbInner {
-    pub unk2: BcList<u8>,
-    pub unk3: BcList<u8>,
 }
 
 // skeleton dynamics?
@@ -193,6 +180,18 @@ pub struct StringOffset {
     #[br(parse_with = parse_string_ptr64)]
     #[xc3(offset(u64))]
     pub name: String,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct BcOffset<T>
+where
+    T: 'static + BinRead + Xc3Write,
+    for<'a> T: BinRead<Args<'a> = ()>,
+    for<'a> T::Offsets<'a>: Xc3WriteOffsets,
+{
+    #[br(parse_with = parse_ptr64)]
+    #[xc3(offset(u64))]
+    pub value: T,
 }
 
 // TODO: Make this generic over the alignment and padding byte?
