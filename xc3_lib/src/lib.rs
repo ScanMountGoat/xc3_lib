@@ -16,7 +16,7 @@
 //! println!("{mxmd:#?}");
 //!
 //! // Save to disk after making any changes.
-//! mxmd.write_to_file("out.wimdo")?;
+//! mxmd.save("out.wimdo")?;
 //! # Ok(())
 //! # }
 //! ```
@@ -373,7 +373,7 @@ macro_rules! file_write_impl {
                 }
 
                 /// Write to `path` using a buffered writer for better performance.
-                pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> xc3_write::Xc3Result<()> {
+                pub fn save<P: AsRef<Path>>(&self, path: P) -> xc3_write::Xc3Result<()> {
                     let mut writer = BufWriter::new(std::fs::File::create(path)?);
                     self.write_le(&mut writer).map_err(Into::into)
                 }
@@ -393,7 +393,7 @@ macro_rules! file_write_full_impl {
                 }
 
                 /// Write to `path` using a buffered writer for better performance.
-                pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> xc3_write::Xc3Result<()> {
+                pub fn save<P: AsRef<Path>>(&self, path: P) -> xc3_write::Xc3Result<()> {
                     let mut writer = BufWriter::new(std::fs::File::create(path)?);
                     self.write(&mut writer)
                 }

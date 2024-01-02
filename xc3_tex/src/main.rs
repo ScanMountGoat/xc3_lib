@@ -206,13 +206,13 @@ fn main() {
                 }
                 "witex" | "witx" => {
                     let mibl = input_file.to_mibl(args.format);
-                    mibl.write_to_file(output).unwrap();
+                    mibl.save(output).unwrap();
                 }
                 "wismt" => {
                     // TODO: Also create base level?
                     let mibl = input_file.to_mibl(args.format);
                     let xbc1 = create_wismt_single_tex(&mibl);
-                    xbc1.write_to_file(output).unwrap();
+                    xbc1.save(output).unwrap();
                 }
                 _ => {
                     // Assume other formats are image formats for now.
@@ -237,13 +237,13 @@ fn update_wilay_from_folder(input: &str, input_folder: &str, output: &str) {
             if let Some(textures) = &mut dhal.uncompressed_textures {
                 replace_wilay_jpeg(textures, input, input_folder);
             }
-            dhal.write_to_file(output).unwrap();
+            dhal.save(output).unwrap();
         }
         Wilay::Lagp(lagp) => {
             if let Some(textures) = &mut lagp.textures {
                 replace_wilay_mibl(textures, input, input_folder);
             }
-            lagp.write_to_file(output).unwrap();
+            lagp.save(output).unwrap();
         }
     }
 }

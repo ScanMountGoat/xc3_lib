@@ -97,7 +97,7 @@ Another useful test is to write the file to binary and then read it again. The t
 fn main() {
     let value = xc3_lib::mxmd::Mxmd::from_file("ch01012013.wimdo").unwrap();;
     std::fs::write!("mxmd.txt", format!("{:#?}", value)).unwrap();
-    value.write_to_file("ch01012013.out.wimdo").unwrap();
+    value.save("ch01012013.out.wimdo").unwrap();
 
     let new_value = xc3_lib::mxmd::Mxmd::from_file("ch01012013.out.wimdo").unwrap();
     std::fs::write!("mxmd.out.txt", format!("{:#?}", new_value)).unwrap();

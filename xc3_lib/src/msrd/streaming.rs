@@ -62,10 +62,10 @@ impl ChrTextureStreams {
     pub fn save<P: AsRef<Path>>(&self, chr_tex_nx: P) {
         let folder = chr_tex_nx.as_ref();
         self.mid
-            .write_to_file(folder.join("m").join(format!("{:x}.wismt", self.hash)))
+            .save(folder.join("m").join(format!("{:x}.wismt", self.hash)))
             .unwrap();
         self.base_mip
-            .write_to_file(folder.join("h").join(format!("{:x}.wismt", self.hash)))
+            .save(folder.join("h").join(format!("{:x}.wismt", self.hash)))
             .unwrap();
     }
 }

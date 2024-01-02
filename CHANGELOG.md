@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 * Added support for Xenoblade 3 `chr/tex/nx` textures for unpacking and packing Msrd files.
 
+### Changed
+* Renamed `write_to_file` methods to `save` for all relevant types.
+
 ## 0.3.0 - 2023-12-23
 ### Added
 * Added `glsl-dependencies` command to xc3_shader for printing lines affecting a particular variable.
