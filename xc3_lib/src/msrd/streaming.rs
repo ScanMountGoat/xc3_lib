@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, path::Path};
 
 use image_dds::ddsfile::Dds;
 use log::error;
@@ -51,6 +51,25 @@ impl ExtractedTexture<Mibl> {
     }
 }
 
+pub struct ChrTextureStreams {
+    pub hash: u32,
+    pub mid: Xbc1,
+    pub base_mip: Xbc1,
+}
+
+impl ChrTextureStreams {
+    /// Save the texture streams to `"chr/tex/nx/m"`` and `"chr/tex/nx/h"`.
+    pub fn save<P: AsRef<Path>>(&self, chr_tex_nx: P) {
+        let folder = chr_tex_nx.as_ref();
+        self.mid
+            .write_to_file(folder.join("m").join(format!("{:x}.wismt", self.hash)))
+            .unwrap();
+        self.base_mip
+            .write_to_file(folder.join("h").join(format!("{:x}.wismt", self.hash)))
+            .unwrap();
+    }
+}
+
 impl Msrd {
     pub fn decompress_stream(
         &self,
@@ -66,13 +85,16 @@ impl Msrd {
     }
 
     /// Extract all embedded files for a `wismt` file.
+    ///
+    /// For Xenoblade 3 models, specify the path for "chr/tex/nx" for `chr_tex_nx`.
     pub fn extract_files(
         &self,
+        chr_tex_nx: Option<&Path>,
     ) -> Result<(VertexData, Spch, Vec<ExtractedTexture<Mibl>>), DecompressStreamError> {
         // TODO: Return just textures for legacy data?
         match &self.streaming.inner {
             StreamingInner::StreamingLegacy(_) => todo!(),
-            StreamingInner::Streaming(data) => data.extract_files(&self.data),
+            StreamingInner::Streaming(data) => data.extract_files(&self.data, chr_tex_nx),
         }
     }
 
@@ -82,17 +104,24 @@ impl Msrd {
     ) -> Result<(VertexData, Spch, Vec<ExtractedTexture<Dds>>), DecompressStreamError> {
         match &self.streaming.inner {
             StreamingInner::StreamingLegacy(_) => todo!(),
-            StreamingInner::Streaming(data) => data.extract_files(&self.data),
+            StreamingInner::Streaming(data) => data.extract_files(&self.data, None),
         }
     }
 
     /// Pack and compress the files into new archive data.
+    ///
+    /// When `use_chr_textures` is `true`,
+    /// the high resolution and base mip levels are packed into streams
+    /// to be saved to the "chr/tex/nx" folder separately.
+    /// This is only supported by Xenoblade 3 and should be `false` for other games.
     pub fn from_extracted_files(
         vertex: &VertexData,
         spch: &Spch,
         textures: &[ExtractedTexture<Mibl>],
-    ) -> Self {
-        let (mut streaming, data) = pack_files(vertex, spch, textures);
+        use_chr_textures: bool,
+    ) -> (Self, Option<Vec<ChrTextureStreams>>) {
+        let (mut streaming, data, chr_textures) =
+            pack_files(vertex, spch, textures, use_chr_textures);
 
         // HACK: We won't know the first xbc1 offset until writing the header.
         let mut writer = Cursor::new(Vec::new());
@@ -105,13 +134,16 @@ impl Msrd {
             stream.xbc1_offset += first_xbc1_offset + 16;
         }
 
-        Self {
-            version: 10001,
-            streaming: Streaming {
-                inner: StreamingInner::Streaming(streaming),
+        (
+            Self {
+                version: 10001,
+                streaming: Streaming {
+                    inner: StreamingInner::Streaming(streaming),
+                },
+                data,
             },
-            data,
-        }
+            chr_textures,
+        )
     }
 }
 
@@ -156,6 +188,7 @@ impl StreamingData {
     fn extract_files<T: Texture>(
         &self,
         data: &[u8],
+        chr_tex_nx: Option<&Path>,
     ) -> Result<(VertexData, Spch, Vec<ExtractedTexture<T>>), DecompressStreamError> {
         let first_xbc1_offset = self.streams[0].xbc1_offset;
 
@@ -170,7 +203,7 @@ impl StreamingData {
 
         // TODO: is this always in the first stream?
         let low_texture_bytes = self.entry_bytes(self.low_textures_entry_index, &stream0);
-        let textures = self.extract_textures(data, low_texture_bytes)?;
+        let textures = self.extract_textures(data, low_texture_bytes, chr_tex_nx)?;
 
         Ok((vertex, spch, textures))
     }
@@ -199,45 +232,80 @@ impl StreamingData {
     }
 
     // TODO: avoid unwrap?
-    fn extract_textures<T: Texture>(
+    fn extract_textures<T: Texture, P: AsRef<Path>>(
         &self,
         data: &[u8],
         low_texture_data: &[u8],
+        chr_tex_nx: Option<P>,
     ) -> Result<Vec<ExtractedTexture<T>>, DecompressStreamError> {
         // Start with no high res textures or base mip levels.
         let mut textures = self.extract_low_textures(low_texture_data)?;
 
-        // The high resolution textures are packed into a single stream.
-        let first_xbc1_offset = self.streams[0].xbc1_offset;
-        let stream = &self.streams[self.textures_stream_index as usize]
-            .read_xbc1(data, first_xbc1_offset)?
-            .decompress()?;
+        if self.textures_stream_entry_count > 0 {
+            // The high resolution textures are packed into a single stream.
+            let first_xbc1_offset = self.streams[0].xbc1_offset;
+            let stream = &self.streams[self.textures_stream_index as usize]
+                .read_xbc1(data, first_xbc1_offset)?
+                .decompress()?;
 
-        // TODO: Par iter?
-        let start = self.textures_stream_entry_start_index as usize;
-        let count = self.textures_stream_entry_count as usize;
-        for (i, entry) in self
-            .texture_resources
-            .texture_indices
-            .iter()
-            .zip(self.stream_entries[start..start + count].iter())
-        {
-            let bytes = &stream[entry.offset as usize..entry.offset as usize + entry.size as usize];
-            let mid = T::from_bytes(bytes)?;
+            // TODO: Par iter?
+            let start = self.textures_stream_entry_start_index as usize;
+            let count = self.textures_stream_entry_count as usize;
+            for (i, entry) in self
+                .texture_resources
+                .texture_indices
+                .iter()
+                .zip(&self.stream_entries[start..start + count])
+            {
+                let bytes =
+                    &stream[entry.offset as usize..entry.offset as usize + entry.size as usize];
+                let mid = T::from_bytes(bytes)?;
 
-            // Indices start from 1 for the base mip level.
-            let base_mip_stream_index = entry.texture_base_mip_stream_index.saturating_sub(1);
-            let base_mip = if base_mip_stream_index != 0 {
-                Some(
-                    self.streams[base_mip_stream_index as usize]
-                        .read_xbc1(data, first_xbc1_offset)?
-                        .decompress()?,
-                )
-            } else {
-                None
-            };
+                // Indices start from 1 for the base mip level.
+                // Base mip levels are stored in their own streams.
+                let base_mip_stream_index = entry.texture_base_mip_stream_index.saturating_sub(1);
+                let base_mip = if base_mip_stream_index != 0 {
+                    Some(
+                        self.streams[base_mip_stream_index as usize]
+                            .read_xbc1(data, first_xbc1_offset)?
+                            .decompress()?,
+                    )
+                } else {
+                    None
+                };
 
-            textures[*i as usize].high = Some(HighTexture { mid, base_mip });
+                textures[*i as usize].high = Some(HighTexture { mid, base_mip });
+            }
+        }
+
+        if let Some(chr_textures) = &self.texture_resources.chr_textures {
+            if let Some(chr_tex_nx) = chr_tex_nx {
+                let chr_tex_nx = chr_tex_nx.as_ref();
+
+                for (i, chr_tex) in self
+                    .texture_resources
+                    .texture_indices
+                    .iter()
+                    .zip(chr_textures.chr_textures.iter())
+                {
+                    // TODO: Is the name always the hash in lowercase hex?
+                    let name = format!("{:x}", chr_tex.hash);
+
+                    let xbc1 =
+                        Xbc1::from_file(chr_tex_nx.join("m").join(&name).with_extension("wismt"))?;
+                    let bytes = xbc1.decompress()?;
+                    let mid = T::from_bytes(bytes)?;
+
+                    let base_mip =
+                        Xbc1::from_file(chr_tex_nx.join("h").join(&name).with_extension("wismt"))?
+                            .decompress()?;
+
+                    textures[*i as usize].high = Some(HighTexture {
+                        mid,
+                        base_mip: Some(base_mip),
+                    });
+                }
+            }
         }
 
         Ok(textures)
@@ -248,8 +316,10 @@ fn pack_files(
     vertex: &VertexData,
     spch: &Spch,
     textures: &[ExtractedTexture<Mibl>],
-) -> (StreamingData, Vec<u8>) {
-    let (stream_entries, streams, low_textures, data) = create_streams(vertex, spch, textures);
+    use_chr_textures: bool,
+) -> (StreamingData, Vec<u8>, Option<Vec<ChrTextureStreams>>) {
+    let (stream_entries, streams, low_textures, data) =
+        create_streams(vertex, spch, textures, use_chr_textures);
 
     let textures_stream_entry_start_index = stream_entries
         .iter()
@@ -261,8 +331,11 @@ fn pack_files(
         .filter(|e| e.entry_type == EntryType::Texture)
         .count() as u32;
 
+    let (chr_textures, chr_texture_streams) = use_chr_textures
+        .then_some(pack_chr_textures(textures))
+        .unzip();
+
     // TODO: Search stream entries to get indices?
-    // TODO: How are entry indices set if there are no textures?
     (
         StreamingData {
             stream_flags: StreamFlags::new(
@@ -272,7 +345,7 @@ fn pack_files(
                 false,
                 false,
                 false,
-                false,
+                use_chr_textures,
                 0u8.into(),
             ),
             stream_entries,
@@ -301,11 +374,51 @@ fn pack_files(
                 }),
                 unk1: 0,
                 // TODO: How to properly create this field?
-                chr_textures: None,
+                chr_textures,
                 unk: [0; 2],
             },
         },
         data,
+        chr_texture_streams,
+    )
+}
+
+fn pack_chr_textures(
+    textures: &[ExtractedTexture<Mibl>],
+) -> (ChrTexTextures, Vec<ChrTextureStreams>) {
+    let (chr_textures, streams) = textures
+        .iter()
+        .map(|t| {
+            // TODO: Always assume the name is already a hash?
+            // TODO: This should also return the streams to ensure the sizes match up.
+            let high = t.high.as_ref().unwrap();
+            let mid = Xbc1::new("0000".to_string(), &high.mid).unwrap();
+            let base_mip = Xbc1::new("0000".to_string(), high.base_mip.as_ref().unwrap()).unwrap();
+            let hash = u32::from_str_radix(&t.name, 16).unwrap();
+            (
+                ChrTexTexture {
+                    hash,
+                    decompressed_size: mid.decompressed_size,
+                    compressed_size: (round_up(mid.compressed_size as u64, 16) + 48) as u32,
+                    base_mip_decompressed_size: base_mip.decompressed_size,
+                    base_mip_compressed_size: (round_up(base_mip.compressed_size as u64, 16) + 48)
+                        as u32,
+                },
+                ChrTextureStreams {
+                    hash,
+                    mid,
+                    base_mip,
+                },
+            )
+        })
+        .unzip();
+
+    (
+        ChrTexTextures {
+            chr_textures,
+            unk: [0; 2],
+        },
+        streams,
     )
 }
 
@@ -313,6 +426,7 @@ fn create_streams(
     vertex: &VertexData,
     spch: &Spch,
     textures: &[ExtractedTexture<Mibl>],
+    use_chr_textures: bool,
 ) -> (
     Vec<StreamEntry>,
     Vec<Stream>,
@@ -326,10 +440,12 @@ fn create_streams(
 
     let low_textures = write_stream0(&mut xbc1s, &mut stream_entries, vertex, spch, textures);
 
-    let entry_start_index = stream_entries.len();
-    write_stream1(&mut xbc1s, &mut stream_entries, textures);
+    if !use_chr_textures {
+        let entry_start_index = stream_entries.len();
+        write_stream1(&mut xbc1s, &mut stream_entries, textures);
 
-    write_base_mip_streams(&mut xbc1s, &mut stream_entries, textures, entry_start_index);
+        write_base_mip_streams(&mut xbc1s, &mut stream_entries, textures, entry_start_index);
+    }
 
     let mut streams = Vec::new();
     let mut data = Cursor::new(Vec::new());

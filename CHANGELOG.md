@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## unreleased
 ### Added
+* Added support for Xenoblade 3 `chr/tex/nx` textures for unpacking and packing Msrd files.
+
+## 0.3.0 - 2023-12-23
+### Added
 * Added `glsl-dependencies` command to xc3_shader for printing lines affecting a particular variable.
 * Added support for legacy streaming data used for some Xenoblade 2 models.
 * Added support for PC files like `.pcmdo` and `.pcsmt`.

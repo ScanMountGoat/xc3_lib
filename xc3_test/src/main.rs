@@ -216,7 +216,7 @@ fn check_sar1_data(
 
 fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: bool) {
     // TODO: check stream flags?
-    let (vertex, spch, textures) = msrd.extract_files().unwrap();
+    let (vertex, spch, textures) = msrd.extract_files(None).unwrap();
 
     if check_read_write {
         let mut writer = Cursor::new(Vec::new());
@@ -232,7 +232,12 @@ fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: 
             // TODO: make this check optional?
             if check_read_write {
                 // Check that repacking and unpacking produces the original streaming data.
-                let new_msrd = Msrd::from_extracted_files(&vertex, &spch, &textures);
+                let (new_msrd, _) = Msrd::from_extracted_files(
+                    &vertex,
+                    &spch,
+                    &textures,
+                    data.stream_flags.has_chr_textures(),
+                );
                 if new_msrd.streaming != msrd.streaming {
                     println!("Streaming not 1:1 for {path:?}");
                 }

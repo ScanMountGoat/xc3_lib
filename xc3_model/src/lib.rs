@@ -326,7 +326,11 @@ pub fn load_model<P: AsRef<Path>>(
             .unwrap()
     });
 
-    std::fs::write("mxmd.txt", format!("{:#?}", mxmd)).unwrap();
+    // TODO: Avoid unwrap.
+    // TODO: Don't assume model_path is in the chr/ch or chr/en folders.
+    // "chr/en/file.wismt" -> "chr/tex/nx"
+    let chr_folder = wimdo_path.parent().unwrap().parent().unwrap();
+    let chr_tex_folder = chr_folder.join("tex").join("nx");
 
     // Desktop PC models aren't used in game but are straightforward to support.
     let is_pc = wimdo_path.extension().and_then(|e| e.to_str()) == Some("pcmdo");
@@ -335,16 +339,9 @@ pub fn load_model<P: AsRef<Path>>(
     } else {
         wimdo_path.with_extension("wismt")
     };
-    let streaming_data = load_streaming_data(&mxmd, &wismt_path, is_pc);
+    let streaming_data = load_streaming_data(&mxmd, &wismt_path, is_pc, Some(&chr_tex_folder));
 
-    // TODO: Avoid unwrap.
-    // "chr/en/file.wismt" -> "chr/tex/nx/m"
-    // TODO: Don't assume model_path is in the chr/ch or chr/en folders.
-    let chr_folder = wimdo_path.parent().unwrap().parent().unwrap();
-    let m_tex_folder = chr_folder.join("tex").join("nx").join("m");
-    let h_tex_folder = chr_folder.join("tex").join("nx").join("h");
-
-    let image_textures = load_textures(&streaming_data.textures, &m_tex_folder, &h_tex_folder);
+    let image_textures = load_textures(&streaming_data.textures);
 
     let model_name = model_name(wimdo_path);
     let spch = shader_database.and_then(|database| database.files.get(&model_name));
@@ -402,7 +399,12 @@ enum ExtractedTextures {
     Pc(Vec<ExtractedTexture<Dds>>),
 }
 
-fn load_streaming_data<'a>(mxmd: &'a Mxmd, wismt_path: &Path, is_pc: bool) -> StreamingData<'a> {
+fn load_streaming_data<'a>(
+    mxmd: &'a Mxmd,
+    wismt_path: &Path,
+    is_pc: bool,
+    chr_tex_folder: Option<&Path>,
+) -> StreamingData<'a> {
     // TODO: Avoid unwrap.
     // Handle the different ways to store the streaming data.
     mxmd.streaming
@@ -426,7 +428,7 @@ fn load_streaming_data<'a>(mxmd: &'a Mxmd, wismt_path: &Path, is_pc: bool) -> St
                         textures: ExtractedTextures::Pc(textures),
                     }
                 } else {
-                    let (vertex, _, textures) = msrd.extract_files().unwrap();
+                    let (vertex, _, textures) = msrd.extract_files(chr_tex_folder).unwrap();
 
                     StreamingData {
                         vertex: Cow::Owned(vertex),

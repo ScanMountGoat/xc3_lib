@@ -1,4 +1,4 @@
-use std::{error::Error, path::Path};
+use std::error::Error;
 
 use image_dds::{ddsfile::Dds, Surface};
 use log::error;
@@ -6,7 +6,6 @@ use thiserror::Error;
 use xc3_lib::{
     mibl::{Mibl, SwizzleError},
     mxmd::PackedTexture,
-    xbc1::Xbc1,
 };
 
 pub use xc3_lib::mibl::{ImageFormat, ViewDimension};
@@ -141,26 +140,18 @@ impl ImageTexture {
     // TODO: to_mibl?
 }
 
-pub fn load_textures(
-    textures: &ExtractedTextures,
-    m_tex_folder: &Path,
-    h_tex_folder: &Path,
-) -> Vec<ImageTexture> {
+pub fn load_textures(textures: &ExtractedTextures) -> Vec<ImageTexture> {
     // TODO: what is the correct priority for the different texture sources?
     match textures {
         ExtractedTextures::Switch(textures) => textures
             .iter()
             .map(|texture| {
-                // TODO: Only assign chr textures if the appropriate fields are present?
-                load_chr_tex_texture(m_tex_folder, h_tex_folder, &texture.name, texture.usage)
-                    .unwrap_or_else(|_| {
-                        ImageTexture::from_mibl(
-                            &texture.mibl_final(),
-                            Some(texture.name.clone()),
-                            Some(texture.usage),
-                        )
-                        .unwrap()
-                    })
+                ImageTexture::from_mibl(
+                    &texture.mibl_final(),
+                    Some(texture.name.clone()),
+                    Some(texture.usage),
+                )
+                .unwrap()
             })
             .collect(),
         ExtractedTextures::Pc(textures) => textures
@@ -175,21 +166,4 @@ pub fn load_textures(
             })
             .collect(),
     }
-}
-
-fn load_chr_tex_texture(
-    m_texture_folder: &Path,
-    h_texture_folder: &Path,
-    name: &str,
-    usage: TextureUsage,
-) -> Result<ImageTexture, CreateImageTextureError> {
-    // Xenoblade 3 has some textures in the chr/tex folder.
-    let xbc1 = Xbc1::from_file(m_texture_folder.join(name).with_extension("wismt"))?;
-    let mibl_m: Mibl = xbc1.extract()?;
-
-    let base_mip_level =
-        Xbc1::from_file(h_texture_folder.join(name).with_extension("wismt"))?.decompress()?;
-
-    let mibl = mibl_m.with_base_mip(&base_mip_level);
-    ImageTexture::from_mibl(&mibl, Some(name.to_string()), Some(usage)).map_err(Into::into)
 }
