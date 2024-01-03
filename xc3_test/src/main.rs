@@ -1,6 +1,6 @@
 use std::{
     io::{BufReader, Cursor},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use binrw::{BinRead, BinReaderExt};
@@ -216,7 +216,8 @@ fn check_sar1_data(
 
 fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: bool) {
     // TODO: check stream flags?
-    let (vertex, spch, textures) = msrd.extract_files(None).unwrap();
+    let chr_tex_nx = get_chr_tex_nx(path);
+    let (vertex, spch, textures) = msrd.extract_files(chr_tex_nx.as_deref()).unwrap();
 
     if check_read_write {
         let mut writer = Cursor::new(Vec::new());
@@ -238,6 +239,7 @@ fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: 
                     &textures,
                     data.stream_flags.has_chr_textures(),
                 );
+                // TODO: Chr textures won't be equal to compression differences?
                 if new_msrd.streaming != msrd.streaming {
                     println!("Streaming not 1:1 for {path:?}");
                 }
@@ -256,6 +258,12 @@ fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: 
     }
 
     // TODO: Check mibl in extracted textures?
+}
+
+fn get_chr_tex_nx(path: &Path) -> Option<PathBuf> {
+    // "chr/en/file.wismt" -> "chr/tex/nx"
+    let chr_folder = path.parent()?.parent()?;
+    Some(chr_folder.join("tex").join("nx"))
 }
 
 fn check_vertex_data(
@@ -647,28 +655,33 @@ fn check_bc(bc: Bc, path: &Path, original_bytes: &[u8], check_read_write: bool) 
         xc3_lib::bc::BcData::Skdy(_) => (),
         xc3_lib::bc::BcData::Anim(_) => (),
         xc3_lib::bc::BcData::Skel(_) => (),
-        xc3_lib::bc::BcData::Asmb(asmb) => {
-            for entry in asmb.inner.unk2.elements {
-                for e1 in entry.unk1.elements {
-                    if xc3_lib::hash::murmur3(e1.value.name.as_bytes()) != e1.value.name_hash {
-                        println!("Incorrect hash for {:?}", e1.value.name);
+        xc3_lib::bc::BcData::Asmb(asmb) => match asmb.inner {
+            xc3_lib::bc::asmb::AsmbInner::V1(_) => (),
+            xc3_lib::bc::asmb::AsmbInner::V2(v2) => {
+                for entry in v2.unk2.elements {
+                    for e1 in entry.unk1.elements {
+                        if xc3_lib::hash::murmur3(e1.value.name.as_bytes()) != e1.value.name_hash {
+                            println!("Incorrect hash for {:?}", e1.value.name);
+                        }
+
+                        for e8 in e1.value.children.elements {
+                            if xc3_lib::hash::murmur3(e8.value.name2.as_bytes())
+                                != e8.value.name2_hash
+                            {
+                                println!("Incorrect hash for {:?}", e8.value.name2);
+                            }
+                        }
                     }
 
-                    for e8 in e1.value.unk8.elements {
-                        if xc3_lib::hash::murmur3(e8.value.name2.as_bytes()) != e8.value.name2_hash
+                    for e2 in entry.unk2.elements {
+                        if xc3_lib::hash::murmur3(e2.value.name2.as_bytes()) != e2.value.name2_hash
                         {
-                            println!("Incorrect hash for {:?}", e8.value.name2);
+                            println!("Incorrect hash for {:?}", e2.value.name2);
                         }
                     }
                 }
-
-                for e2 in entry.unk2.elements {
-                    if xc3_lib::hash::murmur3(e2.value.name2.as_bytes()) != e2.value.name2_hash {
-                        println!("Incorrect hash for {:?}", e2.value.name2);
-                    }
-                }
             }
-        }
+        },
     }
 }
 
