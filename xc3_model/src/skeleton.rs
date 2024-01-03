@@ -1,4 +1,5 @@
 use glam::{vec3, Mat4, Quat};
+use log::warn;
 
 /// See [Skeleton](xc3_lib::bc::Skeleton) and [Skinning](xc3_lib::mxmd::Skinning).
 // TODO: Assume bones appear after their parents?
@@ -93,6 +94,15 @@ impl Skeleton {
                     unk_bone.bone_index,
                     unk_bone.parent_index,
                 );
+            }
+        }
+
+        // Check ordering constraints to enable more efficient animation code.
+        for (i, bone) in bones.iter().enumerate() {
+            if let Some(p) = bone.parent_index {
+                if i < p {
+                    warn!("Bone {i} appears before parent {p} and will not animate properly")
+                }
             }
         }
 
