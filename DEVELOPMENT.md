@@ -91,7 +91,7 @@ fn main() {
 ## Debugging File Writing
 The easiest way to test errors when writing a file is to parse a file and then write it again without making changes. This should result in a binary identical output file. This can be checked using a hex editor like [HxD](https://mh-nexus.de/en/hxd/) or [ImHex](https://github.com/WerWolv/ImHex) for visual diff checking. See xc3_test for Rust code examples.
 
-Another useful test is to write the file to binary and then read it again. The two data structures like `Mxmd` or `Msrd` should compare as equal. Differences can indicate that data isn't being written properly. For more visual output, pretty print the debug representation before and after to text files using the `"{:#?}"` format specifier. The text can be diffed using an online diffing tool or directly in some editors like Visual Studio Code.
+Another useful test is to write the file to binary and then read it again. The two file structs should compare as equal. Differences can indicate that data isn't being written properly. For more visual output, pretty print the debug representation before and after to text files using the `"{:#?}"` format specifier. The text can be diffed using an online diffing tool or directly in some editors like Visual Studio Code.
 
 ```rust
 fn main() {
