@@ -289,16 +289,15 @@ impl StreamingData {
                     .zip(chr_textures.chr_textures.iter())
                 {
                     // TODO: Is the name always the hash in lowercase hex?
-                    let name = format!("{:x}", chr_tex.hash);
+                    let name = format!("{:08x}", chr_tex.hash);
 
-                    let xbc1 =
-                        Xbc1::from_file(chr_tex_nx.join("m").join(&name).with_extension("wismt"))?;
+                    let m_path = chr_tex_nx.join("m").join(&name).with_extension("wismt");
+                    let xbc1 = Xbc1::from_file(m_path)?;
                     let bytes = xbc1.decompress()?;
                     let mid = T::from_bytes(bytes)?;
 
-                    let base_mip =
-                        Xbc1::from_file(chr_tex_nx.join("h").join(&name).with_extension("wismt"))?
-                            .decompress()?;
+                    let h_path = chr_tex_nx.join("h").join(&name).with_extension("wismt");
+                    let base_mip = Xbc1::from_file(h_path)?.decompress()?;
 
                     textures[*i as usize].high = Some(HighTexture {
                         mid,
@@ -332,7 +331,7 @@ fn pack_files(
         .count() as u32;
 
     let (chr_textures, chr_texture_streams) = use_chr_textures
-        .then_some(pack_chr_textures(textures))
+        .then(|| pack_chr_textures(textures))
         .unzip();
 
     // TODO: Search stream entries to get indices?
@@ -388,14 +387,16 @@ fn pack_chr_textures(
 ) -> (ChrTexTextures, Vec<ChrTextureStreams>) {
     let (chr_textures, streams) = textures
         .iter()
-        .map(|t| {
+        .filter_map(|t| {
             // TODO: Always assume the name is already a hash?
-            // TODO: This should also return the streams to ensure the sizes match up.
-            let high = t.high.as_ref().unwrap();
+            // TODO: How to handle missing high resolution textures?
+            // TODO: Stream names?
+            let high = t.high.as_ref()?;
             let mid = Xbc1::new("0000".to_string(), &high.mid).unwrap();
-            let base_mip = Xbc1::new("0000".to_string(), high.base_mip.as_ref().unwrap()).unwrap();
-            let hash = u32::from_str_radix(&t.name, 16).unwrap();
-            (
+            let base_mip = Xbc1::new("0000".to_string(), high.base_mip.as_ref()?).unwrap();
+            let hash = u32::from_str_radix(&t.name, 16).expect(&t.name);
+
+            Some((
                 ChrTexTexture {
                     hash,
                     decompressed_size: mid.decompressed_size,
@@ -409,7 +410,7 @@ fn pack_chr_textures(
                     mid,
                     base_mip,
                 },
-            )
+            ))
         })
         .unzip();
 
