@@ -555,7 +555,7 @@ pub struct Models {
     // offset 100
     #[br(parse_with = parse_offset32_count32, args { offset: base_offset, inner: base_offset })]
     #[xc3(offset_count(u32, u32), align(16))]
-    pub model_unks: Vec<ModelUnk>,
+    pub ext_meshes: Vec<ExtMesh>,
 
     // TODO: always 0?
     // TODO: offset for 10111?
@@ -730,13 +730,17 @@ pub struct Mesh {
     /// Index into [materials](struct.Materials.html#structfield.materials).
     pub material_index: u16,
     pub unk2: u32,
-    pub unk3: u32,
+    pub unk3: u16,
+    /// Index into [ext_meshes](struct.Models.html#structfield.ext_meshes).
+    // TODO: enabled via a flag?
+    pub ext_mesh_index: u16,
     pub unk4: u32,
     pub unk5: u16,
     /// The index of the level of detail typically starting from 1.
     pub lod: u16, // TODO: flags with one byte being lod?
-    // TODO: groups?
-    pub unks6: [i32; 4],
+    pub alpha_table_index: u16,
+    pub unk6_1: u16,
+    pub unks6: [i32; 3],
 }
 
 /// Flags to determine what data is present in [Models].
@@ -779,21 +783,36 @@ pub struct ModelsFlags {
     pub unk32: bool,
 }
 
+/// `ExtMesh` in the Xenoblade 2 binary.
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 #[br(import_raw(base_offset: u64))]
-pub struct ModelUnk {
+pub struct ExtMesh {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    name1: String,
+    pub name1: String,
 
     // TODO: Always an empty string?
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    name2: String,
+    pub name2: String,
 
-    unk1: u16,
-    unk2: u16,
-    unk3: u32,
+    pub flags: ExtMeshFlags,
+    pub unk2: u16,
+    pub unk3: u32,
+}
+
+#[bitsize(16)]
+#[derive(DebugBits, FromBits, BinRead, BinWrite, Clone, Copy)]
+#[br(map = u16::into)]
+#[bw(map = |&x| u16::from(x))]
+pub struct ExtMeshFlags {
+    pub unk1: bool, // true
+    pub unk2: bool, // false
+    pub unk3: bool, // false
+    /// Whether to initially skip rendering assigned meshes.
+    pub start_hidden: bool,
+    pub unk5: bool,
+    pub unk: u11, // 0
 }
 
 #[binread]
@@ -1534,7 +1553,8 @@ xc3_write_binwrite_impl!(
     StateFlags,
     ModelsFlags,
     SamplerFlags,
-    TextureUsage
+    TextureUsage,
+    ExtMeshFlags
 );
 
 impl Xc3Write for MaterialFlags {
@@ -1647,8 +1667,8 @@ impl<'a> Xc3WriteOffsets for ModelsOffsets<'a> {
 
         self.models.write_full(writer, base_offset, data_ptr)?;
         self.skinning.write_full(writer, base_offset, data_ptr)?;
-        if !self.model_unks.data.is_empty() {
-            self.model_unks.write_full(writer, base_offset, data_ptr)?;
+        if !self.ext_meshes.data.is_empty() {
+            self.ext_meshes.write_full(writer, base_offset, data_ptr)?;
         }
 
         self.model_unk8.write_full(writer, base_offset, data_ptr)?;
