@@ -32,12 +32,11 @@ use std::{borrow::Cow, path::Path};
 
 use animation::Animation;
 use glam::{Mat4, Vec3, Vec4};
-use image_dds::ddsfile::Dds;
 use log::{error, warn};
 use material::create_materials;
 use shader_database::ShaderDatabase;
 use skinning::SkinWeights;
-use texture::load_textures;
+use texture::{load_textures, ExtractedTextures};
 use vertex::{read_index_buffers, read_vertex_buffers, AttributeData};
 use xc3_lib::{
     apmd::Apmd,
@@ -392,11 +391,6 @@ pub fn load_model<P: AsRef<Path>>(
 struct StreamingData<'a> {
     vertex: Cow<'a, VertexData>,
     textures: ExtractedTextures,
-}
-
-enum ExtractedTextures {
-    Switch(Vec<ExtractedTexture<Mibl>>),
-    Pc(Vec<ExtractedTexture<Dds>>),
 }
 
 fn load_streaming_data<'a>(

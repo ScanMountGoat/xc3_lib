@@ -5,13 +5,16 @@ use log::error;
 use thiserror::Error;
 use xc3_lib::{
     mibl::{Mibl, SwizzleError},
-    mxmd::PackedTexture,
+    mxmd::PackedTexture, msrd::streaming::ExtractedTexture,
 };
 
 pub use xc3_lib::mibl::{ImageFormat, ViewDimension};
 pub use xc3_lib::mxmd::TextureUsage;
 
-use crate::ExtractedTextures;
+pub enum ExtractedTextures {
+    Switch(Vec<ExtractedTexture<Mibl>>),
+    Pc(Vec<ExtractedTexture<Dds>>),
+}
 
 #[derive(Debug, Error)]
 pub enum CreateImageTextureError {
