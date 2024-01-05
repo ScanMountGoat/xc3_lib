@@ -9,7 +9,7 @@
 //! | Xenoblade Chronicles 2 |  | |
 //! | Xenoblade Chronicles 3 | 10003 | `menu/image/*.wilay` |
 use crate::{
-    dhal::{Textures, Unk1, Unk3, Unk4},
+    dhal::{Textures, Unk1, Unk2, Unk3, Unk4},
     parse_offset32_count32, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
 };
 use binrw::{binread, BinRead};
@@ -30,7 +30,6 @@ pub struct Lagp {
     #[xc3(offset(u32))]
     pub unk1: Unk1,
 
-    // TODO: Only field not present with dhal?
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]
     pub unk2: Unk2,
@@ -75,32 +74,6 @@ pub struct Lagp {
 #[derive(Debug, Xc3Write, Xc3WriteOffsets)]
 #[br(stream = r)]
 #[xc3(base_offset)]
-pub struct Unk2 {
-    #[br(temp, try_calc = r.stream_position())]
-    base_offset: u64,
-
-    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset_count(u32, u32))]
-    pub unk1: Vec<[u32; 3]>,
-
-    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset_count(u32, u32))]
-    pub unk2: Vec<[u32; 2]>,
-
-    // TODO: type?
-    // TODO: params with f32, f32, ..., 0xffffffff?
-    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset_count(u32, u32))]
-    pub unk3: Vec<u8>,
-
-    // TODO: padding?
-    pub unk: [u32; 4],
-}
-
-#[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
-#[br(stream = r)]
-#[xc3(base_offset)]
 pub struct Unk13 {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
@@ -111,14 +84,14 @@ pub struct Unk13 {
     pub unk1: Vec<Unk13Unk1>,
 
     // TODO: type?
-    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    pub unk2: [u32; 40],
+    pub unk2: Option<[u32; 40]>,
 
     // TODO: type?
-    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    pub unk3: [u16; 4],
+    pub unk3: Option<[u16; 4]>,
 
     // TODO: padding?
     pub unk: [u32; 4],

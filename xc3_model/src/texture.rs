@@ -5,7 +5,8 @@ use log::error;
 use thiserror::Error;
 use xc3_lib::{
     mibl::{Mibl, SwizzleError},
-    mxmd::PackedTexture, msrd::streaming::ExtractedTexture,
+    msrd::streaming::ExtractedTexture,
+    mxmd::PackedTexture,
 };
 
 pub use xc3_lib::mibl::{ImageFormat, ViewDimension};
