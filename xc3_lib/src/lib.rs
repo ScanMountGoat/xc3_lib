@@ -56,6 +56,7 @@ pub mod error;
 pub mod eva;
 pub mod hash;
 pub mod lagp;
+pub mod laps;
 pub mod ltpc;
 pub mod map;
 pub mod mibl;
@@ -229,11 +230,8 @@ where
     let saved_pos = reader.stream_position()?;
 
     reader.seek(SeekFrom::Start(offset + args.offset))?;
-    trace!(
-        "{}: {:?}",
-        std::any::type_name::<T>(),
-        reader.stream_position()?
-    );
+    log_offset::<T, _>(reader)?;
+
     let value = T::read_options(reader, endian, args.inner)?;
     reader.seek(SeekFrom::Start(saved_pos))?;
 
@@ -255,11 +253,7 @@ where
     let saved_pos = reader.stream_position()?;
 
     reader.seek(SeekFrom::Start(offset + args.offset))?;
-    trace!(
-        "{:?}: {:?}",
-        std::any::type_name::<Vec<T>>(),
-        reader.stream_position()?
-    );
+    log_offset::<T, _>(reader)?;
 
     let values = Vec::<T>::read_options(
         reader,
@@ -273,6 +267,22 @@ where
     reader.seek(SeekFrom::Start(saved_pos))?;
 
     Ok(values)
+}
+
+fn log_offset<T, R: Read + Seek>(reader: &mut R) -> std::io::Result<()> {
+    let offset = reader.stream_position()?;
+
+    // Bit trick for largest power of two factor.
+    // We can assume a page is the strictest alignment requirement.
+    let align = (1 << offset.trailing_zeros()).min(4096);
+
+    trace!(
+        "{} at {} aligned to {}",
+        std::any::type_name::<T>(),
+        offset,
+        align
+    );
+    Ok(())
 }
 
 fn parse_string_ptr32<R: Read + Seek>(
@@ -414,7 +424,8 @@ file_write_full_impl!(
     dhal::Dhal,
     bc::Bc,
     eva::Eva,
-    lagp::Lagp
+    lagp::Lagp,
+    laps::Laps
 );
 
 // TODO: Dedicated error types?
@@ -455,7 +466,8 @@ file_read_impl!(
     apmd::Apmd,
     bc::Bc,
     eva::Eva,
-    lagp::Lagp
+    lagp::Lagp,
+    laps::Laps
 );
 
 macro_rules! xc3_write_binwrite_impl {

@@ -39,7 +39,7 @@ pub struct Dhal {
     pub unk2: Option<Unk2>,
 
     #[br(parse_with = parse_opt_ptr32)]
-    #[xc3(offset(u32), align(4))]
+    #[xc3(offset(u32), align(2))]
     pub unk3: Option<Unk3>,
 
     #[br(parse_with = parse_opt_ptr32)]
@@ -49,11 +49,11 @@ pub struct Dhal {
 
     #[br(parse_with = parse_opt_ptr32)]
     #[xc3(offset(u32), align(2))]
-    pub unk5: Option<[u32; 4]>,
+    pub unk5: Option<Unk5>,
 
     #[br(parse_with = parse_opt_ptr32)]
     #[xc3(offset(u32), align(2))]
-    pub unk6: Option<[u32; 3]>,
+    pub unk6: Option<Unk6>,
 
     #[br(parse_with = parse_opt_ptr32)]
     #[xc3(offset(u32), align(2))]
@@ -74,7 +74,7 @@ pub struct Dhal {
     pub uncompressed_textures: Option<UncompressedTextures>,
 
     // TODO: padding?
-    pub unk: [u32; 8],
+    pub unk: [u32; 7],
 
     #[br(if(version > 10001))]
     pub unks2: Option<[u32; 3]>,
@@ -87,6 +87,7 @@ pub enum Unk0 {
     Unk0 = 0,     // images?
     Unk1 = 1,     // images?
     Unk3 = 3,     // images?
+    Unk17 = 17,   // ???
     Unk32 = 32,   // strings?
     Unk129 = 129, // vol?
 }
@@ -147,6 +148,7 @@ pub struct Unk3 {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
+    // TODO: This type is sometimes larger?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
     pub unk1: Vec<[u32; 7]>,
@@ -208,30 +210,42 @@ pub struct Unk4Unk2 {
     #[xc3(count_offset(u32, u32), align(2))]
     pub unk1: Vec<u32>,
 
+    // TODO: Just store offsets to calculate counts for now?
+    // TODO: Count can be 44?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(2))]
     pub unk3: Option<[f32; 2]>,
 
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    // TODO: count depends on unk1?
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: unk1.len().saturating_sub(1).max(1) }})]
     #[xc3(offset(u32), align(2))]
-    pub unk4: Option<[u32; 9]>,
+    pub unk4: Option<Vec<[u32; 2]>>,
 
-    pub unk5: u32, // 0?
+    pub unk5: u32,
     pub unk6: u32, // 0?
 
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    // TODO: count depends on unk1?
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: unk1.len().next_multiple_of(4) / 4 }})]
     #[xc3(offset(u32), align(2))]
-    pub unk7: Option<u32>,
+    pub unk7: Option<Vec<u32>>,
 
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[br(args { inner: args! { count: unk1.len() }})]
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: unk1.len() }})]
     #[xc3(offset(u32), align(2))]
     pub unk8: Option<Vec<u8>>,
 
+    // TODO: not always 0?
     pub unk9: u32,  // 0
     pub unk10: u32, // 0
-    pub unk11: u32,
-    pub unk12: u32,
+
+    // #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    // #[xc3(offset(u32), align(2))]
+    pub unk11: u32, //Option<[u32; 2]>,
+
+    pub unk12: u32, // 0
+    // TODO: not padding?
     pub unk13: [u32; 4],
 }
 
@@ -251,6 +265,21 @@ pub struct Unk4Unk7 {
 
     // TODO: padding?
     pub unk: [u32; 4],
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct Unk5 {
+    pub unk1: u32,
+    pub unk2: u32,
+    pub unk3: u32,
+    pub unk4: u32,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct Unk6 {
+    pub unk1: u32,
+    pub unk2: u32,
+    pub unk3: u32,
 }
 
 #[binread]

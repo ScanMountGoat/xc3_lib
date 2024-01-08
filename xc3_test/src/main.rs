@@ -12,6 +12,7 @@ use xc3_lib::{
     dhal::Dhal,
     eva::Eva,
     lagp::Lagp,
+    laps::Laps,
     ltpc::Ltpc,
     mibl::Mibl,
     msmd::Msmd,
@@ -402,6 +403,7 @@ fn read_wismt_single_tex(path: &Path) -> (Vec<u8>, Mibl) {
 enum Wilay {
     Dhal(Dhal),
     Lagp(Lagp),
+    Laps(Laps),
 }
 
 fn check_wilay_data(
@@ -417,6 +419,7 @@ fn check_wilay(data: Wilay, path: &Path, original_bytes: &[u8], check_read_write
     match data {
         Wilay::Dhal(dhal) => check_dhal(dhal, path, original_bytes, check_read_write),
         Wilay::Lagp(lagp) => check_lagp(lagp, path, original_bytes, check_read_write),
+        Wilay::Laps(laps) => check_laps(laps, path, original_bytes, check_read_write),
     }
 }
 
@@ -459,6 +462,16 @@ fn check_lagp(lagp: Lagp, path: &Path, original_bytes: &[u8], check_read_write: 
         lagp.write(&mut writer).unwrap();
         if writer.into_inner() != original_bytes {
             println!("Lagp read/write not 1:1 for {path:?}");
+        }
+    }
+}
+
+fn check_laps(laps: Laps, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+    if check_read_write {
+        let mut writer = Cursor::new(Vec::new());
+        laps.write(&mut writer).unwrap();
+        if writer.into_inner() != original_bytes {
+            println!("Laps read/write not 1:1 for {path:?}");
         }
     }
 }

@@ -9,7 +9,7 @@
 //! | Xenoblade Chronicles 2 |  | |
 //! | Xenoblade Chronicles 3 | 10003 | `menu/image/*.wilay` |
 use crate::{
-    dhal::{Textures, Unk1, Unk2, Unk3, Unk4},
+    dhal::{Textures, Unk1, Unk2, Unk3, Unk4, Unk5, Unk6},
     parse_offset32_count32, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
 };
 use binrw::{binread, BinRead};
@@ -44,11 +44,11 @@ pub struct Lagp {
 
     #[br(parse_with = parse_opt_ptr32)]
     #[xc3(offset(u32))]
-    pub unk5: Option<[u32; 4]>,
+    pub unk5: Option<Unk5>,
 
     #[br(parse_with = parse_opt_ptr32)]
     #[xc3(offset(u32))]
-    pub unk6: Option<[u32; 3]>,
+    pub unk6: Option<Unk6>,
 
     #[br(parse_with = parse_opt_ptr32)]
     #[xc3(offset(u32))]
