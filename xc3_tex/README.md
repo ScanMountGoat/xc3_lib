@@ -15,7 +15,7 @@ See the help text for a full list of commands and supported formats.
 ### DDS Conversion
 xc3_tex also provides the ability to convert DDS files to and from uncompressed formats like PNG or TIFF. This is helpful on platforms like Linux and MacOS since many popular texture conversion tools are Windows only.
 
-`xc3_tex in.dds out.png`
+`xc3_tex in.dds out.png`  
 `xc3_tex in.png out.dds BC7Unorm`
 
 ### Wilay Texture Replacement
