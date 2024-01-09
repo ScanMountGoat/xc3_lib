@@ -1,4 +1,4 @@
-# xc3_lib
+# xc3_lib [![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/ScanMountGoat/xc3_lib?include_prereleases)](https://github.com/ScanMountGoat/xc3_lib/releases/latest)
 Rust libraries and tools for working with rendering related file formats for Xenoblade Chronicles 1 DE, Xenoblade Chronicles 2, and Xenoblade Chronicles 3.
 
 Report any bugs or request new features in [issues](https://github.com/ScanMountGoat/xc3_lib/issues). Download precompiled binaries for the tools in [releases](https://github.com/ScanMountGoat/xc3_lib/releases). Python bindings for xc3_model are available with [xc3_model_py](https://github.com/ScanMountGoat/xc3_model_py).
