@@ -12,11 +12,11 @@ use std::io::{Cursor, Seek, SeekFrom, Write};
 
 use binrw::{BinRead, BinReaderExt, BinResult, BinWrite};
 use glam::{Vec2, Vec3, Vec4};
-use xc3_lib::vertex::{
-    DataType, IndexBufferDescriptor, OutlineBuffer, VertexBufferDescriptor, VertexData,
-};
+use xc3_lib::vertex::{DataType, IndexBufferDescriptor, VertexBufferDescriptor, VertexData};
 
-use crate::{skinning::SkinWeights, IndexBuffer, MorphTarget, VertexBuffer, Weights};
+use crate::{
+    skinning::SkinWeights, IndexBuffer, MorphTarget, OutlineBuffer, VertexBuffer, Weights,
+};
 
 // TODO: Add an option to convert a collection of these to the vertex above?
 // TODO: How to handle normalized attributes?
@@ -212,16 +212,27 @@ pub fn read_vertex_buffers(
     vertex_data: &VertexData,
     skinning: Option<&xc3_lib::mxmd::Skinning>,
 ) -> (Vec<VertexBuffer>, Option<Weights>) {
-    // TODO: Don't save the weights buffer.
+    // TODO: This skips the weights buffer since it doesn't have ext info?
+    // TODO: Save the weights buffer for converting back to xc3_lib types?
     // TODO: Panic if the weights buffer is not the last buffer?
     let mut buffers: Vec<_> = vertex_data
         .vertex_buffers
         .iter()
-        .map(|descriptor| {
+        .zip(vertex_data.vertex_buffer_info.iter())
+        .map(|(descriptor, ext)| {
             let attributes = read_vertex_attributes(descriptor, &vertex_data.buffer);
+
+            let outline_buffer = ext.flags.has_outline_buffer().then(|| {
+                let outline = &vertex_data.outline_buffers[ext.outline_buffer_index as usize];
+                OutlineBuffer {
+                    attributes: read_outline_buffer(outline, &vertex_data.buffer).unwrap(),
+                }
+            });
+
             VertexBuffer {
                 attributes,
                 morph_targets: Vec::new(),
+                outline_buffer,
             }
         })
         .collect();
@@ -232,13 +243,16 @@ pub fn read_vertex_buffers(
         assign_morph_targets(vertex_morphs, &mut buffers, vertex_data);
     }
 
-    // TODO: Buffers have skinning indices but not weights?
     // TODO: Is this the best place to do this?
     let skin_weights = skinning.and_then(|skinning| {
         let vertex_weights = vertex_data.weights.as_ref()?;
         let weights_index = vertex_weights.vertex_buffer_index as usize;
-        let weights_buffer = buffers.get(weights_index)?;
-        let (weights, bone_indices) = skin_weights_bone_indices(weights_buffer)?;
+
+        let descriptor = vertex_data.vertex_buffers.get(weights_index)?;
+        let attributes = read_vertex_attributes(descriptor, &vertex_data.buffer);
+
+        let (weights, bone_indices) = skin_weights_bone_indices(&attributes)?;
+
         Some(Weights {
             skin_weights: SkinWeights {
                 bone_indices,
@@ -322,12 +336,12 @@ fn assign_morph_targets(
     }
 }
 
-fn skin_weights_bone_indices(buffer: &VertexBuffer) -> Option<(Vec<Vec4>, Vec<[u8; 4]>)> {
-    let weights = buffer.attributes.iter().find_map(|a| match a {
+fn skin_weights_bone_indices(attributes: &[AttributeData]) -> Option<(Vec<Vec4>, Vec<[u8; 4]>)> {
+    let weights = attributes.iter().find_map(|a| match a {
         AttributeData::SkinWeights(values) => Some(values.clone()),
         _ => None,
     })?;
-    let indices = buffer.attributes.iter().find_map(|a| match a {
+    let indices = attributes.iter().find_map(|a| match a {
         AttributeData::BoneIndices(values) => Some(values.clone()),
         _ => None,
     })?;
@@ -634,7 +648,7 @@ fn read_morph_buffer_target(
         .collect()
 }
 
-fn _read_outline_buffer(
+fn read_outline_buffer(
     descriptor: &xc3_lib::vertex::OutlineBuffer,
     buffer: &[u8],
 ) -> BinResult<Vec<AttributeData>> {
@@ -648,7 +662,7 @@ fn _read_outline_buffer(
 }
 
 fn read_outline_attribute<T, F>(
-    descriptor: &OutlineBuffer,
+    descriptor: &xc3_lib::vertex::OutlineBuffer,
     relative_offset: u64,
     buffer: &[u8],
     read_item: F,
@@ -1293,7 +1307,7 @@ mod tests {
             5d2f1f0c
         );
 
-        let descriptor = OutlineBuffer {
+        let descriptor = xc3_lib::vertex::OutlineBuffer {
             data_offset: 0,
             vertex_count: 2,
             vertex_size: 4,
@@ -1305,7 +1319,7 @@ mod tests {
                 vec4(0.3647059, 0.18431373, 0.12156863, 0.0),
                 vec4(0.3647059, 0.18431373, 0.12156863, 0.047058824)
             ])],
-            _read_outline_buffer(&descriptor, &data).unwrap()
+            read_outline_buffer(&descriptor, &data).unwrap()
         );
     }
 
@@ -1321,7 +1335,7 @@ mod tests {
             4b37294c
         );
 
-        let descriptor = OutlineBuffer {
+        let descriptor = xc3_lib::vertex::OutlineBuffer {
             data_offset: 0,
             vertex_count: 2,
             vertex_size: 8,
@@ -1334,7 +1348,7 @@ mod tests {
                 vec4(0.47843137, 0.8745098, 0.9882353, 0.0),
                 vec4(0.47843137, 0.8745098, 0.9882353, 0.0)
             ])],
-            _read_outline_buffer(&descriptor, &data).unwrap()
+            read_outline_buffer(&descriptor, &data).unwrap()
         );
     }
 }

@@ -274,7 +274,11 @@ fn log_offset<T, R: Read + Seek>(reader: &mut R) -> std::io::Result<()> {
 
     // Bit trick for largest power of two factor.
     // We can assume a page is the strictest alignment requirement.
-    let align = (1 << offset.trailing_zeros()).min(4096);
+    let align = if offset > 0 {
+        (1 << offset.trailing_zeros()).min(4096)
+    } else {
+        1
+    };
 
     trace!(
         "{} at {} aligned to {}",

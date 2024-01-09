@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 * Added support for Xenoblade 3 `chr/tex/nx` textures for unpacking and packing Msrd files.
 * Added rendering support for culling to xc3_wgpu.
+* Added rendering support for object outlines to xc3_wgpu.
 
 ### Changed
 * Renamed `write_to_file` methods to `save` for all relevant types.

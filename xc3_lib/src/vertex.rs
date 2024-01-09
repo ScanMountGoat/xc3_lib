@@ -1,4 +1,5 @@
 //! Vertex and geometry data for model formats.
+// TODO: Document how attributes and weights are stored.
 use crate::{
     parse_count16_offset32, parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32,
     parse_ptr32, xc3_write_binwrite_impl,
@@ -33,7 +34,7 @@ pub struct VertexData {
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: buffer_info_count(&vertex_buffers) }})]
     #[xc3(offset(u32))]
-    pub vertex_buffer_info: Vec<VertexBufferInfo>,
+    pub vertex_buffer_info: Vec<VertexBufferExtInfo>,
 
     // 332 bytes of data?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
@@ -355,8 +356,8 @@ pub struct UnkInner {
 
 /// Extra data assigned to a non skin weights buffer.
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
-pub struct VertexBufferInfo {
-    pub flags: u16,
+pub struct VertexBufferExtInfo {
+    pub flags: VertexBufferExtInfoFlags,
     // TODO: Extra attributes for outline meshes?
     pub outline_buffer_index: u16,
     /// Identical to [target_start_index](struct.MorphDescriptor.html#structfield.target_start_index)
@@ -368,6 +369,16 @@ pub struct VertexBufferInfo {
     pub morph_target_count: u16,
     // TODO: padding?
     pub unk: u32,
+}
+
+#[bitsize(16)]
+#[derive(DebugBits, FromBits, BinRead, BinWrite, Clone, Copy, PartialEq)]
+#[br(map = u16::into)]
+#[bw(map = |&x| u16::from(x))]
+pub struct VertexBufferExtInfoFlags {
+    pub has_outline_buffer: bool,
+    pub unk2: bool,
+    pub unk: u14,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
@@ -386,7 +397,7 @@ pub struct UnkData {
     pub unk: [u32; 17],
 }
 
-xc3_write_binwrite_impl!(DataType, Unk1, Unk2, MorphTarget);
+xc3_write_binwrite_impl!(DataType, Unk1, Unk2, MorphTarget, VertexBufferExtInfoFlags);
 
 fn buffer_info_count(vertex_buffers: &[VertexBufferDescriptor]) -> usize {
     // TODO: Extra data for every buffer except the single weights buffer?

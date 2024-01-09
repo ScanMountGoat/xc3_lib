@@ -184,9 +184,11 @@ pub fn materials(
             // TODO: How to make sure the pipeline outputs match the render pass?
             // Each material only goes in exactly one pass?
             // TODO: Is it redundant to also store the unk type?
+            // TODO: Find a more accurate way to detect outline shaders.
             let pipeline_key = PipelineKey {
                 unk_type: material.unk_type,
                 flags: material.flags,
+                is_outline: material.name.ends_with("_outline"),
             };
             pipelines
                 .entry(pipeline_key)

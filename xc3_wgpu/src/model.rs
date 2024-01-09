@@ -84,7 +84,6 @@ impl ModelGroup {
                     // TODO: The main pass is shared with outline, ope, and zpre?
                     // TODO: How to handle transparency?
                     if (is_transparent != material.pipeline_key.write_to_all_outputs())
-                        && !material.name.ends_with("_outline")
                         && !material.name.contains("_speff_")
                         && mesh.should_render_lod(models)
                     {
@@ -532,6 +531,11 @@ fn set_attributes(
 ) {
     set_buffer0_attributes(buffer0_vertices, &buffer.attributes);
     set_buffer1_attributes(buffer1_vertices, &buffer.attributes);
+
+    if let Some(outline_buffer) = &buffer.outline_buffer {
+        // TODO: Should outline attributes not override existing attributes?
+        set_buffer1_attributes(buffer1_vertices, &outline_buffer.attributes)
+    }
 }
 
 fn set_buffer0_attributes(verts: &mut [shader::model::VertexInput0], attributes: &[AttributeData]) {

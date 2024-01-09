@@ -21,6 +21,7 @@ impl ModelPipelineData {
 pub struct PipelineKey {
     pub unk_type: ShaderUnkType,
     pub flags: StateFlags,
+    pub is_outline: bool,
 }
 
 impl PipelineKey {
@@ -85,17 +86,23 @@ pub fn model_pipeline(
         ]
     };
 
+    let vertex_entry = if key.is_outline {
+        crate::shader::model::vs_outline_main_entry(
+            wgpu::VertexStepMode::Vertex,
+            wgpu::VertexStepMode::Vertex,
+            wgpu::VertexStepMode::Instance,
+        )
+    } else {
+        crate::shader::model::vs_main_entry(
+            wgpu::VertexStepMode::Vertex,
+            wgpu::VertexStepMode::Vertex,
+            wgpu::VertexStepMode::Instance,
+        )
+    };
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Model Pipeline"),
         layout: Some(&data.layout),
-        vertex: crate::shader::model::vertex_state(
-            &data.module,
-            &crate::shader::model::vs_main_entry(
-                wgpu::VertexStepMode::Vertex,
-                wgpu::VertexStepMode::Vertex,
-                wgpu::VertexStepMode::Instance,
-            ),
-        ),
+        vertex: crate::shader::model::vertex_state(&data.module, &vertex_entry),
         fragment: Some(wgpu::FragmentState {
             module: &data.module,
             entry_point: crate::shader::model::ENTRY_FS_MAIN,

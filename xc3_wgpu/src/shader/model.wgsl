@@ -157,8 +157,7 @@ struct FragmentOutput {
     @location(5) g_lgt_color: vec4<f32>,
 }
 
-@vertex
-fn vs_main(in0: VertexInput0, in1: VertexInput1, instance: InstanceInput) -> VertexOutput {
+fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance: InstanceInput, outline: bool) -> VertexOutput {
     var out: VertexOutput;
 
     // Linear blend skinning.
@@ -176,7 +175,7 @@ fn vs_main(in0: VertexInput0, in1: VertexInput1, instance: InstanceInput) -> Ver
         let bone_indices = bone_indices[in1.weight_index];
         let skin_weights = skin_weights[in1.weight_index];
 
-        for (var i = 0u; i < 4u; i = i + 1u) {
+        for (var i = 0u; i < 4u; i += 1u) {
             let bone_index = bone_indices[i];
             let skin_weight = skin_weights[i];
 
@@ -193,15 +192,45 @@ fn vs_main(in0: VertexInput0, in1: VertexInput1, instance: InstanceInput) -> Ver
         instance.model_matrix_3,
     );
 
+    if outline {
+        // TODO: What to use for the param here?
+        let outline_width = outline_width(in1.vertex_color, 0.007351, position.z, normal_xyz);
+        position += normal_xyz * outline_width;
+    }
+
     out.clip_position = camera.view_projection * model_matrix * vec4(position, 1.0);
     out.position = out.clip_position.xyz;
     out.uv1 = in1.uv1.xy;
-    out.vertex_color = in1.vertex_color;
+    // TODO: Find a better way to only force vertex color for outlines.
+    if outline {
+        out.vertex_color = in1.vertex_color;
+    } else {
+        out.vertex_color = vec4(1.0);
+    }
     // Transform any direction vectors by the instance transform.
     // TODO: This assumes no scaling?
     out.normal = (model_matrix * vec4(normal_xyz, 0.0)).xyz;
     out.tangent = vec4((model_matrix * vec4(tangent_xyz, 0.0)).xyz, in0.tangent.w);
     return out;
+}
+
+// Adapted from shd0001 GLSL from ch11021013.pcsmt (xc3). 
+fn outline_width(vertex_color: vec4<f32>, param: f32, view_z: f32, normal: vec3<f32>) -> f32 {
+    // TODO: Is this scaled to have a fixed width in screen space?
+    // TODO: is the param always gWrkFl4[0].w?
+    // TODO: Scaled by toon lighting using toon params?
+    let f_line_width = vertex_color.w * param;
+    return f_line_width;
+}
+
+@vertex
+fn vs_main(in0: VertexInput0, in1: VertexInput1, instance: InstanceInput) -> VertexOutput {
+    return vertex_output(in0, in1, instance, false);
+}
+
+@vertex
+fn vs_outline_main(in0: VertexInput0, in1: VertexInput1, instance: InstanceInput) -> VertexOutput {
+    return vertex_output(in0, in1, instance, true);
 }
 
 fn assign_gbuffer_texture(assignment: GBufferAssignment, s_colors: array<vec4<f32>, 10>, default_value: vec4<f32>) -> vec4<f32> {
@@ -347,13 +376,16 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     // TODO: Are in game normals in view space?
     let view_normal = camera.view * vec4(normal.xyz, 0.0);
 
+    // TODO: How to detect if vertex color is actually color?
+    // TODO: Some outlines aren't using vertex color?
+
     // The ordering here is the order of per material fragment shader outputs.
     // The input order for the deferred lighting pass is slightly different.
     // TODO: alpha?
     // TODO: How much shading is done in this pass?
     // TODO: Is it ok to always apply gMatCol like this?
     var out: FragmentOutput;
-    out.g_color = g_color * vec4(per_material.mat_color.rgb, 1.0);
+    out.g_color = g_color * vec4(per_material.mat_color.rgb * in.vertex_color.rgb, 1.0);
     out.g_etc_buffer = g_etc_buffer;
     out.g_normal = vec4(normalize(view_normal).xy * 0.5 + 0.5, g_normal.zw);
     out.g_velocity = g_velocity;

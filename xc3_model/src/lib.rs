@@ -155,6 +155,7 @@ pub struct VertexBuffer {
     /// Animation targets for vertex attributes like positions and normals.
     /// The base target is already applied to [attributes](#structfield.attributes).
     pub morph_targets: Vec<MorphTarget>,
+    pub outline_buffer: Option<OutlineBuffer>,
 }
 
 /// Morph target attributes defined as a difference or deformation from the base target.
@@ -169,10 +170,15 @@ pub struct MorphTarget {
     pub normal_deltas: Vec<Vec4>,
     pub tangent_deltas: Vec<Vec4>,
     /// The index of the vertex affected by each offset deltas.
+    // TODO: method to convert to a non sparse format?
     pub vertex_indices: Vec<u32>,
 }
 
-// TODO: method to convert to a non sparse format?
+/// See [OutlineBuffer](xc3_lib::vertex::OutlineBuffer).
+#[derive(Debug, Clone, PartialEq)]
+pub struct OutlineBuffer {
+    pub attributes: Vec<AttributeData>,
+}
 
 /// See [IndexBufferDescriptor](xc3_lib::vertex::IndexBufferDescriptor).
 #[derive(Debug, Clone, PartialEq)]
