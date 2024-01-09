@@ -314,10 +314,13 @@ fn check_msmd(msmd: Msmd, path: &Path, _original_bytes: &[u8], check_read_write:
         }
     }
 
-    // TODO: Add a check_vertex_data?
     for (i, entry) in msmd.prop_vertex_data.iter().enumerate() {
-        if let Err(e) = entry.extract(&mut reader, compressed) {
-            println!("Error extracting VertexData {i} in {path:?}: {e}");
+        match entry.extract(&mut reader, compressed) {
+            Ok(vertex_data) => {
+                let original_bytes = entry.decompress(&mut reader, compressed).unwrap();
+                check_vertex_data(vertex_data, path, &original_bytes, check_read_write);
+            }
+            Err(e) => println!("Error extracting prop VertexData {i} in {path:?}: {e}"),
         }
     }
 
@@ -361,8 +364,14 @@ fn check_msmd(msmd: Msmd, path: &Path, _original_bytes: &[u8], check_read_write:
         entry.extract(&mut reader, compressed).unwrap();
     }
 
-    for entry in msmd.map_vertex_data {
-        entry.extract(&mut reader, compressed).unwrap();
+    for (i, entry) in msmd.map_vertex_data.iter().enumerate() {
+        match entry.extract(&mut reader, compressed) {
+            Ok(vertex_data) => {
+                let original_bytes = entry.decompress(&mut reader, compressed).unwrap();
+                check_vertex_data(vertex_data, path, &original_bytes, check_read_write);
+            }
+            Err(e) => println!("Error extracting map VertexData {i} in {path:?}: {e}"),
+        }
     }
 }
 

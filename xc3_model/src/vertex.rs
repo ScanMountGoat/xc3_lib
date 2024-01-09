@@ -12,7 +12,9 @@ use std::io::{Cursor, Seek, SeekFrom, Write};
 
 use binrw::{BinRead, BinReaderExt, BinResult, BinWrite};
 use glam::{Vec2, Vec3, Vec4};
-use xc3_lib::vertex::{DataType, IndexBufferDescriptor, VertexBufferDescriptor, VertexData};
+use xc3_lib::vertex::{
+    DataType, IndexBufferDescriptor, OutlineBuffer, VertexBufferDescriptor, VertexData,
+};
 
 use crate::{skinning::SkinWeights, IndexBuffer, MorphTarget, VertexBuffer, Weights};
 
@@ -376,68 +378,68 @@ pub fn read_vertex_attributes(
 fn read_attribute(
     a: &xc3_lib::vertex::VertexAttribute,
     d: &VertexBufferDescriptor,
-    offset: u64,
+    relative_offset: u64,
     buffer: &[u8],
 ) -> Option<AttributeData> {
     // TODO: handle all cases and don't return option.
     match a.data_type {
         DataType::Position => Some(AttributeData::Position(
-            read_data(d, offset, buffer, read_f32x3).ok()?,
+            read_data(d, relative_offset, buffer, read_f32x3).ok()?,
         )),
         DataType::Unk1 => None,
         DataType::Unk2 => None,
         DataType::WeightIndex => Some(AttributeData::WeightIndex(
-            read_data(d, offset, buffer, read_u32).ok()?,
+            read_data(d, relative_offset, buffer, read_u32).ok()?,
         )),
         DataType::WeightIndex2 => None,
         DataType::TexCoord0 => Some(AttributeData::TexCoord0(
-            read_data(d, offset, buffer, read_f32x2).ok()?,
+            read_data(d, relative_offset, buffer, read_f32x2).ok()?,
         )),
         DataType::TexCoord1 => Some(AttributeData::TexCoord1(
-            read_data(d, offset, buffer, read_f32x2).ok()?,
+            read_data(d, relative_offset, buffer, read_f32x2).ok()?,
         )),
         DataType::TexCoord2 => Some(AttributeData::TexCoord2(
-            read_data(d, offset, buffer, read_f32x2).ok()?,
+            read_data(d, relative_offset, buffer, read_f32x2).ok()?,
         )),
         DataType::TexCoord3 => Some(AttributeData::TexCoord3(
-            read_data(d, offset, buffer, read_f32x2).ok()?,
+            read_data(d, relative_offset, buffer, read_f32x2).ok()?,
         )),
         DataType::TexCoord4 => Some(AttributeData::TexCoord4(
-            read_data(d, offset, buffer, read_f32x2).ok()?,
+            read_data(d, relative_offset, buffer, read_f32x2).ok()?,
         )),
         DataType::TexCoord5 => Some(AttributeData::TexCoord5(
-            read_data(d, offset, buffer, read_f32x2).ok()?,
+            read_data(d, relative_offset, buffer, read_f32x2).ok()?,
         )),
         DataType::TexCoord6 => Some(AttributeData::TexCoord6(
-            read_data(d, offset, buffer, read_f32x2).ok()?,
+            read_data(d, relative_offset, buffer, read_f32x2).ok()?,
         )),
         DataType::TexCoord7 => Some(AttributeData::TexCoord7(
-            read_data(d, offset, buffer, read_f32x2).ok()?,
+            read_data(d, relative_offset, buffer, read_f32x2).ok()?,
         )),
         DataType::TexCoord9 => Some(AttributeData::TexCoord8(
-            read_data(d, offset, buffer, read_f32x2).ok()?,
+            read_data(d, relative_offset, buffer, read_f32x2).ok()?,
         )),
         DataType::Blend => Some(AttributeData::Blend(
-            read_data(d, offset, buffer, read_unorm8x4).ok()?,
+            read_data(d, relative_offset, buffer, read_unorm8x4).ok()?,
         )),
         DataType::Unk15 => None,
         DataType::Unk16 => None,
         DataType::VertexColor => Some(AttributeData::VertexColor(
-            read_data(d, offset, buffer, read_unorm8x4).ok()?,
+            read_data(d, relative_offset, buffer, read_unorm8x4).ok()?,
         )),
         DataType::Unk18 => None,
         DataType::Unk24 => None,
         DataType::Unk25 => None,
         DataType::Unk26 => None,
         DataType::Normal => Some(AttributeData::Normal(
-            read_data(d, offset, buffer, read_snorm8x4).ok()?,
+            read_data(d, relative_offset, buffer, read_snorm8x4).ok()?,
         )),
         DataType::Tangent => Some(AttributeData::Tangent(
-            read_data(d, offset, buffer, read_snorm8x4).ok()?,
+            read_data(d, relative_offset, buffer, read_snorm8x4).ok()?,
         )),
         DataType::Unk30 => None,
         DataType::Normal2 => Some(AttributeData::Normal(
-            read_data(d, offset, buffer, read_snorm8x4).ok()?,
+            read_data(d, relative_offset, buffer, read_snorm8x4).ok()?,
         )),
         DataType::Unk33 => None,
         DataType::Normal3 => None,
@@ -447,10 +449,10 @@ fn read_attribute(
         DataType::OldPosition => None,
         DataType::Tangent2 => None,
         DataType::SkinWeights => Some(AttributeData::SkinWeights(
-            read_data(d, offset, buffer, read_unorm16x4).ok()?,
+            read_data(d, relative_offset, buffer, read_unorm16x4).ok()?,
         )),
         DataType::BoneIndices => Some(AttributeData::BoneIndices(
-            read_data(d, offset, buffer, read_u8x4).ok()?,
+            read_data(d, relative_offset, buffer, read_u8x4).ok()?,
         )),
         DataType::Flow => None,
     }
@@ -458,7 +460,28 @@ fn read_attribute(
 
 fn read_data<T, F>(
     descriptor: &VertexBufferDescriptor,
+    relative_offset: u64,
+    buffer: &[u8],
+    read_item: F,
+) -> BinResult<Vec<T>>
+where
+    F: Fn(&mut Cursor<&[u8]>) -> BinResult<T>,
+{
+    read_data_inner(
+        descriptor.data_offset as u64,
+        descriptor.vertex_count as u64,
+        descriptor.vertex_size as u64,
+        relative_offset,
+        buffer,
+        read_item,
+    )
+}
+
+fn read_data_inner<T, F>(
     offset: u64,
+    vertex_count: u64,
+    vertex_size: u64,
+    relative_offset: u64,
     buffer: &[u8],
     read_item: F,
 ) -> BinResult<Vec<T>>
@@ -467,9 +490,9 @@ where
 {
     let mut reader = Cursor::new(buffer);
 
-    let mut values = Vec::with_capacity(descriptor.vertex_count as usize);
-    for i in 0..descriptor.vertex_count as u64 {
-        let offset = descriptor.data_offset as u64 + i * descriptor.vertex_size as u64 + offset;
+    let mut values = Vec::with_capacity(vertex_count as usize);
+    for i in 0..vertex_count {
+        let offset = offset + i * vertex_size + relative_offset;
         reader.seek(SeekFrom::Start(offset)).unwrap();
 
         values.push(read_item(&mut reader)?);
@@ -607,6 +630,55 @@ fn read_morph_buffer_target(
                 tangent: vertex.tangent.map(|u| u as f32 / 255.0 * 2.0 - 1.0).into(),
                 vertex_index: vertex.vertex_index,
             })
+        })
+        .collect()
+}
+
+fn _read_outline_buffer(
+    descriptor: &xc3_lib::vertex::OutlineBuffer,
+    buffer: &[u8],
+) -> BinResult<Vec<AttributeData>> {
+    // TODO: outline buffer normally just has vColor?
+    Ok(vec![AttributeData::VertexColor(read_outline_attribute(
+        descriptor,
+        0,
+        buffer,
+        read_unorm8x4,
+    )?)])
+}
+
+fn read_outline_attribute<T, F>(
+    descriptor: &OutlineBuffer,
+    relative_offset: u64,
+    buffer: &[u8],
+    read_item: F,
+) -> BinResult<Vec<T>>
+where
+    F: Fn(&mut Cursor<&[u8]>) -> BinResult<T>,
+{
+    read_data_inner(
+        descriptor.data_offset as u64,
+        descriptor.vertex_count as u64,
+        descriptor.vertex_size as u64,
+        relative_offset,
+        buffer,
+        read_item,
+    )
+}
+
+fn _read_unk_buffer(unk: &xc3_lib::vertex::UnkInner, model_bytes: &[u8]) -> BinResult<Vec<Vec3>> {
+    let mut reader = Cursor::new(model_bytes);
+
+    (0..unk.count as u64)
+        .map(|i| {
+            // TODO: assume data is tightly packed and seek once?
+            reader
+                .seek(SeekFrom::Start(unk.offset as u64 + i * 24))
+                .unwrap();
+
+            // TODO: additional attributes?
+            let position = read_f32x3(&mut reader)?;
+            Ok(position)
         })
         .collect()
 }
@@ -1174,6 +1246,95 @@ mod tests {
                 }
             ],
             read_morph_buffer_target(&target, &data).unwrap()
+        );
+    }
+
+    #[test]
+    fn read_unk_buffer_vertices() {
+        // xeno3/chr/ch/ch01011011.wismt, unk buffer starting from offset 1148672.
+        let data = hex!(
+            // vertex 0
+            7db21bbd 32f3ce3f 9d9ddbbd
+            ff000000
+            02000000
+            c6e69300
+            // vertex 1
+            2c1bdbbc 3dd3ce3f a664e2bd
+            ff000000
+            02000000
+            e1ed8700
+        );
+
+        let unk = xc3_lib::vertex::UnkInner {
+            unk1: 1,
+            unk2: 1,
+            count: 2,
+            offset: 0,
+            unk5: 0,
+            start_index: 0,
+        };
+
+        assert_eq!(
+            vec![
+                vec3(-0.038012017, 1.6167967, -0.10723422),
+                vec3(-0.026746355, 1.6158215, -0.110543534)
+            ],
+            _read_unk_buffer(&unk, &data).unwrap()
+        );
+    }
+
+    #[test]
+    fn read_outline_buffer_vertices_size4() {
+        // xeno3/chr/ch/ch01011011.wismt, outline buffer 0.
+        let data = hex!(
+            // vertex 0
+            5d2f1f00
+            // vertex 1
+            5d2f1f0c
+        );
+
+        let descriptor = OutlineBuffer {
+            data_offset: 0,
+            vertex_count: 2,
+            vertex_size: 4,
+            unk: 0,
+        };
+
+        assert_eq!(
+            vec![AttributeData::VertexColor(vec![
+                vec4(0.3647059, 0.18431373, 0.12156863, 0.0),
+                vec4(0.3647059, 0.18431373, 0.12156863, 0.047058824)
+            ])],
+            _read_outline_buffer(&descriptor, &data).unwrap()
+        );
+    }
+
+    #[test]
+    fn read_outline_buffer_vertices_size8() {
+        // xeno3/chr/ch/ch01011011.wismt, outline buffer 3.
+        let data = hex!(
+            // vertex 0
+            7adffc00
+            4b37294c
+            // vertex 1
+            7adffc00
+            4b37294c
+        );
+
+        let descriptor = OutlineBuffer {
+            data_offset: 0,
+            vertex_count: 2,
+            vertex_size: 8,
+            unk: 0,
+        };
+
+        // TODO: What is the second attribute?
+        assert_eq!(
+            vec![AttributeData::VertexColor(vec![
+                vec4(0.47843137, 0.8745098, 0.9882353, 0.0),
+                vec4(0.47843137, 0.8745098, 0.9882353, 0.0)
+            ])],
+            _read_outline_buffer(&descriptor, &data).unwrap()
         );
     }
 }

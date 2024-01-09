@@ -333,33 +333,41 @@ pub struct Unk {
     pub unk1: Vec<UnkInner>,
 
     // The length of the data in bytes.
-    pub data_count: u32,
+    pub data_length: u32,
 
     /// The offset into [buffer](struct.VertexData.html#structfield.buffer).
     pub data_offset: u32,
 
     // TODO: Padding?
-    unks: [u32; 8],
+    pub unks: [u32; 8],
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
 pub struct UnkInner {
-    unk1: u16,
-    unk2: u16,
-    unk3: u32,
-    unk4: u32,
-    unk5: u32,
-    unk6: u32,
+    pub unk1: u16,
+    pub unk2: u16,
+    pub count: u32,
+    pub offset: u32,
+    pub unk5: u32,
+    // sum of previous counts?
+    pub start_index: u32,
 }
 
+/// Extra data assigned to a non skin weights buffer.
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
 pub struct VertexBufferInfo {
-    flags: u16,
-    outline_buffer_index: u16,
-    vertex_animation_target_start_index: u16,
-    vertex_animation_target_count: u16,
+    pub flags: u16,
+    // TODO: Extra attributes for outline meshes?
+    pub outline_buffer_index: u16,
+    /// Identical to [target_start_index](struct.MorphDescriptor.html#structfield.target_start_index)
+    /// for the corresponding [MorphDescriptor].
+    pub morph_target_start_index: u16,
+    // TODO: Why is this off by 2?
+    /// Identical to [target_count](struct.MorphDescriptor.html#structfield.target_count) + 2
+    /// for the corresponding [MorphDescriptor].
+    pub morph_target_count: u16,
     // TODO: padding?
-    unk: u32,
+    pub unk: u32,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
@@ -370,7 +378,7 @@ pub struct OutlineBuffer {
     /// The size or stride of the vertex in bytes.
     pub vertex_size: u32,
     // TODO: padding?
-    unk: u32,
+    pub unk: u32,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
