@@ -1,4 +1,4 @@
-use xc3_model::{BlendState, ShaderUnkType, StateFlags};
+use xc3_model::{BlendState, CullMode, ShaderUnkType, StateFlags};
 
 use crate::{DEPTH_FORMAT, GBUFFER_COLOR_FORMAT};
 
@@ -105,7 +105,7 @@ pub fn model_pipeline(
             // TODO: Do all meshes using indexed triangle lists?
             topology: wgpu::PrimitiveTopology::TriangleList,
             polygon_mode: wgpu::PolygonMode::Fill,
-            cull_mode: Some(wgpu::Face::Back),
+            cull_mode: cull_mode(key.flags.cull_mode),
             ..Default::default()
         },
         depth_stencil: Some(wgpu::DepthStencilState {
@@ -118,6 +118,15 @@ pub fn model_pipeline(
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
     })
+}
+
+fn cull_mode(mode: CullMode) -> Option<wgpu::Face> {
+    match mode {
+        CullMode::Back => Some(wgpu::Face::Back),
+        CullMode::Front => Some(wgpu::Face::Front),
+        CullMode::Disabled => None,
+        CullMode::Unk3 => Some(wgpu::Face::Front),
+    }
 }
 
 fn blend_state(state: BlendState) -> Option<wgpu::BlendState> {

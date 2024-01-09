@@ -55,7 +55,7 @@ pub use material::{
 pub use sampler::{AddressMode, FilterMode, Sampler};
 pub use skeleton::{Bone, Skeleton};
 pub use texture::{ImageFormat, ImageTexture, ViewDimension};
-pub use xc3_lib::mxmd::{BlendState, ShaderUnkType, StateFlags};
+pub use xc3_lib::mxmd::{BlendState, CullMode, ShaderUnkType, StateFlags};
 
 pub mod animation;
 pub mod gltf;
