@@ -1,6 +1,6 @@
 //! Textures in `.witx` or `.witex` files or embedded in `.wismt` files and other formats.
 //!
-//! # Introduction
+//! # Overview
 //! An [Mibl] image texture consists of an image data section containing all array layers and mipmaps
 //! and a footer describing the surface dimensions and format.
 //! The image data is ordered by layer and mipmap like

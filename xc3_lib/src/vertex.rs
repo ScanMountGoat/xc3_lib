@@ -1,5 +1,52 @@
-//! Vertex and geometry data for model formats.
-// TODO: Document how attributes and weights are stored.
+//! Vertex and geometry data for models and map models.
+//!
+//! # Overview
+//! A [VertexData] file stores model geometry in a combined [buffer](struct.VertexData.html#structfield.buffer).
+//! The remaining fields describe the data stored in the buffer like vertices or morph targets.
+//!
+//! Each [Mesh](crate::mxmd::Mesh) draw call references a [VertexBufferDescriptor] and [IndexBufferDescriptor].
+//! Vertex buffers except the weights buffer have an associated [VertexBufferExtInfo]
+//! for assigning additional data like outline buffers or morph targets.
+//!
+//! The weights buffer just contains [DataType::SkinWeights] and [DataType::BoneIndices].
+//! This buffer is shared between all vertex buffers with
+//! each buffer selecting weight buffer "vertices" using [DataType::WeightIndex]
+//! and additional indexing information defined in [Weights] for the starting index.
+//! See [xc3_model](https://docs.rs/xc3_model) for the complete indexing implementation.
+//!
+//! Some vertex buffers have optional morph targets assigned in [VertexMorphs].
+//! Morph targets define a default target for the neutral pose as well as additional
+//! targets applied on top of the default target.
+//! Morph targets define attributes not present in the vertex buffer and have a
+//! final attribute value defined as `default + target_delta * weight`
+//! where `target_delta` is defined sparsely using a list of deltas and vertex indices.
+//!
+//! # Attribute Layout
+//! The sections of the byte buffer for each descriptor contain each attribute for each vertex in order.
+//! This interleaved or "array of structs" layout is cache friendly when accessing each attribute for each vertex
+//! like in the vertex shaders in game.
+//! ```
+//! position 0
+//! normal 0
+//! position 1
+//! normal 1
+//! ...
+//! ```
+//! Applications tend to work better with a "struct of arrays" approach where
+//! dedicated arrays store the values for a single attribute for all items.
+//! This approach is cache friendly when accessing the same attribute for all vertices
+//! and allows for easily adding and removing attributes.
+//! This is the approach used by [xc3_model](https://docs.rs/xc3_model).
+//! ```
+//! position 0
+//! position 1
+//! ...
+//! ```
+//! ```
+//! normal 0
+//! normal 1
+//! ...
+//! ```
 use crate::{
     parse_count16_offset32, parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32,
     parse_ptr32, xc3_write_binwrite_impl,
