@@ -421,10 +421,9 @@ fn main() {
     #[cfg(not(feature = "tracing"))]
     {
         simple_logger::SimpleLogger::new()
-            .with_level(log::LevelFilter::Warn)
+            .with_level(log::LevelFilter::Info)
             .with_module_level("wgpu", log::LevelFilter::Warn)
             .with_module_level("naga", log::LevelFilter::Warn)
-            .with_module_level("xc3_lib", log::LevelFilter::Info)
             .init()
             .unwrap();
     }
