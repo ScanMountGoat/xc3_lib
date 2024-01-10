@@ -57,7 +57,7 @@ pub fn load_map<P: AsRef<Path>>(
     // TODO: Better way to combine models?
     let mut roots = Vec::new();
 
-    roots.par_extend(msmd.env_models.par_iter().enumerate().map(|(i, model)| {
+    roots.extend(msmd.env_models.iter().enumerate().map(|(i, model)| {
         load_env_model(
             &wismda,
             compressed,
@@ -68,9 +68,9 @@ pub fn load_map<P: AsRef<Path>>(
         )
     }));
 
-    roots.par_extend(
+    roots.extend(
         msmd.foliage_models
-            .par_iter()
+            .iter()
             .map(|foliage_model| load_foliage_model(&wismda, compressed, foliage_model)),
     );
 
@@ -198,7 +198,7 @@ impl TextureCache {
                         .get_high_texture(*texture_index.max(&0))
                         .or(low.map(|low| &low.1))
                     {
-                        ImageTexture::from_mibl(&mibl, None, low.map(|l| l.0)).unwrap()
+                        ImageTexture::from_mibl(mibl, None, low.map(|l| l.0)).unwrap()
                     } else {
                         // TODO: What do do if both indices are negative?
                         error!("No mibl for texture: {texture_index}");
@@ -218,15 +218,21 @@ fn map_models_group(
     texture_cache: &mut TextureCache,
     shader_database: Option<&ShaderDatabase>,
 ) -> ModelGroup {
+    // Decompression is expensive, so run in parallel ahead of time.
     let buffers = create_buffers(&msmd.map_vertex_data, wismda, compressed);
 
-    let mut models = Vec::new();
-    models.extend(msmd.map_models.iter().enumerate().map(|(i, model)| {
-        let model_data = model
-            .entry
-            .extract(&mut Cursor::new(wismda), compressed)
-            .unwrap();
+    let map_model_data: Vec<_> = msmd
+        .map_models
+        .par_iter()
+        .map(|m| {
+            m.entry
+                .extract(&mut Cursor::new(wismda), compressed)
+                .unwrap()
+        })
+        .collect();
 
+    let mut models = Vec::new();
+    models.extend(map_model_data.iter().enumerate().map(|(i, model_data)| {
         // Remove one layer of indirection from texture lookups.
         let material_root_texture_indices: Vec<_> = model_data
             .textures
@@ -235,7 +241,7 @@ fn map_models_group(
             .collect();
 
         load_map_model_group(
-            &model_data,
+            model_data,
             i,
             model_folder,
             &material_root_texture_indices,
@@ -256,22 +262,27 @@ fn props_group(
 ) -> ModelGroup {
     let buffers = create_buffers(&msmd.prop_vertex_data, wismda, compressed);
 
+    // Decompression is expensive, so run in parallel ahead of time.
     let prop_positions: Vec<_> = msmd
         .prop_positions
         .par_iter()
         .map(|p| p.extract(&mut Cursor::new(wismda), compressed).unwrap())
         .collect();
 
-    let models = msmd
+    let prop_model_data: Vec<_> = msmd
         .prop_models
+        .par_iter()
+        .map(|m| {
+            m.entry
+                .extract(&mut Cursor::new(wismda), compressed)
+                .unwrap()
+        })
+        .collect();
+
+    let models = prop_model_data
         .iter()
         .enumerate()
-        .map(|(i, model)| {
-            let model_data = model
-                .entry
-                .extract(&mut Cursor::new(wismda), compressed)
-                .unwrap();
-
+        .map(|(i, model_data)| {
             // Remove one layer of indirection from texture lookups.
             let material_root_texture_indices: Vec<_> = model_data
                 .textures
@@ -280,7 +291,7 @@ fn props_group(
                 .collect();
 
             load_prop_model_group(
-                &model_data,
+                model_data,
                 i,
                 msmd.parts.as_ref(),
                 &prop_positions,

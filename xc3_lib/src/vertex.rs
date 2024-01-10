@@ -25,7 +25,7 @@
 //! The sections of the byte buffer for each descriptor contain each attribute for each vertex in order.
 //! This interleaved or "array of structs" layout is cache friendly when accessing each attribute for each vertex
 //! like in the vertex shaders in game.
-//! ```
+//! ```text
 //! position 0
 //! normal 0
 //! position 1
@@ -37,12 +37,12 @@
 //! This approach is cache friendly when accessing the same attribute for all vertices
 //! and allows for easily adding and removing attributes.
 //! This is the approach used by [xc3_model](https://docs.rs/xc3_model).
-//! ```
+//! ```text
 //! position 0
 //! position 1
 //! ...
 //! ```
-//! ```
+//! ```text
 //! normal 0
 //! normal 1
 //! ...
