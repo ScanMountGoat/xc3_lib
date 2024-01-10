@@ -1,13 +1,20 @@
-use std::{io::Cursor, path::Path};
+use std::{
+    io::Cursor,
+    path::{Path, PathBuf},
+};
 
 use image_dds::{ddsfile::Dds, image::RgbaImage, ImageFormat, Surface};
-use xc3_lib::{dds::DdsExt, dhal::Dhal, lagp::Lagp, mibl::Mibl, mxmd::Mxmd, xbc1::Xbc1};
+use xc3_lib::{
+    dds::DdsExt, dhal::Dhal, lagp::Lagp, mibl::Mibl, msrd::Msrd, mxmd::Mxmd, xbc1::Xbc1,
+};
 
+// TODO: Support apmd?
 pub enum File {
     Mibl(Mibl),
     Dds(Dds),
     Image(RgbaImage),
     Wilay(Wilay),
+    Wimdo(Mxmd),
 }
 
 pub enum Wilay {
@@ -66,7 +73,10 @@ impl File {
             )
             .unwrap(),
             File::Wilay(_) => {
-                panic!("Wilay must be saved to an output folder instead of a single image")
+                panic!("wilay textures must be saved to an output folder instead of a single image")
+            }
+            File::Wimdo(_) => {
+                panic!("wimdo textures must be saved to an output folder instead of a single image")
             }
         }
     }
@@ -86,7 +96,10 @@ impl File {
                 Mibl::from_dds(&dds).unwrap()
             }
             File::Wilay(_) => {
-                panic!("Wilay must be saved to an output folder instead of a single image")
+                panic!("wilay textures must be saved to an output folder instead of a single image")
+            }
+            File::Wimdo(_) => {
+                panic!("wimdo textures must be saved to an output folder instead of a single image")
             }
         }
     }
@@ -97,7 +110,10 @@ impl File {
             File::Dds(dds) => image_dds::image_from_dds(dds, 0).unwrap(),
             File::Image(image) => image.clone(),
             File::Wilay(_) => {
-                panic!("Wilay must be saved to an output folder instead of a single image")
+                panic!("wilay textures must be saved to an output folder instead of a single image")
+            }
+            File::Wimdo(_) => {
+                panic!("wimdo textures must be saved to an output folder instead of a single image")
             }
         }
     }
@@ -159,11 +175,28 @@ fn replace_wilay_jpeg(
     }
 }
 
-pub fn update_wimdo_from_folder(input: &str, input_folder: &str, output: &str) {
+pub fn update_wimdo_from_folder(
+    input: &str,
+    input_folder: &str,
+    output: &str,
+    chr_tex_nx: Option<String>,
+) {
     // TODO: Error if indices are out of range?
-    let mut mxmd = Mxmd::from_file(input).unwrap();
     // TODO: also update wismt?
     // TODO: avoid duplicating logic with xc3_model?
+    let mut mxmd = Mxmd::from_file(input).unwrap();
+
+    for entry in std::fs::read_dir(input_folder).unwrap() {
+        let path = entry.unwrap().path();
+        if let Some(i) = image_index(&path, input) {
+            if let Ok(dds) = Dds::from_file(path) {
+                let new_mibl = Mibl::from_dds(&dds).unwrap();
+                // TODO: create a replace_mibl(i, new_mibl, ...) function
+            }
+        }
+    }
+
+    // TODO: save files
 }
 
 fn image_index(path: &Path, input: &str) -> Option<usize> {
@@ -182,7 +215,7 @@ fn image_index(path: &Path, input: &str) -> Option<usize> {
     }
 }
 
-pub fn save_wilay_to_folder(wilay: Wilay, input: &Path, output_folder: &Path) {
+pub fn extract_wilay_to_folder(wilay: Wilay, input: &Path, output_folder: &Path) {
     let file_name = input.file_name().unwrap();
     match wilay {
         Wilay::Dhal(dhal) => {
@@ -221,6 +254,36 @@ pub fn save_wilay_to_folder(wilay: Wilay, input: &Path, output_folder: &Path) {
                 }
             }
         }
+    }
+}
+
+pub fn extract_wimdo_to_folder(_wimdo: Mxmd, input: &Path, output_folder: &Path) {
+    let file_name = input.file_name().unwrap();
+
+    // TODO: packed mxmd textures.
+    // TODO: chr/tex/nx folder as parameter?
+    let chr_tex_nx = chr_tex_nx_folder(input);
+
+    let msrd = Msrd::from_file(input.with_extension("wismt")).unwrap();
+    let (_, _, textures) = msrd.extract_files(chr_tex_nx.as_deref()).unwrap();
+
+    for (i, texture) in textures.iter().enumerate() {
+        let dds = texture.mibl_final().to_dds().unwrap();
+        let path = output_folder
+            .join(file_name)
+            .with_extension(format!("{i}.dds"));
+        dds.save(path).unwrap();
+    }
+}
+
+fn chr_tex_nx_folder(input: &Path) -> Option<PathBuf> {
+    let parent = input.parent()?.parent()?;
+
+    if parent.file_name().and_then(|f| f.to_str()) == Some("chr") {
+        Some(parent.join("tex").join("nx"))
+    } else {
+        // Not an xc3 chr model or not in the right folder.
+        None
     }
 }
 
