@@ -249,11 +249,13 @@ fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: 
 
             // Check embedded data.
             let vertex_bytes = msrd
-                .decompress_stream(0, data.vertex_data_entry_index)
+                .decompress_stream_entry(0, data.vertex_data_entry_index)
                 .unwrap();
             check_vertex_data(vertex, path, &vertex_bytes, check_read_write);
 
-            let spch_bytes = msrd.decompress_stream(0, data.shader_entry_index).unwrap();
+            let spch_bytes = msrd
+                .decompress_stream_entry(0, data.shader_entry_index)
+                .unwrap();
             check_spch(spch, path, &spch_bytes, check_read_write);
         }
     }

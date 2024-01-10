@@ -71,7 +71,14 @@ impl ChrTextureStreams {
 }
 
 impl Msrd {
-    pub fn decompress_stream(
+    pub fn decompress_stream(&self, stream_index: u32) -> Result<Vec<u8>, DecompressStreamError> {
+        match &self.streaming.inner {
+            StreamingInner::StreamingLegacy(_) => todo!(),
+            StreamingInner::Streaming(data) => data.decompress_stream(stream_index, &self.data),
+        }
+    }
+
+    pub fn decompress_stream_entry(
         &self,
         stream_index: u32,
         entry_index: u32,
@@ -79,7 +86,7 @@ impl Msrd {
         match &self.streaming.inner {
             StreamingInner::StreamingLegacy(_) => todo!(),
             StreamingInner::Streaming(data) => {
-                data.decompress_stream(stream_index, entry_index, &self.data)
+                data.decompress_stream_entry(stream_index, entry_index, &self.data)
             }
         }
     }
@@ -127,11 +134,12 @@ impl Msrd {
         let mut writer = Cursor::new(Vec::new());
         let mut data_ptr = 0;
         write_full(&streaming, &mut writer, 0, &mut data_ptr).unwrap();
-        let first_xbc1_offset = round_up(data_ptr, 16) as u32;
+        // Add the msrd and streaming header sizes.
+        let first_xbc1_offset = round_up(data_ptr, 16) as u32 + 32;
 
         // TODO: Does this acount for the occasional extra 16 bytes?
         for stream in &mut streaming.streams {
-            stream.xbc1_offset += first_xbc1_offset + 16;
+            stream.xbc1_offset += first_xbc1_offset;
         }
 
         (
@@ -168,14 +176,22 @@ impl StreamingData {
     pub fn decompress_stream(
         &self,
         stream_index: u32,
-        entry_index: u32,
         data: &[u8],
     ) -> Result<Vec<u8>, DecompressStreamError> {
         let first_xbc1_offset = self.streams[0].xbc1_offset;
-
         let stream = &self.streams[stream_index as usize]
             .read_xbc1(data, first_xbc1_offset)?
             .decompress()?;
+        Ok(stream.to_vec())
+    }
+
+    pub fn decompress_stream_entry(
+        &self,
+        stream_index: u32,
+        entry_index: u32,
+        data: &[u8],
+    ) -> Result<Vec<u8>, DecompressStreamError> {
+        let stream = self.decompress_stream(stream_index, data)?;
         let entry = &self.stream_entries[entry_index as usize];
         Ok(stream[entry.offset as usize..entry.offset as usize + entry.size as usize].to_vec())
     }
@@ -341,9 +357,9 @@ fn pack_files(
                 true,
                 true,
                 true,
-                false,
-                false,
-                false,
+                textures_stream_entry_count > 0,
+                false, // TODO:Does this matter?
+                true,  // TODO:Does this matter?
                 use_chr_textures,
                 0u8.into(),
             ),

@@ -24,3 +24,9 @@ The modified images do not need to match the resolution and format of the origin
 
 `xc3_tex image.wilay image_folder`  
 `xc3_tex edit-wilay image.wilay image_folder output.wilay`  
+
+### Wimdo/Wismt Texture Replacement
+Export the DDS images by dragging and dropping the `.wimdo` file onto the executable or by running the terminal command. The `.wismt` file should be in the same folder as the `.wimdo`. After editing the images, use the edit-wimdo command to replace the images. xc3_tex will output the modified `.wimdo` and `.wismt` files as well as save any files in the `chr/tex/nx` folder for Xenoblade 3. The modified images do not need to match the resolution and format of the originals.
+
+`xc3_tex input.wimdo image_folder`  
+`xc3_tex edit-wimdo input.wimdo image_folder output.wimdo`  

@@ -5,7 +5,13 @@ use std::{
 
 use image_dds::{ddsfile::Dds, image::RgbaImage, ImageFormat, Surface};
 use xc3_lib::{
-    dds::DdsExt, dhal::Dhal, lagp::Lagp, mibl::Mibl, msrd::Msrd, mxmd::Mxmd, xbc1::Xbc1,
+    dds::DdsExt,
+    dhal::Dhal,
+    lagp::Lagp,
+    mibl::Mibl,
+    msrd::{streaming::HighTexture, Msrd},
+    mxmd::Mxmd,
+    xbc1::Xbc1,
 };
 
 // TODO: Support apmd?
@@ -181,22 +187,54 @@ pub fn update_wimdo_from_folder(
     output: &str,
     chr_tex_nx: Option<String>,
 ) {
+    let input_path = Path::new(input);
+    let output_path = Path::new(output);
+
     // TODO: Error if indices are out of range?
-    // TODO: also update wismt?
     // TODO: avoid duplicating logic with xc3_model?
     let mut mxmd = Mxmd::from_file(input).unwrap();
+
+    // TODO: Error if input can not be found or output is not specified if streaming has chr data.
+    let chr_tex_nx_input = chr_tex_nx_folder(&input_path);
+
+    // We need to repack the entire wismt even though we only modify textures.
+    let msrd = Msrd::from_file(input_path.with_extension("wismt")).unwrap();
+    let (vertex, spch, mut textures) = msrd.extract_files(chr_tex_nx_input.as_deref()).unwrap();
 
     for entry in std::fs::read_dir(input_folder).unwrap() {
         let path = entry.unwrap().path();
         if let Some(i) = image_index(&path, input) {
             if let Ok(dds) = Dds::from_file(path) {
                 let new_mibl = Mibl::from_dds(&dds).unwrap();
-                // TODO: create a replace_mibl(i, new_mibl, ...) function
+                if let Some(high) = &mut textures[i].high {
+                    let (mid, base_mip) = new_mibl.split_base_mip();
+                    *high = HighTexture {
+                        mid,
+                        base_mip: Some(base_mip),
+                    };
+                } else {
+                    textures[i].low = new_mibl;
+                }
             }
         }
     }
 
-    // TODO: save files
+    // Save files to disk.
+    // TODO: Check if the original streaming data uses chr textures.
+    let (new_msrd, chr_textures) =
+        Msrd::from_extracted_files(&vertex, &spch, &textures, chr_tex_nx.is_some());
+
+    if let Some(chr_tex_nx) = chr_tex_nx {
+        if let Some(chr_textures) = chr_textures {
+            for tex in chr_textures {
+                tex.save(&chr_tex_nx);
+            }
+        }
+    }
+
+    mxmd.streaming = Some(new_msrd.streaming.clone());
+    mxmd.save(output_path).unwrap();
+    new_msrd.save(output_path.with_extension("wismt")).unwrap();
 }
 
 fn image_index(path: &Path, input: &str) -> Option<usize> {

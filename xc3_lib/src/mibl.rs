@@ -247,6 +247,29 @@ impl Mibl {
         }
     }
 
+    // TODO: Tests for this?
+    /// Split the texture into a texture with half resolution and a separate base mip level.
+    /// The inverse operation of [Self::with_base_mip].
+    pub fn split_base_mip(&self) -> (Self, Vec<u8>) {
+        // TODO: Does this correctly handle alignment?
+        let base_mip_size = self.footer.swizzled_base_mip_size();
+        let (base_mip, image_data) = self.image_data.split_at(base_mip_size);
+
+        (
+            Self {
+                image_data: image_data.to_vec(),
+                footer: MiblFooter {
+                    image_size: round_up(image_data.len() as u64, 4096) as u32,
+                    width: self.footer.width / 2,
+                    height: self.footer.height / 2,
+                    mipmap_count: self.footer.mipmap_count - 1,
+                    ..self.footer
+                },
+            },
+            base_mip.to_vec(),
+        )
+    }
+
     /// Deswizzles all layers and mipmaps to a compatible surface for easier conversions.
     pub fn to_surface(&self) -> Result<Surface<Vec<u8>>, SwizzleError> {
         Ok(Surface {
@@ -326,6 +349,23 @@ impl MiblFooter {
             None,
             self.image_format.bytes_per_pixel(),
             self.mipmap_count as usize,
+            if self.view_dimension == ViewDimension::Cube {
+                6
+            } else {
+                1
+            },
+        )
+    }
+
+    fn swizzled_base_mip_size(&self) -> usize {
+        tegra_swizzle::surface::swizzled_surface_size(
+            self.width as usize,
+            self.height as usize,
+            self.depth as usize,
+            self.image_format.block_dim(),
+            None,
+            self.image_format.bytes_per_pixel(),
+            1,
             if self.view_dimension == ViewDimension::Cube {
                 6
             } else {
