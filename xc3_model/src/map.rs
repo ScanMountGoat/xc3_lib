@@ -1,4 +1,4 @@
-use std::{borrow::Cow, io::Cursor, path::Path};
+use std::{io::Cursor, path::Path};
 
 use glam::{Mat4, Vec3};
 use indexmap::IndexMap;
@@ -7,8 +7,8 @@ use rayon::prelude::*;
 use xc3_lib::{
     map::{FoliageMaterials, PropInstance, PropLod, PropPositions},
     mibl::Mibl,
-    msmd::{ChannelType, LowTexture, LowTextures, MapParts, Msmd, StreamEntry},
-    mxmd::{ShaderUnkType, StateFlags},
+    msmd::{ChannelType, MapParts, Msmd, StreamEntry},
+    mxmd::{ShaderUnkType, StateFlags, TextureUsage},
     vertex::VertexData,
 };
 
@@ -106,7 +106,7 @@ pub fn load_map<P: AsRef<Path>>(
 // TODO: Is there a better way of doing this?
 // Lazy loading for the image textures.
 struct TextureCache {
-    low_textures: Vec<LowTextures>,
+    low_textures: Vec<Vec<(TextureUsage, Mibl)>>,
     high_textures: Vec<Mibl>,
     // Use a map that preserves insertion order to get consistent ordering.
     texture_to_image_texture_index: IndexMap<(i16, i16, i16), usize>,
@@ -119,7 +119,14 @@ impl TextureCache {
         let low_textures: Vec<_> = msmd
             .low_textures
             .par_iter()
-            .map(|e| e.extract(&mut Cursor::new(&wismda), compressed).unwrap())
+            .map(|e| {
+                let textures = e.extract(&mut Cursor::new(&wismda), compressed).unwrap();
+                textures
+                    .textures
+                    .iter()
+                    .map(|t| (t.usage, Mibl::from_bytes(&t.mibl_data).unwrap()))
+                    .collect()
+            })
             .collect();
 
         let high_textures: Vec<_> = msmd
@@ -169,10 +176,10 @@ impl TextureCache {
         }
     }
 
-    fn get_low_texture(&self, entry_index: i16, index: i16) -> Option<&LowTexture> {
+    fn get_low_texture(&self, entry_index: i16, index: i16) -> Option<&(TextureUsage, Mibl)> {
         let entry_index = usize::try_from(entry_index).ok()?;
         let index = usize::try_from(index).ok()?;
-        self.low_textures.get(entry_index)?.textures.get(index)
+        self.low_textures.get(entry_index)?.get(index)
     }
 
     fn get_high_texture(&self, index: i16) -> Option<&Mibl> {
@@ -187,15 +194,11 @@ impl TextureCache {
                 |((low_texture_index, low_textures_entry_index, texture_index), _)| {
                     let low = self.get_low_texture(*low_texture_index, *low_textures_entry_index);
 
-                    // TODO: Convert low textures ahead of time?
                     if let Some(mibl) = self
                         .get_high_texture(*texture_index.max(&0))
-                        .map(Cow::Borrowed)
-                        .or_else(|| {
-                            low.map(|low| Cow::Owned(Mibl::from_bytes(&low.mibl_data).unwrap()))
-                        })
+                        .or(low.map(|low| &low.1))
                     {
-                        ImageTexture::from_mibl(&mibl, None, low.map(|l| l.usage)).unwrap()
+                        ImageTexture::from_mibl(&mibl, None, low.map(|l| l.0)).unwrap()
                     } else {
                         // TODO: What do do if both indices are negative?
                         error!("No mibl for texture: {texture_index}");
