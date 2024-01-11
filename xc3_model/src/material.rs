@@ -231,7 +231,10 @@ impl Material {
             .as_ref()
             .map(|s| gbuffer_assignments(s, &self.parameters))
             .or_else(|| {
-                warn!("Inferring assignments from texture types due to unrecognized shader");
+                warn!(
+                    "Inferring assignments from texture types for {:?} due to unrecognized shader",
+                    self.name
+                );
                 self.infer_assignment_from_usage(textures)
             })
     }

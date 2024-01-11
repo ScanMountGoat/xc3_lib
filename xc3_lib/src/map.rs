@@ -1,7 +1,8 @@
 //! Map data stored in compressed sections in `.wismda` files.
 //!
 //! Many of these sections use the same formats as character models.
-use binrw::{binread, BinRead};
+use bilge::prelude::*;
+use binrw::{binread, BinRead, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 use crate::{
@@ -9,6 +10,7 @@ use crate::{
     parse_count32_offset32, parse_offset32_count32, parse_ptr32, parse_string_ptr32,
     spch::Spch,
     vertex::VertexData,
+    xc3_write_binwrite_impl,
 };
 
 // TODO: Improve docs.
@@ -216,8 +218,19 @@ pub struct Texture {
     pub low_texture_index: i16,
     /// Index into [low_textures](../msmd/struct.Msmd.html#structfield.low_textures).
     pub low_textures_entry_index: i16,
-    pub texture_index: i16, // TODO: index into texture list in msmd?
-    pub texture_type: u16,  // TODO: enum?
+    /// Index into [textures](../msmd/struct.Msmd.html#structfield.textures).
+    pub texture_index: i16,
+    pub flags: TextureFlags,
+}
+
+#[bitsize(16)]
+#[derive(DebugBits, FromBits, BinRead, BinWrite, Clone, Copy)]
+#[br(map = u16::into)]
+#[bw(map = |&x| u16::from(x))]
+pub struct TextureFlags {
+    pub has_low_texture: bool,
+    pub has_high_texture: bool,
+    pub unk: u14,
 }
 
 // TODO: What to call this?
@@ -453,3 +466,5 @@ pub struct RenderNode {
     pub unk3: u32,
     pub unk4: u32,
 }
+
+xc3_write_binwrite_impl!(TextureFlags);

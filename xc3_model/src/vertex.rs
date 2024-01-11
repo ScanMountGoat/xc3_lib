@@ -221,13 +221,7 @@ pub fn read_vertex_buffers(
         .zip(vertex_data.vertex_buffer_info.iter())
         .map(|(descriptor, ext)| {
             let attributes = read_vertex_attributes(descriptor, &vertex_data.buffer);
-
-            let outline_buffer = ext.flags.has_outline_buffer().then(|| {
-                let outline = &vertex_data.outline_buffers[ext.outline_buffer_index as usize];
-                OutlineBuffer {
-                    attributes: read_outline_buffer(outline, &vertex_data.buffer).unwrap(),
-                }
-            });
+            let outline_buffer = outline_buffer(ext, vertex_data);
 
             VertexBuffer {
                 attributes,
@@ -266,6 +260,23 @@ pub fn read_vertex_buffers(
     });
 
     (buffers, skin_weights)
+}
+
+fn outline_buffer(
+    ext: &xc3_lib::vertex::VertexBufferExtInfo,
+    vertex_data: &VertexData,
+) -> Option<OutlineBuffer> {
+    if ext.flags.has_outline_buffer() {
+        // TODO: This fails for legacy files like xc2 oj108004?
+        let outline = vertex_data
+            .outline_buffers
+            .get(ext.outline_buffer_index as usize)?;
+        Some(OutlineBuffer {
+            attributes: read_outline_buffer(outline, &vertex_data.buffer).unwrap(),
+        })
+    } else {
+        None
+    }
 }
 
 fn assign_morph_targets(

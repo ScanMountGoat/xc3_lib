@@ -320,6 +320,7 @@ pub fn load_model<P: AsRef<Path>>(
     let mxmd = Mxmd::from_file(wimdo_path).unwrap_or_else(|e| {
         warn!("Failed to read Mxmd: {e}. Trying Apmd.");
         // Some wimdo files have the mxmd in an archive.
+        // TODO: This may fail.
         Apmd::from_file(wimdo_path)
             .unwrap()
             .entries

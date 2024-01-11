@@ -70,6 +70,7 @@ pub struct Msmd {
     #[xc3(count_offset(u32, u32))]
     pub prop_vertex_data: Vec<StreamEntry<VertexData>>,
 
+    /// High resolution textures.
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
     pub textures: Vec<Texture>,

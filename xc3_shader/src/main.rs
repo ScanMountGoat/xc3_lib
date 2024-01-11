@@ -125,7 +125,6 @@ fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Option
     globwalk::GlobWalkerBuilder::from_patterns(input, &["*.wismhd"])
         .build()
         .unwrap()
-        .par_bridge()
         .for_each(|entry| {
             let path = entry.as_ref().unwrap().path();
             match Msmd::from_file(path) {
@@ -144,7 +143,6 @@ fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Option
     globwalk::GlobWalkerBuilder::from_patterns(input, &["*.wishp"])
         .build()
         .unwrap()
-        .par_bridge()
         .for_each(|entry| {
             let path = entry.as_ref().unwrap().path();
             match Spch::from_file(path) {
@@ -202,4 +200,6 @@ fn extract_and_decompile_msmd_shaders(
 
         extract_shader_binaries(&data.spch, &model_folder, shader_tools, false);
     }
+
+    // TODO: Foliage shaders?
 }

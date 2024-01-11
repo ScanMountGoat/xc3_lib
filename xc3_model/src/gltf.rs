@@ -1,4 +1,6 @@
 //! Conversions from xc3_model types to glTF.
+//!
+//! Convert models to glTF using [GltFile::new].
 use std::path::Path;
 
 use crate::{should_render_lod, ModelRoot};

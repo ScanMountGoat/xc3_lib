@@ -133,21 +133,18 @@ impl TextureCache {
             .textures
             .par_iter()
             .map(|texture| {
-                // TODO: Merging doesn't always work?
-                // TODO: Do all textures load a separate base mip level?
                 let mut wismda = Cursor::new(&wismda);
                 let mibl_m = texture.mid.extract(&mut wismda, compressed).unwrap();
 
-                let base_mip_level = texture
-                    .base_mip
-                    .decompress(&mut wismda, compressed)
-                    .unwrap();
+                if texture.base_mip.decompressed_size > 0 {
+                    let base_mip_level = texture
+                        .base_mip
+                        .decompress(&mut wismda, compressed)
+                        .unwrap();
 
-                // TODO: Is this the correct way to check for this?
-                if base_mip_level.is_empty() || texture.flags != 0 {
-                    mibl_m
-                } else {
                     mibl_m.with_base_mip(&base_mip_level)
+                } else {
+                    mibl_m
                 }
             })
             .collect();
@@ -188,6 +185,7 @@ impl TextureCache {
     }
 
     fn image_textures(&self) -> Vec<ImageTexture> {
+        // TODO: Are the entries with both negative indices even used?
         self.texture_to_image_texture_index
             .par_iter()
             .map(

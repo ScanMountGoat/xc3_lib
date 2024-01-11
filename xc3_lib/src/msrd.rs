@@ -55,6 +55,7 @@ pub struct Msrd {
     pub version: u32,
 
     // Don't have the streams own the data so mxmd can use the same types.
+    // This actually appears after the streaming header.
     #[br(parse_with = parse_data)]
     #[xc3(offset(u32), align(16))]
     pub data: Vec<u8>,
