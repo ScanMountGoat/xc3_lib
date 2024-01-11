@@ -70,9 +70,13 @@ struct Cli {
     #[arg(long)]
     eva: bool,
 
-    /// Process all file types
+    /// Process all file types except gltf.
     #[arg(long)]
     all: bool,
+
+    /// Convert wimdo and wismhd to gltf without saving.
+    #[arg(long)]
+    gltf: bool,
 
     /// Check that read/write is 1:1 for all files and embedded files.
     #[arg(long)]
@@ -143,6 +147,10 @@ fn main() {
     if cli.eva || cli.all {
         println!("Checking EVA files ...");
         check_all(root, &["*.eva"], check_eva, cli.rw);
+    }
+
+    if cli.gltf {
+        check_all_gltf(root);
     }
 
     println!("Finished in {:?}", start.elapsed());
@@ -737,5 +745,27 @@ where
                 Ok(file) => check_file(file, path, &original_bytes, check_read_write),
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }
+        });
+}
+
+fn check_all_gltf<P: AsRef<Path>>(root: P) {
+    globwalk::GlobWalkerBuilder::from_patterns(root.as_ref(), &["*.{wimdo}"])
+        .build()
+        .unwrap()
+        .par_bridge()
+        .for_each(|entry| {
+            let path = entry.as_ref().unwrap().path();
+            let root = xc3_model::load_model(path, None);
+            xc3_model::gltf::GltfFile::new("model", &[root]);
+        });
+
+    globwalk::GlobWalkerBuilder::from_patterns(root.as_ref(), &["*.{wismhd}"])
+        .build()
+        .unwrap()
+        .par_bridge()
+        .for_each(|entry| {
+            let path = entry.as_ref().unwrap().path();
+            let roots = xc3_model::load_map(path, None);
+            xc3_model::gltf::GltfFile::new("model", &roots);
         });
 }
