@@ -1,7 +1,4 @@
-use std::{
-    io::Cursor,
-    path::{Path, PathBuf},
-};
+use std::{io::Cursor, path::Path};
 
 use image_dds::{ddsfile::Dds, image::RgbaImage, ImageFormat, Surface};
 use xc3_lib::{
@@ -9,7 +6,10 @@ use xc3_lib::{
     dhal::Dhal,
     lagp::Lagp,
     mibl::Mibl,
-    msrd::{streaming::HighTexture, Msrd},
+    msrd::{
+        streaming::{chr_tex_nx_folder, HighTexture},
+        Msrd,
+    },
     mxmd::Mxmd,
     xbc1::Xbc1,
 };
@@ -195,7 +195,7 @@ pub fn update_wimdo_from_folder(
     let mut mxmd = Mxmd::from_file(input).unwrap();
 
     // TODO: Error if input can not be found or output is not specified if streaming has chr data.
-    let chr_tex_nx_input = chr_tex_nx_folder(&input_path);
+    let chr_tex_nx_input = chr_tex_nx_folder(input_path);
 
     // We need to repack the entire wismt even though we only modify textures.
     let msrd = Msrd::from_file(input_path.with_extension("wismt")).unwrap();
@@ -311,17 +311,6 @@ pub fn extract_wimdo_to_folder(_wimdo: Mxmd, input: &Path, output_folder: &Path)
             .join(file_name)
             .with_extension(format!("{i}.dds"));
         dds.save(path).unwrap();
-    }
-}
-
-fn chr_tex_nx_folder(input: &Path) -> Option<PathBuf> {
-    let parent = input.parent()?.parent()?;
-
-    if parent.file_name().and_then(|f| f.to_str()) == Some("chr") {
-        Some(parent.join("tex").join("nx"))
-    } else {
-        // Not an xc3 chr model or not in the right folder.
-        None
     }
 }
 

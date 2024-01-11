@@ -41,7 +41,10 @@ use vertex::{read_index_buffers, read_vertex_buffers, AttributeData};
 use xc3_lib::{
     apmd::Apmd,
     mibl::Mibl,
-    msrd::{streaming::ExtractedTexture, Msrd},
+    msrd::{
+        streaming::{chr_tex_nx_folder, ExtractedTexture},
+        Msrd,
+    },
     mxmd::{Materials, Mxmd},
     sar1::Sar1,
     vertex::{VertexData, WeightLod},
@@ -332,10 +335,7 @@ pub fn load_model<P: AsRef<Path>>(
     });
 
     // TODO: Avoid unwrap.
-    // TODO: Don't assume model_path is in the chr/ch or chr/en folders.
-    // "chr/en/file.wismt" -> "chr/tex/nx"
-    let chr_folder = wimdo_path.parent().unwrap().parent().unwrap();
-    let chr_tex_folder = chr_folder.join("tex").join("nx");
+    let chr_tex_folder = chr_tex_nx_folder(wimdo_path);
 
     // Desktop PC models aren't used in game but are straightforward to support.
     let is_pc = wimdo_path.extension().and_then(|e| e.to_str()) == Some("pcmdo");
@@ -344,7 +344,7 @@ pub fn load_model<P: AsRef<Path>>(
     } else {
         wimdo_path.with_extension("wismt")
     };
-    let streaming_data = load_streaming_data(&mxmd, &wismt_path, is_pc, Some(&chr_tex_folder));
+    let streaming_data = load_streaming_data(&mxmd, &wismt_path, is_pc, chr_tex_folder.as_deref());
 
     let image_textures = load_textures(&streaming_data.textures);
 

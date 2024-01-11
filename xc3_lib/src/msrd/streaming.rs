@@ -1,4 +1,7 @@
-use std::{borrow::Cow, path::Path};
+use std::{
+    borrow::Cow,
+    path::{Path, PathBuf},
+};
 
 use image_dds::ddsfile::Dds;
 
@@ -93,6 +96,7 @@ impl Msrd {
     /// Extract all embedded files for a `wismt` file.
     ///
     /// For Xenoblade 3 models, specify the path for "chr/tex/nx" for `chr_tex_nx`.
+    /// If the path is part of the Xenoblade 3 dump, see [chr_tex_nx_folder].
     pub fn extract_files(
         &self,
         chr_tex_nx: Option<&Path>,
@@ -677,5 +681,37 @@ impl StreamingDataLegacy {
                 Cow::Owned(xbc1.decompress().unwrap())
             }
         }
+    }
+}
+
+/// Get the path for "chr/tex/nx" from a file or `None` if not present.
+pub fn chr_tex_nx_folder<P: AsRef<Path>>(input: P) -> Option<PathBuf> {
+    // "chr/en/file.wismt" -> "chr/tex/nx"
+    let parent = input.as_ref().parent()?.parent()?;
+
+    if parent.file_name().and_then(|f| f.to_str()) == Some("chr") {
+        Some(parent.join("tex").join("nx"))
+    } else {
+        // Not an xc3 chr model or not in the right folder.
+        None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn chr_tex_nx_folders() {
+        assert_eq!(None, chr_tex_nx_folder(""));
+        assert_eq!(Some("chr/tex/nx".into()), chr_tex_nx_folder("chr/tex/nx"));
+        assert_eq!(
+            Some("xeno3/extracted/chr/tex/nx".into()),
+            chr_tex_nx_folder("xeno3/extracted/chr/ch/ch01011013.wimdo")
+        );
+        assert_eq!(
+            None,
+            chr_tex_nx_folder("xeno2/extracted/model/bl/bl000101.wimdo")
+        );
     }
 }

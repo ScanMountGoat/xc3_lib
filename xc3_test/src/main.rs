@@ -1,6 +1,6 @@
 use std::{
     io::{BufReader, Cursor},
-    path::{Path, PathBuf},
+    path::Path,
 };
 
 use binrw::{BinRead, BinReaderExt};
@@ -16,7 +16,7 @@ use xc3_lib::{
     ltpc::Ltpc,
     mibl::Mibl,
     msmd::Msmd,
-    msrd::Msrd,
+    msrd::{streaming::chr_tex_nx_folder, Msrd},
     mxmd::Mxmd,
     sar1::{ChCl, Csvb, Sar1},
     spch::Spch,
@@ -225,7 +225,7 @@ fn check_sar1_data(
 
 fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: bool) {
     // TODO: check stream flags?
-    let chr_tex_nx = get_chr_tex_nx(path);
+    let chr_tex_nx = chr_tex_nx_folder(path);
     let (vertex, spch, textures) = msrd.extract_files(chr_tex_nx.as_deref()).unwrap();
 
     if check_read_write {
@@ -269,12 +269,6 @@ fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: 
     }
 
     // TODO: Check mibl in extracted textures?
-}
-
-fn get_chr_tex_nx(path: &Path) -> Option<PathBuf> {
-    // "chr/en/file.wismt" -> "chr/tex/nx"
-    let chr_folder = path.parent()?.parent()?;
-    Some(chr_folder.join("tex").join("nx"))
 }
 
 fn check_vertex_data(
