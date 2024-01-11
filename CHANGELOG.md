@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added support to xc3_tex for extracting images from `.wimdo` files to a folder.
 * Added support to xc3_tex for replacing images in `.wimdo` files from a folder using the `edit-wimdo` command.
 
+### Fixed
+* Fixed an issue where high resolution textures weren't read properly from legacy wismt files.
+
 ### Changed
 * Renamed `write_to_file` methods to `save` for all relevant types.
 

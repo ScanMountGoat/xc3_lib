@@ -1,7 +1,6 @@
 use std::{borrow::Cow, path::Path};
 
 use image_dds::ddsfile::Dds;
-use log::error;
 
 use crate::{
     error::DecompressStreamError, mibl::Mibl, mxmd::TextureUsage, spch::Spch, vertex::VertexData,
@@ -359,7 +358,7 @@ fn pack_files(
                 true,
                 textures_stream_entry_count > 0,
                 false, // TODO:Does this matter?
-                true,  // TODO:Does this matter?
+                false, // TODO:Does this matter?
                 use_chr_textures,
                 0u8.into(),
             ),
@@ -640,22 +639,13 @@ impl StreamingDataLegacy {
             let high_data = self.high_texture_data(data);
 
             for (i, t) in texture_indices.iter().zip(high_textures.textures.iter()) {
-                // TODO: Are these sometimes base mip levels?
-                if let Some(bytes) = high_data
-                    .get(t.mibl_offset as usize..t.mibl_offset as usize + t.mibl_length as usize)
-                {
-                    match Mibl::from_bytes(bytes) {
-                        Ok(mibl) => {
-                            textures[*i as usize].high = Some(HighTexture {
-                                mid: mibl,
-                                base_mip: None,
-                            });
-                        }
-                        Err(e) => error!("Error loading legacy high resolution Mibl: {e}"),
-                    }
-                } else {
-                    error!("Legacy high resolution Mibl bytes out of range")
-                }
+                let bytes = &high_data
+                    [t.mibl_offset as usize..t.mibl_offset as usize + t.mibl_length as usize];
+                let mibl = Mibl::from_bytes(bytes).unwrap();
+                textures[*i as usize].high = Some(HighTexture {
+                    mid: mibl,
+                    base_mip: None,
+                });
             }
         }
 
@@ -680,7 +670,10 @@ impl StreamingDataLegacy {
                 Cow::Borrowed(&data[self.texture_data_offset as usize..])
             }
             StreamingFlagsLegacy::Xbc1 => {
-                let xbc1 = Xbc1::from_bytes(data).unwrap();
+                // Read the second xbc1 file.
+                let xbc1 =
+                    Xbc1::from_bytes(&data[self.low_texture_data_compressed_size as usize..])
+                        .unwrap();
                 Cow::Owned(xbc1.decompress().unwrap())
             }
         }
