@@ -3,7 +3,6 @@ use std::path::Path;
 
 use clap::{Parser, Subcommand};
 use extract::extract_shader_binaries;
-use rayon::prelude::*;
 use shader_database::create_shader_database;
 use xc3_lib::msmd::Msmd;
 use xc3_lib::msrd::Msrd;
@@ -43,6 +42,9 @@ enum Commands {
         input_folder: String,
         /// The output JSON file.
         output_file: String,
+        /// Pretty print the JSON file
+        #[arg(long)]
+        pretty: bool,
     },
     /// Find all lines of GLSL code influencing the final assignment of a variable.
     GlslDependencies {
@@ -74,9 +76,14 @@ fn main() {
         Commands::ShaderDatabase {
             input_folder,
             output_file,
+            pretty,
         } => {
             let files = create_shader_database(&input_folder);
-            let json = serde_json::to_string(&files).unwrap();
+            let json = if pretty {
+                serde_json::to_string_pretty(&files).unwrap()
+            } else {
+                serde_json::to_string(&files).unwrap()
+            };
             std::fs::write(output_file, json).unwrap()
         }
         Commands::GlslDependencies { input, output, var } => {

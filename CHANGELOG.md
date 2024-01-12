@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 * Fixed an issue where high resolution textures weren't read properly from legacy wismt files.
 * Fixed an issue where map textures did not always correctly load the base mip level.
+* Fixed an issue where generated JSON shader database entries had correct ordering for maps.
 
 ### Changed
 * Renamed `write_to_file` methods to `save` for all relevant types.

@@ -5,7 +5,7 @@ use log::error;
 use rayon::prelude::*;
 use xc3_model::shader_database::{Map, Shader, ShaderDatabase, ShaderProgram, Spch};
 
-use crate::dependencies::input_dependencies;
+use crate::{annotation::shader_source_no_extensions, dependencies::input_dependencies};
 
 fn shader_from_glsl(translation_unit: &TranslationUnit) -> Shader {
     // Get the textures used to initialize each fragment output channel.
@@ -38,16 +38,22 @@ fn shader_from_glsl(translation_unit: &TranslationUnit) -> Shader {
 
 /// Find the texture dependencies for each fragment output channel.
 pub fn create_shader_database(input: &str) -> ShaderDatabase {
-    let files = std::fs::read_dir(input)
+    // Sort to make the output consistent.
+    let mut folders: Vec<_> = std::fs::read_dir(input)
         .unwrap()
-        .par_bridge()
-        .filter_map(|entry| {
-            let path = entry.unwrap().path();
-            // TODO: Find a better way to detect maps.
-            if !path.join("map").exists() {
-                let programs = create_shader_programs(&path);
+        .into_iter()
+        .map(|e| e.unwrap().path())
+        .collect();
+    folders.sort();
 
-                let file = path.file_name().unwrap().to_string_lossy().to_string();
+    let files = folders
+        .par_iter()
+        .filter_map(|folder| {
+            // TODO: Find a better way to detect maps.
+            if !folder.join("map").exists() {
+                let programs = create_shader_programs(&folder);
+
+                let file = folder.file_name().unwrap().to_string_lossy().to_string();
                 Some((file, Spch { programs }))
             } else {
                 None
@@ -55,18 +61,16 @@ pub fn create_shader_database(input: &str) -> ShaderDatabase {
         })
         .collect();
 
-    let map_files = std::fs::read_dir(input)
-        .unwrap()
-        .par_bridge()
-        .filter_map(|entry| {
-            let path = entry.unwrap().path();
+    let map_files = folders
+        .par_iter()
+        .filter_map(|folder| {
             // TODO: Find a better way to detect maps.
-            if path.join("map").exists() {
-                let map_models = create_map_spchs(&path.join("map"));
-                let prop_models = create_map_spchs(&path.join("prop"));
-                let env_models = create_map_spchs(&path.join("env"));
+            if folder.join("map").exists() {
+                let map_models = create_map_spchs(&folder.join("map"));
+                let prop_models = create_map_spchs(&folder.join("prop"));
+                let env_models = create_map_spchs(&folder.join("env"));
 
-                let file = path.file_name().unwrap().to_string_lossy().to_string();
+                let file = folder.file_name().unwrap().to_string_lossy().to_string();
                 Some((
                     file,
                     Map {
@@ -86,15 +90,21 @@ pub fn create_shader_database(input: &str) -> ShaderDatabase {
 
 fn create_map_spchs(folder: &Path) -> Vec<Spch> {
     // TODO: Not all maps have env or prop models?
-    std::fs::read_dir(folder)
-        .map(|dir| {
-            dir.into_iter()
-                .map(|entry| Spch {
-                    programs: create_shader_programs(&entry.unwrap().path()),
-                })
-                .collect()
-        })
-        .unwrap_or_default()
+    if let Ok(dir) = std::fs::read_dir(folder) {
+        // Folders are generated like "ma01a/prop/4".
+        // Sort by index to process files in the right order.
+        let mut paths: Vec<_> = dir.into_iter().map(|e| e.unwrap().path()).collect();
+        paths.sort_by_cached_key(|p| extract_folder_index(p));
+
+        paths
+            .into_iter()
+            .map(|path| Spch {
+                programs: create_shader_programs(&path),
+            })
+            .collect()
+    } else {
+        Vec::new()
+    }
 }
 
 fn create_shader_programs(folder: &Path) -> Vec<ShaderProgram> {
@@ -108,16 +118,14 @@ fn create_shader_programs(folder: &Path) -> Vec<ShaderProgram> {
 
     // Shaders are generated as "slct{program_index}_FS{i}.glsl".
     // Sort by {program_index} to process files in the right order.
-    // TODO: Find a simpler way of doing this?
     paths.sort_by_cached_key(|p| extract_program_index(p));
 
     paths
         .par_iter()
         .filter_map(|path| {
             let source = std::fs::read_to_string(path).unwrap();
-            // Only parse the source code once.
-            // let modified_source = shader_source_no_extensions(source.to_string());
-            match TranslationUnit::parse(&source) {
+            let modified_source = shader_source_no_extensions(&source);
+            match TranslationUnit::parse(&modified_source) {
                 Ok(translation_unit) => Some(
                     // TODO: Add FS0 and FS1 to the same program?
                     ShaderProgram {
@@ -138,6 +146,11 @@ fn extract_program_index(p: &Path) -> usize {
     let start = "slct".len();
     let end = name.find('_').unwrap();
     name[start..end].parse::<usize>().unwrap()
+}
+
+fn extract_folder_index(p: &Path) -> usize {
+    let name = p.file_name().unwrap().to_string_lossy();
+    name.parse::<usize>().unwrap()
 }
 
 #[cfg(test)]
