@@ -112,10 +112,8 @@ struct TextureCache {
     texture_to_image_texture_index: IndexMap<(i16, i16, i16), usize>,
 }
 
-// TODO: Share logic with gltf?
 impl TextureCache {
     fn new(msmd: &Msmd, wismda: &[u8], compressed: bool) -> Self {
-        // TODO: process the low mibl ahead of time?
         let low_textures: Vec<_> = msmd
             .low_textures
             .par_iter()
@@ -157,7 +155,6 @@ impl TextureCache {
     }
 
     fn insert(&mut self, texture: &xc3_lib::map::Texture) -> usize {
-        // TODO: How is this supposed to work?
         let key = (
             texture.low_texture_index,
             texture.low_textures_entry_index,
@@ -185,21 +182,20 @@ impl TextureCache {
     }
 
     fn image_textures(&self) -> Vec<ImageTexture> {
-        // TODO: Are the entries with both negative indices even used?
         self.texture_to_image_texture_index
             .par_iter()
             .map(
                 |((low_texture_index, low_textures_entry_index, texture_index), _)| {
-                    let low = self.get_low_texture(*low_texture_index, *low_textures_entry_index);
+                    let low = self.get_low_texture(*low_textures_entry_index, *low_texture_index);
 
                     if let Some(mibl) = self
-                        .get_high_texture(*texture_index.max(&0))
+                        .get_high_texture(*texture_index)
                         .or(low.map(|low| &low.1))
                     {
                         ImageTexture::from_mibl(mibl, None, low.map(|l| l.0)).unwrap()
                     } else {
                         // TODO: What do do if both indices are negative?
-                        error!("No mibl for texture: {texture_index}");
+                        error!("No mibl for texture: {low_texture_index}, {low_textures_entry_index}, {texture_index}");
                         todo!()
                     }
                 },

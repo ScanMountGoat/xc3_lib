@@ -186,7 +186,6 @@ pub struct MapModel {
 }
 
 // TODO: Better name for this?
-
 #[derive(Debug, BinRead, BinWrite)]
 pub struct PropModel {
     pub bounds: BoundingBox,
