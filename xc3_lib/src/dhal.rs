@@ -66,8 +66,15 @@ pub struct Dhal {
     #[xc3(offset(u32), align(2))]
     pub unk7: Option<Unk7>,
 
+    pub unks_3: u32,
+
+    #[br(parse_with = parse_opt_ptr32)]
+    #[xc3(offset(u32))]
+    pub unk8: Option<Unk8>,
+    pub unk8_1: u32, // count?
+
     // TODO: more fields?
-    pub unks1: [u32; 5],
+    pub unks1: [u32; 2],
 
     #[br(parse_with = parse_opt_ptr32)]
     #[xc3(offset(u32))]
@@ -275,11 +282,17 @@ pub struct Unk5 {
     pub unk4: u32,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[binread]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[br(stream = r)]
+#[xc3(base_offset)]
 pub struct Unk6 {
-    pub unk1: u32,
-    pub unk2: u32,
-    pub unk3: u32,
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32), align(2))]
+    pub unk1: Vec<u32>,
 }
 
 #[binread]
@@ -311,6 +324,40 @@ pub struct Unk7Item {
     pub unk1: [f32; 6],
     pub unk2: u16,
     pub unk3: u16,
+}
+
+#[binread]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[br(stream = r)]
+#[xc3(base_offset)]
+pub struct Unk8 {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    pub unk1: u32,
+
+    #[br(parse_with = parse_offset32_count32)]
+    #[br(args { offset: base_offset, inner: base_offset})]
+    #[xc3(offset_count(u32, u32))]
+    pub unk2: Vec<Unk8Item>,
+
+    // TODO: padding?
+    pub unk: [u32; 12],
+}
+
+// TODO: pointers to strings?
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[br(import_raw(base_offset: u64))]
+pub struct Unk8Item {
+    pub unk1: u32,
+    pub unk2: u32,
+    pub unk3: u32,
+    pub unk4: u32, // data offset?
+    pub unk5: u32,
+    pub unk6: u32,
+    pub unk7: u32,
+    // TODO: padding?
+    pub unk: [u32; 4],
 }
 
 #[binread]
@@ -390,6 +437,7 @@ impl<'a> Xc3WriteOffsets for DhalOffsets<'a> {
         self.unk4.write_full(writer, base_offset, data_ptr)?;
         self.unk5.write_full(writer, base_offset, data_ptr)?;
         self.unk6.write_full(writer, base_offset, data_ptr)?;
+        self.unk8.write_full(writer, base_offset, data_ptr)?;
         self.unk2.write_full(writer, base_offset, data_ptr)?;
         self.textures.write_full(writer, base_offset, data_ptr)?;
         self.uncompressed_textures
