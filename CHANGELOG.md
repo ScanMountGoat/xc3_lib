@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 * Renamed `write_to_file` methods to `save` for all relevant types.
+* Improved accuracy of file rebuilding.
+* Adjusted output of xc3_tex commands to display runtime and converted file count.
 
 ## 0.3.0 - 2023-12-23
 ### Added

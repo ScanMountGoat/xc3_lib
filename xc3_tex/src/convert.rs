@@ -125,31 +125,40 @@ impl File {
     }
 }
 
-pub fn update_wilay_from_folder(input: &str, input_folder: &str, output: &str) {
+pub fn update_wilay_from_folder(input: &str, input_folder: &str, output: &str) -> usize {
     // Replace existing images in a .wilay file.
     // TODO: Error if indices are out of range?
     // TODO: match the original if it uses xbc1 compression?
     let mut wilay = Wilay::from_file(input);
+    let mut count = 0;
     match &mut wilay {
         Wilay::Dhal(dhal) => {
             if let Some(textures) = &mut dhal.textures {
-                replace_wilay_mibl(textures, input, input_folder);
+                count += replace_wilay_mibl(textures, input, input_folder);
             }
             if let Some(textures) = &mut dhal.uncompressed_textures {
-                replace_wilay_jpeg(textures, input, input_folder);
+                count += replace_wilay_jpeg(textures, input, input_folder);
             }
             dhal.save(output).unwrap();
         }
         Wilay::Lagp(lagp) => {
             if let Some(textures) = &mut lagp.textures {
-                replace_wilay_mibl(textures, input, input_folder);
+                count += replace_wilay_mibl(textures, input, input_folder);
             }
             lagp.save(output).unwrap();
         }
     }
+
+    count
 }
 
-fn replace_wilay_mibl(textures: &mut xc3_lib::dhal::Textures, input: &str, input_folder: &str) {
+fn replace_wilay_mibl(
+    textures: &mut xc3_lib::dhal::Textures,
+    input: &str,
+    input_folder: &str,
+) -> usize {
+    let mut count = 0;
+
     for entry in std::fs::read_dir(input_folder).unwrap() {
         let path = entry.unwrap().path();
         if path.extension().and_then(|e| e.to_str()) == Some("dds") {
@@ -161,24 +170,33 @@ fn replace_wilay_mibl(textures: &mut xc3_lib::dhal::Textures, input: &str, input
                 mibl.write(&mut writer).unwrap();
 
                 textures.textures[i].mibl_data = writer.into_inner();
+
+                count += 1;
             }
         }
     }
+
+    count
 }
 
 fn replace_wilay_jpeg(
     textures: &mut xc3_lib::dhal::UncompressedTextures,
     input: &str,
     input_folder: &str,
-) {
+) -> usize {
+    let mut count = 0;
+
     for entry in std::fs::read_dir(input_folder).unwrap() {
         let path = entry.unwrap().path();
         if path.extension().and_then(|e| e.to_str()) == Some("jpeg") {
             if let Some(i) = image_index(&path, input) {
                 textures.textures[i].jpeg_data = std::fs::read(path).unwrap();
+                count += 1;
             }
         }
     }
+
+    count
 }
 
 pub fn update_wimdo_from_folder(
@@ -186,7 +204,7 @@ pub fn update_wimdo_from_folder(
     input_folder: &str,
     output: &str,
     chr_tex_nx: Option<String>,
-) {
+) -> usize {
     let input_path = Path::new(input);
     let output_path = Path::new(output);
 
@@ -200,6 +218,8 @@ pub fn update_wimdo_from_folder(
     // We need to repack the entire wismt even though we only modify textures.
     let msrd = Msrd::from_file(input_path.with_extension("wismt")).unwrap();
     let (vertex, spch, mut textures) = msrd.extract_files(chr_tex_nx_input.as_deref()).unwrap();
+
+    let mut count = 0;
 
     for entry in std::fs::read_dir(input_folder).unwrap() {
         let path = entry.unwrap().path();
@@ -215,6 +235,7 @@ pub fn update_wimdo_from_folder(
                 } else {
                     textures[i].low = new_mibl;
                 }
+                count += 1;
             }
         }
     }
@@ -235,6 +256,8 @@ pub fn update_wimdo_from_folder(
     mxmd.streaming = Some(new_msrd.streaming.clone());
     mxmd.save(output_path).unwrap();
     new_msrd.save(output_path.with_extension("wismt")).unwrap();
+
+    count
 }
 
 fn image_index(path: &Path, input: &str) -> Option<usize> {
@@ -253,8 +276,9 @@ fn image_index(path: &Path, input: &str) -> Option<usize> {
     }
 }
 
-pub fn extract_wilay_to_folder(wilay: Wilay, input: &Path, output_folder: &Path) {
+pub fn extract_wilay_to_folder(wilay: Wilay, input: &Path, output_folder: &Path) -> usize {
     let file_name = input.file_name().unwrap();
+    let mut count = 0;
     match wilay {
         Wilay::Dhal(dhal) => {
             if let Some(textures) = dhal.textures {
@@ -268,6 +292,7 @@ pub fn extract_wilay_to_folder(wilay: Wilay, input: &Path, output_folder: &Path)
                         .with_extension(format!("{i}.dds"));
                     dds.save(path).unwrap();
                 }
+                count += textures.textures.len();
             }
             if let Some(textures) = dhal.uncompressed_textures {
                 for (i, texture) in textures.textures.iter().enumerate() {
@@ -276,6 +301,8 @@ pub fn extract_wilay_to_folder(wilay: Wilay, input: &Path, output_folder: &Path)
                         .with_extension(format!("{i}.jpeg"));
                     std::fs::write(path, &texture.jpeg_data).unwrap();
                 }
+
+                count += textures.textures.len();
             }
         }
         Wilay::Lagp(lagp) => {
@@ -290,12 +317,16 @@ pub fn extract_wilay_to_folder(wilay: Wilay, input: &Path, output_folder: &Path)
                         .with_extension(format!("{i}.dds"));
                     dds.save(path).unwrap();
                 }
+
+                count += textures.textures.len();
             }
         }
     }
+
+    count
 }
 
-pub fn extract_wimdo_to_folder(_wimdo: Mxmd, input: &Path, output_folder: &Path) {
+pub fn extract_wimdo_to_folder(_wimdo: Mxmd, input: &Path, output_folder: &Path) -> usize {
     let file_name = input.file_name().unwrap();
 
     // TODO: packed mxmd textures.
@@ -312,6 +343,8 @@ pub fn extract_wimdo_to_folder(_wimdo: Mxmd, input: &Path, output_folder: &Path)
             .with_extension(format!("{i}.dds"));
         dds.save(path).unwrap();
     }
+
+    textures.len()
 }
 
 // TODO: Move this to xc3_lib?

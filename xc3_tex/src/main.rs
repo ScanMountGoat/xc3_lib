@@ -73,24 +73,36 @@ mod convert;
 fn main() {
     let cli = Cli::parse();
 
+    let start = std::time::Instant::now();
+
     if let Some(cmd) = cli.subcommand {
         match cmd {
             Commands::EditWilay {
                 input,
                 input_folder,
                 output,
-            } => update_wilay_from_folder(&input, &input_folder, output.as_ref().unwrap_or(&input)),
+            } => {
+                let count = update_wilay_from_folder(
+                    &input,
+                    &input_folder,
+                    output.as_ref().unwrap_or(&input),
+                );
+                println!("Converted {count} file(s) in {:?}", start.elapsed());
+            }
             Commands::EditWimdo {
                 input,
                 input_folder,
                 output,
                 chr_tex_nx,
-            } => update_wimdo_from_folder(
-                &input,
-                &input_folder,
-                output.as_ref().unwrap_or(&input),
-                chr_tex_nx,
-            ),
+            } => {
+                let count = update_wimdo_from_folder(
+                    &input,
+                    &input_folder,
+                    output.as_ref().unwrap_or(&input),
+                    chr_tex_nx,
+                );
+                println!("Converted {count} file(s) in {:?}", start.elapsed());
+            }
         }
     } else if let Some(args) = cli.args {
         let input = PathBuf::from(&args.input);
@@ -122,11 +134,13 @@ fn main() {
         if let File::Wilay(wilay) = input_file {
             // Wilay contains multiple images that need to be saved.
             std::fs::create_dir_all(&output).unwrap();
-            extract_wilay_to_folder(wilay, &input, &output);
+            let count = extract_wilay_to_folder(wilay, &input, &output);
+            println!("Converted {count} file(s) in {:?}", start.elapsed());
         } else if let File::Wimdo(wimdo) = input_file {
             // wimdo and wismt contain multiple images that need to be saved.
             std::fs::create_dir_all(&output).unwrap();
-            extract_wimdo_to_folder(wimdo, &input, &output);
+            let count = extract_wimdo_to_folder(wimdo, &input, &output);
+            println!("Converted {count} file(s) in {:?}", start.elapsed());
         } else {
             if let Some(parent) = output.parent() {
                 std::fs::create_dir_all(parent).unwrap();
@@ -154,6 +168,7 @@ fn main() {
                     image.save(output).unwrap();
                 }
             }
+            println!("Converted 1 file in {:?}", start.elapsed());
         }
     }
 }
