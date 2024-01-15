@@ -577,8 +577,8 @@ fn weight_group_index(
     // TODO: Is lod actually some sort of flags?
     // TODO: Return none if flags == 64?
     let lod_index = (lod & 0xff).saturating_sub(1) as usize;
-    // TODO: More mesh lods than weight lods?
-    let weight_lod = &weight_lods[lod_index];
+    // TODO: More mesh lods than weight lods for models with multiple lod groups?
+    let weight_lod = &weight_lods[lod_index % weight_lods.len()];
 
     // TODO: bit mask?
     let pass_index = match unk_type {
