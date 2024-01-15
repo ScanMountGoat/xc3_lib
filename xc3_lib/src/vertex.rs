@@ -157,8 +157,8 @@ pub enum DataType {
     Unk2 = 2,
     /// Uint16x2 "nWgtIdx" in shaders.
     ///
-    /// The index in the first component selects elements in the weights buffer
-    /// for the [DataType::SkinWeights] and [DataType::BoneIndices] attributes.
+    /// The index in the first component selects elements in the precomputed skinning matrices in the vertex shader.
+    /// See [Weights] for details.
     WeightIndex = 3,
     /// Uint16x2 "nWgtIdx" in shaders.
     ///
@@ -307,9 +307,9 @@ pub struct MorphTargetFlags {
     pub unk5: u13, // always 0?
 }
 
-// TODO: How are weights assigned to vertices?
-// TODO: Skinning happens in the vertex shader?
-// TODO: Where are the skin weights in the vertex shader?
+// TODO: document the entire process using all attributes?
+/// Information used for precomputing skinning matrices
+/// based on a mesh's level of detail (LOD) and render pass type.
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
 pub struct Weights {
     #[br(parse_with = parse_count32_offset32)]
@@ -329,32 +329,34 @@ pub struct Weights {
     pub unks5: [u32; 4], // padding?
 }
 
-// TODO: Counts up to the total number of "vertices" in the skin weights buffer?
-// TODO: How to select the weight group for each mesh in the model?
+/// A range of elements in the weights buffer.
+/// Each element in the weights buffer is part of at least one [WeightGroup].
 #[derive(Debug, Clone, PartialEq, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct WeightGroup {
-    /// Index into the skinning buffer used in the shader that combines weights and transforms.
+    /// Index into the skinning buffer used in the vertex shader with bone transforms multiplied by skin weights.
+    // TODO: Is this essentially added to WeightIndex attribute?
     pub output_start_index: u32,
-    /// Start of the items in the weights buffer at [vertex_buffer_index](struct.Weights.html#structfield.vertex_buffer_index).
-    // TODO: Why does this sometimes offset the starting index but not always?
+    /// Start of the elements in the weights buffer at [vertex_buffer_index](struct.Weights.html#structfield.vertex_buffer_index).
     pub input_start_index: u32,
-    /// Number of items in the weights buffer.
+    /// Number of elements in the weights buffer.
     pub count: u32,
     pub unks: [u32; 4], // TODO: always 0?
     /// Index into [group_indices_plus_one](struct.WeightLod.html#structfield.group_indices_plus_one)
     /// pointing back to this group.
     pub lod_group_index: u8,
-    /// Index into [weight_lods](struct.Weights.html#structfield.weight_lods).
+    /// Index into [weight_lods](struct.Weights.html#structfield.weight_lods)
+    /// for the [WeightLod] that references this [WeightGroup].
     pub lod_index: u8,
     /// The max number of non-zero bone influences per vertex
-    /// for the range of items in the weights buffer.
+    /// for the range of elements in the weights buffer.
     pub max_influences: u8,
     pub unk4: u8,
     pub unks2: [u32; 2],
 }
 
 // TODO: The material's pass index indexes into this?
-// [unk0, ???, ???, unk7, ???, ???, ???, ???, ???]
+// TODO: Figure out by finding files with no more groups than pass ids?
+// [unk0, unk1 ???, unk7, ???, ???, ???, ???, ???]
 
 // group_index = weights.weight_lods[mesh.lod].group_indices_plus_one[material.program.pass_index] - 1
 // group = weights.groups[group_index]

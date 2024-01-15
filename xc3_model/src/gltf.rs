@@ -345,7 +345,7 @@ fn get_weight_group<'a>(
 ) -> Option<&'a WeightGroup> {
     let model_buffers = &group.buffers[model.model_buffers_index];
     let weights = model_buffers.weights.as_ref()?;
-    let weight_group_index = weights.weight_group_index(
+    let weights_start_index = weights.weights_start_index(
         mesh.skin_flags,
         mesh.lod,
         models.materials[mesh.material_index].unk_type,
@@ -356,7 +356,7 @@ fn get_weight_group<'a>(
         model_buffers,
         skeleton,
         WeightGroupKey {
-            weight_group_index,
+            weights_start_index,
             buffer: attributes_key,
         },
     )

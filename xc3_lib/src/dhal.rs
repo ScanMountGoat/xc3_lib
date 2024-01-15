@@ -347,7 +347,7 @@ pub struct Unk8 {
 
 // TODO: pointers to strings?
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
-#[br(import_raw(base_offset: u64))]
+#[br(import_raw(_base_offset: u64))]
 pub struct Unk8Item {
     pub unk1: u32,
     pub unk2: u32,

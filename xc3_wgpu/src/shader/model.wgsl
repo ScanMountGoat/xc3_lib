@@ -93,9 +93,6 @@ struct GBufferAssignment {
     channel_indices: vec4<u32>
 }
 
-@group(2) @binding(20)
-var<uniform> per_material: PerMaterial;
-
 struct PerMaterial {
     mat_color: vec4<f32>,
     // TODO: Make a struct with named fields instead of arrays?
@@ -109,13 +106,24 @@ struct PerMaterial {
     is_single_channel: array<vec4<u32>, 10>,
 }
 
-// TODO: Where to store skeleton?
+@group(2) @binding(20)
+var<uniform> per_material: PerMaterial;
+
+// TODO: This doesn't need to be specific to each mesh.
 // PerMesh values.
 @group(3) @binding(0)
 var<storage> bone_indices: array<vec4<u32>>;
 
 @group(3) @binding(1)
 var<storage> skin_weights: array<vec4<f32>>;
+
+struct PerMesh {
+    // output_start_index, input_start_index, 0, 0
+    weight_group_indices: vec4<u32>
+}
+
+@group(3) @binding(2)
+var<uniform> per_mesh: PerMesh;
 
 // Define all possible attributes even if unused.
 // This avoids needing separate shaders.
@@ -171,9 +179,10 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance: InstanceInput, 
         tangent_xyz = vec3(0.0);
 
         // Weights require an extra layer of indirection.
-        // Assume the weight lod ranges have already been applied.
-        let bone_indices = bone_indices[in1.weight_index];
-        let skin_weights = skin_weights[in1.weight_index];
+        // This is done in game using a buffer of bone transforms with weights already applied.
+        var weights_index = in1.weight_index + per_mesh.weight_group_indices.x;
+        let bone_indices = bone_indices[weights_index];
+        let skin_weights = skin_weights[weights_index];
 
         for (var i = 0u; i < 4u; i += 1u) {
             let bone_index = bone_indices[i];

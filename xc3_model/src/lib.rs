@@ -539,53 +539,56 @@ fn model_name(model_path: &Path) -> String {
 }
 
 impl Weights {
-    pub fn weight_group_index(
-        &self,
-        skin_flags: u32,
-        lod: u16,
-        unk_type: ShaderUnkType,
-    ) -> Option<usize> {
+    pub fn weight_group_index(&self, skin_flags: u32, lod: u16, unk_type: ShaderUnkType) -> usize {
         weight_group_index(&self.weight_lods, skin_flags, lod, unk_type)
     }
 
-    pub fn weights_starting_index(
+    pub fn weight_group(
+        &self,
+        skin_flags: u32,
+        lod: u16,
+        unk_type: xc3_lib::mxmd::ShaderUnkType,
+    ) -> Option<&xc3_lib::vertex::WeightGroup> {
+        let group_index = self.weight_group_index(skin_flags, lod, unk_type);
+        self.weight_groups.get(group_index)
+    }
+
+    pub fn weights_start_index(
         &self,
         skin_flags: u32,
         lod: u16,
         unk_type: xc3_lib::mxmd::ShaderUnkType,
     ) -> usize {
-        self.weight_group_index(skin_flags, lod, unk_type)
-            .map(|group_index| self.weight_groups[group_index].input_start_index as usize)
+        // TODO: document why this works.
+        // Error if none?
+        self.weight_group(skin_flags, lod, unk_type)
+            .map(|group| (group.input_start_index - group.output_start_index) as usize)
             .unwrap_or_default()
     }
 }
 
 fn weight_group_index(
     weight_lods: &[WeightLod],
-    skin_flags: u32,
+    _skin_flags: u32,
     lod: u16,
     unk_type: ShaderUnkType,
-) -> Option<usize> {
-    // TODO: Is this the correct flags check?
-    // TODO: This doesn't work for other unk type or lod?
-    if (skin_flags & 0x1) == 0 && skin_flags != 16400 {
-        // TODO: Is this actually some sort of flags?
-        let lod_index = lod.saturating_sub(1) as usize;
-        let weight_lod = weight_lods.get(lod_index)?;
+) -> usize {
+    // TODO: Should this check skin flags?
+    // TODO: Is lod actually some sort of flags?
+    // TODO: Return none if flags == 64?
+    let lod_index = (lod & 0xff).saturating_sub(1) as usize;
+    // TODO: More mesh lods than weight lods?
+    let weight_lod = &weight_lods[lod_index];
 
-        // TODO: bit mask?
-        let pass_index = match unk_type {
-            ShaderUnkType::Unk0 => 0,
-            ShaderUnkType::Unk1 => 1,
-            ShaderUnkType::Unk6 => todo!(),
-            ShaderUnkType::Unk7 => 3,
-            ShaderUnkType::Unk9 => todo!(),
-        };
-        Some(weight_lod.group_indices_plus_one[pass_index].saturating_sub(1) as usize)
-        // None
-    } else {
-        None
-    }
+    // TODO: bit mask?
+    let pass_index = match unk_type {
+        ShaderUnkType::Unk0 => 0,
+        ShaderUnkType::Unk1 => 1,
+        ShaderUnkType::Unk6 => todo!(),
+        ShaderUnkType::Unk7 => 3,
+        ShaderUnkType::Unk9 => todo!(),
+    };
+    weight_lod.group_indices_plus_one[pass_index].saturating_sub(1) as usize
 }
 
 #[cfg(test)]
@@ -607,11 +610,11 @@ mod tests {
             group_indices_plus_one: [1, 0, 0, 2, 0, 0, 0, 0, 0],
         }];
         assert_eq!(
-            None,
+            0,
             weight_group_index(&weight_lods, 16385, 0, ShaderUnkType::Unk0)
         );
         assert_eq!(
-            Some(1),
+            1,
             weight_group_index(&weight_lods, 16392, 0, ShaderUnkType::Unk7)
         );
     }
@@ -631,19 +634,19 @@ mod tests {
             },
         ];
         assert_eq!(
-            None,
+            0,
             weight_group_index(&weight_lods, 16385, 1, ShaderUnkType::Unk0)
         );
         assert_eq!(
-            None,
+            0,
             weight_group_index(&weight_lods, 1, 1, ShaderUnkType::Unk0)
         );
         assert_eq!(
-            Some(3),
+            3,
             weight_group_index(&weight_lods, 2, 2, ShaderUnkType::Unk1)
         );
         assert_eq!(
-            Some(5),
+            5,
             weight_group_index(&weight_lods, 2, 3, ShaderUnkType::Unk1)
         );
     }
@@ -663,11 +666,11 @@ mod tests {
             },
         ];
         assert_eq!(
-            Some(3),
+            3,
             weight_group_index(&weight_lods, 64, 1, ShaderUnkType::Unk0)
         );
         assert_eq!(
-            None,
+            6,
             weight_group_index(&weight_lods, 16400, 2, ShaderUnkType::Unk0)
         );
     }

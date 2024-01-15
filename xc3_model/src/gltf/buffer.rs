@@ -33,7 +33,7 @@ pub struct BufferKey {
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct WeightGroupKey {
-    pub weight_group_index: Option<usize>,
+    pub weights_start_index: usize,
     pub buffer: BufferKey,
 }
 
@@ -192,7 +192,7 @@ impl Buffers {
                             skeleton,
                             weights,
                             weight_indices,
-                            key.weight_group_index,
+                            key.weights_start_index,
                         );
                         self.weight_groups.insert(key, weight_group);
                     }
@@ -208,7 +208,7 @@ impl Buffers {
         skeleton: &crate::Skeleton,
         weights: &crate::Weights,
         weight_indices: &[u32],
-        weight_group_index: Option<usize>,
+        weights_start_index: usize,
     ) -> WeightGroup {
         // The weights may be defined with a different bone ordering.
         let bone_names: Vec<_> = skeleton.bones.iter().map(|b| b.name.clone()).collect();
@@ -217,10 +217,7 @@ impl Buffers {
         // Each group has a different starting offset.
         // This needs to be applied during reindexing.
         // No offset is needed if no groups are assigned.
-        let starting_index = weight_group_index
-            .and_then(|i| weights.weight_groups.get(i).map(|g| g.input_start_index))
-            .unwrap_or_default();
-        let skin_weights = skin_weights.reindex(weight_indices, starting_index);
+        let skin_weights = skin_weights.reindex(weight_indices, weights_start_index as u32);
 
         let weights_accessor = self.add_values(
             &skin_weights.weights,

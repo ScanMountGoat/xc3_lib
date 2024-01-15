@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use glam::{uvec4, Mat4, Vec3, Vec4};
-use log::info;
+use log::{error, info};
 use rayon::prelude::*;
 use wgpu::util::DeviceExt;
 use xc3_model::{vertex::AttributeData, ImageTexture};
@@ -371,6 +371,7 @@ fn create_model(
                 skin_weights.as_ref(),
                 mesh.lod,
                 mesh.skin_flags,
+                mesh.vertex_buffer_index,
                 &materials[mesh.material_index],
             ),
         })
@@ -619,15 +620,10 @@ fn per_mesh_bind_group(
     skin_weights: Option<&xc3_model::skinning::SkinWeights>,
     lod: u16,
     skin_flags: u32,
+    vertex_buffer_index: usize,
     material: &Material,
 ) -> shader::model::bind_groups::BindGroup3 {
-    let start = buffers
-        .weights
-        .as_ref()
-        .map(|weights| {
-            weights.weights_starting_index(skin_flags, lod, material.pipeline_key.unk_type)
-        })
-        .unwrap_or_default();
+    let weight_count = skin_weights.map(|w| w.weights.len()).unwrap_or_default();
 
     // Convert to u32 since WGSL lacks a vec4<u8> type.
     // This assumes the skinning shader code is skipped if anything is missing.
@@ -638,7 +634,6 @@ fn per_mesh_bind_group(
             skin_weights
                 .bone_indices
                 .iter()
-                .skip(start)
                 .map(|indices| indices.map(|i| i as u32))
                 .collect()
         })
@@ -646,8 +641,28 @@ fn per_mesh_bind_group(
 
     let weights = skin_weights
         .as_ref()
-        .map(|skin_weights| &skin_weights.weights.as_slice()[start..])
+        .map(|skin_weights| skin_weights.weights.as_slice())
         .unwrap_or(&[Vec4::ZERO]);
+
+    // TODO: Fix weight indexing calculations.
+    let start = buffers
+        .weights
+        .as_ref()
+        .map(|weights| weights.weights_start_index(skin_flags, lod, material.pipeline_key.unk_type))
+        .unwrap_or_default();
+
+    for attribute in &buffers.vertex_buffers[vertex_buffer_index].attributes {
+        if let AttributeData::WeightIndex(weight_indices) = attribute {
+            let max_index = *weight_indices.iter().max().unwrap() as usize;
+            if max_index + start >= weight_count {
+                error!(
+                    "Weight index start {} and max weight index {} exceed weight count {} with {:?}",
+                    start, max_index, weight_count,
+                    (skin_flags, lod, material.pipeline_key.unk_type)
+                );
+            }
+        }
+    }
 
     let bone_indices = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("bone indices buffer"),
@@ -661,6 +676,14 @@ fn per_mesh_bind_group(
         usage: wgpu::BufferUsages::STORAGE,
     });
 
+    let per_mesh = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("per mesh buffer"),
+        contents: bytemuck::cast_slice(&[crate::shader::model::PerMesh {
+            weight_group_indices: uvec4(start as u32, 0, 0, 0),
+        }]),
+        usage: wgpu::BufferUsages::UNIFORM,
+    });
+
     // Bone indices and skin weights are technically part of the model buffers.
     // Each mesh selects a range of values based on weight lods.
     // Define skinning per mesh to avoid alignment requirements on buffer bindings.
@@ -669,6 +692,7 @@ fn per_mesh_bind_group(
         crate::shader::model::bind_groups::BindGroupLayout3 {
             bone_indices: bone_indices.as_entire_buffer_binding(),
             skin_weights: skin_weights.as_entire_buffer_binding(),
+            per_mesh: per_mesh.as_entire_buffer_binding(),
         },
     )
 }
