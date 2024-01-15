@@ -1,7 +1,7 @@
 use glam::{vec3, Mat4, Quat};
 use log::warn;
 
-/// See [Skeleton](xc3_lib::bc::Skeleton) and [Skinning](xc3_lib::mxmd::Skinning).
+/// See [Skeleton](xc3_lib::bc::skel::Skeleton) and [Skinning](xc3_lib::mxmd::Skinning).
 // TODO: Assume bones appear after their parents?
 #[derive(Debug, Clone, PartialEq)]
 pub struct Skeleton {

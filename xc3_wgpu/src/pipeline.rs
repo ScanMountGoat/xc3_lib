@@ -1,4 +1,4 @@
-use xc3_model::{BlendState, CullMode, ShaderUnkType, StateFlags};
+use xc3_model::{BlendState, CullMode, RenderPassType, StateFlags};
 
 use crate::{DEPTH_FORMAT, GBUFFER_COLOR_FORMAT};
 
@@ -19,14 +19,14 @@ impl ModelPipelineData {
 /// The non shared components of a pipeline for use with pipeline caching.
 #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq)]
 pub struct PipelineKey {
-    pub unk_type: ShaderUnkType,
+    pub unk_type: RenderPassType,
     pub flags: StateFlags,
     pub is_outline: bool,
 }
 
 impl PipelineKey {
     pub fn write_to_all_outputs(&self) -> bool {
-        self.unk_type == ShaderUnkType::Unk0
+        self.unk_type == RenderPassType::Unk0
     }
 }
 

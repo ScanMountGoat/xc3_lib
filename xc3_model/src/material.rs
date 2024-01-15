@@ -1,5 +1,5 @@
 use log::warn;
-use xc3_lib::mxmd::{Materials, ShaderUnkType, StateFlags, TextureUsage};
+use xc3_lib::mxmd::{Materials, RenderPassType, StateFlags, TextureUsage};
 
 use crate::{
     shader_database::{BufferParameter, Shader, Spch},
@@ -21,7 +21,7 @@ pub struct Material {
     pub shader: Option<Shader>,
 
     // TODO: include with shader?
-    pub unk_type: ShaderUnkType,
+    pub unk_type: RenderPassType,
     pub parameters: MaterialParameters,
 }
 

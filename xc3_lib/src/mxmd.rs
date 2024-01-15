@@ -482,7 +482,7 @@ pub enum CullMode {
 pub struct ShaderProgram {
     /// Index into [shader_programs](struct.Materials.html#structfield.shader_programs).
     pub program_index: u32,
-    pub unk_type: ShaderUnkType,
+    pub unk_type: RenderPassType,
     pub material_buffer_index: u16,
     pub flags: u32, // always 1?
 }
@@ -495,7 +495,7 @@ pub struct ShaderProgram {
 // _outline = 0
 #[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy, Hash)]
 #[brw(repr(u16))]
-pub enum ShaderUnkType {
+pub enum RenderPassType {
     Unk0 = 0, // main opaque + some transparent?
     Unk1 = 1, // second layer transparent?
     Unk6 = 6, // used for maps?
@@ -739,8 +739,10 @@ pub struct Mesh {
     /// The index of the level of detail typically starting from 1.
     pub lod: u16, // TODO: flags with one byte being lod?
     pub alpha_table_index: u16,
-    pub unk6_1: u16,
-    pub unks6: [i32; 3],
+    pub unk6: u16,
+    pub unk7: i32,
+    pub unk8: i32,
+    pub unk9: i32,
 }
 
 /// Flags to determine what data is present in [Models].
@@ -1549,7 +1551,7 @@ pub struct Unk1Unk4 {
 
 xc3_write_binwrite_impl!(
     ParamType,
-    ShaderUnkType,
+    RenderPassType,
     StateFlags,
     ModelsFlags,
     SamplerFlags,

@@ -11,7 +11,7 @@
 //! The weights buffer just contains [DataType::SkinWeights] and [DataType::BoneIndices].
 //! This buffer is shared between all vertex buffers with
 //! each buffer selecting weight buffer "vertices" using [DataType::WeightIndex]
-//! and additional indexing information defined in [Weights] for the starting index.
+//! and additional indexing information defined in [Weights].
 //! See [xc3_model](https://docs.rs/xc3_model) for the complete indexing implementation.
 //!
 //! Some vertex buffers have optional morph targets assigned in [VertexMorphs].
@@ -307,11 +307,11 @@ pub struct MorphTargetFlags {
     pub unk5: u13, // always 0?
 }
 
-// TODO: document the entire process using all attributes?
 /// Information used for precomputing skinning matrices
-/// based on a mesh's level of detail (LOD) and render pass type.
+/// based on a mesh's level of detail (LOD) and [RenderPassType](crate::mxmd::RenderPassType).
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
 pub struct Weights {
+    /// Selected based on the associated [WeightLod] for a [Mesh](crate::mxmd::Mesh).
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
     pub groups: Vec<WeightGroup>,
@@ -320,7 +320,7 @@ pub struct Weights {
     /// This is typically the last element.
     pub vertex_buffer_index: u16,
 
-    // TODO: same count as WeightLod in mxmd?
+    /// Selected based on the LOD of the [Mesh](crate::mxmd::Mesh).
     #[br(parse_with = parse_count16_offset32)]
     #[xc3(count_offset(u16, u32))]
     pub weight_lods: Vec<WeightLod>,
@@ -331,10 +331,15 @@ pub struct Weights {
 
 /// A range of elements in the weights buffer.
 /// Each element in the weights buffer is part of at least one [WeightGroup].
+///
+/// The [input_start_index](#structfield.input_start_index) and [count](#structfield.count)
+/// select a range of [DataType::BoneIndices] and [DataType::SkinWeights] from the weights buffer.
+/// The bone matrices for each bone index multiplied by the weights are written to the output buffer starting at [output_start_index](#structfield.output_start_index).
+/// This precomputed skinning buffer is used to select transforms in the vertex shader using [DataType::WeightIndex].
 #[derive(Debug, Clone, PartialEq, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct WeightGroup {
     /// Index into the skinning buffer used in the vertex shader with bone transforms multiplied by skin weights.
-    // TODO: Is this essentially added to WeightIndex attribute?
+    /// These weighted bone matrices are selected using [DataType::WeightIndex].
     pub output_start_index: u32,
     /// Start of the elements in the weights buffer at [vertex_buffer_index](struct.Weights.html#structfield.vertex_buffer_index).
     pub input_start_index: u32,
@@ -356,17 +361,15 @@ pub struct WeightGroup {
 
 // TODO: The material's pass index indexes into this?
 // TODO: Figure out by finding files with no more groups than pass ids?
-// [unk0, unk1 ???, unk7, ???, ???, ???, ???, ???]
-
-// group_index = weights.weight_lods[mesh.lod].group_indices_plus_one[material.program.pass_index] - 1
-// group = weights.groups[group_index]
-
-// TODO: What indexes into this?
-// TODO: something related to render pass?
+/// References to [WeightGroup] for each of the [RenderPassType](crate::mxmd::RenderPassType).
 #[derive(Debug, Clone, PartialEq, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct WeightLod {
     /// One plus the indices pointing back to [groups](struct.Weights.html#structfield.groups).
     /// Unused entries use the value `0`.
+    ///
+    /// Each [Mesh](crate::mxmd::Mesh) indexes into this list using a hardcoded remapping
+    /// for the [RenderPassType](crate::mxmd::RenderPassType) of the assigned material.
+    // TODO: Document each entry.
     pub group_indices_plus_one: [u16; 9],
 }
 

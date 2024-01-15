@@ -118,7 +118,7 @@ var<storage> bone_indices: array<vec4<u32>>;
 var<storage> skin_weights: array<vec4<f32>>;
 
 struct PerMesh {
-    // output_start_index, input_start_index, 0, 0
+    // start_index, 0, 0, 0
     weight_group_indices: vec4<u32>
 }
 

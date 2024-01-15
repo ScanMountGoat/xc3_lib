@@ -8,7 +8,7 @@ use xc3_lib::{
     map::{FoliageMaterials, PropInstance, PropLod, PropPositions},
     mibl::Mibl,
     msmd::{ChannelType, MapParts, Msmd, StreamEntry},
-    mxmd::{ShaderUnkType, StateFlags, TextureUsage},
+    mxmd::{RenderPassType, StateFlags, TextureUsage},
     vertex::VertexData,
 };
 
@@ -700,7 +700,7 @@ fn foliage_materials(materials: &FoliageMaterials) -> Vec<Material> {
                 textures,
                 alpha_test: None,
                 shader,
-                unk_type: ShaderUnkType::Unk0,
+                unk_type: RenderPassType::Unk0,
                 parameters: Default::default(),
             }
         })

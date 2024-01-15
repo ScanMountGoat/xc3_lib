@@ -58,7 +58,7 @@ pub use material::{
 pub use sampler::{AddressMode, FilterMode, Sampler};
 pub use skeleton::{Bone, Skeleton};
 pub use texture::{ImageFormat, ImageTexture, ViewDimension};
-pub use xc3_lib::mxmd::{BlendState, CullMode, ShaderUnkType, StateFlags};
+pub use xc3_lib::mxmd::{BlendState, CullMode, RenderPassType, StateFlags};
 
 pub mod animation;
 pub mod gltf;
@@ -539,28 +539,32 @@ fn model_name(model_path: &Path) -> String {
 }
 
 impl Weights {
-    pub fn weight_group_index(&self, skin_flags: u32, lod: u16, unk_type: ShaderUnkType) -> usize {
-        weight_group_index(&self.weight_lods, skin_flags, lod, unk_type)
-    }
-
+    /// Get the assigned weight group based on [Mesh] and [Material] parameters.
     pub fn weight_group(
         &self,
         skin_flags: u32,
         lod: u16,
-        unk_type: xc3_lib::mxmd::ShaderUnkType,
+        unk_type: xc3_lib::mxmd::RenderPassType,
     ) -> Option<&xc3_lib::vertex::WeightGroup> {
-        let group_index = self.weight_group_index(skin_flags, lod, unk_type);
+        let group_index = weight_group_index(&self.weight_lods, skin_flags, lod, unk_type);
         self.weight_groups.get(group_index)
     }
 
+    /// The offset to add to [AttributeData::WeightIndex]
+    /// when selecting [AttributeData::BoneIndices] and [AttributeData::SkinWeights].
+    ///
+    /// Preskinned matrices starting from the input index are written to the output index.
+    /// This means the final index value is `weight_index = nWgtIndex + input_start - output_start`.
+    /// Equivalent bone indices and weights are simply `indices[weight_index]` and `weights[weight_index]`.
+    /// A mesh has only one assigned weight group, so this is sufficient to recreate the in game behavior
+    /// without any complex precomputation of skinning matrices.
     pub fn weights_start_index(
         &self,
         skin_flags: u32,
         lod: u16,
-        unk_type: xc3_lib::mxmd::ShaderUnkType,
+        unk_type: xc3_lib::mxmd::RenderPassType,
     ) -> usize {
-        // TODO: document why this works.
-        // Error if none?
+        // TODO: Error if none?
         self.weight_group(skin_flags, lod, unk_type)
             .map(|group| (group.input_start_index - group.output_start_index) as usize)
             .unwrap_or_default()
@@ -571,7 +575,7 @@ fn weight_group_index(
     weight_lods: &[WeightLod],
     _skin_flags: u32,
     lod: u16,
-    unk_type: ShaderUnkType,
+    unk_type: RenderPassType,
 ) -> usize {
     // TODO: Should this check skin flags?
     // TODO: Is lod actually some sort of flags?
@@ -582,11 +586,11 @@ fn weight_group_index(
 
     // TODO: bit mask?
     let pass_index = match unk_type {
-        ShaderUnkType::Unk0 => 0,
-        ShaderUnkType::Unk1 => 1,
-        ShaderUnkType::Unk6 => todo!(),
-        ShaderUnkType::Unk7 => 3,
-        ShaderUnkType::Unk9 => todo!(),
+        RenderPassType::Unk0 => 0,
+        RenderPassType::Unk1 => 1,
+        RenderPassType::Unk6 => todo!(),
+        RenderPassType::Unk7 => 3,
+        RenderPassType::Unk9 => todo!(),
     };
     weight_lod.group_indices_plus_one[pass_index].saturating_sub(1) as usize
 }
@@ -611,11 +615,11 @@ mod tests {
         }];
         assert_eq!(
             0,
-            weight_group_index(&weight_lods, 16385, 0, ShaderUnkType::Unk0)
+            weight_group_index(&weight_lods, 16385, 0, RenderPassType::Unk0)
         );
         assert_eq!(
             1,
-            weight_group_index(&weight_lods, 16392, 0, ShaderUnkType::Unk7)
+            weight_group_index(&weight_lods, 16392, 0, RenderPassType::Unk7)
         );
     }
 
@@ -635,19 +639,19 @@ mod tests {
         ];
         assert_eq!(
             0,
-            weight_group_index(&weight_lods, 16385, 1, ShaderUnkType::Unk0)
+            weight_group_index(&weight_lods, 16385, 1, RenderPassType::Unk0)
         );
         assert_eq!(
             0,
-            weight_group_index(&weight_lods, 1, 1, ShaderUnkType::Unk0)
+            weight_group_index(&weight_lods, 1, 1, RenderPassType::Unk0)
         );
         assert_eq!(
             3,
-            weight_group_index(&weight_lods, 2, 2, ShaderUnkType::Unk1)
+            weight_group_index(&weight_lods, 2, 2, RenderPassType::Unk1)
         );
         assert_eq!(
             5,
-            weight_group_index(&weight_lods, 2, 3, ShaderUnkType::Unk1)
+            weight_group_index(&weight_lods, 2, 3, RenderPassType::Unk1)
         );
     }
 
@@ -667,11 +671,11 @@ mod tests {
         ];
         assert_eq!(
             3,
-            weight_group_index(&weight_lods, 64, 1, ShaderUnkType::Unk0)
+            weight_group_index(&weight_lods, 64, 1, RenderPassType::Unk0)
         );
         assert_eq!(
             6,
-            weight_group_index(&weight_lods, 16400, 2, ShaderUnkType::Unk0)
+            weight_group_index(&weight_lods, 16400, 2, RenderPassType::Unk0)
         );
     }
 }
