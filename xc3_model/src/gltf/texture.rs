@@ -1,11 +1,10 @@
-use std::collections::BTreeMap;
-
 use crate::ModelRoot;
 use image_dds::image::RgbaImage;
+use indexmap::IndexMap;
 use rayon::prelude::*;
 
 // TODO: This will eventually need to account for parameters and constants.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct GeneratedImageKey {
     pub root_index: usize,
     pub red_index: Option<ImageIndex>,
@@ -16,14 +15,14 @@ pub struct GeneratedImageKey {
     pub invert_green: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ImageIndex {
     pub image_texture: usize,
     pub sampler: usize,
     pub channel: usize,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ImageKey {
     root_index: usize,
     image_index: usize,
@@ -32,9 +31,9 @@ pub struct ImageKey {
 // TODO: Share this functionality with map texture loading?
 #[derive(Default)]
 pub struct TextureCache {
-    pub generated_images: BTreeMap<GeneratedImageKey, RgbaImage>,
-    pub generated_texture_indices: BTreeMap<GeneratedImageKey, u32>,
-    pub original_images: BTreeMap<ImageKey, RgbaImage>,
+    original_images: IndexMap<ImageKey, RgbaImage>,
+    // Use a map that preserves insertion order to get consistent ordering.
+    pub generated_texture_indices: IndexMap<GeneratedImageKey, u32>,
 }
 
 impl TextureCache {
@@ -43,26 +42,40 @@ impl TextureCache {
         let original_images = create_images(roots);
 
         Self {
-            generated_images: BTreeMap::new(),
-            generated_texture_indices: BTreeMap::new(),
+            generated_texture_indices: IndexMap::new(),
             original_images,
         }
     }
 
     pub fn insert(&mut self, key: GeneratedImageKey) -> Option<u32> {
-        // Use a cache to avoid costly channel reconstructions if possible.
+        // Use a cache to avoid costly image generation if possible.
+        let new_index = self.generated_texture_indices.len() as u32;
+
+        // TODO: Find a cleaner way to prevent generating empty images.
+        if key.red_index.is_some()
+            || key.green_index.is_some()
+            || key.blue_index.is_some()
+            || key.alpha_index.is_some()
+        {
+            Some(
+                *self
+                    .generated_texture_indices
+                    .entry(key)
+                    .or_insert(new_index),
+            )
+        } else {
+            None
+        }
+    }
+
+    pub fn generate_images(&self) -> Vec<(GeneratedImageKey, Option<RgbaImage>)> {
         self.generated_texture_indices
-            .get(&key)
-            .copied()
-            .or_else(|| {
-                // Only create an image if it has at least one input.
-                generate_image(key, &self.original_images).map(|image| {
-                    let texture_index = self.generated_images.len() as u32;
-                    self.generated_images.insert(key, image);
-                    self.generated_texture_indices.insert(key, texture_index);
-                    texture_index
-                })
+            .par_iter()
+            .map(|(key, _)| {
+                let image = generate_image(*key, &self.original_images);
+                (*key, image)
             })
+            .collect()
     }
 }
 
@@ -156,9 +169,10 @@ pub fn metallic_roughness_generated_key(
     }
 }
 
+// TODO: how to make this faster?
 fn generate_image(
     key: GeneratedImageKey,
-    original_images: &BTreeMap<ImageKey, RgbaImage>,
+    original_images: &IndexMap<ImageKey, RgbaImage>,
 ) -> Option<RgbaImage> {
     let find_image_channel = |index: Option<ImageIndex>| {
         index.and_then(|index| {
@@ -177,6 +191,7 @@ fn generate_image(
     let alpha_image = find_image_channel(key.alpha_index);
 
     // Use the dimensions of the largest image to avoid quality loss.
+    // Return None if no images are assigned.
     let (width, height) = [red_image, green_image, blue_image, alpha_image]
         .iter()
         .filter_map(|i| i.map(|(i, _)| i.dimensions()))
@@ -188,6 +203,8 @@ fn generate_image(
         pixel[3] = 255u8;
     }
 
+    // TODO: optimize assigning multiple channels in order?
+    // TODO: cache resizing operations for images?
     assign_channel(&mut image, red_image, 0);
     assign_channel(&mut image, green_image, 1);
     assign_channel(&mut image, blue_image, 2);
@@ -222,6 +239,7 @@ fn assign_channel(
     if let Some((input, input_channel)) = image_channel {
         // Ensure the input and output images have the same dimensions.
         // TODO: Is it worth caching this operation?
+        // TODO: Avoid resizing the same image for each channel?
         if input.dimensions() != output.dimensions() {
             let resized = image_dds::image::imageops::resize(
                 input,
@@ -303,8 +321,8 @@ fn texture_channel_index(
     })
 }
 
-pub fn create_images(roots: &[ModelRoot]) -> BTreeMap<ImageKey, RgbaImage> {
-    let mut png_images = BTreeMap::new();
+pub fn create_images(roots: &[ModelRoot]) -> IndexMap<ImageKey, RgbaImage> {
+    let mut png_images = IndexMap::new();
     for (root_index, root) in roots.iter().enumerate() {
         // Decode images in parallel to boost performance.
         png_images.par_extend(

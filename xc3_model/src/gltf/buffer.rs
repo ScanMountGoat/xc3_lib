@@ -178,6 +178,7 @@ impl Buffers {
         skeleton: Option<&crate::Skeleton>,
         key: WeightGroupKey,
     ) -> Option<&WeightGroup> {
+        // TODO: rewrite this.
         if !self.weight_groups.contains_key(&key) {
             if let Some(skeleton) = skeleton {
                 if let Some(weights) = &buffers.weights {
