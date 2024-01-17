@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 
 use crate::{parse_offset64_count32, parse_ptr64, parse_string_ptr64};
 use binrw::{args, binread, BinRead, BinWrite};
-use xc3_write::{round_up, VecOffsets, Xc3Write, Xc3WriteOffsets};
+use xc3_write::{VecOffsets, Xc3Write, Xc3WriteOffsets};
 
 use anim::Anim;
 use asmb::Asmb;
@@ -236,7 +236,7 @@ impl StringSection {
         // TODO: Cleaner way to handle alignment?
         let mut name_to_position = BTreeMap::new();
         writer.seek(std::io::SeekFrom::Start(*data_ptr))?;
-        let aligned = round_up(*data_ptr, alignment);
+        let aligned = data_ptr.next_multiple_of(alignment);
         writer.write_all(&vec![0xff; (aligned - *data_ptr) as usize])?;
 
         for name in self.name_to_offsets.keys() {

@@ -153,7 +153,7 @@ impl<'a, P, T> Offset<'a, P, T> {
     {
         // Account for the type or field alignment.
         let alignment = self.field_alignment.unwrap_or(type_alignment);
-        let aligned_data_pr = round_up(*data_ptr, alignment);
+        let aligned_data_pr = data_ptr.next_multiple_of(alignment);
 
         // Update the offset value.
         self.set_offset(writer, aligned_data_pr - base_offset)?;
@@ -419,11 +419,6 @@ where
         }
         Ok(())
     }
-}
-
-/// A small helper function for manually aligning the `data_ptr`.
-pub const fn round_up(x: u64, n: u64) -> u64 {
-    ((x + n - 1) / n) * n
 }
 
 #[doc(hidden)]

@@ -29,7 +29,7 @@ use binrw::{binrw, BinRead, BinWrite};
 use image_dds::Surface;
 use tegra_swizzle::surface::BlockDim;
 use thiserror::Error;
-use xc3_write::{round_up, Xc3Write};
+use xc3_write::Xc3Write;
 
 pub use tegra_swizzle::SwizzleError;
 
@@ -173,7 +173,7 @@ impl BinWrite for Mibl {
     ) -> binrw::BinResult<()> {
         // Assume the image data isn't aligned to the page size.
         let unaligned_size = self.image_data.len() as u64;
-        let aligned_size = round_up(unaligned_size, 4096);
+        let aligned_size = unaligned_size.next_multiple_of(4096);
 
         self.image_data.write_options(writer, endian, ())?;
 
@@ -233,7 +233,7 @@ impl Mibl {
         let mut image_data = base_mip_level.to_vec();
         image_data.extend_from_slice(&self.image_data);
 
-        let image_size = round_up(image_data.len() as u64, 4096) as u32;
+        let image_size = image_data.len().next_multiple_of(4096) as u32;
 
         Self {
             image_data,
@@ -259,7 +259,7 @@ impl Mibl {
             Self {
                 image_data: image_data.to_vec(),
                 footer: MiblFooter {
-                    image_size: round_up(image_data.len() as u64, 4096) as u32,
+                    image_size: image_data.len().next_multiple_of(4096) as u32,
                     width: self.footer.width / 2,
                     height: self.footer.height / 2,
                     mipmap_count: self.footer.mipmap_count - 1,
@@ -314,7 +314,7 @@ impl Mibl {
             layers as usize,
         )?;
 
-        let image_size = round_up(image_data.len() as u64, 4096) as u32;
+        let image_size = image_data.len().next_multiple_of(4096) as u32;
 
         Ok(Self {
             image_data,

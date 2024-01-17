@@ -184,8 +184,7 @@ pub fn xc3_write_offsets_derive(input: TokenStream) -> TokenStream {
         quote! {
             // Round up the total size.
             let size = writer.stream_position()?;
-            let round_up = |x, n| ((x + n - 1) / n) * n;
-            let desired_size = round_up(size, #align);
+            let desired_size = size.next_multiple_of(#align);
             let padding = desired_size - size;
             writer.write_all(&vec![0u8; padding as usize])?;
 

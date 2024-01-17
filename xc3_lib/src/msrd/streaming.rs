@@ -138,7 +138,7 @@ impl Msrd {
         let mut data_ptr = 0;
         write_full(&streaming, &mut writer, 0, &mut data_ptr).unwrap();
         // Add the msrd and streaming header sizes.
-        let first_xbc1_offset = round_up(data_ptr, 16) as u32 + 32;
+        let first_xbc1_offset = data_ptr.next_multiple_of(16) as u32 + 32;
 
         // TODO: Does this acount for the occasional extra 16 bytes?
         for stream in &mut streaming.streams {
@@ -419,10 +419,10 @@ fn pack_chr_textures(
                 ChrTexTexture {
                     hash,
                     decompressed_size: mid.decompressed_size,
-                    compressed_size: (round_up(mid.compressed_size as u64, 16) + 48) as u32,
+                    compressed_size: mid.compressed_size.next_multiple_of(16) as u32 + 48 as u32,
                     base_mip_decompressed_size: base_mip.decompressed_size,
-                    base_mip_compressed_size: (round_up(base_mip.compressed_size as u64, 16) + 48)
-                        as u32,
+                    base_mip_compressed_size: base_mip.compressed_size.next_multiple_of(16) as u32
+                        + 48,
                 },
                 ChrTextureStreams {
                     hash,
@@ -476,8 +476,8 @@ fn create_streams(
 
         // TODO: Should this make sure the xbc1 decompressed data is actually aligned?
         streams.push(Stream {
-            compressed_size: (round_up(xbc1.compressed_stream.len() as u64, 16) + 48) as u32,
-            decompressed_size: round_up(xbc1.decompressed_size as u64, 4096) as u32,
+            compressed_size: xbc1.compressed_stream.len().next_multiple_of(16) as u32 + 48,
+            decompressed_size: xbc1.decompressed_size.next_multiple_of(4096) as u32,
             xbc1_offset,
         });
     }
@@ -564,7 +564,7 @@ where
     // Stream data is aligned to 4096 bytes.
     // TODO: Create a function for padding to an alignment?
     let size = end_offset - offset;
-    let desired_size = round_up(size, 4096);
+    let desired_size = size.next_multiple_of(4096);
     let padding = desired_size - size;
     writer.write_all(&vec![0u8; padding as usize]).unwrap();
     let end_offset = writer.stream_position().unwrap();

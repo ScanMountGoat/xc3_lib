@@ -15,7 +15,7 @@ use crate::{
     parse_string_ptr32,
 };
 use binrw::{binread, BinRead, BinReaderExt, BinResult, NullString};
-use xc3_write::{round_up, write_full, Xc3Write, Xc3WriteOffsets};
+use xc3_write::{write_full, Xc3Write, Xc3WriteOffsets};
 
 /// A simple archive containing named entries.
 #[derive(Debug, BinRead, Xc3Write)]
@@ -265,7 +265,7 @@ impl<'a> Xc3WriteOffsets for ChClInnerOffsets<'a> {
         self.unk6.write_full(writer, base_offset, data_ptr)?;
 
         // Strings appear at the end of the file.
-        *data_ptr = round_up(*data_ptr, 4);
+        *data_ptr = data_ptr.next_multiple_of(4);
         for item in unk2.0 {
             item.name.write_full(writer, base_offset, data_ptr)?;
         }
@@ -289,7 +289,7 @@ impl<'a> Xc3WriteOffsets for Sar1Offsets<'a> {
         }
 
         // Align the file size to 2048.
-        let padding = round_up(*data_ptr, 2048) - *data_ptr;
+        let padding = data_ptr.next_multiple_of(2048) - *data_ptr;
         vec![0u8; padding as usize].xc3_write(writer, data_ptr)?;
         self.file_size.write_full(writer, base_offset, data_ptr)?;
 

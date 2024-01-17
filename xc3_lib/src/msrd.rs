@@ -40,7 +40,7 @@ use crate::{
 };
 use bilge::prelude::*;
 use binrw::{args, binread, until_eof, BinRead, BinResult, BinWrite};
-use xc3_write::{round_up, write_full, Xc3Write, Xc3WriteOffsets};
+use xc3_write::{write_full, Xc3Write, Xc3WriteOffsets};
 
 /// Utilities for extracting and rebuilding streaming data.
 pub mod streaming;

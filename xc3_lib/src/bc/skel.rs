@@ -1,6 +1,6 @@
 use crate::{parse_offset64_count32, parse_opt_ptr64, parse_ptr64, parse_string_ptr64};
 use binrw::{binread, BinRead};
-use xc3_write::{round_up, Xc3Write, Xc3WriteOffsets};
+use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 use super::{BcList, StringOffset, StringSection, Transform};
 
@@ -390,14 +390,14 @@ fn weird_skel_alignment<W: std::io::Write + std::io::Seek>(
     // First align to 8.
     // FF...
     let pos = writer.stream_position()?;
-    let aligned_pos = round_up(pos, 8);
+    let aligned_pos = pos.next_multiple_of(8);
     writer.write_all(&vec![0xff; (aligned_pos - pos) as usize])?;
 
     // Now align to 16.
     // 0000 FF...
     [0u8; 2].xc3_write(writer, data_ptr)?;
     let pos = writer.stream_position()?;
-    let aligned_pos = round_up(pos, 16);
+    let aligned_pos = pos.next_multiple_of(16);
     writer.write_all(&vec![0xff; (aligned_pos - pos) as usize])?;
     // 0000
     [0u8; 4].xc3_write(writer, data_ptr)?;

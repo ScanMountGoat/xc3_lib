@@ -9,7 +9,7 @@
 //! | Xenoblade Chronicles 3 |  |  |
 use crate::{parse_offset32_count32, parse_string_ptr32};
 use binrw::BinRead;
-use xc3_write::{round_up, Xc3Write, Xc3WriteOffsets};
+use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 #[derive(Debug, BinRead, Xc3Write)]
 #[br(magic(b"LAPS"))]
@@ -89,7 +89,7 @@ impl<'a> Xc3WriteOffsets for LapsOffsets<'a> {
         }
 
         // Align the file size to 16.
-        let padding = round_up(*data_ptr, 16) - *data_ptr;
+        let padding = data_ptr.next_multiple_of(16) - *data_ptr;
         vec![0u8; padding as usize].xc3_write(writer, data_ptr)?;
 
         Ok(())

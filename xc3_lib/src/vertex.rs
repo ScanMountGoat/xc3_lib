@@ -488,7 +488,7 @@ impl<'a> Xc3WriteOffsets for VertexDataOffsets<'a> {
 
         // The first attribute is aligned to 16.
         // TODO: This doesn't always happen?
-        // *data_ptr = round_up(*data_ptr, 16);
+        // *data_ptr = data_ptr.next_multiple_of(16);
         for vertex_buffer in vertex_buffers.0 {
             vertex_buffer
                 .attributes
