@@ -419,10 +419,9 @@ fn pack_chr_textures(
                 ChrTexTexture {
                     hash,
                     decompressed_size: mid.decompressed_size,
-                    compressed_size: mid.compressed_size.next_multiple_of(16) as u32 + 48 as u32,
+                    compressed_size: mid.compressed_size.next_multiple_of(16) + 48,
                     base_mip_decompressed_size: base_mip.decompressed_size,
-                    base_mip_compressed_size: base_mip.compressed_size.next_multiple_of(16) as u32
-                        + 48,
+                    base_mip_compressed_size: base_mip.compressed_size.next_multiple_of(16) + 48,
                 },
                 ChrTextureStreams {
                     hash,
@@ -477,7 +476,7 @@ fn create_streams(
         // TODO: Should this make sure the xbc1 decompressed data is actually aligned?
         streams.push(Stream {
             compressed_size: xbc1.compressed_stream.len().next_multiple_of(16) as u32 + 48,
-            decompressed_size: xbc1.decompressed_size.next_multiple_of(4096) as u32,
+            decompressed_size: xbc1.decompressed_size.next_multiple_of(4096),
             xbc1_offset,
         });
     }

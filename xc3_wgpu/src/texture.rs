@@ -18,9 +18,18 @@ pub fn create_texture(
 
     // TODO: Not all map textures are a multiple of the block width?
     // TODO: How to handle not being a multiple of the block dimensions?
+    // Always choose a smaller size to avoid indexing out of bounds.
+    let round_dimension = |x: u32, d: u32| {
+        if x <= d {
+            d
+        } else {
+            (x - d).next_multiple_of(d)
+        }
+    };
+
     let (block_width, block_height) = format.block_dimensions();
-    let rounded_width = texture.width.next_multiple_of(block_width);
-    let rounded_height = texture.height.next_multiple_of(block_height);
+    let rounded_width = round_dimension(texture.width, block_width);
+    let rounded_height = round_dimension(texture.height, block_height);
 
     if texture.width % block_width != 0
         || texture.height % block_height != 0
