@@ -229,8 +229,14 @@ pub fn update_wimdo_from_folder(
     // TODO: avoid duplicating logic with xc3_model?
     let mut mxmd = Mxmd::from_file(input).unwrap();
 
-    // TODO: Error if input can not be found or output is not specified if streaming has chr data.
+    let uses_chr = uses_chr_textures(&mxmd);
+
     let chr_tex_nx_input = chr_tex_nx_folder(input_path);
+    if uses_chr && (chr_tex_nx_input.is_none() || chr_tex_nx.is_none()) {
+        panic!(
+            "chr/tex/nx folder argument is required to replace textures for this wimdo and wismt"
+        );
+    }
 
     // We need to repack the entire wismt even though we only modify textures.
     let msrd = Msrd::from_file(input_path.with_extension("wismt")).unwrap();
@@ -258,9 +264,7 @@ pub fn update_wimdo_from_folder(
     }
 
     // Save files to disk.
-    // TODO: Check if the original streaming data uses chr textures.
-    let (new_msrd, chr_textures) =
-        Msrd::from_extracted_files(&vertex, &spch, &textures, chr_tex_nx.is_some());
+    let (new_msrd, chr_textures) = Msrd::from_extracted_files(&vertex, &spch, &textures, uses_chr);
 
     if let Some(chr_tex_nx) = chr_tex_nx {
         if let Some(chr_textures) = chr_textures {
@@ -275,6 +279,18 @@ pub fn update_wimdo_from_folder(
     new_msrd.save(output_path.with_extension("wismt")).unwrap();
 
     count
+}
+
+fn uses_chr_textures(mxmd: &Mxmd) -> bool {
+    if let Some(streaming) = &mxmd.streaming {
+        if let xc3_lib::msrd::StreamingInner::Streaming(data) = &streaming.inner {
+            if data.stream_flags.has_chr_textures() {
+                return true;
+            }
+        }
+    }
+
+    false
 }
 
 fn image_index(path: &Path, input: &str) -> Option<usize> {
@@ -363,12 +379,17 @@ fn extract_dhal(dhal: Dhal, output_folder: &Path, file_name: &std::ffi::OsStr, c
     }
 }
 
-pub fn extract_wimdo_to_folder(_wimdo: Mxmd, input: &Path, output_folder: &Path) -> usize {
+pub fn extract_wimdo_to_folder(mxmd: Mxmd, input: &Path, output_folder: &Path) -> usize {
     let file_name = input.file_name().unwrap();
 
     // TODO: packed mxmd textures.
     // TODO: chr/tex/nx folder as parameter?
     let chr_tex_nx = chr_tex_nx_folder(input);
+    if uses_chr_textures(&mxmd) && chr_tex_nx.is_none() {
+        panic!(
+            "chr/tex/nx folder required by wimdo and wismt but cannot be inferred from input path"
+        );
+    }
 
     let msrd = Msrd::from_file(input.with_extension("wismt")).unwrap();
     let (_, _, textures) = msrd.extract_files(chr_tex_nx.as_deref()).unwrap();
