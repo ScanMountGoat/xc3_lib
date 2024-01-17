@@ -18,3 +18,9 @@ Convert `.wimdo` or `.wismhd` files to `.gltf`. The shader database parameter is
 `xc3_gltf --help`  
 `xc3_gltf "Xeno 2 Dump\map\ma02a.wismhd" export\map.gltf xc2.json`  
 `xc3_gltf "Xeno 3 Dump\chr\ch\ch01027000.wimdo" export\model.gltf xc3.json`    
+
+## Blender Tips
+There are some limitations with using glTF compared to a dedicated importing addon. The following tips may help with minor inconsistencies after importing.
+
+- change Alpha to "Channel Packed" for textures in the Shader Editor if alpha is black in renders
+- set Bone Dir to "Temperance" or "Fortune" in the import settings for cleaner looking armatures
