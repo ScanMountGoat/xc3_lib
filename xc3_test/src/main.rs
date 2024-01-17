@@ -20,7 +20,7 @@ use xc3_lib::{
     mxmd::Mxmd,
     sar1::{ChCl, Csvb, Sar1},
     spch::Spch,
-    xbc1::Xbc1,
+    xbc1::{MaybeXbc1, Xbc1},
 };
 
 #[derive(Parser)]
@@ -183,15 +183,6 @@ fn check_all_mibl<P: AsRef<Path>>(root: P, check_read_write: bool) {
             let mibl = Mibl::from_file(path).unwrap();
             check_mibl(mibl, path, &original_bytes, check_read_write);
         });
-}
-
-#[derive(BinRead)]
-enum MaybeXbc1<T>
-where
-    for<'a> T: BinRead<Args<'a> = ()>,
-{
-    Uncompressed(T),
-    Xbc1(Xbc1),
 }
 
 fn check_maybe_xbc1<T, F>(

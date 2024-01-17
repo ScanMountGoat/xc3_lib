@@ -7,9 +7,12 @@
 //! Decompress the data using [Xbc1::decompress].
 //! If the format for the data is known,
 //! the decompression and reading can be done in a single call using [Xbc1::extract].
-use std::io::{Cursor, Read};
+use std::{
+    io::{Cursor, Read, Seek},
+    path::Path,
+};
 
-use binrw::{BinRead, BinWrite, NullString};
+use binrw::{BinRead, BinReaderExt, BinWrite, NullString};
 use flate2::{bufread::ZlibEncoder, Compression};
 use thiserror::Error;
 use zune_inflate::{DeflateDecoder, DeflateOptions};
@@ -121,4 +124,34 @@ impl Xc3Write for Xbc1 {
     }
 
     const ALIGNMENT: u64 = 16;
+}
+
+/// Helper type for reading data that may be compressed in an [Xbc1] archive.
+#[derive(BinRead)]
+pub enum MaybeXbc1<T>
+where
+    for<'a> T: BinRead<Args<'a> = ()>,
+{
+    Uncompressed(T),
+    Xbc1(Xbc1),
+}
+
+impl<T> MaybeXbc1<T>
+where
+    for<'a> T: BinRead<Args<'a> = ()>,
+{
+    pub fn read<R: Read + Seek>(reader: &mut R) -> binrw::BinResult<Self> {
+        reader.read_le().map_err(Into::into)
+    }
+
+    /// Read from `path` using a fully buffered reader for performance.
+    pub fn from_file<P: AsRef<Path>>(path: P) -> binrw::BinResult<Self> {
+        let mut reader = Cursor::new(std::fs::read(path)?);
+        reader.read_le().map_err(Into::into)
+    }
+
+    /// Read from `bytes` using a fully buffered reader for performance.
+    pub fn from_bytes<B: AsRef<[u8]>>(bytes: B) -> binrw::BinResult<Self> {
+        Self::read(&mut Cursor::new(bytes))
+    }
 }
