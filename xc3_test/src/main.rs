@@ -319,12 +319,6 @@ fn check_msmd(msmd: Msmd, path: &Path, _original_bytes: &[u8], check_read_write:
         }
     }
 
-    for texture in msmd.textures {
-        // TODO: Test combining mid and high files?
-        texture.mid.extract(&mut reader, compressed).unwrap();
-        // texture.high.extract(&mut reader, compressed);
-    }
-
     for (i, model) in msmd.foliage_models.iter().enumerate() {
         match model.entry.extract(&mut reader, compressed) {
             Ok(model) => {
