@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## unreleased
+## 0.4.0 - 2024-01-17
 ### Added
 * Added support for Xenoblade 3 `chr/tex/nx` textures for unpacking and packing Msrd files.
 * Added rendering support for culling to xc3_wgpu.
@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 * Renamed `write_to_file` methods to `save` for all relevant types.
 * Improved accuracy of file rebuilding.
-* Adjusted output of xc3_tex commands to display runtime and converted file count.
+* Adjusted output of xc3_tex commands to display elapsed time and converted file count.
 * Adjusted wilay saving in xc3_tex to use xbc1 compression if present in the original file.
 
 ## 0.3.0 - 2023-12-23
