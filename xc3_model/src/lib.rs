@@ -317,81 +317,99 @@ pub fn load_model<P: AsRef<Path>>(
 ) -> ModelRoot {
     let wimdo_path = wimdo_path.as_ref();
 
-    let mxmd = Mxmd::from_file(wimdo_path).unwrap_or_else(|e| {
-        warn!("Failed to read Mxmd: {e}. Trying Apmd.");
-        // Some wimdo files have the mxmd in an archive.
-        // TODO: This may fail.
-        Apmd::from_file(wimdo_path)
-            .unwrap()
-            .entries
-            .iter()
-            .find_map(|e| {
-                if let Ok(xc3_lib::apmd::EntryData::Mxmd(mxmd)) = e.read_data() {
-                    Some(mxmd)
-                } else {
-                    None
-                }
-            })
-            .unwrap()
-    });
+    // TODO: Create dedicated error types
+    match load_wimdo(wimdo_path) {
+        Some(mxmd) => {
+            // TODO: Avoid unwrap.
+            let chr_tex_folder = chr_tex_nx_folder(wimdo_path);
 
-    // TODO: Avoid unwrap.
-    let chr_tex_folder = chr_tex_nx_folder(wimdo_path);
+            // Desktop PC models aren't used in game but are straightforward to support.
+            let is_pc = wimdo_path.extension().and_then(|e| e.to_str()) == Some("pcmdo");
+            let wismt_path = if is_pc {
+                wimdo_path.with_extension("pcsmt")
+            } else {
+                wimdo_path.with_extension("wismt")
+            };
+            let streaming_data =
+                load_streaming_data(&mxmd, &wismt_path, is_pc, chr_tex_folder.as_deref());
 
-    // Desktop PC models aren't used in game but are straightforward to support.
-    let is_pc = wimdo_path.extension().and_then(|e| e.to_str()) == Some("pcmdo");
-    let wismt_path = if is_pc {
-        wimdo_path.with_extension("pcsmt")
-    } else {
-        wimdo_path.with_extension("wismt")
-    };
-    let streaming_data = load_streaming_data(&mxmd, &wismt_path, is_pc, chr_tex_folder.as_deref());
+            let image_textures = load_textures(&streaming_data.textures);
 
-    let image_textures = load_textures(&streaming_data.textures);
+            let model_name = model_name(wimdo_path);
+            let spch = shader_database.and_then(|database| database.files.get(&model_name));
 
-    let model_name = model_name(wimdo_path);
-    let spch = shader_database.and_then(|database| database.files.get(&model_name));
+            // TODO: Does every wimdo have a chr file?
+            // TODO: Does something control the chr name used?
+            let chr = Sar1::from_file(wimdo_path.with_extension("chr"))
+                .ok()
+                .or_else(|| Sar1::from_file(wimdo_path.with_extension("arc")).ok())
+                .or_else(|| {
+                    // Keep trying with more 0's at the end to match in game naming conventions.
+                    // XC1: pc010101.wimdo -> pc010000.chr.
+                    // XC3: ch01012013.wimdo -> ch01012010.chr.
+                    (0..model_name.len()).find_map(|i| {
+                        let mut chr_name = model_name.clone();
+                        chr_name.replace_range(chr_name.len() - i.., &"0".repeat(i));
+                        let chr_path = wimdo_path.with_file_name(chr_name).with_extension("chr");
+                        Sar1::from_file(chr_path).ok()
+                    })
+                });
 
-    // TODO: Does every wimdo have a chr file?
-    // TODO: Does something control the chr name used?
-    let chr = Sar1::from_file(wimdo_path.with_extension("chr"))
+            if mxmd.models.skinning.is_some() && chr.is_none() {
+                error!("Failed to load .arc or .chr skeleton for model with vertex skinning.");
+            }
+
+            let skeleton = create_skeleton(chr.as_ref(), mxmd.models.skinning.as_ref());
+
+            let (vertex_buffers, weights) =
+                read_vertex_buffers(&streaming_data.vertex, mxmd.models.skinning.as_ref());
+            let index_buffers = read_index_buffers(&streaming_data.vertex);
+
+            let models = Models::from_models(&mxmd.models, &mxmd.materials, spch, skeleton);
+
+            ModelRoot {
+                groups: vec![ModelGroup {
+                    models: vec![models],
+                    buffers: vec![ModelBuffers {
+                        vertex_buffers,
+                        index_buffers,
+                        weights,
+                    }],
+                }],
+                image_textures,
+            }
+        }
+        None => ModelRoot {
+            groups: Vec::new(),
+            image_textures: Vec::new(),
+        },
+    }
+}
+
+fn load_wimdo(wimdo_path: &Path) -> Option<Mxmd> {
+    // TODO: return an error type instead of logging errors.
+    Mxmd::from_file(wimdo_path)
+        .map_err(|e| {
+            warn!("Failed to read Mxmd: {e}. Trying Apmd.");
+
+            e
+        })
         .ok()
-        .or_else(|| Sar1::from_file(wimdo_path.with_extension("arc")).ok())
         .or_else(|| {
-            // Keep trying with more 0's at the end to match in game naming conventions.
-            // XC1: pc010101.wimdo -> pc010000.chr.
-            // XC3: ch01012013.wimdo -> ch01012010.chr.
-            (0..model_name.len()).find_map(|i| {
-                let mut chr_name = model_name.clone();
-                chr_name.replace_range(chr_name.len() - i.., &"0".repeat(i));
-                let chr_path = wimdo_path.with_file_name(chr_name).with_extension("chr");
-                Sar1::from_file(chr_path).ok()
-            })
-        });
-
-    if mxmd.models.skinning.is_some() && chr.is_none() {
-        error!("Failed to load .arc or .chr skeleton for model with vertex skinning.");
-    }
-
-    let skeleton = create_skeleton(chr.as_ref(), &mxmd);
-
-    let (vertex_buffers, weights) =
-        read_vertex_buffers(&streaming_data.vertex, mxmd.models.skinning.as_ref());
-    let index_buffers = read_index_buffers(&streaming_data.vertex);
-
-    let models = Models::from_models(&mxmd.models, &mxmd.materials, spch, skeleton);
-
-    ModelRoot {
-        groups: vec![ModelGroup {
-            models: vec![models],
-            buffers: vec![ModelBuffers {
-                vertex_buffers,
-                index_buffers,
-                weights,
-            }],
-        }],
-        image_textures,
-    }
+            // Some wimdo files have the mxmd in an archive.
+            // TODO: This may fail.
+            Apmd::from_file(wimdo_path)
+                .unwrap()
+                .entries
+                .iter()
+                .find_map(|e| {
+                    if let Ok(xc3_lib::apmd::EntryData::Mxmd(mxmd)) = e.read_data() {
+                        Some(mxmd)
+                    } else {
+                        None
+                    }
+                })
+        })
 }
 
 // Use Cow::Borrowed to avoid copying data embedded in the mxmd.
@@ -508,7 +526,10 @@ fn create_samplers(materials: &Materials) -> Vec<Sampler> {
         .unwrap_or_default()
 }
 
-fn create_skeleton(chr: Option<&Sar1>, mxmd: &Mxmd) -> Option<Skeleton> {
+fn create_skeleton(
+    chr: Option<&Sar1>,
+    skinning: Option<&xc3_lib::mxmd::Skinning>,
+) -> Option<Skeleton> {
     // Merge both skeletons since the bone lists may be different.
     // TODO: Create a skeleton even without the chr?
     let skel = chr?
@@ -522,10 +543,7 @@ fn create_skeleton(chr: Option<&Sar1>, mxmd: &Mxmd) -> Option<Skeleton> {
             _ => None,
         })?;
 
-    Some(Skeleton::from_skel(
-        &skel.skeleton,
-        mxmd.models.skinning.as_ref()?,
-    ))
+    Some(Skeleton::from_skel(&skel.skeleton, skinning?))
 }
 
 // TODO: Move this to xc3_shader?

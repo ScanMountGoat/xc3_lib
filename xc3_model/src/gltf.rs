@@ -276,7 +276,7 @@ impl GltfFile {
         let images = texture_cache
             .generate_images()
             .into_iter()
-            .map(|(key, image)| (image_name(&key, model_name), image.unwrap()))
+            .map(|(key, image)| (image_name(&key, model_name), image))
             .collect();
 
         Self {

@@ -160,14 +160,11 @@ impl TextureCache {
             texture.low_textures_entry_index,
             texture.texture_index,
         );
-        match self.texture_to_image_texture_index.get(&key) {
-            Some(index) => *index,
-            None => {
-                let next_index = self.texture_to_image_texture_index.len();
-                self.texture_to_image_texture_index.insert(key, next_index);
-                next_index
-            }
-        }
+        let new_index = self.texture_to_image_texture_index.len();
+        *self
+            .texture_to_image_texture_index
+            .entry(key)
+            .or_insert(new_index)
     }
 
     fn get_low_texture(&self, entry_index: i16, index: i16) -> Option<&(TextureUsage, Mibl)> {
@@ -195,8 +192,9 @@ impl TextureCache {
                         ImageTexture::from_mibl(mibl, None, low.map(|l| l.0)).unwrap()
                     } else {
                         // TODO: What do do if both indices are negative?
-                        error!("No mibl for texture: {low_texture_index}, {low_textures_entry_index}, {texture_index}");
-                        todo!()
+                        error!("No mibl for low: {low_texture_index}, low entry: {low_textures_entry_index}, high: {texture_index}");
+                        let (usage, mibl) = self.get_low_texture(0, 0).unwrap();
+                        ImageTexture::from_mibl(mibl, None, Some(*usage)).unwrap()
                     }
                 },
             )

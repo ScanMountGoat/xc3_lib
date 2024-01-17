@@ -18,6 +18,7 @@ pub struct GeneratedImageKey {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ImageIndex {
     pub image_texture: usize,
+    // TODO: This shouldn't be part of the generated images.
     pub sampler: usize,
     pub channel: usize,
 }
@@ -68,11 +69,11 @@ impl TextureCache {
         }
     }
 
-    pub fn generate_images(&self) -> Vec<(GeneratedImageKey, Option<RgbaImage>)> {
+    pub fn generate_images(&self) -> Vec<(GeneratedImageKey, RgbaImage)> {
         self.generated_texture_indices
             .par_iter()
             .map(|(key, _)| {
-                let image = generate_image(*key, &self.original_images);
+                let image = generate_image(*key, &self.original_images).unwrap();
                 (*key, image)
             })
             .collect()

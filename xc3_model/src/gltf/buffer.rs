@@ -31,6 +31,7 @@ pub struct BufferKey {
     pub buffer_index: usize,
 }
 
+// TODO: Use the start index to adjust the buffer offset instead?
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct WeightGroupKey {
     pub weights_start_index: usize,

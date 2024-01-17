@@ -41,7 +41,6 @@ pub fn create_shader_database(input: &str) -> ShaderDatabase {
     // Sort to make the output consistent.
     let mut folders: Vec<_> = std::fs::read_dir(input)
         .unwrap()
-        .into_iter()
         .map(|e| e.unwrap().path())
         .collect();
     folders.sort();
@@ -51,7 +50,7 @@ pub fn create_shader_database(input: &str) -> ShaderDatabase {
         .filter_map(|folder| {
             // TODO: Find a better way to detect maps.
             if !folder.join("map").exists() {
-                let programs = create_shader_programs(&folder);
+                let programs = create_shader_programs(folder);
 
                 let file = folder.file_name().unwrap().to_string_lossy().to_string();
                 Some((file, Spch { programs }))
@@ -125,7 +124,7 @@ fn create_shader_programs(folder: &Path) -> Vec<ShaderProgram> {
         .filter_map(|path| {
             let source = std::fs::read_to_string(path).unwrap();
             let modified_source = shader_source_no_extensions(&source);
-            match TranslationUnit::parse(&modified_source) {
+            match TranslationUnit::parse(modified_source) {
                 Ok(translation_unit) => Some(
                     // TODO: Add FS0 and FS1 to the same program?
                     ShaderProgram {
