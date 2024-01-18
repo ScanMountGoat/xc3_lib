@@ -9,7 +9,7 @@ xc3_model = { path = "../xc3_model" }
 wgpu = "0.18.0"
 futures = "0.3.27"
 futures-intrusive = "0.4.0"
-globwalk = "0.8.1"
+globwalk = "0.9.1"
 log = "0.4.19"
 simple_logger = "4.2.0"
 image = "0.24.5"
