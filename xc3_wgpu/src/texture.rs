@@ -76,6 +76,7 @@ pub fn create_texture(
             usage: wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         },
+        wgpu::util::TextureDataOrder::LayerMajor,
         &data,
     )
 }
@@ -108,6 +109,7 @@ pub fn create_default_black_texture(device: &wgpu::Device, queue: &wgpu::Queue) 
             usage: wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         },
+        wgpu::util::TextureDataOrder::LayerMajor,
         &[0u8; 4 * 4 * 4],
     )
 }

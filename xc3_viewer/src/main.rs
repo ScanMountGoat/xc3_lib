@@ -24,8 +24,8 @@ const FOV_Y: f32 = 0.5;
 const Z_NEAR: f32 = 0.1;
 const Z_FAR: f32 = 100000.0;
 
-struct State {
-    surface: wgpu::Surface,
+struct State<'a> {
+    surface: wgpu::Surface<'a>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     size: winit::dpi::PhysicalSize<u32>,
@@ -56,9 +56,9 @@ struct InputState {
     previous_cursor_position: PhysicalPosition<f64>,
 }
 
-impl State {
+impl<'a> State<'a> {
     async fn new(
-        window: &Window,
+        window: &'a Window,
         model_path: &str,
         anim_path: Option<&String>,
         animation_index: usize,
@@ -68,7 +68,7 @@ impl State {
             backends: wgpu::Backends::all(),
             ..Default::default()
         });
-        let surface = unsafe { instance.create_surface(window).unwrap() };
+        let surface = instance.create_surface(window).unwrap();
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::HighPerformance,
@@ -83,8 +83,8 @@ impl State {
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: None,
-                    features: xc3_wgpu::FEATURES,
-                    limits: wgpu::Limits::default(),
+                    required_features: xc3_wgpu::FEATURES,
+                    required_limits: wgpu::Limits::default(),
                 },
                 None,
             )
@@ -100,6 +100,7 @@ impl State {
             present_mode: wgpu::PresentMode::Fifo,
             alpha_mode: wgpu::CompositeAlphaMode::Auto,
             view_formats: Vec::new(),
+            desired_maximum_frame_latency: 2,
         };
         surface.configure(&device, &config);
 
@@ -450,7 +451,7 @@ fn main() {
         cli.database.as_ref(),
     ));
     event_loop
-        .run(move |event, target| match event {
+        .run(|event, target| match event {
             Event::WindowEvent {
                 ref event,
                 window_id,

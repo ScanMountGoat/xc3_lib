@@ -62,8 +62,8 @@ fn main() {
     let (device, queue) = block_on(adapter.request_device(
         &wgpu::DeviceDescriptor {
             label: None,
-            features: wgpu::Features::TEXTURE_COMPRESSION_BC,
-            limits: wgpu::Limits::default(),
+            required_features: wgpu::Features::TEXTURE_COMPRESSION_BC,
+            required_limits: wgpu::Limits::default(),
         },
         None,
     ))
