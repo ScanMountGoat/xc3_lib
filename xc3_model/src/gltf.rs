@@ -38,7 +38,7 @@ impl GltfFile {
         let (materials, material_indices, textures, samplers) =
             create_materials(roots, &mut texture_cache);
 
-        let mut buffers = Buffers::new(roots);
+        let mut buffers = Buffers::default();
 
         let mut meshes = Vec::new();
         let mut nodes = Vec::new();
@@ -71,18 +71,18 @@ impl GltfFile {
                                 && !material.name.ends_with("_outline")
                                 && !material.name.contains("_speff_")
                             {
-                                let attributes_key = BufferKey {
-                                    root_index,
-                                    group_index,
-                                    buffers_index: model.model_buffers_index,
-                                    buffer_index: mesh.vertex_buffer_index,
-                                };
-                                // TODO: lazy load attributes and indices as well?
-                                let mut attributes = buffers
-                                    .vertex_buffer_attributes
-                                    .get(&attributes_key)
-                                    .unwrap()
+                                // Lazy load vertex buffers since not all are unused.
+                                // TODO: How expensive is this clone?
+                                let vertex_buffer = buffers
+                                    .insert_vertex_buffer(
+                                        &model_buffers.vertex_buffers[mesh.vertex_buffer_index],
+                                        root_index,
+                                        group_index,
+                                        model.model_buffers_index,
+                                        mesh.vertex_buffer_index,
+                                    )
                                     .clone();
+                                let mut attributes = vertex_buffer.attributes.clone();
 
                                 // Load skinning attributes separately to handle per mesh indexing.
                                 let weights_start_index = model_buffers
@@ -102,7 +102,12 @@ impl GltfFile {
                                     models.skeleton.as_ref(),
                                     WeightGroupKey {
                                         weights_start_index,
-                                        buffer: attributes_key,
+                                        buffer: BufferKey {
+                                            root_index,
+                                            group_index,
+                                            buffers_index: model.model_buffers_index,
+                                            buffer_index: mesh.vertex_buffer_index,
+                                        },
                                     },
                                 ) {
                                     attributes.insert(
@@ -115,16 +120,14 @@ impl GltfFile {
                                     );
                                 }
 
-                                // TODO: lazy load vertex indices?
-                                let indices_key = BufferKey {
+                                // Lazy load index buffers since not all are unused.
+                                let index_accessor = buffers.insert_index_buffer(
+                                    &model_buffers.index_buffers[mesh.index_buffer_index],
                                     root_index,
                                     group_index,
-                                    buffers_index: model.model_buffers_index,
-                                    buffer_index: mesh.index_buffer_index,
-                                };
-                                let index_accessor =
-                                    *buffers.index_buffer_accessors.get(&indices_key).unwrap()
-                                        as u32;
+                                    model.model_buffers_index,
+                                    mesh.index_buffer_index,
+                                ) as u32;
 
                                 let material_index = material_indices
                                     .get(&MaterialKey {
@@ -135,7 +138,7 @@ impl GltfFile {
                                     })
                                     .unwrap();
 
-                                let targets = morph_targets(&buffers, attributes_key);
+                                let targets = morph_targets(&vertex_buffer);
                                 // The first target is baked into vertices, so don't set weights.
                                 let weights =
                                     targets.as_ref().map(|targets| vec![0.0; targets.len()]);
@@ -236,7 +239,7 @@ impl GltfFile {
             }
         }
 
-        // The texture assume the images are in ascending order by index.
+        // The textures assume the images are in ascending order by index.
         // The texture cache already preserves insertion order.
         let mut images = Vec::new();
         for key in texture_cache.generated_texture_indices.keys() {
@@ -321,19 +324,23 @@ impl GltfFile {
 }
 
 fn morph_targets(
-    buffers: &Buffers,
-    attributes_key: BufferKey,
+    vertex_buffer: &buffer::VertexBuffer,
 ) -> Option<Vec<gltf::json::mesh::MorphTarget>> {
-    buffers.morph_targets.get(&attributes_key).map(|targets| {
-        targets
-            .iter()
-            .map(|attributes| gltf::json::mesh::MorphTarget {
-                positions: attributes.get(&Valid(gltf::Semantic::Positions)).copied(),
-                normals: attributes.get(&Valid(gltf::Semantic::Normals)).copied(),
-                tangents: attributes.get(&Valid(gltf::Semantic::Tangents)).copied(),
-            })
-            .collect()
-    })
+    if !vertex_buffer.morph_targets.is_empty() {
+        Some(
+            vertex_buffer
+                .morph_targets
+                .iter()
+                .map(|attributes| gltf::json::mesh::MorphTarget {
+                    positions: attributes.get(&Valid(gltf::Semantic::Positions)).copied(),
+                    normals: attributes.get(&Valid(gltf::Semantic::Normals)).copied(),
+                    tangents: attributes.get(&Valid(gltf::Semantic::Tangents)).copied(),
+                })
+                .collect(),
+        )
+    } else {
+        None
+    }
 }
 
 fn create_skin(

@@ -3,7 +3,7 @@ use std::{
     io::{Cursor, Seek, Write},
 };
 
-use crate::{vertex::AttributeData, ModelRoot};
+use crate::vertex::AttributeData;
 use binrw::BinWrite;
 use glam::{Mat4, Vec2, Vec3, Vec4, Vec4Swizzles};
 use gltf::{
@@ -45,10 +45,16 @@ pub struct Buffers {
     pub buffer_views: Vec<gltf::json::buffer::View>,
     pub accessors: Vec<gltf::json::Accessor>,
 
-    pub vertex_buffer_attributes: BTreeMap<BufferKey, GltfAttributes>,
-    pub morph_targets: BTreeMap<BufferKey, Vec<GltfAttributes>>,
+    pub vertex_buffers: BTreeMap<BufferKey, VertexBuffer>,
     pub index_buffer_accessors: BTreeMap<BufferKey, usize>,
     pub weight_groups: BTreeMap<WeightGroupKey, WeightGroup>,
+}
+
+// TODO: Also store weights here?
+#[derive(Clone)]
+pub struct VertexBuffer {
+    pub attributes: GltfAttributes,
+    pub morph_targets: Vec<GltfAttributes>,
 }
 
 pub struct WeightGroup {
@@ -57,121 +63,85 @@ pub struct WeightGroup {
 }
 
 impl Buffers {
-    pub fn new(roots: &[ModelRoot]) -> Self {
-        let mut combined_buffers = Buffers::default();
-
-        // TODO: lazy loading for all buffers?
-        for (root_index, root) in roots.iter().enumerate() {
-            for (group_index, group) in root.groups.iter().enumerate() {
-                for (buffers_index, buffers) in group.buffers.iter().enumerate() {
-                    // TODO: How to handle buffers shared between multiple skeletons?
-                    combined_buffers.add_vertex_buffers(
-                        buffers,
-                        root_index,
-                        group_index,
-                        buffers_index,
-                    );
-
-                    // Place indices after the vertices to use a single buffer.
-                    // TODO: Alignment?
-                    combined_buffers.add_index_buffers(
-                        buffers,
-                        root_index,
-                        group_index,
-                        buffers_index,
-                    );
-                }
-            }
-        }
-
-        combined_buffers
-    }
-
-    fn add_vertex_buffers(
+    pub fn insert_vertex_buffer(
         &mut self,
-        buffers: &crate::ModelBuffers,
+        vertex_buffer: &crate::VertexBuffer,
         root_index: usize,
         group_index: usize,
         buffers_index: usize,
-    ) {
-        for (i, vertex_buffer) in buffers.vertex_buffers.iter().enumerate() {
+        buffer_index: usize,
+    ) -> &VertexBuffer {
+        let key = BufferKey {
+            root_index,
+            group_index,
+            buffers_index,
+            buffer_index,
+        };
+        if !self.vertex_buffers.contains_key(&key) {
             // Assume the base morph target is already applied.
             let mut attributes = BTreeMap::new();
             self.add_attributes(&mut attributes, &vertex_buffer.attributes);
 
             // Morph targets have their own attribute data.
-            if !vertex_buffer.morph_targets.is_empty() {
-                let targets: Vec<_> = vertex_buffer
-                    .morph_targets
-                    .iter()
-                    .map(|target| {
-                        // Convert from a sparse to a dense representation.
-                        let vertex_count = vertex_buffer.attributes[0].len();
-                        let mut position_deltas = vec![Vec3::ZERO; vertex_count];
-                        let mut normal_deltas = vec![Vec3::ZERO; vertex_count];
-                        let mut tangent_deltas = vec![Vec3::ZERO; vertex_count];
-                        for (i, vertex_index) in target.vertex_indices.iter().enumerate() {
-                            position_deltas[*vertex_index as usize] = target.position_deltas[i];
-                            normal_deltas[*vertex_index as usize] = target.normal_deltas[i].xyz();
-                            tangent_deltas[*vertex_index as usize] = target.tangent_deltas[i].xyz();
-                        }
+            let morph_targets: Vec<_> = vertex_buffer
+                .morph_targets
+                .iter()
+                .map(|target| {
+                    // Convert from a sparse to a dense representation.
+                    let vertex_count = vertex_buffer.attributes[0].len();
+                    let mut position_deltas = vec![Vec3::ZERO; vertex_count];
+                    let mut normal_deltas = vec![Vec3::ZERO; vertex_count];
+                    let mut tangent_deltas = vec![Vec3::ZERO; vertex_count];
+                    for (i, vertex_index) in target.vertex_indices.iter().enumerate() {
+                        position_deltas[*vertex_index as usize] = target.position_deltas[i];
+                        normal_deltas[*vertex_index as usize] = target.normal_deltas[i].xyz();
+                        tangent_deltas[*vertex_index as usize] = target.tangent_deltas[i].xyz();
+                    }
 
-                        // glTF morph targets are defined as a difference with the base target.
-                        let mut attributes = attributes.clone();
-                        self.insert_attribute_values(
-                            &position_deltas,
-                            gltf::Semantic::Positions,
-                            gltf::json::accessor::Type::Vec3,
-                            gltf::json::accessor::ComponentType::F32,
-                            Some(Valid(Target::ArrayBuffer)),
-                            &mut attributes,
-                        );
+                    // glTF morph targets are defined as a difference with the base target.
+                    let mut attributes = attributes.clone();
+                    self.insert_attribute_values(
+                        &position_deltas,
+                        gltf::Semantic::Positions,
+                        gltf::json::accessor::Type::Vec3,
+                        gltf::json::accessor::ComponentType::F32,
+                        Some(Valid(Target::ArrayBuffer)),
+                        &mut attributes,
+                    );
 
-                        // Normals and tangents also use deltas.
-                        // These should use Vec3 to avoid displacing the sign in tangent.w.
-                        self.insert_attribute_values(
-                            &normal_deltas,
-                            gltf::Semantic::Normals,
-                            gltf::json::accessor::Type::Vec3,
-                            gltf::json::accessor::ComponentType::F32,
-                            Some(Valid(Target::ArrayBuffer)),
-                            &mut attributes,
-                        );
+                    // Normals and tangents also use deltas.
+                    // These should use Vec3 to avoid displacing the sign in tangent.w.
+                    self.insert_attribute_values(
+                        &normal_deltas,
+                        gltf::Semantic::Normals,
+                        gltf::json::accessor::Type::Vec3,
+                        gltf::json::accessor::ComponentType::F32,
+                        Some(Valid(Target::ArrayBuffer)),
+                        &mut attributes,
+                    );
 
-                        self.insert_attribute_values(
-                            &tangent_deltas,
-                            gltf::Semantic::Tangents,
-                            gltf::json::accessor::Type::Vec3,
-                            gltf::json::accessor::ComponentType::F32,
-                            Some(Valid(Target::ArrayBuffer)),
-                            &mut attributes,
-                        );
+                    self.insert_attribute_values(
+                        &tangent_deltas,
+                        gltf::Semantic::Tangents,
+                        gltf::json::accessor::Type::Vec3,
+                        gltf::json::accessor::ComponentType::F32,
+                        Some(Valid(Target::ArrayBuffer)),
+                        &mut attributes,
+                    );
 
-                        attributes
-                    })
-                    .collect();
+                    attributes
+                })
+                .collect();
 
-                self.morph_targets.insert(
-                    BufferKey {
-                        root_index,
-                        group_index,
-                        buffers_index,
-                        buffer_index: i,
-                    },
-                    targets,
-                );
-            }
-
-            self.vertex_buffer_attributes.insert(
-                BufferKey {
-                    root_index,
-                    group_index,
-                    buffers_index,
-                    buffer_index: i,
+            self.vertex_buffers.insert(
+                key,
+                VertexBuffer {
+                    attributes,
+                    morph_targets,
                 },
-                attributes,
             );
         }
+        self.vertex_buffers.get(&key).unwrap()
     }
 
     pub fn insert_weight_group(
@@ -403,14 +373,21 @@ impl Buffers {
         }
     }
 
-    fn add_index_buffers(
+    pub fn insert_index_buffer(
         &mut self,
-        buffers: &crate::ModelBuffers,
+        index_buffer: &crate::IndexBuffer,
         root_index: usize,
         group_index: usize,
         buffers_index: usize,
-    ) {
-        for (i, index_buffer) in buffers.index_buffers.iter().enumerate() {
+        buffer_index: usize,
+    ) -> usize {
+        let key = BufferKey {
+            root_index,
+            group_index,
+            buffers_index,
+            buffer_index,
+        };
+        if !self.index_buffer_accessors.contains_key(&key) {
             let index_bytes = write_bytes(&index_buffer.indices);
 
             // Assume everything uses the same buffer for now.
@@ -446,7 +423,7 @@ impl Buffers {
                     root_index,
                     group_index,
                     buffers_index,
-                    buffer_index: i,
+                    buffer_index,
                 },
                 self.accessors.len(),
             );
@@ -455,6 +432,8 @@ impl Buffers {
             self.buffer_views.push(view);
             self.buffer_bytes.extend_from_slice(&index_bytes);
         }
+
+        *self.index_buffer_accessors.get(&key).unwrap()
     }
 
     pub fn insert_attribute_values<T: WriteBytes>(
