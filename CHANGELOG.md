@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### unreleased
 ### Changed
 * Optimized glTF file sizes by only including referenced vertex buffers.
+* Reduced memory usage and improved export times for glTF conversion.
 
 ### 0.4.1 - 2024-01-18
 ### Fixed

@@ -23,7 +23,9 @@ pub struct GltfFile {
     pub root: gltf::json::Root,
     pub buffer_name: String,
     pub buffer: Vec<u8>,
-    pub images: Vec<(String, image_dds::image::RgbaImage)>,
+    // These have to be png or jpeg anyway.
+    // Use PNG instead of RgbaImage to losslessly reduce memory usage.
+    pub png_images: Vec<(String, Vec<u8>)>,
 }
 
 impl GltfFile {
@@ -283,17 +285,13 @@ impl GltfFile {
             ..Default::default()
         };
 
-        let images = texture_cache
-            .generate_images()
-            .into_iter()
-            .map(|(key, image)| (image_name(&key, model_name), image))
-            .collect();
+        let png_images = texture_cache.generate_png_images(model_name);
 
         Self {
             root,
             buffer_name,
             buffer: buffers.buffer_bytes,
-            images,
+            png_images,
         }
     }
 
@@ -316,9 +314,9 @@ impl GltfFile {
         std::fs::write(path.with_file_name(&self.buffer_name), &self.buffer).unwrap();
 
         // Save images in parallel since PNG encoding is CPU intensive.
-        self.images.par_iter().for_each(|(name, image)| {
+        self.png_images.par_iter().for_each(|(name, image)| {
             let output = path.with_file_name(name);
-            image.save(output).unwrap();
+            std::fs::write(output, image).unwrap();
         });
     }
 }

@@ -1,5 +1,5 @@
 use crate::ModelRoot;
-use image_dds::image::RgbaImage;
+use image_dds::image::{codecs::png::PngEncoder, RgbaImage};
 use indexmap::IndexMap;
 use rayon::prelude::*;
 
@@ -69,12 +69,20 @@ impl TextureCache {
         }
     }
 
-    pub fn generate_images(&self) -> Vec<(GeneratedImageKey, RgbaImage)> {
+    pub fn generate_png_images(&self, model_name: &str) -> Vec<(String, Vec<u8>)> {
         self.generated_texture_indices
             .par_iter()
             .map(|(key, _)| {
                 let image = generate_image(*key, &self.original_images).unwrap();
-                (*key, image)
+
+                // Compress ahead of time to reduce memory usage.
+                // The final results will need to be saved as PNG anyway.
+                let mut png_bytes = Vec::new();
+                let encoder = PngEncoder::new(&mut png_bytes);
+                image.write_with_encoder(encoder).unwrap();
+
+                let name = image_name(&key, model_name);
+                (name, png_bytes)
             })
             .collect()
     }
@@ -300,6 +308,7 @@ pub fn image_name(key: &GeneratedImageKey, model_name: &str) -> String {
     {
         name += &format!("_a{image_texture_index}[{channel_index}]");
     }
+    // Use PNG since it's lossless and widely supported.
     name + ".png"
 }
 
