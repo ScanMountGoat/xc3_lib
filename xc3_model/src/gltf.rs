@@ -9,7 +9,7 @@ use gltf::json::validation::Checked::Valid;
 use rayon::prelude::*;
 
 use self::{
-    buffer::{BufferKey, Buffers, WeightGroup, WeightGroupKey},
+    buffer::{BufferKey, Buffers, WeightGroupKey},
     material::{create_materials, MaterialKey},
     texture::{image_name, TextureCache},
 };
@@ -40,7 +40,6 @@ impl GltfFile {
 
         let mut buffers = Buffers::new(roots);
 
-        // TODO: select by LOD and skip outline meshes?
         let mut meshes = Vec::new();
         let mut nodes = Vec::new();
         let mut scene_nodes = Vec::new();
@@ -62,9 +61,11 @@ impl GltfFile {
                     for model in &models.models {
                         let mut children = Vec::new();
 
+                        let model_buffers = &group.buffers[model.model_buffers_index];
+
                         for mesh in &model.meshes {
                             // TODO: Make LOD selection configurable?
-                            // TODO: Why do these materials have weight issues?
+                            // TODO: Add an option to export all material passes?
                             let material = &models.materials[mesh.material_index];
                             if should_render_lod(mesh.lod, &models.base_lod_indices)
                                 && !material.name.ends_with("_outline")
@@ -76,6 +77,7 @@ impl GltfFile {
                                     buffers_index: model.model_buffers_index,
                                     buffer_index: mesh.vertex_buffer_index,
                                 };
+                                // TODO: lazy load attributes and indices as well?
                                 let mut attributes = buffers
                                     .vertex_buffer_attributes
                                     .get(&attributes_key)
@@ -83,15 +85,25 @@ impl GltfFile {
                                     .clone();
 
                                 // Load skinning attributes separately to handle per mesh indexing.
-                                // TODO: This doesn't work for outline and speff materials?
-                                if let Some(weight_group) = get_weight_group(
-                                    &mut buffers,
+                                let weights_start_index = model_buffers
+                                    .weights
+                                    .as_ref()
+                                    .map(|w| {
+                                        w.weights_start_index(
+                                            mesh.skin_flags,
+                                            mesh.lod,
+                                            material.unk_type,
+                                        )
+                                    })
+                                    .unwrap_or_default();
+
+                                if let Some(weight_group) = buffers.insert_weight_group(
+                                    model_buffers,
                                     models.skeleton.as_ref(),
-                                    attributes_key,
-                                    group,
-                                    models,
-                                    model,
-                                    mesh,
+                                    WeightGroupKey {
+                                        weights_start_index,
+                                        buffer: attributes_key,
+                                    },
                                 ) {
                                     attributes.insert(
                                         weight_group.weights.0.clone(),
@@ -103,6 +115,7 @@ impl GltfFile {
                                     );
                                 }
 
+                                // TODO: lazy load vertex indices?
                                 let indices_key = BufferKey {
                                     root_index,
                                     group_index,
@@ -137,50 +150,44 @@ impl GltfFile {
                                     targets,
                                 };
 
-                                // TODO: Add an option to export all material passes?
-                                let material_name = materials[*material_index].name.clone();
-                                if !matches!(&material_name, Some(n) if n.contains("_speff_") || n.contains("_outline"))
-                                {
-                                    // Assign one primitive per mesh to create distinct objects in applications.
-                                    // In game meshes aren't named, so just use the material name.
-                                    let mesh = gltf::json::Mesh {
+                                // Assign one primitive per mesh to create distinct objects in applications.
+                                // In game meshes aren't named, so just use the material name.
+                                let mesh = gltf::json::Mesh {
+                                    extensions: Default::default(),
+                                    extras: Default::default(),
+                                    name: Some(material.name.clone()),
+                                    primitives: vec![primitive],
+                                    weights,
+                                };
+                                let mesh_index = meshes.len() as u32;
+                                meshes.push(mesh);
+
+                                // Instancing is applied at the model level.
+                                // Instance meshes instead so each node has only one parent.
+                                // TODO: Use None instead of a single instance transform?
+                                for instance in &model.instances {
+                                    let mesh_node = gltf::json::Node {
+                                        camera: None,
+                                        children: None,
                                         extensions: Default::default(),
                                         extras: Default::default(),
-                                        name: material_name,
-                                        primitives: vec![primitive],
-                                        weights,
+                                        matrix: if *instance == Mat4::IDENTITY {
+                                            None
+                                        } else {
+                                            Some(instance.to_cols_array())
+                                        },
+                                        mesh: Some(gltf::json::Index::new(mesh_index)),
+                                        name: None,
+                                        rotation: None,
+                                        scale: None,
+                                        translation: None,
+                                        skin: skin_index.map(|i| gltf::json::Index::new(i as u32)),
+                                        weights: None,
                                     };
-                                    let mesh_index = meshes.len() as u32;
-                                    meshes.push(mesh);
+                                    let child_index = nodes.len() as u32;
+                                    nodes.push(mesh_node);
 
-                                    // Instancing is applied at the model level.
-                                    // Instance meshes instead so each node has only one parent.
-                                    // TODO: Use None instead of a single instance transform?
-                                    for instance in &model.instances {
-                                        let mesh_node = gltf::json::Node {
-                                            camera: None,
-                                            children: None,
-                                            extensions: Default::default(),
-                                            extras: Default::default(),
-                                            matrix: if *instance == Mat4::IDENTITY {
-                                                None
-                                            } else {
-                                                Some(instance.to_cols_array())
-                                            },
-                                            mesh: Some(gltf::json::Index::new(mesh_index)),
-                                            name: None,
-                                            rotation: None,
-                                            scale: None,
-                                            translation: None,
-                                            skin: skin_index
-                                                .map(|i| gltf::json::Index::new(i as u32)),
-                                            weights: None,
-                                        };
-                                        let child_index = nodes.len() as u32;
-                                        nodes.push(mesh_node);
-
-                                        children.push(gltf::json::Index::new(child_index))
-                                    }
+                                    children.push(gltf::json::Index::new(child_index))
                                 }
                             }
                         }
@@ -327,34 +334,6 @@ fn morph_targets(
             })
             .collect()
     })
-}
-
-fn get_weight_group<'a>(
-    buffers: &'a mut Buffers,
-    skeleton: Option<&crate::skeleton::Skeleton>,
-    attributes_key: BufferKey,
-    group: &crate::ModelGroup,
-    models: &crate::Models,
-    model: &crate::Model,
-    mesh: &crate::Mesh,
-) -> Option<&'a WeightGroup> {
-    let model_buffers = &group.buffers[model.model_buffers_index];
-    let weights = model_buffers.weights.as_ref()?;
-    let weights_start_index = weights.weights_start_index(
-        mesh.skin_flags,
-        mesh.lod,
-        models.materials[mesh.material_index].unk_type,
-    );
-
-    // TODO: Why do we need lazy loading to avoid indexing errors?
-    buffers.get_weight_group_lazy(
-        model_buffers,
-        skeleton,
-        WeightGroupKey {
-            weights_start_index,
-            buffer: attributes_key,
-        },
-    )
 }
 
 fn create_skin(

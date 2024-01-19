@@ -60,6 +60,7 @@ impl Buffers {
     pub fn new(roots: &[ModelRoot]) -> Self {
         let mut combined_buffers = Buffers::default();
 
+        // TODO: lazy loading for all buffers?
         for (root_index, root) in roots.iter().enumerate() {
             for (group_index, group) in root.groups.iter().enumerate() {
                 for (buffers_index, buffers) in group.buffers.iter().enumerate() {
@@ -173,7 +174,7 @@ impl Buffers {
         }
     }
 
-    pub fn get_weight_group_lazy(
+    pub fn insert_weight_group(
         &mut self,
         buffers: &crate::ModelBuffers,
         skeleton: Option<&crate::Skeleton>,
