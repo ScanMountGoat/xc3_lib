@@ -246,39 +246,15 @@ impl<'a> State<'a> {
     fn handle_input(&mut self, event: &WindowEvent, window: &Window) {
         match event {
             WindowEvent::KeyboardInput { event, .. } => {
-                // Basic camera controls using arrow keys.
                 match &event.logical_key {
                     winit::keyboard::Key::Named(named) => match named {
+                        // Basic camera controls using arrow keys.
                         NamedKey::ArrowLeft => self.translation.x += 0.1,
                         NamedKey::ArrowRight => self.translation.x -= 0.1,
                         NamedKey::ArrowUp => self.translation.y -= 0.1,
                         NamedKey::ArrowDown => self.translation.y += 0.1,
                         // Animation playback.
                         NamedKey::Space => self.current_time_seconds = 0.0,
-                        NamedKey::PageUp => {
-                            if event.state == ElementState::Released {
-                                self.current_time_seconds = 0.0;
-                                self.animation_index += 1;
-                                update_window_title(
-                                    window,
-                                    &self.model_name,
-                                    &self.animations,
-                                    self.animation_index,
-                                );
-                            }
-                        }
-                        NamedKey::PageDown => {
-                            if event.state == ElementState::Released {
-                                self.current_time_seconds = 0.0;
-                                self.animation_index = self.animation_index.saturating_sub(1);
-                                update_window_title(
-                                    window,
-                                    &self.model_name,
-                                    &self.animations,
-                                    self.animation_index,
-                                );
-                            }
-                        }
                         _ => (),
                     },
                     winit::keyboard::Key::Character(c) => {
@@ -291,6 +267,31 @@ impl<'a> State<'a> {
                             "4" => self.update_debug_settings(4),
                             "5" => self.update_debug_settings(5),
                             "6" => self.update_debug_settings(6),
+                            // Animation playback.
+                            "." => {
+                                if event.state == ElementState::Released {
+                                    self.current_time_seconds = 0.0;
+                                    self.animation_index += 1;
+                                    update_window_title(
+                                        window,
+                                        &self.model_name,
+                                        &self.animations,
+                                        self.animation_index,
+                                    );
+                                }
+                            }
+                            "," => {
+                                if event.state == ElementState::Released {
+                                    self.current_time_seconds = 0.0;
+                                    self.animation_index = self.animation_index.saturating_sub(1);
+                                    update_window_title(
+                                        window,
+                                        &self.model_name,
+                                        &self.animations,
+                                        self.animation_index,
+                                    );
+                                }
+                            }
                             _ => (),
                         }
                     }
