@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::vertex::AttributeData;
-use binrw::BinWrite;
+use binrw::{BinResult, BinWrite};
 use glam::{Mat4, Vec2, Vec3, Vec4, Vec4Swizzles};
 use gltf::{
     buffer::Target,
@@ -80,7 +80,8 @@ impl Buffers {
         if !self.vertex_buffers.contains_key(&key) {
             // Assume the base morph target is already applied.
             let mut attributes = BTreeMap::new();
-            self.add_attributes(&mut attributes, &vertex_buffer.attributes);
+            self.add_attributes(&mut attributes, &vertex_buffer.attributes)
+                .unwrap();
 
             // Morph targets have their own attribute data.
             let morph_targets: Vec<_> = vertex_buffer
@@ -107,7 +108,8 @@ impl Buffers {
                         gltf::json::accessor::ComponentType::F32,
                         Some(Valid(Target::ArrayBuffer)),
                         &mut attributes,
-                    );
+                    )
+                    .unwrap();
 
                     // Normals and tangents also use deltas.
                     // These should use Vec3 to avoid displacing the sign in tangent.w.
@@ -118,7 +120,8 @@ impl Buffers {
                         gltf::json::accessor::ComponentType::F32,
                         Some(Valid(Target::ArrayBuffer)),
                         &mut attributes,
-                    );
+                    )
+                    .unwrap();
 
                     self.insert_attribute_values(
                         &tangent_deltas,
@@ -127,7 +130,8 @@ impl Buffers {
                         gltf::json::accessor::ComponentType::F32,
                         Some(Valid(Target::ArrayBuffer)),
                         &mut attributes,
-                    );
+                    )
+                    .unwrap();
 
                     attributes
                 })
@@ -161,12 +165,14 @@ impl Buffers {
                             _ => None,
                         })
                     {
-                        let weight_group = self.add_weight_group(
-                            skeleton,
-                            weights,
-                            weight_indices,
-                            key.weights_start_index,
-                        );
+                        let weight_group = self
+                            .add_weight_group(
+                                skeleton,
+                                weights,
+                                weight_indices,
+                                key.weights_start_index,
+                            )
+                            .unwrap();
                         self.weight_groups.insert(key, weight_group);
                     }
                 }
@@ -182,7 +188,7 @@ impl Buffers {
         weights: &crate::Weights,
         weight_indices: &[u32],
         weights_start_index: usize,
-    ) -> WeightGroup {
+    ) -> BinResult<WeightGroup> {
         // The weights may be defined with a different bone ordering.
         let bone_names: Vec<_> = skeleton.bones.iter().map(|b| b.name.clone()).collect();
         let skin_weights = weights.skin_weights.reindex_bones(bone_names);
@@ -197,25 +203,25 @@ impl Buffers {
             gltf::json::accessor::Type::Vec4,
             gltf::json::accessor::ComponentType::F32,
             Some(Valid(Target::ArrayBuffer)),
-        );
+        )?;
         let indices_accessor = self.add_values(
             &skin_weights.bone_indices,
             gltf::json::accessor::Type::Vec4,
             gltf::json::accessor::ComponentType::U8,
             Some(Valid(Target::ArrayBuffer)),
-        );
+        )?;
 
-        WeightGroup {
+        Ok(WeightGroup {
             weights: (Valid(gltf::Semantic::Weights(0)), weights_accessor),
             indices: (Valid(gltf::Semantic::Joints(0)), indices_accessor),
-        }
+        })
     }
 
     fn add_attributes(
         &mut self,
         attributes: &mut GltfAttributes,
         buffer_attributes: &[AttributeData],
-    ) {
+    ) -> BinResult<()> {
         for attribute in buffer_attributes {
             match attribute {
                 AttributeData::Position(values) => {
@@ -226,7 +232,7 @@ impl Buffers {
                         gltf::json::accessor::ComponentType::F32,
                         Some(Valid(Target::ArrayBuffer)),
                         attributes,
-                    );
+                    )?;
                 }
                 AttributeData::Normal(values) => {
                     // Not all applications will normalize the vertex normals.
@@ -239,7 +245,7 @@ impl Buffers {
                         gltf::json::accessor::ComponentType::F32,
                         Some(Valid(Target::ArrayBuffer)),
                         attributes,
-                    );
+                    )?;
                 }
                 AttributeData::Tangent(values) => {
                     // TODO: do these values need to be scaled/normalized?
@@ -250,7 +256,7 @@ impl Buffers {
                         gltf::json::accessor::ComponentType::F32,
                         Some(Valid(Target::ArrayBuffer)),
                         attributes,
-                    );
+                    )?;
                 }
                 AttributeData::TexCoord0(values) => {
                     self.insert_attribute_values(
@@ -260,7 +266,7 @@ impl Buffers {
                         gltf::json::accessor::ComponentType::F32,
                         Some(Valid(Target::ArrayBuffer)),
                         attributes,
-                    );
+                    )?;
                 }
                 AttributeData::TexCoord1(values) => {
                     self.insert_attribute_values(
@@ -270,7 +276,7 @@ impl Buffers {
                         gltf::json::accessor::ComponentType::F32,
                         Some(Valid(Target::ArrayBuffer)),
                         attributes,
-                    );
+                    )?;
                 }
                 AttributeData::TexCoord2(values) => {
                     self.insert_attribute_values(
@@ -280,7 +286,7 @@ impl Buffers {
                         gltf::json::accessor::ComponentType::F32,
                         Some(Valid(Target::ArrayBuffer)),
                         attributes,
-                    );
+                    )?;
                 }
                 AttributeData::TexCoord3(values) => {
                     self.insert_attribute_values(
@@ -290,7 +296,7 @@ impl Buffers {
                         gltf::json::accessor::ComponentType::F32,
                         Some(Valid(Target::ArrayBuffer)),
                         attributes,
-                    );
+                    )?;
                 }
                 AttributeData::TexCoord4(values) => {
                     self.insert_attribute_values(
@@ -300,7 +306,7 @@ impl Buffers {
                         gltf::json::accessor::ComponentType::F32,
                         Some(Valid(Target::ArrayBuffer)),
                         attributes,
-                    );
+                    )?;
                 }
                 AttributeData::TexCoord5(values) => {
                     self.insert_attribute_values(
@@ -310,7 +316,7 @@ impl Buffers {
                         gltf::json::accessor::ComponentType::F32,
                         Some(Valid(Target::ArrayBuffer)),
                         attributes,
-                    );
+                    )?;
                 }
                 AttributeData::TexCoord6(values) => {
                     self.insert_attribute_values(
@@ -320,7 +326,7 @@ impl Buffers {
                         gltf::json::accessor::ComponentType::F32,
                         Some(Valid(Target::ArrayBuffer)),
                         attributes,
-                    );
+                    )?;
                 }
                 AttributeData::TexCoord7(values) => {
                     self.insert_attribute_values(
@@ -330,7 +336,7 @@ impl Buffers {
                         gltf::json::accessor::ComponentType::F32,
                         Some(Valid(Target::ArrayBuffer)),
                         attributes,
-                    );
+                    )?;
                 }
                 AttributeData::TexCoord8(values) => {
                     self.insert_attribute_values(
@@ -340,7 +346,7 @@ impl Buffers {
                         gltf::json::accessor::ComponentType::F32,
                         Some(Valid(Target::ArrayBuffer)),
                         attributes,
-                    );
+                    )?;
                 }
                 AttributeData::VertexColor(values) => {
                     // TODO: Vertex color isn't always an RGB multiplier?
@@ -352,7 +358,7 @@ impl Buffers {
                         gltf::json::accessor::ComponentType::F32,
                         Some(Valid(Target::ArrayBuffer)),
                         attributes,
-                    );
+                    )?;
                 }
                 AttributeData::Blend(values) => {
                     // Used for color blending for some stages.
@@ -363,7 +369,7 @@ impl Buffers {
                         gltf::json::accessor::ComponentType::F32,
                         Some(Valid(Target::ArrayBuffer)),
                         attributes,
-                    );
+                    )?;
                 }
                 // Skin weights are handled separately.
                 AttributeData::WeightIndex(_) => (),
@@ -371,6 +377,7 @@ impl Buffers {
                 AttributeData::BoneIndices(_) => (),
             }
         }
+        Ok(())
     }
 
     pub fn insert_index_buffer(
@@ -380,7 +387,7 @@ impl Buffers {
         group_index: usize,
         buffers_index: usize,
         buffer_index: usize,
-    ) -> usize {
+    ) -> BinResult<usize> {
         let key = BufferKey {
             root_index,
             group_index,
@@ -388,7 +395,7 @@ impl Buffers {
             buffer_index,
         };
         if !self.index_buffer_accessors.contains_key(&key) {
-            let index_bytes = write_bytes(&index_buffer.indices);
+            let index_bytes = write_bytes(&index_buffer.indices)?;
 
             // Assume everything uses the same buffer for now.
             let view = gltf::json::buffer::View {
@@ -433,7 +440,7 @@ impl Buffers {
             self.buffer_bytes.extend_from_slice(&index_bytes);
         }
 
-        *self.index_buffer_accessors.get(&key).unwrap()
+        Ok(*self.index_buffer_accessors.get(&key).unwrap())
     }
 
     pub fn insert_attribute_values<T: WriteBytes>(
@@ -444,14 +451,15 @@ impl Buffers {
         component_type: gltf::json::accessor::ComponentType,
         target: Option<Checked<Target>>,
         attributes: &mut GltfAttributes,
-    ) {
+    ) -> BinResult<()> {
         // Attributes should be non empty.
         if !values.is_empty() {
-            let index = self.add_values(values, components, component_type, target);
+            let index = self.add_values(values, components, component_type, target)?;
 
             // Assume the buffer has only one of each attribute semantic.
             attributes.insert(Valid(semantic), index);
         }
+        Ok(())
     }
 
     pub fn add_values<T: WriteBytes>(
@@ -460,8 +468,8 @@ impl Buffers {
         components: gltf::json::accessor::Type,
         component_type: gltf::json::accessor::ComponentType,
         target: Option<Checked<Target>>,
-    ) -> gltf::json::Index<gltf::json::Accessor> {
-        let attribute_bytes = write_bytes(values);
+    ) -> BinResult<gltf::json::Index<gltf::json::Accessor>> {
+        let attribute_bytes = write_bytes(values)?;
 
         // Assume everything uses the same buffer for now.
         // Each attribute is in its own section and thus has its own view.
@@ -498,56 +506,56 @@ impl Buffers {
         self.accessors.push(accessor);
         self.buffer_views.push(view);
 
-        index
+        Ok(index)
     }
 }
 
 // gltf requires little endian for byte buffers.
 // Create a trait instead of using bytemuck.
 pub trait WriteBytes {
-    fn write<W: Write + Seek>(&self, writer: &mut W);
+    fn write<W: Write + Seek>(&self, writer: &mut W) -> BinResult<()>;
 }
 
 impl WriteBytes for u16 {
-    fn write<W: Write + Seek>(&self, writer: &mut W) {
-        self.write_le(writer).unwrap();
+    fn write<W: Write + Seek>(&self, writer: &mut W) -> BinResult<()> {
+        self.write_le(writer)
     }
 }
 
 impl WriteBytes for [u8; 4] {
-    fn write<W: Write + Seek>(&self, writer: &mut W) {
-        self.write_le(writer).unwrap();
+    fn write<W: Write + Seek>(&self, writer: &mut W) -> BinResult<()> {
+        self.write_le(writer)
     }
 }
 
 impl WriteBytes for Vec2 {
-    fn write<W: Write + Seek>(&self, writer: &mut W) {
-        self.to_array().write_le(writer).unwrap();
+    fn write<W: Write + Seek>(&self, writer: &mut W) -> BinResult<()> {
+        self.to_array().write_le(writer)
     }
 }
 
 impl WriteBytes for Vec3 {
-    fn write<W: Write + Seek>(&self, writer: &mut W) {
-        self.to_array().write_le(writer).unwrap();
+    fn write<W: Write + Seek>(&self, writer: &mut W) -> BinResult<()> {
+        self.to_array().write_le(writer)
     }
 }
 
 impl WriteBytes for Vec4 {
-    fn write<W: Write + Seek>(&self, writer: &mut W) {
-        self.to_array().write_le(writer).unwrap();
+    fn write<W: Write + Seek>(&self, writer: &mut W) -> BinResult<()> {
+        self.to_array().write_le(writer)
     }
 }
 
 impl WriteBytes for Mat4 {
-    fn write<W: Write + Seek>(&self, writer: &mut W) {
-        self.to_cols_array().write_le(writer).unwrap();
+    fn write<W: Write + Seek>(&self, writer: &mut W) -> BinResult<()> {
+        self.to_cols_array().write_le(writer)
     }
 }
 
-fn write_bytes<T: WriteBytes>(values: &[T]) -> Vec<u8> {
+fn write_bytes<T: WriteBytes>(values: &[T]) -> BinResult<Vec<u8>> {
     let mut writer = Cursor::new(Vec::new());
     for v in values {
-        v.write(&mut writer);
+        v.write(&mut writer)?;
     }
-    writer.into_inner()
+    Ok(writer.into_inner())
 }

@@ -19,24 +19,26 @@
 //!
 //! let database = ShaderDatabase::from_file("xc3.json");
 //!
-//! let root = xc3_model::load_model("ch01011013.wimdo", Some(&database));
+//! let root = xc3_model::load_model("ch01011013.wimdo", Some(&database))?;
 //! println!("{}", root.image_textures.len());
 //!
-//! let roots = xc3_model::load_map("ma59a.wismhd", Some(&database));
+//! let roots = xc3_model::load_map("ma59a.wismhd", Some(&database))?;
 //! println!("{}", root.image_textures.len());
 //! # Ok(())
 //! # }
 //! ```
 
-use std::{borrow::Cow, path::Path};
+use std::{borrow::Cow, io::Cursor, path::Path};
 
 use animation::Animation;
+use binrw::{BinRead, BinReaderExt};
 use glam::{Mat4, Vec3, Vec4};
-use log::{error, warn};
+use log::error;
 use material::create_materials;
 use shader_database::ShaderDatabase;
 use skinning::SkinWeights;
 use texture::{load_textures, ExtractedTextures};
+use thiserror::Error;
 use vertex::{read_index_buffers, read_vertex_buffers, AttributeData};
 use xc3_lib::{
     apmd::Apmd,
@@ -50,7 +52,7 @@ use xc3_lib::{
     vertex::{VertexData, WeightLod},
 };
 
-pub use map::load_map;
+pub use map::{load_map, LoadMapError};
 pub use material::{
     ChannelAssignment, GBufferAssignment, GBufferAssignments, Material, MaterialParameters,
     Texture, TextureAlphaTest,
@@ -262,6 +264,26 @@ pub fn should_render_lod(lod: u16, base_lod_indices: &Option<Vec<u16>>) -> bool 
         .unwrap_or(true)
 }
 
+#[derive(Debug, Error)]
+pub enum LoadModelError {
+    #[error("error reading data: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("error reading data: {0}")]
+    Binrw(#[from] binrw::Error),
+
+    #[error("failed to find Mxmd in Apmd file")]
+    MissingApmdMxmdEntry,
+
+    #[error("expected packed wimdo vertex data but found none")]
+    MissingMxmdVertexData,
+
+    // #[error("error loading image texture: {0}")]
+    // Image(#[from] texture::CreateImageTextureError),
+    #[error("error decompressing stream: {0}")]
+    Stream(#[from] xc3_lib::error::DecompressStreamError),
+}
+
 // TODO: Take an iterator for wimdo paths and merge to support xc1?
 /// Load a model from a `.wimdo` or `.pcmdo` file.
 /// The corresponding `.wismt` or `.pcsmt` and `.chr` or `.arc` should be in the same directory.
@@ -314,102 +336,93 @@ pub fn should_render_lod(lod: u16, base_lod_indices: &Option<Vec<u16>>) -> bool 
 pub fn load_model<P: AsRef<Path>>(
     wimdo_path: P,
     shader_database: Option<&ShaderDatabase>,
-) -> ModelRoot {
+) -> Result<ModelRoot, LoadModelError> {
     let wimdo_path = wimdo_path.as_ref();
 
-    // TODO: Create dedicated error types
-    match load_wimdo(wimdo_path) {
-        Some(mxmd) => {
-            // TODO: Avoid unwrap.
-            let chr_tex_folder = chr_tex_nx_folder(wimdo_path);
+    let mxmd = load_wimdo(wimdo_path)?;
 
-            // Desktop PC models aren't used in game but are straightforward to support.
-            let is_pc = wimdo_path.extension().and_then(|e| e.to_str()) == Some("pcmdo");
-            let wismt_path = if is_pc {
-                wimdo_path.with_extension("pcsmt")
-            } else {
-                wimdo_path.with_extension("wismt")
-            };
-            let streaming_data =
-                load_streaming_data(&mxmd, &wismt_path, is_pc, chr_tex_folder.as_deref());
+    let chr_tex_folder = chr_tex_nx_folder(wimdo_path);
 
-            let image_textures = load_textures(&streaming_data.textures);
+    // Desktop PC models aren't used in game but are straightforward to support.
+    let is_pc = wimdo_path.extension().and_then(|e| e.to_str()) == Some("pcmdo");
+    let wismt_path = if is_pc {
+        wimdo_path.with_extension("pcsmt")
+    } else {
+        wimdo_path.with_extension("wismt")
+    };
+    let streaming_data = load_streaming_data(&mxmd, &wismt_path, is_pc, chr_tex_folder.as_deref())?;
 
-            let model_name = model_name(wimdo_path);
-            let spch = shader_database.and_then(|database| database.files.get(&model_name));
+    let image_textures = load_textures(&streaming_data.textures);
 
-            // TODO: Does every wimdo have a chr file?
-            // TODO: Does something control the chr name used?
-            let chr = Sar1::from_file(wimdo_path.with_extension("chr"))
-                .ok()
-                .or_else(|| Sar1::from_file(wimdo_path.with_extension("arc")).ok())
-                .or_else(|| {
-                    // Keep trying with more 0's at the end to match in game naming conventions.
-                    // XC1: pc010101.wimdo -> pc010000.chr.
-                    // XC3: ch01012013.wimdo -> ch01012010.chr.
-                    (0..model_name.len()).find_map(|i| {
-                        let mut chr_name = model_name.clone();
-                        chr_name.replace_range(chr_name.len() - i.., &"0".repeat(i));
-                        let chr_path = wimdo_path.with_file_name(chr_name).with_extension("chr");
-                        Sar1::from_file(chr_path).ok()
-                    })
-                });
+    let model_name = model_name(wimdo_path);
+    let spch = shader_database.and_then(|database| database.files.get(&model_name));
 
-            if mxmd.models.skinning.is_some() && chr.is_none() {
-                error!("Failed to load .arc or .chr skeleton for model with vertex skinning.");
-            }
+    // TODO: Does every wimdo have a chr file?
+    // TODO: Does something control the chr name used?
+    let chr = Sar1::from_file(wimdo_path.with_extension("chr"))
+        .ok()
+        .or_else(|| Sar1::from_file(wimdo_path.with_extension("arc")).ok())
+        .or_else(|| {
+            // Keep trying with more 0's at the end to match in game naming conventions.
+            // XC1: pc010101.wimdo -> pc010000.chr.
+            // XC3: ch01012013.wimdo -> ch01012010.chr.
+            (0..model_name.len()).find_map(|i| {
+                let mut chr_name = model_name.clone();
+                chr_name.replace_range(chr_name.len() - i.., &"0".repeat(i));
+                let chr_path = wimdo_path.with_file_name(chr_name).with_extension("chr");
+                Sar1::from_file(chr_path).ok()
+            })
+        });
 
-            let skeleton = create_skeleton(chr.as_ref(), mxmd.models.skinning.as_ref());
-
-            let (vertex_buffers, weights) =
-                read_vertex_buffers(&streaming_data.vertex, mxmd.models.skinning.as_ref());
-            let index_buffers = read_index_buffers(&streaming_data.vertex);
-
-            let models = Models::from_models(&mxmd.models, &mxmd.materials, spch, skeleton);
-
-            ModelRoot {
-                groups: vec![ModelGroup {
-                    models: vec![models],
-                    buffers: vec![ModelBuffers {
-                        vertex_buffers,
-                        index_buffers,
-                        weights,
-                    }],
-                }],
-                image_textures,
-            }
-        }
-        None => ModelRoot {
-            groups: Vec::new(),
-            image_textures: Vec::new(),
-        },
+    if mxmd.models.skinning.is_some() && chr.is_none() {
+        error!("Failed to load .arc or .chr skeleton for model with vertex skinning.");
     }
+
+    let skeleton = create_skeleton(chr.as_ref(), mxmd.models.skinning.as_ref());
+
+    let (vertex_buffers, weights) =
+        read_vertex_buffers(&streaming_data.vertex, mxmd.models.skinning.as_ref())?;
+    let index_buffers = read_index_buffers(&streaming_data.vertex);
+
+    let models = Models::from_models(&mxmd.models, &mxmd.materials, spch, skeleton);
+
+    Ok(ModelRoot {
+        groups: vec![ModelGroup {
+            models: vec![models],
+            buffers: vec![ModelBuffers {
+                vertex_buffers,
+                index_buffers,
+                weights,
+            }],
+        }],
+        image_textures,
+    })
 }
 
-fn load_wimdo(wimdo_path: &Path) -> Option<Mxmd> {
-    // TODO: return an error type instead of logging errors.
-    Mxmd::from_file(wimdo_path)
-        .map_err(|e| {
-            warn!("Failed to read Mxmd: {e}. Trying Apmd.");
+// TODO: move this to xc3_lib?
+#[derive(BinRead)]
+enum Wimdo {
+    Mxmd(Mxmd),
+    Apmd(Apmd),
+}
 
-            e
-        })
-        .ok()
-        .or_else(|| {
-            // Some wimdo files have the mxmd in an archive.
-            // TODO: This may fail.
-            Apmd::from_file(wimdo_path)
-                .unwrap()
-                .entries
-                .iter()
-                .find_map(|e| {
-                    if let Ok(xc3_lib::apmd::EntryData::Mxmd(mxmd)) = e.read_data() {
-                        Some(mxmd)
-                    } else {
-                        None
-                    }
-                })
-        })
+fn load_wimdo(wimdo_path: &Path) -> Result<Mxmd, LoadModelError> {
+    let mut reader = Cursor::new(std::fs::read(wimdo_path)?);
+    let wimdo: Wimdo = reader.read_le()?;
+    match wimdo {
+        Wimdo::Mxmd(mxmd) => Ok(mxmd),
+        Wimdo::Apmd(apmd) => apmd
+            .entries
+            .iter()
+            .find_map(|e| {
+                if e.entry_type == xc3_lib::apmd::EntryType::Mxmd {
+                    Some(Mxmd::from_bytes(&e.entry_data))
+                } else {
+                    None
+                }
+            })
+            .map_or(Err(LoadModelError::MissingApmdMxmdEntry), |r| Ok(r?)),
+    }
 }
 
 // Use Cow::Borrowed to avoid copying data embedded in the mxmd.
@@ -423,58 +436,67 @@ fn load_streaming_data<'a>(
     wismt_path: &Path,
     is_pc: bool,
     chr_tex_folder: Option<&Path>,
-) -> StreamingData<'a> {
+) -> Result<StreamingData<'a>, LoadModelError> {
     // TODO: Avoid unwrap.
     // Handle the different ways to store the streaming data.
     mxmd.streaming
         .as_ref()
         .map(|streaming| match &streaming.inner {
             xc3_lib::msrd::StreamingInner::StreamingLegacy(legacy) => {
-                let data = std::fs::read(wismt_path).unwrap();
+                let data = std::fs::read(wismt_path)?;
 
-                StreamingData {
-                    vertex: Cow::Borrowed(mxmd.vertex_data.as_ref().unwrap()),
-                    textures: ExtractedTextures::Switch(legacy.extract_textures(&data)),
-                }
+                // TODO: Error on missing vertex data?
+                Ok(StreamingData {
+                    vertex: Cow::Borrowed(
+                        mxmd.vertex_data
+                            .as_ref()
+                            .ok_or(LoadModelError::MissingMxmdVertexData)?,
+                    ),
+                    textures: ExtractedTextures::Switch(legacy.extract_textures(&data)?),
+                })
             }
             xc3_lib::msrd::StreamingInner::Streaming(_) => {
-                let msrd = Msrd::from_file(wismt_path).unwrap();
+                let msrd = Msrd::from_file(wismt_path)?;
                 if is_pc {
-                    let (vertex, _, textures) = msrd.extract_files_pc().unwrap();
+                    let (vertex, _, textures) = msrd.extract_files_pc()?;
 
-                    StreamingData {
+                    Ok(StreamingData {
                         vertex: Cow::Owned(vertex),
                         textures: ExtractedTextures::Pc(textures),
-                    }
+                    })
                 } else {
-                    let (vertex, _, textures) = msrd.extract_files(chr_tex_folder).unwrap();
+                    let (vertex, _, textures) = msrd.extract_files(chr_tex_folder)?;
 
-                    StreamingData {
+                    Ok(StreamingData {
                         vertex: Cow::Owned(vertex),
                         textures: ExtractedTextures::Switch(textures),
-                    }
+                    })
                 }
             }
         })
-        .unwrap_or_else(|| StreamingData {
-            vertex: Cow::Borrowed(mxmd.vertex_data.as_ref().unwrap()),
-            textures: ExtractedTextures::Switch(
-                mxmd.packed_textures
-                    .as_ref()
-                    .map(|textures| {
-                        textures
-                            .textures
-                            .iter()
-                            .map(|t| ExtractedTexture {
+        .unwrap_or_else(|| {
+            Ok(StreamingData {
+                vertex: Cow::Borrowed(
+                    mxmd.vertex_data
+                        .as_ref()
+                        .ok_or(LoadModelError::MissingMxmdVertexData)?,
+                ),
+                textures: ExtractedTextures::Switch(match &mxmd.packed_textures {
+                    Some(textures) => textures
+                        .textures
+                        .iter()
+                        .map(|t| {
+                            Ok(ExtractedTexture {
                                 name: t.name.clone(),
                                 usage: t.usage,
-                                low: Mibl::from_bytes(&t.mibl_data).unwrap(),
+                                low: Mibl::from_bytes(&t.mibl_data)?,
                                 high: None,
                             })
-                            .collect()
-                    })
-                    .unwrap_or_default(),
-            ),
+                        })
+                        .collect::<Result<Vec<_>, LoadModelError>>()?,
+                    None => Vec::new(),
+                }),
+            })
         })
 }
 

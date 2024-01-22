@@ -4,7 +4,9 @@ use glam::{Mat4, Vec3};
 use indexmap::IndexMap;
 use log::error;
 use rayon::prelude::*;
+use thiserror::Error;
 use xc3_lib::{
+    error::DecompressStreamError,
     map::{FoliageMaterials, PropInstance, PropLod, PropPositions},
     mibl::Mibl,
     msmd::{ChannelType, MapParts, Msmd, StreamEntry},
@@ -15,10 +17,25 @@ use xc3_lib::{
 use crate::{
     create_materials, create_samplers, model_name,
     shader_database::ShaderDatabase,
-    texture::ImageTexture,
+    texture::{self, CreateImageTextureError, ImageTexture},
     vertex::{read_index_buffers, read_vertex_buffers},
     Material, Model, ModelBuffers, ModelGroup, ModelRoot, Models, Texture,
 };
+
+#[derive(Debug, Error)]
+pub enum LoadMapError {
+    #[error("error reading data: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("error reading data: {0}")]
+    Binrw(#[from] binrw::Error),
+
+    #[error("error loading image texture: {0}")]
+    Image(#[from] texture::CreateImageTextureError),
+
+    #[error("error decompressing stream: {0}")]
+    Stream(#[from] xc3_lib::error::DecompressStreamError),
+}
 
 /// Load a map from a `.wismhd` file.
 /// The corresponding `.wismda` should be in the same directory.
@@ -29,22 +46,22 @@ use crate::{
 /// use xc3_model::{load_map, shader_database::ShaderDatabase};
 ///
 /// let database = ShaderDatabase::from_file("xc1.json");
-/// let roots = load_map("xeno1/map/ma000.wismhd", Some(&database));
+/// let roots = load_map("xeno1/map/ma000.wismhd", Some(&database))?;
 ///
 /// let database = ShaderDatabase::from_file("xc2.json");
-/// let roots = load_map("xeno2/map/ma01a.wismhd", Some(&database));
+/// let roots = load_map("xeno2/map/ma01a.wismhd", Some(&database))?;
 ///
 /// let database = ShaderDatabase::from_file("xc3.json");
-/// let roots = load_map("xeno3/map/ma01a.wismhd", Some(&database));
+/// let roots = load_map("xeno3/map/ma01a.wismhd", Some(&database))?;
 /// # Ok(())
 /// # }
 /// ```
 pub fn load_map<P: AsRef<Path>>(
     wismhd_path: P,
     shader_database: Option<&ShaderDatabase>,
-) -> Vec<ModelRoot> {
-    let msmd = Msmd::from_file(wismhd_path.as_ref()).unwrap();
-    let wismda = std::fs::read(wismhd_path.as_ref().with_extension("wismda")).unwrap();
+) -> Result<Vec<ModelRoot>, LoadMapError> {
+    let msmd = Msmd::from_file(wismhd_path.as_ref())?;
+    let wismda = std::fs::read(wismhd_path.as_ref().with_extension("wismda"))?;
 
     // Loading is CPU intensive due to decompression and decoding.
     // The .wismda is loaded into memory as &[u8].
@@ -57,26 +74,26 @@ pub fn load_map<P: AsRef<Path>>(
     // TODO: Better way to combine models?
     let mut roots = Vec::new();
 
-    roots.extend(msmd.env_models.iter().enumerate().map(|(i, model)| {
-        load_env_model(
+    for (i, model) in msmd.env_models.iter().enumerate() {
+        let root = load_env_model(
             &wismda,
             compressed,
             model,
             i,
             &model_folder,
             shader_database,
-        )
-    }));
+        )?;
+        roots.push(root);
+    }
 
-    roots.extend(
-        msmd.foliage_models
-            .iter()
-            .map(|foliage_model| load_foliage_model(&wismda, compressed, foliage_model)),
-    );
+    for foliage_model in &msmd.foliage_models {
+        let root = load_foliage_model(&wismda, compressed, foliage_model)?;
+        roots.push(root);
+    }
 
     // TODO: How much does a mutable cache negatively impact parallelization?
     // TODO: Is there enough reuse for it to be worth caching these?
-    let mut texture_cache = TextureCache::new(&msmd, &wismda, compressed);
+    let mut texture_cache = TextureCache::new(&msmd, &wismda, compressed)?;
 
     let map_model_group = map_models_group(
         &msmd,
@@ -85,7 +102,8 @@ pub fn load_map<P: AsRef<Path>>(
         &model_folder,
         &mut texture_cache,
         shader_database,
-    );
+    )?;
+
     let prop_model_group = props_group(
         &msmd,
         &wismda,
@@ -93,14 +111,14 @@ pub fn load_map<P: AsRef<Path>>(
         model_folder,
         &mut texture_cache,
         shader_database,
-    );
+    )?;
 
     roots.push(ModelRoot {
         groups: vec![map_model_group, prop_model_group],
-        image_textures: texture_cache.image_textures(),
+        image_textures: texture_cache.image_textures()?,
     });
 
-    roots
+    Ok(roots)
 }
 
 // TODO: Is there a better way of doing this?
@@ -113,45 +131,42 @@ struct TextureCache {
 }
 
 impl TextureCache {
-    fn new(msmd: &Msmd, wismda: &[u8], compressed: bool) -> Self {
-        let low_textures: Vec<_> = msmd
+    fn new(msmd: &Msmd, wismda: &[u8], compressed: bool) -> Result<Self, LoadMapError> {
+        let low_textures = msmd
             .low_textures
             .par_iter()
             .map(|e| {
-                let textures = e.extract(&mut Cursor::new(&wismda), compressed).unwrap();
+                let textures = e.extract(&mut Cursor::new(&wismda), compressed)?;
                 textures
                     .textures
                     .iter()
-                    .map(|t| (t.usage, Mibl::from_bytes(&t.mibl_data).unwrap()))
-                    .collect()
+                    .map(|t| Ok((t.usage, Mibl::from_bytes(&t.mibl_data)?)))
+                    .collect::<Result<Vec<_>, LoadMapError>>()
             })
-            .collect();
+            .collect::<Result<Vec<_>, _>>()?;
 
-        let high_textures: Vec<_> = msmd
+        let high_textures = msmd
             .textures
             .par_iter()
             .map(|texture| {
                 let mut wismda = Cursor::new(&wismda);
-                let mibl_m = texture.mid.extract(&mut wismda, compressed).unwrap();
+                let mibl_m = texture.mid.extract(&mut wismda, compressed)?;
 
                 if texture.base_mip.decompressed_size > 0 {
-                    let base_mip_level = texture
-                        .base_mip
-                        .decompress(&mut wismda, compressed)
-                        .unwrap();
+                    let base_mip_level = texture.base_mip.decompress(&mut wismda, compressed)?;
 
-                    mibl_m.with_base_mip(&base_mip_level)
+                    Ok(mibl_m.with_base_mip(&base_mip_level))
                 } else {
-                    mibl_m
+                    Ok(mibl_m)
                 }
             })
-            .collect();
+            .collect::<Result<Vec<_>, LoadMapError>>()?;
 
-        Self {
+        Ok(Self {
             texture_to_image_texture_index: IndexMap::new(),
             low_textures,
             high_textures,
-        }
+        })
     }
 
     fn insert(&mut self, texture: &xc3_lib::map::Texture) -> usize {
@@ -178,7 +193,7 @@ impl TextureCache {
         self.high_textures.get(index)
     }
 
-    fn image_textures(&self) -> Vec<ImageTexture> {
+    fn image_textures(&self) -> Result<Vec<ImageTexture>, CreateImageTextureError> {
         self.texture_to_image_texture_index
             .par_iter()
             .map(
@@ -189,12 +204,12 @@ impl TextureCache {
                         .get_high_texture(*texture_index)
                         .or(low.map(|low| &low.1))
                     {
-                        ImageTexture::from_mibl(mibl, None, low.map(|l| l.0)).unwrap()
+                        ImageTexture::from_mibl(mibl, None, low.map(|l| l.0)).map_err(Into::into)
                     } else {
                         // TODO: What do do if both indices are negative?
                         error!("No mibl for low: {low_texture_index}, low entry: {low_textures_entry_index}, high: {texture_index}");
                         let (usage, mibl) = self.get_low_texture(0, 0).unwrap();
-                        ImageTexture::from_mibl(mibl, None, Some(*usage)).unwrap()
+                        ImageTexture::from_mibl(mibl, None, Some(*usage)).map_err(Into::into)
                     }
                 },
             )
@@ -209,19 +224,15 @@ fn map_models_group(
     model_folder: &str,
     texture_cache: &mut TextureCache,
     shader_database: Option<&ShaderDatabase>,
-) -> ModelGroup {
-    // Decompression is expensive, so run in parallel ahead of time.
-    let buffers = create_buffers(&msmd.map_vertex_data, wismda, compressed);
+) -> Result<ModelGroup, LoadMapError> {
+    let buffers = create_buffers(&msmd.map_vertex_data, wismda, compressed)?;
 
-    let map_model_data: Vec<_> = msmd
+    // Decompression is expensive, so run in parallel ahead of time.
+    let map_model_data = msmd
         .map_models
         .par_iter()
-        .map(|m| {
-            m.entry
-                .extract(&mut Cursor::new(wismda), compressed)
-                .unwrap()
-        })
-        .collect();
+        .map(|m| m.entry.extract(&mut Cursor::new(wismda), compressed))
+        .collect::<Result<Vec<_>, _>>()?;
 
     let mut models = Vec::new();
     models.extend(map_model_data.iter().enumerate().map(|(i, model_data)| {
@@ -241,7 +252,7 @@ fn map_models_group(
         )
     }));
 
-    ModelGroup { models, buffers }
+    Ok(ModelGroup { models, buffers })
 }
 
 fn props_group(
@@ -251,25 +262,21 @@ fn props_group(
     model_folder: String,
     texture_cache: &mut TextureCache,
     shader_database: Option<&ShaderDatabase>,
-) -> ModelGroup {
-    let buffers = create_buffers(&msmd.prop_vertex_data, wismda, compressed);
+) -> Result<ModelGroup, LoadMapError> {
+    let buffers = create_buffers(&msmd.prop_vertex_data, wismda, compressed)?;
 
     // Decompression is expensive, so run in parallel ahead of time.
     let prop_positions: Vec<_> = msmd
         .prop_positions
         .par_iter()
-        .map(|p| p.extract(&mut Cursor::new(wismda), compressed).unwrap())
-        .collect();
+        .map(|p| p.extract(&mut Cursor::new(wismda), compressed))
+        .collect::<Result<Vec<_>, _>>()?;
 
     let prop_model_data: Vec<_> = msmd
         .prop_models
         .par_iter()
-        .map(|m| {
-            m.entry
-                .extract(&mut Cursor::new(wismda), compressed)
-                .unwrap()
-        })
-        .collect();
+        .map(|m| m.entry.extract(&mut Cursor::new(wismda), compressed))
+        .collect::<Result<Vec<_>, _>>()?;
 
     let models = prop_model_data
         .iter()
@@ -294,27 +301,27 @@ fn props_group(
         })
         .collect();
 
-    ModelGroup { models, buffers }
+    Ok(ModelGroup { models, buffers })
 }
 
 fn create_buffers(
     vertex_data: &[StreamEntry<VertexData>],
     wismda: &Vec<u8>,
     compressed: bool,
-) -> Vec<ModelBuffers> {
+) -> Result<Vec<ModelBuffers>, DecompressStreamError> {
     // Process vertex data ahead of time in parallel.
     // This gives better CPU utilization and avoids redundant processing.
     vertex_data
         .par_iter()
         .map(|e| {
             // Assume maps have no skeletons for now.
-            let vertex_data = e.extract(&mut Cursor::new(wismda), compressed).unwrap();
-            let (vertex_buffers, weights) = read_vertex_buffers(&vertex_data, None);
-            ModelBuffers {
+            let vertex_data = e.extract(&mut Cursor::new(wismda), compressed)?;
+            let (vertex_buffers, weights) = read_vertex_buffers(&vertex_data, None)?;
+            Ok(ModelBuffers {
                 vertex_buffers,
                 index_buffers: read_index_buffers(&vertex_data),
                 weights,
-            }
+            })
         })
         .collect()
 }
@@ -572,27 +579,27 @@ fn load_env_model(
     model_index: usize,
     model_folder: &str,
     shader_database: Option<&ShaderDatabase>,
-) -> ModelRoot {
+) -> Result<ModelRoot, LoadMapError> {
     let mut wismda = Cursor::new(&wismda);
 
-    let model_data = model.entry.extract(&mut wismda, compressed).unwrap();
+    let model_data = model.entry.extract(&mut wismda, compressed)?;
 
     // Environment models embed their own textures instead of using the MSMD.
-    let image_textures: Result<Vec<_>, _> = model_data
+    let image_textures = model_data
         .textures
         .textures
         .iter()
         .map(ImageTexture::from_packed_texture)
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
 
     let spch = shader_database
         .and_then(|database| database.map_files.get(model_folder))
         .and_then(|map| map.env_models.get(model_index));
 
-    let (vertex_buffers, weights) = read_vertex_buffers(&model_data.vertex_data, None);
+    let (vertex_buffers, weights) = read_vertex_buffers(&model_data.vertex_data, None)?;
     let index_buffers = read_index_buffers(&model_data.vertex_data);
 
-    ModelRoot {
+    Ok(ModelRoot {
         groups: vec![ModelGroup {
             models: vec![Models::from_models(
                 &model_data.models,
@@ -606,26 +613,26 @@ fn load_env_model(
                 weights,
             }],
         }],
-        image_textures: image_textures.unwrap(),
-    }
+        image_textures,
+    })
 }
 
 fn load_foliage_model(
     wismda: &[u8],
     compressed: bool,
     model: &xc3_lib::msmd::FoliageModel,
-) -> ModelRoot {
+) -> Result<ModelRoot, LoadMapError> {
     let mut wismda = Cursor::new(&wismda);
 
-    let model_data = model.entry.extract(&mut wismda, compressed).unwrap();
+    let model_data = model.entry.extract(&mut wismda, compressed)?;
 
     // Foliage models embed their own textures instead of using the MSMD.
-    let image_textures: Result<Vec<_>, _> = model_data
+    let image_textures = model_data
         .textures
         .textures
         .iter()
         .map(ImageTexture::from_packed_texture)
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
 
     let materials = foliage_materials(&model_data.materials);
 
@@ -637,12 +644,12 @@ fn load_foliage_model(
         .map(|model| Model::from_model(model, vec![Mat4::IDENTITY], 0))
         .collect();
 
-    let (vertex_buffers, weights) = read_vertex_buffers(&model_data.vertex_data, None);
+    let (vertex_buffers, weights) = read_vertex_buffers(&model_data.vertex_data, None)?;
     let index_buffers = read_index_buffers(&model_data.vertex_data);
 
     // TODO: foliage samplers?
     // TODO: is it worth making a skeleton here?
-    ModelRoot {
+    Ok(ModelRoot {
         groups: vec![ModelGroup {
             models: vec![Models {
                 models,
@@ -662,8 +669,8 @@ fn load_foliage_model(
                 weights,
             }],
         }],
-        image_textures: image_textures.unwrap(),
-    }
+        image_textures,
+    })
 }
 
 fn foliage_materials(materials: &FoliageMaterials) -> Vec<Material> {

@@ -25,10 +25,9 @@ fn main() {
     let database = cli.database.map(ShaderDatabase::from_file);
 
     let roots = if cli.input.ends_with(".wismhd") {
-        xc3_model::load_map(&cli.input, database.as_ref())
+        xc3_model::load_map(&cli.input, database.as_ref()).unwrap()
     } else {
-        let root = load_model(&cli.input, database.as_ref());
-
+        let root = load_model(&cli.input, database.as_ref()).unwrap();
         vec![root]
     };
 

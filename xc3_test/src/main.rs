@@ -233,7 +233,8 @@ fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: 
                     &spch,
                     &textures,
                     data.stream_flags.has_chr_textures(),
-                );
+                )
+                .unwrap();
                 // TODO: Chr textures won't be equal to compression differences?
                 if new_msrd.streaming != msrd.streaming {
                     println!("Streaming not 1:1 for {path:?}");
@@ -729,7 +730,7 @@ fn check_all_gltf<P: AsRef<Path>>(root: P) {
         .unwrap()
         .for_each(|entry| {
             let path = entry.as_ref().unwrap().path();
-            let root = xc3_model::load_model(path, None);
+            let root = xc3_model::load_model(path, None).unwrap();
             xc3_model::gltf::GltfFile::new("model", &[root]);
         });
 
@@ -738,7 +739,7 @@ fn check_all_gltf<P: AsRef<Path>>(root: P) {
         .unwrap()
         .for_each(|entry| {
             let path = entry.as_ref().unwrap().path();
-            let roots = xc3_model::load_map(path, None);
+            let roots = xc3_model::load_map(path, None).unwrap();
             xc3_model::gltf::GltfFile::new("model", &roots);
         });
 }

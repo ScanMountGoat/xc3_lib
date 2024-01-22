@@ -130,9 +130,11 @@ fn main() {
             println!("{:?}", model_path);
             let roots = match cli.extension {
                 FileExtension::Wimdo | FileExtension::Pcmdo => {
-                    vec![xc3_model::load_model(model_path, database.as_ref())]
+                    vec![xc3_model::load_model(model_path, database.as_ref()).unwrap()]
                 }
-                FileExtension::Wismhd => xc3_model::load_map(model_path, database.as_ref()),
+                FileExtension::Wismhd => {
+                    xc3_model::load_map(model_path, database.as_ref()).unwrap()
+                }
             };
 
             frame_model_bounds(&queue, &roots, &renderer);

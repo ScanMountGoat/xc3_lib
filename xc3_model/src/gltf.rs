@@ -123,13 +123,16 @@ impl GltfFile {
                                 }
 
                                 // Lazy load index buffers since not all are unused.
-                                let index_accessor = buffers.insert_index_buffer(
-                                    &model_buffers.index_buffers[mesh.index_buffer_index],
-                                    root_index,
-                                    group_index,
-                                    model.model_buffers_index,
-                                    mesh.index_buffer_index,
-                                ) as u32;
+                                let index_accessor = buffers
+                                    .insert_index_buffer(
+                                        &model_buffers.index_buffers[mesh.index_buffer_index],
+                                        root_index,
+                                        group_index,
+                                        model.model_buffers_index,
+                                        mesh.index_buffer_index,
+                                    )
+                                    .unwrap()
+                                    as u32;
 
                                 let material_index = material_indices
                                     .get(&MaterialKey {
@@ -384,12 +387,14 @@ fn create_skin(
             .map(|t| t.inverse())
             .collect();
 
-        let accessor_index = buffers.add_values(
-            &inverse_bind_matrices,
-            gltf::json::accessor::Type::Mat4,
-            gltf::json::accessor::ComponentType::F32,
-            None,
-        );
+        let accessor_index = buffers
+            .add_values(
+                &inverse_bind_matrices,
+                gltf::json::accessor::Type::Mat4,
+                gltf::json::accessor::ComponentType::F32,
+                None,
+            )
+            .unwrap();
 
         // TODO: Multiple roots for skeleton?
         let skin = gltf::json::Skin {

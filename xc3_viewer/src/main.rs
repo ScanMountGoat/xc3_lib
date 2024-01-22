@@ -120,12 +120,12 @@ impl<'a> State<'a> {
         let groups = match Path::new(model_path).extension().unwrap().to_str().unwrap() {
             "wimdo" | "pcmdo" => {
                 // TODO: Dropping vertex buffers is expensive?
-                let root = xc3_model::load_model(model_path, database.as_ref());
+                let root = xc3_model::load_model(model_path, database.as_ref()).unwrap();
                 info!("Load root: {:?}", start.elapsed());
                 xc3_wgpu::load_model(&device, &queue, &[root])
             }
             "wismhd" => {
-                let roots = xc3_model::load_map(model_path, database.as_ref());
+                let roots = xc3_model::load_map(model_path, database.as_ref()).unwrap();
                 info!("Load {} roots: {:?}", roots.len(), start.elapsed());
                 xc3_wgpu::load_model(&device, &queue, &roots)
             }

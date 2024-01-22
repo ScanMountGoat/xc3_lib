@@ -4,9 +4,11 @@ use std::{
 };
 
 use image_dds::ddsfile::Dds;
+use xc3_write::Xc3Result;
 
 use crate::{
     error::DecompressStreamError, mibl::Mibl, mxmd::TextureUsage, spch::Spch, vertex::VertexData,
+    xbc1::CreateXbc1Error,
 };
 
 use super::*;
@@ -61,14 +63,13 @@ pub struct ChrTextureStreams {
 
 impl ChrTextureStreams {
     /// Save the texture streams to `"chr/tex/nx/m"`` and `"chr/tex/nx/h"`.
-    pub fn save<P: AsRef<Path>>(&self, chr_tex_nx: P) {
+    pub fn save<P: AsRef<Path>>(&self, chr_tex_nx: P) -> Xc3Result<()> {
         let folder = chr_tex_nx.as_ref();
         self.mid
-            .save(folder.join("m").join(format!("{:x}.wismt", self.hash)))
-            .unwrap();
+            .save(folder.join("m").join(format!("{:x}.wismt", self.hash)))?;
         self.base_mip
-            .save(folder.join("h").join(format!("{:x}.wismt", self.hash)))
-            .unwrap();
+            .save(folder.join("h").join(format!("{:x}.wismt", self.hash)))?;
+        Ok(())
     }
 }
 
@@ -118,6 +119,7 @@ impl Msrd {
         }
     }
 
+    // TODO: Create a dedicated error type for this?
     /// Pack and compress the files into new archive data.
     ///
     /// When `use_chr_textures` is `true`,
@@ -129,14 +131,14 @@ impl Msrd {
         spch: &Spch,
         textures: &[ExtractedTexture<Mibl>],
         use_chr_textures: bool,
-    ) -> (Self, Option<Vec<ChrTextureStreams>>) {
+    ) -> Result<(Self, Option<Vec<ChrTextureStreams>>), CreateXbc1Error> {
         let (mut streaming, data, chr_textures) =
-            pack_files(vertex, spch, textures, use_chr_textures);
+            pack_files(vertex, spch, textures, use_chr_textures)?;
 
         // HACK: We won't know the first xbc1 offset until writing the header.
         let mut writer = Cursor::new(Vec::new());
         let mut data_ptr = 0;
-        write_full(&streaming, &mut writer, 0, &mut data_ptr).unwrap();
+        write_full(&streaming, &mut writer, 0, &mut data_ptr)?;
         // Add the msrd and streaming header sizes.
         let first_xbc1_offset = data_ptr.next_multiple_of(16) as u32 + 32;
 
@@ -145,7 +147,7 @@ impl Msrd {
             stream.xbc1_offset += first_xbc1_offset;
         }
 
-        (
+        Ok((
             Self {
                 version: 10001,
                 streaming: Streaming {
@@ -154,7 +156,7 @@ impl Msrd {
                 data,
             },
             chr_textures,
-        )
+        ))
     }
 }
 
@@ -335,9 +337,9 @@ fn pack_files(
     spch: &Spch,
     textures: &[ExtractedTexture<Mibl>],
     use_chr_textures: bool,
-) -> (StreamingData, Vec<u8>, Option<Vec<ChrTextureStreams>>) {
+) -> Result<(StreamingData, Vec<u8>, Option<Vec<ChrTextureStreams>>), CreateXbc1Error> {
     let (stream_entries, streams, low_textures, data) =
-        create_streams(vertex, spch, textures, use_chr_textures);
+        create_streams(vertex, spch, textures, use_chr_textures)?;
 
     let textures_stream_entry_start_index = stream_entries
         .iter()
@@ -349,12 +351,16 @@ fn pack_files(
         .filter(|e| e.entry_type == EntryType::Texture)
         .count() as u32;
 
-    let (chr_textures, chr_texture_streams) = use_chr_textures
-        .then(|| pack_chr_textures(textures))
-        .unzip();
+    // TODO: Find a cleaner way of writing this.
+    let (chr_textures, chr_texture_streams) = if use_chr_textures {
+        let (chr_textures, chr_texture_streams) = pack_chr_textures(textures)?;
+        (Some(chr_textures), Some(chr_texture_streams))
+    } else {
+        (None, None)
+    };
 
     // TODO: Search stream entries to get indices?
-    (
+    Ok((
         StreamingData {
             stream_flags: StreamFlags::new(
                 true,
@@ -398,66 +404,75 @@ fn pack_files(
         },
         data,
         chr_texture_streams,
-    )
+    ))
 }
 
 fn pack_chr_textures(
     textures: &[ExtractedTexture<Mibl>],
-) -> (ChrTexTextures, Vec<ChrTextureStreams>) {
-    let (chr_textures, streams) = textures
+) -> Result<(ChrTexTextures, Vec<ChrTextureStreams>), CreateXbc1Error> {
+    let streams = textures
         .iter()
         .filter_map(|t| {
+            let high = t.high.as_ref()?;
+            Some((&high.mid, high.base_mip.as_ref()?, &t.name))
+        })
+        .map(|(mid, base_mip, name)| {
             // TODO: Always assume the name is already a hash?
             // TODO: How to handle missing high resolution textures?
             // TODO: Stream names?
-            let high = t.high.as_ref()?;
-            let mid = Xbc1::new("0000".to_string(), &high.mid).unwrap();
-            let base_mip = Xbc1::new("0000".to_string(), high.base_mip.as_ref()?).unwrap();
-            let hash = u32::from_str_radix(&t.name, 16).expect(&t.name);
+            let mid = Xbc1::new("0000".to_string(), mid)?;
+            let base_mip = Xbc1::new("0000".to_string(), base_mip)?;
+            let hash = u32::from_str_radix(name, 16).expect(name);
 
-            Some((
-                ChrTexTexture {
-                    hash,
-                    decompressed_size: mid.decompressed_size,
-                    compressed_size: mid.compressed_size.next_multiple_of(16) + 48,
-                    base_mip_decompressed_size: base_mip.decompressed_size,
-                    base_mip_compressed_size: base_mip.compressed_size.next_multiple_of(16) + 48,
-                },
-                ChrTextureStreams {
-                    hash,
-                    mid,
-                    base_mip,
-                },
-            ))
+            Ok(ChrTextureStreams {
+                hash,
+                mid,
+                base_mip,
+            })
         })
-        .unzip();
+        .collect::<Result<Vec<_>, CreateXbc1Error>>()?;
 
-    (
+    let chr_textures = streams
+        .iter()
+        .map(|stream| ChrTexTexture {
+            hash: stream.hash,
+            decompressed_size: stream.mid.decompressed_size,
+            compressed_size: stream.mid.compressed_size.next_multiple_of(16) + 48,
+            base_mip_decompressed_size: stream.base_mip.decompressed_size,
+            base_mip_compressed_size: stream.base_mip.compressed_size.next_multiple_of(16) + 48,
+        })
+        .collect();
+
+    Ok((
         ChrTexTextures {
             chr_textures,
             unk: [0; 2],
         },
         streams,
-    )
+    ))
 }
 
+// TODO: Create struct for return type.
 fn create_streams(
     vertex: &VertexData,
     spch: &Spch,
     textures: &[ExtractedTexture<Mibl>],
     use_chr_textures: bool,
-) -> (
-    Vec<StreamEntry>,
-    Vec<Stream>,
-    Vec<PackedExternalTexture>,
-    Vec<u8>,
-) {
+) -> Result<
+    (
+        Vec<StreamEntry>,
+        Vec<Stream>,
+        Vec<PackedExternalTexture>,
+        Vec<u8>,
+    ),
+    CreateXbc1Error,
+> {
     // Entries are in ascending order by offset and stream.
     // Data order is Vertex, Shader, LowTextures, Textures.
     let mut xbc1s = Vec::new();
     let mut stream_entries = Vec::new();
 
-    let low_textures = write_stream0(&mut xbc1s, &mut stream_entries, vertex, spch, textures);
+    let low_textures = write_stream0(&mut xbc1s, &mut stream_entries, vertex, spch, textures)?;
 
     if !use_chr_textures {
         let entry_start_index = stream_entries.len();
@@ -470,8 +485,8 @@ fn create_streams(
     let mut data = Cursor::new(Vec::new());
     for xbc1 in xbc1s {
         // This needs to be updated later to be relative to the start of the msrd.
-        let xbc1_offset = data.stream_position().unwrap() as u32;
-        xbc1.write(&mut data).unwrap();
+        let xbc1_offset = data.stream_position()? as u32;
+        xbc1.write(&mut data)?;
 
         // TODO: Should this make sure the xbc1 decompressed data is actually aligned?
         streams.push(Stream {
@@ -481,7 +496,7 @@ fn create_streams(
         });
     }
 
-    (stream_entries, streams, low_textures, data.into_inner())
+    Ok((stream_entries, streams, low_textures, data.into_inner()))
 }
 
 fn write_stream0(
@@ -490,19 +505,19 @@ fn write_stream0(
     vertex: &VertexData,
     spch: &Spch,
     textures: &[ExtractedTexture<Mibl>],
-) -> Vec<PackedExternalTexture> {
+) -> Result<Vec<PackedExternalTexture>, CreateXbc1Error> {
     // Data in streams is tightly packed.
     let mut writer = Cursor::new(Vec::new());
-    stream_entries.push(write_stream_data(&mut writer, vertex, EntryType::Vertex));
-    stream_entries.push(write_stream_data(&mut writer, spch, EntryType::Shader));
+    stream_entries.push(write_stream_data(&mut writer, vertex, EntryType::Vertex)?);
+    stream_entries.push(write_stream_data(&mut writer, spch, EntryType::Shader)?);
 
-    let (entry, low_textures) = write_low_textures(&mut writer, textures);
+    let (entry, low_textures) = write_low_textures(&mut writer, textures)?;
     stream_entries.push(entry);
 
-    let xbc1 = Xbc1::from_decompressed("0000".to_string(), &writer.into_inner()).unwrap();
+    let xbc1 = Xbc1::from_decompressed("0000".to_string(), &writer.into_inner())?;
     streams.push(xbc1);
 
-    low_textures
+    Ok(low_textures)
 }
 
 fn write_stream1(
@@ -516,7 +531,7 @@ fn write_stream1(
 
     for texture in textures {
         if let Some(high) = &texture.high {
-            let entry = write_stream_data(&mut writer, &high.mid, EntryType::Texture);
+            let entry = write_stream_data(&mut writer, &high.mid, EntryType::Texture).unwrap();
             stream_entries.push(entry);
             is_empty = false;
         }
@@ -551,43 +566,43 @@ fn write_stream_data<'a, T>(
     writer: &mut Cursor<Vec<u8>>,
     data: &'a T,
     item_type: EntryType,
-) -> StreamEntry
+) -> Xc3Result<StreamEntry>
 where
     T: Xc3Write + 'static,
     T::Offsets<'a>: Xc3WriteOffsets,
 {
-    let offset = writer.stream_position().unwrap();
-    write_full(data, writer, 0, &mut 0).unwrap();
-    let end_offset = writer.stream_position().unwrap();
+    let offset = writer.stream_position()?;
+    write_full(data, writer, 0, &mut 0)?;
+    let end_offset = writer.stream_position()?;
 
     // Stream data is aligned to 4096 bytes.
     // TODO: Create a function for padding to an alignment?
     let size = end_offset - offset;
     let desired_size = size.next_multiple_of(4096);
     let padding = desired_size - size;
-    writer.write_all(&vec![0u8; padding as usize]).unwrap();
-    let end_offset = writer.stream_position().unwrap();
+    writer.write_all(&vec![0u8; padding as usize])?;
+    let end_offset = writer.stream_position()?;
 
-    StreamEntry {
+    Ok(StreamEntry {
         offset: offset as u32,
         size: (end_offset - offset) as u32,
         texture_base_mip_stream_index: 0,
         entry_type: item_type,
         unk: [0; 2],
-    }
+    })
 }
 
 fn write_low_textures(
     writer: &mut Cursor<Vec<u8>>,
     textures: &[ExtractedTexture<Mibl>],
-) -> (StreamEntry, Vec<PackedExternalTexture>) {
+) -> Xc3Result<(StreamEntry, Vec<PackedExternalTexture>)> {
     let mut low_textures = Vec::new();
 
-    let offset = writer.stream_position().unwrap();
+    let offset = writer.stream_position()?;
     for texture in textures {
-        let mibl_offset = writer.stream_position().unwrap();
-        texture.low.write(writer).unwrap();
-        let mibl_length = writer.stream_position().unwrap() - mibl_offset;
+        let mibl_offset = writer.stream_position()?;
+        texture.low.write(writer)?;
+        let mibl_length = writer.stream_position()? - mibl_offset;
 
         low_textures.push(PackedExternalTexture {
             usage: texture.usage,
@@ -596,10 +611,10 @@ fn write_low_textures(
             name: texture.name.clone(),
         })
     }
-    let end_offset = writer.stream_position().unwrap();
+    let end_offset = writer.stream_position()?;
 
     // Assume the Mibl already have the required 4096 byte alignment.
-    (
+    Ok((
         StreamEntry {
             offset: offset as u32,
             size: (end_offset - offset) as u32,
@@ -608,15 +623,18 @@ fn write_low_textures(
             unk: [0; 2],
         },
         low_textures,
-    )
+    ))
 }
 
 impl StreamingDataLegacy {
-    pub fn extract_textures(&self, data: &[u8]) -> Vec<ExtractedTexture<Mibl>> {
+    pub fn extract_textures(
+        &self,
+        data: &[u8],
+    ) -> Result<Vec<ExtractedTexture<Mibl>>, DecompressStreamError> {
         // Start with lower resolution textures.
-        let low_data = self.low_texture_data(data);
+        let low_data = self.low_texture_data(data)?;
 
-        let mut textures: Vec<_> = self
+        let mut textures = self
             .low_textures
             .textures
             .iter()
@@ -624,27 +642,26 @@ impl StreamingDataLegacy {
                 let mibl = Mibl::from_bytes(
                     &low_data
                         [t.mibl_offset as usize..t.mibl_offset as usize + t.mibl_length as usize],
-                )
-                .unwrap();
-                ExtractedTexture {
+                )?;
+                Ok(ExtractedTexture {
                     name: t.name.clone(),
                     usage: t.usage,
                     low: mibl,
                     high: None,
-                }
+                })
             })
-            .collect();
+            .collect::<Result<Vec<_>, DecompressStreamError>>()?;
 
         // Apply higher resolution texture data if present.
         if let (Some(texture_indices), Some(high_textures)) =
             (&self.texture_indices, &self.textures)
         {
-            let high_data = self.high_texture_data(data);
+            let high_data = self.high_texture_data(data)?;
 
             for (i, t) in texture_indices.iter().zip(high_textures.textures.iter()) {
                 let bytes = &high_data
                     [t.mibl_offset as usize..t.mibl_offset as usize + t.mibl_length as usize];
-                let mibl = Mibl::from_bytes(bytes).unwrap();
+                let mibl = Mibl::from_bytes(bytes)?;
                 textures[*i as usize].high = Some(HighTexture {
                     mid: mibl,
                     base_mip: None,
@@ -652,32 +669,34 @@ impl StreamingDataLegacy {
             }
         }
 
-        textures
+        Ok(textures)
     }
 
-    fn low_texture_data<'a>(&self, data: &'a [u8]) -> Cow<'a, [u8]> {
+    fn low_texture_data<'a>(&self, data: &'a [u8]) -> Result<Cow<'a, [u8]>, DecompressStreamError> {
         match self.flags {
-            StreamingFlagsLegacy::Uncompressed => {
-                Cow::Borrowed(&data[self.low_texture_data_offset as usize..])
-            }
+            StreamingFlagsLegacy::Uncompressed => Ok(Cow::Borrowed(
+                &data[self.low_texture_data_offset as usize..],
+            )),
             StreamingFlagsLegacy::Xbc1 => {
-                let xbc1 = Xbc1::from_bytes(data).unwrap();
-                Cow::Owned(xbc1.decompress().unwrap())
+                let xbc1 = Xbc1::from_bytes(data)?;
+                Ok(Cow::Owned(xbc1.decompress()?))
             }
         }
     }
 
-    fn high_texture_data<'a>(&self, data: &'a [u8]) -> Cow<'a, [u8]> {
+    fn high_texture_data<'a>(
+        &self,
+        data: &'a [u8],
+    ) -> Result<Cow<'a, [u8]>, DecompressStreamError> {
         match self.flags {
             StreamingFlagsLegacy::Uncompressed => {
-                Cow::Borrowed(&data[self.texture_data_offset as usize..])
+                Ok(Cow::Borrowed(&data[self.texture_data_offset as usize..]))
             }
             StreamingFlagsLegacy::Xbc1 => {
                 // Read the second xbc1 file.
                 let xbc1 =
-                    Xbc1::from_bytes(&data[self.low_texture_data_compressed_size as usize..])
-                        .unwrap();
-                Cow::Owned(xbc1.decompress().unwrap())
+                    Xbc1::from_bytes(&data[self.low_texture_data_compressed_size as usize..])?;
+                Ok(Cow::Owned(xbc1.decompress()?))
             }
         }
     }

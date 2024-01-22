@@ -26,10 +26,10 @@
 //!
 //! let database = ShaderDatabase::from_file("xc3.json");
 //!
-//! let root = xc3_model::load_model("ch01011013.wimdo", Some(&database));
+//! let root = xc3_model::load_model("ch01011013.wimdo", Some(&database))?;
 //! let groups = xc3_wgpu::load_model(&device, &queue, &[root]);
 //!
-//! let roots = xc3_model::load_map("ma59a.wismhd", Some(&database));
+//! let roots = xc3_model::load_map("ma59a.wismhd", Some(&database))?;
 //! let groups = xc3_wgpu::load_model(&device, &queue, &roots);
 //! # Ok(())
 //! # }

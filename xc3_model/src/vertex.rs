@@ -211,7 +211,7 @@ impl From<&AttributeData> for xc3_lib::vertex::VertexAttribute {
 pub fn read_vertex_buffers(
     vertex_data: &VertexData,
     skinning: Option<&xc3_lib::mxmd::Skinning>,
-) -> (Vec<VertexBuffer>, Option<Weights>) {
+) -> BinResult<(Vec<VertexBuffer>, Option<Weights>)> {
     // TODO: This skips the weights buffer since it doesn't have ext info?
     // TODO: Save the weights buffer for converting back to xc3_lib types?
     // TODO: Panic if the weights buffer is not the last buffer?
@@ -221,7 +221,7 @@ pub fn read_vertex_buffers(
         .zip(vertex_data.vertex_buffer_info.iter())
         .map(|(descriptor, ext)| {
             let attributes = read_vertex_attributes(descriptor, &vertex_data.buffer);
-            let outline_buffer = outline_buffer(ext, vertex_data);
+            let outline_buffer = outline_buffer(ext, vertex_data).unwrap();
 
             VertexBuffer {
                 attributes,
@@ -234,7 +234,7 @@ pub fn read_vertex_buffers(
     // TODO: Get names from the mxmd?
     // TODO: Add better tests for morph target data.
     if let Some(vertex_morphs) = &vertex_data.vertex_morphs {
-        assign_morph_targets(vertex_morphs, &mut buffers, vertex_data);
+        assign_morph_targets(vertex_morphs, &mut buffers, vertex_data)?;
     }
 
     // TODO: Is this the best place to do this?
@@ -259,23 +259,27 @@ pub fn read_vertex_buffers(
         })
     });
 
-    (buffers, skin_weights)
+    Ok((buffers, skin_weights))
 }
 
 fn outline_buffer(
     ext: &xc3_lib::vertex::VertexBufferExtInfo,
     vertex_data: &VertexData,
-) -> Option<OutlineBuffer> {
+) -> BinResult<Option<OutlineBuffer>> {
     if ext.flags.has_outline_buffer() {
         // TODO: This fails for legacy files like xc2 oj108004?
-        let outline = vertex_data
+        // TODO: Simpler way of writing this?
+        match vertex_data
             .outline_buffers
-            .get(ext.outline_buffer_index as usize)?;
-        Some(OutlineBuffer {
-            attributes: read_outline_buffer(outline, &vertex_data.buffer).unwrap(),
-        })
+            .get(ext.outline_buffer_index as usize)
+        {
+            Some(outline) => Ok(Some(OutlineBuffer {
+                attributes: read_outline_buffer(outline, &vertex_data.buffer)?,
+            })),
+            None => Ok(None),
+        }
     } else {
-        None
+        Ok(None)
     }
 }
 
@@ -283,7 +287,7 @@ fn assign_morph_targets(
     vertex_morphs: &xc3_lib::vertex::VertexMorphs,
     buffers: &mut [VertexBuffer],
     vertex_data: &VertexData,
-) {
+) -> BinResult<()> {
     // TODO: Find a cleaner way to write this.
     for descriptor in &vertex_morphs.descriptors {
         if let Some(buffer) = buffers.get_mut(descriptor.vertex_buffer_index as usize) {
@@ -297,15 +301,14 @@ fn assign_morph_targets(
                     // These three bits define an enum for the buffer type.
                     // Assume only one bit can be set.
                     // TODO: Find a way to express this with bitflags?
-                    let base = read_morph_blend_target(base_target, &vertex_data.buffer).unwrap();
+                    let base = read_morph_blend_target(base_target, &vertex_data.buffer)?;
 
                     // TODO: Skip the first two targets?
                     buffer.morph_targets = targets
                         .iter()
                         .map(|target| {
                             // Apply remaining targets onto the base target values.
-                            let vertices =
-                                read_morph_buffer_target(target, &vertex_data.buffer).unwrap();
+                            let vertices = read_morph_buffer_target(target, &vertex_data.buffer)?;
 
                             let mut position_deltas = Vec::new();
                             let mut normal_deltas = Vec::new();
@@ -325,14 +328,14 @@ fn assign_morph_targets(
                                 tangent_deltas.push(vertex.tangent - base.tangents[i]);
                             }
 
-                            MorphTarget {
+                            Ok(MorphTarget {
                                 position_deltas,
                                 normal_deltas,
                                 tangent_deltas,
                                 vertex_indices,
-                            }
+                            })
                         })
-                        .collect();
+                        .collect::<BinResult<Vec<_>>>()?;
 
                     buffer
                         .attributes
@@ -345,6 +348,8 @@ fn assign_morph_targets(
             }
         }
     }
+
+    Ok(())
 }
 
 fn skin_weights_bone_indices(attributes: &[AttributeData]) -> Option<(Vec<Vec4>, Vec<[u8; 4]>)> {
@@ -518,7 +523,7 @@ where
     let mut values = Vec::with_capacity(vertex_count as usize);
     for i in 0..vertex_count {
         let offset = offset + i * vertex_size + relative_offset;
-        reader.seek(SeekFrom::Start(offset)).unwrap();
+        reader.seek(SeekFrom::Start(offset))?;
 
         values.push(read_item(&mut reader)?);
     }
@@ -613,11 +618,9 @@ fn read_morph_blend_target(
     let mut reader = Cursor::new(model_bytes);
     for i in 0..base_target.vertex_count as u64 {
         // TODO: assume data is tightly packed and seek once?
-        reader
-            .seek(SeekFrom::Start(
-                base_target.data_offset as u64 + i * base_target.vertex_size as u64,
-            ))
-            .unwrap();
+        reader.seek(SeekFrom::Start(
+            base_target.data_offset as u64 + i * base_target.vertex_size as u64,
+        ))?;
 
         let vertex: MorphBufferBlendTargetVertex = reader.read_le()?;
         positions.push(vertex.position1.into());
@@ -641,11 +644,9 @@ fn read_morph_buffer_target(
     (0..morph_target.vertex_count as u64)
         .map(|i| {
             // TODO: assume data is tightly packed and seek once?
-            reader
-                .seek(SeekFrom::Start(
-                    morph_target.data_offset as u64 + i * morph_target.vertex_size as u64,
-                ))
-                .unwrap();
+            reader.seek(SeekFrom::Start(
+                morph_target.data_offset as u64 + i * morph_target.vertex_size as u64,
+            ))?;
 
             let vertex: MorphBufferTargetVertex = reader.read_le()?;
 
@@ -697,9 +698,7 @@ fn _read_unk_buffer(unk: &xc3_lib::vertex::UnkInner, model_bytes: &[u8]) -> BinR
     (0..unk.count as u64)
         .map(|i| {
             // TODO: assume data is tightly packed and seek once?
-            reader
-                .seek(SeekFrom::Start(unk.offset as u64 + i * 24))
-                .unwrap();
+            reader.seek(SeekFrom::Start(unk.offset as u64 + i * 24))?;
 
             // TODO: additional attributes?
             let position = read_f32x3(&mut reader)?;

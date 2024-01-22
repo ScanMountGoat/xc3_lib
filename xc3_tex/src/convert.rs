@@ -264,12 +264,13 @@ pub fn update_wimdo_from_folder(
     }
 
     // Save files to disk.
-    let (new_msrd, chr_textures) = Msrd::from_extracted_files(&vertex, &spch, &textures, uses_chr);
+    let (new_msrd, chr_textures) =
+        Msrd::from_extracted_files(&vertex, &spch, &textures, uses_chr).unwrap();
 
     if let Some(chr_tex_nx) = chr_tex_nx {
         if let Some(chr_textures) = chr_textures {
             for tex in chr_textures {
-                tex.save(&chr_tex_nx);
+                tex.save(&chr_tex_nx).unwrap();
             }
         }
     }
