@@ -34,6 +34,7 @@ pub struct Dhal {
     #[xc3(offset(u32))]
     pub unk1: Unk1,
 
+    // TODO: alignment isn't always 2 for all types?
     #[br(parse_with = parse_opt_ptr32)]
     #[xc3(offset(u32), align(2))]
     pub unk2: Option<Unk2>,
@@ -128,23 +129,46 @@ pub struct Unk2 {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
+    // TODO: Describes sections of buffer?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub unk1: Vec<[u32; 3]>,
+    pub unk1: Vec<Unk2Unk1>,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub unk2: Vec<[u32; 2]>,
+    pub unk2: Vec<Unk2Unk2>,
 
     // TODO: type?
+    // TODO: Second value isn't actually count?
     // TODO: Some lagp files don't have enough bytes?
     // TODO: params with f32, f32, ..., 0xffffffff?
-    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset_count(u32, u32))]
-    pub unk3: Vec<u8>,
+    // TODO: what determines the remaining data?
+    //  4, 1732, 1364
+    // 10, 2372, 1452
+    #[br(parse_with = parse_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: buffer_size(&unk1, &unk2) }})]
+    #[xc3(offset(u32), align(4096))]
+    pub buffer: Vec<u8>,
+
+    pub unk4: u32, // 4096?
 
     // TODO: padding?
     pub unk: [u32; 4],
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct Unk2Unk1 {
+    // TODO: array of [u32; 5]?
+    pub data_offset: u32,
+    pub count: u32,
+    pub unk: u32,
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct Unk2Unk2 {
+    // TODO: array of u16?
+    pub data_offset: u32,
+    pub count: u32,
 }
 
 #[binread]
@@ -223,16 +247,13 @@ pub struct Unk4Unk2 {
     #[xc3(offset(u32), align(2))]
     pub unk3: Option<[f32; 2]>,
 
-    // TODO: count depends on unk1?
-    #[br(parse_with = parse_opt_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: unk1.len().saturating_sub(1).max(1) }})]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(2))]
-    pub unk4: Option<Vec<[u32; 2]>>,
+    pub unk4: Option<[u32; 2]>,
 
-    pub unk5: u32,
+    pub unk5: u32, // 0?
     pub unk6: u32, // 0?
 
-    // TODO: count depends on unk1?
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: unk1.len().next_multiple_of(4) / 4 }})]
     #[xc3(offset(u32), align(2))]
@@ -274,12 +295,17 @@ pub struct Unk4Unk7 {
     pub unk: [u32; 4],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[binread]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[br(stream = r)]
+#[xc3(base_offset)]
 pub struct Unk5 {
-    pub unk1: u32,
-    pub unk2: u32,
-    pub unk3: u32,
-    pub unk4: u32,
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32), align(2))]
+    pub unk1: Vec<[u32; 2]>,
 }
 
 #[binread]
@@ -347,13 +373,19 @@ pub struct Unk8 {
 
 // TODO: pointers to strings?
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
-#[br(import_raw(_base_offset: u64))]
+#[br(import_raw(base_offset: u64))]
 pub struct Unk8Item {
     pub unk1: u32,
     pub unk2: u32,
-    pub unk3: u32,
-    pub unk4: u32, // data offset?
-    pub unk5: u32,
+    pub index: u32,
+
+    // TODO: string or ints + string?
+    #[br(parse_with = parse_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: if unk2 == 0 { 8 } else { 16} }})]
+    #[xc3(offset(u32), align(2))]
+    pub data: Vec<u8>,
+    pub unk5: u32, // TODO: data type?
+
     pub unk6: u32,
     pub unk7: u32,
     // TODO: padding?
@@ -470,4 +502,11 @@ impl<'a> Xc3WriteOffsets for Unk4Offsets<'a> {
         self.extra.write_offsets(writer, base_offset, data_ptr)?;
         Ok(())
     }
+}
+
+fn buffer_size(unk1: &[Unk2Unk1], unk2: &[Unk2Unk2]) -> usize {
+    // Assume data is tightly packed and starts from 0.
+    // TODO: extra data?
+    unk1.iter().map(|u| u.count as usize * 20).sum::<usize>()
+        + unk2.iter().map(|u| u.count as usize * 2).sum::<usize>()
 }

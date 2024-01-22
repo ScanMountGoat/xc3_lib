@@ -106,10 +106,6 @@ fn main() {
 
     if cli.msrd || cli.all {
         // Skip the .wismt textures in the XC3 tex folder.
-        // TODO: Some XC2 .wismt files are other formats?
-        // model/oj/oj108004.wismt - XBC1 for packed MIBL files
-        // model/we/we010601.wismt - packed MIBL files (uncompressed)
-        // model/we/we010602.wismt - packed MIBL files (uncompressed)
         println!("Checking MSRD files ...");
         check_all(root, &["*.wismt", "!**/tex/**"], check_msrd, cli.rw);
     }
@@ -230,7 +226,6 @@ fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: 
     match &msrd.streaming.inner {
         xc3_lib::msrd::StreamingInner::StreamingLegacy(_) => todo!(),
         xc3_lib::msrd::StreamingInner::Streaming(data) => {
-            // TODO: make this check optional?
             if check_read_write {
                 // Check that repacking and unpacking produces the original streaming data.
                 let (new_msrd, _) = Msrd::from_extracted_files(
