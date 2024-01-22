@@ -1,6 +1,4 @@
-use std::error::Error;
-
-use image_dds::{ddsfile::Dds, Surface};
+use image_dds::{ddsfile::Dds, error::CreateImageError, CreateDdsError, Surface};
 use log::error;
 use thiserror::Error;
 use xc3_lib::{
@@ -27,6 +25,12 @@ pub enum CreateImageTextureError {
 
     #[error("error decompressing stream: {0}")]
     Stream(#[from] xc3_lib::error::DecompressStreamError),
+
+    #[error("error converting image surface: {0}")]
+    Surface(#[from] image_dds::error::SurfaceError),
+
+    #[error("error converting Mibl texture: {0}")]
+    Mibl(#[from] xc3_lib::mibl::CreateMiblError),
 }
 
 /// A non swizzled version of an [Mibl] texture.
@@ -83,9 +87,8 @@ impl ImageTexture {
         Self::from_mibl(&mibl, Some(texture.name.clone()), Some(texture.usage)).map_err(Into::into)
     }
 
-    pub fn to_image(&self) -> Result<image_dds::image::RgbaImage, Box<dyn Error>> {
-        let dds = self.to_dds()?;
-        image_dds::image_from_dds(&dds, 0).map_err(Into::into)
+    pub fn to_image(&self) -> Result<image_dds::image::RgbaImage, CreateImageError> {
+        self.to_surface().decode_rgba8()?.to_image(0)
     }
 
     pub fn to_surface(&self) -> image_dds::Surface<&[u8]> {
@@ -105,15 +108,15 @@ impl ImageTexture {
     }
 
     // TODO: use a dedicated error type
-    pub fn to_dds(&self) -> Result<Dds, Box<dyn Error>> {
-        self.to_surface().to_dds().map_err(Into::into)
+    pub fn to_dds(&self) -> Result<Dds, CreateDdsError> {
+        self.to_surface().to_dds()
     }
 
     pub fn from_surface<T: AsRef<[u8]>>(
         surface: Surface<T>,
         name: Option<String>,
         usage: Option<TextureUsage>,
-    ) -> Result<Self, Box<dyn Error>> {
+    ) -> Result<Self, CreateImageTextureError> {
         Ok(Self {
             name,
             usage,
@@ -137,14 +140,16 @@ impl ImageTexture {
         dds: &Dds,
         name: Option<String>,
         usage: Option<TextureUsage>,
-    ) -> Result<Self, Box<dyn Error>> {
+    ) -> Result<Self, CreateImageTextureError> {
         Self::from_surface(Surface::from_dds(dds)?, name, usage)
     }
 
     // TODO: to_mibl?
 }
 
-pub fn load_textures(textures: &ExtractedTextures) -> Vec<ImageTexture> {
+pub fn load_textures(
+    textures: &ExtractedTextures,
+) -> Result<Vec<ImageTexture>, CreateImageTextureError> {
     // TODO: what is the correct priority for the different texture sources?
     match textures {
         ExtractedTextures::Switch(textures) => textures
@@ -155,7 +160,7 @@ pub fn load_textures(textures: &ExtractedTextures) -> Vec<ImageTexture> {
                     Some(texture.name.clone()),
                     Some(texture.usage),
                 )
-                .unwrap()
+                .map_err(Into::into)
             })
             .collect(),
         ExtractedTextures::Pc(textures) => textures
@@ -166,7 +171,6 @@ pub fn load_textures(textures: &ExtractedTextures) -> Vec<ImageTexture> {
                     Some(texture.name.clone()),
                     Some(texture.usage),
                 )
-                .unwrap()
             })
             .collect(),
     }

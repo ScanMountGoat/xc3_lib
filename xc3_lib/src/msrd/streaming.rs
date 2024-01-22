@@ -252,7 +252,6 @@ impl StreamingData {
         }
     }
 
-    // TODO: avoid unwrap?
     fn extract_textures<T: Texture, P: AsRef<Path>>(
         &self,
         data: &[u8],

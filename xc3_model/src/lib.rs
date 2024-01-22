@@ -278,8 +278,9 @@ pub enum LoadModelError {
     #[error("expected packed wimdo vertex data but found none")]
     MissingMxmdVertexData,
 
-    // #[error("error loading image texture: {0}")]
-    // Image(#[from] texture::CreateImageTextureError),
+    #[error("error loading image texture: {0}")]
+    Image(#[from] texture::CreateImageTextureError),
+
     #[error("error decompressing stream: {0}")]
     Stream(#[from] xc3_lib::error::DecompressStreamError),
 }
@@ -352,7 +353,7 @@ pub fn load_model<P: AsRef<Path>>(
     };
     let streaming_data = load_streaming_data(&mxmd, &wismt_path, is_pc, chr_tex_folder.as_deref())?;
 
-    let image_textures = load_textures(&streaming_data.textures);
+    let image_textures = load_textures(&streaming_data.textures)?;
 
     let model_name = model_name(wimdo_path);
     let spch = shader_database.and_then(|database| database.files.get(&model_name));
@@ -437,7 +438,6 @@ fn load_streaming_data<'a>(
     is_pc: bool,
     chr_tex_folder: Option<&Path>,
 ) -> Result<StreamingData<'a>, LoadModelError> {
-    // TODO: Avoid unwrap.
     // Handle the different ways to store the streaming data.
     mxmd.streaming
         .as_ref()
