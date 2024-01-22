@@ -23,7 +23,7 @@
 //! println!("{}", root.image_textures.len());
 //!
 //! let roots = xc3_model::load_map("ma59a.wismhd", Some(&database))?;
-//! println!("{}", root.image_textures.len());
+//! println!("{}", roots[0].image_textures.len());
 //! # Ok(())
 //! # }
 //! ```
