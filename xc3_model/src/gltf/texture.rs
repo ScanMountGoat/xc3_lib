@@ -81,7 +81,7 @@ impl TextureCache {
                 let encoder = PngEncoder::new(&mut png_bytes);
                 image.write_with_encoder(encoder).unwrap();
 
-                let name = image_name(&key, model_name);
+                let name = image_name(key, model_name);
                 (name, png_bytes)
             })
             .collect()

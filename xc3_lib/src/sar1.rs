@@ -221,16 +221,16 @@ pub struct Csvb {
     pub string_section_length: u32,
 
     // TODO: Why do we need to divide here?
-    #[br(count = unk_count / 8)]
+    #[br(count = unk_count as usize / 8)]
     pub unks: Vec<u16>,
 
-    #[br(count = item_count)]
+    #[br(count = item_count as usize)]
     pub unk6: Vec<CvsbItem>,
 
-    #[br(count = unk_section_length)]
+    #[br(count = unk_section_length as usize)]
     pub unk_section: Vec<u8>,
 
-    #[br(count = string_section_length)]
+    #[br(count = string_section_length as usize)]
     pub string_section: Vec<u8>,
 }
 

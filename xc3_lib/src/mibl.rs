@@ -73,7 +73,7 @@ pub struct MiblFooter {
     #[brw(magic(b"LBIM"))]
     #[br(temp)]
     #[bw(ignore)]
-    magic: (),
+    _magic: (),
 }
 
 #[derive(BinRead, BinWrite, Debug, Clone, Copy, PartialEq, Eq)]

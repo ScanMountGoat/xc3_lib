@@ -510,7 +510,7 @@ pub struct MapPartInstanceAnimationChannel {
 
     // TODO: Write offset?
     #[br(seek_before = std::io::SeekFrom::Start(base_offset + keyframes_offset as u64))]
-    #[br(count = keyframe_count)]
+    #[br(count = keyframe_count as usize)]
     #[br(restore_position)]
     pub keyframes: Vec<MapPartInstanceAnimationKeyframe>,
 }
