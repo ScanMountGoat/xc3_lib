@@ -131,32 +131,28 @@ impl Msrd {
         spch: &Spch,
         textures: &[ExtractedTexture<Mibl>],
         use_chr_textures: bool,
-    ) -> Result<(Self, Option<Vec<ChrTextureStreams>>), CreateXbc1Error> {
-        let (mut streaming, data, chr_textures) =
-            pack_files(vertex, spch, textures, use_chr_textures)?;
+    ) -> Result<Self, CreateXbc1Error> {
+        // TODO: This should actually be checking if the game is xenoblade 3.
+        let (mut streaming, data) = pack_files(vertex, spch, textures, use_chr_textures)?;
 
         // HACK: We won't know the first xbc1 offset until writing the header.
         let mut writer = Cursor::new(Vec::new());
         let mut data_ptr = 0;
         write_full(&streaming, &mut writer, 0, &mut data_ptr)?;
-        // Add the msrd and streaming header sizes.
-        let first_xbc1_offset = data_ptr.next_multiple_of(16) as u32 + 32;
+        // Add the streaming tag and msrd header size.
+        let first_xbc1_offset = (data_ptr + 4).next_multiple_of(16) as u32 + 16;
 
-        // TODO: Does this acount for the occasional extra 16 bytes?
         for stream in &mut streaming.streams {
             stream.xbc1_offset += first_xbc1_offset;
         }
 
-        Ok((
-            Self {
-                version: 10001,
-                streaming: Streaming {
-                    inner: StreamingInner::Streaming(streaming),
-                },
-                data,
+        Ok(Self {
+            version: 10001,
+            streaming: Streaming {
+                inner: StreamingInner::Streaming(streaming),
             },
-            chr_textures,
-        ))
+            data,
+        })
     }
 }
 
@@ -336,9 +332,8 @@ fn pack_files(
     spch: &Spch,
     textures: &[ExtractedTexture<Mibl>],
     use_chr_textures: bool,
-) -> Result<(StreamingData, Vec<u8>, Option<Vec<ChrTextureStreams>>), CreateXbc1Error> {
-    let (stream_entries, streams, low_textures, data) =
-        create_streams(vertex, spch, textures, use_chr_textures)?;
+) -> Result<(StreamingData, Vec<u8>), CreateXbc1Error> {
+    let (stream_entries, streams, low_textures, data) = create_streams(vertex, spch, textures)?;
 
     let textures_stream_entry_start_index = stream_entries
         .iter()
@@ -350,13 +345,13 @@ fn pack_files(
         .filter(|e| e.entry_type == EntryType::Texture)
         .count() as u32;
 
-    // TODO: Find a cleaner way of writing this.
-    let (chr_textures, chr_texture_streams) = if use_chr_textures {
-        let (chr_textures, chr_texture_streams) = pack_chr_textures(textures)?;
-        (Some(chr_textures), Some(chr_texture_streams))
-    } else {
-        (None, None)
-    };
+    // Replacing chr/tex/nx textures is problematic since texture wismts are shared.
+    // We can avoid conflicts by embedding the high resolution textures in the model wismt.
+    // Xenoblade 3 still requires dummy data even if the chr/tex/nx textures aren't used.
+    let chr_textures = use_chr_textures.then_some(ChrTexTextures {
+        chr_textures: Vec::new(),
+        unk: [0; 2],
+    });
 
     // TODO: Search stream entries to get indices?
     Ok((
@@ -368,7 +363,7 @@ fn pack_files(
                 textures_stream_entry_count > 0,
                 false, // TODO:Does this matter?
                 false, // TODO:Does this matter?
-                use_chr_textures,
+                false,
                 0u8.into(),
             ),
             stream_entries,
@@ -396,58 +391,11 @@ fn pack_files(
                     strings_offset: 0,
                 }),
                 unk1: 0,
-                // TODO: How to properly create this field?
                 chr_textures,
                 unk: [0; 2],
             },
         },
         data,
-        chr_texture_streams,
-    ))
-}
-
-fn pack_chr_textures(
-    textures: &[ExtractedTexture<Mibl>],
-) -> Result<(ChrTexTextures, Vec<ChrTextureStreams>), CreateXbc1Error> {
-    let streams = textures
-        .iter()
-        .filter_map(|t| {
-            let high = t.high.as_ref()?;
-            Some((&high.mid, high.base_mip.as_ref()?, &t.name))
-        })
-        .map(|(mid, base_mip, name)| {
-            // TODO: Always assume the name is already a hash?
-            // TODO: How to handle missing high resolution textures?
-            // TODO: Stream names?
-            let mid = Xbc1::new("0000".to_string(), mid)?;
-            let base_mip = Xbc1::new("0000".to_string(), base_mip)?;
-            let hash = u32::from_str_radix(name, 16).expect(name);
-
-            Ok(ChrTextureStreams {
-                hash,
-                mid,
-                base_mip,
-            })
-        })
-        .collect::<Result<Vec<_>, CreateXbc1Error>>()?;
-
-    let chr_textures = streams
-        .iter()
-        .map(|stream| ChrTexTexture {
-            hash: stream.hash,
-            decompressed_size: stream.mid.decompressed_size,
-            compressed_size: stream.mid.compressed_size.next_multiple_of(16) + 48,
-            base_mip_decompressed_size: stream.base_mip.decompressed_size,
-            base_mip_compressed_size: stream.base_mip.compressed_size.next_multiple_of(16) + 48,
-        })
-        .collect();
-
-    Ok((
-        ChrTexTextures {
-            chr_textures,
-            unk: [0; 2],
-        },
-        streams,
     ))
 }
 
@@ -456,7 +404,6 @@ fn create_streams(
     vertex: &VertexData,
     spch: &Spch,
     textures: &[ExtractedTexture<Mibl>],
-    use_chr_textures: bool,
 ) -> Result<
     (
         Vec<StreamEntry>,
@@ -473,12 +420,10 @@ fn create_streams(
 
     let low_textures = write_stream0(&mut xbc1s, &mut stream_entries, vertex, spch, textures)?;
 
-    if !use_chr_textures {
-        let entry_start_index = stream_entries.len();
-        write_stream1(&mut xbc1s, &mut stream_entries, textures);
-
-        write_base_mip_streams(&mut xbc1s, &mut stream_entries, textures, entry_start_index);
-    }
+    // Always write high resolution textures to wismt for compatibility reasons.
+    let entry_start_index = stream_entries.len();
+    write_stream1(&mut xbc1s, &mut stream_entries, textures);
+    write_base_mip_streams(&mut xbc1s, &mut stream_entries, textures, entry_start_index);
 
     let mut streams = Vec::new();
     let mut data = Cursor::new(Vec::new());

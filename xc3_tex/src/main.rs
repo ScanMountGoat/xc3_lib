@@ -62,8 +62,9 @@ enum Commands {
         input_folder: String,
         /// The output file. Defaults to the same as the input when not specified.
         output: Option<String>,
-        /// The "chr/tex/nx" texture folder for external textures.
-        /// Required for most Xenoblade 3 models.
+        /// The "chr/tex/nx" texture folder for the input's external wismt textures.
+        /// Required for most Xenoblade 3 models if the folder
+        /// cannot be inferred from the input path.
         chr_tex_nx: Option<String>,
     },
 }

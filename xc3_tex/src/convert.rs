@@ -229,12 +229,12 @@ pub fn update_wimdo_from_folder(
     // TODO: avoid duplicating logic with xc3_model?
     let mut mxmd = Mxmd::from_file(input).unwrap();
 
-    let uses_chr = uses_chr_textures(&mxmd);
+    let uses_chr = has_chr_textures(&mxmd);
 
-    let chr_tex_nx_input = chr_tex_nx_folder(input_path);
-    if uses_chr && (chr_tex_nx_input.is_none() || chr_tex_nx.is_none()) {
+    let chr_tex_nx_input = chr_tex_nx_folder(input_path).or(chr_tex_nx.map(Into::into));
+    if uses_chr && chr_tex_nx_input.is_none() {
         panic!(
-            "chr/tex/nx folder argument is required to replace textures for this wimdo and wismt"
+            "chr/tex/nx folder required by wimdo and wismt but cannot be inferred from input path"
         );
     }
 
@@ -264,16 +264,7 @@ pub fn update_wimdo_from_folder(
     }
 
     // Save files to disk.
-    let (new_msrd, chr_textures) =
-        Msrd::from_extracted_files(&vertex, &spch, &textures, uses_chr).unwrap();
-
-    if let Some(chr_tex_nx) = chr_tex_nx {
-        if let Some(chr_textures) = chr_textures {
-            for tex in chr_textures {
-                tex.save(&chr_tex_nx).unwrap();
-            }
-        }
-    }
+    let new_msrd = Msrd::from_extracted_files(&vertex, &spch, &textures, uses_chr).unwrap();
 
     mxmd.streaming = Some(new_msrd.streaming.clone());
     mxmd.save(output_path).unwrap();
@@ -282,10 +273,13 @@ pub fn update_wimdo_from_folder(
     count
 }
 
-fn uses_chr_textures(mxmd: &Mxmd) -> bool {
+fn has_chr_textures(mxmd: &Mxmd) -> bool {
+    // Some Xenoblade 3 models still require empty chr/tex/nx data even if disabled by flags.
+    // Check the offset instead of flags to be safe.
+    // TODO: Why does this not return true for all xc3 files?
     if let Some(streaming) = &mxmd.streaming {
         if let xc3_lib::msrd::StreamingInner::Streaming(data) = &streaming.inner {
-            if data.stream_flags.has_chr_textures() {
+            if data.texture_resources.chr_textures.is_some() {
                 return true;
             }
         }
@@ -386,7 +380,7 @@ pub fn extract_wimdo_to_folder(mxmd: Mxmd, input: &Path, output_folder: &Path) -
     // TODO: packed mxmd textures.
     // TODO: chr/tex/nx folder as parameter?
     let chr_tex_nx = chr_tex_nx_folder(input);
-    if uses_chr_textures(&mxmd) && chr_tex_nx.is_none() {
+    if has_chr_textures(&mxmd) && chr_tex_nx.is_none() {
         panic!(
             "chr/tex/nx folder required by wimdo and wismt but cannot be inferred from input path"
         );

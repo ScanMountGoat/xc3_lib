@@ -6,9 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### unreleased
+### Fixed
+* Fixed an issue where `Msrd::from_extracted_files` would sometimes incorrectly calculate streaming data offsets
+
 ### Changed
 * Optimized glTF file sizes by only including referenced vertex buffers.
 * Reduced memory usage and improved export times for glTF conversion.
+* Changed loading functions to return an error instead of panic.
+* `Msrd::from_extracted_files` now always packs `chr/tex/nx` textures into the model's `.wismt` streams. This avoids conflicts for shared `.wismt` texture files.
+* Adjusted handling of xc3_tex `chr/tex/nx` parameter to match repacking changes.
 
 ### 0.4.1 - 2024-01-18
 ### Fixed

@@ -226,9 +226,12 @@ fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: 
     match &msrd.streaming.inner {
         xc3_lib::msrd::StreamingInner::StreamingLegacy(_) => todo!(),
         xc3_lib::msrd::StreamingInner::Streaming(data) => {
+            if data.texture_resources.chr_textures.is_none(){
+                println!("{path:?}");
+            }
             if check_read_write {
-                // Check that repacking and unpacking produces the original streaming data.
-                let (new_msrd, _) = Msrd::from_extracted_files(
+                // TODO: Check that repacking and unpacking produces the original streaming data.
+                let new_msrd = Msrd::from_extracted_files(
                     &vertex,
                     &spch,
                     &textures,

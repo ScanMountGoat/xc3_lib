@@ -31,7 +31,7 @@ Export the DDS images by dragging and dropping the `.wimdo` file onto the execut
 `xc3_tex input.wimdo image_folder`  
 `xc3_tex edit-wimdo input.wimdo image_folder output.wimdo`  
 
-Most Xenoblade 3 models store higher resolution textures in the `chr/tex/nx` folder. Specifying the folder is optional for extracting from an existing `.wimdo` if the file is in a fully extracted game dump. Specifying the `chr/tex/nx` folder is always required for Xenoblade 3 models for the `edit-wimdo` command to know where to save the texture files. 
+Most Xenoblade 3 models store higher resolution textures in the `chr/tex/nx` folder. Specifying the folder is optional if the input file is in a fully extracted game dump.
 
 `xc3_tex input/chr/ch/ch01011013.wimdo image_folder`  
-`xc3_tex edit-wimdo input/chr/ch/ch01011013.wimdo image_folder output/chr/ch/ch01011013.wimdo output/chr/tex/nx`  
+`xc3_tex edit-wimdo ch01011013.wimdo image_folder output/chr/ch/ch01011013.wimdo input/chr/tex/nx`  
