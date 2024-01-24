@@ -308,10 +308,13 @@ impl GltfFile {
     /// # Examples
     ///
     /// ```rust no_run
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # use xc3_model::gltf::GltfFile;
     /// # let roots = Vec::new();
-    /// let gltf_file = GltfFile::new("model", &roots);
-    /// gltf_file.save("model.gltf");
+    /// let gltf_file = GltfFile::new("model", &roots)?;
+    /// gltf_file.save("model.gltf")?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn save<P: AsRef<Path>>(&self, path: P) -> std::io::Result<()> {
         let path = path.as_ref();

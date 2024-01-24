@@ -55,14 +55,18 @@ impl ExtractedTexture<Mibl> {
     }
 }
 
+/// `chr/tex/nx` stream files for a single texture.
 pub struct ChrTextureStreams {
+    /// The texture hash used for the file name.
     pub hash: u32,
+    /// The high resolution texture for `chr/tex/nx/m`.
     pub mid: Xbc1,
+    /// The base mip level for `chr/tex/nx/h`.
     pub base_mip: Xbc1,
 }
 
 impl ChrTextureStreams {
-    /// Save the texture streams to `"chr/tex/nx/m"`` and `"chr/tex/nx/h"`.
+    /// Save the texture streams to `chr/tex/nx/m` and `chr/tex/nx/h`.
     pub fn save<P: AsRef<Path>>(&self, chr_tex_nx: P) -> Xc3Result<()> {
         let folder = chr_tex_nx.as_ref();
         self.mid
@@ -71,6 +75,53 @@ impl ChrTextureStreams {
             .save(folder.join("h").join(format!("{:x}.wismt", self.hash)))?;
         Ok(())
     }
+}
+
+/// Compress the high resolution and base mip levels for `textures`
+/// to Xenoblade 3 `chr/tex/nx` folder data.
+pub fn pack_chr_textures(
+    textures: &[ExtractedTexture<Mibl>],
+) -> Result<(ChrTexTextures, Vec<ChrTextureStreams>), CreateXbc1Error> {
+    let streams = textures
+        .iter()
+        .filter_map(|t| {
+            let high = t.high.as_ref()?;
+            Some((&high.mid, high.base_mip.as_ref()?, &t.name))
+        })
+        .map(|(mid, base_mip, name)| {
+            // TODO: Always assume the name is already a hash?
+            // TODO: How to handle missing high resolution textures?
+            // TODO: Stream names?
+            let mid = Xbc1::new("0000".to_string(), mid)?;
+            let base_mip = Xbc1::new("0000".to_string(), base_mip)?;
+            let hash = u32::from_str_radix(name, 16).expect(name);
+
+            Ok(ChrTextureStreams {
+                hash,
+                mid,
+                base_mip,
+            })
+        })
+        .collect::<Result<Vec<_>, CreateXbc1Error>>()?;
+
+    let chr_textures = streams
+        .iter()
+        .map(|stream| ChrTexTexture {
+            hash: stream.hash,
+            decompressed_size: stream.mid.decompressed_size,
+            compressed_size: stream.mid.compressed_size.next_multiple_of(16) + 48,
+            base_mip_decompressed_size: stream.base_mip.decompressed_size,
+            base_mip_compressed_size: stream.base_mip.compressed_size.next_multiple_of(16) + 48,
+        })
+        .collect();
+
+    Ok((
+        ChrTexTextures {
+            chr_textures,
+            unk: [0; 2],
+        },
+        streams,
+    ))
 }
 
 impl Msrd {
