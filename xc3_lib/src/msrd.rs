@@ -14,14 +14,14 @@
 //! Each file within a stream is referenced by a [StreamEntry].
 //!
 //! The first stream contains the [VertexData](crate::vertex::VertexData),
-//! [Spch](crate::spch::Spch), and low textures.
+//! [Spch](crate::spch::Spch), and low resolution textures.
 //! The second stream contains the higher resolution textures if present.
-//! The remaining streams contain base mip levels for some textures for
-//! Xenoblade 1 DE and Xenoblade 2 to effectively double the resolution.
+//! The remaining streams contain base mip levels for some textures to effectively double their resolution.
 //!
-//! Xenoblade 3 adds an option to instead store high resolution textures in `xeno3/chr/tex/nx/m`
-//! and base mip levels in `xeno3/chr/tex/nx/h`.
-//! The [ChrTexTexture] functions similarly to the [Stream] and [StreamEntry] in this case.
+//! Xenoblade 3 adds an option to instead store high resolution textures
+//! in `chr/tex/nx/m` and base mip levels in `chr/tex/nx/h`.
+//! The [ChrTexTexture] describes the [Xbc1] archives
+//! and functions as both the [Stream] and [StreamEntry].
 //!
 //! # File Paths
 //! | Game | File Patterns |
