@@ -23,6 +23,7 @@ pub struct ShaderDatabase {
     pub map_files: IndexMap<String, Map>,
 }
 
+// TODO: LoadShaderDatabaseError
 impl ShaderDatabase {
     /// Loads and deserializes the JSON data from `path`.
     pub fn from_file<P: AsRef<Path>>(path: P) -> Self {

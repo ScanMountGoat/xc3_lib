@@ -145,7 +145,7 @@ pub enum StreamingFlagsLegacy {
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
 #[br(import_raw(base_offset: u64))]
 pub struct StreamingData {
-    pub stream_flags: StreamFlags,
+    pub flags: StreamFlags,
 
     // Used for estimating the struct size.
     #[br(temp, restore_position)]
@@ -206,7 +206,10 @@ pub struct TextureResources {
     /// Always `0`.
     pub unk1: u32,
 
-    // Only used for some xc3 files.
+    /// Only used for Xenoblade 3.
+    /// Xenoblade 3 models that don't have `chr/tex/nx` textures
+    /// should still set this to `Some` with an empty texture list.
+    /// Other game versions should set this to `None`.
     #[br(if(size == 92), args_raw(base_offset))]
     pub chr_textures: Option<ChrTexTextures>,
 
@@ -269,12 +272,23 @@ pub struct StreamEntry {
 #[br(map = u32::into)]
 #[bw(map = |&x| u32::from(x))]
 pub struct StreamFlags {
+    /// `true` if stream0 has [EntryType::Vertex].
+    /// Always `true` in practice for all 3 game versions.
     pub has_vertex: bool,
+    /// `true` if stream0 has [EntryType::Shader].
+    /// Always `true` in practice for all 3 game versions.
     pub has_spch: bool,
+    /// `true` if stream0 has [EntryType::LowTextures].
+    /// Always `true` in practice for all 3 game versions.
     pub has_low_textures: bool,
+    /// `true` if high resolution textures use [EntryType::Texture].
+    /// This will be `false` if `chr/tex/nx` textures are used instead.
     pub has_textures: bool,
     pub unk5: bool,
     pub unk6: bool,
+    /// `true` if [chr_textures](struct.TextureResources.html#structfield.chr_textures)
+    /// is not `None` and has at least one texture.
+    /// Xenoblade 1 DE and Xenoblade 2 do not support `chr/tex/nx` textures and always use the value `false`.
     pub has_chr_textures: bool,
     pub unk: u25,
 }

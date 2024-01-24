@@ -7,6 +7,7 @@ use crate::{should_render_lod, ModelRoot};
 use glam::Mat4;
 use gltf::json::validation::Checked::Valid;
 use rayon::prelude::*;
+use thiserror::Error;
 
 use self::{
     buffer::{BufferKey, Buffers, WeightGroupKey},
@@ -17,6 +18,13 @@ use self::{
 mod buffer;
 mod material;
 mod texture;
+
+// TODO: Add more error variants.
+#[derive(Debug, Error)]
+pub enum CreateGltfError {
+    #[error("error writing buffers: {0}")]
+    Binrw(#[from] binrw::Error),
+}
 
 #[derive(Debug)]
 pub struct GltfFile {
@@ -34,7 +42,7 @@ impl GltfFile {
     ///
     /// The `model_name` is used to create resource file names and should
     /// usually match the file name for [save](GltfFile::save) without the `.gltf` extension.
-    pub fn new(model_name: &str, roots: &[ModelRoot]) -> Self {
+    pub fn new(model_name: &str, roots: &[ModelRoot]) -> Result<Self, CreateGltfError> {
         let mut texture_cache = TextureCache::new(roots);
 
         let (materials, material_indices, textures, samplers) =
@@ -82,7 +90,7 @@ impl GltfFile {
                                         group_index,
                                         model.model_buffers_index,
                                         mesh.vertex_buffer_index,
-                                    )
+                                    )?
                                     .clone();
                                 let mut attributes = vertex_buffer.attributes.clone();
 
@@ -123,16 +131,13 @@ impl GltfFile {
                                 }
 
                                 // Lazy load index buffers since not all are unused.
-                                let index_accessor = buffers
-                                    .insert_index_buffer(
-                                        &model_buffers.index_buffers[mesh.index_buffer_index],
-                                        root_index,
-                                        group_index,
-                                        model.model_buffers_index,
-                                        mesh.index_buffer_index,
-                                    )
-                                    .unwrap()
-                                    as u32;
+                                let index_accessor = buffers.insert_index_buffer(
+                                    &model_buffers.index_buffers[mesh.index_buffer_index],
+                                    root_index,
+                                    group_index,
+                                    model.model_buffers_index,
+                                    mesh.index_buffer_index,
+                                )? as u32;
 
                                 let material_index = material_indices
                                     .get(&MaterialKey {
@@ -290,12 +295,12 @@ impl GltfFile {
 
         let png_images = texture_cache.generate_png_images(model_name);
 
-        Self {
+        Ok(Self {
             root,
             buffer_name,
             buffer: buffers.buffer_bytes,
             png_images,
-        }
+        })
     }
 
     /// Save the glTF data to the specified `path` with images and buffers stored in the same directory.
@@ -308,19 +313,21 @@ impl GltfFile {
     /// let gltf_file = GltfFile::new("model", &roots);
     /// gltf_file.save("model.gltf");
     /// ```
-    pub fn save<P: AsRef<Path>>(&self, path: P) {
+    pub fn save<P: AsRef<Path>>(&self, path: P) -> std::io::Result<()> {
         let path = path.as_ref();
 
+        // TODO: SaveGltfError?
         let json = gltf::json::serialize::to_string_pretty(&self.root).unwrap();
-        std::fs::write(path, json).unwrap();
+        std::fs::write(path, json)?;
 
-        std::fs::write(path.with_file_name(&self.buffer_name), &self.buffer).unwrap();
+        std::fs::write(path.with_file_name(&self.buffer_name), &self.buffer)?;
 
         // Save images in parallel since PNG encoding is CPU intensive.
-        self.png_images.par_iter().for_each(|(name, image)| {
+        self.png_images.par_iter().try_for_each(|(name, image)| {
             let output = path.with_file_name(name);
-            std::fs::write(output, image).unwrap();
-        });
+            std::fs::write(output, image)
+        })?;
+        Ok(())
     }
 }
 

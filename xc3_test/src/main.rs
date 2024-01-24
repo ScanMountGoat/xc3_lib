@@ -226,19 +226,16 @@ fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: 
     match &msrd.streaming.inner {
         xc3_lib::msrd::StreamingInner::StreamingLegacy(_) => todo!(),
         xc3_lib::msrd::StreamingInner::Streaming(data) => {
-            if data.texture_resources.chr_textures.is_none(){
-                println!("{path:?}");
-            }
             if check_read_write {
                 // TODO: Check that repacking and unpacking produces the original streaming data.
                 let new_msrd = Msrd::from_extracted_files(
                     &vertex,
                     &spch,
                     &textures,
-                    data.stream_flags.has_chr_textures(),
+                    data.flags.has_chr_textures(),
                 )
                 .unwrap();
-                // TODO: Chr textures won't be equal to compression differences?
+                // TODO: Chr textures won't be equal due to compression differences?
                 if new_msrd.streaming != msrd.streaming {
                     println!("Streaming not 1:1 for {path:?}");
                 }
@@ -734,7 +731,9 @@ fn check_all_gltf<P: AsRef<Path>>(root: P) {
         .for_each(|entry| {
             let path = entry.as_ref().unwrap().path();
             let root = xc3_model::load_model(path, None).unwrap();
-            xc3_model::gltf::GltfFile::new("model", &[root]);
+            if let Err(e) = xc3_model::gltf::GltfFile::new("model", &[root]) {
+                println!("Error converting {path:?}: {e}");
+            }
         });
 
     globwalk::GlobWalkerBuilder::from_patterns(root.as_ref(), &["*.{wismhd}"])
@@ -743,6 +742,8 @@ fn check_all_gltf<P: AsRef<Path>>(root: P) {
         .for_each(|entry| {
             let path = entry.as_ref().unwrap().path();
             let roots = xc3_model::load_map(path, None).unwrap();
-            xc3_model::gltf::GltfFile::new("model", &roots);
+            if let Err(e) = xc3_model::gltf::GltfFile::new("model", &roots) {
+                println!("Error converting {path:?}: {e}");
+            }
         });
 }

@@ -356,7 +356,7 @@ fn pack_files(
     // TODO: Search stream entries to get indices?
     Ok((
         StreamingData {
-            stream_flags: StreamFlags::new(
+            flags: StreamFlags::new(
                 true,
                 true,
                 true,

@@ -42,8 +42,8 @@ fn main() {
         std::fs::create_dir_all(parent).unwrap();
     }
 
-    let file = GltfFile::new(&name, &roots);
-    file.save(&cli.output);
+    let file = GltfFile::new(&name, &roots).unwrap();
+    file.save(&cli.output).unwrap();
 
     println!("Converted {} roots in {:?}", roots.len(), start.elapsed());
 }

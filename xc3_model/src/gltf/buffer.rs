@@ -70,7 +70,7 @@ impl Buffers {
         group_index: usize,
         buffers_index: usize,
         buffer_index: usize,
-    ) -> &VertexBuffer {
+    ) -> BinResult<&VertexBuffer> {
         let key = BufferKey {
             root_index,
             group_index,
@@ -80,11 +80,10 @@ impl Buffers {
         if !self.vertex_buffers.contains_key(&key) {
             // Assume the base morph target is already applied.
             let mut attributes = BTreeMap::new();
-            self.add_attributes(&mut attributes, &vertex_buffer.attributes)
-                .unwrap();
+            self.add_attributes(&mut attributes, &vertex_buffer.attributes)?;
 
             // Morph targets have their own attribute data.
-            let morph_targets: Vec<_> = vertex_buffer
+            let morph_targets = vertex_buffer
                 .morph_targets
                 .iter()
                 .map(|target| {
@@ -108,8 +107,7 @@ impl Buffers {
                         gltf::json::accessor::ComponentType::F32,
                         Some(Valid(Target::ArrayBuffer)),
                         &mut attributes,
-                    )
-                    .unwrap();
+                    )?;
 
                     // Normals and tangents also use deltas.
                     // These should use Vec3 to avoid displacing the sign in tangent.w.
@@ -120,8 +118,7 @@ impl Buffers {
                         gltf::json::accessor::ComponentType::F32,
                         Some(Valid(Target::ArrayBuffer)),
                         &mut attributes,
-                    )
-                    .unwrap();
+                    )?;
 
                     self.insert_attribute_values(
                         &tangent_deltas,
@@ -130,12 +127,11 @@ impl Buffers {
                         gltf::json::accessor::ComponentType::F32,
                         Some(Valid(Target::ArrayBuffer)),
                         &mut attributes,
-                    )
-                    .unwrap();
+                    )?;
 
-                    attributes
+                    Ok(attributes)
                 })
-                .collect();
+                .collect::<BinResult<Vec<_>>>()?;
 
             self.vertex_buffers.insert(
                 key,
@@ -145,7 +141,7 @@ impl Buffers {
                 },
             );
         }
-        self.vertex_buffers.get(&key).unwrap()
+        Ok(self.vertex_buffers.get(&key).unwrap())
     }
 
     pub fn insert_weight_group(
