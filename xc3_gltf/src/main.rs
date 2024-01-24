@@ -22,7 +22,7 @@ fn main() {
     let cli = Cli::parse();
     let start = std::time::Instant::now();
 
-    let database = cli.database.map(ShaderDatabase::from_file);
+    let database = cli.database.map(|p| ShaderDatabase::from_file(p).unwrap());
 
     let roots = if cli.input.ends_with(".wismhd") {
         xc3_model::load_map(&cli.input, database.as_ref()).unwrap()

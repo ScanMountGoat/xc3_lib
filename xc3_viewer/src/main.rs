@@ -14,7 +14,7 @@ use winit::{
     keyboard::NamedKey,
     window::{Window, WindowBuilder},
 };
-use xc3_model::{animation::Animation, load_animations};
+use xc3_model::{animation::Animation, load_animations, shader_database::ShaderDatabase};
 use xc3_wgpu::{CameraData, ModelGroup, Xc3Renderer, COLOR_FORMAT};
 
 #[cfg(feature = "tracing")]
@@ -112,7 +112,7 @@ impl<'a> State<'a> {
         let camera_data = calculate_camera_data(size, translation, rotation_xyz);
         renderer.update_camera(&queue, &camera_data);
 
-        let database = database_path.map(xc3_model::shader_database::ShaderDatabase::from_file);
+        let database = database_path.map(|p| ShaderDatabase::from_file(p).unwrap());
 
         let start = std::time::Instant::now();
 

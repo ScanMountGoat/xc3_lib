@@ -11,6 +11,16 @@ use std::path::Path;
 
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum LoadShaderDatabaseError {
+    #[error("error writing files: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("error serializing JSON file: {0}")]
+    Json(#[from] serde_json::Error),
+}
 
 // TODO: How much extra space does JSON take up?
 // TODO: Is it worth having a human readable version if it's only accessed through libraries?
@@ -23,12 +33,11 @@ pub struct ShaderDatabase {
     pub map_files: IndexMap<String, Map>,
 }
 
-// TODO: LoadShaderDatabaseError
 impl ShaderDatabase {
     /// Loads and deserializes the JSON data from `path`.
-    pub fn from_file<P: AsRef<Path>>(path: P) -> Self {
-        let json = std::fs::read_to_string(path).unwrap();
-        serde_json::from_str(&json).unwrap()
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, LoadShaderDatabaseError> {
+        let json = std::fs::read_to_string(path)?;
+        serde_json::from_str(&json).map_err(Into::into)
     }
 }
 

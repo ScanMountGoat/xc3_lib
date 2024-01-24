@@ -383,6 +383,7 @@ impl Nvsd {
 impl Nvsp {
     /// Decompress the GLSL source code for the vertex and fragment shader.
     pub fn vertex_fragment_source(&self) -> Option<(String, String)> {
+        // TODO: Create an error type?
         let decompressed =
             lzf::decompress(&self.shader_source, self.decompressed_size as usize).ok()?;
 
@@ -394,7 +395,7 @@ impl Nvsp {
                 )?
                 .to_vec(),
         )
-        .unwrap();
+        .ok()?;
 
         let fragment = String::from_utf8(
             decompressed
@@ -404,7 +405,7 @@ impl Nvsp {
                 )?
                 .to_vec(),
         )
-        .unwrap();
+        .ok()?;
 
         Some((vertex, fragment))
     }

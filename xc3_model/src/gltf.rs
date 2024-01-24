@@ -26,6 +26,15 @@ pub enum CreateGltfError {
     Binrw(#[from] binrw::Error),
 }
 
+#[derive(Debug, Error)]
+pub enum SaveGltfError {
+    #[error("error writing files: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("error serializing JSON file: {0}")]
+    Json(#[from] serde_json::Error),
+}
+
 #[derive(Debug)]
 pub struct GltfFile {
     pub root: gltf::json::Root,
@@ -316,11 +325,10 @@ impl GltfFile {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn save<P: AsRef<Path>>(&self, path: P) -> std::io::Result<()> {
+    pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), SaveGltfError> {
         let path = path.as_ref();
 
-        // TODO: SaveGltfError?
-        let json = gltf::json::serialize::to_string_pretty(&self.root).unwrap();
+        let json = gltf::json::serialize::to_string_pretty(&self.root)?;
         std::fs::write(path, json)?;
 
         std::fs::write(path.with_file_name(&self.buffer_name), &self.buffer)?;
