@@ -241,15 +241,22 @@ pub struct Unk4Unk2 {
     #[xc3(count_offset(u32, u32), align(2))]
     pub unk1: Vec<u32>,
 
-    // TODO: Just store offsets to calculate counts for now?
-    // TODO: Count can be 44?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(2))]
     pub unk3: Option<[f32; 2]>,
 
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[br(restore_position)]
+    #[xc3(skip)]
+    _temp: [u32; 4],
+
+    // TODO: count depends on unk1 length?
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args {
+        offset: base_offset,
+        inner: args! { count: (_temp[3] - _temp[0]) as usize / 8 }
+    })]
     #[xc3(offset(u32), align(2))]
-    pub unk4: Option<[u32; 2]>,
+    pub unk4: Option<Vec<[u32; 2]>>,
 
     pub unk5: u32, // 0?
     pub unk6: u32, // 0?
