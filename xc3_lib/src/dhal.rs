@@ -75,7 +75,11 @@ pub struct Dhal {
     pub unk8_1: u32, // count?
 
     // TODO: more fields?
-    pub unks1: [u32; 2],
+    pub unks1: u32,
+
+    #[br(parse_with = parse_opt_ptr32)]
+    #[xc3(offset(u32), align(2))]
+    pub unk9: Option<Unk9>,
 
     #[br(parse_with = parse_opt_ptr32)]
     #[xc3(offset(u32))]
@@ -84,8 +88,9 @@ pub struct Dhal {
     // TODO: padding?
     pub unk: [u32; 7],
 
+    // TODO: 4 more bytes of padding for xc3?
     #[br(if(version > 10001))]
-    pub unks2: Option<[u32; 3]>,
+    pub unks2: Option<[u32; 2]>,
 }
 
 // TODO: Is this actually flags?
@@ -131,20 +136,16 @@ pub struct Unk2 {
 
     // TODO: Describes sections of buffer?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset_count(u32, u32))]
+    #[xc3(offset_count(u32, u32), align(2))]
     pub unk1: Vec<Unk2Unk1>,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset_count(u32, u32))]
+    #[xc3(offset_count(u32, u32), align(2))]
     pub unk2: Vec<Unk2Unk2>,
 
-    // TODO: type?
-    // TODO: Second value isn't actually count?
-    // TODO: Some lagp files don't have enough bytes?
+    // TODO: Infer the length somehow?
     // TODO: params with f32, f32, ..., 0xffffffff?
-    // TODO: what determines the remaining data?
-    //  4, 1732, 1364
-    // 10, 2372, 1452
+    // TODO: what determines the remaining data count?
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: buffer_size(&unk1, &unk2) }})]
     #[xc3(offset(u32), align(4096))]
@@ -179,10 +180,10 @@ pub struct Unk3 {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    // TODO: This type is sometimes larger?
-    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32)]
+    #[br(args { offset: base_offset, inner: base_offset})]
     #[xc3(offset_count(u32, u32))]
-    pub unk1: Vec<[u32; 7]>,
+    pub unk1: Vec<Unk3Unk1>,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
@@ -194,6 +195,22 @@ pub struct Unk3 {
 
     // TODO: padding?
     pub unk: [u32; 4],
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[br(import_raw(base_offset: u64))]
+pub struct Unk3Unk1 {
+    pub unk1: (u16, u16),
+
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub unk2: Option<[u32; 3]>,
+
+    pub unk3: u32,
+    pub unk4: u32,
+    pub unk5: u32,
+    pub unk6: u32,
+    pub unk7: (u16, u16),
 }
 
 #[binread]
@@ -231,7 +248,7 @@ pub struct Unk4Extra {
     pub unk1: Option<[u32; 4]>,
 
     // TODO: padding?
-    pub unk: [u32; 4],
+    pub unk: u32,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -403,6 +420,27 @@ pub struct Unk8Item {
 #[derive(Debug, Xc3Write, Xc3WriteOffsets)]
 #[br(stream = r)]
 #[xc3(base_offset)]
+pub struct Unk9 {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32), align(2))]
+    pub unk1: Vec<Unk9Item>,
+
+    // TODO: padding?
+    pub unk: [u32; 4],
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+pub struct Unk9Item {
+    pub unk1: [i32; 5],
+}
+
+#[binread]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[br(stream = r)]
+#[xc3(base_offset)]
 pub struct Textures {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
@@ -474,6 +512,7 @@ impl<'a> Xc3WriteOffsets for DhalOffsets<'a> {
         self.unk3.write_full(writer, base_offset, data_ptr)?;
         self.unk7.write_full(writer, base_offset, data_ptr)?;
         self.unk4.write_full(writer, base_offset, data_ptr)?;
+        self.unk9.write_full(writer, base_offset, data_ptr)?;
         self.unk5.write_full(writer, base_offset, data_ptr)?;
         self.unk6.write_full(writer, base_offset, data_ptr)?;
         self.unk8.write_full(writer, base_offset, data_ptr)?;
