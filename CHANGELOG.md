@@ -7,9 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### unreleased
 ### Fixed
-* Fixed an issue where `Msrd::from_extracted_files` would sometimes incorrectly calculate streaming data offsets
+* Fixed an issue where `Msrd::from_extracted_files` would sometimes incorrectly calculate streaming data offsets.
+* Fixed an issue where some `.wilay` files would not properly rebuild all data when saving.
 
 ### Changed
+* Improved accuracy of file rebuilding.
 * Optimized glTF file sizes by only including referenced vertex buffers.
 * Reduced memory usage and improved export times for glTF conversion.
 * Changed loading functions to return an error instead of panic.
