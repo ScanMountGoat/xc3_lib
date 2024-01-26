@@ -12,7 +12,7 @@ use crate::{
     dhal::{Textures, Unk1, Unk2, Unk3, Unk4, Unk5, Unk6},
     parse_offset32_count32, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
 };
-use binrw::{binread, BinRead};
+use binrw::{args, binread, BinRead};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 // TODO: How much of this is shared with LAHD?
@@ -25,6 +25,11 @@ pub struct Lagp {
     pub version: u32,
     // TODO: Different values than dhal?
     pub unk0: u32, // 0, 64, 256, 320?
+
+    // TODO: temp?
+    #[br(restore_position)]
+    #[xc3(skip)]
+    pub offset: u32,
 
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]
@@ -39,6 +44,7 @@ pub struct Lagp {
     pub unk3: Option<Unk3>,
 
     #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { inner: args! { offset, version } })]
     #[xc3(offset(u32))]
     pub unk4: Option<Unk4>,
 

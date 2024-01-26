@@ -29,6 +29,11 @@ pub struct Dhal {
     // TODO: changes remaining fields?
     pub unk0: Unk0,
 
+    // TODO: temp?
+    #[br(restore_position)]
+    #[xc3(skip)]
+    pub offset: u32,
+
     // TODO: alignment is sometimes 16?
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]
@@ -43,8 +48,9 @@ pub struct Dhal {
     #[xc3(offset(u32), align(2))]
     pub unk3: Option<Unk3>,
 
+    // TODO: align 16 for xc3?
     #[br(parse_with = parse_opt_ptr32)]
-    #[br(args { inner: version })]
+    #[br(args { inner: args! { offset, version } })]
     #[xc3(offset(u32), align(2))]
     pub unk4: Option<Unk4>,
 
@@ -89,8 +95,11 @@ pub struct Dhal {
     pub unk: [u32; 7],
 
     // TODO: 4 more bytes of padding for xc3?
-    #[br(if(version > 10001))]
+    #[br(if(offset >= 108))]
     pub unks2: Option<[u32; 2]>,
+
+    #[br(if(offset >= 112))]
+    pub unks3: Option<u32>,
 }
 
 // TODO: Is this actually flags?
@@ -216,7 +225,7 @@ pub struct Unk3Unk1 {
 #[binread]
 #[derive(Debug, Xc3Write)]
 #[br(stream = r)]
-#[br(import_raw(version: u32))]
+#[br(import { version: u32, offset: u32 })]
 #[xc3(base_offset)]
 pub struct Unk4 {
     #[br(temp, try_calc = r.stream_position())]
@@ -238,6 +247,10 @@ pub struct Unk4 {
     #[br(if(version > 10001))]
     #[br(args_raw(base_offset))]
     pub extra: Option<Unk4Extra>,
+
+    // TODO: Should xc3 be treated as a separate format?
+    #[br(if(offset >= 112))]
+    pub unk: Option<[u32; 3]>,
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
@@ -292,9 +305,7 @@ pub struct Unk4Unk2 {
     pub unk9: u32,  // 0
     pub unk10: u32, // 0
 
-    // #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    // #[xc3(offset(u32), align(2))]
-    pub unk11: u32, //Option<[u32; 2]>,
+    pub unk11: u32,
 
     pub unk12: u32, // 0
     // TODO: not padding?
