@@ -42,6 +42,8 @@ use thiserror::Error;
 use vertex::{read_index_buffers, read_vertex_buffers, AttributeData};
 use xc3_lib::{
     apmd::Apmd,
+    bc::Bc,
+    error::DecompressStreamError,
     mibl::Mibl,
     msrd::{
         streaming::{chr_tex_nx_folder, ExtractedTexture},
@@ -50,6 +52,7 @@ use xc3_lib::{
     mxmd::{Materials, Mxmd},
     sar1::Sar1,
     vertex::{VertexData, WeightLod},
+    xbc1::MaybeXbc1,
 };
 
 pub use map::{load_map, LoadMapError};
@@ -501,44 +504,71 @@ fn load_streaming_data<'a>(
         })
 }
 
+#[derive(BinRead)]
+enum AnimFile {
+    Sar1(MaybeXbc1<Sar1>),
+    Bc(Bc),
+}
+
 /// Load all animations from a `.anm`, `.mot`, or `.motstm_data` file.
-pub fn load_animations<P: AsRef<Path>>(anim_path: P) -> Vec<Animation> {
-    // TODO: Avoid unwrap and return errors.
-    // TODO: Avoid repetition.
+///
+/// # Examples
+/// ``` rust no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// // Fiora
+/// let animations = xc3_model::load_animations("xeno1/chr/pc/mp080000.mot")?;
+/// println!("{}", animations.len());
+///
+/// // Pyra
+/// let animations = xc3_model::load_animations("xeno2/model/bl/bl000101.mot")?;
+/// println!("{}", animations.len());
+///
+/// // Mio military uniform
+/// let animations = xc3_model::load_animations("xeno3/chr/ch/ch01027000_event.mot")?;
+/// println!("{}", animations.len());
+/// # Ok(())
+/// # }
+/// ```
+pub fn load_animations<P: AsRef<Path>>(
+    anim_path: P,
+) -> Result<Vec<Animation>, DecompressStreamError> {
+    let mut reader = Cursor::new(std::fs::read(anim_path)?);
+    let anim_file: AnimFile = reader.read_le()?;
+
     let mut animations = Vec::new();
-    if let Ok(sar1) = xc3_lib::sar1::Sar1::from_file(anim_path.as_ref()) {
-        // Most xenoblade 2 and xenoblade 3 animations are in sar archives.
-        for entry in &sar1.entries {
-            match entry.read_data::<xc3_lib::bc::Bc>() {
-                Ok(bc) => {
-                    if let xc3_lib::bc::BcData::Anim(anim) = bc.data {
-                        let animation = Animation::from_anim(&anim);
-                        animations.push(animation);
-                    }
-                }
-                Err(e) => error!("error reading {}; {e}", entry.name),
-            }
-        }
-    } else if let Ok(bc) = xc3_lib::bc::Bc::from_file(anim_path.as_ref()) {
-        // Some animations are in standalone BC archives.
-        if let xc3_lib::bc::BcData::Anim(anim) = bc.data {
-            let animation = Animation::from_anim(&anim);
-            animations.push(animation);
-        }
-    } else if let Ok(xbc1) = xc3_lib::xbc1::Xbc1::from_file(anim_path.as_ref()) {
-        // Xenoblade 1 DE compresses the sar archive.
-        if let Ok(sar1) = xbc1.extract::<xc3_lib::sar1::Sar1>() {
-            for entry in &sar1.entries {
-                if let Ok(bc) = entry.read_data::<xc3_lib::bc::Bc>() {
-                    if let xc3_lib::bc::BcData::Anim(anim) = bc.data {
-                        let animation = Animation::from_anim(&anim);
-                        animations.push(animation);
-                    }
+
+    // Most animations are in sar1 archives.
+    // Xenoblade 1 DE compresses the sar1 archive.
+    // Some animations are in standalone BC files.
+    match anim_file {
+        AnimFile::Sar1(sar1) => match sar1 {
+            MaybeXbc1::Uncompressed(sar1) => {
+                for entry in &sar1.entries {
+                    let bc = entry.read_data::<xc3_lib::bc::Bc>()?;
+                    add_bc_animations(&mut animations, bc);
                 }
             }
+            MaybeXbc1::Xbc1(xbc1) => {
+                let sar1: Sar1 = xbc1.extract()?;
+                for entry in &sar1.entries {
+                    let bc = entry.read_data::<xc3_lib::bc::Bc>()?;
+                    add_bc_animations(&mut animations, bc);
+                }
+            }
+        },
+        AnimFile::Bc(bc) => {
+            add_bc_animations(&mut animations, bc);
         }
     }
-    animations
+
+    Ok(animations)
+}
+
+fn add_bc_animations(animations: &mut Vec<Animation>, bc: Bc) {
+    if let xc3_lib::bc::BcData::Anim(anim) = bc.data {
+        let animation = Animation::from_anim(&anim);
+        animations.push(animation);
+    }
 }
 
 fn create_samplers(materials: &Materials) -> Vec<Sampler> {

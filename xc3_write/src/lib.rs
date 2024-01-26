@@ -37,7 +37,7 @@ pub trait Xc3Write {
 pub trait Xc3WriteOffsets {
     /// Update and write pointed to data for all fields in [Xc3Write::Offsets].
     ///
-    /// The goal is to call [Offset::write_offset] or [Xc3WriteOffsets::write_offsets]
+    /// The goal is to call [Offset::write] or [Xc3WriteOffsets::write_offsets]
     /// in increasing order by absolute offset stored in `data_ptr`.
     /// For writing in order by field recursively, simply derive [Xc3WriteOffsets].
     /// Manually implementing this trait allows flexibility for cases like placing strings

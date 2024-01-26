@@ -180,7 +180,7 @@ fn main() {
 }
 
 fn apply_anim(queue: &wgpu::Queue, groups: &[xc3_wgpu::ModelGroup], path: &Path) -> bool {
-    let animations = load_animations(path);
+    let animations = load_animations(path).unwrap();
     if let Some(animation) = animations.first() {
         for group in groups {
             for models in &group.models {
