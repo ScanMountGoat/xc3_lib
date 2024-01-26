@@ -17,7 +17,7 @@
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use xc3_model::shader_database::ShaderDatabase;
 //!
-//! let database = ShaderDatabase::from_file("xc3.json");
+//! let database = ShaderDatabase::from_file("xc3.json")?;
 //!
 //! let root = xc3_model::load_model("ch01011013.wimdo", Some(&database))?;
 //! println!("{}", root.image_textures.len());
@@ -297,15 +297,15 @@ pub enum LoadModelError {
 /// use xc3_model::{load_model, shader_database::ShaderDatabase};
 ///
 /// // Shulk's hair
-/// let database = ShaderDatabase::from_file("xc1.json");
+/// let database = ShaderDatabase::from_file("xc1.json")?;
 /// let root = load_model("xeno1/chr/pc/pc010101.wimdo", Some(&database));
 ///
 /// // Pyra
-/// let database = ShaderDatabase::from_file("xc2.json");
+/// let database = ShaderDatabase::from_file("xc2.json")?;
 /// let root = load_model("xeno2/model/bl/bl000101.wimdo", Some(&database));
 ///
 /// // Mio military uniform
-/// let database = ShaderDatabase::from_file("xc3.json");
+/// let database = ShaderDatabase::from_file("xc3.json")?;
 /// let root = load_model("xeno3/chr/ch/ch01027000.wimdo", Some(&database));
 /// # Ok(())
 /// # }
@@ -315,7 +315,7 @@ pub enum LoadModelError {
 /// ```rust no_run
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// # use xc3_model::{load_model, shader_database::ShaderDatabase};
-/// let database = ShaderDatabase::from_file("xc1.json");
+/// let database = ShaderDatabase::from_file("xc1.json")?;
 ///
 /// // Shulk's main outfit.
 /// let paths = [
@@ -327,10 +327,11 @@ pub enum LoadModelError {
 ///     "xeno1/chr/pc/pc010109.wimdo",
 /// ];
 ///
-/// let roots: Vec<_> = paths
-///     .iter()
-///     .map(|path| xc3_model::load_model(path, Some(&database)))
-///     .collect();
+/// let mut roots = Vec::new();
+/// for path in paths {
+///     let root = xc3_model::load_model(path, Some(&database))?;
+///     roots.push(root);
+/// }
 /// # Ok(())
 /// # }
 /// ```

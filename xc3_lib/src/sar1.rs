@@ -253,7 +253,7 @@ impl<'a> Xc3WriteOffsets for ChClInnerOffsets<'a> {
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
         self.unk1.write_full(writer, base_offset, data_ptr)?;
-        let unk2 = self.unk2.write_offset(writer, base_offset, data_ptr)?;
+        let unk2 = self.unk2.write(writer, base_offset, data_ptr)?;
         if !self.unk7.data.is_empty() {
             self.unk7.write_full(writer, base_offset, data_ptr)?;
         }
@@ -282,7 +282,7 @@ impl<'a> Xc3WriteOffsets for Sar1Offsets<'a> {
         data_ptr: &mut u64,
     ) -> xc3_write::Xc3Result<()> {
         // Make sure the data offset points to the first entry data.
-        let entries = self.entries.write_offset(writer, base_offset, data_ptr)?;
+        let entries = self.entries.write(writer, base_offset, data_ptr)?;
         self.data_offset.write_full(writer, base_offset, data_ptr)?;
         for entry in entries.0 {
             entry.write_offsets(writer, base_offset, data_ptr)?;

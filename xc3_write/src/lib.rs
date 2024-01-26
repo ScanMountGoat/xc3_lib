@@ -176,7 +176,7 @@ where
     P: TryFrom<u64> + Xc3Write,
     <P as TryFrom<u64>>::Error: std::fmt::Debug,
 {
-    pub fn write_offset<W: Write + Seek>(
+    pub fn write<W: Write + Seek>(
         &self,
         writer: &mut W,
         base_offset: u64,

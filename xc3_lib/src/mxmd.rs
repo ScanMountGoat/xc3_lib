@@ -1582,7 +1582,7 @@ impl<'a> Xc3WriteOffsets for SkinningOffsets<'a> {
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
 
-        let bones = self.bones.write_offset(writer, base_offset, data_ptr)?;
+        let bones = self.bones.write(writer, base_offset, data_ptr)?;
 
         if !self.bone_indices.data.is_empty() {
             self.bone_indices
@@ -1619,7 +1619,7 @@ impl<'a> Xc3WriteOffsets for ModelUnk1Offsets<'a> {
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
 
-        let items1 = self.items1.write_offset(writer, base_offset, data_ptr)?;
+        let items1 = self.items1.write(writer, base_offset, data_ptr)?;
 
         self.items3.write_full(writer, base_offset, data_ptr)?;
 
@@ -1726,7 +1726,7 @@ impl<'a> Xc3WriteOffsets for MaterialsOffsets<'a> {
         let base_offset = self.base_offset;
 
         // Material fields get split up and written in a different order.
-        let materials = self.materials.write_offset(writer, base_offset, data_ptr)?;
+        let materials = self.materials.write(writer, base_offset, data_ptr)?;
 
         self.floats.write_full(writer, base_offset, data_ptr)?;
         self.ints.write_full(writer, base_offset, data_ptr)?;
@@ -1851,7 +1851,7 @@ impl<'a> Xc3WriteOffsets for PackedTexturesOffsets<'a> {
         let base_offset = self.base_offset;
 
         // Names and data need to be written at the end.
-        let textures = self.textures.write_offset(writer, base_offset, data_ptr)?;
+        let textures = self.textures.write(writer, base_offset, data_ptr)?;
 
         self.strings_offset
             .write_full(writer, base_offset, data_ptr)?;
@@ -1877,7 +1877,7 @@ impl<'a> Xc3WriteOffsets for PackedExternalTexturesOffsets<'a> {
         let base_offset = self.base_offset;
 
         // Names need to be written at the end.
-        let textures = self.textures.write_offset(writer, base_offset, data_ptr)?;
+        let textures = self.textures.write(writer, base_offset, data_ptr)?;
 
         self.strings_offset
             .write_full(writer, base_offset, data_ptr)?;

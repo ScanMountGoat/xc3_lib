@@ -530,11 +530,7 @@ impl<'a> Xc3WriteOffsets for AnimOffsets<'a> {
 
         // TODO: Nicer way of writing this?
         let notifies = if !animation.notifies.data.is_empty() {
-            Some(
-                animation
-                    .notifies
-                    .write_offset(writer, base_offset, data_ptr)?,
-            )
+            Some(animation.notifies.write(writer, base_offset, data_ptr)?)
         } else {
             None
         };
@@ -543,7 +539,7 @@ impl<'a> Xc3WriteOffsets for AnimOffsets<'a> {
             .locomotion
             .write_full(writer, base_offset, data_ptr)?;
 
-        let binding = self.binding.write_offset(writer, base_offset, data_ptr)?;
+        let binding = self.binding.write(writer, base_offset, data_ptr)?;
 
         binding.animation.set_offset(writer, animation_position)?;
 
@@ -559,24 +555,20 @@ impl<'a> Xc3WriteOffsets for AnimOffsets<'a> {
                 unk1.write_offsets(writer, base_offset, data_ptr)?;
             }
             AnimationBindingInnerOffsets::Unk2(unk2) => {
-                let bone_names = unk2
-                    .bone_names
-                    .write_offset(writer, base_offset, data_ptr)?;
+                let bone_names = unk2.bone_names.write(writer, base_offset, data_ptr)?;
                 for bone_name in &bone_names.0 {
                     string_section.insert_offset(&bone_name.name);
                 }
 
                 if !unk2.extra_track_bindings.data.is_empty() {
-                    let items =
-                        unk2.extra_track_bindings
-                            .write_offset(writer, base_offset, data_ptr)?;
+                    let items = unk2
+                        .extra_track_bindings
+                        .write(writer, base_offset, data_ptr)?;
 
                     for item in &items.0 {
-                        let extra = item.extra_track_animation.write_offset(
-                            writer,
-                            base_offset,
-                            data_ptr,
-                        )?;
+                        let extra =
+                            item.extra_track_animation
+                                .write(writer, base_offset, data_ptr)?;
                         if let Some(extra) = extra {
                             extra.values.write_offsets(writer, base_offset, data_ptr)?;
                             string_section.insert_offset(&extra.name);
@@ -589,9 +581,7 @@ impl<'a> Xc3WriteOffsets for AnimOffsets<'a> {
             }
             AnimationBindingInnerOffsets::Unk3(unk3) => {
                 if !unk3.bone_names.data.is_empty() {
-                    let bone_names = unk3
-                        .bone_names
-                        .write_offset(writer, base_offset, data_ptr)?;
+                    let bone_names = unk3.bone_names.write(writer, base_offset, data_ptr)?;
                     for bone_name in &bone_names.0 {
                         string_section.insert_offset(&bone_name.name);
                     }
@@ -602,9 +592,7 @@ impl<'a> Xc3WriteOffsets for AnimOffsets<'a> {
             }
             AnimationBindingInnerOffsets::Unk4(unk4) => {
                 if !unk4.bone_names.data.is_empty() {
-                    let bone_names = unk4
-                        .bone_names
-                        .write_offset(writer, base_offset, data_ptr)?;
+                    let bone_names = unk4.bone_names.write(writer, base_offset, data_ptr)?;
                     for bone_name in &bone_names.0 {
                         string_section.insert_offset(&bone_name.name);
                     }
@@ -655,7 +643,7 @@ impl<'a> Xc3WriteOffsets for ExtraTrackAnimationBindingOffsets<'a> {
     ) -> xc3_write::Xc3Result<()> {
         let animation = self
             .extra_track_animation
-            .write_offset(writer, base_offset, data_ptr)?;
+            .write(writer, base_offset, data_ptr)?;
 
         if let Some(animation) = &animation {
             animation

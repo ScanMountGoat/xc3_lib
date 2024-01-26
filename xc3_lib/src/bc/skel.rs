@@ -307,10 +307,7 @@ impl<'a> Xc3WriteOffsets for SkeletonOffsets<'a> {
         }
         self.transforms.write_full(writer, base_offset, data_ptr)?;
 
-        let names = self
-            .names
-            .elements
-            .write_offset(writer, base_offset, data_ptr)?;
+        let names = self.names.elements.write(writer, base_offset, data_ptr)?;
         for name in names.0 {
             string_section.insert_offset(&name.name);
         }
@@ -321,15 +318,12 @@ impl<'a> Xc3WriteOffsets for SkeletonOffsets<'a> {
         if !self.extra_track_slots.data.is_empty() {
             let slots = self
                 .extra_track_slots
-                .write_offset(writer, base_offset, data_ptr)?;
+                .write(writer, base_offset, data_ptr)?;
             for slot in slots.0 {
                 string_section.insert_offset(&slot.unk1);
 
                 if !slot.unk2.elements.data.is_empty() {
-                    let names = slot
-                        .unk2
-                        .elements
-                        .write_offset(writer, base_offset, data_ptr)?;
+                    let names = slot.unk2.elements.write(writer, base_offset, data_ptr)?;
                     for name in names.0 {
                         string_section.insert_offset(&name.name);
                     }
@@ -348,7 +342,7 @@ impl<'a> Xc3WriteOffsets for SkeletonOffsets<'a> {
             self.mt_indices.write_full(writer, base_offset, data_ptr)?;
         }
         if !self.mt_names.data.is_empty() {
-            let names = self.mt_names.write_offset(writer, base_offset, data_ptr)?;
+            let names = self.mt_names.write(writer, base_offset, data_ptr)?;
             for name in names.0 {
                 string_section.insert_offset(&name.name);
             }

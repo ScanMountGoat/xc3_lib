@@ -545,7 +545,7 @@ impl<'a> Xc3WriteOffsets for Unk4Offsets<'a> {
         // Different order than field order.
         let base_offset = self.base_offset;
 
-        let unk2s = self.unk2.write_offset(writer, base_offset, data_ptr)?;
+        let unk2s = self.unk2.write(writer, base_offset, data_ptr)?;
         for unk2 in &unk2s.0 {
             unk2.unk1.write_full(writer, base_offset, data_ptr)?;
         }
