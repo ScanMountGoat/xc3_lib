@@ -521,8 +521,8 @@ impl<'a> Xc3WriteOffsets for DhalOffsets<'a> {
         // Different order than field order.
         self.unk1.write_full(writer, base_offset, data_ptr)?;
         self.unk3.write_full(writer, base_offset, data_ptr)?;
-        self.unk7.write_full(writer, base_offset, data_ptr)?;
         self.unk4.write_full(writer, base_offset, data_ptr)?;
+        self.unk7.write_full(writer, base_offset, data_ptr)?;
         self.unk9.write_full(writer, base_offset, data_ptr)?;
         self.unk5.write_full(writer, base_offset, data_ptr)?;
         self.unk6.write_full(writer, base_offset, data_ptr)?;
