@@ -36,11 +36,11 @@ Click on the docs.rs links below to see the generated rustdoc documentation.
 - [![Crates.io](https://img.shields.io/crates/v/xc3_write.svg?label=xc3_write)](https://crates.io/crates/xc3_write) [![docs.rs](https://docs.rs/xc3_write/badge.svg)](https://docs.rs/xc3_write/) - binary writing and layout
 
 ### Binaries
-- `xc3_gltf` - convert models and maps to glTF
-- `xc3_test` - test against files in an extracted dump
-- `xc3_tex` - convert textures to and from common formats and replace textures in `wilay` and `wimdo` files
-- `xc3_viewer` - simple model viewer for testing `xc3_wgpu`
-- `xc3_wgpu_batch` - batch render models and maps to PNG
+- [xc3_gltf](https://github.com/ScanMountGoat/xc3_lib/tree/main/xc3_gltf) - convert models and maps to glTF
+- [xc3_test](https://github.com/ScanMountGoat/xc3_lib/tree/main/xc3_test) - test against files in an extracted dump
+- [xc3_tex](https://github.com/ScanMountGoat/xc3_lib/tree/main/xc3_tex) - convert textures to and from common formats and replace textures in `wilay` and `wimdo` files
+- [xc3_viewer](https://github.com/ScanMountGoat/xc3_lib/tree/main/xc3_viewer) - simple model viewer for testing `xc3_wgpu`
+- [xc3_wgpu_batch](https://github.com/ScanMountGoat/xc3_lib/tree/main/xc3_wgpu_batch) - batch render models and maps to PNG
 
 ## Usage
 These projects are still highly unstable. When using the latest version from github, specify a specific git revision or commit the Cargo.lock file to source control. This locks the version and avoids any breaking changes. The debug or JSON output has not stabilized and should not be assumed to be the same between commits.
