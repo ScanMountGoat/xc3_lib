@@ -88,7 +88,19 @@ impl ImageTexture {
     }
 
     pub fn to_image(&self) -> Result<image_dds::image::RgbaImage, CreateImageError> {
-        self.to_surface().decode_rgba8()?.to_image(0)
+        // Only decode the mip we actually use to improve performance.
+        self.to_surface()
+            .decode_layers_mipmaps_rgba8(0..self.layers(), 0..1)?
+            .to_image(0)
+    }
+
+    /// Return the number of array layers in this surface.
+    pub fn layers(&self) -> u32 {
+        if self.view_dimension == ViewDimension::Cube {
+            6
+        } else {
+            1
+        }
     }
 
     pub fn to_surface(&self) -> image_dds::Surface<&[u8]> {
@@ -96,11 +108,7 @@ impl ImageTexture {
             width: self.width,
             height: self.height,
             depth: self.depth,
-            layers: if self.view_dimension == ViewDimension::Cube {
-                6
-            } else {
-                1
-            },
+            layers: self.layers(),
             mipmaps: self.mipmap_count,
             image_format: self.image_format.into(),
             data: &self.image_data,

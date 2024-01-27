@@ -69,10 +69,12 @@ impl TextureCache {
         }
     }
 
+    // TODO: Avoid unwrap?
     pub fn generate_png_images(&self, model_name: &str) -> Vec<(String, Vec<u8>)> {
         self.generated_texture_indices
             .par_iter()
             .map(|(key, _)| {
+                // TODO: Why does this panic?
                 let image = generate_image(*key, &self.original_images).unwrap();
 
                 // Compress ahead of time to reduce memory usage.
