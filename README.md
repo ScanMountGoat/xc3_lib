@@ -1,7 +1,7 @@
 # xc3_lib [![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/ScanMountGoat/xc3_lib?include_prereleases)](https://github.com/ScanMountGoat/xc3_lib/releases/latest)
 Rust libraries and tools for working with rendering related file formats for Xenoblade Chronicles 1 DE, Xenoblade Chronicles 2, and Xenoblade Chronicles 3.
 
-Report any bugs or request new features in [issues](https://github.com/ScanMountGoat/xc3_lib/issues). Download precompiled binaries for the tools in [releases](https://github.com/ScanMountGoat/xc3_lib/releases). Python bindings for xc3_model are available with [xc3_model_py](https://github.com/ScanMountGoat/xc3_model_py). See the [xenoblade-rendering-research](https://github.com/ScanMountGoat/xenoblade-rendering-research) for information on topics related to in game rendering.
+Report any bugs or request new features in [issues](https://github.com/ScanMountGoat/xc3_lib/issues). Download precompiled binaries for the tools in [releases](https://github.com/ScanMountGoat/xc3_lib/releases). Python bindings for xc3_model are available with [xc3_model_py](https://github.com/ScanMountGoat/xc3_model_py). See the [xenoblade-rendering-research](https://scanmountgoat.github.io/xenoblade-rendering-research/) for information on topics related to in game rendering.
 
 ## Formats
 xc3_lib supports a number of in game formats. All formats support reading. Write support is still a WIP for some formats. Click on the links to open the corresponding Rust module in xc3_lib. Extensions starting with `wi` are for the Switch. Some formats have equivalent formats for desktop PCs starting with `pc` like `pcmdo` instead of `wimdo`.
