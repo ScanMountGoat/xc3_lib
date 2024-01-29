@@ -69,7 +69,7 @@ fn main() {
     ))
     .unwrap();
 
-    let renderer = Xc3Renderer::new(&device, WIDTH, HEIGHT);
+    let renderer = Xc3Renderer::new(&device, &queue, WIDTH, HEIGHT);
 
     // Initialize the camera transform.
     let translation = vec3(0.0, -1.0, -10.0);

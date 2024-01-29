@@ -1,41 +1,48 @@
-// "gTCol" in "clustered" in monolib/shader/shd_lgt.wishp.
-@group(0) @binding(0)
-var g_color: texture_2d<f32>;
-
-// "gTEtc" in "clustered" in monolib/shader/shd_lgt.wishp.
-@group(0) @binding(1)
-var g_etc_buffer: texture_2d<f32>;
-
-// "gTNom" in "clustered" in monolib/shader/shd_lgt.wishp.
-@group(0) @binding(2)
-var g_normal: texture_2d<f32>;
-
-@group(0) @binding(3)
-var g_velocity: texture_2d<f32>;
-
-// "gTDep" in "clustered" in monolib/shader/shd_lgt.wishp.
-@group(0) @binding(4)
-var g_depth: texture_2d<f32>;
-
-// TODO: the output at index 5 can be specular color or emission?
-// "gTSpecularCol" in "clustered" in monolib/shader/shd_lgt.wishp.
-@group(0) @binding(5)
-var g_lgt_color: texture_2d<f32>;
-
-@group(0) @binding(6)
-var shared_sampler: sampler;
-
+// PerPass resources.
 struct DebugSettings {
     render_mode: u32
 }
 
-@group(1) @binding(0)
+@group(0) @binding(0)
 var<uniform> debug_settings: DebugSettings;
 
 struct RenderSettings {
     mat_id: u32,
 }
 
+// PerPass resources that may change when resized.
+// TODO: Where to put this since it's only used for the toon shader?
+@group(0) @binding(1)
+var g_toon_grad: texture_2d<f32>;
+
+@group(0) @binding(2)
+var shared_sampler: sampler;
+
+// "gTCol" in "clustered" in monolib/shader/shd_lgt.wishp.
+@group(1) @binding(0)
+var g_color: texture_2d<f32>;
+
+// "gTEtc" in "clustered" in monolib/shader/shd_lgt.wishp.
+@group(1) @binding(1)
+var g_etc_buffer: texture_2d<f32>;
+
+// "gTNom" in "clustered" in monolib/shader/shd_lgt.wishp.
+@group(1) @binding(2)
+var g_normal: texture_2d<f32>;
+
+@group(1) @binding(3)
+var g_velocity: texture_2d<f32>;
+
+// "gTDep" in "clustered" in monolib/shader/shd_lgt.wishp.
+@group(1) @binding(4)
+var g_depth: texture_2d<f32>;
+
+// TODO: the output at index 5 can be specular color or emission?
+// "gTSpecularCol" in "clustered" in monolib/shader/shd_lgt.wishp.
+@group(1) @binding(5)
+var g_lgt_color: texture_2d<f32>;
+
+// PerDraw resources for each material ID type.
 @group(2) @binding(0)
 var<uniform> render_settings: RenderSettings;
 
@@ -99,6 +106,14 @@ fn mat_id_depth(id: u32) -> f32 {
     return f32(id + 1u) / 65535.0;
 }
 
+fn unpack_normal(g_normal: vec2<f32>) -> vec3<f32> {
+    // Unpack the view space normals.
+    let normal_x = g_normal.x * 2.0 - 1.0;
+    let normal_y = g_normal.y * 2.0 - 1.0;
+    let normal_z = sqrt(abs(1.0 - normal_x * normal_x - normal_y * normal_y));
+    return vec3(normal_x, normal_y, normal_z);
+}
+
 fn calculate_color(uv: vec2<f32>) -> vec4<f32> {
     let g_color = textureSample(g_color, shared_sampler, uv);
     let g_etc_buffer = textureSample(g_etc_buffer, shared_sampler, uv);
@@ -114,13 +129,8 @@ fn calculate_color(uv: vec2<f32>) -> vec4<f32> {
     // TODO: clamped using constant buffer?
     let roughness = clamp(1.0 - glossiness, 0.04, 0.995);
 
+    let normal = unpack_normal(g_normal.xy);
     let ambient_occlusion = g_normal.z;
-
-    // Unpack the view space normals.
-    let normal_x = g_normal.x * 2.0 - 1.0;
-    let normal_y = g_normal.y * 2.0 - 1.0;
-    let normal_z = sqrt(abs(1.0 - normal_x * normal_x - normal_y * normal_y));
-    let normal = vec3(normal_x, normal_y, normal_z);
 
     var output = vec3(0.0);
 
@@ -152,6 +162,60 @@ fn calculate_color(uv: vec2<f32>) -> vec4<f32> {
     return vec4(output, 1.0);
 }
 
+fn calculate_toon_color(uv: vec2<f32>) -> vec4<f32> {
+    let g_color = textureSample(g_color, shared_sampler, uv);
+    let g_etc_buffer = textureSample(g_etc_buffer, shared_sampler, uv);
+    let g_normal = textureSample(g_normal, shared_sampler, uv);
+    let g_velocity = textureSample(g_velocity, shared_sampler, uv);
+    let g_depth = textureSample(g_depth, shared_sampler, uv);
+    let g_lgt_color = textureSample(g_lgt_color, shared_sampler, uv);
+
+    let albedo = g_color.rgb;
+    let metalness = g_etc_buffer.r;
+    let glossiness = g_etc_buffer.g;
+    
+    // TODO: clamped using constant buffer?
+    let roughness = clamp(1.0 - glossiness, 0.04, 0.995);
+
+    let normal = unpack_normal(g_normal.xy);
+    let ambient_occlusion = g_normal.z;
+
+    var output = vec3(0.0);
+
+    // Normals are in view space, so the view vector is simple.
+    let view = vec3(0.0, 0.0, 1.0);
+    let reflection = reflect(view, normal);
+
+    let n_dot_v = max(dot(view, normal), 0.0);
+    // TODO: Calculate this from lighting vectors.
+    let n_dot_h = n_dot_v;
+    
+    // Basic lambertian diffuse for testing purposes.
+    // TODO: Toon shading in game has many more parameters.
+    let diffuse_indirect = 0.25 * ambient_occlusion;
+    let diffuse_direct = 1.0;
+    let diffuse_lighting = mix(diffuse_indirect, diffuse_direct, n_dot_v);
+
+    // TODO: Does toon shading use ggx?
+    let ggx = ggx_brdf(roughness, n_dot_h);
+
+    // TODO: ambient specular using BRDF map?
+    let specular_lighting = ggx;
+
+    let f0 = mix(vec3(0.04), albedo, metalness);
+
+    let k_specular = f0;
+    let k_diffuse = 1.0 - metalness;
+
+    let toon_v = toon_grad_v(g_etc_buffer.z);
+    let toon_diffuse = textureSample(g_toon_grad, shared_sampler, vec2(diffuse_lighting, toon_v)).rgb;
+    let toon_specular = textureSample(g_toon_grad, shared_sampler, vec2(specular_lighting, toon_v)).rgb;
+
+    output = albedo * k_diffuse * toon_diffuse + toon_specular * k_specular * ambient_occlusion;
+
+    return vec4(output, 1.0);
+}
+
 // TODO: entry points for each of the mat id types in game.
 // 0, ouroboros core?
 // 1, PBR
@@ -159,11 +223,27 @@ fn calculate_color(uv: vec2<f32>) -> vec4<f32> {
 // 3, vegetation and colony 9 tents (sss?)
 // 4, core crystal?
 // 5, HAIR (xc3 only)
+
+fn toon_grad_v(etc_z: f32) -> f32 {
+    // Adapted from slct 0 nvsd 8 in xeno3/monolib/shader/shd_lgt.wishp.
+    // Selects one of the gradient rows from the toon grad texture.
+    return (f32(i32(etc_z * 255.0 + 0.5)) + 0.5) * 0.00390625;
+}
+
+// Each material type is "masked" using depth function equals.
+// TODO: How to share code between these?
 @fragment
 fn fs_main(in: VertexOutput) -> FragmentOutput {
-    // Each material type is "masked" using depth function equals.
     var out: FragmentOutput;
     out.color = calculate_color(in.uv);
+    out.depth = mat_id_depth(render_settings.mat_id);
+    return out;
+}
+
+@fragment
+fn fs_toon(in: VertexOutput) -> FragmentOutput {
+    var out: FragmentOutput;
+    out.color = calculate_toon_color(in.uv);
     out.depth = mat_id_depth(render_settings.mat_id);
     return out;
 }

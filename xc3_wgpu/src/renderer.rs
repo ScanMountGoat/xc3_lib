@@ -10,11 +10,12 @@ pub struct Xc3Renderer {
 
     model_bind_group0: crate::shader::model::bind_groups::BindGroup0,
 
-    deferred_pipeline: wgpu::RenderPipeline,
     deferred_debug_pipeline: wgpu::RenderPipeline,
     deferred_bind_group0: crate::shader::deferred::bind_groups::BindGroup0,
     deferred_bind_group1: crate::shader::deferred::bind_groups::BindGroup1,
     debug_settings_buffer: wgpu::Buffer,
+
+    deferred_pipelines: [wgpu::RenderPipeline; 6],
     deferred_bind_group2: [crate::shader::deferred::bind_groups::BindGroup2; 6],
 
     render_mode: u32,
@@ -37,6 +38,7 @@ pub struct CameraData {
 }
 
 // Fragment outputs for all 3 games to use in the deferred pass.
+// Names adapted from output functions from pcsmt fragment GLSL shaders.
 // TODO: Are there ever more than 6 outputs?
 pub struct GBuffer {
     color: wgpu::TextureView,
@@ -48,7 +50,7 @@ pub struct GBuffer {
 }
 
 impl Xc3Renderer {
-    pub fn new(device: &wgpu::Device, width: u32, height: u32) -> Self {
+    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, width: u32, height: u32) -> Self {
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("camera buffer"),
             contents: bytemuck::cast_slice(&[crate::shader::model::Camera {
@@ -69,7 +71,7 @@ impl Xc3Renderer {
         let depth_view = create_depth_texture(device, width, height);
 
         let gbuffer = create_gbuffer(device, width, height);
-        let deferred_bind_group0 = create_deferred_bind_group0(device, &gbuffer);
+        let deferred_bind_group1 = create_deferred_bind_group1(device, &gbuffer);
 
         let render_mode = 0;
         let debug_settings_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -80,10 +82,37 @@ impl Xc3Renderer {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
-        let deferred_bind_group1 = crate::shader::deferred::bind_groups::BindGroup1::from_bindings(
+        // TODO: Swap this out depending on the game version?
+        let xc3_toon_grad = device
+            .create_texture_with_data(
+                queue,
+                &wgpu::TextureDescriptor {
+                    label: Some("xeno3/monolib/shader/toon_grad.witex"),
+                    size: wgpu::Extent3d {
+                        width: 256,
+                        height: 256,
+                        depth_or_array_layers: 1,
+                    },
+                    mip_level_count: 1, // TODO: this should have 9 mipmaps?
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: wgpu::TextureFormat::Rgba8Unorm,
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING,
+                    view_formats: &[],
+                },
+                wgpu::util::TextureDataOrder::LayerMajor,
+                include_bytes!("resources/xc3_toon_grad.bin"),
+            )
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        let shared_sampler = device.create_sampler(&wgpu::SamplerDescriptor::default());
+
+        let deferred_bind_group0 = crate::shader::deferred::bind_groups::BindGroup0::from_bindings(
             device,
-            crate::shader::deferred::bind_groups::BindGroupLayout1 {
+            crate::shader::deferred::bind_groups::BindGroupLayout0 {
                 debug_settings: debug_settings_buffer.as_entire_buffer_binding(),
+                g_toon_grad: &xc3_toon_grad,
+                shared_sampler: &shared_sampler,
             },
         );
 
@@ -112,13 +141,22 @@ impl Xc3Renderer {
 
         let mat_id_depth_view = create_mat_id_depth_texture(device, width, height);
 
-        let deferred_pipeline = deferred_pipeline(device);
+        // TODO: These should all be different entry points?
+        let deferred_pipelines = [
+            deferred_pipeline(device, crate::shader::deferred::ENTRY_FS_MAIN),
+            deferred_pipeline(device, crate::shader::deferred::ENTRY_FS_MAIN),
+            deferred_pipeline(device, crate::shader::deferred::ENTRY_FS_TOON),
+            deferred_pipeline(device, crate::shader::deferred::ENTRY_FS_MAIN),
+            deferred_pipeline(device, crate::shader::deferred::ENTRY_FS_MAIN),
+            deferred_pipeline(device, crate::shader::deferred::ENTRY_FS_MAIN),
+        ];
+
         let deferred_debug_pipeline = deferred_debug_pipeline(device);
 
         Self {
             camera_buffer,
             model_bind_group0,
-            deferred_pipeline,
+            deferred_pipelines,
             deferred_debug_pipeline,
             depth_view,
             deferred_bind_group0,
@@ -169,7 +207,7 @@ impl Xc3Renderer {
         self.depth_view = create_depth_texture(device, width, height);
         self.mat_id_depth_view = create_mat_id_depth_texture(device, width, height);
         self.gbuffer = create_gbuffer(device, width, height);
-        self.deferred_bind_group0 = create_deferred_bind_group0(device, &self.gbuffer);
+        self.deferred_bind_group1 = create_deferred_bind_group1(device, &self.gbuffer);
         self.unbranch_to_depth_bind_group0 =
             create_unbranch_to_depth_bindgroup(device, &self.gbuffer);
     }
@@ -325,10 +363,14 @@ impl Xc3Renderer {
         });
 
         if self.render_mode == 0 {
-            // Each material ID renders with a separate pipeline in game.
-            render_pass.set_pipeline(&self.deferred_pipeline);
+            for (pipeline, bind_group2) in self
+                .deferred_pipelines
+                .iter()
+                .zip(&self.deferred_bind_group2)
+            {
+                // Each material ID type renders with a separate pipeline in game.
+                render_pass.set_pipeline(pipeline);
 
-            for bind_group2 in &self.deferred_bind_group2 {
                 crate::shader::deferred::bind_groups::set_bind_groups(
                     &mut render_pass,
                     crate::shader::deferred::bind_groups::BindGroups {
@@ -389,22 +431,19 @@ fn create_unbranch_to_depth_bindgroup(
     )
 }
 
-fn create_deferred_bind_group0(
+fn create_deferred_bind_group1(
     device: &wgpu::Device,
     gbuffer: &GBuffer,
-) -> crate::shader::deferred::bind_groups::BindGroup0 {
-    let shared_sampler = device.create_sampler(&wgpu::SamplerDescriptor::default());
-
-    crate::shader::deferred::bind_groups::BindGroup0::from_bindings(
+) -> crate::shader::deferred::bind_groups::BindGroup1 {
+    crate::shader::deferred::bind_groups::BindGroup1::from_bindings(
         device,
-        crate::shader::deferred::bind_groups::BindGroupLayout0 {
+        crate::shader::deferred::bind_groups::BindGroupLayout1 {
             g_color: &gbuffer.color,
             g_etc_buffer: &gbuffer.etc_buffer,
             g_normal: &gbuffer.normal,
             g_velocity: &gbuffer.velocity,
             g_depth: &gbuffer.depth,
             g_lgt_color: &gbuffer.lgt_color,
-            shared_sampler: &shared_sampler,
         },
     )
 }
@@ -515,7 +554,7 @@ fn create_mat_id_depth_texture(
 
 // TODO: Create 5-6 pipelines for each material type.
 // TODO: Just change the fragment entry point?
-fn deferred_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
+fn deferred_pipeline(device: &wgpu::Device, entry_point: &str) -> wgpu::RenderPipeline {
     let module = crate::shader::deferred::create_shader_module(device);
     let render_pipeline_layout = crate::shader::deferred::create_pipeline_layout(device);
 
@@ -529,7 +568,7 @@ fn deferred_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
         ),
         fragment: Some(wgpu::FragmentState {
             module: &module,
-            entry_point: crate::shader::deferred::ENTRY_FS_MAIN,
+            entry_point,
             targets: &[Some(wgpu::ColorTargetState {
                 format: COLOR_FORMAT,
                 blend: None,

@@ -1,4 +1,4 @@
-// "gTEtc" in "clustered" in monolib/shader/shd_lgt.wishp.
+// "gTEtc" in "clustered" in xeno3/monolib/shader/shd_lgt.wishp.
 @group(0) @binding(0)
 var g_etc_buffer: texture_2d<f32>;
 
@@ -27,7 +27,7 @@ struct FragmentOutput {
 
 @fragment
 fn fs_main(in: VertexOutput) -> FragmentOutput {
-    // Adapted from "unbranch_to_depth" in monolib/shader/shd_post.
+    // Adapted from "unbranch_to_depth" in xeno3/monolib/shader/shd_post.
     // Extract the material ID from the first 3 bits.
     let g_etc_buffer = textureSample(g_etc_buffer, shared_sampler, in.uv);
     let mat_id = u32(g_etc_buffer.a * 255.0 + 0.1) & 0x7u;

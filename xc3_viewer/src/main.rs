@@ -104,7 +104,7 @@ impl<'a> State<'a> {
         };
         surface.configure(&device, &config);
 
-        let renderer = Xc3Renderer::new(&device, size.width, size.height);
+        let renderer = Xc3Renderer::new(&device, &queue, size.width, size.height);
 
         // Initialize the camera transform.
         let translation = vec3(0.0, -0.5, -15.0);
