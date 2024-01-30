@@ -1275,6 +1275,7 @@ pub enum TextureUsage {
 // xc1: 40 bytes
 // xc2: 32, 36, 40 bytes
 // xc3: 52, 60 bytes
+/// Information for the skinned bones used by this model.
 #[binread]
 #[derive(Debug, Xc3Write)]
 #[br(stream = r)]
@@ -1290,6 +1291,8 @@ pub struct Skinning {
     #[br(temp, restore_position)]
     bones_offset: u32,
 
+    /// Defines the name and ordering of the bones
+    /// for the [BoneIndices](crate::vertex::DataType::BoneIndices) in the weights buffer.
     // TODO: Find a simpler way of writing this?
     // TODO: helper for separate count.
     #[br(parse_with = parse_ptr32)]

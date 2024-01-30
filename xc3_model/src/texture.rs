@@ -10,6 +10,7 @@ use xc3_lib::{
 pub use xc3_lib::mibl::{ImageFormat, ViewDimension};
 pub use xc3_lib::mxmd::TextureUsage;
 
+#[derive(Debug)]
 pub enum ExtractedTextures {
     Switch(Vec<ExtractedTexture<Mibl>>),
     Pc(Vec<ExtractedTexture<Dds>>),

@@ -180,6 +180,7 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance: InstanceInput, 
 
         // Weights require an extra layer of indirection.
         // This is done in game using a buffer of bone transforms with weights already applied.
+        // TODO: If we preskin the matrices, we don't need the indices/weights here at all?
         var weights_index = in1.weight_index + per_mesh.weight_group_indices.x;
         let bone_indices = bone_indices[weights_index];
         let skin_weights = skin_weights[weights_index];

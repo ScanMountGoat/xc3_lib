@@ -31,6 +31,7 @@ pub struct Models {
     materials: Vec<Material>,
     per_group: crate::shader::model::bind_groups::BindGroup1,
     per_group_buffer: wgpu::Buffer,
+    // TODO: Should this technically just be skinning?
     skeleton: Option<xc3_model::Skeleton>,
     base_lod_indices: Option<Vec<u16>>,
     // Cache pipelines by their creation parameters.
