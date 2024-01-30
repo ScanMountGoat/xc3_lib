@@ -22,7 +22,7 @@
 //! # fn test() -> (wgpu::Device, wgpu::Queue) { todo!() }
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! # let (device, queue) = test();
-//! let renderer = Xc3Renderer::new(&device, 1920, 1080);
+//! let renderer = Xc3Renderer::new(&device, &queue, 1920, 1080);
 //!
 //! let database = ShaderDatabase::from_file("xc3.json")?;
 //!
@@ -38,7 +38,6 @@
 //! # Animation
 //! Skeletal animations should use [Models::update_bone_transforms] and
 //! the [Animation](xc3_model::animation::Animation) type from [xc3_model].
-//!
 
 mod animation;
 mod material;

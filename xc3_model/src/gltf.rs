@@ -65,16 +65,17 @@ impl GltfFile {
         let mut skins = Vec::new();
 
         for (root_index, root) in roots.iter().enumerate() {
+            // TODO: Also include models skinning?
+            let skin_index = create_skin(
+                root.skeleton.as_ref(),
+                &mut nodes,
+                &mut scene_nodes,
+                &mut skins,
+                &mut buffers,
+            );
+
             for (group_index, group) in root.groups.iter().enumerate() {
                 for (models_index, models) in group.models.iter().enumerate() {
-                    let skin_index = create_skin(
-                        models.skeleton.as_ref(),
-                        &mut nodes,
-                        &mut scene_nodes,
-                        &mut skins,
-                        &mut buffers,
-                    );
-
                     let mut group_children = Vec::new();
 
                     for model in &models.models {
@@ -118,7 +119,7 @@ impl GltfFile {
 
                                 if let Some(weight_group) = buffers.insert_weight_group(
                                     model_buffers,
-                                    models.skeleton.as_ref(),
+                                    root.skeleton.as_ref(),
                                     WeightGroupKey {
                                         weights_start_index,
                                         buffer: BufferKey {

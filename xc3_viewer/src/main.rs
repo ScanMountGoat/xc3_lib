@@ -219,9 +219,7 @@ impl<'a> State<'a> {
             self.previous_frame_start = current_frame_start;
 
             for group in &self.groups {
-                for models in &group.models {
-                    models.update_bone_transforms(&self.queue, anim, self.current_time_seconds);
-                }
+                group.update_bone_transforms(&self.queue, anim, self.current_time_seconds);
             }
         }
 

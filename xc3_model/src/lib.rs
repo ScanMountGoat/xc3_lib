@@ -1,10 +1,10 @@
 //! # xc3_model
 //! xc3_model provides high level data access for the files that make up a model.
 //!
-//! Each type typically represents the decoded data associated with one or more types in [xc3_lib].
+//! Each type represents fully compressed and decoded data associated with one or more [xc3_lib] types.
 //! This simplifies the processing that needs to be done to access model data
 //! and abstracts away most of the game specific complexities.
-//! This conversion is currently one way, so saving types back to files is not yet supported.
+//! This conversion is currently one way, so converting back to files is not yet supported.
 //!
 //! # Getting Started
 //! Loading a normal model returns a single [ModelRoot].
@@ -51,7 +51,7 @@ use xc3_lib::{
     },
     mxmd::{Materials, Mxmd},
     sar1::Sar1,
-    vertex::{VertexData, WeightLod},
+    vertex::WeightLod,
     xbc1::MaybeXbc1,
 };
 
@@ -84,6 +84,9 @@ pub struct ModelRoot {
     /// This includes all packed and embedded textures after
     /// combining all mip levels.
     pub image_textures: Vec<ImageTexture>,
+
+    // TODO: Do we even need to store the skinning if the weights already have the skinning bone name list?
+    pub skeleton: Option<Skeleton>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -93,8 +96,7 @@ pub struct ModelGroup {
     pub buffers: Vec<ModelBuffers>,
 }
 
-// TODO: rename.
-/// See [VertexData].
+/// See [VertexData](xc3_lib::vertex::VertexData).
 #[derive(Debug, Clone, PartialEq)]
 pub struct ModelBuffers {
     pub vertex_buffers: Vec<VertexBuffer>,
@@ -123,10 +125,9 @@ pub struct Models {
     pub models: Vec<Model>,
     pub materials: Vec<Material>,
     pub samplers: Vec<Sampler>,
-    // TODO: Should this technically just be skinning?
-    // TODO: move skeleton to root?
-    // TODO: Do we even need to store the skinning if the weights already have the skinning bone name list?
-    pub skeleton: Option<Skeleton>,
+
+    // TODO: Worth storing skinning here?
+
     // TODO: Better way of organizing this data?
     // TODO: How to handle the indices being off by 1?
     // TODO: when is this None?
@@ -212,7 +213,6 @@ impl Models {
         models: &xc3_lib::mxmd::Models,
         materials: &xc3_lib::mxmd::Materials,
         spch: Option<&shader_database::Spch>,
-        skeleton: Option<Skeleton>,
     ) -> Models {
         Models {
             models: models
@@ -222,7 +222,6 @@ impl Models {
                 .collect(),
             materials: create_materials(materials, spch),
             samplers: create_samplers(materials),
-            skeleton,
             base_lod_indices: models
                 .lod_data
                 .as_ref()
@@ -398,16 +397,18 @@ impl ModelRoot {
         }
 
         // TODO: Store the skeleton with the root since this is the only place we actually make one?
+        // TODO: Some sort of error if maps have any skinning set?
         let skeleton = create_skeleton(chr.as_ref(), mxmd.models.skinning.as_ref());
 
         let (vertex_buffers, weights) =
             read_vertex_buffers(&streaming_data.vertex, mxmd.models.skinning.as_ref())?;
         let index_buffers = read_index_buffers(&streaming_data.vertex);
 
-        let models = Models::from_models(&mxmd.models, &mxmd.materials, spch, skeleton);
+        let models = Models::from_models(&mxmd.models, &mxmd.materials, spch);
 
         let image_textures = load_textures(&streaming_data.textures)?;
 
+        // TODO: Find a way to specify at the type level that this has only one element?
         Ok(Self {
             groups: vec![ModelGroup {
                 models: vec![models],
@@ -418,6 +419,7 @@ impl ModelRoot {
                 }],
             }],
             image_textures,
+            skeleton,
         })
     }
 }
@@ -451,7 +453,7 @@ fn load_wimdo(wimdo_path: &Path) -> Result<Mxmd, LoadModelError> {
 // Use Cow::Borrowed to avoid copying data embedded in the mxmd.
 #[derive(Debug)]
 pub struct StreamingData<'a> {
-    pub vertex: Cow<'a, VertexData>,
+    pub vertex: Cow<'a, xc3_lib::vertex::VertexData>,
     pub textures: ExtractedTextures,
 }
 

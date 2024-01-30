@@ -8,7 +8,7 @@ struct Camera {
 @group(0) @binding(0)
 var<uniform> camera: Camera;
 
-// PerGroup values for ModelGroup and Models types.
+// PerGroup values for ModelGroup.
 struct PerGroup {
     // TODO: Should this be with the model?
     // TODO: rename to has skeleton?
@@ -22,6 +22,12 @@ struct PerGroup {
 
 @group(1) @binding(0)
 var<uniform> per_group: PerGroup;
+
+@group(1) @binding(1)
+var<storage> bone_indices: array<vec4<u32>>;
+
+@group(1) @binding(2)
+var<storage> skin_weights: array<vec4<f32>>;
 
 // PerMaterial values.
 // Define all possible parameters even if unused.
@@ -109,14 +115,7 @@ struct PerMaterial {
 @group(2) @binding(20)
 var<uniform> per_material: PerMaterial;
 
-// TODO: This doesn't need to be specific to each mesh.
 // PerMesh values.
-@group(3) @binding(0)
-var<storage> bone_indices: array<vec4<u32>>;
-
-@group(3) @binding(1)
-var<storage> skin_weights: array<vec4<f32>>;
-
 struct PerMesh {
     // start_index, 0, 0, 0
     weight_group_indices: vec4<u32>
@@ -180,7 +179,8 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance: InstanceInput, 
 
         // Weights require an extra layer of indirection.
         // This is done in game using a buffer of bone transforms with weights already applied.
-        // TODO: If we preskin the matrices, we don't need the indices/weights here at all?
+        // The "nWgtIdx" selects a transform combining up to 4 bone transforms and the camera transform.
+        // Compute the transforms here instead for simplicity.
         var weights_index = in1.weight_index + per_mesh.weight_group_indices.x;
         let bone_indices = bone_indices[weights_index];
         let skin_weights = skin_weights[weights_index];

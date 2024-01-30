@@ -19,6 +19,9 @@ use crate::{
 pub struct ModelGroup {
     pub models: Vec<Models>,
     buffers: Vec<ModelBuffers>,
+    skeleton: Option<xc3_model::Skeleton>,
+    per_group: crate::shader::model::bind_groups::BindGroup1,
+    per_group_buffer: wgpu::Buffer,
 }
 
 pub struct ModelBuffers {
@@ -29,10 +32,8 @@ pub struct ModelBuffers {
 pub struct Models {
     pub models: Vec<Model>,
     materials: Vec<Material>,
-    per_group: crate::shader::model::bind_groups::BindGroup1,
-    per_group_buffer: wgpu::Buffer,
-    // TODO: Should this technically just be skinning?
-    skeleton: Option<xc3_model::Skeleton>,
+
+    // TODO: skinning?
     base_lod_indices: Option<Vec<u16>>,
     // Cache pipelines by their creation parameters.
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
@@ -72,9 +73,9 @@ struct IndexBuffer {
 
 impl ModelGroup {
     pub fn draw<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, is_transparent: bool) {
-        for models in &self.models {
-            models.per_group.set(render_pass);
+        self.per_group.set(render_pass);
 
+        for models in &self.models {
             for model in &models.models {
                 for mesh in &model.meshes {
                     mesh.per_mesh.set(render_pass);
@@ -168,7 +169,7 @@ const fn div_round_up(x: u32, d: u32) -> u32 {
     (x + d - 1) / d
 }
 
-impl Models {
+impl ModelGroup {
     pub fn update_bone_transforms(
         &self,
         queue: &wgpu::Queue,
@@ -220,6 +221,7 @@ pub fn load_model(
                 &textures,
                 &root.image_textures,
                 &pipeline_data,
+                root.skeleton.clone(),
             )
         }));
     }
@@ -251,6 +253,7 @@ fn create_model_group(
     textures: &[wgpu::Texture],
     image_textures: &[ImageTexture],
     pipeline_data: &ModelPipelineData,
+    skeleton: Option<xc3_model::Skeleton>,
 ) -> ModelGroup {
     let buffers: Vec<_> = group
         .buffers
@@ -260,6 +263,7 @@ fn create_model_group(
             let vertex_buffers = model_vertex_buffers(device, buffers);
             let index_buffers = model_index_buffers(device, buffers);
 
+            // TODO: Each vertex buffer needs its own transformed matrices?
             ModelBuffers {
                 vertex_buffers,
                 index_buffers,
@@ -271,10 +275,6 @@ fn create_model_group(
         .models
         .iter()
         .map(|models| {
-            let skeleton = models.skeleton.clone();
-
-            let (per_group, per_group_buffer) = per_group_bind_group(device, skeleton.as_ref());
-
             let base_lod_indices = models.base_lod_indices.clone();
 
             let samplers: Vec<_> = models
@@ -305,22 +305,39 @@ fn create_model_group(
             Models {
                 models,
                 materials,
-                per_group,
-                per_group_buffer,
                 pipelines,
-                skeleton,
                 base_lod_indices,
             }
         })
         .collect();
 
-    ModelGroup { models, buffers }
+    // In practice, weights are only used for wimdo files with one Models and one Model.
+    // TODO: How to enforce this assumption?
+    // TODO: Avoid clone.
+    // Reindex to match the ordering defined in the current skeleton.
+    let skin_weights = group.buffers[0].weights.as_ref().map(|weights| {
+        skeleton
+            .as_ref()
+            .map(|skeleton| {
+                let bone_names = skeleton.bones.iter().map(|b| b.name.clone()).collect();
+                weights.skin_weights.reindex_bones(bone_names)
+            })
+            .unwrap_or_else(|| weights.skin_weights.clone())
+    });
+
+    let (per_group, per_group_buffer) =
+        per_group_bind_group(device, skeleton.as_ref(), skin_weights.as_ref());
+
+    ModelGroup {
+        models,
+        buffers,
+        per_group,
+        per_group_buffer,
+        skeleton,
+    }
 }
 
-fn model_index_buffers(
-    device: &wgpu::Device,
-    buffer: &xc3_model::ModelBuffers,
-) -> Vec<IndexBuffer> {
+fn model_index_buffers(device: &wgpu::Device, buffer: &xc3_model::ModelBuffers) -> Vec<IndexBuffer> {
     buffer
         .index_buffers
         .iter()
@@ -593,6 +610,7 @@ where
 fn per_group_bind_group(
     device: &wgpu::Device,
     skeleton: Option<&xc3_model::Skeleton>,
+    skin_weights: Option<&xc3_model::skinning::SkinWeights>,
 ) -> (shader::model::bind_groups::BindGroup1, wgpu::Buffer) {
     let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("per group buffer"),
@@ -603,28 +621,6 @@ fn per_group_bind_group(
         }]),
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
     });
-
-    (
-        crate::shader::model::bind_groups::BindGroup1::from_bindings(
-            device,
-            crate::shader::model::bind_groups::BindGroupLayout1 {
-                per_group: buffer.as_entire_buffer_binding(),
-            },
-        ),
-        buffer,
-    )
-}
-
-fn per_mesh_bind_group(
-    device: &wgpu::Device,
-    buffers: &xc3_model::ModelBuffers,
-    skin_weights: Option<&xc3_model::skinning::SkinWeights>,
-    lod: u16,
-    skin_flags: u32,
-    vertex_buffer_index: usize,
-    material: &Material,
-) -> shader::model::bind_groups::BindGroup3 {
-    let weight_count = skin_weights.map(|w| w.weights.len()).unwrap_or_default();
 
     // Convert to u32 since WGSL lacks a vec4<u8> type.
     // This assumes the skinning shader code is skipped if anything is missing.
@@ -644,6 +640,42 @@ fn per_mesh_bind_group(
         .as_ref()
         .map(|skin_weights| skin_weights.weights.as_slice())
         .unwrap_or(&[Vec4::ZERO]);
+
+    let bone_indices = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("bone indices buffer"),
+        contents: bytemuck::cast_slice(&indices),
+        usage: wgpu::BufferUsages::STORAGE,
+    });
+
+    let skin_weights = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("skin weights buffer"),
+        contents: bytemuck::cast_slice(weights),
+        usage: wgpu::BufferUsages::STORAGE,
+    });
+
+    (
+        crate::shader::model::bind_groups::BindGroup1::from_bindings(
+            device,
+            crate::shader::model::bind_groups::BindGroupLayout1 {
+                per_group: buffer.as_entire_buffer_binding(),
+                bone_indices: bone_indices.as_entire_buffer_binding(),
+                skin_weights: skin_weights.as_entire_buffer_binding(),
+            },
+        ),
+        buffer,
+    )
+}
+
+fn per_mesh_bind_group(
+    device: &wgpu::Device,
+    buffers: &xc3_model::ModelBuffers,
+    skin_weights: Option<&xc3_model::skinning::SkinWeights>,
+    lod: u16,
+    skin_flags: u32,
+    vertex_buffer_index: usize,
+    material: &Material,
+) -> shader::model::bind_groups::BindGroup3 {
+    let weight_count = skin_weights.map(|w| w.weights.len()).unwrap_or_default();
 
     // TODO: Fix weight indexing calculations.
     let start = buffers
@@ -665,18 +697,6 @@ fn per_mesh_bind_group(
         }
     }
 
-    let bone_indices = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("bone indices buffer"),
-        contents: bytemuck::cast_slice(&indices),
-        usage: wgpu::BufferUsages::STORAGE,
-    });
-
-    let skin_weights = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("skin weights buffer"),
-        contents: bytemuck::cast_slice(weights),
-        usage: wgpu::BufferUsages::STORAGE,
-    });
-
     let per_mesh = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("per mesh buffer"),
         contents: bytemuck::cast_slice(&[crate::shader::model::PerMesh {
@@ -691,8 +711,6 @@ fn per_mesh_bind_group(
     crate::shader::model::bind_groups::BindGroup3::from_bindings(
         device,
         crate::shader::model::bind_groups::BindGroupLayout3 {
-            bone_indices: bone_indices.as_entire_buffer_binding(),
-            skin_weights: skin_weights.as_entire_buffer_binding(),
             per_mesh: per_mesh.as_entire_buffer_binding(),
         },
     )

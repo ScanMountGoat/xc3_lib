@@ -11,7 +11,6 @@ use xc3_lib::{
     mibl::Mibl,
     msmd::{ChannelType, MapParts, Msmd, StreamEntry},
     mxmd::{RenderPassType, StateFlags, TextureUsage},
-    vertex::VertexData,
 };
 
 use crate::{
@@ -19,7 +18,7 @@ use crate::{
     shader_database::ShaderDatabase,
     texture::{self, CreateImageTextureError, ImageTexture},
     vertex::{read_index_buffers, read_vertex_buffers},
-    Material, Model, ModelBuffers, ModelGroup, ModelRoot, Models, Texture,
+    Material, Model, ModelGroup, ModelRoot, Models, Texture, ModelBuffers,
 };
 
 #[derive(Debug, Error)]
@@ -116,6 +115,7 @@ pub fn load_map<P: AsRef<Path>>(
     roots.push(ModelRoot {
         groups: vec![map_model_group, prop_model_group],
         image_textures: texture_cache.image_textures()?,
+        skeleton: None,
     });
 
     Ok(roots)
@@ -305,7 +305,7 @@ fn props_group(
 }
 
 fn create_buffers(
-    vertex_data: &[StreamEntry<VertexData>],
+    vertex_data: &[StreamEntry<xc3_lib::vertex::VertexData>],
     wismda: &Vec<u8>,
     compressed: bool,
 ) -> Result<Vec<ModelBuffers>, DecompressStreamError> {
@@ -388,7 +388,6 @@ fn load_prop_model_group(
         models: Vec::new(),
         materials,
         samplers,
-        skeleton: None,
         base_lod_indices: model_data
             .models
             .lod_data
@@ -561,7 +560,6 @@ fn load_map_model_group(
         models,
         materials,
         samplers,
-        skeleton: None,
         base_lod_indices: model_data
             .models
             .lod_data
@@ -605,7 +603,6 @@ fn load_env_model(
                 &model_data.models,
                 &model_data.materials,
                 spch,
-                None,
             )],
             buffers: vec![ModelBuffers {
                 vertex_buffers,
@@ -614,6 +611,7 @@ fn load_env_model(
             }],
         }],
         image_textures,
+        skeleton: None,
     })
 }
 
@@ -655,7 +653,6 @@ fn load_foliage_model(
                 models,
                 materials,
                 samplers: Vec::new(),
-                skeleton: None,
                 base_lod_indices: model_data
                     .models
                     .lod_data
@@ -670,6 +667,7 @@ fn load_foliage_model(
             }],
         }],
         image_textures,
+        skeleton: None,
     })
 }
 

@@ -183,9 +183,7 @@ fn apply_anim(queue: &wgpu::Queue, groups: &[xc3_wgpu::ModelGroup], path: &Path)
     let animations = load_animations(path).unwrap();
     if let Some(animation) = animations.first() {
         for group in groups {
-            for models in &group.models {
-                models.update_bone_transforms(queue, animation, 0.0);
-            }
+            group.update_bone_transforms(queue, animation, 0.0);
         }
         true
     } else {
