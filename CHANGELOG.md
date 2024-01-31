@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## unreleased
+### Added
+* Added derives for `Clone` for xc3_lib types.
+* Added `ModelRoot::to_mxmd_model` for applying edits to the original `.wimdo` and `.wismt` files.
+
+### Changed
+* Improved rendering accuracy of toon shading pass.
+* Adjusted xc3_model types to better reflect in game model data.
+
 ## 0.5.0 - 2024-01-27
 ### Fixed
 * Fixed an issue where `Msrd::from_extracted_files` would sometimes incorrectly calculate streaming data offsets.

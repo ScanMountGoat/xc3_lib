@@ -18,7 +18,7 @@ use bilge::prelude::*;
 use binrw::{args, binread, BinRead, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Clone)]
 #[br(magic(b"DMXM"))]
 #[xc3(magic(b"DMXM"))]
 pub struct Mxmd {
@@ -73,7 +73,7 @@ pub struct Mxmd {
 // TODO: 108 bytes for xc2 and 112 bytes for xc3?
 /// A collection of [Material], [Sampler], and material parameters.
 #[binread]
-#[derive(Debug, Xc3Write)]
+#[derive(Debug, Xc3Write, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Materials {
@@ -143,7 +143,7 @@ pub struct Materials {
     pub unks4: [u32; 3],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 pub struct AlphaTestTexture {
     // TODO: (_, 0, 1) has alpha testing?
     // TODO: Test different param values?
@@ -153,7 +153,7 @@ pub struct AlphaTestTexture {
 }
 
 /// `ml::MdsMatTechnique` in the Xenoblade 2 binary.
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct ShaderProgramInfo {
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
@@ -187,7 +187,7 @@ pub struct ShaderProgramInfo {
     pub padding: [u32; 5],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 pub struct VertexAttribute {
     pub data_type: DataType,
     pub relative_offset: u16,
@@ -196,7 +196,7 @@ pub struct VertexAttribute {
 }
 
 /// `ml::MdsMatVariableTbl` in the Xenoblade 2 binary.
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 pub struct MaterialParameter {
     pub param_type: ParamType,
     pub floats_index_offset: u16, // added to floats start index?
@@ -228,7 +228,7 @@ pub enum ParamType {
 }
 
 // TODO: Does this affect texture assignment order?
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct MaterialUnk1 {
     // count matches up with Material.unk_start_index?
@@ -246,7 +246,7 @@ pub struct MaterialUnk1 {
     pub unk: [u32; 8],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct MaterialUnk2 {
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
@@ -257,7 +257,7 @@ pub struct MaterialUnk2 {
     pub unk: [u32; 4],
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct MaterialUnk3 {
     #[br(parse_with = parse_ptr32, offset = base_offset)]
@@ -274,7 +274,7 @@ pub struct MaterialUnk3 {
 
 /// A collection of [Sampler].
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Samplers {
@@ -290,7 +290,7 @@ pub struct Samplers {
 }
 
 /// State for controlling how textures are sampled.
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 pub struct Sampler {
     pub flags: SamplerFlags,
 
@@ -327,7 +327,7 @@ pub struct SamplerFlags {
 
 /// A single material assignable to a [Mesh].
 /// `ml::mdsMatInfoHeader` in the Xenoblade 2 binary.
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Material {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
@@ -478,7 +478,7 @@ pub enum CullMode {
 }
 
 /// `ml::MdsMatMaterialTechnique` in the Xenoblade 2 binary.
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 pub struct ShaderProgram {
     /// Index into [shader_programs](struct.Materials.html#structfield.shader_programs).
     pub program_index: u32,
@@ -503,7 +503,7 @@ pub enum RenderPassType {
     Unk9 = 9, // used for maps?
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 pub struct Texture {
     /// Index into the textures in [streaming](struct.Mxmd.html#structfield.streaming)
     /// or [packed_textures](struct.Mxmd.html#structfield.packed_textures).
@@ -520,7 +520,7 @@ pub struct Texture {
 // xc3: 160, 164, 168, 200, 204 bytes
 /// A collection of [Model] as well as skinning and animation information.
 #[binread]
-#[derive(Debug, Xc3Write)]
+#[derive(Debug, Xc3Write, Clone)]
 #[br(stream = r)]
 #[br(import_raw(version: u32))]
 #[xc3(base_offset)]
@@ -612,7 +612,7 @@ pub struct Models {
 
 // Use an enum since even the largest size can have all offsets as null.
 // i.e. the nullability of the offsets does not determine the size.
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(import { size: u32, base_offset: u64 })]
 pub enum ModelsExtraData {
     #[br(pre_assert(size == 160))]
@@ -633,7 +633,7 @@ pub enum ModelsExtraData {
 
 // TODO: add asserts to all padding fields?
 // 164 total bytes
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct ModelsExtraDataUnk2 {
     #[br(parse_with = parse_opt_ptr32)]
@@ -643,7 +643,7 @@ pub struct ModelsExtraDataUnk2 {
 }
 
 // 168 total bytes
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct ModelsExtraDataUnk3 {
     #[br(parse_with = parse_opt_ptr32)]
@@ -657,7 +657,7 @@ pub struct ModelsExtraDataUnk3 {
 }
 
 // 200 total bytes
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct ModelsExtraDataUnk4 {
     #[br(parse_with = parse_opt_ptr32)]
@@ -678,7 +678,7 @@ pub struct ModelsExtraDataUnk4 {
 }
 
 // 204 total bytes
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct ModelsExtraDataUnk5 {
     #[br(parse_with = parse_opt_ptr32)]
@@ -701,7 +701,7 @@ pub struct ModelsExtraDataUnk5 {
 /// A collection of meshes where each [Mesh] represents one draw call.
 ///
 /// Each [Model] has an associated [VertexData] containing vertex and index buffers.
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Model {
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
@@ -716,7 +716,7 @@ pub struct Model {
 }
 
 /// Flags and resources associated with a single draw call.
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 pub struct Mesh {
     pub render_flags: u32,
     pub skin_flags: u32, // 0x1, 0x2, 0x4001 (16385), 0x4008 (16392)
@@ -786,7 +786,7 @@ pub struct ModelsFlags {
 }
 
 /// `ExtMesh` in the Xenoblade 2 binary.
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct ExtMesh {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
@@ -818,7 +818,7 @@ pub struct ExtMeshFlags {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct MorphControllers {
@@ -836,7 +836,7 @@ pub struct MorphControllers {
     unk: [u32; 3],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct MorphController {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
@@ -857,7 +857,7 @@ pub struct MorphController {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct ModelUnk3 {
@@ -872,7 +872,7 @@ pub struct ModelUnk3 {
     pub unk: [u32; 4],
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct ModelUnk3Item {
     // DECL_GBL_CALC
@@ -888,7 +888,7 @@ pub struct ModelUnk3Item {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct ModelUnk4 {
@@ -905,7 +905,7 @@ pub struct ModelUnk4 {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct ModelUnk5 {
@@ -922,7 +922,7 @@ pub struct ModelUnk5 {
     pub unks: [u32; 4],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct StringOffset {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
@@ -931,7 +931,7 @@ pub struct StringOffset {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct ModelUnk6 {
@@ -948,7 +948,7 @@ pub struct ModelUnk6 {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct ModelUnk7 {
@@ -964,7 +964,7 @@ pub struct ModelUnk7 {
     pub unks: [u32; 4],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct ModelUnk8 {
     // TODO: What type is this?
@@ -981,7 +981,7 @@ pub struct ModelUnk8 {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct ModelUnk9 {
@@ -996,7 +996,7 @@ pub struct ModelUnk9 {
     pub unk: [u32; 4],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct ModelUnk10 {
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
@@ -1004,7 +1004,7 @@ pub struct ModelUnk10 {
     pub unk1: Vec<u32>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct ModelUnk9Item {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
@@ -1020,7 +1020,7 @@ pub struct ModelUnk9Item {
 // TODO: eye animations?
 // TODO: Some sort of animation?
 #[binread]
-#[derive(Debug, Xc3Write)]
+#[derive(Debug, Xc3Write, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct ModelUnk1 {
@@ -1056,7 +1056,7 @@ pub struct ModelUnk1 {
     pub extra: Option<ModelUnk1Extra>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct ModelUnk1Extra {
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
@@ -1068,7 +1068,7 @@ pub struct ModelUnk1Extra {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct ModelUnk1Inner {
@@ -1094,7 +1094,7 @@ pub struct ModelUnk1Inner {
     pub unks: [u32; 5],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct ModelUnk1Item1 {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
@@ -1104,7 +1104,7 @@ pub struct ModelUnk1Item1 {
     pub unk: [u32; 3],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 pub struct ModelUnk1Item2 {
     pub unk1: u32,
     pub unk2: u32,
@@ -1114,7 +1114,7 @@ pub struct ModelUnk1Item2 {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write)]
+#[derive(Debug, Xc3Write, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct LodData {
@@ -1136,7 +1136,7 @@ pub struct LodData {
 }
 
 // TODO: is lod: 0 in the mxmd special?
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 pub struct LodItem1 {
     pub unk1: [u32; 4],
     pub unk2: f32,
@@ -1146,7 +1146,7 @@ pub struct LodItem1 {
     pub unk4: [u32; 2],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 pub struct LodGroup {
     /// One minus the [lod](struct.Mesh.html#structfield.lod) for [Mesh] with the highest level of detail.
     pub base_lod_index: u16,
@@ -1159,7 +1159,7 @@ pub struct LodGroup {
 
 /// A collection of [Mibl](crate::mibl::Mibl) textures embedded in the current file.
 #[binread]
-#[derive(Debug, Xc3Write)]
+#[derive(Debug, Xc3Write, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct PackedTextures {
@@ -1177,7 +1177,7 @@ pub struct PackedTextures {
 }
 
 /// A single [Mibl](crate::mibl::Mibl) texture.
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct PackedTexture {
     pub usage: TextureUsage,
@@ -1277,7 +1277,7 @@ pub enum TextureUsage {
 // xc3: 52, 60 bytes
 /// Information for the skinned bones used by this model.
 #[binread]
-#[derive(Debug, Xc3Write)]
+#[derive(Debug, Xc3Write, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Skinning {
@@ -1360,7 +1360,7 @@ pub struct Skinning {
     pub unk: Option<[u32; 4]>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct SkinningUnkBones {
     #[br(parse_with = parse_opt_ptr32)]
@@ -1369,7 +1369,7 @@ pub struct SkinningUnkBones {
     pub unk_offset4: Option<UnkBones>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct SkinningUnk5 {
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
@@ -1377,7 +1377,7 @@ pub struct SkinningUnk5 {
     pub unk_offset5: Option<SkeletonUnk5>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct SkinningAsBoneData {
     // TODO: procedural bones?
@@ -1386,7 +1386,7 @@ pub struct SkinningAsBoneData {
     pub as_bone_data: Option<AsBoneData>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Bone {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
@@ -1400,7 +1400,7 @@ pub struct Bone {
     pub unk: [u32; 2],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct UnkBones {
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
@@ -1414,7 +1414,7 @@ pub struct UnkBones {
     // TODO: no padding?
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 pub struct UnkBone {
     pub unk1: u32,
     /// The index in [bones](struct.Skeleton.html#structfield.bones).
@@ -1426,7 +1426,7 @@ pub struct UnkBone {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct SkeletonUnk5 {
@@ -1448,7 +1448,7 @@ pub struct SkeletonUnk5 {
 }
 
 // TODO: Data for AS_ bones?
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct AsBoneData {
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
@@ -1470,7 +1470,7 @@ pub struct AsBoneData {
     pub unk: [u32; 2],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 pub struct AsBone {
     /// The index in [bones](struct.Skeleton.html#structfield.bones).
     pub bone_index: u16,
@@ -1480,7 +1480,7 @@ pub struct AsBone {
 }
 
 // TODO: Some of these aren't floats?
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 pub struct AsBoneValue {
     unk1: [f32; 4],
     unk2: [f32; 4],
@@ -1490,7 +1490,7 @@ pub struct AsBoneValue {
 
 // TODO: pointer to decl_gbl_cac in ch001011011.wimdo?
 #[binread]
-#[derive(Debug, Xc3Write)]
+#[derive(Debug, Xc3Write, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Unk1 {
@@ -1518,13 +1518,13 @@ pub struct Unk1 {
     pub unk: [u32; 4],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 pub struct Unk1Unk1 {
     pub index: u16,
     pub unk2: u16, // 1
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 pub struct Unk1Unk2 {
     pub unk1: u16, // 0
     pub index: u16,
@@ -1533,7 +1533,7 @@ pub struct Unk1Unk2 {
     pub unk5: u32, // 0
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 pub struct Unk1Unk3 {
     pub unk1: u16,
     pub unk2: u16,
@@ -1544,7 +1544,7 @@ pub struct Unk1Unk3 {
     pub unk7: u16,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 pub struct Unk1Unk4 {
     pub unk1: f32,
     pub unk2: f32,

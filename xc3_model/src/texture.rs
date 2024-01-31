@@ -2,7 +2,7 @@ use image_dds::{ddsfile::Dds, error::CreateImageError, CreateDdsError, Surface};
 use log::error;
 use thiserror::Error;
 use xc3_lib::{
-    mibl::{Mibl, SwizzleError},
+    mibl::{CreateMiblError, Mibl, SwizzleError},
     msrd::streaming::ExtractedTexture,
     mxmd::PackedTexture,
 };
@@ -153,7 +153,9 @@ impl ImageTexture {
         Self::from_surface(Surface::from_dds(dds)?, name, usage)
     }
 
-    // TODO: to_mibl?
+    pub fn to_mibl(&self) -> Result<Mibl, CreateMiblError> {
+        Mibl::from_surface(self.to_surface())
+    }
 }
 
 pub fn load_textures(

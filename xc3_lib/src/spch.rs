@@ -15,7 +15,7 @@ use xc3_write::{VecOffsets, Xc3Write, Xc3WriteOffsets};
 // TODO: Add example code for extracting shaders.
 /// .wishp, embedded in .wismt and .wimdo
 #[binread]
-#[derive(Debug, Xc3Write)]
+#[derive(Debug, Xc3Write, Clone)]
 #[br(magic(b"HCPS"))]
 #[xc3(magic(b"HCPS"))]
 #[br(stream = r)]
@@ -70,14 +70,14 @@ pub struct Spch {
     pub padding: [u32; 4],
 }
 
-#[derive(Debug, BinRead)]
+#[derive(Debug, BinRead, Clone)]
 #[br(import { base_offset: u64, count: usize })]
 pub struct StringSection {
     #[br(args { count, inner: base_offset})]
     pub program_names: Vec<StringOffset>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct StringOffset {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
@@ -85,7 +85,7 @@ pub struct StringOffset {
     pub name: String,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 pub struct SlctOffset {
     /// The offset into [slct_section](struct.Spch.html#structfield.slct_section) for the [Slct].
     pub offset: u32,
@@ -93,7 +93,7 @@ pub struct SlctOffset {
     pub unk1: u32,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
 pub struct Unk4 {
     pub unk1: u32,
     pub unk2: u32,

@@ -422,6 +422,45 @@ impl ModelRoot {
             skeleton,
         })
     }
+
+    // TODO: Not possible to make files compatible with all game versions?
+    // TODO: Will it be possible to do full imports in the future?
+    // TODO: Include chr to support skeleton edits?
+    // TODO: How to properly test this?
+    /// Apply the values from this model onto the original `mxmd` and `msrd`.
+    ///
+    /// Some of the original values will be retained due to exporting limitations.
+    /// For best results, use the [Mxmd] and [Msrd] used to initialize this model.
+    ///
+    /// If no edits were made to this model, the resulting files will attempt
+    /// to recreate the originals used to initialize this model as closely as possible.
+    pub fn to_mxmd_model(&self, mxmd: &Mxmd, msrd: &Msrd) -> (Mxmd, Msrd) {
+        // TODO: Does this need to even extract textures?
+        let (mut vertex, spch, _textures) = msrd.extract_files(None).unwrap();
+        // TODO: recreate vertex buffers?
+
+        // TODO: Assume the same ordering instead of recreating from scratch?
+        // TODO: Create a method that converts ImageTexture to ExtractedTexture?
+        // TODO: What to use for the low texture?
+        let textures: Vec<_> = self
+            .image_textures
+            .iter()
+            .map(|image| ExtractedTexture {
+                name: image.name.clone().unwrap(),
+                usage: image.usage.clone().unwrap(),
+                low: image.to_mibl().unwrap(),
+                high: None,
+            })
+            .collect();
+
+        let mut new_mxmd = mxmd.clone();
+        // TODO: Modify mxmd.
+        let use_chr_textures = true; // TODO: how to set this?
+        let new_msrd =
+            Msrd::from_extracted_files(&vertex, &spch, &textures, use_chr_textures).unwrap();
+        new_mxmd.streaming = Some(new_msrd.streaming.clone());
+        (new_mxmd, new_msrd)
+    }
 }
 
 // TODO: move this to xc3_lib?
