@@ -10,7 +10,7 @@ use binrw::{BinRead, BinReaderExt, BinResult, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 /// A packed model container with entries like [Mxmd] or [Gibl].
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(magic(b"DMPA"))]
 #[xc3(magic(b"DMPA"))]
 #[xc3(align_after(4096))]
@@ -25,7 +25,7 @@ pub struct Apmd {
     pub unk: [u32; 8],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Entry {
     pub entry_type: EntryType,
     #[br(parse_with = parse_offset32_count32)]

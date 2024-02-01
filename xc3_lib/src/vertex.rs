@@ -251,7 +251,7 @@ pub enum Unk2 {
 }
 
 /// Vertex animation data often called "vertex morphs", "shape keys", or "blend shapes".
-#[derive(Debug, BinRead, Xc3Write, Clone, PartialEq)]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct VertexMorphs {
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
@@ -265,7 +265,7 @@ pub struct VertexMorphs {
     pub unks: [u32; 4],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Clone, PartialEq)]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct MorphDescriptor {
     pub vertex_buffer_index: u32,
     pub target_start_index: u32,
@@ -285,7 +285,7 @@ pub struct MorphDescriptor {
 
 // TODO: vertex attributes for vertex animation data?
 /// A set of target vertex values similar to a keyframe in traditional animations.
-#[derive(Debug, BinRead, BinWrite, Clone, PartialEq)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
 pub struct MorphTarget {
     /// Relative to [data_base_offset](struct.ModelData.html#structfield.data_base_offset)
     pub data_offset: u32,
@@ -309,7 +309,7 @@ pub struct MorphTargetFlags {
 
 /// Information used for precomputing skinning matrices
 /// based on a mesh's level of detail (LOD) and [RenderPassType](crate::mxmd::RenderPassType).
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Weights {
     /// Selected based on the associated [WeightLod] for a [Mesh](crate::mxmd::Mesh).
     #[br(parse_with = parse_count32_offset32)]
@@ -336,7 +336,7 @@ pub struct Weights {
 /// select a range of [DataType::BoneIndices] and [DataType::SkinWeights] from the weights buffer.
 /// The bone matrices for each bone index multiplied by the weights are written to the output buffer starting at [output_start_index](#structfield.output_start_index).
 /// This precomputed skinning buffer is used to select transforms in the vertex shader using [DataType::WeightIndex].
-#[derive(Debug, Clone, PartialEq, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, PartialEq, Clone, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct WeightGroup {
     /// Index into the skinning buffer used in the vertex shader with bone transforms multiplied by skin weights.
     /// These weighted bone matrices are selected using [DataType::WeightIndex].
@@ -362,7 +362,7 @@ pub struct WeightGroup {
 // TODO: The material's pass index indexes into this?
 // TODO: Figure out by finding files with no more groups than pass ids?
 /// References to [WeightGroup] for each of the [RenderPassType](crate::mxmd::RenderPassType).
-#[derive(Debug, Clone, PartialEq, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, PartialEq, Clone, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct WeightLod {
     /// One plus the indices pointing back to [groups](struct.Weights.html#structfield.groups).
     /// Unused entries use the value `0`.
@@ -374,7 +374,7 @@ pub struct WeightLod {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Unk {
@@ -395,7 +395,7 @@ pub struct Unk {
     pub unks: [u32; 8],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct UnkInner {
     pub unk1: u16,
     pub unk2: u16,
@@ -407,7 +407,7 @@ pub struct UnkInner {
 }
 
 /// Extra data assigned to a non skin weights buffer.
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct VertexBufferExtInfo {
     pub flags: VertexBufferExtInfoFlags,
     // TODO: Extra attributes for outline meshes?
@@ -433,7 +433,7 @@ pub struct VertexBufferExtInfoFlags {
     pub unk: u14,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct OutlineBufferDescriptor {
     /// The offset into [buffer](struct.VertexData.html#structfield.buffer).
     pub data_offset: u32,

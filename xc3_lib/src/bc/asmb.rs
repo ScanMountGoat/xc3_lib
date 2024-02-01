@@ -4,7 +4,7 @@ use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 use super::{BcList, BcOffset, StringOffset, StringSection};
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(magic(b"ASMB"))]
 #[xc3(magic(b"ASMB"))]
 pub struct Asmb {
@@ -14,13 +14,13 @@ pub struct Asmb {
 }
 
 // TODO: How to select the version?
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub enum AsmbInner {
     V1(AsmbInnerV1),
     V2(AsmbInnerV2),
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct AsmbInnerV1 {
     pub unk1: u32,
     pub unk2: i32,
@@ -37,7 +37,7 @@ pub struct AsmbInnerV1 {
     pub unk8: BcList<KeyValueV1>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct StateV1 {
     pub unk1: u32,
     pub unk2: i32,
@@ -56,7 +56,7 @@ pub struct StateV1 {
     pub unk12: BcList<u64>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct AnimationV1 {
     #[br(parse_with = parse_string_ptr64)]
     #[xc3(offset(u64))]
@@ -65,7 +65,7 @@ pub struct AnimationV1 {
     pub unk1: BcList<AnimationUnk1V1>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct VarParamV1 {
     pub unk1: u32,
     pub unk2: i32,
@@ -75,7 +75,7 @@ pub struct VarParamV1 {
     pub name: String,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct AnimationUnk1V1 {
     pub unk1: u16,
     pub unk2: u16,
@@ -83,14 +83,14 @@ pub struct AnimationUnk1V1 {
 }
 
 // TODO: more fields?
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct StateTransitionV1 {
     #[br(parse_with = parse_string_ptr64)]
     #[xc3(offset(u64))]
     pub name: String,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct KeyValueV1 {
     #[br(parse_with = parse_string_ptr64)]
     #[xc3(offset(u64))]
@@ -102,7 +102,7 @@ pub struct KeyValueV1 {
 }
 
 // TODO: size?
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct StateKeyValueV1 {
     #[br(parse_with = parse_string_ptr64)]
     #[xc3(offset(u64))]
@@ -119,7 +119,7 @@ pub struct StateKeyValueV1 {
     pub unk5: i32,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct AsmbInnerV2 {
     pub folders: BcList<StringOffset>,
     pub unk2: BcList<FsmGroupV2>,
@@ -127,7 +127,7 @@ pub struct AsmbInnerV2 {
     pub unk4: BcList<u8>, // TODO: type?
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct FsmGroupV2 {
     pub unk1: BcList<BcOffset<StateV2>>,
     pub unk2: BcList<BcOffset<StateTransitionV2>>,
@@ -145,7 +145,7 @@ pub struct FsmGroupV2 {
     pub unk5: Option<String>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct StateV2 {
     #[br(parse_with = parse_string_ptr64)]
     #[xc3(offset(u64))]
@@ -175,7 +175,7 @@ pub struct StateV2 {
     pub unk15: [f32; 8],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct StateTransitionV2 {
     #[br(parse_with = parse_string_ptr64)]
     #[xc3(offset(u64))]

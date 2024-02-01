@@ -31,7 +31,7 @@ struct Cli {
     anim: bool,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
+#[derive(Copy, PartialEq, Clone, Eq, ValueEnum)]
 enum FileExtension {
     Wimdo,
     Pcmdo,

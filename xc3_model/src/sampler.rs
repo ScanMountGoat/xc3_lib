@@ -1,5 +1,5 @@
 /// See [SamplerFlags](xc3_lib::mxmd::SamplerFlags).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Clone, Eq)]
 pub struct Sampler {
     /// Addressing for the U or S texture coordinate.
     pub address_mode_u: AddressMode,

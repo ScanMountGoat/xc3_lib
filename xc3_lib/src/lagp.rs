@@ -17,7 +17,7 @@ use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 // TODO: How much of this is shared with LAHD?
 // TODO: Is this used for xc2?
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 #[br(magic(b"LAGP"))]
 #[xc3(magic(b"LAGP"))]
 pub struct Lagp {
@@ -77,7 +77,7 @@ pub struct Lagp {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Unk13 {
@@ -103,7 +103,7 @@ pub struct Unk13 {
     pub unk: [u32; 4],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Unk13Unk1 {
     pub unk1: u32,

@@ -6,7 +6,7 @@ use bilge::prelude::*;
 use binrw::{args, binread, BinRead};
 
 /// .wiefb effect files for Xenoblade 2.
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, PartialEq, Clone)]
 #[br(magic(b"efb0"))]
 pub struct Efb0 {
     version: (u16, u16),

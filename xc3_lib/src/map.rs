@@ -16,7 +16,7 @@ use crate::{
 // TODO: Improve docs.
 // TODO: Link to appropriate stream field with doc links.
 /// The data for a [PropModel](crate::msmd::PropModel).
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PropModelData {
     pub unk1: [u32; 3],
 
@@ -71,7 +71,7 @@ pub struct PropModelData {
 // Similar to LOD data in mxmd?
 // TODO: Better names for these types
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct PropLods {
@@ -116,7 +116,7 @@ pub struct PropLods {
     pub static_parts_count: u32,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PropLod {
     // TODO: Do these actually index into the PropModelLod?
     /// The index of the base LOD (highest quality) [Model](crate::mxmd::Model)
@@ -127,7 +127,7 @@ pub struct PropLod {
     pub lod_count: u32,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PropModelLod {
     pub radius: f32,
     pub distance: f32,
@@ -135,7 +135,7 @@ pub struct PropModelLod {
     pub index: u32,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PropInstance {
     /// The transform of the instance as a 4x4 column-major matrix.
     pub transform: [[f32; 4]; 4],
@@ -158,13 +158,13 @@ pub struct PropInstance {
     pub unks: [u32; 2],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PropUnk3 {
     pub unk1: [f32; 5],
     pub unk2: [u32; 3],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PropPositionInfo {
     /// Index into [prop_positions](../msmd/struct.Msmd.html#structfield.prop_positions).
     pub prop_position_entry_index: u32,
@@ -175,7 +175,7 @@ pub struct PropPositionInfo {
 
 // TODO: Link to appropriate stream field with doc links.
 /// The data for a [MapModel](crate::msmd::MapModel).
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct MapModelData {
     pub unk1: [u32; 3],
 
@@ -211,7 +211,7 @@ pub struct MapModelData {
 }
 
 // TODO: Shared with other formats?
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Texture {
     /// Index into [textures](../msmd/struct.LowTextures.html#structfield.textures)
     /// for the corresponding [LowTextures](crate::msmd::LowTextures).
@@ -224,7 +224,7 @@ pub struct Texture {
 }
 
 #[bitsize(16)]
-#[derive(DebugBits, FromBits, BinRead, BinWrite, Clone, Copy)]
+#[derive(DebugBits, FromBits, BinRead, BinWrite, PartialEq, Clone, Copy)]
 #[br(map = u16::into)]
 #[bw(map = |&x| u16::from(x))]
 pub struct TextureFlags {
@@ -235,7 +235,7 @@ pub struct TextureFlags {
 
 // TODO: What to call this?
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct MapModelGroups {
@@ -254,7 +254,7 @@ pub struct MapModelGroups {
 }
 
 // Groups?
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct MapModelGroup {
     pub max_xyz: [f32; 3],
     pub min_xyz: [f32; 3],
@@ -269,7 +269,7 @@ pub struct MapModelGroup {
 
 // TODO: Link to appropriate fields with doc links.
 /// The data for a [EnvModel](crate::msmd::EnvModel).
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct EnvModelData {
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]
@@ -301,7 +301,7 @@ pub struct EnvModelData {
 
 // TODO: Link to appropriate fields with doc links.
 /// The data for a [FoliageModel](crate::msmd::FoliageModel).
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct FoliageModelData {
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]
@@ -325,7 +325,7 @@ pub struct FoliageModelData {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct FoliageMaterials {
@@ -343,7 +343,7 @@ pub struct FoliageMaterials {
     pub unk5: u32,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct FoliageMaterial {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
@@ -366,7 +366,7 @@ pub struct FoliageMaterial {
     pub unk14: u16,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct FoliageVertexData {
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
@@ -381,13 +381,13 @@ pub struct FoliageVertexData {
     pub unks: [u32; 7],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct FoliageVertex1 {
     pub unk1: [f32; 3],
     pub unk2: [u8; 4],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct FoliageVertex2 {
     pub unk1: [f32; 4],
     pub unk2: u32, // offset?
@@ -396,7 +396,7 @@ pub struct FoliageVertex2 {
     pub unk5: u32,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct FoliageUnkData {
     pub unk1: [u32; 9], // length of the file repeated?
     pub unk2: [f32; 4],
@@ -406,7 +406,7 @@ pub struct FoliageUnkData {
 
 /// The data for a [MapLowModel](crate::msmd::MapLowModel).
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct MapLowModelData {
     pub unk1: u32,
     pub unk2: u32,
@@ -434,7 +434,7 @@ pub struct MapLowModelData {
     // TODO: more fields?
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PropPositions {
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
@@ -457,7 +457,7 @@ pub struct PropPositions {
     // TODO: more fields?
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct RenderNode {
     pub center: [f32; 3],
     pub radius: f32,

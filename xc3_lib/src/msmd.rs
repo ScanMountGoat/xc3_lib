@@ -30,7 +30,7 @@ use crate::{
 };
 
 /// The main map data for a `.wismhd` file.
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(magic(b"DMSM"))]
 #[xc3(magic(b"DMSM"))]
 pub struct Msmd {
@@ -166,7 +166,7 @@ pub struct Msmd {
 }
 
 /// References to medium and high resolution [Mibl] textures.
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
 pub struct Texture {
     pub mid: StreamEntry<Mibl>,
     // TODO: This isn't always used?
@@ -175,7 +175,7 @@ pub struct Texture {
 }
 
 // TODO: Better name for this?
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
 pub struct MapModel {
     pub bounds: BoundingBox,
     // bounding sphere?
@@ -186,7 +186,7 @@ pub struct MapModel {
 }
 
 // TODO: Better name for this?
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
 pub struct PropModel {
     pub bounds: BoundingBox,
     // bounding sphere?
@@ -196,7 +196,7 @@ pub struct PropModel {
     pub unk3: u32,
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
 pub struct EnvModel {
     pub bounds: BoundingBox,
     // bounding sphere?
@@ -207,14 +207,14 @@ pub struct EnvModel {
 
 // TODO: also in mxmd but without the center?
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
 pub struct BoundingBox {
     pub max: [f32; 3],
     pub min: [f32; 3],
     pub center: [f32; 3],
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
 pub struct MapLowModel {
     pub bounds: BoundingBox,
     pub unk1: f32,
@@ -226,7 +226,7 @@ pub struct MapLowModel {
     pub unk: [u32; 5],
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
 pub struct FoliageModel {
     pub unk1: [f32; 9],
     pub unk: [u32; 3],
@@ -235,7 +235,7 @@ pub struct FoliageModel {
     pub entry: StreamEntry<FoliageModelData>,
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
 #[br(import_raw(flags: u32))]
 pub enum EnvironmentData {
     #[br(pre_assert(flags == 0))]
@@ -244,7 +244,7 @@ pub enum EnvironmentData {
     Nerd(Nerd),
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
 #[brw(magic(b"DREN"))]
 pub struct Nerd {
     pub version: u32,
@@ -259,7 +259,7 @@ pub struct Nerd {
 
 // TODO: This contains a Nerd?
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
 #[brw(magic(b"SMEC"))]
 pub struct Cems {
     pub unk1: [u32; 10],
@@ -267,7 +267,7 @@ pub struct Cems {
 }
 
 // TODO: cloud data?
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
 #[brw(magic(b"CMLD"))]
 pub struct Cmld {
     pub version: u32,
@@ -275,7 +275,7 @@ pub struct Cmld {
 
 // TODO: Lighting data?
 // TODO: .wilgt files?
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
 #[brw(magic(b"DLGT"))]
 pub struct Dlgt {
     pub version: u32,
@@ -284,7 +284,7 @@ pub struct Dlgt {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Ibl {
@@ -301,7 +301,7 @@ pub struct Ibl {
     pub unk6: u32,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct IblInner {
     pub unk1: u32, // 0?
@@ -319,7 +319,7 @@ pub struct IblInner {
     pub unk5: [u32; 6],
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
 #[brw(magic(b"GIBL"))]
 pub struct Gibl {
     pub unk1: u32,
@@ -331,7 +331,7 @@ pub struct Gibl {
     pub unk6: [u32; 6],
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
 pub struct WismdaInfo {
     pub compressed_length: u32,
     pub unk1: u32,
@@ -341,7 +341,7 @@ pub struct WismdaInfo {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Effects {
@@ -356,7 +356,7 @@ pub struct Effects {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Effect {
@@ -389,7 +389,7 @@ pub struct Effect {
 // TODO: What does this do?
 // 116 bytes including magic?
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
 #[brw(magic(b"DOCE"))]
 pub struct Doce {
     pub version: u32,
@@ -397,7 +397,7 @@ pub struct Doce {
     pub count: u32,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct LowTextures {
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
@@ -406,7 +406,7 @@ pub struct LowTextures {
     pub unk: [u32; 5],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct LowTexture {
     pub usage: TextureUsage,
     #[br(parse_with = parse_count32_offset32)]
@@ -415,7 +415,7 @@ pub struct LowTexture {
     pub unk2: i32, // TODO: always -1?
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
 pub struct UnkLight {
     pub max: [f32; 3],
     pub min: [f32; 3],
@@ -428,7 +428,7 @@ pub struct UnkLight {
 
 // TODO: How to get writing working?
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct MapParts {
@@ -475,7 +475,7 @@ pub struct MapParts {
     pub transforms: Vec<[[f32; 4]; 4]>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct MapPartInstanceAnimation {
     pub translation: [f32; 3],
@@ -497,7 +497,7 @@ pub struct MapPartInstanceAnimation {
 }
 
 // TODO: Derive xc3write?
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct MapPartInstanceAnimationChannel {
     // TODO: Group this together into a single type?
@@ -515,7 +515,7 @@ pub struct MapPartInstanceAnimationChannel {
     pub keyframes: Vec<MapPartInstanceAnimationKeyframe>,
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
 #[brw(repr(u16))]
 pub enum ChannelType {
     TranslationX = 0,
@@ -529,7 +529,7 @@ pub enum ChannelType {
     ScaleZ = 8,
 }
 
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
 pub struct MapPartInstanceAnimationKeyframe {
     pub slope_out: f32,
     pub slope_in: f32,
@@ -538,7 +538,7 @@ pub struct MapPartInstanceAnimationKeyframe {
     pub flags: u16,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct MapPart {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
@@ -566,7 +566,7 @@ pub struct MapPart {
 }
 
 /// A reference to an [Xbc1] in `.wismda` file.
-#[derive(Debug, BinRead, BinWrite)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
 pub struct StreamEntry<T> {
     /// The offset of the [Xbc1] in `.wismda` file.
     pub offset: u32,

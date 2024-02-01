@@ -22,7 +22,7 @@ use xc3_write::{write_full, Xc3Write, Xc3WriteOffsets};
 use crate::{error::DecompressStreamError, hash::hash_crc};
 
 /// A compressed container for a single file or stream.
-#[derive(Debug, BinRead, BinWrite, PartialEq)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
 #[brw(magic(b"xbc1"))]
 pub struct Xbc1 {
     // TODO: Not always zlib?

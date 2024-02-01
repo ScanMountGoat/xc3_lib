@@ -7,7 +7,7 @@ use ordered_float::OrderedFloat;
 pub use xc3_lib::bc::anim::{BlendMode, PlayMode, SpaceMode};
 pub use xc3_lib::hash::murmur3;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Animation {
     pub name: String,
     pub space_mode: SpaceMode,
@@ -18,7 +18,7 @@ pub struct Animation {
     pub tracks: Vec<Track>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Track {
     // TODO: Are fractional keyframes used in practice?
     pub translation_keyframes: BTreeMap<OrderedFloat<f32>, Keyframe>,
@@ -28,7 +28,7 @@ pub struct Track {
 }
 
 /// Index for selecting the appropriate bone in a [Skeleton](crate::skeleton::Skeleton).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum BoneIndex {
     /// Index into [bones](../skeleton/struct.Skeleton.html#structfield.bones).
     /// Used for Xenoblade 2 animations.
@@ -43,7 +43,7 @@ pub enum BoneIndex {
 
 // TODO: Should this always be cubic?
 // TODO: Separate type for vec3 and quaternion?
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Keyframe {
     pub x_coeffs: Vec4,
     pub y_coeffs: Vec4,

@@ -19,7 +19,7 @@ use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 // TODO: LAGP files are similar?
 // TODO: LAPS files are similar?
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 #[br(magic(b"LAHD"))]
 #[xc3(magic(b"LAHD"))]
 pub struct Dhal {
@@ -103,7 +103,7 @@ pub struct Dhal {
 }
 
 // TODO: Is this actually flags?
-#[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy, Hash)]
 #[brw(repr(u32))]
 pub enum Unk0 {
     Unk0 = 0,     // images?
@@ -115,7 +115,7 @@ pub enum Unk0 {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Unk1 {
@@ -136,7 +136,7 @@ pub struct Unk1 {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Unk2 {
@@ -166,7 +166,7 @@ pub struct Unk2 {
     pub unk: [u32; 4],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Unk2Unk1 {
     // TODO: array of [u32; 5]?
     pub data_offset: u32,
@@ -174,7 +174,7 @@ pub struct Unk2Unk1 {
     pub unk: u32,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Unk2Unk2 {
     // TODO: array of u16?
     pub data_offset: u32,
@@ -182,7 +182,7 @@ pub struct Unk2Unk2 {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Unk3 {
@@ -206,7 +206,7 @@ pub struct Unk3 {
     pub unk: [u32; 4],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Unk3Unk1 {
     pub unk1: (u16, u16),
@@ -223,7 +223,7 @@ pub struct Unk3Unk1 {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write)]
+#[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
 #[br(import { version: u32, offset: u32 })]
 #[xc3(base_offset)]
@@ -253,7 +253,7 @@ pub struct Unk4 {
     pub unk: Option<[u32; 3]>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Unk4Extra {
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
@@ -264,7 +264,7 @@ pub struct Unk4Extra {
     pub unk: u32,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Unk4Unk2 {
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
@@ -313,7 +313,7 @@ pub struct Unk4Unk2 {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Unk4Unk7 {
@@ -331,7 +331,7 @@ pub struct Unk4Unk7 {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Unk5 {
@@ -344,7 +344,7 @@ pub struct Unk5 {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Unk6 {
@@ -357,7 +357,7 @@ pub struct Unk6 {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Unk7 {
@@ -378,7 +378,7 @@ pub struct Unk7 {
     pub unk: [u32; 4],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Unk7Item {
@@ -388,7 +388,7 @@ pub struct Unk7Item {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Unk8 {
@@ -407,7 +407,7 @@ pub struct Unk8 {
 }
 
 // TODO: pointers to strings?
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Unk8Item {
     pub unk1: u32,
@@ -428,7 +428,7 @@ pub struct Unk8Item {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Unk9 {
@@ -443,13 +443,13 @@ pub struct Unk9 {
     pub unk: [u32; 4],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Unk9Item {
     pub unk1: [i32; 5],
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Textures {
@@ -465,7 +465,7 @@ pub struct Textures {
     pub unk: [u32; 4],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Texture {
     // TODO: 1000, 1001, 1002?
@@ -475,7 +475,7 @@ pub struct Texture {
     pub mibl_data: Vec<u8>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct UncompressedTextures {
     // TODO: does this always use base offset 0?
     #[br(parse_with = parse_offset32_count32)]
@@ -486,7 +486,7 @@ pub struct UncompressedTextures {
     pub unk: [u32; 4],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct UncompressedTexture {
     // TODO: always JFIF?
     /// JFIF/JPEG image file data commonly saved with the `.jfif` or `.jpeg` extension.

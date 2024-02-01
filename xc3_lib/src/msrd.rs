@@ -47,7 +47,7 @@ pub mod streaming;
 
 // TODO: how to set the xbc1 offsets when repacking the msrd?
 #[binread]
-#[derive(Debug, Xc3Write, Clone, PartialEq)]
+#[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(magic(b"DRSM"))]
 #[xc3(magic(b"DRSM"))]
 pub struct Msrd {
@@ -69,7 +69,7 @@ pub struct Msrd {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Streaming {
@@ -80,7 +80,7 @@ pub struct Streaming {
     pub inner: StreamingInner,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub enum StreamingInner {
     #[br(magic(0u32))]
@@ -94,7 +94,7 @@ pub enum StreamingInner {
 
 /// Legacy streaming format that does not use [Msrd] for the `.wismt` file.
 /// This type only appears in [Mxmd](crate::mxmd::Mxmd).
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct StreamingDataLegacy {
     pub flags: StreamingFlagsLegacy,
@@ -142,7 +142,7 @@ pub enum StreamingFlagsLegacy {
 // TODO: Variable padding of 0 or 16 bytes?
 // 76 (xc1, xc2, xc3) or 92 (xc3) bytes.
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct StreamingData {
     pub flags: StreamFlags,
@@ -186,7 +186,7 @@ pub struct StreamingData {
 
 // TODO: Better name?
 // TODO: Always identical to mxmf?
-#[derive(Debug, BinRead, Xc3Write, Clone, PartialEq)]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 #[br(import { base_offset: u64, size: u32 })]
 pub struct TextureResources {
     // TODO: also used for chr textures?
@@ -217,7 +217,7 @@ pub struct TextureResources {
     pub unk: [u32; 2],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct ChrTexTextures {
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
@@ -231,7 +231,7 @@ pub struct ChrTexTextures {
 /// A texture file in `xeno3/chr/tex/nx/m` with a base mipmap in `xeno3/chr/tex/nx/h`.
 ///
 /// The texture [Mibl](crate::mibl) and base mip bytes both use [Xbc1] archives.
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct ChrTexTexture {
     // TODO: The texture name hash as an integer?
     pub hash: u32,
@@ -308,7 +308,7 @@ pub enum EntryType {
 }
 
 /// A compressed [Xbc1] stream with items determined by [StreamEntry].
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Stream {
     /// The size of the [Xbc1], including its header.
     pub compressed_size: u32,

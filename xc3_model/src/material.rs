@@ -7,7 +7,7 @@ use crate::{
 };
 
 /// See [Material](xc3_lib::mxmd::Material) and [FoliageMaterial](xc3_lib::map::FoliageMaterial).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Material {
     pub name: String,
     pub flags: StateFlags,
@@ -26,7 +26,7 @@ pub struct Material {
 }
 
 /// Information for alpha testing based on sampled texture values.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TextureAlphaTest {
     /// The texture in [textures](struct.Material.html#structfield.textures) used for alpha testing.
     pub texture_index: usize,
@@ -37,7 +37,7 @@ pub struct TextureAlphaTest {
 }
 
 /// Values assigned to known shader uniforms or `None` if not present.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct MaterialParameters {
     pub mat_color: [f32; 4],
     pub alpha_test_ref: f32,

@@ -19,7 +19,7 @@ use xc3_lib::vertex::{
 use crate::{skinning::SkinWeights, Weights};
 
 /// See [VertexData].
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ModelBuffers {
     pub vertex_buffers: Vec<VertexBuffer>,
     pub index_buffers: Vec<IndexBuffer>,
@@ -27,7 +27,7 @@ pub struct ModelBuffers {
 }
 
 /// See [VertexBufferDescriptor].
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct VertexBuffer {
     pub attributes: Vec<AttributeData>,
     /// Animation targets for vertex attributes like positions and normals.
@@ -39,7 +39,7 @@ pub struct VertexBuffer {
 /// Morph target attributes defined as a difference or deformation from the base target.
 ///
 /// The final attribute values are simply `base + target * weight`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct MorphTarget {
     // TODO: add names from mxmd?
     // TODO: Add a method with tests to blend with base target?
@@ -53,13 +53,13 @@ pub struct MorphTarget {
 }
 
 /// See [OutlineBufferDescriptor].
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct OutlineBuffer {
     pub attributes: Vec<AttributeData>,
 }
 
 /// See [IndexBufferDescriptor].
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct IndexBuffer {
     // TODO: support u32?
     pub indices: Vec<u16>,
@@ -76,7 +76,7 @@ impl VertexBuffer {
 // TODO: How to handle normalized attributes?
 // TODO: Link to appropriate xc3_lib types and fields.
 /// The per vertex values for a vertex attribute.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum AttributeData {
     Position(Vec<Vec3>),
     Normal(Vec<Vec4>),

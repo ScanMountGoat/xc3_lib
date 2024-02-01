@@ -17,7 +17,7 @@ pub mod skel;
 // TODO: Add class names from xenoblade 2 binary where appropriate.
 // Assume the BC is at the beginning of the reader to simplify offsets.
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(magic(b"BC\x00\x00"))]
 #[br(stream = r)]
 #[xc3(magic(b"BC\x00\x00"))]
@@ -40,7 +40,7 @@ pub struct Bc {
     pub addresses: Vec<u64>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub enum BcData {
     #[br(magic(2u32))]
     #[xc3(magic(2u32))]
@@ -60,7 +60,7 @@ pub enum BcData {
 }
 
 // skeleton dynamics?
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(magic(b"SKDY"))]
 #[xc3(magic(b"SKDY"))]
 pub struct Skdy {
@@ -70,7 +70,7 @@ pub struct Skdy {
 }
 
 // TODO: All names should be written at the end.
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Dynamics {
     pub unk1: BcList<()>,
     pub unk2: u64,
@@ -92,7 +92,7 @@ pub struct Dynamics {
     pub unk5: Option<DynamicsUnk3>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct DynamicsUnk1 {
     pub unk1: BcList<DynamicsUnk1Item>,
     // TODO: type?
@@ -100,7 +100,7 @@ pub struct DynamicsUnk1 {
     pub unk3: BcList<u8>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct DynamicsUnk1Item {
     pub unk1: u32,
     pub unk2: i32,
@@ -120,12 +120,12 @@ pub struct DynamicsUnk1Item {
     pub unk7: [i32; 3],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct DynamicsUnk2 {
     pub unk1: BcList<DynamicsUnk2Item>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct DynamicsUnk2Item {
     #[br(parse_with = parse_string_ptr64)]
     #[xc3(offset(u64))]
@@ -138,7 +138,7 @@ pub struct DynamicsUnk2Item {
     pub unk5: BcList<()>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct DynamicsUnk2ItemUnk1 {
     #[br(parse_with = parse_string_ptr64)]
     #[xc3(offset(u64))]
@@ -152,7 +152,7 @@ pub struct DynamicsUnk2ItemUnk1 {
     pub unk2: u32,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct DynamicsUnk2ItemUnk3 {
     #[br(parse_with = parse_string_ptr64)]
     #[xc3(offset(u64))]
@@ -162,27 +162,27 @@ pub struct DynamicsUnk2ItemUnk3 {
     pub unk2: u32,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct DynamicsUnk3 {
     // TODO: points to string section?
     pub unk1: BcList<()>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Transform {
     pub translation: [f32; 4],
     pub rotation_quaternion: [f32; 4],
     pub scale: [f32; 4],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct StringOffset {
     #[br(parse_with = parse_string_ptr64)]
     #[xc3(offset(u64))]
     pub name: String,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct BcOffset<T>
 where
     T: 'static + BinRead + Xc3Write,
@@ -196,7 +196,7 @@ where
 
 // TODO: Make this generic over the alignment and padding byte?
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct BcList<T>
 where
     T: BinRead + Xc3Write + 'static,

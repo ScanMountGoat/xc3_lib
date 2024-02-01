@@ -77,7 +77,7 @@ mod texture;
 pub mod vertex;
 
 // TODO: Come up with a better name
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ModelRoot {
     pub groups: Vec<ModelGroup>,
     /// The textures selected by each [Material].
@@ -89,7 +89,7 @@ pub struct ModelRoot {
     pub skeleton: Option<Skeleton>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ModelGroup {
     pub models: Vec<Models>,
     /// The vertex data selected by each [Model].
@@ -98,7 +98,7 @@ pub struct ModelGroup {
 
 // TODO: come up with a better name?
 /// See [Weights](xc3_lib::vertex::Weights).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Weights {
     // TODO: This is tied to the Models?
     // TODO: have each Models have its own reindexed set of indices based on skeleton names?
@@ -112,7 +112,7 @@ pub struct Weights {
 // TODO: Should samplers be optional?
 // TODO: Come up with a better name?
 /// See [Models](xc3_lib::mxmd::Models).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Models {
     pub models: Vec<Model>,
     pub materials: Vec<Material>,
@@ -134,7 +134,7 @@ pub struct Models {
 }
 
 /// See [Model](xc3_lib::mxmd::Model).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Model {
     pub meshes: Vec<Mesh>,
     /// Each mesh has an instance for every transform in [instances](#structfield.instances).
@@ -145,7 +145,7 @@ pub struct Model {
 }
 
 /// See [Mesh](xc3_lib::mxmd::Mesh).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Mesh {
     pub vertex_buffer_index: usize,
     pub index_buffer_index: usize,
@@ -387,7 +387,7 @@ impl ModelRoot {
             .iter()
             .map(|image| ExtractedTexture {
                 name: image.name.clone().unwrap(),
-                usage: image.usage.clone().unwrap(),
+                usage: image.usage.unwrap(),
                 low: image.to_mibl().unwrap(),
                 high: None,
             })

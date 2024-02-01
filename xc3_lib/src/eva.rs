@@ -3,7 +3,7 @@ use crate::parse_ptr32;
 use binrw::{binread, BinRead};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(magic(b"eva\x00"))]
 #[xc3(magic(b"eva\x00"))]
 pub struct Eva {
@@ -15,7 +15,7 @@ pub struct Eva {
     pub items: Vec<EvaItem1>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct EvaItem1 {
     // TODO: flags?
     pub unk1: u32,
@@ -26,7 +26,7 @@ pub struct EvaItem1 {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct EvaItem2 {

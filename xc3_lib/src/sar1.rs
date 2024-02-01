@@ -18,7 +18,7 @@ use binrw::{binread, BinRead, BinReaderExt, BinResult, NullString};
 use xc3_write::{write_full, Xc3Write, Xc3WriteOffsets};
 
 /// A simple archive containing named entries.
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 #[br(magic(b"1RAS"))]
 #[xc3(magic(b"1RAS"))]
 pub struct Sar1 {
@@ -42,7 +42,7 @@ pub struct Sar1 {
     pub name: String,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Entry {
     #[br(parse_with = parse_offset32_count32)]
     #[xc3(offset_count(u32, u32), align(64))]
@@ -89,7 +89,7 @@ impl Entry {
 }
 
 // character collision?
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(magic(b"CHCL"))]
 #[xc3(magic(b"CHCL"))]
 #[xc3(align_after(64))]
@@ -105,7 +105,7 @@ pub struct ChCl {
     pub unks: [u32; 10],
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct ChClInner {
     #[br(parse_with = parse_offset32_count32)]
     #[xc3(offset_count(u32, u32))]
@@ -139,7 +139,7 @@ pub struct ChClInner {
     pub unks: [u32; 4],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct ChClUnk2 {
     pub unk1: [[f32; 4]; 4],
 
@@ -149,7 +149,7 @@ pub struct ChClUnk2 {
     pub name: String,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct ChClUnk7 {
     pub unk1: [[f32; 4]; 3],
     // TODO: Pointer to Idcm?
@@ -210,7 +210,7 @@ pub struct Idcm {
 
 // TODO: Is the padding always aligned?
 // "effpnt" or "effect" "point"?
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(magic(b"CSVB"))]
 #[xc3(magic(b"CSVB"))]
 #[xc3(align_after(64))]
@@ -234,7 +234,7 @@ pub struct Csvb {
     pub string_section: Vec<u8>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct CvsbItem {
     // TODO: Offsets relative to start of string section.
     pub name1_offset: u16,

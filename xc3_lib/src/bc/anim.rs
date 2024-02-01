@@ -7,7 +7,7 @@ use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 use super::{BcList, StringOffset, StringSection, Transform};
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 #[br(magic(b"ANIM"))]
 #[xc3(magic(b"ANIM"))]
 pub struct Anim {
@@ -17,7 +17,7 @@ pub struct Anim {
 }
 
 #[binread]
-#[derive(Debug, Xc3Write)]
+#[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
 pub struct AnimationBinding {
     // Use temp fields to estimate the struct size.
@@ -48,7 +48,7 @@ pub struct AnimationBinding {
 }
 
 // TODO: Is there a simpler way of doing this?
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 #[br(import { size: u64, animation_type: AnimationType })]
 pub enum AnimationBindingInner {
     // XC2 has 60 total bytes.
@@ -68,14 +68,14 @@ pub enum AnimationBindingInner {
 }
 
 // 60 total bytes for xc2
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct AnimationBindingInner1 {
     #[br(parse_with = parse_offset64_count32)]
     #[xc3(offset_count(u64, u32), align(8, 0xff))]
     pub extra_track_bindings: Vec<ExtraTrackAnimationBinding>,
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct ExtraTrackAnimationBinding {
     #[br(parse_with = parse_opt_ptr64)]
     #[xc3(offset(u64))]
@@ -90,7 +90,7 @@ pub struct ExtraTrackAnimationBinding {
     pub unk1: i32, // -1
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct ExtraTrackAnimation {
     pub unk1: u64,
 
@@ -110,7 +110,7 @@ pub struct ExtraTrackAnimation {
 }
 
 // 76 total bytes for xc1 or xc3
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct AnimationBindingInner2 {
     /// An alternative bone name list for
     /// [bone_track_indices](struct.AnimationBinding.html#structfield.bone_track_indices).
@@ -125,7 +125,7 @@ pub struct AnimationBindingInner2 {
 }
 
 // 120 or 128 total bytes for xc3
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(animation_type: AnimationType))]
 pub struct AnimationBindingInner3 {
     /// An alternative bone name list for
@@ -141,7 +141,7 @@ pub struct AnimationBindingInner3 {
 
 // 128 total bytes for xc3
 // TODO: Is it worth making a whole separate type for this?
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(animation_type: AnimationType))]
 pub struct AnimationBindingInner4 {
     /// An alternative bone name list for
@@ -157,7 +157,7 @@ pub struct AnimationBindingInner4 {
     pub unk1: u64,
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct Animation {
     pub unk1: BcList<()>,
     pub unk_offset1: u64,
@@ -209,7 +209,7 @@ pub enum BlendMode {
     Add = 1,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct AnimationNotify {
     pub time: f32,
     pub unk2: i32,
@@ -223,7 +223,7 @@ pub struct AnimationNotify {
     pub unk4: String,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct AnimationLocomotion {
     pub unk1: [u32; 4],
     pub seconds_per_frame: f32,
@@ -236,7 +236,7 @@ pub struct AnimationLocomotion {
 }
 
 // TODO: is this only for XC3?
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(animation_type: AnimationType))]
 pub enum ExtraTrackData {
     #[br(pre_assert(animation_type == AnimationType::Uncompressed))]
@@ -253,7 +253,7 @@ pub enum ExtraTrackData {
     PackedCubic(PackedCubicExtraData),
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct UncompressedExtraData {
     // TODO: type?
     #[br(parse_with = parse_offset64_count32)]
@@ -273,7 +273,7 @@ pub struct UncompressedExtraData {
 }
 
 // TODO: Default transform for a single bone at each frame?
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct UncompressedExtraDataMotion {
     pub translation: BcList<[f32; 4]>,
     pub rotation: BcList<[f32; 4]>,
@@ -286,7 +286,7 @@ pub struct UncompressedExtraDataMotion {
     pub scale_indices: BcList<u16>,
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct CubicExtraData {
     // TODO: type?
     #[br(parse_with = parse_offset64_count32)]
@@ -309,7 +309,7 @@ pub struct CubicExtraData {
     pub unk: [u32; 4],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct CubicExtraDataInner1 {
     // TODO: buffer?
     pub unk1: BcList<u8>,
@@ -319,7 +319,7 @@ pub struct CubicExtraDataInner1 {
     pub unk2: Vec<u16>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct CubicExtraDataInner2 {
     pub unk1: BcList<u8>,
 
@@ -328,7 +328,7 @@ pub struct CubicExtraDataInner2 {
     pub unk2: Vec<u16>,
 }
 
-#[derive(Debug, BinRead, Xc3Write)]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct PackedCubicExtraData {
     #[br(parse_with = parse_offset64_count32)]
     #[xc3(offset_count(u64, u32), align(8))]
@@ -353,14 +353,14 @@ pub struct PackedCubicExtraData {
     pub unk_offset3: Option<PackedCubicExtraDataUnk3>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PackedCubicExtraDataUnk2 {
     #[br(parse_with = parse_offset64_count32)]
     #[xc3(offset_count(u64, u32))]
     pub items: Vec<f32>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PackedCubicExtraDataUnk3 {
     #[br(parse_with = parse_offset64_count32)]
     #[xc3(offset_count(u64, u32), align(16, 0xff))]
@@ -372,7 +372,7 @@ pub struct PackedCubicExtraDataUnk3 {
     pub items2: Vec<i16>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct TrackHashes {
     // TODO: buffers?
     pub unk1: BcList<u8>,
@@ -398,7 +398,7 @@ pub enum AnimationType {
     PackedCubic = 3,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import { animation_type: AnimationType})]
 pub enum AnimationData {
     #[br(pre_assert(animation_type == AnimationType::Uncompressed))]
@@ -414,7 +414,7 @@ pub enum AnimationData {
     PackedCubic(PackedCubic),
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Uncompressed {
     // TODO: Is every BcList aligned like this?
     #[br(parse_with = parse_offset64_count32)]
@@ -423,19 +423,19 @@ pub struct Uncompressed {
     pub unk1: i32, // -1
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Cubic {
     pub tracks: BcList<CubicTrack>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct CubicTrack {
     pub translation: BcList<KeyFrameCubicVec3>,
     pub rotation: BcList<KeyFrameCubicQuaternion>,
     pub scale: BcList<KeyFrameCubicVec3>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct KeyFrameCubicVec3 {
     pub frame: f32,
     /// Coefficients `[a,b,c,d]` for `a*x^3 + b*x^2 + c*x + d` for frame index `x`.
@@ -446,7 +446,7 @@ pub struct KeyFrameCubicVec3 {
     pub z: [f32; 4],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct KeyFrameCubicQuaternion {
     pub frame: f32,
     /// Coefficients `[a,b,c,d]` for `a*x^3 + b*x^2 + c*x + d` for frame index `x`.
@@ -459,7 +459,7 @@ pub struct KeyFrameCubicQuaternion {
     pub w: [f32; 4],
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PackedCubic {
     // TODO: same length and ordering as bone indices and hashes?
     pub tracks: BcList<PackedCubicTrack>,
@@ -477,14 +477,14 @@ pub struct PackedCubic {
     pub keyframes: BcList<u16>,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PackedCubicTrack {
     pub translation: SubTrack,
     pub rotation: SubTrack,
     pub scale: SubTrack,
 }
 
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct SubTrack {
     /// Index into [keyframes](struct.PackedCubic.html#structfield.keyframes).
     pub keyframe_start_index: u32,
