@@ -339,7 +339,7 @@ fn create_model_group(
 
 fn model_index_buffers(
     device: &wgpu::Device,
-    buffer: &xc3_model::ModelBuffers,
+    buffer: &xc3_model::vertex::ModelBuffers,
 ) -> Vec<IndexBuffer> {
     buffer
         .index_buffers
@@ -363,7 +363,7 @@ fn model_index_buffers(
 fn create_model(
     device: &wgpu::Device,
     model: &xc3_model::Model,
-    buffers: &[xc3_model::ModelBuffers],
+    buffers: &[xc3_model::vertex::ModelBuffers],
     skeleton: Option<&xc3_model::Skeleton>,
     materials: &[Material],
 ) -> Model {
@@ -414,7 +414,7 @@ fn create_model(
 
 fn model_vertex_buffers(
     device: &wgpu::Device,
-    buffer: &xc3_model::ModelBuffers,
+    buffer: &xc3_model::vertex::ModelBuffers,
 ) -> Vec<VertexBuffer> {
     buffer
         .vertex_buffers
@@ -478,7 +478,7 @@ fn model_vertex_buffers(
 fn morph_buffers(
     device: &wgpu::Device,
     buffer0_vertices: Vec<shader::model::VertexInput0>,
-    buffer: &xc3_model::VertexBuffer,
+    buffer: &xc3_model::vertex::VertexBuffer,
 ) -> MorphBuffers {
     // Initialize to the unmodified vertices.
     let morph_vertex_buffer0 = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -549,7 +549,7 @@ fn morph_buffers(
 fn set_attributes(
     buffer0_vertices: &mut [shader::model::VertexInput0],
     buffer1_vertices: &mut [shader::model::VertexInput1],
-    buffer: &xc3_model::VertexBuffer,
+    buffer: &xc3_model::vertex::VertexBuffer,
 ) {
     set_buffer0_attributes(buffer0_vertices, &buffer.attributes);
     set_buffer1_attributes(buffer1_vertices, &buffer.attributes);
@@ -671,7 +671,7 @@ fn per_group_bind_group(
 
 fn per_mesh_bind_group(
     device: &wgpu::Device,
-    buffers: &xc3_model::ModelBuffers,
+    buffers: &xc3_model::vertex::ModelBuffers,
     skin_weights: Option<&xc3_model::skinning::SkinWeights>,
     lod: u16,
     skin_flags: u32,
