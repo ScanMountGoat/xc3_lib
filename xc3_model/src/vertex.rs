@@ -13,7 +13,8 @@ use std::io::{Cursor, Seek, SeekFrom, Write};
 use binrw::{BinRead, BinReaderExt, BinResult, BinWrite};
 use glam::{Vec2, Vec3, Vec4};
 use xc3_lib::vertex::{
-    DataType, IndexBufferDescriptor, OutlineBufferDescriptor, VertexBufferDescriptor, VertexData,
+    DataType, IndexBufferDescriptor, OutlineBufferDescriptor, VertexBufferDescriptor,
+    VertexBufferExtInfo, VertexBufferExtInfoFlags, VertexData,
 };
 
 use crate::{skinning::SkinWeights, Weights};
@@ -22,6 +23,7 @@ use crate::{skinning::SkinWeights, Weights};
 #[derive(Debug, PartialEq, Clone)]
 pub struct ModelBuffers {
     pub vertex_buffers: Vec<VertexBuffer>,
+    pub outline_buffers: Vec<OutlineBuffer>,
     pub index_buffers: Vec<IndexBuffer>,
     pub weights: Option<Weights>,
 }
@@ -33,7 +35,7 @@ pub struct VertexBuffer {
     /// Animation targets for vertex attributes like positions and normals.
     /// The base target is already applied to [attributes](#structfield.attributes).
     pub morph_targets: Vec<MorphTarget>,
-    pub outline_buffer: Option<OutlineBuffer>,
+    pub outline_buffer_index: Option<usize>,
 }
 
 /// Morph target attributes defined as a difference or deformation from the base target.
@@ -265,7 +267,7 @@ impl From<&AttributeData> for xc3_lib::vertex::VertexAttribute {
 fn read_vertex_buffers(
     vertex_data: &VertexData,
     skinning: Option<&xc3_lib::mxmd::Skinning>,
-) -> BinResult<(Vec<VertexBuffer>, Option<Weights>)> {
+) -> BinResult<(Vec<VertexBuffer>, Vec<OutlineBuffer>, Option<Weights>)> {
     // TODO: This skips the weights buffer since it doesn't have ext info?
     // TODO: Save the weights buffer for converting back to xc3_lib types?
     // TODO: Panic if the weights buffer is not the last buffer?
@@ -275,15 +277,23 @@ fn read_vertex_buffers(
         .zip(vertex_data.vertex_buffer_info.iter())
         .map(|(descriptor, ext)| {
             let attributes = read_vertex_attributes(descriptor, &vertex_data.buffer);
-            let outline_buffer = outline_buffer(ext, vertex_data).unwrap();
 
             VertexBuffer {
                 attributes,
                 morph_targets: Vec::new(),
-                outline_buffer,
+                outline_buffer_index: ext
+                    .flags
+                    .has_outline_buffer()
+                    .then_some(ext.outline_buffer_index as usize),
             }
         })
         .collect();
+
+    let outline_buffers = vertex_data
+        .outline_buffers
+        .iter()
+        .map(|descriptor| outline_buffer(descriptor, &vertex_data.buffer))
+        .collect::<Result<Vec<_>, _>>()?;
 
     // TODO: Get names from the mxmd?
     // TODO: Add better tests for morph target data.
@@ -313,28 +323,14 @@ fn read_vertex_buffers(
         })
     });
 
-    Ok((buffers, skin_weights))
+    Ok((buffers, outline_buffers, skin_weights))
 }
 
-fn outline_buffer(
-    ext: &xc3_lib::vertex::VertexBufferExtInfo,
-    vertex_data: &VertexData,
-) -> BinResult<Option<OutlineBuffer>> {
-    if ext.flags.has_outline_buffer() {
-        // TODO: This fails for legacy files like xc2 oj108004?
-        // TODO: Simpler way of writing this?
-        match vertex_data
-            .outline_buffers
-            .get(ext.outline_buffer_index as usize)
-        {
-            Some(outline) => Ok(Some(OutlineBuffer {
-                attributes: read_outline_buffer(outline, &vertex_data.buffer)?,
-            })),
-            None => Ok(None),
-        }
-    } else {
-        Ok(None)
-    }
+fn outline_buffer(descriptor: &OutlineBufferDescriptor, buffer: &[u8]) -> BinResult<OutlineBuffer> {
+    // TODO: This fails for legacy files like xc2 oj108004?
+    Ok(OutlineBuffer {
+        attributes: read_outline_buffer(descriptor, buffer)?,
+    })
 }
 
 fn assign_morph_targets(
@@ -719,6 +715,7 @@ fn read_outline_buffer(
     buffer: &[u8],
 ) -> BinResult<Vec<AttributeData>> {
     // TODO: outline buffer normally just has vColor?
+    // TODO: Some buffers have 8 bytes per vertex instead of 4?
     Ok(vec![AttributeData::VertexColor(read_outline_attribute(
         descriptor,
         0,
@@ -762,29 +759,31 @@ fn _read_unk_buffer(unk: &xc3_lib::vertex::UnkInner, model_bytes: &[u8]) -> BinR
 }
 
 impl ModelBuffers {
+    /// Decode all the attributes from `vertex_data`.
     pub fn from_vertex_data(
         vertex_data: &VertexData,
         skinning: Option<&xc3_lib::mxmd::Skinning>,
     ) -> BinResult<Self> {
-        let (vertex_buffers, weights) = read_vertex_buffers(vertex_data, skinning)?;
+        let (vertex_buffers, outline_buffers, weights) =
+            read_vertex_buffers(vertex_data, skinning)?;
         let index_buffers = read_index_buffers(vertex_data);
 
         Ok(Self {
             vertex_buffers,
+            outline_buffers,
             index_buffers,
             weights,
         })
     }
 
     // TODO: Test this in xc3_test?
+    /// Encode and write all the attributes to a new [VertexData].
     pub fn to_vertex_data(&self) -> BinResult<VertexData> {
         // TODO: recreate vertex buffers and match original ordering?
         // TODO: vertex, outline, index, align 256, morph, align 256, unk7
         let mut vertex_buffers = Vec::new();
         let mut index_buffers = Vec::new();
         let mut outline_buffers = Vec::new();
-        let mut vertex_buffer_info = Vec::new();
-        // let mut vertex_morphs = Vec::new();
 
         // Match the ordering and alignment from in game.
         let mut buffer_writer = Cursor::new(Vec::new());
@@ -794,28 +793,66 @@ impl ModelBuffers {
             vertex_buffers.push(vertex_buffer);
         }
 
-        for buffer in &self.vertex_buffers {
-            if let Some(outline) = &buffer.outline_buffer {
-                let outline_buffer = write_outline_buffer(&mut buffer_writer, &outline.attributes)?;
-                outline_buffers.push(outline_buffer);
-            }
+        if let Some(weights) = &self.weights {
+            let weights_buffer = write_vertex_buffer(
+                &mut buffer_writer,
+                &[
+                    AttributeData::SkinWeights(weights.skin_weights.weights.clone()),
+                    AttributeData::BoneIndices(weights.skin_weights.bone_indices.clone()),
+                ],
+            )?;
+            vertex_buffers.push(weights_buffer);
+        }
+
+        for buffer in &self.outline_buffers {
+            let outline_buffer = write_outline_buffer(&mut buffer_writer, &buffer.attributes)?;
+            outline_buffers.push(outline_buffer);
         }
 
         for buffer in &self.index_buffers {
-            write_index_buffer(&mut buffer_writer, &buffer.indices)?;
+            let index_buffer = write_index_buffer(&mut buffer_writer, &buffer.indices)?;
+            index_buffers.push(index_buffer);
         }
 
         align_256(&mut buffer_writer)?;
 
         for buffer in &self.vertex_buffers {
             for target in &buffer.morph_targets {
-                // TODO: Write morph targets.
+                // TODO: create morph targets and descriptors.
             }
         }
 
         align_256(&mut buffer_writer)?;
 
         // TODO: unk7?
+
+        // TODO: Add morph data?
+        let vertex_buffer_info = self
+            .vertex_buffers
+            .iter()
+            .map(|buffer| VertexBufferExtInfo {
+                flags: VertexBufferExtInfoFlags::new(
+                    buffer.outline_buffer_index.is_some(),
+                    false,
+                    0u8.into(),
+                ),
+                outline_buffer_index: buffer.outline_buffer_index.unwrap_or_default() as u16,
+                morph_target_start_index: 0,
+                morph_target_count: 0,
+                unk: 0,
+            })
+            .collect();
+
+        let weights = self
+            .weights
+            .as_ref()
+            .map(|weights| xc3_lib::vertex::Weights {
+                groups: weights.weight_groups.clone(),
+                vertex_buffer_index: vertex_buffers.len() as u16 - 1,
+                weight_lods: weights.weight_lods.clone(),
+                unk4: 1,
+                unks5: [0; 4],
+            });
 
         Ok(VertexData {
             vertex_buffers,
@@ -829,7 +866,7 @@ impl ModelBuffers {
             vertex_morphs: None,
             buffer: buffer_writer.into_inner(),
             unk_data: None,
-            weights: None,
+            weights,
             unk7: None,
             unks: [0; 5],
         })
@@ -896,6 +933,7 @@ fn write_vertex_buffer<W: Write + Seek>(
     })
 }
 
+// TODO: Share code with above?
 fn write_outline_buffer<W: Write + Seek>(
     writer: &mut W,
     attribute_data: &[AttributeData],

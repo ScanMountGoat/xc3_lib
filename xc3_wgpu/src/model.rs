@@ -414,9 +414,9 @@ fn create_model(
 
 fn model_vertex_buffers(
     device: &wgpu::Device,
-    buffer: &xc3_model::vertex::ModelBuffers,
+    buffers: &xc3_model::vertex::ModelBuffers,
 ) -> Vec<VertexBuffer> {
-    buffer
+    buffers
         .vertex_buffers
         .iter()
         .map(|buffer| {
@@ -442,7 +442,12 @@ fn model_vertex_buffers(
                 vertex_count
             ];
 
-            set_attributes(&mut buffer0_vertices, &mut buffer1_vertices, buffer);
+            set_attributes(
+                &mut buffer0_vertices,
+                &mut buffer1_vertices,
+                buffer,
+                &buffers.outline_buffers,
+            );
 
             let vertex_buffer0 = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("vertex buffer 0"),
@@ -550,11 +555,15 @@ fn set_attributes(
     buffer0_vertices: &mut [shader::model::VertexInput0],
     buffer1_vertices: &mut [shader::model::VertexInput1],
     buffer: &xc3_model::vertex::VertexBuffer,
+    outline_buffers: &[xc3_model::vertex::OutlineBuffer],
 ) {
     set_buffer0_attributes(buffer0_vertices, &buffer.attributes);
     set_buffer1_attributes(buffer1_vertices, &buffer.attributes);
 
-    if let Some(outline_buffer) = &buffer.outline_buffer {
+    if let Some(outline_buffer) = buffer
+        .outline_buffer_index
+        .and_then(|i| outline_buffers.get(i))
+    {
         // TODO: Should outline attributes not override existing attributes?
         set_buffer1_attributes(buffer1_vertices, &outline_buffer.attributes)
     }
