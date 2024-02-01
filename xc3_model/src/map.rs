@@ -17,8 +17,7 @@ use crate::{
     create_materials, create_samplers, model_name,
     shader_database::ShaderDatabase,
     texture::{self, CreateImageTextureError, ImageTexture},
-    vertex::{read_index_buffers, read_vertex_buffers},
-    Material, Model, ModelGroup, ModelRoot, Models, Texture, ModelBuffers,
+    Material, Model, ModelBuffers, ModelGroup, ModelRoot, Models, Texture,
 };
 
 #[derive(Debug, Error)]
@@ -316,12 +315,7 @@ fn create_buffers(
         .map(|e| {
             // Assume maps have no skeletons for now.
             let vertex_data = e.extract(&mut Cursor::new(wismda), compressed)?;
-            let (vertex_buffers, weights) = read_vertex_buffers(&vertex_data, None)?;
-            Ok(ModelBuffers {
-                vertex_buffers,
-                index_buffers: read_index_buffers(&vertex_data),
-                weights,
-            })
+            ModelBuffers::from_vertex_data(&vertex_data, None).map_err(Into::into)
         })
         .collect()
 }
@@ -594,8 +588,7 @@ fn load_env_model(
         .and_then(|database| database.map_files.get(model_folder))
         .and_then(|map| map.env_models.get(model_index));
 
-    let (vertex_buffers, weights) = read_vertex_buffers(&model_data.vertex_data, None)?;
-    let index_buffers = read_index_buffers(&model_data.vertex_data);
+    let buffers = ModelBuffers::from_vertex_data(&model_data.vertex_data, None)?;
 
     Ok(ModelRoot {
         groups: vec![ModelGroup {
@@ -604,11 +597,7 @@ fn load_env_model(
                 &model_data.materials,
                 spch,
             )],
-            buffers: vec![ModelBuffers {
-                vertex_buffers,
-                index_buffers,
-                weights,
-            }],
+            buffers: vec![buffers],
         }],
         image_textures,
         skeleton: None,
@@ -642,8 +631,7 @@ fn load_foliage_model(
         .map(|model| Model::from_model(model, vec![Mat4::IDENTITY], 0))
         .collect();
 
-    let (vertex_buffers, weights) = read_vertex_buffers(&model_data.vertex_data, None)?;
-    let index_buffers = read_index_buffers(&model_data.vertex_data);
+    let buffers = ModelBuffers::from_vertex_data(&model_data.vertex_data, None)?;
 
     // TODO: foliage samplers?
     // TODO: is it worth making a skeleton here?
@@ -660,11 +648,7 @@ fn load_foliage_model(
                 min_xyz: model_data.models.min_xyz,
                 max_xyz: model_data.models.max_xyz,
             }],
-            buffers: vec![ModelBuffers {
-                vertex_buffers,
-                index_buffers,
-                weights,
-            }],
+            buffers: vec![buffers],
         }],
         image_textures,
         skeleton: None,

@@ -337,7 +337,10 @@ fn create_model_group(
     }
 }
 
-fn model_index_buffers(device: &wgpu::Device, buffer: &xc3_model::ModelBuffers) -> Vec<IndexBuffer> {
+fn model_index_buffers(
+    device: &wgpu::Device,
+    buffer: &xc3_model::ModelBuffers,
+) -> Vec<IndexBuffer> {
     buffer
         .index_buffers
         .iter()

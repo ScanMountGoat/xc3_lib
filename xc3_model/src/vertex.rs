@@ -12,11 +12,65 @@ use std::io::{Cursor, Seek, SeekFrom, Write};
 
 use binrw::{BinRead, BinReaderExt, BinResult, BinWrite};
 use glam::{Vec2, Vec3, Vec4};
-use xc3_lib::vertex::{DataType, IndexBufferDescriptor, VertexBufferDescriptor, VertexData};
-
-use crate::{
-    skinning::SkinWeights, IndexBuffer, MorphTarget, OutlineBuffer, VertexBuffer, Weights,
+use xc3_lib::vertex::{
+    DataType, IndexBufferDescriptor, OutlineBufferDescriptor, VertexBufferDescriptor, VertexData,
 };
+
+use crate::{skinning::SkinWeights, Weights};
+
+/// See [VertexData].
+#[derive(Debug, Clone, PartialEq)]
+pub struct ModelBuffers {
+    pub vertex_buffers: Vec<VertexBuffer>,
+    pub index_buffers: Vec<IndexBuffer>,
+    pub weights: Option<Weights>,
+}
+
+/// See [VertexBufferDescriptor].
+#[derive(Debug, Clone, PartialEq)]
+pub struct VertexBuffer {
+    pub attributes: Vec<AttributeData>,
+    /// Animation targets for vertex attributes like positions and normals.
+    /// The base target is already applied to [attributes](#structfield.attributes).
+    pub morph_targets: Vec<MorphTarget>,
+    pub outline_buffer: Option<OutlineBuffer>,
+}
+
+/// Morph target attributes defined as a difference or deformation from the base target.
+///
+/// The final attribute values are simply `base + target * weight`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MorphTarget {
+    // TODO: add names from mxmd?
+    // TODO: Add a method with tests to blend with base target?
+    pub position_deltas: Vec<Vec3>,
+    // TODO: Exclude the 4th sign component?
+    pub normal_deltas: Vec<Vec4>,
+    pub tangent_deltas: Vec<Vec4>,
+    /// The index of the vertex affected by each offset deltas.
+    // TODO: method to convert to a non sparse format?
+    pub vertex_indices: Vec<u32>,
+}
+
+/// See [OutlineBufferDescriptor].
+#[derive(Debug, Clone, PartialEq)]
+pub struct OutlineBuffer {
+    pub attributes: Vec<AttributeData>,
+}
+
+/// See [IndexBufferDescriptor].
+#[derive(Debug, Clone, PartialEq)]
+pub struct IndexBuffer {
+    // TODO: support u32?
+    pub indices: Vec<u16>,
+}
+
+impl VertexBuffer {
+    pub fn vertex_count(&self) -> usize {
+        // TODO: Check all attributes for consistency?
+        self.attributes.first().map(|a| a.len()).unwrap_or_default()
+    }
+}
 
 // TODO: Add an option to convert a collection of these to the vertex above?
 // TODO: How to handle normalized attributes?
@@ -208,7 +262,7 @@ impl From<&AttributeData> for xc3_lib::vertex::VertexAttribute {
     }
 }
 
-pub fn read_vertex_buffers(
+fn read_vertex_buffers(
     vertex_data: &VertexData,
     skinning: Option<&xc3_lib::mxmd::Skinning>,
 ) -> BinResult<(Vec<VertexBuffer>, Option<Weights>)> {
@@ -365,7 +419,7 @@ fn skin_weights_bone_indices(attributes: &[AttributeData]) -> Option<(Vec<Vec4>,
     Some((weights, indices))
 }
 
-pub fn read_index_buffers(vertex_data: &VertexData) -> Vec<IndexBuffer> {
+fn read_index_buffers(vertex_data: &VertexData) -> Vec<IndexBuffer> {
     vertex_data
         .index_buffers
         .iter()
@@ -375,7 +429,7 @@ pub fn read_index_buffers(vertex_data: &VertexData) -> Vec<IndexBuffer> {
         .collect()
 }
 
-pub fn read_indices(descriptor: &IndexBufferDescriptor, buffer: &[u8]) -> BinResult<Vec<u16>> {
+fn read_indices(descriptor: &IndexBufferDescriptor, buffer: &[u8]) -> BinResult<Vec<u16>> {
     // TODO: Are all index buffers using u16 for indices?
     let mut reader = Cursor::new(buffer);
     reader.seek(SeekFrom::Start(descriptor.data_offset as u64))?;
@@ -388,7 +442,7 @@ pub fn read_indices(descriptor: &IndexBufferDescriptor, buffer: &[u8]) -> BinRes
     Ok(indices)
 }
 
-pub fn read_vertex_attributes(
+fn read_vertex_attributes(
     descriptor: &VertexBufferDescriptor,
     buffer: &[u8],
 ) -> Vec<AttributeData> {
@@ -661,7 +715,7 @@ fn read_morph_buffer_target(
 }
 
 fn read_outline_buffer(
-    descriptor: &xc3_lib::vertex::OutlineBuffer,
+    descriptor: &xc3_lib::vertex::OutlineBufferDescriptor,
     buffer: &[u8],
 ) -> BinResult<Vec<AttributeData>> {
     // TODO: outline buffer normally just has vColor?
@@ -674,7 +728,7 @@ fn read_outline_buffer(
 }
 
 fn read_outline_attribute<T, F>(
-    descriptor: &xc3_lib::vertex::OutlineBuffer,
+    descriptor: &xc3_lib::vertex::OutlineBufferDescriptor,
     relative_offset: u64,
     buffer: &[u8],
     read_item: F,
@@ -707,8 +761,90 @@ fn _read_unk_buffer(unk: &xc3_lib::vertex::UnkInner, model_bytes: &[u8]) -> BinR
         .collect()
 }
 
+impl ModelBuffers {
+    pub fn from_vertex_data(
+        vertex_data: &VertexData,
+        skinning: Option<&xc3_lib::mxmd::Skinning>,
+    ) -> BinResult<Self> {
+        let (vertex_buffers, weights) = read_vertex_buffers(vertex_data, skinning)?;
+        let index_buffers = read_index_buffers(vertex_data);
+
+        Ok(Self {
+            vertex_buffers,
+            index_buffers,
+            weights,
+        })
+    }
+
+    // TODO: Test this in xc3_test?
+    pub fn to_vertex_data(&self) -> BinResult<VertexData> {
+        // TODO: recreate vertex buffers and match original ordering?
+        // TODO: vertex, outline, index, align 256, morph, align 256, unk7
+        let mut vertex_buffers = Vec::new();
+        let mut index_buffers = Vec::new();
+        let mut outline_buffers = Vec::new();
+        let mut vertex_buffer_info = Vec::new();
+        // let mut vertex_morphs = Vec::new();
+
+        // Match the ordering and alignment from in game.
+        let mut buffer_writer = Cursor::new(Vec::new());
+
+        for buffer in &self.vertex_buffers {
+            let vertex_buffer = write_vertex_buffer(&mut buffer_writer, &buffer.attributes)?;
+            vertex_buffers.push(vertex_buffer);
+        }
+
+        for buffer in &self.vertex_buffers {
+            if let Some(outline) = &buffer.outline_buffer {
+                let outline_buffer = write_outline_buffer(&mut buffer_writer, &outline.attributes)?;
+                outline_buffers.push(outline_buffer);
+            }
+        }
+
+        for buffer in &self.index_buffers {
+            write_index_buffer(&mut buffer_writer, &buffer.indices)?;
+        }
+
+        align_256(&mut buffer_writer)?;
+
+        for buffer in &self.vertex_buffers {
+            for target in &buffer.morph_targets {
+                // TODO: Write morph targets.
+            }
+        }
+
+        align_256(&mut buffer_writer)?;
+
+        // TODO: unk7?
+
+        Ok(VertexData {
+            vertex_buffers,
+            index_buffers,
+            unk0: 0,
+            unk1: 0,
+            unk2: 0,
+            vertex_buffer_info,
+            outline_buffers,
+            // TODO: Set remaining data.
+            vertex_morphs: None,
+            buffer: buffer_writer.into_inner(),
+            unk_data: None,
+            weights: None,
+            unk7: None,
+            unks: [0; 5],
+        })
+    }
+}
+
+fn align_256(buffer_writer: &mut Cursor<Vec<u8>>) -> Result<(), binrw::Error> {
+    let aligned_size = buffer_writer.position().next_multiple_of(256);
+    let padding = aligned_size - buffer_writer.position();
+    buffer_writer.write_all(&vec![0u8; padding as usize])?;
+    Ok(())
+}
+
 // TODO: support u32?
-pub fn write_index_buffer<W: Write + Seek>(
+fn write_index_buffer<W: Write + Seek>(
     writer: &mut W,
     indices: &[u16],
 ) -> BinResult<IndexBufferDescriptor> {
@@ -726,7 +862,7 @@ pub fn write_index_buffer<W: Write + Seek>(
     })
 }
 
-pub fn write_vertex_buffer<W: Write + Seek>(
+fn write_vertex_buffer<W: Write + Seek>(
     writer: &mut W,
     attribute_data: &[AttributeData],
 ) -> BinResult<VertexBufferDescriptor> {
@@ -757,6 +893,37 @@ pub fn write_vertex_buffer<W: Write + Seek>(
         unk1: 0,
         unk2: 0,
         unk3: 0,
+    })
+}
+
+fn write_outline_buffer<W: Write + Seek>(
+    writer: &mut W,
+    attribute_data: &[AttributeData],
+) -> BinResult<OutlineBufferDescriptor> {
+    let data_offset = writer.stream_position()? as u32;
+
+    let attributes: Vec<_> = attribute_data
+        .iter()
+        .map(xc3_lib::vertex::VertexAttribute::from)
+        .collect();
+
+    let vertex_size = attributes.iter().map(|a| a.data_size as u32).sum();
+
+    // TODO: Check if all the arrays have the same length.
+    let vertex_count = attribute_data[0].len() as u32;
+
+    // TODO: Include a base offset?
+    let mut offset = writer.stream_position()?;
+    for (a, data) in attributes.iter().zip(attribute_data) {
+        data.write(writer, offset, vertex_size as u64)?;
+        offset += a.data_size as u64;
+    }
+
+    Ok(OutlineBufferDescriptor {
+        data_offset,
+        vertex_count,
+        vertex_size,
+        unk: 0,
     })
 }
 
@@ -1317,7 +1484,7 @@ mod tests {
             5d2f1f0c
         );
 
-        let descriptor = xc3_lib::vertex::OutlineBuffer {
+        let descriptor = xc3_lib::vertex::OutlineBufferDescriptor {
             data_offset: 0,
             vertex_count: 2,
             vertex_size: 4,
@@ -1345,7 +1512,7 @@ mod tests {
             4b37294c
         );
 
-        let descriptor = xc3_lib::vertex::OutlineBuffer {
+        let descriptor = xc3_lib::vertex::OutlineBufferDescriptor {
             data_offset: 0,
             vertex_count: 2,
             vertex_size: 8,

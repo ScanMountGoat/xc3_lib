@@ -86,7 +86,7 @@ pub struct VertexData {
     // 332 bytes of data?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub outline_buffers: Vec<OutlineBuffer>,
+    pub outline_buffers: Vec<OutlineBufferDescriptor>,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
@@ -434,7 +434,7 @@ pub struct VertexBufferExtInfoFlags {
 }
 
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, Clone, PartialEq)]
-pub struct OutlineBuffer {
+pub struct OutlineBufferDescriptor {
     /// The offset into [buffer](struct.VertexData.html#structfield.buffer).
     pub data_offset: u32,
     pub vertex_count: u32,

@@ -32,14 +32,14 @@ use std::{borrow::Cow, io::Cursor, path::Path};
 
 use animation::Animation;
 use binrw::{BinRead, BinReaderExt};
-use glam::{Mat4, Vec3, Vec4};
+use glam::Mat4;
 use log::error;
 use material::create_materials;
 use shader_database::ShaderDatabase;
 use skinning::SkinWeights;
 use texture::{load_textures, ExtractedTextures};
 use thiserror::Error;
-use vertex::{read_index_buffers, read_vertex_buffers, AttributeData};
+use vertex::{IndexBuffer, ModelBuffers, VertexBuffer};
 use xc3_lib::{
     apmd::Apmd,
     bc::Bc,
@@ -94,14 +94,6 @@ pub struct ModelGroup {
     pub models: Vec<Models>,
     /// The vertex data selected by each [Model].
     pub buffers: Vec<ModelBuffers>,
-}
-
-/// See [VertexData](xc3_lib::vertex::VertexData).
-#[derive(Debug, Clone, PartialEq)]
-pub struct ModelBuffers {
-    pub vertex_buffers: Vec<VertexBuffer>,
-    pub index_buffers: Vec<IndexBuffer>,
-    pub weights: Option<Weights>,
 }
 
 // TODO: come up with a better name?
@@ -160,52 +152,6 @@ pub struct Mesh {
     pub material_index: usize,
     pub lod: u16,
     pub skin_flags: u32,
-}
-
-/// See [VertexBufferDescriptor](xc3_lib::vertex::VertexBufferDescriptor).
-#[derive(Debug, Clone, PartialEq)]
-pub struct VertexBuffer {
-    pub attributes: Vec<AttributeData>,
-    /// Animation targets for vertex attributes like positions and normals.
-    /// The base target is already applied to [attributes](#structfield.attributes).
-    pub morph_targets: Vec<MorphTarget>,
-    pub outline_buffer: Option<OutlineBuffer>,
-}
-
-/// Morph target attributes defined as a difference or deformation from the base target.
-///
-/// The final attribute values are simply `base + target * weight`.
-#[derive(Debug, Clone, PartialEq)]
-pub struct MorphTarget {
-    // TODO: add names from mxmd?
-    // TODO: Add a method with tests to blend with base target?
-    pub position_deltas: Vec<Vec3>,
-    // TODO: Exclude the 4th sign component?
-    pub normal_deltas: Vec<Vec4>,
-    pub tangent_deltas: Vec<Vec4>,
-    /// The index of the vertex affected by each offset deltas.
-    // TODO: method to convert to a non sparse format?
-    pub vertex_indices: Vec<u32>,
-}
-
-/// See [OutlineBuffer](xc3_lib::vertex::OutlineBuffer).
-#[derive(Debug, Clone, PartialEq)]
-pub struct OutlineBuffer {
-    pub attributes: Vec<AttributeData>,
-}
-
-/// See [IndexBufferDescriptor](xc3_lib::vertex::IndexBufferDescriptor).
-#[derive(Debug, Clone, PartialEq)]
-pub struct IndexBuffer {
-    // TODO: support u32?
-    pub indices: Vec<u16>,
-}
-
-impl VertexBuffer {
-    pub fn vertex_count(&self) -> usize {
-        // TODO: Check all attributes for consistency?
-        self.attributes.first().map(|a| a.len()).unwrap_or_default()
-    }
 }
 
 impl Models {
@@ -400,9 +346,8 @@ impl ModelRoot {
         // TODO: Some sort of error if maps have any skinning set?
         let skeleton = create_skeleton(chr.as_ref(), mxmd.models.skinning.as_ref());
 
-        let (vertex_buffers, weights) =
-            read_vertex_buffers(&streaming_data.vertex, mxmd.models.skinning.as_ref())?;
-        let index_buffers = read_index_buffers(&streaming_data.vertex);
+        let buffers =
+            ModelBuffers::from_vertex_data(&streaming_data.vertex, mxmd.models.skinning.as_ref())?;
 
         let models = Models::from_models(&mxmd.models, &mxmd.materials, spch);
 
@@ -412,11 +357,7 @@ impl ModelRoot {
         Ok(Self {
             groups: vec![ModelGroup {
                 models: vec![models],
-                buffers: vec![ModelBuffers {
-                    vertex_buffers,
-                    index_buffers,
-                    weights,
-                }],
+                buffers: vec![buffers],
             }],
             image_textures,
             skeleton,
@@ -437,7 +378,6 @@ impl ModelRoot {
     pub fn to_mxmd_model(&self, mxmd: &Mxmd, msrd: &Msrd) -> (Mxmd, Msrd) {
         // TODO: Does this need to even extract textures?
         let (mut vertex, spch, _textures) = msrd.extract_files(None).unwrap();
-        // TODO: recreate vertex buffers?
 
         // TODO: Assume the same ordering instead of recreating from scratch?
         // TODO: Create a method that converts ImageTexture to ExtractedTexture?
@@ -683,8 +623,8 @@ impl Weights {
         self.weight_groups.get(group_index)
     }
 
-    /// The offset to add to [AttributeData::WeightIndex]
-    /// when selecting [AttributeData::BoneIndices] and [AttributeData::SkinWeights].
+    /// The offset to add to [vertex::AttributeData::WeightIndex]
+    /// when selecting [vertex::AttributeData::BoneIndices] and [vertex::AttributeData::SkinWeights].
     ///
     /// Preskinned matrices starting from the input index are written to the output index.
     /// This means the final index value is `weight_index = nWgtIndex + input_start - output_start`.

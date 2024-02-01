@@ -9,10 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 * Added derives for `Clone` for xc3_lib types.
 * Added `ModelRoot::to_mxmd_model` for applying edits to the original `.wimdo` and `.wismt` files.
+* Added `ModelBuffers::from_vertex_data` and `ModelBuffers::to_vertex_data` to xc3_model for converting to and from xc3_lib.
 
 ### Changed
 * Improved rendering accuracy of toon shading pass.
-* Adjusted xc3_model types to better reflect in game model data.
+* Moved `Skeleton` field for xc3_model from `Models` to `ModelRoot` to better reflect in game data.
+* Moved `update_bone_transforms` method for xc3_wgpu to `ModelGroup` to better reflect in game data.
+
+### Removed
+* Removed `read_index_buffers`, `read_vertex_buffers`, `read_vertex_attributes`, and `read_index_buffers` from xc3_model. Use `ModelBuffers::from_vertex_data` instead.
 
 ## 0.5.0 - 2024-01-27
 ### Fixed
