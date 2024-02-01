@@ -226,8 +226,8 @@ fn calculate_toon_color(uv: vec2<f32>) -> vec4<f32> {
 
 fn toon_grad_v(etc_z: f32) -> f32 {
     // Adapted from slct 0 nvsd 8 in xeno3/monolib/shader/shd_lgt.wishp.
-    // Selects one of the gradient rows from the toon grad texture.
-    return (f32(i32(etc_z * 255.0 + 0.5)) + 0.5) * 0.00390625;
+    // Selects one of the gradient rows from the 256x256 toon grad texture.
+    return (f32(i32(etc_z * 255.0 + 0.5)) + 0.5) / 256.0;
 }
 
 // Each material type is "masked" using depth function equals.

@@ -397,6 +397,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     var out: FragmentOutput;
     out.g_color = g_color * vec4(per_material.mat_color.rgb * in.vertex_color.rgb, 1.0);
     out.g_etc_buffer = g_etc_buffer;
+    out.g_etc_buffer.z *= 1.0 / 255.0; // TODO: why is this needed?
     out.g_normal = vec4(normalize(view_normal).xy * 0.5 + 0.5, g_normal.zw);
     out.g_velocity = g_velocity;
     out.g_depth = mrt_depth(in.position.z, 0.0);

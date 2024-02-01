@@ -156,8 +156,6 @@ fn assign_parameters(
         work_color: None,
     };
 
-    // TODO: Not set properly for WorkFloat4 for Mio o1.z?
-    // TODO: Some values need to be divided by 255?
     for param in &info.parameters {
         match param.param_type {
             xc3_lib::mxmd::ParamType::Unk0 => (),
@@ -165,6 +163,7 @@ fn assign_parameters(
                 parameters.tex_matrix = Some(read_param(param, floats, start_index));
             }
             xc3_lib::mxmd::ParamType::WorkFloat4 => {
+                // TODO: Value for EtcBuffer.z should be divided by 255.0?
                 parameters.work_float4 = Some(read_param(param, floats, start_index));
             }
             xc3_lib::mxmd::ParamType::WorkColor => {
