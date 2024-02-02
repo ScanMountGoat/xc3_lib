@@ -181,7 +181,7 @@ pub enum DataType {
     /// Float32x2 "vTex7" in shaders.
     TexCoord7 = 12,
     /// Float32x2 "vTex8" in shaders.
-    TexCoord9 = 13,
+    TexCoord8 = 13,
     /// Unorm8x4 "vBlend" in shaders.
     Blend = 14,
     Unk15 = 15,

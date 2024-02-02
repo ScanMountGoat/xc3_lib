@@ -80,23 +80,55 @@ impl VertexBuffer {
 /// The per vertex values for a vertex attribute.
 #[derive(Debug, PartialEq, Clone)]
 pub enum AttributeData {
+    /// Data for [DataType::Position].
     Position(Vec<Vec3>),
+
+    /// Data for [DataType::Normal] or [DataType::Normal2].
     Normal(Vec<Vec4>),
+
+    /// Data for [DataType::Tangent].
     Tangent(Vec<Vec4>),
+
+    /// Data for [DataType::TexCoord0].
     TexCoord0(Vec<Vec2>),
+
+    /// Data for [DataType::TexCoord1].
     TexCoord1(Vec<Vec2>),
+
+    /// Data for [DataType::TexCoord2].
     TexCoord2(Vec<Vec2>),
+
+    /// Data for [DataType::TexCoord3].
     TexCoord3(Vec<Vec2>),
+
+    /// Data for [DataType::TexCoord4].
     TexCoord4(Vec<Vec2>),
+
+    /// Data for [DataType::TexCoord5].
     TexCoord5(Vec<Vec2>),
+
+    /// Data for [DataType::TexCoord6].
     TexCoord6(Vec<Vec2>),
+
+    /// Data for [DataType::TexCoord7].
     TexCoord7(Vec<Vec2>),
+
+    /// Data for [DataType::TexCoord8].
     TexCoord8(Vec<Vec2>),
+
+    /// Data for [DataType::VertexColor].
     VertexColor(Vec<Vec4>),
+
+    /// Data for [DataType::Blend].
     Blend(Vec<Vec4>),
+
+    /// Data for [DataType::WeightIndex].
     WeightIndex(Vec<u32>), // TODO: [u16; 2]?
-    // TODO: Should these be handled separately?
+
+    /// Data for [DataType::SkinWeights].
     SkinWeights(Vec<Vec4>),
+
+    /// Data for [DataType::BoneIndices].
     BoneIndices(Vec<[u8; 4]>),
 }
 
@@ -193,71 +225,71 @@ impl From<&AttributeData> for xc3_lib::vertex::VertexAttribute {
     fn from(value: &AttributeData) -> Self {
         match value {
             AttributeData::Position(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::Position,
+                data_type: DataType::Position,
                 data_size: 12,
             },
             AttributeData::Normal(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::Normal,
+                data_type: DataType::Normal,
                 data_size: 4,
             },
             AttributeData::Tangent(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::Tangent,
+                data_type: DataType::Tangent,
                 data_size: 4,
             },
             AttributeData::TexCoord0(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::TexCoord0,
+                data_type: DataType::TexCoord0,
                 data_size: 8,
             },
             AttributeData::TexCoord1(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::TexCoord1,
+                data_type: DataType::TexCoord1,
                 data_size: 8,
             },
             AttributeData::TexCoord2(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::TexCoord2,
+                data_type: DataType::TexCoord2,
                 data_size: 8,
             },
             AttributeData::TexCoord3(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::TexCoord3,
+                data_type: DataType::TexCoord3,
                 data_size: 8,
             },
             AttributeData::TexCoord4(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::TexCoord4,
+                data_type: DataType::TexCoord4,
                 data_size: 8,
             },
             AttributeData::TexCoord5(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::TexCoord5,
+                data_type: DataType::TexCoord5,
                 data_size: 8,
             },
             AttributeData::TexCoord6(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::TexCoord6,
+                data_type: DataType::TexCoord6,
                 data_size: 8,
             },
             AttributeData::TexCoord7(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::TexCoord7,
+                data_type: DataType::TexCoord7,
                 data_size: 8,
             },
             AttributeData::TexCoord8(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::TexCoord9,
+                data_type: DataType::TexCoord8,
                 data_size: 8,
             },
             AttributeData::VertexColor(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::VertexColor,
+                data_type: DataType::VertexColor,
                 data_size: 4,
             },
             AttributeData::Blend(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::Blend,
+                data_type: DataType::Blend,
                 data_size: 4,
             },
             AttributeData::WeightIndex(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::WeightIndex,
+                data_type: DataType::WeightIndex,
                 data_size: 4,
             },
             AttributeData::SkinWeights(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::SkinWeights,
+                data_type: DataType::SkinWeights,
                 data_size: 8,
             },
             AttributeData::BoneIndices(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: xc3_lib::vertex::DataType::BoneIndices,
+                data_type: DataType::BoneIndices,
                 data_size: 4,
             },
         }
@@ -496,7 +528,7 @@ fn read_attribute(
         DataType::TexCoord7 => Some(AttributeData::TexCoord7(
             read_data(d, relative_offset, buffer, read_f32x2).ok()?,
         )),
-        DataType::TexCoord9 => Some(AttributeData::TexCoord8(
+        DataType::TexCoord8 => Some(AttributeData::TexCoord8(
             read_data(d, relative_offset, buffer, read_f32x2).ok()?,
         )),
         DataType::Blend => Some(AttributeData::Blend(
@@ -1262,7 +1294,7 @@ mod tests {
                     data_size: 8,
                 },
                 VertexAttribute {
-                    data_type: DataType::TexCoord9,
+                    data_type: DataType::TexCoord8,
                     data_size: 8,
                 },
                 VertexAttribute {
