@@ -383,7 +383,7 @@ pub struct Unk {
 
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
-    pub unk1: Vec<UnkInner>,
+    pub buffers: Vec<UnkBufferDescriptor>,
 
     // The length of the data in bytes.
     pub data_length: u32,
@@ -395,8 +395,9 @@ pub struct Unk {
     pub unks: [u32; 8],
 }
 
+// TODO: each element is 24 bytes?
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct UnkInner {
+pub struct UnkBufferDescriptor {
     pub unk1: u16,
     pub unk2: u16,
     pub count: u32,

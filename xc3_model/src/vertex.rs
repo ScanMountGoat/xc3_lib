@@ -13,8 +13,8 @@ use std::io::{Cursor, Seek, SeekFrom, Write};
 use binrw::{BinRead, BinReaderExt, BinResult, BinWrite};
 use glam::{Vec2, Vec3, Vec4};
 use xc3_lib::vertex::{
-    DataType, IndexBufferDescriptor, OutlineBufferDescriptor, VertexBufferDescriptor,
-    VertexBufferExtInfo, VertexBufferExtInfoFlags, VertexData,
+    DataType, IndexBufferDescriptor, OutlineBufferDescriptor, Unk, UnkBufferDescriptor,
+    VertexBufferDescriptor, VertexBufferExtInfo, VertexBufferExtInfoFlags, VertexData,
 };
 
 use crate::{skinning::SkinWeights, Weights};
@@ -25,6 +25,7 @@ pub struct ModelBuffers {
     pub vertex_buffers: Vec<VertexBuffer>,
     pub outline_buffers: Vec<OutlineBuffer>,
     pub index_buffers: Vec<IndexBuffer>,
+    pub unk_buffers: Vec<UnkBuffer>,
     pub weights: Option<Weights>,
 }
 
@@ -58,6 +59,22 @@ pub struct MorphTarget {
 #[derive(Debug, PartialEq, Clone)]
 pub struct OutlineBuffer {
     pub attributes: Vec<AttributeData>,
+}
+
+/// See [UnkBufferDescriptor].
+#[derive(Debug, PartialEq, Clone)]
+pub struct UnkBuffer {
+    pub items: Vec<UnkBufferItem>,
+}
+
+// TODO: What do these do?
+/// Attributes for a [UnkBuffer].
+#[derive(Debug, PartialEq, Clone)]
+pub struct UnkBufferItem {
+    pub unk1: Vec3,
+    pub unk2: u32,
+    pub unk3: u32,
+    pub unk4: u32,
 }
 
 /// See [IndexBufferDescriptor].
@@ -299,7 +316,7 @@ impl From<&AttributeData> for xc3_lib::vertex::VertexAttribute {
 fn read_vertex_buffers(
     vertex_data: &VertexData,
     skinning: Option<&xc3_lib::mxmd::Skinning>,
-) -> BinResult<(Vec<VertexBuffer>, Vec<OutlineBuffer>, Option<Weights>)> {
+) -> BinResult<(Vec<VertexBuffer>, Option<Weights>)> {
     // TODO: This skips the weights buffer since it doesn't have ext info?
     // TODO: Save the weights buffer for converting back to xc3_lib types?
     // TODO: Panic if the weights buffer is not the last buffer?
@@ -320,12 +337,6 @@ fn read_vertex_buffers(
             }
         })
         .collect();
-
-    let outline_buffers = vertex_data
-        .outline_buffers
-        .iter()
-        .map(|descriptor| outline_buffer(descriptor, &vertex_data.buffer))
-        .collect::<Result<Vec<_>, _>>()?;
 
     // TODO: Get names from the mxmd?
     // TODO: Add better tests for morph target data.
@@ -355,7 +366,7 @@ fn read_vertex_buffers(
         })
     });
 
-    Ok((buffers, outline_buffers, skin_weights))
+    Ok((buffers, skin_weights))
 }
 
 fn outline_buffer(descriptor: &OutlineBufferDescriptor, buffer: &[u8]) -> BinResult<OutlineBuffer> {
@@ -748,12 +759,30 @@ fn read_outline_buffer(
 ) -> BinResult<Vec<AttributeData>> {
     // TODO: outline buffer normally just has vColor?
     // TODO: Some buffers have 8 bytes per vertex instead of 4?
-    Ok(vec![AttributeData::VertexColor(read_outline_attribute(
-        descriptor,
-        0,
-        buffer,
-        read_unorm8x4,
-    )?)])
+    // TODO: What are the in game names of these attributes?
+    if descriptor.vertex_size == 8 {
+        Ok(vec![
+            AttributeData::VertexColor(read_outline_attribute(
+                descriptor,
+                0,
+                buffer,
+                read_unorm8x4,
+            )?),
+            AttributeData::VertexColor(read_outline_attribute(
+                descriptor,
+                0,
+                buffer,
+                read_unorm8x4,
+            )?),
+        ])
+    } else {
+        Ok(vec![AttributeData::VertexColor(read_outline_attribute(
+            descriptor,
+            0,
+            buffer,
+            read_unorm8x4,
+        )?)])
+    }
 }
 
 fn read_outline_attribute<T, F>(
@@ -775,35 +804,32 @@ where
     )
 }
 
-fn _read_unk_buffer(unk: &xc3_lib::vertex::UnkInner, model_bytes: &[u8]) -> BinResult<Vec<Vec3>> {
-    let mut reader = Cursor::new(model_bytes);
-
-    (0..unk.count as u64)
-        .map(|i| {
-            // TODO: assume data is tightly packed and seek once?
-            reader.seek(SeekFrom::Start(unk.offset as u64 + i * 24))?;
-
-            // TODO: additional attributes?
-            let position = read_f32x3(&mut reader)?;
-            Ok(position)
-        })
-        .collect()
-}
-
 impl ModelBuffers {
     /// Decode all the attributes from `vertex_data`.
     pub fn from_vertex_data(
         vertex_data: &VertexData,
         skinning: Option<&xc3_lib::mxmd::Skinning>,
     ) -> BinResult<Self> {
-        let (vertex_buffers, outline_buffers, weights) =
-            read_vertex_buffers(vertex_data, skinning)?;
+        let (vertex_buffers, weights) = read_vertex_buffers(vertex_data, skinning)?;
         let index_buffers = read_index_buffers(vertex_data);
+
+        let outline_buffers = vertex_data
+            .outline_buffers
+            .iter()
+            .map(|descriptor| outline_buffer(descriptor, &vertex_data.buffer))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // TODO: Preserve if this is none or not?
+        let unk_buffers = match &vertex_data.unk7 {
+            Some(unk) => read_unk_buffers(&unk, vertex_data)?,
+            None => Vec::new(),
+        };
 
         Ok(Self {
             vertex_buffers,
             outline_buffers,
             index_buffers,
+            unk_buffers,
             weights,
         })
     }
@@ -842,11 +868,12 @@ impl ModelBuffers {
         }
 
         for buffer in &self.index_buffers {
+            align(&mut buffer_writer, 4)?;
             let index_buffer = write_index_buffer(&mut buffer_writer, &buffer.indices)?;
             index_buffers.push(index_buffer);
         }
 
-        align_256(&mut buffer_writer)?;
+        align(&mut buffer_writer, 256)?;
 
         for buffer in &self.vertex_buffers {
             for target in &buffer.morph_targets {
@@ -854,9 +881,13 @@ impl ModelBuffers {
             }
         }
 
-        align_256(&mut buffer_writer)?;
+        align(&mut buffer_writer, 256)?;
 
-        // TODO: unk7?
+        let unk7 = if !self.unk_buffers.is_empty() {
+            Some(write_unk_buffers(&mut buffer_writer, &self.unk_buffers)?)
+        } else {
+            None
+        };
 
         // TODO: Add morph data?
         let vertex_buffer_info = self
@@ -899,14 +930,103 @@ impl ModelBuffers {
             buffer: buffer_writer.into_inner(),
             unk_data: None,
             weights,
-            unk7: None,
+            unk7,
             unks: [0; 5],
         })
     }
 }
 
-fn align_256(buffer_writer: &mut Cursor<Vec<u8>>) -> Result<(), binrw::Error> {
-    let aligned_size = buffer_writer.position().next_multiple_of(256);
+fn write_unk_buffers(
+    writer: &mut Cursor<Vec<u8>>,
+    unk_buffers: &[UnkBuffer],
+) -> Result<Unk, binrw::Error> {
+    let data_offset = writer.stream_position()? as u32;
+
+    let mut buffers = Vec::new();
+    let mut start_index = 0;
+
+    for (i, buffer) in unk_buffers.iter().enumerate() {
+        let unk_buffer =
+            write_unk_buffer(writer, &buffer, data_offset, (i + 1) as u16, start_index)?;
+        buffers.push(unk_buffer);
+        start_index += buffer.items.len() as u32;
+    }
+
+    let data_length = writer.stream_position()? as u32 - data_offset;
+
+    Ok(Unk {
+        buffers,
+        data_length,
+        data_offset,
+        unks: [0; 8],
+    })
+}
+
+fn write_unk_buffer<W: Write + Seek>(
+    writer: &mut W,
+    buffer: &UnkBuffer,
+    data_offset: u32,
+    unk2: u16,
+    start_index: u32,
+) -> BinResult<UnkBufferDescriptor> {
+    // Offsets are relative to the start of the section.
+    let offset = writer.stream_position()? as u32 - data_offset;
+
+    for item in &buffer.items {
+        item.unk1.to_array().write_le(writer)?;
+        item.unk2.write_le(writer)?;
+        item.unk3.write_le(writer)?;
+        item.unk4.write_le(writer)?;
+    }
+
+    Ok(UnkBufferDescriptor {
+        unk1: 1,
+        unk2,
+        count: buffer.items.len() as u32,
+        offset,
+        unk5: 0,
+        start_index,
+    })
+}
+
+fn read_unk_buffers(
+    unk: &xc3_lib::vertex::Unk,
+    vertex_data: &VertexData,
+) -> BinResult<Vec<UnkBuffer>> {
+    unk.buffers
+        .iter()
+        .map(|descriptor| read_unk_buffer(descriptor, unk.data_offset, &vertex_data.buffer))
+        .collect()
+}
+
+fn read_unk_buffer(
+    descriptor: &UnkBufferDescriptor,
+    data_offset: u32,
+    buffer: &[u8],
+) -> Result<UnkBuffer, binrw::Error> {
+    Ok(UnkBuffer {
+        items: read_data_inner(
+            data_offset as u64 + descriptor.offset as u64,
+            descriptor.count as u64,
+            24,
+            0,
+            buffer,
+            read_unk_buffer_item,
+        )?,
+    })
+}
+
+fn read_unk_buffer_item(reader: &mut Cursor<&[u8]>) -> BinResult<UnkBufferItem> {
+    Ok(UnkBufferItem {
+        unk1: read_f32x3(reader)?,
+        unk2: reader.read_le()?,
+        unk3: reader.read_le()?,
+        unk4: reader.read_le()?,
+    })
+}
+
+fn align(buffer_writer: &mut Cursor<Vec<u8>>, align: u64) -> Result<(), binrw::Error> {
+    let aligned_size = buffer_writer.position().next_multiple_of(align);
     let padding = aligned_size - buffer_writer.position();
     buffer_writer.write_all(&vec![0u8; padding as usize])?;
     Ok(())
@@ -965,34 +1085,16 @@ fn write_vertex_buffer<W: Write + Seek>(
     })
 }
 
-// TODO: Share code with above?
 fn write_outline_buffer<W: Write + Seek>(
     writer: &mut W,
     attribute_data: &[AttributeData],
 ) -> BinResult<OutlineBufferDescriptor> {
-    let data_offset = writer.stream_position()? as u32;
-
-    let attributes: Vec<_> = attribute_data
-        .iter()
-        .map(xc3_lib::vertex::VertexAttribute::from)
-        .collect();
-
-    let vertex_size = attributes.iter().map(|a| a.data_size as u32).sum();
-
-    // TODO: Check if all the arrays have the same length.
-    let vertex_count = attribute_data[0].len() as u32;
-
-    // TODO: Include a base offset?
-    let mut offset = writer.stream_position()?;
-    for (a, data) in attributes.iter().zip(attribute_data) {
-        data.write(writer, offset, vertex_size as u64)?;
-        offset += a.data_size as u64;
-    }
+    let buffer = write_vertex_buffer(writer, attribute_data)?;
 
     Ok(OutlineBufferDescriptor {
-        data_offset,
-        vertex_count,
-        vertex_size,
+        data_offset: buffer.data_offset,
+        vertex_count: buffer.vertex_count,
+        vertex_size: buffer.vertex_size,
         unk: 0,
     })
 }
@@ -1511,7 +1613,7 @@ mod tests {
     }
 
     #[test]
-    fn read_unk_buffer_vertices() {
+    fn unk_buffer_vertices() {
         // xeno3/chr/ch/ch01011011.wismt, unk buffer starting from offset 1148672.
         let data = hex!(
             // vertex 0
@@ -1526,7 +1628,7 @@ mod tests {
             e1ed8700
         );
 
-        let unk = xc3_lib::vertex::UnkInner {
+        let descriptor = xc3_lib::vertex::UnkBufferDescriptor {
             unk1: 1,
             unk2: 1,
             count: 2,
@@ -1535,13 +1637,33 @@ mod tests {
             start_index: 0,
         };
 
+        // Test read.
+        let buffer = read_unk_buffer(&descriptor, 0, &data).unwrap();
         assert_eq!(
-            vec![
-                vec3(-0.038012017, 1.6167967, -0.10723422),
-                vec3(-0.026746355, 1.6158215, -0.110543534)
-            ],
-            _read_unk_buffer(&unk, &data).unwrap()
+            UnkBuffer {
+                items: vec![
+                    UnkBufferItem {
+                        unk1: vec3(-0.038012017, 1.6167967, -0.10723422),
+                        unk2: 255,
+                        unk3: 2,
+                        unk4: 9692870
+                    },
+                    UnkBufferItem {
+                        unk1: vec3(-0.026746355, 1.6158215, -0.110543534),
+                        unk2: 255,
+                        unk3: 2,
+                        unk4: 8908257
+                    }
+                ]
+            },
+            buffer
         );
+
+        // Test write.
+        let mut writer = Cursor::new(Vec::new());
+        let new_descriptor = write_unk_buffer(&mut writer, &buffer, 0, 1, 0).unwrap();
+        assert_eq!(new_descriptor, descriptor);
+        assert_hex_eq!(data, writer.into_inner());
     }
 
     #[test]
@@ -1591,10 +1713,16 @@ mod tests {
 
         // TODO: What is the second attribute?
         assert_eq!(
-            vec![AttributeData::VertexColor(vec![
-                vec4(0.47843137, 0.8745098, 0.9882353, 0.0),
-                vec4(0.47843137, 0.8745098, 0.9882353, 0.0)
-            ])],
+            vec![
+                AttributeData::VertexColor(vec![
+                    vec4(0.47843137, 0.8745098, 0.9882353, 0.0),
+                    vec4(0.47843137, 0.8745098, 0.9882353, 0.0)
+                ]),
+                AttributeData::VertexColor(vec![
+                    vec4(0.47843137, 0.8745098, 0.9882353, 0.0),
+                    vec4(0.47843137, 0.8745098, 0.9882353, 0.0)
+                ])
+            ],
             read_outline_buffer(&descriptor, &data).unwrap()
         );
     }
