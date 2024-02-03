@@ -376,8 +376,8 @@ impl ModelRoot {
     /// If no edits were made to this model, the resulting files will attempt
     /// to recreate the originals used to initialize this model as closely as possible.
     pub fn to_mxmd_model(&self, mxmd: &Mxmd, msrd: &Msrd) -> (Mxmd, Msrd) {
-        // TODO: Does this need to even extract textures?
-        let (mut vertex, spch, _textures) = msrd.extract_files(None).unwrap();
+        // TODO: Does this need to even extract vertex/textures?
+        let (_, spch, _) = msrd.extract_files(None).unwrap();
 
         // TODO: Assume the same ordering instead of recreating from scratch?
         // TODO: Create a method that converts ImageTexture to ExtractedTexture?
@@ -393,11 +393,14 @@ impl ModelRoot {
             })
             .collect();
 
+        // TODO: Create a separate root type that enforces this structure?
+        let new_vertex = self.groups[0].buffers[0].to_vertex_data().unwrap();
+
         let mut new_mxmd = mxmd.clone();
         // TODO: Modify mxmd.
-        let use_chr_textures = true; // TODO: how to set this?
+        let use_chr_textures = true; // TODO: share code with xc3_tex?
         let new_msrd =
-            Msrd::from_extracted_files(&vertex, &spch, &textures, use_chr_textures).unwrap();
+            Msrd::from_extracted_files(&new_vertex, &spch, &textures, use_chr_textures).unwrap();
         new_mxmd.streaming = Some(new_msrd.streaming.clone());
         (new_mxmd, new_msrd)
     }
