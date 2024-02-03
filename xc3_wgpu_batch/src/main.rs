@@ -7,8 +7,8 @@ use image::ImageBuffer;
 use xc3_model::{load_animations, shader_database::ShaderDatabase};
 use xc3_wgpu::{CameraData, Xc3Renderer};
 
-const WIDTH: u32 = 512;
-const HEIGHT: u32 = 512;
+const WIDTH: u32 = 1024;
+const HEIGHT: u32 = 1024;
 const FOV_Y: f32 = 0.5;
 
 #[derive(Parser)]
