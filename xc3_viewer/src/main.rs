@@ -104,7 +104,17 @@ impl<'a> State<'a> {
         };
         surface.configure(&device, &config);
 
-        let renderer = Xc3Renderer::new(&device, &queue, size.width, size.height);
+        // TODO: Make the monolib/shader path optional?
+        // TODO: Don't assume paths are in a game dump?
+        let monolib_shader = Path::new(model_path)
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("monolib/shader");
+        let renderer = Xc3Renderer::new(&device, &queue, size.width, size.height, &monolib_shader);
 
         // Initialize the camera transform.
         let translation = vec3(0.0, -0.5, -15.0);

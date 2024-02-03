@@ -15,7 +15,7 @@ const FOV_Y: f32 = 0.5;
 #[command(author, version, about)]
 #[command(propagate_version = true)]
 struct Cli {
-    /// The root folder containing model files to search recursively.
+    /// The game dump root folder containing the "monolib" folder.
     /// Supports Xenoblade 1 DE, Xenoblade 2 and Xenoblade 3.
     root_folder: String,
 
@@ -69,7 +69,14 @@ fn main() {
     ))
     .unwrap();
 
-    let renderer = Xc3Renderer::new(&device, &queue, WIDTH, HEIGHT);
+    // Assume the path is the game root folder.
+    let renderer = Xc3Renderer::new(
+        &device,
+        &queue,
+        WIDTH,
+        HEIGHT,
+        &Path::new(&cli.root_folder).join("monolib/shader"),
+    );
 
     // Initialize the camera transform.
     let translation = vec3(0.0, -1.0, -10.0);
@@ -124,6 +131,8 @@ fn main() {
                 // XC1
                 "pc062700.wimdo",
                 "ma0000.wismhd",
+                // XC2
+                "tg_ui_hitpoint.wimdo",
             ];
             if paths.iter().any(|p| model_path.ends_with(p)) {
                 return;

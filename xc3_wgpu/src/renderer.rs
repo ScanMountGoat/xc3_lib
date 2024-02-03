@@ -1,10 +1,16 @@
+use std::path::Path;
+
 use glam::{Mat4, Vec4};
 use wgpu::util::DeviceExt;
+use xc3_lib::mibl::Mibl;
+use xc3_model::ImageTexture;
 
-use crate::{model::ModelGroup, COLOR_FORMAT, GBUFFER_COLOR_FORMAT};
+use crate::{model::ModelGroup, texture::create_texture, COLOR_FORMAT, GBUFFER_COLOR_FORMAT};
 
 const MAT_ID_DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth16Unorm;
 
+// TODO: Rename this since it supports all 3 games?
+// TODO: Add fallback textures for all the monolib shader textures?
 pub struct Xc3Renderer {
     camera_buffer: wgpu::Buffer,
 
@@ -50,7 +56,13 @@ pub struct GBuffer {
 }
 
 impl Xc3Renderer {
-    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, width: u32, height: u32) -> Self {
+    pub fn new(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        width: u32,
+        height: u32,
+        monolib_shader: &Path,
+    ) -> Self {
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("camera buffer"),
             contents: bytemuck::cast_slice(&[crate::shader::model::Camera {
@@ -82,28 +94,17 @@ impl Xc3Renderer {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
-        // TODO: Swap this out depending on the game version?
-        let xc3_toon_grad = device
-            .create_texture_with_data(
-                queue,
-                &wgpu::TextureDescriptor {
-                    label: Some("xeno3/monolib/shader/toon_grad.witex"),
-                    size: wgpu::Extent3d {
-                        width: 256,
-                        height: 256,
-                        depth_or_array_layers: 1,
-                    },
-                    mip_level_count: 1, // TODO: this should have 9 mipmaps?
-                    sample_count: 1,
-                    dimension: wgpu::TextureDimension::D2,
-                    format: wgpu::TextureFormat::Rgba8Unorm,
-                    usage: wgpu::TextureUsages::TEXTURE_BINDING,
-                    view_formats: &[],
-                },
-                wgpu::util::TextureDataOrder::LayerMajor,
-                include_bytes!("resources/xc3_toon_grad.bin"),
-            )
-            .create_view(&wgpu::TextureViewDescriptor::default());
+        // TODO: Create a MonolibShaderTextures type that documents global textures?
+        // TODO: Are the mappings the same for all 3 games?
+        // TODO: Add an option to load defaults if no path is provided?
+        // TODO: Why is this mip count not correct in the mibl?
+        let mibl = Mibl::from_file(monolib_shader.join("toon_grad.witex")).unwrap();
+        let grad = ImageTexture::from_mibl(&mibl, None, None).unwrap();
+        let xc3_toon_grad =
+            create_texture(device, queue, &grad).create_view(&wgpu::TextureViewDescriptor {
+                mip_level_count: Some(1),
+                ..Default::default()
+            });
 
         let shared_sampler = device.create_sampler(&wgpu::SamplerDescriptor::default());
 
