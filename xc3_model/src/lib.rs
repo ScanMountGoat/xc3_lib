@@ -327,7 +327,7 @@ pub fn load_model<P: AsRef<Path>>(
             })
         });
 
-    ModelRoot::from_mxmd_model(&mxmd, chr, streaming_data, spch)
+    ModelRoot::from_mxmd_model(&mxmd, chr, &streaming_data, spch)
 }
 
 // TODO: fuzz test this?
@@ -335,7 +335,7 @@ impl ModelRoot {
     pub fn from_mxmd_model(
         mxmd: &Mxmd,
         chr: Option<Sar1>,
-        streaming_data: StreamingData<'_>,
+        streaming_data: &StreamingData<'_>,
         spch: Option<&shader_database::Spch>,
     ) -> Result<Self, LoadModelError> {
         if mxmd.models.skinning.is_some() && chr.is_none() {
@@ -440,7 +440,7 @@ pub struct StreamingData<'a> {
 }
 
 impl<'a> StreamingData<'a> {
-    fn new(
+    pub fn new(
         mxmd: &'a Mxmd,
         wismt_path: &Path,
         is_pc: bool,

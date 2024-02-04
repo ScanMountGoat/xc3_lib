@@ -70,13 +70,17 @@ struct Cli {
     #[arg(long)]
     eva: bool,
 
-    /// Process all file types except gltf.
+    /// Process all file types except gltf and wimdo-model.
     #[arg(long)]
     all: bool,
 
     /// Convert wimdo and wismhd to gltf without saving.
     #[arg(long)]
     gltf: bool,
+
+    /// Convert wimdo models to and from xc3_model types.
+    #[arg(long)]
+    wimdo_model: bool,
 
     /// Check that read/write is 1:1 for all files and embedded files.
     #[arg(long)]
@@ -147,6 +151,10 @@ fn main() {
 
     if cli.gltf {
         check_all_gltf(root);
+    }
+
+    if cli.wimdo_model {
+        check_all_wimdo_model(root);
     }
 
     println!("Finished in {:?}", start.elapsed());
@@ -750,6 +758,38 @@ fn check_all_gltf<P: AsRef<Path>>(root: P) {
                 Ok(roots) => {
                     if let Err(e) = xc3_model::gltf::GltfFile::new("model", &roots) {
                         println!("Error converting {path:?}: {e}");
+                    }
+                }
+                Err(e) => println!("Error loading {path:?}: {e}"),
+            }
+        });
+}
+
+fn check_all_wimdo_model<P: AsRef<Path>>(root: P) {
+    globwalk::GlobWalkerBuilder::from_patterns(root.as_ref(), &["*.{wimdo}"])
+        .build()
+        .unwrap()
+        .par_bridge()
+        .for_each(|entry| {
+            let path = entry.as_ref().unwrap().path();
+
+            // Test reimporting models without any changes.
+            let mxmd = Mxmd::from_file(path).unwrap();
+            let msrd = Msrd::from_file(path.with_extension("wismt")).unwrap();
+            let streaming_data =
+                xc3_model::StreamingData::new(&mxmd, &path.with_extension("wismt"), false, None)
+                    .unwrap();
+
+            match xc3_model::ModelRoot::from_mxmd_model(&mxmd, None, &streaming_data, None) {
+                Ok(root) => {
+                    // TODO: Create a function that loads files from wimdo path?
+                    // TODO: Should this take the msrd or streaming?
+                    // TODO: Is it worth being able to test this without compression?
+                    // TODO: Only check this if rw is enabled?
+                    let (new_mxmd, new_msrd) = root.to_mxmd_model(&mxmd, &msrd);
+                    let (new_vertex, _, _) = new_msrd.extract_files(None).unwrap();
+                    if &new_vertex != streaming_data.vertex.as_ref() {
+                        println!("VertexData not 1:1 for {path:?}")
                     }
                 }
                 Err(e) => println!("Error loading {path:?}: {e}"),
