@@ -13,8 +13,9 @@ use std::io::{Cursor, Seek, SeekFrom, Write};
 use binrw::{BinRead, BinReaderExt, BinResult, BinWrite};
 use glam::{Vec2, Vec3, Vec4};
 use xc3_lib::vertex::{
-    DataType, IndexBufferDescriptor, OutlineBufferDescriptor, Unk, UnkBufferDescriptor,
-    VertexBufferDescriptor, VertexBufferExtInfo, VertexBufferExtInfoFlags, VertexData,
+    DataType, IndexBufferDescriptor, MorphDescriptor, MorphTargetFlags, OutlineBufferDescriptor,
+    Unk, UnkBufferDescriptor, VertexBufferDescriptor, VertexBufferExtInfo,
+    VertexBufferExtInfoFlags, VertexData,
 };
 
 use crate::{skinning::SkinWeights, Weights};
@@ -836,6 +837,7 @@ impl ModelBuffers {
         // Match the ordering and alignment from in game.
         let mut buffer_writer = Cursor::new(Vec::new());
 
+        // TODO: Remove any attributes part of a morph target?
         for buffer in &self.vertex_buffers {
             let vertex_buffer = write_vertex_buffer(&mut buffer_writer, &buffer.attributes)?;
             vertex_buffers.push(vertex_buffer);
@@ -865,11 +867,15 @@ impl ModelBuffers {
 
         align(&mut buffer_writer, 256)?;
 
-        for buffer in &self.vertex_buffers {
-            for target in &buffer.morph_targets {
-                // TODO: create morph targets and descriptors.
-            }
-        }
+        let vertex_morphs = if self
+            .vertex_buffers
+            .iter()
+            .any(|b| !b.morph_targets.is_empty())
+        {
+            Some(self.write_morph_targets(&mut buffer_writer)?)
+        } else {
+            None
+        };
 
         align(&mut buffer_writer, 256)?;
 
@@ -881,14 +887,13 @@ impl ModelBuffers {
 
         align(&mut buffer_writer, 4096)?;
 
-        // TODO: Add morph data?
-        let vertex_buffer_info = self
+        let mut vertex_buffer_info: Vec<_> = self
             .vertex_buffers
             .iter()
             .map(|buffer| VertexBufferExtInfo {
                 flags: VertexBufferExtInfoFlags::new(
                     buffer.outline_buffer_index.is_some(),
-                    false,
+                    !buffer.morph_targets.is_empty(),
                     0u8.into(),
                 ),
                 outline_buffer_index: buffer.outline_buffer_index.unwrap_or_default() as u16,
@@ -897,6 +902,14 @@ impl ModelBuffers {
                 unk: 0,
             })
             .collect();
+
+        if let Some(morphs) = &vertex_morphs {
+            for descriptor in &morphs.descriptors {
+                let info = &mut vertex_buffer_info[descriptor.vertex_buffer_index as usize];
+                info.morph_target_start_index = descriptor.target_start_index as u16;
+                info.morph_target_count = descriptor.target_count as u16;
+            }
+        }
 
         let weights = self
             .weights
@@ -918,12 +931,57 @@ impl ModelBuffers {
             vertex_buffer_info,
             outline_buffers,
             // TODO: Set remaining data.
-            vertex_morphs: None,
+            vertex_morphs,
             buffer: buffer_writer.into_inner(),
             unk_data: None,
             weights,
             unk7,
             unks: [0; 5],
+        })
+    }
+
+    fn write_morph_targets(
+        &self,
+        writer: &mut Cursor<Vec<u8>>,
+    ) -> BinResult<xc3_lib::vertex::VertexMorphs> {
+        let mut targets = Vec::new();
+        let mut descriptors = Vec::new();
+
+        for (i, buffer) in self.vertex_buffers.iter().enumerate() {
+            // TODO: How to handle the default target being part of the vertex buffer?
+            let descriptor = MorphDescriptor {
+                vertex_buffer_index: i as u32,
+                target_start_index: targets.len() as u32,
+                target_count: buffer.morph_targets.len() as u32 + 1,
+                unk1: (0..(buffer.morph_targets.len() + 1) as u16).collect(),
+                unk2: 3, // TODO: how to set this?
+            };
+            descriptors.push(descriptor);
+
+            for morph_target in &buffer.morph_targets {
+                let offset = writer.stream_position()?;
+                let target = xc3_lib::vertex::MorphTarget {
+                    data_offset: offset as u32,
+                    vertex_count: morph_target.position_deltas.len() as u32,
+                    vertex_size: 32,
+                    flags: MorphTargetFlags::new(0, false, false, true, 0u8.into()),
+                };
+                targets.push(target);
+
+                write_data(
+                    writer,
+                    &morph_target.position_deltas,
+                    offset,
+                    32,
+                    write_f32x3,
+                )?;
+            }
+        }
+
+        Ok(xc3_lib::vertex::VertexMorphs {
+            descriptors,
+            targets,
+            unks: [0; 4],
         })
     }
 }

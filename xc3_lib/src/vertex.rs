@@ -430,7 +430,7 @@ pub struct VertexBufferExtInfo {
 #[bw(map = |&x| u16::from(x))]
 pub struct VertexBufferExtInfoFlags {
     pub has_outline_buffer: bool,
-    pub unk2: bool,
+    pub has_morph_targets: bool,
     pub unk: u14,
 }
 

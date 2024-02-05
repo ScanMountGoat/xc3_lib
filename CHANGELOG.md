@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Improved rendering accuracy of toon shading pass.
 * Moved `Skeleton` field for xc3_model from `Models` to `ModelRoot` to better reflect in game data.
 * Moved `update_bone_transforms` method for xc3_wgpu to `ModelGroup` to better reflect in game data.
+* Adjusted `ModelBuffers` type for xc3_model to better reflect in game data.
 * Adjusted `Xc3Renderer` constructor to take a parameter for the `monolib/shader` folder to load game specific global textures.
 * Increased resolution from 512x512 to 1024x1024 for xc3_wgpu_batch PNG files.
 
