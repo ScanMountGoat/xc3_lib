@@ -4,7 +4,6 @@
 //! Each type represents fully compressed and decoded data associated with one or more [xc3_lib] types.
 //! This simplifies the processing that needs to be done to access model data
 //! and abstracts away most of the game specific complexities.
-//! This conversion is currently one way, so converting back to files is not yet supported.
 //!
 //! # Getting Started
 //! Loading a normal model returns a single [ModelRoot].
