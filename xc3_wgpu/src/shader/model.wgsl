@@ -151,8 +151,9 @@ struct VertexOutput {
     @location(0) position: vec3<f32>,
     @location(1) uv1: vec2<f32>,
     @location(2) normal: vec3<f32>,
-    @location(3) tangent: vec4<f32>,
-    @location(4) vertex_color: vec4<f32>,
+    @location(3) tangent: vec3<f32>,
+    @location(4) bitangent: vec3<f32>,
+    @location(5) vertex_color: vec4<f32>,
 }
 
 struct FragmentOutput {
@@ -220,7 +221,8 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance: InstanceInput, 
     // Transform any direction vectors by the instance transform.
     // TODO: This assumes no scaling?
     out.normal = (model_matrix * vec4(normal_xyz, 0.0)).xyz;
-    out.tangent = vec4((model_matrix * vec4(tangent_xyz, 0.0)).xyz, in0.tangent.w);
+    out.tangent = (model_matrix * vec4(tangent_xyz, 0.0)).xyz;
+    out.bitangent = cross(out.normal, out.tangent) * in0.tangent.w;
     return out;
 }
 
@@ -313,6 +315,20 @@ fn apply_normal_map(normal: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<f32>,
 }
 
 // Adapted from shd00036 GLSL from ch11021013.pcsmt (xc3). 
+fn geometric_specular_aa(shininess: f32, normal: vec3<f32>) -> f32 {
+    let sigma2 = 0.25;
+    let kappa = 0.18;
+    let roughness = 1.0 - shininess;
+    let roughness2 = roughness * roughness;
+    let dndu = dpdx(normal);
+    let dndv = dpdy(normal);
+    let variance = sigma2 * (dot(dndu, dndu) + dot(dndv, dndv));
+    let kernelRoughness2 = min(2.0 * variance, kappa);
+    let filteredRoughness2 = saturate(roughness2 + kernelRoughness2);
+    return (1.0 - sqrt(filteredRoughness2));
+}
+
+// Adapted from shd00036 GLSL from ch11021013.pcsmt (xc3). 
 // TODO: What is this conversion doing?
 fn mrt_depth(depth: f32, param: f32) -> vec4<f32> {
     var o = vec2(depth * 8.0, floor(depth * 8.0) / 255.0);
@@ -320,12 +336,29 @@ fn mrt_depth(depth: f32, param: f32) -> vec4<f32> {
     return vec4(o.xy - t.xy, t.y / 255.0, param);
 }
 
+// Adapted from shd00036 GLSL from ch11021013.pcsmt (xc3). 
+// TODO: What is this conversion doing?
+fn mrt_normal(normal: vec3<f32>, ao: f32) -> vec4<f32> {
+    let temp = normal * vec3(0.5, 0.5, 1000.0) + vec3(0.5);
+    return vec4(temp.xy, ao, temp.z);
+}
+
+// Adapted from shd00036 GLSL from ch11021013.pcsmt (xc3). 
+fn mrt_etc_buffer(g_etc_buffer: vec4<f32>, view_normal: vec3<f32>) -> vec4<f32> {
+    // TODO: Apply the divide by 255.0 to materials instead of shaders?
+    var out: vec4<f32>;
+    out.x = g_etc_buffer.x;
+    out.y = geometric_specular_aa(g_etc_buffer.y, view_normal);
+    out.z = g_etc_buffer.z / 255.0;
+    out.w = g_etc_buffer.a;
+    return out;
+}
+
 @fragment
 fn fs_main(in: VertexOutput) -> FragmentOutput {
-    // TODO: Normalize vectors?
-    let tangent = normalize(in.tangent.xyz);
+    let tangent = normalize(in.tangent);
     let vertex_normal = normalize(in.normal.xyz);
-    let bitangent = cross(vertex_normal, tangent) * in.tangent.w;
+    let bitangent = normalize(in.bitangent);
 
     let s0_color = textureSample(s0, s0_sampler, in.uv1);
     let s1_color = textureSample(s1, s1_sampler, in.uv1);
@@ -383,8 +416,8 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
         normal = apply_normal_map(vertex_normal, tangent, bitangent, normal_map);
     }
 
-    // TODO: Are in game normals in view space?
-    let view_normal = camera.view * vec4(normal.xyz, 0.0);
+    // In game normals in view space.
+    let view_normal = normalize((camera.view * vec4(normal.xyz, 0.0)).xyz);
 
     // TODO: How to detect if vertex color is actually color?
     // TODO: Some outlines aren't using vertex color?
@@ -396,9 +429,8 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     // TODO: Is it ok to always apply gMatCol like this?
     var out: FragmentOutput;
     out.g_color = g_color * vec4(per_material.mat_color.rgb * in.vertex_color.rgb, 1.0);
-    out.g_etc_buffer = g_etc_buffer;
-    out.g_etc_buffer.z *= 1.0 / 255.0; // TODO: why is this needed?
-    out.g_normal = vec4(normalize(view_normal).xy * 0.5 + 0.5, g_normal.zw);
+    out.g_etc_buffer = mrt_etc_buffer(g_etc_buffer, view_normal);
+    out.g_normal = mrt_normal(view_normal, g_normal.z);
     out.g_velocity = g_velocity;
     out.g_depth = mrt_depth(in.position.z, 0.0);
     out.g_lgt_color = g_lgt_color;
