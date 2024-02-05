@@ -64,17 +64,7 @@ pub struct OutlineBuffer {
 /// See [UnkBufferDescriptor].
 #[derive(Debug, PartialEq, Clone)]
 pub struct UnkBuffer {
-    pub items: Vec<UnkBufferItem>,
-}
-
-// TODO: What do these do?
-/// Attributes for a [UnkBuffer].
-#[derive(Debug, PartialEq, Clone)]
-pub struct UnkBufferItem {
-    pub unk1: Vec3,
-    pub unk2: u32,
-    pub unk3: u32,
-    pub unk4: u32,
+    pub attributes: Vec<AttributeData>,
 }
 
 /// See [IndexBufferDescriptor].
@@ -770,7 +760,7 @@ fn read_outline_buffer(
             )?),
             AttributeData::VertexColor(read_outline_attribute(
                 descriptor,
-                0,
+                4,
                 buffer,
                 read_unorm8x4,
             )?),
@@ -889,6 +879,8 @@ impl ModelBuffers {
             None
         };
 
+        align(&mut buffer_writer, 4096)?;
+
         // TODO: Add morph data?
         let vertex_buffer_info = self
             .vertex_buffers
@@ -946,10 +938,9 @@ fn write_unk_buffers(
     let mut start_index = 0;
 
     for (i, buffer) in unk_buffers.iter().enumerate() {
-        let unk_buffer =
-            write_unk_buffer(writer, &buffer, data_offset, (i + 1) as u16, start_index)?;
+        let unk_buffer = write_unk_buffer(writer, &buffer, data_offset, i as u16, start_index)?;
+        start_index += unk_buffer.count;
         buffers.push(unk_buffer);
-        start_index += buffer.items.len() as u32;
     }
 
     let data_length = writer.stream_position()? as u32 - data_offset;
@@ -969,21 +960,18 @@ fn write_unk_buffer<W: Write + Seek>(
     unk2: u16,
     start_index: u32,
 ) -> BinResult<UnkBufferDescriptor> {
+    let buffer = write_vertex_buffer(writer, &buffer.attributes)?;
+
     // Offsets are relative to the start of the section.
-    let offset = writer.stream_position()? as u32 - data_offset;
-
-    for item in &buffer.items {
-        item.unk1.to_array().write_le(writer)?;
-        item.unk2.write_le(writer)?;
-        item.unk3.write_le(writer)?;
-        item.unk4.write_le(writer)?;
-    }
-
     Ok(UnkBufferDescriptor {
-        unk1: 1,
-        unk2,
-        count: buffer.items.len() as u32,
-        offset,
+        unk1: if buffer.vertex_size == 16 { 0 } else { 1 },
+        unk2: if buffer.vertex_size == 16 {
+            unk2
+        } else {
+            unk2 + 1
+        },
+        count: buffer.vertex_count,
+        offset: buffer.data_offset - data_offset,
         unk5: 0,
         start_index,
     })
@@ -1004,25 +992,78 @@ fn read_unk_buffer(
     data_offset: u32,
     buffer: &[u8],
 ) -> Result<UnkBuffer, binrw::Error> {
+    // TODO: why is this 16 or 24 bytes?
     Ok(UnkBuffer {
-        items: read_data_inner(
-            data_offset as u64 + descriptor.offset as u64,
-            descriptor.count as u64,
-            24,
-            0,
-            buffer,
-            read_unk_buffer_item,
-        )?,
+        attributes: if descriptor.unk1 == 0 {
+            vec![
+                AttributeData::Position(read_unk_buffer_attribute(
+                    descriptor,
+                    data_offset,
+                    0,
+                    buffer,
+                    read_f32x3,
+                )?),
+                AttributeData::VertexColor(read_unk_buffer_attribute(
+                    descriptor,
+                    data_offset,
+                    12,
+                    buffer,
+                    read_unorm8x4,
+                )?),
+            ]
+        } else {
+            vec![
+                AttributeData::Position(read_unk_buffer_attribute(
+                    descriptor,
+                    data_offset,
+                    0,
+                    buffer,
+                    read_f32x3,
+                )?),
+                AttributeData::VertexColor(read_unk_buffer_attribute(
+                    descriptor,
+                    data_offset,
+                    12,
+                    buffer,
+                    read_unorm8x4,
+                )?),
+                AttributeData::VertexColor(read_unk_buffer_attribute(
+                    descriptor,
+                    data_offset,
+                    16,
+                    buffer,
+                    read_unorm8x4,
+                )?),
+                AttributeData::VertexColor(read_unk_buffer_attribute(
+                    descriptor,
+                    data_offset,
+                    20,
+                    buffer,
+                    read_unorm8x4,
+                )?),
+            ]
+        },
     })
 }
 
-fn read_unk_buffer_item(reader: &mut Cursor<&[u8]>) -> BinResult<UnkBufferItem> {
-    Ok(UnkBufferItem {
-        unk1: read_f32x3(reader)?,
-        unk2: reader.read_le()?,
-        unk3: reader.read_le()?,
-        unk4: reader.read_le()?,
-    })
+fn read_unk_buffer_attribute<T, F>(
+    descriptor: &UnkBufferDescriptor,
+    data_offset: u32,
+    relative_offset: u64,
+    buffer: &[u8],
+    read_item: F,
+) -> BinResult<Vec<T>>
+where
+    F: Fn(&mut Cursor<&[u8]>) -> BinResult<T>,
+{
+    read_data_inner(
+        data_offset as u64 + descriptor.offset as u64,
+        descriptor.count as u64,
+        if descriptor.unk1 == 0 { 16 } else { 24 },
+        relative_offset,
+        buffer,
+        read_item,
+    )
 }
 
 fn align(buffer_writer: &mut Cursor<Vec<u8>>, align: u64) -> Result<(), binrw::Error> {
@@ -1613,7 +1654,7 @@ mod tests {
     }
 
     #[test]
-    fn unk_buffer_vertices() {
+    fn unk_buffer_vertices_size24() {
         // xeno3/chr/ch/ch01011011.wismt, unk buffer starting from offset 1148672.
         let data = hex!(
             // vertex 0
@@ -1641,19 +1682,23 @@ mod tests {
         let buffer = read_unk_buffer(&descriptor, 0, &data).unwrap();
         assert_eq!(
             UnkBuffer {
-                items: vec![
-                    UnkBufferItem {
-                        unk1: vec3(-0.038012017, 1.6167967, -0.10723422),
-                        unk2: 255,
-                        unk3: 2,
-                        unk4: 9692870
-                    },
-                    UnkBufferItem {
-                        unk1: vec3(-0.026746355, 1.6158215, -0.110543534),
-                        unk2: 255,
-                        unk3: 2,
-                        unk4: 8908257
-                    }
+                attributes: vec![
+                    AttributeData::Position(vec![
+                        vec3(-0.038012017, 1.6167967, -0.10723422),
+                        vec3(-0.026746355, 1.6158215, -0.110543534)
+                    ]),
+                    AttributeData::VertexColor(vec![
+                        vec4(1.0, 0.0, 0.0, 0.0),
+                        vec4(1.0, 0.0, 0.0, 0.0)
+                    ]),
+                    AttributeData::VertexColor(vec![
+                        vec4(0.007843138, 0.0, 0.0, 0.0),
+                        vec4(0.007843138, 0.0, 0.0, 0.0)
+                    ]),
+                    AttributeData::VertexColor(vec![
+                        vec4(0.7764706, 0.9019608, 0.5764706, 0.0),
+                        vec4(0.88235295, 0.92941177, 0.5294118, 0.0)
+                    ])
                 ]
             },
             buffer
@@ -1661,7 +1706,53 @@ mod tests {
 
         // Test write.
         let mut writer = Cursor::new(Vec::new());
-        let new_descriptor = write_unk_buffer(&mut writer, &buffer, 0, 1, 0).unwrap();
+        let new_descriptor = write_unk_buffer(&mut writer, &buffer, 0, 0, 0).unwrap();
+        assert_eq!(new_descriptor, descriptor);
+        assert_hex_eq!(data, writer.into_inner());
+    }
+
+    #[test]
+    fn unk_buffer_vertices_size16() {
+        // xeno3/chr/ch/ch06002301.wismt, unk buffer starting from offset 18944.
+        let data = hex!(
+            // vertex 0
+            80d31dbd 4565813c 573535be
+            b2fe9d00
+            // vertex 1
+            94d1dbbc 5c83693c de9e37be
+            fa820000
+        );
+
+        let descriptor = xc3_lib::vertex::UnkBufferDescriptor {
+            unk1: 0,
+            unk2: 0,
+            count: 2,
+            offset: 0,
+            unk5: 0,
+            start_index: 0,
+        };
+
+        // Test read.
+        let buffer = read_unk_buffer(&descriptor, 0, &data).unwrap();
+        assert_eq!(
+            UnkBuffer {
+                attributes: vec![
+                    AttributeData::Position(vec![
+                        vec3(-0.03853178, 0.01579536, -0.17696129),
+                        vec3(-0.026833333, 0.01425251, -0.17931697)
+                    ]),
+                    AttributeData::VertexColor(vec![
+                        vec4(0.69803923, 0.99607843, 0.6156863, 0.0),
+                        vec4(0.98039216, 0.50980395, 0.0, 0.0)
+                    ])
+                ]
+            },
+            buffer
+        );
+
+        // Test write.
+        let mut writer = Cursor::new(Vec::new());
+        let new_descriptor = write_unk_buffer(&mut writer, &buffer, 0, 0, 0).unwrap();
         assert_eq!(new_descriptor, descriptor);
         assert_hex_eq!(data, writer.into_inner());
     }
@@ -1719,8 +1810,8 @@ mod tests {
                     vec4(0.47843137, 0.8745098, 0.9882353, 0.0)
                 ]),
                 AttributeData::VertexColor(vec![
-                    vec4(0.47843137, 0.8745098, 0.9882353, 0.0),
-                    vec4(0.47843137, 0.8745098, 0.9882353, 0.0)
+                    vec4(0.29411766, 0.21568628, 0.16078432, 0.29803923),
+                    vec4(0.29411766, 0.21568628, 0.16078432, 0.29803923)
                 ])
             ],
             read_outline_buffer(&descriptor, &data).unwrap()
