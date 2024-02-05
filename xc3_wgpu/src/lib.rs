@@ -22,7 +22,7 @@
 //! # fn test() -> (wgpu::Device, wgpu::Queue) { todo!() }
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! # let (device, queue) = test();
-//! let renderer = Xc3Renderer::new(&device, &queue, 1920, 1080);
+//! let renderer = Xc3Renderer::new(&device, &queue, 1920, 1080, "monolib/shader");
 //!
 //! let database = ShaderDatabase::from_file("xc3.json")?;
 //!

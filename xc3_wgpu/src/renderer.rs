@@ -56,12 +56,12 @@ pub struct GBuffer {
 }
 
 impl Xc3Renderer {
-    pub fn new(
+    pub fn new<P: AsRef<Path>>(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         width: u32,
         height: u32,
-        monolib_shader: &Path,
+        monolib_shader: P,
     ) -> Self {
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("camera buffer"),
@@ -98,7 +98,7 @@ impl Xc3Renderer {
         // TODO: Are the mappings the same for all 3 games?
         // TODO: Add an option to load defaults if no path is provided?
         // TODO: Why is this mip count not correct in the mibl?
-        let mibl = Mibl::from_file(monolib_shader.join("toon_grad.witex")).unwrap();
+        let mibl = Mibl::from_file(monolib_shader.as_ref().join("toon_grad.witex")).unwrap();
         let grad = ImageTexture::from_mibl(&mibl, None, None).unwrap();
         let xc3_toon_grad =
             create_texture(device, queue, &grad).create_view(&wgpu::TextureViewDescriptor {
