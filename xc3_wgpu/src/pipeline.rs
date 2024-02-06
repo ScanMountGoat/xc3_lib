@@ -1,4 +1,5 @@
-use xc3_model::{BlendState, CullMode, RenderPassType, StateFlags};
+use xc3_lib::mxmd::{StencilMode, StencilValue};
+use xc3_model::{BlendMode, CullMode, RenderPassType, StateFlags};
 
 use crate::{DEPTH_FORMAT, GBUFFER_COLOR_FORMAT};
 
@@ -28,6 +29,20 @@ impl PipelineKey {
     pub fn write_to_all_outputs(&self) -> bool {
         self.unk_type == RenderPassType::Unk0
     }
+
+    pub fn stencil_reference(&self) -> u32 {
+        // TODO: move this to xc3_lib?
+        match self.flags.stencil_value {
+            xc3_lib::mxmd::StencilValue::Unk0 => 10,
+            xc3_lib::mxmd::StencilValue::Unk1 => 0,
+            xc3_lib::mxmd::StencilValue::Unk4 => 14,
+            xc3_lib::mxmd::StencilValue::Unk5 => 0,
+            xc3_lib::mxmd::StencilValue::Unk8 => 0,
+            xc3_lib::mxmd::StencilValue::Unk9 => 0,
+            xc3_lib::mxmd::StencilValue::Unk16 => 74,
+            xc3_lib::mxmd::StencilValue::Unk20 => 0,
+        }
+    }
 }
 
 // TODO: Always set depth and stencil state?
@@ -55,7 +70,7 @@ pub fn model_pipeline(
         vec![
             Some(wgpu::ColorTargetState {
                 format: GBUFFER_COLOR_FORMAT,
-                blend: blend_state(key.flags.blend_state),
+                blend: blend_state(key.flags.blend_mode),
                 write_mask: wgpu::ColorWrites::all(),
             }),
             Some(wgpu::ColorTargetState {
@@ -115,16 +130,62 @@ pub fn model_pipeline(
             cull_mode: cull_mode(key.flags.cull_mode),
             ..Default::default()
         },
+        // TODO: Stencil ref is set per draw on the render pass?
         depth_stencil: Some(wgpu::DepthStencilState {
             format: DEPTH_FORMAT,
             depth_write_enabled: true,
             depth_compare: wgpu::CompareFunction::LessEqual,
-            stencil: wgpu::StencilState::default(),
+            stencil: stencil_state(key.flags.stencil_value, key.flags.stencil_mode),
             bias: wgpu::DepthBiasState::default(),
         }),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
     })
+}
+
+fn stencil_state(value: StencilValue, mode: StencilMode) -> wgpu::StencilState {
+    wgpu::StencilState {
+        front: wgpu::StencilFaceState {
+            compare: stencil_compare(mode),
+            fail_op: wgpu::StencilOperation::Keep,
+            depth_fail_op: wgpu::StencilOperation::Keep,
+            pass_op: wgpu::StencilOperation::Replace,
+        },
+        back: wgpu::StencilFaceState {
+            compare: stencil_compare(mode),
+            fail_op: wgpu::StencilOperation::Keep,
+            depth_fail_op: wgpu::StencilOperation::Keep,
+            pass_op: wgpu::StencilOperation::Replace,
+        },
+        // TODO: Should these depend on stencil value?
+        read_mask: match mode {
+            StencilMode::Unk0 => 0xff,
+            StencilMode::Unk1 => 0xff,
+            StencilMode::Unk2 => 0xff,
+            StencilMode::Unk6 => 0x4,
+            StencilMode::Unk7 => 0xff,
+            StencilMode::Unk8 => 0xff,
+        },
+        write_mask: match mode {
+            StencilMode::Unk0 => 0xff,
+            StencilMode::Unk1 => 0xff,
+            StencilMode::Unk2 => 0xff,
+            StencilMode::Unk6 => 0x4b,
+            StencilMode::Unk7 => 0xff,
+            StencilMode::Unk8 => 0xff,
+        },
+    }
+}
+
+fn stencil_compare(mode: StencilMode) -> wgpu::CompareFunction {
+    match mode {
+        StencilMode::Unk0 => wgpu::CompareFunction::Always,
+        StencilMode::Unk1 => wgpu::CompareFunction::Always,
+        StencilMode::Unk2 => wgpu::CompareFunction::Always,
+        StencilMode::Unk6 => wgpu::CompareFunction::Equal,
+        StencilMode::Unk7 => wgpu::CompareFunction::Always,
+        StencilMode::Unk8 => wgpu::CompareFunction::Always,
+    }
 }
 
 fn cull_mode(mode: CullMode) -> Option<wgpu::Face> {
@@ -136,10 +197,10 @@ fn cull_mode(mode: CullMode) -> Option<wgpu::Face> {
     }
 }
 
-fn blend_state(state: BlendState) -> Option<wgpu::BlendState> {
+fn blend_state(state: BlendMode) -> Option<wgpu::BlendState> {
     match state {
-        BlendState::Disabled => None,
-        BlendState::AlphaBlend => Some(wgpu::BlendState {
+        BlendMode::Disabled => None,
+        BlendMode::AlphaBlend => Some(wgpu::BlendState {
             color: wgpu::BlendComponent {
                 src_factor: wgpu::BlendFactor::SrcAlpha,
                 dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
@@ -151,7 +212,7 @@ fn blend_state(state: BlendState) -> Option<wgpu::BlendState> {
                 operation: wgpu::BlendOperation::Add,
             },
         }),
-        BlendState::Additive => Some(wgpu::BlendState {
+        BlendMode::Additive => Some(wgpu::BlendState {
             color: wgpu::BlendComponent {
                 src_factor: wgpu::BlendFactor::SrcAlpha,
                 dst_factor: wgpu::BlendFactor::One,
@@ -163,7 +224,7 @@ fn blend_state(state: BlendState) -> Option<wgpu::BlendState> {
                 operation: wgpu::BlendOperation::Add,
             },
         }),
-        BlendState::Multiplicative => Some(wgpu::BlendState {
+        BlendMode::Multiplicative => Some(wgpu::BlendState {
             color: wgpu::BlendComponent {
                 src_factor: wgpu::BlendFactor::Zero,
                 dst_factor: wgpu::BlendFactor::Src,
@@ -175,6 +236,6 @@ fn blend_state(state: BlendState) -> Option<wgpu::BlendState> {
                 operation: wgpu::BlendOperation::Add,
             },
         }),
-        BlendState::Unk6 => None,
+        BlendMode::Unk6 => None,
     }
 }

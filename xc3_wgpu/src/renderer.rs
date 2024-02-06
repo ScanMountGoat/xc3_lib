@@ -256,7 +256,10 @@ impl Xc3Renderer {
                     load: wgpu::LoadOp::Clear(1.0),
                     store: wgpu::StoreOp::Store,
                 }),
-                stencil_ops: None,
+                stencil_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(0),
+                    store: wgpu::StoreOp::Store,
+                }),
             }),
             timestamp_writes: None,
             occlusion_query_set: None,
@@ -297,7 +300,11 @@ impl Xc3Renderer {
                     // TODO: Write to depth buffer?
                     store: wgpu::StoreOp::Store,
                 }),
-                stencil_ops: None,
+                // TODO: Should this pass ever write to the stencil buffer?
+                stencil_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Discard,
+                }),
             }),
             timestamp_writes: None,
             occlusion_query_set: None,

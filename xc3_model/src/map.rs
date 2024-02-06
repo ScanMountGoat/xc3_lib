@@ -671,14 +671,14 @@ fn foliage_materials(materials: &FoliageMaterials) -> Vec<Material> {
 
             // TODO: Flags?
             let flags = StateFlags {
-                flag0: 0,
-                blend_state: xc3_lib::mxmd::BlendState::Disabled,
+                depth_write_mode: 0,
+                blend_mode: xc3_lib::mxmd::BlendMode::Disabled,
                 cull_mode: xc3_lib::mxmd::CullMode::Disabled,
-                flag3: 0,
-                stencil_state1: xc3_lib::mxmd::StencilState1::Always,
-                stencil_state2: xc3_lib::mxmd::StencilState2::Disabled,
+                unk4: 0,
+                stencil_value: xc3_lib::mxmd::StencilValue::Unk0,
+                stencil_mode: xc3_lib::mxmd::StencilMode::Unk0,
                 depth_func: xc3_lib::mxmd::DepthFunc::LessEqual,
-                flag7: 0,
+                color_write_mode: 0,
             };
 
             Material {

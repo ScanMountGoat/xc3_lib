@@ -403,14 +403,14 @@ pub struct MaterialFlags {
 /// Flags controlling pipeline state for rasterizer and fragment state.
 #[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct StateFlags {
-    pub flag0: u8, // depth write?
-    pub blend_state: BlendState,
+    pub depth_write_mode: u8,
+    pub blend_mode: BlendMode,
     pub cull_mode: CullMode,
-    pub flag3: u8, // unused?
-    pub stencil_state1: StencilState1,
-    pub stencil_state2: StencilState2,
+    pub unk4: u8, // unused?
+    pub stencil_value: StencilValue,
+    pub stencil_mode: StencilMode,
     pub depth_func: DepthFunc,
-    pub flag7: u8, // color writes?
+    pub color_write_mode: u8,
 }
 
 // TODO: Convert these to equations for RGB and alpha for docs.
@@ -423,7 +423,7 @@ pub struct StateFlags {
 // 6, disabled + ???
 #[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
 #[brw(repr(u8))]
-pub enum BlendState {
+pub enum BlendMode {
     Disabled = 0,
     AlphaBlend = 1,
     Additive = 2,
@@ -431,31 +431,30 @@ pub enum BlendState {
     Unk6 = 6, // also disabled?
 }
 
-// TODO: Get the actual stencil state from RenderDoc.
-// 0 = disables hair blur stencil stuff?
-// 4 = disables hair but different ref value?
-// 16 = enables hair blur stencil stuff?
 #[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
 #[brw(repr(u8))]
-pub enum StencilState1 {
-    Always = 0,
+pub enum StencilValue {
+    /// 10 (0xA)
+    Unk0 = 0,
     Unk1 = 1,
-    Always2 = 4,
+    /// 14 (0xE)
+    Unk4 = 4,
     Unk5 = 5,
     Unk8 = 8,
     Unk9 = 9,
-    UnkHair = 16,
+    /// 74 (0x4A)
+    Unk16 = 16,
     Unk20 = 20,
 }
 
 // TODO: Does this flag actually disable stencil?
 #[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
 #[brw(repr(u8))]
-pub enum StencilState2 {
-    Disabled = 0,
-    Enabled = 1,
+pub enum StencilMode {
+    Unk0 = 0,
+    Unk1 = 1,
     Unk2 = 2,
-    Unk6 = 6,
+    Unk6 = 6, // equals, 4b, 4, 4a
     Unk7 = 7,
     Unk8 = 8,
 }

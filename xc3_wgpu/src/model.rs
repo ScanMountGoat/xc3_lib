@@ -93,6 +93,9 @@ impl ModelGroup {
                         let pipeline = &models.pipelines[&material.pipeline_key];
                         render_pass.set_pipeline(pipeline);
 
+                        let stencil_reference = material.pipeline_key.stencil_reference();
+                        render_pass.set_stencil_reference(stencil_reference);
+
                         material.bind_group2.set(render_pass);
 
                         self.draw_mesh(model, mesh, render_pass);
