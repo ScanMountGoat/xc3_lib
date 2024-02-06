@@ -265,19 +265,21 @@ pub struct VertexMorphs {
     pub unks: [u32; 4],
 }
 
+/// Morph targets assigned to a [VertexBufferDescriptor].
+///
+/// Each buffer has a blend target and default target followed by param targets.
+/// This means the actual target count is two more than
+/// the length of [param_indices](#structfield.param_indices).
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct MorphDescriptor {
     pub vertex_buffer_index: u32,
     pub target_start_index: u32,
-    pub target_count: u32,
 
-    // TODO: count_offset?
     // pointer to u16 indices 0,1,2,...?
     // start and ending frame for each target?
-    #[br(parse_with = parse_ptr32)]
-    #[br(args { inner: args! { count: target_count as usize }})]
-    #[xc3(offset(u32))]
-    pub unk1: Vec<u16>,
+    #[br(parse_with = parse_count32_offset32)]
+    #[xc3(count_offset(u32, u32))]
+    pub param_indices: Vec<u16>,
 
     // flags?
     pub unk2: u32,
@@ -505,7 +507,9 @@ impl<'a> Xc3WriteOffsets for VertexDataOffsets<'a> {
                 .write(writer, base_offset, data_ptr)?;
 
             for descriptor in descriptors.0 {
-                descriptor.unk1.write(writer, base_offset, data_ptr)?;
+                descriptor
+                    .param_indices
+                    .write(writer, base_offset, data_ptr)?;
             }
         }
 

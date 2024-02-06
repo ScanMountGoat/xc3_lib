@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added `ModelRoot::to_mxmd_model` for applying edits to the original `.wimdo` and `.wismt` files.
 * Added `ModelBuffers::from_vertex_data` and `ModelBuffers::to_vertex_data` to xc3_model for converting to and from xc3_lib.
 
+### Fixed
+* Fixed an issue where not all morph targets were being read.
+
 ### Changed
 * Improved rendering accuracy of toon shading pass.
 * Moved `Skeleton` field for xc3_model from `Models` to `ModelRoot` to better reflect in game data.

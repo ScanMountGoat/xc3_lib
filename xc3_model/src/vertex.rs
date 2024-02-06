@@ -375,65 +375,76 @@ fn assign_morph_targets(
     // TODO: Find a cleaner way to write this.
     for descriptor in &vertex_morphs.descriptors {
         if let Some(buffer) = buffers.get_mut(descriptor.vertex_buffer_index as usize) {
-            let start = descriptor.target_start_index as usize;
-            let count = descriptor.target_count as usize;
-            if let Some(targets) = vertex_morphs.targets.get(start..start + count) {
-                // TODO: Lots of morph targets use the exact same bytes?
-                // Assume the first target is the base target.
-                if let Some((base_target, targets)) = targets.split_first() {
-                    // TODO: Check flags?
-                    // These three bits define an enum for the buffer type.
-                    // Assume only one bit can be set.
-                    // TODO: Find a way to express this with bitflags?
-                    let base = read_morph_blend_target(base_target, &vertex_data.buffer)?;
+            if let Some((blend, _default, params)) = split_targets(descriptor, vertex_morphs) {
+                let base = read_morph_blend_target(blend, &vertex_data.buffer)?;
 
-                    // TODO: Skip the first two targets?
-                    buffer.morph_targets = targets
-                        .iter()
-                        .map(|target| {
-                            // Apply remaining targets onto the base target values.
-                            let vertices = read_morph_buffer_target(target, &vertex_data.buffer)?;
+                // TODO: What to do with the default target?
+                buffer.morph_targets = params
+                    .iter()
+                    .map(|target| {
+                        // Apply remaining targets onto the base target values.
+                        // TODO: Lots of morph targets use the exact same bytes?
+                        let vertices = read_morph_buffer_target(target, &vertex_data.buffer)?;
 
-                            let mut position_deltas = Vec::new();
-                            let mut normal_deltas = Vec::new();
-                            let mut tangent_deltas = Vec::new();
-                            let mut vertex_indices = Vec::new();
+                        let mut position_deltas = Vec::new();
+                        let mut normal_deltas = Vec::new();
+                        let mut tangent_deltas = Vec::new();
+                        let mut vertex_indices = Vec::new();
 
-                            // Keep the sparse representation to save space.
-                            // The vertex indices only contain affected vertices.
-                            for vertex in vertices {
-                                let i = vertex.vertex_index as usize;
-                                vertex_indices.push(vertex.vertex_index);
+                        // Keep the sparse representation to save space.
+                        // The vertex indices only contain affected vertices.
+                        for vertex in vertices {
+                            let i = vertex.vertex_index as usize;
+                            vertex_indices.push(vertex.vertex_index);
 
-                                position_deltas.push(vertex.position_delta);
+                            position_deltas.push(vertex.position_delta);
 
-                                // Convert every attribute to a delta for consistency.
-                                normal_deltas.push(vertex.normal - base.normals[i]);
-                                tangent_deltas.push(vertex.tangent - base.tangents[i]);
-                            }
+                            // Convert every attribute to a delta for consistency.
+                            normal_deltas.push(vertex.normal - base.normals[i]);
+                            tangent_deltas.push(vertex.tangent - base.tangents[i]);
+                        }
 
-                            Ok(MorphTarget {
-                                position_deltas,
-                                normal_deltas,
-                                tangent_deltas,
-                                vertex_indices,
-                            })
+                        Ok(MorphTarget {
+                            position_deltas,
+                            normal_deltas,
+                            tangent_deltas,
+                            vertex_indices,
                         })
-                        .collect::<BinResult<Vec<_>>>()?;
+                    })
+                    .collect::<BinResult<Vec<_>>>()?;
 
-                    buffer
-                        .attributes
-                        .push(AttributeData::Position(base.positions));
-                    buffer.attributes.push(AttributeData::Normal(base.normals));
-                    buffer
-                        .attributes
-                        .push(AttributeData::Tangent(base.tangents));
-                }
+                buffer
+                    .attributes
+                    .push(AttributeData::Position(base.positions));
+                buffer.attributes.push(AttributeData::Normal(base.normals));
+                buffer
+                    .attributes
+                    .push(AttributeData::Tangent(base.tangents));
             }
         }
     }
 
     Ok(())
+}
+
+fn split_targets<'a>(
+    descriptor: &MorphDescriptor,
+    vertex_morphs: &'a xc3_lib::vertex::VertexMorphs,
+) -> Option<(
+    &'a xc3_lib::vertex::MorphTarget,
+    &'a xc3_lib::vertex::MorphTarget,
+    &'a [xc3_lib::vertex::MorphTarget],
+)> {
+    // TODO: Check flags to get the type instead?
+    // Assume the order is blend, default, params.
+    let start = descriptor.target_start_index as usize;
+    let count = descriptor.param_indices.len() + 2;
+    let targets = vertex_morphs.targets.get(start..start + count)?;
+
+    let (blend_target, targets) = targets.split_first()?;
+    let (default_target, param_targets) = targets.split_first()?;
+
+    Some((blend_target, default_target, param_targets))
 }
 
 fn skin_weights_bone_indices(attributes: &[AttributeData]) -> Option<(Vec<Vec4>, Vec<[u8; 4]>)> {
@@ -661,7 +672,7 @@ struct MorphBufferBlendTargetVertex {
 }
 
 // Default and param buffer attributes.
-#[derive(BinRead)]
+#[derive(BinRead, BinWrite)]
 struct MorphBufferTargetVertex {
     // Relative to blend target.
     position_delta: [f32; 3],
@@ -907,7 +918,7 @@ impl ModelBuffers {
             for descriptor in &morphs.descriptors {
                 let info = &mut vertex_buffer_info[descriptor.vertex_buffer_index as usize];
                 info.morph_target_start_index = descriptor.target_start_index as u16;
-                info.morph_target_count = descriptor.target_count as u16;
+                info.morph_target_count = descriptor.param_indices.len() as u16;
             }
         }
 
@@ -947,16 +958,34 @@ impl ModelBuffers {
         let mut targets = Vec::new();
         let mut descriptors = Vec::new();
 
-        for (i, buffer) in self.vertex_buffers.iter().enumerate() {
-            // TODO: How to handle the default target being part of the vertex buffer?
+        for (i, buffer) in self
+            .vertex_buffers
+            .iter()
+            .enumerate()
+            .filter(|(_, b)| !b.morph_targets.is_empty())
+        {
+            // TODO: How to handle the blend target being part of the vertex buffer?
             let descriptor = MorphDescriptor {
                 vertex_buffer_index: i as u32,
                 target_start_index: targets.len() as u32,
-                target_count: buffer.morph_targets.len() as u32 + 1,
-                unk1: (0..(buffer.morph_targets.len() + 1) as u16).collect(),
+                param_indices: (0..buffer.morph_targets.len() as u16).collect(),
                 unk2: 3, // TODO: how to set this?
             };
             descriptors.push(descriptor);
+
+            // TODO: How to write the data here?
+            targets.push(xc3_lib::vertex::MorphTarget {
+                data_offset: 0,
+                vertex_count: buffer.vertex_count() as u32,
+                vertex_size: 32,
+                flags: MorphTargetFlags::new(0, true, false, false, 0u8.into()),
+            });
+            targets.push(xc3_lib::vertex::MorphTarget {
+                data_offset: 0,
+                vertex_count: buffer.vertex_count() as u32,
+                vertex_size: 32,
+                flags: MorphTargetFlags::new(0, false, true, false, 0u8.into()),
+            });
 
             for morph_target in &buffer.morph_targets {
                 let offset = writer.stream_position()?;
@@ -968,6 +997,7 @@ impl ModelBuffers {
                 };
                 targets.push(target);
 
+                // TODO: These shouldn't all be deltas.
                 write_data(
                     writer,
                     &morph_target.position_deltas,
