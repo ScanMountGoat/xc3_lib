@@ -278,14 +278,10 @@ fn has_chr_textures(mxmd: &Mxmd) -> bool {
     // Check the offset instead of flags to be safe.
     // TODO: Why does this not return true for all xc3 files?
     if let Some(streaming) = &mxmd.streaming {
-        if let xc3_lib::msrd::StreamingInner::Streaming(data) = &streaming.inner {
-            if data.texture_resources.chr_textures.is_some() {
-                return true;
-            }
-        }
+        streaming.inner.has_chr_textures()
+    } else {
+        false
     }
-
-    false
 }
 
 fn image_index(path: &Path, input: &str) -> Option<usize> {

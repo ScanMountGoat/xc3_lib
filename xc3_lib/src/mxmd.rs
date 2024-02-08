@@ -448,6 +448,7 @@ pub enum BlendMode {
     Unk6 = 6, // also disabled?
 }
 
+// TODO: manually test stencil values in renderdoc.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
 #[brw(repr(u8))]
@@ -470,12 +471,13 @@ pub enum StencilValue {
 #[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
 #[brw(repr(u8))]
 pub enum StencilMode {
-    Unk0 = 0,
-    Unk1 = 1,
-    Unk2 = 2,
-    Unk6 = 6, // equals, 4b, 4, 4a
-    Unk7 = 7,
-    Unk8 = 8,
+    // func, write mask, comp mask, ref value
+    Unk0 = 0, // completely disabled?
+    Unk1 = 1, // always, ff, ff, 0a
+    Unk2 = 2, // equals, 0a, 0a, 0a
+    Unk6 = 6, // equals, 4b, 04, 0a
+    Unk7 = 7, // always, 0e, 04, 0a
+    Unk8 = 8, // nequal, 02, 02, 02
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -739,7 +741,9 @@ pub struct Model {
     pub meshes: Vec<Mesh>,
 
     pub unk1: u32,
+    /// The minimum XYZ coordinates of the bounding volume.
     pub max_xyz: [f32; 3],
+    /// The maximum XYZ coordinates of the bounding volume.
     pub min_xyz: [f32; 3],
     pub bounding_radius: f32,
     pub unks: [u32; 7],

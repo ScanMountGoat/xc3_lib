@@ -403,11 +403,21 @@ impl ModelRoot {
         let new_vertex = self.groups[0].buffers[0].to_vertex_data().unwrap();
 
         let mut new_mxmd = mxmd.clone();
-        // TODO: Modify mxmd.
-        let use_chr_textures = true; // TODO: share code with xc3_tex?
+
+        // TODO: Create a separate root type that enforces this structure?
+        // TODO: Rebuild models, meshes, and materials.
+        let _models = &self.groups[0].models[0];
+
+        let use_chr_textures = mxmd
+            .streaming
+            .as_ref()
+            .map(|s| s.inner.has_chr_textures())
+            .unwrap_or_default();
+
         let new_msrd =
             Msrd::from_extracted_files(&new_vertex, &spch, &textures, use_chr_textures).unwrap();
         new_mxmd.streaming = Some(new_msrd.streaming.clone());
+
         (new_mxmd, new_msrd)
     }
 }

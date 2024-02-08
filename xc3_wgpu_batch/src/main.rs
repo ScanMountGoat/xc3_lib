@@ -75,7 +75,7 @@ fn main() {
         &queue,
         WIDTH,
         HEIGHT,
-        &Path::new(&cli.root_folder).join("monolib/shader"),
+        Path::new(&cli.root_folder).join("monolib/shader"),
     );
 
     // Initialize the camera transform.

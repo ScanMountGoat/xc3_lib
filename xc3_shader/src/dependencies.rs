@@ -415,6 +415,7 @@ fn add_dependencies(
 }
 
 pub fn glsl_dependencies(source: &str, var: &str) -> String {
+    // TODO: Correctly handle if statements?
     let source = shader_source_no_extensions(source);
     let translation_unit = TranslationUnit::parse(source).unwrap();
     line_dependencies(&translation_unit, var)

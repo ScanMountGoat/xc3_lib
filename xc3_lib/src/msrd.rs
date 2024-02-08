@@ -342,6 +342,20 @@ impl Stream {
     }
 }
 
+impl StreamingInner {
+    /// Return `true` if the streaming data has `chr/tex/nx` texture data even if empty.
+    /// This will be `true` for most Xenoblade 3 models and `false` for all other games.
+    pub fn has_chr_textures(&self) -> bool {
+        // Some Xenoblade 3 models still require empty chr/tex/nx data even if disabled by flags.
+        // Check the offset instead of flags to be safe.
+        // TODO: Why does this not return true for all xc3 files?
+        match self {
+            StreamingInner::StreamingLegacy(_) => false,
+            StreamingInner::Streaming(data) => data.texture_resources.chr_textures.is_some(),
+        }
+    }
+}
+
 fn parse_data<R>(reader: &mut R, endian: binrw::Endian, _args: ()) -> BinResult<Vec<u8>>
 where
     R: Read + Seek,

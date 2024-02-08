@@ -839,7 +839,7 @@ impl ModelBuffers {
 
         // TODO: Preserve if this is none or not?
         let unk_buffers = match &vertex_data.unk7 {
-            Some(unk) => read_unk_buffers(&unk, vertex_data)?,
+            Some(unk) => read_unk_buffers(unk, vertex_data)?,
             None => Vec::new(),
         };
 
@@ -1042,7 +1042,7 @@ fn write_unk_buffers(
     let mut start_index = 0;
 
     for (i, buffer) in unk_buffers.iter().enumerate() {
-        let unk_buffer = write_unk_buffer(writer, &buffer, data_offset, i as u16, start_index)?;
+        let unk_buffer = write_unk_buffer(writer, buffer, data_offset, i as u16, start_index)?;
         start_index += unk_buffer.count;
         buffers.push(unk_buffer);
     }
