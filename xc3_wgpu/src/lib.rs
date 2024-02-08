@@ -50,7 +50,7 @@ mod texture;
 
 pub use material::Material;
 pub use model::{load_model, Mesh, Model, ModelBuffers, ModelGroup, Models};
-pub use renderer::{CameraData, Xc3Renderer};
+pub use renderer::{CameraData, RenderMode, Xc3Renderer};
 
 // TODO: How is sRGB gamma handled in game?
 

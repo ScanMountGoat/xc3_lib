@@ -26,7 +26,7 @@ pub struct Xc3Renderer {
     deferred_pipelines: [wgpu::RenderPipeline; 6],
     deferred_bind_group2: [crate::shader::deferred::bind_groups::BindGroup2; 6],
 
-    render_mode: u32,
+    render_mode: RenderMode,
 
     textures: Textures,
 
@@ -39,6 +39,25 @@ pub struct Xc3Renderer {
     blit_pipeline: wgpu::RenderPipeline,
 
     blit_hair_pipeline: wgpu::RenderPipeline,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum RenderMode {
+    /// Full lighting and shading based on in game rendering.
+    /// Rendering is based on Xenoblade 3 but is compatible with all 3 games.
+    Shaded = 0,
+    /// Debug the first gbuffer texture "gtCol".
+    GBuffer0 = 1,
+    /// Debug the second gbuffer texture "gtEtc".
+    GBuffer1 = 2,
+    /// Debug the third gbuffer texture "gtNom".
+    GBuffer2 = 3,
+    /// Debug the fourth gbuffer texture "gtVelocity".
+    GBuffer3 = 4,
+    /// Debug the fifth gbuffer texture "gtDep".
+    GBuffer4 = 5,
+    /// Debug the sixth gbuffer texture "gtSpecularCol" or "MrtLgtColor".
+    GBuffer5 = 6,
 }
 
 // Group resizable resources to avoid duplicating this logic.
@@ -129,11 +148,11 @@ impl Xc3Renderer {
             },
         );
 
-        let render_mode = 0;
+        let render_mode = RenderMode::Shaded;
         let debug_settings_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Debug Settings"),
             contents: bytemuck::cast_slice(&[crate::shader::deferred::DebugSettings {
-                render_mode,
+                render_mode: render_mode as u32,
             }]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
@@ -255,13 +274,15 @@ impl Xc3Renderer {
         self.textures = Textures::new(device, width, height);
     }
 
-    pub fn update_debug_settings(&mut self, queue: &wgpu::Queue, render_mode: u32) {
+    pub fn update_debug_settings(&mut self, queue: &wgpu::Queue, render_mode: RenderMode) {
         // TODO: enum for render mode?
         self.render_mode = render_mode;
         queue.write_buffer(
             &self.debug_settings_buffer,
             0,
-            bytemuck::cast_slice(&[crate::shader::deferred::DebugSettings { render_mode }]),
+            bytemuck::cast_slice(&[crate::shader::deferred::DebugSettings {
+                render_mode: render_mode as u32,
+            }]),
         );
     }
 
@@ -414,7 +435,7 @@ impl Xc3Renderer {
             occlusion_query_set: None,
         });
 
-        if self.render_mode == 0 {
+        if self.render_mode == RenderMode::Shaded {
             for (pipeline, bind_group2) in self
                 .deferred_pipelines
                 .iter()
@@ -451,8 +472,7 @@ impl Xc3Renderer {
     }
 
     fn snn_filter_pass(&self, encoder: &mut wgpu::CommandEncoder) {
-        // Only enable if not using debug shading.
-        if self.render_mode == 0 {
+        if self.render_mode == RenderMode::Shaded {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Hair SNN Filter Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -520,7 +540,9 @@ impl Xc3Renderer {
         });
 
         self.blit_deferred(&mut render_pass);
-        self.blit_snn_filtered_hair(&mut render_pass);
+        if self.render_mode == RenderMode::Shaded {
+            self.blit_snn_filtered_hair(&mut render_pass);
+        }
 
         // TODO: Some eye meshes draw in this pass?
     }

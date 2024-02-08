@@ -15,7 +15,7 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 use xc3_model::{animation::Animation, load_animations, shader_database::ShaderDatabase};
-use xc3_wgpu::{CameraData, ModelGroup, Xc3Renderer, COLOR_FORMAT};
+use xc3_wgpu::{CameraData, ModelGroup, RenderMode, Xc3Renderer, COLOR_FORMAT};
 
 #[cfg(feature = "tracing")]
 use tracing_subscriber::prelude::*;
@@ -200,8 +200,9 @@ impl<'a> State<'a> {
         self.renderer.update_camera(&self.queue, &camera_data);
     }
 
-    fn update_debug_settings(&mut self, index: u32) {
-        self.renderer.update_debug_settings(&self.queue, index);
+    fn update_debug_settings(&mut self, render_mode: RenderMode) {
+        self.renderer
+            .update_debug_settings(&self.queue, render_mode);
     }
 
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
@@ -270,13 +271,13 @@ impl<'a> State<'a> {
                     winit::keyboard::Key::Character(c) => {
                         match c.as_str() {
                             // Debug a selected G-Buffer texture.
-                            "0" => self.update_debug_settings(0),
-                            "1" => self.update_debug_settings(1),
-                            "2" => self.update_debug_settings(2),
-                            "3" => self.update_debug_settings(3),
-                            "4" => self.update_debug_settings(4),
-                            "5" => self.update_debug_settings(5),
-                            "6" => self.update_debug_settings(6),
+                            "0" => self.update_debug_settings(RenderMode::Shaded),
+                            "1" => self.update_debug_settings(RenderMode::GBuffer0),
+                            "2" => self.update_debug_settings(RenderMode::GBuffer1),
+                            "3" => self.update_debug_settings(RenderMode::GBuffer2),
+                            "4" => self.update_debug_settings(RenderMode::GBuffer3),
+                            "5" => self.update_debug_settings(RenderMode::GBuffer4),
+                            "6" => self.update_debug_settings(RenderMode::GBuffer5),
                             // Animation playback.
                             "." => {
                                 if event.state == ElementState::Released {
@@ -358,8 +359,7 @@ impl<'a> State<'a> {
                     }
                 };
 
-                // Clamp to prevent the user from zooming through the origin.
-                self.translation.z = (self.translation.z + delta_z).min(-1.0);
+                self.translation.z = self.translation.z + delta_z;
             }
             _ => (),
         }
