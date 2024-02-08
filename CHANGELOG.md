@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 * Improved rendering accuracy of toon shading pass.
+* Improved accuracy of hair shading pass and added SNN blur kernel to Xenoblade 3 hair.
 * Moved `Skeleton` field for xc3_model from `Models` to `ModelRoot` to better reflect in game data.
 * Moved `update_bone_transforms` method for xc3_wgpu to `ModelGroup` to better reflect in game data.
 * Adjusted `ModelBuffers` type for xc3_model to better reflect in game data.
