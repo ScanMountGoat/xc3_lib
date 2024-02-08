@@ -1,7 +1,7 @@
-use xc3_lib::mxmd::{StencilMode, StencilValue};
+use xc3_lib::mxmd::StencilMode;
 use xc3_model::{BlendMode, CullMode, RenderPassType, StateFlags};
 
-use crate::{DEPTH_FORMAT, GBUFFER_COLOR_FORMAT};
+use crate::{DEPTH_STENCIL_FORMAT, GBUFFER_COLOR_FORMAT};
 
 #[derive(Debug)]
 pub struct ModelPipelineData {
@@ -132,10 +132,10 @@ pub fn model_pipeline(
         },
         // TODO: Stencil ref is set per draw on the render pass?
         depth_stencil: Some(wgpu::DepthStencilState {
-            format: DEPTH_FORMAT,
+            format: DEPTH_STENCIL_FORMAT,
             depth_write_enabled: true,
             depth_compare: wgpu::CompareFunction::LessEqual,
-            stencil: stencil_state(key.flags.stencil_value, key.flags.stencil_mode),
+            stencil: stencil_state(key.flags.stencil_mode),
             bias: wgpu::DepthBiasState::default(),
         }),
         multisample: wgpu::MultisampleState::default(),
@@ -143,7 +143,7 @@ pub fn model_pipeline(
     })
 }
 
-fn stencil_state(value: StencilValue, mode: StencilMode) -> wgpu::StencilState {
+fn stencil_state(mode: StencilMode) -> wgpu::StencilState {
     wgpu::StencilState {
         front: wgpu::StencilFaceState {
             compare: stencil_compare(mode),

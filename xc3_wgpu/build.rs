@@ -3,28 +3,38 @@ use wgsl_to_wgpu::{create_shader_module_embedded, MatrixVectorTypes, WriteOption
 fn main() {
     let out_dir = std::env::var("OUT_DIR").unwrap();
     write_shader(
+        include_str!("src/shader/blit.wgsl"),
+        "src/shader/blit.wgsl",
+        format!("{out_dir}/blit.rs"),
+    );
+    write_shader(
         include_str!("src/shader/deferred.wgsl"),
         "src/shader/deferred.wgsl",
-        &format!("{out_dir}/deferred.rs"),
+        format!("{out_dir}/deferred.rs"),
     );
     write_shader(
         include_str!("src/shader/model.wgsl"),
         "src/shader/model.wgsl",
-        &format!("{out_dir}/model.rs"),
+        format!("{out_dir}/model.rs"),
     );
     write_shader(
         include_str!("src/shader/morph.wgsl"),
         "src/shader/morph.wgsl",
-        &format!("{out_dir}/morph.rs"),
+        format!("{out_dir}/morph.rs"),
+    );
+    write_shader(
+        include_str!("src/shader/snn_filter.wgsl"),
+        "src/shader/snn_filter.wgsl",
+        format!("{out_dir}/snn_filter.rs"),
     );
     write_shader(
         include_str!("src/shader/unbranch_to_depth.wgsl"),
         "src/shader/unbranch_to_depth.wgsl",
-        &format!("{out_dir}/unbranch_to_depth.rs"),
+        format!("{out_dir}/unbranch_to_depth.rs"),
     );
 }
 
-fn write_shader(wgsl_source: &str, wgsl_path: &str, output_path: &str) {
+fn write_shader(wgsl_source: &str, wgsl_path: &str, output_path: String) {
     println!("cargo:rerun-if-changed={wgsl_path}");
 
     // Generate the Rust bindings and write to a file.

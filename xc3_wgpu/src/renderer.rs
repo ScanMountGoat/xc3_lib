@@ -5,7 +5,10 @@ use wgpu::util::DeviceExt;
 use xc3_lib::mibl::Mibl;
 use xc3_model::ImageTexture;
 
-use crate::{model::ModelGroup, texture::create_texture, COLOR_FORMAT, GBUFFER_COLOR_FORMAT};
+use crate::{
+    model::ModelGroup, texture::create_texture, COLOR_FORMAT, DEPTH_STENCIL_FORMAT,
+    GBUFFER_COLOR_FORMAT,
+};
 
 const MAT_ID_DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth16Unorm;
 
@@ -18,7 +21,6 @@ pub struct Xc3Renderer {
 
     deferred_debug_pipeline: wgpu::RenderPipeline,
     deferred_bind_group0: crate::shader::deferred::bind_groups::BindGroup0,
-    deferred_bind_group1: crate::shader::deferred::bind_groups::BindGroup1,
     debug_settings_buffer: wgpu::Buffer,
 
     deferred_pipelines: [wgpu::RenderPipeline; 6],
@@ -26,15 +28,62 @@ pub struct Xc3Renderer {
 
     render_mode: u32,
 
-    gbuffer: GBuffer,
+    textures: Textures,
 
     morph_pipeline: wgpu::ComputePipeline,
 
     unbranch_to_depth_pipeline: wgpu::RenderPipeline,
-    unbranch_to_depth_bind_group0: crate::shader::unbranch_to_depth::bind_groups::BindGroup0,
-    mat_id_depth_view: wgpu::TextureView,
 
-    depth_view: wgpu::TextureView,
+    snn_filter_pipeline: wgpu::RenderPipeline,
+
+    blit_pipeline: wgpu::RenderPipeline,
+
+    blit_hair_pipeline: wgpu::RenderPipeline,
+}
+
+// Group resizable resources to avoid duplicating this logic.
+pub struct Textures {
+    depth_stencil: wgpu::TextureView,
+    mat_id_depth: wgpu::TextureView,
+    deferred_output: wgpu::TextureView,
+    gbuffer: GBuffer,
+    deferred_bind_group1: crate::shader::deferred::bind_groups::BindGroup1,
+    unbranch_to_depth_bind_group0: crate::shader::unbranch_to_depth::bind_groups::BindGroup0,
+    snn_filter_output: wgpu::TextureView,
+    snn_filter_bind_group0: crate::shader::snn_filter::bind_groups::BindGroup0,
+    blit_deferred_bind_group: crate::shader::blit::bind_groups::BindGroup0,
+    blit_hair_bind_group: crate::shader::blit::bind_groups::BindGroup0,
+}
+
+impl Textures {
+    fn new(device: &wgpu::Device, width: u32, height: u32) -> Self {
+        let depth_view = create_depth_stencil_texture(device, width, height);
+        let mat_id_depth_view = create_mat_id_depth_texture(device, width, height);
+        let gbuffer = create_gbuffer(device, width, height);
+        let deferred_bind_group1 = create_deferred_bind_group1(device, &gbuffer);
+        let unbranch_to_depth_bind_group0 = create_unbranch_to_depth_bindgroup(device, &gbuffer);
+        let deferred_output = create_output_texture(device, "GBuffer Output", width, height);
+
+        let snn_filter_output = create_output_texture(device, "SNN Filter Output", width, height);
+        let snn_filter_bind_group0 =
+            create_snn_filter_bindgroup(device, &gbuffer, &deferred_output);
+
+        let blit_hair_bind_group = create_blit_bindgroup(device, &snn_filter_output);
+        let blit_deferred_bind_group = create_blit_bindgroup(device, &deferred_output);
+
+        Self {
+            depth_stencil: depth_view,
+            mat_id_depth: mat_id_depth_view,
+            deferred_output,
+            gbuffer,
+            deferred_bind_group1,
+            unbranch_to_depth_bind_group0,
+            snn_filter_output,
+            snn_filter_bind_group0,
+            blit_hair_bind_group,
+            blit_deferred_bind_group,
+        }
+    }
 }
 
 pub struct CameraData {
@@ -79,11 +128,6 @@ impl Xc3Renderer {
                 camera: camera_buffer.as_entire_buffer_binding(),
             },
         );
-
-        let depth_view = create_depth_texture(device, width, height);
-
-        let gbuffer = create_gbuffer(device, width, height);
-        let deferred_bind_group1 = create_deferred_bind_group1(device, &gbuffer);
 
         let render_mode = 0;
         let debug_settings_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -138,9 +182,6 @@ impl Xc3Renderer {
         let morph_pipeline = crate::shader::morph::compute::create_main_pipeline(device);
 
         let unbranch_to_depth_pipeline = unbranch_to_depth_pipeline(device);
-        let unbranch_to_depth_bind_group0 = create_unbranch_to_depth_bindgroup(device, &gbuffer);
-
-        let mat_id_depth_view = create_mat_id_depth_texture(device, width, height);
 
         // TODO: These should all be different entry points?
         let deferred_pipelines = [
@@ -154,22 +195,28 @@ impl Xc3Renderer {
 
         let deferred_debug_pipeline = deferred_debug_pipeline(device);
 
+        let snn_filter_pipeline = snn_filter_pipeline(device);
+
+        let blit_pipeline = blit_pipeline(device);
+        let blit_hair_pipeline = blit_hair_pipeline(device);
+
+        let textures = Textures::new(device, width, height);
+
         Self {
             camera_buffer,
             model_bind_group0,
             deferred_pipelines,
             deferred_debug_pipeline,
-            depth_view,
             deferred_bind_group0,
-            deferred_bind_group1,
             deferred_bind_group2,
-            gbuffer,
             debug_settings_buffer,
             morph_pipeline,
             unbranch_to_depth_pipeline,
-            unbranch_to_depth_bind_group0,
-            mat_id_depth_view,
+            textures,
             render_mode,
+            snn_filter_pipeline,
+            blit_pipeline,
+            blit_hair_pipeline,
         }
     }
 
@@ -183,12 +230,12 @@ impl Xc3Renderer {
         // This enables better performance, portability, etc.
         self.compute_morphs(encoder, models);
 
-        // Deferred rendering requires a second forward pass for transparent meshes.
-        // TODO: Research more about how this is implemented in game.
         self.model_pass(encoder, models);
         self.transparent_pass(encoder, models);
         self.unbranch_to_depth_pass(encoder);
-        self.deferred_pass(encoder, output_view);
+        self.deferred_pass(encoder);
+        self.snn_filter_pass(encoder);
+        self.final_pass(encoder, output_view);
     }
 
     pub fn update_camera(&self, queue: &wgpu::Queue, camera_data: &CameraData) {
@@ -205,12 +252,7 @@ impl Xc3Renderer {
 
     pub fn resize(&mut self, device: &wgpu::Device, width: u32, height: u32) {
         // Update each resource that depends on window size.
-        self.depth_view = create_depth_texture(device, width, height);
-        self.mat_id_depth_view = create_mat_id_depth_texture(device, width, height);
-        self.gbuffer = create_gbuffer(device, width, height);
-        self.deferred_bind_group1 = create_deferred_bind_group1(device, &self.gbuffer);
-        self.unbranch_to_depth_bind_group0 =
-            create_unbranch_to_depth_bindgroup(device, &self.gbuffer);
+        self.textures = Textures::new(device, width, height);
     }
 
     pub fn update_debug_settings(&mut self, queue: &wgpu::Queue, render_mode: u32) {
@@ -227,10 +269,10 @@ impl Xc3Renderer {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Model Pass"),
             color_attachments: &[
-                color_attachment(&self.gbuffer.color, wgpu::Color::TRANSPARENT),
-                color_attachment(&self.gbuffer.etc_buffer, wgpu::Color::TRANSPARENT),
+                color_attachment(&self.textures.gbuffer.color, wgpu::Color::TRANSPARENT),
+                color_attachment(&self.textures.gbuffer.etc_buffer, wgpu::Color::TRANSPARENT),
                 color_attachment(
-                    &self.gbuffer.normal,
+                    &self.textures.gbuffer.normal,
                     wgpu::Color {
                         r: 0.5,
                         g: 0.5,
@@ -238,9 +280,9 @@ impl Xc3Renderer {
                         a: 1.0,
                     },
                 ),
-                color_attachment(&self.gbuffer.velocity, wgpu::Color::TRANSPARENT),
+                color_attachment(&self.textures.gbuffer.velocity, wgpu::Color::TRANSPARENT),
                 color_attachment(
-                    &self.gbuffer.depth,
+                    &self.textures.gbuffer.depth,
                     wgpu::Color {
                         r: 1.0,
                         g: 1.0,
@@ -248,10 +290,10 @@ impl Xc3Renderer {
                         a: 0.0,
                     },
                 ),
-                color_attachment(&self.gbuffer.lgt_color, wgpu::Color::TRANSPARENT),
+                color_attachment(&self.textures.gbuffer.lgt_color, wgpu::Color::TRANSPARENT),
             ],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.depth_view,
+                view: &self.textures.depth_stencil,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
                     store: wgpu::StoreOp::Store,
@@ -274,12 +316,14 @@ impl Xc3Renderer {
     }
 
     fn transparent_pass(&self, encoder: &mut wgpu::CommandEncoder, models: &[ModelGroup]) {
+        // Deferred rendering requires a second forward pass for transparent meshes.
         // The transparent pass only writes to the color output.
+        // TODO: Research more about how this is implemented in game.
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Transparent Pass"),
             color_attachments: &[
                 Some(wgpu::RenderPassColorAttachment {
-                    view: &self.gbuffer.color,
+                    view: &self.textures.gbuffer.color,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         // TODO: Does in game actually use load?
@@ -287,23 +331,23 @@ impl Xc3Renderer {
                         store: wgpu::StoreOp::Store,
                     },
                 }),
-                color_attachment_disabled(&self.gbuffer.etc_buffer),
-                color_attachment_disabled(&self.gbuffer.normal),
-                color_attachment_disabled(&self.gbuffer.velocity),
-                color_attachment_disabled(&self.gbuffer.depth),
-                color_attachment_disabled(&self.gbuffer.lgt_color),
+                color_attachment_disabled(&self.textures.gbuffer.etc_buffer),
+                color_attachment_disabled(&self.textures.gbuffer.normal),
+                color_attachment_disabled(&self.textures.gbuffer.velocity),
+                color_attachment_disabled(&self.textures.gbuffer.depth),
+                color_attachment_disabled(&self.textures.gbuffer.lgt_color),
             ],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.depth_view,
+                view: &self.textures.depth_stencil,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Load,
                     // TODO: Write to depth buffer?
                     store: wgpu::StoreOp::Store,
                 }),
-                // TODO: Should this pass ever write to the stencil buffer?
+                // TODO: Does this pass ever write to the stencil buffer?
                 stencil_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Load,
-                    store: wgpu::StoreOp::Discard,
+                    store: wgpu::StoreOp::Store,
                 }),
             }),
             timestamp_writes: None,
@@ -324,7 +368,7 @@ impl Xc3Renderer {
             label: Some("Unbranch to Depth Pass"),
             color_attachments: &[],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.mat_id_depth_view,
+                view: &self.textures.mat_id_depth,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(0.0),
                     store: wgpu::StoreOp::Store,
@@ -340,18 +384,18 @@ impl Xc3Renderer {
         crate::shader::unbranch_to_depth::bind_groups::set_bind_groups(
             &mut render_pass,
             crate::shader::unbranch_to_depth::bind_groups::BindGroups {
-                bind_group0: &self.unbranch_to_depth_bind_group0,
+                bind_group0: &self.textures.unbranch_to_depth_bind_group0,
             },
         );
 
         render_pass.draw(0..3, 0..1);
     }
 
-    fn deferred_pass(&self, encoder: &mut wgpu::CommandEncoder, output_view: &wgpu::TextureView) {
+    fn deferred_pass(&self, encoder: &mut wgpu::CommandEncoder) {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Deferred Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: output_view,
+                view: &self.textures.deferred_output,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
@@ -359,10 +403,10 @@ impl Xc3Renderer {
                 },
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.mat_id_depth_view,
+                view: &self.textures.mat_id_depth,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Load,
-                    store: wgpu::StoreOp::Discard,
+                    store: wgpu::StoreOp::Store,
                 }),
                 stencil_ops: None,
             }),
@@ -383,7 +427,7 @@ impl Xc3Renderer {
                     &mut render_pass,
                     crate::shader::deferred::bind_groups::BindGroups {
                         bind_group0: &self.deferred_bind_group0,
-                        bind_group1: &self.deferred_bind_group1,
+                        bind_group1: &self.textures.deferred_bind_group1,
                         bind_group2,
                     },
                 );
@@ -397,13 +441,112 @@ impl Xc3Renderer {
                 &mut render_pass,
                 crate::shader::deferred::bind_groups::BindGroups {
                     bind_group0: &self.deferred_bind_group0,
-                    bind_group1: &self.deferred_bind_group1,
+                    bind_group1: &self.textures.deferred_bind_group1,
                     bind_group2: &self.deferred_bind_group2[0],
                 },
             );
 
             render_pass.draw(0..3, 0..1);
         }
+    }
+
+    fn snn_filter_pass(&self, encoder: &mut wgpu::CommandEncoder) {
+        // Only enable if not using debug shading.
+        if self.render_mode == 0 {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Hair SNN Filter Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &self.textures.snn_filter_output,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.textures.depth_stencil,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    }),
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+            render_pass.set_pipeline(&self.snn_filter_pipeline);
+
+            render_pass.set_stencil_reference(0x40);
+
+            crate::shader::snn_filter::bind_groups::set_bind_groups(
+                &mut render_pass,
+                crate::shader::snn_filter::bind_groups::BindGroups {
+                    bind_group0: &self.textures.snn_filter_bind_group0,
+                },
+            );
+
+            render_pass.draw(0..3, 0..1);
+        }
+    }
+
+    fn final_pass(&self, encoder: &mut wgpu::CommandEncoder, output_view: &wgpu::TextureView) {
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Final Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: output_view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.textures.depth_stencil,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                }),
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+
+        self.blit_deferred(&mut render_pass);
+        self.blit_snn_filtered_hair(&mut render_pass);
+
+        // TODO: Some eye meshes draw in this pass?
+    }
+
+    fn blit_deferred<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
+        render_pass.set_pipeline(&self.blit_pipeline);
+        render_pass.set_stencil_reference(0x00);
+        crate::shader::blit::bind_groups::set_bind_groups(
+            render_pass,
+            crate::shader::blit::bind_groups::BindGroups {
+                bind_group0: &self.textures.blit_deferred_bind_group,
+            },
+        );
+        render_pass.draw(0..3, 0..1);
+    }
+
+    fn blit_snn_filtered_hair<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
+        render_pass.set_pipeline(&self.blit_hair_pipeline);
+        render_pass.set_stencil_reference(0x40);
+        crate::shader::blit::bind_groups::set_bind_groups(
+            render_pass,
+            crate::shader::blit::bind_groups::BindGroups {
+                bind_group0: &self.textures.blit_hair_bind_group,
+            },
+        );
+        render_pass.draw(0..3, 0..1);
     }
 
     fn compute_morphs(&self, encoder: &mut wgpu::CommandEncoder, models: &[ModelGroup]) {
@@ -518,7 +661,37 @@ fn create_gbuffer_texture(
         .create_view(&wgpu::TextureViewDescriptor::default())
 }
 
-fn create_depth_texture(device: &wgpu::Device, width: u32, height: u32) -> wgpu::TextureView {
+fn create_output_texture(
+    device: &wgpu::Device,
+    label: &str,
+    width: u32,
+    height: u32,
+) -> wgpu::TextureView {
+    // TODO: This uses a higher precision floating point format in game?
+    // TODO: Does this need to support HDR for bloom?
+    device
+        .create_texture(&wgpu::TextureDescriptor {
+            label: Some(label),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: COLOR_FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        })
+        .create_view(&wgpu::TextureViewDescriptor::default())
+}
+
+fn create_depth_stencil_texture(
+    device: &wgpu::Device,
+    width: u32,
+    height: u32,
+) -> wgpu::TextureView {
     let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("depth texture"),
         size: wgpu::Extent3d {
@@ -529,7 +702,7 @@ fn create_depth_texture(device: &wgpu::Device, width: u32, height: u32) -> wgpu:
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: crate::DEPTH_FORMAT,
+        format: DEPTH_STENCIL_FORMAT,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
         view_formats: &[],
     });
@@ -657,4 +830,161 @@ fn unbranch_to_depth_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
     })
+}
+
+// TODO: Create a function for simplifying stencil state creation.
+fn snn_filter_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
+    let module = crate::shader::snn_filter::create_shader_module(device);
+    let render_pipeline_layout = crate::shader::snn_filter::create_pipeline_layout(device);
+
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("SNN Filter Pipeline"),
+        layout: Some(&render_pipeline_layout),
+        vertex: crate::shader::snn_filter::vertex_state(
+            &module,
+            &crate::shader::snn_filter::vs_main_entry(),
+        ),
+        fragment: Some(wgpu::FragmentState {
+            module: &module,
+            entry_point: crate::shader::snn_filter::ENTRY_FS_MAIN,
+            targets: &[Some(wgpu::ColorTargetState {
+                format: COLOR_FORMAT,
+                blend: None,
+                write_mask: wgpu::ColorWrites::all(),
+            })],
+        }),
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: DEPTH_STENCIL_FORMAT,
+            depth_write_enabled: false,
+            depth_compare: wgpu::CompareFunction::Always,
+            stencil: wgpu::StencilState {
+                front: wgpu::StencilFaceState {
+                    compare: wgpu::CompareFunction::Equal,
+                    fail_op: wgpu::StencilOperation::Keep,
+                    depth_fail_op: wgpu::StencilOperation::Keep,
+                    pass_op: wgpu::StencilOperation::Keep,
+                },
+                back: wgpu::StencilFaceState {
+                    compare: wgpu::CompareFunction::Equal,
+                    fail_op: wgpu::StencilOperation::Keep,
+                    depth_fail_op: wgpu::StencilOperation::Keep,
+                    pass_op: wgpu::StencilOperation::Keep,
+                },
+                read_mask: 0x40,
+                write_mask: 0x00,
+            },
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState::default(),
+        multiview: None,
+    })
+}
+
+fn blit_hair_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
+    let module = crate::shader::blit::create_shader_module(device);
+    let render_pipeline_layout = crate::shader::blit::create_pipeline_layout(device);
+
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("Blit Hair Pipeline"),
+        layout: Some(&render_pipeline_layout),
+        vertex: crate::shader::blit::vertex_state(&module, &crate::shader::blit::vs_main_entry()),
+        fragment: Some(wgpu::FragmentState {
+            module: &module,
+            entry_point: crate::shader::blit::ENTRY_FS_MAIN,
+            targets: &[Some(wgpu::ColorTargetState {
+                format: COLOR_FORMAT,
+                blend: None,
+                write_mask: wgpu::ColorWrites::all(),
+            })],
+        }),
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: DEPTH_STENCIL_FORMAT,
+            depth_write_enabled: false,
+            depth_compare: wgpu::CompareFunction::Always,
+            stencil: wgpu::StencilState {
+                front: wgpu::StencilFaceState {
+                    compare: wgpu::CompareFunction::Equal,
+                    fail_op: wgpu::StencilOperation::Keep,
+                    depth_fail_op: wgpu::StencilOperation::Keep,
+                    pass_op: wgpu::StencilOperation::Keep,
+                },
+                back: wgpu::StencilFaceState {
+                    compare: wgpu::CompareFunction::Equal,
+                    fail_op: wgpu::StencilOperation::Keep,
+                    depth_fail_op: wgpu::StencilOperation::Keep,
+                    pass_op: wgpu::StencilOperation::Keep,
+                },
+                read_mask: 0x40,
+                write_mask: 0x00,
+            },
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState::default(),
+        multiview: None,
+    })
+}
+
+fn blit_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
+    let module = crate::shader::blit::create_shader_module(device);
+    let render_pipeline_layout = crate::shader::blit::create_pipeline_layout(device);
+
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("Blit Pipeline"),
+        layout: Some(&render_pipeline_layout),
+        vertex: crate::shader::blit::vertex_state(&module, &crate::shader::blit::vs_main_entry()),
+        fragment: Some(wgpu::FragmentState {
+            module: &module,
+            entry_point: crate::shader::blit::ENTRY_FS_MAIN,
+            targets: &[Some(wgpu::ColorTargetState {
+                format: COLOR_FORMAT,
+                blend: None,
+                write_mask: wgpu::ColorWrites::all(),
+            })],
+        }),
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: DEPTH_STENCIL_FORMAT,
+            depth_write_enabled: false,
+            depth_compare: wgpu::CompareFunction::Always,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState::default(),
+        multiview: None,
+    })
+}
+
+fn create_snn_filter_bindgroup(
+    device: &wgpu::Device,
+    gbuffer: &GBuffer,
+    output: &wgpu::TextureView,
+) -> crate::shader::snn_filter::bind_groups::BindGroup0 {
+    let shared_sampler = device.create_sampler(&wgpu::SamplerDescriptor::default());
+
+    // This uses the deferred pass output instead of the GBuffer color texture.
+    crate::shader::snn_filter::bind_groups::BindGroup0::from_bindings(
+        device,
+        crate::shader::snn_filter::bind_groups::BindGroupLayout0 {
+            g_color: output,
+            g_depth: &gbuffer.depth,
+            shared_sampler: &shared_sampler,
+        },
+    )
+}
+
+fn create_blit_bindgroup(
+    device: &wgpu::Device,
+    input: &wgpu::TextureView,
+) -> crate::shader::blit::bind_groups::BindGroup0 {
+    let sampler = device.create_sampler(&wgpu::SamplerDescriptor::default());
+
+    crate::shader::blit::bind_groups::BindGroup0::from_bindings(
+        device,
+        crate::shader::blit::bind_groups::BindGroupLayout0 {
+            color: input,
+            color_sampler: &sampler,
+        },
+    )
 }

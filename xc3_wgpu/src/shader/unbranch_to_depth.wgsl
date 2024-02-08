@@ -26,7 +26,7 @@ struct FragmentOutput {
 }
 
 @fragment
-fn fs_main(in: VertexOutput) -> FragmentOutput {
+fn fs_main(in: VertexOutput) -> @builtin(frag_depth) f32 {
     // Adapted from "unbranch_to_depth" in xeno3/monolib/shader/shd_post.
     // Extract the material ID from the first 3 bits.
     let g_etc_buffer = textureSample(g_etc_buffer, shared_sampler, in.uv);
@@ -34,12 +34,11 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
 
     // Assume a Depth16 output format.
     // This creates an ID mask to use with depth function equals.
-    var output: FragmentOutput;
-    output.depth = (f32(mat_id) + 1.0) / 65535.0;
+    var depth = (f32(mat_id) + 1.0) / 65535.0;
     // Avoid writing depth to unused fragments.
     // TODO: The in game check uses the model depth buffer.
     if g_etc_buffer.a == 0.0 {
-        output.depth = 0.0;
+        depth = 0.0;
     }
-    return output;
+    return depth;
 }
