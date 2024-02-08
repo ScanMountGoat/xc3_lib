@@ -10,10 +10,14 @@ use xc3_lib::{
 pub use xc3_lib::mibl::{ImageFormat, ViewDimension};
 pub use xc3_lib::mxmd::TextureUsage;
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug)]
 pub enum ExtractedTextures {
     Switch(Vec<ExtractedTexture<Mibl>>),
-    Pc(Vec<ExtractedTexture<Dds>>),
+    Pc(
+        #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_dds_textures))]
+        Vec<ExtractedTexture<Dds>>,
+    ),
 }
 
 #[derive(Debug, Error)]
@@ -35,6 +39,7 @@ pub enum CreateImageTextureError {
 }
 
 /// A non swizzled version of an [Mibl] texture.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct ImageTexture {
     /// An optional name assigned to some textures.
@@ -185,4 +190,12 @@ pub fn load_textures(
             })
             .collect(),
     }
+}
+
+#[cfg(feature = "arbitrary")]
+fn arbitrary_dds_textures(
+    u: &mut arbitrary::Unstructured,
+) -> arbitrary::Result<Vec<ExtractedTexture<Dds>>> {
+    // TODO: Generate random DDS files?
+    Ok(Vec::new())
 }

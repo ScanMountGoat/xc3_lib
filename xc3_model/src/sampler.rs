@@ -1,4 +1,5 @@
 /// See [SamplerFlags](xc3_lib::mxmd::SamplerFlags).
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone, Eq)]
 pub struct Sampler {
     /// Addressing for the U or S texture coordinate.
@@ -14,6 +15,7 @@ pub struct Sampler {
 }
 
 /// Texel mixing mode when sampling between texels.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum FilterMode {
     Nearest,
@@ -21,6 +23,7 @@ pub enum FilterMode {
 }
 
 /// How edges should be handled in texture addressing.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum AddressMode {
     ClampToEdge,

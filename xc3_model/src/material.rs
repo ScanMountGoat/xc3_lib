@@ -7,6 +7,7 @@ use crate::{
 };
 
 /// See [Material](xc3_lib::mxmd::Material) and [FoliageMaterial](xc3_lib::map::FoliageMaterial).
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct Material {
     pub name: String,
@@ -26,6 +27,7 @@ pub struct Material {
 }
 
 /// Information for alpha testing based on sampled texture values.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct TextureAlphaTest {
     /// The texture in [textures](struct.Material.html#structfield.textures) used for alpha testing.
@@ -37,6 +39,7 @@ pub struct TextureAlphaTest {
 }
 
 /// Values assigned to known shader uniforms or `None` if not present.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct MaterialParameters {
     pub mat_color: [f32; 4],
@@ -60,6 +63,7 @@ impl Default for MaterialParameters {
 }
 
 /// Selects an [ImageTexture] and [Sampler](crate::Sampler).
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Texture {
     /// The index of the [ImageTexture] in [image_textures](struct.ModelRoot.html#structfield.image_textures).

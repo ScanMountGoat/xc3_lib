@@ -5,6 +5,7 @@ use crate::{parse_count32_offset32, parse_offset32_count32};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 /// `monolib/shader/filterlut.wiltp` for Xenoblade 3.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(magic(b"LTPC"))]
 #[xc3(magic(b"LTPC"))]
@@ -20,6 +21,7 @@ pub struct Ltpc {
     pub unk: [u32; 6],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Texture {
     // TODO: Support alignment constants.

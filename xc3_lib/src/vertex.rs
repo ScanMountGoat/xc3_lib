@@ -57,6 +57,7 @@ use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 /// Vertex and vertex index buffer data used by a [Model](crate::mxmd::Model).
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
@@ -114,6 +115,7 @@ pub struct VertexData {
     pub unks: [u32; 5],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Eq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct VertexBufferDescriptor {
@@ -137,6 +139,7 @@ pub struct VertexBufferDescriptor {
 ///
 /// Attributes are tightly packed, so the relative offset is
 /// the sum of previous attribute sizes.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Eq, Clone, Copy)]
 pub struct VertexAttribute {
     pub data_type: DataType,
@@ -147,6 +150,7 @@ pub struct VertexAttribute {
 // Format is taken from RenderDoc debugging.
 // Names are taken from shader attribute metadata.
 /// The data type, usage, and component count for a [VertexAttribute].
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy)]
 #[brw(repr(u16))]
 pub enum DataType {
@@ -225,6 +229,7 @@ pub enum DataType {
 }
 
 // TODO: Is this data always u16?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Eq, Clone)]
 pub struct IndexBufferDescriptor {
     /// The offset into [buffer](struct.VertexData.html#structfield.buffer).
@@ -237,6 +242,7 @@ pub struct IndexBufferDescriptor {
     pub unk4: u32,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy)]
 #[brw(repr(u16))]
 pub enum Unk1 {
@@ -244,6 +250,7 @@ pub enum Unk1 {
     Unk3 = 3,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy)]
 #[brw(repr(u16))]
 pub enum Unk2 {
@@ -251,6 +258,7 @@ pub enum Unk2 {
 }
 
 /// Vertex animation data often called "vertex morphs", "shape keys", or "blend shapes".
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct VertexMorphs {
     #[br(parse_with = parse_count32_offset32)]
@@ -270,6 +278,7 @@ pub struct VertexMorphs {
 /// Each buffer has a blend target and default target followed by param targets.
 /// This means the actual target count is two more than
 /// the length of [param_indices](#structfield.param_indices).
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct MorphDescriptor {
     pub vertex_buffer_index: u32,
@@ -287,6 +296,7 @@ pub struct MorphDescriptor {
 
 // TODO: vertex attributes for vertex animation data?
 /// A set of target vertex values similar to a keyframe in traditional animations.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
 pub struct MorphTarget {
     /// Relative to [data_base_offset](struct.ModelData.html#structfield.data_base_offset)
@@ -298,6 +308,7 @@ pub struct MorphTarget {
 }
 
 #[bitsize(32)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(DebugBits, FromBits, BinRead, BinWrite, Clone, Copy, PartialEq)]
 #[br(map = u32::into)]
 #[bw(map = |&x| u32::from(x))]
@@ -311,6 +322,7 @@ pub struct MorphTargetFlags {
 
 /// Information used for precomputing skinning matrices
 /// based on a mesh's level of detail (LOD) and [RenderPassType](crate::mxmd::RenderPassType).
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Weights {
     /// Selected based on the associated [WeightLod] for a [Mesh](crate::mxmd::Mesh).
@@ -338,6 +350,7 @@ pub struct Weights {
 /// select a range of [DataType::BoneIndices] and [DataType::SkinWeights] from the weights buffer.
 /// The bone matrices for each bone index multiplied by the weights are written to the output buffer starting at [output_start_index](#structfield.output_start_index).
 /// This precomputed skinning buffer is used to select transforms in the vertex shader using [DataType::WeightIndex].
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct WeightGroup {
     /// Index into the skinning buffer used in the vertex shader with bone transforms multiplied by skin weights.
@@ -364,6 +377,7 @@ pub struct WeightGroup {
 // TODO: The material's pass index indexes into this?
 // TODO: Figure out by finding files with no more groups than pass ids?
 /// References to [WeightGroup] for each of the [RenderPassType](crate::mxmd::RenderPassType).
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct WeightLod {
     /// One plus the indices pointing back to [groups](struct.Weights.html#structfield.groups).
@@ -376,6 +390,7 @@ pub struct WeightLod {
 }
 
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
@@ -398,6 +413,7 @@ pub struct Unk {
 }
 
 // TODO: each element is 24 bytes?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct UnkBufferDescriptor {
     pub unk1: u16,
@@ -410,6 +426,7 @@ pub struct UnkBufferDescriptor {
 }
 
 /// Extra data assigned to a non skin weights buffer.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct VertexBufferExtInfo {
     pub flags: VertexBufferExtInfoFlags,
@@ -427,6 +444,7 @@ pub struct VertexBufferExtInfo {
 }
 
 #[bitsize(16)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(DebugBits, FromBits, BinRead, BinWrite, Clone, Copy, PartialEq)]
 #[br(map = u16::into)]
 #[bw(map = |&x| u16::from(x))]
@@ -436,6 +454,7 @@ pub struct VertexBufferExtInfoFlags {
     pub unk: u14,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct OutlineBufferDescriptor {
     /// The offset into [buffer](struct.VertexData.html#structfield.buffer).
@@ -447,6 +466,7 @@ pub struct OutlineBufferDescriptor {
     pub unk: u32,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct UnkData {
     pub unk: [u32; 17],

@@ -22,6 +22,7 @@ use xc3_write::{write_full, Xc3Write, Xc3WriteOffsets};
 use crate::{error::DecompressStreamError, hash::hash_crc};
 
 /// A compressed container for a single file or stream.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
 #[brw(magic(b"xbc1"))]
 pub struct Xbc1 {
@@ -127,6 +128,7 @@ impl Xc3Write for Xbc1 {
 }
 
 /// Helper type for reading data that may be compressed in an [Xbc1] archive.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(BinRead)]
 pub enum MaybeXbc1<T>
 where

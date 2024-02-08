@@ -36,6 +36,7 @@ pub use tegra_swizzle::SwizzleError;
 use crate::xc3_write_binwrite_impl;
 
 /// A swizzled image texture surface.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Mibl {
     /// The combined swizzled image surface data.
@@ -50,6 +51,7 @@ const MIBL_FOOTER_SIZE: u64 = 40;
 
 /// A description of the image surface.
 #[binrw]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct MiblFooter {
     /// The size of [image_data](struct.Mibl.html#structfield.image_data)
@@ -76,6 +78,7 @@ pub struct MiblFooter {
     _magic: (),
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(BinRead, BinWrite, Debug, Clone, Copy, PartialEq, Eq)]
 #[brw(repr(u32))]
 pub enum ViewDimension {
@@ -85,6 +88,7 @@ pub enum ViewDimension {
 }
 
 /// nvn image format types used by Xenoblade 1 DE, Xenoblade 2, and Xenoblade 3.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(BinRead, BinWrite, Debug, Clone, Copy, PartialEq, Eq)]
 #[brw(repr(u32))]
 pub enum ImageFormat {

@@ -15,6 +15,7 @@ use xc3_write::{VecOffsets, Xc3Write, Xc3WriteOffsets};
 // TODO: Add example code for extracting shaders.
 /// .wishp, embedded in .wismt and .wimdo
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(magic(b"HCPS"))]
 #[xc3(magic(b"HCPS"))]
@@ -70,6 +71,7 @@ pub struct Spch {
     pub padding: [u32; 4],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, PartialEq, Clone)]
 #[br(import { base_offset: u64, count: usize })]
 pub struct StringSection {
@@ -77,6 +79,7 @@ pub struct StringSection {
     pub program_names: Vec<StringOffset>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct StringOffset {
@@ -85,6 +88,7 @@ pub struct StringOffset {
     pub name: String,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct SlctOffset {
     /// The offset into [slct_section](struct.Spch.html#structfield.slct_section) for the [Slct].
@@ -93,6 +97,7 @@ pub struct SlctOffset {
     pub unk1: u32,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Unk4 {
     pub unk1: u32,
@@ -101,6 +106,7 @@ pub struct Unk4 {
 }
 
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug)]
 #[br(magic(b"SLCT"))]
 #[br(stream = r)]
@@ -136,6 +142,7 @@ pub struct Slct {
     pub unks1: [u32; 4],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(BinRead, Debug)]
 pub struct UnkString {
     pub unk1: u32,
@@ -144,6 +151,7 @@ pub struct UnkString {
     pub text: String,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(BinRead, Debug)]
 pub struct ShaderProgram {
     /// Raw data for [Nvsd] for Switch files and [Nvsp] for PC files.
@@ -151,6 +159,7 @@ pub struct ShaderProgram {
     pub program_data: Vec<u8>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Default)]
 pub struct Nvsd {
     pub unks2: [u32; 6],
@@ -216,6 +225,7 @@ pub struct Nvsd {
 }
 
 // TODO: add read method to slct?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(BinRead, Debug)]
 pub struct UnkItem {
     pub unk1: u32,
@@ -240,6 +250,7 @@ pub struct UnkItem {
 }
 
 // TODO: Does anything actually point to the nvsd magic?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(BinRead, Debug)]
 pub struct NvsdShaders {
     pub unk6: u32, // 1
@@ -254,6 +265,7 @@ pub struct NvsdShaders {
 }
 
 // TODO: CBuffer?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(BinRead, Debug)]
 pub struct UniformBuffer {
     #[br(parse_with = parse_string_ptr32)]
@@ -266,12 +278,14 @@ pub struct UniformBuffer {
 }
 
 // TODO: is this used for all handle fields?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(BinRead, Debug)]
 pub struct Handle {
     pub handle: u8,
     pub visibility: Visibility,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(BinRead, Debug)]
 #[br(repr(u8))]
 pub enum Visibility {
@@ -280,6 +294,7 @@ pub enum Visibility {
     VertexFragment = 2,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(BinRead, Debug)]
 pub struct Sampler {
     #[br(parse_with = parse_string_ptr32)]
@@ -291,6 +306,7 @@ pub struct Sampler {
 }
 
 /// A `vec4` parameter in a [UniformBuffer].
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(BinRead, Debug, PartialEq, Clone)]
 pub struct Uniform {
     /// The name used to refer to the uniform like `gMatCol`.
@@ -302,6 +318,7 @@ pub struct Uniform {
     pub buffer_offset: u32,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(BinRead, Debug)]
 pub struct InputAttribute {
     #[br(parse_with = parse_string_ptr32)]
@@ -311,6 +328,7 @@ pub struct InputAttribute {
 
 // TODO: This still has the 256 byte constant buffer at the end of the file?
 // TODO: Does anything actually point to the NVSP magic?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Default)]
 pub struct Nvsp {
     /// GLSL shader source compressed with ZLF compression.

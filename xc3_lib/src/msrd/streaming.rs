@@ -15,6 +15,7 @@ use super::*;
 
 // TODO: Add a function to create an extractedtexture from a surface?
 /// All the mip levels and metadata for an [Mibl] (Switch) or [Dds] (PC) texture.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug)]
 pub struct ExtractedTexture<T> {
     pub name: String,
@@ -24,6 +25,7 @@ pub struct ExtractedTexture<T> {
 }
 
 /// An additional texture that replaces the low resolution texture.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Clone)]
 pub struct HighTexture<T> {
     pub mid: T,
@@ -56,6 +58,8 @@ impl ExtractedTexture<Mibl> {
 }
 
 /// `chr/tex/nx` stream files for a single texture.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ChrTextureStreams {
     /// The texture hash used for the file name.
     pub hash: u32,

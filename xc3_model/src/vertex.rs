@@ -20,7 +20,11 @@ use xc3_lib::vertex::{
 
 use crate::{skinning::SkinWeights, Weights};
 
+#[cfg(feature = "arbitrary")]
+use crate::{arbitrary_vec2s, arbitrary_vec3s, arbitrary_vec4s};
+
 /// See [VertexData].
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct ModelBuffers {
     pub vertex_buffers: Vec<VertexBuffer>,
@@ -31,6 +35,7 @@ pub struct ModelBuffers {
 }
 
 /// See [VertexBufferDescriptor].
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct VertexBuffer {
     pub attributes: Vec<AttributeData>,
@@ -43,32 +48,42 @@ pub struct VertexBuffer {
 /// Morph target attributes defined as a difference or deformation from the base target.
 ///
 /// The final attribute values are simply `base + target * weight`.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct MorphTarget {
     // TODO: add names from mxmd?
     // TODO: Add a method with tests to blend with base target?
+    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3s))]
     pub position_deltas: Vec<Vec3>,
+
     // TODO: Exclude the 4th sign component?
+    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))]
     pub normal_deltas: Vec<Vec4>,
+
+    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))]
     pub tangent_deltas: Vec<Vec4>,
+
     /// The index of the vertex affected by each offset deltas.
     // TODO: method to convert to a non sparse format?
     pub vertex_indices: Vec<u32>,
 }
 
 /// See [OutlineBufferDescriptor].
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct OutlineBuffer {
     pub attributes: Vec<AttributeData>,
 }
 
 /// See [UnkBufferDescriptor].
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct UnkBuffer {
     pub attributes: Vec<AttributeData>,
 }
 
 /// See [IndexBufferDescriptor].
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct IndexBuffer {
     // TODO: support u32?
@@ -85,56 +100,57 @@ impl VertexBuffer {
 // TODO: Add an option to convert a collection of these to the vertex above?
 // TODO: How to handle normalized attributes?
 // TODO: Link to appropriate xc3_lib types and fields.
-/// The per vertex values for a vertex attribute.
+/// Per vertex values for a vertex attribute.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub enum AttributeData {
     /// Data for [DataType::Position].
-    Position(Vec<Vec3>),
+    Position(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3s))] Vec<Vec3>),
 
     /// Data for [DataType::Normal] or [DataType::Normal2].
-    Normal(Vec<Vec4>),
+    Normal(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
 
     /// Data for [DataType::Tangent].
-    Tangent(Vec<Vec4>),
+    Tangent(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
 
     /// Data for [DataType::TexCoord0].
-    TexCoord0(Vec<Vec2>),
+    TexCoord0(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec2s))] Vec<Vec2>),
 
     /// Data for [DataType::TexCoord1].
-    TexCoord1(Vec<Vec2>),
+    TexCoord1(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec2s))] Vec<Vec2>),
 
     /// Data for [DataType::TexCoord2].
-    TexCoord2(Vec<Vec2>),
+    TexCoord2(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec2s))] Vec<Vec2>),
 
     /// Data for [DataType::TexCoord3].
-    TexCoord3(Vec<Vec2>),
+    TexCoord3(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec2s))] Vec<Vec2>),
 
     /// Data for [DataType::TexCoord4].
-    TexCoord4(Vec<Vec2>),
+    TexCoord4(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec2s))] Vec<Vec2>),
 
     /// Data for [DataType::TexCoord5].
-    TexCoord5(Vec<Vec2>),
+    TexCoord5(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec2s))] Vec<Vec2>),
 
     /// Data for [DataType::TexCoord6].
-    TexCoord6(Vec<Vec2>),
+    TexCoord6(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec2s))] Vec<Vec2>),
 
     /// Data for [DataType::TexCoord7].
-    TexCoord7(Vec<Vec2>),
+    TexCoord7(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec2s))] Vec<Vec2>),
 
     /// Data for [DataType::TexCoord8].
-    TexCoord8(Vec<Vec2>),
+    TexCoord8(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec2s))] Vec<Vec2>),
 
     /// Data for [DataType::VertexColor].
-    VertexColor(Vec<Vec4>),
+    VertexColor(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
 
     /// Data for [DataType::Blend].
-    Blend(Vec<Vec4>),
+    Blend(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
 
     /// Data for [DataType::WeightIndex].
     WeightIndex(Vec<u32>), // TODO: [u16; 2]?
 
     /// Data for [DataType::SkinWeights].
-    SkinWeights(Vec<Vec4>),
+    SkinWeights(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
 
     /// Data for [DataType::BoneIndices].
     BoneIndices(Vec<[u8; 4]>),

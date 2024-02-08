@@ -16,6 +16,7 @@ use crate::{
 // TODO: Improve docs.
 // TODO: Link to appropriate stream field with doc links.
 /// The data for a [PropModel](crate::msmd::PropModel).
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PropModelData {
     pub unk1: [u32; 3],
@@ -71,6 +72,7 @@ pub struct PropModelData {
 // Similar to LOD data in mxmd?
 // TODO: Better names for these types
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
@@ -116,6 +118,7 @@ pub struct PropLods {
     pub static_parts_count: u32,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PropLod {
     // TODO: Do these actually index into the PropModelLod?
@@ -127,6 +130,7 @@ pub struct PropLod {
     pub lod_count: u32,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PropModelLod {
     pub radius: f32,
@@ -135,6 +139,7 @@ pub struct PropModelLod {
     pub index: u32,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PropInstance {
     /// The transform of the instance as a 4x4 column-major matrix.
@@ -158,12 +163,14 @@ pub struct PropInstance {
     pub unks: [u32; 2],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PropUnk3 {
     pub unk1: [f32; 5],
     pub unk2: [u32; 3],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PropPositionInfo {
     /// Index into [prop_positions](../msmd/struct.Msmd.html#structfield.prop_positions).
@@ -175,6 +182,7 @@ pub struct PropPositionInfo {
 
 // TODO: Link to appropriate stream field with doc links.
 /// The data for a [MapModel](crate::msmd::MapModel).
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct MapModelData {
     pub unk1: [u32; 3],
@@ -211,6 +219,7 @@ pub struct MapModelData {
 }
 
 // TODO: Shared with other formats?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Texture {
     /// Index into [textures](../msmd/struct.LowTextures.html#structfield.textures)
@@ -224,6 +233,7 @@ pub struct Texture {
 }
 
 #[bitsize(16)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(DebugBits, FromBits, BinRead, BinWrite, PartialEq, Clone, Copy)]
 #[br(map = u16::into)]
 #[bw(map = |&x| u16::from(x))]
@@ -235,6 +245,7 @@ pub struct TextureFlags {
 
 // TODO: What to call this?
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
@@ -254,6 +265,7 @@ pub struct MapModelGroups {
 }
 
 // Groups?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct MapModelGroup {
     pub max_xyz: [f32; 3],
@@ -269,6 +281,7 @@ pub struct MapModelGroup {
 
 // TODO: Link to appropriate fields with doc links.
 /// The data for a [EnvModel](crate::msmd::EnvModel).
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct EnvModelData {
     #[br(parse_with = parse_ptr32)]
@@ -301,6 +314,7 @@ pub struct EnvModelData {
 
 // TODO: Link to appropriate fields with doc links.
 /// The data for a [FoliageModel](crate::msmd::FoliageModel).
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct FoliageModelData {
     #[br(parse_with = parse_ptr32)]
@@ -325,6 +339,7 @@ pub struct FoliageModelData {
 }
 
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
@@ -343,6 +358,7 @@ pub struct FoliageMaterials {
     pub unk5: u32,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct FoliageMaterial {
@@ -366,6 +382,7 @@ pub struct FoliageMaterial {
     pub unk14: u16,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct FoliageVertexData {
     #[br(parse_with = parse_count32_offset32)]
@@ -381,12 +398,14 @@ pub struct FoliageVertexData {
     pub unks: [u32; 7],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct FoliageVertex1 {
     pub unk1: [f32; 3],
     pub unk2: [u8; 4],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct FoliageVertex2 {
     pub unk1: [f32; 4],
@@ -396,6 +415,7 @@ pub struct FoliageVertex2 {
     pub unk5: u32,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct FoliageUnkData {
     pub unk1: [u32; 9], // length of the file repeated?
@@ -406,6 +426,7 @@ pub struct FoliageUnkData {
 
 /// The data for a [MapLowModel](crate::msmd::MapLowModel).
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct MapLowModelData {
     pub unk1: u32,
@@ -434,6 +455,7 @@ pub struct MapLowModelData {
     // TODO: more fields?
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PropPositions {
     #[br(parse_with = parse_count32_offset32)]
@@ -457,6 +479,7 @@ pub struct PropPositions {
     // TODO: more fields?
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct RenderNode {
     pub center: [f32; 3],

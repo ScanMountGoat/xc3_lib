@@ -47,6 +47,7 @@ pub mod streaming;
 
 // TODO: how to set the xbc1 offsets when repacking the msrd?
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(magic(b"DRSM"))]
 #[xc3(magic(b"DRSM"))]
@@ -69,6 +70,7 @@ pub struct Msrd {
 }
 
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
@@ -80,6 +82,7 @@ pub struct Streaming {
     pub inner: StreamingInner,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub enum StreamingInner {
@@ -94,6 +97,7 @@ pub enum StreamingInner {
 
 /// Legacy streaming format that does not use [Msrd] for the `.wismt` file.
 /// This type only appears in [Mxmd](crate::mxmd::Mxmd).
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct StreamingDataLegacy {
@@ -132,6 +136,7 @@ pub struct StreamingDataLegacy {
 }
 
 /// Flags indicating the way data is stored in the model's `.wismt` file.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
 #[brw(repr(u32))]
 pub enum StreamingFlagsLegacy {
@@ -142,6 +147,7 @@ pub enum StreamingFlagsLegacy {
 // TODO: Variable padding of 0 or 16 bytes?
 // 76 (xc1, xc2, xc3) or 92 (xc3) bytes.
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct StreamingData {
@@ -186,6 +192,7 @@ pub struct StreamingData {
 
 // TODO: Better name?
 // TODO: Always identical to mxmf?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 #[br(import { base_offset: u64, size: u32 })]
 pub struct TextureResources {
@@ -217,6 +224,7 @@ pub struct TextureResources {
     pub unk: [u32; 2],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct ChrTexTextures {
@@ -231,6 +239,7 @@ pub struct ChrTexTextures {
 /// A texture file in `xeno3/chr/tex/nx/m` with a base mipmap in `xeno3/chr/tex/nx/h`.
 ///
 /// The texture [Mibl](crate::mibl) and base mip bytes both use [Xbc1] archives.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct ChrTexTexture {
     // TODO: The texture name hash as an integer?
@@ -250,6 +259,7 @@ pub struct ChrTexTexture {
 }
 
 /// A file contained in a [Stream].
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone)]
 pub struct StreamEntry {
     /// The offset in bytes for the decompressed data range in the stream.
@@ -268,6 +278,7 @@ pub struct StreamEntry {
 
 /// Flags indicating what stream data is present.
 #[bitsize(32)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(DebugBits, FromBits, BinRead, BinWrite, PartialEq, Eq, Clone, Copy)]
 #[br(map = u32::into)]
 #[bw(map = |&x| u32::from(x))]
@@ -294,6 +305,7 @@ pub struct StreamFlags {
 }
 
 /// The type of data for a [StreamEntry].
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy)]
 #[brw(repr(u16))]
 pub enum EntryType {
@@ -308,6 +320,7 @@ pub enum EntryType {
 }
 
 /// A compressed [Xbc1] stream with items determined by [StreamEntry].
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Stream {
     /// The size of the [Xbc1], including its header.

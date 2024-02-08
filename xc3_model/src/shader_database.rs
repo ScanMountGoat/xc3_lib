@@ -65,6 +65,7 @@ pub struct ShaderProgram {
 ///
 /// This assumes inputs are assigned directly to outputs without any modifications.
 /// Fragment shaders typically only perform basic input and channel selection in practice.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Shader {

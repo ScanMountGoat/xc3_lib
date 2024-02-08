@@ -10,6 +10,7 @@ use binrw::{BinRead, BinReaderExt, BinResult, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 /// A packed model container with entries like [Mxmd] or [Gibl].
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(magic(b"DMPA"))]
 #[xc3(magic(b"DMPA"))]
@@ -25,6 +26,7 @@ pub struct Apmd {
     pub unk: [u32; 8],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Entry {
     pub entry_type: EntryType,
@@ -33,6 +35,7 @@ pub struct Entry {
     pub entry_data: Vec<u8>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy)]
 #[brw(repr(u32))]
 pub enum EntryType {
@@ -44,6 +47,7 @@ pub enum EntryType {
     Dlgt2 = 6,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug)]
 pub enum EntryData {
     Mxmd(Mxmd),

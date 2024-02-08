@@ -4,6 +4,7 @@ use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 use super::{BcList, StringOffset, StringSection, Transform};
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(magic(b"SKEL"))]
 #[xc3(magic(b"SKEL"))]
@@ -15,7 +16,9 @@ pub struct Skel {
 
 // TODO: variable size?
 // 160, 192, 224, 240
+
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
 pub struct Skeleton {
@@ -73,7 +76,8 @@ pub struct Skeleton {
 }
 
 // TODO: Make this an option instead?
-// Up to 80 bytes of optional data for XC3.
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))] // Up to 80 bytes of optional data for XC3.
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(size: u64))]
 pub enum SkeletonExtra {
@@ -90,7 +94,7 @@ pub enum SkeletonExtra {
     Unk3(SkeletonExtraUnk3),
 }
 
-// TODO: Fix writing.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))] // TODO: Fix writing.
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct SkeletonExtraUnk1 {
     #[br(parse_with = parse_opt_ptr64)]
@@ -106,6 +110,7 @@ pub struct SkeletonExtraUnk1 {
     pub unk8: Option<SkeletonUnk8>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct SkeletonExtraUnk2 {
     #[br(parse_with = parse_opt_ptr64)]
@@ -136,6 +141,7 @@ pub struct SkeletonExtraUnk2 {
     pub unk3: i64,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct SkeletonExtraUnk3 {
     #[br(parse_with = parse_opt_ptr64)]
@@ -174,6 +180,7 @@ pub struct SkeletonExtraUnk3 {
     pub unk3: i64,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct SkeletonLabel {
     pub bone_type: u32, // enum?
@@ -181,6 +188,7 @@ pub struct SkeletonLabel {
     pub bone_index: u16,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct BoneName {
     #[br(parse_with = parse_string_ptr64)]
@@ -191,6 +199,7 @@ pub struct BoneName {
     pub unk: [u32; 2],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct SkeletonExtraTrackSlot {
     #[br(parse_with = parse_string_ptr64)]
@@ -207,6 +216,7 @@ pub struct SkeletonExtraTrackSlot {
     pub unk1_1: i32, // -1
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct SkeletonUnk6 {
     pub unk1: BcList<u8>,
@@ -221,6 +231,7 @@ pub struct SkeletonUnk6 {
     pub unk3: Vec<u32>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct SkeletonUnk6Unk1 {
     pub unk1: BcList<u8>,
@@ -231,6 +242,7 @@ pub struct SkeletonUnk6Unk1 {
     pub unk2_1: i32, // -1
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct SkeletonUnk7 {
     pub unk1: BcList<u8>,
@@ -246,6 +258,7 @@ pub struct SkeletonUnk7 {
     pub unk3: Vec<u32>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct SkeletonUnk8 {
     #[br(parse_with = parse_offset64_count32)]
@@ -253,6 +266,7 @@ pub struct SkeletonUnk8 {
     pub unk1: Vec<u32>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct SkeletonUnk9 {
     // TODO: type?
@@ -264,12 +278,14 @@ pub struct SkeletonUnk9 {
     pub unk2: Vec<u64>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct SkeletonUnk10 {
     // TODO: type?
     pub unk1: [u32; 8],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct SkeletonUnk11 {
     #[br(parse_with = parse_offset64_count32)]
@@ -277,6 +293,7 @@ pub struct SkeletonUnk11 {
     pub unk1: Vec<u8>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct SkeletonUnk12 {
     #[br(parse_with = parse_offset64_count32)]
@@ -284,6 +301,7 @@ pub struct SkeletonUnk12 {
     pub unk1: Vec<u16>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct SkeletonUnk13 {
     pub unk1: BcList<[f32; 4]>,

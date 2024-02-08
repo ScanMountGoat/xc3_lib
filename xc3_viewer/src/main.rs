@@ -114,7 +114,7 @@ impl<'a> State<'a> {
             .parent()
             .unwrap()
             .join("monolib/shader");
-        let renderer = Xc3Renderer::new(&device, &queue, size.width, size.height, &monolib_shader);
+        let renderer = Xc3Renderer::new(&device, &queue, size.width, size.height, monolib_shader);
 
         // Initialize the camera transform.
         let translation = vec3(0.0, -0.5, -15.0);

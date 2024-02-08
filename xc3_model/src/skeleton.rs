@@ -1,8 +1,12 @@
 use glam::{vec3, Mat4, Quat};
 use log::warn;
 
+#[cfg(feature = "arbitrary")]
+use crate::arbitrary_mat4;
+
 /// See [Skeleton](xc3_lib::bc::skel::Skeleton) and [Skinning](xc3_lib::mxmd::Skinning).
 // TODO: Assume bones appear after their parents?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct Skeleton {
     /// The hierarchy of bones in the skeleton.
@@ -10,11 +14,13 @@ pub struct Skeleton {
 }
 
 /// A single node in the skeleton heirarchy.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct Bone {
     /// The name used by some animations to identify this bone.
     pub name: String,
     /// The local transform of the bone relative to its parent.
+    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_mat4))]
     pub transform: Mat4,
     /// The index of the parent [Bone] in [bones](struct.Skeleton.html#structfield.bones)
     /// or `None` if this is a root bone.

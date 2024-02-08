@@ -18,6 +18,7 @@ use binrw::{binread, BinRead, BinReaderExt, BinResult, NullString};
 use xc3_write::{write_full, Xc3Write, Xc3WriteOffsets};
 
 /// A simple archive containing named entries.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 #[br(magic(b"1RAS"))]
 #[xc3(magic(b"1RAS"))]
@@ -42,6 +43,7 @@ pub struct Sar1 {
     pub name: String,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Entry {
     #[br(parse_with = parse_offset32_count32)]
@@ -89,6 +91,7 @@ impl Entry {
 }
 
 // character collision?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(magic(b"CHCL"))]
 #[xc3(magic(b"CHCL"))]
@@ -105,6 +108,7 @@ pub struct ChCl {
     pub unks: [u32; 10],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct ChClInner {
     #[br(parse_with = parse_offset32_count32)]
@@ -139,6 +143,7 @@ pub struct ChClInner {
     pub unks: [u32; 4],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct ChClUnk2 {
     pub unk1: [[f32; 4]; 4],
@@ -149,6 +154,7 @@ pub struct ChClUnk2 {
     pub name: String,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct ChClUnk7 {
     pub unk1: [[f32; 4]; 3],
@@ -156,6 +162,7 @@ pub struct ChClUnk7 {
 }
 
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets)]
 #[br(stream = r)]
 #[br(magic(b"IDCM"))]
@@ -210,6 +217,7 @@ pub struct Idcm {
 
 // TODO: Is the padding always aligned?
 // "effpnt" or "effect" "point"?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(magic(b"CSVB"))]
 #[xc3(magic(b"CSVB"))]
@@ -234,6 +242,7 @@ pub struct Csvb {
     pub string_section: Vec<u8>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct CvsbItem {
     // TODO: Offsets relative to start of string section.

@@ -17,6 +17,7 @@ pub mod skel;
 // TODO: Add class names from xenoblade 2 binary where appropriate.
 // Assume the BC is at the beginning of the reader to simplify offsets.
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(magic(b"BC\x00\x00"))]
 #[br(stream = r)]
@@ -40,6 +41,7 @@ pub struct Bc {
     pub addresses: Vec<u64>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub enum BcData {
     #[br(magic(2u32))]
@@ -60,6 +62,7 @@ pub enum BcData {
 }
 
 // skeleton dynamics?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(magic(b"SKDY"))]
 #[xc3(magic(b"SKDY"))]
@@ -70,6 +73,7 @@ pub struct Skdy {
 }
 
 // TODO: All names should be written at the end.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Dynamics {
     pub unk1: BcList<()>,
@@ -92,6 +96,7 @@ pub struct Dynamics {
     pub unk5: Option<DynamicsUnk3>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct DynamicsUnk1 {
     pub unk1: BcList<DynamicsUnk1Item>,
@@ -100,6 +105,7 @@ pub struct DynamicsUnk1 {
     pub unk3: BcList<u8>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct DynamicsUnk1Item {
     pub unk1: u32,
@@ -120,11 +126,13 @@ pub struct DynamicsUnk1Item {
     pub unk7: [i32; 3],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct DynamicsUnk2 {
     pub unk1: BcList<DynamicsUnk2Item>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct DynamicsUnk2Item {
     #[br(parse_with = parse_string_ptr64)]
@@ -138,6 +146,7 @@ pub struct DynamicsUnk2Item {
     pub unk5: BcList<()>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct DynamicsUnk2ItemUnk1 {
     #[br(parse_with = parse_string_ptr64)]
@@ -152,6 +161,7 @@ pub struct DynamicsUnk2ItemUnk1 {
     pub unk2: u32,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct DynamicsUnk2ItemUnk3 {
     #[br(parse_with = parse_string_ptr64)]
@@ -162,12 +172,14 @@ pub struct DynamicsUnk2ItemUnk3 {
     pub unk2: u32,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct DynamicsUnk3 {
     // TODO: points to string section?
     pub unk1: BcList<()>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Transform {
     pub translation: [f32; 4],
@@ -175,6 +187,7 @@ pub struct Transform {
     pub scale: [f32; 4],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct StringOffset {
     #[br(parse_with = parse_string_ptr64)]
@@ -182,6 +195,7 @@ pub struct StringOffset {
     pub name: String,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct BcOffset<T>
 where
@@ -196,6 +210,7 @@ where
 
 // TODO: Make this generic over the alignment and padding byte?
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct BcList<T>
 where
@@ -212,6 +227,7 @@ where
     pub unk1: i32,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Default)]
 struct StringSection {
     // Unique strings are stored in alphabetical order.

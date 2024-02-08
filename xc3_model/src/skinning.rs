@@ -2,6 +2,9 @@
 use glam::Vec4;
 use log::error;
 
+#[cfg(feature = "arbitrary")]
+use crate::arbitrary_vec4s;
+
 // Using a bone name allows using different skeleton hierarchies.
 // wimdo and chr files use different ordering, for example.
 // Consuming code can create their own mappings from names to indices.
@@ -18,8 +21,10 @@ pub struct VertexWeight {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct SkinWeights {
     pub bone_indices: Vec<[u8; 4]>,
+    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))]
     pub weights: Vec<Vec4>,
     /// The name list for the indices in [bone_indices](#structfield.bone_indices).
     pub bone_names: Vec<String>,

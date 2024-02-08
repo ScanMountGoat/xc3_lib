@@ -4,6 +4,7 @@ use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 use super::{BcList, BcOffset, StringOffset, StringSection};
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(magic(b"ASMB"))]
 #[xc3(magic(b"ASMB"))]
@@ -14,12 +15,14 @@ pub struct Asmb {
 }
 
 // TODO: How to select the version?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub enum AsmbInner {
     V1(AsmbInnerV1),
     V2(AsmbInnerV2),
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct AsmbInnerV1 {
     pub unk1: u32,
@@ -37,6 +40,7 @@ pub struct AsmbInnerV1 {
     pub unk8: BcList<KeyValueV1>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct StateV1 {
     pub unk1: u32,
@@ -56,6 +60,7 @@ pub struct StateV1 {
     pub unk12: BcList<u64>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct AnimationV1 {
     #[br(parse_with = parse_string_ptr64)]
@@ -65,6 +70,7 @@ pub struct AnimationV1 {
     pub unk1: BcList<AnimationUnk1V1>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct VarParamV1 {
     pub unk1: u32,
@@ -75,6 +81,7 @@ pub struct VarParamV1 {
     pub name: String,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct AnimationUnk1V1 {
     pub unk1: u16,
@@ -83,6 +90,7 @@ pub struct AnimationUnk1V1 {
 }
 
 // TODO: more fields?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct StateTransitionV1 {
     #[br(parse_with = parse_string_ptr64)]
@@ -90,6 +98,7 @@ pub struct StateTransitionV1 {
     pub name: String,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct KeyValueV1 {
     #[br(parse_with = parse_string_ptr64)]
@@ -102,6 +111,7 @@ pub struct KeyValueV1 {
 }
 
 // TODO: size?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct StateKeyValueV1 {
     #[br(parse_with = parse_string_ptr64)]
@@ -119,6 +129,7 @@ pub struct StateKeyValueV1 {
     pub unk5: i32,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct AsmbInnerV2 {
     pub folders: BcList<StringOffset>,
@@ -127,6 +138,7 @@ pub struct AsmbInnerV2 {
     pub unk4: BcList<u8>, // TODO: type?
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct FsmGroupV2 {
     pub unk1: BcList<BcOffset<StateV2>>,
@@ -145,6 +157,7 @@ pub struct FsmGroupV2 {
     pub unk5: Option<String>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct StateV2 {
     #[br(parse_with = parse_string_ptr64)]
@@ -175,6 +188,7 @@ pub struct StateV2 {
     pub unk15: [f32; 8],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct StateTransitionV2 {
     #[br(parse_with = parse_string_ptr64)]

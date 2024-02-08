@@ -7,6 +7,7 @@ use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 use super::{BcList, StringOffset, StringSection, Transform};
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 #[br(magic(b"ANIM"))]
 #[xc3(magic(b"ANIM"))]
@@ -17,6 +18,7 @@ pub struct Anim {
 }
 
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
 pub struct AnimationBinding {
@@ -48,6 +50,7 @@ pub struct AnimationBinding {
 }
 
 // TODO: Is there a simpler way of doing this?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 #[br(import { size: u64, animation_type: AnimationType })]
 pub enum AnimationBindingInner {
@@ -68,6 +71,7 @@ pub enum AnimationBindingInner {
 }
 
 // 60 total bytes for xc2
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct AnimationBindingInner1 {
     #[br(parse_with = parse_offset64_count32)]
@@ -75,6 +79,7 @@ pub struct AnimationBindingInner1 {
     pub extra_track_bindings: Vec<ExtraTrackAnimationBinding>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct ExtraTrackAnimationBinding {
     #[br(parse_with = parse_opt_ptr64)]
@@ -90,6 +95,7 @@ pub struct ExtraTrackAnimationBinding {
     pub unk1: i32, // -1
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct ExtraTrackAnimation {
     pub unk1: u64,
@@ -110,6 +116,7 @@ pub struct ExtraTrackAnimation {
 }
 
 // 76 total bytes for xc1 or xc3
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct AnimationBindingInner2 {
     /// An alternative bone name list for
@@ -125,6 +132,7 @@ pub struct AnimationBindingInner2 {
 }
 
 // 120 or 128 total bytes for xc3
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(animation_type: AnimationType))]
 pub struct AnimationBindingInner3 {
@@ -141,6 +149,7 @@ pub struct AnimationBindingInner3 {
 
 // 128 total bytes for xc3
 // TODO: Is it worth making a whole separate type for this?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(animation_type: AnimationType))]
 pub struct AnimationBindingInner4 {
@@ -157,6 +166,7 @@ pub struct AnimationBindingInner4 {
     pub unk1: u64,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct Animation {
     pub unk1: BcList<()>,
@@ -188,6 +198,7 @@ pub struct Animation {
     pub data: AnimationData,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy)]
 #[brw(repr(u8))]
 pub enum SpaceMode {
@@ -195,6 +206,7 @@ pub enum SpaceMode {
     Model = 1,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy)]
 #[brw(repr(u8))]
 pub enum PlayMode {
@@ -202,6 +214,7 @@ pub enum PlayMode {
     Single = 1,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy)]
 #[brw(repr(u8))]
 pub enum BlendMode {
@@ -209,6 +222,7 @@ pub enum BlendMode {
     Add = 1,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct AnimationNotify {
     pub time: f32,
@@ -223,6 +237,7 @@ pub struct AnimationNotify {
     pub unk4: String,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct AnimationLocomotion {
     pub unk1: [u32; 4],
@@ -236,6 +251,7 @@ pub struct AnimationLocomotion {
 }
 
 // TODO: is this only for XC3?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(animation_type: AnimationType))]
 pub enum ExtraTrackData {
@@ -253,6 +269,7 @@ pub enum ExtraTrackData {
     PackedCubic(PackedCubicExtraData),
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct UncompressedExtraData {
     // TODO: type?
@@ -273,6 +290,7 @@ pub struct UncompressedExtraData {
 }
 
 // TODO: Default transform for a single bone at each frame?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct UncompressedExtraDataMotion {
     pub translation: BcList<[f32; 4]>,
@@ -286,6 +304,7 @@ pub struct UncompressedExtraDataMotion {
     pub scale_indices: BcList<u16>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct CubicExtraData {
     // TODO: type?
@@ -309,6 +328,7 @@ pub struct CubicExtraData {
     pub unk: [u32; 4],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct CubicExtraDataInner1 {
     // TODO: buffer?
@@ -319,6 +339,7 @@ pub struct CubicExtraDataInner1 {
     pub unk2: Vec<u16>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct CubicExtraDataInner2 {
     pub unk1: BcList<u8>,
@@ -328,6 +349,7 @@ pub struct CubicExtraDataInner2 {
     pub unk2: Vec<u16>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct PackedCubicExtraData {
     #[br(parse_with = parse_offset64_count32)]
@@ -353,6 +375,7 @@ pub struct PackedCubicExtraData {
     pub unk_offset3: Option<PackedCubicExtraDataUnk3>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PackedCubicExtraDataUnk2 {
     #[br(parse_with = parse_offset64_count32)]
@@ -360,6 +383,7 @@ pub struct PackedCubicExtraDataUnk2 {
     pub items: Vec<f32>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PackedCubicExtraDataUnk3 {
     #[br(parse_with = parse_offset64_count32)]
@@ -372,6 +396,7 @@ pub struct PackedCubicExtraDataUnk3 {
     pub items2: Vec<i16>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct TrackHashes {
     // TODO: buffers?
@@ -389,6 +414,7 @@ pub struct TrackHashes {
     pub bone_name_hashes: Vec<u32>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy)]
 #[brw(repr(u8))]
 pub enum AnimationType {
@@ -398,6 +424,7 @@ pub enum AnimationType {
     PackedCubic = 3,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import { animation_type: AnimationType})]
 pub enum AnimationData {
@@ -414,6 +441,7 @@ pub enum AnimationData {
     PackedCubic(PackedCubic),
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Uncompressed {
     // TODO: Is every BcList aligned like this?
@@ -423,11 +451,13 @@ pub struct Uncompressed {
     pub unk1: i32, // -1
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Cubic {
     pub tracks: BcList<CubicTrack>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct CubicTrack {
     pub translation: BcList<KeyFrameCubicVec3>,
@@ -435,6 +465,7 @@ pub struct CubicTrack {
     pub scale: BcList<KeyFrameCubicVec3>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct KeyFrameCubicVec3 {
     pub frame: f32,
@@ -446,6 +477,7 @@ pub struct KeyFrameCubicVec3 {
     pub z: [f32; 4],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct KeyFrameCubicQuaternion {
     pub frame: f32,
@@ -459,6 +491,7 @@ pub struct KeyFrameCubicQuaternion {
     pub w: [f32; 4],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PackedCubic {
     // TODO: same length and ordering as bone indices and hashes?
@@ -477,6 +510,7 @@ pub struct PackedCubic {
     pub keyframes: BcList<u16>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PackedCubicTrack {
     pub translation: SubTrack,
@@ -484,6 +518,7 @@ pub struct PackedCubicTrack {
     pub scale: SubTrack,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct SubTrack {
     /// Index into [keyframes](struct.PackedCubic.html#structfield.keyframes).

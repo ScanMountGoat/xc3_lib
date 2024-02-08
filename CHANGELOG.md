@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## unreleased
 ### Added
 * Added derives for `Clone` and `PartialEq` for xc3_lib types.
+* Added derive for `Arbitrary` to xc3_lib and xc3_model types to facilitate fuzz testing.
 * Added `ModelRoot::to_mxmd_model` for applying edits to the original `.wimdo` and `.wismt` files.
 * Added `ModelBuffers::from_vertex_data` and `ModelBuffers::to_vertex_data` to xc3_model for converting to and from xc3_lib.
 * Added rendering support for stencil flags to xc3_wgpu, improving sorting accuracy of eyelashes and eyebrows.

@@ -18,6 +18,7 @@ use bilge::prelude::*;
 use binrw::{args, binread, BinRead, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 #[br(magic(b"DMXM"))]
 #[xc3(magic(b"DMXM"))]
@@ -73,6 +74,7 @@ pub struct Mxmd {
 // TODO: 108 bytes for xc2 and 112 bytes for xc3?
 /// A collection of [Material], [Sampler], and material parameters.
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
@@ -143,6 +145,7 @@ pub struct Materials {
     pub unks4: [u32; 3],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct AlphaTestTexture {
     // TODO: (_, 0, 1) has alpha testing?
@@ -153,6 +156,7 @@ pub struct AlphaTestTexture {
 }
 
 /// `ml::MdsMatTechnique` in the Xenoblade 2 binary.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct ShaderProgramInfo {
@@ -187,6 +191,7 @@ pub struct ShaderProgramInfo {
     pub padding: [u32; 5],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct VertexAttribute {
     pub data_type: DataType,
@@ -196,6 +201,7 @@ pub struct VertexAttribute {
 }
 
 /// `ml::MdsMatVariableTbl` in the Xenoblade 2 binary.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct MaterialParameter {
     pub param_type: ParamType,
@@ -204,6 +210,7 @@ pub struct MaterialParameter {
     pub count: u16, // actual number of bytes depends on type?
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
 #[brw(repr(u16))]
 pub enum ParamType {
@@ -228,6 +235,7 @@ pub enum ParamType {
 }
 
 // TODO: Does this affect texture assignment order?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct MaterialUnk1 {
@@ -246,6 +254,7 @@ pub struct MaterialUnk1 {
     pub unk: [u32; 8],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct MaterialUnk2 {
@@ -257,6 +266,7 @@ pub struct MaterialUnk2 {
     pub unk: [u32; 4],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct MaterialUnk3 {
@@ -274,6 +284,7 @@ pub struct MaterialUnk3 {
 
 /// A collection of [Sampler].
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
@@ -290,6 +301,7 @@ pub struct Samplers {
 }
 
 /// State for controlling how textures are sampled.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Sampler {
     pub flags: SamplerFlags,
@@ -300,6 +312,7 @@ pub struct Sampler {
 
 /// Texture sampler settings for addressing and filtering.
 #[bitsize(32)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(DebugBits, FromBits, BinRead, BinWrite, PartialEq, Clone, Copy)]
 #[br(map = u32::into)]
 #[bw(map = |&x| u32::from(x))]
@@ -327,6 +340,7 @@ pub struct SamplerFlags {
 
 /// A single material assignable to a [Mesh].
 /// `ml::mdsMatInfoHeader` in the Xenoblade 2 binary.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Material {
@@ -386,6 +400,7 @@ pub struct Material {
 }
 
 #[bitsize(32)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(DebugBits, FromBits, BinRead, BinWrite, PartialEq, Clone, Copy)]
 #[br(map = u32::into)]
 #[bw(map = |&x| u32::from(x))]
@@ -401,6 +416,7 @@ pub struct MaterialFlags {
 }
 
 /// Flags controlling pipeline state for rasterizer and fragment state.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct StateFlags {
     pub depth_write_mode: u8,
@@ -421,6 +437,7 @@ pub struct StateFlags {
 // 2, Src Alpha, One, Add, Src Alpha, One, Add
 // 3, Zero, Src Col, Add, Zero, Src Col, Add
 // 6, disabled + ???
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
 #[brw(repr(u8))]
 pub enum BlendMode {
@@ -431,6 +448,7 @@ pub enum BlendMode {
     Unk6 = 6, // also disabled?
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
 #[brw(repr(u8))]
 pub enum StencilValue {
@@ -448,6 +466,7 @@ pub enum StencilValue {
 }
 
 // TODO: Does this flag actually disable stencil?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
 #[brw(repr(u8))]
 pub enum StencilMode {
@@ -459,6 +478,7 @@ pub enum StencilMode {
     Unk8 = 8,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
 #[brw(repr(u8))]
 pub enum DepthFunc {
@@ -467,6 +487,7 @@ pub enum DepthFunc {
     Equal = 3,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
 #[brw(repr(u8))]
 pub enum CullMode {
@@ -477,6 +498,7 @@ pub enum CullMode {
 }
 
 /// `ml::MdsMatMaterialTechnique` in the Xenoblade 2 binary.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct ShaderProgram {
     /// Index into [shader_programs](struct.Materials.html#structfield.shader_programs).
@@ -492,6 +514,7 @@ pub struct ShaderProgram {
 // _ope = 0,1,7
 // _zpre = 0
 // _outline = 0
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy, Hash)]
 #[brw(repr(u16))]
 pub enum RenderPassType {
@@ -502,6 +525,7 @@ pub enum RenderPassType {
     Unk9 = 9, // used for maps?
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Texture {
     /// Index into the textures in [streaming](struct.Mxmd.html#structfield.streaming)
@@ -519,6 +543,7 @@ pub struct Texture {
 // xc3: 160, 164, 168, 200, 204 bytes
 /// A collection of [Model] as well as skinning and animation information.
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
 #[br(import_raw(version: u32))]
@@ -611,6 +636,7 @@ pub struct Models {
 
 // Use an enum since even the largest size can have all offsets as null.
 // i.e. the nullability of the offsets does not determine the size.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import { size: u32, base_offset: u64 })]
 pub enum ModelsExtraData {
@@ -632,6 +658,7 @@ pub enum ModelsExtraData {
 
 // TODO: add asserts to all padding fields?
 // 164 total bytes
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct ModelsExtraDataUnk2 {
@@ -642,6 +669,7 @@ pub struct ModelsExtraDataUnk2 {
 }
 
 // 168 total bytes
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct ModelsExtraDataUnk3 {
@@ -656,6 +684,7 @@ pub struct ModelsExtraDataUnk3 {
 }
 
 // 200 total bytes
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct ModelsExtraDataUnk4 {
@@ -677,6 +706,7 @@ pub struct ModelsExtraDataUnk4 {
 }
 
 // 204 total bytes
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct ModelsExtraDataUnk5 {
@@ -700,6 +730,7 @@ pub struct ModelsExtraDataUnk5 {
 /// A collection of meshes where each [Mesh] represents one draw call.
 ///
 /// Each [Model] has an associated [VertexData] containing vertex and index buffers.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Model {
@@ -715,6 +746,7 @@ pub struct Model {
 }
 
 /// Flags and resources associated with a single draw call.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Mesh {
     pub render_flags: u32,
@@ -746,6 +778,7 @@ pub struct Mesh {
 
 /// Flags to determine what data is present in [Models].
 #[bitsize(32)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(DebugBits, FromBits, BinRead, BinWrite, PartialEq, Clone, Copy)]
 #[br(map = u32::into)]
 #[bw(map = |&x| u32::from(x))]
@@ -785,6 +818,7 @@ pub struct ModelsFlags {
 }
 
 /// `ExtMesh` in the Xenoblade 2 binary.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct ExtMesh {
@@ -803,6 +837,7 @@ pub struct ExtMesh {
 }
 
 #[bitsize(16)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(DebugBits, FromBits, BinRead, BinWrite, PartialEq, Clone, Copy)]
 #[br(map = u16::into)]
 #[bw(map = |&x| u16::from(x))]
@@ -817,6 +852,7 @@ pub struct ExtMeshFlags {
 }
 
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
@@ -835,6 +871,7 @@ pub struct MorphControllers {
     unk: [u32; 3],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct MorphController {
@@ -856,6 +893,7 @@ pub struct MorphController {
 }
 
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
@@ -871,6 +909,7 @@ pub struct ModelUnk3 {
     pub unk: [u32; 4],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct ModelUnk3Item {
@@ -887,6 +926,7 @@ pub struct ModelUnk3Item {
 }
 
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
@@ -904,6 +944,7 @@ pub struct ModelUnk4 {
 }
 
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
@@ -921,6 +962,7 @@ pub struct ModelUnk5 {
     pub unks: [u32; 4],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct StringOffset {
@@ -930,6 +972,7 @@ pub struct StringOffset {
 }
 
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
@@ -947,6 +990,7 @@ pub struct ModelUnk6 {
 }
 
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
@@ -963,6 +1007,7 @@ pub struct ModelUnk7 {
     pub unks: [u32; 4],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct ModelUnk8 {
@@ -980,6 +1025,7 @@ pub struct ModelUnk8 {
 }
 
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
@@ -995,6 +1041,7 @@ pub struct ModelUnk9 {
     pub unk: [u32; 4],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct ModelUnk10 {
@@ -1003,6 +1050,7 @@ pub struct ModelUnk10 {
     pub unk1: Vec<u32>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct ModelUnk9Item {
@@ -1019,6 +1067,7 @@ pub struct ModelUnk9Item {
 // TODO: eye animations?
 // TODO: Some sort of animation?
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
@@ -1055,6 +1104,7 @@ pub struct ModelUnk1 {
     pub extra: Option<ModelUnk1Extra>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct ModelUnk1Extra {
@@ -1067,6 +1117,7 @@ pub struct ModelUnk1Extra {
 }
 
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
@@ -1093,6 +1144,7 @@ pub struct ModelUnk1Inner {
     pub unks: [u32; 5],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct ModelUnk1Item1 {
@@ -1103,6 +1155,7 @@ pub struct ModelUnk1Item1 {
     pub unk: [u32; 3],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct ModelUnk1Item2 {
     pub unk1: u32,
@@ -1113,6 +1166,7 @@ pub struct ModelUnk1Item2 {
 }
 
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
@@ -1135,6 +1189,7 @@ pub struct LodData {
 }
 
 // TODO: is lod: 0 in the mxmd special?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct LodItem1 {
     pub unk1: [u32; 4],
@@ -1145,6 +1200,7 @@ pub struct LodItem1 {
     pub unk4: [u32; 2],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct LodGroup {
     /// One minus the [lod](struct.Mesh.html#structfield.lod) for [Mesh] with the highest level of detail.
@@ -1158,6 +1214,7 @@ pub struct LodGroup {
 
 /// A collection of [Mibl](crate::mibl::Mibl) textures embedded in the current file.
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
@@ -1176,6 +1233,7 @@ pub struct PackedTextures {
 }
 
 /// A single [Mibl](crate::mibl::Mibl) texture.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct PackedTexture {
@@ -1192,6 +1250,7 @@ pub struct PackedTexture {
 
 /// References to [Mibl](crate::mibl::Mibl) textures in a separate file.
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
@@ -1210,6 +1269,7 @@ pub struct PackedExternalTextures {
     pub strings_offset: u32,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct PackedExternalTexture {
@@ -1228,6 +1288,7 @@ pub struct PackedExternalTexture {
 // TODO: Possible to guess temp texture channels?
 /// Hints on how the texture is used.
 /// Actual usage is determined by the shader.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
 #[brw(repr(u32))]
 pub enum TextureUsage {
@@ -1276,6 +1337,7 @@ pub enum TextureUsage {
 // xc3: 52, 60 bytes
 /// Information for the skinned bones used by this model.
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
@@ -1359,6 +1421,7 @@ pub struct Skinning {
     pub unk: Option<[u32; 4]>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct SkinningUnkBones {
@@ -1368,6 +1431,7 @@ pub struct SkinningUnkBones {
     pub unk_offset4: Option<UnkBones>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct SkinningUnk5 {
@@ -1376,6 +1440,7 @@ pub struct SkinningUnk5 {
     pub unk_offset5: Option<SkeletonUnk5>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct SkinningAsBoneData {
@@ -1385,6 +1450,7 @@ pub struct SkinningAsBoneData {
     pub as_bone_data: Option<AsBoneData>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Bone {
@@ -1399,6 +1465,7 @@ pub struct Bone {
     pub unk: [u32; 2],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct UnkBones {
@@ -1413,6 +1480,7 @@ pub struct UnkBones {
     // TODO: no padding?
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct UnkBone {
     pub unk1: u32,
@@ -1425,6 +1493,7 @@ pub struct UnkBone {
 }
 
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
@@ -1447,6 +1516,7 @@ pub struct SkeletonUnk5 {
 }
 
 // TODO: Data for AS_ bones?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct AsBoneData {
@@ -1469,6 +1539,7 @@ pub struct AsBoneData {
     pub unk: [u32; 2],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct AsBone {
     /// The index in [bones](struct.Skeleton.html#structfield.bones).
@@ -1479,6 +1550,7 @@ pub struct AsBone {
 }
 
 // TODO: Some of these aren't floats?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct AsBoneValue {
     unk1: [f32; 4],
@@ -1489,6 +1561,7 @@ pub struct AsBoneValue {
 
 // TODO: pointer to decl_gbl_cac in ch001011011.wimdo?
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
@@ -1517,12 +1590,14 @@ pub struct Unk1 {
     pub unk: [u32; 4],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Unk1Unk1 {
     pub index: u16,
     pub unk2: u16, // 1
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Unk1Unk2 {
     pub unk1: u16, // 0
@@ -1532,6 +1607,7 @@ pub struct Unk1Unk2 {
     pub unk5: u32, // 0
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Unk1Unk3 {
     pub unk1: u16,
@@ -1543,6 +1619,7 @@ pub struct Unk1Unk3 {
     pub unk7: u16,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Unk1Unk4 {
     pub unk1: f32,

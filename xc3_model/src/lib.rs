@@ -76,6 +76,7 @@ mod texture;
 pub mod vertex;
 
 // TODO: Come up with a better name
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct ModelRoot {
     pub groups: Vec<ModelGroup>,
@@ -88,6 +89,7 @@ pub struct ModelRoot {
     pub skeleton: Option<Skeleton>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct ModelGroup {
     pub models: Vec<Models>,
@@ -97,6 +99,7 @@ pub struct ModelGroup {
 
 // TODO: come up with a better name?
 /// See [Weights](xc3_lib::vertex::Weights).
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct Weights {
     // TODO: This is tied to the Models?
@@ -111,6 +114,7 @@ pub struct Weights {
 // TODO: Should samplers be optional?
 // TODO: Come up with a better name?
 /// See [Models](xc3_lib::mxmd::Models).
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct Models {
     pub models: Vec<Model>,
@@ -133,10 +137,12 @@ pub struct Models {
 }
 
 /// See [Model](xc3_lib::mxmd::Model).
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct Model {
     pub meshes: Vec<Mesh>,
     /// Each mesh has an instance for every transform in [instances](#structfield.instances).
+    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_mat4s))]
     pub instances: Vec<Mat4>,
     /// The index of the [ModelBuffers] in [buffers](struct.ModelGroup.html#structfield.buffers).
     /// This will only be non zero for some map models.
@@ -144,6 +150,7 @@ pub struct Model {
 }
 
 /// See [Mesh](xc3_lib::mxmd::Mesh).
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct Mesh {
     pub vertex_buffer_index: usize,
@@ -432,6 +439,7 @@ fn load_wimdo(wimdo_path: &Path) -> Result<Mxmd, LoadModelError> {
 }
 
 // Use Cow::Borrowed to avoid copying data embedded in the mxmd.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug)]
 pub struct StreamingData<'a> {
     pub vertex: Cow<'a, xc3_lib::vertex::VertexData>,
@@ -668,6 +676,60 @@ fn weight_group_index(
         RenderPassType::Unk9 => todo!(),
     };
     weight_lod.group_indices_plus_one[pass_index].saturating_sub(1) as usize
+}
+
+#[cfg(feature = "arbitrary")]
+fn arbitrary_vec2s(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Vec<glam::Vec2>> {
+    let len = u.arbitrary_len::<[f32; 2]>()?;
+    let mut elements = Vec::with_capacity(len);
+    for _ in 0..len {
+        let array: [f32; 2] = u.arbitrary()?;
+        let element = glam::Vec2::from_array(array);
+        elements.push(element);
+    }
+    Ok(elements)
+}
+
+#[cfg(feature = "arbitrary")]
+fn arbitrary_vec3s(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Vec<glam::Vec3>> {
+    let len = u.arbitrary_len::<[f32; 3]>()?;
+    let mut elements = Vec::with_capacity(len);
+    for _ in 0..len {
+        let array: [f32; 3] = u.arbitrary()?;
+        let element = glam::Vec3::from_array(array);
+        elements.push(element);
+    }
+    Ok(elements)
+}
+
+#[cfg(feature = "arbitrary")]
+fn arbitrary_vec4s(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Vec<glam::Vec4>> {
+    let len = u.arbitrary_len::<[f32; 4]>()?;
+    let mut elements = Vec::with_capacity(len);
+    for _ in 0..len {
+        let array: [f32; 4] = u.arbitrary()?;
+        let element = glam::Vec4::from_array(array);
+        elements.push(element);
+    }
+    Ok(elements)
+}
+
+#[cfg(feature = "arbitrary")]
+fn arbitrary_mat4(u: &mut arbitrary::Unstructured) -> arbitrary::Result<glam::Mat4> {
+    let array: [f32; 16] = u.arbitrary()?;
+    Ok(glam::Mat4::from_cols_array(&array))
+}
+
+#[cfg(feature = "arbitrary")]
+fn arbitrary_mat4s(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Vec<glam::Mat4>> {
+    let len = u.arbitrary_len::<[f32; 16]>()?;
+    let mut elements = Vec::with_capacity(len);
+    for _ in 0..len {
+        let array: [f32; 16] = u.arbitrary()?;
+        let element = glam::Mat4::from_cols_array(&array);
+        elements.push(element);
+    }
+    Ok(elements)
 }
 
 #[cfg(test)]

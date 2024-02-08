@@ -11,6 +11,7 @@ use crate::{parse_offset32_count32, parse_string_ptr32};
 use binrw::BinRead;
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 #[br(magic(b"LAPS"))]
 #[xc3(magic(b"LAPS"))]
@@ -37,6 +38,7 @@ pub struct Laps {
     pub unk: [u32; 5],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Unk2 {
     pub unk1: u32,
@@ -50,6 +52,7 @@ pub struct Unk2 {
     pub unk4: u32,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Unk3 {
     pub unk1: u32,
