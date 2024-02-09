@@ -345,12 +345,11 @@ fn mrt_normal(normal: vec3<f32>, ao: f32) -> vec4<f32> {
 
 // Adapted from shd00036 GLSL from ch11021013.pcsmt (xc3). 
 fn mrt_etc_buffer(g_etc_buffer: vec4<f32>, view_normal: vec3<f32>) -> vec4<f32> {
-    // TODO: Apply the divide by 255.0 to materials instead of shaders?
     var out: vec4<f32>;
     out.x = g_etc_buffer.x;
     out.y = geometric_specular_aa(g_etc_buffer.y, view_normal);
-    out.z = g_etc_buffer.z / 255.0;
-    out.w = g_etc_buffer.a;
+    out.z = g_etc_buffer.z;
+    out.w = g_etc_buffer.w;
     return out;
 }
 

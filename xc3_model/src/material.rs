@@ -148,8 +148,7 @@ fn assign_parameters(
 ) -> MaterialParameters {
     // TODO: Don't assume a single program info?
     let info = &materials.shader_programs[material.shader_programs[0].program_index as usize];
-    let floats = &materials.floats;
-    let start_index = material.floats_start_index;
+    let work_values = &materials.work_values[material.work_value_start_index as usize..];
 
     // TODO: alpha test ref?
     let mut parameters = MaterialParameters {
@@ -164,14 +163,13 @@ fn assign_parameters(
         match param.param_type {
             xc3_lib::mxmd::ParamType::Unk0 => (),
             xc3_lib::mxmd::ParamType::TexMatrix => {
-                parameters.tex_matrix = Some(read_param(param, floats, start_index));
+                parameters.tex_matrix = Some(read_param(param, work_values));
             }
             xc3_lib::mxmd::ParamType::WorkFloat4 => {
-                // TODO: Value for EtcBuffer.z should be divided by 255.0?
-                parameters.work_float4 = Some(read_param(param, floats, start_index));
+                parameters.work_float4 = Some(read_param(param, work_values));
             }
             xc3_lib::mxmd::ParamType::WorkColor => {
-                parameters.work_color = Some(read_param(param, floats, start_index));
+                parameters.work_color = Some(read_param(param, work_values));
             }
             xc3_lib::mxmd::ParamType::Unk4 => (),
             xc3_lib::mxmd::ParamType::Unk5 => (),
@@ -181,18 +179,37 @@ fn assign_parameters(
         }
     }
 
+    // TODO: Apply callbacks directly to the float buffer?
+    if let Some(callbacks) = &materials.callbacks {
+        let start = material.callback_start_index as usize;
+        for callback in &callbacks.work_callbacks[start..start + material.callback_count as usize] {
+            // (26, i+4) for dividing workfloat4 value by 255?
+            if callback.0 == 26 {
+                if let Some(work_float4) = &mut parameters.work_float4 {
+                    // TODO: What is the correct check for this?
+                    if callback.1 >= 4 {
+                        let index = callback.1 as usize - 4;
+                        let vector_index = index / 4;
+                        let component_index = index % 4;
+                        if let Some(vector) = work_float4.get_mut(vector_index) {
+                            vector[component_index] /= 255.0;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     parameters
 }
 
 fn read_param<const N: usize>(
     param: &xc3_lib::mxmd::MaterialParameter,
-    floats: &[f32],
-    start_index: u32,
+    work_values: &[f32],
 ) -> Vec<[f32; N]> {
     // Assume any parameter can be an array, so read a vec.
     // TODO: avoid unwrap.
-    let start = param.floats_index_offset as usize + start_index as usize;
-    floats[start..]
+    work_values[param.work_value_index as usize..]
         .chunks_exact(N)
         .take(param.count as usize)
         .map(|v| v.try_into().unwrap())

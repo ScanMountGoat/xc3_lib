@@ -73,6 +73,7 @@ pub struct Mxmd {
 // TODO: more strict alignment for xc3?
 // TODO: 108 bytes for xc2 and 112 bytes for xc3?
 /// A collection of [Material], [Sampler], and material parameters.
+/// `ml::MdsMatTopHeader` in the Xenoblade 2 binary.
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
@@ -95,18 +96,18 @@ pub struct Materials {
     // material body has a uniform at shader offset 64 but offset 48 in this floats buffer
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32), align(4))]
-    pub floats: Vec<f32>, // work values?
+    pub work_values: Vec<f32>,
 
     // TODO: final number counts up from 0?
     // TODO: Some sort of index or offset?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub ints: Vec<(u16, u16)>, // shader vars (u8, u8, u16)?
+    pub shader_vars: Vec<(u16, u16)>, // shader vars (u8, u8, u16)?
 
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(offset(u32))]
-    pub material_unk1: Option<MaterialUnk1>, // callbacks?
+    pub callbacks: Option<MaterialCallbacks>,
 
     // TODO: is this ever not 0?
     pub unk4: u32,
@@ -205,7 +206,7 @@ pub struct VertexAttribute {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct MaterialParameter {
     pub param_type: ParamType,
-    pub floats_index_offset: u16, // added to floats start index?
+    pub work_value_index: u16, // added to work value start index?
     pub unk: u16,
     pub count: u16, // actual number of bytes depends on type?
 }
@@ -234,21 +235,19 @@ pub enum ParamType {
     Unk10 = 10,
 }
 
-// TODO: Does this affect texture assignment order?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
-pub struct MaterialUnk1 {
-    // count matches up with Material.unk_start_index?
+pub struct MaterialCallbacks {
     // TODO: affects material parameter assignment?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub unk1: Vec<(u16, u16)>,
+    pub work_callbacks: Vec<(u16, u16)>,
 
-    // 0 1 2 ... material_count - 1
+    // 0 ... material_count - 1
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub unk2: Vec<u16>,
+    pub material_indices: Vec<u16>,
 
     // TODO: padding?
     pub unk: [u32; 8],
@@ -339,7 +338,7 @@ pub struct SamplerFlags {
 }
 
 /// A single material assignable to a [Mesh].
-/// `ml::mdsMatInfoHeader` in the Xenoblade 2 binary.
+/// `ml::MdsMatInfoHeader` in the Xenoblade 2 binary.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
@@ -373,11 +372,13 @@ pub struct Material {
     pub m_unks1_3: u32,
     pub m_unks1_4: u32,
 
-    pub floats_start_index: u32, // work value index?
+    /// Index into [work_values](struct.Materials.html#structfield.work_values).
+    pub work_value_start_index: u32,
 
     // TODO: starts with a small number and then some random ints?
-    pub ints_start_index: u32,
-    pub ints_count: u32,
+    /// Index into [shader_vars](struct.Materials.html#structfield.shader_vars).
+    pub shader_var_start_index: u32,
+    pub shader_var_count: u32,
 
     // always count 1?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
@@ -386,10 +387,9 @@ pub struct Material {
 
     pub unk5: u32,
 
-    // index for MaterialUnk1.unk1?
-    // work callbacks?
-    pub unk_start_index: u16, // sum of previous unk_count?
-    pub unk_count: u16,
+    /// Index into [work_callbacks](struct.MaterialCallbacks.html#structfield.work_callbacks).
+    pub callback_start_index: u16,
+    pub callback_count: u16,
 
     // TODO: alt textures offset for non opaque rendering?
     pub m_unks2: [u16; 3],
@@ -1811,8 +1811,8 @@ impl<'a> Xc3WriteOffsets for MaterialsOffsets<'a> {
         // Material fields get split up and written in a different order.
         let materials = self.materials.write(writer, base_offset, data_ptr)?;
 
-        self.floats.write_full(writer, base_offset, data_ptr)?;
-        self.ints.write_full(writer, base_offset, data_ptr)?;
+        self.work_values.write_full(writer, base_offset, data_ptr)?;
+        self.shader_vars.write_full(writer, base_offset, data_ptr)?;
 
         for material in &materials.0 {
             material
@@ -1831,8 +1831,7 @@ impl<'a> Xc3WriteOffsets for MaterialsOffsets<'a> {
             self.alpha_test_textures
                 .write_full(writer, base_offset, data_ptr)?;
         }
-        self.material_unk1
-            .write_full(writer, base_offset, data_ptr)?;
+        self.callbacks.write_full(writer, base_offset, data_ptr)?;
         self.material_unk2
             .write_full(writer, base_offset, data_ptr)?;
         self.material_unk3
