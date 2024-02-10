@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Adjusted `Xc3Renderer` constructor to take a parameter for the `monolib/shader` folder to load game specific global textures.
 * Increased resolution from 512x512 to 1024x1024 for xc3_wgpu_batch PNG files.
 * Adjusted state flags for mxmd materials.
+* Appended program name to file names of extracted shaders if present for xc3_shader decompile-shaders.
 
 ### Removed
 * Removed `read_index_buffers`, `read_vertex_buffers`, `read_vertex_attributes`, and `read_index_buffers` from xc3_model. Use `ModelBuffers::from_vertex_data` instead.

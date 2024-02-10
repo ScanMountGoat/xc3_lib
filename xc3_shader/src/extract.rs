@@ -36,7 +36,16 @@ pub fn extract_shader_binaries<P: AsRef<Path>>(
 
                 // Not all programs have associated names.
                 // Generate the name to avoid any ambiguity.
-                let name = format!("slct{slct_index}_nvsd{nvsd_index}");
+                let name = match spch
+                    .string_section
+                    .as_ref()
+                    .and_then(|s| s.program_names.get(slct_index).map(|n| &n.name))
+                {
+                    Some(program_name) => {
+                        format!("slct{slct_index}_nvsd{nvsd_index}_{program_name}")
+                    }
+                    None => format!("slct{slct_index}_nvsd{nvsd_index}"),
+                };
 
                 // Metadata doesn't need to be parsed from strings later.
                 // Just use the debug output for now.

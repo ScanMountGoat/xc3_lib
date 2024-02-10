@@ -69,6 +69,7 @@ pub struct ShaderProgram {
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Shader {
+    // TODO: make this a Vec<usize> and store a separate list of unique strings like "s0.xyz" to save space.
     pub output_dependencies: IndexMap<String, Vec<String>>,
 }
 

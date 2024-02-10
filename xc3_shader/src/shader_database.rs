@@ -108,14 +108,14 @@ fn create_map_spchs(folder: &Path) -> Vec<Spch> {
 
 fn create_shader_programs(folder: &Path) -> Vec<ShaderProgram> {
     // Only check the first shader for now.
-    // TODO: What do additional shader entries do?
-    let mut paths: Vec<_> = globwalk::GlobWalkerBuilder::from_patterns(folder, &["*FS0.glsl"])
+    // TODO: What do additional nvsd shader entries do?
+    let mut paths: Vec<_> = globwalk::GlobWalkerBuilder::from_patterns(folder, &["*nvsd0*.frag"])
         .build()
         .unwrap()
         .filter_map(|e| e.map(|e| e.path().to_owned()).ok())
         .collect();
 
-    // Shaders are generated as "slct{program_index}_FS{i}.glsl".
+    // Shaders are generated as "slct{program_index}_nvsd{i}_{name}.glsl".
     // Sort by {program_index} to process files in the right order.
     paths.sort_by_cached_key(|p| extract_program_index(p));
 
@@ -125,12 +125,9 @@ fn create_shader_programs(folder: &Path) -> Vec<ShaderProgram> {
             let source = std::fs::read_to_string(path).unwrap();
             let modified_source = shader_source_no_extensions(&source);
             match TranslationUnit::parse(modified_source) {
-                Ok(translation_unit) => Some(
-                    // TODO: Add FS0 and FS1 to the same program?
-                    ShaderProgram {
-                        shaders: vec![shader_from_glsl(&translation_unit)],
-                    },
-                ),
+                Ok(translation_unit) => Some(ShaderProgram {
+                    shaders: vec![shader_from_glsl(&translation_unit)],
+                }),
                 Err(e) => {
                     error!("Error parsing {path:?}: {e}");
                     None
@@ -160,7 +157,13 @@ mod tests {
     fn extract_program_index_multiple_digits() {
         assert_eq!(
             89,
-            extract_program_index(Path::new("xc3_shader_dump/ch01027000/nvsd89_FS1.glsl"))
-        )
+            extract_program_index(Path::new(
+                "xc3_shader_dump/ch01027000/slct89_nvsd0_shd0089.frag"
+            ))
+        );
+        assert_eq!(
+            89,
+            extract_program_index(Path::new("xc3_shader_dump/ch01027000/slct89_nvsd1.frag"))
+        );
     }
 }
