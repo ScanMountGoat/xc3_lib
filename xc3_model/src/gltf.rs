@@ -1,6 +1,25 @@
 //! Conversions from xc3_model types to glTF.
 //!
-//! Convert models to glTF using [GltfFile::new].
+//! # Getting Started
+//! ```rust no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use xc3_model::gltf::GltfFile;
+//! use xc3_model::shader_database::ShaderDatabase;
+//!
+//! let database = ShaderDatabase::from_file("xc3.json")?;
+//!
+//! // Models have only one root.
+//! let root = xc3_model::load_model("xeno3/chr/ch/ch01027000.wimdo", Some(&database))?;
+//! let gltf = GltfFile::new("mio_military", &[root])?;
+//! gltf.save("mio_military.gltf")?;
+//!
+//! // Maps have multiple roots.
+//! let roots = xc3_model::load_map("xeno3/map/ma59a.wismhd", Some(&database))?;
+//! let gltf = GltfFile::new("map", &roots)?;
+//! gltf.save("map.gltf")?;
+//! # Ok(())
+//! # }
+//! ```
 use std::path::Path;
 
 use crate::{should_render_lod, ModelRoot};
@@ -35,13 +54,18 @@ pub enum SaveGltfError {
     Json(#[from] serde_json::Error),
 }
 
+/// glTF JSON, binary, and image data for a model or map.
 #[derive(Debug)]
 pub struct GltfFile {
+    /// The glTF file JSON object.
     pub root: gltf::json::Root,
+    /// The name of the bin file formated as `"{model_name}.buffer0.bin"`.
     pub buffer_name: String,
+    /// The data for the bin file with vertex data for all models.
     pub buffer: Vec<u8>,
     // These have to be png or jpeg anyway.
     // Use PNG instead of RgbaImage to losslessly reduce memory usage.
+    /// The file name with PNG extension and PNG file data for all generated textures.
     pub png_images: Vec<(String, Vec<u8>)>,
 }
 
