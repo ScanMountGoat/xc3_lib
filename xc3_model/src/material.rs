@@ -2,7 +2,7 @@ use log::warn;
 use xc3_lib::mxmd::{Materials, RenderPassType, StateFlags, TextureUsage};
 
 use crate::{
-    shader_database::{BufferParameter, Shader, Spch},
+    shader_database::{BufferDependency, Shader, Spch},
     ImageTexture,
 };
 
@@ -365,9 +365,10 @@ fn param_or_const(
         .or_else(|| shader.float_constant(i, channel))
 }
 
-fn extract_parameter(p: BufferParameter, parameters: &MaterialParameters) -> Option<f32> {
-    let c = "xyzw".find(p.channel).unwrap();
-    match (p.buffer.as_str(), p.uniform.as_str()) {
+fn extract_parameter(p: &BufferDependency, parameters: &MaterialParameters) -> Option<f32> {
+    // TODO: Handle multiple channels?
+    let c = "xyzw".find(p.channels.chars().next().unwrap()).unwrap();
+    match (p.name.as_str(), p.field.as_str()) {
         ("U_Mate", "gWrkFl4") => Some(parameters.work_float4.as_ref()?.get(p.index)?[c]),
         ("U_Mate", "gWrkCol") => Some(parameters.work_color.as_ref()?.get(p.index)?[c]),
         _ => None,

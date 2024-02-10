@@ -359,7 +359,7 @@ impl<'a> State<'a> {
                     }
                 };
 
-                self.translation.z = self.translation.z + delta_z;
+                self.translation.z += delta_z;
             }
             _ => (),
         }

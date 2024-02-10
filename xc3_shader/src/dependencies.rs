@@ -1,4 +1,3 @@
-// Ported from https://github.com/ScanMountGoat/Smush-Material-Research
 // TODO: make dependencies and annotation into a library?
 use std::collections::{BTreeSet, HashMap};
 
@@ -11,6 +10,7 @@ use glsl_lang::{
     transpiler::glsl::{show_expr, FormattingState},
     visitor::{Host, Visit, Visitor},
 };
+use xc3_model::shader_database::{BufferDependency, Dependency, TextureDependency};
 
 use crate::annotation::shader_source_no_extensions;
 
@@ -68,39 +68,7 @@ struct LineDependencies {
     assignments: Vec<AssignmentDependency>,
 }
 
-// TODO: Easier to just serialize this instead?
-#[derive(Debug, PartialEq)]
-pub enum SourceInput {
-    Constant(f32),
-    Buffer {
-        name: String,
-        index: usize,
-        channels: String,
-    },
-    Texture {
-        // TODO: Include the texture coordinate attribute name and UV scale
-        // TODO: This will require analyzing the vertex shader as well as the fragment shader.
-        name: String,
-        channels: String,
-    },
-}
-
-// TODO: Is it worth converting to string just to parse again in an application?
-impl std::fmt::Display for SourceInput {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SourceInput::Constant(c) => write!(f, "{c}"),
-            SourceInput::Buffer {
-                name,
-                index,
-                channels,
-            } => write!(f, "{name}[{index}].{channels}"),
-            SourceInput::Texture { name, channels } => write!(f, "{name}.{channels}"),
-        }
-    }
-}
-
-pub fn input_dependencies(translation_unit: &TranslationUnit, var: &str) -> Vec<SourceInput> {
+pub fn input_dependencies(translation_unit: &TranslationUnit, var: &str) -> Vec<Dependency> {
     line_dependencies(translation_unit, var)
         .map(|line_dependencies| {
             // TODO: Rework this later to make fewer assumptions about the code structure.
@@ -119,13 +87,13 @@ pub fn input_dependencies(translation_unit: &TranslationUnit, var: &str) -> Vec<
         .unwrap_or_default()
 }
 
-fn add_final_assignment_dependencies(final_assignment: &Expr, dependencies: &mut Vec<SourceInput>) {
+fn add_final_assignment_dependencies(final_assignment: &Expr, dependencies: &mut Vec<Dependency>) {
     match &final_assignment.content {
         ExprData::Variable(_) => (),
         ExprData::IntConst(_) => (),
         ExprData::UIntConst(_) => (),
         ExprData::BoolConst(_) => (),
-        ExprData::FloatConst(f) => dependencies.push(SourceInput::Constant(*f)),
+        ExprData::FloatConst(f) => dependencies.push(Dependency::Constant((*f).into())),
         ExprData::DoubleConst(_) => (),
         ExprData::Unary(_, _) => (),
         ExprData::Binary(_, _, _) => (),
@@ -140,20 +108,22 @@ fn add_final_assignment_dependencies(final_assignment: &Expr, dependencies: &mut
                     match &var.as_ref().content {
                         ExprData::Variable(id) => {
                             // buffer[index].x
-                            dependencies.push(SourceInput::Buffer {
+                            dependencies.push(Dependency::Buffer(BufferDependency {
                                 name: id.content.to_string(),
+                                field: String::new(), // TODO: use none instead?
                                 index: *index as usize,
                                 channels: channel.content.to_string(),
-                            });
+                            }));
                         }
                         ExprData::Dot(e, field) => {
                             if let ExprData::Variable(id) = &e.content {
                                 // buffer.field[index].x
-                                dependencies.push(SourceInput::Buffer {
-                                    name: format!("{}.{}", id.content, field.0),
+                                dependencies.push(Dependency::Buffer(BufferDependency {
+                                    name: id.content.to_string(),
+                                    field: field.0.to_string(),
                                     index: *index as usize,
                                     channels: channel.content.to_string(),
-                                });
+                                }));
                             }
                         }
                         _ => (),
@@ -167,7 +137,7 @@ fn add_final_assignment_dependencies(final_assignment: &Expr, dependencies: &mut
     }
 }
 
-fn texture_dependencies(dependencies: &LineDependencies) -> Vec<SourceInput> {
+fn texture_dependencies(dependencies: &LineDependencies) -> Vec<Dependency> {
     dependencies
         .dependent_lines
         .iter()
@@ -189,7 +159,7 @@ fn texture_dependencies(dependencies: &LineDependencies) -> Vec<SourceInput> {
                     );
                 }
 
-                Some(SourceInput::Texture { name, channels })
+                Some(Dependency::Texture(TextureDependency { name, channels }))
             })
         })
         .collect()
@@ -566,10 +536,10 @@ mod tests {
 
         let tu = TranslationUnit::parse(glsl).unwrap();
         assert_eq!(
-            vec![SourceInput::Texture {
+            vec![Dependency::Texture(TextureDependency {
                 name: "texture1".to_string(),
                 channels: "w".to_string()
-            }],
+            })],
             input_dependencies(&tu, "b")
         );
     }
@@ -587,10 +557,10 @@ mod tests {
 
         let tu = TranslationUnit::parse(glsl).unwrap();
         assert_eq!(
-            vec![SourceInput::Texture {
+            vec![Dependency::Texture(TextureDependency {
                 name: "texture1".to_string(),
                 channels: "z".to_string()
-            }],
+            })],
             input_dependencies(&tu, "b")
         );
     }
@@ -607,10 +577,10 @@ mod tests {
 
         let tu = TranslationUnit::parse(glsl).unwrap();
         assert_eq!(
-            vec![SourceInput::Texture {
+            vec![Dependency::Texture(TextureDependency {
                 name: "texture1".to_string(),
                 channels: "zw".to_string()
-            }],
+            })],
             input_dependencies(&tu, "b")
         );
     }
@@ -632,30 +602,32 @@ mod tests {
 
         let tu = TranslationUnit::parse(glsl).unwrap();
         assert_eq!(
-            vec![SourceInput::Texture {
+            vec![Dependency::Texture(TextureDependency {
                 name: "texture1".to_string(),
                 channels: "x".to_string()
-            }],
+            })],
             input_dependencies(&tu, "out_attr1.x")
         );
         assert_eq!(
-            vec![SourceInput::Buffer {
-                name: "U_Mate.data".to_string(),
+            vec![Dependency::Buffer(BufferDependency {
+                name: "U_Mate".to_string(),
+                field: "data".to_string(),
                 index: 1,
                 channels: "w".to_string()
-            }],
+            })],
             input_dependencies(&tu, "out_attr1.y")
         );
         assert_eq!(
-            vec![SourceInput::Buffer {
+            vec![Dependency::Buffer(BufferDependency {
                 name: "uniform_data".to_string(),
+                field: String::new(),
                 index: 3,
                 channels: "y".to_string()
-            }],
+            })],
             input_dependencies(&tu, "out_attr1.z")
         );
         assert_eq!(
-            vec![SourceInput::Constant(1.5)],
+            vec![Dependency::Constant(1.5.into())],
             input_dependencies(&tu, "out_attr1.w")
         );
     }

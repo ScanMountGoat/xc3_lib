@@ -19,12 +19,7 @@ fn shader_from_glsl(translation_unit: &TranslationUnit) -> Shader {
                     // TODO: Handle cases with multiple operations before assignment?
                     // TODO: Tests for the above?
                     let name = format!("out_attr{i}.{c}");
-                    // Make ordering consistent across channels if possible.
-                    let mut dependencies: Vec<_> = input_dependencies(translation_unit, &name)
-                        .into_iter()
-                        .map(|d| d.to_string())
-                        .collect();
-                    dependencies.sort();
+                    let dependencies = input_dependencies(translation_unit, &name);
 
                     // Simplify the output name to save space.
                     let output_name = format!("o{i}.{c}");

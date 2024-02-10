@@ -12,6 +12,7 @@
 use std::path::Path;
 
 use indexmap::IndexMap;
+use ordered_float::OrderedFloat;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -77,23 +78,45 @@ pub struct ShaderProgram {
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Shader {
-    // TODO: make this a Vec<usize> and store a separate list of unique strings like "s0.xyz" to save space.
+    // TODO: make this a Vec<usize> and store a separate list of unique values to save space.
     /// A list of input dependencies like "s0.xyz" assigned to each output like "out_attr0.x".
     ///
     /// Each dependency can be thought of as a link
     /// between the dependency node and group output in a shader node graph.
-    /// The type of the dependency must be inferred from its value
-    /// using one of the available methods.
-    pub output_dependencies: IndexMap<String, Vec<String>>,
+    pub output_dependencies: IndexMap<String, Vec<Dependency>>,
 }
 
-/// A single buffer access like `"UniformBuffer.field[0].y"`.
+/// A single buffer access like `UniformBuffer.field[0].y` in GLSL .
 #[derive(Debug, PartialEq, Eq)]
 pub struct BufferParameter {
     pub buffer: String,
     pub uniform: String,
+    // TODO: make this a Vec<usize> and store a separate list of unique values to save space.
+    pub output_dependencies: IndexMap<String, Vec<Dependency>>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub enum Dependency {
+    Constant(OrderedFloat<f32>),
+    Buffer(BufferDependency),
+    Texture(TextureDependency),
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct BufferDependency {
+    pub name: String,
+    pub field: String,
     pub index: usize,
-    pub channel: char,
+    pub channels: String,
+}
+
+/// A single texture access like `texture(s0, tex0.xy).rgb` in GLSL.
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct TextureDependency {
+    pub name: String,
+    pub channels: String,
+    // TODO: Include the texture coordinate attribute name and UV offset/scale
+    // TODO: This will require analyzing the vertex shader as well as the fragment shader.
 }
 
 impl Shader {
@@ -108,17 +131,20 @@ impl Shader {
     ) -> Option<(usize, usize)> {
         let output = format!("o{output_index}.{channel}");
 
-        // Find the first material referenced sampler like "s0" or "s1".
-        let (sampler_index, channels) =
-            self.output_dependencies
-                .get(&output)?
-                .iter()
-                .find_map(|sampler_name| {
-                    let (sampler, channels) = sampler_name.split_once('.')?;
-                    let sampler_index = material_sampler_index(sampler)?;
+        // Find the first material referenced samplers like "s0" or "s1".
+        let mut names_indices: Vec<_> = self
+            .output_dependencies
+            .get(&output)?
+            .iter()
+            .filter_map(|d| match d {
+                Dependency::Texture(t) => Some((material_sampler_index(&t.name)?, &t.channels)),
+                _ => None,
+            })
+            .collect();
 
-                    Some((sampler_index, channels))
-                })?;
+        // TODO: Is there a better heuristic than always picking the lowest sampler index?
+        names_indices.sort();
+        let (sampler_index, channels) = names_indices.first()?;
 
         // Textures may have multiple accessed channels like normal maps.
         // First check if the current channel is used.
@@ -129,7 +155,7 @@ impl Shader {
             channels.chars().next().unwrap()
         };
         let channel_index = "xyzw".find(c).unwrap();
-        Some((sampler_index, channel_index))
+        Some((*sampler_index, channel_index))
     }
 
     /// Returns the float constant assigned directly to the output
@@ -138,29 +164,26 @@ impl Shader {
         let output = format!("o{output_index}.{channel}");
 
         // If a constant is assigned, it will be the only dependency.
-        self.output_dependencies.get(&output)?.first()?.parse().ok()
+        match self.output_dependencies.get(&output)?.first()? {
+            Dependency::Constant(f) => Some(f.0),
+            _ => None,
+        }
     }
 
     /// Returns the uniform buffer parameter assigned directly to the output
     /// or `None` if the output does not use a parameter.
-    pub fn buffer_parameter(&self, output_index: usize, channel: char) -> Option<BufferParameter> {
+    pub fn buffer_parameter(
+        &self,
+        output_index: usize,
+        channel: char,
+    ) -> Option<&BufferDependency> {
         let output = format!("o{output_index}.{channel}");
 
         // If a parameter is assigned, it will be the only dependency.
-        let text = self.output_dependencies.get(&output)?.first()?;
-
-        // Parse U_Mate.gWrkFl4[0].x into "U_Mate", "gWrkFl4", 0, 'x'.
-        let (buffer, text) = text.split_once('.')?;
-        let (text, c) = text.split_once('.')?;
-        let (uniform, index) = text.split_once('[')?;
-        let (index, _) = index.rsplit_once(']')?;
-
-        Some(BufferParameter {
-            buffer: buffer.to_string(),
-            uniform: uniform.to_string(),
-            index: index.parse().ok()?,
-            channel: c.chars().next().unwrap(),
-        })
+        match self.output_dependencies.get(&output)?.first()? {
+            Dependency::Buffer(b) => Some(b),
+            _ => None,
+        }
     }
 }
 
@@ -206,12 +229,33 @@ mod tests {
     fn material_channel_assignment_multiple_output_assignment() {
         let shader = Shader {
             output_dependencies: [
-                ("o0.x".to_string(), vec!["s0.y".to_string()]),
+                (
+                    "o0.x".to_string(),
+                    vec![Dependency::Texture(TextureDependency {
+                        name: "s0".to_string(),
+                        channels: "y".to_string(),
+                    })],
+                ),
                 (
                     "o0.y".to_string(),
-                    vec!["tex.xyz".to_string(), "s2.z".to_string()],
+                    vec![
+                        Dependency::Texture(TextureDependency {
+                            name: "tex".to_string(),
+                            channels: "xyz".to_string(),
+                        }),
+                        Dependency::Texture(TextureDependency {
+                            name: "s2".to_string(),
+                            channels: "z".to_string(),
+                        }),
+                    ],
                 ),
-                ("o1.x".to_string(), vec!["s3.xyz".to_string()]),
+                (
+                    "o1.x".to_string(),
+                    vec![Dependency::Texture(TextureDependency {
+                        name: "s3".to_string(),
+                        channels: "xyz".to_string(),
+                    })],
+                ),
             ]
             .into(),
         };
@@ -222,12 +266,27 @@ mod tests {
     fn float_constant_multiple_assigments() {
         let shader = Shader {
             output_dependencies: [
-                ("o0.x".to_string(), vec!["s0.y".to_string()]),
+                (
+                    "o0.x".to_string(),
+                    vec![Dependency::Texture(TextureDependency {
+                        name: "s0".to_string(),
+                        channels: "y".to_string(),
+                    })],
+                ),
                 (
                     "o0.y".to_string(),
-                    vec!["tex.xyz".to_string(), "s2.z".to_string()],
+                    vec![
+                        Dependency::Texture(TextureDependency {
+                            name: "tex".to_string(),
+                            channels: "xyz".to_string(),
+                        }),
+                        Dependency::Texture(TextureDependency {
+                            name: "s2".to_string(),
+                            channels: "z".to_string(),
+                        }),
+                    ],
                 ),
-                ("o1.z".to_string(), vec!["0.5".to_string()]),
+                ("o1.z".to_string(), vec![Dependency::Constant(0.5.into())]),
             ]
             .into(),
         };
@@ -239,22 +298,45 @@ mod tests {
     fn buffer_parameter_multiple_assigments() {
         let shader = Shader {
             output_dependencies: [
-                ("o0.x".to_string(), vec!["s0.y".to_string()]),
+                (
+                    "o0.x".to_string(),
+                    vec![Dependency::Texture(TextureDependency {
+                        name: "s0".to_string(),
+                        channels: "y".to_string(),
+                    })],
+                ),
                 (
                     "o0.y".to_string(),
-                    vec!["tex.xyz".to_string(), "s2.z".to_string()],
+                    vec![
+                        Dependency::Texture(TextureDependency {
+                            name: "tex".to_string(),
+                            channels: "xyz".to_string(),
+                        }),
+                        Dependency::Texture(TextureDependency {
+                            name: "s2".to_string(),
+                            channels: "z".to_string(),
+                        }),
+                    ],
                 ),
-                ("o1.z".to_string(), vec!["U_Mate.param[31].w".to_string()]),
+                (
+                    "o1.z".to_string(),
+                    vec![Dependency::Buffer(BufferDependency {
+                        name: "U_Mate".to_string(),
+                        field: "param".to_string(),
+                        index: 31,
+                        channels: "w".to_string(),
+                    })],
+                ),
             ]
             .into(),
         };
         assert_eq!(None, shader.buffer_parameter(0, 'x'));
         assert_eq!(
-            Some(BufferParameter {
-                buffer: "U_Mate".to_string(),
-                uniform: "param".to_string(),
+            Some(&BufferDependency {
+                name: "U_Mate".to_string(),
+                field: "param".to_string(),
                 index: 31,
-                channel: 'w'
+                channels: "w".to_string()
             }),
             shader.buffer_parameter(1, 'z')
         );
