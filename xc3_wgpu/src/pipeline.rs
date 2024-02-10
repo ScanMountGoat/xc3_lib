@@ -32,6 +32,7 @@ impl PipelineKey {
 
     pub fn stencil_reference(&self) -> u32 {
         // TODO: move this to xc3_lib?
+        // TODO: Test remaining values.
         match self.flags.stencil_value {
             xc3_lib::mxmd::StencilValue::Unk0 => 10,
             xc3_lib::mxmd::StencilValue::Unk1 => 0,
@@ -39,6 +40,7 @@ impl PipelineKey {
             xc3_lib::mxmd::StencilValue::Unk5 => 0,
             xc3_lib::mxmd::StencilValue::Unk8 => 0,
             xc3_lib::mxmd::StencilValue::Unk9 => 0,
+            xc3_lib::mxmd::StencilValue::Unk12 => 0,
             xc3_lib::mxmd::StencilValue::Unk16 => 74,
             xc3_lib::mxmd::StencilValue::Unk20 => 0,
         }

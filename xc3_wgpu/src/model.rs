@@ -318,14 +318,16 @@ fn create_model_group(
     // TODO: How to enforce this assumption?
     // TODO: Avoid clone.
     // Reindex to match the ordering defined in the current skeleton.
-    let skin_weights = group.buffers[0].weights.as_ref().map(|weights| {
-        skeleton
-            .as_ref()
-            .map(|skeleton| {
-                let bone_names = skeleton.bones.iter().map(|b| b.name.clone()).collect();
-                weights.skin_weights.reindex_bones(bone_names)
-            })
-            .unwrap_or_else(|| weights.skin_weights.clone())
+    let skin_weights = group.buffers.first().and_then(|b| {
+        b.weights.as_ref().map(|weights| {
+            skeleton
+                .as_ref()
+                .map(|skeleton| {
+                    let bone_names = skeleton.bones.iter().map(|b| b.name.clone()).collect();
+                    weights.skin_weights.reindex_bones(bone_names)
+                })
+                .unwrap_or_else(|| weights.skin_weights.clone())
+        })
     });
 
     let (per_group, per_group_buffer) =

@@ -99,53 +99,53 @@ fn main() {
 
     // Check parsing and conversions for various file types.
     if cli.mibl || cli.all {
-        println!("Checking MIBL files ...");
+        println!("Checking Mibl files ...");
         check_all_mibl(root, cli.rw);
     }
 
     if cli.wimdo || cli.all {
-        println!("Checking MXMD and APMD files ...");
+        println!("Checking Mxmd and Apmd files ...");
         check_all(root, &["*.wimdo", "*.pcmdo"], check_wimdo, cli.rw);
     }
 
     if cli.msrd || cli.all {
         // Skip the .wismt textures in the XC3 tex folder.
-        println!("Checking MSRD files ...");
+        println!("Checking Msrd files ...");
         check_all(root, &["*.wismt", "!**/tex/**"], check_msrd, cli.rw);
     }
 
     if cli.msmd || cli.all {
-        println!("Checking MSMD files ...");
+        println!("Checking Msmd files ...");
         check_all(root, &["*.wismhd"], check_msmd, cli.rw);
     }
 
     if cli.sar1 || cli.all {
-        println!("Checking SAR1 files ...");
+        println!("Checking Sar1 files ...");
         check_all(root, &["*.arc", "*.chr", "*.mot"], check_sar1_data, cli.rw);
     }
 
     if cli.spch || cli.all {
-        println!("Checking SPCH files ...");
+        println!("Checking Spch files ...");
         check_all(root, &["*.wishp"], check_spch, cli.rw);
     }
 
     if cli.wilay || cli.all {
-        println!("Checking DHAL and LAGP files ...");
+        println!("Checking Dhal and Lagp files ...");
         check_all(root, &["*.wilay"], check_wilay_data, cli.rw);
     }
 
     if cli.ltpc || cli.all {
-        println!("Checking LTPC files ...");
+        println!("Checking Ltpc files ...");
         check_all(root, &["*.wiltp"], check_ltpc, cli.rw);
     }
 
     if cli.bc || cli.all {
-        println!("Checking BC files ...");
+        println!("Checking Bc files ...");
         check_all(root, &["*.anm", "*.motstm_data"], check_bc, cli.rw);
     }
 
     if cli.eva || cli.all {
-        println!("Checking EVA files ...");
+        println!("Checking Eva files ...");
         check_all(root, &["*.eva"], check_eva, cli.rw);
     }
 
@@ -154,7 +154,7 @@ fn main() {
     }
 
     if cli.wimdo_model {
-        check_all_wimdo_model(root);
+        check_all_wimdo_model(root, cli.rw);
     }
 
     println!("Finished in {:?}", start.elapsed());
@@ -765,7 +765,7 @@ fn check_all_gltf<P: AsRef<Path>>(root: P) {
         });
 }
 
-fn check_all_wimdo_model<P: AsRef<Path>>(root: P) {
+fn check_all_wimdo_model<P: AsRef<Path>>(root: P, check_read_write: bool) {
     globwalk::GlobWalkerBuilder::from_patterns(root.as_ref(), &["*.{wimdo}"])
         .build()
         .unwrap()
@@ -785,11 +785,12 @@ fn check_all_wimdo_model<P: AsRef<Path>>(root: P) {
                     // TODO: Create a function that loads files from wimdo path?
                     // TODO: Should this take the msrd or streaming?
                     // TODO: Is it worth being able to test this without compression?
-                    // TODO: Only check this if rw is enabled?
-                    let (new_mxmd, new_msrd) = root.to_mxmd_model(&mxmd, &msrd);
-                    let (new_vertex, _, _) = new_msrd.extract_files(None).unwrap();
-                    if &new_vertex != streaming_data.vertex.as_ref() {
-                        println!("VertexData not 1:1 for {path:?}")
+                    if check_read_write {
+                        let (_new_mxmd, new_msrd) = root.to_mxmd_model(&mxmd, &msrd);
+                        let (new_vertex, _, _) = new_msrd.extract_files(None).unwrap();
+                        if &new_vertex != streaming_data.vertex.as_ref() {
+                            println!("VertexData not 1:1 for {path:?}")
+                        }
                     }
                 }
                 Err(e) => println!("Error loading {path:?}: {e}"),

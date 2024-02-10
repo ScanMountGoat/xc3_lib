@@ -461,6 +461,7 @@ pub enum StencilValue {
     Unk5 = 5,
     Unk8 = 8,
     Unk9 = 9,
+    Unk12 = 12,
     /// 74 (0x4A)
     Unk16 = 16,
     Unk20 = 20,
