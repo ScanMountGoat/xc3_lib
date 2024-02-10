@@ -16,12 +16,11 @@ pub struct Material {
 
     pub alpha_test: Option<TextureAlphaTest>,
 
-    // TODO: Also store parameters?
     /// Precomputed metadata from the decompiled shader source
+    /// used to assign G-Buffer outputs
     /// or [None] if the database does not contain this model.
     pub shader: Option<Shader>,
 
-    // TODO: include with shader?
     pub unk_type: RenderPassType,
     pub parameters: MaterialParameters,
 }

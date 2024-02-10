@@ -4,8 +4,10 @@
 //! These types represent precomputed metadata like assignments to G-Buffer textures.
 //! This is necessary for determining the usage of a texture like albedo or normal map
 //! since the assignments are compiled into the shader code itself.
+//!
 //! Shader database JSON files should be generated using the xc3_shader CLI tool.
-//! Applications can use the generated database to avoid needing to generate this data at runtime.
+//! Applications can deserialize the JSON with [ShaderDatabase::from_file]
+//! to avoid needing to generate this data at runtime.
 
 use std::path::Path;
 
@@ -22,9 +24,7 @@ pub enum LoadShaderDatabaseError {
     Json(#[from] serde_json::Error),
 }
 
-// TODO: How much extra space does JSON take up?
-// TODO: Is it worth having a human readable version if it's only accessed through libraries?
-// TODO: Binary representation?
+/// Metadata for the assigned [Shader] for all models and maps in a game dump.
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct ShaderDatabase {
     /// The `.wimdo` file name without the extension and shader data for each file.
@@ -41,6 +41,7 @@ impl ShaderDatabase {
     }
 }
 
+/// Shaders for the different map model types.
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Map {
     pub map_models: Vec<Spch>,
@@ -54,6 +55,7 @@ pub struct Spch {
     pub programs: Vec<ShaderProgram>,
 }
 
+/// A collection of shaders.
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct ShaderProgram {
     /// Some shaders have multiple NVSD sections, so the length may be greater than 1.
@@ -65,14 +67,27 @@ pub struct ShaderProgram {
 ///
 /// This assumes inputs are assigned directly to outputs without any modifications.
 /// Fragment shaders typically only perform basic input and channel selection in practice.
+///
+/// This assignment information is needed to accurately recreate the G-Buffer texture values.
+/// Renderers can generate unique shaders for each model
+/// or select inputs in a shared shader at render time like xc3_wgpu.
+/// Node based editors like Blender's shader editor should use these values
+/// to determine how to construct node groups.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Shader {
     // TODO: make this a Vec<usize> and store a separate list of unique strings like "s0.xyz" to save space.
+    /// A list of input dependencies like "s0.xyz" assigned to each output like "out_attr0.x".
+    ///
+    /// Each dependency can be thought of as a link
+    /// between the dependency node and group output in a shader node graph.
+    /// The type of the dependency must be inferred from its value
+    /// using one of the available methods.
     pub output_dependencies: IndexMap<String, Vec<String>>,
 }
 
+/// A single buffer access like `"UniformBuffer.field[0].y"`.
 #[derive(Debug, PartialEq, Eq)]
 pub struct BufferParameter {
     pub buffer: String,
