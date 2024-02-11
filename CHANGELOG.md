@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added `ModelRoot::to_mxmd_model` for applying edits to the original `.wimdo` and `.wismt` files.
 * Added `ModelBuffers::from_vertex_data` and `ModelBuffers::to_vertex_data` to xc3_model for converting to and from xc3_lib.
 * Added rendering support for stencil flags to xc3_wgpu, improving sorting accuracy of eyelashes and eyebrows.
+* Added support for DLC models for Xenoblade 2 and Xenoblade 3 for the provided shader JSON databases.
 
 ### Fixed
 * Fixed an issue where not all morph targets were being read.
@@ -27,10 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Increased resolution from 512x512 to 1024x1024 for xc3_wgpu_batch PNG files.
 * Adjusted state flags for mxmd materials.
 * Appended program name to file names of extracted shaders if present for xc3_shader decompile-shaders.
-* Adjusted shader JSON dependency values to use structs instead of strings to avoid the need for extra parsing.
+* Optimized the JSON representation of `ShaderDatabase` to reduce size and enable more features in the future. The types for the JSON representation are not public and should be treated as an implementation detail. See the private structs in the source code for xc3_model for details.
 
 ### Removed
 * Removed `read_index_buffers`, `read_vertex_buffers`, `read_vertex_attributes`, and `read_index_buffers` from xc3_model. Use `ModelBuffers::from_vertex_data` instead.
+* Removed serialize/deserialize support from the shader database types in xc3_model. Use `ShaderDatabase::from_file` and `ShaderDatabase::save` instead.
 
 ## 0.5.0 - 2024-01-27
 ### Fixed

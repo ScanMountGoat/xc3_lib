@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum LoadShaderDatabaseError {
+pub enum ShaderDatabaseError {
     #[error("error writing files: {0}")]
     Io(#[from] std::io::Error),
 
@@ -26,7 +26,7 @@ pub enum LoadShaderDatabaseError {
 }
 
 /// Metadata for the assigned [Shader] for all models and maps in a game dump.
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ShaderDatabase {
     /// The `.wimdo` file name without the extension and shader data for each file.
     pub files: IndexMap<String, Spch>,
@@ -36,14 +36,35 @@ pub struct ShaderDatabase {
 
 impl ShaderDatabase {
     /// Loads and deserializes the JSON data from `path`.
-    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, LoadShaderDatabaseError> {
+    ///
+    /// This uses a modified JSON representation internally to reduce file size.
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, ShaderDatabaseError> {
         let json = std::fs::read_to_string(path)?;
-        serde_json::from_str(&json).map_err(Into::into)
+        let indexed: ShaderDatabaseIndexed = serde_json::from_str(&json)?;
+        Ok(indexed.into())
+    }
+
+    /// Serialize and save the JSON data from `path`.
+    ///
+    /// This uses a modified JSON representation internally to reduce file size.
+    pub fn save<P: AsRef<Path>>(
+        &self,
+        path: P,
+        pretty_print: bool,
+    ) -> Result<(), ShaderDatabaseError> {
+        let indexed = ShaderDatabaseIndexed::from(self);
+        let json = if pretty_print {
+            serde_json::to_string_pretty(&indexed)?
+        } else {
+            serde_json::to_string(&indexed)?
+        };
+        std::fs::write(path, json)?;
+        Ok(())
     }
 }
 
 /// Shaders for the different map model types.
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Map {
     pub map_models: Vec<Spch>,
     pub prop_models: Vec<Spch>,
@@ -51,13 +72,13 @@ pub struct Map {
 }
 
 /// The decompiled shader data for a single shader container file.
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Spch {
     pub programs: Vec<ShaderProgram>,
 }
 
 /// A collection of shaders.
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ShaderProgram {
     /// Some shaders have multiple NVSD sections, so the length may be greater than 1.
     pub shaders: Vec<Shader>,
@@ -75,8 +96,7 @@ pub struct ShaderProgram {
 /// Node based editors like Blender's shader editor should use these values
 /// to determine how to construct node groups.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-#[serde(transparent)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Shader {
     // TODO: make this a Vec<usize> and store a separate list of unique values to save space.
     /// A list of input dependencies like "s0.xyz" assigned to each output like "out_attr0.x".
@@ -86,23 +106,15 @@ pub struct Shader {
     pub output_dependencies: IndexMap<String, Vec<Dependency>>,
 }
 
-/// A single buffer access like `UniformBuffer.field[0].y` in GLSL .
-#[derive(Debug, PartialEq, Eq)]
-pub struct BufferParameter {
-    pub buffer: String,
-    pub uniform: String,
-    // TODO: make this a Vec<usize> and store a separate list of unique values to save space.
-    pub output_dependencies: IndexMap<String, Vec<Dependency>>,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub enum Dependency {
     Constant(OrderedFloat<f32>),
     Buffer(BufferDependency),
     Texture(TextureDependency),
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+/// A single buffer access like `UniformBuffer.field[0].y` in GLSL .
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct BufferDependency {
     pub name: String,
     pub field: String,
@@ -111,7 +123,7 @@ pub struct BufferDependency {
 }
 
 /// A single texture access like `texture(s0, tex0.xy).rgb` in GLSL.
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct TextureDependency {
     pub name: String,
     pub channels: String,
@@ -202,6 +214,186 @@ fn material_sampler_index(sampler: &str) -> Option<usize> {
         "s9" => Some(9),
         // TODO: How to handle this case?
         _ => None,
+    }
+}
+
+// Create a separate smaller representation for on disk.
+#[derive(Debug, Serialize, Deserialize)]
+struct ShaderDatabaseIndexed {
+    files: IndexMap<String, SpchIndexed>,
+    map_files: IndexMap<String, MapIndexed>,
+    dependencies: Vec<Dependency>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct MapIndexed {
+    map_models: Vec<SpchIndexed>,
+    prop_models: Vec<SpchIndexed>,
+    env_models: Vec<SpchIndexed>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(transparent)]
+struct SpchIndexed {
+    programs: Vec<ShaderProgramIndexed>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(transparent)]
+struct ShaderProgramIndexed {
+    shaders: Vec<ShaderIndexed>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(transparent)]
+struct ShaderIndexed {
+    // There are very few unique dependencies across all shaders in a game dump.
+    // Normalize the data to greatly reduce the size of the JSON representation.
+    output_dependencies: IndexMap<String, Vec<usize>>,
+}
+
+// Take the disk representation by value to reduce clones.
+impl From<ShaderDatabaseIndexed> for ShaderDatabase {
+    fn from(value: ShaderDatabaseIndexed) -> Self {
+        Self {
+            files: value
+                .files
+                .into_iter()
+                .map(|(n, s)| (n, spch_from_indexed(s, &value.dependencies)))
+                .collect(),
+            map_files: value
+                .map_files
+                .into_iter()
+                .map(|(n, m)| {
+                    (
+                        n,
+                        Map {
+                            map_models: m
+                                .map_models
+                                .into_iter()
+                                .map(|s| spch_from_indexed(s, &value.dependencies))
+                                .collect(),
+                            prop_models: m
+                                .prop_models
+                                .into_iter()
+                                .map(|s| spch_from_indexed(s, &value.dependencies))
+                                .collect(),
+                            env_models: m
+                                .env_models
+                                .into_iter()
+                                .map(|s| spch_from_indexed(s, &value.dependencies))
+                                .collect(),
+                        },
+                    )
+                })
+                .collect(),
+        }
+    }
+}
+
+impl From<&ShaderDatabase> for ShaderDatabaseIndexed {
+    fn from(value: &ShaderDatabase) -> Self {
+        let mut dependency_to_index = IndexMap::new();
+        Self {
+            files: value
+                .files
+                .iter()
+                .map(|(n, s)| (n.clone(), spch_indexed(s, &mut dependency_to_index)))
+                .collect(),
+            map_files: value
+                .map_files
+                .iter()
+                .map(|(n, m)| {
+                    (
+                        n.clone(),
+                        MapIndexed {
+                            map_models: m
+                                .map_models
+                                .iter()
+                                .map(|s| spch_indexed(s, &mut dependency_to_index))
+                                .collect(),
+                            prop_models: m
+                                .prop_models
+                                .iter()
+                                .map(|s| spch_indexed(s, &mut dependency_to_index))
+                                .collect(),
+                            env_models: m
+                                .env_models
+                                .iter()
+                                .map(|s| spch_indexed(s, &mut dependency_to_index))
+                                .collect(),
+                        },
+                    )
+                })
+                .collect(),
+            dependencies: dependency_to_index.into_keys().collect(),
+        }
+    }
+}
+
+fn spch_indexed(spch: &Spch, dependency_to_index: &mut IndexMap<Dependency, usize>) -> SpchIndexed {
+    SpchIndexed {
+        programs: spch
+            .programs
+            .iter()
+            .map(|p| ShaderProgramIndexed {
+                shaders: p
+                    .shaders
+                    .iter()
+                    .map(|s| ShaderIndexed {
+                        output_dependencies: s
+                            .output_dependencies
+                            .iter()
+                            .map(|(output, dependencies)| {
+                                (
+                                    output.clone(),
+                                    dependencies
+                                        .iter()
+                                        .map(|d| {
+                                            // This works since the map preserves insertion order.
+                                            let new_index = dependency_to_index.len();
+                                            *dependency_to_index
+                                                .entry(d.clone())
+                                                .or_insert(new_index)
+                                        })
+                                        .collect(),
+                                )
+                            })
+                            .collect(),
+                    })
+                    .collect(),
+            })
+            .collect(),
+    }
+}
+
+fn spch_from_indexed(spch: SpchIndexed, dependencies: &[Dependency]) -> Spch {
+    Spch {
+        programs: spch
+            .programs
+            .into_iter()
+            .map(|p| ShaderProgram {
+                shaders: p
+                    .shaders
+                    .into_iter()
+                    .map(|s| Shader {
+                        output_dependencies: s
+                            .output_dependencies
+                            .into_iter()
+                            .map(|(output, output_dependencies)| {
+                                (
+                                    output,
+                                    output_dependencies
+                                        .into_iter()
+                                        .map(|d| dependencies[d].clone())
+                                        .collect(),
+                                )
+                            })
+                            .collect(),
+                    })
+                    .collect(),
+            })
+            .collect(),
     }
 }
 

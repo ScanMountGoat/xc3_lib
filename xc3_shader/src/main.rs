@@ -78,13 +78,8 @@ fn main() {
             output_file,
             pretty,
         } => {
-            let files = create_shader_database(&input_folder);
-            let json = if pretty {
-                serde_json::to_string_pretty(&files).unwrap()
-            } else {
-                serde_json::to_string(&files).unwrap()
-            };
-            std::fs::write(output_file, json).unwrap()
+            let database = create_shader_database(&input_folder);
+            database.save(output_file, pretty).unwrap();
         }
         Commands::GlslDependencies { input, output, var } => {
             let source = std::fs::read_to_string(input).unwrap();
