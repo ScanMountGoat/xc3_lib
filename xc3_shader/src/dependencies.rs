@@ -33,23 +33,23 @@ impl AssignmentVisitor {
         );
 
         let assignment = AssignmentDependency {
-            output,
+            output_var: output,
             input_last_assignments,
-            input_expr: input.clone(),
+            assignment_input: input.clone(),
         };
         // The visitor doesn't track line numbers.
         // We only need to look up the assignments, so use the index instead.
         self.last_assignment_index
-            .insert(assignment.output.clone(), self.assignments.len());
+            .insert(assignment.output_var.clone(), self.assignments.len());
         self.assignments.push(assignment);
     }
 }
 
 #[derive(Debug, Clone)]
 struct AssignmentDependency {
-    output: String,
+    output_var: String,
 
-    input_expr: Expr,
+    assignment_input: Expr,
 
     // Include where any inputs were last initialized.
     // This makes edge traversal O(1) later.
@@ -79,7 +79,7 @@ pub fn input_dependencies(translation_unit: &TranslationUnit, var: &str) -> Vec<
             // The dependent lines are sorted, so the last element is the final assignment.
             // There should be at least one assignment if the value above is some.
             let d = line_dependencies.dependent_lines.last().unwrap();
-            let final_assignment = &line_dependencies.assignments[*d].input_expr;
+            let final_assignment = &line_dependencies.assignments[*d].assignment_input;
             add_final_assignment_dependencies(final_assignment, &mut dependencies);
 
             dependencies
@@ -143,7 +143,9 @@ fn texture_dependencies(dependencies: &LineDependencies) -> Vec<Dependency> {
         .iter()
         .filter_map(|d| {
             let assignment = &dependencies.assignments[*d];
-            texture_identifier_name(&assignment.input_expr).and_then(|name| {
+            texture_identifier_name(&assignment.assignment_input).and_then(|name| {
+                let texcoord_name_channels = assignment_uv_name_channels(&assignment, dependencies);
+
                 // Get the initial channels used for the texture function call.
                 // This defines the possible channels if we assume one access per texture.
                 // TODO: Why is this sometimes none?
@@ -159,10 +161,42 @@ fn texture_dependencies(dependencies: &LineDependencies) -> Vec<Dependency> {
                     );
                 }
 
-                Some(Dependency::Texture(TextureDependency { name, channels }))
+                Some(Dependency::Texture(TextureDependency {
+                    name,
+                    texcoord: texcoord_name_channels,
+                    channels,
+                }))
             })
         })
         .collect()
+}
+
+fn assignment_uv_name_channels(
+    assignment: &AssignmentDependency,
+    dependencies: &LineDependencies,
+) -> Option<(String, String)> {
+    // Search dependent lines to find what UV attribute is used like in_attr3.zw.
+    // Skip the texture name in the first function argument.
+    // TODO: Find a better way to combine UV channels.
+    let (u_name, u_channels) =
+        find_uv_attribute_channel(assignment.input_last_assignments.get(1..2)?, dependencies)?;
+    let (_, v_channels) =
+        find_uv_attribute_channel(assignment.input_last_assignments.get(2..3)?, dependencies)?;
+    Some((u_name, u_channels + &v_channels))
+}
+
+fn find_uv_attribute_channel(
+    last_assignments: &[(LastAssignment, Option<String>)],
+    dependencies: &LineDependencies,
+) -> Option<(String, String)> {
+    // Recurse backwards from the current assignment until we find a global variable.
+    last_assignments.iter().find_map(|(a, c)| match a {
+        LastAssignment::LineNumber(i) => find_uv_attribute_channel(
+            &dependencies.assignments[*i].input_last_assignments,
+            dependencies,
+        ),
+        LastAssignment::Global(g) => Some((g.clone(), c.clone()?)),
+    })
 }
 
 fn actual_channels(
@@ -342,7 +376,7 @@ fn line_dependencies(translation_unit: &TranslationUnit, var: &str) -> Option<Li
         .assignments
         .iter()
         .enumerate()
-        .rfind(|(_, a)| a.output == var)
+        .rfind(|(_, a)| a.output_var == var)
     {
         // Store the indices separate from the actual elements.
         // This avoids redundant clones from the visitor's dependencies.
@@ -397,7 +431,7 @@ pub fn glsl_dependencies(source: &str, var: &str) -> String {
                 .into_iter()
                 .map(|d| {
                     let a = &dependencies.assignments[d];
-                    format!("{} = {};", a.output, print_expr(&a.input_expr))
+                    format!("{} = {};", a.output_var, print_expr(&a.assignment_input))
                 })
                 .collect::<Vec<_>>()
                 .join("\n")
@@ -508,7 +542,8 @@ mod tests {
             void main() 
             {
                 float a = 1.0;
-                float b = texture(texture1, vec2(a + 2.0, 1.0)).x;
+                float a2 = a * 5.0;
+                float b = texture(texture1, vec2(a2 + 2.0, 1.0)).x;
                 float c = data[int(b)];
             }
         "};
@@ -516,7 +551,8 @@ mod tests {
         assert_eq!(
             indoc! {"
                 a = 1.;
-                b = texture(texture1, vec2(a + 2., 1.)).x;
+                a2 = a * 5.;
+                b = texture(texture1, vec2(a2 + 2., 1.)).x;
                 c = data[int(b)];
             "},
             glsl_dependencies(glsl, "c")
@@ -528,8 +564,11 @@ mod tests {
         let glsl = indoc! {"
             void main() 
             {
-                float t = 1.0;
-                float a = texture(texture1, vec2(t)).xw;
+                float x = in_attr0.x;
+                float y = in_attr0.w;
+                float x2 = x;
+                float y2 = y;
+                float a = texture(texture1, vec2(x2, y2)).xw;
                 float b = a.y * 2.0;
             }
         "};
@@ -538,7 +577,8 @@ mod tests {
         assert_eq!(
             vec![Dependency::Texture(TextureDependency {
                 name: "texture1".to_string(),
-                channels: "w".to_string()
+                channels: "w".to_string(),
+                texcoord: Some(("in_attr0".to_string(), "xw".to_string()))
             })],
             input_dependencies(&tu, "b")
         );
@@ -559,7 +599,8 @@ mod tests {
         assert_eq!(
             vec![Dependency::Texture(TextureDependency {
                 name: "texture1".to_string(),
-                channels: "z".to_string()
+                channels: "z".to_string(),
+                texcoord: None
             })],
             input_dependencies(&tu, "b")
         );
@@ -579,7 +620,8 @@ mod tests {
         assert_eq!(
             vec![Dependency::Texture(TextureDependency {
                 name: "texture1".to_string(),
-                channels: "zw".to_string()
+                channels: "zw".to_string(),
+                texcoord: None
             })],
             input_dependencies(&tu, "b")
         );
@@ -604,7 +646,8 @@ mod tests {
         assert_eq!(
             vec![Dependency::Texture(TextureDependency {
                 name: "texture1".to_string(),
-                channels: "x".to_string()
+                channels: "x".to_string(),
+                texcoord: None
             })],
             input_dependencies(&tu, "out_attr1.x")
         );

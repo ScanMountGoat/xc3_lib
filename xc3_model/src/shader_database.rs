@@ -126,8 +126,9 @@ pub struct BufferDependency {
 pub struct TextureDependency {
     pub name: String,
     pub channels: String,
-    // TODO: Include the texture coordinate attribute name and UV offset/scale
-    // TODO: This will require analyzing the vertex shader as well as the fragment shader.
+    // TODO: Analyze the vertex shader to include the texcoord transforms.
+    /// Name and channels of the texture coordinate attribute like `("tex0",  "xy")`.
+    pub texcoord: Option<(String, String)>,
 }
 
 impl Shader {
@@ -425,6 +426,7 @@ mod tests {
                     vec![Dependency::Texture(TextureDependency {
                         name: "s0".to_string(),
                         channels: "y".to_string(),
+                        texcoord: None,
                     })],
                 ),
                 (
@@ -433,10 +435,12 @@ mod tests {
                         Dependency::Texture(TextureDependency {
                             name: "tex".to_string(),
                             channels: "xyz".to_string(),
+                            texcoord: None,
                         }),
                         Dependency::Texture(TextureDependency {
                             name: "s2".to_string(),
                             channels: "z".to_string(),
+                            texcoord: None,
                         }),
                     ],
                 ),
@@ -445,6 +449,7 @@ mod tests {
                     vec![Dependency::Texture(TextureDependency {
                         name: "s3".to_string(),
                         channels: "xyz".to_string(),
+                        texcoord: None,
                     })],
                 ),
             ]
@@ -462,6 +467,7 @@ mod tests {
                     vec![Dependency::Texture(TextureDependency {
                         name: "s0".to_string(),
                         channels: "y".to_string(),
+                        texcoord: None,
                     })],
                 ),
                 (
@@ -470,10 +476,12 @@ mod tests {
                         Dependency::Texture(TextureDependency {
                             name: "tex".to_string(),
                             channels: "xyz".to_string(),
+                            texcoord: None,
                         }),
                         Dependency::Texture(TextureDependency {
                             name: "s2".to_string(),
                             channels: "z".to_string(),
+                            texcoord: None,
                         }),
                     ],
                 ),
@@ -494,6 +502,7 @@ mod tests {
                     vec![Dependency::Texture(TextureDependency {
                         name: "s0".to_string(),
                         channels: "y".to_string(),
+                        texcoord: None,
                     })],
                 ),
                 (
@@ -502,10 +511,12 @@ mod tests {
                         Dependency::Texture(TextureDependency {
                             name: "tex".to_string(),
                             channels: "xyz".to_string(),
+                            texcoord: None,
                         }),
                         Dependency::Texture(TextureDependency {
                             name: "s2".to_string(),
                             channels: "z".to_string(),
+                            texcoord: None,
                         }),
                     ],
                 ),
