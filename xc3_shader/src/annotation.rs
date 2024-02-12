@@ -271,16 +271,13 @@ fn annotate_buffers(
                 // The array has elements until the next uniform.
                 // All uniforms are vec4, so we don't need to worry about std140 alignment.
                 // Treat matrix types as vec4 arrays for now to match the decompiled code.
-                let array_length = uniforms.get(uniform_index + 1).and_then(|u| {
-                    let length = (u.buffer_offset - uniform.buffer_offset) / VEC4_SIZE;
-                    if length > 1 {
-                        Some(length)
-                    } else {
-                        // TODO: Infer the length from the highest accessed index?
-                        // TODO: Fix this.
-                        None
-                    }
-                });
+                // Assume the final uniform extends to the end of the buffer.
+                let next_offset = uniforms
+                    .get(uniform_index + 1)
+                    .map(|u| u.buffer_offset)
+                    .unwrap_or(buffer.size_in_bytes as u32);
+                let length = (next_offset - uniform.buffer_offset) / VEC4_SIZE;
+                let array_length = if length > 1 { Some(length) } else { None };
 
                 // Add a single field to the uniform buffer.
                 // All uniforms are vec4, so we don't need to worry about std140 alignment.
@@ -331,7 +328,7 @@ mod tests {
                         handle: 5,
                         visibility: Visibility::VertexFragment,
                     },
-                    unk5: 224,
+                    size_in_bytes: 224,
                 },
                 UniformBuffer {
                     name: "U_Mate".to_string(),
@@ -342,7 +339,7 @@ mod tests {
                         handle: 1,
                         visibility: Visibility::VertexFragment,
                     },
-                    unk5: 96,
+                    size_in_bytes: 96,
                 },
                 UniformBuffer {
                     name: "U_Mdl".to_string(),
@@ -353,7 +350,7 @@ mod tests {
                         handle: 2,
                         visibility: Visibility::Fragment,
                     },
-                    unk5: 176,
+                    size_in_bytes: 176,
                 },
                 UniformBuffer {
                     name: "U_RimBloomCalc".to_string(),
@@ -364,7 +361,7 @@ mod tests {
                         handle: 4,
                         visibility: Visibility::Fragment,
                     },
-                    unk5: 32,
+                    size_in_bytes: 32,
                 },
                 UniformBuffer {
                     name: "U_Static".to_string(),
@@ -375,7 +372,7 @@ mod tests {
                         handle: 0,
                         visibility: Visibility::VertexFragment,
                     },
-                    unk5: 672,
+                    size_in_bytes: 672,
                 },
                 UniformBuffer {
                     name: "U_VolTexCalc".to_string(),
@@ -386,7 +383,7 @@ mod tests {
                         handle: 3,
                         visibility: Visibility::Fragment,
                     },
-                    unk5: 176,
+                    size_in_bytes: 176,
                 },
             ]),
             storage_buffers: Some(vec![
@@ -399,7 +396,7 @@ mod tests {
                         handle: 0,
                         visibility: Visibility::Fragment,
                     },
-                    unk5: 48,
+                    size_in_bytes: 48,
                 },
                 UniformBuffer {
                     name: "U_OdB".to_string(),
@@ -410,7 +407,7 @@ mod tests {
                         handle: 1,
                         visibility: Visibility::Fragment,
                     },
-                    unk5: 48,
+                    size_in_bytes: 48,
                 },
             ]),
             attributes: vec![
@@ -640,7 +637,7 @@ mod tests {
     }
 
     #[test]
-    fn annotate_ch01011013_shd0056_vertex() {
+    fn annotate_xeno3_ch01011013_shd0056_vertex() {
         let glsl = indoc! {"
             layout (binding = 9, std140) uniform _vp_c8
             {
@@ -686,7 +683,7 @@ mod tests {
         assert_eq!(
             indoc! {"
                 layout(binding = 9, std140) uniform _U_CamoflageCalc {
-                    vec4 gCamouflageCalcWork;
+                    vec4 gCamouflageCalcWork[14];
                 }U_CamoflageCalc;
                 layout(binding = 4, std140) uniform _U_Static {
                     vec4 gmView[3];
@@ -706,7 +703,7 @@ mod tests {
                     vec4 gmProjNonJitter[4];
                     vec4 gmDiffPreMat[4];
                     vec4 gLightShaft;
-                    vec4 gWetParam;
+                    vec4 gWetParam[2];
                 }U_Static;
                 layout(binding = 5, std140) uniform _U_Mate {
                     vec4 gTexMat[2];
@@ -738,7 +735,7 @@ mod tests {
     }
 
     #[test]
-    fn annotate_ch01011013_shd0056_fragment() {
+    fn annotate_xeno3_ch01011013_shd0056_fragment() {
         // Main function modified to test more indices.
         let glsl = indoc! {"
             layout (binding = 8, std140) uniform _fp_c7
@@ -796,13 +793,13 @@ mod tests {
         assert_eq!(
             indoc! {"
                 layout(binding = 8, std140) uniform _U_RimBloomCalc {
-                    vec4 gRimBloomCalcWork;
+                    vec4 gRimBloomCalcWork[2];
                 }U_RimBloomCalc;
                 layout(binding = 7, std140) uniform _U_VolTexCalc {
-                    vec4 gVolTexCalcWork;
+                    vec4 gVolTexCalcWork[11];
                 }U_VolTexCalc;
                 layout(binding = 9, std140) uniform _U_CamoflageCalc {
-                    vec4 gCamouflageCalcWork;
+                    vec4 gCamouflageCalcWork[14];
                 }U_CamoflageCalc;
                 layout(binding = 5, std140) uniform _U_Mate {
                     vec4 gTexMat[2];
@@ -827,7 +824,7 @@ mod tests {
                     vec4 gmProjNonJitter[4];
                     vec4 gmDiffPreMat[4];
                     vec4 gLightShaft;
-                    vec4 gWetParam;
+                    vec4 gWetParam[2];
                 }U_Static;
                 layout(binding = 2, std140) uniform _fp_c1 {
                     precise vec4 data[4096];

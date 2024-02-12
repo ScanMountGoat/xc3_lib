@@ -98,7 +98,6 @@ pub struct ShaderProgram {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct Shader {
-    // TODO: make this a Vec<usize> and store a separate list of unique values to save space.
     /// A list of input dependencies like "s0.xyz" assigned to each output like "out_attr0.x".
     ///
     /// Each dependency can be thought of as a link

@@ -271,10 +271,11 @@ pub struct UniformBuffer {
     #[br(parse_with = parse_string_ptr32)]
     pub name: String,
     pub uniform_count: u16,
+    /// Index into [uniforms](struct.Nvsd.html#structfield.uniforms).
     pub uniform_start_index: u16,
     pub unk3: u32,
     pub handle: Handle, // TODO: handle.handle + 3?
-    pub unk5: u16,      // (start + count) * 32 for buffers1?
+    pub size_in_bytes: u16,
 }
 
 // TODO: is this used for all handle fields?
