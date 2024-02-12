@@ -118,19 +118,16 @@ pub fn albedo_generated_key(material: &crate::Material, root_index: usize) -> Ge
     // Some materials have alpha testing in a separate depth prepass.
     // glTF expects the alpha to be part of the main albedo texture.
     // We'll cheat a little here and convert the mask texture to albedo alpha.
-    // TODO: Will this always work?
-    let alpha_index = material
-        .alpha_test
-        .as_ref()
-        .map(|a| {
-            let texture = &material.textures[a.texture_index];
-            ImageIndex {
-                image_texture: texture.image_texture_index,
-                sampler: texture.sampler_index,
-                channel: a.channel_index,
-            }
-        })
-        .or_else(|| texture_channel_index(material, 0, 'w'));
+    // If no alpha test texture is assigned, the PNG will use an alpha of 1.0.
+    // This avoids issues with applications that always treat alpha as transparency.
+    let alpha_index = material.alpha_test.as_ref().map(|a| {
+        let texture = &material.textures[a.texture_index];
+        ImageIndex {
+            image_texture: texture.image_texture_index,
+            sampler: texture.sampler_index,
+            channel: a.channel_index,
+        }
+    });
 
     // TODO: Default to the first texture for albedo if no database entry?
     GeneratedImageKey {

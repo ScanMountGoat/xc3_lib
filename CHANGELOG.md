@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 * Fixed an issue where not all morph targets were being read.
 * Fixed various issues related to loading DLC models and maps for Xenoblade 2 and Xenoblade 3.
+* Fixed an issue where unused alpha channels in glTF diffuse textures would cause black renders in some applications.
 
 ### Changed
 * Improved rendering accuracy of toon shading pass.
