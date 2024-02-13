@@ -3,14 +3,14 @@ use std::collections::{BTreeSet, HashMap};
 
 use glsl_lang::{
     ast::{
-        DeclarationData, Expr, ExprData, FunIdentifierData, InitializerData, Statement,
+        DeclarationData, Expr, ExprData, FunIdentifierData, Identifier, InitializerData, Statement,
         StatementData, TranslationUnit,
     },
     parse::DefaultParse,
     transpiler::glsl::{show_expr, FormattingState},
     visitor::{Host, Visit, Visitor},
 };
-use xc3_model::shader_database::{BufferDependency, Dependency, TextureDependency};
+use xc3_model::shader_database::{BufferDependency, Dependency, TexCoord, TextureDependency};
 
 use crate::annotation::shader_source_no_extensions;
 
@@ -45,6 +45,37 @@ impl AssignmentVisitor {
     }
 }
 
+impl Visitor for AssignmentVisitor {
+    fn visit_statement(&mut self, statement: &Statement) -> Visit {
+        match &statement.content {
+            StatementData::Expression(expr) => {
+                if let Some(ExprData::Assignment(lh, _, rh)) =
+                    expr.content.0.as_ref().map(|c| &c.content)
+                {
+                    let output = print_expr(lh);
+                    self.add_assignment(output, rh);
+                }
+
+                Visit::Children
+            }
+            StatementData::Declaration(decl) => {
+                if let DeclarationData::InitDeclaratorList(l) = &decl.content {
+                    // TODO: is it worth handling complex initializers?
+                    if let Some(InitializerData::Simple(init)) =
+                        l.head.initializer.as_ref().map(|c| &c.content)
+                    {
+                        let output = l.head.name.as_ref().unwrap().0.clone();
+                        self.add_assignment(output.to_string(), init);
+                    }
+                }
+
+                Visit::Children
+            }
+            _ => Visit::Children,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 struct AssignmentDependency {
     output_var: String,
@@ -64,7 +95,7 @@ enum LastAssignment {
 }
 
 struct LineDependencies {
-    dependent_lines: BTreeSet<usize>,
+    dependent_assignment_indices: BTreeSet<usize>,
     assignments: Vec<AssignmentDependency>,
 }
 
@@ -78,17 +109,20 @@ pub fn input_dependencies(translation_unit: &TranslationUnit, var: &str) -> Vec<
             // Check if anything is directly assigned to the output variable.
             // The dependent lines are sorted, so the last element is the final assignment.
             // There should be at least one assignment if the value above is some.
-            let d = line_dependencies.dependent_lines.last().unwrap();
+            let d = line_dependencies
+                .dependent_assignment_indices
+                .last()
+                .unwrap();
             let final_assignment = &line_dependencies.assignments[*d].assignment_input;
-            add_final_assignment_dependencies(final_assignment, &mut dependencies);
+            add_assignment_dependencies(final_assignment, &mut dependencies);
 
             dependencies
         })
         .unwrap_or_default()
 }
 
-fn add_final_assignment_dependencies(final_assignment: &Expr, dependencies: &mut Vec<Dependency>) {
-    match &final_assignment.content {
+fn add_assignment_dependencies(expr: &Expr, dependencies: &mut Vec<Dependency>) {
+    match &expr.content {
         ExprData::Variable(_) => (),
         ExprData::IntConst(_) => (),
         ExprData::UIntConst(_) => (),
@@ -102,33 +136,8 @@ fn add_final_assignment_dependencies(final_assignment: &Expr, dependencies: &mut
         ExprData::Bracket(_, _) => (),
         ExprData::FunCall(_, _) => (),
         ExprData::Dot(e, channel) => {
-            // TODO: Is there a cleaner way of writing this?
-            if let ExprData::Bracket(var, specifier) = &e.as_ref().content {
-                if let ExprData::IntConst(index) = &specifier.content {
-                    match &var.as_ref().content {
-                        ExprData::Variable(id) => {
-                            // buffer[index].x
-                            dependencies.push(Dependency::Buffer(BufferDependency {
-                                name: id.content.to_string(),
-                                field: String::new(), // TODO: use none instead?
-                                index: *index as usize,
-                                channels: channel.content.to_string(),
-                            }));
-                        }
-                        ExprData::Dot(e, field) => {
-                            if let ExprData::Variable(id) = &e.content {
-                                // buffer.field[index].x
-                                dependencies.push(Dependency::Buffer(BufferDependency {
-                                    name: id.content.to_string(),
-                                    field: field.0.to_string(),
-                                    index: *index as usize,
-                                    channels: channel.content.to_string(),
-                                }));
-                            }
-                        }
-                        _ => (),
-                    }
-                }
+            if let Some(buffer) = buffer_dependency_from_dot_expr(e, channel) {
+                dependencies.push(Dependency::Buffer(buffer));
             }
         }
         ExprData::PostInc(_) => (),
@@ -137,14 +146,47 @@ fn add_final_assignment_dependencies(final_assignment: &Expr, dependencies: &mut
     }
 }
 
+fn buffer_dependency_from_dot_expr(e: &Expr, channel: &Identifier) -> Option<BufferDependency> {
+    // TODO: Is there a cleaner way of writing this?
+    if let ExprData::Bracket(var, specifier) = &e.content {
+        if let ExprData::IntConst(index) = &specifier.content {
+            match &var.as_ref().content {
+                ExprData::Variable(id) => {
+                    // buffer[index].x
+                    return Some(BufferDependency {
+                        name: id.content.to_string(),
+                        field: String::new(), // TODO: use none instead?
+                        index: *index as usize,
+                        channels: channel.content.to_string(),
+                    });
+                }
+                ExprData::Dot(e, field) => {
+                    if let ExprData::Variable(id) = &e.content {
+                        // buffer.field[index].x
+                        return Some(BufferDependency {
+                            name: id.content.to_string(),
+                            field: field.0.to_string(),
+                            index: *index as usize,
+                            channels: channel.content.to_string(),
+                        });
+                    }
+                }
+                _ => (),
+            }
+        }
+    }
+
+    None
+}
+
 fn texture_dependencies(dependencies: &LineDependencies) -> Vec<Dependency> {
     dependencies
-        .dependent_lines
+        .dependent_assignment_indices
         .iter()
         .filter_map(|d| {
             let assignment = &dependencies.assignments[*d];
             texture_identifier_name(&assignment.assignment_input).and_then(|name| {
-                let texcoord_name_channels = assignment_uv_name_channels(&assignment, dependencies);
+                let texcoord = texcoord_name_channels(assignment, dependencies);
 
                 // Get the initial channels used for the texture function call.
                 // This defines the possible channels if we assume one access per texture.
@@ -155,15 +197,40 @@ fn texture_dependencies(dependencies: &LineDependencies) -> Vec<Dependency> {
                 if channels.len() > 1 {
                     channels = actual_channels(
                         *d,
-                        &dependencies.dependent_lines,
+                        &dependencies.dependent_assignment_indices,
                         &dependencies.assignments,
                         &channels,
                     );
                 }
 
+                // TODO: Just detect if texmat is part of the globals in input_last_assignment?
+                // We can assume these are in the order texture, uv.x, uv.y, etc.
+                // This ensures we map the correct parameter to the correct coordinate.
+                let params: Vec<_> = assignment
+                    .input_last_assignments
+                    .iter()
+                    .skip(1)
+                    .filter_map(|(a, _)| {
+                        if let LastAssignment::LineNumber(l) = a {
+                            find_buffer_parameter(&dependencies.assignments[*l].assignment_input)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                // dbg!(&assignment.input_last_assignments);
+
+                let texcoord = texcoord.map(|(name, channels)| TexCoord {
+                    name,
+                    channels,
+                    params,
+                });
+
+                // TODO: Add Vec<BufferDependency> for the texcoord?
+                // TODO: Store Vec<BufferDependency> for both vert and frag?
                 Some(Dependency::Texture(TextureDependency {
                     name,
-                    texcoord: texcoord_name_channels,
+                    texcoord,
                     channels,
                 }))
             })
@@ -171,7 +238,33 @@ fn texture_dependencies(dependencies: &LineDependencies) -> Vec<Dependency> {
         .collect()
 }
 
-fn assignment_uv_name_channels(
+fn find_buffer_parameter(expr: &Expr) -> Option<BufferDependency> {
+    // TODO: Share code with add_vars using some sort of visitor?
+    // TODO: Create a visitor for dot expressions?
+    // TODO: Handle any binary op?
+    match &expr.content {
+        ExprData::Variable(_) => None,
+        ExprData::IntConst(_) => None,
+        ExprData::UIntConst(_) => None,
+        ExprData::BoolConst(_) => None,
+        ExprData::FloatConst(_) => None,
+        ExprData::DoubleConst(_) => None,
+        ExprData::Unary(_, _) => None,
+        ExprData::Binary(_, e1, e2) => {
+            find_buffer_parameter(e1).or_else(|| find_buffer_parameter(e2))
+        }
+        ExprData::Ternary(_, _, _) => None,
+        ExprData::Assignment(_, _, _) => None,
+        ExprData::Bracket(_, _) => None,
+        ExprData::FunCall(_, _) => None,
+        ExprData::Dot(e, channel) => buffer_dependency_from_dot_expr(e, channel),
+        ExprData::PostInc(_) => None,
+        ExprData::PostDec(_) => None,
+        ExprData::Comma(_, _) => None,
+    }
+}
+
+fn texcoord_name_channels(
     assignment: &AssignmentDependency,
     dependencies: &LineDependencies,
 ) -> Option<(String, String)> {
@@ -190,13 +283,17 @@ fn find_uv_attribute_channel(
     dependencies: &LineDependencies,
 ) -> Option<(String, String)> {
     // Recurse backwards from the current assignment until we find a global variable.
-    last_assignments.iter().find_map(|(a, c)| match a {
-        LastAssignment::LineNumber(i) => find_uv_attribute_channel(
-            &dependencies.assignments[*i].input_last_assignments,
-            dependencies,
-        ),
-        LastAssignment::Global(g) => Some((g.clone(), c.clone()?)),
-    })
+    // A global variable should have no other assignments to avoid detecting parameters.
+    match last_assignments {
+        [(LastAssignment::Global(g), c)] => Some((g.clone(), c.clone()?)),
+        assignments => assignments.iter().find_map(|(a, _)| match a {
+            LastAssignment::LineNumber(i) => find_uv_attribute_channel(
+                &dependencies.assignments[*i].input_last_assignments,
+                dependencies,
+            ),
+            LastAssignment::Global(_) => None,
+        }),
+    }
 }
 
 fn actual_channels(
@@ -267,13 +364,14 @@ fn texture_identifier_name(expr: &Expr) -> Option<String> {
     None
 }
 
+// TODO: Can this be written as a visitor for variables and dot?
 fn add_vars(
     expr: &Expr,
     vars: &mut Vec<(LastAssignment, Option<String>)>,
     most_recent_assignment: &HashMap<String, usize>,
     channel: Option<&str>,
 ) {
-    // Collect and variables used in an expression.
+    // Collect any variables used in an expression.
     // Code like fma(a, b, c) should return [a, b, c].
     // TODO: Include constants?
     match &expr.content {
@@ -334,37 +432,6 @@ fn print_expr(expr: &Expr) -> String {
     text
 }
 
-impl Visitor for AssignmentVisitor {
-    fn visit_statement(&mut self, statement: &Statement) -> Visit {
-        match &statement.content {
-            StatementData::Expression(expr) => {
-                if let Some(ExprData::Assignment(lh, _, rh)) =
-                    expr.content.0.as_ref().map(|c| &c.content)
-                {
-                    let output = print_expr(lh);
-                    self.add_assignment(output, rh);
-                }
-
-                Visit::Children
-            }
-            StatementData::Declaration(decl) => {
-                if let DeclarationData::InitDeclaratorList(l) = &decl.content {
-                    // TODO: is it worth handling complex initializers?
-                    if let Some(InitializerData::Simple(init)) =
-                        l.head.initializer.as_ref().map(|c| &c.content)
-                    {
-                        let output = l.head.name.as_ref().unwrap().0.clone();
-                        self.add_assignment(output.to_string(), init);
-                    }
-                }
-
-                Visit::Children
-            }
-            _ => Visit::Children,
-        }
-    }
-}
-
 fn line_dependencies(translation_unit: &TranslationUnit, var: &str) -> Option<LineDependencies> {
     // Visit each assignment to establish data dependencies.
     // This converts the code to a directed acyclic graph (DAG).
@@ -387,7 +454,7 @@ fn line_dependencies(translation_unit: &TranslationUnit, var: &str) -> Option<Li
         add_dependencies(&mut dependent_lines, assignment, &visitor.assignments);
 
         Some(LineDependencies {
-            dependent_lines,
+            dependent_assignment_indices: dependent_lines,
             assignments: visitor.assignments,
         })
     } else {
@@ -427,7 +494,7 @@ pub fn glsl_dependencies(source: &str, var: &str) -> String {
             // Combine all the lines into source code again.
             // These won't exactly match the originals due to formatting differences.
             dependencies
-                .dependent_lines
+                .dependent_assignment_indices
                 .into_iter()
                 .map(|d| {
                     let a = &dependencies.assignments[d];
@@ -578,9 +645,105 @@ mod tests {
             vec![Dependency::Texture(TextureDependency {
                 name: "texture1".to_string(),
                 channels: "w".to_string(),
-                texcoord: Some(("in_attr0".to_string(), "xw".to_string()))
+                texcoord: Some(TexCoord {
+                    name: "in_attr0".to_string(),
+                    channels: "xw".to_string(),
+                    params: Vec::new()
+                })
             })],
             input_dependencies(&tu, "b")
+        );
+    }
+
+    #[test]
+    fn input_dependencies_scale_tex_matrix() {
+        let glsl = indoc! {"
+            void main() 
+            {
+                temp_0 = in_attr4.x;
+                temp_1 = in_attr4.y;
+                temp_141 = temp_0 * U_Mate.gTexMat[0].x;
+                temp_147 = temp_0 * U_Mate.gTexMat[1].x;
+                temp_148 = fma(temp_1, U_Mate.gTexMat[0].y, temp_141);
+                temp_151 = fma(temp_1, U_Mate.gTexMat[1].y, temp_147);
+                temp_152 = fma(0., U_Mate.gTexMat[1].z, temp_151);
+                temp_154 = fma(0., U_Mate.gTexMat[0].z, temp_148);
+                temp_155 = temp_152 + U_Mate.gTexMat[1].w;
+                temp_160 = temp_154 + U_Mate.gTexMat[0].w;
+                temp_162 = texture(gTResidentTex05, vec2(temp_160, temp_155)).wyz;
+                temp_163 = temp_162.x; 
+            }
+        "};
+
+        // TODO: reliably detect channels even with matrix multiplication?
+        let tu = TranslationUnit::parse(glsl).unwrap();
+        assert_eq!(
+            vec![Dependency::Texture(TextureDependency {
+                name: "gTResidentTex05".to_string(),
+                channels: "w".to_string(),
+                texcoord: Some(TexCoord {
+                    name: "in_attr4".to_string(),
+                    channels: "yy".to_string(),
+                    params: vec![
+                        BufferDependency {
+                            name: "U_Mate".to_string(),
+                            field: "gTexMat".to_string(),
+                            index: 0,
+                            channels: "w".to_string()
+                        },
+                        BufferDependency {
+                            name: "U_Mate".to_string(),
+                            field: "gTexMat".to_string(),
+                            index: 1,
+                            channels: "w".to_string()
+                        }
+                    ]
+                })
+            })],
+            input_dependencies(&tu, "temp_163")
+        );
+    }
+
+    #[test]
+    fn input_dependencies_scale_parameter() {
+        let glsl = indoc! {"
+            void main() 
+            {
+                temp_0 = in_attr4.x;
+                temp_1 = in_attr4.y;
+                test = 0.5;
+                temp_121 = temp_1 * U_Mate.gWrkFl4[0].w;
+                temp_157 = temp_0 * U_Mate.gWrkFl4[0].z;
+                temp_169 = texture(gTResidentTex04, vec2(temp_157, temp_121)).xyz;
+                temp_170 = temp_169.x; 
+            }
+        "};
+
+        let tu = TranslationUnit::parse(glsl).unwrap();
+        assert_eq!(
+            vec![Dependency::Texture(TextureDependency {
+                name: "gTResidentTex04".to_string(),
+                channels: "x".to_string(),
+                texcoord: Some(TexCoord {
+                    name: "in_attr4".to_string(),
+                    channels: "xy".to_string(),
+                    params: vec![
+                        BufferDependency {
+                            name: "U_Mate".to_string(),
+                            field: "gWrkFl4".to_string(),
+                            index: 0,
+                            channels: "z".to_string()
+                        },
+                        BufferDependency {
+                            name: "U_Mate".to_string(),
+                            field: "gWrkFl4".to_string(),
+                            index: 0,
+                            channels: "w".to_string()
+                        }
+                    ]
+                })
+            })],
+            input_dependencies(&tu, "temp_170")
         );
     }
 

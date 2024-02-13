@@ -7,7 +7,7 @@ use xc3_model::shader_database::{Map, Shader, ShaderDatabase, ShaderProgram, Spc
 
 use crate::{annotation::shader_source_no_extensions, dependencies::input_dependencies};
 
-fn shader_from_glsl(translation_unit: &TranslationUnit) -> Shader {
+fn shader_from_glsl(_vertex: Option<&TranslationUnit>, fragment: &TranslationUnit) -> Shader {
     // Get the textures used to initialize each fragment output channel.
     // Unused outputs will have an empty dependency list.
     Shader {
@@ -18,8 +18,13 @@ fn shader_from_glsl(translation_unit: &TranslationUnit) -> Shader {
                     // TODO: Handle cases with vertex color assignments.
                     // TODO: Handle cases with multiple operations before assignment?
                     // TODO: Tests for the above?
+
                     let name = format!("out_attr{i}.{c}");
-                    let dependencies = input_dependencies(translation_unit, &name);
+                    let dependencies = input_dependencies(fragment, &name);
+
+                    // TODO: Find uv attributes used in fragment shader.
+                    // TODO: Find corresponding attributes by matching locations?
+                    // TODO: Find buffer parameters used for these attributes in the vertex shader.
 
                     // Simplify the output name to save space.
                     let output_name = format!("o{i}.{c}");
@@ -117,11 +122,24 @@ fn create_shader_programs(folder: &Path) -> Vec<ShaderProgram> {
     paths
         .par_iter()
         .filter_map(|path| {
-            let source = std::fs::read_to_string(path).unwrap();
-            let modified_source = shader_source_no_extensions(&source);
-            match TranslationUnit::parse(modified_source) {
-                Ok(translation_unit) => Some(ShaderProgram {
-                    shaders: vec![shader_from_glsl(&translation_unit)],
+            // TODO: Should the vertex shader be mandatory?
+            let vertex_source = std::fs::read_to_string(path.with_extension("vert")).ok();
+            let vertex = vertex_source.and_then(|s| {
+                let source = shader_source_no_extensions(&s);
+                match TranslationUnit::parse(source) {
+                    Ok(vertex) => Some(vertex),
+                    Err(e) => {
+                        error!("Error parsing {path:?}: {e}");
+                        None
+                    }
+                }
+            });
+
+            let frag_source = std::fs::read_to_string(path).unwrap();
+            let frag_source = shader_source_no_extensions(&frag_source);
+            match TranslationUnit::parse(frag_source) {
+                Ok(fragment) => Some(ShaderProgram {
+                    shaders: vec![shader_from_glsl(vertex.as_ref(), &fragment)],
                 }),
                 Err(e) => {
                     error!("Error parsing {path:?}: {e}");

@@ -126,9 +126,20 @@ pub struct BufferDependency {
 pub struct TextureDependency {
     pub name: String,
     pub channels: String,
-    // TODO: Analyze the vertex shader to include the texcoord transforms.
-    /// Name and channels of the texture coordinate attribute like `("tex0",  "xy")`.
-    pub texcoord: Option<(String, String)>,
+    /// Texture coordinate values used for the texture function call.
+    pub texcoord: Option<TexCoord>,
+}
+
+/// A texture coordinate attribute with optional transform parameters.
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
+pub struct TexCoord {
+    /// The name of the attribute like "in_attr4".
+    pub name: String,
+    /// The accessed channels like "xy".
+    pub channels: String,
+    /// Parameters used to initialize the final texture function parameters.
+    /// These can generally be assumed to be scale or matrix transforms.
+    pub params: Vec<BufferDependency>,
 }
 
 impl Shader {
