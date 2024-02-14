@@ -136,51 +136,38 @@ pub struct TexCoord {
     /// The name of the attribute like "in_attr4".
     pub name: String,
     /// The accessed channels like "zw".
-    /// Channels are in order by texture function texcoord parameters.
+    /// ordered by texture function texcoord parameters.
     /// This will usually be sequential like `texture(s0, vec2(attr.z, attr.w)`.
     pub channels: String,
-    /// Parameters used to initialize the final texture function parameters.
+    /// Parameter dependencies ordered by texture function texcoord parameters.
     /// These can generally be assumed to be scale or matrix transforms.
     pub params: Vec<BufferDependency>,
 }
 
 impl Shader {
-    /// Returns the sampler and channel index of the first material sampler assigned to the output
-    /// or `None` if the output does not use a sampler.
+    /// Returns the first texture assigned to the output or `None` if the output does not use a sampler.
     ///
-    /// For example, an assignment of `"s3.y"` results in a sampler index of `3` and a channel index of `1`.
-    pub fn sampler_channel_index(
-        &self,
-        output_index: usize,
-        channel: char,
-    ) -> Option<(usize, usize)> {
+    /// This currently uses a heuristic where textures like "s0" are returned before "s4" or "gTResidentTex05"
+    /// to resolve some assignment issues.
+    pub fn texture(&self, output_index: usize, channel: char) -> Option<&TextureDependency> {
         let output = format!("o{output_index}.{channel}");
 
         // Find the first material referenced samplers like "s0" or "s1".
-        let mut names_indices: Vec<_> = self
+        let mut textures: Vec<_> = self
             .output_dependencies
             .get(&output)?
             .iter()
             .filter_map(|d| match d {
-                Dependency::Texture(t) => Some((material_sampler_index(&t.name)?, &t.channels)),
+                Dependency::Texture(t) => Some(t),
                 _ => None,
             })
             .collect();
 
         // TODO: Is there a better heuristic than always picking the lowest sampler index?
-        names_indices.sort();
-        let (sampler_index, channels) = names_indices.first()?;
+        textures
+            .sort_by(|a, b| material_sampler_index(&a.name).cmp(&material_sampler_index(&b.name)));
 
-        // Textures may have multiple accessed channels like normal maps.
-        // First check if the current channel is used.
-        // TODO: Does this always work as intended?
-        let c = if channels.contains(channel) {
-            channel
-        } else {
-            channels.chars().next().unwrap()
-        };
-        let channel_index = "xyzw".find(c).unwrap();
-        Some((*sampler_index, channel_index))
+        textures.first().copied()
     }
 
     /// Returns the float constant assigned directly to the output
@@ -212,21 +199,21 @@ impl Shader {
     }
 }
 
-fn material_sampler_index(sampler: &str) -> Option<usize> {
+fn material_sampler_index(sampler: &str) -> usize {
     // TODO: Just parse int?
     match sampler {
-        "s0" => Some(0),
-        "s1" => Some(1),
-        "s2" => Some(2),
-        "s3" => Some(3),
-        "s4" => Some(4),
-        "s5" => Some(5),
-        "s6" => Some(6),
-        "s7" => Some(7),
-        "s8" => Some(8),
-        "s9" => Some(9),
+        "s0" => 0,
+        "s1" => 1,
+        "s2" => 2,
+        "s3" => 3,
+        "s4" => 4,
+        "s5" => 5,
+        "s6" => 6,
+        "s7" => 7,
+        "s8" => 8,
+        "s9" => 9,
         // TODO: How to handle this case?
-        _ => None,
+        _ => usize::MAX,
     }
 }
 
@@ -419,7 +406,7 @@ mod tests {
         let shader = Shader {
             output_dependencies: IndexMap::new(),
         };
-        assert_eq!(None, shader.sampler_channel_index(0, 'x'));
+        assert_eq!(None, shader.texture(0, 'x'));
     }
 
     #[test]
@@ -427,7 +414,7 @@ mod tests {
         let shader = Shader {
             output_dependencies: [("o0.x".to_string(), Vec::new())].into(),
         };
-        assert_eq!(None, shader.sampler_channel_index(0, 'x'));
+        assert_eq!(None, shader.texture(0, 'x'));
     }
 
     #[test]
@@ -468,7 +455,14 @@ mod tests {
             ]
             .into(),
         };
-        assert_eq!(Some((2, 2)), shader.sampler_channel_index(0, 'y'));
+        assert_eq!(
+            Some(&TextureDependency {
+                name: "s2".to_string(),
+                channels: "z".to_string(),
+                texcoord: None,
+            }),
+            shader.texture(0, 'y')
+        );
     }
 
     #[test]

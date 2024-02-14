@@ -441,7 +441,7 @@ fn model_vertex_buffers(
             let mut buffer1_vertices = vec![
                 shader::model::VertexInput1 {
                     vertex_color: Vec4::ZERO,
-                    uv1: Vec3::ZERO,
+                    tex0: Vec3::ZERO,
                     weight_index: 0
                 };
                 vertex_count
@@ -591,7 +591,7 @@ fn set_buffer1_attributes(verts: &mut [shader::model::VertexInput1], attributes:
     for attribute in attributes {
         match attribute {
             AttributeData::TexCoord0(vals) => {
-                set_attribute1(verts, vals, |v, t| v.uv1 = t.extend(0.0))
+                set_attribute1(verts, vals, |v, t| v.tex0 = t.extend(0.0))
             }
             AttributeData::VertexColor(vals) => {
                 set_attribute1(verts, vals, |v, t| v.vertex_color = t)

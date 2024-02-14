@@ -152,7 +152,8 @@ fn calculate_color(uv: vec2<f32>) -> vec4<f32> {
     // TODO: ambient specular using BRDF map?
     let specular_lighting = ggx + 0.25;
 
-    let f0 = mix(vec3(0.04), albedo, metalness);
+    // TODO: fresnel?
+    let f0 = mix(vec3(0.08), albedo, metalness);
 
     let k_specular = f0;
     let k_diffuse = 1.0 - metalness;
@@ -171,7 +172,7 @@ fn calculate_toon_color(uv: vec2<f32>) -> vec4<f32> {
     let g_lgt_color = textureSample(g_lgt_color, shared_sampler, uv);
 
     let albedo = g_color.rgb;
-    let metalness = g_etc_buffer.r;
+    let metalness = g_etc_buffer.r; // TODO: different for toon?
     let glossiness = g_etc_buffer.g;
     
     // TODO: clamped using constant buffer?
@@ -202,14 +203,16 @@ fn calculate_toon_color(uv: vec2<f32>) -> vec4<f32> {
     // TODO: ambient specular using BRDF map?
     let specular_lighting = ggx;
 
-    let f0 = mix(vec3(0.04), albedo, metalness);
-
+    // TODO: fresnel?
+    let f0 = mix(vec3(0.08), albedo, metalness);
+    // TODO: specular intensity when using specular map?
     let k_specular = f0;
     let k_diffuse = 1.0 - metalness;
 
+    // TODO: Correctly use both gradients to fix massive melee mythra hair.
     let toon_v = toon_grad_v(g_etc_buffer.z);
     let toon_diffuse = textureSample(g_toon_grad, shared_sampler, vec2(diffuse_lighting, toon_v)).rgb;
-    let toon_specular = textureSample(g_toon_grad, shared_sampler, vec2(specular_lighting, toon_v)).rgb;
+    let toon_specular = specular_lighting * g_lgt_color.rgb;
 
     output = albedo * k_diffuse * toon_diffuse + toon_specular * k_specular * ambient_occlusion;
 

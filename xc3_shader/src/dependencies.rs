@@ -219,7 +219,6 @@ fn texture_dependencies(dependencies: &LineDependencies) -> Vec<Dependency> {
                         }
                     })
                     .collect();
-                // dbg!(&assignment.input_last_assignments);
 
                 let texcoord = texcoord.map(|(name, channels)| TexCoord {
                     name,

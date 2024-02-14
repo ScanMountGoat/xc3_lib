@@ -2,7 +2,7 @@ use log::warn;
 use xc3_lib::mxmd::{Materials, RenderPassType, StateFlags, TextureUsage};
 
 use crate::{
-    shader_database::{BufferDependency, Shader, Spch},
+    shader_database::{BufferDependency, Shader, Spch, TextureDependency},
     ImageTexture,
 };
 
@@ -191,6 +191,7 @@ fn assign_parameters(
                         let vector_index = index / 4;
                         let component_index = index % 4;
                         if let Some(vector) = work_float4.get_mut(vector_index) {
+                            // TODO: This interferes with UV scaling for xc2?
                             vector[component_index] /= 255.0;
                         }
                     }
@@ -235,16 +236,24 @@ pub struct GBufferAssignment {
 #[derive(Debug)]
 pub enum ChannelAssignment {
     Texture {
-        material_texture_index: usize,
+        // TODO: Include matrix transform or scale?
+        // TODO: Always convert everything to a matrix?
+        // TODO: how often is the matrix even used?
+        name: String,
         channel_index: usize,
+        texcoord_scale: Option<(f32, f32)>,
     },
     Value(f32),
 }
 
-// TODO: also include the texture usage as a fallback?
 // TODO: Test cases for this?
 impl Material {
     // TODO: Store these values instead of making them a method?
+    /// Get the texture or value assigned to each G-Buffer output texture and channel.
+    ///
+    /// If no shader is assigned from the database, assignments are inferred from the usage hints in `textures`.
+    /// This heuristic works well for detecting color and normal maps but cannot detect temp texture channels
+    /// or material parameter values like texture tiling.
     pub fn gbuffer_assignments(&self, textures: &[ImageTexture]) -> Option<GBufferAssignments> {
         self.shader
             .as_ref()
@@ -263,8 +272,9 @@ impl Material {
         // Guess reasonable defaults based on the texture types.
         let assignment = |i: Option<usize>, c| {
             i.map(|i| ChannelAssignment::Texture {
-                material_texture_index: i,
+                name: format!("s{i}"),
                 channel_index: c,
+                texcoord_scale: None,
             })
         };
 
@@ -331,6 +341,7 @@ fn gbuffer_assignment(
     }
 }
 
+// TODO: include texcoord attribute name and buffer dependency for U and V?
 fn channel_assignment(
     shader: &Shader,
     parameters: &MaterialParameters,
@@ -342,13 +353,39 @@ fn channel_assignment(
     param_or_const(shader, parameters, output_index, channel_index)
         .map(ChannelAssignment::Value)
         .or_else(|| {
-            shader
-                .sampler_channel_index(output_index, channel)
-                .map(|(s, c)| ChannelAssignment::Texture {
-                    material_texture_index: s,
-                    channel_index: c,
-                })
+            shader.texture(output_index, channel).map(|texture| {
+                // Textures may have multiple accessed channels like normal maps.
+                // First check if the current channel is used.
+                // TODO: Does this always work as intended?
+                let c = if texture.channels.contains(channel) {
+                    channel
+                } else {
+                    texture.channels.chars().next().unwrap()
+                };
+
+                let texcoord_scale = texcoord_scale(texture, parameters);
+
+                ChannelAssignment::Texture {
+                    name: texture.name.clone(),
+                    channel_index: "xyzw".find(c).unwrap(),
+                    texcoord_scale,
+                }
+            })
         })
+}
+
+fn texcoord_scale(
+    texture: &TextureDependency,
+    parameters: &MaterialParameters,
+) -> Option<(f32, f32)> {
+    let texcoord = texture.texcoord.as_ref()?;
+    if let Some([u, v]) = texcoord.params.get(..2) {
+        let scale_u = extract_parameter(u, parameters)?;
+        let scale_v = extract_parameter(v, parameters)?;
+        Some((scale_u, scale_v))
+    } else {
+        None
+    }
 }
 
 // TODO: Tests for this?

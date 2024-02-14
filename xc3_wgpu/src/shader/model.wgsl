@@ -105,6 +105,7 @@ struct PerMaterial {
     gbuffer_assignments: array<GBufferAssignment, 6>,
     // Parameters, constants, and defaults if no texture is assigned.
     gbuffer_defaults: array<vec4<f32>, 6>,
+    texture_scale: array<vec4<f32>, 10>,
     // texture index, channel, index, 0, 0
     alpha_test_texture: vec4<i32>,
     alpha_test_ref: vec4<f32>,
@@ -135,7 +136,7 @@ struct VertexInput0 {
 // Store attributes unaffected by skinning or morphs separately.
 struct VertexInput1 {
     @location(3) vertex_color: vec4<f32>,
-    @location(4) uv1: vec3<f32>,
+    @location(4) tex0: vec3<f32>,
     @location(5) weight_index: u32,
 }
 
@@ -149,7 +150,7 @@ struct InstanceInput {
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) position: vec3<f32>,
-    @location(1) uv1: vec2<f32>,
+    @location(1) tex0: vec2<f32>,
     @location(2) normal: vec3<f32>,
     @location(3) tangent: vec3<f32>,
     @location(4) bitangent: vec3<f32>,
@@ -211,7 +212,16 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance: InstanceInput, 
 
     out.clip_position = camera.view_projection * model_matrix * vec4(position, 1.0);
     out.position = out.clip_position.xyz;
-    out.uv1 = in1.uv1.xy;
+
+    // TODO: The zw components should contain a scaled version?
+    // TODO: How to detect what the scale values should be?
+    // TODO: How to detect whether a texture uses the scaled UVs or not?
+    // TODO: Are the scaled UVs always in zw?
+    // TODO: sometimes tex0.xy is multiplied by a matrix?
+    // TODO: some shaders have gTexA, gTexB, gTexC for up to 5 scaled versions of tex0?
+    // TODO: frag shader just accesses the attributes without modifying them?
+    out.tex0 = in1.tex0.xy;
+
     // TODO: Find a better way to only force vertex color for outlines.
     if outline {
         out.vertex_color = in1.vertex_color;
@@ -345,13 +355,17 @@ fn mrt_normal(normal: vec3<f32>, ao: f32) -> vec4<f32> {
 
 // Adapted from shd00036 GLSL from ch11021013.pcsmt (xc3). 
 fn mrt_etc_buffer(g_etc_buffer: vec4<f32>, view_normal: vec3<f32>) -> vec4<f32> {
-    var out: vec4<f32>;
-    out.x = g_etc_buffer.x;
-    out.y = geometric_specular_aa(g_etc_buffer.y, view_normal);
-    out.z = g_etc_buffer.z;
-    out.w = g_etc_buffer.w;
+    var out = g_etc_buffer;
+    // Antialiasing isn't necessary for parameters or constants.
+    if per_material.gbuffer_assignments[1].sampler_indices.y != -1 {
+        out.y = geometric_specular_aa(g_etc_buffer.y, view_normal);
+    }
     return out;
 }
+
+// TODO: schlick fresnel approximation for shading some toon meshes?
+// TODO: Is it reliable to detect this as U_Mate.gWrkFl4[i].c * 5?
+// TODO: what color is used for blending?
 
 @fragment
 fn fs_main(in: VertexOutput) -> FragmentOutput {
@@ -359,16 +373,16 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     let vertex_normal = normalize(in.normal.xyz);
     let bitangent = normalize(in.bitangent);
 
-    let s0_color = textureSample(s0, s0_sampler, in.uv1);
-    let s1_color = textureSample(s1, s1_sampler, in.uv1);
-    let s2_color = textureSample(s2, s2_sampler, in.uv1);
-    let s3_color = textureSample(s3, s3_sampler, in.uv1);
-    let s4_color = textureSample(s4, s4_sampler, in.uv1);
-    let s5_color = textureSample(s5, s5_sampler, in.uv1);
-    let s6_color = textureSample(s6, s6_sampler, in.uv1);
-    let s7_color = textureSample(s7, s7_sampler, in.uv1);
-    let s8_color = textureSample(s8, s8_sampler, in.uv1);
-    let s9_color = textureSample(s9, s9_sampler, in.uv1);
+    let s0_color = textureSample(s0, s0_sampler, in.tex0 * per_material.texture_scale[0].xy);
+    let s1_color = textureSample(s1, s1_sampler, in.tex0 * per_material.texture_scale[1].xy);
+    let s2_color = textureSample(s2, s2_sampler, in.tex0 * per_material.texture_scale[2].xy);
+    let s3_color = textureSample(s3, s3_sampler, in.tex0 * per_material.texture_scale[3].xy);
+    let s4_color = textureSample(s4, s4_sampler, in.tex0 * per_material.texture_scale[4].xy);
+    let s5_color = textureSample(s5, s5_sampler, in.tex0 * per_material.texture_scale[5].xy);
+    let s6_color = textureSample(s6, s6_sampler, in.tex0 * per_material.texture_scale[6].xy);
+    let s7_color = textureSample(s7, s7_sampler, in.tex0 * per_material.texture_scale[7].xy);
+    let s8_color = textureSample(s8, s8_sampler, in.tex0 * per_material.texture_scale[8].xy);
+    let s9_color = textureSample(s9, s9_sampler, in.tex0 * per_material.texture_scale[9].xy);
 
     let s_colors = array<vec4<f32>, 10>(
         s0_color,
@@ -384,9 +398,10 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     );
 
     // An index of -1 disables alpha testing.
-    let alpha_texture = per_material.alpha_test_texture;
+    let alpha_texture = per_material.alpha_test_texture.x;
+    let alpha_texture_channel = u32(per_material.alpha_test_texture.y);
     // Workaround for not being able to use a non constant index.
-    if assign_channel(alpha_texture.x, u32(alpha_texture.y), s_colors, 1.0) < per_material.alpha_test_ref.x {
+    if assign_channel(alpha_texture, alpha_texture_channel, s_colors, 1.0) < per_material.alpha_test_ref.x {
         // TODO: incorrect reference alpha for comparison?
         discard;
     }

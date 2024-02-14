@@ -123,6 +123,30 @@ pub fn materials(
                 }
             }
 
+            // TODO: Lookup texture -> texcoord -> params -> UV scale.
+            // TODO: Is it ok to switch on the texcoord for each channel lookup?
+            // TODO: can a texture be used with more than one scale?
+            // TODO: Include this logic with xc3_model?
+            // TODO: Include with gbuffer?
+            let mut texture_scale = [Vec4::ONE; 10];
+            if let Some(assignments) = assignments {
+                for assignment in assignments.assignments {
+                    if let Some(ChannelAssignment::Texture {
+                        name,
+                        texcoord_scale: Some((u, v)),
+                        ..
+                    }) = assignment.x
+                    {
+                        // TODO: Don't assume there is a single texcoord attribute.
+                        // TODO: make a method for index conversions?
+                        let index = material_texture_index(&name);
+                        if let Ok(index) = usize::try_from(index) {
+                            texture_scale[index] = vec4(u, v, 1.0, 1.0);
+                        }
+                    }
+                }
+            }
+
             // TODO: This is normally done using a depth prepass.
             // TODO: Is it ok to combine the prepass alpha in the main pass like this?
             let per_material = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -131,6 +155,7 @@ pub fn materials(
                     mat_color: material.parameters.mat_color.into(),
                     gbuffer_assignments,
                     gbuffer_defaults,
+                    texture_scale,
                     alpha_test_texture: {
                         let (texture_index, channel_index) = material
                             .alpha_test
@@ -229,13 +254,35 @@ fn gbuffer_assignment(a: &GBufferAssignment) -> crate::shader::model::GBufferAss
 
 fn texture_channel_assignment(assignment: Option<&ChannelAssignment>) -> Option<(i32, u32)> {
     if let Some(ChannelAssignment::Texture {
-        material_texture_index,
+        name,
         channel_index,
+        ..
     }) = assignment
     {
-        Some((*material_texture_index as i32, *channel_index as u32))
+        let index = material_texture_index(name);
+        Some((index, *channel_index as u32))
     } else {
         None
+    }
+}
+
+fn material_texture_index(sampler: &str) -> i32 {
+    // TODO: Just parse int?
+    // TODO: Also handle global textures?
+    // TODO: Create a string -> index mapping using indexmap?
+    match sampler {
+        "s0" => 0,
+        "s1" => 1,
+        "s2" => 2,
+        "s3" => 3,
+        "s4" => 4,
+        "s5" => 5,
+        "s6" => 6,
+        "s7" => 7,
+        "s8" => 8,
+        "s9" => 9,
+        // TODO: How to handle this case?
+        _ => -1,
     }
 }
 

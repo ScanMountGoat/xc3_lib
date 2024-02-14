@@ -311,23 +311,47 @@ pub fn image_name(key: &GeneratedImageKey, model_name: &str) -> String {
     name + ".png"
 }
 
+// TODO: Share logic with xc3_model and xc3_wgpu.
 fn texture_channel_index(
     material: &crate::Material,
     gbuffer_index: usize,
     channel: char,
 ) -> Option<ImageIndex> {
     // Find the sampler from the material.
-    let (sampler_index, channel_index) = material
-        .shader
-        .as_ref()?
-        .sampler_channel_index(gbuffer_index, channel)?;
+    let texture = material.shader.as_ref()?.texture(gbuffer_index, channel)?;
+
+    let sampler_index = material_texture_index(&texture.name)?;
+    // TODO: Does this always work as intended?
+    let c = if texture.channels.contains(channel) {
+        channel
+    } else {
+        texture.channels.chars().next().unwrap()
+    };
+    let channel = "xyzw".find(c).unwrap();
 
     // Find the texture referenced by this sampler.
     material.textures.get(sampler_index).map(|t| ImageIndex {
         image_texture: t.image_texture_index,
         sampler: t.sampler_index,
-        channel: channel_index,
+        channel,
     })
+}
+
+fn material_texture_index(sampler: &str) -> Option<usize> {
+    match sampler {
+        "s0" => Some(0),
+        "s1" => Some(1),
+        "s2" => Some(2),
+        "s3" => Some(3),
+        "s4" => Some(4),
+        "s5" => Some(5),
+        "s6" => Some(6),
+        "s7" => Some(7),
+        "s8" => Some(8),
+        "s9" => Some(9),
+        // TODO: How to handle this case?
+        _ => None,
+    }
 }
 
 pub fn create_images(roots: &[ModelRoot]) -> IndexMap<ImageKey, RgbaImage> {
