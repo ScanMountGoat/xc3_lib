@@ -113,7 +113,7 @@ pub enum Dependency {
 }
 
 /// A single buffer access like `UniformBuffer.field[0].y` in GLSL .
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Serialize, Deserialize)]
 pub struct BufferDependency {
     pub name: String,
     pub field: String,
@@ -135,7 +135,9 @@ pub struct TextureDependency {
 pub struct TexCoord {
     /// The name of the attribute like "in_attr4".
     pub name: String,
-    /// The accessed channels like "xy".
+    /// The accessed channels like "zw".
+    /// Channels are in order by texture function texcoord parameters.
+    /// This will usually be sequential like `texture(s0, vec2(attr.z, attr.w)`.
     pub channels: String,
     /// Parameters used to initialize the final texture function parameters.
     /// These can generally be assumed to be scale or matrix transforms.

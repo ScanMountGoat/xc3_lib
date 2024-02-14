@@ -1,13 +1,24 @@
 use std::path::Path;
 
-use glsl_lang::{ast::TranslationUnit, parse::DefaultParse};
+use bimap::BiBTreeMap;
+use glsl_lang::{
+    ast::{
+        ExprData, LayoutQualifierSpecData, SingleDeclaration, StorageQualifierData,
+        TranslationUnit, TypeQualifierSpecData,
+    },
+    parse::DefaultParse,
+    visitor::{Host, Visit, Visitor},
+};
 use log::error;
 use rayon::prelude::*;
-use xc3_model::shader_database::{Map, Shader, ShaderDatabase, ShaderProgram, Spch};
+use xc3_model::shader_database::{Dependency, Map, Shader, ShaderDatabase, ShaderProgram, Spch};
 
-use crate::{annotation::shader_source_no_extensions, dependencies::input_dependencies};
+use crate::{
+    annotation::shader_source_no_extensions,
+    dependencies::{find_buffer_parameters, input_dependencies},
+};
 
-fn shader_from_glsl(_vertex: Option<&TranslationUnit>, fragment: &TranslationUnit) -> Shader {
+fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit) -> Shader {
     // Get the textures used to initialize each fragment output channel.
     // Unused outputs will have an empty dependency list.
     Shader {
@@ -20,11 +31,13 @@ fn shader_from_glsl(_vertex: Option<&TranslationUnit>, fragment: &TranslationUni
                     // TODO: Tests for the above?
 
                     let name = format!("out_attr{i}.{c}");
-                    let dependencies = input_dependencies(fragment, &name);
+                    let mut dependencies = input_dependencies(fragment, &name);
 
-                    // TODO: Find uv attributes used in fragment shader.
-                    // TODO: Find corresponding attributes by matching locations?
-                    // TODO: Find buffer parameters used for these attributes in the vertex shader.
+                    if let Some(vertex) = vertex {
+                        // Add texture parameters used for the corresponding vertex output.
+                        // Most shaders apply UV transforms in the vertex shader.
+                        apply_vertex_texcoord_params(vertex, fragment, &mut dependencies);
+                    }
 
                     // Simplify the output name to save space.
                     let output_name = format!("o{i}.{c}");
@@ -33,6 +46,43 @@ fn shader_from_glsl(_vertex: Option<&TranslationUnit>, fragment: &TranslationUni
             })
             .filter(|(_, dependencies)| !dependencies.is_empty())
             .collect(),
+    }
+}
+
+fn apply_vertex_texcoord_params(
+    vertex: &TranslationUnit,
+    fragment: &TranslationUnit,
+    dependencies: &mut [Dependency],
+) {
+    let vertex_attributes = find_attribute_locations(vertex);
+    let fragment_attributes = find_attribute_locations(fragment);
+
+    for dependency in dependencies {
+        if let Dependency::Texture(texture) = dependency {
+            if let Some(texcoord) = &mut texture.texcoord {
+                // Convert a fragment input like "in_attr4" to its vertex output like "vTex0".
+                // TODO: Figure out why the texcoord names aren't always accurate.
+                if let Some(fragment_location) = fragment_attributes
+                    .input_locations
+                    .get_by_left(&texcoord.name)
+                {
+                    if let Some(vertex_name) = vertex_attributes
+                        .output_locations
+                        .get_by_right(fragment_location)
+                    {
+                        // Preserve the channel ordering here.
+                        for c in texcoord.channels.chars() {
+                            let vertex_params =
+                                find_buffer_parameters(vertex, &format!("{vertex_name}.{c}"));
+                            texcoord.params.extend(vertex_params);
+                        }
+                        // Remove any duplicates shared by multiple channels.
+                        texcoord.params.sort();
+                        texcoord.params.dedup();
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -162,9 +212,83 @@ fn extract_folder_index(p: &Path) -> usize {
     name.parse::<usize>().unwrap()
 }
 
+// TODO: module for this?
+#[derive(Debug, Default)]
+struct AttributeVisitor {
+    attributes: Attributes,
+}
+
+#[derive(Debug, Default, PartialEq)]
+struct Attributes {
+    input_locations: BiBTreeMap<String, i32>,
+    output_locations: BiBTreeMap<String, i32>,
+}
+
+impl Visitor for AttributeVisitor {
+    fn visit_single_declaration(&mut self, declaration: &SingleDeclaration) -> Visit {
+        if let Some(name) = &declaration.name {
+            if let Some(qualifier) = &declaration.ty.content.qualifier {
+                let mut is_input = None;
+                let mut location = None;
+
+                for q in &qualifier.qualifiers {
+                    match &q.content {
+                        TypeQualifierSpecData::Storage(storage) => match &storage.content {
+                            StorageQualifierData::In => {
+                                is_input = Some(true);
+                            }
+                            StorageQualifierData::Out => {
+                                is_input = Some(false);
+                            }
+                            _ => (),
+                        },
+                        TypeQualifierSpecData::Layout(layout) => {
+                            if let Some(id) = layout.content.ids.first() {
+                                if let LayoutQualifierSpecData::Identifier(key, value) = &id.content
+                                {
+                                    if key.0 == "location" {
+                                        if let Some(ExprData::IntConst(i)) =
+                                            value.as_ref().map(|v| &v.content)
+                                        {
+                                            location = Some(*i);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        _ => (),
+                    }
+                }
+
+                if let (Some(is_input), Some(location)) = (is_input, location) {
+                    if is_input {
+                        self.attributes
+                            .input_locations
+                            .insert(name.0.to_string(), location);
+                    } else {
+                        self.attributes
+                            .output_locations
+                            .insert(name.0.to_string(), location);
+                    }
+                }
+            }
+        }
+
+        Visit::Children
+    }
+}
+
+fn find_attribute_locations(translation_unit: &TranslationUnit) -> Attributes {
+    let mut visitor = AttributeVisitor::default();
+    translation_unit.visit(&mut visitor);
+    visitor.attributes
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use indoc::indoc;
 
     #[test]
     fn extract_program_index_multiple_digits() {
@@ -177,6 +301,42 @@ mod tests {
         assert_eq!(
             89,
             extract_program_index(Path::new("xc3_shader_dump/ch01027000/slct89_nvsd1.frag"))
+        );
+    }
+
+    #[test]
+    fn find_attribute_locations_outputs() {
+        let glsl = indoc! {"
+            layout(location = 0) in vec4 in_attr0;
+            layout(location = 4) in vec4 in_attr1;
+            layout(location = 3) in vec4 in_attr2;
+
+            layout(location = 3) out vec4 out_attr0;
+            layout(location = 5) out vec4 out_attr1;
+            layout(location = 7) out vec4 out_attr2;
+
+            void main() {}
+        "};
+
+        let tu = TranslationUnit::parse(glsl).unwrap();
+        assert_eq!(
+            Attributes {
+                input_locations: [
+                    ("in_attr0".to_string(), 0),
+                    ("in_attr1".to_string(), 4),
+                    ("in_attr2".to_string(), 3)
+                ]
+                .into_iter()
+                .collect(),
+                output_locations: [
+                    ("out_attr0".to_string(), 3),
+                    ("out_attr1".to_string(), 5),
+                    ("out_attr2".to_string(), 7)
+                ]
+                .into_iter()
+                .collect(),
+            },
+            find_attribute_locations(&tu)
         );
     }
 }

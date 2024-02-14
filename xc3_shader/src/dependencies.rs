@@ -211,6 +211,7 @@ fn texture_dependencies(dependencies: &LineDependencies) -> Vec<Dependency> {
                     .iter()
                     .skip(1)
                     .filter_map(|(a, _)| {
+                        // TODO: Should this be recursive?
                         if let LastAssignment::LineNumber(l) = a {
                             find_buffer_parameter(&dependencies.assignments[*l].assignment_input)
                         } else {
@@ -503,6 +504,30 @@ pub fn glsl_dependencies(source: &str, var: &str) -> String {
                 .collect::<Vec<_>>()
                 .join("\n")
                 + "\n"
+        })
+        .unwrap_or_default()
+}
+
+// TODO: should this be recursive?
+pub fn find_buffer_parameters(
+    translation_unit: &TranslationUnit,
+    var: &str,
+) -> Vec<BufferDependency> {
+    line_dependencies(translation_unit, var)
+        .map(|dependencies| {
+            let assignment_index = dependencies.dependent_assignment_indices.last().unwrap();
+            let assignment = &dependencies.assignments[*assignment_index];
+            assignment
+                .input_last_assignments
+                .iter()
+                .filter_map(|(a, _)| {
+                    if let LastAssignment::LineNumber(l) = a {
+                        find_buffer_parameter(&dependencies.assignments[*l].assignment_input)
+                    } else {
+                        None
+                    }
+                })
+                .collect()
         })
         .unwrap_or_default()
 }
@@ -835,6 +860,44 @@ mod tests {
         assert_eq!(
             vec![Dependency::Constant(1.5.into())],
             input_dependencies(&tu, "out_attr1.w")
+        );
+    }
+
+    #[test]
+    fn find_vertex_texcoord_parameters() {
+        let glsl = indoc! {"
+            void main() {
+                temp_62 = vTex0.x;
+                temp_64 = vTex0.y;
+                temp_119 = temp_62 * U_Mate.gWrkFl4[0].x;
+                out_attr4.z = temp_119;
+                out_attr4.x = temp_62;
+                out_attr4.y = temp_64;
+                temp_179 = temp_64 * U_Mate.gWrkFl4[0].y;
+                out_attr4.w = temp_179;
+            }
+        "};
+
+        let tu = TranslationUnit::parse(glsl).unwrap();
+        assert!(find_buffer_parameters(&tu, "out_attr4.x").is_empty());
+        assert!(find_buffer_parameters(&tu, "out_attr4.y").is_empty());
+        assert_eq!(
+            vec![BufferDependency {
+                name: "U_Mate".to_string(),
+                field: "gWrkFl4".to_string(),
+                index: 0,
+                channels: "x".to_string()
+            }],
+            find_buffer_parameters(&tu, "out_attr4.z")
+        );
+        assert_eq!(
+            vec![BufferDependency {
+                name: "U_Mate".to_string(),
+                field: "gWrkFl4".to_string(),
+                index: 0,
+                channels: "y".to_string()
+            }],
+            find_buffer_parameters(&tu, "out_attr4.w")
         );
     }
 }
