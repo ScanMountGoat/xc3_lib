@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::gltf::texture::{
     albedo_generated_key, metallic_roughness_generated_key, normal_generated_key, TextureCache,
 };
-use crate::{AddressMode, ModelRoot, Sampler};
+use crate::{AddressMode, ImageTexture, ModelRoot, Sampler};
 use gltf::json::validation::Checked::Valid;
 
 use super::texture::{GeneratedImageKey, ImageIndex};
@@ -44,6 +44,7 @@ pub fn create_materials(
                         &mut textures,
                         root_index,
                         sampler_base_index,
+                        &root.image_textures,
                     );
                     let material_flattened_index = materials.len();
                     materials.push(material);
@@ -95,14 +96,19 @@ fn create_material(
     textures: &mut Vec<gltf::json::Texture>,
     root_index: usize,
     sampler_base_index: usize,
+    image_textures: &[ImageTexture],
 ) -> gltf::json::Material {
-    let albedo_key = albedo_generated_key(material, root_index);
+    let assignments = material.gbuffer_assignments(image_textures);
+
+    let albedo_key = albedo_generated_key(material, &assignments, root_index);
     let albedo_index = texture_cache.insert(albedo_key);
 
-    let normal_key = normal_generated_key(material, root_index);
+    let normal_key = normal_generated_key(material, &assignments, root_index);
     let normal_index = texture_cache.insert(normal_key);
 
-    let metallic_roughness_key = metallic_roughness_generated_key(material, root_index);
+    let metallic_roughness_key =
+        metallic_roughness_generated_key(material, &assignments, root_index);
+
     let metallic_roughness_index = texture_cache.insert(metallic_roughness_key);
 
     gltf::json::Material {

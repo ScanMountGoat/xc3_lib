@@ -1,4 +1,4 @@
-use crate::ModelRoot;
+use crate::{ChannelAssignment, GBufferAssignments, ModelRoot};
 use image_dds::image::{codecs::png::PngEncoder, RgbaImage};
 use indexmap::IndexMap;
 use rayon::prelude::*;
@@ -91,23 +91,27 @@ impl TextureCache {
 }
 
 // TODO: Create consts for the gbuffer texture indices?
-pub fn albedo_generated_key(material: &crate::Material, root_index: usize) -> GeneratedImageKey {
+pub fn albedo_generated_key(
+    material: &crate::Material,
+    assignments: &GBufferAssignments,
+    root_index: usize,
+) -> GeneratedImageKey {
     // Assume the first texture is albedo if no assignments are possible.
-    let red_index = texture_channel_index(material, 0, 'x').or_else(|| {
+    let red_index = image_index(material, assignments.assignments[0].x.as_ref()).or_else(|| {
         material.textures.first().map(|t| ImageIndex {
             image_texture: t.image_texture_index,
             sampler: 0,
             channel: 0,
         })
     });
-    let green_index = texture_channel_index(material, 0, 'y').or_else(|| {
+    let green_index = image_index(material, assignments.assignments[0].y.as_ref()).or_else(|| {
         material.textures.first().map(|t| ImageIndex {
             image_texture: t.image_texture_index,
             sampler: 0,
             channel: 1,
         })
     });
-    let blue_index = texture_channel_index(material, 0, 'z').or_else(|| {
+    let blue_index = image_index(material, assignments.assignments[0].z.as_ref()).or_else(|| {
         material.textures.first().map(|t| ImageIndex {
             image_texture: t.image_texture_index,
             sampler: 0,
@@ -141,9 +145,13 @@ pub fn albedo_generated_key(material: &crate::Material, root_index: usize) -> Ge
     }
 }
 
-pub fn normal_generated_key(material: &crate::Material, root_index: usize) -> GeneratedImageKey {
-    let red_index = texture_channel_index(material, 2, 'x');
-    let green_index = texture_channel_index(material, 2, 'y');
+pub fn normal_generated_key(
+    material: &crate::Material,
+    assignments: &GBufferAssignments,
+    root_index: usize,
+) -> GeneratedImageKey {
+    let red_index = image_index(material, assignments.assignments[2].x.as_ref());
+    let green_index = image_index(material, assignments.assignments[2].y.as_ref());
 
     GeneratedImageKey {
         root_index,
@@ -158,12 +166,13 @@ pub fn normal_generated_key(material: &crate::Material, root_index: usize) -> Ge
 
 pub fn metallic_roughness_generated_key(
     material: &crate::Material,
+    assignments: &GBufferAssignments,
     root_index: usize,
 ) -> GeneratedImageKey {
     // The red channel is unused, we can pack occlusion here.
-    let occlusion_index = texture_channel_index(material, 2, 'z');
-    let metalness_index = texture_channel_index(material, 1, 'x');
-    let glossiness_index = texture_channel_index(material, 1, 'y');
+    let occlusion_index = image_index(material, assignments.assignments[2].z.as_ref());
+    let metalness_index = image_index(material, assignments.assignments[1].x.as_ref());
+    let glossiness_index = image_index(material, assignments.assignments[1].y.as_ref());
 
     // Invert the glossiness since glTF uses roughness.
     GeneratedImageKey {
@@ -311,30 +320,29 @@ pub fn image_name(key: &GeneratedImageKey, model_name: &str) -> String {
     name + ".png"
 }
 
-// TODO: Share logic with xc3_model and xc3_wgpu.
-fn texture_channel_index(
+fn image_index(
     material: &crate::Material,
-    gbuffer_index: usize,
-    channel: char,
+    assignment: Option<&ChannelAssignment>,
 ) -> Option<ImageIndex> {
     // Find the sampler from the material.
-    let texture = material.shader.as_ref()?.texture(gbuffer_index, channel)?;
-
-    let sampler_index = material_texture_index(&texture.name)?;
-    // TODO: Does this always work as intended?
-    let c = if texture.channels.contains(channel) {
-        channel
-    } else {
-        texture.channels.chars().next().unwrap()
-    };
-    let channel = "xyzw".find(c).unwrap();
-
-    // Find the texture referenced by this sampler.
-    material.textures.get(sampler_index).map(|t| ImageIndex {
-        image_texture: t.image_texture_index,
-        sampler: t.sampler_index,
-        channel,
-    })
+    // TODO: scale?
+    match assignment? {
+        crate::ChannelAssignment::Texture {
+            name,
+            channel_index,
+            texcoord_scale,
+        } => {
+            let sampler_index = material_texture_index(name)?;
+            // Find the texture referenced by this sampler.
+            material.textures.get(sampler_index).map(|t| ImageIndex {
+                image_texture: t.image_texture_index,
+                sampler: t.sampler_index,
+                channel: *channel_index,
+            })
+        }
+        // TODO: Also handle constant values?
+        crate::ChannelAssignment::Value(_) => None,
+    }
 }
 
 fn material_texture_index(sampler: &str) -> Option<usize> {

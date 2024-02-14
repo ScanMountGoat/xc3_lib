@@ -39,35 +39,6 @@ const GBUFFER_DEFAULTS: [Vec4; 6] = [
     Vec4::ZERO,
 ];
 
-// TODO: This can be simplified if texture usage is included?
-// We can only assume that the first texture is probably albedo.
-const DEFAULT_GBUFFER_ASSIGNMENTS: [crate::shader::model::GBufferAssignment; 6] = [
-    crate::shader::model::GBufferAssignment {
-        sampler_indices: ivec4(0, 0, 0, 0),
-        channel_indices: uvec4(0, 1, 2, 3),
-    },
-    crate::shader::model::GBufferAssignment {
-        sampler_indices: ivec4(-1, -1, -1, -1),
-        channel_indices: uvec4(0, 1, 2, 3),
-    },
-    crate::shader::model::GBufferAssignment {
-        sampler_indices: ivec4(-1, -1, -1, -1),
-        channel_indices: uvec4(0, 1, 2, 3),
-    },
-    crate::shader::model::GBufferAssignment {
-        sampler_indices: ivec4(-1, -1, -1, -1),
-        channel_indices: uvec4(0, 1, 2, 3),
-    },
-    crate::shader::model::GBufferAssignment {
-        sampler_indices: ivec4(-1, -1, -1, -1),
-        channel_indices: uvec4(0, 1, 2, 3),
-    },
-    crate::shader::model::GBufferAssignment {
-        sampler_indices: ivec4(-1, -1, -1, -1),
-        channel_indices: uvec4(0, 1, 2, 3),
-    },
-];
-
 #[tracing::instrument(skip_all)]
 pub fn materials(
     device: &wgpu::Device,
@@ -101,15 +72,8 @@ pub fn materials(
         .map(|material| {
             // TODO: how to get access to the texture usage here?
             let assignments = material.gbuffer_assignments(image_textures);
-            let gbuffer_assignments = assignments
-                .as_ref()
-                .map(gbuffer_assignments)
-                .unwrap_or(DEFAULT_GBUFFER_ASSIGNMENTS);
-
-            let gbuffer_defaults = assignments
-                .as_ref()
-                .map(gbuffer_defaults)
-                .unwrap_or(GBUFFER_DEFAULTS);
+            let gbuffer_assignments = gbuffer_assignments(&assignments);
+            let gbuffer_defaults = gbuffer_defaults(&assignments);
 
             let mut texture_views: [Option<_>; 10] = std::array::from_fn(|_| None);
             let mut is_single_channel = [UVec4::ZERO; 10];
@@ -129,20 +93,18 @@ pub fn materials(
             // TODO: Include this logic with xc3_model?
             // TODO: Include with gbuffer?
             let mut texture_scale = [Vec4::ONE; 10];
-            if let Some(assignments) = assignments {
-                for assignment in assignments.assignments {
-                    if let Some(ChannelAssignment::Texture {
-                        name,
-                        texcoord_scale: Some((u, v)),
-                        ..
-                    }) = assignment.x
-                    {
-                        // TODO: Don't assume there is a single texcoord attribute.
-                        // TODO: make a method for index conversions?
-                        let index = material_texture_index(&name);
-                        if let Ok(index) = usize::try_from(index) {
-                            texture_scale[index] = vec4(u, v, 1.0, 1.0);
-                        }
+            for assignment in assignments.assignments {
+                if let Some(ChannelAssignment::Texture {
+                    name,
+                    texcoord_scale: Some((u, v)),
+                    ..
+                }) = assignment.x
+                {
+                    // TODO: Don't assume there is a single texcoord attribute.
+                    // TODO: make a method for index conversions?
+                    let index = material_texture_index(&name);
+                    if let Ok(index) = usize::try_from(index) {
+                        texture_scale[index] = vec4(u, v, 1.0, 1.0);
                     }
                 }
             }

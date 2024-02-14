@@ -254,11 +254,11 @@ impl Material {
     /// If no shader is assigned from the database, assignments are inferred from the usage hints in `textures`.
     /// This heuristic works well for detecting color and normal maps but cannot detect temp texture channels
     /// or material parameter values like texture tiling.
-    pub fn gbuffer_assignments(&self, textures: &[ImageTexture]) -> Option<GBufferAssignments> {
+    pub fn gbuffer_assignments(&self, textures: &[ImageTexture]) -> GBufferAssignments {
         self.shader
             .as_ref()
             .map(|s| gbuffer_assignments(s, &self.parameters))
-            .or_else(|| {
+            .unwrap_or_else(|| {
                 warn!(
                     "Inferring assignments from texture types for {:?} due to unrecognized shader",
                     self.name
@@ -267,7 +267,7 @@ impl Material {
             })
     }
 
-    fn infer_assignment_from_usage(&self, textures: &[ImageTexture]) -> Option<GBufferAssignments> {
+    fn infer_assignment_from_usage(&self, textures: &[ImageTexture]) -> GBufferAssignments {
         // No assignment data is available.
         // Guess reasonable defaults based on the texture types.
         let assignment = |i: Option<usize>, c| {
@@ -299,7 +299,7 @@ impl Material {
             )
         });
 
-        Some(GBufferAssignments {
+        GBufferAssignments {
             assignments: [
                 GBufferAssignment {
                     x: assignment(color_index, 0),
@@ -318,7 +318,7 @@ impl Material {
                 GBufferAssignment::default(),
                 GBufferAssignment::default(),
             ],
-        })
+        }
     }
 }
 
