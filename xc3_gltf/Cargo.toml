@@ -4,5 +4,5 @@ version = "0.5.0"
 edition = "2021"
 
 [dependencies]
-xc3_model = { path = "../xc3_model" }
+xc3_model = { path = "../xc3_model", features = ["gltf"] }
 clap = { version = "4.2.7", features = ["derive"] }

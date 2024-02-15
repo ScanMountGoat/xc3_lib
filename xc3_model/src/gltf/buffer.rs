@@ -65,7 +65,7 @@ pub struct WeightGroup {
 impl Buffers {
     pub fn insert_vertex_buffer(
         &mut self,
-        vertex_buffer: &crate::VertexBuffer,
+        vertex_buffer: &crate::vertex::VertexBuffer,
         root_index: usize,
         group_index: usize,
         buffers_index: usize,
@@ -378,7 +378,7 @@ impl Buffers {
 
     pub fn insert_index_buffer(
         &mut self,
-        index_buffer: &crate::IndexBuffer,
+        index_buffer: &crate::vertex::IndexBuffer,
         root_index: usize,
         group_index: usize,
         buffers_index: usize,

@@ -38,7 +38,7 @@ use shader_database::ShaderDatabase;
 use skinning::SkinWeights;
 use texture::load_textures;
 use thiserror::Error;
-use vertex::{IndexBuffer, ModelBuffers, VertexBuffer};
+use vertex::ModelBuffers;
 use xc3_lib::{
     apmd::Apmd,
     bc::Bc,
@@ -65,7 +65,10 @@ pub use texture::{ExtractedTextures, ImageFormat, ImageTexture, ViewDimension};
 pub use xc3_lib::mxmd::{BlendMode, CullMode, RenderPassType, StateFlags};
 
 pub mod animation;
+
+#[cfg(feature = "gltf")]
 pub mod gltf;
+
 mod map;
 mod material;
 mod sampler;
