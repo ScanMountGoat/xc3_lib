@@ -1,5 +1,5 @@
 use log::warn;
-use xc3_lib::mxmd::{Materials, RenderPassType, StateFlags, TextureUsage};
+use xc3_lib::mxmd::{Materials, RenderPassType, ShaderProgramInfo, StateFlags, TextureUsage};
 
 use crate::{
     shader_database::{BufferDependency, Shader, Spch, TextureDependency},
@@ -97,7 +97,11 @@ pub fn create_materials(materials: &Materials, spch: Option<&Spch>) -> Vec<Mater
                 textures,
                 alpha_test,
                 shader,
-                unk_type: material.shader_programs[0].unk_type,
+                unk_type: material
+                    .shader_programs
+                    .first()
+                    .map(|p| p.unk_type)
+                    .unwrap_or(RenderPassType::Unk0),
                 parameters,
             }
         })
@@ -108,6 +112,15 @@ fn get_shader(material: &xc3_lib::mxmd::Material, spch: Option<&Spch>) -> Option
     // TODO: How to choose between the two fragment shaders?
     let program_index = material.shader_programs.first()?.program_index as usize;
     spch?.programs.get(program_index)?.shaders.first().cloned()
+}
+
+fn get_program_info<'a>(
+    material: &xc3_lib::mxmd::Material,
+    programs: &'a [ShaderProgramInfo],
+) -> Option<&'a ShaderProgramInfo> {
+    // TODO: Don't assume a single program info?
+    let program_index = material.shader_programs.first()?.program_index as usize;
+    programs.get(program_index)
 }
 
 fn find_alpha_test_texture(
@@ -146,8 +159,6 @@ fn assign_parameters(
     materials: &Materials,
     material: &xc3_lib::mxmd::Material,
 ) -> MaterialParameters {
-    // TODO: Don't assume a single program info?
-    let info = &materials.shader_programs[material.shader_programs[0].program_index as usize];
     let work_values = &materials.work_values[material.work_value_start_index as usize..];
 
     // TODO: alpha test ref?
@@ -159,23 +170,25 @@ fn assign_parameters(
         work_color: None,
     };
 
-    for param in &info.parameters {
-        match param.param_type {
-            xc3_lib::mxmd::ParamType::Unk0 => (),
-            xc3_lib::mxmd::ParamType::TexMatrix => {
-                parameters.tex_matrix = Some(read_param(param, work_values));
+    if let Some(info) = get_program_info(material, &materials.shader_programs) {
+        for param in &info.parameters {
+            match param.param_type {
+                xc3_lib::mxmd::ParamType::Unk0 => (),
+                xc3_lib::mxmd::ParamType::TexMatrix => {
+                    parameters.tex_matrix = Some(read_param(param, work_values));
+                }
+                xc3_lib::mxmd::ParamType::WorkFloat4 => {
+                    parameters.work_float4 = Some(read_param(param, work_values));
+                }
+                xc3_lib::mxmd::ParamType::WorkColor => {
+                    parameters.work_color = Some(read_param(param, work_values));
+                }
+                xc3_lib::mxmd::ParamType::Unk4 => (),
+                xc3_lib::mxmd::ParamType::Unk5 => (),
+                xc3_lib::mxmd::ParamType::Unk6 => (),
+                xc3_lib::mxmd::ParamType::Unk7 => (),
+                xc3_lib::mxmd::ParamType::Unk10 => (),
             }
-            xc3_lib::mxmd::ParamType::WorkFloat4 => {
-                parameters.work_float4 = Some(read_param(param, work_values));
-            }
-            xc3_lib::mxmd::ParamType::WorkColor => {
-                parameters.work_color = Some(read_param(param, work_values));
-            }
-            xc3_lib::mxmd::ParamType::Unk4 => (),
-            xc3_lib::mxmd::ParamType::Unk5 => (),
-            xc3_lib::mxmd::ParamType::Unk6 => (),
-            xc3_lib::mxmd::ParamType::Unk7 => (),
-            xc3_lib::mxmd::ParamType::Unk10 => (),
         }
     }
 
