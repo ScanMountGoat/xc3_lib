@@ -30,4 +30,4 @@ pretty_assertions = "1.4.0"
 hex = "0.4.3"
 
 [features]
-arbitrary = ["dep:arbitrary", "xc3_lib/arbitrary", "indexmap/arbitrary"]
+arbitrary = ["dep:arbitrary", "xc3_lib/arbitrary", "indexmap/arbitrary", "ordered-float/arbitrary"]

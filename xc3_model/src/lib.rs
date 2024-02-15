@@ -36,7 +36,7 @@ use log::error;
 use material::create_materials;
 use shader_database::ShaderDatabase;
 use skinning::SkinWeights;
-use texture::{load_textures, ExtractedTextures};
+use texture::load_textures;
 use thiserror::Error;
 use vertex::{IndexBuffer, ModelBuffers, VertexBuffer};
 use xc3_lib::{
@@ -61,7 +61,7 @@ pub use material::{
 };
 pub use sampler::{AddressMode, FilterMode, Sampler};
 pub use skeleton::{Bone, Skeleton};
-pub use texture::{ImageFormat, ImageTexture, ViewDimension};
+pub use texture::{ExtractedTextures, ImageFormat, ImageTexture, ViewDimension};
 pub use xc3_lib::mxmd::{BlendMode, CullMode, RenderPassType, StateFlags};
 
 pub mod animation;

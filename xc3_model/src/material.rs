@@ -76,12 +76,7 @@ pub fn create_materials(materials: &Materials, spch: Option<&Spch>) -> Vec<Mater
         .materials
         .iter()
         .map(|material| {
-            // TODO: How to choose between the two fragment shaders?
-            let program_index = material.shader_programs[0].program_index as usize;
-            let shader = spch
-                .and_then(|spch| spch.programs.get(program_index))
-                .map(|program| &program.shaders[0])
-                .cloned();
+            let shader = get_shader(material, spch);
 
             let textures = material
                 .textures
@@ -107,6 +102,12 @@ pub fn create_materials(materials: &Materials, spch: Option<&Spch>) -> Vec<Mater
             }
         })
         .collect()
+}
+
+fn get_shader(material: &xc3_lib::mxmd::Material, spch: Option<&Spch>) -> Option<Shader> {
+    // TODO: How to choose between the two fragment shaders?
+    let program_index = material.shader_programs.first()?.program_index as usize;
+    spch?.programs.get(program_index)?.shaders.first().cloned()
 }
 
 fn find_alpha_test_texture(

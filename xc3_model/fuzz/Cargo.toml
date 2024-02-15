@@ -1,0 +1,27 @@
+[package]
+name = "xc3_model_fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+arbitrary = { version = "1.0", features = ["derive"] }
+xc3_lib = { path = "../../xc3_lib", features = ["arbitrary"] }
+xc3_model = { path = "../../xc3_model", features = ["arbitrary"] }
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "from_mxmd_model"
+path = "fuzz_targets/from_mxmd_model.rs"
+test = false
+doc = false

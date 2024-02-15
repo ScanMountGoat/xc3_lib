@@ -72,12 +72,14 @@ pub struct Map {
 }
 
 /// The decompiled shader data for a single shader container file.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct Spch {
     pub programs: Vec<ShaderProgram>,
 }
 
 /// A collection of shaders.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct ShaderProgram {
     /// Some shaders have multiple NVSD sections, so the length may be greater than 1.
@@ -105,6 +107,7 @@ pub struct Shader {
     pub output_dependencies: IndexMap<String, Vec<Dependency>>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub enum Dependency {
     Constant(OrderedFloat<f32>),
@@ -112,7 +115,8 @@ pub enum Dependency {
     Texture(TextureDependency),
 }
 
-/// A single buffer access like `UniformBuffer.field[0].y` in GLSL .
+/// A single buffer access like `UniformBuffer.field[0].y` in GLSL.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Serialize, Deserialize)]
 pub struct BufferDependency {
     pub name: String,
@@ -122,6 +126,7 @@ pub struct BufferDependency {
 }
 
 /// A single texture access like `texture(s0, tex0.xy).rgb` in GLSL.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct TextureDependency {
     pub name: String,
@@ -131,6 +136,7 @@ pub struct TextureDependency {
 }
 
 /// A texture coordinate attribute with optional transform parameters.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct TexCoord {
     /// The name of the attribute like "in_attr4".
