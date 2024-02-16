@@ -105,15 +105,16 @@ impl<'a> State<'a> {
         surface.configure(&device, &config);
 
         // TODO: Make the monolib/shader path optional?
-        // TODO: Don't assume paths are in a game dump?
-        let monolib_shader = Path::new(model_path)
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .join("monolib/shader");
+        // Assume paths are somewhere in a full game dump.
+        let mut root_folder = Path::new(model_path);
+        while let Some(parent) = root_folder.parent() {
+            if root_folder.join("monolib/shader").exists() {
+                break;
+            } else {
+                root_folder = parent;
+            }
+        }
+        let monolib_shader = root_folder.join("monolib/shader");
         let renderer = Xc3Renderer::new(&device, &queue, size.width, size.height, monolib_shader);
 
         // Initialize the camera transform.
