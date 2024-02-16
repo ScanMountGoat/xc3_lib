@@ -27,7 +27,7 @@ glTF is designed for compatibility, so the imported files will never perfectly r
 
 * texcoord scale does not apply to normal and occlusion textures due to a limitation in the glTF crate
 * materials do not include specular color or emissive maps
-* materials do not contain all textures referenced in game like additional normal maps
+* materials do not contain all textures referenced in game (use xc3_tex to extract all unmodified textures)
 * materials do not support global textures like detail normal maps or Xenoblade 3's eyepatch textures
 * materials do not support blending between multiple color or normal maps
 
