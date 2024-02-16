@@ -18,6 +18,8 @@ use xc3_lib::vertex::{
     VertexBufferExtInfoFlags, VertexData,
 };
 
+pub use xc3_lib::vertex::{WeightGroup, WeightLod};
+
 use crate::{skinning::SkinWeights, Weights};
 
 #[cfg(feature = "arbitrary")]
