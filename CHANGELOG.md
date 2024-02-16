@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Optimized the JSON representation of `ShaderDatabase` to reduce size and enable more features in the future. The types for the JSON representation are not public and should be treated as an implementation detail. See the private structs in the source code for xc3_model for details.
 * Improved accuracy of texture assignments for glTF export when not using a shader JSON database.
 * Moved glTF export support to an optional "gltf" feature for xc3_model.
+* Adjusted output file names for xc3_tex when extracting `.wimdo` textures to include the texture's name.
 
 ### Removed
 * Removed `read_index_buffers`, `read_vertex_buffers`, `read_vertex_attributes`, and `read_index_buffers` from xc3_model. Use `ModelBuffers::from_vertex_data` instead.

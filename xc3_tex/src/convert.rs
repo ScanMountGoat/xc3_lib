@@ -286,10 +286,13 @@ fn has_chr_textures(mxmd: &Mxmd) -> bool {
 
 fn image_index(path: &Path, input: &str) -> Option<usize> {
     // Match the input file name in case the folder contains multiple wilay.
+    // Allow optional chars after the index like a texture name.
     // "mnu417_cont01.88.dds" -> 88
+    // "model.7.BL000101_BODY_NRM.dds" -> 7
     let path = path.with_extension("");
     let file_name = path.file_name()?.to_str()?;
-    let (file_name, index) = file_name.rsplit_once('.')?;
+    let (file_name, rhs) = file_name.split_once('.')?;
+    let (index, _) = rhs.split_once('.').unwrap_or((rhs, ""));
 
     let input_file_name = Path::new(input).with_extension("");
     let input_file_name = input_file_name.file_name()?.to_str()?;
@@ -389,7 +392,7 @@ pub fn extract_wimdo_to_folder(mxmd: Mxmd, input: &Path, output_folder: &Path) -
         let dds = texture.mibl_final().to_dds().unwrap();
         let path = output_folder
             .join(file_name)
-            .with_extension(format!("{i}.dds"));
+            .with_extension(format!("{i}.{}.dds", texture.name));
         dds.save(path).unwrap();
     }
 
@@ -421,6 +424,10 @@ mod tests {
             image_index(&Path::new("file.7.dds"), "b/c/file.wilay")
         );
         assert_eq!(Some(7), image_index(&Path::new("file.7.dds"), "file.wilay"));
+        assert_eq!(
+            Some(7),
+            image_index(&Path::new("file.7.optional_name.dds"), "file.wilay")
+        );
         assert_eq!(
             None,
             image_index(&Path::new("file2.7.dds"), "b/c/file.wilay")
