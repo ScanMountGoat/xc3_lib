@@ -25,9 +25,11 @@ fn main() {
     let database = cli.database.map(|p| ShaderDatabase::from_file(p).unwrap());
 
     let roots = if cli.input.ends_with(".wismhd") {
-        xc3_model::load_map(&cli.input, database.as_ref()).unwrap()
+        xc3_model::load_map(&cli.input, database.as_ref())
+            .expect(&format!("{:?} should be a valid .wismhd file", cli.input))
     } else {
-        let root = load_model(&cli.input, database.as_ref()).unwrap();
+        let root = load_model(&cli.input, database.as_ref())
+            .expect(&format!("{:?} should be a valid .wimdo file", cli.input));
         vec![root]
     };
 

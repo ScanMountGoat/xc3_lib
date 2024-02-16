@@ -110,17 +110,7 @@ fn main() {
 
         // TODO: Support floating point images.
         // TODO: Specify quality and mipmaps?
-        let input_file = match input.extension().unwrap().to_str().unwrap() {
-            "witex" | "witx" => File::Mibl(Mibl::from_file(&input).unwrap()),
-            "dds" => File::Dds(Dds::from_file(&input).unwrap()),
-            "wismt" => File::Mibl(read_wismt_single_tex(&input)),
-            "wilay" => File::Wilay(Wilay::from_file(&input)),
-            "wimdo" => File::Wimdo(Mxmd::from_file(&input).unwrap()),
-            _ => {
-                // Assume other formats are image formats.
-                File::Image(image::open(&input).unwrap().to_rgba8())
-            }
-        };
+        let input_file = load_input_file(&input);
 
         // Default to DDS since it supports more formats.
         // Wilay can output their images to the current folder.
@@ -172,4 +162,29 @@ fn main() {
             println!("Converted 1 file in {:?}", start.elapsed());
         }
     }
+}
+
+fn load_input_file(input: &PathBuf) -> File {
+    let input_file = match input.extension().unwrap().to_str().unwrap() {
+        "witex" | "witx" => File::Mibl(
+            Mibl::from_file(input).expect(&format!("{input:?} should be a valid .witex file")),
+        ),
+        "dds" => File::Dds(
+            Dds::from_file(input).expect(&format!("{input:?} should be a valid .dds file")),
+        ),
+        "wismt" => File::Mibl(read_wismt_single_tex(input)),
+        "wilay" => File::Wilay(Wilay::from_file(input)),
+        "wimdo" => File::Wimdo(
+            Mxmd::from_file(input).expect(&format!("{input:?} should be a valid .wimdo file")),
+        ),
+        _ => {
+            // Assume other formats are image formats.
+            File::Image(
+                image::open(input)
+                    .expect(&format!("{input:?} should be a valid image file"))
+                    .to_rgba8(),
+            )
+        }
+    };
+    input_file
 }
