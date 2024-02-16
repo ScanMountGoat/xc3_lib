@@ -4,7 +4,7 @@
 //! Xenoblade 1 and some Xenoblade 3 `.wilay` [Lagp] are in [Xbc1](crate::xbc1::Xbc1) archives.
 //!
 //! | Game | Versions | File Patterns |
-//! | --- | --- |
+//! | --- | --- | --- |
 //! | Xenoblade Chronicles 1 DE | 10002, 10003 | `menu/image/*.wilay` |
 //! | Xenoblade Chronicles 2 |  | |
 //! | Xenoblade Chronicles 3 | 10003 | `menu/image/*.wilay` |

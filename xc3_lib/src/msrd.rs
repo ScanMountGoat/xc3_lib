@@ -1,7 +1,7 @@
 //! Streamed model resources like shaders, geometry, or textures in `.wismt` files.
 //!
 //! # Overview
-//! The `.wismt` holds streaming data that is loaded by the game as needed.
+//! [Msrd] files holds streaming data that is loaded by the game as needed.
 //! This means that errors in `.wismt` files may appear later than errors in `.wimdo` files.
 //! The [Mxmd](crate::mxmd::Mxmd) also stores a copy of the streaming data to know how to load it.
 //! This must match the [Msrd] exactly for data to load properly.

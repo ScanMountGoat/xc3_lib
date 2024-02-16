@@ -1,6 +1,17 @@
-//! Map data stored in compressed sections in `.wismda` files.
+//! Map streaming data in `.wismda` files.
 //!
 //! Many of these sections use the same formats as character models.
+//! `.wismda` files serve a similar purpose as `.wismt` files used for characters.
+//! Unlike the [Msrd](crate::msrd::Msrd) in most model `.wismt` files, `.wismda` files do not contain a header
+//! and can only be parsed by looking at the [StreamEntry](crate::msmd::StreamEntry)
+//! for the [Msmd](crate::msmd::Msmd) in the corresponding `.wismhd` file.
+//!
+//! # File Paths
+//! | Game | File Patterns |
+//! | --- | --- |
+//! | Xenoblade Chronicles 1 DE | `map/*.wismda` |
+//! | Xenoblade Chronicles 2 | `map/*.wismda` |
+//! | Xenoblade Chronicles 3 | `map/*.wismda` |
 use bilge::prelude::*;
 use binrw::{binread, BinRead, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};

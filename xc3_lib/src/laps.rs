@@ -3,7 +3,7 @@
 //! # File Paths
 //!
 //! | Game | Versions | File Patterns |
-//! | --- | --- |
+//! | --- | --- | --- |
 //! | Xenoblade Chronicles 1 DE | |  |
 //! | Xenoblade Chronicles 2 | 10001  | `menu/image/*.wilay` |
 //! | Xenoblade Chronicles 3 |  |  |

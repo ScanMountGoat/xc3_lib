@@ -1,5 +1,8 @@
 //! Model data in `.wimdo` files.
 //!
+//! [Mxmd] files contain the main model data like the mesh hierarchy and materials
+//! as well as information on the streaming data in the optional `.wismt` file.
+//!
 //! # File Paths
 //! | Game | File Patterns |
 //! | --- | --- |

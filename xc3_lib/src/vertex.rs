@@ -93,7 +93,13 @@ pub struct VertexData {
     #[xc3(offset(u32))]
     pub vertex_morphs: Option<VertexMorphs>,
 
-    /// The data buffer containing all the geometry data.
+    /// The data buffer containing all the geometry data aligned to 4096.
+    /// Buffers are typically packed in this buffer in the following order:
+    /// [vertex_buffers](#structfield.vertex_buffers),
+    /// [outline_buffers](#structfield.outline_buffers),
+    /// [index_buffers](#structfield.index_buffers),
+    /// [vertex_morphs](#structfield.vertex_morphs),
+    /// [unk7](#structfield.unk7).
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32), align(4096))]
     pub buffer: Vec<u8>,

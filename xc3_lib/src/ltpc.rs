@@ -1,4 +1,12 @@
 //! Texture container of [Mibl](crate::mibl::Mibl) images in `.wiltp` files.
+//!
+//! # File Paths
+//!
+//! | Game | Versions | File Patterns |
+//! | --- | --- | --- |
+//! | Xenoblade Chronicles 1 DE | |  |
+//! | Xenoblade Chronicles 2 |  |  |
+//! | Xenoblade Chronicles 3 |  | `monolib/shader/filterlut.wiltp` |
 use binrw::BinRead;
 
 use crate::{parse_count32_offset32, parse_offset32_count32};

@@ -594,11 +594,11 @@ pub struct MapPart {
     pub unk: u16,
 }
 
-/// A reference to an [Xbc1] in `.wismda` file.
+/// A reference to an [Xbc1] in the `.wismda` file.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
 pub struct StreamEntry<T> {
-    /// The offset of the [Xbc1] in `.wismda` file.
+    /// The offset of the [Xbc1] in the `.wismda` file.
     pub offset: u32,
     pub decompressed_size: u32,
     #[bw(ignore)]
