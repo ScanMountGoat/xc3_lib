@@ -117,10 +117,13 @@ fn create_material(
             base_color_texture: albedo_index.map(|i| {
                 let texture_index = add_texture(textures, &albedo_key, i, sampler_base_index);
 
+                // Assume all channels have the same UV attribute and scale.
+                let scale = albedo_key.red_index.and_then(|i| i.texcoord_scale);
+
                 gltf::json::texture::Info {
                     index: gltf::json::Index::new(texture_index),
                     tex_coord: 0,
-                    extensions: None,
+                    extensions: texture_transform_ext(scale),
                     extras: Default::default(),
                 }
             }),
@@ -128,10 +131,15 @@ fn create_material(
                 let texture_index =
                     add_texture(textures, &metallic_roughness_key, i, sampler_base_index);
 
+                // Assume all channels have the same UV attribute and scale.
+                let scale = metallic_roughness_key
+                    .red_index
+                    .and_then(|i| i.texcoord_scale);
+
                 gltf::json::texture::Info {
                     index: gltf::json::Index::new(texture_index),
                     tex_coord: 0,
-                    extensions: None,
+                    extensions: texture_transform_ext(scale),
                     extras: Default::default(),
                 }
             }),
@@ -140,6 +148,7 @@ fn create_material(
         normal_texture: normal_index.map(|i| {
             let texture_index = add_texture(textures, &normal_key, i, sampler_base_index);
 
+            // TODO: Scale normal maps?
             gltf::json::material::NormalTexture {
                 index: gltf::json::Index::new(texture_index),
                 scale: 1.0,
@@ -152,6 +161,7 @@ fn create_material(
             let texture_index =
                 add_texture(textures, &metallic_roughness_key, i, sampler_base_index);
 
+            // TODO: Occlusion map scale?
             gltf::json::material::OcclusionTexture {
                 // Only the red channel is sampled for the occlusion texture.
                 // We can reuse the metallic roughness texture red channel here.
@@ -173,6 +183,21 @@ fn create_material(
             .map(|a| gltf::json::material::AlphaCutoff(a.ref_value)),
         ..Default::default()
     }
+}
+
+fn texture_transform_ext(
+    scale: Option<[ordered_float::OrderedFloat<f32>; 2]>,
+) -> Option<gltf_json::extensions::texture::Info> {
+    // TODO: Don't assume the first UV map?
+    scale.map(|[u, v]| gltf::json::extensions::texture::Info {
+        texture_transform: Some(gltf::json::extensions::texture::TextureTransform {
+            offset: gltf::json::extensions::texture::TextureTransformOffset([0.0; 2]),
+            rotation: gltf::json::extensions::texture::TextureTransformRotation(0.0),
+            scale: gltf::json::extensions::texture::TextureTransformScale([u.0, v.0]),
+            tex_coord: Some(0),
+            extras: None,
+        }),
+    })
 }
 
 fn add_texture(

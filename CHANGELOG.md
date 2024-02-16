@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added `ModelBuffers::from_vertex_data` and `ModelBuffers::to_vertex_data` to xc3_model for converting to and from xc3_lib.
 * Added rendering support for stencil flags to xc3_wgpu, improving sorting accuracy of eyelashes and eyebrows.
 * Added support for DLC models for Xenoblade 2 and Xenoblade 3 for the provided shader JSON databases.
+* Added support for texcoord scale to glTF export via the `KHR_texture_transform` extension. This does not yet support normal and AO due to limitations in the gltf crate.
 
 ### Fixed
 * Fixed an issue where not all morph targets were being read.

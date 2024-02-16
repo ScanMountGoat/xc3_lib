@@ -1,6 +1,7 @@
 use crate::{ChannelAssignment, GBufferAssignments, ModelRoot};
 use image_dds::image::{codecs::png::PngEncoder, RgbaImage};
 use indexmap::IndexMap;
+use ordered_float::OrderedFloat;
 use rayon::prelude::*;
 
 // TODO: This will eventually need to account for parameters and constants.
@@ -18,9 +19,10 @@ pub struct GeneratedImageKey {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ImageIndex {
     pub image_texture: usize,
-    // TODO: This shouldn't be part of the generated images.
+    // TODO: This shouldn't be keyed as part of the generated images.
     pub sampler: usize,
     pub channel: usize,
+    pub texcoord_scale: Option<[OrderedFloat<f32>; 2]>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -102,6 +104,7 @@ pub fn albedo_generated_key(
             image_texture: t.image_texture_index,
             sampler: 0,
             channel: 0,
+            texcoord_scale: None,
         })
     });
     let green_index = image_index(material, assignments.assignments[0].y.as_ref()).or_else(|| {
@@ -109,6 +112,7 @@ pub fn albedo_generated_key(
             image_texture: t.image_texture_index,
             sampler: 0,
             channel: 1,
+            texcoord_scale: None,
         })
     });
     let blue_index = image_index(material, assignments.assignments[0].z.as_ref()).or_else(|| {
@@ -116,6 +120,7 @@ pub fn albedo_generated_key(
             image_texture: t.image_texture_index,
             sampler: 0,
             channel: 2,
+            texcoord_scale: None,
         })
     });
 
@@ -130,6 +135,7 @@ pub fn albedo_generated_key(
             image_texture: texture.image_texture_index,
             sampler: texture.sampler_index,
             channel: a.channel_index,
+            texcoord_scale: None,
         }
     });
 
@@ -338,6 +344,7 @@ fn image_index(
                 image_texture: t.image_texture_index,
                 sampler: t.sampler_index,
                 channel: *channel_index,
+                texcoord_scale: texcoord_scale.map(|(u, v)| [u.into(), v.into()]),
             })
         }
         // TODO: Also handle constant values?

@@ -11,6 +11,7 @@ glTF export supports the following features:
 - material texture assignments
 - channel packed textures based on shader data
 - alpha textures for transparency
+- texcoord scale for color textures via the `KHR_texture_transform` extension
 
 ## Usage
 Convert `.wimdo` or `.wismhd` files to `.gltf`. The shader database parameter is optional but highly recommended since the fallback texture assignments do not support channel packing of temp textures. Texture file names will start with the name chosen for the output glTF file.
