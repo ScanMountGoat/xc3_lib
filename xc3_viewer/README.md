@@ -8,4 +8,4 @@ The shader database parameter is optional but highly recommended since the fallb
 `xc3_viewer "Xeno 3 Dump\chr\ch\ch01027000.wimdo" xc3.json`  
 `xc3_viewer "Xeno 3 Dump\chr\ch\ch01027000.wimdo" xc3.json --anim "Xeno 3 Dump\chr\ch\ch01027000_event.mot" --anim-index 1`  
 
-Select the GBuffer texture to view using the keys 1-6 and 0 for the shaded view. The current animation can be changed using the page up and page down keys. Restart animation playback using spacebar.
+Select the GBuffer texture to view using the keys 1-6 and 0 for the shaded view. The current animation can be changed using the `,` and `.` keys. Restart animation playback using spacebar.
