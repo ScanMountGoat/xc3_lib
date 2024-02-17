@@ -268,7 +268,11 @@ impl<'a> State<'a> {
                         NamedKey::ArrowUp => self.translation.y -= 0.1,
                         NamedKey::ArrowDown => self.translation.y += 0.1,
                         // Animation playback.
-                        NamedKey::Space => self.current_time_seconds = 0.0,
+                        NamedKey::Space => {
+                            if event.state == ElementState::Released {
+                                self.current_time_seconds = 0.0;
+                            }
+                        }
                         _ => (),
                     },
                     winit::keyboard::Key::Character(c) => {
