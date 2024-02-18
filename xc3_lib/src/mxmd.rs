@@ -375,15 +375,16 @@ pub struct Material {
     pub m_unks1_3: u32,
     pub m_unks1_4: u32,
 
+    // TODO: each material has its own unique range of values?
     /// Index into [work_values](struct.Materials.html#structfield.work_values).
     pub work_value_start_index: u32,
 
-    // TODO: starts with a small number and then some random ints?
+    // TODO: each material has its own unique range of values?
     /// Index into [shader_vars](struct.Materials.html#structfield.shader_vars).
     pub shader_var_start_index: u32,
     pub shader_var_count: u32,
 
-    // always count 1?
+    // TODO: always count 1?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
     pub shader_programs: Vec<ShaderProgram>,
@@ -562,7 +563,9 @@ pub struct Models {
     #[br(if(version != 10111))]
     pub models_flags: Option<ModelsFlags>,
 
+    /// The maximum of all the [max_xyz](struct.Model.html#structfield.max_xyz) in [models](#structfield.models).
     pub max_xyz: [f32; 3],
+    /// The minimum of all the [min_xyz](struct.Model.html#structfield.min_xyz) in [models](#structfield.models).
     pub min_xyz: [f32; 3],
 
     // TODO: temp?
@@ -744,12 +747,18 @@ pub struct Model {
     #[xc3(offset_count(u32, u32))]
     pub meshes: Vec<Mesh>,
 
-    pub unk1: u32,
+    // TODO: flags?
+    pub unk1: u32, // 0, 64, 320
+
+    // TODO: Slightly larger than a volume containing all vertex buffers?
     /// The minimum XYZ coordinates of the bounding volume.
     pub max_xyz: [f32; 3],
     /// The maximum XYZ coordinates of the bounding volume.
     pub min_xyz: [f32; 3],
+    // TODO: how to calculate this?
     pub bounding_radius: f32,
+
+    // TODO: padding?
     pub unks: [u32; 7],
 }
 
