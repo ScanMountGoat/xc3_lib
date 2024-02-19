@@ -199,10 +199,10 @@ impl BinWrite for Mibl {
 
 #[derive(Debug, Error)]
 pub enum CreateMiblError {
-    #[error("error swizzling surface: {0}")]
+    #[error("error swizzling surface")]
     SwizzleError(#[from] tegra_swizzle::SwizzleError),
 
-    #[error("error creating surface from DDS: {0}")]
+    #[error("error creating surface from DDS")]
     DdsError(#[from] image_dds::error::SurfaceError),
 
     #[error("image format {0:?} is not supported by Mibl")]

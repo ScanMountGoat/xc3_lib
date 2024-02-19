@@ -54,10 +54,10 @@ pub struct Xbc1 {
 
 #[derive(Debug, Error)]
 pub enum CreateXbc1Error {
-    #[error("error reading data: {0}")]
+    #[error("error reading data")]
     Io(#[from] std::io::Error),
 
-    #[error("error writing data: {0}")]
+    #[error("error writing data")]
     Xc3Write(#[from] Box<dyn std::error::Error>),
 }
 

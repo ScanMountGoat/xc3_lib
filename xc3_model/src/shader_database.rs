@@ -17,11 +17,20 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum ShaderDatabaseError {
-    #[error("error writing files: {0}")]
+pub enum LoadShaderDatabaseError {
+    #[error("error reading JSON file")]
     Io(#[from] std::io::Error),
 
-    #[error("error serializing JSON file: {0}")]
+    #[error("error deserializing JSON")]
+    Json(#[from] serde_json::Error),
+}
+
+#[derive(Debug, Error)]
+pub enum SaveShaderDatabaseError {
+    #[error("error writing JSON file")]
+    Io(#[from] std::io::Error),
+
+    #[error("error serializing JSON file")]
     Json(#[from] serde_json::Error),
 }
 
@@ -38,7 +47,7 @@ impl ShaderDatabase {
     /// Loads and deserializes the JSON data from `path`.
     ///
     /// This uses a modified JSON representation internally to reduce file size.
-    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, ShaderDatabaseError> {
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, LoadShaderDatabaseError> {
         let json = std::fs::read_to_string(path)?;
         let indexed: ShaderDatabaseIndexed = serde_json::from_str(&json)?;
         Ok(indexed.into())
@@ -51,7 +60,7 @@ impl ShaderDatabase {
         &self,
         path: P,
         pretty_print: bool,
-    ) -> Result<(), ShaderDatabaseError> {
+    ) -> Result<(), SaveShaderDatabaseError> {
         let indexed = ShaderDatabaseIndexed::from(self);
         let json = if pretty_print {
             serde_json::to_string_pretty(&indexed)?

@@ -1,5 +1,6 @@
 use std::{path::PathBuf, str::FromStr};
 
+use anyhow::Context;
 use clap::{builder::PossibleValuesParser, Parser, Subcommand};
 use convert::{
     create_wismt_single_tex, extract_wilay_to_folder, extract_wimdo_to_folder,
@@ -71,7 +72,7 @@ enum Commands {
 
 mod convert;
 
-fn main() {
+fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     let start = std::time::Instant::now();
@@ -87,7 +88,7 @@ fn main() {
                     &input,
                     &input_folder,
                     output.as_ref().unwrap_or(&input),
-                );
+                )?;
                 println!("Converted {count} file(s) in {:?}", start.elapsed());
             }
             Commands::EditWimdo {
@@ -110,7 +111,7 @@ fn main() {
 
         // TODO: Support floating point images.
         // TODO: Specify quality and mipmaps?
-        let input_file = load_input_file(&input);
+        let input_file = load_input_file(&input)?;
 
         // Default to DDS since it supports more formats.
         // Wilay can output their images to the current folder.
@@ -124,67 +125,75 @@ fn main() {
 
         if let File::Wilay(wilay) = input_file {
             // Wilay contains multiple images that need to be saved.
-            std::fs::create_dir_all(&output).unwrap();
+            std::fs::create_dir_all(&output)
+                .with_context(|| format!("failed to create output directory {output:?}"))?;
+
             let count = extract_wilay_to_folder(wilay, &input, &output);
             println!("Converted {count} file(s) in {:?}", start.elapsed());
         } else if let File::Wimdo(wimdo) = input_file {
             // wimdo and wismt contain multiple images that need to be saved.
-            std::fs::create_dir_all(&output).unwrap();
+            std::fs::create_dir_all(&output)
+                .with_context(|| format!("failed to create output directory {output:?}"))?;
+
             let count = extract_wimdo_to_folder(wimdo, &input, &output);
             println!("Converted {count} file(s) in {:?}", start.elapsed());
         } else {
             if let Some(parent) = output.parent() {
-                std::fs::create_dir_all(parent).unwrap();
+                std::fs::create_dir_all(parent)
+                    .with_context(|| format!("failed to create output directory {parent:?}"))?;
             }
 
             // All other formats save to single files.
             let format = args.format.map(|f| ImageFormat::from_str(&f).unwrap());
             match output.extension().unwrap().to_str().unwrap() {
                 "dds" => {
-                    input_file.to_dds(format).save(output).unwrap();
+                    input_file
+                        .to_dds(format)?
+                        .save(&output)
+                        .with_context(|| format!("failed to save DDS to {output:?}"))?;
                 }
                 "witex" | "witx" => {
-                    let mibl = input_file.to_mibl(format);
-                    mibl.save(output).unwrap();
+                    input_file.to_mibl(format)?.save(&output).unwrap();
                 }
                 "wismt" => {
                     // TODO: Also create base level?
-                    let mibl = input_file.to_mibl(format);
+                    let mibl = input_file.to_mibl(format)?;
                     let xbc1 = create_wismt_single_tex(&mibl);
-                    xbc1.save(output).unwrap();
+                    xbc1.save(&output).unwrap();
                 }
                 _ => {
                     // Assume other formats are image formats for now.
-                    let image = input_file.to_image();
-                    image.save(output).unwrap();
+                    input_file
+                        .to_image()?
+                        .save(&output)
+                        .with_context(|| format!("failed to save image to {output:?}"))?;
                 }
             }
             println!("Converted 1 file in {:?}", start.elapsed());
         }
     }
+    Ok(())
 }
 
-fn load_input_file(input: &PathBuf) -> File {
-    let input_file = match input.extension().unwrap().to_str().unwrap() {
-        "witex" | "witx" => File::Mibl(
-            Mibl::from_file(input).expect(&format!("{input:?} should be a valid .witex file")),
-        ),
-        "dds" => File::Dds(
-            Dds::from_file(input).expect(&format!("{input:?} should be a valid .dds file")),
-        ),
-        "wismt" => File::Mibl(read_wismt_single_tex(input)),
-        "wilay" => File::Wilay(Wilay::from_file(input)),
-        "wimdo" => File::Wimdo(
-            Mxmd::from_file(input).expect(&format!("{input:?} should be a valid .wimdo file")),
-        ),
+fn load_input_file(input: &PathBuf) -> anyhow::Result<File> {
+    match input.extension().unwrap().to_str().unwrap() {
+        "witex" | "witx" => Mibl::from_file(input)
+            .with_context(|| format!("{input:?} is not a valid .witex file"))
+            .map(File::Mibl),
+        "dds" => Dds::from_file(input)
+            .with_context(|| format!("{input:?} is not a valid .dds file"))
+            .map(File::Dds),
+        "wismt" => Ok(File::Mibl(read_wismt_single_tex(input))),
+        "wilay" => Ok(File::Wilay(Wilay::from_file(input))),
+        "wimdo" => Mxmd::from_file(input)
+            .with_context(|| format!("{input:?} is not a valid .wimdo file"))
+            .map(File::Wimdo),
         _ => {
             // Assume other formats are image formats.
-            File::Image(
-                image::open(input)
-                    .expect(&format!("{input:?} should be a valid image file"))
-                    .to_rgba8(),
-            )
+            let image = image::open(input)
+                .with_context(|| format!("{input:?} is not a valid image file"))?
+                .to_rgba8();
+            Ok(File::Image(image))
         }
-    };
-    input_file
+    }
 }

@@ -4,12 +4,12 @@ use zune_inflate::errors::InflateDecodeErrors;
 
 #[derive(Debug, Error)]
 pub enum DecompressStreamError {
-    #[error("error decoding compressed stream: {0}")]
+    #[error("error decoding compressed stream")]
     ZLib(#[from] InflateDecodeErrors),
 
-    #[error("error reading data: {0}")]
+    #[error("error reading data")]
     Io(#[from] std::io::Error),
 
-    #[error("error reading data: {0}")]
+    #[error("error reading data")]
     Binrw(#[from] binrw::Error),
 }

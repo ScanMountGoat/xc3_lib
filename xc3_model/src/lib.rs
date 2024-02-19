@@ -228,10 +228,10 @@ pub fn should_render_lod(lod: u16, base_lod_indices: &Option<Vec<u16>>) -> bool 
 
 #[derive(Debug, Error)]
 pub enum LoadModelError {
-    #[error("error reading data: {0}")]
+    #[error("error reading data")]
     Io(#[from] std::io::Error),
 
-    #[error("error reading data: {0}")]
+    #[error("error reading data")]
     Binrw(#[from] binrw::Error),
 
     #[error("failed to find Mxmd in Apmd file")]
@@ -240,10 +240,10 @@ pub enum LoadModelError {
     #[error("expected packed wimdo vertex data but found none")]
     MissingMxmdVertexData,
 
-    #[error("error loading image texture: {0}")]
+    #[error("error loading image texture")]
     Image(#[from] texture::CreateImageTextureError),
 
-    #[error("error decompressing stream: {0}")]
+    #[error("error decompressing stream")]
     Stream(#[from] xc3_lib::error::DecompressStreamError),
 }
 

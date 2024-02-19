@@ -22,19 +22,19 @@ pub enum ExtractedTextures {
 
 #[derive(Debug, Error)]
 pub enum CreateImageTextureError {
-    #[error("error deswizzling surface: {0}")]
+    #[error("error deswizzling surface")]
     Swizzle(#[from] SwizzleError),
 
-    #[error("error reading data: {0}")]
+    #[error("error reading data")]
     Binrw(#[from] binrw::Error),
 
-    #[error("error decompressing stream: {0}")]
+    #[error("error decompressing stream")]
     Stream(#[from] xc3_lib::error::DecompressStreamError),
 
-    #[error("error converting image surface: {0}")]
+    #[error("error converting image surface")]
     Surface(#[from] image_dds::error::SurfaceError),
 
-    #[error("error converting Mibl texture: {0}")]
+    #[error("error converting Mibl texture")]
     Mibl(#[from] xc3_lib::mibl::CreateMiblError),
 }
 

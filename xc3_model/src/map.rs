@@ -22,16 +22,16 @@ use crate::{
 
 #[derive(Debug, Error)]
 pub enum LoadMapError {
-    #[error("error reading data: {0}")]
+    #[error("error reading data")]
     Io(#[from] std::io::Error),
 
-    #[error("error reading data: {0}")]
+    #[error("error reading data")]
     Binrw(#[from] binrw::Error),
 
-    #[error("error loading image texture: {0}")]
+    #[error("error loading image texture")]
     Image(#[from] texture::CreateImageTextureError),
 
-    #[error("error decompressing stream: {0}")]
+    #[error("error decompressing stream")]
     Stream(#[from] xc3_lib::error::DecompressStreamError),
 }
 

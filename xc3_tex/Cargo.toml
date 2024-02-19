@@ -8,3 +8,4 @@ xc3_lib = { path = "../xc3_lib" }
 image_dds = { version = "0.4.0", features = ["strum"] }
 clap = { version = "4.2.7", features = ["derive", "string"] }
 strum = "0.24.0"
+anyhow = "1.0"

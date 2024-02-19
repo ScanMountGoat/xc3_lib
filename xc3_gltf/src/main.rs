@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use anyhow::Context;
 use clap::Parser;
 use xc3_model::{gltf::GltfFile, load_model, shader_database::ShaderDatabase};
 
@@ -18,34 +19,42 @@ struct Cli {
     database: Option<String>,
 }
 
-fn main() {
+fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let start = std::time::Instant::now();
 
-    let database = cli.database.map(|p| ShaderDatabase::from_file(p).unwrap());
+    let database = match cli.database {
+        Some(p) => Some(
+            ShaderDatabase::from_file(&p)
+                .with_context(|| format!("{p:?} is not a valid shader JSON file"))?,
+        ),
+        None => None,
+    };
 
     let roots = if cli.input.ends_with(".wismhd") {
         xc3_model::load_map(&cli.input, database.as_ref())
-            .expect(&format!("{:?} should be a valid .wismhd file", cli.input))
+            .with_context(|| format!("{:?} is not a valid .wismhd file", cli.input))?
     } else {
         let root = load_model(&cli.input, database.as_ref())
-            .expect(&format!("{:?} should be a valid .wimdo file", cli.input));
+            .with_context(|| format!("{:?} is not a valid .wimdo file", cli.input))?;
         vec![root]
     };
 
     let name = std::path::Path::new(&cli.output)
-        .with_extension("")
-        .file_name()
+        .file_stem()
         .unwrap()
         .to_string_lossy()
         .to_string();
 
     if let Some(parent) = Path::new(&cli.output).parent() {
-        std::fs::create_dir_all(parent).unwrap();
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create output directory {parent:?}"))?;
     }
 
-    let file = GltfFile::new(&name, &roots).unwrap();
-    file.save(&cli.output).unwrap();
+    let file = GltfFile::new(&name, &roots).with_context(|| "failed to create glTF file")?;
+    file.save(&cli.output)
+        .with_context(|| format!("failed to save glTF file to {:?}", &cli.output))?;
 
     println!("Converted {} roots in {:?}", roots.len(), start.elapsed());
+    Ok(())
 }

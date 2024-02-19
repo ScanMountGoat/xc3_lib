@@ -1,5 +1,6 @@
 use std::{io::Cursor, path::Path};
 
+use anyhow::Context;
 use image_dds::{ddsfile::Dds, image::RgbaImage, ImageFormat, Surface};
 use xc3_lib::{
     dds::DdsExt,
@@ -39,9 +40,11 @@ impl Wilay {
 }
 
 impl File {
-    pub fn to_dds(&self, format: Option<ImageFormat>) -> Dds {
+    pub fn to_dds(&self, format: Option<ImageFormat>) -> anyhow::Result<Dds> {
         match self {
-            File::Mibl(mibl) => mibl.to_dds().unwrap(),
+            File::Mibl(mibl) => mibl
+                .to_dds()
+                .with_context(|| "failed to convert Mibl to DDS"),
             File::Dds(dds) => {
                 // Handle changes in image format while preserving layers and mipmaps.
                 // TODO: dds doesn't implement clone?
@@ -57,69 +60,79 @@ impl File {
                         )
                         .unwrap()
                         .to_dds()
-                        .unwrap(),
-                    None => Dds {
+                        .with_context(|| "failed to convert surface to DDS"),
+                    None => Ok(Dds {
                         header: dds.header.clone(),
                         header10: dds.header10.clone(),
                         data: dds.data.clone(),
-                    },
+                    }),
                 }
             }
             File::Image(image) => image_dds::dds_from_image(
                 image,
-                format.unwrap(),
+                format.ok_or(anyhow::anyhow!("missing required image output format"))?,
                 image_dds::Quality::Normal,
                 image_dds::Mipmaps::GeneratedAutomatic,
             )
-            .unwrap(),
-            File::Wilay(_) => {
-                panic!("wilay textures must be saved to an output folder instead of a single image")
-            }
-            File::Wimdo(_) => {
-                panic!("wimdo textures must be saved to an output folder instead of a single image")
-            }
+            .with_context(|| "failed to encode image to DDS"),
+            File::Wilay(_) => Err(anyhow::anyhow!(
+                "wilay textures must be saved to an output folder instead of a single image"
+            )),
+            File::Wimdo(_) => Err(anyhow::anyhow!(
+                "wimdo textures must be saved to an output folder instead of a single image"
+            )),
         }
     }
 
-    pub fn to_mibl(&self, format: Option<ImageFormat>) -> Mibl {
+    pub fn to_mibl(&self, format: Option<ImageFormat>) -> anyhow::Result<Mibl> {
+        // TODO: decode and encode again if needed.
         match self {
-            File::Mibl(mibl) => mibl.clone(),
-            File::Dds(dds) => Mibl::from_dds(dds).unwrap(),
+            File::Mibl(mibl) => Ok(mibl.clone()),
+            File::Dds(dds) => Mibl::from_dds(dds).with_context(|| "failed to create Mibl from DDS"),
             File::Image(image) => {
                 let dds = image_dds::dds_from_image(
                     image,
-                    format.unwrap(),
+                    format.ok_or(anyhow::anyhow!("missing required image output format"))?,
                     image_dds::Quality::Normal,
                     image_dds::Mipmaps::GeneratedAutomatic,
                 )
-                .unwrap();
-                Mibl::from_dds(&dds).unwrap()
+                .with_context(|| "failed to create encode image to DDS")?;
+
+                Mibl::from_dds(&dds)
+                    .with_context(|| "failed to create Mibl from image encoded to DDS")
             }
-            File::Wilay(_) => {
-                panic!("wilay textures must be saved to an output folder instead of a single image")
-            }
-            File::Wimdo(_) => {
-                panic!("wimdo textures must be saved to an output folder instead of a single image")
-            }
+            File::Wilay(_) => Err(anyhow::anyhow!(
+                "wilay textures must be saved to an output folder instead of a single image"
+            )),
+            File::Wimdo(_) => Err(anyhow::anyhow!(
+                "wimdo textures must be saved to an output folder instead of a single image"
+            )),
         }
     }
 
-    pub fn to_image(&self) -> RgbaImage {
+    pub fn to_image(&self) -> anyhow::Result<RgbaImage> {
         match self {
-            File::Mibl(mibl) => image_dds::image_from_dds(&mibl.to_dds().unwrap(), 0).unwrap(),
-            File::Dds(dds) => image_dds::image_from_dds(dds, 0).unwrap(),
-            File::Image(image) => image.clone(),
-            File::Wilay(_) => {
-                panic!("wilay textures must be saved to an output folder instead of a single image")
+            File::Mibl(mibl) => image_dds::image_from_dds(&mibl.to_dds().unwrap(), 0)
+                .with_context(|| "failed to decode Mibl image"),
+            File::Dds(dds) => {
+                image_dds::image_from_dds(dds, 0).with_context(|| "failed to decode DDS")
             }
-            File::Wimdo(_) => {
-                panic!("wimdo textures must be saved to an output folder instead of a single image")
-            }
+            File::Image(image) => Ok(image.clone()),
+            File::Wilay(_) => Err(anyhow::anyhow!(
+                "wilay textures must be saved to an output folder instead of a single image"
+            )),
+            File::Wimdo(_) => Err(anyhow::anyhow!(
+                "wimdo textures must be saved to an output folder instead of a single image"
+            )),
         }
     }
 }
 
-pub fn update_wilay_from_folder(input: &str, input_folder: &str, output: &str) -> usize {
+pub fn update_wilay_from_folder(
+    input: &str,
+    input_folder: &str,
+    output: &str,
+) -> anyhow::Result<usize> {
     // Replace existing images in a .wilay file.
     // TODO: Error if indices are out of range?
     let mut wilay = Wilay::from_file(input);
@@ -127,53 +140,65 @@ pub fn update_wilay_from_folder(input: &str, input_folder: &str, output: &str) -
     match &mut wilay {
         Wilay::Dhal(dhal) => match dhal {
             MaybeXbc1::Uncompressed(dhal) => {
-                replace_dhal_textures(dhal, &mut count, input, input_folder);
+                replace_dhal_textures(dhal, &mut count, input, input_folder)?;
                 dhal.save(output).unwrap();
             }
             MaybeXbc1::Xbc1(xbc1) => {
                 let mut dhal: Dhal = xbc1.extract().unwrap();
-                replace_dhal_textures(&mut dhal, &mut count, input, input_folder);
+                replace_dhal_textures(&mut dhal, &mut count, input, input_folder)?;
                 let xbc1 = Xbc1::new(xbc1.name.clone(), &dhal).unwrap();
                 xbc1.save(output).unwrap();
             }
         },
         Wilay::Lagp(lagp) => match lagp {
             MaybeXbc1::Uncompressed(lagp) => {
-                replace_lagp_textures(lagp, &mut count, input, input_folder);
+                replace_lagp_textures(lagp, &mut count, input, input_folder)?;
                 lagp.save(output).unwrap();
             }
             MaybeXbc1::Xbc1(xbc1) => {
                 let mut lagp: Lagp = xbc1.extract().unwrap();
-                replace_lagp_textures(&mut lagp, &mut count, input, input_folder);
+                replace_lagp_textures(&mut lagp, &mut count, input, input_folder)?;
                 let xbc1 = Xbc1::new(xbc1.name.clone(), &lagp).unwrap();
                 xbc1.save(output).unwrap();
             }
         },
     }
 
-    count
+    Ok(count)
 }
 
-fn replace_lagp_textures(lagp: &mut Lagp, count: &mut usize, input: &str, input_folder: &str) {
+fn replace_lagp_textures(
+    lagp: &mut Lagp,
+    count: &mut usize,
+    input: &str,
+    input_folder: &str,
+) -> anyhow::Result<()> {
     if let Some(textures) = &mut lagp.textures {
-        *count += replace_wilay_mibl(textures, input, input_folder);
+        *count += replace_wilay_mibl(textures, input, input_folder)?;
     }
+    Ok(())
 }
 
-fn replace_dhal_textures(dhal: &mut Dhal, count: &mut usize, input: &str, input_folder: &str) {
+fn replace_dhal_textures(
+    dhal: &mut Dhal,
+    count: &mut usize,
+    input: &str,
+    input_folder: &str,
+) -> anyhow::Result<()> {
     if let Some(textures) = &mut dhal.textures {
-        *count += replace_wilay_mibl(textures, input, input_folder);
+        *count += replace_wilay_mibl(textures, input, input_folder)?;
     }
     if let Some(textures) = &mut dhal.uncompressed_textures {
-        *count += replace_wilay_jpeg(textures, input, input_folder);
+        *count += replace_wilay_jpeg(textures, input, input_folder)?;
     }
+    Ok(())
 }
 
 fn replace_wilay_mibl(
     textures: &mut xc3_lib::dhal::Textures,
     input: &str,
     input_folder: &str,
-) -> usize {
+) -> anyhow::Result<usize> {
     let mut count = 0;
 
     for entry in std::fs::read_dir(input_folder).unwrap() {
@@ -193,14 +218,14 @@ fn replace_wilay_mibl(
         }
     }
 
-    count
+    Ok(count)
 }
 
 fn replace_wilay_jpeg(
     textures: &mut xc3_lib::dhal::UncompressedTextures,
     input: &str,
     input_folder: &str,
-) -> usize {
+) -> anyhow::Result<usize> {
     let mut count = 0;
 
     for entry in std::fs::read_dir(input_folder).unwrap() {
@@ -213,7 +238,7 @@ fn replace_wilay_jpeg(
         }
     }
 
-    count
+    Ok(count)
 }
 
 pub fn update_wimdo_from_folder(

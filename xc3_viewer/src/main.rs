@@ -3,10 +3,11 @@ use std::{
     time::{Duration, Instant},
 };
 
+use anyhow::{anyhow, Context};
 use clap::Parser;
 use futures::executor::block_on;
 use glam::{vec3, Vec3};
-use log::{debug, error, info};
+use log::{error, info};
 use winit::{
     dpi::PhysicalPosition,
     event::*,
@@ -63,7 +64,7 @@ impl<'a> State<'a> {
         anim_path: Option<&String>,
         animation_index: usize,
         database_path: Option<&String>,
-    ) -> Self {
+    ) -> anyhow::Result<Self> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
@@ -77,7 +78,7 @@ impl<'a> State<'a> {
             })
             .await
             .unwrap();
-        debug!("{:?}", adapter.get_info());
+        info!("{:?}", adapter.get_info());
 
         let (device, queue) = adapter
             .request_device(
@@ -123,7 +124,13 @@ impl<'a> State<'a> {
         let camera_data = calculate_camera_data(size, translation, rotation_xyz);
         renderer.update_camera(&queue, &camera_data);
 
-        let database = database_path.map(|p| ShaderDatabase::from_file(p).unwrap());
+        let database = match database_path {
+            Some(p) => Some(
+                ShaderDatabase::from_file(p)
+                    .with_context(|| format!("{p:?} is not a valid shader JSON file"))?,
+            ),
+            None => None,
+        };
 
         let start = std::time::Instant::now();
 
@@ -132,18 +139,19 @@ impl<'a> State<'a> {
             "wimdo" | "pcmdo" => {
                 // TODO: Dropping vertex buffers is expensive?
                 let root = xc3_model::load_model(model_path, database.as_ref())
-                    .expect(&format!("{model_path:?} should be a valid .wimdo file"));
+                    .with_context(|| format!("{model_path:?} is not a valid .wimdo file"))?;
                 info!("Load root: {:?}", start.elapsed());
-                xc3_wgpu::load_model(&device, &queue, &[root])
+                Ok(xc3_wgpu::load_model(&device, &queue, &[root]))
             }
             "wismhd" => {
                 let roots = xc3_model::load_map(model_path, database.as_ref())
-                    .expect(&format!("{model_path:?} should be a valid .wismhd file"));
+                    .with_context(|| format!("{model_path:?} is not a valid .wismhd file"))?;
                 info!("Load {} roots: {:?}", roots.len(), start.elapsed());
-                xc3_wgpu::load_model(&device, &queue, &roots)
+                Ok(xc3_wgpu::load_model(&device, &queue, &roots))
             }
-            ext => panic!("unrecognized extension {ext}"),
-        };
+            ext => Err(anyhow!(format!("unrecognized file extension {ext}"))),
+        }
+        .with_context(|| format!("failed to load {model_path:?}"))?;
 
         let elapsed = start.elapsed();
 
@@ -174,12 +182,14 @@ impl<'a> State<'a> {
             .to_string_lossy()
             .to_string();
 
-        let animations = anim_path
-            .map(|p| load_animations(p).expect("anim path should point to a valid animation file"))
-            .unwrap_or_default();
+        let animations = match anim_path {
+            Some(p) => load_animations(p)
+                .with_context(|| format!("{p:?} is not a valid animation file"))?,
+            None => Vec::new(),
+        };
         update_window_title(window, &model_name, &animations, animation_index);
 
-        Self {
+        Ok(Self {
             surface,
             device,
             queue,
@@ -195,7 +205,7 @@ impl<'a> State<'a> {
             current_time_seconds: 0.0,
             input_state: Default::default(),
             previous_frame_start: Instant::now(),
-        }
+        })
     }
 
     fn update_camera(&self, size: winit::dpi::PhysicalSize<u32>) {
@@ -436,7 +446,7 @@ struct Cli {
     anim_index: Option<usize>,
 }
 
-fn main() {
+fn main() -> anyhow::Result<()> {
     // TODO: Can these both be active at once?
     // Ignore most logs to avoid flooding the console.
     #[cfg(not(feature = "tracing"))]
@@ -469,7 +479,7 @@ fn main() {
         cli.anim.as_ref(),
         cli.anim_index.unwrap_or_default(),
         cli.database.as_ref(),
-    ));
+    ))?;
     event_loop
         .run(|event, target| match event {
             Event::WindowEvent {
@@ -500,5 +510,6 @@ fn main() {
             },
             _ => (),
         })
-        .unwrap();
+        .with_context(|| "failed to complete event loop")?;
+    Ok(())
 }

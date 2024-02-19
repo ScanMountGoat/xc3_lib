@@ -41,16 +41,16 @@ mod texture;
 // TODO: Add more error variants.
 #[derive(Debug, Error)]
 pub enum CreateGltfError {
-    #[error("error writing buffers: {0}")]
+    #[error("error writing buffers")]
     Binrw(#[from] binrw::Error),
 }
 
 #[derive(Debug, Error)]
 pub enum SaveGltfError {
-    #[error("error writing files: {0}")]
+    #[error("error writing files")]
     Io(#[from] std::io::Error),
 
-    #[error("error serializing JSON file: {0}")]
+    #[error("error serializing JSON file")]
     Json(#[from] serde_json::Error),
 }
 

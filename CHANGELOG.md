@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## unreleased
+### Changed
+* Improved the readability and quality of displayed error messages for xc3_viewer, xc3_gltf, and xc3_tex.
+
 ## 0.6.0 - 2024-02-16
 ### Added
 * Added derives for `Clone` and `PartialEq` for xc3_lib types.

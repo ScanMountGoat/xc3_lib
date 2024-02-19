@@ -39,10 +39,10 @@ impl DdsExt for Dds {
 
 #[derive(Debug, Error)]
 pub enum CreateDdsError {
-    #[error("error deswizzling surface: {0}")]
+    #[error("error deswizzling surface")]
     SwizzleError(#[from] tegra_swizzle::SwizzleError),
 
-    #[error("error creating DDS: {0}")]
+    #[error("error creating DDS")]
     DdsError(#[from] image_dds::CreateDdsError),
 }
 
