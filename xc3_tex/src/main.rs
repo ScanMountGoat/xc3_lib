@@ -144,7 +144,7 @@ fn main() -> anyhow::Result<()> {
             }
 
             // All other formats save to single files.
-            let format = args.format.map(|f| ImageFormat::from_str(&f).unwrap());
+            let format = args.format.map(|f| ImageFormat::from_str(&f)).transpose()?;
             match output.extension().unwrap().to_str().unwrap() {
                 "dds" => {
                     input_file

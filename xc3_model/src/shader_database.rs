@@ -18,19 +18,19 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum LoadShaderDatabaseError {
-    #[error("error reading JSON file")]
+    #[error("error reading shader JSON file")]
     Io(#[from] std::io::Error),
 
-    #[error("error deserializing JSON")]
+    #[error("error deserializing shader JSON")]
     Json(#[from] serde_json::Error),
 }
 
 #[derive(Debug, Error)]
 pub enum SaveShaderDatabaseError {
-    #[error("error writing JSON file")]
+    #[error("error writing shader JSON file")]
     Io(#[from] std::io::Error),
 
-    #[error("error serializing JSON file")]
+    #[error("error serializing shader JSON")]
     Json(#[from] serde_json::Error),
 }
 

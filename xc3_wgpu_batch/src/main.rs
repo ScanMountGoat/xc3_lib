@@ -111,7 +111,9 @@ fn main() {
 
     let database = cli
         .shader_database
-        .map(|p| ShaderDatabase::from_file(p).unwrap());
+        .map(ShaderDatabase::from_file)
+        .transpose()
+        .unwrap();
 
     // TODO: Work through mxmd in wiefb files in xc2?
     let ext = match cli.extension {

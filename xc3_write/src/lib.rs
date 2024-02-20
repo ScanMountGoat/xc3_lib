@@ -391,10 +391,9 @@ where
         writer: &mut W,
         data_ptr: &mut u64,
     ) -> Xc3Result<Self::Offsets<'_>> {
-        match self {
-            Some(value) => Ok(Some(value.xc3_write(writer, data_ptr)?)),
-            None => Ok(None),
-        }
+        self.as_ref()
+            .map(|v| v.xc3_write(writer, data_ptr))
+            .transpose()
     }
 
     fn should_write(&self) -> Option<bool> {

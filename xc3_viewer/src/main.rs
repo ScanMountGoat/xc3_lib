@@ -124,13 +124,12 @@ impl<'a> State<'a> {
         let camera_data = calculate_camera_data(size, translation, rotation_xyz);
         renderer.update_camera(&queue, &camera_data);
 
-        let database = match database_path {
-            Some(p) => Some(
-                ShaderDatabase::from_file(p)
-                    .with_context(|| format!("{p:?} is not a valid shader JSON file"))?,
-            ),
-            None => None,
-        };
+        let database = database_path
+            .map(|p| {
+                ShaderDatabase::from_file(&p)
+                    .with_context(|| format!("{p:?} is not a valid shader JSON file"))
+            })
+            .transpose()?;
 
         let start = std::time::Instant::now();
 

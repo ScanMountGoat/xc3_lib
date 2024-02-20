@@ -23,13 +23,10 @@ fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let start = std::time::Instant::now();
 
-    let database = match cli.database {
-        Some(p) => Some(
-            ShaderDatabase::from_file(&p)
-                .with_context(|| format!("{p:?} is not a valid shader JSON file"))?,
-        ),
-        None => None,
-    };
+    let database = cli
+        .database
+        .map(|p| ShaderDatabase::from_file(&p).with_context(|| format!("{p:?}")))
+        .transpose()?;
 
     let roots = if cli.input.ends_with(".wismhd") {
         xc3_model::load_map(&cli.input, database.as_ref())
