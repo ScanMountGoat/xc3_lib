@@ -206,8 +206,9 @@ fn replace_wilay_mibl(
         if path.extension().and_then(|e| e.to_str()) == Some("dds") {
             if let Some(i) = image_index(&path, input) {
                 // TODO: Add a to_bytes helper?
-                let dds = Dds::from_file(path).unwrap();
-                let mibl = Mibl::from_dds(&dds).unwrap();
+                let dds = Dds::from_file(&path)
+                    .with_context(|| format!("{path:?} is not a valid DDS file"))?;
+                let mibl = Mibl::from_dds(&dds).with_context(|| "failed to convert DDS to Mibl")?;
                 let mut writer = Cursor::new(Vec::new());
                 mibl.write(&mut writer).unwrap();
 
@@ -232,7 +233,8 @@ fn replace_wilay_jpeg(
         let path = entry.unwrap().path();
         if path.extension().and_then(|e| e.to_str()) == Some("jpeg") {
             if let Some(i) = image_index(&path, input) {
-                textures.textures[i].jpeg_data = std::fs::read(path).unwrap();
+                textures.textures[i].jpeg_data = std::fs::read(&path)
+                    .with_context(|| format!("{path:?} is not a valid JPEG file"))?;
                 count += 1;
             }
         }
@@ -246,13 +248,14 @@ pub fn update_wimdo_from_folder(
     input_folder: &str,
     output: &str,
     chr_tex_nx: Option<String>,
-) -> usize {
+) -> anyhow::Result<usize> {
     let input_path = Path::new(input);
     let output_path = Path::new(output);
 
     // TODO: Error if indices are out of range?
     // TODO: avoid duplicating logic with xc3_model?
-    let mut mxmd = Mxmd::from_file(input).unwrap();
+    let mut mxmd =
+        Mxmd::from_file(input).with_context(|| format!("{input:?} is not a valid wimdo file"))?;
 
     let uses_chr = has_chr_textures(&mxmd);
 
@@ -295,7 +298,7 @@ pub fn update_wimdo_from_folder(
     mxmd.save(output_path).unwrap();
     new_msrd.save(output_path.with_extension("wismt")).unwrap();
 
-    count
+    Ok(count)
 }
 
 fn has_chr_textures(mxmd: &Mxmd) -> bool {

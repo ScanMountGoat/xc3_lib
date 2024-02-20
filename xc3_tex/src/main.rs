@@ -102,7 +102,7 @@ fn main() -> anyhow::Result<()> {
                     &input_folder,
                     output.as_ref().unwrap_or(&input),
                     chr_tex_nx,
-                );
+                )?;
                 println!("Converted {count} file(s) in {:?}", start.elapsed());
             }
         }
