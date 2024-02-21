@@ -1,4 +1,4 @@
-use crate::{ChannelAssignment, OutputAssignments, ModelRoot};
+use crate::{ChannelAssignment, ModelRoot, OutputAssignments};
 use image_dds::image::{codecs::png::PngEncoder, RgbaImage};
 use indexmap::IndexMap;
 use ordered_float::OrderedFloat;

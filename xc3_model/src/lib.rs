@@ -31,7 +31,7 @@ use std::{borrow::Cow, io::Cursor, path::Path};
 
 use animation::Animation;
 use binrw::{BinRead, BinReaderExt};
-use glam::Mat4;
+use glam::{Mat4, Vec3};
 use log::error;
 use material::create_materials;
 use shader_database::ShaderDatabase;
@@ -56,8 +56,8 @@ use xc3_lib::{
 
 pub use map::{load_map, LoadMapError};
 pub use material::{
-    ChannelAssignment, OutputAssignment, OutputAssignments, Material, MaterialParameters,
-    Texture, TextureAlphaTest,
+    ChannelAssignment, Material, MaterialParameters, OutputAssignment, OutputAssignments, Texture,
+    TextureAlphaTest,
 };
 pub use sampler::{AddressMode, FilterMode, Sampler};
 pub use skeleton::{Bone, Skeleton};
@@ -134,9 +134,12 @@ pub struct Models {
 
     // TODO: make this a function instead to avoid dependencies?
     /// The minimum XYZ coordinates of the bounding volume.
-    pub max_xyz: [f32; 3],
+    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3))]
+    pub max_xyz: Vec3,
+
     /// The maximum XYZ coordinates of the bounding volume.
-    pub min_xyz: [f32; 3],
+    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3))]
+    pub min_xyz: Vec3,
 }
 
 /// See [Model](xc3_lib::mxmd::Model).
@@ -150,6 +153,12 @@ pub struct Model {
     /// The index of the [ModelBuffers] in [buffers](struct.ModelGroup.html#structfield.buffers).
     /// This will only be non zero for some map models.
     pub model_buffers_index: usize,
+
+    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3))]
+    pub max_xyz: Vec3,
+    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3))]
+    pub min_xyz: Vec3,
+    pub bounding_radius: f32,
 }
 
 /// See [Mesh](xc3_lib::mxmd::Mesh).
@@ -160,6 +169,7 @@ pub struct Mesh {
     pub index_buffer_index: usize,
     pub material_index: usize,
     pub lod: u16,
+    pub flags1: u32,
     pub skin_flags: u32,
 }
 
@@ -181,8 +191,8 @@ impl Models {
                 .lod_data
                 .as_ref()
                 .map(|data| data.groups.iter().map(|i| i.base_lod_index).collect()),
-            min_xyz: models.min_xyz,
-            max_xyz: models.max_xyz,
+            min_xyz: models.min_xyz.into(),
+            max_xyz: models.max_xyz.into(),
         }
     }
 }
@@ -201,6 +211,7 @@ impl Model {
                 index_buffer_index: mesh.index_buffer_index as usize,
                 material_index: mesh.material_index as usize,
                 lod: mesh.lod,
+                flags1: mesh.flags1,
                 skin_flags: mesh.skin_flags,
             })
             .collect();
@@ -209,6 +220,9 @@ impl Model {
             meshes,
             instances,
             model_buffers_index,
+            max_xyz: model.max_xyz.into(),
+            min_xyz: model.min_xyz.into(),
+            bounding_radius: model.bounding_radius,
         }
     }
 }
@@ -304,7 +318,6 @@ pub fn load_model<P: AsRef<Path>>(
     let wimdo_path = wimdo_path.as_ref();
 
     let mxmd = load_wimdo(wimdo_path)?;
-
     let chr_tex_folder = chr_tex_nx_folder(wimdo_path);
 
     // Desktop PC models aren't used in game but are straightforward to support.
@@ -373,6 +386,7 @@ impl ModelRoot {
         })
     }
 
+    // TODO: module for conversions?
     // TODO: Not possible to make files compatible with all game versions?
     // TODO: Will it be possible to do full imports in the future?
     // TODO: Include chr to support skeleton edits?
@@ -409,7 +423,56 @@ impl ModelRoot {
 
         // TODO: Create a separate root type that enforces this structure?
         // TODO: Rebuild models, meshes, and materials.
-        let _models = &self.groups[0].models[0];
+        // TODO: How many of these mesh fields can use a default value?
+        let models = &self.groups[0].models[0];
+        new_mxmd.models.models = models
+            .models
+            .iter()
+            .map(|model| xc3_lib::mxmd::Model {
+                meshes: model
+                    .meshes
+                    .iter()
+                    .map(|m| xc3_lib::mxmd::Mesh {
+                        flags1: m.flags1,
+                        skin_flags: m.skin_flags,
+                        vertex_buffer_index: m.vertex_buffer_index as u16,
+                        index_buffer_index: m.index_buffer_index as u16,
+                        unk_index: 0,
+                        material_index: m.material_index as u16,
+                        unk2: 0,
+                        unk3: 0,
+                        ext_mesh_index: 0,
+                        unk4: 0,
+                        unk5: 0,
+                        lod: 0,
+                        alpha_table_index: 0,
+                        unk6: 0,
+                        unk7: 0,
+                        unk8: 0,
+                        unk9: 0,
+                    })
+                    .collect(),
+                unk1: 0,
+                max_xyz: model.max_xyz.to_array(),
+                min_xyz: model.min_xyz.to_array(),
+                bounding_radius: model.bounding_radius,
+                unks: [0; 7],
+            })
+            .collect();
+        new_mxmd.models.min_xyz = new_mxmd
+            .models
+            .models
+            .iter()
+            .map(|m| m.min_xyz)
+            .reduce(|[ax, ay, az], [bx, by, bz]| [ax.min(bx), ay.min(by), az.min(bz)])
+            .unwrap_or_default();
+        new_mxmd.models.max_xyz = new_mxmd
+            .models
+            .models
+            .iter()
+            .map(|m| m.max_xyz)
+            .reduce(|[ax, ay, az], [bx, by, bz]| [ax.max(bx), ay.max(by), az.max(bz)])
+            .unwrap_or_default();
 
         let use_chr_textures = mxmd
             .streaming
@@ -661,6 +724,10 @@ impl Weights {
         unk_type: xc3_lib::mxmd::RenderPassType,
     ) -> usize {
         // TODO: Error if none?
+        println!(
+            "{skin_flags:?}, {lod:?}, {unk_type:?} -> {:?}",
+            weight_pass_index(unk_type, skin_flags)
+        );
         self.weight_group(skin_flags, lod, unk_type)
             .map(|group| (group.input_start_index - group.output_start_index) as usize)
             .unwrap_or_default()
@@ -680,16 +747,32 @@ fn weight_group_index(
     // TODO: More mesh lods than weight lods for models with multiple lod groups?
     let weight_lod = &weight_lods[lod_index % weight_lods.len()];
 
+    let pass_index = weight_pass_index(unk_type, skin_flags);
+    weight_lod.group_indices_plus_one[pass_index].saturating_sub(1) as usize
+}
+
+fn weight_pass_index(unk_type: RenderPassType, skin_flags: u32) -> usize {
     // TODO: skin_flags & 0xF has a max value of group_indices.len() - 1?
     // TODO: bit mask?
-    let pass_index = match unk_type {
+    // TODO: Test possible values by checking mesh flags and pass types in xc3_test?
+    // TODO: Compare this with non zero entries in group indices?
+    // TODO: Assume all weight groups are assigned to at least one mesh?
+    // TODO: get unique parameters for this function for each wimdo?
+
+    // TODO: Find a way to determine the group selected in game?
+    // TODO: Test unique parameter combination using a modified weight group?
+    // TODO: Detect if vertices move in game?
+    let mut pass_index = match unk_type {
         RenderPassType::Unk0 => 0,
         RenderPassType::Unk1 => 1,
         RenderPassType::Unk6 => todo!(),
-        RenderPassType::Unk7 => 3,
+        RenderPassType::Unk7 => 3, // TODO: also 4?
         RenderPassType::Unk9 => todo!(),
     };
-    weight_lod.group_indices_plus_one[pass_index].saturating_sub(1) as usize
+    if skin_flags == 64 {
+        pass_index = 4;
+    }
+    pass_index
 }
 
 #[cfg(feature = "arbitrary")]

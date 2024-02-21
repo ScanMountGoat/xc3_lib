@@ -73,7 +73,12 @@ struct IndexBuffer {
 }
 
 impl ModelGroup {
-    pub fn draw<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, is_transparent: bool, pass_id: u32) {
+    pub fn draw<'a>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        is_transparent: bool,
+        pass_id: u32,
+    ) {
         self.per_group.set(render_pass);
 
         for models in &self.models {

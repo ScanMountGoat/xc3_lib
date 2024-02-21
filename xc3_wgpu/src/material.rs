@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use glam::{ivec4, uvec4, vec4, IVec4, UVec4, Vec4};
 use log::error;
 use wgpu::util::DeviceExt;
-use xc3_model::{ChannelAssignment, OutputAssignment, OutputAssignments, ImageTexture};
+use xc3_model::{ChannelAssignment, ImageTexture, OutputAssignment, OutputAssignments};
 
 use crate::{
     pipeline::{model_pipeline, ModelPipelineData, PipelineKey},
