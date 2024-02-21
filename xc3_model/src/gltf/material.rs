@@ -98,7 +98,7 @@ fn create_material(
     sampler_base_index: usize,
     image_textures: &[ImageTexture],
 ) -> gltf::json::Material {
-    let assignments = material.gbuffer_assignments(image_textures);
+    let assignments = material.output_assignments(image_textures);
 
     let albedo_key = albedo_generated_key(material, &assignments, root_index);
     let albedo_index = texture_cache.insert(albedo_key);

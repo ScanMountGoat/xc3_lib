@@ -118,7 +118,7 @@ pub struct Materials {
     /// Info for each of the shaders in the associated [Spch](crate::spch::Spch).
     #[br(parse_with = parse_offset32_count32, args { offset: base_offset, inner: base_offset })]
     #[xc3(offset_count(u32, u32))]
-    pub shader_programs: Vec<ShaderProgramInfo>,
+    pub techniques: Vec<Technique>,
 
     pub unks1: [u32; 2],
 
@@ -163,7 +163,7 @@ pub struct AlphaTestTexture {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
-pub struct ShaderProgramInfo {
+pub struct Technique {
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
     pub attributes: Vec<VertexAttribute>,
@@ -387,7 +387,7 @@ pub struct Material {
     // TODO: always count 1?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub shader_programs: Vec<ShaderProgram>,
+    pub techniques: Vec<MaterialTechnique>,
 
     pub unk5: u32,
 
@@ -416,21 +416,27 @@ pub struct MaterialFlags {
     /// Samples `texture.x` from a dedicated mask texture when `true`.
     /// Otherwise, the alpha channel is used.
     pub separate_mask: bool,
-    pub unk: u28,
+    pub unk5: bool,
+    pub unk6: bool,
+    pub unk7: bool,
+    pub unk8: bool,
+    pub unk9: bool,
+    pub fur: bool, // TODO: fur shading temp tex for xc2?
+    pub unk: u22,
 }
 
 /// Flags controlling pipeline state for rasterizer and fragment state.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct StateFlags {
-    pub depth_write_mode: u8,
+    pub depth_write_mode: u8, // 0, 1, 2, 7
     pub blend_mode: BlendMode,
     pub cull_mode: CullMode,
     pub unk4: u8, // unused?
     pub stencil_value: StencilValue,
     pub stencil_mode: StencilMode,
     pub depth_func: DepthFunc,
-    pub color_write_mode: u8,
+    pub color_write_mode: u8, // 0, 1, 10, 11
 }
 
 // TODO: Convert these to equations for RGB and alpha for docs.
@@ -507,15 +513,16 @@ pub enum CullMode {
 /// `ml::MdsMatMaterialTechnique` in the Xenoblade 2 binary.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct ShaderProgram {
-    /// Index into [shader_programs](struct.Materials.html#structfield.shader_programs).
-    pub program_index: u32,
-    pub unk_type: RenderPassType,
+pub struct MaterialTechnique {
+    /// Index into [techniques](struct.Materials.html#structfield.techniques).
+    /// This can also be assumed to be the index into the [Spch](crate::spch::Spch) programs.
+    pub technique_index: u32,
+    pub pass_type: RenderPassType,
     pub material_buffer_index: u16,
     pub flags: u32, // always 1?
 }
 
-/// Determines the render pass for an object.
+// TODO: Use in combination with mesh render flags?
 // Each "pass" has different render targets?
 // _trans = 1,
 // _ope = 0,1,7
@@ -766,7 +773,8 @@ pub struct Model {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Mesh {
-    pub render_flags: u32,
+    // TODO: 0x4 for pass?
+    pub flags1: u32,
     pub skin_flags: u32, // 0x1, 0x2, 0x4001 (16385), 0x4008 (16392)
     /// Index into [vertex_buffers](../vertex/struct.VertexData.html#structfield.vertex_buffers)
     /// for the associated [VertexData].
@@ -791,6 +799,47 @@ pub struct Mesh {
     pub unk7: i32,
     pub unk8: i32,
     pub unk9: i32,
+}
+
+/// Flags to determine how to draw a [Mesh].
+#[bitsize(32)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(DebugBits, FromBits, BinRead, BinWrite, PartialEq, Clone, Copy)]
+#[br(map = u32::into)]
+#[bw(map = |&x| u32::from(x))]
+pub struct MeshRenderFlags {
+    pub unk1: bool,
+    pub unk2: bool,
+    pub unk3: bool,
+    pub unk4: bool,
+    pub unk5: bool,
+    pub unk6: bool,
+    pub unk7: bool,
+    pub unk8: bool,
+    pub unk9: bool,
+    pub unk10: bool,
+    pub unk11: bool,
+    pub unk12: bool,
+    pub unk13: bool,
+    pub unk14: bool,
+    pub unk15: bool,
+    pub unk16: bool,
+    pub unk17: bool,
+    pub unk18: bool,
+    pub unk19: bool,
+    pub unk20: bool,
+    pub unk21: bool,
+    pub unk22: bool,
+    pub unk23: bool,
+    pub unk24: bool,
+    pub unk25: bool,
+    pub unk26: bool,
+    pub unk27: bool,
+    pub unk28: bool,
+    pub unk29: bool,
+    pub unk30: bool,
+    pub unk31: bool,
+    pub unk32: bool,
 }
 
 /// Flags to determine what data is present in [Models].
@@ -1652,7 +1701,8 @@ xc3_write_binwrite_impl!(
     ModelsFlags,
     SamplerFlags,
     TextureUsage,
-    ExtMeshFlags
+    ExtMeshFlags,
+    MeshRenderFlags
 );
 
 impl Xc3Write for MaterialFlags {
@@ -1787,7 +1837,7 @@ impl<'a> Xc3WriteOffsets for ModelsOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for ShaderProgramInfoOffsets<'a> {
+impl<'a> Xc3WriteOffsets for TechniqueOffsets<'a> {
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
@@ -1829,7 +1879,7 @@ impl<'a> Xc3WriteOffsets for MaterialsOffsets<'a> {
 
         for material in &materials.0 {
             material
-                .shader_programs
+                .techniques
                 .write_full(writer, base_offset, data_ptr)?;
         }
 
@@ -1850,8 +1900,7 @@ impl<'a> Xc3WriteOffsets for MaterialsOffsets<'a> {
         self.material_unk3
             .write_full(writer, base_offset, data_ptr)?;
         self.samplers.write_full(writer, base_offset, data_ptr)?;
-        self.shader_programs
-            .write_full(writer, base_offset, data_ptr)?;
+        self.techniques.write_full(writer, base_offset, data_ptr)?;
 
         // TODO: Offset not large enough?
         for material in &materials.0 {

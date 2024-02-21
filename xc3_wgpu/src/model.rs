@@ -50,6 +50,7 @@ pub struct Mesh {
     vertex_buffer_index: usize,
     index_buffer_index: usize,
     material_index: usize,
+    skin_flags: u32, // TODO: convert to a render pass enum?
     lod: u16,
     per_mesh: crate::shader::model::bind_groups::BindGroup3,
 }
@@ -72,14 +73,12 @@ struct IndexBuffer {
 }
 
 impl ModelGroup {
-    pub fn draw<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, is_transparent: bool) {
+    pub fn draw<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, is_transparent: bool, pass_id: u32) {
         self.per_group.set(render_pass);
 
         for models in &self.models {
             for model in &models.models {
                 for mesh in &model.meshes {
-                    mesh.per_mesh.set(render_pass);
-
                     let material = &models.materials[mesh.material_index];
 
                     // TODO: Group these into passes with separate shaders for each pass?
@@ -88,7 +87,10 @@ impl ModelGroup {
                     if (is_transparent != material.pipeline_key.write_to_all_outputs())
                         && !material.name.contains("_speff_")
                         && mesh.should_render_lod(models)
+                        && mesh.skin_flags & 0xF == pass_id
                     {
+                        mesh.per_mesh.set(render_pass);
+
                         // TODO: How to make sure the pipeline outputs match the render pass?
                         let pipeline = &models.pipelines[&material.pipeline_key];
                         render_pass.set_pipeline(pipeline);
@@ -391,6 +393,7 @@ fn create_model(
             index_buffer_index: mesh.index_buffer_index,
             material_index: mesh.material_index,
             lod: mesh.lod,
+            skin_flags: mesh.skin_flags,
             per_mesh: per_mesh_bind_group(
                 device,
                 model_buffers,

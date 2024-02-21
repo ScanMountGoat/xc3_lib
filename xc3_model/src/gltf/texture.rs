@@ -1,4 +1,4 @@
-use crate::{ChannelAssignment, GBufferAssignments, ModelRoot};
+use crate::{ChannelAssignment, OutputAssignments, ModelRoot};
 use image_dds::image::{codecs::png::PngEncoder, RgbaImage};
 use indexmap::IndexMap;
 use ordered_float::OrderedFloat;
@@ -95,7 +95,7 @@ impl TextureCache {
 // TODO: Create consts for the gbuffer texture indices?
 pub fn albedo_generated_key(
     material: &crate::Material,
-    assignments: &GBufferAssignments,
+    assignments: &OutputAssignments,
     root_index: usize,
 ) -> GeneratedImageKey {
     // Assume the first texture is albedo if no assignments are possible.
@@ -153,7 +153,7 @@ pub fn albedo_generated_key(
 
 pub fn normal_generated_key(
     material: &crate::Material,
-    assignments: &GBufferAssignments,
+    assignments: &OutputAssignments,
     root_index: usize,
 ) -> GeneratedImageKey {
     let red_index = image_index(material, assignments.assignments[2].x.as_ref());
@@ -172,7 +172,7 @@ pub fn normal_generated_key(
 
 pub fn metallic_roughness_generated_key(
     material: &crate::Material,
-    assignments: &GBufferAssignments,
+    assignments: &OutputAssignments,
     root_index: usize,
 ) -> GeneratedImageKey {
     // The red channel is unused, we can pack occlusion here.

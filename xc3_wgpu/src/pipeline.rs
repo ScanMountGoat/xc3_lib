@@ -132,11 +132,16 @@ pub fn model_pipeline(
             cull_mode: cull_mode(key.flags.cull_mode),
             ..Default::default()
         },
-        // TODO: Stencil ref is set per draw on the render pass?
         depth_stencil: Some(wgpu::DepthStencilState {
             format: DEPTH_STENCIL_FORMAT,
+            // TODO: Double check depth flags in renderdoc.
+            // TODO: Depth write can be disabled by mesh flags?
             depth_write_enabled: true,
-            depth_compare: wgpu::CompareFunction::LessEqual,
+            depth_compare: match key.flags.depth_func {
+                xc3_lib::mxmd::DepthFunc::Disabled => wgpu::CompareFunction::Always,
+                xc3_lib::mxmd::DepthFunc::LessEqual => wgpu::CompareFunction::LessEqual,
+                xc3_lib::mxmd::DepthFunc::Equal => wgpu::CompareFunction::Equal,
+            },
             stencil: stencil_state(key.flags.stencil_mode),
             bias: wgpu::DepthBiasState::default(),
         }),

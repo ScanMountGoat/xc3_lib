@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## unreleased
 ### Changed
 * Improved the readability and quality of displayed error messages for xc3_viewer, xc3_gltf, and xc3_tex.
+* Renamed `GBuffer*` types and methods to `Output*` since not all shaders write to the G-Buffer textures.
+* Renamed `ShaderProgram ` to `MaterialTechnique` and `ShaderProgramInfo` to `Technique` to better match in game names.
+* Reworked render pass assignments in xc3_wgpu to better match in game. This improves rendering accuracy of transparent meshes.
 
 ## 0.6.0 - 2024-02-16
 ### Added

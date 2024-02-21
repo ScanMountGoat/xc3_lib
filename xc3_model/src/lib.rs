@@ -56,7 +56,7 @@ use xc3_lib::{
 
 pub use map::{load_map, LoadMapError};
 pub use material::{
-    ChannelAssignment, GBufferAssignment, GBufferAssignments, Material, MaterialParameters,
+    ChannelAssignment, OutputAssignment, OutputAssignments, Material, MaterialParameters,
     Texture, TextureAlphaTest,
 };
 pub use sampler::{AddressMode, FilterMode, Sampler};
@@ -669,17 +669,18 @@ impl Weights {
 
 fn weight_group_index(
     weight_lods: &[WeightLod],
-    _skin_flags: u32,
+    skin_flags: u32,
     lod: u16,
     unk_type: RenderPassType,
 ) -> usize {
     // TODO: Should this check skin flags?
     // TODO: Is lod actually some sort of flags?
-    // TODO: Return none if flags == 64?
+    // TODO: Return none if skin_flags == 64?
     let lod_index = (lod & 0xff).saturating_sub(1) as usize;
     // TODO: More mesh lods than weight lods for models with multiple lod groups?
     let weight_lod = &weight_lods[lod_index % weight_lods.len()];
 
+    // TODO: skin_flags & 0xF has a max value of group_indices.len() - 1?
     // TODO: bit mask?
     let pass_index = match unk_type {
         RenderPassType::Unk0 => 0,

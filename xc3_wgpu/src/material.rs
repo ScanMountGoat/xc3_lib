@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use glam::{ivec4, uvec4, vec4, IVec4, UVec4, Vec4};
 use log::error;
 use wgpu::util::DeviceExt;
-use xc3_model::{ChannelAssignment, GBufferAssignment, GBufferAssignments, ImageTexture};
+use xc3_model::{ChannelAssignment, OutputAssignment, OutputAssignments, ImageTexture};
 
 use crate::{
     pipeline::{model_pipeline, ModelPipelineData, PipelineKey},
@@ -71,8 +71,8 @@ pub fn materials(
         .iter()
         .map(|material| {
             // TODO: how to get access to the texture usage here?
-            let assignments = material.gbuffer_assignments(image_textures);
-            let gbuffer_assignments = gbuffer_assignments(&assignments);
+            let assignments = material.output_assignments(image_textures);
+            let output_assignments = output_assignments(&assignments);
             let gbuffer_defaults = gbuffer_defaults(&assignments);
 
             let mut texture_views: [Option<_>; 10] = std::array::from_fn(|_| None);
@@ -115,7 +115,7 @@ pub fn materials(
                 label: Some("PerMaterial"),
                 contents: bytemuck::cast_slice(&[crate::shader::model::PerMaterial {
                     mat_color: material.parameters.mat_color.into(),
-                    gbuffer_assignments,
+                    output_assignments,
                     gbuffer_defaults,
                     texture_scale,
                     alpha_test_texture: {
@@ -195,20 +195,20 @@ pub fn materials(
 }
 
 // TODO: Test cases for this
-fn gbuffer_assignments(
-    assignments: &GBufferAssignments,
-) -> [crate::shader::model::GBufferAssignment; 6] {
+fn output_assignments(
+    assignments: &OutputAssignments,
+) -> [crate::shader::model::OutputAssignment; 6] {
     // Each output channel may have a different input sampler and channel.
     [0, 1, 2, 3, 4, 5].map(|i| gbuffer_assignment(&assignments.assignments[i]))
 }
 
-fn gbuffer_assignment(a: &GBufferAssignment) -> crate::shader::model::GBufferAssignment {
+fn gbuffer_assignment(a: &OutputAssignment) -> crate::shader::model::OutputAssignment {
     let (s0, c0) = texture_channel_assignment(a.x.as_ref()).unwrap_or((-1, 0));
     let (s1, c1) = texture_channel_assignment(a.y.as_ref()).unwrap_or((-1, 1));
     let (s2, c2) = texture_channel_assignment(a.z.as_ref()).unwrap_or((-1, 2));
     let (s3, c3) = texture_channel_assignment(a.w.as_ref()).unwrap_or((-1, 3));
 
-    crate::shader::model::GBufferAssignment {
+    crate::shader::model::OutputAssignment {
         sampler_indices: ivec4(s0, s1, s2, s3),
         channel_indices: uvec4(c0, c1, c2, c3),
     }
@@ -248,11 +248,11 @@ fn material_texture_index(sampler: &str) -> i32 {
     }
 }
 
-fn gbuffer_defaults(assignments: &GBufferAssignments) -> [Vec4; 6] {
+fn gbuffer_defaults(assignments: &OutputAssignments) -> [Vec4; 6] {
     [0, 1, 2, 3, 4, 5].map(|i| gbuffer_default(&assignments.assignments[i], i))
 }
 
-fn gbuffer_default(a: &GBufferAssignment, i: usize) -> Vec4 {
+fn gbuffer_default(a: &OutputAssignment, i: usize) -> Vec4 {
     vec4(
         value_channel_assignment(a.x.as_ref()).unwrap_or(GBUFFER_DEFAULTS[i][0]),
         value_channel_assignment(a.y.as_ref()).unwrap_or(GBUFFER_DEFAULTS[i][1]),

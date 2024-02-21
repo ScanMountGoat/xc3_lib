@@ -1,5 +1,5 @@
 use log::warn;
-use xc3_lib::mxmd::{Materials, RenderPassType, ShaderProgramInfo, StateFlags, TextureUsage};
+use xc3_lib::mxmd::{Materials, RenderPassType, StateFlags, Technique, TextureUsage};
 
 use crate::{
     shader_database::{BufferDependency, Shader, Spch, TextureDependency},
@@ -98,9 +98,9 @@ pub fn create_materials(materials: &Materials, spch: Option<&Spch>) -> Vec<Mater
                 alpha_test,
                 shader,
                 unk_type: material
-                    .shader_programs
+                    .techniques
                     .first()
-                    .map(|p| p.unk_type)
+                    .map(|p| p.pass_type)
                     .unwrap_or(RenderPassType::Unk0),
                 parameters,
             }
@@ -110,17 +110,17 @@ pub fn create_materials(materials: &Materials, spch: Option<&Spch>) -> Vec<Mater
 
 fn get_shader(material: &xc3_lib::mxmd::Material, spch: Option<&Spch>) -> Option<Shader> {
     // TODO: How to choose between the two fragment shaders?
-    let program_index = material.shader_programs.first()?.program_index as usize;
+    let program_index = material.techniques.first()?.technique_index as usize;
     spch?.programs.get(program_index)?.shaders.first().cloned()
 }
 
-fn get_program_info<'a>(
+fn get_technique<'a>(
     material: &xc3_lib::mxmd::Material,
-    programs: &'a [ShaderProgramInfo],
-) -> Option<&'a ShaderProgramInfo> {
-    // TODO: Don't assume a single program info?
-    let program_index = material.shader_programs.first()?.program_index as usize;
-    programs.get(program_index)
+    techniques: &'a [Technique],
+) -> Option<&'a Technique> {
+    // TODO: Don't assume a single technique?
+    let index = material.techniques.first()?.technique_index as usize;
+    techniques.get(index)
 }
 
 fn find_alpha_test_texture(
@@ -170,7 +170,7 @@ fn assign_parameters(
         work_color: None,
     };
 
-    if let Some(info) = get_program_info(material, &materials.shader_programs) {
+    if let Some(info) = get_technique(material, &materials.techniques) {
         for param in &info.parameters {
             match param.param_type {
                 xc3_lib::mxmd::ParamType::Unk0 => (),
@@ -234,13 +234,13 @@ fn read_param<const N: usize>(
 /// Assignment information for the channels of each output.
 /// This includes channels from textures, material parameters, or shader constants.
 #[derive(Debug)]
-pub struct GBufferAssignments {
-    pub assignments: [GBufferAssignment; 6],
+pub struct OutputAssignments {
+    pub assignments: [OutputAssignment; 6],
 }
 
 // TODO: Add some sort of default?
 #[derive(Debug, Default)]
-pub struct GBufferAssignment {
+pub struct OutputAssignment {
     pub x: Option<ChannelAssignment>,
     pub y: Option<ChannelAssignment>,
     pub z: Option<ChannelAssignment>,
@@ -263,15 +263,16 @@ pub enum ChannelAssignment {
 // TODO: Test cases for this?
 impl Material {
     // TODO: Store these values instead of making them a method?
-    /// Get the texture or value assigned to each G-Buffer output texture and channel.
+    /// Get the texture or value assigned to each shader output texture and channel.
+    /// Most model shaders write to the G-Buffer textures.
     ///
     /// If no shader is assigned from the database, assignments are inferred from the usage hints in `textures`.
     /// This heuristic works well for detecting color and normal maps but cannot detect temp texture channels
     /// or material parameter values like texture tiling.
-    pub fn gbuffer_assignments(&self, textures: &[ImageTexture]) -> GBufferAssignments {
+    pub fn output_assignments(&self, textures: &[ImageTexture]) -> OutputAssignments {
         self.shader
             .as_ref()
-            .map(|s| gbuffer_assignments(s, &self.parameters))
+            .map(|s| output_assignments(s, &self.parameters))
             .unwrap_or_else(|| {
                 warn!(
                     "Inferring assignments from texture types for {:?} due to unrecognized shader",
@@ -281,7 +282,7 @@ impl Material {
             })
     }
 
-    fn infer_assignment_from_usage(&self, textures: &[ImageTexture]) -> GBufferAssignments {
+    fn infer_assignment_from_usage(&self, textures: &[ImageTexture]) -> OutputAssignments {
         // No assignment data is available.
         // Guess reasonable defaults based on the texture types.
         let assignment = |i: Option<usize>, c| {
@@ -313,31 +314,31 @@ impl Material {
             )
         });
 
-        GBufferAssignments {
+        OutputAssignments {
             assignments: [
-                GBufferAssignment {
+                OutputAssignment {
                     x: assignment(color_index, 0),
                     y: assignment(color_index, 1),
                     z: assignment(color_index, 2),
                     w: assignment(color_index, 3),
                 },
-                GBufferAssignment::default(),
-                GBufferAssignment {
+                OutputAssignment::default(),
+                OutputAssignment {
                     x: assignment(normal_index, 0),
                     y: assignment(normal_index, 1),
                     z: None,
                     w: None,
                 },
-                GBufferAssignment::default(),
-                GBufferAssignment::default(),
-                GBufferAssignment::default(),
+                OutputAssignment::default(),
+                OutputAssignment::default(),
+                OutputAssignment::default(),
             ],
         }
     }
 }
 
-fn gbuffer_assignments(shader: &Shader, parameters: &MaterialParameters) -> GBufferAssignments {
-    GBufferAssignments {
+fn output_assignments(shader: &Shader, parameters: &MaterialParameters) -> OutputAssignments {
+    OutputAssignments {
         assignments: [0, 1, 2, 3, 4, 5].map(|i| gbuffer_assignment(shader, parameters, i)),
     }
 }
@@ -346,8 +347,8 @@ fn gbuffer_assignment(
     shader: &Shader,
     parameters: &MaterialParameters,
     output_index: usize,
-) -> GBufferAssignment {
-    GBufferAssignment {
+) -> OutputAssignment {
+    OutputAssignment {
         x: channel_assignment(shader, parameters, output_index, 0),
         y: channel_assignment(shader, parameters, output_index, 1),
         z: channel_assignment(shader, parameters, output_index, 2),

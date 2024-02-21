@@ -249,10 +249,11 @@ impl Xc3Renderer {
         // This enables better performance, portability, etc.
         self.compute_morphs(encoder, models);
 
-        self.model_pass(encoder, models);
-        self.transparent_pass(encoder, models);
+        self.opaque_pass(encoder, models);
+        self.alpha1_pass(encoder, models);
         self.unbranch_to_depth_pass(encoder);
         self.deferred_pass(encoder);
+        self.alpha2_pass(encoder, models);
         self.snn_filter_pass(encoder);
         self.final_pass(encoder, output_view);
     }
@@ -286,7 +287,7 @@ impl Xc3Renderer {
         );
     }
 
-    fn model_pass(&self, encoder: &mut wgpu::CommandEncoder, models: &[ModelGroup]) {
+    fn opaque_pass(&self, encoder: &mut wgpu::CommandEncoder, models: &[ModelGroup]) {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Model Pass"),
             color_attachments: &[
@@ -332,16 +333,17 @@ impl Xc3Renderer {
         self.model_bind_group0.set(&mut render_pass);
 
         for model in models {
-            model.draw(&mut render_pass, false);
+            model.draw(&mut render_pass, false, 0);
+            model.draw(&mut render_pass, false, 1);
         }
     }
 
-    fn transparent_pass(&self, encoder: &mut wgpu::CommandEncoder, models: &[ModelGroup]) {
+    fn alpha1_pass(&self, encoder: &mut wgpu::CommandEncoder, models: &[ModelGroup]) {
         // Deferred rendering requires a second forward pass for transparent meshes.
         // The transparent pass only writes to the color output.
         // TODO: Research more about how this is implemented in game.
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Transparent Pass"),
+            label: Some("Alpha Pass 1"),
             color_attachments: &[
                 Some(wgpu::RenderPassColorAttachment {
                     view: &self.textures.gbuffer.color,
@@ -380,7 +382,55 @@ impl Xc3Renderer {
 
         // TODO: Is this the correct unk type?
         for model in models {
-            model.draw(&mut render_pass, true);
+            model.draw(&mut render_pass, true, 8);
+        }
+    }
+
+    fn alpha2_pass(&self, encoder: &mut wgpu::CommandEncoder, models: &[ModelGroup]) {
+        // Deferred rendering requires a second forward pass for transparent meshes.
+        // The transparent pass only writes to the color output.
+        // TODO: Research more about how this is implemented in game.
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Alpha Pass 2"),
+            color_attachments: &[
+                Some(wgpu::RenderPassColorAttachment {
+                    view: &self.textures.deferred_output,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        // TODO: Does in game actually use load?
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                }),
+                color_attachment_disabled(&self.textures.gbuffer.etc_buffer),
+                color_attachment_disabled(&self.textures.gbuffer.normal),
+                color_attachment_disabled(&self.textures.gbuffer.velocity),
+                color_attachment_disabled(&self.textures.gbuffer.depth),
+                color_attachment_disabled(&self.textures.gbuffer.lgt_color),
+            ],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.textures.depth_stencil,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    // TODO: Write to depth buffer?
+                    store: wgpu::StoreOp::Store,
+                }),
+                // TODO: Does this pass ever write to the stencil buffer?
+                stencil_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                }),
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+
+        // TODO: organize into per frame, per model, etc?
+        self.model_bind_group0.set(&mut render_pass);
+
+        // TODO: Is this the correct unk type?
+        for model in models {
+            model.draw(&mut render_pass, true, 2);
         }
     }
 
@@ -638,6 +688,7 @@ fn color_attachment(
 fn color_attachment_disabled(view: &wgpu::TextureView) -> Option<wgpu::RenderPassColorAttachment> {
     // Necessary to fix a validation error about writing to missing attachments.
     // This could also be fixed by modifying the shader code.
+    // TODO: This doesn't disable writes?
     Some(wgpu::RenderPassColorAttachment {
         view,
         resolve_target: None,

@@ -22,7 +22,7 @@ struct Cli {
     /// The file extension to load.
     extension: FileExtension,
 
-    /// The GBuffer JSON database for texture assignments.
+    /// The shader JSON database for texture assignments.
     /// If not specified, the first texture is assumed to be albedo color.
     shader_database: Option<String>,
 
