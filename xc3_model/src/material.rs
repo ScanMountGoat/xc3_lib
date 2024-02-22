@@ -44,7 +44,7 @@ pub struct MaterialParameters {
     pub mat_color: [f32; 4],
     pub alpha_test_ref: f32,
     // Assume each param type is used at most once.
-    pub tex_matrix: Option<Vec<[f32; 16]>>,
+    pub tex_matrix: Option<Vec<[f32; 8]>>, // TODO: mat2x4?
     pub work_float4: Option<Vec<[f32; 4]>>,
     pub work_color: Option<Vec<[f32; 4]>>,
 }

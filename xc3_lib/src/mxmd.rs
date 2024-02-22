@@ -551,7 +551,6 @@ pub struct Texture {
     pub unk3: u16,
 }
 
-// TODO: variable size?
 // xc1: 160, 164, 168 bytes
 // xc2: 160 bytes
 // xc3: 160, 164, 168, 200, 204 bytes
@@ -575,10 +574,9 @@ pub struct Models {
     /// The minimum of all the [min_xyz](struct.Model.html#structfield.min_xyz) in [models](#structfield.models).
     pub min_xyz: [f32; 3],
 
-    // TODO: temp?
-    #[br(restore_position)]
+    #[br(temp, restore_position)]
     #[xc3(skip)]
-    pub models_offset: u32,
+    models_offset: u32,
 
     #[br(parse_with = parse_offset32_count32, args { offset: base_offset, inner: base_offset })]
     #[xc3(offset_count(u32, u32))]
@@ -764,9 +762,10 @@ pub struct Model {
     pub min_xyz: [f32; 3],
     // TODO: how to calculate this?
     pub bounding_radius: f32,
-
+    pub unks1: [u32; 3],  // always 0?
+    pub unk2: (u16, u16), // TODO: rendering related?
     // TODO: padding?
-    pub unks: [u32; 7],
+    pub unks: [u32; 3],
 }
 
 /// Flags and resources associated with a single draw call.

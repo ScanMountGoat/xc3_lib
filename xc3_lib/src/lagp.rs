@@ -17,8 +17,9 @@ use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 // TODO: How much of this is shared with LAHD?
 // TODO: Is this used for xc2?
+#[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(magic(b"LAGP"))]
 #[xc3(magic(b"LAGP"))]
 pub struct Lagp {
@@ -27,10 +28,9 @@ pub struct Lagp {
     // TODO: Different values than dhal?
     pub unk0: u32, // 0, 64, 256, 320?
 
-    // TODO: temp?
-    #[br(restore_position)]
+    #[br(temp, restore_position)]
     #[xc3(skip)]
-    pub offset: u32,
+    offset: u32,
 
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]

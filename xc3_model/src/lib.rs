@@ -421,8 +421,7 @@ impl ModelRoot {
 
         let mut new_mxmd = mxmd.clone();
 
-        // TODO: Create a separate root type that enforces this structure?
-        // TODO: Rebuild models, meshes, and materials.
+        // TODO: Rebuild materials.
         // TODO: How many of these mesh fields can use a default value?
         let models = &self.groups[0].models[0];
         new_mxmd.models.models = models
@@ -444,7 +443,7 @@ impl ModelRoot {
                         ext_mesh_index: 0,
                         unk4: 0,
                         unk5: 0,
-                        lod: 0,
+                        lod: m.lod,
                         alpha_table_index: 0,
                         unk6: 0,
                         unk7: 0,
@@ -456,7 +455,9 @@ impl ModelRoot {
                 max_xyz: model.max_xyz.to_array(),
                 min_xyz: model.min_xyz.to_array(),
                 bounding_radius: model.bounding_radius,
-                unks: [0; 7],
+                unks1: [0; 3],
+                unk2: mxmd.models.models[0].unk2,
+                unks: [0; 3],
             })
             .collect();
         new_mxmd.models.min_xyz = new_mxmd
@@ -785,6 +786,12 @@ fn arbitrary_vec2s(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Vec<gla
         elements.push(element);
     }
     Ok(elements)
+}
+
+#[cfg(feature = "arbitrary")]
+fn arbitrary_vec3(u: &mut arbitrary::Unstructured) -> arbitrary::Result<glam::Vec3> {
+    let array: [f32; 3] = u.arbitrary()?;
+    Ok(glam::Vec3::from_array(array))
 }
 
 #[cfg(feature = "arbitrary")]

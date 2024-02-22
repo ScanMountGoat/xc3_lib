@@ -19,8 +19,9 @@ use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 // TODO: LAGP files are similar?
 // TODO: LAPS files are similar?
+#[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(magic(b"LAHD"))]
 #[xc3(magic(b"LAHD"))]
 pub struct Dhal {
@@ -30,10 +31,9 @@ pub struct Dhal {
     // TODO: changes remaining fields?
     pub unk0: Unk0,
 
-    // TODO: temp?
-    #[br(restore_position)]
+    #[br(temp, restore_position)]
     #[xc3(skip)]
-    pub offset: u32,
+    offset: u32,
 
     // TODO: alignment is sometimes 16?
     #[br(parse_with = parse_ptr32)]
