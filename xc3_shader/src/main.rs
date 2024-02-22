@@ -58,12 +58,12 @@ enum Commands {
 }
 
 fn main() {
-    let cli = Cli::parse();
-
     simple_logger::SimpleLogger::new()
         .with_level(log::LevelFilter::Warn)
         .init()
         .unwrap();
+
+    let cli = Cli::parse();
 
     let start = std::time::Instant::now();
     // TODO: make annotation optional

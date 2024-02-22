@@ -20,7 +20,13 @@ struct Cli {
 }
 
 fn main() -> anyhow::Result<()> {
+    simple_logger::SimpleLogger::new()
+        .with_level(log::LevelFilter::Warn)
+        .init()
+        .unwrap();
+
     let cli = Cli::parse();
+
     let start = std::time::Instant::now();
 
     let database = cli
