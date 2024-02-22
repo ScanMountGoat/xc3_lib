@@ -56,10 +56,10 @@ pub use renderer::{CameraData, RenderMode, Xc3Renderer};
 
 /// The format used for the final RGBA render pass.
 /// Applications should use this format when integrating the renderer.
-pub const COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
+pub const COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8Unorm;
 
 /// The format used to store each of the G-Buffer textures for deferred rendering.
-pub const GBUFFER_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
+pub const GBUFFER_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8Unorm;
 
 /// The format used for depth textures for depth testing.
 pub const DEPTH_STENCIL_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth24PlusStencil8;
