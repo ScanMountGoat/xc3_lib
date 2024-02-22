@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## unreleased
+### Added
+* Added support for anisotropic filtering to xc3_wgpu.
+
 ### Changed
 * Improved the readability and quality of displayed error messages for xc3_viewer, xc3_gltf, and xc3_tex.
 * Renamed `GBuffer*` types and methods to `Output*` since not all shaders write to the G-Buffer textures.

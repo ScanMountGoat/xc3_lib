@@ -10,6 +10,7 @@ pub struct Sampler {
     pub address_mode_w: AddressMode,
     pub min_filter: FilterMode,
     pub mag_filter: FilterMode,
+    pub mip_filter: FilterMode,
     /// Enables rendering mipmaps past the base mip when `true`.
     pub mipmaps: bool,
 }
@@ -31,6 +32,27 @@ pub enum AddressMode {
     MirrorRepeat,
 }
 
+impl Sampler {
+    /// The highest rendered texture mipmap LOD.
+    pub fn lod_max_clamp(&self) -> f32 {
+        // Values taken from tests using Ryujinx with Vulkan.
+        if self.mipmaps {
+            15.0
+        } else {
+            0.25
+        }
+    }
+
+    /// Returns `true` if the sampler uses anisotropic filtering.
+    /// This is set to 4x in game.
+    pub fn anisotropic_filtering(&self) -> bool {
+        self.mipmaps
+            && self.min_filter == FilterMode::Linear
+            && self.mag_filter == FilterMode::Linear
+            && self.mip_filter == FilterMode::Linear
+    }
+}
+
 impl From<xc3_lib::mxmd::SamplerFlags> for Sampler {
     fn from(flags: xc3_lib::mxmd::SamplerFlags) -> Self {
         Self {
@@ -39,6 +61,7 @@ impl From<xc3_lib::mxmd::SamplerFlags> for Sampler {
             address_mode_w: AddressMode::ClampToEdge,
             mag_filter: filter_mode(flags.nearest()),
             min_filter: filter_mode(flags.nearest()),
+            mip_filter: filter_mode(flags.nearest()),
             mipmaps: !flags.disable_mipmap_filter(),
         }
     }
@@ -78,6 +101,7 @@ mod tests {
                 address_mode_w: AddressMode::ClampToEdge,
                 mag_filter: FilterMode::Linear,
                 min_filter: FilterMode::Linear,
+                mip_filter: FilterMode::Linear,
                 mipmaps: true,
             },
             Sampler::from(SamplerFlags::from(0x0))
@@ -93,6 +117,7 @@ mod tests {
                 address_mode_w: AddressMode::ClampToEdge,
                 mag_filter: FilterMode::Linear,
                 min_filter: FilterMode::Linear,
+                mip_filter: FilterMode::Linear,
                 mipmaps: true,
             },
             Sampler::from(SamplerFlags::from(0b_11))
@@ -108,6 +133,7 @@ mod tests {
                 address_mode_w: AddressMode::ClampToEdge,
                 mag_filter: FilterMode::Linear,
                 min_filter: FilterMode::Linear,
+                mip_filter: FilterMode::Linear,
                 mipmaps: true,
             },
             Sampler::from(SamplerFlags::from(0b_110))
@@ -123,6 +149,7 @@ mod tests {
                 address_mode_w: AddressMode::ClampToEdge,
                 mag_filter: FilterMode::Linear,
                 min_filter: FilterMode::Linear,
+                mip_filter: FilterMode::Linear,
                 mipmaps: true,
             },
             Sampler::from(SamplerFlags::from(0b_1100))
@@ -138,6 +165,7 @@ mod tests {
                 address_mode_w: AddressMode::ClampToEdge,
                 mag_filter: FilterMode::Linear,
                 min_filter: FilterMode::Linear,
+                mip_filter: FilterMode::Linear,
                 mipmaps: false,
             },
             Sampler::from(SamplerFlags::from(0b_01000000))
@@ -153,6 +181,7 @@ mod tests {
                 address_mode_w: AddressMode::ClampToEdge,
                 mag_filter: FilterMode::Nearest,
                 min_filter: FilterMode::Nearest,
+                mip_filter: FilterMode::Nearest,
                 mipmaps: false,
             },
             Sampler::from(SamplerFlags::from(0b_01010000))

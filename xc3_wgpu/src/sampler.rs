@@ -3,7 +3,7 @@ pub fn create_sampler(device: &wgpu::Device, sampler: &xc3_model::Sampler) -> wg
 }
 
 fn sampler_descriptor(sampler: &xc3_model::Sampler) -> wgpu::SamplerDescriptor<'static> {
-    // TODO: anisotropic filtering and lod bias?
+    // TODO: lod bias?
     wgpu::SamplerDescriptor {
         label: None,
         address_mode_u: address_mode(sampler.address_mode_u),
@@ -11,10 +11,14 @@ fn sampler_descriptor(sampler: &xc3_model::Sampler) -> wgpu::SamplerDescriptor<'
         address_mode_w: address_mode(sampler.address_mode_w),
         mag_filter: filter_mode(sampler.mag_filter),
         min_filter: filter_mode(sampler.min_filter),
-        mipmap_filter: wgpu::FilterMode::Nearest,
+        mipmap_filter: filter_mode(sampler.mip_filter),
         lod_min_clamp: 0.0,
-        // Values taken from tests using Ryujinx with Vulkan.
-        lod_max_clamp: if sampler.mipmaps { 15.0 } else { 0.25 },
+        lod_max_clamp: sampler.lod_max_clamp(),
+        anisotropy_clamp: if sampler.anisotropic_filtering() {
+            4
+        } else {
+            1
+        },
         ..Default::default()
     }
 }

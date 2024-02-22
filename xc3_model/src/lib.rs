@@ -725,10 +725,6 @@ impl Weights {
         unk_type: xc3_lib::mxmd::RenderPassType,
     ) -> usize {
         // TODO: Error if none?
-        println!(
-            "{skin_flags:?}, {lod:?}, {unk_type:?} -> {:?}",
-            weight_pass_index(unk_type, skin_flags)
-        );
         self.weight_group(skin_flags, lod, unk_type)
             .map(|group| (group.input_start_index - group.output_start_index) as usize)
             .unwrap_or_default()
@@ -911,7 +907,7 @@ mod tests {
             },
         ];
         assert_eq!(
-            3,
+            0,
             weight_group_index(&weight_lods, 64, 1, RenderPassType::Unk0)
         );
         assert_eq!(

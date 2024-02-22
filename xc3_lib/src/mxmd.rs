@@ -328,12 +328,14 @@ pub struct SamplerFlags {
     /// Sets wrap V to mirrored repeat when `true` regardless of repeat V.
     pub mirror_v: bool,
     /// Sets min and mag filter to nearest when `true`.
+    /// Disables 4x anisotropic filtering when `true`
     /// The min filter also depends on disable_mipmap_filter.
     pub nearest: bool,
     /// Sets all wrap modes to clamp and min and mag filter to linear.
     /// Ignores the values of previous flags.
     pub force_clamp: bool,
     /// Removes the mipmap nearest from the min filter when `true`.
+    /// Disables 4x anisotropic filtering when `true`
     pub disable_mipmap_filter: bool,
     pub unk1: bool,
     pub unk3: bool,
