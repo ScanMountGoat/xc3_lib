@@ -452,11 +452,9 @@ impl Xc3Renderer {
 
         render_pass.set_pipeline(&self.unbranch_to_depth_pipeline);
 
-        crate::shader::unbranch_to_depth::bind_groups::set_bind_groups(
+        crate::shader::unbranch_to_depth::set_bind_groups(
             &mut render_pass,
-            crate::shader::unbranch_to_depth::bind_groups::BindGroups {
-                bind_group0: &self.textures.unbranch_to_depth_bind_group0,
-            },
+            &self.textures.unbranch_to_depth_bind_group0,
         );
 
         render_pass.draw(0..3, 0..1);
@@ -494,13 +492,11 @@ impl Xc3Renderer {
                 // Each material ID type renders with a separate pipeline in game.
                 render_pass.set_pipeline(pipeline);
 
-                crate::shader::deferred::bind_groups::set_bind_groups(
+                crate::shader::deferred::set_bind_groups(
                     &mut render_pass,
-                    crate::shader::deferred::bind_groups::BindGroups {
-                        bind_group0: &self.deferred_bind_group0,
-                        bind_group1: &self.textures.deferred_bind_group1,
-                        bind_group2,
-                    },
+                    &self.deferred_bind_group0,
+                    &self.textures.deferred_bind_group1,
+                    bind_group2,
                 );
 
                 render_pass.draw(0..3, 0..1);
@@ -508,13 +504,11 @@ impl Xc3Renderer {
         } else {
             render_pass.set_pipeline(&self.deferred_debug_pipeline);
 
-            crate::shader::deferred::bind_groups::set_bind_groups(
+            crate::shader::deferred::set_bind_groups(
                 &mut render_pass,
-                crate::shader::deferred::bind_groups::BindGroups {
-                    bind_group0: &self.deferred_bind_group0,
-                    bind_group1: &self.textures.deferred_bind_group1,
-                    bind_group2: &self.deferred_bind_group2[0],
-                },
+                &self.deferred_bind_group0,
+                &self.textures.deferred_bind_group1,
+                &self.deferred_bind_group2[0],
             );
 
             render_pass.draw(0..3, 0..1);
@@ -552,11 +546,9 @@ impl Xc3Renderer {
 
             render_pass.set_stencil_reference(0x40);
 
-            crate::shader::snn_filter::bind_groups::set_bind_groups(
+            crate::shader::snn_filter::set_bind_groups(
                 &mut render_pass,
-                crate::shader::snn_filter::bind_groups::BindGroups {
-                    bind_group0: &self.textures.snn_filter_bind_group0,
-                },
+                &self.textures.snn_filter_bind_group0,
             );
 
             render_pass.draw(0..3, 0..1);
@@ -600,24 +592,14 @@ impl Xc3Renderer {
     fn blit_deferred<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
         render_pass.set_pipeline(&self.blit_pipeline);
         render_pass.set_stencil_reference(0x00);
-        crate::shader::blit::bind_groups::set_bind_groups(
-            render_pass,
-            crate::shader::blit::bind_groups::BindGroups {
-                bind_group0: &self.textures.blit_deferred_bind_group,
-            },
-        );
+        crate::shader::blit::set_bind_groups(render_pass, &self.textures.blit_deferred_bind_group);
         render_pass.draw(0..3, 0..1);
     }
 
     fn blit_snn_filtered_hair<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
         render_pass.set_pipeline(&self.blit_hair_pipeline);
         render_pass.set_stencil_reference(0x40);
-        crate::shader::blit::bind_groups::set_bind_groups(
-            render_pass,
-            crate::shader::blit::bind_groups::BindGroups {
-                bind_group0: &self.textures.blit_hair_bind_group,
-            },
-        );
+        crate::shader::blit::set_bind_groups(render_pass, &self.textures.blit_hair_bind_group);
         render_pass.draw(0..3, 0..1);
     }
 

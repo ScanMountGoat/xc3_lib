@@ -126,7 +126,7 @@ impl<'a> State<'a> {
 
         let database = database_path
             .map(|p| {
-                ShaderDatabase::from_file(&p)
+                ShaderDatabase::from_file(p)
                     .with_context(|| format!("{p:?} is not a valid shader JSON file"))
             })
             .transpose()?;

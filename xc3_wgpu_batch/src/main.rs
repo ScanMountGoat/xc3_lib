@@ -208,7 +208,7 @@ fn frame_model_bounds(queue: &wgpu::Queue, roots: &[xc3_model::ModelRoot], rende
         .flat_map(|r| {
             r.groups
                 .iter()
-                .flat_map(|g| g.models.iter().map(|m| m.min_xyz.into()))
+                .flat_map(|g| g.models.iter().map(|m| m.min_xyz))
         })
         .reduce(Vec3::min)
         .unwrap();
@@ -218,7 +218,7 @@ fn frame_model_bounds(queue: &wgpu::Queue, roots: &[xc3_model::ModelRoot], rende
         .flat_map(|r| {
             r.groups
                 .iter()
-                .flat_map(|g| g.models.iter().map(|m| m.max_xyz.into()))
+                .flat_map(|g| g.models.iter().map(|m| m.max_xyz))
         })
         .reduce(Vec3::max)
         .unwrap();
