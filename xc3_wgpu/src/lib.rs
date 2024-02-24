@@ -40,19 +40,20 @@
 //! the [Animation](xc3_model::animation::Animation) type from [xc3_model].
 
 mod animation;
+mod culling;
 mod material;
 mod model;
+mod monolib;
 mod pipeline;
 mod renderer;
 mod sampler;
 mod shader;
 mod texture;
-mod monolib;
 
 pub use material::Material;
 pub use model::{load_model, Mesh, Model, ModelBuffers, ModelGroup, Models};
-pub use renderer::{CameraData, RenderMode, Xc3Renderer};
 pub use monolib::MonolibShaderTextures;
+pub use renderer::{CameraData, RenderMode, Xc3Renderer};
 
 // TODO: How is sRGB gamma handled in game?
 
@@ -67,4 +68,5 @@ pub const GBUFFER_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8
 pub const DEPTH_STENCIL_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth24PlusStencil8;
 
 /// The features required by the renderer.
-pub const FEATURES: wgpu::Features = wgpu::Features::TEXTURE_COMPRESSION_BC;
+pub const FEATURES: wgpu::Features =
+    wgpu::Features::TEXTURE_COMPRESSION_BC.union(wgpu::Features::POLYGON_MODE_LINE);

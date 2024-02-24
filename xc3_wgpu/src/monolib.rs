@@ -38,6 +38,7 @@ impl MonolibShaderTextures {
 
     /// Find the texture corresponding to a `sampler_name` like `gTResidentTex44`.
     pub fn global_texture(&self, sampler_name: &str) -> Option<&wgpu::Texture> {
+        // TODO: are these correct?
         match sampler_name {
             "gTResidentTex43" => Some(&self.eyepatch_ao),
             "gTResidentTex44" => Some(&self.eyepatch_col),

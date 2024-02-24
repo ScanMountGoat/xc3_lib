@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use glam::{uvec4, Mat4, Vec3, Vec4};
+use glam::{uvec4, vec4, Mat4, Vec3, Vec4};
 use log::{error, info};
 use rayon::prelude::*;
 use wgpu::util::DeviceExt;
@@ -8,6 +8,7 @@ use xc3_model::{vertex::AttributeData, ImageTexture};
 
 use crate::{
     animation::animate_skeleton,
+    culling::is_within_frustum,
     material::{materials, Material},
     pipeline::{ModelPipelineData, PipelineKey},
     sampler::create_sampler,
@@ -30,9 +31,11 @@ pub struct ModelBuffers {
     index_buffers: Vec<IndexBuffer>,
 }
 
+// TODO: aabb tree for culling?
 pub struct Models {
     pub models: Vec<Model>,
     materials: Vec<Material>,
+    bounds: Bounds,
 
     // TODO: skinning?
     base_lod_indices: Option<Vec<u16>>,
@@ -42,9 +45,10 @@ pub struct Models {
 
 pub struct Model {
     pub meshes: Vec<Mesh>,
+    model_buffers_index: usize,
     instance_buffer: wgpu::Buffer,
     pub instance_count: usize,
-    model_buffers_index: usize,
+    instance_bounds: Vec<Bounds>,
 }
 
 pub struct Mesh {
@@ -54,6 +58,15 @@ pub struct Mesh {
     skin_flags: u32, // TODO: convert to a render pass enum?
     lod: u16,
     per_mesh: crate::shader::model::bind_groups::BindGroup3,
+}
+
+struct Bounds {
+    max_xyz: Vec3,
+    min_xyz: Vec3,
+    bounds_vertex_buffer: wgpu::Buffer,
+    bounds_index_buffer: wgpu::Buffer,
+    bind_group1: crate::shader::solid::bind_groups::BindGroup1,
+    culled_bind_group1: crate::shader::solid::bind_groups::BindGroup1,
 }
 
 struct VertexBuffer {
@@ -73,17 +86,91 @@ struct IndexBuffer {
     vertex_index_count: u32,
 }
 
+impl Bounds {
+    fn new(device: &wgpu::Device, max_xyz: Vec3, min_xyz: Vec3, transform: &Mat4) -> Self {
+        let (bounds_vertex_buffer, bounds_index_buffer) =
+            wireframe_aabb_box_vertex_index(device, min_xyz, max_xyz, transform);
+
+        let uniforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("bounds uniform buffer"),
+            contents: bytemuck::cast_slice(&[crate::shader::solid::Uniforms {
+                color: vec4(1.0, 1.0, 1.0, 1.0),
+            }]),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
+
+        let bind_group1 = crate::shader::solid::bind_groups::BindGroup1::from_bindings(
+            device,
+            crate::shader::solid::bind_groups::BindGroupLayout1 {
+                uniforms: uniforms_buffer.as_entire_buffer_binding(),
+            },
+        );
+
+        // Use a distinctive color to indicate the culled state.
+        let culled_uniforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("bounds culled uniform buffer"),
+            contents: bytemuck::cast_slice(&[crate::shader::solid::Uniforms {
+                color: vec4(1.0, 0.0, 0.0, 1.0),
+            }]),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
+
+        let culled_bind_group1 = crate::shader::solid::bind_groups::BindGroup1::from_bindings(
+            device,
+            crate::shader::solid::bind_groups::BindGroupLayout1 {
+                uniforms: culled_uniforms_buffer.as_entire_buffer_binding(),
+            },
+        );
+
+        // TODO: include transform in the min/max xyz values.
+        Self {
+            max_xyz,
+            min_xyz,
+            bounds_vertex_buffer,
+            bounds_index_buffer,
+            bind_group1,
+            culled_bind_group1,
+        }
+    }
+
+    fn draw<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, culled: bool) {
+        render_pass.set_vertex_buffer(0, self.bounds_vertex_buffer.slice(..));
+        render_pass.set_index_buffer(
+            self.bounds_index_buffer.slice(..),
+            wgpu::IndexFormat::Uint16,
+        );
+        if culled {
+            self.culled_bind_group1.set(render_pass);
+        } else {
+            self.bind_group1.set(render_pass);
+        }
+
+        // 12 lines with 2 points each.
+        render_pass.draw_indexed(0..24, 0, 0..1);
+    }
+}
+
 impl ModelGroup {
+    /// Draw each mesh for each model.
     pub fn draw<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         is_transparent: bool,
         pass_id: u32,
+        view_projection: Mat4,
     ) {
         self.per_group.set(render_pass);
 
-        for models in &self.models {
-            for model in &models.models {
+        // TODO: Flickering?
+        // Assume the models AABB contains each model AABB.
+        // This allows for better culling efficiency.
+        for models in self
+            .models
+            .iter()
+            .filter(|m| is_within_frustum(m.bounds.min_xyz, m.bounds.max_xyz, view_projection))
+        {
+            // TODO: cull aabb with instance transforms.
+            for model in models.models.iter() {
                 for mesh in &model.meshes {
                     let material = &models.materials[mesh.material_index];
 
@@ -108,6 +195,30 @@ impl ModelGroup {
 
                         self.draw_mesh(model, mesh, render_pass);
                     }
+                }
+            }
+        }
+    }
+
+    /// Draw the bounding box for each model and group of models.
+    pub fn draw_bounds<'a>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        view_projection: Mat4,
+    ) {
+        for models in &self.models {
+            let cull_models = !is_within_frustum(
+                models.bounds.min_xyz,
+                models.bounds.max_xyz,
+                view_projection,
+            );
+            models.bounds.draw(render_pass, cull_models);
+
+            for model in &models.models {
+                for bounds in &model.instance_bounds {
+                    let cull_instance =
+                        !is_within_frustum(bounds.min_xyz, bounds.max_xyz, view_projection);
+                    bounds.draw(render_pass, cull_instance);
                 }
             }
         }
@@ -291,6 +402,8 @@ fn create_model_group(
         .map(|models| {
             let base_lod_indices = models.base_lod_indices.clone();
 
+            let bounds = Bounds::new(device, models.max_xyz, models.min_xyz, &Mat4::IDENTITY);
+
             let samplers: Vec<_> = models
                 .samplers
                 .iter()
@@ -322,6 +435,7 @@ fn create_model_group(
                 materials,
                 pipelines,
                 base_lod_indices,
+                bounds,
             }
         })
         .collect();
@@ -422,12 +536,65 @@ fn create_model(
         usage: wgpu::BufferUsages::VERTEX,
     });
 
+    let instance_bounds = model
+        .instances
+        .iter()
+        .map(|transform| Bounds::new(device, model.max_xyz, model.min_xyz, transform))
+        .collect();
+
     Model {
         meshes,
         instance_buffer,
         instance_count: model.instances.len(),
         model_buffers_index: model.model_buffers_index,
+        instance_bounds,
     }
+}
+
+fn wireframe_aabb_box_vertex_index(
+    device: &wgpu::Device,
+    min_xyz: Vec3,
+    max_xyz: Vec3,
+    transform: &Mat4,
+) -> (wgpu::Buffer, wgpu::Buffer) {
+    let corners = [
+        vec4(min_xyz.x, min_xyz.y, min_xyz.z, 1.0),
+        vec4(max_xyz.x, min_xyz.y, min_xyz.z, 1.0),
+        vec4(max_xyz.x, max_xyz.y, min_xyz.z, 1.0),
+        vec4(min_xyz.x, max_xyz.y, min_xyz.z, 1.0),
+        vec4(min_xyz.x, min_xyz.y, max_xyz.z, 1.0),
+        vec4(max_xyz.x, min_xyz.y, max_xyz.z, 1.0),
+        vec4(max_xyz.x, max_xyz.y, max_xyz.z, 1.0),
+        vec4(min_xyz.x, max_xyz.y, max_xyz.z, 1.0),
+    ]
+    .map(|c| *transform * c);
+
+    let bounds_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("bounds vertex buffer"),
+        contents: bytemuck::cast_slice(&corners),
+        usage: wgpu::BufferUsages::VERTEX,
+    });
+
+    let bounds_index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("bounds index buffer"),
+        contents: bytemuck::cast_slice(&[
+            [0u16, 1u16],
+            [1u16, 2u16],
+            [2u16, 3u16],
+            [3u16, 0u16],
+            [0u16, 4u16],
+            [1u16, 5u16],
+            [2u16, 6u16],
+            [3u16, 7u16],
+            [4u16, 5u16],
+            [5u16, 6u16],
+            [6u16, 7u16],
+            [7u16, 4u16],
+        ]),
+        usage: wgpu::BufferUsages::INDEX,
+    });
+
+    (bounds_vertex_buffer, bounds_index_buffer)
 }
 
 fn model_vertex_buffers(

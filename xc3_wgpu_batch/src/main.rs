@@ -76,7 +76,7 @@ fn main() {
         Path::new(&cli.root_folder).join("monolib/shader"),
     );
 
-    let renderer = Xc3Renderer::new(&device, WIDTH, HEIGHT, &monolib_shader);
+    let mut renderer = Xc3Renderer::new(&device, WIDTH, HEIGHT, &monolib_shader);
 
     // Initialize the camera transform.
     let translation = vec3(0.0, -1.0, -10.0);
@@ -150,7 +150,7 @@ fn main() {
                 }
             };
 
-            frame_model_bounds(&queue, &roots, &renderer);
+            frame_model_bounds(&queue, &roots, &mut renderer);
 
             let groups = xc3_wgpu::load_model(&device, &queue, &roots, &monolib_shader);
 
@@ -202,7 +202,11 @@ fn apply_anim(queue: &wgpu::Queue, groups: &[xc3_wgpu::ModelGroup], path: &Path)
     }
 }
 
-fn frame_model_bounds(queue: &wgpu::Queue, roots: &[xc3_model::ModelRoot], renderer: &Xc3Renderer) {
+fn frame_model_bounds(
+    queue: &wgpu::Queue,
+    roots: &[xc3_model::ModelRoot],
+    renderer: &mut Xc3Renderer,
+) {
     let min_xyz = roots
         .iter()
         .flat_map(|r| {

@@ -28,6 +28,11 @@ fn main() {
         format!("{out_dir}/snn_filter.rs"),
     );
     write_shader(
+        include_str!("src/shader/solid.wgsl"),
+        "src/shader/solid.wgsl",
+        format!("{out_dir}/solid.rs"),
+    );
+    write_shader(
         include_str!("src/shader/unbranch_to_depth.wgsl"),
         "src/shader/unbranch_to_depth.wgsl",
         format!("{out_dir}/unbranch_to_depth.rs"),

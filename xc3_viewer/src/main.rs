@@ -119,7 +119,7 @@ impl<'a> State<'a> {
         }
         let monolib_shader =
             MonolibShaderTextures::from_file(&device, &queue, root_folder.join("monolib/shader"));
-        let renderer = Xc3Renderer::new(&device, size.width, size.height, &monolib_shader);
+        let mut renderer = Xc3Renderer::new(&device, size.width, size.height, &monolib_shader);
 
         // Initialize the camera transform.
         let translation = vec3(0.0, -0.5, -15.0);
@@ -220,7 +220,7 @@ impl<'a> State<'a> {
         })
     }
 
-    fn update_camera(&self, size: winit::dpi::PhysicalSize<u32>) {
+    fn update_camera(&mut self, size: winit::dpi::PhysicalSize<u32>) {
         let camera_data = calculate_camera_data(size, self.translation, self.rotation_xyz);
         self.renderer.update_camera(&self.queue, &camera_data);
     }

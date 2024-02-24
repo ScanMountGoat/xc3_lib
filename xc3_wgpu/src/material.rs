@@ -76,14 +76,22 @@ pub fn materials(
             let output_assignments = output_assignments(&assignments, &mut name_to_index);
             let output_defaults = output_default_assignments(&assignments);
 
+            // Alpha textures might not be used in normal shaders.
+            if let Some(a) = &material.alpha_test {
+                let new_index = name_to_index.len();
+                name_to_index
+                    .entry(format!("s{}", a.texture_index))
+                    .or_insert(new_index);
+            }
+
             let mut texture_views: [Option<_>; 10] = std::array::from_fn(|_| None);
             let mut is_single_channel = [UVec4::ZERO; 10];
-            for (name, i) in name_to_index {
+            for (name, i) in &name_to_index {
                 if let Some(texture) = assign_texture(material, textures, monolib_shader, &name) {
-                    texture_views[i] = Some(texture.create_view(&Default::default()));
+                    texture_views[*i] = Some(texture.create_view(&Default::default()));
                     // TODO: Better way of doing this?
                     if texture.format() == wgpu::TextureFormat::Bc4RUnorm {
-                        is_single_channel[i] = uvec4(1, 0, 0, 0);
+                        is_single_channel[*i] = uvec4(1, 0, 0, 0);
                     }
                 } else {
                     warn!("Missing texture for {name:?}. Assigning default black texture.");
@@ -122,7 +130,12 @@ pub fn materials(
                         let (texture_index, channel_index) = material
                             .alpha_test
                             .as_ref()
-                            .map(|a| (a.texture_index as i32, a.channel_index as i32))
+                            .map(|a| {
+                                (
+                                    name_to_index[&format!("s{}", a.texture_index)] as i32,
+                                    a.channel_index as i32,
+                                )
+                            })
                             .unwrap_or((-1, 3));
                         IVec4::new(texture_index, channel_index, 0, 0)
                     },

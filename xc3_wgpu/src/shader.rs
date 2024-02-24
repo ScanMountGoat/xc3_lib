@@ -21,6 +21,10 @@ pub mod snn_filter {
     include!(concat!(env!("OUT_DIR"), "/snn_filter.rs"));
 }
 #[allow(dead_code)]
+pub mod solid {
+    include!(concat!(env!("OUT_DIR"), "/solid.rs"));
+}
+#[allow(dead_code)]
 pub mod unbranch_to_depth {
     include!(concat!(env!("OUT_DIR"), "/unbranch_to_depth.rs"));
 }

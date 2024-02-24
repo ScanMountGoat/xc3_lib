@@ -12,6 +12,7 @@ const MAT_ID_DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth16Uno
 // TODO: Add fallback textures for all the monolib shader textures?
 pub struct Xc3Renderer {
     camera_buffer: wgpu::Buffer,
+    view_projection: Mat4,
 
     model_bind_group0: crate::shader::model::bind_groups::BindGroup0,
 
@@ -35,6 +36,9 @@ pub struct Xc3Renderer {
     blit_pipeline: wgpu::RenderPipeline,
 
     blit_hair_pipeline: wgpu::RenderPipeline,
+
+    solid_pipeline: wgpu::RenderPipeline,
+    solid_bind_group0: crate::shader::solid::bind_groups::BindGroup0,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -210,8 +214,17 @@ impl Xc3Renderer {
 
         let textures = Textures::new(device, width, height);
 
+        let solid_pipeline = solid_pipeline(device);
+        let solid_bind_group0 = crate::shader::solid::bind_groups::BindGroup0::from_bindings(
+            device,
+            crate::shader::solid::bind_groups::BindGroupLayout0 {
+                camera: camera_buffer.as_entire_buffer_binding(),
+            },
+        );
+
         Self {
             camera_buffer,
+            view_projection: Mat4::IDENTITY,
             model_bind_group0,
             deferred_pipelines,
             deferred_debug_pipeline,
@@ -225,6 +238,8 @@ impl Xc3Renderer {
             snn_filter_pipeline,
             blit_pipeline,
             blit_hair_pipeline,
+            solid_pipeline,
+            solid_bind_group0,
         }
     }
 
@@ -244,10 +259,10 @@ impl Xc3Renderer {
         self.deferred_pass(encoder);
         self.alpha2_pass(encoder, models);
         self.snn_filter_pass(encoder);
-        self.final_pass(encoder, output_view);
+        self.final_pass(encoder, output_view, models);
     }
 
-    pub fn update_camera(&self, queue: &wgpu::Queue, camera_data: &CameraData) {
+    pub fn update_camera(&mut self, queue: &wgpu::Queue, camera_data: &CameraData) {
         queue.write_buffer(
             &self.camera_buffer,
             0,
@@ -257,6 +272,7 @@ impl Xc3Renderer {
                 position: camera_data.position,
             }]),
         );
+        self.view_projection = camera_data.view_projection;
     }
 
     pub fn resize(&mut self, device: &wgpu::Device, width: u32, height: u32) {
@@ -322,8 +338,8 @@ impl Xc3Renderer {
         self.model_bind_group0.set(&mut render_pass);
 
         for model in models {
-            model.draw(&mut render_pass, false, 0);
-            model.draw(&mut render_pass, false, 1);
+            model.draw(&mut render_pass, false, 0, self.view_projection);
+            model.draw(&mut render_pass, false, 1, self.view_projection);
         }
     }
 
@@ -371,7 +387,7 @@ impl Xc3Renderer {
 
         // TODO: Is this the correct unk type?
         for model in models {
-            model.draw(&mut render_pass, true, 8);
+            model.draw(&mut render_pass, true, 8, self.view_projection);
         }
     }
 
@@ -419,7 +435,7 @@ impl Xc3Renderer {
 
         // TODO: Is this the correct unk type?
         for model in models {
-            model.draw(&mut render_pass, true, 2);
+            model.draw(&mut render_pass, true, 2, self.view_projection);
         }
     }
 
@@ -544,7 +560,12 @@ impl Xc3Renderer {
         }
     }
 
-    fn final_pass(&self, encoder: &mut wgpu::CommandEncoder, output_view: &wgpu::TextureView) {
+    fn final_pass(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        output_view: &wgpu::TextureView,
+        models: &[ModelGroup],
+    ) {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Final Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -576,6 +597,14 @@ impl Xc3Renderer {
         }
 
         // TODO: Some eye meshes draw in this pass?
+
+        // TODO: Add render options to disable this?
+        render_pass.set_pipeline(&self.solid_pipeline);
+        self.solid_bind_group0.set(&mut render_pass);
+
+        for model in models {
+            model.draw_bounds(&mut render_pass, self.view_projection);
+        }
     }
 
     fn blit_deferred<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
@@ -839,6 +868,43 @@ fn deferred_debug_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
             format: MAT_ID_DEPTH_FORMAT,
             depth_write_enabled: false,
             depth_compare: wgpu::CompareFunction::Always,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState::default(),
+        multiview: None,
+    })
+}
+
+fn solid_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
+    let module = crate::shader::solid::create_shader_module(device);
+    let render_pipeline_layout = crate::shader::solid::create_pipeline_layout(device);
+
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("Unbranch to Depth Pipeline"),
+        layout: Some(&render_pipeline_layout),
+        vertex: crate::shader::solid::vertex_state(
+            &module,
+            &crate::shader::solid::vs_main_entry(wgpu::VertexStepMode::Vertex),
+        ),
+        fragment: Some(wgpu::FragmentState {
+            module: &module,
+            entry_point: crate::shader::solid::ENTRY_FS_MAIN,
+            targets: &[Some(wgpu::ColorTargetState {
+                format: COLOR_FORMAT,
+                blend: None,
+                write_mask: wgpu::ColorWrites::all(),
+            })],
+        }),
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::LineList,
+            polygon_mode: wgpu::PolygonMode::Line,
+            ..Default::default()
+        },
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: DEPTH_STENCIL_FORMAT,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::LessEqual,
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
         }),
