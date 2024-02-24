@@ -16,7 +16,9 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 use xc3_model::{animation::Animation, load_animations, shader_database::ShaderDatabase};
-use xc3_wgpu::{CameraData, ModelGroup, RenderMode, Xc3Renderer, COLOR_FORMAT};
+use xc3_wgpu::{
+    CameraData, ModelGroup, MonolibShaderTextures, RenderMode, Xc3Renderer, COLOR_FORMAT,
+};
 
 #[cfg(feature = "tracing")]
 use tracing_subscriber::prelude::*;
@@ -115,8 +117,9 @@ impl<'a> State<'a> {
                 root_folder = parent;
             }
         }
-        let monolib_shader = root_folder.join("monolib/shader");
-        let renderer = Xc3Renderer::new(&device, &queue, size.width, size.height, monolib_shader);
+        let monolib_shader =
+            MonolibShaderTextures::from_file(&device, &queue, root_folder.join("monolib/shader"));
+        let renderer = Xc3Renderer::new(&device, size.width, size.height, &monolib_shader);
 
         // Initialize the camera transform.
         let translation = vec3(0.0, -0.5, -15.0);
@@ -140,13 +143,23 @@ impl<'a> State<'a> {
                 let root = xc3_model::load_model(model_path, database.as_ref())
                     .with_context(|| format!("{model_path:?} is not a valid .wimdo file"))?;
                 info!("Load root: {:?}", start.elapsed());
-                Ok(xc3_wgpu::load_model(&device, &queue, &[root]))
+                Ok(xc3_wgpu::load_model(
+                    &device,
+                    &queue,
+                    &[root],
+                    &monolib_shader,
+                ))
             }
             "wismhd" => {
                 let roots = xc3_model::load_map(model_path, database.as_ref())
                     .with_context(|| format!("{model_path:?} is not a valid .wismhd file"))?;
                 info!("Load {} roots: {:?}", roots.len(), start.elapsed());
-                Ok(xc3_wgpu::load_model(&device, &queue, &roots))
+                Ok(xc3_wgpu::load_model(
+                    &device,
+                    &queue,
+                    &roots,
+                    &monolib_shader,
+                ))
             }
             ext => Err(anyhow!(format!("unrecognized file extension {ext}"))),
         }

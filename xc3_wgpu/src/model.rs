@@ -13,6 +13,7 @@ use crate::{
     sampler::create_sampler,
     shader,
     texture::create_texture,
+    MonolibShaderTextures,
 };
 
 // Organize the model data to ensure shared resources are created only once.
@@ -214,6 +215,7 @@ pub fn load_model(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     roots: &[xc3_model::ModelRoot],
+    monolib_shader: &MonolibShaderTextures,
 ) -> Vec<ModelGroup> {
     let start = std::time::Instant::now();
 
@@ -232,6 +234,7 @@ pub fn load_model(
                 &root.image_textures,
                 &pipeline_data,
                 root.skeleton.clone(),
+                monolib_shader,
             )
         }));
     }
@@ -264,6 +267,7 @@ fn create_model_group(
     image_textures: &[ImageTexture],
     pipeline_data: &ModelPipelineData,
     skeleton: Option<xc3_model::Skeleton>,
+    monolib_shader: &MonolibShaderTextures,
 ) -> ModelGroup {
     let buffers: Vec<_> = group
         .buffers
@@ -301,6 +305,7 @@ fn create_model_group(
                 textures,
                 &samplers,
                 image_textures,
+                monolib_shader,
             );
 
             let models = models

@@ -1,12 +1,8 @@
-use std::path::Path;
-
 use glam::{Mat4, Vec4};
 use wgpu::util::DeviceExt;
-use xc3_lib::mibl::Mibl;
-use xc3_model::ImageTexture;
 
 use crate::{
-    model::ModelGroup, texture::create_texture, COLOR_FORMAT, DEPTH_STENCIL_FORMAT,
+    model::ModelGroup, MonolibShaderTextures, COLOR_FORMAT, DEPTH_STENCIL_FORMAT,
     GBUFFER_COLOR_FORMAT,
 };
 
@@ -124,12 +120,11 @@ pub struct GBuffer {
 }
 
 impl Xc3Renderer {
-    pub fn new<P: AsRef<Path>>(
+    pub fn new(
         device: &wgpu::Device,
-        queue: &wgpu::Queue,
         width: u32,
         height: u32,
-        monolib_shader: P,
+        monolib_shader: &MonolibShaderTextures,
     ) -> Self {
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("camera buffer"),
@@ -157,25 +152,19 @@ impl Xc3Renderer {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
-        // TODO: Create a MonolibShaderTextures type that documents global textures?
-        // TODO: Are the mappings the same for all 3 games?
-        // TODO: Add an option to load defaults if no path is provided?
-        // TODO: Why is this mip count not correct in the mibl?
-        let mibl = Mibl::from_file(monolib_shader.as_ref().join("toon_grad.witex")).unwrap();
-        let grad = ImageTexture::from_mibl(&mibl, None, None).unwrap();
-        let xc3_toon_grad =
-            create_texture(device, queue, &grad).create_view(&wgpu::TextureViewDescriptor {
-                mip_level_count: Some(1),
-                ..Default::default()
-            });
-
         let shared_sampler = device.create_sampler(&wgpu::SamplerDescriptor::default());
 
+        // TODO: Why is the toon grad mip count not correct?
         let deferred_bind_group0 = crate::shader::deferred::bind_groups::BindGroup0::from_bindings(
             device,
             crate::shader::deferred::bind_groups::BindGroupLayout0 {
                 debug_settings: debug_settings_buffer.as_entire_buffer_binding(),
-                g_toon_grad: &xc3_toon_grad,
+                g_toon_grad: &monolib_shader
+                    .toon_grad
+                    .create_view(&wgpu::TextureViewDescriptor {
+                        mip_level_count: Some(1),
+                        ..Default::default()
+                    }),
                 shared_sampler: &shared_sampler,
             },
         );

@@ -47,10 +47,12 @@ mod renderer;
 mod sampler;
 mod shader;
 mod texture;
+mod monolib;
 
 pub use material::Material;
 pub use model::{load_model, Mesh, Model, ModelBuffers, ModelGroup, Models};
 pub use renderer::{CameraData, RenderMode, Xc3Renderer};
+pub use monolib::MonolibShaderTextures;
 
 // TODO: How is sRGB gamma handled in game?
 

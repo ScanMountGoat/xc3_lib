@@ -2,13 +2,14 @@ use std::collections::HashMap;
 
 use glam::{ivec4, uvec4, vec4, IVec4, UVec4, Vec4};
 use indexmap::IndexMap;
-use log::error;
+use log::{error, warn};
 use wgpu::util::DeviceExt;
 use xc3_model::{ChannelAssignment, ImageTexture, OutputAssignment, OutputAssignments};
 
 use crate::{
     pipeline::{model_pipeline, ModelPipelineData, PipelineKey},
     texture::create_default_black_texture,
+    MonolibShaderTextures,
 };
 
 // TODO: Don't make this public outside the crate?
@@ -49,6 +50,7 @@ pub fn materials(
     textures: &[wgpu::Texture],
     samplers: &[wgpu::Sampler],
     image_textures: &[ImageTexture],
+    monolib_shader: &MonolibShaderTextures,
 ) -> (Vec<Material>, HashMap<PipelineKey, wgpu::RenderPipeline>) {
     // TODO: Is there a better way to handle missing textures?
     let default_black = create_default_black_texture(device, queue)
@@ -77,12 +79,14 @@ pub fn materials(
             let mut texture_views: [Option<_>; 10] = std::array::from_fn(|_| None);
             let mut is_single_channel = [UVec4::ZERO; 10];
             for (name, i) in name_to_index {
-                if let Some(texture) = material_texture(material, textures, &name) {
+                if let Some(texture) = assign_texture(material, textures, monolib_shader, &name) {
                     texture_views[i] = Some(texture.create_view(&Default::default()));
                     // TODO: Better way of doing this?
                     if texture.format() == wgpu::TextureFormat::Bc4RUnorm {
                         is_single_channel[i] = uvec4(1, 0, 0, 0);
                     }
+                } else {
+                    warn!("Missing texture for {name:?}. Assigning default black texture.");
                 }
             }
 
@@ -255,15 +259,24 @@ fn value_channel_assignment(assignment: Option<&ChannelAssignment>) -> Option<f3
     }
 }
 
-fn material_texture<'a>(
+fn assign_texture<'a>(
     material: &xc3_model::Material,
     textures: &'a [wgpu::Texture],
+    monolib_shader: &'a MonolibShaderTextures,
     name: &str,
 ) -> Option<&'a wgpu::Texture> {
-    // TODO: Why is this sometimes out of range for XC2 maps?
-    let texture_index = material_texture_index(name)?;
-    let image_texture_index = material.textures.get(texture_index)?.image_texture_index;
-    let texture = textures.get(image_texture_index)?;
+    let texture = match material_texture_index(name) {
+        Some(texture_index) => {
+            // Search the material textures like "s0" or "s3".
+            // TODO: Why is this sometimes out of range for XC2 maps?
+            let image_texture_index = material.textures.get(texture_index)?.image_texture_index;
+            textures.get(image_texture_index)
+        }
+        None => {
+            // Search global textures from monolib/shader like "gTResidentTex44".
+            monolib_shader.global_texture(name)
+        }
+    }?;
 
     // TODO: How to handle 3D textures and cube maps within the shader?
     if texture.dimension() == wgpu::TextureDimension::D2 && texture.depth_or_array_layers() == 1 {

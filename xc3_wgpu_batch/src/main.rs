@@ -5,7 +5,7 @@ use futures::executor::block_on;
 use glam::{vec3, Mat4, Vec3};
 use image::ImageBuffer;
 use xc3_model::{load_animations, shader_database::ShaderDatabase};
-use xc3_wgpu::{CameraData, Xc3Renderer};
+use xc3_wgpu::{CameraData, MonolibShaderTextures, Xc3Renderer};
 
 const WIDTH: u32 = 1024;
 const HEIGHT: u32 = 1024;
@@ -70,13 +70,13 @@ fn main() {
     .unwrap();
 
     // Assume the path is the game root folder.
-    let renderer = Xc3Renderer::new(
+    let monolib_shader = MonolibShaderTextures::from_file(
         &device,
         &queue,
-        WIDTH,
-        HEIGHT,
         Path::new(&cli.root_folder).join("monolib/shader"),
     );
+
+    let renderer = Xc3Renderer::new(&device, WIDTH, HEIGHT, &monolib_shader);
 
     // Initialize the camera transform.
     let translation = vec3(0.0, -1.0, -10.0);
@@ -152,7 +152,7 @@ fn main() {
 
             frame_model_bounds(&queue, &roots, &renderer);
 
-            let groups = xc3_wgpu::load_model(&device, &queue, &roots);
+            let groups = xc3_wgpu::load_model(&device, &queue, &roots, &monolib_shader);
 
             if cli.anim {
                 // Search for paths with non empty anims using in game naming conventions.

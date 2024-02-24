@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## unreleased
 ### Added
 * Added support for anisotropic filtering to xc3_wgpu.
+* Added support for `monolib/shader` textures to xc3_wgpu.
 
 ### Changed
 * Improved the readability and quality of displayed error messages for xc3_viewer, xc3_gltf, and xc3_tex.
