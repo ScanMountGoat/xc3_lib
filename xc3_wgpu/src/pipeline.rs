@@ -20,14 +20,14 @@ impl ModelPipelineData {
 /// The non shared components of a pipeline for use with pipeline caching.
 #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq)]
 pub struct PipelineKey {
-    pub unk_type: RenderPassType,
+    pub pass_type: RenderPassType,
     pub flags: StateFlags,
     pub is_outline: bool,
 }
 
 impl PipelineKey {
     pub fn write_to_all_outputs(&self) -> bool {
-        self.unk_type == RenderPassType::Unk0
+        self.pass_type == RenderPassType::Unk0
     }
 
     pub fn stencil_reference(&self) -> u32 {

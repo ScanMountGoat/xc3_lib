@@ -96,7 +96,7 @@ pub fn create_default_black_texture(device: &wgpu::Device, queue: &wgpu::Queue) 
     device.create_texture_with_data(
         queue,
         &wgpu::TextureDescriptor {
-            label: Some("Default Black"),
+            label: Some("DEFAULT"),
             size: wgpu::Extent3d {
                 width: 4,
                 height: 4,

@@ -104,7 +104,7 @@ struct PerMaterial {
     // TODO: Make a struct with named fields instead of arrays?
     output_assignments: array<OutputAssignment, 6>,
     // Parameters, constants, and defaults if no texture is assigned.
-    gbuffer_defaults: array<vec4<f32>, 6>,
+    output_defaults: array<vec4<f32>, 6>,
     texture_scale: array<vec4<f32>, 10>,
     // texture index, channel, index, 0, 0
     alpha_test_texture: vec4<i32>,
@@ -413,7 +413,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     // TODO: How to properly handle missing assignments?
     let assignments = per_material.output_assignments;
     // Defaults incorporate constants, parameters, and default values.
-    let defaults = per_material.gbuffer_defaults;
+    let defaults = per_material.output_defaults;
     let g_color = assign_texture(assignments[0], s_colors, defaults[0]);
     let g_etc_buffer = assign_texture(assignments[1], s_colors, defaults[1]);
     let g_normal = assign_texture(assignments[2], s_colors, defaults[2]);

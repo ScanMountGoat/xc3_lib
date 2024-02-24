@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use glam::{ivec4, uvec4, vec4, IVec4, UVec4, Vec4};
+use indexmap::IndexMap;
 use log::error;
 use wgpu::util::DeviceExt;
 use xc3_model::{ChannelAssignment, ImageTexture, OutputAssignment, OutputAssignments};
@@ -30,7 +31,7 @@ const MAT_ID_PBR: f32 = (2.0 + 1.0) / 255.0;
 // Choose defaults that have as close to no effect as possible.
 // TODO: Make a struct for this instead?
 // TODO: Move these defaults to xc3_model?
-const GBUFFER_DEFAULTS: [Vec4; 6] = [
+const OUTPUT_DEFAULTS: [Vec4; 6] = [
     Vec4::ONE,
     Vec4::new(0.0, 0.0, 0.0, MAT_ID_PBR),
     Vec4::new(0.5, 0.5, 1.0, 0.0),
@@ -50,9 +51,6 @@ pub fn materials(
     image_textures: &[ImageTexture],
 ) -> (Vec<Material>, HashMap<PipelineKey, wgpu::RenderPipeline>) {
     // TODO: Is there a better way to handle missing textures?
-    // TODO: Is it worth creating a separate shaders for each material?
-    // TODO: Just use booleans to indicate which textures are present?
-    // TODO: How to handle some inputs using buffer parameters instead of textures?
     let default_black = create_default_black_texture(device, queue)
         .create_view(&wgpu::TextureViewDescriptor::default());
 
@@ -70,15 +68,16 @@ pub fn materials(
     let materials = materials
         .iter()
         .map(|material| {
-            // TODO: how to get access to the texture usage here?
+            let mut name_to_index = IndexMap::new();
+
             let assignments = material.output_assignments(image_textures);
-            let output_assignments = output_assignments(&assignments);
-            let gbuffer_defaults = gbuffer_defaults(&assignments);
+            let output_assignments = output_assignments(&assignments, &mut name_to_index);
+            let output_defaults = output_default_assignments(&assignments);
 
             let mut texture_views: [Option<_>; 10] = std::array::from_fn(|_| None);
             let mut is_single_channel = [UVec4::ZERO; 10];
-            for i in 0..10 {
-                if let Some(texture) = material_texture(material, textures, i) {
+            for (name, i) in name_to_index {
+                if let Some(texture) = material_texture(material, textures, &name) {
                     texture_views[i] = Some(texture.create_view(&Default::default()));
                     // TODO: Better way of doing this?
                     if texture.format() == wgpu::TextureFormat::Bc4RUnorm {
@@ -87,11 +86,9 @@ pub fn materials(
                 }
             }
 
-            // TODO: Lookup texture -> texcoord -> params -> UV scale.
             // TODO: Is it ok to switch on the texcoord for each channel lookup?
             // TODO: can a texture be used with more than one scale?
             // TODO: Include this logic with xc3_model?
-            // TODO: Include with gbuffer?
             let mut texture_scale = [Vec4::ONE; 10];
             for assignment in assignments.assignments {
                 if let Some(ChannelAssignment::Texture {
@@ -102,8 +99,7 @@ pub fn materials(
                 {
                     // TODO: Don't assume there is a single texcoord attribute.
                     // TODO: make a method for index conversions?
-                    let index = material_texture_index(&name);
-                    if let Ok(index) = usize::try_from(index) {
+                    if let Some(index) = material_texture_index(&name) {
                         texture_scale[index] = vec4(u, v, 1.0, 1.0);
                     }
                 }
@@ -116,7 +112,7 @@ pub fn materials(
                 contents: bytemuck::cast_slice(&[crate::shader::model::PerMaterial {
                     mat_color: material.parameters.mat_color.into(),
                     output_assignments,
-                    gbuffer_defaults,
+                    output_defaults,
                     texture_scale,
                     alpha_test_texture: {
                         let (texture_index, channel_index) = material
@@ -141,6 +137,7 @@ pub fn materials(
             // Bind all available textures and samplers.
             // Texture selection happens within the shader itself.
             // This simulates having a unique shader for each material.
+            // Reducing unique pipelines greatly improves loading times and enables compiled bindings.
             let bind_group2 = crate::shader::model::bind_groups::BindGroup2::from_bindings(
                 device,
                 crate::shader::model::bind_groups::BindGroupLayout2 {
@@ -173,7 +170,7 @@ pub fn materials(
             // TODO: Is it redundant to also store the unk type?
             // TODO: Find a more accurate way to detect outline shaders.
             let pipeline_key = PipelineKey {
-                unk_type: material.unk_type,
+                pass_type: material.pass_type,
                 flags: material.flags,
                 is_outline: material.name.ends_with("_outline"),
             };
@@ -197,16 +194,20 @@ pub fn materials(
 // TODO: Test cases for this
 fn output_assignments(
     assignments: &OutputAssignments,
+    name_to_index: &mut IndexMap<String, usize>,
 ) -> [crate::shader::model::OutputAssignment; 6] {
     // Each output channel may have a different input sampler and channel.
-    [0, 1, 2, 3, 4, 5].map(|i| gbuffer_assignment(&assignments.assignments[i]))
+    [0, 1, 2, 3, 4, 5].map(|i| output_assignment(&assignments.assignments[i], name_to_index))
 }
 
-fn gbuffer_assignment(a: &OutputAssignment) -> crate::shader::model::OutputAssignment {
-    let (s0, c0) = texture_channel_assignment(a.x.as_ref()).unwrap_or((-1, 0));
-    let (s1, c1) = texture_channel_assignment(a.y.as_ref()).unwrap_or((-1, 1));
-    let (s2, c2) = texture_channel_assignment(a.z.as_ref()).unwrap_or((-1, 2));
-    let (s3, c3) = texture_channel_assignment(a.w.as_ref()).unwrap_or((-1, 3));
+fn output_assignment(
+    a: &OutputAssignment,
+    name_to_index: &mut IndexMap<String, usize>,
+) -> crate::shader::model::OutputAssignment {
+    let (s0, c0) = texture_channel_assignment(a.x.as_ref(), name_to_index).unwrap_or((-1, 0));
+    let (s1, c1) = texture_channel_assignment(a.y.as_ref(), name_to_index).unwrap_or((-1, 1));
+    let (s2, c2) = texture_channel_assignment(a.z.as_ref(), name_to_index).unwrap_or((-1, 2));
+    let (s3, c3) = texture_channel_assignment(a.w.as_ref(), name_to_index).unwrap_or((-1, 3));
 
     crate::shader::model::OutputAssignment {
         sampler_indices: ivec4(s0, s1, s2, s3),
@@ -214,50 +215,35 @@ fn gbuffer_assignment(a: &OutputAssignment) -> crate::shader::model::OutputAssig
     }
 }
 
-fn texture_channel_assignment(assignment: Option<&ChannelAssignment>) -> Option<(i32, u32)> {
+fn texture_channel_assignment(
+    assignment: Option<&ChannelAssignment>,
+    name_to_index: &mut IndexMap<String, usize>,
+) -> Option<(i32, u32)> {
     if let Some(ChannelAssignment::Texture {
         name,
         channel_index,
         ..
     }) = assignment
     {
-        let index = material_texture_index(name);
-        Some((index, *channel_index as u32))
+        // TODO: Should this ever return -1?
+        let new_index = name_to_index.len();
+        let index = *name_to_index.entry(name.clone()).or_insert(new_index);
+        Some((index as i32, *channel_index as u32))
     } else {
         None
     }
 }
 
-fn material_texture_index(sampler: &str) -> i32 {
-    // TODO: Just parse int?
-    // TODO: Also handle global textures?
-    // TODO: Create a string -> index mapping using indexmap?
-    match sampler {
-        "s0" => 0,
-        "s1" => 1,
-        "s2" => 2,
-        "s3" => 3,
-        "s4" => 4,
-        "s5" => 5,
-        "s6" => 6,
-        "s7" => 7,
-        "s8" => 8,
-        "s9" => 9,
-        // TODO: How to handle this case?
-        _ => -1,
-    }
+fn output_default_assignments(assignments: &OutputAssignments) -> [Vec4; 6] {
+    [0, 1, 2, 3, 4, 5].map(|i| output_default(&assignments.assignments[i], i))
 }
 
-fn gbuffer_defaults(assignments: &OutputAssignments) -> [Vec4; 6] {
-    [0, 1, 2, 3, 4, 5].map(|i| gbuffer_default(&assignments.assignments[i], i))
-}
-
-fn gbuffer_default(a: &OutputAssignment, i: usize) -> Vec4 {
+fn output_default(a: &OutputAssignment, i: usize) -> Vec4 {
     vec4(
-        value_channel_assignment(a.x.as_ref()).unwrap_or(GBUFFER_DEFAULTS[i][0]),
-        value_channel_assignment(a.y.as_ref()).unwrap_or(GBUFFER_DEFAULTS[i][1]),
-        value_channel_assignment(a.z.as_ref()).unwrap_or(GBUFFER_DEFAULTS[i][2]),
-        value_channel_assignment(a.w.as_ref()).unwrap_or(GBUFFER_DEFAULTS[i][3]),
+        value_channel_assignment(a.x.as_ref()).unwrap_or(OUTPUT_DEFAULTS[i][0]),
+        value_channel_assignment(a.y.as_ref()).unwrap_or(OUTPUT_DEFAULTS[i][1]),
+        value_channel_assignment(a.z.as_ref()).unwrap_or(OUTPUT_DEFAULTS[i][2]),
+        value_channel_assignment(a.w.as_ref()).unwrap_or(OUTPUT_DEFAULTS[i][3]),
     )
 }
 
@@ -272,28 +258,42 @@ fn value_channel_assignment(assignment: Option<&ChannelAssignment>) -> Option<f3
 fn material_texture<'a>(
     material: &xc3_model::Material,
     textures: &'a [wgpu::Texture],
-    index: usize,
+    name: &str,
 ) -> Option<&'a wgpu::Texture> {
     // TODO: Why is this sometimes out of range for XC2 maps?
-    material
-        .textures
-        .get(index)
-        .and_then(|texture| textures.get(texture.image_texture_index))
-        .and_then(|texture| {
-            // TODO: How to handle 3D textures and cube maps within the shader?
-            if texture.dimension() == wgpu::TextureDimension::D2
-                && texture.depth_or_array_layers() == 1
-            {
-                Some(texture)
-            } else {
-                error!(
-                    "Expected 2D texture but found dimension {:?} and {} layers.",
-                    texture.dimension(),
-                    texture.depth_or_array_layers()
-                );
-                None
-            }
-        })
+    let texture_index = material_texture_index(name)?;
+    let image_texture_index = material.textures.get(texture_index)?.image_texture_index;
+    let texture = textures.get(image_texture_index)?;
+
+    // TODO: How to handle 3D textures and cube maps within the shader?
+    if texture.dimension() == wgpu::TextureDimension::D2 && texture.depth_or_array_layers() == 1 {
+        Some(texture)
+    } else {
+        error!(
+            "Expected 2D texture but found dimension {:?} and {} layers.",
+            texture.dimension(),
+            texture.depth_or_array_layers()
+        );
+        None
+    }
+}
+
+fn material_texture_index(sampler_name: &str) -> Option<usize> {
+    // Materials always use this naming convention in the shader.
+    // TODO: Just parse int?
+    match sampler_name {
+        "s0" => Some(0),
+        "s1" => Some(1),
+        "s2" => Some(2),
+        "s3" => Some(3),
+        "s4" => Some(4),
+        "s5" => Some(5),
+        "s6" => Some(6),
+        "s7" => Some(7),
+        "s8" => Some(8),
+        "s9" => Some(9),
+        _ => None,
+    }
 }
 
 fn material_sampler<'a>(

@@ -706,7 +706,9 @@ fn per_mesh_bind_group(
     let start = buffers
         .weights
         .as_ref()
-        .map(|weights| weights.weights_start_index(skin_flags, lod, material.pipeline_key.unk_type))
+        .map(|weights| {
+            weights.weights_start_index(skin_flags, lod, material.pipeline_key.pass_type)
+        })
         .unwrap_or_default();
 
     for attribute in &buffers.vertex_buffers[vertex_buffer_index].attributes {
@@ -716,7 +718,7 @@ fn per_mesh_bind_group(
                 error!(
                     "Weight index start {} and max weight index {} exceed weight count {} with {:?}",
                     start, max_index, weight_count,
-                    (skin_flags, lod, material.pipeline_key.unk_type)
+                    (skin_flags, lod, material.pipeline_key.pass_type)
                 );
             }
         }

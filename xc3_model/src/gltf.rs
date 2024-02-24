@@ -136,7 +136,7 @@ impl GltfFile {
                                         w.weights_start_index(
                                             mesh.skin_flags,
                                             mesh.lod,
-                                            material.unk_type,
+                                            material.pass_type,
                                         )
                                     })
                                     .unwrap_or_default();

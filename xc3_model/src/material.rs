@@ -21,7 +21,7 @@ pub struct Material {
     /// or [None] if the database does not contain this model.
     pub shader: Option<Shader>,
 
-    pub unk_type: RenderPassType,
+    pub pass_type: RenderPassType,
     pub parameters: MaterialParameters,
 }
 
@@ -97,7 +97,7 @@ pub fn create_materials(materials: &Materials, spch: Option<&Spch>) -> Vec<Mater
                 textures,
                 alpha_test,
                 shader,
-                unk_type: material
+                pass_type: material
                     .techniques
                     .first()
                     .map(|p| p.pass_type)

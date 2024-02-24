@@ -687,7 +687,7 @@ fn foliage_materials(materials: &FoliageMaterials) -> Vec<Material> {
                 textures,
                 alpha_test: None,
                 shader,
-                unk_type: RenderPassType::Unk0,
+                pass_type: RenderPassType::Unk0,
                 parameters: Default::default(),
             }
         })
