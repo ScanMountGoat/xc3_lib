@@ -12,7 +12,7 @@ use std::io::Cursor;
 
 use crate::{
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
-    xc3_write_binwrite_impl,
+    parse_string_ptr32, xc3_write_binwrite_impl,
 };
 use binrw::{args, binread, BinRead, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
@@ -247,10 +247,20 @@ pub struct Unk4 {
     #[xc3(offset_count(u32, u32), align(2))]
     pub unk2: Vec<Unk4Unk2>,
 
-    pub unk4: u32, // pointer before strings?
-    pub unk5: u32, // pointer to string offsets?
-    pub unk6: u32, // 0?
-    pub unk7: u32, // pointer before strings?
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub unk4: u32, // count?
+
+    #[br(parse_with = parse_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: unk4 as usize, inner: base_offset }})]
+    #[xc3(offset(u32))]
+    pub unk5: Vec<Unk4Unk5>, // items?
+
+    pub unk6: u32, // 0 or 1?
+
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[xc3(offset(u32), align(64))]
+    pub unk7: [[f32; 4]; 4],
 
     // TODO: Is this the right check?
     #[br(if(version > 10001))]
@@ -260,6 +270,20 @@ pub struct Unk4 {
     // TODO: Should xc3 be treated as a separate format?
     #[br(if(offset >= 112))]
     pub unk: Option<[u32; 3]>,
+}
+
+// TODO: shared section for string keys and values?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct Unk4Unk5 {
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub key: String,
+
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub value: u32,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -581,6 +605,10 @@ impl<'a> Xc3WriteOffsets for Unk4Offsets<'a> {
         }
 
         self.extra.write_offsets(writer, base_offset, data_ptr)?;
+        self.unk7.write_full(writer, base_offset, data_ptr)?;
+        self.unk4.write_full(writer, base_offset, data_ptr)?;
+        self.unk5.write_full(writer, base_offset, data_ptr)?;
+
         Ok(())
     }
 }

@@ -16,7 +16,6 @@ use binrw::{args, binread, BinRead};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 // TODO: How much of this is shared with LAHD?
-// TODO: Is this used for xc2?
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
@@ -67,7 +66,7 @@ pub struct Lagp {
     pub unk11: u32,
 
     pub unk12: u32,
-    // offset?
+
     #[br(parse_with = parse_opt_ptr32)]
     #[xc3(offset(u32))]
     pub unk13: Option<Unk13>,
@@ -77,6 +76,7 @@ pub struct Lagp {
     pub unk: [u32; 11],
 }
 
+// TODO: more strings?
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
@@ -131,6 +131,7 @@ impl<'a> Xc3WriteOffsets for LagpOffsets<'a> {
         self.unk1.write_full(writer, base_offset, data_ptr)?;
         self.unk3.write_full(writer, base_offset, data_ptr)?;
         self.unk4.write_full(writer, base_offset, data_ptr)?;
+        self.unk13.write_full(writer, base_offset, data_ptr)?;
         self.unk2.write_full(writer, base_offset, data_ptr)?;
         self.unk5.write_full(writer, base_offset, data_ptr)?;
         self.unk6.write_full(writer, base_offset, data_ptr)?;
