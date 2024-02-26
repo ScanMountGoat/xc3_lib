@@ -48,7 +48,6 @@ pub struct Model {
     model_buffers_index: usize,
     instance_buffer: wgpu::Buffer,
     pub instance_count: usize,
-    instance_bounds: Vec<Bounds>,
 }
 
 pub struct Mesh {
@@ -65,8 +64,6 @@ struct Bounds {
     min_xyz: Vec3,
     bounds_vertex_buffer: wgpu::Buffer,
     bounds_index_buffer: wgpu::Buffer,
-    bind_group1: crate::shader::solid::bind_groups::BindGroup1,
-    culled_bind_group1: crate::shader::solid::bind_groups::BindGroup1,
 }
 
 struct VertexBuffer {
@@ -91,58 +88,31 @@ impl Bounds {
         let (bounds_vertex_buffer, bounds_index_buffer) =
             wireframe_aabb_box_vertex_index(device, min_xyz, max_xyz, transform);
 
-        let uniforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("bounds uniform buffer"),
-            contents: bytemuck::cast_slice(&[crate::shader::solid::Uniforms {
-                color: vec4(1.0, 1.0, 1.0, 1.0),
-            }]),
-            usage: wgpu::BufferUsages::UNIFORM,
-        });
-
-        let bind_group1 = crate::shader::solid::bind_groups::BindGroup1::from_bindings(
-            device,
-            crate::shader::solid::bind_groups::BindGroupLayout1 {
-                uniforms: uniforms_buffer.as_entire_buffer_binding(),
-            },
-        );
-
-        // Use a distinctive color to indicate the culled state.
-        let culled_uniforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("bounds culled uniform buffer"),
-            contents: bytemuck::cast_slice(&[crate::shader::solid::Uniforms {
-                color: vec4(1.0, 0.0, 0.0, 1.0),
-            }]),
-            usage: wgpu::BufferUsages::UNIFORM,
-        });
-
-        let culled_bind_group1 = crate::shader::solid::bind_groups::BindGroup1::from_bindings(
-            device,
-            crate::shader::solid::bind_groups::BindGroupLayout1 {
-                uniforms: culled_uniforms_buffer.as_entire_buffer_binding(),
-            },
-        );
-
         // TODO: include transform in the min/max xyz values.
         Self {
             max_xyz,
             min_xyz,
             bounds_vertex_buffer,
             bounds_index_buffer,
-            bind_group1,
-            culled_bind_group1,
         }
     }
 
-    fn draw<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, culled: bool) {
+    fn draw<'a>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        culled: bool,
+        bind_group1: &'a crate::shader::solid::bind_groups::BindGroup1,
+        culled_bind_group1: &'a crate::shader::solid::bind_groups::BindGroup1,
+    ) {
         render_pass.set_vertex_buffer(0, self.bounds_vertex_buffer.slice(..));
         render_pass.set_index_buffer(
             self.bounds_index_buffer.slice(..),
             wgpu::IndexFormat::Uint16,
         );
         if culled {
-            self.culled_bind_group1.set(render_pass);
+            culled_bind_group1.set(render_pass);
         } else {
-            self.bind_group1.set(render_pass);
+            bind_group1.set(render_pass);
         }
 
         // 12 lines with 2 points each.
@@ -204,6 +174,8 @@ impl ModelGroup {
     pub fn draw_bounds<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
+        bind_group1: &'a crate::shader::solid::bind_groups::BindGroup1,
+        culled_bind_group1: &'a crate::shader::solid::bind_groups::BindGroup1,
         view_projection: Mat4,
     ) {
         for models in &self.models {
@@ -212,15 +184,9 @@ impl ModelGroup {
                 models.bounds.max_xyz,
                 view_projection,
             );
-            models.bounds.draw(render_pass, cull_models);
+            models.bounds.draw(render_pass, cull_models, bind_group1, culled_bind_group1);
 
-            for model in &models.models {
-                for bounds in &model.instance_bounds {
-                    let cull_instance =
-                        !is_within_frustum(bounds.min_xyz, bounds.max_xyz, view_projection);
-                    bounds.draw(render_pass, cull_instance);
-                }
-            }
+            // TODO: model specific culling?
         }
     }
 
@@ -536,18 +502,11 @@ fn create_model(
         usage: wgpu::BufferUsages::VERTEX,
     });
 
-    let instance_bounds = model
-        .instances
-        .iter()
-        .map(|transform| Bounds::new(device, model.max_xyz, model.min_xyz, transform))
-        .collect();
-
     Model {
         meshes,
         instance_buffer,
         instance_count: model.instances.len(),
         model_buffers_index: model.model_buffers_index,
-        instance_bounds,
     }
 }
 

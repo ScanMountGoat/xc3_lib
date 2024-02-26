@@ -1,4 +1,4 @@
-use glam::{Mat4, Vec4};
+use glam::{vec4, Mat4, Vec4};
 use wgpu::util::DeviceExt;
 
 use crate::{
@@ -39,6 +39,8 @@ pub struct Xc3Renderer {
 
     solid_pipeline: wgpu::RenderPipeline,
     solid_bind_group0: crate::shader::solid::bind_groups::BindGroup0,
+    solid_bind_group1: crate::shader::solid::bind_groups::BindGroup1,
+    solid_culled_bind_group1: crate::shader::solid::bind_groups::BindGroup1,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -222,6 +224,37 @@ impl Xc3Renderer {
             },
         );
 
+        let uniforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("bounds uniform buffer"),
+            contents: bytemuck::cast_slice(&[crate::shader::solid::Uniforms {
+                color: vec4(1.0, 1.0, 1.0, 1.0),
+            }]),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
+
+        let solid_bind_group1 = crate::shader::solid::bind_groups::BindGroup1::from_bindings(
+            device,
+            crate::shader::solid::bind_groups::BindGroupLayout1 {
+                uniforms: uniforms_buffer.as_entire_buffer_binding(),
+            },
+        );
+
+        // Use a distinctive color to indicate the culled state.
+        let culled_uniforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("bounds culled uniform buffer"),
+            contents: bytemuck::cast_slice(&[crate::shader::solid::Uniforms {
+                color: vec4(1.0, 0.0, 0.0, 1.0),
+            }]),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
+
+        let solid_culled_bind_group1 = crate::shader::solid::bind_groups::BindGroup1::from_bindings(
+            device,
+            crate::shader::solid::bind_groups::BindGroupLayout1 {
+                uniforms: culled_uniforms_buffer.as_entire_buffer_binding(),
+            },
+        );
+
         Self {
             camera_buffer,
             view_projection: Mat4::IDENTITY,
@@ -240,6 +273,8 @@ impl Xc3Renderer {
             blit_hair_pipeline,
             solid_pipeline,
             solid_bind_group0,
+            solid_bind_group1,
+            solid_culled_bind_group1,
         }
     }
 
@@ -599,11 +634,17 @@ impl Xc3Renderer {
         // TODO: Some eye meshes draw in this pass?
 
         // TODO: Add render options to disable this?
+        // TODO: Create a BoundsRenderer to store this data?
         render_pass.set_pipeline(&self.solid_pipeline);
         self.solid_bind_group0.set(&mut render_pass);
 
         for model in models {
-            model.draw_bounds(&mut render_pass, self.view_projection);
+            model.draw_bounds(
+                &mut render_pass,
+                &self.solid_bind_group1,
+                &self.solid_culled_bind_group1,
+                self.view_projection,
+            );
         }
     }
 

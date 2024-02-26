@@ -1,5 +1,7 @@
 use glam::{vec4, Mat4, Vec3};
 
+// TODO: Switch to bounding sphere for more accurate culling.
+// TODO: compute frustum planes and compare distance to sphere center with radius
 // Frustum culling algorithm adapted from https://bruop.github.io/frustum_culling/.
 pub fn is_within_frustum(min_xyz: Vec3, max_xyz: Vec3, model_view_projection: Mat4) -> bool {
     let corners = [
