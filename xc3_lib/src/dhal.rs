@@ -247,20 +247,23 @@ pub struct Unk4 {
     #[xc3(offset_count(u32, u32), align(2))]
     pub unk2: Vec<Unk4Unk2>,
 
-    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    pub unk4: u32, // count?
+    pub unk4: Option<u32>, // count?
 
-    #[br(parse_with = parse_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: unk4 as usize, inner: base_offset }})]
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args {
+        offset: base_offset,
+        inner: args! { count: unk4.unwrap_or_default() as usize, inner: base_offset }
+    })]
     #[xc3(offset(u32))]
-    pub unk5: Vec<Unk4Unk5>, // items?
+    pub unk5: Option<Vec<Unk4Unk5>>, // items?
 
     pub unk6: u32, // 0 or 1?
 
-    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(64))]
-    pub unk7: [[f32; 4]; 4],
+    pub unk7: Option<[[f32; 4]; 4]>,
 
     // TODO: Is this the right check?
     #[br(if(version > 10001))]

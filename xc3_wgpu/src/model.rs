@@ -184,7 +184,9 @@ impl ModelGroup {
                 models.bounds.max_xyz,
                 view_projection,
             );
-            models.bounds.draw(render_pass, cull_models, bind_group1, culled_bind_group1);
+            models
+                .bounds
+                .draw(render_pass, cull_models, bind_group1, culled_bind_group1);
 
             // TODO: model specific culling?
         }

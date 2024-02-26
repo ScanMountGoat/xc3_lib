@@ -12,7 +12,7 @@ use image_dds::{
     ImageFormat,
 };
 use strum::IntoEnumIterator;
-use xc3_lib::{dds::DdsExt, mibl::Mibl, mxmd::Mxmd};
+use xc3_lib::{dds::DdsExt, mibl::Mibl, mxmd::Mxmd, xbc1::MaybeXbc1};
 
 /// Convert texture files for Xenoblade 1 DE, Xenoblade 2, and Xenoblade 3.
 #[derive(Parser)]
@@ -133,7 +133,7 @@ fn main() -> anyhow::Result<()> {
             std::fs::create_dir_all(&output)
                 .with_context(|| format!("failed to create output directory {output:?}"))?;
 
-            let count = extract_wilay_to_folder(wilay, &input, &output);
+            let count = extract_wilay_to_folder(wilay, &input, &output)?;
             println!("Converted {count} file(s) in {:?}", start.elapsed());
         } else if let File::Wimdo(wimdo) = input_file {
             // wimdo and wismt contain multiple images that need to be saved.
@@ -189,7 +189,10 @@ fn load_input_file(input: &PathBuf) -> anyhow::Result<File> {
             .with_context(|| format!("{input:?} is not a valid .dds file"))
             .map(File::Dds),
         "wismt" => Ok(File::Mibl(read_wismt_single_tex(input))),
-        "wilay" => Ok(File::Wilay(Wilay::from_file(input))),
+        "wilay" => Ok(File::Wilay(
+            MaybeXbc1::<Wilay>::from_file(input)
+                .with_context(|| format!("{input:?} is not a valid .wilay file"))?,
+        )),
         "wimdo" => Mxmd::from_file(input)
             .with_context(|| format!("{input:?} is not a valid .wimdo file"))
             .map(File::Wimdo),

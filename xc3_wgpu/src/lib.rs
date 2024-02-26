@@ -16,21 +16,22 @@
 //! In each frame, render the [ModelGroup] using [Xc3Renderer::render_models].
 //!
 //! ```rust no_run
-//! use xc3_wgpu::Xc3Renderer;
+//! use xc3_wgpu::{MonolibShaderTextures, Xc3Renderer};
 //! use xc3_model::shader_database::ShaderDatabase;
 //!
 //! # fn test() -> (wgpu::Device, wgpu::Queue) { todo!() }
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! # let (device, queue) = test();
-//! let renderer = Xc3Renderer::new(&device, &queue, 1920, 1080, "monolib/shader");
+//! let monolib_shader = MonolibShaderTextures::from_file(&device, &queue, "monolib/shader");
+//! let renderer = Xc3Renderer::new(&device, 1920, 1080, &monolib_shader);
 //!
 //! let database = ShaderDatabase::from_file("xc3.json")?;
 //!
 //! let root = xc3_model::load_model("ch01011013.wimdo", Some(&database))?;
-//! let groups = xc3_wgpu::load_model(&device, &queue, &[root]);
+//! let groups = xc3_wgpu::load_model(&device, &queue, &[root], &monolib_shader);
 //!
 //! let roots = xc3_model::load_map("ma59a.wismhd", Some(&database))?;
-//! let groups = xc3_wgpu::load_model(&device, &queue, &roots);
+//! let groups = xc3_wgpu::load_model(&device, &queue, &roots, &monolib_shader);
 //! # Ok(())
 //! # }
 //! ```

@@ -1,6 +1,7 @@
 use std::{io::Cursor, path::Path};
 
 use anyhow::Context;
+use binrw::BinRead;
 use image_dds::{ddsfile::Dds, image::RgbaImage, ImageFormat, Surface};
 use xc3_lib::{
     dds::DdsExt,
@@ -20,23 +21,15 @@ pub enum File {
     Mibl(Mibl),
     Dds(Dds),
     Image(RgbaImage),
-    Wilay(Wilay),
+    Wilay(MaybeXbc1<Wilay>),
     Wimdo(Mxmd),
 }
 
 // TODO: Move this to xc3_lib?
+#[derive(BinRead)]
 pub enum Wilay {
-    Dhal(MaybeXbc1<Dhal>),
-    Lagp(MaybeXbc1<Lagp>),
-}
-
-impl Wilay {
-    pub fn from_file<P: AsRef<Path>>(path: P) -> Self {
-        let path = path.as_ref();
-        MaybeXbc1::<Dhal>::from_file(path)
-            .map(Wilay::Dhal)
-            .unwrap_or_else(|_| MaybeXbc1::<Lagp>::from_file(path).map(Wilay::Lagp).unwrap())
-    }
+    Dhal(Dhal),
+    Lagp(Lagp),
 }
 
 impl File {
@@ -135,33 +128,34 @@ pub fn update_wilay_from_folder(
 ) -> anyhow::Result<usize> {
     // Replace existing images in a .wilay file.
     // TODO: Error if indices are out of range?
-    let mut wilay = Wilay::from_file(input);
+    let mut wilay = MaybeXbc1::<Wilay>::from_file(input)?;
     let mut count = 0;
     match &mut wilay {
-        Wilay::Dhal(dhal) => match dhal {
-            MaybeXbc1::Uncompressed(dhal) => {
+        MaybeXbc1::Uncompressed(wilay) => match wilay {
+            Wilay::Dhal(dhal) => {
                 replace_dhal_textures(dhal, &mut count, input, input_folder)?;
                 dhal.save(output).unwrap();
             }
-            MaybeXbc1::Xbc1(xbc1) => {
-                let mut dhal: Dhal = xbc1.extract().unwrap();
-                replace_dhal_textures(&mut dhal, &mut count, input, input_folder)?;
-                let xbc1 = Xbc1::new(xbc1.name.clone(), &dhal).unwrap();
-                xbc1.save(output).unwrap();
-            }
-        },
-        Wilay::Lagp(lagp) => match lagp {
-            MaybeXbc1::Uncompressed(lagp) => {
+            Wilay::Lagp(lagp) => {
                 replace_lagp_textures(lagp, &mut count, input, input_folder)?;
                 lagp.save(output).unwrap();
             }
-            MaybeXbc1::Xbc1(xbc1) => {
-                let mut lagp: Lagp = xbc1.extract().unwrap();
-                replace_lagp_textures(&mut lagp, &mut count, input, input_folder)?;
-                let xbc1 = Xbc1::new(xbc1.name.clone(), &lagp).unwrap();
-                xbc1.save(output).unwrap();
-            }
         },
+        MaybeXbc1::Xbc1(xbc1) => {
+            let mut wilay: Wilay = xbc1.extract()?;
+            match &mut wilay {
+                Wilay::Dhal(dhal) => {
+                    replace_dhal_textures(dhal, &mut count, input, input_folder)?;
+                    let xbc1 = Xbc1::new(xbc1.name.clone(), dhal).unwrap();
+                    xbc1.save(output).unwrap();
+                }
+                Wilay::Lagp(lagp) => {
+                    replace_lagp_textures(lagp, &mut count, input, input_folder)?;
+                    let xbc1 = Xbc1::new(xbc1.name.clone(), lagp).unwrap();
+                    xbc1.save(output).unwrap();
+                }
+            }
+        }
     }
 
     Ok(count)
@@ -331,61 +325,63 @@ fn image_index(path: &Path, input: &str) -> Option<usize> {
     }
 }
 
-pub fn extract_wilay_to_folder(wilay: Wilay, input: &Path, output_folder: &Path) -> usize {
+pub fn extract_wilay_to_folder(
+    wilay: MaybeXbc1<Wilay>,
+    input: &Path,
+    output_folder: &Path,
+) -> anyhow::Result<usize> {
     let file_name = input.file_name().unwrap();
     let mut count = 0;
     match wilay {
-        Wilay::Dhal(dhal) => match dhal {
-            MaybeXbc1::Uncompressed(dhal) => {
-                extract_dhal(dhal, output_folder, file_name, &mut count);
-            }
-            MaybeXbc1::Xbc1(xbc1) => {
-                let dhal = xbc1.extract().unwrap();
-                extract_dhal(dhal, output_folder, file_name, &mut count);
-            }
+        MaybeXbc1::Uncompressed(wilay) => match wilay {
+            Wilay::Dhal(dhal) => extract_dhal(dhal, output_folder, file_name, &mut count)?,
+            Wilay::Lagp(lagp) => extract_lagp(lagp, output_folder, file_name, &mut count)?,
         },
-        Wilay::Lagp(lagp) => match lagp {
-            MaybeXbc1::Uncompressed(lagp) => {
-                extract_lagp(lagp, output_folder, file_name, &mut count);
+        MaybeXbc1::Xbc1(xbc1) => {
+            let wilay: Wilay = xbc1.extract()?;
+            match wilay {
+                Wilay::Dhal(dhal) => extract_dhal(dhal, output_folder, file_name, &mut count)?,
+                Wilay::Lagp(lagp) => extract_lagp(lagp, output_folder, file_name, &mut count)?,
             }
-            MaybeXbc1::Xbc1(xbc1) => {
-                let lagp = xbc1.extract().unwrap();
-                extract_lagp(lagp, output_folder, file_name, &mut count);
-            }
-        },
+        }
     }
 
-    count
+    Ok(count)
 }
 
-fn extract_lagp(lagp: Lagp, output_folder: &Path, file_name: &std::ffi::OsStr, count: &mut usize) {
+fn extract_lagp(
+    lagp: Lagp,
+    output_folder: &Path,
+    file_name: &std::ffi::OsStr,
+    count: &mut usize,
+) -> anyhow::Result<()> {
     if let Some(textures) = lagp.textures {
         for (i, texture) in textures.textures.iter().enumerate() {
-            let dds = Mibl::from_bytes(&texture.mibl_data)
-                .unwrap()
-                .to_dds()
-                .unwrap();
+            let dds = Mibl::from_bytes(&texture.mibl_data)?.to_dds()?;
             let path = output_folder
                 .join(file_name)
                 .with_extension(format!("{i}.dds"));
-            dds.save(path).unwrap();
+            dds.save(path)?;
         }
 
         *count += textures.textures.len();
     }
+    Ok(())
 }
 
-fn extract_dhal(dhal: Dhal, output_folder: &Path, file_name: &std::ffi::OsStr, count: &mut usize) {
+fn extract_dhal(
+    dhal: Dhal,
+    output_folder: &Path,
+    file_name: &std::ffi::OsStr,
+    count: &mut usize,
+) -> anyhow::Result<()> {
     if let Some(textures) = dhal.textures {
         for (i, texture) in textures.textures.iter().enumerate() {
-            let dds = Mibl::from_bytes(&texture.mibl_data)
-                .unwrap()
-                .to_dds()
-                .unwrap();
+            let dds = Mibl::from_bytes(&texture.mibl_data)?.to_dds()?;
             let path = output_folder
                 .join(file_name)
                 .with_extension(format!("{i}.dds"));
-            dds.save(path).unwrap();
+            dds.save(path)?;
         }
         *count += textures.textures.len();
     }
@@ -394,11 +390,12 @@ fn extract_dhal(dhal: Dhal, output_folder: &Path, file_name: &std::ffi::OsStr, c
             let path = output_folder
                 .join(file_name)
                 .with_extension(format!("{i}.jpeg"));
-            std::fs::write(path, &texture.jpeg_data).unwrap();
+            std::fs::write(path, &texture.jpeg_data)?;
         }
 
         *count += textures.textures.len();
     }
+    Ok(())
 }
 
 pub fn extract_wimdo_to_folder(mxmd: Mxmd, input: &Path, output_folder: &Path) -> usize {

@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Renamed `ShaderProgram ` to `MaterialTechnique` and `ShaderProgramInfo` to `Technique` to better match in game names.
 * Reworked render pass assignments in xc3_wgpu to better match in game. This improves rendering accuracy of transparent meshes.
 
+### Fixed
+* Fixed an issue where compressed wilay files failed to extract or convert with xc3_tex.
+* Fixed an issue where some `.wilay` LAGP files would not properly rebuild all data when saving.
+
 ## 0.6.0 - 2024-02-16
 ### Added
 * Added derives for `Clone` and `PartialEq` for xc3_lib types.
