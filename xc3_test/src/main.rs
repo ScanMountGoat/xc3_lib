@@ -234,22 +234,6 @@ fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: 
     match &msrd.streaming.inner {
         xc3_lib::msrd::StreamingInner::StreamingLegacy(_) => todo!(),
         xc3_lib::msrd::StreamingInner::Streaming(data) => {
-            if check_read_write {
-                // TODO: Check that repacking and unpacking produces the original streaming data.
-                let new_msrd = Msrd::from_extracted_files(
-                    &vertex,
-                    &spch,
-                    &textures,
-                    data.flags.has_chr_textures(),
-                )
-                .unwrap();
-                // TODO: Chr textures won't be equal due to compression differences?
-                if new_msrd.streaming != msrd.streaming {
-                    println!("Streaming not 1:1 for {path:?}");
-                }
-                // TODO: Check decompressed streams.
-            }
-
             // Check embedded data.
             let vertex_bytes = msrd
                 .decompress_stream_entry(0, data.vertex_data_entry_index)
@@ -263,7 +247,12 @@ fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: 
         }
     }
 
-    // TODO: Check mibl in extracted textures?
+    for texture in textures {
+        check_mibl(texture.low, path, &[], false);
+        if let Some(high) = texture.high {
+            check_mibl(high.mid, path, &[], false);
+        }
+    }
 }
 
 fn check_vertex_data(
