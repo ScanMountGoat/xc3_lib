@@ -1,29 +1,41 @@
-use glam::{vec4, Mat4, Vec3};
+use glam::{Vec3, Vec4Swizzles};
 
-// TODO: Switch to bounding sphere for more accurate culling.
-// TODO: compute frustum planes and compare distance to sphere center with radius
-// Frustum culling algorithm adapted from https://bruop.github.io/frustum_culling/.
-pub fn is_within_frustum(min_xyz: Vec3, max_xyz: Vec3, model_view_projection: Mat4) -> bool {
-    let corners = [
-        vec4(min_xyz.x, min_xyz.y, min_xyz.z, 1.0),
-        vec4(max_xyz.x, min_xyz.y, min_xyz.z, 1.0),
-        vec4(min_xyz.x, max_xyz.y, min_xyz.z, 1.0),
-        vec4(max_xyz.x, max_xyz.y, min_xyz.z, 1.0),
-        vec4(min_xyz.x, min_xyz.y, max_xyz.z, 1.0),
-        vec4(max_xyz.x, min_xyz.y, max_xyz.z, 1.0),
-        vec4(min_xyz.x, max_xyz.y, max_xyz.z, 1.0),
-        vec4(max_xyz.x, max_xyz.y, max_xyz.z, 1.0),
+use crate::CameraData;
+
+// TODO: Tests for this?
+// Fast plane extraction (Gribb/Hartmann) and math from here:
+// https://www.gamedevs.org/uploads/fast-extraction-viewing-frustum-planes-from-world-view-projection-matrix.pdf
+pub fn is_within_frustum(min_xyz: Vec3, max_xyz: Vec3, camera: &CameraData) -> bool {
+    // World space clipping planes.
+    // Use the Direct3D example since WebGPU clip space Z is in the range 0.0 to 1.0.
+    let matrix = camera.view_projection;
+    let left = matrix.row(3) + matrix.row(0);
+    let right = matrix.row(3) - matrix.row(0);
+    let bottom = matrix.row(3) + matrix.row(1);
+    let top = matrix.row(3) - matrix.row(1);
+    let near = matrix.row(3);
+    let far = matrix.row(3) - matrix.row(2);
+
+    // Normalize the planes.
+    let planes = [
+        left / left.xyz().length(),
+        right / right.xyz().length(),
+        bottom / bottom.xyz().length(),
+        top / top.xyz().length(),
+        near / near.xyz().length(),
+        far / far.xyz().length(),
     ];
 
-    // In clip space, all points in the view frustum satisfy these inequalities:
-    // -w <= x <= w
-    // -w <= y <= w
-    // 0 <= z <= w
-    let within = |a, b, c| b >= a && b <= c;
-    corners.into_iter().any(|c| {
-        let corner = model_view_projection * c;
-        within(-corner.w, corner.x, corner.w)
-            && within(-corner.w, corner.y, corner.w)
-            && within(0.0, corner.z, corner.w)
-    })
+    // Convert the bounding box to a bounding sphere for more reliable culling.
+    let center = (min_xyz + max_xyz) / 2.0;
+    let radius = max_xyz.distance(center);
+
+    for plane in planes {
+        let signed_distance = plane.dot(center.extend(1.0));
+        if signed_distance < -radius {
+            return false;
+        }
+    }
+
+    true
 }

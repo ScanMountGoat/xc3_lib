@@ -12,7 +12,7 @@ const MAT_ID_DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth16Uno
 // TODO: Add fallback textures for all the monolib shader textures?
 pub struct Xc3Renderer {
     camera_buffer: wgpu::Buffer,
-    view_projection: Mat4,
+    camera: CameraData,
 
     model_bind_group0: crate::shader::model::bind_groups::BindGroup0,
 
@@ -107,8 +107,10 @@ impl Textures {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CameraData {
     pub view: Mat4,
+    pub projection: Mat4,
     pub view_projection: Mat4,
     pub position: Vec4,
 }
@@ -132,6 +134,12 @@ impl Xc3Renderer {
         height: u32,
         monolib_shader: &MonolibShaderTextures,
     ) -> Self {
+        let camera = CameraData {
+            view: Mat4::IDENTITY,
+            projection: Mat4::IDENTITY,
+            view_projection: Mat4::IDENTITY,
+            position: Vec4::ZERO,
+        };
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("camera buffer"),
             contents: bytemuck::cast_slice(&[crate::shader::model::Camera {
@@ -257,7 +265,7 @@ impl Xc3Renderer {
 
         Self {
             camera_buffer,
-            view_projection: Mat4::IDENTITY,
+            camera,
             model_bind_group0,
             deferred_pipelines,
             deferred_debug_pipeline,
@@ -307,7 +315,7 @@ impl Xc3Renderer {
                 position: camera_data.position,
             }]),
         );
-        self.view_projection = camera_data.view_projection;
+        self.camera = *camera_data;
     }
 
     pub fn resize(&mut self, device: &wgpu::Device, width: u32, height: u32) {
@@ -373,8 +381,8 @@ impl Xc3Renderer {
         self.model_bind_group0.set(&mut render_pass);
 
         for model in models {
-            model.draw(&mut render_pass, false, 0, self.view_projection);
-            model.draw(&mut render_pass, false, 1, self.view_projection);
+            model.draw(&mut render_pass, false, 0, &self.camera);
+            model.draw(&mut render_pass, false, 1, &self.camera);
         }
     }
 
@@ -422,7 +430,7 @@ impl Xc3Renderer {
 
         // TODO: Is this the correct unk type?
         for model in models {
-            model.draw(&mut render_pass, true, 8, self.view_projection);
+            model.draw(&mut render_pass, true, 8, &self.camera);
         }
     }
 
@@ -470,7 +478,7 @@ impl Xc3Renderer {
 
         // TODO: Is this the correct unk type?
         for model in models {
-            model.draw(&mut render_pass, true, 2, self.view_projection);
+            model.draw(&mut render_pass, true, 2, &self.camera);
         }
     }
 
@@ -643,7 +651,7 @@ impl Xc3Renderer {
                 &mut render_pass,
                 &self.solid_bind_group1,
                 &self.solid_culled_bind_group1,
-                self.view_projection,
+                &self.camera,
             );
         }
     }

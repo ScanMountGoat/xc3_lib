@@ -14,7 +14,7 @@ use crate::{
     sampler::create_sampler,
     shader,
     texture::create_texture,
-    MonolibShaderTextures,
+    CameraData, MonolibShaderTextures,
 };
 
 // Organize the model data to ensure shared resources are created only once.
@@ -127,17 +127,17 @@ impl ModelGroup {
         render_pass: &mut wgpu::RenderPass<'a>,
         is_transparent: bool,
         pass_id: u32,
-        view_projection: Mat4,
+        camera: &CameraData,
     ) {
         self.per_group.set(render_pass);
 
-        // TODO: Flickering?
+        // TODO: This should account for the instance transforms.
         // Assume the models AABB contains each model AABB.
         // This allows for better culling efficiency.
         for models in self
             .models
             .iter()
-            .filter(|m| is_within_frustum(m.bounds.min_xyz, m.bounds.max_xyz, view_projection))
+            .filter(|m| is_within_frustum(m.bounds.min_xyz, m.bounds.max_xyz, camera))
         {
             // TODO: cull aabb with instance transforms.
             for model in models.models.iter() {
@@ -176,14 +176,11 @@ impl ModelGroup {
         render_pass: &mut wgpu::RenderPass<'a>,
         bind_group1: &'a crate::shader::solid::bind_groups::BindGroup1,
         culled_bind_group1: &'a crate::shader::solid::bind_groups::BindGroup1,
-        view_projection: Mat4,
+        camera: &CameraData,
     ) {
         for models in &self.models {
-            let cull_models = !is_within_frustum(
-                models.bounds.min_xyz,
-                models.bounds.max_xyz,
-                view_projection,
-            );
+            let cull_models =
+                !is_within_frustum(models.bounds.min_xyz, models.bounds.max_xyz, camera);
             models
                 .bounds
                 .draw(render_pass, cull_models, bind_group1, culled_bind_group1);

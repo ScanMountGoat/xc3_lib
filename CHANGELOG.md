@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Renamed `GBuffer*` types and methods to `Output*` since not all shaders write to the G-Buffer textures.
 * Renamed `ShaderProgram ` to `MaterialTechnique` and `ShaderProgramInfo` to `Technique` to better match in game names.
 * Reworked render pass assignments in xc3_wgpu to better match in game. This improves rendering accuracy of transparent meshes.
+* Optimized rendering performance for xc3_wgpu using frustum culling.
 
 ### Fixed
 * Fixed an issue where compressed wilay files failed to extract or convert with xc3_tex.

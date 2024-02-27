@@ -426,6 +426,7 @@ fn calculate_camera_data(
 
     CameraData {
         view,
+        projection,
         view_projection,
         position,
     }

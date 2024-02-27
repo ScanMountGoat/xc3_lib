@@ -213,7 +213,6 @@ impl<'a> Xc3WriteOffsets for LagpOffsets<'a> {
         self.unk5.write_full(writer, base_offset, data_ptr)?;
         self.unk6.write_full(writer, base_offset, data_ptr)?;
         self.textures.write_full(writer, base_offset, data_ptr)?;
-
         Ok(())
     }
 }
@@ -232,7 +231,6 @@ impl<'a> Xc3WriteOffsets for Unk13Unk1Offsets<'a> {
         self.unk5.write_full(writer, base_offset, data_ptr)?;
         self.unk3.write_full(writer, base_offset, data_ptr)?;
         self.unk7.write_offsets(writer, base_offset, data_ptr)?;
-
         Ok(())
     }
 }
