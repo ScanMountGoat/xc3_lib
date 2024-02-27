@@ -10,7 +10,8 @@
 //! | Xenoblade Chronicles 3 | 10003 | `menu/image/*.wilay` |
 use crate::{
     dhal::{Textures, Unk1, Unk2, Unk3, Unk4, Unk5, Unk6},
-    parse_offset32_count32, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
+    parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
+    parse_string_ptr32,
 };
 use binrw::{args, binread, BinRead};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
@@ -106,17 +107,93 @@ pub struct Unk13 {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Unk13Unk1 {
     pub unk1: u32,
-    pub unk2: u32,
-    pub unk3: u32,
-    pub unk4: u32,
-    pub unk5: u32,
-    pub unk6: u32,
+
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub unk2: [u32; 4],
+
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub unk3: Option<Unk13Unk1Unk3>,
+
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub unk4: Unk13Unk1Unk4,
+
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub unk5: Option<[u32; 10]>,
+
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub unk6: Option<[i32; 11]>,
+
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     pub unk7: String,
+}
+
+#[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(stream = r)]
+#[xc3(base_offset)]
+pub struct Unk13Unk1Unk3 {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    pub unk1: u32,
+
+    #[br(parse_with = parse_offset32_count32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset_count(u32, u32))]
+    pub unk2: Vec<Unk13Unk1Unk3Unk2>,
+
+    pub unk4: u32,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct Unk13Unk1Unk3Unk2 {
+    pub unk1: u32,
+    pub unk2: u32,
+    pub unk3: u32,
+
+    // TODO: Some of these are strings?
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk4: Vec<u64>,
+
+    pub unk6: u32,
+    pub unk7: f32,
+
+    // TODO: padding?
+    pub unk: [u32; 4],
+}
+
+#[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(stream = r)]
+#[xc3(base_offset)]
+pub struct Unk13Unk1Unk4 {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub unk1: Vec<[u32; 4]>,
+
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub unk2: Vec<[u32; 4]>,
+
+    // TODO: padding?
+    pub unk: [u32; 12],
 }
 
 // TODO: identical to dhal?
@@ -136,6 +213,25 @@ impl<'a> Xc3WriteOffsets for LagpOffsets<'a> {
         self.unk5.write_full(writer, base_offset, data_ptr)?;
         self.unk6.write_full(writer, base_offset, data_ptr)?;
         self.textures.write_full(writer, base_offset, data_ptr)?;
+
+        Ok(())
+    }
+}
+
+impl<'a> Xc3WriteOffsets for Unk13Unk1Offsets<'a> {
+    fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> xc3_write::Xc3Result<()> {
+        // Different order than field order.
+        self.unk6.write_full(writer, base_offset, data_ptr)?;
+        self.unk2.write_full(writer, base_offset, data_ptr)?;
+        self.unk4.write_full(writer, base_offset, data_ptr)?;
+        self.unk5.write_full(writer, base_offset, data_ptr)?;
+        self.unk3.write_full(writer, base_offset, data_ptr)?;
+        self.unk7.write_offsets(writer, base_offset, data_ptr)?;
 
         Ok(())
     }
