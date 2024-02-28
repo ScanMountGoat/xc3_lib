@@ -301,6 +301,7 @@ pub struct Unk4Extra {
     pub unk: u32,
 }
 
+// 64 bytes?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
@@ -313,34 +314,56 @@ pub struct Unk4Unk2 {
     #[xc3(offset(u32), align(2))]
     pub unk3: Option<[f32; 2]>,
 
+    // TODO: br(temp)?
     #[br(restore_position)]
     #[xc3(skip)]
     _temp: [u32; 4],
 
     // TODO: count depends on unk1 length?
+    // TODO: Why is unk5 only present sometimes?
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args {
         offset: base_offset,
-        inner: args! { count: (_temp[3] - _temp[0]) as usize / 8 }
+        inner: args! { 
+            count: if _temp[1] > 0 { 
+                _temp[1] - _temp[0] 
+            } else { 
+                _temp[3] - _temp[0] 
+            } as usize / 8 
+        }
     })]
     #[xc3(offset(u32), align(2))]
     pub unk4: Option<Vec<[u32; 2]>>,
 
-    pub unk5: u32, // 0?
-    pub unk6: u32, // 0?
+    // TODO: count depends on unk1 length?
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args {
+        offset: base_offset,
+        inner: args! { count: (_temp[3] - _temp[1]) as usize / 4 }
+    })]
+    #[xc3(offset(u32), align(4))]
+    pub unk5: Option<Vec<u32>>,
+
+    pub unk6: u32, // TODO: always 0?
 
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: unk1.len().next_multiple_of(4) / 4 }})]
     #[xc3(offset(u32), align(2))]
     pub unk7: Option<Vec<u32>>,
 
+    // TODO: This count isn't correct?
+    // 12, 20, 4
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: unk1.len() }})]
     #[xc3(offset(u32), align(2))]
     pub unk8: Option<Vec<u8>>,
 
-    // TODO: not always 0?
-    pub unk9: u32,  // 0
+    // TODO: This count isn't correct?
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: unk1.len() }})]
+    #[xc3(offset(u32), align(2))]
+    pub unk9: Option<Vec<u8>>,
+
     pub unk10: u32, // 0
 
     pub unk11: u32,
@@ -600,11 +623,14 @@ impl<'a> Xc3WriteOffsets for Unk4Offsets<'a> {
         for unk2 in &unk2s.0 {
             unk2.unk1.write_full(writer, base_offset, data_ptr)?;
         }
+        // TODO: This doesn't always work properly?
         for unk2 in &unk2s.0 {
             unk2.unk3.write_full(writer, base_offset, data_ptr)?;
             unk2.unk4.write_full(writer, base_offset, data_ptr)?;
+            unk2.unk5.write_full(writer, base_offset, data_ptr)?;
             unk2.unk7.write_full(writer, base_offset, data_ptr)?;
             unk2.unk8.write_full(writer, base_offset, data_ptr)?;
+            unk2.unk9.write_full(writer, base_offset, data_ptr)?;
         }
 
         self.extra.write_offsets(writer, base_offset, data_ptr)?;

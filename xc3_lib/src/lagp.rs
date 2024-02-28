@@ -33,7 +33,7 @@ pub struct Lagp {
     offset: u32,
 
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset(u32))]
+    #[xc3(offset(u32), align(16))]
     pub unk1: Unk1,
 
     #[br(parse_with = parse_ptr32)]
@@ -46,7 +46,7 @@ pub struct Lagp {
 
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args { inner: args! { offset, version } })]
-    #[xc3(offset(u32))]
+    #[xc3(offset(u32), align(16))]
     pub unk4: Option<Unk4>,
 
     #[br(parse_with = parse_opt_ptr32)]
