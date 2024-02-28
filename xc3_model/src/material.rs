@@ -339,11 +339,11 @@ impl Material {
 
 fn output_assignments(shader: &Shader, parameters: &MaterialParameters) -> OutputAssignments {
     OutputAssignments {
-        assignments: [0, 1, 2, 3, 4, 5].map(|i| gbuffer_assignment(shader, parameters, i)),
+        assignments: [0, 1, 2, 3, 4, 5].map(|i| output_assignment(shader, parameters, i)),
     }
 }
 
-fn gbuffer_assignment(
+fn output_assignment(
     shader: &Shader,
     parameters: &MaterialParameters,
     output_index: usize,
@@ -356,7 +356,6 @@ fn gbuffer_assignment(
     }
 }
 
-// TODO: include texcoord attribute name and buffer dependency for U and V?
 fn channel_assignment(
     shader: &Shader,
     parameters: &MaterialParameters,
@@ -368,6 +367,7 @@ fn channel_assignment(
     param_or_const(shader, parameters, output_index, channel_index)
         .map(ChannelAssignment::Value)
         .or_else(|| {
+            // TODO: How to deal with multiple textures used for color outputs?
             shader.texture(output_index, channel).map(|texture| {
                 // Textures may have multiple accessed channels like normal maps.
                 // First check if the current channel is used.

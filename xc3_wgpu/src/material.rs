@@ -306,6 +306,7 @@ fn assign_texture<'a>(
 
 fn material_texture_index(sampler_name: &str) -> Option<usize> {
     // Materials always use this naming convention in the shader.
+    // TODO: Xenoblade 1 DE uses up to 14 material samplers.
     // TODO: Just parse int?
     match sampler_name {
         "s0" => Some(0),

@@ -5,16 +5,22 @@ use xc3_lib::mibl::Mibl;
 use xc3_model::ImageTexture;
 
 // TODO: Make this part of xc3_model to also support gltf?
-// TODO: Document the uniform name for each field.
-// TODO: Does this work for each game?
-// TODO: Make each field optional or just log and assign defaults?
 /// Textures and resources from the game's `monolib/shader` folder.
 pub struct MonolibShaderTextures {
-    pub toon_grad: wgpu::Texture,
-    pub eyepatch_col: wgpu::Texture,
-    pub eyepatch_nrm: wgpu::Texture,
-    pub eyepatch_ao: wgpu::Texture,
-    pub eyepatch_mask: wgpu::Texture,
+    /// `monolib/shader/toon_grad.witex`
+    pub toon_grad: Option<wgpu::Texture>,
+
+    /// `monolib/shader/eyepatch_col.witex`
+    pub eyepatch_col: Option<wgpu::Texture>,
+
+    /// `monolib/shader/eyepatch_nrm.witex`
+    pub eyepatch_nrm: Option<wgpu::Texture>,
+
+    /// `monolib/shader/eyepatch_ao.witex`
+    pub eyepatch_ao: Option<wgpu::Texture>,
+
+    /// `monolib/shader/eyepatch_mask.witex`
+    pub eyepatch_mask: Option<wgpu::Texture>,
 }
 
 impl MonolibShaderTextures {
@@ -38,19 +44,23 @@ impl MonolibShaderTextures {
 
     /// Find the texture corresponding to a `sampler_name` like `gTResidentTex44`.
     pub fn global_texture(&self, sampler_name: &str) -> Option<&wgpu::Texture> {
-        // TODO: are these correct?
         match sampler_name {
-            "gTResidentTex43" => Some(&self.eyepatch_ao),
-            "gTResidentTex44" => Some(&self.eyepatch_col),
-            "gTResidentTex45" => Some(&self.eyepatch_mask),
-            "gTResidentTex46" => Some(&self.eyepatch_nrm),
+            "gTResidentTex43" => self.eyepatch_ao.as_ref(),
+            "gTResidentTex44" => self.eyepatch_col.as_ref(),
+            "gTResidentTex45" => self.eyepatch_mask.as_ref(),
+            "gTResidentTex46" => self.eyepatch_nrm.as_ref(),
             _ => None,
         }
     }
 }
 
-fn load_mibl(device: &wgpu::Device, queue: &wgpu::Queue, path: &Path, name: &str) -> wgpu::Texture {
-    let mibl = Mibl::from_file(path.join(name)).unwrap();
+fn load_mibl(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    path: &Path,
+    name: &str,
+) -> Option<wgpu::Texture> {
+    let mibl = Mibl::from_file(path.join(name)).ok()?;
     let image = ImageTexture::from_mibl(&mibl, None, None).unwrap();
-    create_texture(device, queue, &image)
+    Some(create_texture(device, queue, &image))
 }

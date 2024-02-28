@@ -130,6 +130,7 @@ pub struct GBuffer {
 impl Xc3Renderer {
     pub fn new(
         device: &wgpu::Device,
+        queue: &wgpu::Queue,
         width: u32,
         height: u32,
         monolib_shader: &MonolibShaderTextures,
@@ -175,9 +176,18 @@ impl Xc3Renderer {
                 debug_settings: debug_settings_buffer.as_entire_buffer_binding(),
                 g_toon_grad: &monolib_shader
                     .toon_grad
-                    .create_view(&wgpu::TextureViewDescriptor {
-                        mip_level_count: Some(1),
-                        ..Default::default()
+                    .as_ref()
+                    .map(|t| {
+                        t.create_view(&wgpu::TextureViewDescriptor {
+                            mip_level_count: Some(1),
+                            ..Default::default()
+                        })
+                    })
+                    .unwrap_or_else(|| {
+                        default_toon_grad(device, queue).create_view(&wgpu::TextureViewDescriptor {
+                            mip_level_count: Some(1),
+                            ..Default::default()
+                        })
                     }),
                 shared_sampler: &shared_sampler,
             },
@@ -1145,5 +1155,27 @@ fn create_blit_bindgroup(
             color: input,
             color_sampler: &sampler,
         },
+    )
+}
+
+pub fn default_toon_grad(device: &wgpu::Device, queue: &wgpu::Queue) -> wgpu::Texture {
+    device.create_texture_with_data(
+        queue,
+        &wgpu::TextureDescriptor {
+            label: Some("toon grad default"),
+            size: wgpu::Extent3d {
+                width: 4,
+                height: 4,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        },
+        wgpu::util::TextureDataOrder::LayerMajor,
+        &[255u8; 4 * 4 * 4],
     )
 }

@@ -76,7 +76,7 @@ fn main() {
         Path::new(&cli.root_folder).join("monolib/shader"),
     );
 
-    let mut renderer = Xc3Renderer::new(&device, WIDTH, HEIGHT, &monolib_shader);
+    let mut renderer = Xc3Renderer::new(&device, &queue, WIDTH, HEIGHT, &monolib_shader);
 
     // Initialize the camera transform.
     let translation = vec3(0.0, -1.0, -10.0);
