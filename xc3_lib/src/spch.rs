@@ -459,9 +459,8 @@ impl Xc3Write for StringSection {
     fn xc3_write<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
-        data_ptr: &mut u64,
     ) -> xc3_write::Xc3Result<Self::Offsets<'_>> {
-        self.program_names.xc3_write(writer, data_ptr)
+        self.program_names.xc3_write(writer)
     }
 }
 

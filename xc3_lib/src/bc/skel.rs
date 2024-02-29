@@ -407,12 +407,16 @@ fn weird_skel_alignment<W: std::io::Write + std::io::Seek>(
 
     // Now align to 16.
     // 0000 FF...
-    [0u8; 2].xc3_write(writer, data_ptr)?;
+    [0u8; 2].xc3_write(writer)?;
+    *data_ptr = (*data_ptr).max(writer.stream_position()?);
+
     let pos = writer.stream_position()?;
     let aligned_pos = pos.next_multiple_of(16);
     writer.write_all(&vec![0xff; (aligned_pos - pos) as usize])?;
+
     // 0000
-    [0u8; 4].xc3_write(writer, data_ptr)?;
+    [0u8; 4].xc3_write(writer)?;
+    *data_ptr = (*data_ptr).max(writer.stream_position()?);
     Ok(())
 }
 

@@ -119,7 +119,8 @@ impl<'a> State<'a> {
         }
         let monolib_shader =
             MonolibShaderTextures::from_file(&device, &queue, root_folder.join("monolib/shader"));
-        let mut renderer = Xc3Renderer::new(&device, &queue, size.width, size.height, &monolib_shader);
+        let mut renderer =
+            Xc3Renderer::new(&device, &queue, size.width, size.height, &monolib_shader);
 
         // Initialize the camera transform.
         let translation = vec3(0.0, -0.5, -15.0);

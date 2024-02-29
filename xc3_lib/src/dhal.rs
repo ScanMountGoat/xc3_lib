@@ -324,12 +324,12 @@ pub struct Unk4Unk2 {
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args {
         offset: base_offset,
-        inner: args! { 
-            count: if _temp[1] > 0 { 
-                _temp[1] - _temp[0] 
-            } else { 
-                _temp[3] - _temp[0] 
-            } as usize / 8 
+        inner: args! {
+            count: if _temp[1] > 0 {
+                _temp[1] - _temp[0]
+            } else {
+                _temp[3] - _temp[0]
+            } as usize / 8
         }
     })]
     #[xc3(offset(u32), align(2))]

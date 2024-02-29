@@ -14,11 +14,9 @@ fn write_offset() {
     let value = Test { a: 1 };
 
     let mut writer = Cursor::new(Vec::new());
-    let mut data_ptr = 0;
-    value.xc3_write(&mut writer, &mut data_ptr).unwrap();
+    value.xc3_write(&mut writer).unwrap();
 
     assert_hex_eq!(hex!(00000000), writer.into_inner());
-    assert_eq!(4, data_ptr);
 }
 
 #[test]

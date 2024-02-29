@@ -299,7 +299,8 @@ impl<'a> Xc3WriteOffsets for Sar1Offsets<'a> {
 
         // Align the file size to 2048.
         let padding = data_ptr.next_multiple_of(2048) - *data_ptr;
-        vec![0u8; padding as usize].xc3_write(writer, data_ptr)?;
+        vec![0u8; padding as usize].xc3_write(writer)?;
+        *data_ptr = (*data_ptr).max(writer.stream_position()?);
         self.file_size.write_full(writer, base_offset, data_ptr)?;
 
         Ok(())

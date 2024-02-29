@@ -93,8 +93,8 @@ impl<'a> Xc3WriteOffsets for LapsOffsets<'a> {
 
         // Align the file size to 16.
         let padding = data_ptr.next_multiple_of(16) - *data_ptr;
-        vec![0u8; padding as usize].xc3_write(writer, data_ptr)?;
-
+        vec![0u8; padding as usize].xc3_write(writer)?;
+        *data_ptr = (*data_ptr).max(writer.stream_position()?);
         Ok(())
     }
 }

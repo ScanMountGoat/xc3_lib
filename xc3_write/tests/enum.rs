@@ -15,9 +15,7 @@ fn write_enum_variant_magic() {
     let value = A::B(3);
 
     let mut writer = Cursor::new(Vec::new());
-    let mut data_ptr = 0;
-    value.xc3_write(&mut writer, &mut data_ptr).unwrap();
+    value.xc3_write(&mut writer).unwrap();
 
     assert_hex_eq!(hex!(01000000 02000000 03000000), writer.into_inner());
-    assert_eq!(12, data_ptr);
 }

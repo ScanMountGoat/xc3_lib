@@ -117,10 +117,8 @@ impl Xc3Write for Xbc1 {
     fn xc3_write<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
-        data_ptr: &mut u64,
     ) -> xc3_write::Xc3Result<Self::Offsets<'_>> {
         self.write_le(writer)?;
-        *data_ptr = (*data_ptr).max(writer.stream_position()?);
         Ok(())
     }
 

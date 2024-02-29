@@ -16,11 +16,9 @@ fn write_count_offset() {
     };
 
     let mut writer = Cursor::new(Vec::new());
-    let mut data_ptr = 0;
-    value.xc3_write(&mut writer, &mut data_ptr).unwrap();
+    value.xc3_write(&mut writer).unwrap();
 
     assert_hex_eq!(hex!(04000000 00000000), writer.into_inner());
-    assert_eq!(8, data_ptr);
 }
 
 #[test]

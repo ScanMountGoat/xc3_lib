@@ -1,4 +1,9 @@
 //! A binary writing and layout implementation using separate write and layout passes.
+//!
+//! An object's size is defined as the difference between the writer position
+//! before and after the first pass and does not need to be user defined.
+//! Custom implementations of [Xc3Write] should ensure the write head points after the data
+//! when the function returns to ensure correct size calculations.
 use std::error::Error;
 use std::io::Seek;
 use std::io::SeekFrom;
@@ -15,16 +20,13 @@ pub trait Xc3Write {
     where
         Self: 'a;
 
-    /// Write all fields and placeholder offsets
-    /// and set `data_ptr` to the position after writing.
+    /// Write all fields and placeholder offsets.
     /// This should almost always be derived for non primitive types.
-    fn xc3_write<W: Write + Seek>(
-        &self,
-        writer: &mut W,
-        data_ptr: &mut u64,
-    ) -> Xc3Result<Self::Offsets<'_>>;
+    fn xc3_write<W: Write + Seek>(&self, writer: &mut W) -> Xc3Result<Self::Offsets<'_>>;
 
-    /// Return `true` if this type has no data and should not be written.
+    /// Return `Some(_)` if the offset should be updated and
+    /// `Some(true)` if the data should also be written.
+    /// Defaults to `Some(true)`.
     fn should_write(&self) -> Option<bool> {
         Some(true)
     }
@@ -65,10 +67,13 @@ where
     T: Xc3Write + 'static,
     T::Offsets<'a>: Xc3WriteOffsets,
 {
-    // TODO: Incorporate the base offset from offsets using option?
     // Ensure all items are written before their pointed to data.
-    let offsets = value.xc3_write(writer, data_ptr)?;
+    let offsets = value.xc3_write(writer)?;
+    *data_ptr = (*data_ptr).max(writer.stream_position()?);
+
     offsets.write_offsets(writer, base_offset, data_ptr)?;
+    // Account for padding or alignment added after writing.
+    *data_ptr = (*data_ptr).max(writer.stream_position()?);
     Ok(())
 }
 
@@ -130,10 +135,9 @@ impl<'a, P, T> Offset<'a, P, T> {
         P: TryFrom<u64> + Xc3Write,
         <P as TryFrom<u64>>::Error: std::fmt::Debug,
     {
-        // Assume the data pointer was already updated in the first pass.
         writer.seek(SeekFrom::Start(self.position))?;
         let offset = P::try_from(offset).unwrap();
-        offset.xc3_write(writer, &mut 0)?;
+        offset.xc3_write(writer)?;
         Ok(())
     }
 
@@ -151,6 +155,9 @@ impl<'a, P, T> Offset<'a, P, T> {
         P: TryFrom<u64> + Xc3Write,
         <P as TryFrom<u64>>::Error: std::fmt::Debug,
     {
+        // Assume the data pointer hasn't been modified since the first pass.
+        *data_ptr = (*data_ptr).max(writer.stream_position()?);
+
         // Account for the type or field alignment.
         let alignment = self.field_alignment.unwrap_or(type_alignment);
         let aligned_data_pr = data_ptr.next_multiple_of(alignment);
@@ -162,8 +169,9 @@ impl<'a, P, T> Offset<'a, P, T> {
             // Seek to the data position.
             // Handle any padding up the desired alignment.
             writer.seek(SeekFrom::Start(*data_ptr))?;
-            vec![self.padding_byte; (aligned_data_pr - *data_ptr) as usize]
-                .xc3_write(writer, data_ptr)?;
+            vec![self.padding_byte; (aligned_data_pr - *data_ptr) as usize].xc3_write(writer)?;
+            // Point the data pointer past this data.
+            *data_ptr = (*data_ptr).max(writer.stream_position()?);
         }
 
         Ok(())
@@ -185,7 +193,8 @@ where
         if let Some(should_write) = self.data.should_write() {
             self.set_offset_seek(writer, base_offset, data_ptr, T::ALIGNMENT, should_write)?;
         }
-        let offsets = self.data.xc3_write(writer, data_ptr)?;
+        let offsets = self.data.xc3_write(writer)?;
+        *data_ptr = (*data_ptr).max(writer.stream_position()?);
         Ok(offsets)
     }
 }
@@ -222,10 +231,8 @@ macro_rules! xc3_write_impl {
                 fn xc3_write<W: std::io::Write + std::io::Seek>(
                     &self,
                     writer: &mut W,
-                    data_ptr: &mut u64,
                 ) -> Xc3Result<Self::Offsets<'_>> {
                     writer.write_all(&self.to_le_bytes())?;
-                    *data_ptr = (*data_ptr).max(writer.stream_position()?);
                     Ok(())
                 }
 
@@ -243,15 +250,8 @@ xc3_write_impl!(i8, i16, i32, i64, u8, u16, u32, u64, f32);
 impl<A: Xc3Write, B: Xc3Write> Xc3Write for (A, B) {
     type Offsets<'a> = (A::Offsets<'a>, B::Offsets<'a>) where A: 'a, B: 'a;
 
-    fn xc3_write<W: Write + Seek>(
-        &self,
-        writer: &mut W,
-        data_ptr: &mut u64,
-    ) -> Xc3Result<Self::Offsets<'_>> {
-        Ok((
-            self.0.xc3_write(writer, data_ptr)?,
-            self.1.xc3_write(writer, data_ptr)?,
-        ))
+    fn xc3_write<W: Write + Seek>(&self, writer: &mut W) -> Xc3Result<Self::Offsets<'_>> {
+        Ok((self.0.xc3_write(writer)?, self.1.xc3_write(writer)?))
     }
 }
 
@@ -273,13 +273,9 @@ where
 {
     type Offsets<'a> = ();
 
-    fn xc3_write<W: Write + Seek>(
-        &self,
-        writer: &mut W,
-        data_ptr: &mut u64,
-    ) -> Xc3Result<Self::Offsets<'_>> {
+    fn xc3_write<W: Write + Seek>(&self, writer: &mut W) -> Xc3Result<Self::Offsets<'_>> {
         for value in self {
-            value.xc3_write(writer, data_ptr)?;
+            value.xc3_write(writer)?;
         }
         Ok(())
     }
@@ -288,14 +284,9 @@ where
 impl Xc3Write for String {
     type Offsets<'a> = ();
 
-    fn xc3_write<W: Write + Seek>(
-        &self,
-        writer: &mut W,
-        data_ptr: &mut u64,
-    ) -> Xc3Result<Self::Offsets<'_>> {
+    fn xc3_write<W: Write + Seek>(&self, writer: &mut W) -> Xc3Result<Self::Offsets<'_>> {
         writer.write_all(self.as_bytes())?;
         writer.write_all(&[0u8])?;
-        *data_ptr = (*data_ptr).max(writer.stream_position()?);
         Ok(())
     }
 
@@ -312,11 +303,7 @@ where
 {
     type Offsets<'a> = VecOffsets<T::Offsets<'a>>;
 
-    fn xc3_write<W: Write + Seek>(
-        &self,
-        writer: &mut W,
-        data_ptr: &mut u64,
-    ) -> Xc3Result<Self::Offsets<'_>> {
+    fn xc3_write<W: Write + Seek>(&self, writer: &mut W) -> Xc3Result<Self::Offsets<'_>> {
         // TODO: Find a less hacky way to specialize Vec<u8>.
         let offsets = if let Some(bytes) = <dyn core::any::Any>::downcast_ref::<Vec<u8>>(self) {
             // Avoiding writing buffers byte by byte to drastically improve performance.
@@ -324,10 +311,9 @@ where
             Vec::new()
         } else {
             self.iter()
-                .map(|v| v.xc3_write(writer, data_ptr))
+                .map(|v| v.xc3_write(writer))
                 .collect::<Result<Vec<_>, _>>()?
         };
-        *data_ptr = (*data_ptr).max(writer.stream_position()?);
         Ok(VecOffsets(offsets))
     }
 
@@ -356,11 +342,7 @@ where
 impl Xc3Write for () {
     type Offsets<'a> = ();
 
-    fn xc3_write<W: Write + Seek>(
-        &self,
-        _writer: &mut W,
-        _data_ptr: &mut u64,
-    ) -> Xc3Result<Self::Offsets<'_>> {
+    fn xc3_write<W: Write + Seek>(&self, _writer: &mut W) -> Xc3Result<Self::Offsets<'_>> {
         Ok(())
     }
 
@@ -386,14 +368,8 @@ where
     where
         Self: 'a;
 
-    fn xc3_write<W: Write + Seek>(
-        &self,
-        writer: &mut W,
-        data_ptr: &mut u64,
-    ) -> Xc3Result<Self::Offsets<'_>> {
-        self.as_ref()
-            .map(|v| v.xc3_write(writer, data_ptr))
-            .transpose()
+    fn xc3_write<W: Write + Seek>(&self, writer: &mut W) -> Xc3Result<Self::Offsets<'_>> {
+        self.as_ref().map(|v| v.xc3_write(writer)).transpose()
     }
 
     fn should_write(&self) -> Option<bool> {

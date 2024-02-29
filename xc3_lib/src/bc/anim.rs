@@ -558,7 +558,7 @@ impl<'a> Xc3WriteOffsets for AnimOffsets<'a> {
         // The binding points backwards to the animation.
         // This means the animation needs to be written first.
         let animation_position = *data_ptr;
-        let animation = self.binding.data.animation.xc3_write(writer, data_ptr)?;
+        let animation = self.binding.data.animation.xc3_write(writer)?;
         animation
             .data
             .write_offsets(writer, base_offset, data_ptr)?;
