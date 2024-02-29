@@ -1703,20 +1703,9 @@ xc3_write_binwrite_impl!(
     SamplerFlags,
     TextureUsage,
     ExtMeshFlags,
-    MeshRenderFlags
+    MeshRenderFlags,
+    MaterialFlags
 );
-
-impl Xc3Write for MaterialFlags {
-    type Offsets<'a> = ();
-
-    fn xc3_write<W: std::io::Write + std::io::Seek>(
-        &self,
-        writer: &mut W,
-    ) -> xc3_write::Xc3Result<Self::Offsets<'_>> {
-        u32::from(*self).write_le(writer)?;
-        Ok(())
-    }
-}
 
 impl<'a> Xc3WriteOffsets for SkinningOffsets<'a> {
     fn write_offsets<W: std::io::Write + std::io::Seek>(

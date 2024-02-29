@@ -492,7 +492,7 @@ impl ModelRoot {
 // TODO: move this to xc3_lib?
 #[derive(BinRead)]
 enum Wimdo {
-    Mxmd(Mxmd),
+    Mxmd(Box<Mxmd>),
     Apmd(Apmd),
 }
 
@@ -500,7 +500,7 @@ fn load_wimdo(wimdo_path: &Path) -> Result<Mxmd, LoadModelError> {
     let mut reader = Cursor::new(std::fs::read(wimdo_path)?);
     let wimdo: Wimdo = reader.read_le()?;
     match wimdo {
-        Wimdo::Mxmd(mxmd) => Ok(mxmd),
+        Wimdo::Mxmd(mxmd) => Ok(*mxmd),
         Wimdo::Apmd(apmd) => apmd
             .entries
             .iter()

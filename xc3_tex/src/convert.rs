@@ -22,7 +22,7 @@ pub enum File {
     Dds(Dds),
     Image(RgbaImage),
     Wilay(MaybeXbc1<Wilay>),
-    Wimdo(Mxmd),
+    Wimdo(Box<Mxmd>),
 }
 
 // TODO: Move this to xc3_lib?

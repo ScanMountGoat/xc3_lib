@@ -87,7 +87,7 @@ pub fn materials(
             let mut texture_views: [Option<_>; 10] = std::array::from_fn(|_| None);
             let mut is_single_channel = [UVec4::ZERO; 10];
             for (name, i) in &name_to_index {
-                if let Some(texture) = assign_texture(material, textures, monolib_shader, &name) {
+                if let Some(texture) = assign_texture(material, textures, monolib_shader, name) {
                     texture_views[*i] = Some(texture.create_view(&Default::default()));
                     // TODO: Better way of doing this?
                     if texture.format() == wgpu::TextureFormat::Bc4RUnorm {

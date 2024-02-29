@@ -469,14 +469,14 @@ fn check_laps(laps: Laps, path: &Path, original_bytes: &[u8], check_read_write: 
 
 #[derive(BinRead)]
 enum Wimdo {
-    Mxmd(Mxmd),
+    Mxmd(Box<Mxmd>),
     Apmd(Apmd),
 }
 
 fn check_wimdo(data: Wimdo, path: &Path, original_bytes: &[u8], check_read_write: bool) {
     match data {
         Wimdo::Mxmd(mxmd) => {
-            check_mxmd(mxmd, path, original_bytes, check_read_write);
+            check_mxmd(*mxmd, path, original_bytes, check_read_write);
         }
         Wimdo::Apmd(apmd) => {
             for entry in &apmd.entries {
@@ -586,7 +586,7 @@ fn check_ltpc(ltpc: Ltpc, path: &Path, original_bytes: &[u8], check_read_write: 
 // Use an enum for better error reporting.
 #[derive(BinRead)]
 enum Sar1EntryData {
-    Bc(Bc),
+    Bc(Box<Bc>),
     ChCl(ChCl),
     Csvb(Csvb),
     Eva(Eva),
@@ -603,7 +603,7 @@ fn check_sar1(sar1: Sar1, path: &Path, original_bytes: &[u8], check_read_write: 
         match reader.read_le() {
             Ok(data) => match data {
                 Sar1EntryData::Bc(bc) => {
-                    check_bc(bc, path, &entry.entry_data, check_read_write);
+                    check_bc(*bc, path, &entry.entry_data, check_read_write);
                 }
                 Sar1EntryData::ChCl(chcl) => {
                     if check_read_write {

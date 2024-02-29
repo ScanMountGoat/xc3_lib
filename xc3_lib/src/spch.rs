@@ -10,7 +10,7 @@ use std::io::{Cursor, SeekFrom};
 
 use crate::{parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_string_ptr32};
 use binrw::{args, binread, BinRead, BinReaderExt, BinResult};
-use xc3_write::{VecOffsets, Xc3Write, Xc3WriteOffsets};
+use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 // TODO: Add example code for extracting shaders.
 /// .wishp, embedded in .wismt and .wimdo
@@ -72,7 +72,7 @@ pub struct Spch {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, PartialEq, Clone)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import { base_offset: u64, count: usize })]
 pub struct StringSection {
     #[br(args { count, inner: base_offset})]
@@ -451,17 +451,6 @@ pub fn vertex_fragment_binaries<'a>(
             (vertex, fragment)
         })
         .collect()
-}
-
-impl Xc3Write for StringSection {
-    type Offsets<'a> = VecOffsets<StringOffsetOffsets<'a>>;
-
-    fn xc3_write<W: std::io::Write + std::io::Seek>(
-        &self,
-        writer: &mut W,
-    ) -> xc3_write::Xc3Result<Self::Offsets<'_>> {
-        self.program_names.xc3_write(writer)
-    }
 }
 
 impl<'a> Xc3WriteOffsets for SpchOffsets<'a> {

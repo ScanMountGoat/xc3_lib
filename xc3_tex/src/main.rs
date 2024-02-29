@@ -140,7 +140,7 @@ fn main() -> anyhow::Result<()> {
             std::fs::create_dir_all(&output)
                 .with_context(|| format!("failed to create output directory {output:?}"))?;
 
-            let count = extract_wimdo_to_folder(wimdo, &input, &output);
+            let count = extract_wimdo_to_folder(*wimdo, &input, &output);
             println!("Converted {count} file(s) in {:?}", start.elapsed());
         } else {
             if let Some(parent) = output.parent() {
@@ -195,6 +195,7 @@ fn load_input_file(input: &PathBuf) -> anyhow::Result<File> {
         )),
         "wimdo" => Mxmd::from_file(input)
             .with_context(|| format!("{input:?} is not a valid .wimdo file"))
+            .map(Box::new)
             .map(File::Wimdo),
         _ => {
             // Assume other formats are image formats.
