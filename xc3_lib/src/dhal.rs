@@ -643,8 +643,14 @@ impl<'a> Xc3WriteOffsets for Unk4Offsets<'a> {
 }
 
 fn buffer_size(unk1: &[Unk2Unk1], unk2: &[Unk2Unk2]) -> usize {
-    // Assume data is tightly packed and starts from 0.
-    // TODO: extra data?
-    unk1.iter().map(|u| u.count as usize * 20).sum::<usize>()
-        + unk2.iter().map(|u| u.count as usize * 2).sum::<usize>()
+    // Assume data starts from 0.
+    // TODO: extra padding bytes?
+    // TODO: Some items overlap?
+    let unk1_size = unk1.iter().map(|u| u.count as usize * 20).sum::<usize>();
+    let unk2_size = unk2
+        .iter()
+        .map(|u| u.data_offset as usize + u.count as usize * 2)
+        .max()
+        .unwrap_or_default();
+    unk1_size.max(unk2_size)
 }
