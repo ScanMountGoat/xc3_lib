@@ -2,7 +2,7 @@ use std::{io::Cursor, path::Path};
 
 use anyhow::Context;
 use binrw::BinRead;
-use image_dds::{ddsfile::Dds, image::RgbaImage, ImageFormat, Surface};
+use image_dds::{ddsfile::Dds, image::RgbaImage, ImageFormat, Mipmaps, Quality, Surface};
 use xc3_lib::{
     dds::DdsExt,
     dhal::Dhal,
@@ -33,7 +33,12 @@ pub enum Wilay {
 }
 
 impl File {
-    pub fn to_dds(&self, format: Option<ImageFormat>) -> anyhow::Result<Dds> {
+    pub fn to_dds(
+        &self,
+        format: Option<ImageFormat>,
+        quality: Option<Quality>,
+        mipmaps: bool,
+    ) -> anyhow::Result<Dds> {
         match self {
             File::Mibl(mibl) => mibl
                 .to_dds()
@@ -42,16 +47,17 @@ impl File {
                 // Handle changes in image format while preserving layers and mipmaps.
                 // TODO: dds doesn't implement clone?
                 match format {
-                    Some(format) => Surface::from_dds(dds)
-                        .unwrap()
-                        .decode_rgba8()
-                        .unwrap()
+                    Some(format) => Surface::from_dds(dds)?
+                        .decode_rgba8()?
                         .encode(
                             format,
-                            image_dds::Quality::Normal,
-                            image_dds::Mipmaps::GeneratedAutomatic,
-                        )
-                        .unwrap()
+                            quality.unwrap_or(Quality::Normal),
+                            if mipmaps {
+                                Mipmaps::GeneratedAutomatic
+                            } else {
+                                Mipmaps::Disabled
+                            },
+                        )?
                         .to_dds()
                         .with_context(|| "failed to convert surface to DDS"),
                     None => Ok(Dds {
@@ -64,8 +70,12 @@ impl File {
             File::Image(image) => image_dds::dds_from_image(
                 image,
                 format.ok_or(anyhow::anyhow!("missing required image output format"))?,
-                image_dds::Quality::Normal,
-                image_dds::Mipmaps::GeneratedAutomatic,
+                quality.unwrap_or(Quality::Normal),
+                if mipmaps {
+                    Mipmaps::GeneratedAutomatic
+                } else {
+                    Mipmaps::Disabled
+                },
             )
             .with_context(|| "failed to encode image to DDS"),
             File::Wilay(_) => Err(anyhow::anyhow!(
@@ -77,7 +87,12 @@ impl File {
         }
     }
 
-    pub fn to_mibl(&self, format: Option<ImageFormat>) -> anyhow::Result<Mibl> {
+    pub fn to_mibl(
+        &self,
+        format: Option<ImageFormat>,
+        quality: Option<Quality>,
+        mipmaps: bool,
+    ) -> anyhow::Result<Mibl> {
         // TODO: decode and encode again if needed.
         match self {
             File::Mibl(mibl) => Ok(mibl.clone()),
@@ -86,8 +101,12 @@ impl File {
                 let dds = image_dds::dds_from_image(
                     image,
                     format.ok_or(anyhow::anyhow!("missing required image output format"))?,
-                    image_dds::Quality::Normal,
-                    image_dds::Mipmaps::GeneratedAutomatic,
+                    quality.unwrap_or(Quality::Normal),
+                    if mipmaps {
+                        Mipmaps::GeneratedAutomatic
+                    } else {
+                        Mipmaps::Disabled
+                    },
                 )
                 .with_context(|| "failed to create encode image to DDS")?;
 
@@ -105,7 +124,7 @@ impl File {
 
     pub fn to_image(&self) -> anyhow::Result<RgbaImage> {
         match self {
-            File::Mibl(mibl) => image_dds::image_from_dds(&mibl.to_dds().unwrap(), 0)
+            File::Mibl(mibl) => image_dds::image_from_dds(&mibl.to_dds()?, 0)
                 .with_context(|| "failed to decode Mibl image"),
             File::Dds(dds) => {
                 image_dds::image_from_dds(dds, 0).with_context(|| "failed to decode DDS")
@@ -195,8 +214,8 @@ fn replace_wilay_mibl(
 ) -> anyhow::Result<usize> {
     let mut count = 0;
 
-    for entry in std::fs::read_dir(input_folder).unwrap() {
-        let path = entry.unwrap().path();
+    for entry in std::fs::read_dir(input_folder)? {
+        let path = entry?.path();
         if path.extension().and_then(|e| e.to_str()) == Some("dds") {
             if let Some(i) = image_index(&path, input) {
                 // TODO: Add a to_bytes helper?
@@ -223,8 +242,8 @@ fn replace_wilay_jpeg(
 ) -> anyhow::Result<usize> {
     let mut count = 0;
 
-    for entry in std::fs::read_dir(input_folder).unwrap() {
-        let path = entry.unwrap().path();
+    for entry in std::fs::read_dir(input_folder)? {
+        let path = entry?.path();
         if path.extension().and_then(|e| e.to_str()) == Some("jpeg") {
             if let Some(i) = image_index(&path, input) {
                 textures.textures[i].jpeg_data = std::fs::read(&path)
@@ -261,16 +280,16 @@ pub fn update_wimdo_from_folder(
     }
 
     // We need to repack the entire wismt even though we only modify textures.
-    let msrd = Msrd::from_file(input_path.with_extension("wismt")).unwrap();
-    let (vertex, spch, mut textures) = msrd.extract_files(chr_tex_nx_input.as_deref()).unwrap();
+    let msrd = Msrd::from_file(input_path.with_extension("wismt"))?;
+    let (vertex, spch, mut textures) = msrd.extract_files(chr_tex_nx_input.as_deref())?;
 
     let mut count = 0;
 
-    for entry in std::fs::read_dir(input_folder).unwrap() {
-        let path = entry.unwrap().path();
+    for entry in std::fs::read_dir(input_folder)? {
+        let path = entry?.path();
         if let Some(i) = image_index(&path, input) {
             if let Ok(dds) = Dds::from_file(path) {
-                let new_mibl = Mibl::from_dds(&dds).unwrap();
+                let new_mibl = Mibl::from_dds(&dds)?;
                 if let Some(high) = &mut textures[i].high {
                     let (mid, base_mip) = new_mibl.split_base_mip();
                     *high = HighTexture {
@@ -398,7 +417,11 @@ fn extract_dhal(
     Ok(())
 }
 
-pub fn extract_wimdo_to_folder(mxmd: Mxmd, input: &Path, output_folder: &Path) -> usize {
+pub fn extract_wimdo_to_folder(
+    mxmd: Mxmd,
+    input: &Path,
+    output_folder: &Path,
+) -> anyhow::Result<usize> {
     let file_name = input.file_name().unwrap();
 
     // TODO: packed mxmd textures.
@@ -410,8 +433,8 @@ pub fn extract_wimdo_to_folder(mxmd: Mxmd, input: &Path, output_folder: &Path) -
         );
     }
 
-    let msrd = Msrd::from_file(input.with_extension("wismt")).unwrap();
-    let (_, _, textures) = msrd.extract_files(chr_tex_nx.as_deref()).unwrap();
+    let msrd = Msrd::from_file(input.with_extension("wismt"))?;
+    let (_, _, textures) = msrd.extract_files(chr_tex_nx.as_deref())?;
 
     for (i, texture) in textures.iter().enumerate() {
         let dds = texture.mibl_final().to_dds().unwrap();
@@ -421,12 +444,12 @@ pub fn extract_wimdo_to_folder(mxmd: Mxmd, input: &Path, output_folder: &Path) -
         dds.save(path).unwrap();
     }
 
-    textures.len()
+    Ok(textures.len())
 }
 
 // TODO: Move this to xc3_lib?
-pub fn read_wismt_single_tex<P: AsRef<Path>>(path: P) -> Mibl {
-    Xbc1::from_file(path).unwrap().extract().unwrap()
+pub fn read_wismt_single_tex<P: AsRef<Path>>(path: P) -> anyhow::Result<Mibl> {
+    Xbc1::from_file(path)?.extract().map_err(Into::into)
 }
 
 pub fn create_wismt_single_tex(mibl: &Mibl) -> Xbc1 {

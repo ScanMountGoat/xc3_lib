@@ -6,11 +6,7 @@ use convert::{
     create_wismt_single_tex, extract_wilay_to_folder, extract_wimdo_to_folder,
     read_wismt_single_tex, update_wilay_from_folder, update_wimdo_from_folder, File, Wilay,
 };
-use image_dds::{
-    ddsfile::Dds,
-    image::{self},
-    ImageFormat,
-};
+use image_dds::{ddsfile::Dds, image, ImageFormat, Quality};
 use strum::IntoEnumIterator;
 use xc3_lib::{dds::DdsExt, mibl::Mibl, mxmd::Mxmd, xbc1::MaybeXbc1};
 
@@ -37,9 +33,15 @@ struct ConvertArgs {
     /// The output file or the output folder when the input is a wimdo or wilay.
     /// All of the supported input formats also work as output formats.
     output: Option<String>,
-    /// The compression format like BC7Unorm when saving as a file like dds or witex
-    #[arg(value_parser = PossibleValuesParser::new(ImageFormat::iter().map(|f| f.to_string())))]
+    /// The compression format when saving as a file like dds or witex
+    #[arg(long, value_parser = PossibleValuesParser::new(ImageFormat::iter().map(|f| f.to_string())))]
     format: Option<String>,
+    /// The compression quality when saving as a file like dds or witex
+    #[arg(long, value_parser = PossibleValuesParser::new(Quality::iter().map(|f| f.to_string())))]
+    quality: Option<String>,
+    /// Don't include any mipmaps when saving as a file like dds or witex
+    #[arg(long)]
+    no_mipmaps: bool,
 }
 
 #[derive(Subcommand)]
@@ -140,7 +142,7 @@ fn main() -> anyhow::Result<()> {
             std::fs::create_dir_all(&output)
                 .with_context(|| format!("failed to create output directory {output:?}"))?;
 
-            let count = extract_wimdo_to_folder(*wimdo, &input, &output);
+            let count = extract_wimdo_to_folder(*wimdo, &input, &output)?;
             println!("Converted {count} file(s) in {:?}", start.elapsed());
         } else {
             if let Some(parent) = output.parent() {
@@ -150,19 +152,25 @@ fn main() -> anyhow::Result<()> {
 
             // All other formats save to single files.
             let format = args.format.map(|f| ImageFormat::from_str(&f)).transpose()?;
+            let quality = args.quality.map(|f| Quality::from_str(&f)).transpose()?;
+            let mipmaps = !args.no_mipmaps;
+
             match output.extension().unwrap().to_str().unwrap() {
                 "dds" => {
                     input_file
-                        .to_dds(format)?
+                        .to_dds(format, quality, mipmaps)?
                         .save(&output)
                         .with_context(|| format!("failed to save DDS to {output:?}"))?;
                 }
                 "witex" | "witx" => {
-                    input_file.to_mibl(format)?.save(&output).unwrap();
+                    input_file
+                        .to_mibl(format, quality, mipmaps)?
+                        .save(&output)
+                        .unwrap();
                 }
                 "wismt" => {
                     // TODO: Also create base level?
-                    let mibl = input_file.to_mibl(format)?;
+                    let mibl = input_file.to_mibl(format, quality, mipmaps)?;
                     let xbc1 = create_wismt_single_tex(&mibl);
                     xbc1.save(&output).unwrap();
                 }
@@ -188,7 +196,9 @@ fn load_input_file(input: &PathBuf) -> anyhow::Result<File> {
         "dds" => Dds::from_file(input)
             .with_context(|| format!("{input:?} is not a valid .dds file"))
             .map(File::Dds),
-        "wismt" => Ok(File::Mibl(read_wismt_single_tex(input))),
+        "wismt" => read_wismt_single_tex(input)
+            .with_context(|| format!("{input:?} is not a valid .wismt file"))
+            .map(File::Mibl),
         "wilay" => Ok(File::Wilay(
             MaybeXbc1::<Wilay>::from_file(input)
                 .with_context(|| format!("{input:?} is not a valid .wilay file"))?,

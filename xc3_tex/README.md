@@ -10,13 +10,14 @@ See the help text for a full list of commands and supported formats.
 `xc3_tex "Xeno 3 Dump\chr\tex\nx\m\00a57332.wismt" out.dds`  
 `xc3_tex in.dds out.wismt`  
 `xc3_tex in.dds out.witex`  
-`xc3_tex in.png out.witex BC7Unorm`
+`xc3_tex in.png out.witex --format BC7Unorm`
 
 ### DDS Conversion
 xc3_tex also provides the ability to convert DDS files to and from uncompressed formats like PNG or TIFF. This is helpful on platforms like Linux and MacOS since many popular texture conversion tools are Windows only.
 
 `xc3_tex in.dds out.png`  
-`xc3_tex in.png out.dds BC7Unorm`
+`xc3_tex in.png out.dds --format BC7Unorm --quality Fast --no-mipmaps`
+`xc3_tex in.png out.dds --format BC3Srgb`
 
 ### Wilay Texture Replacement
 Export the DDS and JPEG images by dragging and dropping the `.wilay` file onto the executable or by running the terminal command. After editing the images, use the edit-wilay command to replace the images.
