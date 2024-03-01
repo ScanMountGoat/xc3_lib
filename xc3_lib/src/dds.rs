@@ -79,17 +79,17 @@ impl From<ImageFormat> for image_dds::ImageFormat {
     fn from(value: ImageFormat) -> Self {
         match value {
             ImageFormat::R8Unorm => image_dds::ImageFormat::R8Unorm,
-            ImageFormat::R8G8B8A8Unorm => image_dds::ImageFormat::R8G8B8A8Unorm,
-            ImageFormat::R16G16B16A16Float => image_dds::ImageFormat::R16G16B16A16Float,
-            ImageFormat::R4G4B4A4Unorm => image_dds::ImageFormat::B4G4R4A4Unorm,
-            ImageFormat::BC1Unorm => image_dds::ImageFormat::BC1Unorm,
-            ImageFormat::BC2Unorm => image_dds::ImageFormat::BC2Unorm,
-            ImageFormat::BC3Unorm => image_dds::ImageFormat::BC3Unorm,
-            ImageFormat::BC4Unorm => image_dds::ImageFormat::BC4Unorm,
-            ImageFormat::BC5Unorm => image_dds::ImageFormat::BC5Unorm,
-            ImageFormat::BC7Unorm => image_dds::ImageFormat::BC7Unorm,
-            ImageFormat::BC6UFloat => image_dds::ImageFormat::BC6Ufloat,
-            ImageFormat::B8G8R8A8Unorm => image_dds::ImageFormat::B8G8R8A8Unorm,
+            ImageFormat::R8G8B8A8Unorm => image_dds::ImageFormat::Rgba8Unorm,
+            ImageFormat::R16G16B16A16Float => image_dds::ImageFormat::Rgba16Float,
+            ImageFormat::R4G4B4A4Unorm => image_dds::ImageFormat::Bgra4Unorm,
+            ImageFormat::BC1Unorm => image_dds::ImageFormat::BC1RgbaUnorm,
+            ImageFormat::BC2Unorm => image_dds::ImageFormat::BC2RgbaUnorm,
+            ImageFormat::BC3Unorm => image_dds::ImageFormat::BC3RgbaUnorm,
+            ImageFormat::BC4Unorm => image_dds::ImageFormat::BC4RUnorm,
+            ImageFormat::BC5Unorm => image_dds::ImageFormat::BC5RgUnorm,
+            ImageFormat::BC7Unorm => image_dds::ImageFormat::BC7RgbaUnorm,
+            ImageFormat::BC6UFloat => image_dds::ImageFormat::BC6hRgbUfloat,
+            ImageFormat::B8G8R8A8Unorm => image_dds::ImageFormat::Bgra8Unorm,
         }
     }
 }
@@ -100,17 +100,17 @@ impl TryFrom<image_dds::ImageFormat> for ImageFormat {
     fn try_from(value: image_dds::ImageFormat) -> Result<Self, Self::Error> {
         match value {
             image_dds::ImageFormat::R8Unorm => Ok(ImageFormat::R8Unorm),
-            image_dds::ImageFormat::R8G8B8A8Unorm => Ok(ImageFormat::R8G8B8A8Unorm),
-            image_dds::ImageFormat::R16G16B16A16Float => Ok(ImageFormat::R16G16B16A16Float),
-            image_dds::ImageFormat::B8G8R8A8Unorm => Ok(ImageFormat::B8G8R8A8Unorm),
-            image_dds::ImageFormat::BC1Unorm => Ok(ImageFormat::BC1Unorm),
-            image_dds::ImageFormat::BC2Unorm => Ok(ImageFormat::BC2Unorm),
-            image_dds::ImageFormat::BC3Unorm => Ok(ImageFormat::BC3Unorm),
-            image_dds::ImageFormat::BC4Unorm => Ok(ImageFormat::BC4Unorm),
-            image_dds::ImageFormat::BC5Unorm => Ok(ImageFormat::BC5Unorm),
-            image_dds::ImageFormat::BC6Ufloat => Ok(ImageFormat::BC6UFloat),
-            image_dds::ImageFormat::BC7Unorm => Ok(ImageFormat::BC7Unorm),
-            image_dds::ImageFormat::B4G4R4A4Unorm => Ok(ImageFormat::R4G4B4A4Unorm),
+            image_dds::ImageFormat::Rgba8Unorm => Ok(ImageFormat::R8G8B8A8Unorm),
+            image_dds::ImageFormat::Rgba16Float => Ok(ImageFormat::R16G16B16A16Float),
+            image_dds::ImageFormat::Bgra8Unorm => Ok(ImageFormat::B8G8R8A8Unorm),
+            image_dds::ImageFormat::BC1RgbaUnorm => Ok(ImageFormat::BC1Unorm),
+            image_dds::ImageFormat::BC2RgbaUnorm => Ok(ImageFormat::BC2Unorm),
+            image_dds::ImageFormat::BC3RgbaUnorm => Ok(ImageFormat::BC3Unorm),
+            image_dds::ImageFormat::BC4RUnorm => Ok(ImageFormat::BC4Unorm),
+            image_dds::ImageFormat::BC5RgUnorm => Ok(ImageFormat::BC5Unorm),
+            image_dds::ImageFormat::BC6hRgbUfloat => Ok(ImageFormat::BC6UFloat),
+            image_dds::ImageFormat::BC7RgbaUnorm => Ok(ImageFormat::BC7Unorm),
+            image_dds::ImageFormat::Bgra4Unorm => Ok(ImageFormat::R4G4B4A4Unorm),
             _ => Err(CreateMiblError::UnsupportedImageFormat(value)),
         }
     }
