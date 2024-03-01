@@ -214,13 +214,8 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance: InstanceInput, 
     out.clip_position = camera.view_projection * model_matrix * vec4(position, 1.0);
     out.position = out.clip_position.xyz;
 
-    // TODO: The zw components should contain a scaled version?
-    // TODO: How to detect what the scale values should be?
-    // TODO: How to detect whether a texture uses the scaled UVs or not?
-    // TODO: Are the scaled UVs always in zw?
-    // TODO: sometimes tex0.xy is multiplied by a matrix?
-    // TODO: some shaders have gTexA, gTexB, gTexC for up to 5 scaled versions of tex0?
-    // TODO: frag shader just accesses the attributes without modifying them?
+    // Some shaders have gTexA, gTexB, gTexC for up to 5 scaled versions of tex0.
+    // This is handled in the fragment shader, so just return a single attribute.
     out.tex0 = in1.tex0.xy;
 
     // TODO: Find a better way to only force vertex color for outlines.
