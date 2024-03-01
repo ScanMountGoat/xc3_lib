@@ -301,6 +301,7 @@ impl Xc3Renderer {
         output_view: &wgpu::TextureView,
         encoder: &mut wgpu::CommandEncoder,
         models: &[ModelGroup],
+        draw_bounds: bool,
     ) {
         // The passes and their ordering only loosely matches in game.
         // This enables better performance, portability, etc.
@@ -312,7 +313,7 @@ impl Xc3Renderer {
         self.deferred_pass(encoder);
         self.alpha2_pass(encoder, models);
         self.snn_filter_pass(encoder);
-        self.final_pass(encoder, output_view, models);
+        self.final_pass(encoder, output_view, models, draw_bounds);
     }
 
     pub fn update_camera(&mut self, queue: &wgpu::Queue, camera_data: &CameraData) {
@@ -618,6 +619,7 @@ impl Xc3Renderer {
         encoder: &mut wgpu::CommandEncoder,
         output_view: &wgpu::TextureView,
         models: &[ModelGroup],
+        draw_bounds: bool,
     ) {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Final Pass"),
@@ -651,18 +653,19 @@ impl Xc3Renderer {
 
         // TODO: Some eye meshes draw in this pass?
 
-        // TODO: Add render options to disable this?
         // TODO: Create a BoundsRenderer to store this data?
-        render_pass.set_pipeline(&self.solid_pipeline);
-        self.solid_bind_group0.set(&mut render_pass);
+        if draw_bounds {
+            render_pass.set_pipeline(&self.solid_pipeline);
+            self.solid_bind_group0.set(&mut render_pass);
 
-        for model in models {
-            model.draw_bounds(
-                &mut render_pass,
-                &self.solid_bind_group1,
-                &self.solid_culled_bind_group1,
-                &self.camera,
-            );
+            for model in models {
+                model.draw_bounds(
+                    &mut render_pass,
+                    &self.solid_bind_group1,
+                    &self.solid_culled_bind_group1,
+                    &self.camera,
+                );
+            }
         }
     }
 

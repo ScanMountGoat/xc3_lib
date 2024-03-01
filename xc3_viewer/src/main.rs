@@ -272,7 +272,7 @@ impl<'a> State<'a> {
             });
 
         self.renderer
-            .render_models(&output_view, &mut encoder, &self.groups);
+            .render_models(&output_view, &mut encoder, &self.groups, false);
 
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();

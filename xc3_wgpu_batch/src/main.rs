@@ -62,7 +62,7 @@ fn main() {
     let (device, queue) = block_on(adapter.request_device(
         &wgpu::DeviceDescriptor {
             label: None,
-            required_features: wgpu::Features::TEXTURE_COMPRESSION_BC,
+            required_features: xc3_wgpu::FEATURES,
             required_limits: wgpu::Limits::default(),
         },
         None,
@@ -171,7 +171,7 @@ fn main() {
                 label: Some("Render Encoder"),
             });
 
-            renderer.render_models(&output_view, &mut encoder, &groups);
+            renderer.render_models(&output_view, &mut encoder, &groups, false);
 
             let output_path = path.with_extension("png");
             save_screenshot(
