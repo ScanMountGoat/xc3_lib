@@ -142,7 +142,7 @@ impl<'a> State<'a> {
             "wimdo" | "pcmdo" => {
                 // TODO: Dropping vertex buffers is expensive?
                 let root = xc3_model::load_model(model_path, database.as_ref())
-                    .with_context(|| format!("{model_path:?} is not a valid .wimdo file"))?;
+                    .with_context(|| format!("failed to load .wimdo model from {model_path:?}"))?;
                 info!("Load root: {:?}", start.elapsed());
                 Ok(xc3_wgpu::load_model(
                     &device,
@@ -153,7 +153,7 @@ impl<'a> State<'a> {
             }
             "wismhd" => {
                 let roots = xc3_model::load_map(model_path, database.as_ref())
-                    .with_context(|| format!("{model_path:?} is not a valid .wismhd file"))?;
+                    .with_context(|| format!("failed to load .wismhd map from {model_path:?}"))?;
                 info!("Load {} roots: {:?}", roots.len(), start.elapsed());
                 Ok(xc3_wgpu::load_model(
                     &device,

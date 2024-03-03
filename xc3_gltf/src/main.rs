@@ -36,10 +36,10 @@ fn main() -> anyhow::Result<()> {
 
     let roots = if cli.input.ends_with(".wismhd") {
         xc3_model::load_map(&cli.input, database.as_ref())
-            .with_context(|| format!("{:?} is not a valid .wismhd file", cli.input))?
+            .with_context(|| format!("failed to load .wismhd map {:?}", cli.input))?
     } else {
         let root = load_model(&cli.input, database.as_ref())
-            .with_context(|| format!("{:?} is not a valid .wimdo file", cli.input))?;
+            .with_context(|| format!("failed to load .wimdo model {:?}", cli.input))?;
         vec![root]
     };
 

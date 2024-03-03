@@ -4,6 +4,7 @@ use std::{
 };
 
 use image_dds::ddsfile::Dds;
+use thiserror::Error;
 use xc3_write::Xc3Result;
 
 use crate::{
@@ -12,6 +13,19 @@ use crate::{
 };
 
 use super::*;
+
+#[derive(Debug, Error)]
+pub enum ExtractFilesError {
+    #[error("error decompressing stream")]
+    Stream(#[from] DecompressStreamError),
+
+    #[error("error reading texture from {path:?}")]
+    ChrTexTexture {
+        path: PathBuf,
+        #[source]
+        source: DecompressStreamError,
+    },
+}
 
 // TODO: Add a function to create an extractedtexture from a surface?
 /// All the mip levels and metadata for an [Mibl] (Switch) or [Dds] (PC) texture.
@@ -156,7 +170,7 @@ impl Msrd {
     pub fn extract_files(
         &self,
         chr_tex_nx: Option<&Path>,
-    ) -> Result<(VertexData, Spch, Vec<ExtractedTexture<Mibl>>), DecompressStreamError> {
+    ) -> Result<(VertexData, Spch, Vec<ExtractedTexture<Mibl>>), ExtractFilesError> {
         // TODO: Return just textures for legacy data?
         match &self.streaming.inner {
             StreamingInner::StreamingLegacy(_) => todo!(),
@@ -167,7 +181,7 @@ impl Msrd {
     /// Extract all embedded files for a `pcsmt` file.
     pub fn extract_files_pc(
         &self,
-    ) -> Result<(VertexData, Spch, Vec<ExtractedTexture<Dds>>), DecompressStreamError> {
+    ) -> Result<(VertexData, Spch, Vec<ExtractedTexture<Dds>>), ExtractFilesError> {
         match &self.streaming.inner {
             StreamingInner::StreamingLegacy(_) => todo!(),
             StreamingInner::Streaming(data) => data.extract_files(&self.data, None),
@@ -261,17 +275,20 @@ impl StreamingData {
         &self,
         data: &[u8],
         chr_tex_nx: Option<&Path>,
-    ) -> Result<(VertexData, Spch, Vec<ExtractedTexture<T>>), DecompressStreamError> {
+    ) -> Result<(VertexData, Spch, Vec<ExtractedTexture<T>>), ExtractFilesError> {
         let first_xbc1_offset = self.streams[0].xbc1_offset;
 
         // Extract all at once to avoid costly redundant decompression operations.
         // TODO: is this always in the first stream?
         let stream0 = self.streams[0]
-            .read_xbc1(data, first_xbc1_offset)?
+            .read_xbc1(data, first_xbc1_offset)
+            .map_err(DecompressStreamError::from)?
             .decompress()?;
         let vertex =
-            VertexData::from_bytes(self.entry_bytes(self.vertex_data_entry_index, &stream0))?;
-        let spch = Spch::from_bytes(self.entry_bytes(self.shader_entry_index, &stream0))?;
+            VertexData::from_bytes(self.entry_bytes(self.vertex_data_entry_index, &stream0))
+                .map_err(DecompressStreamError::from)?;
+        let spch = Spch::from_bytes(self.entry_bytes(self.shader_entry_index, &stream0))
+            .map_err(DecompressStreamError::from)?;
 
         // TODO: is this always in the first stream?
         let low_texture_bytes = self.entry_bytes(self.low_textures_entry_index, &stream0);
@@ -308,7 +325,7 @@ impl StreamingData {
         data: &[u8],
         low_texture_data: &[u8],
         chr_tex_nx: Option<P>,
-    ) -> Result<Vec<ExtractedTexture<T>>, DecompressStreamError> {
+    ) -> Result<Vec<ExtractedTexture<T>>, ExtractFilesError> {
         // Start with no high res textures or base mip levels.
         let mut textures = self.extract_low_textures(low_texture_data)?;
 
@@ -316,7 +333,8 @@ impl StreamingData {
             // The high resolution textures are packed into a single stream.
             let first_xbc1_offset = self.streams[0].xbc1_offset;
             let stream = &self.streams[self.textures_stream_index as usize]
-                .read_xbc1(data, first_xbc1_offset)?
+                .read_xbc1(data, first_xbc1_offset)
+                .map_err(DecompressStreamError::from)?
                 .decompress()?;
 
             // TODO: Par iter?
@@ -330,7 +348,7 @@ impl StreamingData {
             {
                 let bytes =
                     &stream[entry.offset as usize..entry.offset as usize + entry.size as usize];
-                let mid = T::from_bytes(bytes)?;
+                let mid = T::from_bytes(bytes).map_err(DecompressStreamError::from)?;
 
                 // Indices start from 1 for the base mip level.
                 // Base mip levels are stored in their own streams.
@@ -338,7 +356,8 @@ impl StreamingData {
                 let base_mip = if base_mip_stream_index != 0 {
                     Some(
                         self.streams[base_mip_stream_index as usize]
-                            .read_xbc1(data, first_xbc1_offset)?
+                            .read_xbc1(data, first_xbc1_offset)
+                            .map_err(DecompressStreamError::from)?
                             .decompress()?,
                     )
                 } else {
@@ -363,12 +382,20 @@ impl StreamingData {
                     let name = format!("{:08x}", chr_tex.hash);
 
                     let m_path = chr_tex_nx.join("m").join(&name).with_extension("wismt");
-                    let xbc1 = Xbc1::from_file(m_path)?;
-                    let bytes = xbc1.decompress()?;
-                    let mid = T::from_bytes(bytes)?;
+                    let mid = read_chr_tex_m_texture(&m_path).map_err(|e| {
+                        ExtractFilesError::ChrTexTexture {
+                            path: m_path,
+                            source: e,
+                        }
+                    })?;
 
                     let h_path = chr_tex_nx.join("h").join(&name).with_extension("wismt");
-                    let base_mip = Xbc1::from_file(h_path)?.decompress()?;
+                    let base_mip = read_chr_tex_h_texture(&h_path).map_err(|e| {
+                        ExtractFilesError::ChrTexTexture {
+                            path: h_path,
+                            source: e,
+                        }
+                    })?;
 
                     textures[*i as usize].high = Some(HighTexture {
                         mid,
@@ -380,6 +407,18 @@ impl StreamingData {
 
         Ok(textures)
     }
+}
+
+fn read_chr_tex_h_texture(h_path: &Path) -> Result<Vec<u8>, DecompressStreamError> {
+    let base_mip = Xbc1::from_file(h_path)?.decompress()?;
+    Ok(base_mip)
+}
+
+fn read_chr_tex_m_texture<T: Texture>(m_path: &Path) -> Result<T, DecompressStreamError> {
+    let xbc1 = Xbc1::from_file(m_path)?;
+    let bytes = xbc1.decompress()?;
+    let mid = T::from_bytes(bytes)?;
+    Ok(mid)
 }
 
 fn pack_files(

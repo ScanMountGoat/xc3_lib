@@ -27,7 +27,11 @@
 //! # }
 //! ```
 
-use std::{borrow::Cow, io::Cursor, path::Path};
+use std::{
+    borrow::Cow,
+    io::Cursor,
+    path::{Path, PathBuf},
+};
 
 use animation::Animation;
 use binrw::{BinRead, BinReaderExt};
@@ -242,11 +246,21 @@ pub fn should_render_lod(lod: u16, base_lod_indices: &Option<Vec<u16>>) -> bool 
 
 #[derive(Debug, Error)]
 pub enum LoadModelError {
-    #[error("error reading data")]
-    Io(#[from] std::io::Error),
+    #[error("error reading wimdo file from {path:?}")]
+    Wimdo {
+        path: PathBuf,
+        #[source]
+        source: binrw::Error,
+    },
 
-    #[error("error reading data")]
-    Binrw(#[from] binrw::Error),
+    #[error("error extracting texture from wimdo file")]
+    WimdoPackedTexture {
+        #[source]
+        source: binrw::Error,
+    },
+
+    #[error("error reading vertex data")]
+    VertexData(binrw::Error),
 
     #[error("failed to find Mxmd in Apmd file")]
     MissingApmdMxmdEntry,
@@ -259,6 +273,23 @@ pub enum LoadModelError {
 
     #[error("error decompressing stream")]
     Stream(#[from] xc3_lib::error::DecompressStreamError),
+
+    #[error("error extracting stream data")]
+    ExtractFiles(#[from] xc3_lib::msrd::streaming::ExtractFilesError),
+
+    #[error("error reading legacy wismt streaming data from {path:?}")]
+    WismtLegacy {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("error reading wismt streaming data from {path:?}")]
+    Wismt {
+        path: PathBuf,
+        #[source]
+        source: binrw::Error,
+    },
 }
 
 // TODO: Take an iterator for wimdo paths and merge to support xc1?
@@ -369,7 +400,8 @@ impl ModelRoot {
         let skeleton = create_skeleton(chr.as_ref(), mxmd.models.skinning.as_ref());
 
         let buffers =
-            ModelBuffers::from_vertex_data(&streaming_data.vertex, mxmd.models.skinning.as_ref())?;
+            ModelBuffers::from_vertex_data(&streaming_data.vertex, mxmd.models.skinning.as_ref())
+                .map_err(LoadModelError::VertexData)?;
 
         let models = Models::from_models(&mxmd.models, &mxmd.materials, spch);
 
@@ -497,8 +529,16 @@ enum Wimdo {
 }
 
 fn load_wimdo(wimdo_path: &Path) -> Result<Mxmd, LoadModelError> {
-    let mut reader = Cursor::new(std::fs::read(wimdo_path)?);
-    let wimdo: Wimdo = reader.read_le()?;
+    let mut reader = Cursor::new(
+        std::fs::read(wimdo_path).map_err(|e| LoadModelError::Wimdo {
+            path: wimdo_path.to_owned(),
+            source: e.into(),
+        })?,
+    );
+    let wimdo: Wimdo = reader.read_le().map_err(|e| LoadModelError::Wimdo {
+        path: wimdo_path.to_owned(),
+        source: e,
+    })?;
     match wimdo {
         Wimdo::Mxmd(mxmd) => Ok(*mxmd),
         Wimdo::Apmd(apmd) => apmd
@@ -511,7 +551,12 @@ fn load_wimdo(wimdo_path: &Path) -> Result<Mxmd, LoadModelError> {
                     None
                 }
             })
-            .map_or(Err(LoadModelError::MissingApmdMxmdEntry), |r| Ok(r?)),
+            .map_or(Err(LoadModelError::MissingApmdMxmdEntry), |r| {
+                r.map_err(|e| LoadModelError::Wimdo {
+                    path: wimdo_path.to_owned(),
+                    source: e,
+                })
+            }),
     }
 }
 
@@ -535,7 +580,11 @@ impl<'a> StreamingData<'a> {
             .as_ref()
             .map(|streaming| match &streaming.inner {
                 xc3_lib::msrd::StreamingInner::StreamingLegacy(legacy) => {
-                    let data = std::fs::read(wismt_path)?;
+                    let data =
+                        std::fs::read(wismt_path).map_err(|e| LoadModelError::WismtLegacy {
+                            path: wismt_path.to_owned(),
+                            source: e,
+                        })?;
 
                     // TODO: Error on missing vertex data?
                     Ok(StreamingData {
@@ -548,7 +597,10 @@ impl<'a> StreamingData<'a> {
                     })
                 }
                 xc3_lib::msrd::StreamingInner::Streaming(_) => {
-                    let msrd = Msrd::from_file(wismt_path)?;
+                    let msrd = Msrd::from_file(wismt_path).map_err(|e| LoadModelError::Wismt {
+                        path: wismt_path.to_owned(),
+                        source: e,
+                    })?;
                     if is_pc {
                         let (vertex, _, textures) = msrd.extract_files_pc()?;
 
@@ -581,7 +633,9 @@ impl<'a> StreamingData<'a> {
                                 Ok(ExtractedTexture {
                                     name: t.name.clone(),
                                     usage: t.usage,
-                                    low: Mibl::from_bytes(&t.mibl_data)?,
+                                    low: Mibl::from_bytes(&t.mibl_data).map_err(|e| {
+                                        LoadModelError::WimdoPackedTexture { source: e }
+                                    })?,
                                     high: None,
                                 })
                             })

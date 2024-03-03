@@ -7,9 +7,9 @@ pub enum DecompressStreamError {
     #[error("error decoding compressed stream")]
     ZLib(#[from] InflateDecodeErrors),
 
-    #[error("error reading data")]
+    #[error("error reading stream data")]
     Io(#[from] std::io::Error),
 
-    #[error("error reading data")]
+    #[error("error reading stream data")]
     Binrw(#[from] binrw::Error),
 }
