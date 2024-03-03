@@ -39,13 +39,14 @@
 use std::{
     io::{BufWriter, Cursor, Read, Seek, SeekFrom, Write},
     marker::PhantomData,
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use binrw::{
     file_ptr::FilePtrArgs, BinRead, BinReaderExt, BinResult, BinWrite, NullString, VecArgs,
 };
 use log::trace;
+use thiserror::Error;
 use xc3_write::write_full;
 
 pub mod apmd;
@@ -432,6 +433,14 @@ file_write_full_impl!(
     laps::Laps
 );
 
+#[derive(Debug, Error)]
+#[error("error reading {path:?}")]
+pub struct ReadFileError {
+    pub path: PathBuf,
+    #[source]
+    pub source: binrw::Error,
+}
+
 // TODO: Dedicated error types?
 macro_rules! file_read_impl {
     ($($type_name:path),*) => {
@@ -442,9 +451,12 @@ macro_rules! file_read_impl {
                 }
 
                 /// Read from `path` using a fully buffered reader for performance.
-                pub fn from_file<P: AsRef<Path>>(path: P) -> binrw::BinResult<Self> {
-                    let mut reader = Cursor::new(std::fs::read(path)?);
-                    reader.read_le().map_err(Into::into)
+                pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, ReadFileError> {
+                    let path = path.as_ref();
+                    read_file(path).map_err(|e| ReadFileError {
+                        path: path.to_owned(),
+                        source: e,
+                    })
                 }
 
                 /// Read from `bytes` using a fully buffered reader for performance.
@@ -454,6 +466,16 @@ macro_rules! file_read_impl {
             }
         )*
     };
+}
+
+fn read_file<T, P>(path: P) -> binrw::BinResult<T>
+where
+    T: BinRead,
+    for<'a> T: BinRead<Args<'a> = ()>,
+    P: AsRef<Path>,
+{
+    let mut reader = Cursor::new(std::fs::read(path)?);
+    reader.read_le().map_err(Into::into)
 }
 
 file_read_impl!(

@@ -9,7 +9,7 @@ use xc3_write::Xc3Result;
 
 use crate::{
     error::DecompressStreamError, mibl::Mibl, mxmd::TextureUsage, spch::Spch, vertex::VertexData,
-    xbc1::CreateXbc1Error,
+    xbc1::CreateXbc1Error, ReadFileError,
 };
 
 use super::*;
@@ -19,12 +19,8 @@ pub enum ExtractFilesError {
     #[error("error decompressing stream")]
     Stream(#[from] DecompressStreamError),
 
-    #[error("error reading texture from {path:?}")]
-    ChrTexTexture {
-        path: PathBuf,
-        #[source]
-        source: DecompressStreamError,
-    },
+    #[error("error reading chr/tex texture")]
+    ChrTexTexture(#[from] ReadFileError),
 }
 
 // TODO: Add a function to create an extractedtexture from a surface?
@@ -382,20 +378,10 @@ impl StreamingData {
                     let name = format!("{:08x}", chr_tex.hash);
 
                     let m_path = chr_tex_nx.join("m").join(&name).with_extension("wismt");
-                    let mid = read_chr_tex_m_texture(&m_path).map_err(|e| {
-                        ExtractFilesError::ChrTexTexture {
-                            path: m_path,
-                            source: e,
-                        }
-                    })?;
+                    let mid = read_chr_tex_m_texture(&m_path)?;
 
                     let h_path = chr_tex_nx.join("h").join(&name).with_extension("wismt");
-                    let base_mip = read_chr_tex_h_texture(&h_path).map_err(|e| {
-                        ExtractFilesError::ChrTexTexture {
-                            path: h_path,
-                            source: e,
-                        }
-                    })?;
+                    let base_mip = read_chr_tex_h_texture(&h_path)?;
 
                     textures[*i as usize].high = Some(HighTexture {
                         mid,
@@ -409,15 +395,20 @@ impl StreamingData {
     }
 }
 
-fn read_chr_tex_h_texture(h_path: &Path) -> Result<Vec<u8>, DecompressStreamError> {
+fn read_chr_tex_h_texture(h_path: &Path) -> Result<Vec<u8>, ExtractFilesError> {
     let base_mip = Xbc1::from_file(h_path)?.decompress()?;
     Ok(base_mip)
 }
 
-fn read_chr_tex_m_texture<T: Texture>(m_path: &Path) -> Result<T, DecompressStreamError> {
+fn read_chr_tex_m_texture<T: Texture>(m_path: &Path) -> Result<T, ExtractFilesError> {
     let xbc1 = Xbc1::from_file(m_path)?;
     let bytes = xbc1.decompress()?;
-    let mid = T::from_bytes(bytes)?;
+    let mid = T::from_bytes(bytes).map_err(|e| {
+        ExtractFilesError::ChrTexTexture(ReadFileError {
+            path: m_path.to_owned(),
+            source: e,
+        })
+    })?;
     Ok(mid)
 }
 

@@ -11,6 +11,7 @@ use xc3_lib::{
     mibl::Mibl,
     msmd::{ChannelType, MapParts, Msmd, StreamEntry},
     mxmd::{RenderPassType, StateFlags, TextureUsage},
+    ReadFileError,
 };
 
 use crate::{
@@ -24,6 +25,9 @@ use crate::{
 pub enum LoadMapError {
     #[error("error reading data")]
     Io(#[from] std::io::Error),
+
+    #[error("error reading wismhd file")]
+    Wismhd(#[source] ReadFileError),
 
     #[error("error reading data")]
     Binrw(#[from] binrw::Error),
@@ -58,7 +62,7 @@ pub fn load_map<P: AsRef<Path>>(
     wismhd_path: P,
     shader_database: Option<&ShaderDatabase>,
 ) -> Result<Vec<ModelRoot>, LoadMapError> {
-    let msmd = Msmd::from_file(wismhd_path.as_ref())?;
+    let msmd = Msmd::from_file(wismhd_path.as_ref()).map_err(LoadMapError::Wismhd)?;
     let wismda = std::fs::read(wismhd_path.as_ref().with_extension("wismda"))?;
 
     // Loading is CPU intensive due to decompression and decoding.

@@ -56,6 +56,7 @@ use xc3_lib::{
     sar1::Sar1,
     vertex::WeightLod,
     xbc1::MaybeXbc1,
+    ReadFileError,
 };
 
 pub use map::{load_map, LoadMapError};
@@ -277,19 +278,11 @@ pub enum LoadModelError {
     #[error("error extracting stream data")]
     ExtractFiles(#[from] xc3_lib::msrd::streaming::ExtractFilesError),
 
-    #[error("error reading legacy wismt streaming data from {path:?}")]
-    WismtLegacy {
-        path: PathBuf,
-        #[source]
-        source: std::io::Error,
-    },
+    #[error("error reading legacy wismt streaming")]
+    WismtLegacy(#[source] ReadFileError),
 
-    #[error("error reading wismt streaming data from {path:?}")]
-    Wismt {
-        path: PathBuf,
-        #[source]
-        source: binrw::Error,
-    },
+    #[error("error reading wismt streaming data")]
+    Wismt(#[source] ReadFileError),
 }
 
 // TODO: Take an iterator for wimdo paths and merge to support xc1?
@@ -580,11 +573,12 @@ impl<'a> StreamingData<'a> {
             .as_ref()
             .map(|streaming| match &streaming.inner {
                 xc3_lib::msrd::StreamingInner::StreamingLegacy(legacy) => {
-                    let data =
-                        std::fs::read(wismt_path).map_err(|e| LoadModelError::WismtLegacy {
+                    let data = std::fs::read(wismt_path).map_err(|e| {
+                        LoadModelError::WismtLegacy(ReadFileError {
                             path: wismt_path.to_owned(),
-                            source: e,
-                        })?;
+                            source: e.into(),
+                        })
+                    })?;
 
                     // TODO: Error on missing vertex data?
                     Ok(StreamingData {
@@ -597,10 +591,7 @@ impl<'a> StreamingData<'a> {
                     })
                 }
                 xc3_lib::msrd::StreamingInner::Streaming(_) => {
-                    let msrd = Msrd::from_file(wismt_path).map_err(|e| LoadModelError::Wismt {
-                        path: wismt_path.to_owned(),
-                        source: e,
-                    })?;
+                    let msrd = Msrd::from_file(wismt_path).map_err(LoadModelError::Wismt)?;
                     if is_pc {
                         let (vertex, _, textures) = msrd.extract_files_pc()?;
 
