@@ -320,9 +320,9 @@ pub struct Unk4Unk2 {
     offsets: [u32; 5],
 
     #[br(parse_with = parse_opt_ptr32)]
-    #[br(args { 
-        offset: base_offset, 
-        inner: args! { 
+    #[br(args {
+        offset: base_offset,
+        inner: args! {
             count: if offsets[1] > 0 { (offsets[1] - offsets[0]) as usize / 4 } else { 2 }
         }
     })]

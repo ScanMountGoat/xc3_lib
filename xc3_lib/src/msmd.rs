@@ -168,7 +168,7 @@ pub struct Msmd {
 
 /// References to medium and high resolution [Mibl] textures.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Texture {
     pub mid: StreamEntry<Mibl>,
     // TODO: This isn't always used?
@@ -178,7 +178,7 @@ pub struct Texture {
 
 // TODO: Better name for this?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct MapModel {
     pub bounds: BoundingBox,
     // bounding sphere?
@@ -190,7 +190,7 @@ pub struct MapModel {
 
 // TODO: Better name for this?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PropModel {
     pub bounds: BoundingBox,
     // bounding sphere?
@@ -201,7 +201,7 @@ pub struct PropModel {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct EnvModel {
     pub bounds: BoundingBox,
     // bounding sphere?
@@ -213,7 +213,7 @@ pub struct EnvModel {
 // TODO: also in mxmd but without the center?
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct BoundingBox {
     pub max: [f32; 3],
     pub min: [f32; 3],
@@ -221,7 +221,7 @@ pub struct BoundingBox {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct MapLowModel {
     pub bounds: BoundingBox,
     pub unk1: f32,
@@ -234,7 +234,7 @@ pub struct MapLowModel {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct FoliageModel {
     pub unk1: [f32; 9],
     pub unk: [u32; 3],
@@ -244,7 +244,7 @@ pub struct FoliageModel {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(flags: u32))]
 pub enum EnvironmentData {
     #[br(pre_assert(flags == 0))]
@@ -254,8 +254,9 @@ pub enum EnvironmentData {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
-#[brw(magic(b"DREN"))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(magic(b"DREN"))]
+#[xc3(magic(b"DREN"))]
 pub struct Nerd {
     pub version: u32,
     pub unk1: u32,
@@ -270,8 +271,9 @@ pub struct Nerd {
 // TODO: This contains a Nerd?
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
-#[brw(magic(b"SMEC"))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(magic(b"SMEC"))]
+#[xc3(magic(b"SMEC"))]
 pub struct Cems {
     pub unk1: [u32; 10],
     pub offset: u32,
@@ -279,8 +281,9 @@ pub struct Cems {
 
 // TODO: cloud data?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
-#[brw(magic(b"CMLD"))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(magic(b"CMLD"))]
+#[xc3(magic(b"CMLD"))]
 pub struct Cmld {
     pub version: u32,
 }
@@ -288,8 +291,9 @@ pub struct Cmld {
 // TODO: Lighting data?
 // TODO: .wilgt files?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
-#[brw(magic(b"DLGT"))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(magic(b"DLGT"))]
+#[xc3(magic(b"DLGT"))]
 pub struct Dlgt {
     pub version: u32,
     pub unk1: u32,
@@ -335,8 +339,9 @@ pub struct IblInner {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
-#[brw(magic(b"GIBL"))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(magic(b"GIBL"))]
+#[xc3(magic(b"GIBL"))]
 pub struct Gibl {
     pub unk1: u32,
     pub unk2: u32,
@@ -348,7 +353,7 @@ pub struct Gibl {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct WismdaInfo {
     pub compressed_length: u32,
     pub unk1: u32,
@@ -407,10 +412,10 @@ pub struct Effect {
 
 // TODO: What does this do?
 // 116 bytes including magic?
-
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
-#[brw(magic(b"DOCE"))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(magic(b"DOCE"))]
+#[xc3(magic(b"DOCE"))]
 pub struct Doce {
     pub version: u32,
     pub offset: u32,
@@ -438,7 +443,7 @@ pub struct LowTexture {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct UnkLight {
     pub max: [f32; 3],
     pub min: [f32; 3],
@@ -523,7 +528,7 @@ pub struct MapPartInstanceAnimation {
 
 // TODO: Derive xc3write?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct MapPartInstanceAnimationChannel {
     // TODO: Group this together into a single type?
@@ -557,7 +562,7 @@ pub enum ChannelType {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct MapPartInstanceAnimationKeyframe {
     pub slope_out: f32,
     pub slope_in: f32,
@@ -653,22 +658,4 @@ impl<T> Xc3Write for StreamEntry<T> {
     }
 }
 
-xc3_write_binwrite_impl!(
-    BoundingBox,
-    MapLowModel,
-    FoliageModel,
-    EnvironmentData,
-    Nerd,
-    Cems,
-    Cmld,
-    Dlgt,
-    Doce,
-    Gibl,
-    MapPartInstanceAnimationChannel,
-    UnkLight,
-    Texture,
-    MapModel,
-    PropModel,
-    EnvModel,
-    WismdaInfo
-);
+xc3_write_binwrite_impl!(ChannelType);
