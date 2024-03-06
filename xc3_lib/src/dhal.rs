@@ -249,8 +249,9 @@ pub struct Unk4 {
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    pub unk4: Option<u32>, // count?
+    pub unk4: Option<u32>,
 
+    // TODO: This count isn't large enough for some entries.
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args {
         offset: base_offset,
@@ -284,6 +285,7 @@ pub struct Unk4Unk5 {
     #[xc3(offset(u32))]
     pub key: String,
 
+    // TODO: Some of these are strings?
     #[br(parse_with = parse_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub value: u32,
@@ -302,44 +304,53 @@ pub struct Unk4Extra {
 }
 
 // 64 bytes?
+// TODO: Fix lengths for array fields.
+#[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Unk4Unk2 {
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32), align(2))]
     pub unk1: Vec<u32>,
 
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset(u32), align(2))]
-    pub unk3: Option<[f32; 2]>,
-
-    // TODO: br(temp)?
-    #[br(restore_position)]
+    // TODO: Can these lengths be inferred without looking at offsets?
+    #[br(temp, restore_position)]
     #[xc3(skip)]
-    _temp: [u32; 4],
+    offsets: [u32; 5],
+
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { 
+        offset: base_offset, 
+        inner: args! { 
+            count: if offsets[1] > 0 { (offsets[1] - offsets[0]) as usize / 4 } else { 2 }
+        }
+    })]
+    #[xc3(offset(u32), align(4))]
+    pub unk3: Option<Vec<f32>>,
 
     // TODO: count depends on unk1 length?
     // TODO: Why is unk5 only present sometimes?
+    // TODO: Better way to check than finding the next non null offset?
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args {
         offset: base_offset,
         inner: args! {
-            count: if _temp[1] > 0 {
-                _temp[1] - _temp[0]
+            count: if let Some(next) = offsets[2..].iter().find(|o| **o != 0) {
+                (next - offsets[1]) as usize / 4
             } else {
-                _temp[3] - _temp[0]
-            } as usize / 8
+                0
+            }
         }
     })]
-    #[xc3(offset(u32), align(2))]
-    pub unk4: Option<Vec<[u32; 2]>>,
+    #[xc3(offset(u32), align(4))]
+    pub unk4: Option<Vec<u32>>,
 
     // TODO: count depends on unk1 length?
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args {
         offset: base_offset,
-        inner: args! { count: (_temp[3] - _temp[1]) as usize / 4 }
+        inner: args! { count: (offsets[4] - offsets[2]) as usize / 4 }
     })]
     #[xc3(offset(u32), align(4))]
     pub unk5: Option<Vec<u32>>,
@@ -351,20 +362,20 @@ pub struct Unk4Unk2 {
     #[xc3(offset(u32), align(2))]
     pub unk7: Option<Vec<u32>>,
 
-    // TODO: This count isn't correct?
-    // 12, 20, 4
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: unk1.len() }})]
-    #[xc3(offset(u32), align(2))]
+    #[xc3(offset(u32), align(4))]
     pub unk8: Option<Vec<u8>>,
 
-    // TODO: This count isn't correct?
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: unk1.len() }})]
-    #[xc3(offset(u32), align(2))]
+    #[xc3(offset(u32), align(4))]
     pub unk9: Option<Vec<u8>>,
 
-    pub unk10: u32, // 0
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: unk1.len() }})]
+    #[xc3(offset(u32), align(4))]
+    pub unk10: Option<Vec<u8>>,
 
     pub unk11: u32,
 
@@ -631,11 +642,13 @@ impl<'a> Xc3WriteOffsets for Unk4Offsets<'a> {
             unk2.unk7.write_full(writer, base_offset, data_ptr)?;
             unk2.unk8.write_full(writer, base_offset, data_ptr)?;
             unk2.unk9.write_full(writer, base_offset, data_ptr)?;
+            unk2.unk10.write_full(writer, base_offset, data_ptr)?;
         }
 
         self.extra.write_offsets(writer, base_offset, data_ptr)?;
         self.unk7.write_full(writer, base_offset, data_ptr)?;
         self.unk4.write_full(writer, base_offset, data_ptr)?;
+        // TODO: Use a string section for keys and values.
         self.unk5.write_full(writer, base_offset, data_ptr)?;
 
         Ok(())
