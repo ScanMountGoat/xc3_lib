@@ -77,7 +77,6 @@ pub struct Lagp {
     pub unk: [u32; 11],
 }
 
-// TODO: more strings?
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
@@ -155,20 +154,31 @@ pub struct Unk13Unk1Unk3 {
     pub unk4: u32,
 }
 
+#[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Unk13Unk1Unk3Unk2 {
     pub unk1: u32,
     pub unk2: u32,
     pub unk3: u32,
 
-    // TODO: Some of these are strings?
-    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset_count(u32, u32))]
-    pub unk4: Vec<u64>,
+    #[br(temp, restore_position)]
+    offsets: [u32; 3],
 
-    pub unk6: u32,
+    // TODO: Does this have a count field?
+    #[br(parse_with = parse_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: (offsets[2] / 4) as usize }})]
+    #[xc3(offset(u32))]
+    pub unk4: Vec<u32>,
+
+    pub unk5: u32,
+
+    // Relative to the start of unk4 data.
+    #[br(parse_with = parse_string_ptr32, offset = base_offset + offsets[0] as u64)]
+    #[xc3(offset(u32))]
+    pub unk6: String,
+
     pub unk7: f32,
 
     // TODO: padding?
@@ -231,6 +241,21 @@ impl<'a> Xc3WriteOffsets for Unk13Unk1Offsets<'a> {
         self.unk5.write_full(writer, base_offset, data_ptr)?;
         self.unk3.write_full(writer, base_offset, data_ptr)?;
         self.unk7.write_offsets(writer, base_offset, data_ptr)?;
+        Ok(())
+    }
+}
+
+impl<'a> Xc3WriteOffsets for Unk13Unk1Unk3Unk2Offsets<'a> {
+    fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> xc3_write::Xc3Result<()> {
+        // The string offset is relative to the start of unk4 data.
+        let string_start = *data_ptr;
+        self.unk4.write_full(writer, base_offset, data_ptr)?;
+        self.unk6.write_full(writer, string_start, data_ptr)?;
         Ok(())
     }
 }

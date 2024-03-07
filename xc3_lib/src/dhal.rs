@@ -14,7 +14,7 @@ use crate::{
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
     parse_string_ptr32, xc3_write_binwrite_impl,
 };
-use binrw::{args, binread, BinRead, BinWrite};
+use binrw::{args, binread, BinRead, BinWrite, NullString};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 // TODO: LAGP files are similar?
@@ -249,13 +249,14 @@ pub struct Unk4 {
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    pub unk4: Option<u32>,
+    pub unk4: Option<Unk4Unk4>,
 
     // TODO: This count isn't large enough for some entries.
+    // TODO: How to determine this count?
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args {
         offset: base_offset,
-        inner: args! { count: unk4.unwrap_or_default() as usize, inner: base_offset }
+        inner: args! { count: 741, inner: base_offset }
     })]
     #[xc3(offset(u32))]
     pub unk5: Option<Vec<Unk4Unk5>>, // items?
@@ -285,10 +286,35 @@ pub struct Unk4Unk5 {
     #[xc3(offset(u32))]
     pub key: String,
 
-    // TODO: Some of these are strings?
     #[br(parse_with = parse_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    pub value: u32,
+    pub value: Unk4Unk5Value,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct Unk4Unk5Value {
+    pub value_type: Unk4Unk5ValueType,
+    #[br(args_raw(value_type))]
+    pub value_data: Unk4Unk5ValueData,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(ty: Unk4Unk5ValueType))]
+pub enum Unk4Unk5ValueData {
+    #[br(pre_assert(ty == Unk4Unk5ValueType::Unk2))]
+    String(#[br(map(|x: NullString| x.to_string()))] String),
+    Unk(u32),
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy, Hash)]
+#[brw(repr(u8))]
+pub enum Unk4Unk5ValueType {
+    Unk0 = 0,
+    Unk1 = 1,
+    Unk2 = 2,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -378,29 +404,23 @@ pub struct Unk4Unk2 {
     pub unk10: Option<Vec<u8>>,
 
     pub unk11: u32,
-
     pub unk12: u32, // 0
-    // TODO: not padding?
-    pub unk13: [u32; 4],
+    pub unk13: u16,
+    pub unk14: u16,
+    pub unk15: u32,
+    pub unk16: u32,
+    pub unk17: u16,
+    pub unk18: u16,
 }
 
-#[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
-pub struct Unk4Unk7 {
-    #[br(temp, try_calc = r.stream_position())]
-    base_offset: u64,
-
-    // TODO: strings?
-    // TODO: size and type?
-    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset_count(u32, u32))]
-    pub unk1: Vec<[i32; 5]>,
-
-    // TODO: padding?
-    pub unk: [u32; 4],
+pub struct Unk4Unk4 {
+    pub unk1: u32,
+    // TODO: ascending order?
+    pub unk2: [u32; 31], // TODO: count?
 }
 
 #[binread]
@@ -594,7 +614,7 @@ impl UncompressedTexture {
     }
 }
 
-xc3_write_binwrite_impl!(Unk0);
+xc3_write_binwrite_impl!(Unk0, Unk4Unk5ValueType);
 
 impl<'a> Xc3WriteOffsets for DhalOffsets<'a> {
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
