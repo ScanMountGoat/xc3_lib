@@ -517,7 +517,7 @@ pub enum CullMode {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct MaterialTechnique {
     /// Index into [techniques](struct.Materials.html#structfield.techniques).
-    /// This can also be assumed to be the index into the [Spch](crate::spch::Spch) programs.
+    /// This can also be assumed to be the index into the [Spch] programs.
     pub technique_index: u32,
     pub pass_type: RenderPassType,
     pub material_buffer_index: u16,

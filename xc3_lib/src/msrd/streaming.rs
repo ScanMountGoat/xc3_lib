@@ -161,7 +161,8 @@ impl Msrd {
 
     /// Extract all embedded files for a `wismt` file.
     ///
-    /// For Xenoblade 3 models, specify the path for "chr/tex/nx" for `chr_tex_nx`.
+    /// For Xenoblade 3 models, specify the path for the `chr/tex/nx` folder
+    /// to properly extract higher resolution textures.
     /// If the path is part of the Xenoblade 3 dump, see [chr_tex_nx_folder].
     pub fn extract_files(
         &self,
@@ -187,10 +188,31 @@ impl Msrd {
     // TODO: Create a dedicated error type for this?
     /// Pack and compress the files into new archive data.
     ///
-    /// When `use_chr_textures` is `true`,
-    /// the high resolution and base mip levels are packed into streams
-    /// to be saved to the "chr/tex/nx" folder separately.
-    /// This is only supported by Xenoblade 3 and should be `false` for other games.
+    /// The final [Msrd] will embed high resolution textures
+    /// and not reference any textures in the `chr/tex/nx` folder
+    /// to avoid modifying textures files shared with other models.
+    ///
+    /// Set `use_chr_textures` to `true` for Xenoblade 3 models
+    /// to ensure the correct empty data entries are generated
+    /// for the file to load properly in game.
+    /// This should always be `false` for other Xenoblade games.
+    ///
+    /// # Examples
+    /// ```rust no_run
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// use xc3_lib::msrd::Msrd;
+    ///
+    /// let msrd = Msrd::from_file("ch01011013.wismt")?;
+    /// let chr_tex_nx = Some(std::path::Path::new("chr/tex/nx"));
+    /// let (mut vertex, mut spch, mut textures) = msrd.extract_files(chr_tex_nx)?;
+    ///
+    /// // modify any of the embedded data
+    ///
+    /// let new_msrd = Msrd::from_extracted_files(&vertex, &spch, &textures, true)?;
+    /// new_msrd.save("ch01011013.wismt")?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn from_extracted_files(
         vertex: &VertexData,
         spch: &Spch,
