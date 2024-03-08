@@ -8,13 +8,14 @@
 //! | Xenoblade Chronicles 1 DE | 10001, 10003 | `menu/image/*.wilay` |
 //! | Xenoblade Chronicles 2 | 10001 | `menu/image/*.wilay` |
 //! | Xenoblade Chronicles 3 | 10003 | `menu/image/*.wilay` |
-use std::io::Cursor;
+use std::{collections::HashMap, io::Cursor};
 
 use crate::{
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
     parse_string_ptr32, xc3_write_binwrite_impl,
 };
 use binrw::{args, binread, BinRead, BinWrite, NullString};
+use indexmap::IndexMap;
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 // TODO: LAGP files are similar?
@@ -265,7 +266,7 @@ pub struct Unk4 {
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(64))]
-    pub unk7: Option<[[f32; 4]; 4]>,
+    pub unk7: Option<[[f32; 4]; 8]>,
 
     // TODO: Is this the right check?
     #[br(if(version > 10001))]
@@ -283,16 +284,16 @@ pub struct Unk4 {
 #[br(import_raw(base_offset: u64))]
 pub struct Unk4Unk5 {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
+    #[xc3(offset(u32), align(1))]
     pub key: String,
 
     #[br(parse_with = parse_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
+    #[xc3(offset(u32), align(1))]
     pub value: Unk4Unk5Value,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Eq, Clone, Hash)]
 pub struct Unk4Unk5Value {
     pub value_type: Unk4Unk5ValueType,
     #[br(args_raw(value_type))]
@@ -300,12 +301,17 @@ pub struct Unk4Unk5Value {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Eq, Clone, Hash)]
 #[br(import_raw(ty: Unk4Unk5ValueType))]
 pub enum Unk4Unk5ValueData {
+    #[br(pre_assert(ty == Unk4Unk5ValueType::Unk0))]
+    Unk0(u32),
+
+    #[br(pre_assert(ty == Unk4Unk5ValueType::Unk1))]
+    Unk1(u64),
+
     #[br(pre_assert(ty == Unk4Unk5ValueType::Unk2))]
-    String(#[br(map(|x: NullString| x.to_string()))] String),
-    Unk(u32),
+    Unk2(#[br(map(|x: NullString| x.to_string()))] String),
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -321,14 +327,16 @@ pub enum Unk4Unk5ValueType {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Unk4Extra {
+    // TODO: might be smaller due to alignment of other fields?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    pub unk1: Option<[u32; 4]>,
+    pub unk1: Option<[u32; 37]>,
 
     // TODO: padding?
     pub unk: u32,
 }
 
+// TODO: Missing data?
 // 64 bytes?
 // TODO: Fix lengths for array fields.
 #[binread]
@@ -616,6 +624,66 @@ impl UncompressedTexture {
 
 xc3_write_binwrite_impl!(Unk0, Unk4Unk5ValueType);
 
+#[derive(Default)]
+struct Unk4KeyValueSection {
+    // Keys and values both share a single data section.
+    // Preserve insertion order to match the order in the file.
+    value_to_offsets: IndexMap<Unk4Data, Vec<u64>>,
+}
+
+#[derive(Xc3Write, PartialEq, Eq, Hash)]
+enum Unk4Data {
+    Key(String),
+    Value(Unk4Unk5Value),
+}
+
+impl Unk4KeyValueSection {
+    fn insert_key(&mut self, offset: &xc3_write::Offset<'_, u32, String>) {
+        self.value_to_offsets
+            .entry(Unk4Data::Key(offset.data.clone()))
+            .or_default()
+            .push(offset.position);
+    }
+
+    fn insert_value(&mut self, offset: &xc3_write::Offset<'_, u32, Unk4Unk5Value>) {
+        self.value_to_offsets
+            .entry(Unk4Data::Value(offset.data.clone()))
+            .or_default()
+            .push(offset.position);
+    }
+
+    fn write<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> xc3_write::Xc3Result<()> {
+        // Write all the keys and values.
+        let mut value_to_position = HashMap::new();
+        writer.seek(std::io::SeekFrom::Start(*data_ptr))?;
+
+        for (value, _) in &self.value_to_offsets {
+            let offset = writer.stream_position()?;
+            value.xc3_write(writer)?;
+            value_to_position.insert(value, offset);
+        }
+        *data_ptr = (*data_ptr).max(writer.stream_position()?);
+
+        // Update offsets.
+        for (value, offsets) in &self.value_to_offsets {
+            for offset in offsets {
+                let position = value_to_position[value];
+                let final_offset = position - base_offset;
+                // Assume all pointers are 4 bytes.
+                writer.seek(std::io::SeekFrom::Start(*offset))?;
+                (final_offset as u32).write_le(writer)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
 impl<'a> Xc3WriteOffsets for DhalOffsets<'a> {
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
         &self,
@@ -668,8 +736,16 @@ impl<'a> Xc3WriteOffsets for Unk4Offsets<'a> {
         self.extra.write_offsets(writer, base_offset, data_ptr)?;
         self.unk7.write_full(writer, base_offset, data_ptr)?;
         self.unk4.write_full(writer, base_offset, data_ptr)?;
-        // TODO: Use a string section for keys and values.
-        self.unk5.write_full(writer, base_offset, data_ptr)?;
+
+        // Only unique keys and values are stored in this section.
+        let mut value_section = Unk4KeyValueSection::default();
+        if let Some(unk5) = self.unk5.write(writer, base_offset, data_ptr)? {
+            for offsets in unk5.0 {
+                value_section.insert_key(&offsets.key);
+                value_section.insert_value(&offsets.value);
+            }
+        }
+        value_section.write(writer, base_offset, data_ptr)?;
 
         Ok(())
     }

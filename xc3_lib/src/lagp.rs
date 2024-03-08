@@ -69,7 +69,7 @@ pub struct Lagp {
     pub unk12: u32,
 
     #[br(parse_with = parse_opt_ptr32)]
-    #[xc3(offset(u32))]
+    #[xc3(offset(u32), align(1))]
     pub unk13: Option<Unk13>,
 
     // TODO: padding?
@@ -77,6 +77,7 @@ pub struct Lagp {
     pub unk: [u32; 11],
 }
 
+// TODO: Fix read/write not being 1:1.
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
@@ -88,12 +89,12 @@ pub struct Unk13 {
 
     #[br(parse_with = parse_offset32_count32)]
     #[br(args { offset: base_offset, inner: base_offset })]
-    #[xc3(offset_count(u32, u32))]
+    #[xc3(offset_count(u32, u32), align(1))]
     pub unk1: Vec<Unk13Unk1>,
 
     // TODO: type?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
+    #[xc3(offset(u32), align(1))]
     pub unk2: Option<[u32; 40]>,
 
     // TODO: type?
