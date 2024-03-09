@@ -1912,15 +1912,19 @@ impl<'a> Xc3WriteOffsets for MxmdOffsets<'a> {
         // Different order than field order.
         self.streaming.write_full(writer, base_offset, data_ptr)?;
 
-        // TODO: 16 bytes of padding before this?
-        // TODO: related to the optional 16 bytes before xbc1 in msrd?
-        *data_ptr += 1;
+        // Apply padding even if this is the end of the file.
+        vec![0u8; (data_ptr.next_multiple_of(16) - *data_ptr) as usize].xc3_write(writer)?;
+        *data_ptr = (*data_ptr).max(writer.stream_position()?);
+
+        // TODO: Some files have 16 more bytes of padding?
         self.unk1.write_full(writer, base_offset, data_ptr)?;
 
         self.vertex_data.write_full(writer, base_offset, data_ptr)?;
         self.spch.write_full(writer, base_offset, data_ptr)?;
         self.packed_textures
             .write_full(writer, base_offset, data_ptr)?;
+
+        // TODO: Align the file size itself for xc1?
 
         Ok(())
     }
