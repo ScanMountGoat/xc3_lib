@@ -676,7 +676,7 @@ impl Unk4KeyValueSection {
                 let final_offset = position - base_offset;
                 // Assume all pointers are 4 bytes.
                 writer.seek(std::io::SeekFrom::Start(*offset))?;
-                (final_offset as u32).write_le(writer)?;
+                (final_offset as u32).xc3_write(writer)?;
             }
         }
 

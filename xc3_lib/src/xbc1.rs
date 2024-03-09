@@ -54,11 +54,8 @@ pub struct Xbc1 {
 
 #[derive(Debug, Error)]
 pub enum CreateXbc1Error {
-    #[error("error reading data")]
+    #[error("error reading or writing data")]
     Io(#[from] std::io::Error),
-
-    #[error("error writing data")]
-    Xc3Write(#[from] Box<dyn std::error::Error>),
 }
 
 impl Xbc1 {
@@ -118,7 +115,7 @@ impl Xc3Write for Xbc1 {
         &self,
         writer: &mut W,
     ) -> xc3_write::Xc3Result<Self::Offsets<'_>> {
-        self.write_le(writer)?;
+        self.write_le(writer).map_err(std::io::Error::other)?;
         Ok(())
     }
 

@@ -157,7 +157,7 @@ fn main() {
             if cli.anim {
                 // Search for paths with non empty anims using in game naming conventions.
                 // TODO: Better heuristics based on all game versions.
-                let possible_anim_paths = vec![
+                let possible_anim_paths = [
                     path.with_extension("mot"),
                     path.with_extension("_obj.mot"),
                     path.with_extension("_field.mot"),

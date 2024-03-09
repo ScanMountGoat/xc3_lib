@@ -2,7 +2,7 @@
 use std::collections::BTreeMap;
 
 use crate::{parse_offset64_count32, parse_ptr64, parse_string_ptr64};
-use binrw::{args, binread, BinRead, BinWrite};
+use binrw::{args, binread, BinRead};
 use xc3_write::{VecOffsets, Xc3Write, Xc3WriteOffsets};
 
 use anim::Anim;
@@ -269,7 +269,7 @@ impl StringSection {
                 let position = name_to_position[name];
                 // Assume all string pointers are 8 bytes.
                 writer.seek(std::io::SeekFrom::Start(*offset))?;
-                position.write_le(writer)?;
+                position.xc3_write(writer)?;
             }
         }
 

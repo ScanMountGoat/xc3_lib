@@ -4,14 +4,14 @@
 //! before and after the first pass and does not need to be user defined.
 //! Custom implementations of [Xc3Write] should ensure the write head points after the data
 //! when the function returns to ensure correct size calculations.
-use std::error::Error;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
 use std::marker::PhantomData;
 
-// TODO: Create a dedicated error type?
-pub type Xc3Result<T> = Result<T, Box<dyn Error>>;
+// io::Error supports custom error variants if needed.
+// Writing will typically only fail from io errors on the writer anyway.
+pub type Xc3Result<T> = Result<T, std::io::Error>;
 
 /// The write pass that writes fields and placeholder offsets.
 pub trait Xc3Write {

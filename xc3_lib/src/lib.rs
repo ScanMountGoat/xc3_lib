@@ -378,19 +378,18 @@ where
     Ptr::<u64>::parse_opt(reader, endian, args)
 }
 
-// TODO: Dedicated error types?
 macro_rules! file_write_impl {
     ($($type_name:path),*) => {
         $(
             impl $type_name {
                 pub fn write<W: Write + Seek>(&self, writer: &mut W) -> xc3_write::Xc3Result<()> {
-                    self.write_le(writer).map_err(Into::into)
+                    self.write_le(writer).map_err(std::io::Error::other)
                 }
 
                 /// Write to `path` using a buffered writer for better performance.
                 pub fn save<P: AsRef<Path>>(&self, path: P) -> xc3_write::Xc3Result<()> {
                     let mut writer = BufWriter::new(std::fs::File::create(path)?);
-                    self.write_le(&mut writer).map_err(Into::into)
+                    self.write_le(&mut writer).map_err(std::io::Error::other)
                 }
             }
         )*
@@ -507,7 +506,7 @@ macro_rules! xc3_write_binwrite_impl {
                     &self,
                     writer: &mut W,
                 ) -> xc3_write::Xc3Result<Self::Offsets<'_>> {
-                    self.write_le(writer)?;
+                    self.write_le(writer).map_err(std::io::Error::other)?;
                     Ok(())
                 }
 

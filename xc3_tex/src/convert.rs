@@ -153,11 +153,11 @@ pub fn update_wilay_from_folder(
         MaybeXbc1::Uncompressed(wilay) => match wilay {
             Wilay::Dhal(dhal) => {
                 replace_dhal_textures(dhal, &mut count, input, input_folder)?;
-                dhal.save(output).unwrap();
+                dhal.save(output)?;
             }
             Wilay::Lagp(lagp) => {
                 replace_lagp_textures(lagp, &mut count, input, input_folder)?;
-                lagp.save(output).unwrap();
+                lagp.save(output)?;
             }
         },
         MaybeXbc1::Xbc1(xbc1) => {
@@ -165,13 +165,13 @@ pub fn update_wilay_from_folder(
             match &mut wilay {
                 Wilay::Dhal(dhal) => {
                     replace_dhal_textures(dhal, &mut count, input, input_folder)?;
-                    let xbc1 = Xbc1::new(xbc1.name.clone(), dhal).unwrap();
-                    xbc1.save(output).unwrap();
+                    let xbc1 = Xbc1::new(xbc1.name.clone(), dhal)?;
+                    xbc1.save(output)?;
                 }
                 Wilay::Lagp(lagp) => {
                     replace_lagp_textures(lagp, &mut count, input, input_folder)?;
-                    let xbc1 = Xbc1::new(xbc1.name.clone(), lagp).unwrap();
-                    xbc1.save(output).unwrap();
+                    let xbc1 = Xbc1::new(xbc1.name.clone(), lagp)?;
+                    xbc1.save(output)?;
                 }
             }
         }
@@ -223,7 +223,7 @@ fn replace_wilay_mibl(
                     .with_context(|| format!("{path:?} is not a valid DDS file"))?;
                 let mibl = Mibl::from_dds(&dds).with_context(|| "failed to convert DDS to Mibl")?;
                 let mut writer = Cursor::new(Vec::new());
-                mibl.write(&mut writer).unwrap();
+                mibl.write(&mut writer)?;
 
                 textures.textures[i].mibl_data = writer.into_inner();
 
@@ -305,11 +305,11 @@ pub fn update_wimdo_from_folder(
     }
 
     // Save files to disk.
-    let new_msrd = Msrd::from_extracted_files(&vertex, &spch, &textures, uses_chr).unwrap();
+    let new_msrd = Msrd::from_extracted_files(&vertex, &spch, &textures, uses_chr)?;
 
     mxmd.streaming = Some(new_msrd.streaming.clone());
-    mxmd.save(output_path).unwrap();
-    new_msrd.save(output_path.with_extension("wismt")).unwrap();
+    mxmd.save(output_path)?;
+    new_msrd.save(output_path.with_extension("wismt"))?;
 
     Ok(count)
 }
@@ -437,11 +437,11 @@ pub fn extract_wimdo_to_folder(
     let (_, _, textures) = msrd.extract_files(chr_tex_nx.as_deref())?;
 
     for (i, texture) in textures.iter().enumerate() {
-        let dds = texture.mibl_final().to_dds().unwrap();
+        let dds = texture.mibl_final().to_dds()?;
         let path = output_folder
             .join(file_name)
             .with_extension(format!("{i}.{}.dds", texture.name));
-        dds.save(path).unwrap();
+        dds.save(path)?;
     }
 
     Ok(textures.len())
@@ -452,9 +452,9 @@ pub fn read_wismt_single_tex<P: AsRef<Path>>(path: P) -> anyhow::Result<Mibl> {
     Xbc1::from_file(path)?.extract().map_err(Into::into)
 }
 
-pub fn create_wismt_single_tex(mibl: &Mibl) -> Xbc1 {
+pub fn create_wismt_single_tex(mibl: &Mibl) -> anyhow::Result<Xbc1> {
     // TODO: Set the name properly.
-    Xbc1::new("middle.witx".to_string(), mibl).unwrap()
+    Xbc1::new("middle.witx".to_string(), mibl).map_err(Into::into)
 }
 
 #[cfg(test)]

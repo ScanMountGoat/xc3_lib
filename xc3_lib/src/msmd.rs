@@ -653,7 +653,7 @@ impl<T> Xc3Write for StreamEntry<T> {
         &self,
         writer: &mut W,
     ) -> xc3_write::Xc3Result<Self::Offsets<'_>> {
-        self.write_le(writer)?;
+        self.write_le(writer).map_err(std::io::Error::other)?;
         Ok(())
     }
 }

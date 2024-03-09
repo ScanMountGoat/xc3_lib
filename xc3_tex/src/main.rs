@@ -165,14 +165,13 @@ fn main() -> anyhow::Result<()> {
                 "witex" | "witx" => {
                     input_file
                         .to_mibl(format, quality, mipmaps)?
-                        .save(&output)
-                        .unwrap();
+                        .save(&output)?;
                 }
                 "wismt" => {
                     // TODO: Also create base level?
                     let mibl = input_file.to_mibl(format, quality, mipmaps)?;
-                    let xbc1 = create_wismt_single_tex(&mibl);
-                    xbc1.save(&output).unwrap();
+                    let xbc1 = create_wismt_single_tex(&mibl)?;
+                    xbc1.save(&output)?;
                 }
                 _ => {
                     // Assume other formats are image formats for now.
