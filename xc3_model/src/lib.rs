@@ -67,7 +67,9 @@ pub use material::{
 pub use sampler::{AddressMode, FilterMode, Sampler};
 pub use skeleton::{Bone, Skeleton};
 pub use texture::{ExtractedTextures, ImageFormat, ImageTexture, ViewDimension};
-pub use xc3_lib::mxmd::{BlendMode, CullMode, RenderPassType, StateFlags};
+pub use xc3_lib::mxmd::{
+    BlendMode, CullMode, DepthFunc, RenderPassType, StateFlags, StencilMode, StencilValue,
+};
 
 pub mod animation;
 
@@ -358,6 +360,7 @@ pub fn load_model<P: AsRef<Path>>(
 
     // TODO: Does every wimdo have a chr file?
     // TODO: Does something control the chr name used?
+    // TODO: This won't load the base skeleton chr for xc3.
     let chr = Sar1::from_file(wimdo_path.with_extension("chr"))
         .ok()
         .or_else(|| Sar1::from_file(wimdo_path.with_extension("arc")).ok())
