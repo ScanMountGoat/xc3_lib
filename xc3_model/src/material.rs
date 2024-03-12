@@ -233,13 +233,13 @@ fn read_param<const N: usize>(
 // TODO: create get methods for naming the outputs?
 /// Assignment information for the channels of each output.
 /// This includes channels from textures, material parameters, or shader constants.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OutputAssignments {
     pub assignments: [OutputAssignment; 6],
 }
 
 // TODO: Add some sort of default?
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct OutputAssignment {
     pub x: Option<ChannelAssignment>,
     pub y: Option<ChannelAssignment>,
@@ -247,7 +247,7 @@ pub struct OutputAssignment {
     pub w: Option<ChannelAssignment>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ChannelAssignment {
     Texture {
         // TODO: Include matrix transform or scale?
