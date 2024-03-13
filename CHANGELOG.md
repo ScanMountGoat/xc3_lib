@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added options to set the mipmaps and quality when generating compressed files to xc3_tex.
 
 ### Changed
+* Improved accuracy of file rebuilding.
 * Improved the readability and quality of displayed error messages for xc3_viewer, xc3_gltf, and xc3_tex.
 * Renamed `GBuffer*` types and methods to `Output*` since not all shaders write to the G-Buffer textures.
 * Renamed `ShaderProgram ` to `MaterialTechnique` and `ShaderProgramInfo` to `Technique` to better match in game names.
