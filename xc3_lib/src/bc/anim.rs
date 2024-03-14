@@ -177,6 +177,7 @@ pub struct Animation {
     pub name: String,
 
     pub animation_type: AnimationType,
+    /// The space for transforms in [data](#structfield.data).
     pub space_mode: SpaceMode,
     pub play_mode: PlayMode,
     pub blend_mode: BlendMode,
@@ -198,11 +199,21 @@ pub struct Animation {
     pub data: AnimationData,
 }
 
+/// The space for how to convert transforms to model space. Usually [SpaceMode::Local].
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy)]
 #[brw(repr(u8))]
 pub enum SpaceMode {
+    /// Transforms are relative to the parent bone's accumulated transform.
+    /// ```text
+    /// model_transform = parent.model_transform * transform;
+    /// ```
     Local = 0,
+    /// Transforms are the accumulated transform.
+    /// This avoids needing to accumulate transform matrices recursively for animated bones.
+    /// ```text
+    /// model_transform = transform;
+    /// ```
     Model = 1,
 }
 

@@ -10,6 +10,7 @@ pub use xc3_lib::hash::murmur3;
 #[derive(Debug, PartialEq, Clone)]
 pub struct Animation {
     pub name: String,
+    /// The space for transforms in [tracks](#structfield.tracks).
     pub space_mode: SpaceMode,
     pub play_mode: PlayMode,
     pub blend_mode: BlendMode,
