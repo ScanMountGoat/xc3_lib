@@ -132,7 +132,7 @@ pub struct Unk13Unk1 {
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(1))]
-    pub unk6: Option<[i32; 11]>,
+    pub unk6: Option<Unk13Unk1Unk6>,
 
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(1))]
@@ -152,10 +152,11 @@ pub struct Unk13Unk1Unk3 {
 
     #[br(parse_with = parse_offset32_count32)]
     #[br(args { offset: base_offset, inner: base_offset })]
-    #[xc3(offset_count(u32, u32))]
+    #[xc3(offset_count(u32, u32), align(1))]
     pub unk2: Vec<Unk13Unk1Unk3Unk2>,
 
-    pub unk4: u32,
+    // TODO: padding?
+    pub unk: [u32; 12],
 }
 
 #[binread]
@@ -173,14 +174,15 @@ pub struct Unk13Unk1Unk3Unk2 {
     // TODO: Does this have a count field?
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: (offsets[2] / 4) as usize }})]
-    #[xc3(offset(u32))]
+    #[xc3(offset(u32), align(1))]
     pub unk4: Vec<u32>,
 
     pub unk5: u32,
 
     // Relative to the start of unk4 data.
+    // TODO: Some sort of padding after some strings?
     #[br(parse_with = parse_string_ptr32, offset = base_offset + offsets[0] as u64)]
-    #[xc3(offset(u32))]
+    #[xc3(offset(u32), align(1))]
     pub unk6: String,
 
     pub unk7: f32,
@@ -200,14 +202,14 @@ pub struct Unk13Unk1Unk4 {
 
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32), align(1))]
-    pub unk1: Vec<[u32; 5]>,
+    pub unk1: Vec<[u32; 3]>,
 
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32), align(1))]
-    pub unk2: Vec<[u32; 4]>,
+    pub unk2: Vec<u32>,
 
     // TODO: padding?
-    pub unk: [u32; 11],
+    pub unk: [u32; 12],
 }
 
 #[binread]
@@ -240,6 +242,23 @@ pub struct Unk13Unk1Unk5Item {
     pub unk6: u32,
     pub unk7: u32,
     pub unk8: u32,
+}
+
+#[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(stream = r)]
+#[xc3(base_offset)]
+pub struct Unk13Unk1Unk6 {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32), align(1))]
+    pub items: Vec<[i32; 5]>,
+
+    // TODO: Padding?
+    pub unk: [u32; 4],
 }
 
 // TODO: identical to dhal?
