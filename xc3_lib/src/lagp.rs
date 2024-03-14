@@ -14,6 +14,7 @@ use crate::{
     parse_string_ptr32,
 };
 use binrw::{args, binread, BinRead};
+use indexmap::IndexMap;
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 // TODO: How much of this is shared with LAHD?
@@ -77,10 +78,10 @@ pub struct Lagp {
     pub unk: [u32; 11],
 }
 
-// TODO: Fix read/write not being 1:1.
+// TODO: fix writing.
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Unk13 {
@@ -113,26 +114,28 @@ pub struct Unk13Unk1 {
     pub unk1: u32,
 
     #[br(parse_with = parse_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
+    #[xc3(offset(u32), align(1))]
     pub unk2: [u32; 4],
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
+    #[xc3(offset(u32), align(1))]
     pub unk3: Option<Unk13Unk1Unk3>,
 
     #[br(parse_with = parse_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
+    #[xc3(offset(u32), align(1))]
     pub unk4: Unk13Unk1Unk4,
 
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
-    pub unk5: Option<[u32; 10]>,
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset(u32), align(1))]
+    pub unk5: Option<Unk13Unk1Unk5>,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
+    #[xc3(offset(u32), align(1))]
     pub unk6: Option<[i32; 11]>,
 
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset(u32), align(1))]
     pub unk7: String,
 }
 
@@ -196,15 +199,47 @@ pub struct Unk13Unk1Unk4 {
     base_offset: u64,
 
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
-    #[xc3(count_offset(u32, u32))]
-    pub unk1: Vec<[u32; 4]>,
+    #[xc3(count_offset(u32, u32), align(1))]
+    pub unk1: Vec<[u32; 5]>,
 
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
-    #[xc3(count_offset(u32, u32))]
+    #[xc3(count_offset(u32, u32), align(1))]
     pub unk2: Vec<[u32; 4]>,
 
     // TODO: padding?
-    pub unk: [u32; 12],
+    pub unk: [u32; 11],
+}
+
+#[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(stream = r)]
+#[br(import_raw(parent_base_offset: u64))]
+#[xc3(base_offset)]
+pub struct Unk13Unk1Unk5 {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = parse_count32_offset32)]
+    #[br(args { offset: base_offset, inner: parent_base_offset })]
+    #[xc3(count_offset(u32, u32))]
+    pub items: Vec<Unk13Unk1Unk5Item>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct Unk13Unk1Unk5Item {
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub unk1: String,
+    pub unk2: u32,
+    pub unk3: u32,
+    pub unk4: u32,
+    pub unk5: u32,
+    pub unk6: u32,
+    pub unk7: u32,
+    pub unk8: u32,
 }
 
 // TODO: identical to dhal?
@@ -228,20 +263,38 @@ impl<'a> Xc3WriteOffsets for LagpOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for Unk13Unk1Offsets<'a> {
+impl<'a> Xc3WriteOffsets for Unk13Offsets<'a> {
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
         &self,
         writer: &mut W,
-        base_offset: u64,
+        _base_offset: u64,
         data_ptr: &mut u64,
     ) -> xc3_write::Xc3Result<()> {
-        // Different order than field order.
-        self.unk6.write_full(writer, base_offset, data_ptr)?;
+        let base_offset = self.base_offset;
+
+        // Some strings are grouped at the end.
+        // Strings should use insertion order instead of alphabetical.
+        let mut string_section = StringSection::default();
+
+        let unk1 = self.unk1.write(writer, base_offset, data_ptr)?;
+        for u in &unk1.0 {
+            u.unk6.write_full(writer, base_offset, data_ptr)?;
+            u.unk2.write_full(writer, base_offset, data_ptr)?;
+            u.unk4.write_full(writer, base_offset, data_ptr)?;
+            string_section.insert_offset(&u.unk7);
+            if let Some(unk5) = u.unk5.write(writer, base_offset, data_ptr)? {
+                let items = unk5.items.write(writer, base_offset, data_ptr)?;
+                for item in items.0 {
+                    string_section.insert_offset(&item.unk1);
+                }
+            }
+            u.unk3.write_full(writer, base_offset, data_ptr)?;
+        }
+
         self.unk2.write_full(writer, base_offset, data_ptr)?;
-        self.unk4.write_full(writer, base_offset, data_ptr)?;
-        self.unk5.write_full(writer, base_offset, data_ptr)?;
         self.unk3.write_full(writer, base_offset, data_ptr)?;
-        self.unk7.write_offsets(writer, base_offset, data_ptr)?;
+
+        string_section.write(writer, data_ptr, 1)?;
         Ok(())
     }
 }
@@ -257,6 +310,56 @@ impl<'a> Xc3WriteOffsets for Unk13Unk1Unk3Unk2Offsets<'a> {
         let string_start = *data_ptr;
         self.unk4.write_full(writer, base_offset, data_ptr)?;
         self.unk6.write_full(writer, string_start, data_ptr)?;
+        Ok(())
+    }
+}
+
+// TODO: Create a shared type that handles pointer width and sorting.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Default)]
+struct StringSection {
+    name_to_offsets: IndexMap<String, Vec<u64>>,
+}
+
+impl StringSection {
+    fn insert_offset(&mut self, offset: &xc3_write::Offset<'_, u32, String>) {
+        self.name_to_offsets
+            .entry(offset.data.clone())
+            .or_default()
+            .push(offset.position);
+    }
+
+    fn write<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        data_ptr: &mut u64,
+        alignment: u64,
+    ) -> xc3_write::Xc3Result<()> {
+        // Write the string data.
+        // TODO: Cleaner way to handle alignment?
+        let mut name_to_position = IndexMap::new();
+        writer.seek(std::io::SeekFrom::Start(*data_ptr))?;
+        let aligned = data_ptr.next_multiple_of(alignment);
+        writer.write_all(&vec![0xff; (aligned - *data_ptr) as usize])?;
+
+        for name in self.name_to_offsets.keys() {
+            let offset = writer.stream_position()?;
+            writer.write_all(name.as_bytes())?;
+            writer.write_all(&[0u8])?;
+            name_to_position.insert(name, offset);
+        }
+        *data_ptr = (*data_ptr).max(writer.stream_position()?);
+
+        // Update offsets.
+        for (name, offsets) in &self.name_to_offsets {
+            for offset in offsets {
+                let position = name_to_position[name];
+                // Assume all string pointers are 4 bytes.
+                writer.seek(std::io::SeekFrom::Start(*offset))?;
+                (position as u32).xc3_write(writer)?;
+            }
+        }
+
         Ok(())
     }
 }
