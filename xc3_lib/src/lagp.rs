@@ -13,7 +13,7 @@ use crate::{
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
     parse_string_ptr32,
 };
-use binrw::{args, binread, BinRead};
+use binrw::{args, binread, BinRead, NullString};
 use indexmap::IndexMap;
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
@@ -69,12 +69,13 @@ pub struct Lagp {
 
     pub unk12: u32,
 
+    // TODO: This type is slightly different in 10002 for xc1.
     #[br(parse_with = parse_opt_ptr32)]
+    #[br(if(version > 10002))]
     #[xc3(offset(u32), align(1))]
     pub unk13: Option<Unk13>,
 
     // TODO: padding?
-    #[br(assert(unk.iter().all(|u| *u == 0)))]
     pub unk: [u32; 11],
 }
 
@@ -107,15 +108,20 @@ pub struct Unk13 {
     pub unk: [u32; 4],
 }
 
+#[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Unk13Unk1 {
     pub unk1: u32,
 
-    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[br(temp, restore_position)]
+    offsets: [u32; 3],
+
+    #[br(parse_with = parse_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: (offsets[2] - offsets[0]) as usize / 4 }})]
     #[xc3(offset(u32), align(1))]
-    pub unk2: [u32; 4],
+    pub unk2: Vec<u32>,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(1))]
@@ -180,10 +186,9 @@ pub struct Unk13Unk1Unk3Unk2 {
     pub unk5: u32,
 
     // Relative to the start of unk4 data.
-    // TODO: Some sort of padding after some strings?
-    #[br(parse_with = parse_string_ptr32, offset = base_offset + offsets[0] as u64)]
+    #[br(parse_with = parse_ptr32, offset = base_offset + offsets[0] as u64)]
     #[xc3(offset(u32), align(1))]
-    pub unk6: String,
+    pub unk6: UnkString,
 
     pub unk7: f32,
 
@@ -191,6 +196,10 @@ pub struct Unk13Unk1Unk3Unk2 {
     pub unk: [u32; 4],
 }
 
+#[derive(Debug, BinRead, PartialEq, Clone)]
+pub struct UnkString(#[br(map(|x: NullString| x.to_string()))] pub String);
+
+// TODO: padding after some of the arrays?
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
@@ -206,10 +215,17 @@ pub struct Unk13Unk1Unk4 {
 
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32), align(1))]
-    pub unk2: Vec<u32>,
+    pub unk2: Vec<u16>,
+
+    pub unk3: u32,
+    pub unk4: u32,
+
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32), align(1))]
+    pub unk5: Vec<u16>,
 
     // TODO: padding?
-    pub unk: [u32; 12],
+    pub unk: [u32; 8],
 }
 
 #[binread]
@@ -228,6 +244,7 @@ pub struct Unk13Unk1Unk5 {
     pub items: Vec<Unk13Unk1Unk5Item>,
 }
 
+// TODO: This doesn't work for version 10002?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
@@ -241,6 +258,7 @@ pub struct Unk13Unk1Unk5Item {
     pub unk5: u32,
     pub unk6: u32,
     pub unk7: u32,
+    // TODO: not in version 10002?
     pub unk8: u32,
 }
 
@@ -313,7 +331,7 @@ impl<'a> Xc3WriteOffsets for Unk13Offsets<'a> {
         self.unk2.write_full(writer, base_offset, data_ptr)?;
         self.unk3.write_full(writer, base_offset, data_ptr)?;
 
-        string_section.write(writer, data_ptr, 1)?;
+        string_section.write(writer, base_offset, data_ptr, 1)?;
         Ok(())
     }
 }
@@ -329,6 +347,26 @@ impl<'a> Xc3WriteOffsets for Unk13Unk1Unk3Unk2Offsets<'a> {
         let string_start = *data_ptr;
         self.unk4.write_full(writer, base_offset, data_ptr)?;
         self.unk6.write_full(writer, string_start, data_ptr)?;
+        Ok(())
+    }
+}
+
+impl Xc3Write for UnkString {
+    type Offsets<'a> = ();
+
+    fn xc3_write<W: std::io::prelude::Write + std::io::prelude::Seek>(
+        &self,
+        writer: &mut W,
+    ) -> xc3_write::Xc3Result<Self::Offsets<'_>> {
+        // TODO: Add align_size_to attribute to xc3_write_derive?
+        // TODO: Just use binwrite for this?
+        let start = writer.stream_position()?;
+        self.0.xc3_write(writer)?;
+        let end = writer.stream_position()?;
+
+        let size = end - start;
+        let aligned_size = size.next_multiple_of(4);
+        vec![0u8; (aligned_size - size) as usize].xc3_write(writer)?;
         Ok(())
     }
 }
@@ -351,6 +389,7 @@ impl StringSection {
     fn write<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
+        base_offset: u64,
         data_ptr: &mut u64,
         alignment: u64,
     ) -> xc3_write::Xc3Result<()> {
@@ -375,7 +414,8 @@ impl StringSection {
                 let position = name_to_position[name];
                 // Assume all string pointers are 4 bytes.
                 writer.seek(std::io::SeekFrom::Start(*offset))?;
-                (position as u32).xc3_write(writer)?;
+                let final_offset = position - base_offset;
+                (final_offset as u32).xc3_write(writer)?;
             }
         }
 

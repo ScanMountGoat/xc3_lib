@@ -252,12 +252,21 @@ pub struct Unk4 {
     #[xc3(offset(u32))]
     pub unk4: Option<Unk4Unk4>,
 
-    // TODO: This count isn't large enough for some entries.
-    // TODO: How to determine this count?
+    // TODO: Better way to determine this count?
+    #[br(temp, restore_position)]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    first_offset: Option<u32>,
+
+    #[br(temp, restore_position)]
+    unk5_offset: u32,
+
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args {
         offset: base_offset,
-        inner: args! { count: 741, inner: base_offset }
+        inner: args! {
+            count: (first_offset.unwrap_or(unk5_offset) - unk5_offset) as usize / 8,
+            inner: base_offset
+        }
     })]
     #[xc3(offset(u32))]
     pub unk5: Option<Vec<Unk4Unk5>>, // items?
