@@ -425,7 +425,7 @@ fn create_skin(
 
         // TODO: Add this to skeleton.rs?
         let inverse_bind_matrices: Vec<_> = skeleton
-            .world_transforms()
+            .model_space_transforms()
             .iter()
             .map(|t| t.inverse())
             .collect();

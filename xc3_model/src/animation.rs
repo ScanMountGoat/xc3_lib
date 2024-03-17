@@ -1,11 +1,14 @@
 //! Utilities for working with animation data.
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::ops::Bound::*;
 
-use glam::{vec4, Quat, Vec3, Vec4, Vec4Swizzles};
+use glam::{vec4, Mat4, Quat, Vec3, Vec4, Vec4Swizzles};
+use log::error;
 use ordered_float::OrderedFloat;
 pub use xc3_lib::bc::anim::{BlendMode, PlayMode, SpaceMode};
 pub use xc3_lib::hash::murmur3;
+
+use crate::Skeleton;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Animation {
@@ -69,6 +72,126 @@ impl Animation {
     pub fn current_frame(&self, current_time_seconds: f32) -> f32 {
         // TODO: looping?
         current_time_seconds * self.frames_per_second
+    }
+
+    // TODO: Tests for this.
+    /// Compute the matrix for each bone in `skeleton`
+    /// that transforms a vertex in model space to its animated position in model space.
+    ///
+    /// This can be used in a vertex shader to apply linear blend skinning
+    /// by transforming the vertex by up to 4 skinning matrices
+    /// and blending with vertex skin weights.
+    ///
+    /// The in game skinning code precomputes a slightly different matrix.
+    /// See [Weights](crate::Weights) for details.
+    pub fn skinning_transforms(&self, skeleton: &Skeleton, frame: f32) -> Vec<Mat4> {
+        let anim_transforms = self.model_space_transforms(skeleton, frame);
+        let bind_transforms = skeleton.model_space_transforms();
+
+        let mut animated_transforms = vec![Mat4::IDENTITY; skeleton.bones.len()];
+        for i in (0..skeleton.bones.len()).take(animated_transforms.len()) {
+            let inverse_bind = bind_transforms[i].inverse();
+            animated_transforms[i] = anim_transforms[i] * inverse_bind;
+        }
+
+        animated_transforms
+    }
+
+    // TODO: Tests for this.
+    /// Compute the the animated transform in model space for each bone in `skeleton`.
+    ///
+    /// See [Skeleton::model_space_transforms] for the transforms without animations applied.
+    pub fn model_space_transforms(&self, skeleton: &Skeleton, frame: f32) -> Vec<Mat4> {
+        // TODO: Is it worth precomputing this?
+        let hash_to_index: HashMap<_, _> = skeleton
+            .bones
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (murmur3(b.name.as_bytes()), i))
+            .collect();
+
+        // Keep track of which bones have animations applied.
+        let mut animated_transforms = vec![None; skeleton.bones.len()];
+
+        for track in &self.tracks {
+            if let Some(bone_index) = match &track.bone_index {
+                BoneIndex::Index(i) => Some(*i),
+                BoneIndex::Hash(hash) => hash_to_index.get(hash).copied(),
+                BoneIndex::Name(name) => skeleton.bones.iter().position(|b| &b.name == name),
+            } {
+                let translation = track.sample_translation(frame);
+                let rotation = track.sample_rotation(frame);
+                let scale = track.sample_scale(frame);
+
+                let transform = Mat4::from_translation(translation)
+                    * Mat4::from_quat(rotation)
+                    * Mat4::from_scale(scale);
+
+                if bone_index < skeleton.bones.len() {
+                    animated_transforms[bone_index] = Some(apply_transform(
+                        skeleton.bones[bone_index].transform,
+                        transform,
+                        self.blend_mode,
+                    ));
+                } else {
+                    // TODO: Why does this happen?
+                    error!(
+                        "Bone index {bone_index} out of range for {} bones",
+                        skeleton.bones.len()
+                    );
+                }
+            } else {
+                // TODO: Why does this happen?
+                error!("No matching bone for {:?}", track.bone_index);
+            }
+        }
+
+        let rest_pose_model_space = skeleton.model_space_transforms();
+
+        // Assume parents appear before their children.
+        // TODO: Does this code correctly handle all cases?
+        let mut anim_model_space = rest_pose_model_space.clone();
+        match self.space_mode {
+            SpaceMode::Local => {
+                for i in 0..anim_model_space.len() {
+                    match animated_transforms[i] {
+                        Some(transform) => {
+                            // Local space is relative to the parent bone.
+                            if let Some(parent) = skeleton.bones[i].parent_index {
+                                anim_model_space[i] = anim_model_space[parent] * transform;
+                            } else {
+                                anim_model_space[i] = transform;
+                            }
+                        }
+                        None => {
+                            if let Some(parent) = skeleton.bones[i].parent_index {
+                                anim_model_space[i] =
+                                    anim_model_space[parent] * skeleton.bones[i].transform;
+                            }
+                        }
+                    }
+                }
+            }
+            SpaceMode::Model => {
+                for i in 0..anim_model_space.len() {
+                    // Model space is relative to the model root.
+                    // This is faster to compute but rarely used by animation files.
+                    match animated_transforms[i] {
+                        Some(transform) => {
+                            anim_model_space[i] = transform;
+                        }
+                        None => {
+                            if let Some(parent) = skeleton.bones[i].parent_index {
+                                anim_model_space[i] =
+                                    anim_model_space[parent] * skeleton.bones[i].transform;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        anim_model_space
     }
 }
 
@@ -401,6 +524,14 @@ fn keyframe_position(
 
 fn interpolate_cubic(coeffs: Vec4, x: f32) -> f32 {
     coeffs.x * (x * x * x) + coeffs.y * (x * x) + coeffs.z * x + coeffs.w
+}
+
+fn apply_transform(target: Mat4, source: Mat4, blend_mode: BlendMode) -> Mat4 {
+    // TODO: Is this the correct way to implement additive blending?
+    match blend_mode {
+        BlendMode::Blend => source,
+        BlendMode::Add => target * source,
+    }
 }
 
 #[cfg(test)]

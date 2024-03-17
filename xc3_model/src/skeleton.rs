@@ -115,11 +115,12 @@ impl Skeleton {
         Self { bones }
     }
 
-    /// The global accumulated transform for each bone in world space.
+    /// The global transform for each bone in model space
+    /// by recursively applying the parent transform.
     ///
-    /// This is the result of recursively applying the bone's transform to its parent.
-    /// For inverse bind matrices, simply invert the world transforms.
-    pub fn world_transforms(&self) -> Vec<Mat4> {
+    /// This is also known as the bone's "rest pose" or "bind pose".
+    /// For inverse bind matrices, simply invert the model space transforms.
+    pub fn model_space_transforms(&self) -> Vec<Mat4> {
         let mut final_transforms: Vec<_> = self.bones.iter().map(|b| b.transform).collect();
 
         // TODO: Don't assume bones appear after their parents.

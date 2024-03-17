@@ -7,7 +7,7 @@ use wgpu::util::DeviceExt;
 use xc3_model::{vertex::AttributeData, ImageTexture};
 
 use crate::{
-    animation::animate_skeleton,
+    animation::animated_skinning_transforms,
     culling::is_within_frustum,
     material::{materials, Material},
     pipeline::{ModelPipelineData, PipelineKey},
@@ -264,7 +264,8 @@ impl ModelGroup {
         current_time_seconds: f32,
     ) {
         if let Some(skeleton) = &self.skeleton {
-            let animated_transforms = animate_skeleton(skeleton, animation, current_time_seconds);
+            let animated_transforms =
+                animated_skinning_transforms(skeleton, animation, current_time_seconds);
             let animated_transforms_inv_transpose =
                 animated_transforms.map(|t| t.inverse().transpose());
             queue.write_buffer(
