@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 * Renamed `Skeleton::world_transforms` to `Skeleton::model_space_transforms` for xc3_model.
 
+### Fixed
+* Fixed an issue where some glTF files exported by xc3_gltf would not load in some programs like Unreal Engine 5 due to validation errors.
+
 ## 0.7.0 - 2024-03-15
 ### Added
 * Added support for anisotropic filtering to xc3_wgpu.

@@ -100,11 +100,8 @@ impl Buffers {
 
                     // glTF morph targets are defined as a difference with the base target.
                     let mut attributes = attributes.clone();
-                    self.insert_attribute_values(
+                    self.insert_positions(
                         &position_deltas,
-                        gltf::Semantic::Positions,
-                        gltf::json::accessor::Type::Vec3,
-                        gltf::json::accessor::ComponentType::F32,
                         Some(Valid(Target::ArrayBuffer)),
                         &mut attributes,
                     )?;
@@ -199,12 +196,16 @@ impl Buffers {
             gltf::json::accessor::Type::Vec4,
             gltf::json::accessor::ComponentType::F32,
             Some(Valid(Target::ArrayBuffer)),
+            (None, None),
+            true,
         )?;
         let indices_accessor = self.add_values(
             &skin_weights.bone_indices,
             gltf::json::accessor::Type::Vec4,
             gltf::json::accessor::ComponentType::U8,
             Some(Valid(Target::ArrayBuffer)),
+            (None, None),
+            true,
         )?;
 
         Ok(WeightGroup {
@@ -221,14 +222,7 @@ impl Buffers {
         for attribute in buffer_attributes {
             match attribute {
                 AttributeData::Position(values) => {
-                    self.insert_attribute_values(
-                        values,
-                        gltf::Semantic::Positions,
-                        gltf::json::accessor::Type::Vec3,
-                        gltf::json::accessor::ComponentType::F32,
-                        Some(Valid(Target::ArrayBuffer)),
-                        attributes,
-                    )?;
+                    self.insert_positions(values, Some(Valid(Target::ArrayBuffer)), attributes)?;
                 }
                 AttributeData::Normal(values) => {
                     // Not all applications will normalize the vertex normals.
@@ -245,6 +239,7 @@ impl Buffers {
                 }
                 AttributeData::Tangent(values) => {
                     // TODO: do these values need to be scaled/normalized?
+                    // TODO: Why is the w component not always 1 or -1?
                     self.insert_attribute_values(
                         values,
                         gltf::Semantic::Tangents,
@@ -393,6 +388,13 @@ impl Buffers {
         if !self.index_buffer_accessors.contains_key(&key) {
             let index_bytes = write_bytes(&index_buffer.indices)?;
 
+            // The offset must be a multiple of the component data type.
+            let aligned = self
+                .buffer_bytes
+                .len()
+                .next_multiple_of(std::mem::size_of::<u16>());
+            self.buffer_bytes.resize(aligned, 0u8);
+
             // Assume everything uses the same buffer for now.
             let view = gltf::json::buffer::View {
                 buffer: gltf::json::Index::new(0),
@@ -439,6 +441,32 @@ impl Buffers {
         Ok(*self.index_buffer_accessors.get(&key).unwrap())
     }
 
+    pub fn insert_positions(
+        &mut self,
+        values: &[Vec3],
+        target: Option<Checked<Target>>,
+        attributes: &mut GltfAttributes,
+    ) -> BinResult<()> {
+        // Attributes should be non empty.
+        if !values.is_empty() {
+            // Only the position attribute requires min/max.
+            let min_max = positions_min_max(values);
+
+            let index = self.add_values(
+                values,
+                gltf::json::accessor::Type::Vec3,
+                gltf::json::accessor::ComponentType::F32,
+                target,
+                min_max,
+                true,
+            )?;
+
+            // Assume the buffer has only one of each attribute semantic.
+            attributes.insert(Valid(gltf::Semantic::Positions), index);
+        }
+        Ok(())
+    }
+
     pub fn insert_attribute_values<T: WriteBytes>(
         &mut self,
         values: &[T],
@@ -450,7 +478,14 @@ impl Buffers {
     ) -> BinResult<()> {
         // Attributes should be non empty.
         if !values.is_empty() {
-            let index = self.add_values(values, components, component_type, target)?;
+            let index = self.add_values(
+                values,
+                components,
+                component_type,
+                target,
+                (None, None),
+                true,
+            )?;
 
             // Assume the buffer has only one of each attribute semantic.
             attributes.insert(Valid(semantic), index);
@@ -464,8 +499,17 @@ impl Buffers {
         components: gltf::json::accessor::Type,
         component_type: gltf::json::accessor::ComponentType,
         target: Option<Checked<Target>>,
+        min_max: (Option<gltf_json::Value>, Option<gltf_json::Value>),
+        byte_stride: bool,
     ) -> BinResult<gltf::json::Index<gltf::json::Accessor>> {
         let attribute_bytes = write_bytes(values)?;
+
+        // The offset must be a multiple of the component data type.
+        let aligned = self
+            .buffer_bytes
+            .len()
+            .next_multiple_of(std::mem::size_of::<T>());
+        self.buffer_bytes.resize(aligned, 0u8);
 
         // Assume everything uses the same buffer for now.
         // Each attribute is in its own section and thus has its own view.
@@ -473,7 +517,7 @@ impl Buffers {
             buffer: gltf::json::Index::new(0),
             byte_length: attribute_bytes.len() as u32,
             byte_offset: Some(self.buffer_bytes.len() as u32),
-            byte_stride: Some(std::mem::size_of::<T>() as u32),
+            byte_stride: byte_stride.then_some(std::mem::size_of::<T>() as u32),
             extensions: Default::default(),
             extras: Default::default(),
             name: None,
@@ -481,7 +525,8 @@ impl Buffers {
         };
         self.buffer_bytes.extend_from_slice(&attribute_bytes);
 
-        // TODO: min/max for positions.
+        let (min, max) = min_max;
+
         let accessor = gltf::json::Accessor {
             buffer_view: Some(gltf::json::Index::new(self.buffer_views.len() as u32)),
             byte_offset: Some(0),
@@ -490,8 +535,8 @@ impl Buffers {
             extensions: Default::default(),
             extras: Default::default(),
             type_: Valid(components),
-            min: None,
-            max: None,
+            min,
+            max,
             name: None,
             normalized: false,
             sparse: None,
@@ -503,6 +548,20 @@ impl Buffers {
         self.buffer_views.push(view);
 
         Ok(index)
+    }
+}
+
+fn positions_min_max(values: &[Vec3]) -> (Option<gltf_json::Value>, Option<gltf_json::Value>) {
+    let min = values.iter().copied().reduce(Vec3::min);
+    let max = values.iter().copied().reduce(Vec3::max);
+
+    if let (Some(min), Some(max)) = (min, max) {
+        (
+            Some(serde_json::json!([min.x, min.y, min.z])),
+            Some(serde_json::json!([max.x, max.y, max.z])),
+        )
+    } else {
+        (None, None)
     }
 }
 

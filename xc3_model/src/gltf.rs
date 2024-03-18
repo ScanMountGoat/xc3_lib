@@ -408,7 +408,11 @@ fn create_skin(
                 },
                 extensions: Default::default(),
                 extras: Default::default(),
-                matrix: Some(bone.transform.to_cols_array()),
+                matrix: if bone.transform != Mat4::IDENTITY {
+                    Some(bone.transform.to_cols_array())
+                } else {
+                    None
+                },
                 mesh: None,
                 name: Some(bone.name.clone()),
                 rotation: None,
@@ -417,10 +421,13 @@ fn create_skin(
                 skin: None,
                 weights: None,
             };
-            // Joint nodes must belong to the scene.
             let joint_node_index = nodes.len() as u32;
             nodes.push(joint_node);
-            scene_nodes.push(gltf::json::Index::new(joint_node_index));
+
+            // Joint root nodes must belong to the scene.
+            if bone.parent_index.is_none() {
+                scene_nodes.push(gltf::json::Index::new(joint_node_index));
+            }
         }
 
         // TODO: Add this to skeleton.rs?
@@ -436,6 +443,8 @@ fn create_skin(
                 gltf::json::accessor::Type::Mat4,
                 gltf::json::accessor::ComponentType::F32,
                 None,
+                (None, None),
+                false,
             )
             .unwrap();
 
