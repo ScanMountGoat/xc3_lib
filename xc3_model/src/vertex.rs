@@ -581,6 +581,7 @@ fn read_attribute(
             read_data(d, relative_offset, buffer, read_snorm8x4).ok()?,
         )),
         DataType::Unk30 => None,
+        DataType::Unk31 => None,
         DataType::Normal2 => Some(AttributeData::Normal(
             read_data(d, relative_offset, buffer, read_snorm8x4).ok()?,
         )),

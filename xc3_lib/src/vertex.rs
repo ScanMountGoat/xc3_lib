@@ -211,6 +211,7 @@ pub enum DataType {
     Tangent = 29,
     /// ??? "fGmAl" in shaders.
     Unk30 = 30,
+    Unk31 = 31, // TODO: xcx only?
     /// Snorm8x4 "vNormal" in shaders.
     Normal2 = 32,
     Unk33 = 33,

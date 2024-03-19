@@ -21,6 +21,8 @@ use bilge::prelude::*;
 use binrw::{args, binread, BinRead, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
+pub mod legacy;
+
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 #[br(magic(b"DMXM"))]
@@ -63,7 +65,7 @@ pub struct Mxmd {
 
     pub unk5: u32,
 
-    /// Streaming information for the `wismt` file or [None] if no `wismt` file.
+    /// Streaming information for the .wismt file or [None] if no .wismt file.
     /// Identical to the same field in the corresponding [Msrd](crate::msrd::Msrd).
     #[br(parse_with = parse_opt_ptr32)]
     #[xc3(offset(u32))]
@@ -568,7 +570,7 @@ pub struct Models {
     base_offset: u64,
 
     // TODO: Default value for version arg?
-    #[br(if(version != 10111))]
+    #[br(if(version > 10111))]
     pub models_flags: Option<ModelsFlags>,
 
     /// The maximum of all the [max_xyz](struct.Model.html#structfield.max_xyz) in [models](#structfield.models).

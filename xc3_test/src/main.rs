@@ -18,7 +18,7 @@ use xc3_lib::{
     msmd::Msmd,
     msrd::{streaming::chr_tex_nx_folder, Msrd},
     mtxt::Mtxt,
-    mxmd::Mxmd,
+    mxmd::{legacy::MxmdLegacy, Mxmd},
     sar1::{ChCl, Csvb, Sar1},
     spch::Spch,
     xbc1::{MaybeXbc1, Xbc1},
@@ -74,6 +74,10 @@ struct Cli {
     /// Process MTXT files from .catex and .calut
     #[arg(long)]
     mtxt: bool,
+
+    /// Process MXMD files from .camdo
+    #[arg(long)]
+    camdo: bool,
 
     /// Process all file types except gltf and wimdo-model.
     #[arg(long)]
@@ -187,6 +191,11 @@ fn main() {
             Endian::Big,
             cli.rw,
         );
+    }
+
+    if cli.camdo || cli.all {
+        println!("Checking Mxmd files ...");
+        check_all(root, &["*.camdo"], check_mxmd_legacy, Endian::Big, cli.rw);
     }
 
     if cli.gltf {
@@ -737,6 +746,10 @@ fn check_eva(eva: Eva, path: &Path, original_bytes: &[u8], check_read_write: boo
             println!("Eva read/write not 1:1 for {path:?}");
         }
     }
+}
+
+fn check_mxmd_legacy(mxmd: MxmdLegacy, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+    // TODO: write support for big endian files?
 }
 
 fn check_mtxt(mtxt: Mtxt, path: &Path, original_bytes: &[u8], check_read_write: bool) {
