@@ -63,6 +63,7 @@ pub mod map;
 pub mod mibl;
 pub mod msmd;
 pub mod msrd;
+pub mod mtxt;
 pub mod mxmd;
 pub mod sar1;
 pub mod spch;
@@ -441,6 +442,7 @@ pub struct ReadFileError {
 }
 
 // TODO: Dedicated error types?
+// TODO: Specify big or little endian for some formats?
 macro_rules! file_read_impl {
     ($($type_name:path),*) => {
         $(

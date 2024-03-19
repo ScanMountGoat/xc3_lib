@@ -3,7 +3,7 @@ use std::{
     path::Path,
 };
 
-use binrw::{BinRead, BinReaderExt};
+use binrw::{BinRead, BinReaderExt, BinWrite, Endian};
 use clap::Parser;
 use rayon::prelude::*;
 use xc3_lib::{
@@ -17,6 +17,7 @@ use xc3_lib::{
     mibl::Mibl,
     msmd::Msmd,
     msrd::{streaming::chr_tex_nx_folder, Msrd},
+    mtxt::Mtxt,
     mxmd::Mxmd,
     sar1::{ChCl, Csvb, Sar1},
     spch::Spch,
@@ -70,6 +71,10 @@ struct Cli {
     #[arg(long)]
     eva: bool,
 
+    /// Process MTXT files from .catex and .calut
+    #[arg(long)]
+    mtxt: bool,
+
     /// Process all file types except gltf and wimdo-model.
     #[arg(long)]
     all: bool,
@@ -105,48 +110,83 @@ fn main() {
 
     if cli.wimdo || cli.all {
         println!("Checking Mxmd and Apmd files ...");
-        check_all(root, &["*.wimdo", "*.pcmdo"], check_wimdo, cli.rw);
+        check_all(
+            root,
+            &["*.wimdo", "*.pcmdo"],
+            check_wimdo,
+            Endian::Little,
+            cli.rw,
+        );
     }
 
     if cli.msrd || cli.all {
         // Skip the .wismt textures in the XC3 tex folder.
         println!("Checking Msrd files ...");
-        check_all(root, &["*.wismt", "!**/tex/**"], check_msrd, cli.rw);
+        check_all(
+            root,
+            &["*.wismt", "!**/tex/**"],
+            check_msrd,
+            Endian::Little,
+            cli.rw,
+        );
     }
 
     if cli.msmd || cli.all {
         println!("Checking Msmd files ...");
-        check_all(root, &["*.wismhd"], check_msmd, cli.rw);
+        check_all(root, &["*.wismhd"], check_msmd, Endian::Little, cli.rw);
     }
 
     if cli.sar1 || cli.all {
         println!("Checking Sar1 files ...");
-        check_all(root, &["*.arc", "*.chr", "*.mot"], check_sar1_data, cli.rw);
+        check_all(
+            root,
+            &["*.arc", "*.chr", "*.mot"],
+            check_sar1_data,
+            Endian::Little,
+            cli.rw,
+        );
     }
 
     if cli.spch || cli.all {
         println!("Checking Spch files ...");
-        check_all(root, &["*.wishp"], check_spch, cli.rw);
+        check_all(root, &["*.wishp"], check_spch, Endian::Little, cli.rw);
     }
 
     if cli.wilay || cli.all {
         println!("Checking Dhal and Lagp files ...");
-        check_all(root, &["*.wilay"], check_wilay_data, cli.rw);
+        check_all(root, &["*.wilay"], check_wilay_data, Endian::Little, cli.rw);
     }
 
     if cli.ltpc || cli.all {
         println!("Checking Ltpc files ...");
-        check_all(root, &["*.wiltp"], check_ltpc, cli.rw);
+        check_all(root, &["*.wiltp"], check_ltpc, Endian::Little, cli.rw);
     }
 
     if cli.bc || cli.all {
         println!("Checking Bc files ...");
-        check_all(root, &["*.anm", "*.motstm_data"], check_bc, cli.rw);
+        check_all(
+            root,
+            &["*.anm", "*.motstm_data"],
+            check_bc,
+            Endian::Little,
+            cli.rw,
+        );
     }
 
     if cli.eva || cli.all {
         println!("Checking Eva files ...");
-        check_all(root, &["*.eva"], check_eva, cli.rw);
+        check_all(root, &["*.eva"], check_eva, Endian::Little, cli.rw);
+    }
+
+    if cli.mtxt || cli.all {
+        println!("Checking Mtxt files ...");
+        check_all(
+            root,
+            &["*.catex", "*.calut"],
+            check_mtxt,
+            Endian::Big,
+            cli.rw,
+        );
     }
 
     if cli.gltf {
@@ -699,8 +739,23 @@ fn check_eva(eva: Eva, path: &Path, original_bytes: &[u8], check_read_write: boo
     }
 }
 
-fn check_all<P, T, F>(root: P, patterns: &[&str], check_file: F, check_read_write: bool)
-where
+fn check_mtxt(mtxt: Mtxt, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+    if check_read_write {
+        let mut writer = Cursor::new(Vec::new());
+        mtxt.write_be(&mut writer).unwrap();
+        if writer.into_inner() != original_bytes {
+            println!("Mtxt read/write not 1:1 for {path:?}");
+        }
+    }
+}
+
+fn check_all<P, T, F>(
+    root: P,
+    patterns: &[&str],
+    check_file: F,
+    endian: Endian,
+    check_read_write: bool,
+) where
     P: AsRef<Path>,
     F: Fn(T, &Path, &[u8], bool) + Sync,
     for<'a> T: BinRead<Args<'a> = ()>,
@@ -713,7 +768,7 @@ where
             let path = entry.as_ref().unwrap().path();
             let original_bytes = std::fs::read(path).unwrap();
             let mut reader = Cursor::new(&original_bytes);
-            match reader.read_le() {
+            match reader.read_type(endian) {
                 Ok(file) => check_file(file, path, &original_bytes, check_read_write),
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }
