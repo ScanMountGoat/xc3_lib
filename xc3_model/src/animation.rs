@@ -549,9 +549,23 @@ fn apply_transform(target: Mat4, source: Mat4, blend_mode: BlendMode) -> Mat4 {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     use crate::Bone;
 
-    use super::*;
+    macro_rules! assert_matrix_relative_eq {
+        ($a:expr, $b:expr) => {
+            assert!(
+                $a.to_cols_array()
+                    .iter()
+                    .zip($b.to_cols_array().iter())
+                    .all(|(a, b)| approx::relative_eq!(a, b, epsilon = 0.0001f32)),
+                "Matrices not equal to within 0.0001.\nleft = {:?}\nright = {:?}",
+                $a,
+                $b
+            )
+        };
+    }
 
     fn keys(frames: &[f32]) -> BTreeMap<OrderedFloat<f32>, Keyframe> {
         frames
@@ -652,10 +666,22 @@ mod tests {
             .is_empty());
     }
 
-    // TODO: test additive and model space.
+    // TODO: test additive blending.
     #[test]
     fn model_space_transforms_local_blend() {
-        // TODO: Create constant keyframes?
+        // Crate a keyframe with a constant value.
+        let keyframe = |x, y, z, w| {
+            (
+                0.0.into(),
+                Keyframe {
+                    x_coeffs: vec4(0.0, 0.0, 0.0, x),
+                    y_coeffs: vec4(0.0, 0.0, 0.0, y),
+                    z_coeffs: vec4(0.0, 0.0, 0.0, z),
+                    w_coeffs: vec4(0.0, 0.0, 0.0, w),
+                },
+            )
+        };
+
         let animation = Animation {
             name: String::new(),
             space_mode: SpaceMode::Local,
@@ -665,38 +691,130 @@ mod tests {
             frame_count: 1,
             tracks: vec![
                 Track {
-                    translation_keyframes: [].into(),
-                    rotation_keyframes: [].into(),
-                    scale_keyframes: [].into(),
+                    translation_keyframes: [keyframe(1.0, 2.0, 3.0, 0.0)].into(),
+                    rotation_keyframes: [keyframe(0.0, 0.0, 0.0, 1.0)].into(),
+                    scale_keyframes: [keyframe(1.0, 1.0, 1.0, 0.0)].into(),
                     bone_index: BoneIndex::Name("a".to_string()),
                 },
                 Track {
-                    translation_keyframes: [].into(),
-                    rotation_keyframes: [].into(),
-                    scale_keyframes: [].into(),
+                    translation_keyframes: [keyframe(1.0, 2.0, 3.0, 0.0)].into(),
+                    rotation_keyframes: [keyframe(0.0, 0.0, 0.0, 1.0)].into(),
+                    scale_keyframes: [keyframe(1.0, 1.0, 1.0, 0.0)].into(),
                     bone_index: BoneIndex::Index(1),
                 },
             ],
         };
 
-        let transforms = animation.model_space_transforms(
-            &Skeleton {
-                bones: vec![
-                    Bone {
-                        name: "a".to_string(),
-                        transform: Mat4::IDENTITY,
-                        parent_index: None,
-                    },
-                    Bone {
-                        name: "b".to_string(),
-                        transform: Mat4::IDENTITY,
-                        parent_index: Some(1),
-                    },
-                ],
-            },
-            0.0,
-        );
-        // TODO: Assert relative eq with pretty assertions.
+        let skeleton = Skeleton {
+            bones: vec![
+                Bone {
+                    name: "a".to_string(),
+                    transform: Mat4::IDENTITY,
+                    parent_index: None,
+                },
+                Bone {
+                    name: "b".to_string(),
+                    transform: Mat4::IDENTITY,
+                    parent_index: Some(0),
+                },
+            ],
+        };
+
+        let transforms = animation.model_space_transforms(&skeleton, 0.0);
         assert_eq!(2, transforms.len());
+        assert_matrix_relative_eq!(
+            Mat4::from_cols_array_2d(&[
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [1.0, 2.0, 3.0, 1.0],
+            ]),
+            transforms[0]
+        );
+        assert_matrix_relative_eq!(
+            Mat4::from_cols_array_2d(&[
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [2.0, 4.0, 6.0, 1.0],
+            ]),
+            transforms[1]
+        );
+    }
+
+    #[test]
+    fn model_space_transforms_model_blend() {
+        // Crate a keyframe with a constant value.
+        let keyframe = |x, y, z, w| {
+            (
+                0.0.into(),
+                Keyframe {
+                    x_coeffs: vec4(0.0, 0.0, 0.0, x),
+                    y_coeffs: vec4(0.0, 0.0, 0.0, y),
+                    z_coeffs: vec4(0.0, 0.0, 0.0, z),
+                    w_coeffs: vec4(0.0, 0.0, 0.0, w),
+                },
+            )
+        };
+
+        // Model space animations update the model space transforms directly.
+        let animation = Animation {
+            name: String::new(),
+            space_mode: SpaceMode::Model,
+            play_mode: PlayMode::Single,
+            blend_mode: BlendMode::Blend,
+            frames_per_second: 30.0,
+            frame_count: 1,
+            tracks: vec![
+                Track {
+                    translation_keyframes: [keyframe(1.0, 2.0, 3.0, 0.0)].into(),
+                    rotation_keyframes: [keyframe(0.0, 0.0, 0.0, 1.0)].into(),
+                    scale_keyframes: [keyframe(1.0, 1.0, 1.0, 0.0)].into(),
+                    bone_index: BoneIndex::Name("a".to_string()),
+                },
+                Track {
+                    translation_keyframes: [keyframe(10.0, 20.0, 30.0, 0.0)].into(),
+                    rotation_keyframes: [keyframe(0.0, 0.0, 0.0, 1.0)].into(),
+                    scale_keyframes: [keyframe(1.0, 1.0, 1.0, 0.0)].into(),
+                    bone_index: BoneIndex::Index(1),
+                },
+            ],
+        };
+
+        let skeleton = Skeleton {
+            bones: vec![
+                Bone {
+                    name: "a".to_string(),
+                    transform: Mat4::IDENTITY,
+                    parent_index: None,
+                },
+                Bone {
+                    name: "b".to_string(),
+                    transform: Mat4::IDENTITY,
+                    parent_index: Some(0),
+                },
+            ],
+        };
+
+        let transforms = animation.model_space_transforms(&skeleton, 0.0);
+        assert_eq!(2, transforms.len());
+        assert_matrix_relative_eq!(
+            Mat4::from_cols_array_2d(&[
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [1.0, 2.0, 3.0, 1.0],
+            ]),
+            transforms[0]
+        );
+        assert_matrix_relative_eq!(
+            Mat4::from_cols_array_2d(&[
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [10.0, 20.0, 30.0, 1.0],
+            ]),
+            transforms[1]
+        );
     }
 }
