@@ -69,6 +69,7 @@ pub use skeleton::{Bone, Skeleton};
 pub use texture::{ExtractedTextures, ImageFormat, ImageTexture, ViewDimension};
 pub use xc3_lib::mxmd::{
     BlendMode, CullMode, DepthFunc, RenderPassType, StateFlags, StencilMode, StencilValue,
+    TextureUsage,
 };
 
 pub mod animation;
