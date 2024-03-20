@@ -1,6 +1,6 @@
 use crate::{
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
-    parse_string_ptr32, vertex::VertexAttribute
+    parse_string_ptr32, vertex::VertexAttribute,
 };
 use binrw::{args, binread, BinRead};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
@@ -105,7 +105,7 @@ pub struct Materials {
     #[xc3(offset(u32))]
     pub unk2: Option<MaterialsUnk2>,
 
-    pub unk: [u32; 3]
+    pub unk: [u32; 3],
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -125,7 +125,7 @@ pub struct Material {
     #[xc3(offset_count(u32, u32))]
     pub textures: Vec<Texture>,
 
-    pub unk: [u32; 17]
+    pub unk: [u32; 17],
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -175,7 +175,7 @@ pub struct VertexData {
     pub unk1: u32,
 
     // TODO: padding?
-    pub unk: [u32; 7]
+    pub unk: [u32; 7],
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -263,8 +263,8 @@ pub struct StreamingLegacy {
 
     // TODO: Why are these necessary?
     #[br(parse_with = parse_ptr32)]
-    #[br(args { 
-        offset: base_offset, 
+    #[br(args {
+        offset: base_offset,
         inner: args! { count: low_textures.textures.len() }
     })]
     #[xc3(offset(u32))]

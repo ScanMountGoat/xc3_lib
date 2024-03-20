@@ -119,26 +119,20 @@ impl Animation {
                 BoneIndex::Hash(hash) => hash_to_index.get(hash).copied(),
                 BoneIndex::Name(name) => skeleton.bones.iter().position(|b| &b.name == name),
             } {
-                let translation = track.sample_translation(frame);
-                let rotation = track.sample_rotation(frame);
-                let scale = track.sample_scale(frame);
-
-                let transform = Mat4::from_translation(translation)
-                    * Mat4::from_quat(rotation)
-                    * Mat4::from_scale(scale);
-
-                if bone_index < skeleton.bones.len() {
-                    animated_transforms[bone_index] = Some(apply_transform(
-                        skeleton.bones[bone_index].transform,
-                        transform,
-                        self.blend_mode,
-                    ));
-                } else {
-                    // TODO: Why does this happen?
-                    error!(
-                        "Bone index {bone_index} out of range for {} bones",
-                        skeleton.bones.len()
-                    );
+                if let Some(transform) = track.sample_transform(frame) {
+                    if bone_index < skeleton.bones.len() {
+                        animated_transforms[bone_index] = Some(apply_transform(
+                            skeleton.bones[bone_index].transform,
+                            transform,
+                            self.blend_mode,
+                        ));
+                    } else {
+                        // TODO: Why does this happen?
+                        error!(
+                            "Bone index {bone_index} out of range for {} bones",
+                            skeleton.bones.len()
+                        );
+                    }
                 }
             } else {
                 // TODO: Why does this happen?
@@ -478,48 +472,67 @@ fn packed_cubic_vec4_keyframes(
 }
 
 impl Track {
-    pub fn sample_translation(&self, frame: f32) -> Vec3 {
-        sample_keyframe_cubic(&self.translation_keyframes, frame).xyz()
+    /// Sample the translation at `frame` using the appropriate interpolation between frames.
+    /// Returns `None` if the animation is empty.
+    pub fn sample_translation(&self, frame: f32) -> Option<Vec3> {
+        sample_keyframe_cubic(&self.translation_keyframes, frame).map(|t| t.xyz())
     }
 
-    pub fn sample_rotation(&self, frame: f32) -> Quat {
-        Quat::from_array(sample_keyframe_cubic(&self.rotation_keyframes, frame).to_array())
+    /// Sample the rotation at `frame` using the appropriate interpolation between frames.
+    /// Returns `None` if the animation is empty.
+    pub fn sample_rotation(&self, frame: f32) -> Option<Quat> {
+        let rotation = sample_keyframe_cubic(&self.rotation_keyframes, frame)?;
+        Some(Quat::from_array(rotation.to_array()))
     }
 
-    pub fn sample_scale(&self, frame: f32) -> Vec3 {
-        sample_keyframe_cubic(&self.scale_keyframes, frame).xyz()
+    /// Sample the scale at `frame` using the appropriate interpolation between frames.
+    /// Returns `None` if the animation is empty.
+    pub fn sample_scale(&self, frame: f32) -> Option<Vec3> {
+        sample_keyframe_cubic(&self.scale_keyframes, frame).map(|s| s.xyz())
+    }
+
+    /// Sample and combine transformation matrices for scale -> rotation -> translation (TRS).
+    /// Returns `None` if the animation is empty.
+    pub fn sample_transform(&self, frame: f32) -> Option<Mat4> {
+        let t = self.sample_translation(frame)?;
+        let r = self.sample_rotation(frame)?;
+        let s = self.sample_scale(frame)?;
+        Some(Mat4::from_translation(t) * Mat4::from_quat(r) * Mat4::from_scale(s))
     }
 }
 
 // TODO: Add tests for this.
-fn sample_keyframe_cubic(keyframes: &BTreeMap<OrderedFloat<f32>, Keyframe>, frame: f32) -> Vec4 {
-    let (keyframe, x) = keyframe_position(keyframes, frame);
+fn sample_keyframe_cubic(
+    keyframes: &BTreeMap<OrderedFloat<f32>, Keyframe>,
+    frame: f32,
+) -> Option<Vec4> {
+    let (keyframe, x) = keyframe_position(keyframes, frame)?;
 
-    vec4(
+    Some(vec4(
         interpolate_cubic(keyframe.x_coeffs, x),
         interpolate_cubic(keyframe.y_coeffs, x),
         interpolate_cubic(keyframe.z_coeffs, x),
         interpolate_cubic(keyframe.w_coeffs, x),
-    )
+    ))
 }
 
 fn keyframe_position(
     keyframes: &BTreeMap<OrderedFloat<f32>, Keyframe>,
     frame: f32,
-) -> (&Keyframe, f32) {
+) -> Option<(&Keyframe, f32)> {
     // Find the keyframe range containing the desired frame.
     // Use a workaround for tree lower/upper bound not being stable.
     let key = OrderedFloat::<f32>::from(frame);
     let mut before = keyframes.range((Unbounded, Included(key)));
     let mut after = keyframes.range((Excluded(key), Unbounded));
 
-    let (previous_frame, keyframe) = before.next_back().unwrap();
+    let (previous_frame, keyframe) = before.next_back()?;
     let (next_frame, _) = after.next().unwrap_or((previous_frame, keyframe));
 
     // The final keyframe should persist for the rest of the animation.
     let position = frame.min(next_frame.0) - previous_frame.0;
 
-    (keyframe, position)
+    Some((keyframe, position))
 }
 
 fn interpolate_cubic(coeffs: Vec4, x: f32) -> f32 {
@@ -536,19 +549,21 @@ fn apply_transform(target: Mat4, source: Mat4, blend_mode: BlendMode) -> Mat4 {
 
 #[cfg(test)]
 mod tests {
+    use crate::Bone;
+
     use super::*;
 
-    fn keys(frames: [f32; 3]) -> BTreeMap<OrderedFloat<f32>, Keyframe> {
+    fn keys(frames: &[f32]) -> BTreeMap<OrderedFloat<f32>, Keyframe> {
         frames
-            .into_iter()
+            .iter()
             .map(|frame| {
                 (
-                    frame.into(),
+                    (*frame).into(),
                     Keyframe {
-                        x_coeffs: Vec4::splat(frame),
-                        y_coeffs: Vec4::splat(frame),
-                        z_coeffs: Vec4::splat(frame),
-                        w_coeffs: Vec4::splat(frame),
+                        x_coeffs: Vec4::splat(*frame),
+                        y_coeffs: Vec4::splat(*frame),
+                        z_coeffs: Vec4::splat(*frame),
+                        w_coeffs: Vec4::splat(*frame),
                     },
                 )
             })
@@ -565,35 +580,43 @@ mod tests {
     }
 
     #[test]
+    fn index_position_no_keyframes() {
+        let keyframes = keys(&[]);
+        assert_eq!(None, keyframe_position(&keyframes, 0.0));
+        assert_eq!(None, keyframe_position(&keyframes, 2.5));
+        assert_eq!(None, keyframe_position(&keyframes, 4.9));
+    }
+
+    #[test]
     fn index_position_first_keyframe() {
-        let keyframes = keys([0.0, 5.0, 9.0]);
+        let keyframes = keys(&[0.0, 5.0, 9.0]);
         assert_eq!(
-            (&keyframes[&0.0.into()], 0.0),
+            Some((&keyframes[&0.0.into()], 0.0)),
             keyframe_position(&keyframes, 0.0)
         );
         assert_eq!(
-            (&keyframes[&0.0.into()], 2.5),
+            Some((&keyframes[&0.0.into()], 2.5)),
             keyframe_position(&keyframes, 2.5)
         );
         assert_eq!(
-            (&keyframes[&0.0.into()], 4.9),
+            Some((&keyframes[&0.0.into()], 4.9)),
             keyframe_position(&keyframes, 4.9)
         );
     }
 
     #[test]
     fn index_position_second_keyframe() {
-        let keyframes = keys([0.0, 5.0, 9.0]);
+        let keyframes = keys(&[0.0, 5.0, 9.0]);
         assert_eq!(
-            (&keyframes[&5.0.into()], 0.0),
+            Some((&keyframes[&5.0.into()], 0.0)),
             keyframe_position(&keyframes, 5.0)
         );
         assert_eq!(
-            (&keyframes[&5.0.into()], 2.0),
+            Some((&keyframes[&5.0.into()], 2.0)),
             keyframe_position(&keyframes, 7.0)
         );
         assert_eq!(
-            (&keyframes[&5.0.into()], 3.5),
+            Some((&keyframes[&5.0.into()], 3.5)),
             keyframe_position(&keyframes, 8.5)
         );
     }
@@ -601,14 +624,79 @@ mod tests {
     #[test]
     fn index_position_last_keyframe() {
         // This should clamp to the final keyframe instead of extrapolating.
-        let keyframes = keys([0.0, 5.0, 9.0]);
+        let keyframes = keys(&[0.0, 5.0, 9.0]);
         assert_eq!(
-            (&keyframes[&9.0.into()], 0.0),
+            Some((&keyframes[&9.0.into()], 0.0)),
             keyframe_position(&keyframes, 10.0)
         );
         assert_eq!(
-            (&keyframes[&9.0.into()], 0.0),
+            Some((&keyframes[&9.0.into()], 0.0)),
             keyframe_position(&keyframes, 12.5)
         );
+    }
+
+    #[test]
+    fn model_space_transforms_empty() {
+        let animation = Animation {
+            name: String::new(),
+            space_mode: SpaceMode::Local,
+            play_mode: PlayMode::Single,
+            blend_mode: BlendMode::Blend,
+            frames_per_second: 30.0,
+            frame_count: 1,
+            tracks: Vec::new(),
+        };
+
+        assert!(animation
+            .model_space_transforms(&Skeleton { bones: Vec::new() }, 0.0)
+            .is_empty());
+    }
+
+    // TODO: test additive and model space.
+    #[test]
+    fn model_space_transforms_local_blend() {
+        // TODO: Create constant keyframes?
+        let animation = Animation {
+            name: String::new(),
+            space_mode: SpaceMode::Local,
+            play_mode: PlayMode::Single,
+            blend_mode: BlendMode::Blend,
+            frames_per_second: 30.0,
+            frame_count: 1,
+            tracks: vec![
+                Track {
+                    translation_keyframes: [].into(),
+                    rotation_keyframes: [].into(),
+                    scale_keyframes: [].into(),
+                    bone_index: BoneIndex::Name("a".to_string()),
+                },
+                Track {
+                    translation_keyframes: [].into(),
+                    rotation_keyframes: [].into(),
+                    scale_keyframes: [].into(),
+                    bone_index: BoneIndex::Index(1),
+                },
+            ],
+        };
+
+        let transforms = animation.model_space_transforms(
+            &Skeleton {
+                bones: vec![
+                    Bone {
+                        name: "a".to_string(),
+                        transform: Mat4::IDENTITY,
+                        parent_index: None,
+                    },
+                    Bone {
+                        name: "b".to_string(),
+                        transform: Mat4::IDENTITY,
+                        parent_index: Some(1),
+                    },
+                ],
+            },
+            0.0,
+        );
+        // TODO: Assert relative eq with pretty assertions.
+        assert_eq!(2, transforms.len());
     }
 }
