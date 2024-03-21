@@ -569,8 +569,8 @@ pub struct Models {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    // TODO: Default value for version arg?
-    #[br(if(version > 10111))]
+    // TODO: Default value for version arg to make maps work properly?
+    #[br(if(version != 10111))]
     pub models_flags: Option<ModelsFlags>,
 
     /// The maximum of all the [max_xyz](struct.Model.html#structfield.max_xyz) in [models](#structfield.models).
