@@ -2,8 +2,8 @@ use glam::{vec4, Mat4, Vec4};
 use wgpu::util::DeviceExt;
 
 use crate::{
-    model::ModelGroup, MonolibShaderTextures, COLOR_FORMAT, DEPTH_STENCIL_FORMAT,
-    GBUFFER_COLOR_FORMAT,
+    model::ModelGroup, DeviceBufferExt, MonolibShaderTextures, QueueBufferExt, COLOR_FORMAT,
+    DEPTH_STENCIL_FORMAT, GBUFFER_COLOR_FORMAT,
 };
 
 const MAT_ID_DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth16Unorm;
@@ -141,15 +141,14 @@ impl Xc3Renderer {
             view_projection: Mat4::IDENTITY,
             position: Vec4::ZERO,
         };
-        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("camera buffer"),
-            contents: bytemuck::cast_slice(&[crate::shader::model::Camera {
+        let camera_buffer = device.create_uniform_buffer(
+            "camera buffer",
+            &crate::shader::model::Camera {
                 view: Mat4::IDENTITY,
                 view_projection: Mat4::IDENTITY,
                 position: Vec4::ZERO,
-            }]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
+            },
+        );
 
         let model_bind_group0 = crate::shader::model::bind_groups::BindGroup0::from_bindings(
             device,
@@ -159,13 +158,12 @@ impl Xc3Renderer {
         );
 
         let render_mode = RenderMode::Shaded;
-        let debug_settings_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Debug Settings"),
-            contents: bytemuck::cast_slice(&[crate::shader::deferred::DebugSettings {
+        let debug_settings_buffer = device.create_uniform_buffer(
+            "Debug Settings",
+            &crate::shader::deferred::DebugSettings {
                 render_mode: render_mode as u32,
-            }]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
+            },
+        );
 
         let shared_sampler = device.create_sampler(&wgpu::SamplerDescriptor::default());
 
@@ -195,13 +193,10 @@ impl Xc3Renderer {
 
         // TODO: Is is better to just create separate pipelines?
         let deferred_bind_group2 = [0, 1, 2, 3, 4, 5].map(|mat_id| {
-            let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Render Settings"),
-                contents: bytemuck::cast_slice(&[crate::shader::deferred::RenderSettings {
-                    mat_id,
-                }]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            });
+            let buffer = device.create_uniform_buffer(
+                "Render Settings",
+                &crate::shader::deferred::RenderSettings { mat_id },
+            );
 
             crate::shader::deferred::bind_groups::BindGroup2::from_bindings(
                 device,
@@ -242,13 +237,12 @@ impl Xc3Renderer {
             },
         );
 
-        let uniforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("bounds uniform buffer"),
-            contents: bytemuck::cast_slice(&[crate::shader::solid::Uniforms {
+        let uniforms_buffer = device.create_uniform_buffer(
+            "bounds uniform buffer",
+            &crate::shader::solid::Uniforms {
                 color: vec4(1.0, 1.0, 1.0, 1.0),
-            }]),
-            usage: wgpu::BufferUsages::UNIFORM,
-        });
+            },
+        );
 
         let solid_bind_group1 = crate::shader::solid::bind_groups::BindGroup1::from_bindings(
             device,
@@ -258,13 +252,12 @@ impl Xc3Renderer {
         );
 
         // Use a distinctive color to indicate the culled state.
-        let culled_uniforms_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("bounds culled uniform buffer"),
-            contents: bytemuck::cast_slice(&[crate::shader::solid::Uniforms {
+        let culled_uniforms_buffer = device.create_uniform_buffer(
+            "bounds culled uniform buffer",
+            &crate::shader::solid::Uniforms {
                 color: vec4(1.0, 0.0, 0.0, 1.0),
-            }]),
-            usage: wgpu::BufferUsages::UNIFORM,
-        });
+            },
+        );
 
         let solid_culled_bind_group1 = crate::shader::solid::bind_groups::BindGroup1::from_bindings(
             device,
@@ -317,14 +310,13 @@ impl Xc3Renderer {
     }
 
     pub fn update_camera(&mut self, queue: &wgpu::Queue, camera_data: &CameraData) {
-        queue.write_buffer(
+        queue.write_uniform_data(
             &self.camera_buffer,
-            0,
-            bytemuck::cast_slice(&[crate::shader::model::Camera {
+            &crate::shader::model::Camera {
                 view: camera_data.view,
                 view_projection: camera_data.view_projection,
                 position: camera_data.position,
-            }]),
+            },
         );
         self.camera = *camera_data;
     }
@@ -335,14 +327,12 @@ impl Xc3Renderer {
     }
 
     pub fn update_debug_settings(&mut self, queue: &wgpu::Queue, render_mode: RenderMode) {
-        // TODO: enum for render mode?
         self.render_mode = render_mode;
-        queue.write_buffer(
+        queue.write_uniform_data(
             &self.debug_settings_buffer,
-            0,
-            bytemuck::cast_slice(&[crate::shader::deferred::DebugSettings {
+            &crate::shader::deferred::DebugSettings {
                 render_mode: render_mode as u32,
-            }]),
+            },
         );
     }
 

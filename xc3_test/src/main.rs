@@ -748,7 +748,12 @@ fn check_eva(eva: Eva, path: &Path, original_bytes: &[u8], check_read_write: boo
     }
 }
 
-fn check_mxmd_legacy(mxmd: MxmdLegacy, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+fn check_mxmd_legacy(
+    _mxmd: MxmdLegacy,
+    _path: &Path,
+    _original_bytes: &[u8],
+    _check_read_write: bool,
+) {
     // TODO: write support for big endian files?
 }
 

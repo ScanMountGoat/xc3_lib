@@ -3,13 +3,12 @@ use std::collections::HashMap;
 use glam::{ivec4, uvec4, vec4, IVec4, UVec4, Vec4};
 use indexmap::IndexMap;
 use log::{error, warn};
-use wgpu::util::DeviceExt;
 use xc3_model::{ChannelAssignment, ImageTexture, OutputAssignment, OutputAssignments};
 
 use crate::{
     pipeline::{model_pipeline, ModelPipelineData, PipelineKey},
     texture::create_default_black_texture,
-    MonolibShaderTextures,
+    DeviceBufferExt, MonolibShaderTextures,
 };
 
 // TODO: Don't make this public outside the crate?
@@ -119,9 +118,9 @@ pub fn materials(
 
             // TODO: This is normally done using a depth prepass.
             // TODO: Is it ok to combine the prepass alpha in the main pass like this?
-            let per_material = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("PerMaterial"),
-                contents: bytemuck::cast_slice(&[crate::shader::model::PerMaterial {
+            let per_material = device.create_uniform_buffer(
+                "PerMaterial",
+                &[crate::shader::model::PerMaterial {
                     mat_color: material.parameters.mat_color.into(),
                     output_assignments,
                     output_defaults,
@@ -147,9 +146,8 @@ pub fn materials(
                             .unwrap_or(1.0),
                     ),
                     is_single_channel,
-                }]),
-                usage: wgpu::BufferUsages::UNIFORM,
-            });
+                }],
+            );
 
             // Bind all available textures and samplers.
             // Texture selection happens within the shader itself.

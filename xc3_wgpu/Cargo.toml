@@ -14,11 +14,11 @@ xc3_model = { version = "0.7.0", path = "../xc3_model" }
 xc3_lib = { version = "0.7.0", path = "../xc3_lib" }
 bytemuck = { version = "1.13", features = [ "derive" ] }
 glam = { version = "0.25.0", features = ["bytemuck"] }
-memoffset = "0.9.0"
+encase = { version = "0.7.0", features = ["glam"] }
 rayon = "1.8.1"
 log = "0.4.19"
 tracing = "0.1.0"
 indexmap = "2.1.0"
 
 [build-dependencies]
-wgsl_to_wgpu = "0.6.0"
+wgsl_to_wgpu = { git = "https://github.com/ScanMountGoat/wgsl_to_wgpu", rev = "8bd2d22" }

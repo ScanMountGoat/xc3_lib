@@ -46,7 +46,8 @@ fn write_shader(wgsl_source: &str, wgsl_path: &str, output_path: String) {
     let text = create_shader_module_embedded(
         wgsl_source,
         WriteOptions {
-            derive_bytemuck: true,
+            derive_bytemuck_vertex: true,
+            derive_encase_host_shareable: true,
             matrix_vector_types: MatrixVectorTypes::Glam,
             ..Default::default()
         },

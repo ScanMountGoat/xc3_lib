@@ -14,7 +14,7 @@ use crate::{
     sampler::create_sampler,
     shader,
     texture::create_texture,
-    CameraData, MonolibShaderTextures,
+    CameraData, DeviceBufferExt, MonolibShaderTextures, QueueBufferExt,
 };
 
 // Organize the model data to ensure shared resources are created only once.
@@ -268,14 +268,13 @@ impl ModelGroup {
                 animated_skinning_transforms(skeleton, animation, current_time_seconds);
             let animated_transforms_inv_transpose =
                 animated_transforms.map(|t| t.inverse().transpose());
-            queue.write_buffer(
+            queue.write_uniform_data(
                 &self.per_group_buffer,
-                0,
-                bytemuck::cast_slice(&[crate::shader::model::PerGroup {
+                &crate::shader::model::PerGroup {
                     enable_skinning: uvec4(1, 0, 0, 0),
                     animated_transforms,
                     animated_transforms_inv_transpose,
-                }]),
+                },
             );
         }
     }
@@ -667,18 +666,10 @@ fn morph_buffers(
         })
         .collect();
 
-    let morph_deltas = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("morph deltas"),
-        contents: bytemuck::cast_slice(&deltas),
-        usage: wgpu::BufferUsages::STORAGE,
-    });
+    let morph_deltas = device.create_storage_buffer("morph deltas", &deltas);
 
     let weights = vec![0.0f32; buffer.morph_targets.len()];
-    let morph_weights = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("morph weights"),
-        contents: bytemuck::cast_slice(&weights),
-        usage: wgpu::BufferUsages::STORAGE,
-    });
+    let morph_weights = device.create_storage_buffer("morph weights", &weights);
 
     let bind_group0 = crate::shader::morph::bind_groups::BindGroup0::from_bindings(
         device,
@@ -768,15 +759,14 @@ fn per_group_bind_group(
     skeleton: Option<&xc3_model::Skeleton>,
     skin_weights: Option<&xc3_model::skinning::SkinWeights>,
 ) -> (shader::model::bind_groups::BindGroup1, wgpu::Buffer) {
-    let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("per group buffer"),
-        contents: bytemuck::cast_slice(&[crate::shader::model::PerGroup {
+    let buffer = device.create_uniform_buffer(
+        "per group buffer",
+        &crate::shader::model::PerGroup {
             enable_skinning: uvec4(skeleton.is_some() as u32, 0, 0, 0),
             animated_transforms: [Mat4::IDENTITY; 256],
             animated_transforms_inv_transpose: [Mat4::IDENTITY; 256],
-        }]),
-        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-    });
+        },
+    );
 
     // Convert to u32 since WGSL lacks a vec4<u8> type.
     // This assumes the skinning shader code is skipped if anything is missing.
@@ -855,13 +845,12 @@ fn per_mesh_bind_group(
         }
     }
 
-    let per_mesh = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("per mesh buffer"),
-        contents: bytemuck::cast_slice(&[crate::shader::model::PerMesh {
+    let per_mesh = device.create_uniform_buffer(
+        "per mesh buffer",
+        &crate::shader::model::PerMesh {
             weight_group_indices: uvec4(start as u32, 0, 0, 0),
-        }]),
-        usage: wgpu::BufferUsages::UNIFORM,
-    });
+        },
+    );
 
     // Bone indices and skin weights are technically part of the model buffers.
     // Each mesh selects a range of values based on weight lods.
