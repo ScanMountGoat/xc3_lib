@@ -336,6 +336,7 @@ fn image_index(
         crate::ChannelAssignment::Texture {
             name,
             channel_index,
+            texcoord_name: _,
             texcoord_scale,
         } => {
             let sampler_index = material_texture_index(name)?;

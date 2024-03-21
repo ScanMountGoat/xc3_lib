@@ -255,6 +255,7 @@ pub enum ChannelAssignment {
         // TODO: how often is the matrix even used?
         name: String,
         channel_index: usize,
+        texcoord_name: Option<String>,
         texcoord_scale: Option<(f32, f32)>,
     },
     Value(f32),
@@ -289,6 +290,7 @@ impl Material {
             i.map(|i| ChannelAssignment::Texture {
                 name: format!("s{i}"),
                 channel_index: c,
+                texcoord_name: None,
                 texcoord_scale: None,
             })
         };
@@ -383,6 +385,7 @@ fn channel_assignment(
                 ChannelAssignment::Texture {
                     name: texture.name.clone(),
                     channel_index: "xyzw".find(c).unwrap(),
+                    texcoord_name: texture.texcoord.as_ref().map(|t| t.name.clone()),
                     texcoord_scale,
                 }
             })
