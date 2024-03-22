@@ -97,7 +97,6 @@ impl Animation {
         animated_transforms
     }
 
-    // TODO: Tests for this.
     /// Compute the the animated transform in model space for each bone in `skeleton`.
     ///
     /// See [Skeleton::model_space_transforms] for the transforms without animations applied.
@@ -186,6 +185,19 @@ impl Animation {
         }
 
         anim_model_space
+    }
+
+    /// Identical to [Self::model_space_transforms] but each transform is relative to the parent bone's transform.
+    pub fn local_space_transforms(&self, skeleton: &Skeleton, frame: f32) -> Vec<Mat4> {
+        let transforms = self.model_space_transforms(skeleton, frame);
+        transforms
+            .iter()
+            .zip(skeleton.bones.iter())
+            .map(|(transform, bone)| match bone.parent_index {
+                Some(p) => transforms[p].inverse() * *transform,
+                None => *transform,
+            })
+            .collect()
     }
 }
 
@@ -813,6 +825,82 @@ mod tests {
                 [0.0, 1.0, 0.0, 0.0],
                 [0.0, 0.0, 1.0, 0.0],
                 [10.0, 20.0, 30.0, 1.0],
+            ]),
+            transforms[1]
+        );
+    }
+
+    #[test]
+    fn local_space_transforms_model_blend() {
+        // Crate a keyframe with a constant value.
+        let keyframe = |x, y, z, w| {
+            (
+                0.0.into(),
+                Keyframe {
+                    x_coeffs: vec4(0.0, 0.0, 0.0, x),
+                    y_coeffs: vec4(0.0, 0.0, 0.0, y),
+                    z_coeffs: vec4(0.0, 0.0, 0.0, z),
+                    w_coeffs: vec4(0.0, 0.0, 0.0, w),
+                },
+            )
+        };
+
+        // Model space animations update the model space transforms directly.
+        let animation = Animation {
+            name: String::new(),
+            space_mode: SpaceMode::Model,
+            play_mode: PlayMode::Single,
+            blend_mode: BlendMode::Blend,
+            frames_per_second: 30.0,
+            frame_count: 1,
+            tracks: vec![
+                Track {
+                    translation_keyframes: [keyframe(1.0, 2.0, 3.0, 0.0)].into(),
+                    rotation_keyframes: [keyframe(0.0, 0.0, 0.0, 1.0)].into(),
+                    scale_keyframes: [keyframe(1.0, 1.0, 1.0, 0.0)].into(),
+                    bone_index: BoneIndex::Name("a".to_string()),
+                },
+                Track {
+                    translation_keyframes: [keyframe(10.0, 20.0, 30.0, 0.0)].into(),
+                    rotation_keyframes: [keyframe(0.0, 0.0, 0.0, 1.0)].into(),
+                    scale_keyframes: [keyframe(1.0, 1.0, 1.0, 0.0)].into(),
+                    bone_index: BoneIndex::Index(1),
+                },
+            ],
+        };
+
+        let skeleton = Skeleton {
+            bones: vec![
+                Bone {
+                    name: "a".to_string(),
+                    transform: Mat4::IDENTITY,
+                    parent_index: None,
+                },
+                Bone {
+                    name: "b".to_string(),
+                    transform: Mat4::IDENTITY,
+                    parent_index: Some(0),
+                },
+            ],
+        };
+
+        let transforms = animation.local_space_transforms(&skeleton, 0.0);
+        assert_eq!(2, transforms.len());
+        assert_matrix_relative_eq!(
+            Mat4::from_cols_array_2d(&[
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [1.0, 2.0, 3.0, 1.0],
+            ]),
+            transforms[0]
+        );
+        assert_matrix_relative_eq!(
+            Mat4::from_cols_array_2d(&[
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [9.0, 18.0, 27.0, 1.0],
             ]),
             transforms[1]
         );
