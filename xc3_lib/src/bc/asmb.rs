@@ -18,7 +18,9 @@ pub struct Asmb {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub enum AsmbInner {
+    /// Xenoblade 2
     V1(AsmbInnerV1),
+    /// Xenoblade 1 DE and Xenoblade 3
     V2(AsmbInnerV2),
 }
 
@@ -110,7 +112,6 @@ pub struct KeyValueV1 {
     pub value: String,
 }
 
-// TODO: size?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct StateKeyValueV1 {
@@ -124,9 +125,6 @@ pub struct StateKeyValueV1 {
     #[br(parse_with = parse_string_ptr64)]
     #[xc3(offset(u64))]
     pub value: String,
-
-    pub unk4: u32,
-    pub unk5: i32,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
