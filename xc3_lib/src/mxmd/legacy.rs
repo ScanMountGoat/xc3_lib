@@ -319,12 +319,15 @@ pub enum TextureUsage {
     Col = 80,
     /// _COL, _AVA
     Unk96 = 96,
+    Unk112 = 112,
     /// _SPM
     Spm2 = 528,
     /// _NRM
     Nrm2 = 530,
     /// _RGB
     Unk544 = 544,
+    Unk1056 = 1056,
+    Unk1120 = 1120,
     /// _CUBE, _ENV, _REFA
     Cube = 65569,
 }

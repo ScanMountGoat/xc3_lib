@@ -211,9 +211,12 @@ fn mtxt_usage(usage: xc3_lib::mxmd::legacy::TextureUsage) -> Option<TextureUsage
         xc3_lib::mxmd::legacy::TextureUsage::Unk48 => Some(TextureUsage::Col),
         xc3_lib::mxmd::legacy::TextureUsage::Col => Some(TextureUsage::Col),
         xc3_lib::mxmd::legacy::TextureUsage::Unk96 => Some(TextureUsage::Col),
+        xc3_lib::mxmd::legacy::TextureUsage::Unk112 => None,
         xc3_lib::mxmd::legacy::TextureUsage::Spm2 => None,
         xc3_lib::mxmd::legacy::TextureUsage::Nrm2 => Some(TextureUsage::Nrm),
         xc3_lib::mxmd::legacy::TextureUsage::Unk544 => None,
+        xc3_lib::mxmd::legacy::TextureUsage::Unk1056 => None,
+        xc3_lib::mxmd::legacy::TextureUsage::Unk1120 => None,
         xc3_lib::mxmd::legacy::TextureUsage::Cube => None,
     }
 }
