@@ -881,15 +881,20 @@ fn weight_group_index(
     lod: u16,
     unk_type: RenderPassType,
 ) -> usize {
-    // TODO: Should this check skin flags?
-    // TODO: Is lod actually some sort of flags?
-    // TODO: Return none if skin_flags == 64?
-    let lod_index = (lod & 0xff).saturating_sub(1) as usize;
-    // TODO: More mesh lods than weight lods for models with multiple lod groups?
-    let weight_lod = &weight_lods[lod_index % weight_lods.len()];
+    if !weight_lods.is_empty() {
+        // TODO: Should this check skin flags?
+        // TODO: Is lod actually some sort of flags?
+        // TODO: Return none if skin_flags == 64?
+        let lod_index = (lod & 0xff).saturating_sub(1) as usize;
+        // TODO: More mesh lods than weight lods for models with multiple lod groups?
+        let weight_lod = &weight_lods[lod_index % weight_lods.len()];
 
-    let pass_index = weight_pass_index(unk_type, skin_flags);
-    weight_lod.group_indices_plus_one[pass_index].saturating_sub(1) as usize
+        let pass_index = weight_pass_index(unk_type, skin_flags);
+        weight_lod.group_indices_plus_one[pass_index].saturating_sub(1) as usize
+    } else {
+        // TODO: How to handle the empty case?
+        0
+    }
 }
 
 fn weight_pass_index(unk_type: RenderPassType, skin_flags: u32) -> usize {

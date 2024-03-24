@@ -185,63 +185,64 @@ impl AttributeData {
         self.len() == 0
     }
 
-    pub fn write<W: Write + Seek>(
+    fn write<W: Write + Seek>(
         &self,
         writer: &mut W,
         offset: u64,
         stride: u64,
+        endian: Endian,
     ) -> BinResult<()> {
         match self {
             AttributeData::Position(values) => {
-                write_data(writer, values, offset, stride, write_f32x3)
+                write_data(writer, values, offset, stride, endian, write_f32x3)
             }
             AttributeData::Normal(values) => {
-                write_data(writer, values, offset, stride, write_snorm8x4)
+                write_data(writer, values, offset, stride, endian, write_snorm8x4)
             }
             AttributeData::Tangent(values) => {
-                write_data(writer, values, offset, stride, write_snorm8x4)
+                write_data(writer, values, offset, stride, endian, write_snorm8x4)
             }
             AttributeData::TexCoord0(values) => {
-                write_data(writer, values, offset, stride, write_f32x2)
+                write_data(writer, values, offset, stride, endian, write_f32x2)
             }
             AttributeData::TexCoord1(values) => {
-                write_data(writer, values, offset, stride, write_f32x2)
+                write_data(writer, values, offset, stride, endian, write_f32x2)
             }
             AttributeData::TexCoord2(values) => {
-                write_data(writer, values, offset, stride, write_f32x2)
+                write_data(writer, values, offset, stride, endian, write_f32x2)
             }
             AttributeData::TexCoord3(values) => {
-                write_data(writer, values, offset, stride, write_f32x2)
+                write_data(writer, values, offset, stride, endian, write_f32x2)
             }
             AttributeData::TexCoord4(values) => {
-                write_data(writer, values, offset, stride, write_f32x2)
+                write_data(writer, values, offset, stride, endian, write_f32x2)
             }
             AttributeData::TexCoord5(values) => {
-                write_data(writer, values, offset, stride, write_f32x2)
+                write_data(writer, values, offset, stride, endian, write_f32x2)
             }
             AttributeData::TexCoord6(values) => {
-                write_data(writer, values, offset, stride, write_f32x2)
+                write_data(writer, values, offset, stride, endian, write_f32x2)
             }
             AttributeData::TexCoord7(values) => {
-                write_data(writer, values, offset, stride, write_f32x2)
+                write_data(writer, values, offset, stride, endian, write_f32x2)
             }
             AttributeData::TexCoord8(values) => {
-                write_data(writer, values, offset, stride, write_f32x2)
+                write_data(writer, values, offset, stride, endian, write_f32x2)
             }
             AttributeData::VertexColor(values) => {
-                write_data(writer, values, offset, stride, write_unorm8x4)
+                write_data(writer, values, offset, stride, endian, write_unorm8x4)
             }
             AttributeData::Blend(values) => {
-                write_data(writer, values, offset, stride, write_unorm8x4)
+                write_data(writer, values, offset, stride, endian, write_unorm8x4)
             }
             AttributeData::WeightIndex(values) => {
-                write_data(writer, values, offset, stride, write_u32)
+                write_data(writer, values, offset, stride, endian, write_u32)
             }
             AttributeData::SkinWeights(values) => {
-                write_data(writer, values, offset, stride, write_unorm16x4)
+                write_data(writer, values, offset, stride, endian, write_unorm16x4)
             }
             AttributeData::BoneIndices(values) => {
-                write_data(writer, values, offset, stride, write_u8x4)
+                write_data(writer, values, offset, stride, endian, write_u8x4)
             }
         }
     }
@@ -536,8 +537,12 @@ fn read_attribute(
         DataType::Position => Some(AttributeData::Position(
             read_data(d, relative_offset, buffer, endian, read_f32x3).ok()?,
         )),
-        DataType::Unk1 => None,
-        DataType::Unk2 => None,
+        DataType::SkinWeights2 => Some(AttributeData::SkinWeights(
+            read_data(d, relative_offset, buffer, endian, read_f32x3_pad).ok()?,
+        )),
+        DataType::BoneIndices2 => Some(AttributeData::BoneIndices(
+            read_data(d, relative_offset, buffer, endian, read_u8x4).ok()?,
+        )),
         DataType::WeightIndex => Some(AttributeData::WeightIndex(
             read_data(d, relative_offset, buffer, endian, read_u32).ok()?,
         )),
@@ -670,6 +675,11 @@ fn read_f32x2(reader: &mut Cursor<&[u8]>, endian: Endian) -> BinResult<Vec2> {
 fn read_f32x3(reader: &mut Cursor<&[u8]>, endian: Endian) -> BinResult<Vec3> {
     let value: [f32; 3] = reader.read_type(endian)?;
     Ok(value.into())
+}
+
+fn read_f32x3_pad(reader: &mut Cursor<&[u8]>, endian: Endian) -> BinResult<Vec4> {
+    let value: [f32; 3] = reader.read_type(endian)?;
+    Ok(Vec3::from(value).extend(0.0))
 }
 
 fn read_unorm8x4(reader: &mut Cursor<&[u8]>, endian: Endian) -> BinResult<Vec4> {
@@ -870,57 +880,19 @@ impl ModelBuffers {
     pub fn from_vertex_data_legacy(
         vertex_data: &xc3_lib::mxmd::legacy::VertexData,
     ) -> BinResult<Self> {
-        // Each buffer already has the data at the appropriate offset.
-        let vertex_buffers = vertex_data
-            .vertex_buffers
-            .iter()
-            .map(|descriptor| VertexBuffer {
-                attributes: read_vertex_attributes(
-                    &VertexBufferDescriptor {
-                        data_offset: 0,
-                        vertex_count: descriptor.vertex_count,
-                        vertex_size: descriptor.vertex_size,
-                        attributes: descriptor.attributes.clone(),
-                        unk1: 0,
-                        unk2: 0,
-                        unk3: 0,
-                    },
-                    &descriptor.data,
-                    Endian::Big,
-                ),
-                morph_targets: Vec::new(),
-                outline_buffer_index: None,
-            })
-            .collect();
+        let vertex_buffers = read_vertex_buffers_legacy(vertex_data);
 
-        let index_buffers = vertex_data
-            .index_buffers
-            .iter()
-            .map(|descriptor| IndexBuffer {
-                indices: read_indices(
-                    &IndexBufferDescriptor {
-                        data_offset: 0,
-                        index_count: descriptor.index_count,
-                        unk1: xc3_lib::vertex::Unk1::Unk0,
-                        unk2: xc3_lib::vertex::Unk2::Unk0,
-                        unk3: 0,
-                        unk4: 0,
-                    },
-                    &descriptor.data,
-                    Endian::Big,
-                )
-                .unwrap(),
-            })
-            .collect();
+        let index_buffers = read_index_buffers_legacy(vertex_data);
 
-        // TODO: read the skin weights from the last buffer.
+        // TODO: don't duplicate the weights buffer?
+        let weights = weights_legacy(&vertex_buffers);
 
         Ok(Self {
             vertex_buffers,
             outline_buffers: Vec::new(),
             index_buffers,
             unk_buffers: Vec::new(),
-            weights: None,
+            weights,
         })
     }
 
@@ -938,7 +910,8 @@ impl ModelBuffers {
 
         // TODO: Remove any attributes part of a morph target?
         for buffer in &self.vertex_buffers {
-            let vertex_buffer = write_vertex_buffer(&mut buffer_writer, &buffer.attributes)?;
+            let vertex_buffer =
+                write_vertex_buffer(&mut buffer_writer, &buffer.attributes, Endian::Little)?;
             vertex_buffers.push(vertex_buffer);
         }
 
@@ -949,6 +922,7 @@ impl ModelBuffers {
                     AttributeData::SkinWeights(weights.skin_weights.weights.clone()),
                     AttributeData::BoneIndices(weights.skin_weights.bone_indices.clone()),
                 ],
+                Endian::Little,
             )?;
             vertex_buffers.push(weights_buffer);
         }
@@ -960,7 +934,8 @@ impl ModelBuffers {
 
         for buffer in &self.index_buffers {
             align(&mut buffer_writer, 4)?;
-            let index_buffer = write_index_buffer(&mut buffer_writer, &buffer.indices)?;
+            let index_buffer =
+                write_index_buffer(&mut buffer_writer, &buffer.indices, Endian::Little)?;
             index_buffers.push(index_buffer);
         }
 
@@ -1091,6 +1066,7 @@ impl ModelBuffers {
                     &morph_target.position_deltas,
                     offset,
                     32,
+                    Endian::Little,
                     write_f32x3,
                 )?;
             }
@@ -1102,6 +1078,77 @@ impl ModelBuffers {
             unks: [0; 4],
         })
     }
+}
+
+fn read_index_buffers_legacy(vertex_data: &xc3_lib::mxmd::legacy::VertexData) -> Vec<IndexBuffer> {
+    // Each buffer already has the data at the appropriate offset.
+    let data_offset = 0;
+
+    vertex_data
+        .index_buffers
+        .iter()
+        .map(|descriptor| IndexBuffer {
+            indices: read_indices(
+                &IndexBufferDescriptor {
+                    data_offset,
+                    index_count: descriptor.index_count,
+                    unk1: xc3_lib::vertex::Unk1::Unk0,
+                    unk2: xc3_lib::vertex::Unk2::Unk0,
+                    unk3: 0,
+                    unk4: 0,
+                },
+                &descriptor.data,
+                Endian::Big,
+            )
+            .unwrap(),
+        })
+        .collect()
+}
+
+fn read_vertex_buffers_legacy(
+    vertex_data: &xc3_lib::mxmd::legacy::VertexData,
+) -> Vec<VertexBuffer> {
+    // Each buffer already has the data at the appropriate offset.
+    let data_offset = 0;
+
+    vertex_data
+        .vertex_buffers
+        .iter()
+        .map(|descriptor| VertexBuffer {
+            attributes: read_vertex_attributes(
+                &VertexBufferDescriptor {
+                    data_offset,
+                    vertex_count: descriptor.vertex_count,
+                    vertex_size: descriptor.vertex_size,
+                    attributes: descriptor.attributes.clone(),
+                    unk1: 0,
+                    unk2: 0,
+                    unk3: 0,
+                },
+                &descriptor.data,
+                Endian::Big,
+            ),
+            morph_targets: Vec::new(),
+            outline_buffer_index: None,
+        })
+        .collect()
+}
+
+fn weights_legacy(vertex_buffers: &[VertexBuffer]) -> Option<Weights> {
+    // This is usually the last buffer, but check all of them just in case.
+    // TODO: Get the bone names from the mxmd skins?
+    let (weights, bone_indices) = vertex_buffers
+        .iter()
+        .find_map(|b| skin_weights_bone_indices(&b.attributes))?;
+    Some(Weights {
+        skin_weights: SkinWeights {
+            bone_indices,
+            weights,
+            bone_names: Vec::new(),
+        },
+        weight_groups: Vec::new(),
+        weight_lods: Vec::new(),
+    })
 }
 
 fn write_unk_buffers(
@@ -1136,7 +1183,7 @@ fn write_unk_buffer<W: Write + Seek>(
     unk2: u16,
     start_index: u32,
 ) -> BinResult<UnkBufferDescriptor> {
-    let buffer = write_vertex_buffer(writer, &buffer.attributes)?;
+    let buffer = write_vertex_buffer(writer, &buffer.attributes, Endian::Little)?;
 
     // Offsets are relative to the start of the section.
     Ok(UnkBufferDescriptor {
@@ -1254,10 +1301,11 @@ fn align(buffer_writer: &mut Cursor<Vec<u8>>, align: u64) -> Result<(), binrw::E
 fn write_index_buffer<W: Write + Seek>(
     writer: &mut W,
     indices: &[u16],
+    endian: Endian,
 ) -> BinResult<IndexBufferDescriptor> {
     let data_offset = writer.stream_position()? as u32;
 
-    indices.write_le(writer)?;
+    indices.write_options(writer, endian, ())?;
 
     Ok(IndexBufferDescriptor {
         data_offset,
@@ -1272,6 +1320,7 @@ fn write_index_buffer<W: Write + Seek>(
 fn write_vertex_buffer<W: Write + Seek>(
     writer: &mut W,
     attribute_data: &[AttributeData],
+    endian: Endian,
 ) -> BinResult<VertexBufferDescriptor> {
     let data_offset = writer.stream_position()? as u32;
 
@@ -1288,7 +1337,7 @@ fn write_vertex_buffer<W: Write + Seek>(
     // TODO: Include a base offset?
     let mut offset = writer.stream_position()?;
     for (a, data) in attributes.iter().zip(attribute_data) {
-        data.write(writer, offset, vertex_size as u64)?;
+        data.write(writer, offset, vertex_size as u64, endian)?;
         offset += a.data_size as u64;
     }
 
@@ -1307,7 +1356,7 @@ fn write_outline_buffer<W: Write + Seek>(
     writer: &mut W,
     attribute_data: &[AttributeData],
 ) -> BinResult<OutlineBufferDescriptor> {
-    let buffer = write_vertex_buffer(writer, attribute_data)?;
+    let buffer = write_vertex_buffer(writer, attribute_data, Endian::Little)?;
 
     Ok(OutlineBufferDescriptor {
         data_offset: buffer.data_offset,
@@ -1322,49 +1371,56 @@ fn write_data<T, F, W>(
     values: &[T],
     offset: u64,
     stride: u64,
+    endian: Endian,
     write_item: F,
 ) -> BinResult<()>
 where
     W: Write + Seek,
-    F: Fn(&mut W, &T) -> BinResult<()>,
+    F: Fn(&mut W, &T, Endian) -> BinResult<()>,
 {
     for (i, value) in values.iter().enumerate() {
         writer.seek(SeekFrom::Start(offset + i as u64 * stride))?;
-        write_item(writer, value)?;
+        write_item(writer, value, endian)?;
     }
 
     Ok(())
 }
 
-fn write_u32<W: Write + Seek>(writer: &mut W, value: &u32) -> BinResult<()> {
-    value.write_le(writer)
+fn write_u32<W: Write + Seek>(writer: &mut W, value: &u32, endian: Endian) -> BinResult<()> {
+    value.write_options(writer, endian, ())
 }
 
-fn write_u8x4<W: Write + Seek>(writer: &mut W, value: &[u8; 4]) -> BinResult<()> {
-    value.write_le(writer)
+fn write_u8x4<W: Write + Seek>(writer: &mut W, value: &[u8; 4], endian: Endian) -> BinResult<()> {
+    value.write_options(writer, endian, ())
 }
 
-fn write_f32x2<W: Write + Seek>(writer: &mut W, value: &Vec2) -> BinResult<()> {
-    value.to_array().write_le(writer)
+fn write_f32x2<W: Write + Seek>(writer: &mut W, value: &Vec2, endian: Endian) -> BinResult<()> {
+    value.to_array().write_options(writer, endian, ())
 }
 
-fn write_f32x3<W: Write + Seek>(writer: &mut W, value: &Vec3) -> BinResult<()> {
-    value.to_array().write_le(writer)
+fn write_f32x3<W: Write + Seek>(writer: &mut W, value: &Vec3, endian: Endian) -> BinResult<()> {
+    value.to_array().write_options(writer, endian, ())
 }
 
-fn write_unorm8x4<W: Write + Seek>(writer: &mut W, value: &Vec4) -> BinResult<()> {
-    value.to_array().map(|f| (f * 255.0) as u8).write_le(writer)
+fn write_unorm8x4<W: Write + Seek>(writer: &mut W, value: &Vec4, endian: Endian) -> BinResult<()> {
+    value
+        .to_array()
+        .map(|f| (f * 255.0) as u8)
+        .write_options(writer, endian, ())
 }
 
-fn write_unorm16x4<W: Write + Seek>(writer: &mut W, value: &Vec4) -> BinResult<()> {
+fn write_unorm16x4<W: Write + Seek>(writer: &mut W, value: &Vec4, endian: Endian) -> BinResult<()> {
     value
         .to_array()
         .map(|f| (f * 65535.0) as u16)
-        .write_le(writer)
+        .write_options(writer, endian, ())
 }
 
-fn write_snorm8x4<W: Write + Seek>(writer: &mut W, value: &Vec4) -> BinResult<()> {
-    value.to_array().map(|f| (f * 255.0) as i8).write_le(writer)
+fn write_snorm8x4<W: Write + Seek>(writer: &mut W, value: &Vec4, endian: Endian) -> BinResult<()> {
+    value
+        .to_array()
+        .map(|f| (f * 255.0) as i8)
+        .write_options(writer, endian, ())
 }
 
 #[cfg(test)]
@@ -1397,7 +1453,7 @@ mod tests {
 
         // Test write.
         let mut writer = Cursor::new(Vec::new());
-        let new_descriptor = write_index_buffer(&mut writer, &indices).unwrap();
+        let new_descriptor = write_index_buffer(&mut writer, &indices, Endian::Little).unwrap();
         assert_eq!(new_descriptor, descriptor);
         assert_hex_eq!(data, writer.into_inner());
     }
@@ -1488,7 +1544,7 @@ mod tests {
 
         // Test write.
         let mut writer = Cursor::new(Vec::new());
-        let new_descriptor = write_vertex_buffer(&mut writer, &attributes).unwrap();
+        let new_descriptor = write_vertex_buffer(&mut writer, &attributes, Endian::Little).unwrap();
         assert_eq!(new_descriptor, descriptor);
         assert_hex_eq!(data, writer.into_inner());
     }
@@ -1537,7 +1593,7 @@ mod tests {
 
         // Test write.
         let mut writer = Cursor::new(Vec::new());
-        let new_descriptor = write_vertex_buffer(&mut writer, &attributes).unwrap();
+        let new_descriptor = write_vertex_buffer(&mut writer, &attributes, Endian::Little).unwrap();
         assert_eq!(new_descriptor, descriptor);
         assert_hex_eq!(data, writer.into_inner());
     }
@@ -1708,7 +1764,7 @@ mod tests {
 
         // Test write.
         let mut writer = Cursor::new(Vec::new());
-        let new_descriptor = write_vertex_buffer(&mut writer, &attributes).unwrap();
+        let new_descriptor = write_vertex_buffer(&mut writer, &attributes, Endian::Little).unwrap();
         assert_eq!(new_descriptor, descriptor);
         assert_hex_eq!(data, writer.into_inner());
     }
@@ -2004,5 +2060,168 @@ mod tests {
         );
     }
 
-    // TODO: Test reading big endian data from camdo files.
+    #[test]
+    fn vertex_buffer_vertices_legacy() {
+        // xenox/chr_en/en010201.camdo, vertex buffer 0
+        let data = hex!(
+            // vertex 0
+            bd870545 3fa46370 bccf61dc
+            00000000
+            0x3eac078f 0x3ec994fe
+            010101ff
+            9f4ae100
+            b0a6257f
+            // vertex 1
+            3d870545 3fa46370 bccf61dc
+            00000000
+            3e96ffdf 0x3ec994fe
+            020202ff
+            6133c200
+            b03eb57f
+        );
+
+        let descriptor = VertexBufferDescriptor {
+            data_offset: 0,
+            vertex_count: 2,
+            vertex_size: 36,
+            attributes: vec![
+                VertexAttribute {
+                    data_type: DataType::Position,
+                    data_size: 12,
+                },
+                VertexAttribute {
+                    data_type: DataType::WeightIndex,
+                    data_size: 4,
+                },
+                VertexAttribute {
+                    data_type: DataType::TexCoord0,
+                    data_size: 8,
+                },
+                VertexAttribute {
+                    data_type: DataType::VertexColor,
+                    data_size: 4,
+                },
+                VertexAttribute {
+                    data_type: DataType::Normal,
+                    data_size: 4,
+                },
+                VertexAttribute {
+                    data_type: DataType::Tangent,
+                    data_size: 4,
+                },
+            ],
+            unk1: 0,
+            unk2: 0,
+            unk3: 0,
+        };
+
+        // Test read.
+        let attributes = vec![
+            AttributeData::Position(vec![
+                vec3(-0.06592802, 1.2842846, -0.025315218),
+                vec3(0.06592802, 1.2842846, -0.025315218),
+            ]),
+            AttributeData::WeightIndex(vec![0, 0]),
+            AttributeData::TexCoord0(vec![
+                vec2(0.33599517, 0.39371485),
+                vec2(0.2949209, 0.39371485),
+            ]),
+            AttributeData::VertexColor(vec![
+                vec4(0.003921569, 0.003921569, 0.003921569, 1.0),
+                vec4(0.007843138, 0.007843138, 0.007843138, 1.0),
+            ]),
+            AttributeData::Normal(vec![
+                vec4(-0.38039216, 0.2901961, -0.12156863, 0.0),
+                vec4(0.38039216, 0.2, -0.24313726, 0.0),
+            ]),
+            AttributeData::Tangent(vec![
+                vec4(-0.3137255, -0.3529412, 0.14509805, 0.49803922),
+                vec4(-0.3137255, 0.24313726, -0.29411766, 0.49803922),
+            ]),
+        ];
+        assert_eq!(
+            attributes,
+            read_vertex_attributes(&descriptor, &data, Endian::Big)
+        );
+
+        // Test write.
+        let mut writer = Cursor::new(Vec::new());
+        let new_descriptor = write_vertex_buffer(&mut writer, &attributes, Endian::Big).unwrap();
+        assert_eq!(new_descriptor, descriptor);
+        assert_hex_eq!(data, writer.into_inner());
+    }
+
+    #[test]
+    fn weight_buffer_vertices_legacy() {
+        // xenox/chr_en/en010201.camdo, vertex buffer 1
+        let data = hex!(
+            // vertex 0
+            3f800000 00000000 00000000
+            00000000
+            // vertex 1
+            3f800000 00000000 00000000
+            01000000
+        );
+
+        let descriptor = VertexBufferDescriptor {
+            data_offset: 0,
+            vertex_count: 2,
+            vertex_size: 16,
+            attributes: vec![
+                VertexAttribute {
+                    data_type: DataType::SkinWeights2,
+                    data_size: 12,
+                },
+                VertexAttribute {
+                    data_type: DataType::BoneIndices2,
+                    data_size: 4,
+                },
+            ],
+            unk1: 0,
+            unk2: 0,
+            unk3: 0,
+        };
+
+        // TODO: Separate 3 component attribute for skin weights to have eventual write support?
+        // Test read.
+        let attributes = vec![
+            AttributeData::SkinWeights(vec![vec4(1.0, 0.0, 0.0, 0.0), vec4(1.0, 0.0, 0.0, 0.0)]),
+            AttributeData::BoneIndices(vec![[0, 0, 0, 0], [1, 0, 0, 0]]),
+        ];
+        assert_eq!(
+            attributes,
+            read_vertex_attributes(&descriptor, &data, Endian::Big)
+        );
+
+        // Test write.
+        let mut writer = Cursor::new(Vec::new());
+        let new_descriptor = write_vertex_buffer(&mut writer, &attributes, Endian::Big).unwrap();
+        assert_eq!(new_descriptor, descriptor);
+        assert_hex_eq!(data, writer.into_inner());
+    }
+
+    #[test]
+    fn vertex_buffer_indices_legacy() {
+        // xenox/chr_en/en010201.camdo,  index buffer 0
+        let data = hex!(00000001 00020002);
+
+        let descriptor = IndexBufferDescriptor {
+            data_offset: 0,
+            index_count: 4,
+            unk1: xc3_lib::vertex::Unk1::Unk0,
+            unk2: xc3_lib::vertex::Unk2::Unk0,
+            unk3: 0,
+            unk4: 0,
+        };
+
+        // Test read.
+        let indices = read_indices(&descriptor, &data, Endian::Big).unwrap();
+        assert_eq!(vec![0, 1, 2, 2], indices);
+
+        // Test write.
+        let mut writer = Cursor::new(Vec::new());
+        let new_descriptor = write_index_buffer(&mut writer, &indices, Endian::Big).unwrap();
+        assert_eq!(new_descriptor, descriptor);
+        assert_hex_eq!(data, writer.into_inner());
+    }
 }
