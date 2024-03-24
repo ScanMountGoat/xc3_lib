@@ -3,7 +3,7 @@ use std::{
     path::Path,
 };
 
-use binrw::{BinRead, BinReaderExt, BinWrite, Endian};
+use binrw::{BinRead, BinReaderExt, Endian};
 use clap::Parser;
 use rayon::prelude::*;
 use xc3_lib::{
@@ -576,8 +576,9 @@ fn check_mxmd(mxmd: Mxmd, path: &Path, original_bytes: &[u8], check_read_write: 
 
     if let Some(packed_textures) = &mxmd.packed_textures {
         for texture in &packed_textures.textures {
-            if let Err(e) = Mibl::from_bytes(&texture.mibl_data) {
-                println!("Error reading Mibl for {path:?}: {e}");
+            match Mibl::from_bytes(&texture.mibl_data) {
+                Ok(mibl) => check_mibl(mibl, path, &texture.mibl_data, check_read_write),
+                Err(e) => println!("Error reading Mibl in {path:?}: {e}"),
             }
         }
     }
@@ -749,18 +750,28 @@ fn check_eva(eva: Eva, path: &Path, original_bytes: &[u8], check_read_write: boo
 }
 
 fn check_mxmd_legacy(
-    _mxmd: MxmdLegacy,
-    _path: &Path,
+    mxmd: MxmdLegacy,
+    path: &Path,
     _original_bytes: &[u8],
-    _check_read_write: bool,
+    check_read_write: bool,
 ) {
-    // TODO: write support for big endian files?
+    if let Some(textures) = mxmd.packed_textures {
+        for texture in textures.textures {
+            println!("{:?}, {:?}", texture.usage, texture.name);
+            match Mtxt::from_bytes(&texture.mtxt_data) {
+                Ok(mtxt) => check_mtxt(mtxt, path, &texture.mtxt_data, check_read_write),
+                Err(e) => println!("Error reading Mtxt in {path:?}: {e}"),
+            }
+        }
+    }
+    // TODO: check read/write for camdo?
+    // TODO: Also test loading casmt data?
 }
 
 fn check_mtxt(mtxt: Mtxt, path: &Path, original_bytes: &[u8], check_read_write: bool) {
     if check_read_write {
         let mut writer = Cursor::new(Vec::new());
-        mtxt.write_be(&mut writer).unwrap();
+        mtxt.write(&mut writer).unwrap();
         if writer.into_inner() != original_bytes {
             println!("Mtxt read/write not 1:1 for {path:?}");
         }

@@ -52,6 +52,7 @@ use xc3_lib::{
         streaming::{chr_tex_nx_folder, ExtractedTexture},
         Msrd,
     },
+    mtxt::Mtxt,
     mxmd::{legacy::MxmdLegacy, Materials, Mxmd},
     sar1::Sar1,
     vertex::WeightLod,
@@ -450,9 +451,22 @@ impl ModelRoot {
 
     /// Load models from legacy parsed file data for Xenoblade Chronicles X.
     pub fn from_mxmd_model_legacy(mxmd: &MxmdLegacy) -> Result<Self, LoadModelError> {
-        // TODO: How to make this work?
-        // TODO: separate type for legacy streaming data?
         // TODO: dedicated module for loading stream data?
+        // TODO: Load textures from casmt.
+        let image_textures: Vec<_> = mxmd
+            .packed_textures
+            .as_ref()
+            .map(|textures| {
+                textures
+                    .textures
+                    .iter()
+                    .map(|t| {
+                        let mtxt = Mtxt::from_bytes(&t.mtxt_data).unwrap();
+                        ImageTexture::from_mtxt(&mtxt, Some(t.name.clone()), Some(t.usage)).unwrap()
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
 
         let models = Models {
             models: mxmd
@@ -477,7 +491,14 @@ impl ModelRoot {
                         depth_func: DepthFunc::LessEqual,
                         color_write_mode: 0,
                     },
-                    textures: Vec::new(),
+                    textures: m
+                        .textures
+                        .iter()
+                        .map(|t| Texture {
+                            image_texture_index: t.texture_index as usize,
+                            sampler_index: t.unk_index as usize,
+                        })
+                        .collect(),
                     alpha_test: None,
                     shader: None,
                     pass_type: RenderPassType::Unk0,
@@ -505,7 +526,7 @@ impl ModelRoot {
                 models: vec![models],
                 buffers: vec![buffers],
             }],
-            image_textures: Vec::new(),
+            image_textures,
             skeleton: None,
         })
     }

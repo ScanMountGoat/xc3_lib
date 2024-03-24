@@ -4,6 +4,7 @@ use thiserror::Error;
 use xc3_lib::{
     mibl::{CreateMiblError, Mibl, SwizzleError},
     msrd::streaming::ExtractedTexture,
+    mtxt::Mtxt,
     mxmd::PackedTexture,
 };
 
@@ -88,7 +89,32 @@ impl ImageTexture {
         })
     }
 
-    pub fn from_packed_texture(texture: &PackedTexture) -> Result<Self, CreateImageTextureError> {
+    /// Deswizzle the data from `mtxt`.
+    ///
+    /// The `name` is not required but creates more descriptive file names and debug information.
+    /// The `usage` improves the accuracy of texture assignments if the shader database is not specified.
+    pub fn from_mtxt(
+        mtxt: &Mtxt,
+        name: Option<String>,
+        usage: Option<xc3_lib::mxmd::legacy::TextureUsage>,
+    ) -> Result<Self, SwizzleError> {
+        // TODO: Implement swizzling and proper conversion logic.
+        Ok(Self {
+            name,
+            usage: usage.and_then(mtxt_usage),
+            width: mtxt.footer.width,
+            height: mtxt.footer.height,
+            depth: mtxt.footer.depth_or_array_layers,
+            view_dimension: ViewDimension::D2,
+            image_format: mtxt_image_format(mtxt.footer.surface_format),
+            mipmap_count: mtxt.footer.mipmap_count,
+            image_data: mtxt.image_data.clone(),
+        })
+    }
+
+    pub(crate) fn from_packed_texture(
+        texture: &PackedTexture,
+    ) -> Result<Self, CreateImageTextureError> {
         let mibl = Mibl::from_bytes(&texture.mibl_data)?;
         Self::from_mibl(&mibl, Some(texture.name.clone()), Some(texture.usage)).map_err(Into::into)
     }
@@ -160,6 +186,35 @@ impl ImageTexture {
 
     pub fn to_mibl(&self) -> Result<Mibl, CreateMiblError> {
         Mibl::from_surface(self.to_surface())
+    }
+}
+
+// TODO: Should the publicly exposed image format type just use image_dds?
+fn mtxt_image_format(image_format: xc3_lib::mtxt::SurfaceFormat) -> ImageFormat {
+    match image_format {
+        xc3_lib::mtxt::SurfaceFormat::R8G8B8A8Unorm => ImageFormat::R8G8B8A8Unorm,
+        xc3_lib::mtxt::SurfaceFormat::BC1Unorm => ImageFormat::BC1Unorm,
+        xc3_lib::mtxt::SurfaceFormat::BC2Unorm => ImageFormat::BC2Unorm,
+        xc3_lib::mtxt::SurfaceFormat::BC3Unorm => ImageFormat::BC3Unorm,
+        xc3_lib::mtxt::SurfaceFormat::BC4Unorm => ImageFormat::BC4Unorm,
+        xc3_lib::mtxt::SurfaceFormat::BC5Unorm => ImageFormat::BC5Unorm,
+    }
+}
+
+fn mtxt_usage(usage: xc3_lib::mxmd::legacy::TextureUsage) -> Option<TextureUsage> {
+    // TODO: Create a separate enum instead of exposing the xc3_lib types?
+    match usage {
+        xc3_lib::mxmd::legacy::TextureUsage::Spm => None,
+        xc3_lib::mxmd::legacy::TextureUsage::Nrm => Some(TextureUsage::Nrm),
+        xc3_lib::mxmd::legacy::TextureUsage::Unk32 => Some(TextureUsage::Col),
+        xc3_lib::mxmd::legacy::TextureUsage::Unk34 => None,
+        xc3_lib::mxmd::legacy::TextureUsage::Unk48 => Some(TextureUsage::Col),
+        xc3_lib::mxmd::legacy::TextureUsage::Col => Some(TextureUsage::Col),
+        xc3_lib::mxmd::legacy::TextureUsage::Unk96 => Some(TextureUsage::Col),
+        xc3_lib::mxmd::legacy::TextureUsage::Spm2 => None,
+        xc3_lib::mxmd::legacy::TextureUsage::Nrm2 => Some(TextureUsage::Nrm),
+        xc3_lib::mxmd::legacy::TextureUsage::Unk544 => None,
+        xc3_lib::mxmd::legacy::TextureUsage::Cube => None,
     }
 }
 

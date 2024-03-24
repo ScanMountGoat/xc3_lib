@@ -41,7 +41,7 @@ pub struct MtxtFooter {
     pub depth_or_array_layers: u32,
     /// The number of mip levels or 1 if there are no mipmaps.
     pub mipmap_count: u32,
-    pub image_format: ImageFormat,
+    pub surface_format: SurfaceFormat,
     pub size: u32,
     pub aa_mode: u32,
     pub tile_mode: TileMode,
@@ -71,11 +71,13 @@ pub enum SurfaceDim {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(BinRead, BinWrite, Debug, Clone, Copy, PartialEq, Eq)]
 #[brw(repr(u32))]
-pub enum ImageFormat {
+pub enum SurfaceFormat {
     R8G8B8A8Unorm = 26,
     BC1Unorm = 49,
     BC2Unorm = 50,
     BC3Unorm = 51,
+    BC4Unorm = 52,
+    BC5Unorm = 53,
 }
 
 /// GX2TileMode variants used by Xenoblade X.
@@ -83,6 +85,7 @@ pub enum ImageFormat {
 #[derive(BinRead, BinWrite, Debug, Clone, Copy, PartialEq, Eq)]
 #[brw(repr(u32))]
 pub enum TileMode {
+    D1TiledThin1 = 2,
     D2TiledThin1 = 4,
     D2TiledThick = 7,
 }

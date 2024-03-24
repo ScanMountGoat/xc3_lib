@@ -2,9 +2,9 @@ use std::io::SeekFrom;
 
 use crate::{
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
-    parse_string_ptr32, vertex::VertexAttribute,
+    parse_string_ptr32, vertex::VertexAttribute, xc3_write_binwrite_impl,
 };
-use binrw::{args, binread, BinRead};
+use binrw::{args, binread, BinRead, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 // TODO: How much code can be shared with non legacy types?
@@ -118,7 +118,6 @@ pub struct Mesh {
     pub unk11: u32,
 }
 
-
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
@@ -177,7 +176,7 @@ pub struct Material {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Texture {
     pub texture_index: u16,
-    pub sampler_index: u16, // TODO: where are the samplers?
+    pub unk_index: u16, // TODO: where are the samplers?
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -245,7 +244,7 @@ pub struct VertexBufferDescriptor {
     #[br(seek_before = SeekFrom::Start(base_offset + data_offset as u64))]
     #[br(restore_position)]
     #[br(count = vertex_count * vertex_size)]
-    pub data: Vec<u8>
+    pub data: Vec<u8>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -261,7 +260,7 @@ pub struct IndexBufferDescriptor {
     #[br(seek_before = SeekFrom::Start(base_offset + data_offset as u64))]
     #[br(restore_position)]
     #[br(count = index_count * 2)]
-    pub data: Vec<u8>
+    pub data: Vec<u8>,
 }
 
 /// A collection of [Mtxt](crate::mtxt::Mtxt) textures embedded in the current file.
@@ -289,7 +288,7 @@ pub struct PackedTextures {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct PackedTexture {
-    pub usage: u32, // TODO: enum?
+    pub usage: TextureUsage,
 
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32), align(4096))]
@@ -298,6 +297,36 @@ pub struct PackedTexture {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub name: String,
+}
+
+/// Hints on how the texture is used.
+/// Actual usage is determined by the shader.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
+#[brw(repr(u32))]
+pub enum TextureUsage {
+    /// _GLO, _GLW, _GLM, _RFM, _SPM, _BLM, _OCL, _DEP
+    Spm = 16, // temp?
+    /// _NRM, _NM, or _NRM_cmk
+    Nrm = 18,
+    /// _RGB, _RFM, _COL
+    Unk32 = 32,
+    /// _AMB, _RGB
+    Unk34 = 34,
+    /// _COL, _DCL
+    Unk48 = 48,
+    /// _COL
+    Col = 80,
+    /// _COL, _AVA
+    Unk96 = 96,
+    /// _SPM
+    Spm2 = 528,
+    /// _NRM
+    Nrm2 = 530,
+    /// _RGB
+    Unk544 = 544,
+    /// _CUBE, _ENV, _REFA
+    Cube = 65569,
 }
 
 // TODO: Nearly identical to StreamingDataLegacy but not compressed?
@@ -378,6 +407,8 @@ pub struct PackedExternalTexture {
     #[xc3(offset(u32))]
     pub name: String,
 }
+
+xc3_write_binwrite_impl!(TextureUsage);
 
 impl<'a> Xc3WriteOffsets for PackedExternalTexturesOffsets<'a> {
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(

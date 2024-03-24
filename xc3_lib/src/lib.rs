@@ -43,7 +43,7 @@ use std::{
 };
 
 use binrw::{
-    file_ptr::FilePtrArgs, BinRead, BinReaderExt, BinResult, BinWrite, NullString, VecArgs,
+    file_ptr::FilePtrArgs, BinRead, BinReaderExt, BinResult, BinWrite, Endian, NullString, VecArgs,
 };
 use log::trace;
 use thiserror::Error;
@@ -380,24 +380,25 @@ where
 }
 
 macro_rules! file_write_impl {
-    ($($type_name:path),*) => {
+    ($endian:path, $($type_name:path),*) => {
         $(
             impl $type_name {
                 pub fn write<W: Write + Seek>(&self, writer: &mut W) -> xc3_write::Xc3Result<()> {
-                    self.write_le(writer).map_err(std::io::Error::other)
+                    self.write_options(writer, $endian, ()).map_err(std::io::Error::other)
                 }
 
                 /// Write to `path` using a buffered writer for better performance.
                 pub fn save<P: AsRef<Path>>(&self, path: P) -> xc3_write::Xc3Result<()> {
                     let mut writer = BufWriter::new(std::fs::File::create(path)?);
-                    self.write_le(&mut writer).map_err(std::io::Error::other)
+                    self.write_options(&mut writer, $endian, ()).map_err(std::io::Error::other)
                 }
             }
         )*
     };
 }
 
-file_write_impl!(mibl::Mibl, xbc1::Xbc1);
+file_write_impl!(Endian::Little, mibl::Mibl, xbc1::Xbc1);
+file_write_impl!(Endian::Big, mtxt::Mtxt);
 
 macro_rules! file_write_full_impl {
     ($($type_name:path),*) => {
@@ -444,17 +445,17 @@ pub struct ReadFileError {
 // TODO: Dedicated error types?
 // TODO: Specify big or little endian for some formats?
 macro_rules! file_read_impl {
-    ($($type_name:path),*) => {
+    ($endian:path, $($type_name:path),*) => {
         $(
             impl $type_name {
                 pub fn read<R: Read + Seek>(reader: &mut R) -> binrw::BinResult<Self> {
-                    reader.read_le().map_err(Into::into)
+                    reader.read_type($endian).map_err(Into::into)
                 }
 
                 /// Read from `path` using a fully buffered reader for performance.
                 pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, ReadFileError> {
                     let path = path.as_ref();
-                    read_file(path).map_err(|e| ReadFileError {
+                    read_file(path, $endian).map_err(|e| ReadFileError {
                         path: path.to_owned(),
                         source: e,
                     })
@@ -469,17 +470,18 @@ macro_rules! file_read_impl {
     };
 }
 
-fn read_file<T, P>(path: P) -> binrw::BinResult<T>
+fn read_file<T, P>(path: P, endian: Endian) -> binrw::BinResult<T>
 where
     T: BinRead,
     for<'a> T: BinRead<Args<'a> = ()>,
     P: AsRef<Path>,
 {
     let mut reader = Cursor::new(std::fs::read(path)?);
-    reader.read_le().map_err(Into::into)
+    reader.read_type(endian).map_err(Into::into)
 }
 
 file_read_impl!(
+    Endian::Little,
     mibl::Mibl,
     xbc1::Xbc1,
     msmd::Msmd,
@@ -496,6 +498,8 @@ file_read_impl!(
     lagp::Lagp,
     laps::Laps
 );
+
+file_read_impl!(Endian::Big, mtxt::Mtxt, mxmd::legacy::MxmdLegacy);
 
 macro_rules! xc3_write_binwrite_impl {
     ($($ty:ty),*) => {
