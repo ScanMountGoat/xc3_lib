@@ -1,11 +1,11 @@
+use std::io::SeekFrom;
+
 use crate::{
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
     parse_string_ptr32, vertex::VertexAttribute,
 };
 use binrw::{args, binread, BinRead};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
-
-use super::Model;
 
 // TODO: How much code can be shared with non legacy types?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -16,6 +16,7 @@ pub struct MxmdLegacy {
     #[br(assert(version == 10040))]
     pub version: u32,
 
+    // TODO: This type is different for legacy.
     /// A collection of [Model] and associated data.
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]
@@ -73,6 +74,50 @@ pub struct Models {
     pub unk2: u32,
     pub unk3: u32,
 }
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct Model {
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub meshes: Vec<Mesh>,
+
+    // TODO: flags?
+    pub unk1: u32, // 0, 64, 320
+
+    // TODO: Slightly larger than a volume containing all vertex buffers?
+    /// The minimum XYZ coordinates of the bounding volume.
+    pub max_xyz: [f32; 3],
+    /// The maximum XYZ coordinates of the bounding volume.
+    pub min_xyz: [f32; 3],
+    // TODO: how to calculate this?
+    pub bounding_radius: f32,
+    // TODO: padding?
+    pub unks: [u32; 7],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct Mesh {
+    pub flags: u32,
+    pub skin_flags: u32,
+    pub vertex_buffer_index: u32,
+    pub unk1: u32,
+    pub unk2: u32,
+    pub material_index: u32,
+    pub unk3: u32,
+    pub unk4: u32,
+    pub unk5: u32,
+    pub unk6: u32,
+    pub index_buffer_index: u32,
+    pub unk7: u32,
+    pub unk8: u32,
+    pub unk9: u32,
+    pub unk10: u32,
+    pub unk11: u32,
+}
+
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
@@ -164,11 +209,13 @@ pub struct VertexData {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    #[br(parse_with = parse_offset32_count32, args { offset: base_offset, inner: base_offset })]
+    #[br(parse_with = parse_offset32_count32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(offset_count(u32, u32))]
     pub vertex_buffers: Vec<VertexBufferDescriptor>,
 
-    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(offset_count(u32, u32))]
     pub index_buffers: Vec<IndexBufferDescriptor>,
 
@@ -193,15 +240,28 @@ pub struct VertexBufferDescriptor {
     pub attributes: Vec<VertexAttribute>,
 
     pub unk1: u32,
+
+    // TODO: Find a better way to handle this.
+    #[br(seek_before = SeekFrom::Start(base_offset + data_offset as u64))]
+    #[br(restore_position)]
+    #[br(count = vertex_count * vertex_size)]
+    pub data: Vec<u8>
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
 pub struct IndexBufferDescriptor {
     pub data_offset: u32,
     pub index_count: u32,
     pub unk1: u16, // TODO: primitive type?
     pub unk2: u16, // TODO: index format?
+
+    // TODO: Find a better way to handle this.
+    #[br(seek_before = SeekFrom::Start(base_offset + data_offset as u64))]
+    #[br(restore_position)]
+    #[br(count = index_count * 2)]
+    pub data: Vec<u8>
 }
 
 /// A collection of [Mtxt](crate::mtxt::Mtxt) textures embedded in the current file.

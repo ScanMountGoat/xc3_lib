@@ -16,14 +16,14 @@ const FOV_Y: f32 = 0.5;
 #[command(propagate_version = true)]
 struct Cli {
     /// The game dump root folder containing the "monolib" folder.
-    /// Supports Xenoblade 1 DE, Xenoblade 2 and Xenoblade 3.
+    /// Supports Xenoblade X, Xenoblade 1 DE, Xenoblade 2 and Xenoblade 3.
     root_folder: String,
 
     /// The file extension to load.
     extension: FileExtension,
 
     /// The shader JSON database for texture assignments.
-    /// If not specified, the first texture is assumed to be albedo color.
+    /// If not specified, texture usage is inferred from the texture usage type.
     shader_database: Option<String>,
 
     /// Apply the first entry of the corresponding animation if found.
@@ -36,6 +36,7 @@ enum FileExtension {
     Wimdo,
     Pcmdo,
     Wismhd,
+    Camdo,
 }
 
 fn main() {
@@ -120,6 +121,7 @@ fn main() {
         FileExtension::Wimdo => "wimdo",
         FileExtension::Pcmdo => "pcmdo",
         FileExtension::Wismhd => "wismhd",
+        FileExtension::Camdo => "camdo",
     };
     globwalk::GlobWalkerBuilder::from_patterns(&cli.root_folder, &[format!("*.{ext}")])
         .build()
@@ -148,6 +150,7 @@ fn main() {
                 FileExtension::Wismhd => {
                     xc3_model::load_map(model_path, database.as_ref()).unwrap()
                 }
+                FileExtension::Camdo => vec![xc3_model::load_model_legacy(model_path)],
             };
 
             frame_model_bounds(&queue, &roots, &mut renderer);

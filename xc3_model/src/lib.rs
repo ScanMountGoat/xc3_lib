@@ -52,7 +52,7 @@ use xc3_lib::{
         streaming::{chr_tex_nx_folder, ExtractedTexture},
         Msrd,
     },
-    mxmd::{Materials, Mxmd},
+    mxmd::{legacy::MxmdLegacy, Materials, Mxmd},
     sar1::Sar1,
     vertex::WeightLod,
     xbc1::MaybeXbc1,
@@ -233,6 +233,30 @@ impl Model {
             bounding_radius: model.bounding_radius,
         }
     }
+
+    pub fn from_model_legacy(model: &xc3_lib::mxmd::legacy::Model) -> Self {
+        let meshes = model
+            .meshes
+            .iter()
+            .map(|mesh| Mesh {
+                vertex_buffer_index: mesh.vertex_buffer_index as usize,
+                index_buffer_index: mesh.index_buffer_index as usize,
+                material_index: mesh.material_index as usize,
+                lod: 0,
+                flags1: mesh.flags,
+                skin_flags: mesh.skin_flags,
+            })
+            .collect();
+
+        Self {
+            meshes,
+            instances: vec![Mat4::IDENTITY],
+            model_buffers_index: 0,
+            max_xyz: model.max_xyz.into(),
+            min_xyz: model.min_xyz.into(),
+            bounding_radius: model.bounding_radius,
+        }
+    }
 }
 
 /// Returns `true` if a mesh with `lod` should be rendered
@@ -380,8 +404,17 @@ pub fn load_model<P: AsRef<Path>>(
     ModelRoot::from_mxmd_model(&mxmd, chr, &streaming_data, spch)
 }
 
+// TODO: docs and avoid unwrap.
+pub fn load_model_legacy<P: AsRef<Path>>(camdo_path: P) -> ModelRoot {
+    // TODO: texture streaming data.
+    let mut reader = Cursor::new(std::fs::read(camdo_path).unwrap());
+    let mxmd: MxmdLegacy = reader.read_be().unwrap();
+    ModelRoot::from_mxmd_model_legacy(&mxmd).unwrap()
+}
+
 // TODO: fuzz test this?
 impl ModelRoot {
+    /// Load models from parsed file data.
     pub fn from_mxmd_model(
         mxmd: &Mxmd,
         chr: Option<Sar1>,
@@ -412,6 +445,68 @@ impl ModelRoot {
             }],
             image_textures,
             skeleton,
+        })
+    }
+
+    /// Load models from legacy parsed file data for Xenoblade Chronicles X.
+    pub fn from_mxmd_model_legacy(mxmd: &MxmdLegacy) -> Result<Self, LoadModelError> {
+        // TODO: How to make this work?
+        // TODO: separate type for legacy streaming data?
+        // TODO: dedicated module for loading stream data?
+
+        let models = Models {
+            models: mxmd
+                .models
+                .models
+                .iter()
+                .map(Model::from_model_legacy)
+                .collect(),
+            materials: mxmd
+                .materials
+                .materials
+                .iter()
+                .map(|m| Material {
+                    name: m.name.clone(),
+                    flags: StateFlags {
+                        depth_write_mode: 0,
+                        blend_mode: BlendMode::Disabled,
+                        cull_mode: CullMode::Back,
+                        unk4: 0,
+                        stencil_value: StencilValue::Unk0,
+                        stencil_mode: StencilMode::Unk0,
+                        depth_func: DepthFunc::LessEqual,
+                        color_write_mode: 0,
+                    },
+                    textures: Vec::new(),
+                    alpha_test: None,
+                    shader: None,
+                    pass_type: RenderPassType::Unk0,
+                    parameters: MaterialParameters {
+                        mat_color: [1.0; 4],
+                        alpha_test_ref: 0.0,
+                        tex_matrix: None,
+                        work_float4: None,
+                        work_color: None,
+                    },
+                })
+                .collect(),
+            samplers: Vec::new(),
+            base_lod_indices: None,
+            max_xyz: mxmd.models.max_xyz.into(),
+            min_xyz: mxmd.models.min_xyz.into(),
+        };
+
+        let buffers = ModelBuffers::from_vertex_data_legacy(&mxmd.vertex)
+            .map_err(LoadModelError::VertexData)?;
+
+        // TODO: Find a way to specify at the type level that this has only one element?
+        Ok(Self {
+            groups: vec![ModelGroup {
+                models: vec![models],
+                buffers: vec![buffers],
+            }],
+            image_textures: Vec::new(),
+            skeleton: None,
         })
     }
 
