@@ -4,6 +4,7 @@ use std::{
 };
 
 use image_dds::ddsfile::Dds;
+use rayon::prelude::*;
 use thiserror::Error;
 use xc3_write::Xc3Result;
 
@@ -440,7 +441,12 @@ fn pack_files(
     textures: &[ExtractedTexture<Mibl>],
     use_chr_textures: bool,
 ) -> Result<(StreamingData, Vec<u8>), CreateXbc1Error> {
-    let (stream_entries, streams, low_textures, data) = create_streams(vertex, spch, textures)?;
+    let Streams {
+        stream_entries,
+        streams,
+        low_textures,
+        data,
+    } = create_streams(vertex, spch, textures)?;
 
     let textures_stream_entry_start_index = stream_entries
         .iter()
@@ -506,30 +512,31 @@ fn pack_files(
     ))
 }
 
-// TODO: Create struct for return type.
+struct Streams {
+    stream_entries: Vec<StreamEntry>,
+    streams: Vec<Stream>,
+    low_textures: Vec<PackedExternalTexture>,
+    data: Vec<u8>,
+}
+
 fn create_streams(
     vertex: &VertexData,
     spch: &Spch,
     textures: &[ExtractedTexture<Mibl>],
-) -> Result<
-    (
-        Vec<StreamEntry>,
-        Vec<Stream>,
-        Vec<PackedExternalTexture>,
-        Vec<u8>,
-    ),
-    CreateXbc1Error,
-> {
+) -> Result<Streams, CreateXbc1Error> {
     // Entries are in ascending order by offset and stream.
     // Data order is Vertex, Shader, LowTextures, Textures.
     let mut xbc1s = Vec::new();
     let mut stream_entries = Vec::new();
 
+    // TODO: Cost of reallocating vecs?
     let low_textures = write_stream0(&mut xbc1s, &mut stream_entries, vertex, spch, textures)?;
 
-    // Always write high resolution textures to wismt for compatibility reasons.
+    // Always write high resolution textures to wismt for compatibility.
+    // This works across all switch games and doesn't interfere with chr/tex/nx textures.
     let entry_start_index = stream_entries.len();
     write_stream1(&mut xbc1s, &mut stream_entries, textures);
+
     write_base_mip_streams(&mut xbc1s, &mut stream_entries, textures, entry_start_index);
 
     let mut streams = Vec::new();
@@ -547,7 +554,12 @@ fn create_streams(
         });
     }
 
-    Ok((stream_entries, streams, low_textures, data.into_inner()))
+    Ok(Streams {
+        stream_entries,
+        streams,
+        low_textures,
+        data: data.into_inner(),
+    })
 }
 
 fn write_stream0(
@@ -578,18 +590,17 @@ fn write_stream1(
 ) {
     // Add higher resolution textures.
     let mut writer = Cursor::new(Vec::new());
-    let mut is_empty = true;
 
     for texture in textures {
         if let Some(high) = &texture.high {
             let entry = write_stream_data(&mut writer, &high.mid, EntryType::Texture).unwrap();
             stream_entries.push(entry);
-            is_empty = false;
         }
     }
 
-    if !is_empty {
-        let xbc1 = Xbc1::from_decompressed("0000".to_string(), &writer.into_inner()).unwrap();
+    let data = writer.into_inner();
+    if !data.is_empty() {
+        let xbc1 = Xbc1::from_decompressed("0000".to_string(), &data).unwrap();
         streams.push(xbc1);
     }
 }
@@ -601,16 +612,23 @@ fn write_base_mip_streams(
     entry_start_index: usize,
 ) {
     // Only count textures with a higher resolution version to match entry ordering.
+    let mut stream_index = streams.len() as u16 + 1;
+    let mut base_mips = Vec::new();
     for (i, high) in textures.iter().filter_map(|t| t.high.as_ref()).enumerate() {
         if let Some(base) = &high.base_mip {
-            stream_entries[entry_start_index + i].texture_base_mip_stream_index =
-                streams.len() as u16 + 1;
-
-            // TODO: Should this be aligned in any way?
-            let xbc1 = Xbc1::from_decompressed("0000".to_string(), base).unwrap();
-            streams.push(xbc1);
+            stream_entries[entry_start_index + i].texture_base_mip_stream_index = stream_index;
+            base_mips.push(base);
+            stream_index += 1;
         }
     }
+
+    // TODO: Should these be aligned in any way?
+    // Only parallelize the expensive compression operations to avoid locking.
+    streams.par_extend(
+        base_mips
+            .into_par_iter()
+            .map(|b| Xbc1::from_decompressed("0000".to_string(), b).unwrap()),
+    );
 }
 
 fn write_stream_data<'a, T>(

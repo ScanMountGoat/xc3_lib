@@ -23,6 +23,7 @@ murmur3 = "0.5.2"
 lzf = "1.0.0"
 arbitrary = { version = "1.0", features = ["derive"], optional = true }
 indexmap = "2.1.0"
+rayon = "1.8.1"
 
 [dev-dependencies]
 hexlit = "0.5.5"

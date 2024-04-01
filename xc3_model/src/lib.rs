@@ -49,7 +49,7 @@ use xc3_lib::{
     error::DecompressStreamError,
     mibl::Mibl,
     msrd::{
-        streaming::{chr_tex_nx_folder, ExtractedTexture},
+        streaming::{chr_tex_nx_folder, ExtractedTexture, HighTexture},
         Msrd,
     },
     mtxt::Mtxt,
@@ -547,19 +547,7 @@ impl ModelRoot {
         // TODO: Does this need to even extract vertex/textures?
         let (_, spch, _) = msrd.extract_files(None).unwrap();
 
-        // TODO: Assume the same ordering instead of recreating from scratch?
-        // TODO: Create a method that converts ImageTexture to ExtractedTexture?
-        // TODO: What to use for the low texture?
-        let textures: Vec<_> = self
-            .image_textures
-            .iter()
-            .map(|image| ExtractedTexture {
-                name: image.name.clone().unwrap(),
-                usage: image.usage.unwrap(),
-                low: image.to_mibl().unwrap(),
-                high: None,
-            })
-            .collect();
+        let textures: Vec<_> = self.image_textures.iter().map(extracted_texture).collect();
 
         // TODO: Create a separate root type that enforces this structure?
         let new_vertex = self.groups[0].buffers[0].to_vertex_data().unwrap();
@@ -631,6 +619,38 @@ impl ModelRoot {
         new_mxmd.streaming = Some(new_msrd.streaming.clone());
 
         (new_mxmd, new_msrd)
+    }
+}
+
+fn extracted_texture(image: &ImageTexture) -> ExtractedTexture<Mibl> {
+    // Low textures typically use a smaller 4x4 version of the texture.
+    // Resizing and decoding and encoding the full texture is expensive.
+    // The low texture is only visible briefly before data is streamed in.
+    // We can cheat and just use the first GOB (512 bytes) of compressed image data.
+    let low = xc3_lib::mibl::Mibl {
+        image_data: image.image_data[..512].to_vec(),
+        footer: xc3_lib::mibl::MiblFooter {
+            image_size: 4096,
+            unk: 0x1000,
+            width: 4,
+            height: 4,
+            depth: 1,
+            view_dimension: xc3_lib::mibl::ViewDimension::D2,
+            image_format: image.image_format,
+            mipmap_count: 1,
+            version: 10001,
+        },
+    };
+
+    let (mid, base_mip) = image.to_mibl().unwrap().split_base_mip();
+    ExtractedTexture {
+        name: image.name.clone().unwrap(),
+        usage: image.usage.unwrap(),
+        low,
+        high: Some(HighTexture {
+            mid,
+            base_mip: Some(base_mip),
+        }),
     }
 }
 
