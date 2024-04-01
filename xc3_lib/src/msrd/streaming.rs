@@ -448,10 +448,10 @@ fn pack_files(
         data,
     } = create_streams(vertex, spch, textures)?;
 
-    let textures_stream_entry_start_index = stream_entries
-        .iter()
-        .position(|e| e.entry_type == EntryType::Texture)
-        .unwrap_or_default() as u32;
+    let vertex_data_entry_index = stream_entry_index(&stream_entries, EntryType::Vertex);
+    let shader_entry_index = stream_entry_index(&stream_entries, EntryType::Shader);
+    let low_textures_entry_index = stream_entry_index(&stream_entries, EntryType::LowTextures);
+    let textures_stream_entry_start_index = stream_entry_index(&stream_entries, EntryType::Texture);
 
     let textures_stream_entry_count = stream_entries
         .iter()
@@ -466,7 +466,6 @@ fn pack_files(
         unk: [0; 2],
     });
 
-    // TODO: Search stream entries to get indices?
     Ok((
         StreamingData {
             flags: StreamFlags::new(
@@ -481,9 +480,9 @@ fn pack_files(
             ),
             stream_entries,
             streams,
-            vertex_data_entry_index: 0,
-            shader_entry_index: 1,
-            low_textures_entry_index: 2,
+            vertex_data_entry_index,
+            shader_entry_index,
+            low_textures_entry_index,
             low_textures_stream_index: 0, // TODO: always 0?
             textures_stream_index: if textures_stream_entry_count > 0 {
                 1
@@ -512,6 +511,13 @@ fn pack_files(
     ))
 }
 
+fn stream_entry_index(stream_entries: &[StreamEntry], entry_type: EntryType) -> u32 {
+    stream_entries
+        .iter()
+        .position(|e| e.entry_type == entry_type)
+        .unwrap_or_default() as u32
+}
+
 struct Streams {
     stream_entries: Vec<StreamEntry>,
     streams: Vec<Stream>,
@@ -526,18 +532,35 @@ fn create_streams(
 ) -> Result<Streams, CreateXbc1Error> {
     // Entries are in ascending order by offset and stream.
     // Data order is Vertex, Shader, LowTextures, Textures.
-    let mut xbc1s = Vec::new();
     let mut stream_entries = Vec::new();
 
-    // TODO: Cost of reallocating vecs?
-    let low_textures = write_stream0(&mut xbc1s, &mut stream_entries, vertex, spch, textures)?;
+    let (low_textures, stream0_data) = write_stream0(&mut stream_entries, vertex, spch, textures)?;
 
     // Always write high resolution textures to wismt for compatibility.
     // This works across all switch games and doesn't interfere with chr/tex/nx textures.
     let entry_start_index = stream_entries.len();
-    write_stream1(&mut xbc1s, &mut stream_entries, textures);
+    let stream1_data = write_stream1(&mut stream_entries, textures);
 
-    write_base_mip_streams(&mut xbc1s, &mut stream_entries, textures, entry_start_index);
+    // Ignore unused empty streams.
+    let mut streams_data = vec![&stream0_data];
+    if !stream1_data.is_empty() {
+        streams_data.push(&stream1_data);
+    };
+
+    let base_mips = write_base_mip_streams(
+        &mut stream_entries,
+        textures,
+        streams_data.len() as u16,
+        entry_start_index,
+    );
+
+    streams_data.extend_from_slice(&base_mips);
+
+    // Only parallelize the expensive compression operations to avoid locking.
+    let xbc1s: Vec<_> = streams_data
+        .par_iter()
+        .map(|data| Xbc1::from_decompressed("0000".to_string(), data).unwrap())
+        .collect();
 
     let mut streams = Vec::new();
     let mut data = Cursor::new(Vec::new());
@@ -563,12 +586,11 @@ fn create_streams(
 }
 
 fn write_stream0(
-    streams: &mut Vec<Xbc1>,
     stream_entries: &mut Vec<StreamEntry>,
     vertex: &VertexData,
     spch: &Spch,
     textures: &[ExtractedTexture<Mibl>],
-) -> Result<Vec<PackedExternalTexture>, CreateXbc1Error> {
+) -> Result<(Vec<PackedExternalTexture>, Vec<u8>), CreateXbc1Error> {
     // Data in streams is tightly packed.
     let mut writer = Cursor::new(Vec::new());
     stream_entries.push(write_stream_data(&mut writer, vertex, EntryType::Vertex)?);
@@ -577,17 +599,13 @@ fn write_stream0(
     let (entry, low_textures) = write_low_textures(&mut writer, textures)?;
     stream_entries.push(entry);
 
-    let xbc1 = Xbc1::from_decompressed("0000".to_string(), &writer.into_inner())?;
-    streams.push(xbc1);
-
-    Ok(low_textures)
+    Ok((low_textures, writer.into_inner()))
 }
 
 fn write_stream1(
-    streams: &mut Vec<Xbc1>,
     stream_entries: &mut Vec<StreamEntry>,
     textures: &[ExtractedTexture<Mibl>],
-) {
+) -> Vec<u8> {
     // Add higher resolution textures.
     let mut writer = Cursor::new(Vec::new());
 
@@ -598,23 +616,21 @@ fn write_stream1(
         }
     }
 
-    let data = writer.into_inner();
-    if !data.is_empty() {
-        let xbc1 = Xbc1::from_decompressed("0000".to_string(), &data).unwrap();
-        streams.push(xbc1);
-    }
+    writer.into_inner()
 }
 
-fn write_base_mip_streams(
-    streams: &mut Vec<Xbc1>,
+fn write_base_mip_streams<'a>(
     stream_entries: &mut [StreamEntry],
-    textures: &[ExtractedTexture<Mibl>],
+    textures: &'a [ExtractedTexture<Mibl>],
+    streams_count: u16,
     entry_start_index: usize,
-) {
-    // Only count textures with a higher resolution version to match entry ordering.
-    let mut stream_index = streams.len() as u16 + 1;
+) -> Vec<&'a Vec<u8>> {
+    // Count previous streams with indexing starting from 1.
+    let mut stream_index = streams_count + 1;
+
     let mut base_mips = Vec::new();
     for (i, high) in textures.iter().filter_map(|t| t.high.as_ref()).enumerate() {
+        // Only count textures with a higher resolution version to match entry ordering.
         if let Some(base) = &high.base_mip {
             stream_entries[entry_start_index + i].texture_base_mip_stream_index = stream_index;
             base_mips.push(base);
@@ -623,12 +639,7 @@ fn write_base_mip_streams(
     }
 
     // TODO: Should these be aligned in any way?
-    // Only parallelize the expensive compression operations to avoid locking.
-    streams.par_extend(
-        base_mips
-            .into_par_iter()
-            .map(|b| Xbc1::from_decompressed("0000".to_string(), b).unwrap()),
-    );
+    base_mips
 }
 
 fn write_stream_data<'a, T>(
