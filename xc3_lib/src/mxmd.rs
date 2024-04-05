@@ -776,9 +776,8 @@ pub struct Model {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Mesh {
-    // TODO: 0x4 for pass?
     pub flags1: u32,
-    pub skin_flags: u32, // 0x1, 0x2, 0x4001 (16385), 0x4008 (16392)
+    pub flags2: MeshRenderFlags2,
     /// Index into [vertex_buffers](../vertex/struct.VertexData.html#structfield.vertex_buffers)
     /// for the associated [VertexData].
     pub vertex_buffer_index: u16,
@@ -804,45 +803,34 @@ pub struct Mesh {
     pub unk9: i32,
 }
 
+// TODO: remaining bits affect skinning?
 /// Flags to determine how to draw a [Mesh].
 #[bitsize(32)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(DebugBits, FromBits, BinRead, BinWrite, PartialEq, Clone, Copy)]
-#[br(map = u32::into)]
-#[bw(map = |&x| u32::from(x))]
-pub struct MeshRenderFlags {
-    pub unk1: bool,
-    pub unk2: bool,
-    pub unk3: bool,
-    pub unk4: bool,
-    pub unk5: bool,
-    pub unk6: bool,
-    pub unk7: bool,
-    pub unk8: bool,
-    pub unk9: bool,
-    pub unk10: bool,
-    pub unk11: bool,
-    pub unk12: bool,
-    pub unk13: bool,
-    pub unk14: bool,
-    pub unk15: bool,
-    pub unk16: bool,
-    pub unk17: bool,
-    pub unk18: bool,
-    pub unk19: bool,
-    pub unk20: bool,
-    pub unk21: bool,
-    pub unk22: bool,
-    pub unk23: bool,
-    pub unk24: bool,
-    pub unk25: bool,
-    pub unk26: bool,
-    pub unk27: bool,
-    pub unk28: bool,
-    pub unk29: bool,
-    pub unk30: bool,
-    pub unk31: bool,
-    pub unk32: bool,
+#[derive(DebugBits, TryFromBits, BinRead, BinWrite, PartialEq, Clone, Copy)]
+#[br(try_map = |x: u32| x.try_into().map_err(|e| format!("{e:?}")))]
+#[bw(try_map = |&x| u32::try_from(x))]
+pub struct MeshRenderFlags2 {
+    /// The render pass for this draw call.
+    pub render_pass: MeshRenderPass,
+    pub unk5: u28,
+}
+
+// TODO: 16 also draws in the first pass but earlier?
+// TODO: Also depends on technique type?
+/// The render pass for this draw call.
+#[bitsize(4)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, TryFromBits, PartialEq, Clone, Copy)]
+pub enum MeshRenderPass {
+    /// The first opaque pass with depth writes.
+    Unk0 = 0,
+    /// The first opaque pass with depth writes but earlier in the pass.
+    Unk1 = 1,
+    /// The alpha pass after the deferred pass without depth writes.
+    Unk2 = 2,
+    /// The alpha pass immediately after [MeshRenderPass::Unk0] without depth writes.
+    Unk8 = 8,
 }
 
 /// Flags to determine what data is present in [Models].
@@ -1705,7 +1693,7 @@ xc3_write_binwrite_impl!(
     SamplerFlags,
     TextureUsage,
     ExtMeshFlags,
-    MeshRenderFlags,
+    MeshRenderFlags2,
     MaterialFlags
 );
 

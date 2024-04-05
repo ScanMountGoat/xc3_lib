@@ -69,8 +69,8 @@ pub use sampler::{AddressMode, FilterMode, Sampler};
 pub use skeleton::{Bone, Skeleton};
 pub use texture::{ExtractedTextures, ImageFormat, ImageTexture, ViewDimension};
 pub use xc3_lib::mxmd::{
-    BlendMode, CullMode, DepthFunc, RenderPassType, StateFlags, StencilMode, StencilValue,
-    TextureUsage,
+    BlendMode, CullMode, DepthFunc, MeshRenderFlags2, MeshRenderPass, RenderPassType, StateFlags,
+    StencilMode, StencilValue, TextureUsage,
 };
 
 pub mod animation;
@@ -179,7 +179,7 @@ pub struct Mesh {
     pub material_index: usize,
     pub lod: u16,
     pub flags1: u32,
-    pub skin_flags: u32,
+    pub flags2: MeshRenderFlags2,
 }
 
 impl Models {
@@ -221,7 +221,7 @@ impl Model {
                 material_index: mesh.material_index as usize,
                 lod: mesh.lod,
                 flags1: mesh.flags1,
-                skin_flags: mesh.skin_flags,
+                flags2: mesh.flags2.into(),
             })
             .collect();
 
@@ -244,8 +244,8 @@ impl Model {
                 index_buffer_index: mesh.index_buffer_index as usize,
                 material_index: mesh.material_index as usize,
                 lod: 0,
-                flags1: mesh.flags,
-                skin_flags: mesh.skin_flags,
+                flags1: mesh.flags1,
+                flags2: mesh.flags2.try_into().unwrap(),
             })
             .collect();
 
@@ -566,7 +566,7 @@ impl ModelRoot {
                     .iter()
                     .map(|m| xc3_lib::mxmd::Mesh {
                         flags1: m.flags1,
-                        skin_flags: m.skin_flags,
+                        flags2: m.flags2.try_into().unwrap(),
                         vertex_buffer_index: m.vertex_buffer_index as u16,
                         index_buffer_index: m.index_buffer_index as u16,
                         unk_index: 0,

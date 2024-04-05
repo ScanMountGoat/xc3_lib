@@ -100,8 +100,8 @@ pub struct Model {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Mesh {
-    pub flags: u32,
-    pub skin_flags: u32,
+    pub flags1: u32,
+    pub flags2: u32,
     pub vertex_buffer_index: u32,
     pub unk1: u32,
     pub unk2: u32,

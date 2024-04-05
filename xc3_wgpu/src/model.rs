@@ -4,7 +4,7 @@ use glam::{uvec4, vec4, Mat4, Vec3, Vec4};
 use log::{error, info};
 use rayon::prelude::*;
 use wgpu::util::DeviceExt;
-use xc3_model::{vertex::AttributeData, ImageTexture};
+use xc3_model::{vertex::AttributeData, ImageTexture, MeshRenderFlags2, MeshRenderPass};
 
 use crate::{
     animation::animated_skinning_transforms,
@@ -54,7 +54,7 @@ pub struct Mesh {
     vertex_buffer_index: usize,
     index_buffer_index: usize,
     material_index: usize,
-    skin_flags: u32, // TODO: convert to a render pass enum?
+    flags2: MeshRenderFlags2,
     lod: u16,
     per_mesh: crate::shader::model::bind_groups::BindGroup3,
 }
@@ -126,7 +126,7 @@ impl ModelGroup {
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         is_transparent: bool,
-        pass_id: u32,
+        pass_id: MeshRenderPass,
         camera: &CameraData,
     ) {
         self.per_group.set(render_pass);
@@ -150,7 +150,7 @@ impl ModelGroup {
                     if (is_transparent != material.pipeline_key.write_to_all_outputs())
                         && !material.name.contains("_speff_")
                         && mesh.should_render_lod(models)
-                        && mesh.skin_flags & 0xF == pass_id
+                        && mesh.flags2.render_pass() == pass_id
                     {
                         mesh.per_mesh.set(render_pass);
 
@@ -482,13 +482,13 @@ fn create_model(
             index_buffer_index: mesh.index_buffer_index,
             material_index: mesh.material_index,
             lod: mesh.lod,
-            skin_flags: mesh.skin_flags,
+            flags2: mesh.flags2.into(),
             per_mesh: per_mesh_bind_group(
                 device,
                 model_buffers,
                 skin_weights.as_ref(),
                 mesh.lod,
-                mesh.skin_flags,
+                mesh.flags2.into(),
                 mesh.vertex_buffer_index,
                 &materials[mesh.material_index],
             ),

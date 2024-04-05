@@ -134,7 +134,7 @@ impl GltfFile {
                                     .as_ref()
                                     .map(|w| {
                                         w.weights_start_index(
-                                            mesh.skin_flags,
+                                            mesh.flags2.into(),
                                             mesh.lod,
                                             material.pass_type,
                                         )

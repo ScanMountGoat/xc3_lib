@@ -172,6 +172,7 @@ fn create_material(
                 extras: Default::default(),
             }
         }),
+        emissive_texture: None, // TODO: emission?
         alpha_mode: if material.alpha_test.is_some() {
             Valid(gltf::json::material::AlphaMode::Mask)
         } else {

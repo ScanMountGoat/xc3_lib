@@ -1,5 +1,6 @@
 use glam::{vec4, Mat4, Vec4};
 use wgpu::util::DeviceExt;
+use xc3_model::MeshRenderPass;
 
 use crate::{
     model::ModelGroup, DeviceBufferExt, MonolibShaderTextures, QueueBufferExt, COLOR_FORMAT,
@@ -382,8 +383,8 @@ impl Xc3Renderer {
         self.model_bind_group0.set(&mut render_pass);
 
         for model in models {
-            model.draw(&mut render_pass, false, 0, &self.camera);
-            model.draw(&mut render_pass, false, 1, &self.camera);
+            model.draw(&mut render_pass, false, MeshRenderPass::Unk0, &self.camera);
+            model.draw(&mut render_pass, false, MeshRenderPass::Unk1, &self.camera);
         }
     }
 
@@ -431,7 +432,7 @@ impl Xc3Renderer {
 
         // TODO: Is this the correct unk type?
         for model in models {
-            model.draw(&mut render_pass, true, 8, &self.camera);
+            model.draw(&mut render_pass, true, MeshRenderPass::Unk8, &self.camera);
         }
     }
 
@@ -479,7 +480,7 @@ impl Xc3Renderer {
 
         // TODO: Is this the correct unk type?
         for model in models {
-            model.draw(&mut render_pass, true, 2, &self.camera);
+            model.draw(&mut render_pass, true, MeshRenderPass::Unk2, &self.camera);
         }
     }
 

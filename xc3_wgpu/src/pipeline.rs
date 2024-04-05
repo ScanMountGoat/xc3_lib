@@ -17,6 +17,7 @@ impl ModelPipelineData {
     }
 }
 
+// TODO: This also needs to take into account mesh flags?
 /// The non shared components of a pipeline for use with pipeline caching.
 #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq)]
 pub struct PipelineKey {
@@ -134,8 +135,7 @@ pub fn model_pipeline(
         },
         depth_stencil: Some(wgpu::DepthStencilState {
             format: DEPTH_STENCIL_FORMAT,
-            // TODO: Double check depth flags in renderdoc.
-            // TODO: Depth write can be disabled by mesh flags?
+            // TODO: this depends on the mesh render pass?
             depth_write_enabled: true,
             depth_compare: match key.flags.depth_func {
                 xc3_lib::mxmd::DepthFunc::Disabled => wgpu::CompareFunction::Always,
