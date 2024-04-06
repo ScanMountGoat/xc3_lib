@@ -98,7 +98,6 @@ impl ImageTexture {
         name: Option<String>,
         usage: Option<xc3_lib::mxmd::legacy::TextureUsage>,
     ) -> Result<Self, SwizzleError> {
-        // TODO: Implement swizzling and proper conversion logic.
         Ok(Self {
             name,
             usage: usage.and_then(mtxt_usage),
@@ -108,7 +107,7 @@ impl ImageTexture {
             view_dimension: ViewDimension::D2,
             image_format: mtxt_image_format(mtxt.footer.surface_format),
             mipmap_count: mtxt.footer.mipmap_count,
-            image_data: mtxt.image_data.clone(),
+            image_data: mtxt.deswizzled_image_data(),
         })
     }
 

@@ -757,7 +757,6 @@ fn check_mxmd_legacy(
 ) {
     if let Some(textures) = mxmd.packed_textures {
         for texture in textures.textures {
-            println!("{:?}, {:?}", texture.usage, texture.name);
             match Mtxt::from_bytes(&texture.mtxt_data) {
                 Ok(mtxt) => check_mtxt(mtxt, path, &texture.mtxt_data, check_read_write),
                 Err(e) => println!("Error reading Mtxt in {path:?}: {e}"),
@@ -775,6 +774,7 @@ fn check_mtxt(mtxt: Mtxt, path: &Path, original_bytes: &[u8], check_read_write: 
         if writer.into_inner() != original_bytes {
             println!("Mtxt read/write not 1:1 for {path:?}");
         }
+        // TODO: Check read/write for dds?
     }
 }
 

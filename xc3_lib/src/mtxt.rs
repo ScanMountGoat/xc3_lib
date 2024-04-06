@@ -11,6 +11,7 @@
 use std::io::SeekFrom;
 
 use binrw::{binrw, BinRead, BinWrite};
+use image_dds::{ddsfile::Dds, Surface};
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinWrite, PartialEq, Eq, Clone)]
@@ -42,7 +43,7 @@ pub struct MtxtFooter {
     /// The number of mip levels or 1 if there are no mipmaps.
     pub mipmap_count: u32,
     pub surface_format: SurfaceFormat,
-    pub size: u32,
+    pub size: u32, // TODO: linear or row-major size?
     pub aa_mode: u32,
     pub tile_mode: TileMode,
     pub unk1: u32,
@@ -110,5 +111,99 @@ impl BinRead for Mtxt {
         reader.read_exact(&mut image_data)?;
 
         Ok(Mtxt { image_data, footer })
+    }
+}
+
+impl Mtxt {
+    /// Deswizzles all layers and mipmaps to a standard row-major memory layout.
+    pub fn deswizzled_image_data(&self) -> Vec<u8> {
+        let (block_width, block_height) = self.footer.surface_format.block_dim();
+
+        let div_round_up = |x, d| (x + d - 1) / d;
+
+        // TODO: out of bounds for small textures?
+        wiiu_swizzle::deswizzle_surface(
+            div_round_up(self.footer.width, block_width),
+            div_round_up(self.footer.height, block_height),
+            self.footer.depth_or_array_layers,
+            &self.image_data,
+            self.footer.swizzle,
+            self.footer.pitch,
+            self.footer.tile_mode.into(),
+            self.footer.surface_format.bytes_per_pixel(),
+        )
+    }
+
+    /// Deswizzles all layers and mipmaps to a compatible surface for easier conversions.
+    pub fn to_surface(&self) -> Surface<Vec<u8>> {
+        Surface {
+            width: self.footer.width,
+            height: self.footer.height,
+            depth: if self.footer.surface_dim == SurfaceDim::D3 {
+                self.footer.depth_or_array_layers
+            } else {
+                1
+            },
+            layers: if self.footer.surface_dim != SurfaceDim::D3 {
+                self.footer.depth_or_array_layers
+            } else {
+                1
+            },
+            mipmaps: self.footer.mipmap_count,
+            image_format: self.footer.surface_format.into(),
+            data: self.deswizzled_image_data(),
+        }
+    }
+
+    /// Deswizzles all layers and mipmaps to a Direct Draw Surface (DDS).
+    pub fn to_dds(&self) -> Result<Dds, crate::dds::CreateDdsError> {
+        self.to_surface().to_dds().map_err(Into::into)
+    }
+}
+
+impl From<SurfaceFormat> for image_dds::ImageFormat {
+    fn from(value: SurfaceFormat) -> Self {
+        match value {
+            SurfaceFormat::R8G8B8A8Unorm => Self::Rgba8Unorm,
+            SurfaceFormat::BC1Unorm => Self::BC1RgbaUnorm,
+            SurfaceFormat::BC2Unorm => Self::BC2RgbaUnorm,
+            SurfaceFormat::BC3Unorm => Self::BC3RgbaUnorm,
+            SurfaceFormat::BC4Unorm => Self::BC4RUnorm,
+            SurfaceFormat::BC5Unorm => Self::BC5RgUnorm,
+        }
+    }
+}
+
+impl From<TileMode> for wiiu_swizzle::AddrTileMode {
+    fn from(value: TileMode) -> Self {
+        match value {
+            TileMode::D1TiledThin1 => wiiu_swizzle::AddrTileMode::ADDR_TM_1D_TILED_THIN1,
+            TileMode::D2TiledThin1 => wiiu_swizzle::AddrTileMode::ADDR_TM_2D_TILED_THIN1,
+            TileMode::D2TiledThick => wiiu_swizzle::AddrTileMode::ADDR_TM_2D_TILED_THICK,
+        }
+    }
+}
+
+impl SurfaceFormat {
+    pub fn block_dim(&self) -> (u32, u32) {
+        match self {
+            SurfaceFormat::R8G8B8A8Unorm => (1, 1),
+            SurfaceFormat::BC1Unorm => (4, 4),
+            SurfaceFormat::BC2Unorm => (4, 4),
+            SurfaceFormat::BC3Unorm => (4, 4),
+            SurfaceFormat::BC4Unorm => (4, 4),
+            SurfaceFormat::BC5Unorm => (4, 4),
+        }
+    }
+
+    pub fn bytes_per_pixel(&self) -> u32 {
+        match self {
+            SurfaceFormat::R8G8B8A8Unorm => 4,
+            SurfaceFormat::BC1Unorm => 8,
+            SurfaceFormat::BC2Unorm => 16,
+            SurfaceFormat::BC3Unorm => 16,
+            SurfaceFormat::BC4Unorm => 8,
+            SurfaceFormat::BC5Unorm => 16,
+        }
     }
 }

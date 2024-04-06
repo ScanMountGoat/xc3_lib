@@ -26,7 +26,7 @@
 use std::io::SeekFrom;
 
 use binrw::{binrw, BinRead, BinWrite};
-use image_dds::Surface;
+use image_dds::{ddsfile::Dds, Surface};
 use tegra_swizzle::surface::BlockDim;
 use thiserror::Error;
 use xc3_write::Xc3Write;
@@ -197,6 +197,8 @@ impl BinWrite for Mibl {
     }
 }
 
+xc3_write_binwrite_impl!(Mibl);
+
 #[derive(Debug, Error)]
 pub enum CreateMiblError {
     #[error("error swizzling surface")]
@@ -341,6 +343,19 @@ impl Mibl {
             },
         })
     }
+
+    /// Deswizzles all layers and mipmaps to a Direct Draw Surface (DDS).
+    pub fn to_dds(&self) -> Result<Dds, crate::dds::CreateDdsError> {
+        self.to_surface()?.to_dds().map_err(Into::into)
+    }
+
+    /// Swizzles all layers and mipmaps in `dds` to an equivalent [Mibl].
+    ///
+    /// Returns an error if the conversion fails or the image format is not supported.
+    pub fn from_dds(dds: &Dds) -> Result<Self, CreateMiblError> {
+        let surface = image_dds::Surface::from_dds(dds)?;
+        Self::from_surface(surface)
+    }
 }
 
 impl MiblFooter {
@@ -379,4 +394,43 @@ impl MiblFooter {
     }
 }
 
-xc3_write_binwrite_impl!(Mibl);
+impl From<ImageFormat> for image_dds::ImageFormat {
+    fn from(value: ImageFormat) -> Self {
+        match value {
+            ImageFormat::R8Unorm => image_dds::ImageFormat::R8Unorm,
+            ImageFormat::R8G8B8A8Unorm => image_dds::ImageFormat::Rgba8Unorm,
+            ImageFormat::R16G16B16A16Float => image_dds::ImageFormat::Rgba16Float,
+            ImageFormat::R4G4B4A4Unorm => image_dds::ImageFormat::Bgra4Unorm,
+            ImageFormat::BC1Unorm => image_dds::ImageFormat::BC1RgbaUnorm,
+            ImageFormat::BC2Unorm => image_dds::ImageFormat::BC2RgbaUnorm,
+            ImageFormat::BC3Unorm => image_dds::ImageFormat::BC3RgbaUnorm,
+            ImageFormat::BC4Unorm => image_dds::ImageFormat::BC4RUnorm,
+            ImageFormat::BC5Unorm => image_dds::ImageFormat::BC5RgUnorm,
+            ImageFormat::BC7Unorm => image_dds::ImageFormat::BC7RgbaUnorm,
+            ImageFormat::BC6UFloat => image_dds::ImageFormat::BC6hRgbUfloat,
+            ImageFormat::B8G8R8A8Unorm => image_dds::ImageFormat::Bgra8Unorm,
+        }
+    }
+}
+
+impl TryFrom<image_dds::ImageFormat> for ImageFormat {
+    type Error = CreateMiblError;
+
+    fn try_from(value: image_dds::ImageFormat) -> Result<Self, Self::Error> {
+        match value {
+            image_dds::ImageFormat::R8Unorm => Ok(ImageFormat::R8Unorm),
+            image_dds::ImageFormat::Rgba8Unorm => Ok(ImageFormat::R8G8B8A8Unorm),
+            image_dds::ImageFormat::Rgba16Float => Ok(ImageFormat::R16G16B16A16Float),
+            image_dds::ImageFormat::Bgra8Unorm => Ok(ImageFormat::B8G8R8A8Unorm),
+            image_dds::ImageFormat::BC1RgbaUnorm => Ok(ImageFormat::BC1Unorm),
+            image_dds::ImageFormat::BC2RgbaUnorm => Ok(ImageFormat::BC2Unorm),
+            image_dds::ImageFormat::BC3RgbaUnorm => Ok(ImageFormat::BC3Unorm),
+            image_dds::ImageFormat::BC4RUnorm => Ok(ImageFormat::BC4Unorm),
+            image_dds::ImageFormat::BC5RgUnorm => Ok(ImageFormat::BC5Unorm),
+            image_dds::ImageFormat::BC6hRgbUfloat => Ok(ImageFormat::BC6UFloat),
+            image_dds::ImageFormat::BC7RgbaUnorm => Ok(ImageFormat::BC7Unorm),
+            image_dds::ImageFormat::Bgra4Unorm => Ok(ImageFormat::R4G4B4A4Unorm),
+            _ => Err(CreateMiblError::UnsupportedImageFormat(value)),
+        }
+    }
+}
