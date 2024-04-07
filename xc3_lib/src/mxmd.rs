@@ -809,7 +809,7 @@ pub struct Mesh {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(DebugBits, TryFromBits, BinRead, BinWrite, PartialEq, Clone, Copy)]
 #[br(try_map = |x: u32| x.try_into().map_err(|e| format!("{e:?}")))]
-#[bw(try_map = |&x| u32::try_from(x))]
+#[bw(map = |&x| u32::from(x))]
 pub struct MeshRenderFlags2 {
     /// The render pass for this draw call.
     pub render_pass: MeshRenderPass,

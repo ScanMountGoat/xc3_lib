@@ -401,7 +401,7 @@ pub struct PackedExternalTextures {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct PackedExternalTexture {
-    pub usage: u32, // TODO: enum?
+    pub usage: TextureUsage,
 
     pub mtxt_length: u32,
     pub mtxt_offset: u32,

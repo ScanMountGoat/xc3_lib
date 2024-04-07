@@ -106,7 +106,7 @@ impl ImageTexture {
             depth: mtxt.footer.depth_or_array_layers,
             view_dimension: ViewDimension::D2,
             image_format: mtxt_image_format(mtxt.footer.surface_format),
-            mipmap_count: mtxt.footer.mipmap_count,
+            mipmap_count: 1, // TODO: fix handling of mip data.
             image_data: mtxt.deswizzled_image_data(),
         })
     }

@@ -221,7 +221,7 @@ impl Model {
                 material_index: mesh.material_index as usize,
                 lod: mesh.lod,
                 flags1: mesh.flags1,
-                flags2: mesh.flags2.into(),
+                flags2: mesh.flags2,
             })
             .collect();
 
@@ -407,10 +407,13 @@ pub fn load_model<P: AsRef<Path>>(
 
 // TODO: docs and avoid unwrap.
 pub fn load_model_legacy<P: AsRef<Path>>(camdo_path: P) -> ModelRoot {
-    // TODO: texture streaming data.
-    let mut reader = Cursor::new(std::fs::read(camdo_path).unwrap());
-    let mxmd: MxmdLegacy = reader.read_be().unwrap();
-    ModelRoot::from_mxmd_model_legacy(&mxmd).unwrap()
+    let camdo_path = camdo_path.as_ref();
+    let mxmd: MxmdLegacy = MxmdLegacy::from_file(camdo_path).unwrap();
+    let casmt = mxmd
+        .streaming
+        .as_ref()
+        .map(|_| std::fs::read(camdo_path.with_extension("casmt")).unwrap());
+    ModelRoot::from_mxmd_model_legacy(&mxmd, casmt).unwrap()
 }
 
 // TODO: fuzz test this?
@@ -450,10 +453,13 @@ impl ModelRoot {
     }
 
     /// Load models from legacy parsed file data for Xenoblade Chronicles X.
-    pub fn from_mxmd_model_legacy(mxmd: &MxmdLegacy) -> Result<Self, LoadModelError> {
+    pub fn from_mxmd_model_legacy(
+        mxmd: &MxmdLegacy,
+        casmt: Option<Vec<u8>>,
+    ) -> Result<Self, LoadModelError> {
         // TODO: dedicated module for loading stream data?
         // TODO: Load textures from casmt.
-        let image_textures: Vec<_> = mxmd
+        let mut image_textures: Vec<_> = mxmd
             .packed_textures
             .as_ref()
             .map(|textures| {
@@ -467,6 +473,47 @@ impl ModelRoot {
                     .collect()
             })
             .unwrap_or_default();
+
+        // TODO: Share code for loading streaming data with legacy mibl data?
+        if let Some(streaming) = &mxmd.streaming {
+            // TODO: Handle this using a streaming type like with non legacy mxmd?
+            let casmt = casmt.unwrap();
+
+            // Assume all textures have a low texture.
+            let mut textures: Vec<_> = streaming
+                .low_textures
+                .textures
+                .iter()
+                .map(|t| {
+                    let start = (streaming.low_texture_data_offset + t.mtxt_offset) as usize;
+                    let size = t.mtxt_length as usize;
+                    let low = Mtxt::from_bytes(&casmt[start..start + size]).unwrap();
+                    // TODO: Create a different type for this if this is different enough.
+                    (t.name.clone(), t.usage, low, None)
+                })
+                .collect();
+
+            // TODO: Does legacy streaming data use a base mipmap?
+            if let (Some(high), Some(indices)) = (&streaming.textures, &streaming.texture_indices) {
+                for (i, texture) in indices.iter().zip(high.textures.iter()) {
+                    let start = (streaming.texture_data_offset + texture.mtxt_offset) as usize;
+                    let size = texture.mtxt_length as usize;
+                    let mid = Mtxt::from_bytes(&casmt[start..start + size]).unwrap();
+                    textures[*i as usize].3 = Some(mid);
+                }
+            }
+
+            // TODO: find a cleaner way of writing this.
+            image_textures = textures
+                .into_iter()
+                .map(|t| {
+                    t.3.map(|h| ImageTexture::from_mtxt(&h, Some(t.0.clone()), Some(t.1)).unwrap())
+                        .unwrap_or_else(|| {
+                            ImageTexture::from_mtxt(&t.2, Some(t.0), Some(t.1)).unwrap()
+                        })
+                })
+                .collect();
+        }
 
         let models = Models {
             models: mxmd
@@ -566,7 +613,7 @@ impl ModelRoot {
                     .iter()
                     .map(|m| xc3_lib::mxmd::Mesh {
                         flags1: m.flags1,
-                        flags2: m.flags2.try_into().unwrap(),
+                        flags2: m.flags2,
                         vertex_buffer_index: m.vertex_buffer_index as u16,
                         index_buffer_index: m.index_buffer_index as u16,
                         unk_index: 0,

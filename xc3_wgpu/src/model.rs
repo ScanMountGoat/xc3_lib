@@ -482,7 +482,7 @@ fn create_model(
             index_buffer_index: mesh.index_buffer_index,
             material_index: mesh.material_index,
             lod: mesh.lod,
-            flags2: mesh.flags2.into(),
+            flags2: mesh.flags2,
             per_mesh: per_mesh_bind_group(
                 device,
                 model_buffers,
