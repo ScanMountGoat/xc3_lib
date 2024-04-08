@@ -10,7 +10,6 @@ use xc3_lib::{
     apmd::Apmd,
     bc::Bc,
     bmn::Bmn,
-    dds::DdsExt,
     dhal::Dhal,
     eva::Eva,
     lagp::Lagp,
@@ -791,7 +790,7 @@ fn check_mtxt(mtxt: Mtxt, path: &Path, original_bytes: &[u8], check_read_write: 
 
 fn check_bmn(bmn: Bmn, path: &Path, _original_bytes: &[u8], check_read_write: bool) {
     if let Some(unk16) = bmn.unk16 {
-        for (i, texture) in unk16.textures.iter().enumerate() {
+        for texture in unk16.textures {
             if !texture.mtxt_data.is_empty() {
                 match Mtxt::from_bytes(&texture.mtxt_data) {
                     Ok(mtxt) => check_mtxt(mtxt, path, &texture.mtxt_data, check_read_write),

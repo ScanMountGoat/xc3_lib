@@ -97,25 +97,29 @@ pub struct Model {
     pub unks: [u32; 7],
 }
 
+/// Flags and resources associated with a single draw call.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Mesh {
     pub flags1: u32,
     pub flags2: u32,
+    /// Index into [vertex_buffers](struct.VertexData.html#structfield.vertex_buffers).
     pub vertex_buffer_index: u32,
-    pub unk1: u32,
+    /// Index into [index_buffers](struct.VertexData.html#structfield.index_buffers).
+    pub index_buffer_index: u32,
     pub unk2: u32,
+    /// Index into [materials](struct.Materials.html#structfield.materials).
     pub material_index: u32,
     pub unk3: u32,
     pub unk4: u32,
     pub unk5: u32,
     pub unk6: u32,
-    pub index_buffer_index: u32,
     pub unk7: u32,
     pub unk8: u32,
     pub unk9: u32,
     pub unk10: u32,
     pub unk11: u32,
+    pub unk12: u32,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]

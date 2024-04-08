@@ -405,8 +405,22 @@ pub fn load_model<P: AsRef<Path>>(
     ModelRoot::from_mxmd_model(&mxmd, chr, &streaming_data, spch)
 }
 
-// TODO: docs and avoid unwrap.
+/// Load a model from a `.camdo` file.
+/// The corresponding `.casmt`should be in the same directory.
+///
+/// # Examples
+///
+/// ``` rust no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// use xc3_model::load_model_legacy;
+///
+/// // Tatsu
+/// let root = load_model_legacy("xenox/chr_np/np009001.camdo");
+/// # Ok(())
+/// # }
+/// ```
 pub fn load_model_legacy<P: AsRef<Path>>(camdo_path: P) -> ModelRoot {
+    // TODO: avoid unwrap.
     let camdo_path = camdo_path.as_ref();
     let mxmd: MxmdLegacy = MxmdLegacy::from_file(camdo_path).unwrap();
     let casmt = mxmd
