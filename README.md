@@ -1,10 +1,10 @@
 # xc3_lib [![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/ScanMountGoat/xc3_lib?include_prereleases)](https://github.com/ScanMountGoat/xc3_lib/releases/latest)
-Rust libraries and tools for working with rendering related file formats for Xenoblade Chronicles 1 DE, Xenoblade Chronicles 2, and Xenoblade Chronicles 3.
+Rust libraries and tools for working with rendering related file formats for Xenoblade Chronicles X, Xenoblade Chronicles 1 DE, Xenoblade Chronicles 2, and Xenoblade Chronicles 3.
 
 Report any bugs or request new features in [issues](https://github.com/ScanMountGoat/xc3_lib/issues). Download precompiled binaries for the tools in [releases](https://github.com/ScanMountGoat/xc3_lib/releases). Python bindings for xc3_model are available with [xc3_model_py](https://github.com/ScanMountGoat/xc3_model_py). See the [xenoblade rendering research website](https://scanmountgoat.github.io/xenoblade-rendering-research/) for information on topics related to in game rendering.
 
 ## Formats
-xc3_lib supports a number of in game formats. All formats support reading. Write support is still a WIP for some formats. Click on the links to open the corresponding Rust module in xc3_lib. Extensions starting with `wi` are for the Switch. Some formats have equivalent formats for desktop PCs starting with `pc` like `pcmdo` instead of `wimdo`.
+xc3_lib supports a number of in game formats. All formats support reading. Write support is still a WIP for some formats. Click on the links to open the corresponding Rust module in xc3_lib. Extensions starting with `wi` are for the Switch like `wimdo` or `wismt`. Extensions starting with `pc` are for PC builds like `pcmdo` or `pcsmt`. Extensions starting with `ca` are for the Wii U like `camdo` or `casmt`.
 
 | Format | Magic | Extensions | Write |
 | --- | --- | --- | --- |
@@ -18,7 +18,9 @@ xc3_lib supports a number of in game formats. All formats support reading. Write
 | [Mibl](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/mibl.rs) | LBIM | `witex`, `witx` | ✔️ | 
 | [Msmd](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/msmd.rs) | DMSM | `wismhd` | ❌ | 
 | [Msrd](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/msrd.rs) | DRSM |  `wismt` | ✔️* |
+| [Mtxt](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/mxmd.rs) | MTXT | `catex`, `calut` | ✔️ | 
 | [Mxmd](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/mxmd.rs) | DMXM | `wimdo` | ✔️* | 
+| [MxmdLegacy](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/mxmd/legacy.rs) | MXMD | `camdo` | ❌ | 
 | [Sar1](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/sar1.rs) | 1RAS | `arc`, `chr`, `mot` | ✔️ | 
 | [Spch](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/spch.rs) | HCPS | `wishp` | ✔️ | 
 | [Xbc1](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/xbc1.rs) | xbc1 | `wismt` | ✔️ | 
