@@ -13,5 +13,5 @@ globwalk = "0.9.1"
 log = "0.4.19"
 simple_logger = "4.2.0"
 image = "0.24.5"
-glam = "0.25.0"
+glam = "0.27.0"
 clap = { version = "4.2.7", features = ["derive"] }
