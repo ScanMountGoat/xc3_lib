@@ -1,10 +1,10 @@
-//! Textures in `.catex` or `.calut` files or embedded in `.wismt` files and other formats.
+//! Textures in `.catex`, `.calut`, or `.caavp` files or embedded in `.casmt` files and other formats.
 //!
 //! # File Paths
 //!
 //! | Game | File Patterns |
 //! | --- | --- |
-//! | Xenoblade Chronicles X | `chrfc_tex/*.catex`, `chrfc_eye/*.catex`, `menu/tex/*.catex`,  `monolib/shader/*.{calut, catex}` |
+//! | Xenoblade Chronicles X | `chrfc_tex/*.catex`, `chrfc_eye/*.catex`, `menu/tex/*.catex`, `menu/tex/avatar/*.caavp`, `monolib/shader/*.{calut, catex}` |
 //! | Xenoblade Chronicles 1 DE |  |
 //! | Xenoblade Chronicles 2 |  |
 //! | Xenoblade Chronicles 3 |  |

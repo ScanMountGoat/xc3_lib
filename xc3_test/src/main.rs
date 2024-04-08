@@ -9,6 +9,8 @@ use rayon::prelude::*;
 use xc3_lib::{
     apmd::Apmd,
     bc::Bc,
+    bmn::Bmn,
+    dds::DdsExt,
     dhal::Dhal,
     eva::Eva,
     lagp::Lagp,
@@ -71,13 +73,17 @@ struct Cli {
     #[arg(long)]
     eva: bool,
 
-    /// Process MTXT files from .catex and .calut
+    /// Process MTXT files from .catex, .calut, and .caavp
     #[arg(long)]
     mtxt: bool,
 
     /// Process MXMD files from .camdo
     #[arg(long)]
     camdo: bool,
+
+    /// Process BMN files from .bmn
+    #[arg(long)]
+    bmn: bool,
 
     /// Process all file types except gltf and wimdo-model.
     #[arg(long)]
@@ -186,7 +192,7 @@ fn main() {
         println!("Checking Mtxt files ...");
         check_all(
             root,
-            &["*.catex", "*.calut"],
+            &["*.catex", "*.calut", "*.caavp"],
             check_mtxt,
             Endian::Big,
             cli.rw,
@@ -196,6 +202,11 @@ fn main() {
     if cli.camdo || cli.all {
         println!("Checking Mxmd files ...");
         check_all(root, &["*.camdo"], check_mxmd_legacy, Endian::Big, cli.rw);
+    }
+
+    if cli.bmn || cli.all {
+        println!("Checking Bmn files ...");
+        check_all(root, &["*.bmn"], check_bmn, Endian::Big, cli.rw);
     }
 
     if cli.gltf {
@@ -775,6 +786,19 @@ fn check_mtxt(mtxt: Mtxt, path: &Path, original_bytes: &[u8], check_read_write: 
             println!("Mtxt read/write not 1:1 for {path:?}");
         }
         // TODO: Check read/write for dds?
+    }
+}
+
+fn check_bmn(bmn: Bmn, path: &Path, _original_bytes: &[u8], check_read_write: bool) {
+    if let Some(unk16) = bmn.unk16 {
+        for (i, texture) in unk16.textures.iter().enumerate() {
+            if !texture.mtxt_data.is_empty() {
+                match Mtxt::from_bytes(&texture.mtxt_data) {
+                    Ok(mtxt) => check_mtxt(mtxt, path, &texture.mtxt_data, check_read_write),
+                    Err(e) => println!("Error reading Mtxt in {path:?}: {e}"),
+                }
+            }
+        }
     }
 }
 

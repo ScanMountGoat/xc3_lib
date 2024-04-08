@@ -4,6 +4,7 @@ use anyhow::Context;
 use binrw::BinRead;
 use image_dds::{ddsfile::Dds, image::RgbaImage, ImageFormat, Mipmaps, Quality, Surface};
 use xc3_lib::{
+    bmn::Bmn,
     dds::DdsExt,
     dhal::Dhal,
     lagp::Lagp,
@@ -25,6 +26,7 @@ pub enum File {
     Image(RgbaImage),
     Wilay(MaybeXbc1<Wilay>),
     Wimdo(Box<Mxmd>),
+    Bmn(Bmn),
 }
 
 // TODO: Move this to xc3_lib?
@@ -89,6 +91,9 @@ impl File {
             File::Wimdo(_) => Err(anyhow::anyhow!(
                 "wimdo textures must be saved to an output folder instead of a single image"
             )),
+            File::Bmn(_) => Err(anyhow::anyhow!(
+                "bmn textures must be saved to an output folder instead of a single image"
+            )),
         }
     }
 
@@ -126,6 +131,9 @@ impl File {
             File::Wimdo(_) => Err(anyhow::anyhow!(
                 "wimdo textures must be saved to an output folder instead of a single image"
             )),
+            File::Bmn(_) => Err(anyhow::anyhow!(
+                "bmn textures must be saved to an output folder instead of a single image"
+            )),
         }
     }
 
@@ -144,6 +152,9 @@ impl File {
             )),
             File::Wimdo(_) => Err(anyhow::anyhow!(
                 "wimdo textures must be saved to an output folder instead of a single image"
+            )),
+            File::Bmn(_) => Err(anyhow::anyhow!(
+                "bmn textures must be saved to an output folder instead of a single image"
             )),
         }
     }
@@ -454,6 +465,30 @@ pub fn extract_wimdo_to_folder(
     }
 
     Ok(textures.len())
+}
+
+pub fn extract_bmn_to_folder(
+    bmn: Bmn,
+    input: &Path,
+    output_folder: &Path,
+) -> anyhow::Result<usize> {
+    let file_name = input.file_name().unwrap();
+
+    let mut count = 0;
+    if let Some(unk16) = bmn.unk16 {
+        for (i, texture) in unk16.textures.iter().enumerate() {
+            if !texture.mtxt_data.is_empty() {
+                let dds = Mtxt::from_bytes(&texture.mtxt_data)?.to_dds()?;
+                let path = output_folder
+                    .join(file_name)
+                    .with_extension(format!("{i}.dds"));
+                dds.save(path)?;
+                count += 1;
+            }
+        }
+    }
+
+    Ok(count)
 }
 
 // TODO: Move this to xc3_lib?

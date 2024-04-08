@@ -51,8 +51,10 @@ use xc3_write::write_full;
 
 pub mod apmd;
 pub mod bc;
+pub mod bmn;
 pub mod dds;
 pub mod dhal;
+pub mod efb0;
 pub mod error;
 pub mod eva;
 pub mod hash;
@@ -499,7 +501,7 @@ file_read_impl!(
     laps::Laps
 );
 
-file_read_impl!(Endian::Big, mtxt::Mtxt, mxmd::legacy::MxmdLegacy);
+file_read_impl!(Endian::Big, mtxt::Mtxt, mxmd::legacy::MxmdLegacy, bmn::Bmn);
 
 macro_rules! xc3_write_binwrite_impl {
     ($($ty:ty),*) => {

@@ -1,11 +1,14 @@
-use crate::{
-    msrd::TextureResource, parse_count_offset, parse_offset_count, parse_opt_ptr32, parse_ptr32,
-    parse_string_ptr32, spch::Spch, vertex::VertexData,
-};
-use bilge::prelude::*;
-use binrw::{args, binread, BinRead};
+//! Effects in .wiefb files.
+//!
+//! # File Paths
+//!
+//! | Game | Versions | File Patterns |
+//! | --- | --- | --- |
+//! | Xenoblade Chronicles 1 DE | |  |
+//! | Xenoblade Chronicles 2 |  | `effect/**/*.wiefb` |
+//! | Xenoblade Chronicles 3 |  |  |
+use binrw::BinRead;
 
-/// .wiefb effect files for Xenoblade 2.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, PartialEq, Clone)]
 #[br(magic(b"efb0"))]

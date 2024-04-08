@@ -8,7 +8,9 @@ use convert::{
 };
 use image_dds::{ddsfile::Dds, image, ImageFormat, Quality};
 use strum::IntoEnumIterator;
-use xc3_lib::{dds::DdsExt, mibl::Mibl, mtxt::Mtxt, mxmd::Mxmd, xbc1::MaybeXbc1};
+use xc3_lib::{bmn::Bmn, dds::DdsExt, mibl::Mibl, mtxt::Mtxt, mxmd::Mxmd, xbc1::MaybeXbc1};
+
+use crate::convert::extract_bmn_to_folder;
 
 /// Convert texture files for Xenoblade X, Xenoblade 1 DE, Xenoblade 2, and Xenoblade 3.
 #[derive(Parser)]
@@ -144,6 +146,13 @@ fn main() -> anyhow::Result<()> {
 
             let count = extract_wimdo_to_folder(*wimdo, &input, &output)?;
             println!("Converted {count} file(s) in {:?}", start.elapsed());
+        } else if let File::Bmn(bmn) = input_file {
+            // bmn contain multiple images that need to be saved.
+            std::fs::create_dir_all(&output)
+                .with_context(|| format!("failed to create output directory {output:?}"))?;
+
+            let count = extract_bmn_to_folder(bmn, &input, &output)?;
+            println!("Converted {count} file(s) in {:?}", start.elapsed());
         } else {
             if let Some(parent) = output.parent() {
                 std::fs::create_dir_all(parent)
@@ -173,6 +182,7 @@ fn main() -> anyhow::Result<()> {
                     let xbc1 = create_wismt_single_tex(&mibl)?;
                     xbc1.save(&output)?;
                 }
+                // TODO: Resave xenoblade x textures?
                 _ => {
                     // Assume other formats are image formats for now.
                     input_file
@@ -206,9 +216,12 @@ fn load_input_file(input: &PathBuf) -> anyhow::Result<File> {
             .with_context(|| format!("{input:?} is not a valid .wimdo file"))
             .map(Box::new)
             .map(File::Wimdo),
-        "catex" | "calut" => Mtxt::from_file(input)
+        "catex" | "calut" | "caavp" => Mtxt::from_file(input)
             .with_context(|| format!("{input:?} is not a valid .catex file"))
             .map(File::Mtxt),
+        "bmn" => Bmn::from_file(input)
+            .with_context(|| format!("{input:?} is not a valid .bmn file"))
+            .map(File::Bmn),
         _ => {
             // Assume other formats are image formats.
             let image = image::open(input)
