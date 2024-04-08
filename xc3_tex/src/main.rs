@@ -8,9 +8,9 @@ use convert::{
 };
 use image_dds::{ddsfile::Dds, image, ImageFormat, Quality};
 use strum::IntoEnumIterator;
-use xc3_lib::{dds::DdsExt, mibl::Mibl, mxmd::Mxmd, xbc1::MaybeXbc1};
+use xc3_lib::{dds::DdsExt, mibl::Mibl, mtxt::Mtxt, mxmd::Mxmd, xbc1::MaybeXbc1};
 
-/// Convert texture files for Xenoblade 1 DE, Xenoblade 2, and Xenoblade 3.
+/// Convert texture files for Xenoblade X, Xenoblade 1 DE, Xenoblade 2, and Xenoblade 3.
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]
@@ -26,7 +26,7 @@ struct Cli {
 
 #[derive(Parser)]
 struct ConvertArgs {
-    /// The input dds, witex, witx, wimdo, or wismt file.
+    /// The input dds, witex, witx, wimdo, wismt, catex, or calut file.
     /// Most uncompressed image formats like png, tiff, or jpeg are also supported.
     // TODO: how to make this required?
     input: String,
@@ -206,6 +206,9 @@ fn load_input_file(input: &PathBuf) -> anyhow::Result<File> {
             .with_context(|| format!("{input:?} is not a valid .wimdo file"))
             .map(Box::new)
             .map(File::Wimdo),
+        "catex" | "calut" => Mtxt::from_file(input)
+            .with_context(|| format!("{input:?} is not a valid .catex file"))
+            .map(File::Mtxt),
         _ => {
             // Assume other formats are image formats.
             let image = image::open(input)

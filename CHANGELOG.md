@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added `Animation::skinning_transforms` and `Animation::model_space_transforms` to xc3_model.
 * Added field `texcoord_name` to `ChannelAssignment::Texture` for xc3_model.
 * Added basic support for loading and rendering `.camdo` models from Xenoblade X.
+* Added support for Xenoblade X `.catex` and `.calut` textures to xc3_tex.
 
 ### Changed
 * Renamed `Skeleton::world_transforms` to `Skeleton::model_space_transforms` for xc3_model.

@@ -12,6 +12,7 @@ use xc3_lib::{
         streaming::{chr_tex_nx_folder, HighTexture},
         Msrd,
     },
+    mtxt::Mtxt,
     mxmd::Mxmd,
     xbc1::{MaybeXbc1, Xbc1},
 };
@@ -19,6 +20,7 @@ use xc3_lib::{
 // TODO: Support apmd?
 pub enum File {
     Mibl(Mibl),
+    Mtxt(Mtxt),
     Dds(Dds),
     Image(RgbaImage),
     Wilay(MaybeXbc1<Wilay>),
@@ -43,6 +45,9 @@ impl File {
             File::Mibl(mibl) => mibl
                 .to_dds()
                 .with_context(|| "failed to convert Mibl to DDS"),
+            File::Mtxt(mtxt) => mtxt
+                .to_dds()
+                .with_context(|| "failed to convert Mtxt to DDS"),
             File::Dds(dds) => {
                 // Handle changes in image format while preserving layers and mipmaps.
                 // TODO: dds doesn't implement clone?
@@ -96,6 +101,8 @@ impl File {
         // TODO: decode and encode again if needed.
         match self {
             File::Mibl(mibl) => Ok(mibl.clone()),
+            File::Mtxt(mtxt) => Mibl::from_surface(mtxt.to_surface())
+                .with_context(|| "failed to convert Mtxt to Mibl"),
             File::Dds(dds) => Mibl::from_dds(dds).with_context(|| "failed to create Mibl from DDS"),
             File::Image(image) => {
                 let dds = image_dds::dds_from_image(
@@ -126,6 +133,8 @@ impl File {
         match self {
             File::Mibl(mibl) => image_dds::image_from_dds(&mibl.to_dds()?, 0)
                 .with_context(|| "failed to decode Mibl image"),
+            File::Mtxt(mtxt) => image_dds::image_from_dds(&mtxt.to_dds()?, 0)
+                .with_context(|| "failed to decode Mtxt image"),
             File::Dds(dds) => {
                 image_dds::image_from_dds(dds, 0).with_context(|| "failed to decode DDS")
             }

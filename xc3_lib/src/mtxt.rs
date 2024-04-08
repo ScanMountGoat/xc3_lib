@@ -119,12 +119,10 @@ impl Mtxt {
     pub fn deswizzled_image_data(&self) -> Vec<u8> {
         let (block_width, block_height) = self.footer.surface_format.block_dim();
 
-        let div_round_up = |x, d| (x + d - 1) / d;
-
-        // TODO: out of bounds for small textures?
+        // TODO: How to handle dimensions not divisible by block dimensions?
         wiiu_swizzle::deswizzle_surface(
-            div_round_up(self.footer.width, block_width),
-            div_round_up(self.footer.height, block_height),
+            self.footer.width / block_width,
+            self.footer.height / block_height,
             self.footer.depth_or_array_layers,
             &self.image_data,
             self.footer.swizzle,
@@ -149,7 +147,7 @@ impl Mtxt {
             } else {
                 1
             },
-            mipmaps: self.footer.mipmap_count,
+            mipmaps: 1, // TODO: fix mipmaps
             image_format: self.footer.surface_format.into(),
             data: self.deswizzled_image_data(),
         }
