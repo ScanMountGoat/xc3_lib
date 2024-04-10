@@ -119,7 +119,6 @@ impl Xbc1 {
     /// Decompresses the data in [compressed_stream](#strutfield.compressed_stream)
     /// using the appropriate algorithm.
     pub fn decompress(&self) -> Result<Vec<u8>, DecompressStreamError> {
-        // TODO: Don't assume zlib.
         match self.compression_type {
             CompressionType::Uncompressed => Ok(self.compressed_stream.clone()),
             CompressionType::Zlib => {
