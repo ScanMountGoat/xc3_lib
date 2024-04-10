@@ -15,7 +15,7 @@ use xc3_lib::{
     },
     mtxt::Mtxt,
     mxmd::Mxmd,
-    xbc1::{MaybeXbc1, Xbc1},
+    xbc1::{CompressionType, MaybeXbc1, Xbc1},
 };
 
 // TODO: Support apmd?
@@ -185,12 +185,12 @@ pub fn update_wilay_from_folder(
             match &mut wilay {
                 Wilay::Dhal(dhal) => {
                     replace_dhal_textures(dhal, &mut count, input, input_folder)?;
-                    let xbc1 = Xbc1::new(xbc1.name.clone(), dhal)?;
+                    let xbc1 = Xbc1::new(xbc1.name.clone(), dhal, CompressionType::Zlib)?;
                     xbc1.save(output)?;
                 }
                 Wilay::Lagp(lagp) => {
                     replace_lagp_textures(lagp, &mut count, input, input_folder)?;
-                    let xbc1 = Xbc1::new(xbc1.name.clone(), lagp)?;
+                    let xbc1 = Xbc1::new(xbc1.name.clone(), lagp, CompressionType::Zlib)?;
                     xbc1.save(output)?;
                 }
             }
@@ -498,7 +498,7 @@ pub fn read_wismt_single_tex<P: AsRef<Path>>(path: P) -> anyhow::Result<Mibl> {
 
 pub fn create_wismt_single_tex(mibl: &Mibl) -> anyhow::Result<Xbc1> {
     // TODO: Set the name properly.
-    Xbc1::new("middle.witx".to_string(), mibl).map_err(Into::into)
+    Xbc1::new("middle.witx".to_string(), mibl, CompressionType::Zlib).map_err(Into::into)
 }
 
 #[cfg(test)]

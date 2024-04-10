@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added field `texcoord_name` to `ChannelAssignment::Texture` for xc3_model.
 * Added basic support for loading and rendering `.camdo` models from Xenoblade X.
 * Added support for Xenoblade X `.catex`, `.calut`, `.caavp`, and `.bmn` textures to xc3_tex.
+* Added support for uncompressed and zstd compressed `Xbc1` files.
 
 ### Changed
 * Renamed `Skeleton::world_transforms` to `Skeleton::model_space_transforms` for xc3_model.

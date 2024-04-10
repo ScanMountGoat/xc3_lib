@@ -26,9 +26,8 @@ use crate::{error::DecompressStreamError, hash::hash_crc};
 #[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
 #[brw(magic(b"xbc1"))]
 pub struct Xbc1 {
-    // TODO: Not always zlib?
-    #[br(assert(unk1 == 1))]
-    pub unk1: u32,
+    /// The compression type for [compressed_stream](#structfield.compressed_stream).
+    pub compression_type: CompressionType,
     /// The number of bytes in [Self::decompress].
     pub decompressed_size: u32,
     /// The number of bytes in [compressed_stream](#structfield.compressed_stream).
@@ -45,11 +44,23 @@ pub struct Xbc1 {
     #[brw(pad_size_to = 28)]
     pub name: String,
 
-    /// A zlib encoded compressed stream.
-    /// The decompressed or "inflated" stream will have size [decompressed_size](#structfield.decompressed_size).
+    /// A compressed stream encoded based on [compression_type](#structfield.compression_type).
+    /// The decompressed stream will have size [decompressed_size](#structfield.decompressed_size).
     #[br(count = compressed_size)]
     #[brw(align_after = 16)]
     pub compressed_stream: Vec<u8>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
+#[brw(repr(u32))]
+pub enum CompressionType {
+    /// No compression.
+    Uncompressed = 0,
+    /// zlib compression. Compatible with all games.
+    Zlib = 1,
+    /// Zstandard compression used for Xenoblade 3's .ard file archive.
+    Zstd = 3,
 }
 
 #[derive(Debug, Error)]
@@ -59,8 +70,13 @@ pub enum CreateXbc1Error {
 }
 
 impl Xbc1 {
-    /// Write and compress `data` using ZLIB.
-    pub fn new<'a, T>(name: String, data: &'a T) -> Result<Self, CreateXbc1Error>
+    /// Write and compress `data`.
+    /// Use [CompressionType::Zlib] for best compatibility.
+    pub fn new<'a, T>(
+        name: String,
+        data: &'a T,
+        compression_type: CompressionType,
+    ) -> Result<Self, CreateXbc1Error>
     where
         T: Xc3Write + 'static,
         T::Offsets<'a>: Xc3WriteOffsets,
@@ -69,17 +85,29 @@ impl Xbc1 {
         write_full(data, &mut writer, 0, &mut 0)?;
         let decompressed = writer.into_inner();
 
-        Self::from_decompressed(name, &decompressed)
+        Self::from_decompressed(name, &decompressed, compression_type)
     }
 
-    /// Compress `decompressed` using ZLIB.
-    pub fn from_decompressed(name: String, decompressed: &[u8]) -> Result<Self, CreateXbc1Error> {
-        let mut encoder = ZlibEncoder::new(decompressed, Compression::best());
-        let mut compressed_stream = Vec::new();
-        encoder.read_to_end(&mut compressed_stream)?;
+    /// Compress the data in `decompressed`.
+    /// Use [CompressionType::Zlib] for best compatibility.
+    pub fn from_decompressed(
+        name: String,
+        decompressed: &[u8],
+        compression_type: CompressionType,
+    ) -> Result<Self, CreateXbc1Error> {
+        let compressed_stream = match compression_type {
+            CompressionType::Uncompressed => decompressed.to_vec(),
+            CompressionType::Zlib => {
+                let mut encoder = ZlibEncoder::new(decompressed, Compression::best());
+                let mut compressed_stream = Vec::new();
+                encoder.read_to_end(&mut compressed_stream)?;
+                compressed_stream
+            }
+            CompressionType::Zstd => zstd::stream::encode_all(Cursor::new(decompressed), 0)?,
+        };
 
         Ok(Self {
-            unk1: 1,
+            compression_type,
             decompressed_size: decompressed.len() as u32,
             compressed_size: compressed_stream.len() as u32,
             decompressed_hash: hash_crc(decompressed),
@@ -88,13 +116,23 @@ impl Xbc1 {
         })
     }
 
-    /// Decompresses the data by assuming ZLIB compression.
+    /// Decompresses the data in [compressed_stream](#strutfield.compressed_stream)
+    /// using the appropriate algorithm.
     pub fn decompress(&self) -> Result<Vec<u8>, DecompressStreamError> {
-        let mut decoder = DeflateDecoder::new_with_options(
-            &self.compressed_stream,
-            DeflateOptions::default().set_size_hint(self.decompressed_size as usize),
-        );
-        decoder.decode_zlib().map_err(Into::into)
+        // TODO: Don't assume zlib.
+        match self.compression_type {
+            CompressionType::Uncompressed => Ok(self.compressed_stream.clone()),
+            CompressionType::Zlib => {
+                let mut decoder = DeflateDecoder::new_with_options(
+                    &self.compressed_stream,
+                    DeflateOptions::default().set_size_hint(self.decompressed_size as usize),
+                );
+                decoder.decode_zlib().map_err(Into::into)
+            }
+            CompressionType::Zstd => {
+                zstd::stream::decode_all(Cursor::new(&self.compressed_stream)).map_err(Into::into)
+            }
+        }
     }
 
     /// Decompress and read the data by assuming ZLIB compression.

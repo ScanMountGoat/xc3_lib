@@ -9,8 +9,13 @@ use thiserror::Error;
 use xc3_write::Xc3Result;
 
 use crate::{
-    error::DecompressStreamError, mibl::Mibl, mxmd::TextureUsage, spch::Spch, vertex::VertexData,
-    xbc1::CreateXbc1Error, ReadFileError,
+    error::DecompressStreamError,
+    mibl::Mibl,
+    mxmd::TextureUsage,
+    spch::Spch,
+    vertex::VertexData,
+    xbc1::{CompressionType, CreateXbc1Error},
+    ReadFileError,
 };
 
 use super::*;
@@ -107,8 +112,8 @@ pub fn pack_chr_textures(
             // TODO: Always assume the name is already a hash?
             // TODO: How to handle missing high resolution textures?
             // TODO: Stream names?
-            let mid = Xbc1::new("0000".to_string(), mid)?;
-            let base_mip = Xbc1::new("0000".to_string(), base_mip)?;
+            let mid = Xbc1::new("0000".to_string(), mid, CompressionType::Zlib)?;
+            let base_mip = Xbc1::new("0000".to_string(), base_mip, CompressionType::Zlib)?;
             let hash = u32::from_str_radix(name, 16).expect(name);
 
             Ok(ChrTextureStreams {
@@ -559,7 +564,9 @@ fn create_streams(
     // Only parallelize the expensive compression operations to avoid locking.
     let xbc1s: Vec<_> = streams_data
         .par_iter()
-        .map(|data| Xbc1::from_decompressed("0000".to_string(), data).unwrap())
+        .map(|data| {
+            Xbc1::from_decompressed("0000".to_string(), data, CompressionType::Zlib).unwrap()
+        })
         .collect();
 
     let mut streams = Vec::new();
