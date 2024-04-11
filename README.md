@@ -59,7 +59,7 @@ After installing the [Rust toolchain](https://www.rust-lang.org/tools/install), 
 Running `cargo build` without the `--release` will result in faster compile times during development but dramatically worse runtime performance. The tools can also be run using `cargo run --release -p <project> <args>`. xc3_tex uses [image_dds](https://github.com/ScanMountGoat/image_dds), which supports Windows x86, Linux x86, MacOS x86, and MacOS Apple Silicon due to using precompiled kernels for DDS encoding. Other projects should build on other platforms without issues.
 
 ## Credits
-This project is based on previous reverse engineering work, including work done for Xenoblade 2.
+This project is based on previous reverse engineering work, including work done for Xenoblade X and Xenoblade 2.
 Special thanks go to members of the World Tree Research discord (formerly the World of Alrest discord) for their assistance.
 * [Xenoblade Data Hub](https://xenobladedata.github.io/)
 * [xc2f wiki](https://github.com/atnavon/xc2f/wiki)
