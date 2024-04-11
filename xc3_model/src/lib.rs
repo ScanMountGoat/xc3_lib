@@ -578,8 +578,29 @@ impl ModelRoot {
             min_xyz: mxmd.models.min_xyz.into(),
         };
 
-        let buffers = ModelBuffers::from_vertex_data_legacy(&mxmd.vertex)
+        let buffers = ModelBuffers::from_vertex_data_legacy(&mxmd.vertex, &mxmd.models)
             .map_err(LoadModelError::VertexData)?;
+
+        // TODO: move to skeleton.rs?
+        let skeleton = Skeleton {
+            bones: mxmd
+                .models
+                .bones
+                .iter()
+                .map(|b| Bone {
+                    name: b.name.clone(),
+                    transform: Mat4::from_translation(b.translation.into())
+                        * Mat4::from_euler(
+                            glam::EulerRot::XYZ,
+                            b.rotation_euler[0],
+                            b.rotation_euler[1],
+                            b.rotation_euler[2],
+                        )
+                        * Mat4::from_scale(b.scale.into()),
+                    parent_index: b.parent_index.try_into().ok(),
+                })
+                .collect(),
+        };
 
         // TODO: Find a way to specify at the type level that this has only one element?
         Ok(Self {
@@ -588,7 +609,7 @@ impl ModelRoot {
                 buffers: vec![buffers],
             }],
             image_textures,
-            skeleton: None,
+            skeleton: Some(skeleton),
         })
     }
 

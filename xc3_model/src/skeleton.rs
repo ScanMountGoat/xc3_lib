@@ -46,11 +46,7 @@ impl Skeleton {
             .map(|((name, transform), parent)| Bone {
                 name: name.name.clone(),
                 transform: bone_transform(transform),
-                parent_index: if *parent < 0 {
-                    None
-                } else {
-                    Some(*parent as usize)
-                },
+                parent_index: (*parent).try_into().ok(),
             })
             .collect();
 

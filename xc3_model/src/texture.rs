@@ -118,6 +118,7 @@ impl ImageTexture {
         Self::from_mibl(&mibl, Some(texture.name.clone()), Some(texture.usage)).map_err(Into::into)
     }
 
+    /// Decode the first mip level for all depth slices and array layers to RGBA8.
     pub fn to_image(&self) -> Result<image_dds::image::RgbaImage, CreateImageError> {
         // Only decode the mip we actually use to improve performance.
         self.to_surface()
@@ -134,6 +135,8 @@ impl ImageTexture {
         }
     }
 
+    /// Create a view of all image data in this texture
+    /// to use with encode or decode operations.
     pub fn to_surface(&self) -> image_dds::Surface<&[u8]> {
         Surface {
             width: self.width,

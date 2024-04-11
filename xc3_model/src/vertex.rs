@@ -149,7 +149,7 @@ pub enum AttributeData {
     Blend(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
 
     /// Data for [DataType::WeightIndex].
-    WeightIndex(Vec<u32>), // TODO: [u16; 2]?
+    WeightIndex(Vec<[u16; 2]>),
 
     /// Data for [DataType::SkinWeights].
     SkinWeights(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
@@ -236,7 +236,7 @@ impl AttributeData {
                 write_data(writer, values, offset, stride, endian, write_unorm8x4)
             }
             AttributeData::WeightIndex(values) => {
-                write_data(writer, values, offset, stride, endian, write_u32)
+                write_data(writer, values, offset, stride, endian, write_u16x2)
             }
             AttributeData::SkinWeights(values) => {
                 write_data(writer, values, offset, stride, endian, write_unorm16x4)
@@ -544,7 +544,7 @@ fn read_attribute(
             read_data(d, relative_offset, buffer, endian, read_u8x4).ok()?,
         )),
         DataType::WeightIndex => Some(AttributeData::WeightIndex(
-            read_data(d, relative_offset, buffer, endian, read_u32).ok()?,
+            read_data(d, relative_offset, buffer, endian, read_u16x2).ok()?,
         )),
         DataType::WeightIndex2 => None,
         DataType::TexCoord0 => Some(AttributeData::TexCoord0(
@@ -659,7 +659,7 @@ where
     Ok(values)
 }
 
-fn read_u32(reader: &mut Cursor<&[u8]>, endian: Endian) -> BinResult<u32> {
+fn read_u16x2(reader: &mut Cursor<&[u8]>, endian: Endian) -> BinResult<[u16; 2]> {
     reader.read_type(endian)
 }
 
@@ -879,13 +879,14 @@ impl ModelBuffers {
     /// Decode all the attributes from `vertex_data`.
     pub fn from_vertex_data_legacy(
         vertex_data: &xc3_lib::mxmd::legacy::VertexData,
+        models: &xc3_lib::mxmd::legacy::Models,
     ) -> BinResult<Self> {
         let vertex_buffers = read_vertex_buffers_legacy(vertex_data);
 
         let index_buffers = read_index_buffers_legacy(vertex_data);
 
         // TODO: don't duplicate the weights buffer?
-        let weights = weights_legacy(&vertex_buffers);
+        let weights = weights_legacy(&vertex_buffers, models);
 
         Ok(Self {
             vertex_buffers,
@@ -1134,17 +1135,28 @@ fn read_vertex_buffers_legacy(
         .collect()
 }
 
-fn weights_legacy(vertex_buffers: &[VertexBuffer]) -> Option<Weights> {
+fn weights_legacy(
+    vertex_buffers: &[VertexBuffer],
+    models: &xc3_lib::mxmd::legacy::Models,
+) -> Option<Weights> {
     // This is usually the last buffer, but check all of them just in case.
-    // TODO: Get the bone names from the mxmd skins?
     let (weights, bone_indices) = vertex_buffers
         .iter()
         .find_map(|b| skin_weights_bone_indices(&b.attributes))?;
+
+    // TODO: Find a better way of organizing these types?
+    // TODO: Don't store this with the vertex data?
+    let bone_names = models.skins[0]
+        .indices
+        .iter()
+        .map(|i| models.bones[*i as usize].name.clone())
+        .collect();
+
     Some(Weights {
         skin_weights: SkinWeights {
             bone_indices,
             weights,
-            bone_names: Vec::new(),
+            bone_names,
         },
         weight_groups: Vec::new(),
         weight_lods: Vec::new(),
@@ -1386,7 +1398,7 @@ where
     Ok(())
 }
 
-fn write_u32<W: Write + Seek>(writer: &mut W, value: &u32, endian: Endian) -> BinResult<()> {
+fn write_u16x2<W: Write + Seek>(writer: &mut W, value: &[u16; 2], endian: Endian) -> BinResult<()> {
     value.write_options(writer, endian, ())
 }
 
@@ -1519,7 +1531,7 @@ mod tests {
                 vec3(0.10039953, 0.9038166, 0.07162084),
                 vec3(0.14499485, 0.91730505, 0.050502136),
             ]),
-            AttributeData::WeightIndex(vec![275, 276]),
+            AttributeData::WeightIndex(vec![[275, 0], [276, 0]]),
             AttributeData::TexCoord0(vec![
                 vec2(0.75997907, 0.6079358),
                 vec2(0.79126656, 0.6000591),
@@ -2062,22 +2074,22 @@ mod tests {
 
     #[test]
     fn vertex_buffer_vertices_legacy() {
-        // xenox/chr_en/en010201.camdo, vertex buffer 0
+        // xenox/chr_en/en010201.camdo, vertex buffer 0, offset 159624 (vertex 4434)
         let data = hex!(
             // vertex 0
-            bd870545 3fa46370 bccf61dc
-            00000000
-            0x3eac078f 0x3ec994fe
-            010101ff
-            9f4ae100
-            b0a6257f
+            bf2339ac be3e416c 3c94aa00
+            002a0000
+            3e11f7c1 3f255b32
+            ffffffff
+            e5a45300
+            e457577f
             // vertex 1
-            3d870545 3fa46370 bccf61dc
-            00000000
-            3e96ffdf 0x3ec994fe
-            020202ff
-            6133c200
-            b03eb57f
+            bf247df6 bdf6f646 3c6e6dc0
+            002a0000
+            0x3ec5d2b6 3f2253e6
+            ffffffff
+            9a004a00
+            007f007f
         );
 
         let descriptor = VertexBufferDescriptor {
@@ -2118,25 +2130,22 @@ mod tests {
         // Test read.
         let attributes = vec![
             AttributeData::Position(vec![
-                vec3(-0.06592802, 1.2842846, -0.025315218),
-                vec3(0.06592802, 1.2842846, -0.025315218),
+                vec3(-0.63759875, -0.18579644, 0.018147469),
+                vec3(-0.642547, -0.12058692, 0.014552534),
             ]),
-            AttributeData::WeightIndex(vec![0, 0]),
+            AttributeData::WeightIndex(vec![[42, 0], [42, 0]]),
             AttributeData::TexCoord0(vec![
-                vec2(0.33599517, 0.39371485),
-                vec2(0.2949209, 0.39371485),
+                vec2(0.14254667, 0.6459228),
+                vec2(0.38637322, 0.6340927),
             ]),
-            AttributeData::VertexColor(vec![
-                vec4(0.003921569, 0.003921569, 0.003921569, 1.0),
-                vec4(0.007843138, 0.007843138, 0.007843138, 1.0),
-            ]),
+            AttributeData::VertexColor(vec![vec4(1.0, 1.0, 1.0, 1.0), vec4(1.0, 1.0, 1.0, 1.0)]),
             AttributeData::Normal(vec![
-                vec4(-0.38039216, 0.2901961, -0.12156863, 0.0),
-                vec4(0.38039216, 0.2, -0.24313726, 0.0),
+                vec4(-0.105882354, -0.36078432, 0.3254902, 0.0),
+                vec4(-0.4, 0.0, 0.2901961, 0.0),
             ]),
             AttributeData::Tangent(vec![
-                vec4(-0.3137255, -0.3529412, 0.14509805, 0.49803922),
-                vec4(-0.3137255, 0.24313726, -0.29411766, 0.49803922),
+                vec4(-0.10980392, 0.34117648, 0.34117648, 0.49803922),
+                vec4(0.0, 0.49803922, 0.0, 0.49803922),
             ]),
         ];
         assert_eq!(

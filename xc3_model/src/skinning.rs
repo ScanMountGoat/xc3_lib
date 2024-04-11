@@ -60,11 +60,15 @@ impl SkinWeights {
     // TODO: tests for this?
     /// Reindex the weights and indices using [WeightIndex](xc3_lib::vertex::DataType::WeightIndex) values.
     /// The `weight_group_input_start_index` should use the value from the mesh's weight group.
-    pub fn reindex(&self, weight_indices: &[u32], weight_group_input_start_index: u32) -> Self {
+    pub fn reindex(
+        &self,
+        weight_indices: &[[u16; 2]],
+        weight_group_input_start_index: u32,
+    ) -> Self {
         let mut weights = Vec::new();
         let mut bone_indices = Vec::new();
         for i in weight_indices {
-            let index = *i as usize + weight_group_input_start_index as usize;
+            let index = i[0] as usize + weight_group_input_start_index as usize;
             weights.push(self.weights[index]);
             bone_indices.push(self.bone_indices[index]);
         }

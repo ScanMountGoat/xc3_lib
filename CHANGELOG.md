@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 * Renamed `Skeleton::world_transforms` to `Skeleton::model_space_transforms` for xc3_model.
 * Optimized performance of `Msrd::from_extracted_files` using multithreading.
+* Changed the WeightIndex attribute to use `[u16; 2]` to better reflect in game data and avoid indexing errors.
 
 ### Fixed
 * Fixed an issue where some glTF files exported by xc3_gltf would not load in glTF viewers or programs like Unreal Engine 5 due to validation errors.

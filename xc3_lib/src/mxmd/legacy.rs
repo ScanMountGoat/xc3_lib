@@ -62,17 +62,46 @@ pub struct Models {
     pub max_xyz: [f32; 3],
     pub min_xyz: [f32; 3],
 
-    #[br(parse_with = parse_offset32_count32, args { offset: base_offset, inner: base_offset })]
+    #[br(parse_with = parse_offset32_count32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(offset_count(u32, u32))]
     pub models: Vec<Model>,
 
-    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(offset_count(u32, u32))]
     pub skins: Vec<Skinning>,
 
     pub unk1: [u32; 9],
     pub unk2: u32,
-    pub unk3: u32,
+
+    // TODO: Will this work for writing?
+    #[br(temp, restore_position)]
+    bones_offset: u32,
+
+    #[br(parse_with = parse_offset32_count32)]
+    #[br(args { offset: base_offset, inner: base_offset + bones_offset as u64 })]
+    #[xc3(offset_count(u32, u32))]
+    pub bones: Vec<Bone>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct Bone {
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    pub name: String,
+    /// The index in [bones](struct.Models.html#structfield.bones) of the parent bone.
+    pub parent_index: i32,
+    pub unk1: i32,
+    pub unk2: i32,
+    pub unk3: i32,
+    pub translation: [f32; 3],
+    /// XYZ rotation in radians.
+    pub rotation_euler: [f32; 3],
+    pub scale: [f32; 3],
+    pub unk4: [[f32; 4]; 4],
+    pub unk5: [[f32; 4]; 4],
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]

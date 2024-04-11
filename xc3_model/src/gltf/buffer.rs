@@ -179,7 +179,7 @@ impl Buffers {
         &mut self,
         skeleton: &crate::Skeleton,
         weights: &crate::Weights,
-        weight_indices: &[u32],
+        weight_indices: &[[u16; 2]],
         weights_start_index: usize,
     ) -> BinResult<WeightGroup> {
         // The weights may be defined with a different bone ordering.

@@ -727,7 +727,8 @@ fn set_buffer1_attributes(verts: &mut [shader::model::VertexInput1], attributes:
                 set_attribute1(verts, vals, |v, t| v.vertex_color = t)
             }
             AttributeData::WeightIndex(vals) => {
-                set_attribute1(verts, vals, |v, t| v.weight_index = t)
+                // TODO: What does the second index component do?
+                set_attribute1(verts, vals, |v, t| v.weight_index = t[0] as u32)
             }
             _ => (),
         }
@@ -834,7 +835,7 @@ fn per_mesh_bind_group(
 
     for attribute in &buffers.vertex_buffers[vertex_buffer_index].attributes {
         if let AttributeData::WeightIndex(weight_indices) = attribute {
-            let max_index = *weight_indices.iter().max().unwrap() as usize;
+            let max_index = weight_indices.iter().map(|i| i[0]).max().unwrap() as usize;
             if max_index + start >= weight_count {
                 error!(
                     "Weight index start {} and max weight index {} exceed weight count {} with {:?}",
