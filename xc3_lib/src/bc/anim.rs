@@ -79,12 +79,16 @@ pub struct AnimationBindingInner1 {
     pub extra_track_bindings: Vec<ExtraTrackAnimationBinding>,
 }
 
+// TODO: Is this always used for morph targets?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct ExtraTrackAnimationBinding {
     #[br(parse_with = parse_opt_ptr64)]
     #[xc3(offset(u64))]
     pub extra_track_animation: Option<ExtraTrackAnimation>,
+
+    // TODO: Same count as ModelUnk1 items?
+    // TODO: Assigns values in extra_track_animation to ModelUnk1Items?
 
     // TODO: This can have 0 offset but nonzero count?
     // TODO: Is it worth preserving the count if the offset is 0?

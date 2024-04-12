@@ -267,6 +267,7 @@ impl<'a> State<'a> {
 
             for group in &self.groups {
                 group.update_bone_transforms(&self.queue, anim, self.current_time_seconds);
+                group.update_morph_weights(&self.queue, anim, self.current_time_seconds);
             }
         }
 

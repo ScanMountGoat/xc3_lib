@@ -145,6 +145,9 @@ pub struct Models {
     /// The name of the controller for each morph target like "mouth_shout".
     pub morph_controller_names: Vec<String>,
 
+    /// The the morph controller names used for animations.
+    pub animation_morph_names: Vec<String>,
+
     // TODO: make this a function instead to avoid dependencies?
     /// The minimum XYZ coordinates of the bounding volume.
     #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3))]
@@ -208,6 +211,11 @@ impl Models {
                 .morph_controllers
                 .as_ref()
                 .map(|m| m.controllers.iter().map(|c| c.name1.clone()).collect())
+                .unwrap_or_default(),
+            animation_morph_names: models
+                .model_unk1
+                .as_ref()
+                .map(|u| u.items1.iter().map(|i| i.name.clone()).collect())
                 .unwrap_or_default(),
             min_xyz: models.min_xyz.into(),
             max_xyz: models.max_xyz.into(),
@@ -584,6 +592,7 @@ impl ModelRoot {
             samplers: Vec::new(),
             base_lod_indices: None,
             morph_controller_names: Vec::new(),
+            animation_morph_names: Vec::new(),
             max_xyz: mxmd.models.max_xyz.into(),
             min_xyz: mxmd.models.min_xyz.into(),
         };

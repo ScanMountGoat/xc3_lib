@@ -619,6 +619,7 @@ pub struct Models {
     #[xc3(offset(u32), align(16))]
     pub morph_controllers: Option<MorphControllers>,
 
+    // TODO: Also morph related but for animations?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(16))]
     pub model_unk1: Option<ModelUnk1>,
@@ -936,14 +937,15 @@ pub struct MorphController {
     #[xc3(offset(u32))]
     pub name1: String,
 
+    // TODO: Is one of these names for the ModelUnk1Item1?
     #[br(parse_with = parse_string_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub name2: Option<String>,
 
-    pub unk1: u16,
-    pub unk2: u16, // index?
+    pub unk1: u16, // 7?
+    pub unk2: u16, // TODO: index into ModelUnk1Item1 used for animation tracks?
     pub unk3: u16, // 0?
-    pub unk4: u16,
+    pub unk4: u16, // 3?
 
     // TODO: padding?
     pub unk: [u32; 3],
@@ -1132,6 +1134,7 @@ pub struct ModelUnk1 {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
+    // TODO: same count as track indices for xc2 extra animation for morph targets?
     #[br(parse_with = parse_offset32_count32)]
     #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(offset_count(u32, u32))]
@@ -1140,7 +1143,8 @@ pub struct ModelUnk1 {
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
     pub items2: Vec<ModelUnk1Item2>,
-
+    
+    // TODO: same count as track indices for xc2 extra animation for morph targets?
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: items1.len() }})]
     #[xc3(offset(u32))]

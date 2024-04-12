@@ -392,6 +392,7 @@ fn load_prop_model_group(
             .as_ref()
             .map(|data| data.groups.iter().map(|i| i.base_lod_index).collect()),
         morph_controller_names: Vec::new(),
+        animation_morph_names: Vec::new(),
         min_xyz: model_data.models.min_xyz.into(),
         max_xyz: model_data.models.max_xyz.into(),
     };
@@ -565,6 +566,7 @@ fn load_map_model_group(
             .as_ref()
             .map(|data| data.groups.iter().map(|i| i.base_lod_index).collect()),
         morph_controller_names: Vec::new(),
+        animation_morph_names: Vec::new(),
         min_xyz: model_data.models.min_xyz.into(),
         max_xyz: model_data.models.max_xyz.into(),
     }
@@ -652,6 +654,7 @@ fn load_foliage_model(
                     .lod_data
                     .map(|data| data.groups.iter().map(|i| i.base_lod_index).collect()),
                 morph_controller_names: Vec::new(),
+                animation_morph_names: Vec::new(),
                 min_xyz: model_data.models.min_xyz.into(),
                 max_xyz: model_data.models.max_xyz.into(),
             }],

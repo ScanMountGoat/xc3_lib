@@ -39,6 +39,9 @@ pub struct Models {
 
     // TODO: skinning?
     base_lod_indices: Option<Vec<u16>>,
+    morph_controller_names: Vec<String>,
+    animation_morph_names: Vec<String>,
+
     // Cache pipelines by their creation parameters.
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
 }
@@ -75,7 +78,9 @@ struct VertexBuffer {
 
 struct MorphBuffers {
     vertex_buffer0: wgpu::Buffer,
+    weights_buffer: wgpu::Buffer,
     bind_group0: crate::shader::morph::bind_groups::BindGroup0,
+    morph_target_controller_indices: Vec<usize>,
 }
 
 struct IndexBuffer {
@@ -250,13 +255,8 @@ impl ModelGroup {
             }
         }
     }
-}
 
-const fn div_round_up(x: u32, d: u32) -> u32 {
-    (x + d - 1) / d
-}
-
-impl ModelGroup {
+    /// Animate each of the bone transforms in the current skeleton.
     pub fn update_bone_transforms(
         &self,
         queue: &wgpu::Queue,
@@ -278,6 +278,64 @@ impl ModelGroup {
             );
         }
     }
+
+    /// Update morph weights for all vertex buffers.
+    pub fn update_morph_weights(
+        &self,
+        queue: &wgpu::Queue,
+        animation: &xc3_model::animation::Animation,
+        current_time_seconds: f32,
+    ) {
+        // TODO: Tests for this?
+        let morph_controller_names = &self.models[0].morph_controller_names;
+        let animation_morph_names = &self.models[0].animation_morph_names;
+        // TODO: interpolate between frames?
+        let frame = animation.current_frame(current_time_seconds);
+        let frame_index = frame as usize;
+
+        for buffers in &self.buffers {
+            for buffer in &buffers.vertex_buffers {
+                if let Some(morph_buffers) = &buffer.morph_buffers {
+                    // Default to the basis values if no morph animation is present.
+                    let mut weights = vec![0.0f32; morph_controller_names.len()];
+
+                    if let Some(morphs) = &animation.morph_tracks {
+                        for (i, track_index) in morphs.track_indices.iter().enumerate() {
+                            // TODO: The counts and indices match up but don't select the right names?
+                            let name = &animation_morph_names[i];
+
+                            // TODO: This part isn't correct?
+                            if let Some(target_index) = morph_buffers
+                                .morph_target_controller_indices
+                                .iter()
+                                .position(|t| morph_controller_names[*t] == *name)
+                            {
+                                // TODO: Why is this out of range?
+                                // TODO: log errors?
+                                let len = weights.len();
+                                if let Some(weight) = weights.get_mut(target_index % len) {
+                                    if *track_index >= 0 {
+                                        // TODO: Is this how to handle multiple frames?
+                                        let track_values_index = *track_index as usize
+                                            * frame_index.min(animation.frame_count as usize - 1);
+                                        if track_values_index < morphs.track_values.len() {
+                                            *weight = morphs.track_values[track_values_index];
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    queue.write_storage_data(&morph_buffers.weights_buffer, &weights);
+                }
+            }
+        }
+    }
+}
+
+const fn div_round_up(x: u32, d: u32) -> u32 {
+    (x + d - 1) / d
 }
 
 impl Mesh {
@@ -366,6 +424,8 @@ fn create_model_group(
         .iter()
         .map(|models| {
             let base_lod_indices = models.base_lod_indices.clone();
+            let morph_controller_names = models.morph_controller_names.clone();
+            let animation_morph_names = models.animation_morph_names.clone();
 
             let bounds = Bounds::new(device, models.max_xyz, models.min_xyz, &Mat4::IDENTITY);
 
@@ -400,6 +460,8 @@ fn create_model_group(
                 materials,
                 pipelines,
                 base_lod_indices,
+                morph_controller_names,
+                animation_morph_names,
                 bounds,
             }
         })
@@ -680,8 +742,16 @@ fn morph_buffers(
         },
     );
 
+    let morph_target_controller_indices = buffer
+        .morph_targets
+        .iter()
+        .map(|t| t.morph_controller_index)
+        .collect();
+
     MorphBuffers {
         vertex_buffer0: morph_vertex_buffer0,
+        weights_buffer: morph_weights,
+        morph_target_controller_indices,
         bind_group0,
     }
 }

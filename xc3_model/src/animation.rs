@@ -20,6 +20,8 @@ pub struct Animation {
     pub frames_per_second: f32,
     pub frame_count: u32,
     pub tracks: Vec<Track>,
+    // TODO: make this a vec instead?
+    pub morph_tracks: Option<MorphTracks>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -55,6 +57,13 @@ pub struct Keyframe {
     pub w_coeffs: Vec4,
 }
 
+// TODO: Store this as a track for each index?
+#[derive(Debug, PartialEq, Clone)]
+pub struct MorphTracks {
+    pub track_indices: Vec<i16>,
+    pub track_values: Vec<f32>,
+}
+
 impl Animation {
     pub fn from_anim(anim: &xc3_lib::bc::anim::Anim) -> Self {
         Self {
@@ -65,6 +74,7 @@ impl Animation {
             frames_per_second: anim.binding.animation.frames_per_second,
             frame_count: anim.binding.animation.frame_count,
             tracks: anim_tracks(anim),
+            morph_tracks: morph_tracks(anim),
         }
     }
 
@@ -371,6 +381,24 @@ fn anim_tracks(anim: &xc3_lib::bc::anim::Anim) -> Vec<Track> {
     }
 }
 
+fn morph_tracks(anim: &xc3_lib::bc::anim::Anim) -> Option<MorphTracks> {
+    match &anim.binding.inner {
+        xc3_lib::bc::anim::AnimationBindingInner::Unk1(unk1) => {
+            // TODO: Does this ever have more than 1 element?
+            let extra = unk1.extra_track_bindings.first()?;
+
+            Some(MorphTracks {
+                track_indices: extra.track_indices.clone(),
+                track_values: extra.extra_track_animation.as_ref()?.values.elements.clone(),
+            })
+        }
+        // TODO: Does these also contain morph animations?
+        xc3_lib::bc::anim::AnimationBindingInner::Unk2(_) => None,
+        xc3_lib::bc::anim::AnimationBindingInner::Unk3(_) => None,
+        xc3_lib::bc::anim::AnimationBindingInner::Unk4(_) => None,
+    }
+}
+
 fn names_hashes(
     anim: &xc3_lib::bc::anim::Anim,
 ) -> (Option<&Vec<xc3_lib::bc::StringOffset>>, Option<&Vec<u32>>) {
@@ -671,6 +699,7 @@ mod tests {
             frames_per_second: 30.0,
             frame_count: 1,
             tracks: Vec::new(),
+            morph_tracks: None,
         };
 
         assert!(animation
@@ -715,6 +744,7 @@ mod tests {
                     bone_index: BoneIndex::Index(1),
                 },
             ],
+            morph_tracks: None,
         };
 
         let skeleton = Skeleton {
@@ -791,6 +821,7 @@ mod tests {
                     bone_index: BoneIndex::Index(1),
                 },
             ],
+            morph_tracks: None,
         };
 
         let skeleton = Skeleton {
@@ -867,6 +898,7 @@ mod tests {
                     bone_index: BoneIndex::Index(1),
                 },
             ],
+            morph_tracks: None,
         };
 
         let skeleton = Skeleton {

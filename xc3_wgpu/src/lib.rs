@@ -113,10 +113,11 @@ impl DeviceBufferExt for wgpu::Device {
         let mut buffer = StorageBuffer::new(Vec::new());
         buffer.write(&data).unwrap();
 
+        // TODO: is it worth not adding COPY_DST to all buffers?
         self.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some(label),
             contents: &buffer.into_inner(),
-            usage: wgpu::BufferUsages::STORAGE,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         })
     }
 }
