@@ -31,7 +31,7 @@ pub struct Track {
     pub bone_index: BoneIndex,
 }
 
-/// Index for selecting the appropriate bone in a [Skeleton](crate::skeleton::Skeleton).
+/// Index for selecting the appropriate bone in a [Skeleton].
 #[derive(Debug, PartialEq, Clone)]
 pub enum BoneIndex {
     /// Index into [bones](../skeleton/struct.Skeleton.html#structfield.bones).

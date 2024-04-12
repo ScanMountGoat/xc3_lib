@@ -79,10 +79,15 @@ impl SkinWeights {
         }
     }
 
+    // TODO: How should this handle of out range indices?
     /// Convert the per-vertex indices and weights to per bone influences.
+    ///
     /// The `weight_indices` represent the data from [crate::vertex::AttributeData::WeightIndex].
     /// The `skeleton` defines the mapping from bone indices to bone names.
-    pub fn to_influences(&self, weight_indices: &[u32]) -> Vec<crate::skinning::Influence> {
+    ///
+    /// This assumes the weight group starting index has already been applied
+    /// using a method like [Self::reindex].
+    pub fn to_influences(&self, weight_indices: &[[u16; 2]]) -> Vec<crate::skinning::Influence> {
         let mut influences: Vec<_> = self
             .bone_names
             .iter()
@@ -97,10 +102,11 @@ impl SkinWeights {
         // TODO: The actual lookup is more complex than this.
         // TODO: Handle weight groups and lods?
         for (vertex_index, weight_index) in weight_indices.iter().enumerate() {
+            let weight_index = weight_index[0] as usize;
             for i in 0..4 {
                 // The weight index selects an entry in the weights buffer.
-                let bone_index = self.bone_indices[*weight_index as usize][i] as usize;
-                let weight = self.weights[*weight_index as usize][i];
+                let bone_index = self.bone_indices[weight_index][i] as usize;
+                let weight = self.weights[weight_index][i];
 
                 // Skip zero weights since they have no effect.
                 if weight > 0.0 {
@@ -254,7 +260,7 @@ mod tests {
                 weights: vec![Vec4::ZERO, Vec4::ZERO],
                 bone_names: vec!["root".to_string()]
             }
-            .to_influences(&[0, 1])
+            .to_influences(&[[0, 0], [1, 0]])
         );
     }
 
@@ -276,7 +282,7 @@ mod tests {
                 weights: vec![Vec4::splat(0.5), Vec4::splat(0.75)],
                 bone_names: vec!["root".to_string()]
             }
-            .to_influences(&[1])
+            .to_influences(&[[1, 0]])
         );
     }
 
@@ -335,7 +341,7 @@ mod tests {
                     "A".to_string(),
                 ]
             }
-            .to_influences(&[0, 1])
+            .to_influences(&[[0, 0], [1, 0]])
         );
     }
 }

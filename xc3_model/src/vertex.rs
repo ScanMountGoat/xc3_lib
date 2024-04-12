@@ -53,7 +53,9 @@ pub struct VertexBuffer {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct MorphTarget {
-    // TODO: add names from mxmd?
+    /// Index into [morph_controller_names](../struct.Models.html#structfield.morph_controller_names).
+    pub morph_controller_index: usize,
+
     // TODO: Add a method with tests to blend with base target?
     #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3s))]
     pub position_deltas: Vec<Vec3>,
@@ -401,7 +403,8 @@ fn assign_morph_targets(
                 // TODO: What to do with the default target?
                 buffer.morph_targets = params
                     .iter()
-                    .map(|target| {
+                    .zip(descriptor.param_indices.iter())
+                    .map(|(target, param_index)| {
                         // Apply remaining targets onto the base target values.
                         // TODO: Lots of morph targets use the exact same bytes?
                         let vertices = read_morph_buffer_target(target, &vertex_data.buffer)?;
@@ -425,6 +428,7 @@ fn assign_morph_targets(
                         }
 
                         Ok(MorphTarget {
+                            morph_controller_index: *param_index as usize,
                             position_deltas,
                             normal_deltas,
                             tangent_deltas,

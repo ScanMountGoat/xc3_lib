@@ -920,12 +920,12 @@ pub struct MorphControllers {
     // TODO: same count as morph targets per descriptor in vertex data?
     #[br(parse_with = parse_offset32_count32, args { offset: base_offset, inner: base_offset })]
     #[xc3(offset_count(u32, u32))]
-    controllers: Vec<MorphController>,
+    pub controllers: Vec<MorphController>,
 
-    unk1: u32,
+    pub unk1: u32,
 
     // TODO: padding?
-    unk: [u32; 3],
+    pub unk: [u32; 3],
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -934,19 +934,19 @@ pub struct MorphControllers {
 pub struct MorphController {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    name1: String,
+    pub name1: String,
 
     #[br(parse_with = parse_string_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    name2: Option<String>,
+    pub name2: Option<String>,
 
-    unk1: u16,
-    unk2: u16, // index?
-    unk3: u16, // 0?
-    unk4: u16,
+    pub unk1: u16,
+    pub unk2: u16, // index?
+    pub unk3: u16, // 0?
+    pub unk4: u16,
 
     // TODO: padding?
-    unk: [u32; 3],
+    pub unk: [u32; 3],
 }
 
 #[binread]

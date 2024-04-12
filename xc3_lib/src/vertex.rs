@@ -291,8 +291,7 @@ pub struct MorphDescriptor {
     pub vertex_buffer_index: u32,
     pub target_start_index: u32,
 
-    // pointer to u16 indices 0,1,2,...?
-    // start and ending frame for each target?
+    /// Indices into [controllers](../mxmd/struct.MorphControllers.html#structfield.controllers).
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
     pub param_indices: Vec<u16>,

@@ -141,6 +141,10 @@ pub struct Models {
     // TODO: Create a type for this constructed from Models?
     pub base_lod_indices: Option<Vec<u16>>,
 
+    // TODO: Use none instead of empty?
+    /// The name of the controller for each morph target like "mouth_shout".
+    pub morph_controller_names: Vec<String>,
+
     // TODO: make this a function instead to avoid dependencies?
     /// The minimum XYZ coordinates of the bounding volume.
     #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3))]
@@ -200,6 +204,11 @@ impl Models {
                 .lod_data
                 .as_ref()
                 .map(|data| data.groups.iter().map(|i| i.base_lod_index).collect()),
+            morph_controller_names: models
+                .morph_controllers
+                .as_ref()
+                .map(|m| m.controllers.iter().map(|c| c.name1.clone()).collect())
+                .unwrap_or_default(),
             min_xyz: models.min_xyz.into(),
             max_xyz: models.max_xyz.into(),
         }
@@ -574,6 +583,7 @@ impl ModelRoot {
                 .collect(),
             samplers: Vec::new(),
             base_lod_indices: None,
+            morph_controller_names: Vec::new(),
             max_xyz: mxmd.models.max_xyz.into(),
             min_xyz: mxmd.models.min_xyz.into(),
         };
