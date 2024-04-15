@@ -608,14 +608,7 @@ impl ModelRoot {
                 .iter()
                 .map(|b| Bone {
                     name: b.name.clone(),
-                    transform: Mat4::from_translation(b.translation.into())
-                        * Mat4::from_euler(
-                            glam::EulerRot::XYZ,
-                            b.rotation_euler[0],
-                            b.rotation_euler[1],
-                            b.rotation_euler[2],
-                        )
-                        * Mat4::from_scale(b.scale.into()),
+                    transform: Mat4::from_cols_array_2d(&b.transform),
                     parent_index: b.parent_index.try_into().ok(),
                 })
                 .collect(),

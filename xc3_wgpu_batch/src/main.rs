@@ -174,7 +174,7 @@ fn main() {
                 label: Some("Render Encoder"),
             });
 
-            renderer.render_models(&output_view, &mut encoder, &groups, false);
+            renderer.render_models(&output_view, &mut encoder, &groups, false, false);
 
             let output_path = path.with_extension("png");
             save_screenshot(

@@ -119,7 +119,7 @@ pub struct Bone {
     pub rotation_euler: [f32; 3],
     pub scale: [f32; 3],
     pub unk4: [[f32; 4]; 4],
-    pub unk5: [[f32; 4]; 4],
+    pub transform: [[f32; 4]; 4],
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
