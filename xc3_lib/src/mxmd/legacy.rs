@@ -7,6 +7,8 @@ use crate::{
 use binrw::{args, binread, BinRead, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
+use super::StringOffset;
+
 // TODO: How much code can be shared with non legacy types?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
@@ -83,6 +85,22 @@ pub struct Models {
     #[br(args { offset: base_offset, inner: base_offset + bones_offset as u64 })]
     #[xc3(offset_count(u32, u32))]
     pub bones: Vec<Bone>,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub floats: Vec<f32>,
+
+    pub unk3: u32,
+
+    // TODO: Will this work for writing?
+    #[br(temp, restore_position)]
+    bone_names_offset: u32,
+    
+    #[br(parse_with = parse_offset32_count32)]
+    #[br(args { offset: base_offset, inner: base_offset + bone_names_offset as u64 })]
+    #[xc3(offset_count(u32, u32))]
+    pub bone_names: Vec<StringOffset>,
+
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]

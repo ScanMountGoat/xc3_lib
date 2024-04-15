@@ -1150,11 +1150,9 @@ fn weights_legacy(
 
     // TODO: Find a better way of organizing these types?
     // TODO: Don't store this with the vertex data?
-    let bone_names = models.skins[0]
-        .indices
-        .iter()
-        .map(|i| models.bones[*i as usize].name.clone())
-        .collect();
+    // TODO: Is this correct?
+    // TODO: Does this also depend on the skinning indices?
+    let bone_names = models.bone_names.iter().map(|n| n.name.clone()).collect();
 
     Some(Weights {
         skin_weights: SkinWeights {
