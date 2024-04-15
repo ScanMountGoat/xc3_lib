@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added basic support for loading and rendering `.camdo` models from Xenoblade X.
 * Added support for Xenoblade X `.catex`, `.calut`, `.caavp`, and `.bmn` textures to xc3_tex.
 * Added support for uncompressed and zstd compressed `Xbc1` files.
+* Added rendering support for bone XYZ axes to xc3_wgpu.
 
 ### Changed
 * Renamed `Skeleton::world_transforms` to `Skeleton::model_space_transforms` for xc3_model.

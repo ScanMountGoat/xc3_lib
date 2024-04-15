@@ -3,8 +3,8 @@ use wgpu::util::DeviceExt;
 use xc3_model::MeshRenderPass;
 
 use crate::{
-    model::ModelGroup, DeviceBufferExt, MonolibShaderTextures, QueueBufferExt, COLOR_FORMAT,
-    DEPTH_STENCIL_FORMAT, GBUFFER_COLOR_FORMAT,
+    model::ModelGroup, skeleton::BoneRenderer, DeviceBufferExt, MonolibShaderTextures,
+    QueueBufferExt, COLOR_FORMAT, DEPTH_STENCIL_FORMAT, GBUFFER_COLOR_FORMAT,
 };
 
 const MAT_ID_DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth16Unorm;
@@ -42,6 +42,8 @@ pub struct Xc3Renderer {
     solid_bind_group0: crate::shader::solid::bind_groups::BindGroup0,
     solid_bind_group1: crate::shader::solid::bind_groups::BindGroup1,
     solid_culled_bind_group1: crate::shader::solid::bind_groups::BindGroup1,
+
+    bone_renderer: BoneRenderer,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -267,6 +269,8 @@ impl Xc3Renderer {
             },
         );
 
+        let bone_renderer = BoneRenderer::new(device, &camera_buffer);
+
         Self {
             camera_buffer,
             camera,
@@ -287,6 +291,7 @@ impl Xc3Renderer {
             solid_bind_group0,
             solid_bind_group1,
             solid_culled_bind_group1,
+            bone_renderer,
         }
     }
 
@@ -609,7 +614,7 @@ impl Xc3Renderer {
         &self,
         encoder: &mut wgpu::CommandEncoder,
         output_view: &wgpu::TextureView,
-        models: &[ModelGroup],
+        groups: &[ModelGroup],
         draw_bounds: bool,
     ) {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -649,14 +654,23 @@ impl Xc3Renderer {
             render_pass.set_pipeline(&self.solid_pipeline);
             self.solid_bind_group0.set(&mut render_pass);
 
-            for model in models {
-                model.draw_bounds(
+            for group in groups {
+                group.draw_bounds(
                     &mut render_pass,
                     &self.solid_bind_group1,
                     &self.solid_culled_bind_group1,
                     &self.camera,
                 );
             }
+        }
+
+        // TODO: make bone rendering optional?
+        for group in groups {
+            self.bone_renderer.draw_bones(
+                &mut render_pass,
+                &group.bone_animated_transforms,
+                group.bone_count as u32,
+            );
         }
     }
 

@@ -49,6 +49,7 @@ mod pipeline;
 mod renderer;
 mod sampler;
 mod shader;
+mod skeleton;
 mod texture;
 
 use encase::{internal::WriteInto, ShaderSize, ShaderType, StorageBuffer, UniformBuffer};

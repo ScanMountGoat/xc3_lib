@@ -24,6 +24,8 @@ pub struct ModelGroup {
     skeleton: Option<xc3_model::Skeleton>,
     per_group: crate::shader::model::bind_groups::BindGroup1,
     per_group_buffer: wgpu::Buffer,
+    pub(crate) bone_animated_transforms: wgpu::Buffer,
+    pub(crate) bone_count: usize,
 }
 
 pub struct ModelBuffers {
@@ -276,6 +278,15 @@ impl ModelGroup {
                     animated_transforms_inv_transpose,
                 },
             );
+
+            let bone_transforms = animation
+                .model_space_transforms(skeleton, animation.current_frame(current_time_seconds));
+            // TODO: Add an ext method to lib.rs?
+            queue.write_buffer(
+                &self.bone_animated_transforms,
+                0,
+                bytemuck::cast_slice(&bone_transforms),
+            );
         }
     }
 
@@ -486,12 +497,27 @@ fn create_model_group(
     let (per_group, per_group_buffer) =
         per_group_bind_group(device, skeleton.as_ref(), skin_weights.as_ref());
 
+    // TODO: Create helper ext method in lib.rs?
+    let bone_transforms = skeleton
+        .as_ref()
+        .map(|s| s.model_space_transforms())
+        .unwrap_or_default();
+    let bone_count = skeleton.as_ref().map(|s| s.bones.len()).unwrap_or_default();
+
+    let bone_animated_transforms = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Bone Animated Transforms"),
+        contents: bytemuck::cast_slice(&bone_transforms),
+        usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+    });
+
     ModelGroup {
         models,
         buffers,
         per_group,
         per_group_buffer,
         skeleton,
+        bone_animated_transforms,
+        bone_count,
     }
 }
 

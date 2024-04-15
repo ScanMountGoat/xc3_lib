@@ -5,6 +5,10 @@ pub mod blit {
     include!(concat!(env!("OUT_DIR"), "/blit.rs"));
 }
 #[allow(dead_code)]
+pub mod bone {
+    include!(concat!(env!("OUT_DIR"), "/bone.rs"));
+}
+#[allow(dead_code)]
 pub mod deferred {
     include!(concat!(env!("OUT_DIR"), "/deferred.rs"));
 }

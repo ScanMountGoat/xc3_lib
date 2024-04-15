@@ -8,6 +8,11 @@ fn main() {
         format!("{out_dir}/blit.rs"),
     );
     write_shader(
+        include_str!("src/shader/bone.wgsl"),
+        "src/shader/bone.wgsl",
+        format!("{out_dir}/bone.rs"),
+    );
+    write_shader(
         include_str!("src/shader/deferred.wgsl"),
         "src/shader/deferred.wgsl",
         format!("{out_dir}/deferred.rs"),
