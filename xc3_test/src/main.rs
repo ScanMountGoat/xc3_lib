@@ -871,7 +871,10 @@ fn check_all_wimdo_model<P: AsRef<Path>>(root: P, check_read_write: bool) {
 
             // Test reimporting models without any changes.
             let mxmd = Mxmd::from_file(path).unwrap();
-            let msrd = Msrd::from_file(path.with_extension("wismt")).unwrap();
+            let msrd = mxmd
+                .streaming
+                .is_some()
+                .then(|| Msrd::from_file(path.with_extension("wismt")).unwrap());
             let streaming_data =
                 xc3_model::StreamingData::new(&mxmd, &path.with_extension("wismt"), false, None)
                     .unwrap();
@@ -882,10 +885,13 @@ fn check_all_wimdo_model<P: AsRef<Path>>(root: P, check_read_write: bool) {
                     // TODO: Should this take the msrd or streaming?
                     // TODO: Is it worth being able to test this without compression?
                     if check_read_write {
-                        let (_new_mxmd, new_msrd) = root.to_mxmd_model(&mxmd, &msrd);
-                        let (new_vertex, _, _) = new_msrd.extract_files(None).unwrap();
-                        if &new_vertex != streaming_data.vertex.as_ref() {
-                            println!("VertexData not 1:1 for {path:?}")
+                        // TODO: Should to_mxmd_model make the msrd optional?
+                        if let Some(msrd) = msrd {
+                            let (_new_mxmd, new_msrd) = root.to_mxmd_model(&mxmd, &msrd);
+                            let (new_vertex, _, _) = new_msrd.extract_files(None).unwrap();
+                            if &new_vertex != streaming_data.vertex.as_ref() {
+                                println!("VertexData not 1:1 for {path:?}")
+                            }
                         }
                     }
                 }
