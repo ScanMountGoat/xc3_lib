@@ -9,6 +9,7 @@ use rayon::prelude::*;
 use xc3_lib::{
     apmd::Apmd,
     bc::Bc,
+    beb::Beb,
     bmn::Bmn,
     dhal::Dhal,
     eva::Eva,
@@ -71,6 +72,10 @@ struct Cli {
     /// Process EVA files from .eva
     #[arg(long)]
     eva: bool,
+
+    /// Process Beb files from .beb
+    #[arg(long)]
+    beb: bool,
 
     /// Process MTXT files from .catex, .calut, and .caavp
     #[arg(long)]
@@ -185,6 +190,11 @@ fn main() {
     if cli.eva || cli.all {
         println!("Checking Eva files ...");
         check_all(root, &["*.eva"], check_eva, Endian::Little, cli.rw);
+    }
+
+    if cli.beb || cli.all {
+        println!("Checking Beb files ...");
+        check_all(root, &["*.beb"], check_beb, Endian::Little, cli.rw);
     }
 
     if cli.mtxt || cli.all {
@@ -755,6 +765,16 @@ fn check_eva(eva: Eva, path: &Path, original_bytes: &[u8], check_read_write: boo
         eva.write(&mut writer).unwrap();
         if writer.into_inner() != original_bytes {
             println!("Eva read/write not 1:1 for {path:?}");
+        }
+    }
+}
+
+fn check_beb(beb: Beb, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+    if check_read_write {
+        let mut writer = Cursor::new(Vec::new());
+        beb.write(&mut writer).unwrap();
+        if writer.into_inner() != original_bytes {
+            println!("Beb read/write not 1:1 for {path:?}");
         }
     }
 }

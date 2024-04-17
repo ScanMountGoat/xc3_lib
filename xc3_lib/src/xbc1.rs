@@ -47,7 +47,6 @@ pub struct Xbc1 {
     /// A compressed stream encoded based on [compression_type](#structfield.compression_type).
     /// The decompressed stream will have size [decompressed_size](#structfield.decompressed_size).
     #[br(count = compressed_size)]
-    #[brw(align_after = 16)]
     pub compressed_stream: Vec<u8>,
 }
 

@@ -51,6 +51,7 @@ use xc3_write::write_full;
 
 pub mod apmd;
 pub mod bc;
+pub mod beb;
 pub mod bmn;
 pub mod dds;
 pub mod dhal;
@@ -433,7 +434,8 @@ file_write_full_impl!(
     bc::Bc,
     eva::Eva,
     lagp::Lagp,
-    laps::Laps
+    laps::Laps,
+    beb::Beb
 );
 
 #[derive(Debug, Error)]
@@ -498,7 +500,8 @@ file_read_impl!(
     bc::Bc,
     eva::Eva,
     lagp::Lagp,
-    laps::Laps
+    laps::Laps,
+    beb::Beb
 );
 
 file_read_impl!(Endian::Big, mtxt::Mtxt, mxmd::legacy::MxmdLegacy, bmn::Bmn);

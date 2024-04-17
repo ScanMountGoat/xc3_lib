@@ -9,7 +9,8 @@ xc3_lib supports a number of in game formats. All formats support reading. Write
 | Format | Magic | Extensions | Write |
 | --- | --- | --- | --- |
 | [Apmd](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/apmd.rs) | DMPA | `wimdo` | ✔️ | 
-| [Bc](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/bc.rs) | BC | `anm`, `motstm_data` |  ✔️* | 
+| [Bc](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/bc.rs) | BC | `anm`, `motstm_data` |  ✔️* |
+| [Beb](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/beb.rs) | | `beb` |  ✔️ | 
 | [Bmn](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/bmn.rs) | BMN | `bmn` | ❌ | 
 | [Dhal](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/dhal.rs) | LAHD | `wilay` | ✔️* | 
 | [Eva](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/eva.rs) | eva | `eva` | ✔️* | 
