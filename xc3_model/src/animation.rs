@@ -389,7 +389,12 @@ fn morph_tracks(anim: &xc3_lib::bc::anim::Anim) -> Option<MorphTracks> {
 
             Some(MorphTracks {
                 track_indices: extra.track_indices.clone(),
-                track_values: extra.extra_track_animation.as_ref()?.values.elements.clone(),
+                track_values: extra
+                    .extra_track_animation
+                    .as_ref()?
+                    .values
+                    .elements
+                    .clone(),
             })
         }
         // TODO: Does these also contain morph animations?

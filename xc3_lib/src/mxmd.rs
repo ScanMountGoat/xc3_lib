@@ -773,6 +773,7 @@ pub struct Model {
     pub unks: [u32; 3],
 }
 
+// TODO: Figure out remaining indices.
 /// Flags and resources associated with a single draw call.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
@@ -785,23 +786,23 @@ pub struct Mesh {
     /// Index into [index_buffers](../vertex/struct.VertexData.html#structfield.index_buffers)
     /// for the associated [VertexData].
     pub index_buffer_index: u16,
-    pub unk_index: u16,
+    pub unk_index: u16, // TODO: index?
     /// Index into [materials](struct.Materials.html#structfield.materials).
     pub material_index: u16,
-    pub unk2: u32,
-    pub unk3: u16,
+    pub unk2: u32, // 0
+    pub unk3: u16, // 0
     /// Index into [ext_meshes](struct.Models.html#structfield.ext_meshes).
     // TODO: enabled via a flag?
     pub ext_mesh_index: u16,
-    pub unk4: u32,
-    pub unk5: u16,
+    pub unk4: u32, // 0
+    pub unk5: u16, // 0
     /// The index of the level of detail typically starting from 1.
     pub lod: u16, // TODO: flags with one byte being lod?
-    pub alpha_table_index: u16,
-    pub unk6: u16,
-    pub unk7: i32,
-    pub unk8: i32,
-    pub unk9: i32,
+    pub unk_index2: u16, // TODO: 0 to 107?
+    pub unk6: u16, // TODO: flags?
+    pub unk7: i32, // TODO: -1 to 1000+?
+    pub unk8: u32, // 0, 1
+    pub unk9: u32, // 0
 }
 
 // TODO: remaining bits affect skinning?
@@ -1123,8 +1124,7 @@ pub struct ModelUnk9Item {
     pub unk4: u32,
 }
 
-// TODO: eye animations?
-// TODO: Some sort of animation?
+// TODO: Some sort of float animation for eyes, morphs, etc?
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
@@ -1134,6 +1134,7 @@ pub struct ModelUnk1 {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
+    // TODO: Related to ext meshes?
     // TODO: same count as track indices for xc2 extra animation for morph targets?
     #[br(parse_with = parse_offset32_count32)]
     #[br(args { offset: base_offset, inner: base_offset })]
@@ -1143,17 +1144,19 @@ pub struct ModelUnk1 {
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
     pub items2: Vec<ModelUnk1Item2>,
-    
+
+    // TODO: Default values for items1?
     // TODO: same count as track indices for xc2 extra animation for morph targets?
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: items1.len() }})]
     #[xc3(offset(u32))]
     pub items3: Vec<f32>,
+
     pub unk1: u32, // 0 or 1?
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub items4: Vec<[u32; 5]>,
+    pub items4: Vec<[u16; 10]>,
 
     // flags?
     pub unk4: u32,
@@ -1219,11 +1222,12 @@ pub struct ModelUnk1Item1 {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct ModelUnk1Item2 {
-    pub unk1: u32,
-    pub unk2: u32,
+    pub unk1: u16,
+    pub unk2: u16,
     pub unk3: u32,
     pub unk4: u32,
     pub unk5: u32,
+    pub unk6: u32,
 }
 
 #[binread]

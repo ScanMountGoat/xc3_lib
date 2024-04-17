@@ -667,11 +667,11 @@ impl ModelRoot {
                         material_index: m.material_index as u16,
                         unk2: 0,
                         unk3: 0,
-                        ext_mesh_index: 0,
+                        ext_mesh_index: 0, // TODO: add field to mesh?
                         unk4: 0,
                         unk5: 0,
                         lod: m.lod,
-                        alpha_table_index: 0,
+                        unk_index2: 0,
                         unk6: 0,
                         unk7: 0,
                         unk8: 0,

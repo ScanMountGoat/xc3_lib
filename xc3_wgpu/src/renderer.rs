@@ -301,7 +301,7 @@ impl Xc3Renderer {
         encoder: &mut wgpu::CommandEncoder,
         models: &[ModelGroup],
         draw_bounds: bool,
-        draw_bones: bool
+        draw_bones: bool,
     ) {
         // The passes and their ordering only loosely matches in game.
         // This enables better performance, portability, etc.
@@ -617,7 +617,7 @@ impl Xc3Renderer {
         output_view: &wgpu::TextureView,
         groups: &[ModelGroup],
         draw_bounds: bool,
-        draw_bones: bool
+        draw_bones: bool,
     ) {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Final Pass"),
@@ -675,7 +675,6 @@ impl Xc3Renderer {
                 );
             }
         }
-
     }
 
     fn blit_deferred<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {

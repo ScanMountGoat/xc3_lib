@@ -95,12 +95,11 @@ pub struct Models {
     // TODO: Will this work for writing?
     #[br(temp, restore_position)]
     bone_names_offset: u32,
-    
+
     #[br(parse_with = parse_offset32_count32)]
     #[br(args { offset: base_offset, inner: base_offset + bone_names_offset as u64 })]
     #[xc3(offset_count(u32, u32))]
     pub bone_names: Vec<StringOffset>,
-
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
