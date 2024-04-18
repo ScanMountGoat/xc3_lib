@@ -23,12 +23,6 @@ struct PerGroup {
 @group(1) @binding(0)
 var<uniform> per_group: PerGroup;
 
-@group(1) @binding(1)
-var<storage> bone_indices: array<vec4<u32>>;
-
-@group(1) @binding(2)
-var<storage> skin_weights: array<vec4<f32>>;
-
 // PerMaterial values.
 // Define all possible parameters even if unused.
 // The "ubershader" approach makes it possible to generate WGSL bindings at build time.
@@ -124,6 +118,12 @@ struct PerMesh {
 
 @group(3) @binding(2)
 var<uniform> per_mesh: PerMesh;
+
+@group(3) @binding(3)
+var<storage> bone_indices: array<vec4<u32>>;
+
+@group(3) @binding(4)
+var<storage> skin_weights: array<vec4<f32>>;
 
 // Define all possible attributes even if unused.
 // This avoids needing separate shaders.

@@ -35,6 +35,7 @@ pub struct BufferKey {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct WeightGroupKey {
     pub weights_start_index: usize,
+    pub flags2: u32,
     pub buffer: BufferKey,
 }
 
@@ -163,6 +164,7 @@ impl Buffers {
                                 skeleton,
                                 weights,
                                 weight_indices,
+                                key.flags2,
                                 key.weights_start_index,
                             )
                             .unwrap();
@@ -178,14 +180,31 @@ impl Buffers {
     fn add_weight_group(
         &mut self,
         skeleton: &crate::Skeleton,
-        weights: &crate::Weights,
+        weights: &crate::skinning::Weights,
         weight_indices: &[[u16; 2]],
+        flags2: u32,
         weights_start_index: usize,
     ) -> BinResult<WeightGroup> {
         // The weights may be defined with a different bone ordering.
         let bone_names: Vec<_> = skeleton.bones.iter().map(|b| b.name.clone()).collect();
-        let skin_weights = weights.skin_weights.reindex_bones(bone_names);
 
+        // Concatenate weight buffers to support Xenoblade X.
+        // TODO: Return a single owned buffer instead of two references?
+        let (skin_weights, skin_weights2) = weights.weight_buffers(flags2);
+        // TODO: avoid unwrap.
+        let mut skin_weights = skin_weights.unwrap().clone();
+        if let Some(skin_weights2) = skin_weights2 {
+            skin_weights
+                .bone_indices
+                .extend_from_slice(&skin_weights2.bone_indices);
+            skin_weights
+                .weights
+                .extend_from_slice(&skin_weights2.weights);
+        }
+
+        let skin_weights = skin_weights.reindex_bones(bone_names);
+
+        // TODO: move more of this logic to the model types themselves to also support xcx?
         // Each group has a different starting offset.
         // This needs to be applied during reindexing.
         // No offset is needed if no groups are assigned.

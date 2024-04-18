@@ -2,15 +2,15 @@ use std::path::Path;
 
 use anyhow::Context;
 use clap::Parser;
-use xc3_model::{gltf::GltfFile, load_model, shader_database::ShaderDatabase};
+use xc3_model::{gltf::GltfFile, load_model, load_model_legacy, shader_database::ShaderDatabase};
 
 /// Convert wimdo and wismhd models to glTF for
-/// Xenoblade 1 DE, Xenoblade 2, and Xenoblade 3.
+/// Xenoblade X, Xenoblade 1 DE, Xenoblade 2, and Xenoblade 3.
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]
 struct Cli {
-    /// The input wimdo, pcmdo, or wismhd file.
+    /// The input wimdo, pcmdo, camdo, or wismhd file.
     input: String,
     /// The output gltf file.
     /// Images will be saved to the same directory as the output.
@@ -34,14 +34,25 @@ fn main() -> anyhow::Result<()> {
         .map(|p| ShaderDatabase::from_file(&p).with_context(|| format!("{p:?}")))
         .transpose()?;
 
-    let roots = if cli.input.ends_with(".wismhd") {
-        xc3_model::load_map(&cli.input, database.as_ref())
-            .with_context(|| format!("failed to load .wismhd map {:?}", cli.input))?
-    } else {
-        let root = load_model(&cli.input, database.as_ref())
-            .with_context(|| format!("failed to load .wimdo model {:?}", cli.input))?;
-        vec![root]
-    };
+    let roots = match Path::new(&cli.input).extension().unwrap().to_str().unwrap() {
+        "wimdo" => {
+            let root = load_model(&cli.input, database.as_ref())
+                .with_context(|| format!("failed to load .wimdo model {:?}", cli.input))?;
+            Ok(vec![root])
+        }
+        "pcmdo" => {
+            let root = load_model(&cli.input, database.as_ref())
+                .with_context(|| format!("failed to load .pcmdo model {:?}", cli.input))?;
+            Ok(vec![root])
+        }
+        "camdo" => {
+            let root = load_model_legacy(&cli.input);
+            Ok(vec![root])
+        }
+        "wismhd" => xc3_model::load_map(&cli.input, database.as_ref())
+            .with_context(|| format!("failed to load .wismhd map {:?}", cli.input)),
+        e => Err(anyhow::anyhow!("unsupported extension {e}")),
+    }?;
 
     let name = std::path::Path::new(&cli.output)
         .file_stem()

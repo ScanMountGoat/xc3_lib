@@ -1,9 +1,145 @@
 //! Utilities for working with vertex skinning.
 use glam::Vec4;
 use log::error;
+use xc3_lib::{mxmd::RenderPassType, vertex::WeightLod};
 
 #[cfg(feature = "arbitrary")]
 use crate::arbitrary_vec4s;
+
+// TODO: come up with a better name?
+/// See [Weights](xc3_lib::vertex::Weights).
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, PartialEq, Clone)]
+pub struct Weights {
+    /// Attributes for buffers containing skin weights.
+    /// Xenoblade X models may have more than one weight buffer.
+    pub weight_buffers: Vec<SkinWeights>,
+
+    // TODO: Is this the best way to represent this information?
+    // TODO: Avoid storing game specific data here?
+    // TODO: Is it possible to rebuild equivalent weights for in game models?
+    pub weight_groups: WeightGroups,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, PartialEq, Clone)]
+pub enum WeightGroups {
+    Legacy {
+        /// Same as the indices in [Vertex](xc3_lib::mxmd::legacy::Vertex) but reindexed to start from 0.
+        weight_buffer_indices: [usize; 6],
+    },
+    Groups {
+        weight_groups: Vec<xc3_lib::vertex::WeightGroup>,
+        weight_lods: Vec<xc3_lib::vertex::WeightLod>,
+    },
+}
+
+impl Weights {
+    /// Find the two weight buffers used for the given flags.
+    ///
+    /// The second buffer should be concatenated to the first to create a single buffer.
+    /// Non legacy models will only ever use a single buffer.
+    pub fn weight_buffers(&self, flags2: u32) -> (Option<&SkinWeights>, Option<&SkinWeights>) {
+        match self.weight_groups {
+            WeightGroups::Legacy {
+                weight_buffer_indices,
+            } => match flags2 & 0xff {
+                1 => (
+                    self.weight_buffers.get(weight_buffer_indices[0]),
+                    self.weight_buffers.get(weight_buffer_indices[4]),
+                ),
+                2 => (self.weight_buffers.get(weight_buffer_indices[1]), None),
+                8 => (
+                    self.weight_buffers.get(weight_buffer_indices[3]),
+                    self.weight_buffers.get(weight_buffer_indices[4]),
+                ),
+                0x21 => (self.weight_buffers.get(weight_buffer_indices[4]), None),
+                _ => (self.weight_buffers.first(), None),
+            },
+            WeightGroups::Groups { .. } => (self.weight_buffers.first(), None),
+        }
+    }
+}
+
+impl WeightGroups {
+    /// The offset to add to [crate::vertex::AttributeData::WeightIndex]
+    /// when selecting [crate::vertex::AttributeData::BoneIndices] and [crate::vertex::AttributeData::SkinWeights].
+    ///
+    /// Preskinned matrices starting from the input index are written to the output index.
+    /// This means the final index value is `weight_index = nWgtIndex + input_start - output_start`.
+    /// Equivalent bone indices and weights are simply `indices[weight_index]` and `weights[weight_index]`.
+    /// A mesh has only one assigned weight group, so this is sufficient to recreate the in game behavior
+    /// without any complex precomputation of skinning matrices.
+    pub fn weights_start_index(
+        &self,
+        flags2: u32,
+        lod: u16,
+        unk_type: xc3_lib::mxmd::RenderPassType,
+    ) -> usize {
+        match self {
+            WeightGroups::Legacy { .. } => 0,
+            WeightGroups::Groups {
+                weight_groups,
+                weight_lods,
+            } => {
+                // TODO: Error if none?
+                let group_index = weight_group_index(&weight_lods, flags2, lod, unk_type);
+                weight_groups
+                    .get(group_index)
+                    .map(|group| (group.input_start_index - group.output_start_index) as usize)
+                    .unwrap_or_default()
+            }
+        }
+    }
+}
+
+fn weight_group_index(
+    weight_lods: &[WeightLod],
+    skin_flags: u32,
+    lod: u16,
+    unk_type: RenderPassType,
+) -> usize {
+    if !weight_lods.is_empty() {
+        // TODO: Should this check skin flags?
+        // TODO: Is lod actually some sort of flags?
+        // TODO: Return none if skin_flags == 64?
+        let lod_index = (lod & 0xff).saturating_sub(1) as usize;
+        // TODO: More mesh lods than weight lods for models with multiple lod groups?
+        let weight_lod = &weight_lods[lod_index % weight_lods.len()];
+
+        let pass_index = weight_pass_index(unk_type, skin_flags);
+        weight_lod.group_indices_plus_one[pass_index].saturating_sub(1) as usize
+    } else {
+        // TODO: How to handle the empty case?
+        0
+    }
+}
+
+// TODO: Should this be the pass from flags2 instead?
+fn weight_pass_index(unk_type: RenderPassType, flags2: u32) -> usize {
+    // TODO: skin_flags & 0xF has a max value of group_indices.len() - 1?
+    // TODO: bit mask?
+    // TODO: Test possible values by checking mesh flags and pass types in xc3_test?
+    // TODO: Compare this with non zero entries in group indices?
+    // TODO: Assume all weight groups are assigned to at least one mesh?
+    // TODO: get unique parameters for this function for each wimdo?
+
+    // TODO: Find a way to determine the group selected in game?
+    // TODO: Test unique parameter combination using a modified weight group?
+    // TODO: Detect if vertices move in game?
+    let mut pass_index = match unk_type {
+        RenderPassType::Unk0 => 0,
+        RenderPassType::Unk1 => 1,
+        RenderPassType::Unk6 => todo!(),
+        RenderPassType::Unk7 => 3, // TODO: also 4?
+        RenderPassType::Unk9 => todo!(),
+    };
+    if flags2 == 64 {
+        pass_index = 4;
+    }
+    // TODO: Some pass index values don't get returned like 5,6?
+    pass_index
+}
 
 // Using a bone name allows using different skeleton hierarchies.
 // wimdo and chr files use different ordering, for example.
@@ -342,6 +478,78 @@ mod tests {
                 ]
             }
             .to_influences(&[[0, 0], [1, 0]])
+        );
+    }
+
+    #[test]
+    fn weight_group_index_pc082402_fiora() {
+        // xeno1/chr/pc/pc082402.wimdo
+        let weight_lods = [WeightLod {
+            group_indices_plus_one: [1, 0, 0, 2, 0, 0, 0, 0, 0],
+        }];
+        assert_eq!(
+            0,
+            weight_group_index(&weight_lods, 16385, 0, RenderPassType::Unk0)
+        );
+        assert_eq!(
+            1,
+            weight_group_index(&weight_lods, 16392, 0, RenderPassType::Unk7)
+        );
+    }
+
+    #[test]
+    fn weight_group_index_bl301501_ursula() {
+        // xeno2/model/bl/bl301501.wimdo
+        let weight_lods = [
+            WeightLod {
+                group_indices_plus_one: [1, 2, 0, 0, 0, 0, 0, 0, 0],
+            },
+            WeightLod {
+                group_indices_plus_one: [3, 4, 0, 0, 0, 0, 0, 0, 0],
+            },
+            WeightLod {
+                group_indices_plus_one: [5, 6, 0, 0, 0, 0, 0, 0, 0],
+            },
+        ];
+        assert_eq!(
+            0,
+            weight_group_index(&weight_lods, 16385, 1, RenderPassType::Unk0)
+        );
+        assert_eq!(
+            0,
+            weight_group_index(&weight_lods, 1, 1, RenderPassType::Unk0)
+        );
+        assert_eq!(
+            3,
+            weight_group_index(&weight_lods, 2, 2, RenderPassType::Unk1)
+        );
+        assert_eq!(
+            5,
+            weight_group_index(&weight_lods, 2, 3, RenderPassType::Unk1)
+        );
+    }
+
+    #[test]
+    fn weight_group_index_ch01011023_noah() {
+        // xeno3/chr/ch/ch01011023.wimdo
+        let weight_lods = [
+            WeightLod {
+                group_indices_plus_one: [4, 0, 0, 3, 0, 1, 2, 0, 0],
+            },
+            WeightLod {
+                group_indices_plus_one: [7, 0, 0, 6, 0, 5, 0, 0, 0],
+            },
+            WeightLod {
+                group_indices_plus_one: [10, 0, 0, 9, 0, 8, 0, 0, 0],
+            },
+        ];
+        assert_eq!(
+            0,
+            weight_group_index(&weight_lods, 64, 1, RenderPassType::Unk0)
+        );
+        assert_eq!(
+            6,
+            weight_group_index(&weight_lods, 16400, 2, RenderPassType::Unk0)
         );
     }
 }

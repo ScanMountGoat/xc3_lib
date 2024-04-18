@@ -39,7 +39,6 @@ use glam::{Mat4, Vec3};
 use log::error;
 use material::create_materials;
 use shader_database::ShaderDatabase;
-use skinning::SkinWeights;
 use texture::load_textures;
 use thiserror::Error;
 use vertex::ModelBuffers;
@@ -55,7 +54,6 @@ use xc3_lib::{
     mtxt::Mtxt,
     mxmd::{legacy::MxmdLegacy, Materials, Mxmd},
     sar1::Sar1,
-    vertex::WeightLod,
     xbc1::MaybeXbc1,
     ReadFileError,
 };
@@ -107,20 +105,6 @@ pub struct ModelGroup {
     pub models: Vec<Models>,
     /// The vertex data selected by each [Model].
     pub buffers: Vec<ModelBuffers>,
-}
-
-// TODO: come up with a better name?
-/// See [Weights](xc3_lib::vertex::Weights).
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, PartialEq, Clone)]
-pub struct Weights {
-    // TODO: This is tied to the Models?
-    // TODO: have each Models have its own reindexed set of indices based on skeleton names?
-    pub skin_weights: SkinWeights,
-
-    // TODO: Is this the best way to represent this information?
-    pub weight_groups: Vec<xc3_lib::vertex::WeightGroup>,
-    pub weight_lods: Vec<xc3_lib::vertex::WeightLod>,
 }
 
 // TODO: Should samplers be optional?
@@ -574,7 +558,7 @@ impl ModelRoot {
                         .iter()
                         .map(|t| Texture {
                             image_texture_index: t.texture_index as usize,
-                            sampler_index: t.unk_index as usize,
+                            sampler_index: 0,
                         })
                         .collect(),
                     alpha_test: None,
@@ -977,85 +961,6 @@ fn model_name(model_path: &Path) -> String {
         .to_string()
 }
 
-impl Weights {
-    /// Get the assigned weight group based on [Mesh] and [Material] parameters.
-    pub fn weight_group(
-        &self,
-        skin_flags: u32,
-        lod: u16,
-        unk_type: xc3_lib::mxmd::RenderPassType,
-    ) -> Option<&xc3_lib::vertex::WeightGroup> {
-        let group_index = weight_group_index(&self.weight_lods, skin_flags, lod, unk_type);
-        self.weight_groups.get(group_index)
-    }
-
-    /// The offset to add to [vertex::AttributeData::WeightIndex]
-    /// when selecting [vertex::AttributeData::BoneIndices] and [vertex::AttributeData::SkinWeights].
-    ///
-    /// Preskinned matrices starting from the input index are written to the output index.
-    /// This means the final index value is `weight_index = nWgtIndex + input_start - output_start`.
-    /// Equivalent bone indices and weights are simply `indices[weight_index]` and `weights[weight_index]`.
-    /// A mesh has only one assigned weight group, so this is sufficient to recreate the in game behavior
-    /// without any complex precomputation of skinning matrices.
-    pub fn weights_start_index(
-        &self,
-        skin_flags: u32,
-        lod: u16,
-        unk_type: xc3_lib::mxmd::RenderPassType,
-    ) -> usize {
-        // TODO: Error if none?
-        self.weight_group(skin_flags, lod, unk_type)
-            .map(|group| (group.input_start_index - group.output_start_index) as usize)
-            .unwrap_or_default()
-    }
-}
-
-fn weight_group_index(
-    weight_lods: &[WeightLod],
-    skin_flags: u32,
-    lod: u16,
-    unk_type: RenderPassType,
-) -> usize {
-    if !weight_lods.is_empty() {
-        // TODO: Should this check skin flags?
-        // TODO: Is lod actually some sort of flags?
-        // TODO: Return none if skin_flags == 64?
-        let lod_index = (lod & 0xff).saturating_sub(1) as usize;
-        // TODO: More mesh lods than weight lods for models with multiple lod groups?
-        let weight_lod = &weight_lods[lod_index % weight_lods.len()];
-
-        let pass_index = weight_pass_index(unk_type, skin_flags);
-        weight_lod.group_indices_plus_one[pass_index].saturating_sub(1) as usize
-    } else {
-        // TODO: How to handle the empty case?
-        0
-    }
-}
-
-fn weight_pass_index(unk_type: RenderPassType, skin_flags: u32) -> usize {
-    // TODO: skin_flags & 0xF has a max value of group_indices.len() - 1?
-    // TODO: bit mask?
-    // TODO: Test possible values by checking mesh flags and pass types in xc3_test?
-    // TODO: Compare this with non zero entries in group indices?
-    // TODO: Assume all weight groups are assigned to at least one mesh?
-    // TODO: get unique parameters for this function for each wimdo?
-
-    // TODO: Find a way to determine the group selected in game?
-    // TODO: Test unique parameter combination using a modified weight group?
-    // TODO: Detect if vertices move in game?
-    let mut pass_index = match unk_type {
-        RenderPassType::Unk0 => 0,
-        RenderPassType::Unk1 => 1,
-        RenderPassType::Unk6 => todo!(),
-        RenderPassType::Unk7 => 3, // TODO: also 4?
-        RenderPassType::Unk9 => todo!(),
-    };
-    if skin_flags == 64 {
-        pass_index = 4;
-    }
-    pass_index
-}
-
 #[cfg(feature = "arbitrary")]
 fn arbitrary_vec2s(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Vec<glam::Vec2>> {
     let len = u.arbitrary_len::<[f32; 2]>()?;
@@ -1122,81 +1027,4 @@ macro_rules! assert_hex_eq {
     ($a:expr, $b:expr) => {
         pretty_assertions::assert_str_eq!(hex::encode($a), hex::encode($b))
     };
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn weight_group_index_pc082402_fiora() {
-        // xeno1/chr/pc/pc082402.wimdo
-        let weight_lods = [WeightLod {
-            group_indices_plus_one: [1, 0, 0, 2, 0, 0, 0, 0, 0],
-        }];
-        assert_eq!(
-            0,
-            weight_group_index(&weight_lods, 16385, 0, RenderPassType::Unk0)
-        );
-        assert_eq!(
-            1,
-            weight_group_index(&weight_lods, 16392, 0, RenderPassType::Unk7)
-        );
-    }
-
-    #[test]
-    fn weight_group_index_bl301501_ursula() {
-        // xeno2/model/bl/bl301501.wimdo
-        let weight_lods = [
-            WeightLod {
-                group_indices_plus_one: [1, 2, 0, 0, 0, 0, 0, 0, 0],
-            },
-            WeightLod {
-                group_indices_plus_one: [3, 4, 0, 0, 0, 0, 0, 0, 0],
-            },
-            WeightLod {
-                group_indices_plus_one: [5, 6, 0, 0, 0, 0, 0, 0, 0],
-            },
-        ];
-        assert_eq!(
-            0,
-            weight_group_index(&weight_lods, 16385, 1, RenderPassType::Unk0)
-        );
-        assert_eq!(
-            0,
-            weight_group_index(&weight_lods, 1, 1, RenderPassType::Unk0)
-        );
-        assert_eq!(
-            3,
-            weight_group_index(&weight_lods, 2, 2, RenderPassType::Unk1)
-        );
-        assert_eq!(
-            5,
-            weight_group_index(&weight_lods, 2, 3, RenderPassType::Unk1)
-        );
-    }
-
-    #[test]
-    fn weight_group_index_ch01011023_noah() {
-        // xeno3/chr/ch/ch01011023.wimdo
-        let weight_lods = [
-            WeightLod {
-                group_indices_plus_one: [4, 0, 0, 3, 0, 1, 2, 0, 0],
-            },
-            WeightLod {
-                group_indices_plus_one: [7, 0, 0, 6, 0, 5, 0, 0, 0],
-            },
-            WeightLod {
-                group_indices_plus_one: [10, 0, 0, 9, 0, 8, 0, 0, 0],
-            },
-        ];
-        assert_eq!(
-            0,
-            weight_group_index(&weight_lods, 64, 1, RenderPassType::Unk0)
-        );
-        assert_eq!(
-            6,
-            weight_group_index(&weight_lods, 16400, 2, RenderPassType::Unk0)
-        );
-    }
 }

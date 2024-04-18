@@ -20,7 +20,7 @@ use xc3_lib::vertex::{
 
 pub use xc3_lib::vertex::{WeightGroup, WeightLod};
 
-use crate::{skinning::SkinWeights, Weights};
+use crate::skinning::{SkinWeights, WeightGroups, Weights};
 
 #[cfg(feature = "arbitrary")]
 use crate::{arbitrary_vec2s, arbitrary_vec3s, arbitrary_vec4s};
@@ -368,14 +368,16 @@ fn read_vertex_buffers(
         let (weights, bone_indices) = skin_weights_bone_indices(&attributes)?;
 
         Some(Weights {
-            skin_weights: SkinWeights {
+            weight_buffers: vec![SkinWeights {
                 bone_indices,
                 weights,
                 // TODO: Will this cover all bone indices?
                 bone_names: skinning.bones.iter().map(|b| b.name.clone()).collect(),
+            }],
+            weight_groups: WeightGroups::Groups {
+                weight_groups: vertex_weights.groups.clone(),
+                weight_lods: vertex_weights.weight_lods.clone(),
             },
-            weight_groups: vertex_weights.groups.clone(),
-            weight_lods: vertex_weights.weight_lods.clone(),
         })
     });
 
@@ -889,8 +891,9 @@ impl ModelBuffers {
 
         let index_buffers = read_index_buffers_legacy(vertex_data);
 
+        // TODO: There can be more than 1 weights buffer?
         // TODO: don't duplicate the weights buffer?
-        let weights = weights_legacy(&vertex_buffers, models);
+        let weights = weights_legacy(&vertex_buffers, models, vertex_data.weight_buffer_indices);
 
         Ok(Self {
             vertex_buffers,
@@ -924,8 +927,8 @@ impl ModelBuffers {
             let weights_buffer = write_vertex_buffer(
                 &mut buffer_writer,
                 &[
-                    AttributeData::SkinWeights(weights.skin_weights.weights.clone()),
-                    AttributeData::BoneIndices(weights.skin_weights.bone_indices.clone()),
+                    AttributeData::SkinWeights(weights.weight_buffers[0].weights.clone()),
+                    AttributeData::BoneIndices(weights.weight_buffers[0].bone_indices.clone()),
                 ],
                 Endian::Little,
             )?;
@@ -990,15 +993,22 @@ impl ModelBuffers {
             }
         }
 
+        // TODO: Support converting legacy data?
         let weights = self
             .weights
             .as_ref()
-            .map(|weights| xc3_lib::vertex::Weights {
-                groups: weights.weight_groups.clone(),
-                vertex_buffer_index: vertex_buffers.len() as u16 - 1,
-                weight_lods: weights.weight_lods.clone(),
-                unk4: 1,
-                unks5: [0; 4],
+            .and_then(|weights| match &weights.weight_groups {
+                WeightGroups::Legacy { .. } => None,
+                WeightGroups::Groups {
+                    weight_groups,
+                    weight_lods,
+                } => Some(xc3_lib::vertex::Weights {
+                    groups: weight_groups.clone(),
+                    vertex_buffer_index: vertex_buffers.len() as u16 - 1,
+                    weight_lods: weight_lods.clone(),
+                    unk4: 1,
+                    unks5: [0; 4],
+                }),
             });
 
         Ok(VertexData {
@@ -1142,26 +1152,40 @@ fn read_vertex_buffers_legacy(
 fn weights_legacy(
     vertex_buffers: &[VertexBuffer],
     models: &xc3_lib::mxmd::legacy::Models,
+    weight_buffer_indices: [u16; 6],
 ) -> Option<Weights> {
-    // This is usually the last buffer, but check all of them just in case.
-    let (weights, bone_indices) = vertex_buffers
-        .iter()
-        .find_map(|b| skin_weights_bone_indices(&b.attributes))?;
-
     // TODO: Find a better way of organizing these types?
     // TODO: Don't store this with the vertex data?
     // TODO: Is this correct?
     // TODO: Does this also depend on the skinning indices?
-    let bone_names = models.bone_names.iter().map(|n| n.name.clone()).collect();
+    let bone_names: Vec<_> = models.bone_names.iter().map(|n| n.name.clone()).collect();
+
+    // Xenoblade X uses multiple weight buffers.
+    let weight_buffers = vertex_buffers
+        .iter()
+        .filter_map(|b| {
+            let (weights, bone_indices) = skin_weights_bone_indices(&b.attributes)?;
+            Some(SkinWeights {
+                bone_indices,
+                weights,
+                bone_names: bone_names.clone(),
+            })
+        })
+        .collect();
+
+    // Reindex to account for flattening the buffers.
+    // TODO: Store the original index with each weight buffer to handle unused indices?
+    let weight_buffer_start = vertex_buffers
+        .iter()
+        .position(|b| skin_weights_bone_indices(&b.attributes).is_some())
+        .unwrap_or_default();
 
     Some(Weights {
-        skin_weights: SkinWeights {
-            bone_indices,
-            weights,
-            bone_names,
+        weight_buffers,
+        weight_groups: WeightGroups::Legacy {
+            weight_buffer_indices: weight_buffer_indices
+                .map(|i| (i as usize).saturating_sub(weight_buffer_start)),
         },
-        weight_groups: Vec::new(),
-        weight_lods: Vec::new(),
     })
 }
 

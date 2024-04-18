@@ -86,7 +86,8 @@ pub struct Models {
     #[xc3(offset_count(u32, u32))]
     pub bones: Vec<Bone>,
 
-    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    // TODO: Why does this sometimes have a null offset but nonzero count?
+    #[br(parse_with = parse_offset32_count32_unchecked, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
     pub floats: Vec<f32>,
 
@@ -148,7 +149,7 @@ pub struct Model {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Mesh {
     pub flags1: u32,
-    pub flags2: u32,
+    pub flags2: u32, // TODO: are these actually the same as switch?
     /// Index into [vertex_buffers](struct.VertexData.html#structfield.vertex_buffers).
     pub vertex_buffer_index: u32,
     /// Index into [index_buffers](struct.VertexData.html#structfield.index_buffers).
@@ -268,10 +269,11 @@ pub struct VertexData {
     #[xc3(offset_count(u32, u32))]
     pub index_buffers: Vec<IndexBufferDescriptor>,
 
-    pub unk1: u32,
+    // TODO: weight buffer index for different passe?
+    pub weight_buffer_indices: [u16; 6],
 
     // TODO: padding?
-    pub unk: [u32; 7],
+    pub unk: [u32; 5],
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -482,4 +484,20 @@ impl<'a> Xc3WriteOffsets for PackedExternalTexturesOffsets<'a> {
         }
         Ok(())
     }
+}
+
+fn parse_offset32_count32_unchecked<T, R, Args>(
+    reader: &mut R,
+    endian: binrw::Endian,
+    args: binrw::file_ptr::FilePtrArgs<Args>,
+) -> binrw::BinResult<Vec<T>>
+where
+    for<'a> T: BinRead<Args<'a> = Args> + 'static,
+    R: std::io::Read + std::io::Seek,
+    Args: Clone,
+{
+    let offset = u32::read_options(reader, endian, ())?;
+    let count = u32::read_options(reader, endian, ())?;
+
+    crate::parse_vec(reader, endian, args, offset as u64, count as usize)
 }

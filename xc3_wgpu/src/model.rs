@@ -430,6 +430,16 @@ fn create_model_group(
         })
         .collect();
 
+    // In practice, weights are only used for wimdo files with one Models and one Model.
+    // TODO: How to enforce this assumption?
+    // TODO: Avoid clone.
+    // Reindex to match the ordering defined in the current skeleton.
+    let weights = group.buffers.first().and_then(|b| b.weights.as_ref());
+    let bone_names: Vec<_> = skeleton
+        .as_ref()
+        .map(|s| s.bones.iter().map(|b| b.name.clone()).collect())
+        .unwrap_or_default();
+
     let models = group
         .models
         .iter()
@@ -461,7 +471,14 @@ fn create_model_group(
                 .models
                 .iter()
                 .map(|model| {
-                    create_model(device, model, &group.buffers, skeleton.as_ref(), &materials)
+                    create_model(
+                        device,
+                        model,
+                        &group.buffers,
+                        &materials,
+                        weights,
+                        &bone_names,
+                    )
                 })
                 .collect();
 
@@ -478,24 +495,7 @@ fn create_model_group(
         })
         .collect();
 
-    // In practice, weights are only used for wimdo files with one Models and one Model.
-    // TODO: How to enforce this assumption?
-    // TODO: Avoid clone.
-    // Reindex to match the ordering defined in the current skeleton.
-    let skin_weights = group.buffers.first().and_then(|b| {
-        b.weights.as_ref().map(|weights| {
-            skeleton
-                .as_ref()
-                .map(|skeleton| {
-                    let bone_names = skeleton.bones.iter().map(|b| b.name.clone()).collect();
-                    weights.skin_weights.reindex_bones(bone_names)
-                })
-                .unwrap_or_else(|| weights.skin_weights.clone())
-        })
-    });
-
-    let (per_group, per_group_buffer) =
-        per_group_bind_group(device, skeleton.as_ref(), skin_weights.as_ref());
+    let (per_group, per_group_buffer) = per_group_bind_group(device, skeleton.as_ref());
 
     // TODO: Create helper ext method in lib.rs?
     let bone_transforms = skeleton
@@ -548,19 +548,11 @@ fn create_model(
     device: &wgpu::Device,
     model: &xc3_model::Model,
     buffers: &[xc3_model::vertex::ModelBuffers],
-    skeleton: Option<&xc3_model::Skeleton>,
     materials: &[Material],
+    weights: Option<&xc3_model::skinning::Weights>,
+    bone_names: &[String],
 ) -> Model {
     let model_buffers = &buffers[model.model_buffers_index];
-    // Reindex to match the ordering defined in the current skeleton.
-    let skin_weights = model_buffers.weights.as_ref().map(|weights| {
-        skeleton
-            .map(|skeleton| {
-                let bone_names = skeleton.bones.iter().map(|b| b.name.clone()).collect();
-                weights.skin_weights.reindex_bones(bone_names)
-            })
-            .unwrap_or_else(|| weights.skin_weights.clone())
-    });
 
     let meshes = model
         .meshes
@@ -574,11 +566,12 @@ fn create_model(
             per_mesh: per_mesh_bind_group(
                 device,
                 model_buffers,
-                skin_weights.as_ref(),
                 mesh.lod,
                 mesh.flags2.into(),
                 mesh.vertex_buffer_index,
                 &materials[mesh.material_index],
+                weights,
+                bone_names,
             ),
         })
         .collect();
@@ -854,7 +847,6 @@ where
 fn per_group_bind_group(
     device: &wgpu::Device,
     skeleton: Option<&xc3_model::Skeleton>,
-    skin_weights: Option<&xc3_model::skinning::SkinWeights>,
 ) -> (shader::model::bind_groups::BindGroup1, wgpu::Buffer) {
     let buffer = device.create_uniform_buffer(
         "per group buffer",
@@ -865,9 +857,84 @@ fn per_group_bind_group(
         },
     );
 
+    (
+        crate::shader::model::bind_groups::BindGroup1::from_bindings(
+            device,
+            crate::shader::model::bind_groups::BindGroupLayout1 {
+                per_group: buffer.as_entire_buffer_binding(),
+            },
+        ),
+        buffer,
+    )
+}
+
+fn per_mesh_bind_group(
+    device: &wgpu::Device,
+    buffers: &xc3_model::vertex::ModelBuffers,
+    lod: u16,
+    flags2: u32,
+    vertex_buffer_index: usize,
+    material: &Material,
+    weights: Option<&xc3_model::skinning::Weights>,
+    bone_names: &[String],
+) -> shader::model::bind_groups::BindGroup3 {
+    // TODO: Fix weight indexing calculations.
+    let start = buffers
+        .weights
+        .as_ref()
+        .map(|weights| {
+            weights
+                .weight_groups
+                .weights_start_index(flags2, lod, material.pipeline_key.pass_type)
+        })
+        .unwrap_or_default();
+
+    let per_mesh = device.create_uniform_buffer(
+        "per mesh buffer",
+        &crate::shader::model::PerMesh {
+            weight_group_indices: uvec4(start as u32, 0, 0, 0),
+        },
+    );
+
+    // TODO: How to correctly handle a missing skeleton or weights?
+    let skin_weights = weights.and_then(|w| {
+        // Concatenate weight buffers to support Xenoblade X.
+        // TODO: Return a single owned buffer instead of two references?
+        let (skin_weights, skin_weights2) = w.weight_buffers(flags2);
+
+        let mut skin_weights = skin_weights?.clone();
+        if let Some(skin_weights2) = skin_weights2 {
+            skin_weights
+                .bone_indices
+                .extend_from_slice(&skin_weights2.bone_indices);
+            skin_weights
+                .weights
+                .extend_from_slice(&skin_weights2.weights);
+        }
+
+        Some(skin_weights.reindex_bones(bone_names.to_vec()))
+    });
+
+    let skin_weight_count = skin_weights
+        .as_ref()
+        .map(|w| w.weights.len())
+        .unwrap_or_default();
+
+    for attribute in &buffers.vertex_buffers[vertex_buffer_index].attributes {
+        if let AttributeData::WeightIndex(weight_indices) = attribute {
+            let max_index = weight_indices.iter().map(|i| i[0]).max().unwrap() as usize;
+            if max_index + start >= skin_weight_count {
+                error!(
+                "Weight index start {} and max weight index {} exceed weight count {} with {:?}",
+                start, max_index, skin_weight_count,
+                (flags2, lod, material.pipeline_key.pass_type)
+            );
+            }
+        }
+    }
+
     // Convert to u32 since WGSL lacks a vec4<u8> type.
     // This assumes the skinning shader code is skipped if anything is missing.
-    // TODO: How to correctly handle a missing skeleton or weights?
     let indices: Vec<_> = skin_weights
         .as_ref()
         .map(|skin_weights| {
@@ -896,59 +963,6 @@ fn per_group_bind_group(
         usage: wgpu::BufferUsages::STORAGE,
     });
 
-    (
-        crate::shader::model::bind_groups::BindGroup1::from_bindings(
-            device,
-            crate::shader::model::bind_groups::BindGroupLayout1 {
-                per_group: buffer.as_entire_buffer_binding(),
-                bone_indices: bone_indices.as_entire_buffer_binding(),
-                skin_weights: skin_weights.as_entire_buffer_binding(),
-            },
-        ),
-        buffer,
-    )
-}
-
-fn per_mesh_bind_group(
-    device: &wgpu::Device,
-    buffers: &xc3_model::vertex::ModelBuffers,
-    skin_weights: Option<&xc3_model::skinning::SkinWeights>,
-    lod: u16,
-    skin_flags: u32,
-    vertex_buffer_index: usize,
-    material: &Material,
-) -> shader::model::bind_groups::BindGroup3 {
-    let weight_count = skin_weights.map(|w| w.weights.len()).unwrap_or_default();
-
-    // TODO: Fix weight indexing calculations.
-    let start = buffers
-        .weights
-        .as_ref()
-        .map(|weights| {
-            weights.weights_start_index(skin_flags, lod, material.pipeline_key.pass_type)
-        })
-        .unwrap_or_default();
-
-    for attribute in &buffers.vertex_buffers[vertex_buffer_index].attributes {
-        if let AttributeData::WeightIndex(weight_indices) = attribute {
-            let max_index = weight_indices.iter().map(|i| i[0]).max().unwrap() as usize;
-            if max_index + start >= weight_count {
-                error!(
-                    "Weight index start {} and max weight index {} exceed weight count {} with {:?}",
-                    start, max_index, weight_count,
-                    (skin_flags, lod, material.pipeline_key.pass_type)
-                );
-            }
-        }
-    }
-
-    let per_mesh = device.create_uniform_buffer(
-        "per mesh buffer",
-        &crate::shader::model::PerMesh {
-            weight_group_indices: uvec4(start as u32, 0, 0, 0),
-        },
-    );
-
     // Bone indices and skin weights are technically part of the model buffers.
     // Each mesh selects a range of values based on weight lods.
     // Define skinning per mesh to avoid alignment requirements on buffer bindings.
@@ -956,6 +970,9 @@ fn per_mesh_bind_group(
         device,
         crate::shader::model::bind_groups::BindGroupLayout3 {
             per_mesh: per_mesh.as_entire_buffer_binding(),
+            // TODO: Is it worth caching skinning buffers based on flags and parameters?
+            bone_indices: bone_indices.as_entire_buffer_binding(),
+            skin_weights: skin_weights.as_entire_buffer_binding(),
         },
     )
 }

@@ -133,7 +133,7 @@ impl GltfFile {
                                     .weights
                                     .as_ref()
                                     .map(|w| {
-                                        w.weights_start_index(
+                                        w.weight_groups.weights_start_index(
                                             mesh.flags2.into(),
                                             mesh.lod,
                                             material.pass_type,
@@ -146,6 +146,7 @@ impl GltfFile {
                                     root.skeleton.as_ref(),
                                     WeightGroupKey {
                                         weights_start_index,
+                                        flags2: mesh.flags2.into(),
                                         buffer: BufferKey {
                                             root_index,
                                             group_index,

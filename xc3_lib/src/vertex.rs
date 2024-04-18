@@ -163,8 +163,10 @@ pub enum DataType {
     /// Float32x3 "vPos" in shaders.
     Position = 0,
     /// ??? "fWeight" in shaders.
-    SkinWeights2 = 1, // TODO: xcx
-    BoneIndices2 = 2, // TODO: xcx
+    // TODO: xcx with only 3 floats?
+    SkinWeights2 = 1,
+    // TODO: xcx with 4 bytes?
+    BoneIndices2 = 2,
     /// Uint16x2 "nWgtIdx" in shaders.
     ///
     /// The index in the first component selects elements in the precomputed skinning matrices in the vertex shader.
