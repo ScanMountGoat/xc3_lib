@@ -544,7 +544,7 @@ fn read_attribute(
             read_data(d, relative_offset, buffer, endian, read_f32x3).ok()?,
         )),
         DataType::SkinWeights2 => Some(AttributeData::SkinWeights(
-            read_data(d, relative_offset, buffer, endian, read_f32x3_pad).ok()?,
+            read_data(d, relative_offset, buffer, endian, read_f32x3_weights).ok()?,
         )),
         DataType::BoneIndices2 => Some(AttributeData::BoneIndices(
             read_data(d, relative_offset, buffer, endian, read_u8x4).ok()?,
@@ -683,9 +683,11 @@ fn read_f32x3(reader: &mut Cursor<&[u8]>, endian: Endian) -> BinResult<Vec3> {
     Ok(value.into())
 }
 
-fn read_f32x3_pad(reader: &mut Cursor<&[u8]>, endian: Endian) -> BinResult<Vec4> {
+fn read_f32x3_weights(reader: &mut Cursor<&[u8]>, endian: Endian) -> BinResult<Vec4> {
     let value: [f32; 3] = reader.read_type(endian)?;
-    Ok(Vec3::from(value).extend(0.0))
+    // Assume weights sum to 1.0.
+    let w = 1.0 - value[0] - value[1] - value[2];
+    Ok(Vec3::from(value).extend(w))
 }
 
 fn read_unorm8x4(reader: &mut Cursor<&[u8]>, endian: Endian) -> BinResult<Vec4> {

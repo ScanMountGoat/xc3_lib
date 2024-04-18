@@ -163,7 +163,7 @@ pub enum DataType {
     /// Float32x3 "vPos" in shaders.
     Position = 0,
     /// ??? "fWeight" in shaders.
-    // TODO: xcx with only 3 floats?
+    /// The fourth weight component is calculated as `w = 1.0 - x - y - z`.
     SkinWeights2 = 1,
     // TODO: xcx with 4 bytes?
     BoneIndices2 = 2,

@@ -63,6 +63,11 @@ pub fn create_materials(
         }
     }
 
+    // TODO: proper sampler support for camdo?
+    if samplers.is_empty() {
+        samplers.push(gltf_json::texture::Sampler::default());
+    }
+
     (materials, material_indices, textures, samplers)
 }
 
