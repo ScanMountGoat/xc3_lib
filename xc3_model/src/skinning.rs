@@ -44,7 +44,14 @@ impl Weights {
             WeightGroups::Legacy {
                 weight_buffer_indices,
             } => match flags2 & 0xff {
-                1 => self.concatenate_buffers(weight_buffer_indices, 0, 4),
+                1 => {
+                    // TODO: Why is this check necessary?
+                    if weight_buffer_indices[4] > 0 {
+                        self.concatenate_buffers(weight_buffer_indices, 4, 0)
+                    } else {
+                        self.concatenate_buffers(weight_buffer_indices, 0, 4)
+                    }
+                }
                 2 | 64 => self.weight_buffers.get(weight_buffer_indices[1]).cloned(),
                 8 => self.concatenate_buffers(weight_buffer_indices, 3, 4),
                 0x21 => self.weight_buffers.get(weight_buffer_indices[4]).cloned(),
