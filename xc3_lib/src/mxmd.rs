@@ -592,7 +592,11 @@ pub struct Models {
     #[xc3(offset(u32))]
     pub skinning: Option<Skinning>,
 
-    pub unks3_1: [u32; 14],
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub model_unk11: Option<ModelUnk11>,
+
+    pub unks3_1: [u32; 13],
 
     // offset 100
     #[br(parse_with = parse_offset32_count32, args { offset: base_offset, inner: base_offset })]
@@ -633,9 +637,10 @@ pub struct Models {
     #[xc3(offset(u32), align(16))]
     pub lod_data: Option<LodData>,
 
+    // TODO: Only null for stage models?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(16))]
-    pub model_unk4: Option<ModelUnk4>,
+    pub alpha_table: Option<AlphaTable>,
     pub unk_field2: u32,
 
     // TODO: only for 10111?
@@ -773,6 +778,7 @@ pub struct Model {
     pub unks: [u32; 3],
 }
 
+// TODO: alpha table mapped to ext mesh?
 // TODO: Figure out remaining indices.
 /// Flags and resources associated with a single draw call.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -798,7 +804,8 @@ pub struct Mesh {
     pub unk5: u16, // 0
     /// The index of the level of detail typically starting from 1.
     pub lod: u16, // TODO: flags with one byte being lod?
-    pub unk_index2: u16, // TODO: 0 to 107?
+    /// Index into [items](struct.AlphaTable.html#structfield.items).
+    pub alpha_table_index: u16, // alpha table index?
     pub unk6: u16, // TODO: flags?
     pub unk7: i32, // TODO: -1 to 1000+?
     pub unk8: u32, // 0, 1
@@ -860,7 +867,7 @@ pub struct ModelsFlags {
     pub has_skinning: bool,
     pub unk17: bool,
     pub has_lod_data: bool,
-    pub has_model_unk4: bool,
+    pub has_alpha_table: bool,
     pub unk20: bool,
     pub unk21: bool,
     pub unk22: bool,
@@ -990,11 +997,12 @@ pub struct ModelUnk3Item {
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
-pub struct ModelUnk4 {
+pub struct AlphaTable {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    // (index, group index)?
+    // TODO: used to assign ext mesh and lod alpha to a mesh?
+    // items[mesh.alpha_table_index] = (ext_mesh_index + 1, lod_item1_index + 1)
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
     pub items: Vec<(u16, u16)>,
@@ -1122,6 +1130,27 @@ pub struct ModelUnk9Item {
     pub unk2: u32,
     pub unk3: u32,
     pub unk4: u32,
+}
+
+#[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(stream = r)]
+#[xc3(base_offset)]
+pub struct ModelUnk11 {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub unk1: Vec<[u32; 6]>,
+
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub unk2: Vec<[u32; 2]>,
+
+    // TODO: padding?
+    pub unks: [u32; 4],
 }
 
 // TODO: Some sort of float animation for eyes, morphs, etc?
@@ -1814,8 +1843,9 @@ impl<'a> Xc3WriteOffsets for ModelsOffsets<'a> {
         // Different order than field order.
         self.lod_data.write_full(writer, base_offset, data_ptr)?;
         self.model_unk7.write_full(writer, base_offset, data_ptr)?;
+        self.model_unk11.write_full(writer, base_offset, data_ptr)?;
         self.model_unk1.write_full(writer, base_offset, data_ptr)?;
-        self.model_unk4.write_full(writer, base_offset, data_ptr)?;
+        self.alpha_table.write_full(writer, base_offset, data_ptr)?;
         self.model_unk3.write_full(writer, base_offset, data_ptr)?;
         self.extra.write_offsets(writer, base_offset, data_ptr)?;
 

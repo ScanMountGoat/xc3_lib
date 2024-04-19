@@ -613,7 +613,7 @@ fn is_valid_models_flags(mxmd: &Mxmd) -> bool {
             && flags.has_model_unk1() == mxmd.models.model_unk1.is_some()
             && flags.has_skinning() == mxmd.models.skinning.is_some()
             && flags.has_lod_data() == mxmd.models.lod_data.is_some()
-            && flags.has_model_unk4() == mxmd.models.model_unk4.is_some()
+            && flags.has_alpha_table() == mxmd.models.alpha_table.is_some()
     } else {
         true
     }

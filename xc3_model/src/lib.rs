@@ -655,7 +655,7 @@ impl ModelRoot {
                         unk4: 0,
                         unk5: 0,
                         lod: m.lod,
-                        unk_index2: 0,
+                        alpha_table_index: 0,
                         unk6: 0,
                         unk7: 0,
                         unk8: 0,
