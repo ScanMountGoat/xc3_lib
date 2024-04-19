@@ -80,8 +80,7 @@ impl Buffers {
         };
         if !self.vertex_buffers.contains_key(&key) {
             // Assume the base morph target is already applied.
-            let mut attributes = BTreeMap::new();
-            self.add_attributes(&mut attributes, &vertex_buffer.attributes)?;
+            let attributes = self.write_attributes(&vertex_buffer.attributes)?;
 
             // Morph targets have their own attribute data.
             let morph_targets = vertex_buffer
@@ -101,31 +100,12 @@ impl Buffers {
 
                     // glTF morph targets are defined as a difference with the base target.
                     let mut attributes = attributes.clone();
-                    self.insert_positions(
-                        &position_deltas,
-                        Some(Valid(Target::ArrayBuffer)),
-                        &mut attributes,
-                    )?;
+                    self.insert_positions(&position_deltas, &mut attributes)?;
 
                     // Normals and tangents also use deltas.
                     // These should use Vec3 to avoid displacing the sign in tangent.w.
-                    self.insert_attribute_values(
-                        &normal_deltas,
-                        gltf::Semantic::Normals,
-                        gltf::json::accessor::Type::Vec3,
-                        gltf::json::accessor::ComponentType::F32,
-                        Some(Valid(Target::ArrayBuffer)),
-                        &mut attributes,
-                    )?;
-
-                    self.insert_attribute_values(
-                        &tangent_deltas,
-                        gltf::Semantic::Tangents,
-                        gltf::json::accessor::Type::Vec3,
-                        gltf::json::accessor::ComponentType::F32,
-                        Some(Valid(Target::ArrayBuffer)),
-                        &mut attributes,
-                    )?;
+                    self.insert_vec3(&normal_deltas, gltf::Semantic::Normals, &mut attributes)?;
+                    self.insert_vec3(&tangent_deltas, gltf::Semantic::Tangents, &mut attributes)?;
 
                     Ok(attributes)
                 })
@@ -185,26 +165,12 @@ impl Buffers {
         flags2: u32,
         weights_start_index: usize,
     ) -> BinResult<WeightGroup> {
+        let skin_weights = weights.weight_buffer(flags2).unwrap();
+
         // The weights may be defined with a different bone ordering.
         let bone_names: Vec<_> = skeleton.bones.iter().map(|b| b.name.clone()).collect();
-
-        // Concatenate weight buffers to support Xenoblade X.
-        // TODO: Return a single owned buffer instead of two references?
-        let (skin_weights, skin_weights2) = weights.weight_buffers(flags2);
-        // TODO: avoid unwrap.
-        let mut skin_weights = skin_weights.unwrap().clone();
-        if let Some(skin_weights2) = skin_weights2 {
-            skin_weights
-                .bone_indices
-                .extend_from_slice(&skin_weights2.bone_indices);
-            skin_weights
-                .weights
-                .extend_from_slice(&skin_weights2.weights);
-        }
-
         let skin_weights = skin_weights.reindex_bones(bone_names);
 
-        // TODO: move more of this logic to the model types themselves to also support xcx?
         // Each group has a different starting offset.
         // This needs to be applied during reindexing.
         // No offset is needed if no groups are assigned.
@@ -233,152 +199,70 @@ impl Buffers {
         })
     }
 
-    fn add_attributes(
+    fn write_attributes(
         &mut self,
-        attributes: &mut GltfAttributes,
         buffer_attributes: &[AttributeData],
-    ) -> BinResult<()> {
+    ) -> BinResult<GltfAttributes> {
+        let mut attributes = GltfAttributes::new();
+
         for attribute in buffer_attributes {
             match attribute {
                 AttributeData::Position(values) => {
-                    self.insert_positions(values, Some(Valid(Target::ArrayBuffer)), attributes)?;
+                    self.insert_positions(values, &mut attributes)?;
                 }
                 AttributeData::Normal(values) => {
                     // Not all applications will normalize the vertex normals.
                     // Use Vec3 instead of Vec4 since it's better supported.
                     let values: Vec<_> = values.iter().map(|v| v.xyz().normalize()).collect();
-                    self.insert_attribute_values(
-                        &values,
-                        gltf::Semantic::Normals,
-                        gltf::json::accessor::Type::Vec3,
-                        gltf::json::accessor::ComponentType::F32,
-                        Some(Valid(Target::ArrayBuffer)),
-                        attributes,
-                    )?;
+                    self.insert_vec3(&values, gltf::Semantic::Normals, &mut attributes)?;
                 }
                 AttributeData::Tangent(values) => {
                     // TODO: do these values need to be scaled/normalized?
                     // TODO: Why is the w component not always 1 or -1?
-                    self.insert_attribute_values(
-                        values,
-                        gltf::Semantic::Tangents,
-                        gltf::json::accessor::Type::Vec4,
-                        gltf::json::accessor::ComponentType::F32,
-                        Some(Valid(Target::ArrayBuffer)),
-                        attributes,
-                    )?;
+                    self.insert_vec4(values, gltf::Semantic::Tangents, &mut attributes)?;
                 }
                 AttributeData::TexCoord0(values) => {
-                    self.insert_attribute_values(
-                        values,
-                        gltf::Semantic::TexCoords(0),
-                        gltf::json::accessor::Type::Vec2,
-                        gltf::json::accessor::ComponentType::F32,
-                        Some(Valid(Target::ArrayBuffer)),
-                        attributes,
-                    )?;
+                    self.insert_vec2(values, gltf::Semantic::TexCoords(0), &mut attributes)?;
                 }
                 AttributeData::TexCoord1(values) => {
-                    self.insert_attribute_values(
-                        values,
-                        gltf::Semantic::TexCoords(1),
-                        gltf::json::accessor::Type::Vec2,
-                        gltf::json::accessor::ComponentType::F32,
-                        Some(Valid(Target::ArrayBuffer)),
-                        attributes,
-                    )?;
+                    self.insert_vec2(values, gltf::Semantic::TexCoords(1), &mut attributes)?;
                 }
                 AttributeData::TexCoord2(values) => {
-                    self.insert_attribute_values(
-                        values,
-                        gltf::Semantic::TexCoords(2),
-                        gltf::json::accessor::Type::Vec2,
-                        gltf::json::accessor::ComponentType::F32,
-                        Some(Valid(Target::ArrayBuffer)),
-                        attributes,
-                    )?;
+                    self.insert_vec2(values, gltf::Semantic::TexCoords(2), &mut attributes)?;
                 }
                 AttributeData::TexCoord3(values) => {
-                    self.insert_attribute_values(
-                        values,
-                        gltf::Semantic::TexCoords(3),
-                        gltf::json::accessor::Type::Vec2,
-                        gltf::json::accessor::ComponentType::F32,
-                        Some(Valid(Target::ArrayBuffer)),
-                        attributes,
-                    )?;
+                    self.insert_vec2(values, gltf::Semantic::TexCoords(3), &mut attributes)?;
                 }
                 AttributeData::TexCoord4(values) => {
-                    self.insert_attribute_values(
-                        values,
-                        gltf::Semantic::TexCoords(4),
-                        gltf::json::accessor::Type::Vec2,
-                        gltf::json::accessor::ComponentType::F32,
-                        Some(Valid(Target::ArrayBuffer)),
-                        attributes,
-                    )?;
+                    self.insert_vec2(values, gltf::Semantic::TexCoords(4), &mut attributes)?;
                 }
                 AttributeData::TexCoord5(values) => {
-                    self.insert_attribute_values(
-                        values,
-                        gltf::Semantic::TexCoords(5),
-                        gltf::json::accessor::Type::Vec2,
-                        gltf::json::accessor::ComponentType::F32,
-                        Some(Valid(Target::ArrayBuffer)),
-                        attributes,
-                    )?;
+                    self.insert_vec2(values, gltf::Semantic::TexCoords(5), &mut attributes)?;
                 }
                 AttributeData::TexCoord6(values) => {
-                    self.insert_attribute_values(
-                        values,
-                        gltf::Semantic::TexCoords(6),
-                        gltf::json::accessor::Type::Vec2,
-                        gltf::json::accessor::ComponentType::F32,
-                        Some(Valid(Target::ArrayBuffer)),
-                        attributes,
-                    )?;
+                    self.insert_vec2(values, gltf::Semantic::TexCoords(6), &mut attributes)?;
                 }
                 AttributeData::TexCoord7(values) => {
-                    self.insert_attribute_values(
-                        values,
-                        gltf::Semantic::TexCoords(7),
-                        gltf::json::accessor::Type::Vec2,
-                        gltf::json::accessor::ComponentType::F32,
-                        Some(Valid(Target::ArrayBuffer)),
-                        attributes,
-                    )?;
+                    self.insert_vec2(values, gltf::Semantic::TexCoords(7), &mut attributes)?;
                 }
                 AttributeData::TexCoord8(values) => {
-                    self.insert_attribute_values(
-                        values,
-                        gltf::Semantic::TexCoords(8),
-                        gltf::json::accessor::Type::Vec2,
-                        gltf::json::accessor::ComponentType::F32,
-                        Some(Valid(Target::ArrayBuffer)),
-                        attributes,
-                    )?;
+                    self.insert_vec2(values, gltf::Semantic::TexCoords(8), &mut attributes)?;
                 }
                 AttributeData::VertexColor(values) => {
                     // TODO: Vertex color isn't always an RGB multiplier?
                     // Use a custom attribute to avoid rendering issues.
-                    self.insert_attribute_values(
+                    self.insert_vec4(
                         values,
                         gltf::Semantic::Extras("_Color".to_string()),
-                        gltf::json::accessor::Type::Vec4,
-                        gltf::json::accessor::ComponentType::F32,
-                        Some(Valid(Target::ArrayBuffer)),
-                        attributes,
+                        &mut attributes,
                     )?;
                 }
                 AttributeData::Blend(values) => {
                     // Used for color blending for some stages.
-                    self.insert_attribute_values(
+                    self.insert_vec4(
                         values,
                         gltf::Semantic::Extras("Blend".to_string()),
-                        gltf::json::accessor::Type::Vec4,
-                        gltf::json::accessor::ComponentType::F32,
-                        Some(Valid(Target::ArrayBuffer)),
-                        attributes,
+                        &mut attributes,
                     )?;
                 }
                 // Skin weights are handled separately.
@@ -387,7 +271,7 @@ impl Buffers {
                 AttributeData::BoneIndices(_) => (),
             }
         }
-        Ok(())
+        Ok(attributes)
     }
 
     pub fn insert_index_buffer(
@@ -460,10 +344,9 @@ impl Buffers {
         Ok(*self.index_buffer_accessors.get(&key).unwrap())
     }
 
-    pub fn insert_positions(
+    fn insert_positions(
         &mut self,
         values: &[Vec3],
-        target: Option<Checked<Target>>,
         attributes: &mut GltfAttributes,
     ) -> BinResult<()> {
         // Attributes should be non empty.
@@ -475,7 +358,7 @@ impl Buffers {
                 values,
                 gltf::json::accessor::Type::Vec3,
                 gltf::json::accessor::ComponentType::F32,
-                target,
+                Some(Valid(Target::ArrayBuffer)),
                 min_max,
                 true,
             )?;
@@ -486,7 +369,55 @@ impl Buffers {
         Ok(())
     }
 
-    pub fn insert_attribute_values<T: WriteBytes>(
+    fn insert_vec2(
+        &mut self,
+        values: &[Vec2],
+        semantic: gltf::Semantic,
+        attributes: &mut GltfAttributes,
+    ) -> BinResult<()> {
+        self.insert_attribute_values(
+            values,
+            semantic,
+            gltf::json::accessor::Type::Vec2,
+            gltf::json::accessor::ComponentType::F32,
+            Some(Valid(Target::ArrayBuffer)),
+            attributes,
+        )
+    }
+
+    fn insert_vec3(
+        &mut self,
+        values: &[Vec3],
+        semantic: gltf::Semantic,
+        attributes: &mut GltfAttributes,
+    ) -> BinResult<()> {
+        self.insert_attribute_values(
+            values,
+            semantic,
+            gltf::json::accessor::Type::Vec3,
+            gltf::json::accessor::ComponentType::F32,
+            Some(Valid(Target::ArrayBuffer)),
+            attributes,
+        )
+    }
+
+    fn insert_vec4(
+        &mut self,
+        values: &[Vec4],
+        semantic: gltf::Semantic,
+        attributes: &mut GltfAttributes,
+    ) -> BinResult<()> {
+        self.insert_attribute_values(
+            values,
+            semantic,
+            gltf::json::accessor::Type::Vec4,
+            gltf::json::accessor::ComponentType::F32,
+            Some(Valid(Target::ArrayBuffer)),
+            attributes,
+        )
+    }
+
+    fn insert_attribute_values<T: WriteBytes>(
         &mut self,
         values: &[T],
         semantic: gltf::Semantic,

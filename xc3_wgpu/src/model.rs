@@ -898,20 +898,7 @@ fn per_mesh_bind_group(
 
     // TODO: How to correctly handle a missing skeleton or weights?
     let skin_weights = weights.and_then(|w| {
-        // Concatenate weight buffers to support Xenoblade X.
-        // TODO: Return a single owned buffer instead of two references?
-        let (skin_weights, skin_weights2) = w.weight_buffers(flags2);
-
-        let mut skin_weights = skin_weights?.clone();
-        if let Some(skin_weights2) = skin_weights2 {
-            skin_weights
-                .bone_indices
-                .extend_from_slice(&skin_weights2.bone_indices);
-            skin_weights
-                .weights
-                .extend_from_slice(&skin_weights2.weights);
-        }
-
+        let skin_weights = w.weight_buffer(flags2)?;
         Some(skin_weights.reindex_bones(bone_names.to_vec()))
     });
 

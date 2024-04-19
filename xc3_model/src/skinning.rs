@@ -35,29 +35,36 @@ pub enum WeightGroups {
 }
 
 impl Weights {
-    /// Find the two weight buffers used for the given flags.
+    /// Calculate the weights buffer for the given flags.
     ///
-    /// The second buffer should be concatenated to the first to create a single buffer.
+    /// For some legacy models in Xenoblade this will combine two buffers.
     /// Non legacy models will only ever use a single buffer.
-    pub fn weight_buffers(&self, flags2: u32) -> (Option<&SkinWeights>, Option<&SkinWeights>) {
+    pub fn weight_buffer(&self, flags2: u32) -> Option<SkinWeights> {
         match self.weight_groups {
             WeightGroups::Legacy {
                 weight_buffer_indices,
             } => match flags2 & 0xff {
-                1 => (
-                    self.weight_buffers.get(weight_buffer_indices[0]),
-                    self.weight_buffers.get(weight_buffer_indices[4]),
-                ),
-                2 => (self.weight_buffers.get(weight_buffer_indices[1]), None),
-                8 => (
-                    self.weight_buffers.get(weight_buffer_indices[3]),
-                    self.weight_buffers.get(weight_buffer_indices[4]),
-                ),
-                0x21 => (self.weight_buffers.get(weight_buffer_indices[4]), None),
-                _ => (self.weight_buffers.first(), None),
+                1 => self.concatenate_buffers(weight_buffer_indices, 0, 4),
+                2 | 64 => self.weight_buffers.get(weight_buffer_indices[1]).cloned(),
+                8 => self.concatenate_buffers(weight_buffer_indices, 3, 4),
+                0x21 => self.weight_buffers.get(weight_buffer_indices[4]).cloned(),
+                _ => self.weight_buffers.first().cloned(),
             },
-            WeightGroups::Groups { .. } => (self.weight_buffers.first(), None),
+            WeightGroups::Groups { .. } => self.weight_buffers.first().cloned(),
         }
+    }
+
+    fn concatenate_buffers(
+        &self,
+        weight_buffer_indices: [usize; 6],
+        i0: usize,
+        i1: usize,
+    ) -> Option<SkinWeights> {
+        let mut b0 = self.weight_buffers.get(weight_buffer_indices[i0])?.clone();
+        let b1 = self.weight_buffers.get(weight_buffer_indices[i1])?;
+        b0.bone_indices.extend_from_slice(&b1.bone_indices);
+        b0.weights.extend_from_slice(&b1.weights);
+        Some(b0)
     }
 }
 
@@ -83,7 +90,7 @@ impl WeightGroups {
                 weight_lods,
             } => {
                 // TODO: Error if none?
-                let group_index = weight_group_index(&weight_lods, flags2, lod, unk_type);
+                let group_index = weight_group_index(weight_lods, flags2, lod, unk_type);
                 weight_groups
                     .get(group_index)
                     .map(|group| (group.input_start_index - group.output_start_index) as usize)
