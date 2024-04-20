@@ -851,7 +851,12 @@ fn per_group_bind_group(
     let buffer = device.create_uniform_buffer(
         "per group buffer",
         &crate::shader::model::PerGroup {
-            enable_skinning: uvec4(skeleton.is_some() as u32, 0, 0, 0),
+            enable_skinning: uvec4(
+                matches!(skeleton, Some(skeleton) if !skeleton.bones.is_empty()) as u32,
+                0,
+                0,
+                0,
+            ),
             animated_transforms: [Mat4::IDENTITY; 256],
             animated_transforms_inv_transpose: [Mat4::IDENTITY; 256],
         },

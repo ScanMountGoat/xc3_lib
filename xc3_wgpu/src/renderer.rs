@@ -389,8 +389,10 @@ impl Xc3Renderer {
         self.model_bind_group0.set(&mut render_pass);
 
         for model in models {
-            model.draw(&mut render_pass, false, MeshRenderPass::Unk0, &self.camera);
             model.draw(&mut render_pass, false, MeshRenderPass::Unk1, &self.camera);
+            model.draw(&mut render_pass, false, MeshRenderPass::Unk0, &self.camera);
+            // TODO: Where is this supposed to go?
+            model.draw(&mut render_pass, false, MeshRenderPass::Unk4, &self.camera);
         }
     }
 
