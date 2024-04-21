@@ -48,7 +48,7 @@ use xc3_lib::{
     error::DecompressStreamError,
     mibl::Mibl,
     msrd::{
-        streaming::{chr_tex_nx_folder, ExtractedTexture, HighTexture},
+        streaming::{chr_tex_nx_folder, ExtractedTexture},
         Msrd,
     },
     mtxt::Mtxt,
@@ -178,8 +178,8 @@ impl Models {
         models: &xc3_lib::mxmd::Models,
         materials: &xc3_lib::mxmd::Materials,
         spch: Option<&shader_database::Spch>,
-    ) -> Models {
-        Models {
+    ) -> Self {
+        Self {
             models: models
                 .models
                 .iter()
@@ -203,6 +203,56 @@ impl Models {
                 .unwrap_or_default(),
             min_xyz: models.min_xyz.into(),
             max_xyz: models.max_xyz.into(),
+        }
+    }
+
+    pub fn from_models_legacy(
+        models: &xc3_lib::mxmd::legacy::Models,
+        materials: &xc3_lib::mxmd::legacy::Materials,
+    ) -> Self {
+        Self {
+            models: models.models.iter().map(Model::from_model_legacy).collect(),
+            materials: materials
+                .materials
+                .iter()
+                .map(|m| Material {
+                    name: m.name.clone(),
+                    flags: StateFlags {
+                        depth_write_mode: 0,
+                        blend_mode: BlendMode::Disabled,
+                        cull_mode: CullMode::Back,
+                        unk4: 0,
+                        stencil_value: StencilValue::Unk0,
+                        stencil_mode: StencilMode::Unk0,
+                        depth_func: DepthFunc::LessEqual,
+                        color_write_mode: 0,
+                    },
+                    textures: m
+                        .textures
+                        .iter()
+                        .map(|t| Texture {
+                            image_texture_index: t.texture_index as usize,
+                            sampler_index: 0,
+                        })
+                        .collect(),
+                    alpha_test: None,
+                    shader: None,
+                    pass_type: RenderPassType::Unk0,
+                    parameters: MaterialParameters {
+                        mat_color: [1.0; 4],
+                        alpha_test_ref: 0.0,
+                        tex_matrix: None,
+                        work_float4: None,
+                        work_color: None,
+                    },
+                })
+                .collect(),
+            samplers: Vec::new(),
+            base_lod_indices: None,
+            morph_controller_names: Vec::new(),
+            animation_morph_names: Vec::new(),
+            max_xyz: models.max_xyz.into(),
+            min_xyz: models.min_xyz.into(),
         }
     }
 }
@@ -385,6 +435,12 @@ pub fn load_model<P: AsRef<Path>>(
     let model_name = model_name(wimdo_path);
     let spch = shader_database.and_then(|database| database.files.get(&model_name));
 
+    let chr = load_chr(wimdo_path, model_name);
+
+    ModelRoot::from_mxmd_model(&mxmd, chr, &streaming_data, spch)
+}
+
+fn load_chr(wimdo_path: &Path, model_name: String) -> Option<Sar1> {
     // TODO: Does every wimdo have a chr file?
     // TODO: Does something control the chr name used?
     // TODO: This won't load the base skeleton chr for xc3.
@@ -402,10 +458,10 @@ pub fn load_model<P: AsRef<Path>>(
                 Sar1::from_file(chr_path).ok()
             })
         });
-
-    ModelRoot::from_mxmd_model(&mxmd, chr, &streaming_data, spch)
+    chr
 }
 
+// TODO: separate legacy module with its own error type?
 /// Load a model from a `.camdo` file.
 /// The corresponding `.casmt`should be in the same directory.
 ///
@@ -431,9 +487,9 @@ pub fn load_model_legacy<P: AsRef<Path>>(camdo_path: P) -> ModelRoot {
     ModelRoot::from_mxmd_model_legacy(&mxmd, casmt).unwrap()
 }
 
-// TODO: fuzz test this?
 impl ModelRoot {
-    /// Load models from parsed file data.
+    // TODO: fuzz test this?
+    /// Load models from parsed file data for Xenoblade 1 DE, Xenoblade 2, or Xenoblade 3.
     pub fn from_mxmd_model(
         mxmd: &Mxmd,
         chr: Option<Sar1>,
@@ -467,136 +523,20 @@ impl ModelRoot {
         })
     }
 
-    /// Load models from legacy parsed file data for Xenoblade Chronicles X.
+    // TODO: fuzz test this?
+    /// Load models from legacy parsed file data for Xenoblade X.
     pub fn from_mxmd_model_legacy(
         mxmd: &MxmdLegacy,
         casmt: Option<Vec<u8>>,
     ) -> Result<Self, LoadModelError> {
-        // TODO: dedicated module for loading stream data?
-        // TODO: Load textures from casmt.
-        let mut image_textures: Vec<_> = mxmd
-            .packed_textures
-            .as_ref()
-            .map(|textures| {
-                textures
-                    .textures
-                    .iter()
-                    .map(|t| {
-                        let mtxt = Mtxt::from_bytes(&t.mtxt_data).unwrap();
-                        ImageTexture::from_mtxt(&mtxt, Some(t.name.clone()), Some(t.usage)).unwrap()
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        // TODO: Share code for loading streaming data with legacy mibl data?
-        if let Some(streaming) = &mxmd.streaming {
-            // TODO: Handle this using a streaming type like with non legacy mxmd?
-            let casmt = casmt.unwrap();
-
-            // Assume all textures have a low texture.
-            let mut textures: Vec<_> = streaming
-                .low_textures
-                .textures
-                .iter()
-                .map(|t| {
-                    let start = (streaming.low_texture_data_offset + t.mtxt_offset) as usize;
-                    let size = t.mtxt_length as usize;
-                    let low = Mtxt::from_bytes(&casmt[start..start + size]).unwrap();
-                    // TODO: Create a different type for this if this is different enough.
-                    (t.name.clone(), t.usage, low, None)
-                })
-                .collect();
-
-            // TODO: Does legacy streaming data use a base mipmap?
-            if let (Some(high), Some(indices)) = (&streaming.textures, &streaming.texture_indices) {
-                for (i, texture) in indices.iter().zip(high.textures.iter()) {
-                    let start = (streaming.texture_data_offset + texture.mtxt_offset) as usize;
-                    let size = texture.mtxt_length as usize;
-                    let mid = Mtxt::from_bytes(&casmt[start..start + size]).unwrap();
-                    textures[*i as usize].3 = Some(mid);
-                }
-            }
-
-            // TODO: find a cleaner way of writing this.
-            image_textures = textures
-                .into_iter()
-                .map(|t| {
-                    t.3.map(|h| ImageTexture::from_mtxt(&h, Some(t.0.clone()), Some(t.1)).unwrap())
-                        .unwrap_or_else(|| {
-                            ImageTexture::from_mtxt(&t.2, Some(t.0), Some(t.1)).unwrap()
-                        })
-                })
-                .collect();
-        }
-
-        let models = Models {
-            models: mxmd
-                .models
-                .models
-                .iter()
-                .map(Model::from_model_legacy)
-                .collect(),
-            materials: mxmd
-                .materials
-                .materials
-                .iter()
-                .map(|m| Material {
-                    name: m.name.clone(),
-                    flags: StateFlags {
-                        depth_write_mode: 0,
-                        blend_mode: BlendMode::Disabled,
-                        cull_mode: CullMode::Back,
-                        unk4: 0,
-                        stencil_value: StencilValue::Unk0,
-                        stencil_mode: StencilMode::Unk0,
-                        depth_func: DepthFunc::LessEqual,
-                        color_write_mode: 0,
-                    },
-                    textures: m
-                        .textures
-                        .iter()
-                        .map(|t| Texture {
-                            image_texture_index: t.texture_index as usize,
-                            sampler_index: 0,
-                        })
-                        .collect(),
-                    alpha_test: None,
-                    shader: None,
-                    pass_type: RenderPassType::Unk0,
-                    parameters: MaterialParameters {
-                        mat_color: [1.0; 4],
-                        alpha_test_ref: 0.0,
-                        tex_matrix: None,
-                        work_float4: None,
-                        work_color: None,
-                    },
-                })
-                .collect(),
-            samplers: Vec::new(),
-            base_lod_indices: None,
-            morph_controller_names: Vec::new(),
-            animation_morph_names: Vec::new(),
-            max_xyz: mxmd.models.max_xyz.into(),
-            min_xyz: mxmd.models.min_xyz.into(),
-        };
+        let skeleton = load_skeleton_legacy(mxmd);
 
         let buffers = ModelBuffers::from_vertex_data_legacy(&mxmd.vertex, &mxmd.models)
             .map_err(LoadModelError::VertexData)?;
 
-        // TODO: move to skeleton.rs?
-        let skeleton = Skeleton {
-            bones: mxmd
-                .models
-                .bones
-                .iter()
-                .map(|b| Bone {
-                    name: b.name.clone(),
-                    transform: Mat4::from_cols_array_2d(&b.transform),
-                    parent_index: b.parent_index.try_into().ok(),
-                })
-                .collect(),
-        };
+        let models = Models::from_models_legacy(&mxmd.models, &mxmd.materials);
+
+        let image_textures = load_textures_legacy(mxmd, casmt);
 
         // TODO: Find a way to specify at the type level that this has only one element?
         Ok(Self {
@@ -625,7 +565,11 @@ impl ModelRoot {
         // TODO: Does this need to even extract vertex/textures?
         let (_, spch, _) = msrd.extract_files(None).unwrap();
 
-        let textures: Vec<_> = self.image_textures.iter().map(extracted_texture).collect();
+        let textures: Vec<_> = self
+            .image_textures
+            .iter()
+            .map(ImageTexture::extracted_texture)
+            .collect();
 
         // TODO: Create a separate root type that enforces this structure?
         let new_vertex = self.groups[0].buffers[0].to_vertex_data().unwrap();
@@ -700,36 +644,76 @@ impl ModelRoot {
     }
 }
 
-fn extracted_texture(image: &ImageTexture) -> ExtractedTexture<Mibl> {
-    // Low textures typically use a smaller 4x4 version of the texture.
-    // Resizing and decoding and encoding the full texture is expensive.
-    // The low texture is only visible briefly before data is streamed in.
-    // We can cheat and just use the first GOB (512 bytes) of compressed image data.
-    let low = xc3_lib::mibl::Mibl {
-        image_data: image.image_data[..512].to_vec(),
-        footer: xc3_lib::mibl::MiblFooter {
-            image_size: 4096,
-            unk: 0x1000,
-            width: 4,
-            height: 4,
-            depth: 1,
-            view_dimension: xc3_lib::mibl::ViewDimension::D2,
-            image_format: image.image_format,
-            mipmap_count: 1,
-            version: 10001,
-        },
-    };
-
-    let (mid, base_mip) = image.to_mibl().unwrap().split_base_mip();
-    ExtractedTexture {
-        name: image.name.clone().unwrap(),
-        usage: image.usage.unwrap(),
-        low,
-        high: Some(HighTexture {
-            mid,
-            base_mip: Some(base_mip),
-        }),
+fn load_skeleton_legacy(mxmd: &MxmdLegacy) -> Skeleton {
+    Skeleton {
+        bones: mxmd
+            .models
+            .bones
+            .iter()
+            .map(|b| Bone {
+                name: b.name.clone(),
+                transform: Mat4::from_cols_array_2d(&b.transform),
+                parent_index: b.parent_index.try_into().ok(),
+            })
+            .collect(),
     }
+}
+
+fn load_textures_legacy(mxmd: &MxmdLegacy, casmt: Option<Vec<u8>>) -> Vec<ImageTexture> {
+    let mut image_textures: Vec<_> = mxmd
+        .packed_textures
+        .as_ref()
+        .map(|textures| {
+            textures
+                .textures
+                .iter()
+                .map(|t| {
+                    let mtxt = Mtxt::from_bytes(&t.mtxt_data).unwrap();
+                    ImageTexture::from_mtxt(&mtxt, Some(t.name.clone()), Some(t.usage)).unwrap()
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    // TODO: Share code for loading streaming data with legacy mibl data?
+    if let Some(streaming) = &mxmd.streaming {
+        // TODO: Handle this using a streaming type like with non legacy mxmd?
+        let casmt = casmt.unwrap();
+
+        // Assume all textures have a low texture.
+        let mut textures: Vec<_> = streaming
+            .low_textures
+            .textures
+            .iter()
+            .map(|t| {
+                let start = (streaming.low_texture_data_offset + t.mtxt_offset) as usize;
+                let size = t.mtxt_length as usize;
+                let low = Mtxt::from_bytes(&casmt[start..start + size]).unwrap();
+                // TODO: Create a different type for this if this is different enough.
+                (t.name.clone(), t.usage, low, None)
+            })
+            .collect();
+
+        // TODO: Does legacy streaming data use a base mipmap?
+        if let (Some(high), Some(indices)) = (&streaming.textures, &streaming.texture_indices) {
+            for (i, texture) in indices.iter().zip(high.textures.iter()) {
+                let start = (streaming.texture_data_offset + texture.mtxt_offset) as usize;
+                let size = texture.mtxt_length as usize;
+                let mid = Mtxt::from_bytes(&casmt[start..start + size]).unwrap();
+                textures[*i as usize].3 = Some(mid);
+            }
+        }
+
+        // TODO: find a cleaner way of writing this.
+        image_textures = textures
+            .into_iter()
+            .map(|t| {
+                t.3.map(|h| ImageTexture::from_mtxt(&h, Some(t.0.clone()), Some(t.1)).unwrap())
+                    .unwrap_or_else(|| ImageTexture::from_mtxt(&t.2, Some(t.0), Some(t.1)).unwrap())
+            })
+            .collect();
+    }
+    image_textures
 }
 
 // TODO: move this to xc3_lib?

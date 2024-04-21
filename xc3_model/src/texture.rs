@@ -3,7 +3,7 @@ use log::error;
 use thiserror::Error;
 use xc3_lib::{
     mibl::{CreateMiblError, Mibl, SwizzleError},
-    msrd::streaming::ExtractedTexture,
+    msrd::streaming::{ExtractedTexture, HighTexture},
     mtxt::Mtxt,
     mxmd::PackedTexture,
 };
@@ -188,6 +188,38 @@ impl ImageTexture {
 
     pub fn to_mibl(&self) -> Result<Mibl, CreateMiblError> {
         Mibl::from_surface(self.to_surface())
+    }
+
+    pub(crate) fn extracted_texture(image: &ImageTexture) -> ExtractedTexture<Mibl> {
+        // Low textures typically use a smaller 4x4 version of the texture.
+        // Resizing and decoding and encoding the full texture is expensive.
+        // The low texture is only visible briefly before data is streamed in.
+        // We can cheat and just use the first GOB (512 bytes) of compressed image data.
+        let low = xc3_lib::mibl::Mibl {
+            image_data: image.image_data[..512].to_vec(),
+            footer: xc3_lib::mibl::MiblFooter {
+                image_size: 4096,
+                unk: 0x1000,
+                width: 4,
+                height: 4,
+                depth: 1,
+                view_dimension: xc3_lib::mibl::ViewDimension::D2,
+                image_format: image.image_format,
+                mipmap_count: 1,
+                version: 10001,
+            },
+        };
+
+        let (mid, base_mip) = image.to_mibl().unwrap().split_base_mip();
+        ExtractedTexture {
+            name: image.name.clone().unwrap(),
+            usage: image.usage.unwrap(),
+            low,
+            high: Some(HighTexture {
+                mid,
+                base_mip: Some(base_mip),
+            }),
+        }
     }
 }
 

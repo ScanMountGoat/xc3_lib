@@ -893,8 +893,7 @@ impl ModelBuffers {
 
         let index_buffers = read_index_buffers_legacy(vertex_data);
 
-        // TODO: There can be more than 1 weights buffer?
-        // TODO: don't duplicate the weights buffer?
+        // TODO: don't duplicate the weights buffers?
         let weights = weights_legacy(&vertex_buffers, models, vertex_data.weight_buffer_indices);
 
         Ok(Self {
