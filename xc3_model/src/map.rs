@@ -18,7 +18,7 @@ use crate::{
     create_materials, create_samplers, model_name,
     shader_database::ShaderDatabase,
     texture::{self, CreateImageTextureError, ImageTexture},
-    Material, Model, ModelBuffers, ModelGroup, ModelRoot, Models, Texture,
+    MapRoot, Material, Model, ModelBuffers, ModelGroup, Models, Texture,
 };
 
 #[derive(Debug, Error)]
@@ -61,7 +61,7 @@ pub enum LoadMapError {
 pub fn load_map<P: AsRef<Path>>(
     wismhd_path: P,
     shader_database: Option<&ShaderDatabase>,
-) -> Result<Vec<ModelRoot>, LoadMapError> {
+) -> Result<Vec<MapRoot>, LoadMapError> {
     let msmd = Msmd::from_file(wismhd_path.as_ref()).map_err(LoadMapError::Wismhd)?;
     let wismda = std::fs::read(wismhd_path.as_ref().with_extension("wismda"))?;
 
@@ -115,10 +115,9 @@ pub fn load_map<P: AsRef<Path>>(
         shader_database,
     )?;
 
-    roots.push(ModelRoot {
+    roots.push(MapRoot {
         groups: vec![map_model_group, prop_model_group],
         image_textures: texture_cache.image_textures()?,
-        skeleton: None,
     });
 
     Ok(roots)
@@ -579,7 +578,7 @@ fn load_env_model(
     model_index: usize,
     model_folder: &str,
     shader_database: Option<&ShaderDatabase>,
-) -> Result<ModelRoot, LoadMapError> {
+) -> Result<MapRoot, LoadMapError> {
     let mut wismda = Cursor::new(&wismda);
 
     let model_data = model.entry.extract(&mut wismda, compressed)?;
@@ -598,7 +597,7 @@ fn load_env_model(
 
     let buffers = ModelBuffers::from_vertex_data(&model_data.vertex_data, None)?;
 
-    Ok(ModelRoot {
+    Ok(MapRoot {
         groups: vec![ModelGroup {
             models: vec![Models::from_models(
                 &model_data.models,
@@ -608,7 +607,6 @@ fn load_env_model(
             buffers: vec![buffers],
         }],
         image_textures,
-        skeleton: None,
     })
 }
 
@@ -616,7 +614,7 @@ fn load_foliage_model(
     wismda: &[u8],
     compressed: bool,
     model: &xc3_lib::msmd::FoliageModel,
-) -> Result<ModelRoot, LoadMapError> {
+) -> Result<MapRoot, LoadMapError> {
     let mut wismda = Cursor::new(&wismda);
 
     let model_data = model.entry.extract(&mut wismda, compressed)?;
@@ -643,7 +641,7 @@ fn load_foliage_model(
 
     // TODO: foliage samplers?
     // TODO: is it worth making a skeleton here?
-    Ok(ModelRoot {
+    Ok(MapRoot {
         groups: vec![ModelGroup {
             models: vec![Models {
                 models,
@@ -661,7 +659,6 @@ fn load_foliage_model(
             buffers: vec![buffers],
         }],
         image_textures,
-        skeleton: None,
     })
 }
 

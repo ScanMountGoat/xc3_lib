@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::gltf::texture::{
     albedo_generated_key, metallic_roughness_generated_key, normal_generated_key, TextureCache,
 };
-use crate::{AddressMode, ImageTexture, ModelRoot, Sampler};
+use crate::{AddressMode, ImageTexture, MapRoot, ModelRoot, Sampler};
 use gltf::json::validation::Checked::Valid;
 
 use super::texture::{GeneratedImageKey, ImageIndex};
@@ -31,34 +31,57 @@ pub fn create_materials(
     let mut samplers = Vec::new();
 
     for (root_index, root) in roots.iter().enumerate() {
+        add_models(
+            &root.models,
+            &mut samplers,
+            texture_cache,
+            &mut textures,
+            &mut materials,
+            &mut material_indices,
+            &root.image_textures,
+            root_index,
+            0,
+            0,
+        );
+    }
+
+    // TODO: proper sampler support for camdo?
+    if samplers.is_empty() {
+        samplers.push(gltf_json::texture::Sampler::default());
+    }
+
+    (materials, material_indices, textures, samplers)
+}
+
+pub fn create_map_materials(
+    roots: &[MapRoot],
+    texture_cache: &mut TextureCache,
+) -> (
+    Vec<gltf::json::Material>,
+    BTreeMap<MaterialKey, usize>,
+    Vec<gltf::json::Texture>,
+    Vec<gltf::json::texture::Sampler>,
+) {
+    let mut materials = Vec::new();
+    let mut material_indices = BTreeMap::new();
+    let mut textures = Vec::new();
+    let mut samplers = Vec::new();
+
+    for (root_index, root) in roots.iter().enumerate() {
         for (group_index, group) in root.groups.iter().enumerate() {
             for (models_index, models) in group.models.iter().enumerate() {
-                // Each Models has its own separately indexed samplers.
-                let sampler_base_index = samplers.len();
-                samplers.extend(models.samplers.iter().map(create_sampler));
-
-                for (material_index, material) in models.materials.iter().enumerate() {
-                    let material = create_material(
-                        material,
-                        texture_cache,
-                        &mut textures,
-                        root_index,
-                        sampler_base_index,
-                        &root.image_textures,
-                    );
-                    let material_flattened_index = materials.len();
-                    materials.push(material);
-
-                    material_indices.insert(
-                        MaterialKey {
-                            root_index,
-                            group_index,
-                            models_index,
-                            material_index,
-                        },
-                        material_flattened_index,
-                    );
-                }
+                add_models(
+                    models,
+                    &mut samplers,
+                    texture_cache,
+                    &mut textures,
+                    &mut materials,
+                    &mut material_indices,
+                    &root.image_textures,
+                    root_index,
+                    group_index,
+                    models_index,
+                );
             }
         }
     }
@@ -69,6 +92,46 @@ pub fn create_materials(
     }
 
     (materials, material_indices, textures, samplers)
+}
+
+fn add_models(
+    models: &crate::Models,
+    samplers: &mut Vec<gltf_json::texture::Sampler>,
+    texture_cache: &mut TextureCache,
+    textures: &mut Vec<gltf_json::Texture>,
+    materials: &mut Vec<gltf_json::Material>,
+    material_indices: &mut BTreeMap<MaterialKey, usize>,
+    image_textures: &[ImageTexture],
+    root_index: usize,
+    group_index: usize,
+    models_index: usize,
+) {
+    // Each Models has its own separately indexed samplers.
+    let sampler_base_index = samplers.len();
+    samplers.extend(models.samplers.iter().map(create_sampler));
+
+    for (material_index, material) in models.materials.iter().enumerate() {
+        let material = create_material(
+            material,
+            texture_cache,
+            textures,
+            root_index,
+            sampler_base_index,
+            image_textures,
+        );
+        let material_flattened_index = materials.len();
+        materials.push(material);
+
+        material_indices.insert(
+            MaterialKey {
+                root_index,
+                group_index,
+                models_index,
+                material_index,
+            },
+            material_flattened_index,
+        );
+    }
 }
 
 fn create_sampler(sampler: &Sampler) -> gltf::json::texture::Sampler {

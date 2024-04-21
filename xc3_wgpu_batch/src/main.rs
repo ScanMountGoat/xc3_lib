@@ -143,19 +143,23 @@ fn main() {
             }
 
             println!("{:?}", model_path);
-            let roots = match cli.extension {
+            let groups = match cli.extension {
                 FileExtension::Wimdo | FileExtension::Pcmdo => {
-                    vec![xc3_model::load_model(model_path, database.as_ref()).unwrap()]
+                    let root = xc3_model::load_model(model_path, database.as_ref()).unwrap();
+                    frame_model_bounds(&queue, &root, &mut renderer);
+                    xc3_wgpu::load_model(&device, &queue, &[root], &monolib_shader)
                 }
                 FileExtension::Wismhd => {
-                    xc3_model::load_map(model_path, database.as_ref()).unwrap()
+                    let roots = xc3_model::load_map(model_path, database.as_ref()).unwrap();
+                    frame_map_bounds(&queue, &roots, &mut renderer);
+                    xc3_wgpu::load_map(&device, &queue, &roots, &monolib_shader)
                 }
-                FileExtension::Camdo => vec![xc3_model::load_model_legacy(model_path)],
+                FileExtension::Camdo => {
+                    let root = xc3_model::load_model_legacy(model_path);
+                    frame_model_bounds(&queue, &root, &mut renderer);
+                    xc3_wgpu::load_model(&device, &queue, &[root], &monolib_shader)
+                }
             };
-
-            frame_model_bounds(&queue, &roots, &mut renderer);
-
-            let groups = xc3_wgpu::load_model(&device, &queue, &roots, &monolib_shader);
 
             if cli.anim {
                 // Search for paths with non empty anims using in game naming conventions.
@@ -207,9 +211,13 @@ fn apply_anim(queue: &wgpu::Queue, groups: &[xc3_wgpu::ModelGroup], path: &Path)
 
 fn frame_model_bounds(
     queue: &wgpu::Queue,
-    roots: &[xc3_model::ModelRoot],
+    root: &xc3_model::ModelRoot,
     renderer: &mut Xc3Renderer,
 ) {
+    frame_bounds(queue, renderer, root.models.min_xyz, root.models.max_xyz);
+}
+
+fn frame_map_bounds(queue: &wgpu::Queue, roots: &[xc3_model::MapRoot], renderer: &mut Xc3Renderer) {
     let min_xyz = roots
         .iter()
         .flat_map(|r| {
@@ -230,6 +238,10 @@ fn frame_model_bounds(
         .reduce(Vec3::max)
         .unwrap();
 
+    frame_bounds(queue, renderer, min_xyz, max_xyz);
+}
+
+fn frame_bounds(queue: &wgpu::Queue, renderer: &mut Xc3Renderer, min_xyz: Vec3, max_xyz: Vec3) {
     let center = (min_xyz + max_xyz) / 2.0;
     let bounds_size = max_xyz - min_xyz;
 

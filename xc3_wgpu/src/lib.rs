@@ -54,7 +54,7 @@ mod texture;
 
 use encase::{internal::WriteInto, ShaderSize, ShaderType, StorageBuffer, UniformBuffer};
 pub use material::Material;
-pub use model::{load_model, Mesh, Model, ModelBuffers, ModelGroup, Models};
+pub use model::{load_map, load_model, Mesh, Model, ModelBuffers, ModelGroup, Models};
 pub use monolib::MonolibShaderTextures;
 pub use renderer::{CameraData, RenderMode, Xc3Renderer};
 use wgpu::util::DeviceExt;

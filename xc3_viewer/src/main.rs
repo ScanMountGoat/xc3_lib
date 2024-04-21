@@ -165,12 +165,7 @@ impl<'a> State<'a> {
                 let roots = xc3_model::load_map(model_path, database.as_ref())
                     .with_context(|| format!("failed to load .wismhd map from {model_path:?}"))?;
                 info!("Load {} roots: {:?}", roots.len(), start.elapsed());
-                Ok(xc3_wgpu::load_model(
-                    &device,
-                    &queue,
-                    &roots,
-                    &monolib_shader,
-                ))
+                Ok(xc3_wgpu::load_map(&device, &queue, &roots, &monolib_shader))
             }
             ext => Err(anyhow!(format!("unrecognized file extension {ext}"))),
         }

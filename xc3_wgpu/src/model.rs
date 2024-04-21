@@ -33,6 +33,20 @@ pub struct ModelBuffers {
     index_buffers: Vec<IndexBuffer>,
 }
 
+impl ModelBuffers {
+    fn from_buffers(device: &wgpu::Device, buffers: &xc3_model::vertex::ModelBuffers) -> Self {
+        // TODO: How to handle vertex buffers being used with multiple skeletons?
+        let vertex_buffers = model_vertex_buffers(device, buffers);
+        let index_buffers = model_index_buffers(device, buffers);
+
+        // TODO: Each vertex buffer needs its own transformed matrices?
+        Self {
+            vertex_buffers,
+            index_buffers,
+        }
+    }
+}
+
 // TODO: aabb tree for culling?
 pub struct Models {
     pub models: Vec<Model>,
@@ -46,6 +60,71 @@ pub struct Models {
 
     // Cache pipelines by their creation parameters.
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
+}
+
+impl Models {
+    fn from_models(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        models: &xc3_model::Models,
+        buffers: &[xc3_model::vertex::ModelBuffers],
+        skeleton: Option<&xc3_model::Skeleton>,
+        pipeline_data: &ModelPipelineData,
+        textures: &[wgpu::Texture],
+        image_textures: &[ImageTexture],
+        monolib_shader: &MonolibShaderTextures,
+    ) -> Self {
+        // In practice, weights are only used for wimdo files with one Models and one Model.
+        // TODO: How to enforce this assumption?
+        // TODO: Avoid clone.
+        // Reindex to match the ordering defined in the current skeleton.
+        let weights = buffers.first().and_then(|b| b.weights.as_ref());
+        let bone_names: Vec<_> = skeleton
+            .as_ref()
+            .map(|s| s.bones.iter().map(|b| b.name.clone()).collect())
+            .unwrap_or_default();
+
+        let base_lod_indices = models.base_lod_indices.clone();
+        let morph_controller_names = models.morph_controller_names.clone();
+        let animation_morph_names = models.animation_morph_names.clone();
+
+        let bounds = Bounds::new(device, models.max_xyz, models.min_xyz, &Mat4::IDENTITY);
+
+        let samplers: Vec<_> = models
+            .samplers
+            .iter()
+            .map(|s| create_sampler(device, s))
+            .collect();
+
+        let (materials, pipelines) = materials(
+            device,
+            queue,
+            pipeline_data,
+            &models.materials,
+            textures,
+            &samplers,
+            image_textures,
+            monolib_shader,
+        );
+
+        // TODO: Avoid clone?
+        let models = models
+            .models
+            .iter()
+            .map(|model| create_model(device, model, buffers, &materials, weights, &bone_names))
+            .collect();
+
+        // TODO: Store the samplers?
+        Self {
+            models,
+            materials,
+            pipelines,
+            base_lod_indices,
+            morph_controller_names,
+            animation_morph_names,
+            bounds,
+        }
+    }
 }
 
 pub struct Model {
@@ -369,7 +448,44 @@ pub fn load_model(
 
     let mut groups = Vec::new();
     for root in roots {
-        let textures = load_textures(device, queue, root);
+        let textures = load_textures(device, queue, &root.image_textures);
+        // TODO: Avoid clone?
+        let group = create_model_group(
+            device,
+            queue,
+            &xc3_model::ModelGroup {
+                models: vec![root.models.clone()],
+                buffers: vec![root.buffers.clone()],
+            },
+            &textures,
+            &root.image_textures,
+            &pipeline_data,
+            root.skeleton.as_ref(),
+            monolib_shader,
+        );
+        groups.push(group);
+    }
+
+    info!("Load {} model groups: {:?}", roots.len(), start.elapsed());
+
+    groups
+}
+
+#[tracing::instrument(skip_all)]
+pub fn load_map(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    roots: &[xc3_model::MapRoot],
+    monolib_shader: &MonolibShaderTextures,
+) -> Vec<ModelGroup> {
+    let start = std::time::Instant::now();
+
+    // Compile shaders only once to improve loading times.
+    let pipeline_data = ModelPipelineData::new(device);
+
+    let mut groups = Vec::new();
+    for root in roots {
+        let textures = load_textures(device, queue, &root.image_textures);
         groups.par_extend(root.groups.par_iter().map(|group| {
             create_model_group(
                 device,
@@ -378,7 +494,7 @@ pub fn load_model(
                 &textures,
                 &root.image_textures,
                 &pipeline_data,
-                root.skeleton.clone(),
+                None,
                 monolib_shader,
             )
         }));
@@ -393,10 +509,9 @@ pub fn load_model(
 fn load_textures(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-    root: &xc3_model::ModelRoot,
+    image_textures: &[xc3_model::ImageTexture],
 ) -> Vec<wgpu::Texture> {
-    // TODO: Store the texture usage?
-    root.image_textures
+    image_textures
         .iter()
         .map(|texture| create_texture(device, queue, texture))
         .collect()
@@ -411,91 +526,10 @@ fn create_model_group(
     textures: &[wgpu::Texture],
     image_textures: &[ImageTexture],
     pipeline_data: &ModelPipelineData,
-    skeleton: Option<xc3_model::Skeleton>,
+    skeleton: Option<&xc3_model::Skeleton>,
     monolib_shader: &MonolibShaderTextures,
 ) -> ModelGroup {
-    let buffers: Vec<_> = group
-        .buffers
-        .iter()
-        .map(|buffers| {
-            // TODO: How to handle vertex buffers being used with multiple skeletons?
-            let vertex_buffers = model_vertex_buffers(device, buffers);
-            let index_buffers = model_index_buffers(device, buffers);
-
-            // TODO: Each vertex buffer needs its own transformed matrices?
-            ModelBuffers {
-                vertex_buffers,
-                index_buffers,
-            }
-        })
-        .collect();
-
-    // In practice, weights are only used for wimdo files with one Models and one Model.
-    // TODO: How to enforce this assumption?
-    // TODO: Avoid clone.
-    // Reindex to match the ordering defined in the current skeleton.
-    let weights = group.buffers.first().and_then(|b| b.weights.as_ref());
-    let bone_names: Vec<_> = skeleton
-        .as_ref()
-        .map(|s| s.bones.iter().map(|b| b.name.clone()).collect())
-        .unwrap_or_default();
-
-    let models = group
-        .models
-        .iter()
-        .map(|models| {
-            let base_lod_indices = models.base_lod_indices.clone();
-            let morph_controller_names = models.morph_controller_names.clone();
-            let animation_morph_names = models.animation_morph_names.clone();
-
-            let bounds = Bounds::new(device, models.max_xyz, models.min_xyz, &Mat4::IDENTITY);
-
-            let samplers: Vec<_> = models
-                .samplers
-                .iter()
-                .map(|s| create_sampler(device, s))
-                .collect();
-
-            let (materials, pipelines) = materials(
-                device,
-                queue,
-                pipeline_data,
-                &models.materials,
-                textures,
-                &samplers,
-                image_textures,
-                monolib_shader,
-            );
-
-            let models = models
-                .models
-                .iter()
-                .map(|model| {
-                    create_model(
-                        device,
-                        model,
-                        &group.buffers,
-                        &materials,
-                        weights,
-                        &bone_names,
-                    )
-                })
-                .collect();
-
-            // TODO: Store the samplers?
-            Models {
-                models,
-                materials,
-                pipelines,
-                base_lod_indices,
-                morph_controller_names,
-                animation_morph_names,
-                bounds,
-            }
-        })
-        .collect();
-
-    let (per_group, per_group_buffer) = per_group_bind_group(device, skeleton.as_ref());
+    let (per_group, per_group_buffer) = per_group_bind_group(device, skeleton);
 
     // TODO: Create helper ext method in lib.rs?
     let bone_transforms = skeleton
@@ -510,12 +544,36 @@ fn create_model_group(
         usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
     });
 
+    let buffers = group
+        .buffers
+        .iter()
+        .map(|buffers| ModelBuffers::from_buffers(device, buffers))
+        .collect();
+
+    let models = group
+        .models
+        .iter()
+        .map(|models| {
+            Models::from_models(
+                device,
+                queue,
+                models,
+                &group.buffers,
+                skeleton,
+                pipeline_data,
+                textures,
+                image_textures,
+                monolib_shader,
+            )
+        })
+        .collect();
+
     ModelGroup {
         models,
         buffers,
         per_group,
         per_group_buffer,
-        skeleton,
+        skeleton: skeleton.cloned(),
         bone_animated_transforms,
         bone_count,
     }

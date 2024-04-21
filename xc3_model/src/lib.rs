@@ -85,11 +85,15 @@ pub mod skinning;
 mod texture;
 pub mod vertex;
 
+// TODO: Document why these are different.
 // TODO: Come up with a better name
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct ModelRoot {
-    pub groups: Vec<ModelGroup>,
+    pub models: Models,
+    /// The vertex data for each [Model].
+    pub buffers: ModelBuffers,
+
     /// The textures selected by each [Material].
     /// This includes all packed and embedded textures after
     /// combining all mip levels.
@@ -97,6 +101,17 @@ pub struct ModelRoot {
 
     // TODO: Do we even need to store the skinning if the weights already have the skinning bone name list?
     pub skeleton: Option<Skeleton>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, PartialEq, Clone)]
+pub struct MapRoot {
+    pub groups: Vec<ModelGroup>,
+
+    /// The textures selected by each [Material].
+    /// This includes all packed and embedded textures after
+    /// combining all mip levels.
+    pub image_textures: Vec<ImageTexture>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -444,7 +459,7 @@ fn load_chr(wimdo_path: &Path, model_name: String) -> Option<Sar1> {
     // TODO: Does every wimdo have a chr file?
     // TODO: Does something control the chr name used?
     // TODO: This won't load the base skeleton chr for xc3.
-    let chr = Sar1::from_file(wimdo_path.with_extension("chr"))
+    Sar1::from_file(wimdo_path.with_extension("chr"))
         .ok()
         .or_else(|| Sar1::from_file(wimdo_path.with_extension("arc")).ok())
         .or_else(|| {
@@ -457,8 +472,7 @@ fn load_chr(wimdo_path: &Path, model_name: String) -> Option<Sar1> {
                 let chr_path = wimdo_path.with_file_name(chr_name).with_extension("chr");
                 Sar1::from_file(chr_path).ok()
             })
-        });
-    chr
+        })
 }
 
 // TODO: separate legacy module with its own error type?
@@ -512,12 +526,9 @@ impl ModelRoot {
 
         let image_textures = load_textures(&streaming_data.textures)?;
 
-        // TODO: Find a way to specify at the type level that this has only one element?
         Ok(Self {
-            groups: vec![ModelGroup {
-                models: vec![models],
-                buffers: vec![buffers],
-            }],
+            models,
+            buffers,
             image_textures,
             skeleton,
         })
@@ -538,12 +549,9 @@ impl ModelRoot {
 
         let image_textures = load_textures_legacy(mxmd, casmt);
 
-        // TODO: Find a way to specify at the type level that this has only one element?
         Ok(Self {
-            groups: vec![ModelGroup {
-                models: vec![models],
-                buffers: vec![buffers],
-            }],
+            models,
+            buffers,
             image_textures,
             skeleton: Some(skeleton),
         })
@@ -571,15 +579,14 @@ impl ModelRoot {
             .map(ImageTexture::extracted_texture)
             .collect();
 
-        // TODO: Create a separate root type that enforces this structure?
-        let new_vertex = self.groups[0].buffers[0].to_vertex_data().unwrap();
+        let new_vertex = self.buffers.to_vertex_data().unwrap();
 
         let mut new_mxmd = mxmd.clone();
 
         // TODO: Rebuild materials.
         // TODO: How many of these mesh fields can use a default value?
-        let models = &self.groups[0].models[0];
-        new_mxmd.models.models = models
+        new_mxmd.models.models = self
+            .models
             .models
             .iter()
             .map(|model| xc3_lib::mxmd::Model {

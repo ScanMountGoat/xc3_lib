@@ -34,41 +34,43 @@ fn main() -> anyhow::Result<()> {
         .map(|p| ShaderDatabase::from_file(&p).with_context(|| format!("{p:?}")))
         .transpose()?;
 
-    let roots = match Path::new(&cli.input).extension().unwrap().to_str().unwrap() {
-        "wimdo" => {
-            let root = load_model(&cli.input, database.as_ref())
-                .with_context(|| format!("failed to load .wimdo model {:?}", cli.input))?;
-            Ok(vec![root])
-        }
-        "pcmdo" => {
-            let root = load_model(&cli.input, database.as_ref())
-                .with_context(|| format!("failed to load .pcmdo model {:?}", cli.input))?;
-            Ok(vec![root])
-        }
-        "camdo" => {
-            let root = load_model_legacy(&cli.input);
-            Ok(vec![root])
-        }
-        "wismhd" => xc3_model::load_map(&cli.input, database.as_ref())
-            .with_context(|| format!("failed to load .wismhd map {:?}", cli.input)),
-        e => Err(anyhow::anyhow!("unsupported extension {e}")),
-    }?;
-
     let name = std::path::Path::new(&cli.output)
         .file_stem()
         .unwrap()
         .to_string_lossy()
         .to_string();
 
+    let gltf = match Path::new(&cli.input).extension().unwrap().to_str().unwrap() {
+        "wimdo" => {
+            let root = load_model(&cli.input, database.as_ref())
+                .with_context(|| format!("failed to load .wimdo model {:?}", cli.input))?;
+            GltfFile::from_model(&name, &[root]).with_context(|| "failed to create glTF file")
+        }
+        "pcmdo" => {
+            let root = load_model(&cli.input, database.as_ref())
+                .with_context(|| format!("failed to load .pcmdo model {:?}", cli.input))?;
+            GltfFile::from_model(&name, &[root]).with_context(|| "failed to create glTF file")
+        }
+        "camdo" => {
+            let root = load_model_legacy(&cli.input);
+            GltfFile::from_model(&name, &[root]).with_context(|| "failed to create glTF file")
+        }
+        "wismhd" => {
+            let roots = xc3_model::load_map(&cli.input, database.as_ref())
+                .with_context(|| format!("failed to load .wismhd map {:?}", cli.input))?;
+            GltfFile::from_map(&name, &roots).with_context(|| "failed to create glTF file")
+        }
+        e => Err(anyhow::anyhow!("unsupported extension {e}")),
+    }?;
+
     if let Some(parent) = Path::new(&cli.output).parent() {
         std::fs::create_dir_all(parent)
             .with_context(|| format!("failed to create output directory {parent:?}"))?;
     }
 
-    let file = GltfFile::new(&name, &roots).with_context(|| "failed to create glTF file")?;
-    file.save(&cli.output)
+    gltf.save(&cli.output)
         .with_context(|| format!("failed to save glTF file to {:?}", &cli.output))?;
 
-    println!("Converted {} roots in {:?}", roots.len(), start.elapsed());
+    println!("Converted in {:?}", start.elapsed());
     Ok(())
 }

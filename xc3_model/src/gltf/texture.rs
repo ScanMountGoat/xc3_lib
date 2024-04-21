@@ -1,4 +1,4 @@
-use crate::{ChannelAssignment, ModelRoot, OutputAssignments};
+use crate::{ChannelAssignment, ImageTexture, OutputAssignments};
 use image_dds::image::{codecs::png::PngEncoder, RgbaImage};
 use indexmap::IndexMap;
 use ordered_float::OrderedFloat;
@@ -40,9 +40,9 @@ pub struct TextureCache {
 }
 
 impl TextureCache {
-    pub fn new(roots: &[ModelRoot]) -> Self {
+    pub fn new<'a>(root_textures: impl Iterator<Item = &'a Vec<ImageTexture>>) -> Self {
         // Get the base images used for channel reconstruction.
-        let original_images = create_images(roots);
+        let original_images = create_images(root_textures);
 
         Self {
             generated_texture_indices: IndexMap::new(),
@@ -370,24 +370,21 @@ fn material_texture_index(sampler: &str) -> Option<usize> {
     }
 }
 
-pub fn create_images(roots: &[ModelRoot]) -> IndexMap<ImageKey, RgbaImage> {
+pub fn create_images<'a>(
+    root_textures: impl Iterator<Item = &'a Vec<ImageTexture>>,
+) -> IndexMap<ImageKey, RgbaImage> {
     let mut png_images = IndexMap::new();
-    for (root_index, root) in roots.iter().enumerate() {
+    for (root_index, image_textures) in root_textures.into_iter().enumerate() {
         // Decode images in parallel to boost performance.
-        png_images.par_extend(
-            root.image_textures
-                .par_iter()
-                .enumerate()
-                .map(|(i, texture)| {
-                    // Convert to PNG since DDS is not well supported.
-                    let image = texture.to_image().unwrap();
-                    let key = ImageKey {
-                        root_index,
-                        image_index: i,
-                    };
-                    (key, image)
-                }),
-        );
+        png_images.par_extend(image_textures.par_iter().enumerate().map(|(i, texture)| {
+            // Convert to PNG since DDS is not well supported.
+            let image = texture.to_image().unwrap();
+            let key = ImageKey {
+                root_index,
+                image_index: i,
+            };
+            (key, image)
+        }));
     }
     png_images
 }
