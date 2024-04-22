@@ -8,7 +8,10 @@
 //! | Xenoblade Chronicles 1 DE | 10001, 10003 | `menu/image/*.wilay` |
 //! | Xenoblade Chronicles 2 | 10001 | `menu/image/*.wilay` |
 //! | Xenoblade Chronicles 3 | 10003 | `menu/image/*.wilay` |
-use std::{collections::HashMap, io::Cursor};
+use std::{
+    collections::HashMap,
+    io::{Cursor, SeekFrom},
+};
 
 use crate::{
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
@@ -33,7 +36,6 @@ pub struct Dhal {
     pub unk0: Unk0,
 
     #[br(temp, restore_position)]
-    #[xc3(skip)]
     offset: u32,
 
     // TODO: alignment is sometimes 16?
@@ -243,6 +245,9 @@ pub struct Unk4 {
 
     pub unk1: u32, // 0
 
+    #[br(temp, restore_position)]
+    unk2_offset: u32,
+
     #[br(parse_with = parse_offset32_count32)]
     #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(offset_count(u32, u32), align(2))]
@@ -277,6 +282,9 @@ pub struct Unk4 {
     #[xc3(offset(u32), align(64))]
     pub unk7: Option<[[f32; 4]; 8]>,
 
+    #[br(temp, restore_position)]
+    extra_offset: u32,
+
     // TODO: Is this the right check?
     #[br(if(version > 10001))]
     #[br(args_raw(base_offset))]
@@ -285,6 +293,12 @@ pub struct Unk4 {
     // TODO: Should xc3 be treated as a separate format?
     #[br(if(offset >= 112))]
     pub unk: Option<[u32; 3]>,
+
+    // TODO: Find a cleaner way of presering the underlying data.
+    #[br(seek_before = SeekFrom::Start(base_offset + unk2.len() as u64 * 64 + unk2_offset as u64))]
+    #[br(count = extra_offset as usize - unk2.len() * 64 - unk2_offset as usize)]
+    #[xc3(save_position(false))]
+    pub buffer: Vec<u8>,
 }
 
 // TODO: shared section for string keys and values?
@@ -351,74 +365,25 @@ pub struct Unk4Extra {
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-#[br(import_raw(base_offset: u64))]
+#[br(import_raw(_base_offset: u64))]
 pub struct Unk4Unk2 {
-    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
-    #[xc3(count_offset(u32, u32), align(2))]
-    pub unk1: Vec<u32>,
+    // TODO: count offset for u32?
+    pub unk1: u32,
+    pub unk2: u32,
 
-    // TODO: Can these lengths be inferred without looking at offsets?
-    #[br(temp, restore_position)]
-    #[xc3(skip)]
-    offsets: [u32; 5],
-
-    #[br(parse_with = parse_opt_ptr32)]
-    #[br(args {
-        offset: base_offset,
-        inner: args! {
-            count: if offsets[1] > 0 { (offsets[1] - offsets[0]) as usize / 4 } else { 2 }
-        }
-    })]
-    #[xc3(offset(u32), align(4))]
-    pub unk3: Option<Vec<f32>>,
+    // TODO: floats?
+    pub unk3: u32,
 
     // TODO: count depends on unk1 length?
     // TODO: Why is unk5 only present sometimes?
     // TODO: Better way to check than finding the next non null offset?
-    #[br(parse_with = parse_opt_ptr32)]
-    #[br(args {
-        offset: base_offset,
-        inner: args! {
-            count: if let Some(next) = offsets[2..].iter().find(|o| **o != 0) {
-                (next - offsets[1]) as usize / 4
-            } else {
-                0
-            }
-        }
-    })]
-    #[xc3(offset(u32), align(4))]
-    pub unk4: Option<Vec<u32>>,
-
-    // TODO: count depends on unk1 length?
-    #[br(parse_with = parse_opt_ptr32)]
-    #[br(args {
-        offset: base_offset,
-        inner: args! { count: (offsets[4] - offsets[2]) as usize / 4 }
-    })]
-    #[xc3(offset(u32), align(4))]
-    pub unk5: Option<Vec<u32>>,
-
-    pub unk6: u32, // TODO: always 0?
-
-    #[br(parse_with = parse_opt_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: unk1.len().next_multiple_of(4) / 4 }})]
-    #[xc3(offset(u32), align(2))]
-    pub unk7: Option<Vec<u32>>,
-
-    #[br(parse_with = parse_opt_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: unk1.len() }})]
-    #[xc3(offset(u32), align(4))]
-    pub unk8: Option<Vec<u8>>,
-
-    #[br(parse_with = parse_opt_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: unk1.len() }})]
-    #[xc3(offset(u32), align(4))]
-    pub unk9: Option<Vec<u8>>,
-
-    #[br(parse_with = parse_opt_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: unk1.len() }})]
-    #[xc3(offset(u32), align(4))]
-    pub unk10: Option<Vec<u8>>,
+    pub unk4: u32,
+    pub unk5: u32,
+    pub unk6: u32,
+    pub unk7: u32,
+    pub unk8: u32,
+    pub unk9: u32,
+    pub unk10: u32,
 
     pub unk11: u32,
     pub unk12: u32, // 0
@@ -727,20 +692,11 @@ impl<'a> Xc3WriteOffsets for Unk4Offsets<'a> {
         // Different order than field order.
         let base_offset = self.base_offset;
 
-        let unk2s = self.unk2.write(writer, base_offset, data_ptr)?;
-        for unk2 in &unk2s.0 {
-            unk2.unk1.write_full(writer, base_offset, data_ptr)?;
-        }
-        // TODO: This doesn't always work properly?
-        for unk2 in &unk2s.0 {
-            unk2.unk3.write_full(writer, base_offset, data_ptr)?;
-            unk2.unk4.write_full(writer, base_offset, data_ptr)?;
-            unk2.unk5.write_full(writer, base_offset, data_ptr)?;
-            unk2.unk7.write_full(writer, base_offset, data_ptr)?;
-            unk2.unk8.write_full(writer, base_offset, data_ptr)?;
-            unk2.unk9.write_full(writer, base_offset, data_ptr)?;
-            unk2.unk10.write_full(writer, base_offset, data_ptr)?;
-        }
+        self.unk2.write_full(writer, base_offset, data_ptr)?;
+
+        // TODO: Figure out the fields stored in this buffer.
+        writer.write_all(self.buffer.data)?;
+        *data_ptr = (*data_ptr).max(writer.stream_position()?);
 
         self.extra.write_offsets(writer, base_offset, data_ptr)?;
         self.unk7.write_full(writer, base_offset, data_ptr)?;

@@ -1,5 +1,5 @@
 use proc_macro2::{Ident, TokenStream};
-use syn::{parenthesized, Attribute, LitInt, Token};
+use syn::{parenthesized, Attribute, LitBool, LitInt, Token};
 
 pub struct FieldOptions {
     pub field_type: Option<FieldType>,
@@ -15,8 +15,7 @@ pub struct Padding {
 
 // TODO: Separate count field similar to #[bw(calc(...))]?
 pub enum FieldType {
-    Skip,
-    SavePosition,
+    SavePosition(bool),
     SharedOffset,
     Offset(Ident),
     OffsetCount(Ident, Ident),
@@ -56,11 +55,10 @@ impl FieldOptions {
                         // #[xc3(shared_offset)]
                         field_type = Some(FieldType::SharedOffset);
                     } else if meta.path.is_ident("save_position") {
-                        // #[xc3(save_position)]
-                        field_type = Some(FieldType::SavePosition);
-                    } else if meta.path.is_ident("skip") {
-                        // #[xc3(skip)]
-                        field_type = Some(FieldType::Skip);
+                        // #[xc3(save_position(true))]
+                        // #[xc3(save_position(false))]
+                        let skip = parse_bool(&meta)?;
+                        field_type = Some(FieldType::SavePosition(skip));
                     }
                     Ok(())
                 });
@@ -80,6 +78,13 @@ fn parse_u64(meta: &syn::meta::ParseNestedMeta<'_>) -> Result<u64, syn::Error> {
     parenthesized!(content in meta.input);
     let lit: LitInt = content.parse().unwrap();
     lit.base10_parse()
+}
+
+fn parse_bool(meta: &syn::meta::ParseNestedMeta<'_>) -> Result<bool, syn::Error> {
+    let content;
+    parenthesized!(content in meta.input);
+    let lit: LitBool = content.parse().unwrap();
+    Ok(lit.value)
 }
 
 fn parse_padding(meta: &syn::meta::ParseNestedMeta<'_>) -> Result<Padding, syn::Error> {

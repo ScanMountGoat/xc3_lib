@@ -9,7 +9,7 @@ struct A {
     b: u8,
     c: Vec<i8>,
     d: String,
-    #[xc3(skip)]
+    #[xc3(saved_position(false))]
     _e: f32,
 }
 

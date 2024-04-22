@@ -30,7 +30,6 @@ pub struct Lagp {
     pub unk0: u32, // 0, 64, 256, 320?
 
     #[br(temp, restore_position)]
-    #[xc3(skip)]
     offset: u32,
 
     #[br(parse_with = parse_ptr32)]

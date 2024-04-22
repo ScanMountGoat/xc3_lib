@@ -579,7 +579,6 @@ pub struct Models {
     pub min_xyz: [f32; 3],
 
     #[br(temp, restore_position)]
-    #[xc3(skip)]
     models_offset: u32,
 
     #[br(parse_with = parse_offset32_count32, args { offset: base_offset, inner: base_offset })]
