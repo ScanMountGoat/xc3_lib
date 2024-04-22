@@ -450,10 +450,6 @@ fn read_wismt_single_tex(path: &Path) -> (Vec<u8>, Mibl) {
 
     let decompressed = xbc1.decompress().unwrap();
 
-    if xc3_lib::hash::hash_crc(&decompressed) != xbc1.decompressed_hash {
-        println!("Incorrect xbc1 hash for {path:?}");
-    }
-
     // TODO: Test merging.
     let mibl_m = Mibl::from_bytes(&decompressed).unwrap();
     (decompressed, mibl_m)
