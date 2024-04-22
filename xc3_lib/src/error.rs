@@ -12,4 +12,7 @@ pub enum DecompressStreamError {
 
     #[error("error reading stream data")]
     Binrw(#[from] binrw::Error),
+
+    #[error("checksum verification failed")]
+    Checksum(Vec<u8>),
 }

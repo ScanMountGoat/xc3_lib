@@ -118,19 +118,23 @@ impl Xbc1 {
     /// Decompresses the data in [compressed_stream](#strutfield.compressed_stream)
     /// using the appropriate algorithm.
     pub fn decompress(&self) -> Result<Vec<u8>, DecompressStreamError> {
-        match self.compression_type {
+        let decompressed = match self.compression_type {
             CompressionType::Uncompressed => Ok(self.compressed_stream.clone()),
             CompressionType::Zlib => {
                 let mut decoder = DeflateDecoder::new_with_options(
                     &self.compressed_stream,
                     DeflateOptions::default().set_size_hint(self.decompressed_size as usize),
                 );
-                decoder.decode_zlib().map_err(Into::into)
+                decoder.decode_zlib().map_err(DecompressStreamError::from)
             }
-            CompressionType::Zstd => {
-                zstd::stream::decode_all(Cursor::new(&self.compressed_stream)).map_err(Into::into)
-            }
+            CompressionType::Zstd => zstd::stream::decode_all(Cursor::new(&self.compressed_stream))
+                .map_err(DecompressStreamError::from),
+        }?;
+        let decompressed_hash = hash_crc(&decompressed);
+        if decompressed_hash != self.decompressed_hash {
+            return Err(DecompressStreamError::Checksum(decompressed));
         }
+        Ok(decompressed)
     }
 
     /// Decompress and read the data by assuming ZLIB compression.
