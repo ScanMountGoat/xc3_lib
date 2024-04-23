@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Optimized performance of `Msrd::from_extracted_files` using multithreading.
 * Changed the WeightIndex attribute to use `[u16; 2]` to better reflect in game data and avoid indexing errors.
 * Separate `xc3_model::ModelRoot` into `xc3_model::ModelRoot` and `xc3_model::MapRoot` to better reflect in game data.
+* Changed the output of xc3_tex for LAPS wilay files to indicate that there are no images instead of an error.
 
 ### Fixed
 * Fixed an issue where some glTF files exported by xc3_gltf would not load in glTF viewers or programs like Unreal Engine 5 due to validation errors.

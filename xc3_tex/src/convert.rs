@@ -8,6 +8,7 @@ use xc3_lib::{
     dds::DdsExt,
     dhal::Dhal,
     lagp::Lagp,
+    laps::Laps,
     mibl::Mibl,
     msrd::{
         streaming::{chr_tex_nx_folder, HighTexture},
@@ -34,6 +35,7 @@ pub enum File {
 pub enum Wilay {
     Dhal(Dhal),
     Lagp(Lagp),
+    Laps(Laps),
 }
 
 impl File {
@@ -166,6 +168,7 @@ pub fn update_wilay_from_folder(
     output: &str,
 ) -> anyhow::Result<usize> {
     // Replace existing images in a .wilay file.
+    // LAPS files have no images to replace.
     // TODO: Error if indices are out of range?
     let mut wilay = MaybeXbc1::<Wilay>::from_file(input)?;
     let mut count = 0;
@@ -179,6 +182,7 @@ pub fn update_wilay_from_folder(
                 replace_lagp_textures(lagp, &mut count, input, input_folder)?;
                 lagp.save(output)?;
             }
+            Wilay::Laps(_) => (),
         },
         MaybeXbc1::Xbc1(xbc1) => {
             let mut wilay: Wilay = xbc1.extract()?;
@@ -193,6 +197,7 @@ pub fn update_wilay_from_folder(
                     let xbc1 = Xbc1::new(xbc1.name.clone(), lagp, CompressionType::Zlib)?;
                     xbc1.save(output)?;
                 }
+                Wilay::Laps(_) => (),
             }
         }
     }
@@ -369,18 +374,21 @@ pub fn extract_wilay_to_folder(
     input: &Path,
     output_folder: &Path,
 ) -> anyhow::Result<usize> {
+    // LAPS wilay have no images to extract.
     let file_name = input.file_name().unwrap();
     let mut count = 0;
     match wilay {
         MaybeXbc1::Uncompressed(wilay) => match wilay {
             Wilay::Dhal(dhal) => extract_dhal(dhal, output_folder, file_name, &mut count)?,
             Wilay::Lagp(lagp) => extract_lagp(lagp, output_folder, file_name, &mut count)?,
+            Wilay::Laps(_) => (),
         },
         MaybeXbc1::Xbc1(xbc1) => {
             let wilay: Wilay = xbc1.extract()?;
             match wilay {
                 Wilay::Dhal(dhal) => extract_dhal(dhal, output_folder, file_name, &mut count)?,
                 Wilay::Lagp(lagp) => extract_lagp(lagp, output_folder, file_name, &mut count)?,
+                Wilay::Laps(_) => (),
             }
         }
     }
