@@ -83,12 +83,11 @@ pub fn materials(
                     .or_insert(new_index);
             }
 
-            // It's possible that no textures were assigned for completely unsupported models.
-            // Assign each texture by index to still be able to debug in GPU debuggers.
-            if name_to_index.is_empty() {
-                name_to_index = (0..material.textures.len())
-                    .map(|i| (format!("s{i}"), i))
-                    .collect();
+            // It's possible that some material textures had no assignment.
+            // Assign remaining textures by index to make GPU debugging easier.
+            for i in 0..material.textures.len() {
+                let new_index = name_to_index.len();
+                name_to_index.entry(format!("s{i}")).or_insert(new_index);
             }
 
             let mut texture_views: [Option<_>; 10] = std::array::from_fn(|_| None);
