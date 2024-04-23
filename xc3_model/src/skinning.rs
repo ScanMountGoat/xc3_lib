@@ -25,7 +25,7 @@ pub struct Weights {
 #[derive(Debug, PartialEq, Clone)]
 pub enum WeightGroups {
     Legacy {
-        /// Same as the indices in [Vertex](xc3_lib::mxmd::legacy::Vertex) but reindexed to start from 0.
+        /// Same as the indices in [VertexData](xc3_lib::mxmd::legacy::VertexData) but reindexed to start from 0.
         weight_buffer_indices: [usize; 6],
     },
     Groups {

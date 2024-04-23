@@ -442,7 +442,6 @@ pub fn vertex_fragment_binaries<'a>(
     nvsds
         .iter()
         .map(|nvsd| {
-            // TODO: Why is this sometimes none?
             let vertex = nvsd.vertex_binary(offset, xv4_section);
             offset += vertex.map(|v| v.len()).unwrap_or_default();
 

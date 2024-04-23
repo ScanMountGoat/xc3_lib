@@ -39,7 +39,7 @@ pub enum CreateImageTextureError {
     Mibl(#[from] xc3_lib::mibl::CreateMiblError),
 }
 
-/// A non swizzled version of an [Mibl] texture.
+/// A non swizzled version of an [Mibl] or [Mtxt] texture.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct ImageTexture {

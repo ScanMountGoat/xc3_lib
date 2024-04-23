@@ -93,7 +93,7 @@ impl Animation {
     /// and blending with vertex skin weights.
     ///
     /// The in game skinning code precomputes a slightly different matrix.
-    /// See [Weights](crate::Weights) for details.
+    /// See [Weights](crate::skinning::Weights) for details.
     pub fn skinning_transforms(&self, skeleton: &Skeleton, frame: f32) -> Vec<Mat4> {
         let anim_transforms = self.model_space_transforms(skeleton, frame);
         let bind_transforms = skeleton.model_space_transforms();
