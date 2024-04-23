@@ -201,7 +201,7 @@ pub struct UnkString(#[br(map(|x: NullString| x.to_string()))] pub String);
 // TODO: padding after some of the arrays?
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Unk13Unk1Unk4 {
@@ -239,7 +239,7 @@ pub struct Unk13Unk1Unk5 {
 
     #[br(parse_with = parse_count32_offset32)]
     #[br(args { offset: base_offset, inner: parent_base_offset })]
-    #[xc3(count_offset(u32, u32))]
+    #[xc3(count_offset(u32, u32), align(1))]
     pub items: Vec<Unk13Unk1Unk5Item>,
 }
 
@@ -319,6 +319,7 @@ impl<'a> Xc3WriteOffsets for Unk13Offsets<'a> {
             u.unk4.write_full(writer, base_offset, data_ptr)?;
             string_section.insert_offset(&u.unk7);
             if let Some(unk5) = u.unk5.write(writer, base_offset, data_ptr)? {
+                let base_offset = unk5.base_offset;
                 let items = unk5.items.write(writer, base_offset, data_ptr)?;
                 for item in items.0 {
                     string_section.insert_offset(&item.unk1);
@@ -327,6 +328,7 @@ impl<'a> Xc3WriteOffsets for Unk13Offsets<'a> {
             u.unk3.write_full(writer, base_offset, data_ptr)?;
         }
 
+        // TODO: Missing data in previous sections?
         self.unk2.write_full(writer, base_offset, data_ptr)?;
         self.unk3.write_full(writer, base_offset, data_ptr)?;
 
@@ -346,6 +348,23 @@ impl<'a> Xc3WriteOffsets for Unk13Unk1Unk3Unk2Offsets<'a> {
         let string_start = *data_ptr;
         self.unk4.write_full(writer, base_offset, data_ptr)?;
         self.unk6.write_full(writer, string_start, data_ptr)?;
+        Ok(())
+    }
+}
+
+impl<'a> Xc3WriteOffsets for Unk13Unk1Unk4Offsets<'a> {
+    fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
+        &self,
+        writer: &mut W,
+        _base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> xc3_write::Xc3Result<()> {
+        let base_offset = self.base_offset;
+        self.unk1.write_full(writer, base_offset, data_ptr)?;
+        self.unk2.write_full(writer, base_offset, data_ptr)?;
+        if !self.unk5.data.is_empty() {
+            self.unk5.write_full(writer, base_offset, data_ptr)?;
+        }
         Ok(())
     }
 }

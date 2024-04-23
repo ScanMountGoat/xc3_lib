@@ -14,8 +14,8 @@ use std::{
 };
 
 use crate::{
-    parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
-    parse_string_ptr32, xc3_write_binwrite_impl,
+    parse_offset32_count32, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
+    xc3_write_binwrite_impl,
 };
 use binrw::{args, binread, BinRead, BinWrite, NullString};
 use indexmap::IndexMap;
