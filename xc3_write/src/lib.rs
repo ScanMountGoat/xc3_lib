@@ -8,6 +8,7 @@ use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
 use std::marker::PhantomData;
+use std::ops::Deref;
 
 // io::Error supports custom error variants if needed.
 // Writing will typically only fail from io errors on the writer anyway.
@@ -278,6 +279,16 @@ where
             value.xc3_write(writer)?;
         }
         Ok(())
+    }
+}
+
+impl<T: Xc3Write> Xc3Write for Box<T> {
+    type Offsets<'a> = T::Offsets<'a>
+    where
+        Self: 'a;
+
+    fn xc3_write<W: Write + Seek>(&self, writer: &mut W) -> Xc3Result<Self::Offsets<'_>> {
+        self.deref().xc3_write(writer)
     }
 }
 

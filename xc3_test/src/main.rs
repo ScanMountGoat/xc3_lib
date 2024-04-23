@@ -12,6 +12,7 @@ use xc3_lib::{
     beb::Beb,
     bmn::Bmn,
     dhal::Dhal,
+    efb0::Efb0,
     eva::Eva,
     lagp::Lagp,
     laps::Laps,
@@ -76,6 +77,10 @@ struct Cli {
     /// Process Beb files from .beb
     #[arg(long)]
     beb: bool,
+
+    /// Process efb0 files from .wiefb
+    #[arg(long)]
+    efb0: bool,
 
     /// Process MTXT files from .catex, .calut, and .caavp
     #[arg(long)]
@@ -195,6 +200,11 @@ fn main() {
     if cli.beb || cli.all {
         println!("Checking Beb files ...");
         check_all(root, &["*.beb"], check_beb, Endian::Little, cli.rw);
+    }
+
+    if cli.efb0 || cli.all {
+        println!("Checking efb9 files ...");
+        check_all(root, &["*.weifb"], check_efb0, Endian::Little, cli.rw);
     }
 
     if cli.mtxt || cli.all {
@@ -616,8 +626,8 @@ fn is_valid_models_flags(mxmd: &Mxmd) -> bool {
 }
 
 fn check_spch(spch: Spch, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    for (i, slct) in spch.slct_offsets.iter().enumerate() {
-        match slct.read_slct(&spch.slct_section) {
+    for (i, slct_offset) in spch.slct_offsets.iter().enumerate() {
+        match slct_offset.read_slct(&spch.slct_section) {
             Ok(slct) => {
                 for (p, program) in slct.programs.iter().enumerate() {
                     // TODO: Check that the extracted binary sizes add up to the total size.
@@ -771,6 +781,16 @@ fn check_beb(beb: Beb, path: &Path, original_bytes: &[u8], check_read_write: boo
         beb.write(&mut writer).unwrap();
         if writer.into_inner() != original_bytes {
             println!("Beb read/write not 1:1 for {path:?}");
+        }
+    }
+}
+
+fn check_efb0(efb0: Efb0, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+    if check_read_write {
+        let mut writer = Cursor::new(Vec::new());
+        efb0.write(&mut writer).unwrap();
+        if writer.into_inner() != original_bytes {
+            println!("efb0 read/write not 1:1 for {path:?}");
         }
     }
 }

@@ -435,7 +435,8 @@ file_write_full_impl!(
     eva::Eva,
     lagp::Lagp,
     laps::Laps,
-    beb::Beb
+    beb::Beb,
+    efb0::Efb0
 );
 
 #[derive(Debug, Error)]
@@ -501,7 +502,8 @@ file_read_impl!(
     eva::Eva,
     lagp::Lagp,
     laps::Laps,
-    beb::Beb
+    beb::Beb,
+    efb0::Efb0
 );
 
 file_read_impl!(Endian::Big, mtxt::Mtxt, mxmd::legacy::MxmdLegacy, bmn::Bmn);
