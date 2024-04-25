@@ -46,11 +46,14 @@ pub struct MtxtFooter {
     pub size: u32, // TODO: linear or row-major size?
     pub aa_mode: u32,
     pub tile_mode: TileMode,
-    pub unk1: u32,
+    pub unk1: u32, // TODO: usually identical to swizzle?
     pub alignment: u32,
     pub pitch: u32,
-    pub unk: [u16; 26], // TODO: not always 0?
-    pub version: u32,   // 10001 or 10002?
+    /// Offset into [image_data](struct.Mtxt.html#structfield.image_data)
+    /// for each mipmap past the base level starting with mip 1.
+    /// Mipmap offsets after mip 1 are relative to the mip 1 offset.
+    pub mip_offsets: [u32; 13],
+    pub version: u32, // 10001 or 10002?
 
     #[brw(magic(b"MTXT"))]
     #[br(temp)]
@@ -119,17 +122,38 @@ impl Mtxt {
     pub fn deswizzled_image_data(&self) -> Vec<u8> {
         let (block_width, block_height) = self.footer.surface_format.block_dim();
 
+        // TODO: Add tests cases for mipmap offsets?
         // TODO: How to handle dimensions not divisible by block dimensions?
-        wiiu_swizzle::deswizzle_surface(
-            self.footer.width / block_width,
-            self.footer.height / block_height,
-            self.footer.depth_or_array_layers,
-            &self.image_data,
-            self.footer.swizzle,
-            self.footer.pitch,
-            self.footer.tile_mode.into(),
-            self.footer.surface_format.bytes_per_pixel(),
-        )
+        let mut data = Vec::new();
+        for i in 0..self.footer.mipmap_count {
+            let offset = if i == 0 {
+                // The mip 0 data is at the start of the image data.
+                0
+            } else if i == 1 {
+                // The mip 1 data is relative to the start of the image data.
+                self.footer.mip_offsets[0] as usize
+            } else {
+                // Remaining mip levels are relative to the start of mip 1.
+                self.footer.mip_offsets[0] as usize
+                    + self.footer.mip_offsets[i as usize - 1] as usize
+            };
+
+            // TODO: round up dimensions?
+            // TODO: This still isn't always correct for mipmaps?
+            let mip = wiiu_swizzle::deswizzle_surface(
+                (self.footer.width / block_width) >> i,
+                (self.footer.height / block_height) >> i,
+                self.footer.depth_or_array_layers,
+                &self.image_data[offset..],
+                self.footer.swizzle,
+                self.footer.pitch >> i,
+                self.footer.tile_mode.into(),
+                self.footer.surface_format.bytes_per_pixel(),
+            );
+            data.extend_from_slice(&mip);
+        }
+
+        data
     }
 
     /// Deswizzles all layers and mipmaps to a compatible surface for easier conversions.
@@ -147,7 +171,7 @@ impl Mtxt {
             } else {
                 1
             },
-            mipmaps: 1, // TODO: fix mipmaps
+            mipmaps: self.footer.mipmap_count,
             image_format: self.footer.surface_format.into(),
             data: self.deswizzled_image_data(),
         }
