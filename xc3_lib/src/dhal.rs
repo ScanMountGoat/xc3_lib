@@ -152,11 +152,11 @@ pub struct Unk2 {
 
     // TODO: Describes sections of buffer?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset_count(u32, u32), align(2))]
+    #[xc3(offset_count(u32, u32), align(1))]
     pub unk1: Vec<Unk2Unk1>,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset_count(u32, u32), align(2))]
+    #[xc3(offset_count(u32, u32), align(1))]
     pub unk2: Vec<Unk2Unk2>,
 
     // TODO: Infer the length somehow?

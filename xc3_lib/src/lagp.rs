@@ -37,7 +37,7 @@ pub struct Lagp {
     pub unk1: Unk1,
 
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset(u32))]
+    #[xc3(offset(u32), align(1))]
     pub unk2: Unk2,
 
     #[br(parse_with = parse_opt_ptr32)]
@@ -96,7 +96,7 @@ pub struct Unk13 {
     // TODO: type?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(1))]
-    pub unk2: Option<[u32; 40]>,
+    pub unk2: Option<[i32; 48]>,
 
     // TODO: type?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
@@ -210,18 +210,20 @@ pub struct Unk13Unk1Unk4 {
 
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32), align(1))]
-    pub unk1: Vec<[u32; 3]>,
+    pub unk1: Vec<[u32; 3]>, // [???, ???, index]
 
+    // TODO: Sometimes padded?
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32), align(1))]
     pub unk2: Vec<u16>,
 
-    pub unk3: u32,
-    pub unk4: u32,
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32), align(1))]
+    pub unk3: Vec<u16>,
 
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32), align(1))]
-    pub unk5: Vec<u16>,
+    pub unk4: Vec<u16>,
 
     // TODO: padding?
     pub unk: [u32; 8],
@@ -251,11 +253,11 @@ pub struct Unk13Unk1Unk5Item {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub unk1: String,
-    pub unk2: u32,
-    pub unk3: u32,
-    pub unk4: u32,
-    pub unk5: u32,
-    pub unk6: u32,
+    pub unk2: u32, // index?
+    pub unk3: f32,
+    pub unk4: f32,
+    pub unk5: f32,
+    pub unk6: f32,
     pub unk7: u32,
     // TODO: not in version 10002?
     pub unk8: u32,
@@ -361,9 +363,18 @@ impl<'a> Xc3WriteOffsets for Unk13Unk1Unk4Offsets<'a> {
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
         self.unk1.write_full(writer, base_offset, data_ptr)?;
-        self.unk2.write_full(writer, base_offset, data_ptr)?;
-        if !self.unk5.data.is_empty() {
-            self.unk5.write_full(writer, base_offset, data_ptr)?;
+        if !self.unk2.data.is_empty() {
+            self.unk2.write_full(writer, base_offset, data_ptr)?;
+        }
+        // TODO: Why is this needed?
+        if self.unk2.data.len() <= 1 {
+            *data_ptr += 2;
+        }
+        if !self.unk3.data.is_empty() {
+            self.unk3.write_full(writer, base_offset, data_ptr)?;
+        }
+        if !self.unk4.data.is_empty() {
+            self.unk4.write_full(writer, base_offset, data_ptr)?;
         }
         Ok(())
     }
