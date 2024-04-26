@@ -94,13 +94,15 @@ pub fn materials(
             let mut is_single_channel = [UVec4::ZERO; 10];
             for (name, i) in &name_to_index {
                 if let Some(texture) = assign_texture(material, textures, monolib_shader, name) {
-                    texture_views[*i] = Some(texture.create_view(&Default::default()));
-                    // TODO: Better way of doing this?
-                    if texture.format() == wgpu::TextureFormat::Bc4RUnorm {
-                        is_single_channel[*i] = uvec4(1, 0, 0, 0);
+                    if *i < texture_views.len() {
+                        texture_views[*i] = Some(texture.create_view(&Default::default()));
+                        // TODO: Better way of doing this?
+                        if texture.format() == wgpu::TextureFormat::Bc4RUnorm {
+                            is_single_channel[*i] = uvec4(1, 0, 0, 0);
+                        }
+                    } else {
+                        warn!("Missing texture for {name:?}. Assigning default black texture.");
                     }
-                } else {
-                    warn!("Missing texture for {name:?}. Assigning default black texture.");
                 }
             }
 

@@ -79,10 +79,9 @@ impl Models {
         // TODO: Avoid clone.
         // Reindex to match the ordering defined in the current skeleton.
         let weights = buffers.first().and_then(|b| b.weights.as_ref());
-        let bone_names: Vec<_> = skeleton
+        let bone_names: Option<Vec<_>> = skeleton
             .as_ref()
-            .map(|s| s.bones.iter().map(|b| b.name.clone()).collect())
-            .unwrap_or_default();
+            .map(|s| s.bones.iter().map(|b| b.name.clone()).collect());
 
         let base_lod_indices = models.base_lod_indices.clone();
         let morph_controller_names = models.morph_controller_names.clone();
@@ -111,7 +110,16 @@ impl Models {
         let models = models
             .models
             .iter()
-            .map(|model| create_model(device, model, buffers, &materials, weights, &bone_names))
+            .map(|model| {
+                create_model(
+                    device,
+                    model,
+                    buffers,
+                    &materials,
+                    weights,
+                    bone_names.as_deref(),
+                )
+            })
             .collect();
 
         // TODO: Store the samplers?
@@ -608,7 +616,7 @@ fn create_model(
     buffers: &[xc3_model::vertex::ModelBuffers],
     materials: &[Material],
     weights: Option<&xc3_model::skinning::Weights>,
-    bone_names: &[String],
+    bone_names: Option<&[String]>,
 ) -> Model {
     let model_buffers = &buffers[model.model_buffers_index];
 
@@ -939,7 +947,7 @@ fn per_mesh_bind_group(
     vertex_buffer_index: usize,
     material: &Material,
     weights: Option<&xc3_model::skinning::Weights>,
-    bone_names: &[String],
+    bone_names: Option<&[String]>,
 ) -> shader::model::bind_groups::BindGroup3 {
     // TODO: Fix weight indexing calculations.
     let start = buffers
@@ -962,7 +970,7 @@ fn per_mesh_bind_group(
     // TODO: How to correctly handle a missing skeleton or weights?
     let skin_weights = weights.and_then(|w| {
         let skin_weights = w.weight_buffer(flags2)?;
-        Some(skin_weights.reindex_bones(bone_names.to_vec()))
+        bone_names.map(|names| skin_weights.reindex_bones(names.to_vec()))
     });
 
     let skin_weight_count = skin_weights
