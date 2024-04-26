@@ -188,7 +188,7 @@ pub struct Technique {
     #[xc3(offset_count(u32, u32))]
     pub uniform_blocks: Vec<(u16, u16)>, // uniform blocks?
 
-    pub unk11: u32, // material texture count?
+    pub material_texture_count: u32,
 
     pub unk12: u16, // counts up from 0?
     pub unk13: u16, // unk11 + unk12?
@@ -373,7 +373,7 @@ pub struct Material {
     // TODO: rename to pipeline state?
     pub state_flags: StateFlags,
 
-    // group indices?
+    // TODO: group indices for animations?
     pub m_unks1_1: u32,
     pub m_unks1_2: u32,
     pub m_unks1_3: u32,
@@ -404,6 +404,7 @@ pub struct Material {
 
     /// Index into [alpha_test_textures](struct.Materials.html#structfield.alpha_test_textures).
     pub alpha_test_texture_index: u16,
+    // TODO: [???, gbuffer flags?, ...]
     pub m_unks3: [u16; 8],
 }
 
@@ -1167,7 +1168,7 @@ pub struct ModelUnk1 {
     // TODO: same count as track indices for xc2 extra animation for morph targets?
     #[br(parse_with = parse_offset32_count32)]
     #[br(args { offset: base_offset, inner: base_offset })]
-    #[xc3(offset_count(u32, u32))]
+    #[xc3(offset_count(u32, u32), align(16))]
     pub items1: Vec<ModelUnk1Item1>,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]

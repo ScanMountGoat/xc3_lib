@@ -276,16 +276,16 @@ impl Material {
             .map(|s| output_assignments(s, &self.parameters))
             .unwrap_or_else(|| {
                 warn!(
-                    "Inferring assignments from texture types for {:?} due to unrecognized shader",
+                    "Inferring assignments from texture names and usage types for {:?} due to unrecognized shader",
                     self.name
                 );
-                self.infer_assignment_from_usage(textures)
+                self.infer_assignment_from_textures(textures)
             })
     }
 
-    fn infer_assignment_from_usage(&self, textures: &[ImageTexture]) -> OutputAssignments {
+    fn infer_assignment_from_textures(&self, textures: &[ImageTexture]) -> OutputAssignments {
         // No assignment data is available.
-        // Guess reasonable defaults based on the texture types.
+        // Guess reasonable defaults based on the texture names or types.
         let assignment = |i: Option<usize>, c| {
             i.map(|i| ChannelAssignment::Texture {
                 name: format!("s{i}"),
@@ -316,6 +316,13 @@ impl Material {
             )
         });
 
+        let spm_index = self.textures.iter().position(|t| {
+            matches!(
+                textures.get(t.image_texture_index).and_then(|t| t.name.as_ref()),
+                Some(name) if name.ends_with("_SPM")
+            )
+        });
+
         OutputAssignments {
             assignments: [
                 OutputAssignment {
@@ -333,7 +340,12 @@ impl Material {
                 },
                 OutputAssignment::default(),
                 OutputAssignment::default(),
-                OutputAssignment::default(),
+                OutputAssignment {
+                    x: assignment(spm_index, 0),
+                    y: assignment(spm_index, 1),
+                    z: assignment(spm_index, 2),
+                    w: None,
+                },
             ],
         }
     }
