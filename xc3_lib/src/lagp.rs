@@ -58,7 +58,7 @@ pub struct Lagp {
     pub unk6: Option<Unk6>,
 
     #[br(parse_with = parse_opt_ptr32)]
-    #[xc3(offset(u32))]
+    #[xc3(offset(u32), align(1))]
     pub textures: Option<Textures>,
 
     pub unk8: u32,
@@ -100,8 +100,8 @@ pub struct Unk13 {
 
     // TODO: type?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
-    pub unk3: Option<[u16; 4]>,
+    #[xc3(offset(u32), align(1))]
+    pub unk3: Option<[u16; 5]>,
 
     // TODO: padding?
     pub unk: [u32; 4],
@@ -212,7 +212,6 @@ pub struct Unk13Unk1Unk4 {
     #[xc3(count_offset(u32, u32), align(1))]
     pub unk1: Vec<[u32; 3]>, // [???, ???, index]
 
-    // TODO: Sometimes padded?
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32), align(1))]
     pub unk2: Vec<u16>,
@@ -330,7 +329,6 @@ impl<'a> Xc3WriteOffsets for Unk13Offsets<'a> {
             u.unk3.write_full(writer, base_offset, data_ptr)?;
         }
 
-        // TODO: Missing data in previous sections?
         self.unk2.write_full(writer, base_offset, data_ptr)?;
         self.unk3.write_full(writer, base_offset, data_ptr)?;
 
@@ -365,10 +363,6 @@ impl<'a> Xc3WriteOffsets for Unk13Unk1Unk4Offsets<'a> {
         self.unk1.write_full(writer, base_offset, data_ptr)?;
         if !self.unk2.data.is_empty() {
             self.unk2.write_full(writer, base_offset, data_ptr)?;
-        }
-        // TODO: Why is this needed?
-        if self.unk2.data.len() <= 1 {
-            *data_ptr += 2;
         }
         if !self.unk3.data.is_empty() {
             self.unk3.write_full(writer, base_offset, data_ptr)?;

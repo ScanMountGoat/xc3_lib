@@ -163,7 +163,7 @@ pub struct Unk2 {
     // TODO: params with f32, f32, ..., 0xffffffff?
     // TODO: what determines the remaining data count?
     #[br(parse_with = parse_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: buffer_size(&unk1, &unk2) }})]
+    #[br(args { offset: base_offset, inner: args! { count: unk2_buffer_size(&unk1, &unk2) }})]
     #[xc3(offset(u32), align(4096))]
     pub buffer: Vec<u8>,
 
@@ -253,6 +253,9 @@ pub struct Unk4 {
     #[xc3(offset_count(u32, u32), align(2))]
     pub unk2: Vec<Unk4Unk2>,
 
+    #[br(temp, restore_position)]
+    unk4_offset: u32,
+
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub unk4: Option<Unk4Unk4>,
@@ -265,6 +268,7 @@ pub struct Unk4 {
     #[br(temp, restore_position)]
     unk5_offset: u32,
 
+    // TODO: find a better way to determine the length.
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args {
         offset: base_offset,
@@ -277,6 +281,9 @@ pub struct Unk4 {
     pub unk5: Option<Vec<Unk4Unk5>>, // items?
 
     pub unk6: u32, // 0 or 1?
+
+    #[br(temp, restore_position)]
+    unk7_offset: u32,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(64))]
@@ -294,9 +301,9 @@ pub struct Unk4 {
     #[br(if(offset >= 112))]
     pub unk: Option<[u32; 3]>,
 
-    // TODO: Find a cleaner way of presering the underlying data.
+    // TODO: Find a cleaner way of preserving the underlying data.
     #[br(seek_before = SeekFrom::Start(base_offset + unk2.len() as u64 * 64 + unk2_offset as u64))]
-    #[br(count = extra_offset as usize - unk2.len() * 64 - unk2_offset as usize)]
+    #[br(count = unk4_buffer_size(&[unk4_offset, unk5_offset, unk7_offset, extra_offset], unk2.len(), unk2_offset))]
     #[xc3(save_position(false))]
     pub buffer: Vec<u8>,
 }
@@ -716,7 +723,7 @@ impl<'a> Xc3WriteOffsets for Unk4Offsets<'a> {
     }
 }
 
-fn buffer_size(unk1: &[Unk2Unk1], unk2: &[Unk2Unk2]) -> usize {
+fn unk2_buffer_size(unk1: &[Unk2Unk1], unk2: &[Unk2Unk2]) -> usize {
     // Assume data starts from 0.
     // TODO: extra padding bytes?
     // TODO: Some items overlap?
@@ -727,4 +734,14 @@ fn buffer_size(unk1: &[Unk2Unk1], unk2: &[Unk2Unk2]) -> usize {
         .max()
         .unwrap_or_default();
     unk1_size.max(unk2_size)
+}
+
+fn unk4_buffer_size(offsets: &[u32], unk2_len: usize, unk2_offset: u32) -> usize {
+    // TODO: How to calculate the size if there are no additional offsets?
+    (next_offset(offsets) as usize).saturating_sub(unk2_len * 64 - unk2_offset as usize)
+}
+
+fn next_offset(offsets: &[u32]) -> u32 {
+    // Find the next non null offset for size estimation.
+    offsets.iter().copied().filter(|o| *o != 0).min().unwrap_or_default()
 }
