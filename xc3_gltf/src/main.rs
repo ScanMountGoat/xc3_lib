@@ -44,21 +44,23 @@ fn main() -> anyhow::Result<()> {
         "wimdo" => {
             let root = load_model(&cli.input, database.as_ref())
                 .with_context(|| format!("failed to load .wimdo model {:?}", cli.input))?;
-            GltfFile::from_model(&name, &[root]).with_context(|| "failed to create glTF file")
+            GltfFile::from_model(&name, &[root], false)
+                .with_context(|| "failed to create glTF file")
         }
         "pcmdo" => {
             let root = load_model(&cli.input, database.as_ref())
                 .with_context(|| format!("failed to load .pcmdo model {:?}", cli.input))?;
-            GltfFile::from_model(&name, &[root]).with_context(|| "failed to create glTF file")
+            GltfFile::from_model(&name, &[root], false)
+                .with_context(|| "failed to create glTF file")
         }
         "camdo" => {
             let root = load_model_legacy(&cli.input);
-            GltfFile::from_model(&name, &[root]).with_context(|| "failed to create glTF file")
+            GltfFile::from_model(&name, &[root], true).with_context(|| "failed to create glTF file")
         }
         "wismhd" => {
             let roots = xc3_model::load_map(&cli.input, database.as_ref())
                 .with_context(|| format!("failed to load .wismhd map {:?}", cli.input))?;
-            GltfFile::from_map(&name, &roots).with_context(|| "failed to create glTF file")
+            GltfFile::from_map(&name, &roots, false).with_context(|| "failed to create glTF file")
         }
         e => Err(anyhow::anyhow!("unsupported extension {e}")),
     }?;

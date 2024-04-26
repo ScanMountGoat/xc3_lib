@@ -75,7 +75,13 @@ impl GltfFile {
     ///
     /// The `model_name` is used to create resource file names and should
     /// usually match the file name for [save](GltfFile::save) without the `.gltf` extension.
-    pub fn from_model(model_name: &str, roots: &[ModelRoot]) -> Result<Self, CreateGltfError> {
+    ///
+    /// `flip_image_uvs` should only be set to `true` for Xenoblade X models.
+    pub fn from_model(
+        model_name: &str,
+        roots: &[ModelRoot],
+        flip_images_uvs: bool,
+    ) -> Result<Self, CreateGltfError> {
         let mut texture_cache = TextureCache::new(roots.iter().map(|r| &r.image_textures));
 
         let (materials, material_indices, textures, samplers) =
@@ -114,6 +120,7 @@ impl GltfFile {
                 0,
                 skin_index,
                 root.skeleton.as_ref(),
+                flip_images_uvs,
             )?;
         }
 
@@ -161,7 +168,7 @@ impl GltfFile {
             ..Default::default()
         };
 
-        let png_images = texture_cache.generate_png_images(model_name);
+        let png_images = texture_cache.generate_png_images(model_name, flip_images_uvs);
 
         Ok(Self {
             root,
@@ -176,7 +183,13 @@ impl GltfFile {
     ///
     /// The `model_name` is used to create resource file names and should
     /// usually match the file name for [save](GltfFile::save) without the `.gltf` extension.
-    pub fn from_map(model_name: &str, roots: &[MapRoot]) -> Result<Self, CreateGltfError> {
+    ///
+    /// `flip_images_uvs` should only be set to `true` for Xenoblade X maps.
+    pub fn from_map(
+        model_name: &str,
+        roots: &[MapRoot],
+        flip_images_uvs: bool,
+    ) -> Result<Self, CreateGltfError> {
         let mut texture_cache = TextureCache::new(roots.iter().map(|r| &r.image_textures));
 
         let (materials, material_indices, textures, samplers) =
@@ -204,6 +217,7 @@ impl GltfFile {
                         models_index,
                         None,
                         None,
+                        flip_images_uvs,
                     )?;
                 }
             }
@@ -252,7 +266,7 @@ impl GltfFile {
             ..Default::default()
         };
 
-        let png_images = texture_cache.generate_png_images(model_name);
+        let png_images = texture_cache.generate_png_images(model_name, flip_images_uvs);
 
         Ok(Self {
             root,
@@ -305,6 +319,7 @@ fn add_models(
     models_index: usize,
     skin_index: Option<usize>,
     skeleton: Option<&crate::skeleton::Skeleton>,
+    flip_uvs: bool,
 ) -> Result<(), CreateGltfError> {
     let mut group_children = Vec::new();
     for model in &models.models {
@@ -329,6 +344,7 @@ fn add_models(
                         group_index,
                         model.model_buffers_index,
                         mesh.vertex_buffer_index,
+                        flip_uvs,
                     )?
                     .clone();
                 let mut attributes = vertex_buffer.attributes.clone();

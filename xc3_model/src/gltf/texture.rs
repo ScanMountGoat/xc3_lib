@@ -72,12 +72,16 @@ impl TextureCache {
     }
 
     // TODO: Avoid unwrap?
-    pub fn generate_png_images(&self, model_name: &str) -> Vec<(String, Vec<u8>)> {
+    pub fn generate_png_images(
+        &self,
+        model_name: &str,
+        flip_vertical: bool,
+    ) -> Vec<(String, Vec<u8>)> {
         self.generated_texture_indices
             .par_iter()
             .map(|(key, _)| {
                 // TODO: Why does this panic?
-                let image = generate_image(*key, &self.original_images).unwrap();
+                let image = generate_image(*key, &self.original_images, flip_vertical).unwrap();
 
                 // Compress ahead of time to reduce memory usage.
                 // The final results will need to be saved as PNG anyway.
@@ -196,6 +200,7 @@ pub fn metallic_roughness_generated_key(
 fn generate_image(
     key: GeneratedImageKey,
     original_images: &IndexMap<ImageKey, RgbaImage>,
+    flip_vertical: bool,
 ) -> Option<RgbaImage> {
     let find_image_channel = |index: Option<ImageIndex>| {
         index.and_then(|index| {
@@ -249,6 +254,10 @@ fn generate_image(
         for pixel in image.pixels_mut() {
             pixel[1] = 255u8 - pixel[1];
         }
+    }
+
+    if flip_vertical {
+        image = image_dds::image::imageops::flip_vertical(&image);
     }
 
     Some(image)

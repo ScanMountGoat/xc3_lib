@@ -71,6 +71,7 @@ impl Buffers {
         group_index: usize,
         buffers_index: usize,
         buffer_index: usize,
+        flip_uvs: bool,
     ) -> BinResult<&VertexBuffer> {
         let key = BufferKey {
             root_index,
@@ -80,7 +81,7 @@ impl Buffers {
         };
         if !self.vertex_buffers.contains_key(&key) {
             // Assume the base morph target is already applied.
-            let attributes = self.write_attributes(&vertex_buffer.attributes)?;
+            let attributes = self.write_attributes(&vertex_buffer.attributes, flip_uvs)?;
 
             // Morph targets have their own attribute data.
             let morph_targets = vertex_buffer
@@ -202,6 +203,7 @@ impl Buffers {
     fn write_attributes(
         &mut self,
         buffer_attributes: &[AttributeData],
+        flip_uvs: bool,
     ) -> BinResult<GltfAttributes> {
         let mut attributes = GltfAttributes::new();
 
@@ -222,31 +224,31 @@ impl Buffers {
                     self.insert_vec4(values, gltf::Semantic::Tangents, &mut attributes)?;
                 }
                 AttributeData::TexCoord0(values) => {
-                    self.insert_vec2(values, gltf::Semantic::TexCoords(0), &mut attributes)?;
+                    self.insert_uvs(values, 0, &mut attributes, flip_uvs)?;
                 }
                 AttributeData::TexCoord1(values) => {
-                    self.insert_vec2(values, gltf::Semantic::TexCoords(1), &mut attributes)?;
+                    self.insert_uvs(values, 1, &mut attributes, flip_uvs)?;
                 }
                 AttributeData::TexCoord2(values) => {
-                    self.insert_vec2(values, gltf::Semantic::TexCoords(2), &mut attributes)?;
+                    self.insert_uvs(values, 2, &mut attributes, flip_uvs)?;
                 }
                 AttributeData::TexCoord3(values) => {
-                    self.insert_vec2(values, gltf::Semantic::TexCoords(3), &mut attributes)?;
+                    self.insert_uvs(values, 3, &mut attributes, flip_uvs)?;
                 }
                 AttributeData::TexCoord4(values) => {
-                    self.insert_vec2(values, gltf::Semantic::TexCoords(4), &mut attributes)?;
+                    self.insert_uvs(values, 4, &mut attributes, flip_uvs)?;
                 }
                 AttributeData::TexCoord5(values) => {
-                    self.insert_vec2(values, gltf::Semantic::TexCoords(5), &mut attributes)?;
+                    self.insert_uvs(values, 5, &mut attributes, flip_uvs)?;
                 }
                 AttributeData::TexCoord6(values) => {
-                    self.insert_vec2(values, gltf::Semantic::TexCoords(6), &mut attributes)?;
+                    self.insert_uvs(values, 6, &mut attributes, flip_uvs)?;
                 }
                 AttributeData::TexCoord7(values) => {
-                    self.insert_vec2(values, gltf::Semantic::TexCoords(7), &mut attributes)?;
+                    self.insert_uvs(values, 7, &mut attributes, flip_uvs)?;
                 }
                 AttributeData::TexCoord8(values) => {
-                    self.insert_vec2(values, gltf::Semantic::TexCoords(8), &mut attributes)?;
+                    self.insert_uvs(values, 8, &mut attributes, flip_uvs)?;
                 }
                 AttributeData::VertexColor(values) => {
                     // TODO: Vertex color isn't always an RGB multiplier?
@@ -367,6 +369,24 @@ impl Buffers {
             attributes.insert(Valid(gltf::Semantic::Positions), index);
         }
         Ok(())
+    }
+
+    fn insert_uvs(
+        &mut self,
+        values: &[Vec2],
+        index: u32,
+        attributes: &mut GltfAttributes,
+        flip_vertical: bool,
+    ) -> BinResult<()> {
+        if flip_vertical {
+            let mut values = values.to_vec();
+            for v in &mut values {
+                v.y = 1.0 - v.y;
+            }
+            self.insert_vec2(&values, gltf::Semantic::TexCoords(index), attributes)
+        } else {
+            self.insert_vec2(values, gltf::Semantic::TexCoords(index), attributes)
+        }
     }
 
     fn insert_vec2(

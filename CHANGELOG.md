@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 * Fixed an issue where some glTF files exported by xc3_gltf would not load in glTF viewers or programs like Unreal Engine 5 due to validation errors.
 * Fixed an issue where some BC entries failed to parse. This also caused `load_animations` for xc3_model to fail.
+* Fixed an issue where some LAGP .wilay files would not correctly rebuild all data.
 
 ## 0.7.0 - 2024-03-15
 ### Added
