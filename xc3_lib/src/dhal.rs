@@ -36,7 +36,7 @@ pub struct Dhal {
     pub unk0: Unk0,
 
     #[br(temp, restore_position)]
-    offset: u32,
+    offsets: [u32; 15],
 
     // TODO: alignment is sometimes 16?
     #[br(parse_with = parse_ptr32)]
@@ -52,9 +52,10 @@ pub struct Dhal {
     #[xc3(offset(u32), align(2))]
     pub unk3: Option<Unk3>,
 
+    // TODO: Pass in offsets that come after this for buffer size estimation?
     // TODO: align 16 for xc3?
     #[br(parse_with = parse_opt_ptr32)]
-    #[br(args { inner: args! { offset, version } })]
+    #[br(args { inner: args! { offset: offsets[0], next_unk_offset: next_offset(&offsets, offsets[3]), version } })]
     #[xc3(offset(u32), align(2))]
     pub unk4: Option<Unk4>,
 
@@ -99,10 +100,10 @@ pub struct Dhal {
     pub unk: [u32; 7],
 
     // TODO: 4 more bytes of padding for xc3?
-    #[br(if(offset >= 108))]
+    #[br(if(offsets[0] >= 108))]
     pub unks2: Option<[u32; 2]>,
 
-    #[br(if(offset >= 112))]
+    #[br(if(offsets[0] >= 112))]
     pub unks3: Option<u32>,
 }
 
@@ -237,7 +238,7 @@ pub struct Unk3Unk1 {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
-#[br(import { version: u32, offset: u32 })]
+#[br(import { version: u32, offset: u32, next_unk_offset: u32 })]
 #[xc3(base_offset)]
 pub struct Unk4 {
     #[br(temp, try_calc = r.stream_position())]
@@ -303,7 +304,7 @@ pub struct Unk4 {
 
     // TODO: Find a cleaner way of preserving the underlying data.
     #[br(seek_before = SeekFrom::Start(base_offset + unk2.len() as u64 * 64 + unk2_offset as u64))]
-    #[br(count = unk4_buffer_size(&[unk4_offset, unk5_offset, unk7_offset, extra_offset], unk2.len(), unk2_offset))]
+    #[br(count = unk4_buffer_size(&[unk4_offset, unk5_offset, unk7_offset, extra_offset], next_unk_offset, unk2.len(), unk2_offset))]
     #[xc3(save_position(false))]
     pub buffer: Vec<u8>,
 }
@@ -736,12 +737,24 @@ fn unk2_buffer_size(unk1: &[Unk2Unk1], unk2: &[Unk2Unk2]) -> usize {
     unk1_size.max(unk2_size)
 }
 
-fn unk4_buffer_size(offsets: &[u32], unk2_len: usize, unk2_offset: u32) -> usize {
-    // TODO: How to calculate the size if there are no additional offsets?
-    (next_offset(offsets) as usize).saturating_sub(unk2_len * 64 - unk2_offset as usize)
+fn unk4_buffer_size(
+    field_offsets: &[u32],
+    next_unk_offset: u32,
+    unk2_len: usize,
+    unk2_offset: u32,
+) -> usize {
+    // Estimate the size based on the next largest offset.
+    // This is either one of the fields or the next struct.
+    let offset = next_offset(field_offsets, 0).max(next_unk_offset);
+    (offset as usize).saturating_sub(unk2_len * 64 - unk2_offset as usize)
 }
 
-fn next_offset(offsets: &[u32]) -> u32 {
+pub(crate) fn next_offset(offsets: &[u32], start: u32) -> u32 {
     // Find the next non null offset for size estimation.
-    offsets.iter().copied().filter(|o| *o != 0).min().unwrap_or_default()
+    offsets
+        .iter()
+        .copied()
+        .filter(|o| *o > start)
+        .min()
+        .unwrap_or_default()
 }

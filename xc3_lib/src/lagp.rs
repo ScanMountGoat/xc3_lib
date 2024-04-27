@@ -9,7 +9,7 @@
 //! | Xenoblade Chronicles 2 |  | |
 //! | Xenoblade Chronicles 3 | 10003 | `menu/image/*.wilay` |
 use crate::{
-    dhal::{Textures, Unk1, Unk2, Unk3, Unk4, Unk5, Unk6},
+    dhal::{next_offset, Textures, Unk1, Unk2, Unk3, Unk4, Unk5, Unk6},
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
     parse_string_ptr32,
 };
@@ -30,7 +30,7 @@ pub struct Lagp {
     pub unk0: u32, // 0, 64, 256, 320?
 
     #[br(temp, restore_position)]
-    offset: u32,
+    offsets: [u32; 13],
 
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32), align(16))]
@@ -45,7 +45,7 @@ pub struct Lagp {
     pub unk3: Option<Unk3>,
 
     #[br(parse_with = parse_opt_ptr32)]
-    #[br(args { inner: args! { offset, version } })]
+    #[br(args { inner: args! { offset: offsets[0], next_unk_offset: next_offset(&offsets, offsets[3]), version } })]
     #[xc3(offset(u32), align(16))]
     pub unk4: Option<Unk4>,
 
