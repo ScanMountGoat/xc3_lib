@@ -880,6 +880,19 @@ fn check_all_gltf<P: AsRef<Path>>(root: P) {
             }
         });
 
+    globwalk::GlobWalkerBuilder::from_patterns(root.as_ref(), &["*.{camdo}"])
+        .build()
+        .unwrap()
+        // .par_bridge()
+        .for_each(|entry| {
+            let path = entry.as_ref().unwrap().path();
+            let root = xc3_model::load_model_legacy(path);
+            println!("{path:?}");
+            if let Err(e) = xc3_model::gltf::GltfFile::from_model("model", &[root], true) {
+                println!("Error converting {path:?}: {e}");
+            }
+        });
+
     // Process files sequentially since gltf processing is already highly threaded.
     globwalk::GlobWalkerBuilder::from_patterns(root.as_ref(), &["*.{wismhd}"])
         .build()

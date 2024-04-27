@@ -125,7 +125,7 @@ impl Mtxt {
         // TODO: Add tests cases for mipmap offsets?
         // TODO: How to handle dimensions not divisible by block dimensions?
         let mut data = Vec::new();
-        for i in 0..self.footer.mipmap_count {
+        for i in 0..1 {
             let offset = if i == 0 {
                 // The mip 0 data is at the start of the image data.
                 0
@@ -171,7 +171,7 @@ impl Mtxt {
             } else {
                 1
             },
-            mipmaps: self.footer.mipmap_count,
+            mipmaps: 1,
             image_format: self.footer.surface_format.into(),
             data: self.deswizzled_image_data(),
         }
