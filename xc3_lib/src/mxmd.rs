@@ -451,6 +451,7 @@ pub struct StateFlags {
 // 1, Src Alpha, 1 - Src Alpha, Add, Src Alpha, 1 - Src Alpha, Add
 // 2, Src Alpha, One, Add, Src Alpha, One, Add
 // 3, Zero, Src Col, Add, Zero, Src Col, Add
+// 4, xenoblade x only???
 // 6, disabled + ???
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
@@ -460,6 +461,7 @@ pub enum BlendMode {
     AlphaBlend = 1,
     Additive = 2,
     Multiplicative = 3,
+    Unk5 = 5, // TODO: test in RenderDoc for xc2
     Unk6 = 6, // also disabled?
 }
 
@@ -480,6 +482,13 @@ pub enum StencilValue {
     /// 74 (0x4A)
     Unk16 = 16,
     Unk20 = 20,
+    // TODO: test Xenoblade X values in RenderDoc
+    Unk33 = 33,
+    Unk37 = 37,
+    Unk41 = 41,
+    Unk49 = 49,
+    Unk97 = 97,
+    Unk105 = 105,
 }
 
 // TODO: Does this flag actually disable stencil?

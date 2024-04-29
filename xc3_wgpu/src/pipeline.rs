@@ -44,6 +44,12 @@ impl PipelineKey {
             xc3_lib::mxmd::StencilValue::Unk12 => 0,
             xc3_lib::mxmd::StencilValue::Unk16 => 74,
             xc3_lib::mxmd::StencilValue::Unk20 => 0,
+            xc3_model::StencilValue::Unk33 => 0,
+            xc3_model::StencilValue::Unk37 => 0,
+            xc3_model::StencilValue::Unk41 => 0,
+            xc3_model::StencilValue::Unk49 => 0,
+            xc3_model::StencilValue::Unk97 => 0,
+            xc3_model::StencilValue::Unk105 => 0,
         }
     }
 }
@@ -243,6 +249,7 @@ fn blend_state(state: BlendMode) -> Option<wgpu::BlendState> {
                 operation: wgpu::BlendOperation::Add,
             },
         }),
-        BlendMode::Unk6 => None,
+        // TODO: How to handle unk5?
+        BlendMode::Unk5 | BlendMode::Unk6 => None,
     }
 }

@@ -7,7 +7,7 @@ use crate::{
 use binrw::{args, binread, BinRead, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
-use super::StringOffset;
+use super::{StateFlags, StringOffset};
 
 // TODO: How much code can be shared with non legacy types?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -192,7 +192,32 @@ pub struct Materials {
     #[xc3(offset_count(u32, u32), align(4))]
     pub materials: Vec<Material>,
 
-    pub unks1: [u32; 20],
+    pub unk1_1: u32,
+    pub unk1_2: u32,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub work_values: Vec<f32>,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub shader_vars: Vec<(u16, u16)>,
+
+    // TODO: Offset?
+    pub unks1_3: [u32; 2],
+
+    #[br(parse_with = parse_offset32_count32, args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset_count(u32, u32))]
+    pub techniques: Vec<Technique>,
+
+    pub unks1_1: [u32; 2],
+
+    // TODO: Is this always implied to have count 1?
+    #[br(parse_with = parse_count32_offset32_unchecked, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub alpha_test_textures: Vec<AlphaTestTexture>,
+
+    pub unks1_2: [u32; 5],
 
     // TODO: where are the samplers?
     #[br(parse_with = parse_opt_ptr32)]
@@ -201,6 +226,14 @@ pub struct Materials {
     pub unk2: Option<MaterialsUnk2>,
 
     pub unk: [u32; 3],
+}
+
+// TODO: same as xc2?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct AlphaTestTexture {
+    pub texture_index: u16,
+    pub unk1: u16,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -220,7 +253,38 @@ pub struct Material {
     #[xc3(offset_count(u32, u32))]
     pub textures: Vec<Texture>,
 
-    pub unk: [u32; 17],
+    // TODO: same as xc2?
+    pub state_flags: StateFlags,
+
+    pub unks1: [u32; 7], // TODO: offset at index 3?
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub techniques: Vec<MaterialTechnique>,
+
+    pub unk: [u32; 6],
+}
+
+// TODO: same as xc2?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct MaterialTechnique {
+    pub technique_index: u32,
+    pub unk1: UnkPassType,
+    pub material_buffer_index: u16,
+    pub unk4: u32, // 0x01000000?
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy, Hash)]
+#[brw(repr(u16))]
+pub enum UnkPassType {
+    Unk0 = 0, // opaque?
+    Unk1 = 1, // alpha?
+    Unk2 = 2,
+    Unk3 = 3,
+    Unk5 = 5,
+    Unk8 = 8,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -248,6 +312,27 @@ pub struct MaterialsUnk2 {
     pub unk3: Vec<[u32; 3]>,
 
     pub unk: [u32; 4],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
+#[br(import_raw(_base_offset: u64))]
+pub struct Technique {
+    pub unk1: u32,
+    pub unk2: u32,
+    pub unk3: u32,
+    pub unk4: u32,
+    pub unk5: u32,
+    pub unk6: u32,
+    pub unk7: u32,
+    pub unk8: u32,
+    pub unk9: u32,
+    pub unk10: u32,
+    pub unk11: u32,
+    pub unk12: u32,
+
+    // TODO: padding?
+    pub padding: [u32; 5],
 }
 
 #[binread]
@@ -463,7 +548,7 @@ pub struct PackedExternalTexture {
     pub name: String,
 }
 
-xc3_write_binwrite_impl!(TextureUsage);
+xc3_write_binwrite_impl!(TextureUsage, UnkPassType);
 
 impl<'a> Xc3WriteOffsets for PackedExternalTexturesOffsets<'a> {
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
@@ -498,6 +583,22 @@ where
 {
     let offset = u32::read_options(reader, endian, ())?;
     let count = u32::read_options(reader, endian, ())?;
+
+    crate::parse_vec(reader, endian, args, offset as u64, count as usize)
+}
+
+fn parse_count32_offset32_unchecked<T, R, Args>(
+    reader: &mut R,
+    endian: binrw::Endian,
+    args: binrw::file_ptr::FilePtrArgs<Args>,
+) -> binrw::BinResult<Vec<T>>
+where
+    for<'a> T: BinRead<Args<'a> = Args> + 'static,
+    R: std::io::Read + std::io::Seek,
+    Args: Clone,
+{
+    let count = u32::read_options(reader, endian, ())?;
+    let offset = u32::read_options(reader, endian, ())?;
 
     crate::parse_vec(reader, endian, args, offset as u64, count as usize)
 }

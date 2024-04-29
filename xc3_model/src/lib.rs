@@ -225,6 +225,7 @@ impl Models {
         models: &xc3_lib::mxmd::legacy::Models,
         materials: &xc3_lib::mxmd::legacy::Materials,
     ) -> Self {
+        // TODO: move material code to material module
         Self {
             models: models.models.iter().map(Model::from_model_legacy).collect(),
             materials: materials
@@ -232,16 +233,7 @@ impl Models {
                 .iter()
                 .map(|m| Material {
                     name: m.name.clone(),
-                    flags: StateFlags {
-                        depth_write_mode: 0,
-                        blend_mode: BlendMode::Disabled,
-                        cull_mode: CullMode::Back,
-                        unk4: 0,
-                        stencil_value: StencilValue::Unk0,
-                        stencil_mode: StencilMode::Unk0,
-                        depth_func: DepthFunc::LessEqual,
-                        color_write_mode: 0,
-                    },
+                    flags: m.state_flags,
                     textures: m
                         .textures
                         .iter()
@@ -250,9 +242,32 @@ impl Models {
                             sampler_index: 0,
                         })
                         .collect(),
-                    alpha_test: None,
+                    alpha_test: materials.alpha_test_textures.first().and_then(|a| {
+                        // TODO: alpha test texture index in material?
+                        if let Some(texture_index) = m
+                            .textures
+                            .iter()
+                            .position(|t| t.texture_index == a.texture_index)
+                        {
+                            Some(TextureAlphaTest {
+                                texture_index,
+                                channel_index: 3,
+                                ref_value: 0.5,
+                            })
+                        } else {
+                            None
+                        }
+                    }),
                     shader: None,
-                    pass_type: RenderPassType::Unk0,
+                    pass_type: match m.techniques[0].unk1 {
+                        xc3_lib::mxmd::legacy::UnkPassType::Unk0 => RenderPassType::Unk0,
+                        xc3_lib::mxmd::legacy::UnkPassType::Unk1 => RenderPassType::Unk1,
+                        // TODO: How to handle these variants?
+                        xc3_lib::mxmd::legacy::UnkPassType::Unk2 => RenderPassType::Unk0,
+                        xc3_lib::mxmd::legacy::UnkPassType::Unk3 => RenderPassType::Unk0,
+                        xc3_lib::mxmd::legacy::UnkPassType::Unk5 => RenderPassType::Unk0,
+                        xc3_lib::mxmd::legacy::UnkPassType::Unk8 => RenderPassType::Unk0,
+                    },
                     parameters: MaterialParameters {
                         mat_color: [1.0; 4],
                         alpha_test_ref: 0.0,
