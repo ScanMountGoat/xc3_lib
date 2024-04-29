@@ -106,6 +106,10 @@ struct Cli {
     #[arg(long)]
     wimdo_model: bool,
 
+    /// Load animations from .mot, .anm, and .motsm_data files.
+    #[arg(long)]
+    animation: bool,
+
     /// Check that read/write is 1:1 for all files and embedded files.
     #[arg(long)]
     rw: bool,
@@ -234,6 +238,10 @@ fn main() {
 
     if cli.wimdo_model {
         check_all_wimdo_model(root, cli.rw);
+    }
+
+    if cli.animation {
+        check_all_animations(root, cli.rw);
     }
 
     println!("Finished in {:?}", start.elapsed());
@@ -945,6 +953,21 @@ fn check_all_wimdo_model<P: AsRef<Path>>(root: P, check_read_write: bool) {
                     }
                 }
                 Err(e) => println!("Error loading {path:?}: {e}"),
+            }
+        });
+}
+
+fn check_all_animations<P: AsRef<Path>>(root: P, _check_read_write: bool) {
+    globwalk::GlobWalkerBuilder::from_patterns(root.as_ref(), &["*.{mot, anm, motstm_data}"])
+        .build()
+        .unwrap()
+        .par_bridge()
+        .for_each(|entry| {
+            let path = entry.as_ref().unwrap().path();
+
+            match xc3_model::load_animations(path) {
+                Ok(_) => (),
+                Err(e) => println!("Error loading {path:?}: {e:?}"),
             }
         });
 }

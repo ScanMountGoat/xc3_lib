@@ -219,15 +219,24 @@ fn anim_tracks(anim: &xc3_lib::bc::anim::Anim) -> Vec<Track> {
 
     match &anim.binding.animation.data {
         xc3_lib::bc::anim::AnimationData::Uncompressed(uncompressed) => {
-            // TODO: Apply the root motion at each frame?
-            let track_count = anim.binding.bone_track_indices.elements.len();
+            // The transforms do not contain values for unused tracks.
+            let track_count = anim
+                .binding
+                .bone_track_indices
+                .elements
+                .iter()
+                .filter(|i| **i != -1)
+                .count();
+
             let transforms = &uncompressed.transforms;
 
-            // TODO: Are these always the elements 0..N-1?
+            // TODO: Apply the root motion at each frame?
+
             anim.binding
                 .bone_track_indices
                 .elements
                 .iter()
+                .filter(|i| **i != -1)
                 .map(|i| {
                     let mut translation_keyframes = BTreeMap::new();
                     let mut rotation_keyframes = BTreeMap::new();

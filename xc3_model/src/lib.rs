@@ -887,15 +887,19 @@ pub fn load_animations<P: AsRef<Path>>(
         AnimFile::Sar1(sar1) => match sar1 {
             MaybeXbc1::Uncompressed(sar1) => {
                 for entry in &sar1.entries {
-                    let bc = entry.read_data::<xc3_lib::bc::Bc>()?;
-                    add_bc_animations(&mut animations, bc);
+                    if entry.name.ends_with("anm") {
+                        let bc = entry.read_data()?;
+                        add_bc_animations(&mut animations, bc);
+                    }
                 }
             }
             MaybeXbc1::Xbc1(xbc1) => {
                 let sar1: Sar1 = xbc1.extract()?;
                 for entry in &sar1.entries {
-                    let bc = entry.read_data::<xc3_lib::bc::Bc>()?;
-                    add_bc_animations(&mut animations, bc);
+                    if entry.name.ends_with("anm") {
+                        let bc = entry.read_data()?;
+                        add_bc_animations(&mut animations, bc);
+                    }
                 }
             }
         },
