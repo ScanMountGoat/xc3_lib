@@ -195,8 +195,14 @@ impl ImageTexture {
         // Resizing and decoding and encoding the full texture is expensive.
         // The low texture is only visible briefly before data is streamed in.
         // We can cheat and just use the first GOB (512 bytes) of compressed image data.
+        let mut low_image_data = image
+            .image_data
+            .get(..512)
+            .unwrap_or(&image.image_data)
+            .to_vec();
+        low_image_data.resize(512, 0);
         let low = xc3_lib::mibl::Mibl {
-            image_data: image.image_data[..512].to_vec(),
+            image_data: low_image_data,
             footer: xc3_lib::mibl::MiblFooter {
                 image_size: 4096,
                 unk: 0x1000,
