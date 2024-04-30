@@ -49,6 +49,9 @@ struct State<'a> {
     current_time_seconds: f32,
     previous_frame_start: Instant,
 
+    draw_bones: bool,
+    draw_bounds: bool,
+
     input_state: InputState,
 }
 
@@ -60,13 +63,7 @@ struct InputState {
 }
 
 impl<'a> State<'a> {
-    async fn new(
-        window: &'a Window,
-        paths: &[String],
-        anim_path: Option<&String>,
-        animation_index: usize,
-        database_path: Option<&String>,
-    ) -> anyhow::Result<Self> {
+    async fn new(window: &'a Window, cli: &Cli) -> anyhow::Result<Self> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
@@ -109,7 +106,7 @@ impl<'a> State<'a> {
 
         // TODO: Make the monolib/shader path optional?
         // Assume paths are somewhere in a full game dump.
-        let mut root_folder = Path::new(&paths[0]);
+        let mut root_folder = Path::new(&cli.models[0]);
         while let Some(parent) = root_folder.parent() {
             if root_folder.join("monolib/shader").exists() {
                 break;
@@ -128,7 +125,9 @@ impl<'a> State<'a> {
         let camera_data = calculate_camera_data(size, translation, rotation_xyz);
         renderer.update_camera(&queue, &camera_data);
 
-        let database = database_path
+        let database = cli
+            .database
+            .as_ref()
             .map(|p| {
                 ShaderDatabase::from_file(p)
                     .with_context(|| format!("{p:?} is not a valid shader JSON file"))
@@ -138,11 +137,16 @@ impl<'a> State<'a> {
         let start = std::time::Instant::now();
 
         // Infer the type of model to load based on the extension.
-        let groups = match Path::new(&paths[0]).extension().unwrap().to_str().unwrap() {
+        let groups = match Path::new(&cli.models[0])
+            .extension()
+            .unwrap()
+            .to_str()
+            .unwrap()
+        {
             "wimdo" | "pcmdo" => {
                 // TODO: merge roots or just merge skeletons?
                 let mut roots = Vec::new();
-                for path in paths {
+                for path in &cli.models {
                     let root = xc3_model::load_model(path, database.as_ref())
                         .with_context(|| format!("failed to load .wimdo model from {path:?}"))?;
                     roots.push(root);
@@ -158,7 +162,7 @@ impl<'a> State<'a> {
             }
             "camdo" => {
                 let mut roots = Vec::new();
-                for path in paths {
+                for path in &cli.models {
                     let root = xc3_model::load_model_legacy(path);
                     roots.push(root);
                 }
@@ -172,7 +176,7 @@ impl<'a> State<'a> {
                 ))
             }
             "wismhd" => {
-                let path = &paths[0];
+                let path = &cli.models[0];
                 let roots = xc3_model::load_map(path, database.as_ref())
                     .with_context(|| format!("failed to load .wismhd map from {path:?}"))?;
                 info!("Load {} roots: {:?}", roots.len(), start.elapsed());
@@ -180,7 +184,7 @@ impl<'a> State<'a> {
             }
             ext => Err(anyhow!(format!("unrecognized file extension {ext}"))),
         }
-        .with_context(|| format!("failed to load {paths:?}"))?;
+        .with_context(|| format!("failed to load {:?}", cli.models))?;
 
         let elapsed = start.elapsed();
 
@@ -206,17 +210,18 @@ impl<'a> State<'a> {
         );
 
         // TODO: Show all paths with common folders stripped?
-        let model_name = Path::new(&paths[0])
+        let model_name = Path::new(&cli.models[0])
             .file_name()
             .unwrap()
             .to_string_lossy()
             .to_string();
 
-        let animations = match anim_path {
+        let animations = match &cli.anim {
             Some(p) => load_animations(p)
                 .with_context(|| format!("{p:?} is not a valid animation file"))?,
             None => Vec::new(),
         };
+        let animation_index = cli.anim_index.unwrap_or_default();
         update_window_title(window, &model_name, &animations, animation_index);
 
         Ok(Self {
@@ -235,6 +240,8 @@ impl<'a> State<'a> {
             current_time_seconds: 0.0,
             input_state: Default::default(),
             previous_frame_start: Instant::now(),
+            draw_bones: cli.bones,
+            draw_bounds: cli.bounds,
         })
     }
 
@@ -289,8 +296,13 @@ impl<'a> State<'a> {
                 label: Some("Render Encoder"),
             });
 
-        self.renderer
-            .render_models(&output_view, &mut encoder, &self.groups, false, false);
+        self.renderer.render_models(
+            &output_view,
+            &mut encoder,
+            &self.groups,
+            self.draw_bounds,
+            self.draw_bones,
+        );
 
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
@@ -477,6 +489,12 @@ struct Cli {
     /// The BC entry index for the ANIM. Defaults to 0.
     #[arg(long)]
     anim_index: Option<usize>,
+    /// Draw axes for each bone in the skeleton.
+    #[arg(long)]
+    bones: bool,
+    /// Draw model bounding boxes.
+    #[arg(long)]
+    bounds: bool,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -506,13 +524,7 @@ fn main() -> anyhow::Result<()> {
         .build(&event_loop)
         .unwrap();
 
-    let mut state = block_on(State::new(
-        &window,
-        &cli.models,
-        cli.anim.as_ref(),
-        cli.anim_index.unwrap_or_default(),
-        cli.database.as_ref(),
-    ))?;
+    let mut state = block_on(State::new(&window, &cli))?;
     event_loop
         .run(|event, target| match event {
             Event::WindowEvent {
