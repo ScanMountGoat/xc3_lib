@@ -9,6 +9,7 @@ use thiserror::Error;
 use xc3_write::Xc3Result;
 
 use crate::{
+    align,
     error::DecompressStreamError,
     mibl::Mibl,
     mxmd::TextureUsage,
@@ -573,19 +574,19 @@ fn create_streams(
     let mut data = Cursor::new(Vec::new());
     for xbc1 in xbc1s {
         // This needs to be updated later to be relative to the start of the msrd.
-        let xbc1_offset = data.stream_position()? as u32;
+        let xbc1_start = data.stream_position()? as u32;
         xbc1.write(&mut data)?;
-        let end = data.stream_position()? as u32;
-        // TODO: Make a helper for writing alignment?
-        let size = end - xbc1_offset;
-        let aligned_size = size.next_multiple_of(16);
-        data.write_all(&vec![0u8; (aligned_size - size) as usize])?;
+
+        let pos = data.position();
+        align(&mut data, pos, 16, 0)?;
+
+        let xbc1_end = data.stream_position()? as u32;
 
         // TODO: Should this make sure the xbc1 decompressed data is actually aligned?
         streams.push(Stream {
-            compressed_size: aligned_size,
+            compressed_size: xbc1_end - xbc1_start,
             decompressed_size: xbc1.decompressed_size.next_multiple_of(4096),
-            xbc1_offset,
+            xbc1_offset: xbc1_start,
         });
     }
 
@@ -665,14 +666,10 @@ where
 {
     let offset = writer.stream_position()?;
     write_full(data, writer, 0, &mut 0)?;
-    let end_offset = writer.stream_position()?;
 
     // Stream data is aligned to 4096 bytes.
-    // TODO: Create a function for padding to an alignment?
-    let size = end_offset - offset;
-    let desired_size = size.next_multiple_of(4096);
-    let padding = desired_size - size;
-    writer.write_all(&vec![0u8; padding as usize])?;
+    align(writer, writer.position(), 4096, 0)?;
+
     let end_offset = writer.stream_position()?;
 
     Ok(StreamEntry {

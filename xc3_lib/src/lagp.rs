@@ -9,6 +9,7 @@
 //! | Xenoblade Chronicles 2 |  | |
 //! | Xenoblade Chronicles 3 | 10003 | `menu/image/*.wilay` |
 use crate::{
+    align,
     dhal::{next_offset, Textures, Unk1, Unk2, Unk3, Unk4, Unk5, Unk6},
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
     parse_string_ptr32,
@@ -420,8 +421,7 @@ impl StringSection {
         // TODO: Cleaner way to handle alignment?
         let mut name_to_position = IndexMap::new();
         writer.seek(std::io::SeekFrom::Start(*data_ptr))?;
-        let aligned = data_ptr.next_multiple_of(alignment);
-        writer.write_all(&vec![0xff; (aligned - *data_ptr) as usize])?;
+        align(writer, *data_ptr, alignment, 0xff)?;
 
         for name in self.name_to_offsets.keys() {
             let offset = writer.stream_position()?;

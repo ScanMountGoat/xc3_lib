@@ -1,7 +1,7 @@
 //! Animation and skeleton data in `.anm` or `.motstm_data` files or [Sar1](crate::sar1::Sar1) archives.
 use std::collections::BTreeMap;
 
-use crate::{parse_offset64_count32, parse_ptr64, parse_string_ptr64};
+use crate::{align, parse_offset64_count32, parse_ptr64, parse_string_ptr64};
 use binrw::{args, binread, BinRead};
 use xc3_write::{VecOffsets, Xc3Write, Xc3WriteOffsets};
 
@@ -136,8 +136,7 @@ impl StringSection {
         // TODO: Cleaner way to handle alignment?
         let mut name_to_position = BTreeMap::new();
         writer.seek(std::io::SeekFrom::Start(*data_ptr))?;
-        let aligned = data_ptr.next_multiple_of(alignment);
-        writer.write_all(&vec![0xff; (aligned - *data_ptr) as usize])?;
+        align(writer, *data_ptr, alignment, 0xff)?;
 
         for name in self.name_to_offsets.keys() {
             let offset = writer.stream_position()?;

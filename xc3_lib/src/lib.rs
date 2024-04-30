@@ -531,3 +531,10 @@ macro_rules! xc3_write_binwrite_impl {
     };
 }
 pub(crate) use xc3_write_binwrite_impl;
+
+fn align<W: Write>(writer: &mut W, size: u64, align: u64, pad: u8) -> Result<(), std::io::Error> {
+    let aligned_size = size.next_multiple_of(align);
+    let padding = aligned_size - size;
+    writer.write_all(&vec![pad; padding as usize])?;
+    Ok(())
+}

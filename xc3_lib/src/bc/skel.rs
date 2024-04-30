@@ -1,4 +1,4 @@
-use crate::{parse_offset64_count32, parse_opt_ptr64, parse_ptr64, parse_string_ptr64};
+use crate::{align, parse_offset64_count32, parse_opt_ptr64, parse_ptr64, parse_string_ptr64};
 use binrw::{binread, BinRead};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
@@ -402,8 +402,7 @@ fn weird_skel_alignment<W: std::io::Write + std::io::Seek>(
     // First align to 8.
     // FF...
     let pos = writer.stream_position()?;
-    let aligned_pos = pos.next_multiple_of(8);
-    writer.write_all(&vec![0xff; (aligned_pos - pos) as usize])?;
+    align(writer, pos, 8, 0xff)?;
 
     // Now align to 16.
     // 0000 FF...
@@ -411,8 +410,7 @@ fn weird_skel_alignment<W: std::io::Write + std::io::Seek>(
     *data_ptr = (*data_ptr).max(writer.stream_position()?);
 
     let pos = writer.stream_position()?;
-    let aligned_pos = pos.next_multiple_of(16);
-    writer.write_all(&vec![0xff; (aligned_pos - pos) as usize])?;
+    align(writer, pos, 16, 0xff)?;
 
     // 0000
     [0u8; 4].xc3_write(writer)?;
