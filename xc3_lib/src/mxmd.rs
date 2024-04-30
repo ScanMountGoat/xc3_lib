@@ -801,7 +801,7 @@ pub struct Mesh {
     /// Index into [index_buffers](../vertex/struct.VertexData.html#structfield.index_buffers)
     /// for the associated [VertexData].
     pub index_buffer_index: u16,
-    pub unk_index: u16, // TODO: index?
+    pub unk_index: u16, // TODO: 0 to 1000+?
     /// Index into [materials](struct.Materials.html#structfield.materials).
     pub material_index: u16,
     pub unk2: u32, // 0

@@ -154,19 +154,19 @@ pub struct Mesh {
     pub vertex_buffer_index: u32,
     /// Index into [index_buffers](struct.VertexData.html#structfield.index_buffers).
     pub index_buffer_index: u32,
-    pub unk2: u32,
+    pub unk2: u32, // 1
     /// Index into [materials](struct.Materials.html#structfield.materials).
     pub material_index: u32,
-    pub unk3: u32,
-    pub unk4: u32,
-    pub unk5: u32,
-    pub unk6: u32,
-    pub unk7: u32,
-    pub unk8: u32,
-    pub unk9: u32,
-    pub unk10: u32,
-    pub unk11: u32,
-    pub unk12: u32,
+    pub unk3: u32,  // 0
+    pub unk4: u32,  // 0
+    pub unk5: u32,  // TODO: 0 to 58?
+    pub unk6: u32,  // 0
+    pub unk7: u32,  // TODO: 0 to 119?
+    pub unk8: u32,  // 0
+    pub unk9: u32,  // 0
+    pub unk10: u32, // 0
+    pub unk11: u32, // 0
+    pub unk12: u32, // 0
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -314,22 +314,34 @@ pub struct MaterialsUnk2 {
     pub unk: [u32; 4],
 }
 
+// TODO: compare with decompiled shader data.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
-#[br(import_raw(_base_offset: u64))]
+#[br(import_raw(base_offset: u64))]
 pub struct Technique {
-    pub unk1: u32,
-    pub unk2: u32,
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk1: Vec<[u16; 4]>,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk2: Vec<[u16; 4]>,
+
     pub unk3: u32,
-    pub unk4: u32,
+
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub unk4: Option<u32>,
+
     pub unk5: u32,
     pub unk6: u32,
-    pub unk7: u32,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk7: Vec<[u16; 4]>,
+
     pub unk8: u32,
     pub unk9: u32,
-    pub unk10: u32,
-    pub unk11: u32,
-    pub unk12: u32,
 
     // TODO: padding?
     pub padding: [u32; 5],
