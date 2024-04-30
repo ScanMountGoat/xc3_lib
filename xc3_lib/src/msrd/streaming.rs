@@ -575,10 +575,15 @@ fn create_streams(
         // This needs to be updated later to be relative to the start of the msrd.
         let xbc1_offset = data.stream_position()? as u32;
         xbc1.write(&mut data)?;
+        let end = data.stream_position()? as u32;
+        // TODO: Make a helper for writing alignment?
+        let size = end - xbc1_offset;
+        let aligned_size = size.next_multiple_of(16);
+        data.write_all(&vec![0u8; (aligned_size - size) as usize])?;
 
         // TODO: Should this make sure the xbc1 decompressed data is actually aligned?
         streams.push(Stream {
-            compressed_size: xbc1.compressed_stream.len().next_multiple_of(16) as u32 + 48,
+            compressed_size: aligned_size,
             decompressed_size: xbc1.decompressed_size.next_multiple_of(4096),
             xbc1_offset,
         });

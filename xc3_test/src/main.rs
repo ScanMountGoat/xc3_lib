@@ -945,9 +945,13 @@ fn check_all_wimdo_model<P: AsRef<Path>>(root: P, check_read_write: bool) {
                         // TODO: Should to_mxmd_model make the msrd optional?
                         if let Some(msrd) = msrd {
                             let (_new_mxmd, new_msrd) = root.to_mxmd_model(&mxmd, &msrd);
-                            let (new_vertex, _, _) = new_msrd.extract_files(None).unwrap();
-                            if &new_vertex != streaming_data.vertex.as_ref() {
-                                println!("VertexData not 1:1 for {path:?}")
+                            match new_msrd.extract_files(None) {
+                                Ok((new_vertex, _, _)) => {
+                                    if &new_vertex != streaming_data.vertex.as_ref() {
+                                        println!("VertexData not 1:1 for {path:?}")
+                                    }
+                                }
+                                Err(e) => println!("Error extracting new msrd for {path:?}: {e}"),
                             }
                         }
                     }
