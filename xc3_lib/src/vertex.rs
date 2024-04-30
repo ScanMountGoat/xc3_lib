@@ -321,9 +321,12 @@ pub struct MorphTarget {
 #[br(map = u32::into)]
 #[bw(map = |&x| u32::from(x))]
 pub struct MorphTargetFlags {
-    pub unk1: u16,                 // always 0?
-    pub blend_target_buffer: bool, // once per descriptor?
-    pub default_buffer: bool,      // once per descriptor?
+    pub unk1: u16, // always 0?
+    /// The base values for each vertex.
+    pub blend_target_buffer: bool,
+    /// The base values for each of the vertices modified by any of the param targets.
+    pub default_buffer: bool,
+    /// Values for vertices modified by a param target.
     pub param_buffer: bool,
     pub unk5: u13, // always 0?
 }

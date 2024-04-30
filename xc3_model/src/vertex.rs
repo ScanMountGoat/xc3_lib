@@ -8,7 +8,10 @@
 //! The vertex buffers in game use an interleaved or "array of structs" approach.
 //! This makes rendering each vertex cache friendly.
 //! A collection of [AttributeData] can always be packed into an interleaved form for rendering.
-use std::io::{Cursor, Seek, SeekFrom, Write};
+use std::{
+    collections::BTreeSet,
+    io::{Cursor, Seek, SeekFrom, Write},
+};
 
 use binrw::{BinRead, BinReaderExt, BinResult, BinWrite, Endian};
 use glam::{Vec2, Vec3, Vec4};
@@ -399,6 +402,7 @@ fn assign_morph_targets(
     // TODO: Find a cleaner way to write this.
     for descriptor in &vertex_morphs.descriptors {
         if let Some(buffer) = buffers.get_mut(descriptor.vertex_buffer_index as usize) {
+            // Skip the default target since it can be generated when writing.
             if let Some((blend, _default, params)) = split_targets(descriptor, vertex_morphs) {
                 let base = read_morph_blend_target(blend, &vertex_data.buffer)?;
 
@@ -409,33 +413,7 @@ fn assign_morph_targets(
                     .map(|(target, param_index)| {
                         // Apply remaining targets onto the base target values.
                         // TODO: Lots of morph targets use the exact same bytes?
-                        let vertices = read_morph_buffer_target(target, &vertex_data.buffer)?;
-
-                        let mut position_deltas = Vec::new();
-                        let mut normal_deltas = Vec::new();
-                        let mut tangent_deltas = Vec::new();
-                        let mut vertex_indices = Vec::new();
-
-                        // Keep the sparse representation to save space.
-                        // The vertex indices only contain affected vertices.
-                        for vertex in vertices {
-                            let i = vertex.vertex_index as usize;
-                            vertex_indices.push(vertex.vertex_index);
-
-                            position_deltas.push(vertex.position_delta);
-
-                            // Convert every attribute to a delta for consistency.
-                            normal_deltas.push(vertex.normal - base.normals[i]);
-                            tangent_deltas.push(vertex.tangent - base.tangents[i]);
-                        }
-
-                        Ok(MorphTarget {
-                            morph_controller_index: *param_index as usize,
-                            position_deltas,
-                            normal_deltas,
-                            tangent_deltas,
-                            vertex_indices,
-                        })
+                        read_morph_target(target, vertex_data, &base, *param_index)
                     })
                     .collect::<BinResult<Vec<_>>>()?;
 
@@ -451,6 +429,41 @@ fn assign_morph_targets(
     }
 
     Ok(())
+}
+
+fn read_morph_target(
+    target: &xc3_lib::vertex::MorphTarget,
+    vertex_data: &VertexData,
+    base: &MorphBlendTargetAttributes,
+    param_index: u16,
+) -> BinResult<MorphTarget> {
+    let vertices = read_morph_buffer_target(target, &vertex_data.buffer)?;
+
+    let mut position_deltas = Vec::new();
+    let mut normal_deltas = Vec::new();
+    let mut tangent_deltas = Vec::new();
+    let mut vertex_indices = Vec::new();
+
+    // Keep the sparse representation to save space.
+    // The vertex indices only contain affected vertices.
+    for vertex in vertices {
+        let i = vertex.vertex_index as usize;
+        vertex_indices.push(vertex.vertex_index);
+
+        position_deltas.push(vertex.position_delta);
+
+        // Convert every attribute to a delta for consistency.
+        normal_deltas.push(vertex.normal - base.normals[i]);
+        tangent_deltas.push(vertex.tangent - base.tangents[i]);
+    }
+
+    Ok(MorphTarget {
+        morph_controller_index: param_index as usize,
+        position_deltas,
+        normal_deltas,
+        tangent_deltas,
+        vertex_indices,
+    })
 }
 
 fn split_targets<'a>(
@@ -917,10 +930,27 @@ impl ModelBuffers {
         // Match the ordering and alignment from in game.
         let mut buffer_writer = Cursor::new(Vec::new());
 
-        // TODO: Remove any attributes part of a morph target?
         for buffer in &self.vertex_buffers {
-            let vertex_buffer =
-                write_vertex_buffer(&mut buffer_writer, &buffer.attributes, Endian::Little)?;
+            let vertex_buffer = if !buffer.morph_targets.is_empty() {
+                // Remove any attributes that should only be in the morph targets.
+                // TODO: Is it better to not store the base target in the buffer attributes?
+                let attributes: Vec<_> = buffer
+                    .attributes
+                    .iter()
+                    .filter(|a| {
+                        !matches!(
+                            a,
+                            AttributeData::Position(_)
+                                | AttributeData::Normal(_)
+                                | AttributeData::Tangent(_)
+                        )
+                    })
+                    .cloned()
+                    .collect();
+                write_vertex_buffer(&mut buffer_writer, &attributes, Endian::Little)?
+            } else {
+                write_vertex_buffer(&mut buffer_writer, &buffer.attributes, Endian::Little)?
+            };
             vertex_buffers.push(vertex_buffer);
         }
 
@@ -1043,7 +1073,6 @@ impl ModelBuffers {
             .enumerate()
             .filter(|(_, b)| !b.morph_targets.is_empty())
         {
-            // TODO: How to handle the blend target being part of the vertex buffer?
             let descriptor = MorphDescriptor {
                 vertex_buffer_index: i as u32,
                 target_start_index: targets.len() as u32,
@@ -1052,39 +1081,23 @@ impl ModelBuffers {
             };
             descriptors.push(descriptor);
 
-            // TODO: How to write the data here?
-            targets.push(xc3_lib::vertex::MorphTarget {
-                data_offset: 0,
-                vertex_count: buffer.vertex_count() as u32,
-                vertex_size: 32,
-                flags: MorphTargetFlags::new(0, true, false, false, 0u8.into()),
-            });
-            targets.push(xc3_lib::vertex::MorphTarget {
-                data_offset: 0,
-                vertex_count: buffer.vertex_count() as u32,
-                vertex_size: 32,
-                flags: MorphTargetFlags::new(0, false, true, false, 0u8.into()),
-            });
+            let target = write_morph_blend_target(writer, buffer)?;
+            targets.push(target);
+
+            // The default target stores base values for modified vertices.
+            let modified_indices: BTreeSet<_> = buffer
+                .morph_targets
+                .iter()
+                .flat_map(|t| &t.vertex_indices)
+                .copied()
+                .collect();
+            let target = write_morph_default_target(writer, modified_indices, buffer)?;
+            targets.push(target);
 
             for morph_target in &buffer.morph_targets {
-                let offset = writer.stream_position()?;
-                let target = xc3_lib::vertex::MorphTarget {
-                    data_offset: offset as u32,
-                    vertex_count: morph_target.position_deltas.len() as u32,
-                    vertex_size: 32,
-                    flags: MorphTargetFlags::new(0, false, false, true, 0u8.into()),
-                };
+                align(writer, 256)?;
+                let target = write_morph_param_target(writer, morph_target, buffer)?;
                 targets.push(target);
-
-                // TODO: These shouldn't all be deltas.
-                write_data(
-                    writer,
-                    &morph_target.position_deltas,
-                    offset,
-                    32,
-                    Endian::Little,
-                    write_f32x3,
-                )?;
             }
         }
 
@@ -1094,6 +1107,280 @@ impl ModelBuffers {
             unks: [0; 4],
         })
     }
+}
+
+// TODO: share writing code with param target.
+fn write_morph_default_target(
+    writer: &mut Cursor<Vec<u8>>,
+    modified_indices: BTreeSet<u32>,
+    buffer: &VertexBuffer,
+) -> Result<xc3_lib::vertex::MorphTarget, binrw::Error> {
+    let offset = writer.stream_position()?;
+
+    // TODO: None of these attributes are deltas?
+    // TODO: Is there a cleaner way of doing this?
+    let positions: Vec<_> = buffer
+        .attributes
+        .iter()
+        .find_map(|a| {
+            if let AttributeData::Position(values) = a {
+                Some(
+                    modified_indices
+                        .iter()
+                        .map(|i| values[*i as usize])
+                        .collect(),
+                )
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    write_data(writer, &positions, offset, 32, Endian::Little, write_f32x3)?;
+
+    write_data(
+        writer,
+        &vec![0u32; modified_indices.len()],
+        offset + 12,
+        32,
+        Endian::Little,
+        write_u32,
+    )?;
+
+    let normals: Vec<_> = buffer
+        .attributes
+        .iter()
+        .find_map(|a| {
+            if let AttributeData::Normal(values) = a {
+                Some(
+                    modified_indices
+                        .iter()
+                        .map(|i| values[*i as usize])
+                        .collect(),
+                )
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    write_data(
+        writer,
+        &normals,
+        offset + 16,
+        32,
+        Endian::Little,
+        write_unorm8x4,
+    )?;
+
+    let tangents: Vec<_> = buffer
+        .attributes
+        .iter()
+        .find_map(|a| {
+            if let AttributeData::Tangent(values) = a {
+                Some(
+                    modified_indices
+                        .iter()
+                        .map(|i| values[*i as usize])
+                        .collect(),
+                )
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    write_data(
+        writer,
+        &tangents,
+        offset + 20,
+        32,
+        Endian::Little,
+        write_unorm8x4,
+    )?;
+
+    write_data(
+        writer,
+        &vec![0u32; modified_indices.len()],
+        offset + 24,
+        32,
+        Endian::Little,
+        write_u32,
+    )?;
+
+    let indices: Vec<_> = modified_indices.iter().copied().collect();
+    write_data(writer, &indices, offset + 28, 32, Endian::Little, write_u32)?;
+
+    Ok(xc3_lib::vertex::MorphTarget {
+        data_offset: offset as u32,
+        vertex_count: modified_indices.len() as u32,
+        vertex_size: 32,
+        flags: MorphTargetFlags::new(0, false, true, false, 0u8.into()),
+    })
+}
+
+fn write_morph_param_target(
+    writer: &mut Cursor<Vec<u8>>,
+    morph_target: &MorphTarget,
+    buffer: &VertexBuffer,
+) -> Result<xc3_lib::vertex::MorphTarget, binrw::Error> {
+    let offset = writer.stream_position()?;
+
+    write_data(
+        writer,
+        &morph_target.position_deltas,
+        offset,
+        32,
+        Endian::Little,
+        write_f32x3,
+    )?;
+
+    write_data(
+        writer,
+        &vec![0u32; morph_target.position_deltas.len()],
+        offset + 12,
+        32,
+        Endian::Little,
+        write_u32,
+    )?;
+
+    let normals = calculate_morph_normals(buffer, morph_target);
+    write_data(
+        writer,
+        &normals,
+        offset + 16,
+        32,
+        Endian::Little,
+        write_unorm8x4,
+    )?;
+
+    let tangents = calculate_morph_tangents(buffer, morph_target);
+    write_data(
+        writer,
+        &tangents,
+        offset + 20,
+        32,
+        Endian::Little,
+        write_unorm8x4,
+    )?;
+
+    write_data(
+        writer,
+        &vec![0u32; morph_target.position_deltas.len()],
+        offset + 24,
+        32,
+        Endian::Little,
+        write_u32,
+    )?;
+
+    write_data(
+        writer,
+        &morph_target.vertex_indices,
+        offset + 28,
+        32,
+        Endian::Little,
+        write_u32,
+    )?;
+
+    Ok(xc3_lib::vertex::MorphTarget {
+        data_offset: offset as u32,
+        vertex_count: morph_target.position_deltas.len() as u32,
+        vertex_size: 32,
+        flags: MorphTargetFlags::new(0, false, false, true, 0u8.into()),
+    })
+}
+
+fn calculate_morph_normals(buffer: &VertexBuffer, morph_target: &MorphTarget) -> Vec<Vec4> {
+    let base_normals = buffer
+        .attributes
+        .iter()
+        .find_map(|a| {
+            if let AttributeData::Normal(values) = a {
+                Some(values)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+
+    morph_target
+        .vertex_indices
+        .iter()
+        .zip(morph_target.normal_deltas.iter())
+        .map(|(i, d)| base_normals[*i as usize] + *d)
+        .collect()
+}
+
+fn calculate_morph_tangents(buffer: &VertexBuffer, morph_target: &MorphTarget) -> Vec<Vec4> {
+    let base_tangents = buffer
+        .attributes
+        .iter()
+        .find_map(|a| {
+            if let AttributeData::Tangent(values) = a {
+                Some(values)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+
+    morph_target
+        .vertex_indices
+        .iter()
+        .zip(morph_target.tangent_deltas.iter())
+        .map(|(i, d)| base_tangents[*i as usize] + *d)
+        .collect()
+}
+
+fn write_morph_blend_target(
+    writer: &mut Cursor<Vec<u8>>,
+    buffer: &VertexBuffer,
+) -> Result<xc3_lib::vertex::MorphTarget, binrw::Error> {
+    let offset = writer.stream_position()?;
+
+    let position = buffer
+        .attributes
+        .iter()
+        .find_map(|a| {
+            if matches!(a, AttributeData::Position(_)) {
+                Some(a.clone())
+            } else {
+                None
+            }
+        })
+        .unwrap();
+
+    let normal = buffer
+        .attributes
+        .iter()
+        .find_map(|a| {
+            if matches!(a, AttributeData::Normal(_)) {
+                Some(a.clone())
+            } else {
+                None
+            }
+        })
+        .unwrap();
+
+    let tangent = buffer
+        .attributes
+        .iter()
+        .find_map(|a| {
+            if matches!(a, AttributeData::Tangent(_)) {
+                Some(a.clone())
+            } else {
+                None
+            }
+        })
+        .unwrap();
+
+    // TODO: Are the position values always the same?
+    let attributes = [position.clone(), normal, position, tangent];
+    let descriptor = write_vertex_buffer(writer, &attributes, Endian::Little)?;
+
+    Ok(xc3_lib::vertex::MorphTarget {
+        data_offset: offset as u32,
+        vertex_count: descriptor.vertex_count,
+        vertex_size: descriptor.vertex_size,
+        flags: MorphTargetFlags::new(0, true, false, false, 0u8.into()),
+    })
 }
 
 fn read_index_buffers_legacy(vertex_data: &xc3_lib::mxmd::legacy::VertexData) -> Vec<IndexBuffer> {
@@ -1426,6 +1713,10 @@ where
 }
 
 fn write_u16x2<W: Write + Seek>(writer: &mut W, value: &[u16; 2], endian: Endian) -> BinResult<()> {
+    value.write_options(writer, endian, ())
+}
+
+fn write_u32<W: Write + Seek>(writer: &mut W, value: &u32, endian: Endian) -> BinResult<()> {
     value.write_options(writer, endian, ())
 }
 
@@ -1855,13 +2146,15 @@ mod tests {
         // xeno3/chr/ch/ch01027000.wismt, "face_D2_shape", target index 325.
         let data = hex!(
             // vertex 0
-            8c54023d bc27ac3f 72dd93bc 00000000
+            8c54023d bc27ac3f 72dd93bc
+            00000000
             d6237601
             a0a90cff
             00000000
             04000000
             // vertex 1
-            2b28153d 27e7ac3f 06d8b2bc 00000000
+            2b28153d 27e7ac3f 06d8b2bc
+            00000000
             dd2c6b01
             0x8ead0aff
             00000000
@@ -1875,6 +2168,7 @@ mod tests {
             flags: xc3_lib::vertex::MorphTargetFlags::new(0u16, false, true, false, 0u8.into()),
         };
 
+        // TODO: THese aren't actually deltas?
         assert_eq!(
             vec![
                 MorphTargetVertex {
@@ -1899,12 +2193,18 @@ mod tests {
         // xeno3/chr/ch/ch01027000.wismt, "face_D2_shape", target index 326.
         let data = hex!(
             // vertex 0
-            f0462abb 00f0a4bb 80b31a39 00000000
-            f770a800 6ad3ddff 00000000
+            f0462abb 00f0a4bb 80b31a39
+            00000000
+            f770a800
+            6ad3ddff
+            00000000
             d8000000
             // vertex 1
-            c03fd9ba 005245bb 002027b7 00000000
-            f66fa900 90fd83ff 00000000
+            c03fd9ba 005245bb 002027b7
+            00000000
+            f66fa900
+            90fd83ff
+            00000000
             d9000000
         );
 
