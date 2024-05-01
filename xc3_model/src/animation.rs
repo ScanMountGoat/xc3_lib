@@ -80,8 +80,13 @@ impl Animation {
 
     /// Convert `current_time_seconds` to frames based on the animation parameters.
     pub fn current_frame(&self, current_time_seconds: f32) -> f32 {
-        // TODO: looping?
-        current_time_seconds * self.frames_per_second
+        // TODO: add option to force looping?
+        let frame = current_time_seconds * self.frames_per_second;
+        let final_frame = self.frame_count.saturating_sub(1) as f32;
+        match self.play_mode {
+            PlayMode::Loop => frame.rem_euclid(final_frame),
+            PlayMode::Single => frame,
+        }
     }
 
     // TODO: Tests for this.
@@ -128,7 +133,7 @@ impl Animation {
                 BoneIndex::Hash(hash) => hash_to_index.get(hash).copied(),
                 BoneIndex::Name(name) => skeleton.bones.iter().position(|b| &b.name == name),
             } {
-                if let Some(transform) = track.sample_transform(frame) {
+                if let Some(transform) = track.sample_transform(frame, self.frame_count) {
                     if bone_index < skeleton.bones.len() {
                         animated_transforms[bone_index] = Some(apply_transform(
                             skeleton.bones[bone_index].transform,
@@ -528,29 +533,29 @@ fn packed_cubic_vec4_keyframes(
 impl Track {
     /// Sample the translation at `frame` using the appropriate interpolation between frames.
     /// Returns `None` if the animation is empty.
-    pub fn sample_translation(&self, frame: f32) -> Option<Vec3> {
-        sample_keyframe_cubic(&self.translation_keyframes, frame).map(|t| t.xyz())
+    pub fn sample_translation(&self, frame: f32, frame_count: u32) -> Option<Vec3> {
+        sample_keyframe_cubic(&self.translation_keyframes, frame, frame_count).map(|t| t.xyz())
     }
 
     /// Sample the rotation at `frame` using the appropriate interpolation between frames.
     /// Returns `None` if the animation is empty.
-    pub fn sample_rotation(&self, frame: f32) -> Option<Quat> {
-        let rotation = sample_keyframe_cubic(&self.rotation_keyframes, frame)?;
+    pub fn sample_rotation(&self, frame: f32, frame_count: u32) -> Option<Quat> {
+        let rotation = sample_keyframe_cubic(&self.rotation_keyframes, frame, frame_count)?;
         Some(Quat::from_array(rotation.to_array()))
     }
 
     /// Sample the scale at `frame` using the appropriate interpolation between frames.
     /// Returns `None` if the animation is empty.
-    pub fn sample_scale(&self, frame: f32) -> Option<Vec3> {
-        sample_keyframe_cubic(&self.scale_keyframes, frame).map(|s| s.xyz())
+    pub fn sample_scale(&self, frame: f32, frame_count: u32) -> Option<Vec3> {
+        sample_keyframe_cubic(&self.scale_keyframes, frame, frame_count).map(|s| s.xyz())
     }
 
     /// Sample and combine transformation matrices for scale -> rotation -> translation (TRS).
     /// Returns `None` if the animation is empty.
-    pub fn sample_transform(&self, frame: f32) -> Option<Mat4> {
-        let t = self.sample_translation(frame)?;
-        let r = self.sample_rotation(frame)?;
-        let s = self.sample_scale(frame)?;
+    pub fn sample_transform(&self, frame: f32, frame_count: u32) -> Option<Mat4> {
+        let t = self.sample_translation(frame, frame_count)?;
+        let r = self.sample_rotation(frame, frame_count)?;
+        let s = self.sample_scale(frame, frame_count)?;
         Some(Mat4::from_translation(t) * Mat4::from_quat(r) * Mat4::from_scale(s))
     }
 }
@@ -559,8 +564,9 @@ impl Track {
 fn sample_keyframe_cubic(
     keyframes: &BTreeMap<OrderedFloat<f32>, Keyframe>,
     frame: f32,
+    frame_count: u32,
 ) -> Option<Vec4> {
-    let (keyframe, x) = keyframe_position(keyframes, frame)?;
+    let (keyframe, x) = keyframe_position(keyframes, frame, frame_count)?;
 
     Some(vec4(
         interpolate_cubic(keyframe.x_coeffs, x),
@@ -573,6 +579,7 @@ fn sample_keyframe_cubic(
 fn keyframe_position(
     keyframes: &BTreeMap<OrderedFloat<f32>, Keyframe>,
     frame: f32,
+    frame_count: u32,
 ) -> Option<(&Keyframe, f32)> {
     // Find the keyframe range containing the desired frame.
     // Use a workaround for tree lower/upper bound not being stable.
@@ -581,10 +588,13 @@ fn keyframe_position(
     let mut after = keyframes.range((Excluded(key), Unbounded));
 
     let (previous_frame, keyframe) = before.next_back()?;
-    let (next_frame, _) = after.next().unwrap_or((previous_frame, keyframe));
-
     // The final keyframe should persist for the rest of the animation.
-    let position = frame.min(next_frame.0) - previous_frame.0;
+    let next_frame = after
+        .next()
+        .map(|(f, _)| f.0)
+        .unwrap_or(frame_count.saturating_sub(1) as f32);
+
+    let position = frame.min(next_frame) - previous_frame.0;
 
     Some((keyframe, position))
 }
@@ -650,9 +660,9 @@ mod tests {
     #[test]
     fn index_position_no_keyframes() {
         let keyframes = keys(&[]);
-        assert_eq!(None, keyframe_position(&keyframes, 0.0));
-        assert_eq!(None, keyframe_position(&keyframes, 2.5));
-        assert_eq!(None, keyframe_position(&keyframes, 4.9));
+        assert_eq!(None, keyframe_position(&keyframes, 0.0, 0));
+        assert_eq!(None, keyframe_position(&keyframes, 2.5, 0));
+        assert_eq!(None, keyframe_position(&keyframes, 4.9, 0));
     }
 
     #[test]
@@ -660,15 +670,15 @@ mod tests {
         let keyframes = keys(&[0.0, 5.0, 9.0]);
         assert_eq!(
             Some((&keyframes[&0.0.into()], 0.0)),
-            keyframe_position(&keyframes, 0.0)
+            keyframe_position(&keyframes, 0.0, 11)
         );
         assert_eq!(
             Some((&keyframes[&0.0.into()], 2.5)),
-            keyframe_position(&keyframes, 2.5)
+            keyframe_position(&keyframes, 2.5, 11)
         );
         assert_eq!(
             Some((&keyframes[&0.0.into()], 4.9)),
-            keyframe_position(&keyframes, 4.9)
+            keyframe_position(&keyframes, 4.9, 11)
         );
     }
 
@@ -677,29 +687,34 @@ mod tests {
         let keyframes = keys(&[0.0, 5.0, 9.0]);
         assert_eq!(
             Some((&keyframes[&5.0.into()], 0.0)),
-            keyframe_position(&keyframes, 5.0)
+            keyframe_position(&keyframes, 5.0, 11)
         );
         assert_eq!(
             Some((&keyframes[&5.0.into()], 2.0)),
-            keyframe_position(&keyframes, 7.0)
+            keyframe_position(&keyframes, 7.0, 11)
         );
         assert_eq!(
             Some((&keyframes[&5.0.into()], 3.5)),
-            keyframe_position(&keyframes, 8.5)
+            keyframe_position(&keyframes, 8.5, 11)
         );
     }
 
     #[test]
     fn index_position_last_keyframe() {
-        // This should clamp to the final keyframe instead of extrapolating.
+        // This should extrapolate.
+        // The final keyframe may not be at the final animation frame.
         let keyframes = keys(&[0.0, 5.0, 9.0]);
         assert_eq!(
             Some((&keyframes[&9.0.into()], 0.0)),
-            keyframe_position(&keyframes, 10.0)
+            keyframe_position(&keyframes, 9.0, 11)
         );
         assert_eq!(
-            Some((&keyframes[&9.0.into()], 0.0)),
-            keyframe_position(&keyframes, 12.5)
+            Some((&keyframes[&9.0.into()], 1.0)),
+            keyframe_position(&keyframes, 10.0, 11)
+        );
+        assert_eq!(
+            Some((&keyframes[&9.0.into()], 1.0)),
+            keyframe_position(&keyframes, 12.5, 11)
         );
     }
 
