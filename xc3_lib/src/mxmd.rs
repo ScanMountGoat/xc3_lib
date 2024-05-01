@@ -924,7 +924,8 @@ pub struct ExtMeshFlags {
     /// Whether to initially skip rendering assigned meshes.
     pub start_hidden: bool,
     pub unk5: bool,
-    pub unk: u11, // 0
+    pub unk6: bool, // 0, 1 (xc3 only)
+    pub unk: u10,   // 0
 }
 
 #[binread]
@@ -1002,6 +1003,7 @@ pub struct ModelUnk3Item {
     pub unk3: Vec<u16>,
 }
 
+/// A table for mapping [ExtMesh] to [LodItem1].
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
@@ -1012,7 +1014,8 @@ pub struct AlphaTable {
     base_offset: u64,
 
     // TODO: used to assign ext mesh and lod alpha to a mesh?
-    // items[mesh.alpha_table_index] = (ext_mesh_index + 1, lod_item1_index + 1)
+    // TODO: assigned to meshes in order based on their ext mesh and lod?
+    /// A mapping table for `(ext_mesh_index + 1, lod_item1_index + 1)`
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
     pub items: Vec<(u16, u16)>,

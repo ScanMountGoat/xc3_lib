@@ -36,6 +36,7 @@ use std::{
 use animation::Animation;
 use binrw::{BinRead, BinReaderExt};
 use glam::{Mat4, Vec3};
+use indexmap::IndexMap;
 use log::error;
 use material::create_materials;
 use shader_database::ShaderDatabase;
@@ -52,7 +53,7 @@ use xc3_lib::{
         Msrd,
     },
     mtxt::Mtxt,
-    mxmd::{legacy::MxmdLegacy, Materials, Mxmd},
+    mxmd::{legacy::MxmdLegacy, AlphaTable, Materials, Mxmd},
     sar1::Sar1,
     xbc1::MaybeXbc1,
     ReadFileError,
@@ -183,6 +184,7 @@ pub struct Mesh {
     pub vertex_buffer_index: usize,
     pub index_buffer_index: usize,
     pub material_index: usize,
+    pub ext_mesh_index: usize,
     pub lod: u16,
     pub flags1: u32,
     pub flags2: MeshRenderFlags2,
@@ -300,6 +302,7 @@ impl Model {
                 vertex_buffer_index: mesh.vertex_buffer_index as usize,
                 index_buffer_index: mesh.index_buffer_index as usize,
                 material_index: mesh.material_index as usize,
+                ext_mesh_index: mesh.ext_mesh_index as usize,
                 lod: mesh.lod,
                 flags1: mesh.flags1,
                 flags2: mesh.flags2,
@@ -324,6 +327,7 @@ impl Model {
                 vertex_buffer_index: mesh.vertex_buffer_index as usize,
                 index_buffer_index: mesh.index_buffer_index as usize,
                 material_index: mesh.material_index as usize,
+                ext_mesh_index: 0,
                 lod: 0,
                 flags1: mesh.flags1,
                 flags2: mesh.flags2.try_into().unwrap(),
@@ -600,6 +604,8 @@ impl ModelRoot {
 
         // TODO: Rebuild materials.
         // TODO: How many of these mesh fields can use a default value?
+        let mut alpha_table = IndexMap::new();
+
         new_mxmd.models.models = self
             .models
             .models
@@ -608,24 +614,35 @@ impl ModelRoot {
                 meshes: model
                     .meshes
                     .iter()
-                    .map(|m| xc3_lib::mxmd::Mesh {
-                        flags1: m.flags1,
-                        flags2: m.flags2,
-                        vertex_buffer_index: m.vertex_buffer_index as u16,
-                        index_buffer_index: m.index_buffer_index as u16,
-                        unk_index: 0,
-                        material_index: m.material_index as u16,
-                        unk2: 0,
-                        unk3: 0,
-                        ext_mesh_index: 0, // TODO: add field to mesh?
-                        unk4: 0,
-                        unk5: 0,
-                        lod: m.lod,
-                        alpha_table_index: 0,
-                        unk6: 0,
-                        unk7: 0,
-                        unk8: 0,
-                        unk9: 0,
+                    .map(|m| {
+                        // Generate the mapping for unique ext mesh and lod values.
+                        // TODO: Tests for this?
+                        // TODO: When can this be 0 for ext mesh?
+                        // TODO: ext mesh can be disabled?
+                        let new_index = alpha_table.len() as u16;
+                        let alpha_table_index = *alpha_table
+                            .entry((m.ext_mesh_index as u16 + 1, m.lod))
+                            .or_insert(new_index);
+
+                        xc3_lib::mxmd::Mesh {
+                            flags1: m.flags1,
+                            flags2: m.flags2,
+                            vertex_buffer_index: m.vertex_buffer_index as u16,
+                            index_buffer_index: m.index_buffer_index as u16,
+                            unk_index: 0,
+                            material_index: m.material_index as u16,
+                            unk2: 0,
+                            unk3: 0,
+                            ext_mesh_index: m.ext_mesh_index as u16,
+                            unk4: 0,
+                            unk5: 0,
+                            lod: m.lod,
+                            alpha_table_index,
+                            unk6: 0,
+                            unk7: 0,
+                            unk8: 0,
+                            unk9: 0,
+                        }
                     })
                     .collect(),
                 unk1: 0,
@@ -637,6 +654,12 @@ impl ModelRoot {
                 unks: [0; 3],
             })
             .collect();
+
+        new_mxmd.models.alpha_table = Some(AlphaTable {
+            items: alpha_table.keys().copied().collect(),
+            unks: [0; 4],
+        });
+
         new_mxmd.models.min_xyz = new_mxmd
             .models
             .models
