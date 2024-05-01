@@ -405,7 +405,12 @@ fn load_prop_model_group(
     {
         // Avoid loading unused prop models.
         if !instances.is_empty() {
-            let group = Model::from_model(model, instances, *vertex_data_index as usize);
+            let group = Model::from_model(
+                model,
+                instances,
+                *vertex_data_index as usize,
+                model_data.models.alpha_table.as_ref(),
+            );
             models.models.push(group);
         }
     }
@@ -550,7 +555,12 @@ fn load_map_model_group(
                 .get(*group_index as usize)
                 .map(|group| {
                     let vertex_data_index = group.vertex_data_index as usize;
-                    Model::from_model(model, vec![Mat4::IDENTITY], vertex_data_index)
+                    Model::from_model(
+                        model,
+                        vec![Mat4::IDENTITY],
+                        vertex_data_index,
+                        model_data.models.alpha_table.as_ref(),
+                    )
                 })
         })
         .collect();
@@ -634,7 +644,14 @@ fn load_foliage_model(
         .models
         .models
         .iter()
-        .map(|model| Model::from_model(model, vec![Mat4::IDENTITY], 0))
+        .map(|model| {
+            Model::from_model(
+                model,
+                vec![Mat4::IDENTITY],
+                0,
+                model_data.models.alpha_table.as_ref(),
+            )
+        })
         .collect();
 
     let buffers = ModelBuffers::from_vertex_data(&model_data.vertex_data, None)?;

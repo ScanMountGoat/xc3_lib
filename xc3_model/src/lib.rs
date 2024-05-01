@@ -184,7 +184,7 @@ pub struct Mesh {
     pub vertex_buffer_index: usize,
     pub index_buffer_index: usize,
     pub material_index: usize,
-    pub ext_mesh_index: usize,
+    pub ext_mesh_index: Option<usize>,
     pub lod: u16,
     pub flags1: u32,
     pub flags2: MeshRenderFlags2,
@@ -200,7 +200,9 @@ impl Models {
             models: models
                 .models
                 .iter()
-                .map(|model| Model::from_model(model, vec![Mat4::IDENTITY], 0))
+                .map(|model| {
+                    Model::from_model(model, vec![Mat4::IDENTITY], 0, models.alpha_table.as_ref())
+                })
                 .collect(),
             materials: create_materials(materials, spch),
             samplers: create_samplers(materials),
@@ -294,18 +296,33 @@ impl Model {
         model: &xc3_lib::mxmd::Model,
         instances: Vec<Mat4>,
         model_buffers_index: usize,
+        alpha_table: Option<&AlphaTable>,
     ) -> Self {
         let meshes = model
             .meshes
             .iter()
-            .map(|mesh| Mesh {
-                vertex_buffer_index: mesh.vertex_buffer_index as usize,
-                index_buffer_index: mesh.index_buffer_index as usize,
-                material_index: mesh.material_index as usize,
-                ext_mesh_index: mesh.ext_mesh_index as usize,
-                lod: mesh.lod,
-                flags1: mesh.flags1,
-                flags2: mesh.flags2,
+            .map(|mesh| {
+                // TODO: Is there also a flag that disables the ext mesh?
+                let ext_mesh_index = if let Some(a) = alpha_table {
+                    // This uses 1-based indexing so 0 is disabled.
+                    if a.items[mesh.alpha_table_index as usize].0 == 0 {
+                        None
+                    } else {
+                        Some(mesh.ext_mesh_index as usize)
+                    }
+                } else {
+                    Some(mesh.ext_mesh_index as usize)
+                };
+
+                Mesh {
+                    vertex_buffer_index: mesh.vertex_buffer_index as usize,
+                    index_buffer_index: mesh.index_buffer_index as usize,
+                    material_index: mesh.material_index as usize,
+                    ext_mesh_index,
+                    lod: mesh.lod,
+                    flags1: mesh.flags1,
+                    flags2: mesh.flags2,
+                }
             })
             .collect();
 
@@ -327,7 +344,7 @@ impl Model {
                 vertex_buffer_index: mesh.vertex_buffer_index as usize,
                 index_buffer_index: mesh.index_buffer_index as usize,
                 material_index: mesh.material_index as usize,
-                ext_mesh_index: 0,
+                ext_mesh_index: None,
                 lod: 0,
                 flags1: mesh.flags1,
                 flags2: mesh.flags2.try_into().unwrap(),
@@ -616,12 +633,12 @@ impl ModelRoot {
                     .iter()
                     .map(|m| {
                         // Generate the mapping for unique ext mesh and lod values.
-                        // TODO: Tests for this?
-                        // TODO: When can this be 0 for ext mesh?
-                        // TODO: ext mesh can be disabled?
+                        // An index of 0 represents no ext mesh.
+                        // TODO: Why is the lod index set to 0 for some xc3 models?
+                        let ext_index = m.ext_mesh_index.map(|i| i + 1).unwrap_or_default() as u16;
                         let new_index = alpha_table.len() as u16;
                         let alpha_table_index = *alpha_table
-                            .entry((m.ext_mesh_index as u16 + 1, m.lod))
+                            .entry((ext_index, m.lod & 0xff))
                             .or_insert(new_index);
 
                         xc3_lib::mxmd::Mesh {
@@ -633,7 +650,7 @@ impl ModelRoot {
                             material_index: m.material_index as u16,
                             unk2: 0,
                             unk3: 0,
-                            ext_mesh_index: m.ext_mesh_index as u16,
+                            ext_mesh_index: m.ext_mesh_index.unwrap_or_default() as u16,
                             unk4: 0,
                             unk5: 0,
                             lod: m.lod,

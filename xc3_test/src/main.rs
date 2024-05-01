@@ -944,7 +944,7 @@ fn check_all_wimdo_model<P: AsRef<Path>>(root: P, check_read_write: bool) {
                     if check_read_write {
                         // TODO: Should to_mxmd_model make the msrd optional?
                         if let Some(msrd) = msrd {
-                            let (_new_mxmd, new_msrd) = root.to_mxmd_model(&mxmd, &msrd);
+                            let (new_mxmd, new_msrd) = root.to_mxmd_model(&mxmd, &msrd);
                             match new_msrd.extract_files(None) {
                                 Ok((new_vertex, _, _)) => {
                                     if &new_vertex != streaming_data.vertex.as_ref() {
@@ -952,6 +952,11 @@ fn check_all_wimdo_model<P: AsRef<Path>>(root: P, check_read_write: bool) {
                                     }
                                 }
                                 Err(e) => println!("Error extracting new msrd for {path:?}: {e}"),
+                            }
+
+                            // TODO: How many of these fields should be preserved?
+                            if new_mxmd.models.alpha_table != mxmd.models.alpha_table {
+                                println!("Alpha table not 1:1 for {path:?}");
                             }
                         }
                     }
