@@ -801,7 +801,8 @@ pub struct Mesh {
     /// Index into [index_buffers](../vertex/struct.VertexData.html#structfield.index_buffers)
     /// for the associated [VertexData].
     pub index_buffer_index: u16,
-    pub unk_index: u16, // TODO: 0 to 1000+?
+    // TODO: some sort of grouping index shared with child meshes?
+    pub unk_mesh_index1: u16,
     /// Index into [materials](struct.Materials.html#structfield.materials).
     pub material_index: u16,
     pub unk2: u32, // 0
@@ -814,9 +815,11 @@ pub struct Mesh {
     /// The index of the level of detail typically starting from 1.
     pub lod: u16, // TODO: flags with one byte being lod?
     /// Index into [items](struct.AlphaTable.html#structfield.items).
-    pub alpha_table_index: u16, // alpha table index?
+    pub alpha_table_index: u16,
     pub unk6: u16, // TODO: flags?
-    pub unk7: i32, // TODO: -1 to 1000+?
+    // TODO: -1 for xc3 for "base" meshes and always 0 for xc1 and xc2
+    // TODO: index for parent or base mesh for speff materials?
+    pub unk_mesh_index2: i32,
     pub unk8: u32, // 0, 1
     pub unk9: u32, // 0
 }

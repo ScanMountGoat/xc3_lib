@@ -623,6 +623,13 @@ impl ModelRoot {
         // TODO: How many of these mesh fields can use a default value?
         let mut alpha_table = IndexMap::new();
 
+        let mut unk_group_index = IndexMap::new();
+        let has_speff_materials = self
+            .models
+            .materials
+            .iter()
+            .any(|m| m.name.contains("speff"));
+
         new_mxmd.models.models = self
             .models
             .models
@@ -641,12 +648,27 @@ impl ModelRoot {
                             .entry((ext_index, m.lod & 0xff))
                             .or_insert(new_index);
 
+                        let unk7 = if let Some((name, _)) = self.models.materials[m.material_index]
+                            .name
+                            .split_once("speff")
+                        {
+                            let new_unk7 = unk_group_index.len() as i32;
+
+                            // TODO: How to handle xc3 materials with the same name?
+                            *unk_group_index.entry(name).or_insert(new_unk7)
+                        } else if has_speff_materials {
+                            -1
+                        } else {
+                            // xc1 and xc2 always set this to 0.
+                            0
+                        };
+
                         xc3_lib::mxmd::Mesh {
                             flags1: m.flags1,
                             flags2: m.flags2,
                             vertex_buffer_index: m.vertex_buffer_index as u16,
                             index_buffer_index: m.index_buffer_index as u16,
-                            unk_index: 0,
+                            unk_mesh_index1: 0,
                             material_index: m.material_index as u16,
                             unk2: 0,
                             unk3: 0,
@@ -656,7 +678,7 @@ impl ModelRoot {
                             lod: m.lod,
                             alpha_table_index,
                             unk6: 0,
-                            unk7: 0,
+                            unk_mesh_index2: unk7,
                             unk8: 0,
                             unk9: 0,
                         }
