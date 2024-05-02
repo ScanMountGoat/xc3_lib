@@ -371,7 +371,7 @@ pub fn should_render_lod(lod: u16, base_lod_indices: &Option<Vec<u16>>) -> bool 
     // TODO: Add test cases for this?
     base_lod_indices
         .as_ref()
-        .map(|indices| indices.contains(&lod.saturating_sub(1)))
+        .map(|indices| indices.contains(&(lod & 0xff).saturating_sub(1)))
         .unwrap_or(true)
 }
 
