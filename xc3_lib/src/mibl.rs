@@ -293,7 +293,7 @@ impl Mibl {
         })
     }
 
-    /// Swizzles all layers and mipmaps in `dds` to an equivalent [Mibl].
+    /// Swizzles all layers and mipmaps in `surface` to an equivalent [Mibl].
     ///
     /// Returns an error if the conversion fails or the image format is not supported.
     pub fn from_surface<T: AsRef<[u8]>>(surface: Surface<T>) -> Result<Self, CreateMiblError> {

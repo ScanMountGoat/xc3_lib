@@ -12,6 +12,7 @@ use std::io::SeekFrom;
 
 use binrw::{binrw, BinRead, BinWrite};
 use image_dds::{ddsfile::Dds, Surface};
+use thiserror::Error;
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinWrite, PartialEq, Eq, Clone)]
@@ -46,8 +47,8 @@ pub struct MtxtFooter {
     pub size: u32, // TODO: linear or row-major size?
     pub aa_mode: u32,
     pub tile_mode: TileMode,
-    pub unk1: u32, // TODO: usually identical to swizzle?
-    pub alignment: u32,
+    pub unk1: u32,      // TODO: usually identical to swizzle?
+    pub alignment: u32, // TODO: 512 * bytes per pixel?
     pub pitch: u32,
     /// Offset into [image_data](struct.Mtxt.html#structfield.image_data)
     /// for each mipmap past the base level starting with mip 1.
@@ -94,6 +95,18 @@ pub enum TileMode {
     D2TiledThick = 7,
 }
 
+#[derive(Debug, Error)]
+pub enum CreateMtxtError {
+    #[error("error swizzling surface")]
+    SwizzleError(#[from] tegra_swizzle::SwizzleError),
+
+    #[error("error creating surface from DDS")]
+    DdsError(#[from] image_dds::error::SurfaceError),
+
+    #[error("image format {0:?} is not supported by Mibl")]
+    UnsupportedImageFormat(image_dds::ImageFormat),
+}
+
 impl BinRead for Mtxt {
     type Args<'a> = ();
 
@@ -122,10 +135,12 @@ impl Mtxt {
     pub fn deswizzled_image_data(&self) -> Vec<u8> {
         let (block_width, block_height) = self.footer.surface_format.block_dim();
 
+        let div_round_up = |x, d| (x + d - 1) / d;
+
         // TODO: Add tests cases for mipmap offsets?
         // TODO: How to handle dimensions not divisible by block dimensions?
         let mut data = Vec::new();
-        for i in 0..1 {
+        for i in 0..self.footer.mipmap_count {
             let offset = if i == 0 {
                 // The mip 0 data is at the start of the image data.
                 0
@@ -138,11 +153,11 @@ impl Mtxt {
                     + self.footer.mip_offsets[i as usize - 1] as usize
             };
 
-            // TODO: round up dimensions?
             // TODO: This still isn't always correct for mipmaps?
+            // TODO: cemu uses mipPtr & 0x700 for swizzle for mipmaps?
             let mip = wiiu_swizzle::deswizzle_surface(
-                (self.footer.width / block_width) >> i,
-                (self.footer.height / block_height) >> i,
+                div_round_up(self.footer.width, block_width) >> i,
+                div_round_up(self.footer.height, block_height) >> i,
                 self.footer.depth_or_array_layers,
                 &self.image_data[offset..],
                 self.footer.swizzle,
@@ -171,10 +186,46 @@ impl Mtxt {
             } else {
                 1
             },
-            mipmaps: 1,
+            mipmaps: self.footer.mipmap_count,
             image_format: self.footer.surface_format.into(),
             data: self.deswizzled_image_data(),
         }
+    }
+
+    /// Swizzles all layers and mipmaps in `surface` to an equivalent [Mtxt].
+    ///
+    /// Returns an error if the conversion fails or the image format is not supported.
+    pub fn from_surface<T: AsRef<[u8]>>(surface: Surface<T>) -> Result<Self, CreateMtxtError> {
+        let surface_format = surface.image_format.try_into()?;
+
+        // TODO: How to set these values?
+        // Assume either depth or layers are used but not both.
+        Ok(Self {
+            image_data: Vec::new(),
+            footer: MtxtFooter {
+                swizzle: 0,
+                surface_dim: if surface.layers == 6 {
+                    SurfaceDim::Cube
+                } else if surface.depth > 1 {
+                    SurfaceDim::D3
+                } else {
+                    SurfaceDim::D2
+                },
+                width: surface.width,
+                height: surface.height,
+                depth_or_array_layers: surface.depth.max(surface.layers),
+                mipmap_count: surface.mipmaps,
+                surface_format,
+                size: 0,
+                aa_mode: 0,
+                tile_mode: TileMode::D2TiledThin1,
+                unk1: 0,
+                alignment: surface_format.bytes_per_pixel() * 512,
+                pitch: 0,
+                mip_offsets: [0; 13],
+                version: 10002,
+            },
+        })
     }
 
     /// Deswizzles all layers and mipmaps to a Direct Draw Surface (DDS).
@@ -192,6 +243,22 @@ impl From<SurfaceFormat> for image_dds::ImageFormat {
             SurfaceFormat::BC3Unorm => Self::BC3RgbaUnorm,
             SurfaceFormat::BC4Unorm => Self::BC4RUnorm,
             SurfaceFormat::BC5Unorm => Self::BC5RgUnorm,
+        }
+    }
+}
+
+impl TryFrom<image_dds::ImageFormat> for SurfaceFormat {
+    type Error = CreateMtxtError;
+
+    fn try_from(value: image_dds::ImageFormat) -> Result<Self, Self::Error> {
+        match value {
+            image_dds::ImageFormat::Rgba8Unorm => Ok(Self::R8G8B8A8Unorm),
+            image_dds::ImageFormat::BC1RgbaUnorm => Ok(Self::BC1Unorm),
+            image_dds::ImageFormat::BC2RgbaUnorm => Ok(Self::BC2Unorm),
+            image_dds::ImageFormat::BC3RgbaUnorm => Ok(Self::BC3Unorm),
+            image_dds::ImageFormat::BC4RUnorm => Ok(Self::BC4Unorm),
+            image_dds::ImageFormat::BC5RgUnorm => Ok(Self::BC5Unorm),
+            _ => Err(CreateMtxtError::UnsupportedImageFormat(value)),
         }
     }
 }
