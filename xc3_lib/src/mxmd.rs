@@ -819,7 +819,7 @@ pub struct Mesh {
     pub unk6: u16, // TODO: flags?
     // TODO: -1 for xc3 for "base" meshes and always 0 for xc1 and xc2
     // TODO: index for parent or base mesh for speff materials?
-    pub unk_mesh_index2: i32,
+    pub base_mesh_index: i32,
     pub unk8: u32, // 0, 1
     pub unk9: u32, // 0
 }
