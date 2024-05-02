@@ -438,7 +438,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     // TODO: How much shading is done in this pass?
     // TODO: Is it ok to always apply gMatCol like this?
     var out: FragmentOutput;
-    out.g_color = g_color * vec4(per_material.mat_color.rgb * in.vertex_color.rgb, 1.0);
+    out.g_color = g_color * per_material.mat_color * in.vertex_color;
     out.g_etc_buffer = mrt_etc_buffer(g_etc_buffer, view_normal);
     out.g_normal = mrt_normal(view_normal, g_normal.z);
     out.g_velocity = g_velocity;
