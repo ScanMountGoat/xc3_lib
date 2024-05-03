@@ -185,8 +185,7 @@ fn create_material(
             base_color_texture: albedo_index.map(|i| {
                 let texture_index = add_texture(textures, &albedo_key, i, sampler_base_index);
 
-                // Assume all channels have the same UV attribute and scale.
-                let scale = albedo_key.red_index.and_then(|i| i.texcoord_scale);
+                let scale = texture_scale(albedo_key);
 
                 gltf::json::texture::Info {
                     index: gltf::json::Index::new(texture_index),
@@ -200,9 +199,7 @@ fn create_material(
                     add_texture(textures, &metallic_roughness_key, i, sampler_base_index);
 
                 // Assume all channels have the same UV attribute and scale.
-                let scale = metallic_roughness_key
-                    .red_index
-                    .and_then(|i| i.texcoord_scale);
+                let scale = texture_scale(metallic_roughness_key);
 
                 gltf::json::texture::Info {
                     index: gltf::json::Index::new(texture_index),
@@ -254,6 +251,14 @@ fn create_material(
     }
 }
 
+fn texture_scale(key: GeneratedImageKey) -> Option<[ordered_float::OrderedFloat<f32>; 2]> {
+    // Assume all channels have the same UV attribute and scale.
+    match &key.red_index {
+        Some(ImageIndex::Image { texcoord_scale, .. }) => *texcoord_scale,
+        _ => None,
+    }
+}
+
 fn texture_transform_ext(
     scale: Option<[ordered_float::OrderedFloat<f32>; 2]>,
 ) -> Option<gltf_json::extensions::texture::Info> {
@@ -277,9 +282,10 @@ fn add_texture(
 ) -> u32 {
     // The channel packing means an image could theoretically require 4 samplers.
     // The samplers are unlikely to differ in practice, so just pick one.
-    let sampler_index = image_key
-        .red_index
-        .map(|ImageIndex { sampler, .. }| sampler);
+    let sampler_index = image_key.red_index.and_then(|i| match i {
+        ImageIndex::Image { sampler, .. } => Some(sampler),
+        ImageIndex::Value(_) => None,
+    });
 
     let texture_index = textures.len() as u32;
     textures.push(gltf::json::Texture {

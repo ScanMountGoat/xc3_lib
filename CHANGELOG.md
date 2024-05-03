@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 * Improved accuracy of render state and render pass assignments for Xenoblade X models.
+* Adjusted generated glTF textures to include material parameters and constants for more accurate materials.
 
 ### Fixed
 * Fixed an issue where some animation files failed to load with `load_animations` for xc3_model.

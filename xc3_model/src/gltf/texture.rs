@@ -17,12 +17,15 @@ pub struct GeneratedImageKey {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ImageIndex {
-    pub image_texture: usize,
-    // TODO: This shouldn't be keyed as part of the generated images.
-    pub sampler: usize,
-    pub channel: usize,
-    pub texcoord_scale: Option<[OrderedFloat<f32>; 2]>,
+pub enum ImageIndex {
+    Image {
+        image_texture: usize,
+        // TODO: This shouldn't be keyed as part of the generated images.
+        sampler: usize,
+        channel: usize,
+        texcoord_scale: Option<[OrderedFloat<f32>; 2]>,
+    },
+    Value(OrderedFloat<f32>),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -80,8 +83,7 @@ impl TextureCache {
         self.generated_texture_indices
             .par_iter()
             .map(|(key, _)| {
-                // TODO: Why does this panic?
-                let image = generate_image(*key, &self.original_images, flip_vertical).unwrap();
+                let image = generate_image(*key, &self.original_images, flip_vertical);
 
                 // Compress ahead of time to reduce memory usage.
                 // The final results will need to be saved as PNG anyway.
@@ -104,7 +106,7 @@ pub fn albedo_generated_key(
 ) -> GeneratedImageKey {
     // Assume the first texture is albedo if no assignments are possible.
     let red_index = image_index(material, assignments.assignments[0].x.as_ref()).or_else(|| {
-        material.textures.first().map(|t| ImageIndex {
+        material.textures.first().map(|t| ImageIndex::Image {
             image_texture: t.image_texture_index,
             sampler: 0,
             channel: 0,
@@ -112,7 +114,7 @@ pub fn albedo_generated_key(
         })
     });
     let green_index = image_index(material, assignments.assignments[0].y.as_ref()).or_else(|| {
-        material.textures.first().map(|t| ImageIndex {
+        material.textures.first().map(|t| ImageIndex::Image {
             image_texture: t.image_texture_index,
             sampler: 0,
             channel: 1,
@@ -120,7 +122,7 @@ pub fn albedo_generated_key(
         })
     });
     let blue_index = image_index(material, assignments.assignments[0].z.as_ref()).or_else(|| {
-        material.textures.first().map(|t| ImageIndex {
+        material.textures.first().map(|t| ImageIndex::Image {
             image_texture: t.image_texture_index,
             sampler: 0,
             channel: 2,
@@ -135,7 +137,7 @@ pub fn albedo_generated_key(
     // This avoids issues with applications that always treat alpha as transparency.
     let alpha_index = material.alpha_test.as_ref().map(|a| {
         let texture = &material.textures[a.texture_index];
-        ImageIndex {
+        ImageIndex::Image {
             image_texture: texture.image_texture_index,
             sampler: texture.sampler_index,
             channel: a.channel_index,
@@ -201,29 +203,19 @@ fn generate_image(
     key: GeneratedImageKey,
     original_images: &IndexMap<ImageKey, RgbaImage>,
     flip_vertical: bool,
-) -> Option<RgbaImage> {
-    let find_image_channel = |index: Option<ImageIndex>| {
-        index.and_then(|index| {
-            original_images
-                .get(&ImageKey {
-                    root_index: key.root_index,
-                    image_index: index.image_texture,
-                })
-                .map(|image| (image, index.channel))
-        })
-    };
-
-    let red_image = find_image_channel(key.red_index);
-    let green_image = find_image_channel(key.green_index);
-    let blue_image = find_image_channel(key.blue_index);
-    let alpha_image = find_image_channel(key.alpha_index);
+) -> RgbaImage {
+    let red_image = find_image_channel(original_images, key.red_index, key.root_index);
+    let green_image = find_image_channel(original_images, key.green_index, key.root_index);
+    let blue_image = find_image_channel(original_images, key.blue_index, key.root_index);
+    let alpha_image = find_image_channel(original_images, key.alpha_index, key.root_index);
 
     // Use the dimensions of the largest image to avoid quality loss.
-    // Return None if no images are assigned.
+    // Choose a small default size to avoid crashes on images with only constants.
     let (width, height) = [red_image, green_image, blue_image, alpha_image]
         .iter()
         .filter_map(|i| i.map(|(i, _)| i.dimensions()))
-        .max()?;
+        .max()
+        .unwrap_or((4, 4));
 
     // Start with a fully opaque black image.
     let mut image = RgbaImage::new(width, height);
@@ -231,12 +223,17 @@ fn generate_image(
         pixel[3] = 255u8;
     }
 
+    let red_value = find_value(key.red_index);
+    let green_value = find_value(key.green_index);
+    let blue_value = find_value(key.blue_index);
+    let alpha_value = find_value(key.alpha_index);
+
     // TODO: optimize assigning multiple channels in order?
     // TODO: cache resizing operations for images?
-    assign_channel(&mut image, red_image, 0);
-    assign_channel(&mut image, green_image, 1);
-    assign_channel(&mut image, blue_image, 2);
-    assign_channel(&mut image, alpha_image, 3);
+    assign_channel(&mut image, red_image, red_value, 0);
+    assign_channel(&mut image, green_image, green_value, 1);
+    assign_channel(&mut image, blue_image, blue_value, 2);
+    assign_channel(&mut image, alpha_image, alpha_value, 3);
 
     if key.recalculate_normal_z {
         // Reconstruct the normal map Z channel.
@@ -260,14 +257,43 @@ fn generate_image(
         image = image_dds::image::imageops::flip_vertical(&image);
     }
 
-    Some(image)
+    image
+}
+
+fn find_image_channel(
+    original_images: &IndexMap<ImageKey, RgbaImage>,
+    index: Option<ImageIndex>,
+    root_index: usize,
+) -> Option<(&RgbaImage, usize)> {
+    index.and_then(|index| match index {
+        ImageIndex::Image {
+            image_texture,
+            channel,
+            ..
+        } => original_images
+            .get(&ImageKey {
+                root_index,
+                image_index: image_texture,
+            })
+            .map(|i| (i, channel)),
+        ImageIndex::Value(_) => None,
+    })
+}
+
+fn find_value(index: Option<ImageIndex>) -> Option<f32> {
+    match index {
+        Some(ImageIndex::Value(v)) => Some(*v),
+        _ => None,
+    }
 }
 
 fn assign_channel(
     output: &mut RgbaImage,
     image_channel: Option<(&RgbaImage, usize)>,
+    value: Option<f32>,
     output_channel: usize,
 ) {
+    // TODO: Make this an enum instead?
     if let Some((input, input_channel)) = image_channel {
         // Ensure the input and output images have the same dimensions.
         // TODO: Is it worth caching this operation?
@@ -282,6 +308,10 @@ fn assign_channel(
             assign_pixels(output, &resized, output_channel, input_channel);
         } else {
             assign_pixels(output, input, output_channel, input_channel);
+        }
+    } else if let Some(value) = value {
+        for output_pixel in output.pixels_mut() {
+            output_pixel[output_channel] = (value * 255.0) as u8;
         }
     }
 }
@@ -299,47 +329,39 @@ fn assign_pixels(
 
 pub fn image_name(key: &GeneratedImageKey, model_name: &str) -> String {
     let mut name = format!("{model_name}_root{}", key.root_index);
-    if let Some(ImageIndex {
-        image_texture: image_texture_index,
-        channel: channel_index,
-        ..
-    }) = key.red_index
-    {
-        name += &format!("_r{image_texture_index}[{channel_index}]");
+    if let Some(text) = channel_name(key.red_index) {
+        name += &format!("_r{text}");
     }
-    if let Some(ImageIndex {
-        image_texture: image_texture_index,
-        channel: channel_index,
-        ..
-    }) = key.green_index
-    {
-        name += &format!("_g{image_texture_index}[{channel_index}]");
+    if let Some(text) = channel_name(key.green_index) {
+        name += &format!("_g{text}");
     }
-    if let Some(ImageIndex {
-        image_texture: image_texture_index,
-        channel: channel_index,
-        ..
-    }) = key.blue_index
-    {
-        name += &format!("_b{image_texture_index}[{channel_index}]");
+    if let Some(text) = channel_name(key.blue_index) {
+        name += &format!("_b{text}");
     }
-    if let Some(ImageIndex {
-        image_texture: image_texture_index,
-        channel: channel_index,
-        ..
-    }) = key.alpha_index
-    {
-        name += &format!("_a{image_texture_index}[{channel_index}]");
+    if let Some(text) = channel_name(key.alpha_index) {
+        name += &format!("_a{text}");
     }
     // Use PNG since it's lossless and widely supported.
     name + ".png"
+}
+
+fn channel_name(index: Option<ImageIndex>) -> Option<String> {
+    // TODO: Include sampler data?
+    match index {
+        Some(ImageIndex::Image {
+            image_texture,
+            channel,
+            ..
+        }) => Some(format!("{image_texture}[{channel}]")),
+        Some(ImageIndex::Value(v)) => Some(v.to_string()),
+        None => None,
+    }
 }
 
 fn image_index(
     material: &crate::Material,
     assignment: Option<&ChannelAssignment>,
 ) -> Option<ImageIndex> {
-    // Find the sampler from the material.
     // TODO: scale?
     match assignment? {
         crate::ChannelAssignment::Texture {
@@ -349,16 +371,19 @@ fn image_index(
             texcoord_scale,
         } => {
             let sampler_index = material_texture_index(name)?;
+            // Find the sampler from the material.
             // Find the texture referenced by this sampler.
-            material.textures.get(sampler_index).map(|t| ImageIndex {
-                image_texture: t.image_texture_index,
-                sampler: t.sampler_index,
-                channel: *channel_index,
-                texcoord_scale: texcoord_scale.map(|(u, v)| [u.into(), v.into()]),
-            })
+            material
+                .textures
+                .get(sampler_index)
+                .map(|t| ImageIndex::Image {
+                    image_texture: t.image_texture_index,
+                    sampler: t.sampler_index,
+                    channel: *channel_index,
+                    texcoord_scale: texcoord_scale.map(|(u, v)| [u.into(), v.into()]),
+                })
         }
-        // TODO: Also handle constant values?
-        crate::ChannelAssignment::Value(_) => None,
+        crate::ChannelAssignment::Value(v) => Some(ImageIndex::Value((*v).into())),
     }
 }
 
