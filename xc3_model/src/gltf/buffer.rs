@@ -58,6 +58,7 @@ pub struct VertexBuffer {
     pub morph_targets: Vec<GltfAttributes>,
 }
 
+#[derive(Clone)]
 pub struct WeightGroup {
     pub weights: GltfAttribute,
     pub indices: GltfAttribute,
@@ -72,55 +73,64 @@ impl Buffers {
         buffers_index: usize,
         buffer_index: usize,
         flip_uvs: bool,
-    ) -> BinResult<&VertexBuffer> {
+    ) -> BinResult<VertexBuffer> {
         let key = BufferKey {
             root_index,
             group_index,
             buffers_index,
             buffer_index,
         };
-        if !self.vertex_buffers.contains_key(&key) {
-            // Assume the base morph target is already applied.
-            let attributes = self.write_attributes(&vertex_buffer.attributes, flip_uvs)?;
-
-            // Morph targets have their own attribute data.
-            let morph_targets = vertex_buffer
-                .morph_targets
-                .iter()
-                .map(|target| {
-                    // Convert from a sparse to a dense representation.
-                    let vertex_count = vertex_buffer.attributes[0].len();
-                    let mut position_deltas = vec![Vec3::ZERO; vertex_count];
-                    let mut normal_deltas = vec![Vec3::ZERO; vertex_count];
-                    let mut tangent_deltas = vec![Vec3::ZERO; vertex_count];
-                    for (i, vertex_index) in target.vertex_indices.iter().enumerate() {
-                        position_deltas[*vertex_index as usize] = target.position_deltas[i];
-                        normal_deltas[*vertex_index as usize] = target.normal_deltas[i].xyz();
-                        tangent_deltas[*vertex_index as usize] = target.tangent_deltas[i].xyz();
-                    }
-
-                    // glTF morph targets are defined as a difference with the base target.
-                    let mut attributes = attributes.clone();
-                    self.insert_positions(&position_deltas, &mut attributes)?;
-
-                    // Normals and tangents also use deltas.
-                    // These should use Vec3 to avoid displacing the sign in tangent.w.
-                    self.insert_vec3(&normal_deltas, gltf::Semantic::Normals, &mut attributes)?;
-                    self.insert_vec3(&tangent_deltas, gltf::Semantic::Tangents, &mut attributes)?;
-
-                    Ok(attributes)
-                })
-                .collect::<BinResult<Vec<_>>>()?;
-
-            self.vertex_buffers.insert(
-                key,
-                VertexBuffer {
-                    attributes,
-                    morph_targets,
-                },
-            );
+        match self.vertex_buffers.get(&key) {
+            Some(buffer) => Ok(buffer.clone()),
+            None => {
+                let buffer = self.insert_vertex_buffer_inner(vertex_buffer, flip_uvs)?;
+                self.vertex_buffers.insert(key, buffer.clone());
+                Ok(buffer)
+            }
         }
-        Ok(self.vertex_buffers.get(&key).unwrap())
+    }
+
+    fn insert_vertex_buffer_inner(
+        &mut self,
+        vertex_buffer: &crate::vertex::VertexBuffer,
+        flip_uvs: bool,
+    ) -> Result<VertexBuffer, binrw::Error> {
+        // Assume the base morph target is already applied.
+        let attributes = self.write_attributes(&vertex_buffer.attributes, flip_uvs)?;
+
+        // Morph targets have their own attribute data.
+        let morph_targets = vertex_buffer
+            .morph_targets
+            .iter()
+            .map(|target| {
+                // Convert from a sparse to a dense representation.
+                let vertex_count = vertex_buffer.attributes[0].len();
+                let mut position_deltas = vec![Vec3::ZERO; vertex_count];
+                let mut normal_deltas = vec![Vec3::ZERO; vertex_count];
+                let mut tangent_deltas = vec![Vec3::ZERO; vertex_count];
+                for (i, vertex_index) in target.vertex_indices.iter().enumerate() {
+                    position_deltas[*vertex_index as usize] = target.position_deltas[i];
+                    normal_deltas[*vertex_index as usize] = target.normal_deltas[i].xyz();
+                    tangent_deltas[*vertex_index as usize] = target.tangent_deltas[i].xyz();
+                }
+
+                // glTF morph targets are defined as a difference with the base target.
+                let mut attributes = attributes.clone();
+                self.insert_positions(&position_deltas, &mut attributes)?;
+
+                // Normals and tangents also use deltas.
+                // These should use Vec3 to avoid displacing the sign in tangent.w.
+                self.insert_vec3(&normal_deltas, gltf::Semantic::Normals, &mut attributes)?;
+                self.insert_vec3(&tangent_deltas, gltf::Semantic::Tangents, &mut attributes)?;
+
+                Ok(attributes)
+            })
+            .collect::<BinResult<Vec<_>>>()?;
+
+        Ok(VertexBuffer {
+            attributes,
+            morph_targets,
+        })
     }
 
     pub fn insert_weight_group(
@@ -128,34 +138,39 @@ impl Buffers {
         buffers: &crate::ModelBuffers,
         skeleton: Option<&crate::Skeleton>,
         key: WeightGroupKey,
-    ) -> Option<&WeightGroup> {
-        // TODO: rewrite this.
-        if !self.weight_groups.contains_key(&key) {
-            if let Some(skeleton) = skeleton {
-                if let Some(weights) = &buffers.weights {
-                    let vertex_buffer = &buffers.vertex_buffers[key.buffer.buffer_index];
-                    if let Some(weight_indices) =
-                        vertex_buffer.attributes.iter().find_map(|a| match a {
-                            AttributeData::WeightIndex(indices) => Some(indices),
-                            _ => None,
-                        })
-                    {
-                        let weight_group = self
-                            .add_weight_group(
-                                skeleton,
-                                weights,
-                                weight_indices,
-                                key.flags2,
-                                key.weights_start_index,
-                            )
-                            .unwrap();
-                        self.weight_groups.insert(key, weight_group);
-                    }
-                }
+    ) -> Option<WeightGroup> {
+        match self.weight_groups.get(&key) {
+            Some(group) => Some(group.clone()),
+            None => {
+                let weight_group = self.insert_weight_group_inner(skeleton, buffers, key)?;
+                self.weight_groups.insert(key, weight_group.clone());
+                Some(weight_group)
             }
         }
+    }
 
-        self.weight_groups.get(&key)
+    fn insert_weight_group_inner(
+        &mut self,
+        skeleton: Option<&crate::Skeleton>,
+        buffers: &crate::vertex::ModelBuffers,
+        key: WeightGroupKey,
+    ) -> Option<WeightGroup> {
+        let vertex_buffer = &buffers.vertex_buffers[key.buffer.buffer_index];
+        let weight_indices = vertex_buffer.attributes.iter().find_map(|a| match a {
+            AttributeData::WeightIndex(indices) => Some(indices),
+            _ => None,
+        })?;
+
+        let weight_group = self
+            .add_weight_group(
+                skeleton?,
+                buffers.weights.as_ref()?,
+                weight_indices,
+                key.flags2,
+                key.weights_start_index,
+            )
+            .unwrap();
+        Some(weight_group)
     }
 
     fn add_weight_group(
