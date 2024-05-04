@@ -34,8 +34,11 @@ impl DdsExt for Dds {
 #[derive(Debug, Error)]
 pub enum CreateDdsError {
     #[error("error deswizzling surface")]
-    SwizzleError(#[from] tegra_swizzle::SwizzleError),
+    TegraSwizzle(#[from] tegra_swizzle::SwizzleError),
+
+    #[error("error deswizzling surface")]
+    WiiUSwizzle(#[from] wiiu_swizzle::SwizzleError),
 
     #[error("error creating DDS")]
-    DdsError(#[from] image_dds::CreateDdsError),
+    Dds(#[from] image_dds::CreateDdsError),
 }

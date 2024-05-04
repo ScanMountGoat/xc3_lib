@@ -2,7 +2,7 @@ use image_dds::{ddsfile::Dds, error::CreateImageError, CreateDdsError, Surface};
 use log::error;
 use thiserror::Error;
 use xc3_lib::{
-    mibl::{CreateMiblError, Mibl, SwizzleError},
+    mibl::{CreateMiblError, Mibl},
     msrd::streaming::{ExtractedTexture, HighTexture},
     mtxt::Mtxt,
     mxmd::PackedTexture,
@@ -24,7 +24,10 @@ pub enum ExtractedTextures {
 #[derive(Debug, Error)]
 pub enum CreateImageTextureError {
     #[error("error deswizzling surface")]
-    Swizzle(#[from] SwizzleError),
+    SwizzleMibl(#[from] xc3_lib::mibl::SwizzleError),
+
+    #[error("error deswizzling surface")]
+    SwizzleMtxt(#[from] xc3_lib::mtxt::SwizzleError),
 
     #[error("error reading data")]
     Binrw(#[from] binrw::Error),
@@ -75,7 +78,7 @@ impl ImageTexture {
         mibl: &Mibl,
         name: Option<String>,
         usage: Option<TextureUsage>,
-    ) -> Result<Self, SwizzleError> {
+    ) -> Result<Self, CreateImageTextureError> {
         Ok(Self {
             name,
             usage,
@@ -97,7 +100,7 @@ impl ImageTexture {
         mtxt: &Mtxt,
         name: Option<String>,
         usage: Option<xc3_lib::mxmd::legacy::TextureUsage>,
-    ) -> Result<Self, SwizzleError> {
+    ) -> Result<Self, CreateImageTextureError> {
         Ok(Self {
             name,
             usage: usage.and_then(mtxt_usage),
@@ -107,7 +110,7 @@ impl ImageTexture {
             view_dimension: ViewDimension::D2,
             image_format: mtxt_image_format(mtxt.footer.surface_format),
             mipmap_count: 1, // TODO: fix handling of mip data.
-            image_data: mtxt.deswizzled_image_data(),
+            image_data: mtxt.deswizzled_image_data()?,
         })
     }
 

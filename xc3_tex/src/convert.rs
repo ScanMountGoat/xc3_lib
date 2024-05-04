@@ -108,7 +108,7 @@ impl File {
         // TODO: decode and encode again if needed.
         match self {
             File::Mibl(mibl) => Ok(mibl.clone()),
-            File::Mtxt(mtxt) => Mibl::from_surface(mtxt.to_surface())
+            File::Mtxt(mtxt) => Mibl::from_surface(mtxt.to_surface()?)
                 .with_context(|| "failed to convert Mtxt to Mibl"),
             File::Dds(dds) => Mibl::from_dds(dds).with_context(|| "failed to create Mibl from DDS"),
             File::Image(image) => {

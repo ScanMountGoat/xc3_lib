@@ -14,6 +14,8 @@ use binrw::{binrw, BinRead, BinWrite};
 use image_dds::{ddsfile::Dds, Surface};
 use thiserror::Error;
 
+pub use wiiu_swizzle::SwizzleError;
+
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinWrite, PartialEq, Eq, Clone)]
 pub struct Mtxt {
@@ -132,7 +134,7 @@ impl BinRead for Mtxt {
 
 impl Mtxt {
     /// Deswizzles all layers and mipmaps to a standard row-major memory layout.
-    pub fn deswizzled_image_data(&self) -> Vec<u8> {
+    pub fn deswizzled_image_data(&self) -> Result<Vec<u8>, SwizzleError> {
         let (block_width, block_height) = self.footer.surface_format.block_dim();
 
         let div_round_up = |x, d| (x + d - 1) / d;
@@ -164,16 +166,16 @@ impl Mtxt {
                 self.footer.pitch >> i,
                 self.footer.tile_mode.into(),
                 self.footer.surface_format.bytes_per_pixel(),
-            );
+            )?;
             data.extend_from_slice(&mip);
         }
 
-        data
+        Ok(data)
     }
 
     /// Deswizzles all layers and mipmaps to a compatible surface for easier conversions.
-    pub fn to_surface(&self) -> Surface<Vec<u8>> {
-        Surface {
+    pub fn to_surface(&self) -> Result<Surface<Vec<u8>>, SwizzleError> {
+        Ok(Surface {
             width: self.footer.width,
             height: self.footer.height,
             depth: if self.footer.surface_dim == SurfaceDim::D3 {
@@ -188,8 +190,8 @@ impl Mtxt {
             },
             mipmaps: self.footer.mipmap_count,
             image_format: self.footer.surface_format.into(),
-            data: self.deswizzled_image_data(),
-        }
+            data: self.deswizzled_image_data()?,
+        })
     }
 
     /// Swizzles all layers and mipmaps in `surface` to an equivalent [Mtxt].
@@ -230,7 +232,7 @@ impl Mtxt {
 
     /// Deswizzles all layers and mipmaps to a Direct Draw Surface (DDS).
     pub fn to_dds(&self) -> Result<Dds, crate::dds::CreateDdsError> {
-        self.to_surface().to_dds().map_err(Into::into)
+        self.to_surface()?.to_dds().map_err(Into::into)
     }
 }
 
