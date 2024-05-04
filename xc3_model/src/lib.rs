@@ -181,13 +181,15 @@ pub struct Model {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct Mesh {
+    pub flags1: u32,
+    pub flags2: MeshRenderFlags2,
     pub vertex_buffer_index: usize,
     pub index_buffer_index: usize,
+    pub unk_mesh_index1: usize,
     pub material_index: usize,
     pub ext_mesh_index: Option<usize>,
     pub lod: u16,
-    pub flags1: u32,
-    pub flags2: MeshRenderFlags2,
+    pub base_mesh_index: Option<usize>,
 }
 
 impl Models {
@@ -248,19 +250,14 @@ impl Models {
                         .collect(),
                     alpha_test: materials.alpha_test_textures.first().and_then(|a| {
                         // TODO: alpha test texture index in material?
-                        if let Some(texture_index) = m
-                            .textures
+                        m.textures
                             .iter()
                             .position(|t| t.texture_index == a.texture_index)
-                        {
-                            Some(TextureAlphaTest {
+                            .map(|texture_index| TextureAlphaTest {
                                 texture_index,
                                 channel_index: 3,
                                 ref_value: 0.5,
                             })
-                        } else {
-                            None
-                        }
                     }),
                     shader: None,
                     pass_type: match m.techniques[0].unk1 {
@@ -314,14 +311,19 @@ impl Model {
                     Some(mesh.ext_mesh_index as usize)
                 };
 
+                // TODO: This should also be None for xc1 and xc2?
+                let base_mesh_index = mesh.base_mesh_index.try_into().ok();
+
                 Mesh {
+                    flags1: mesh.flags1,
+                    flags2: mesh.flags2,
                     vertex_buffer_index: mesh.vertex_buffer_index as usize,
                     index_buffer_index: mesh.index_buffer_index as usize,
+                    unk_mesh_index1: mesh.unk_mesh_index1 as usize,
                     material_index: mesh.material_index as usize,
                     ext_mesh_index,
                     lod: mesh.lod,
-                    flags1: mesh.flags1,
-                    flags2: mesh.flags2,
+                    base_mesh_index,
                 }
             })
             .collect();
@@ -341,13 +343,15 @@ impl Model {
             .meshes
             .iter()
             .map(|mesh| Mesh {
+                flags1: mesh.flags1,
+                flags2: mesh.flags2.try_into().unwrap(),
                 vertex_buffer_index: mesh.vertex_buffer_index as usize,
                 index_buffer_index: mesh.index_buffer_index as usize,
+                unk_mesh_index1: 0,
                 material_index: mesh.material_index as usize,
                 ext_mesh_index: None,
                 lod: 0,
-                flags1: mesh.flags1,
-                flags2: mesh.flags2.try_into().unwrap(),
+                base_mesh_index: None,
             })
             .collect();
 
@@ -623,12 +627,17 @@ impl ModelRoot {
         // TODO: How many of these mesh fields can use a default value?
         let mut alpha_table = IndexMap::new();
 
-        let mut base_mesh_indices = IndexMap::new();
         let has_speff_materials = self
             .models
             .materials
             .iter()
             .any(|m| m.name.contains("speff"));
+        let default_base_mesh_index = if has_speff_materials {
+            -1
+        } else {
+            // xc1 and xc2 always set this to 0.
+            0
+        };
 
         new_mxmd.models.models = self
             .models
@@ -648,38 +657,27 @@ impl ModelRoot {
                             .entry((ext_index, m.lod & 0xff))
                             .or_insert(new_index);
 
-                        let base_mesh_index = if let Some((name, _)) = self.models.materials
-                            [m.material_index]
-                            .name
-                            .split_once("speff")
-                        {
-                            let new_index = base_mesh_indices.len() as i32;
-
-                            // TODO: How to handle xc3 materials with the same name?
-                            // TODO: Store this with xc3_model and don't assume any mesh ordering?
-                            *base_mesh_indices.entry(name).or_insert(new_index)
-                        } else if has_speff_materials {
-                            -1
-                        } else {
-                            // xc1 and xc2 always set this to 0.
-                            0
-                        };
+                        // TODO: How to set these indices in applications?
+                        let base_mesh_index = m
+                            .base_mesh_index
+                            .map(|i| i as i32)
+                            .unwrap_or(default_base_mesh_index);
 
                         xc3_lib::mxmd::Mesh {
                             flags1: m.flags1,
                             flags2: m.flags2,
                             vertex_buffer_index: m.vertex_buffer_index as u16,
                             index_buffer_index: m.index_buffer_index as u16,
-                            unk_mesh_index1: 0,
+                            unk_mesh_index1: m.unk_mesh_index1 as u16,
                             material_index: m.material_index as u16,
                             unk2: 0,
                             unk3: 0,
                             ext_mesh_index: m.ext_mesh_index.unwrap_or_default() as u16,
                             unk4: 0,
-                            unk5: 0,
+                            unk5: 0, // TODO: flags?
                             lod: m.lod,
                             alpha_table_index,
-                            unk6: 0,
+                            unk6: 0, // TODO: flags?
                             base_mesh_index,
                             unk8: 0,
                             unk9: 0,

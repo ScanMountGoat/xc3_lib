@@ -958,6 +958,9 @@ fn check_all_wimdo_model<P: AsRef<Path>>(root: P, check_read_write: bool) {
                             if new_mxmd.models.alpha_table != mxmd.models.alpha_table {
                                 println!("Alpha table not 1:1 for {path:?}");
                             }
+                            if new_mxmd.models.models != mxmd.models.models {
+                                println!("Model list not 1:1 for {path:?}");
+                            }
                         }
                     }
                 }
