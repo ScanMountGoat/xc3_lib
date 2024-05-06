@@ -234,9 +234,12 @@ impl Buffers {
                     self.insert_vec3(&values, gltf::Semantic::Normals, &mut attributes)?;
                 }
                 AttributeData::Tangent(values) => {
-                    // TODO: do these values need to be scaled/normalized?
-                    // TODO: Why is the w component not always 1 or -1?
-                    self.insert_vec4(values, gltf::Semantic::Tangents, &mut attributes)?;
+                    // Not all applications will normalize the vertex tangents.
+                    let values: Vec<_> = values
+                        .iter()
+                        .map(|v| v.xyz().normalize().extend(v.w))
+                        .collect();
+                    self.insert_vec4(&values, gltf::Semantic::Tangents, &mut attributes)?;
                 }
                 AttributeData::TexCoord0(values) => {
                     self.insert_uvs(values, 0, &mut attributes, flip_uvs)?;

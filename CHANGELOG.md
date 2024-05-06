@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 * Fixed an issue where some animation files failed to load with `load_animations` for xc3_model.
 * Fixed an issue where animations did not loop properly due to the final keyframe not extrapolating to the final frame.
+* Fixed an issue where tangent and normal vertex attributes were not scaled properly.
 
 ## 0.8.0 - 2024-04-27
 ### Added

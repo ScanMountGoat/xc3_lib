@@ -710,7 +710,7 @@ fn read_unorm8x4(reader: &mut Cursor<&[u8]>, endian: Endian) -> BinResult<Vec4> 
 
 fn read_snorm8x4(reader: &mut Cursor<&[u8]>, endian: Endian) -> BinResult<Vec4> {
     let value: [i8; 4] = reader.read_type(endian)?;
-    Ok(value.map(|i| i as f32 / 255.0).into())
+    Ok(value.map(|i| i as f32 / 127.0).into())
 }
 
 fn read_unorm16x4(reader: &mut Cursor<&[u8]>, endian: Endian) -> BinResult<Vec4> {
@@ -1749,7 +1749,7 @@ fn write_unorm16x4<W: Write + Seek>(writer: &mut W, value: &Vec4, endian: Endian
 fn write_snorm8x4<W: Write + Seek>(writer: &mut W, value: &Vec4, endian: Endian) -> BinResult<()> {
     value
         .to_array()
-        .map(|f| (f * 255.0) as i8)
+        .map(|f| (f * 127.0) as i8)
         .write_options(writer, endian, ())
 }
 
@@ -1859,12 +1859,12 @@ mod tests {
                 vec4(0.49803922, 0.0, 1.0, 1.0),
             ]),
             AttributeData::Normal(vec![
-                vec4(0.12941177, -0.019607844, 0.47843137, 0.0),
-                vec4(0.38431373, 0.047058824, 0.30980393, 0.0),
+                vec4(0.25984251, -0.03937008, 0.96062994, 0.0),
+                vec4(0.77165353, 0.09448819, 0.62204725, 0.0),
             ]),
             AttributeData::Tangent(vec![
-                vec4(0.47843137, 0.0, -0.12941177, 0.49803922),
-                vec4(0.30980393, 0.0, -0.38431373, 0.49803922),
+                vec4(0.96062994, 0.0, -0.25984251, 1.0),
+                vec4(0.62204725, 0.0, -0.77165353, 1.0),
             ]),
         ];
         assert_eq!(
@@ -2079,12 +2079,12 @@ mod tests {
             ]),
             AttributeData::VertexColor(vec![vec4(1.0, 1.0, 1.0, 1.0), vec4(1.0, 1.0, 1.0, 1.0)]),
             AttributeData::Normal(vec![
-                vec4(-0.05882353, 0.47058824, 0.13725491, 0.0),
-                vec4(-0.09411765, 0.45882353, 0.16470589, 0.0),
+                vec4(-0.11811024, 0.9448819, 0.27559054, 0.0),
+                vec4(-0.18897638, 0.9212598, 0.33070865, 0.0),
             ]),
             AttributeData::Tangent(vec![
-                vec4(0.49019608, 0.0627451, 0.003921569, 0.49803922),
-                vec4(0.4862745, 0.101960786, 0.0, 0.49803922),
+                vec4(0.984252, 0.12598425, 0.007874016, 1.0),
+                vec4(0.97637796, 0.20472442, 0.0, 1.0),
             ]),
         ];
         assert_eq!(
@@ -2168,7 +2168,7 @@ mod tests {
             flags: xc3_lib::vertex::MorphTargetFlags::new(0u16, false, true, false, 0u8.into()),
         };
 
-        // TODO: THese aren't actually deltas?
+        // TODO: These aren't actually deltas?
         assert_eq!(
             vec![
                 MorphTargetVertex {
@@ -2467,12 +2467,12 @@ mod tests {
             ]),
             AttributeData::VertexColor(vec![vec4(1.0, 1.0, 1.0, 1.0), vec4(1.0, 1.0, 1.0, 1.0)]),
             AttributeData::Normal(vec![
-                vec4(-0.105882354, -0.36078432, 0.3254902, 0.0),
-                vec4(-0.4, 0.0, 0.2901961, 0.0),
+                vec4(-0.21259843, -0.72440946, 0.6535433, 0.0),
+                vec4(-0.8031496, 0.0, 0.5826772, 0.0),
             ]),
             AttributeData::Tangent(vec![
-                vec4(-0.10980392, 0.34117648, 0.34117648, 0.49803922),
-                vec4(0.0, 0.49803922, 0.0, 0.49803922),
+                vec4(-0.22047244, 0.68503934, 0.68503934, 1.0),
+                vec4(0.0, 1.0, 0.0, 1.0),
             ]),
         ];
         assert_eq!(
