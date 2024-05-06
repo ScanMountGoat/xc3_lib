@@ -6,7 +6,7 @@ use crate::gltf::texture::{
 use crate::{AddressMode, ImageTexture, MapRoot, ModelRoot, Sampler};
 use gltf::json::validation::Checked::Valid;
 
-use super::texture::{GeneratedImageKey, ImageIndex};
+use super::texture::{emissive_generated_key, GeneratedImageKey, ImageIndex};
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct MaterialKey {
@@ -176,8 +176,10 @@ fn create_material(
 
     let metallic_roughness_key =
         metallic_roughness_generated_key(material, &assignments, root_index);
-
     let metallic_roughness_index = texture_cache.insert(metallic_roughness_key);
+
+    let emissive_key = emissive_generated_key(material, &assignments, root_index);
+    let emissive_index = texture_cache.insert(emissive_key);
 
     gltf::json::Material {
         name: Some(material.name.clone()),
@@ -237,7 +239,12 @@ fn create_material(
                 extras: Default::default(),
             }
         }),
-        emissive_texture: None, // TODO: emission?
+        emissive_texture: emissive_index.map(|i| gltf_json::texture::Info {
+            index: gltf::json::Index::new(i),
+            tex_coord: 0,
+            extensions: None,
+            extras: Default::default(),
+        }),
         alpha_mode: if material.alpha_test.is_some() {
             Valid(gltf::json::material::AlphaMode::Mask)
         } else {

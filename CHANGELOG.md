@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 * Added support to xc3_viewer for loading multiple `.wimdo` or `.camdo` files.
 * Added `--bones` and `--bounds` debug shading args to xc3_viewer.
+* Added support for emissive textures to glTF export.
 
 ### Changed
 * Improved accuracy of render state and render pass assignments for Xenoblade X models.

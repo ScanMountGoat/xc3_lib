@@ -230,12 +230,25 @@ fn read_param<const N: usize>(
         .collect()
 }
 
+// TODO: Add a mat_id method that checks o1.w and returns an enum?
 // TODO: create get methods for naming the outputs?
 /// Assignment information for the channels of each output.
 /// This includes channels from textures, material parameters, or shader constants.
 #[derive(Debug, Clone, PartialEq)]
 pub struct OutputAssignments {
     pub assignments: [OutputAssignment; 6],
+}
+
+impl OutputAssignments {
+    /// Calculate the material ID from a hardcoded shader constant if present.
+    pub fn mat_id(&self) -> Option<u32> {
+        if let Some(ChannelAssignment::Value(v)) = self.assignments[1].w {
+            // TODO: Why is this sometimes 7?
+            Some((v * 255.0 + 0.1) as u32 & 0x7)
+        } else {
+            None
+        }
+    }
 }
 
 // TODO: Add some sort of default?

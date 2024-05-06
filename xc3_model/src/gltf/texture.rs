@@ -198,6 +198,40 @@ pub fn metallic_roughness_generated_key(
     }
 }
 
+pub fn emissive_generated_key(
+    material: &crate::Material,
+    assignments: &OutputAssignments,
+    root_index: usize,
+) -> GeneratedImageKey {
+    // TODO: Is it correct to assume only toon and hair materials use specular?
+    let has_emission = !matches!(assignments.mat_id(), Some(2 | 5));
+    if has_emission {
+        let red_index = image_index(material, assignments.assignments[5].x.as_ref());
+        let green_index = image_index(material, assignments.assignments[5].y.as_ref());
+        let blue_index = image_index(material, assignments.assignments[5].z.as_ref());
+
+        GeneratedImageKey {
+            root_index,
+            red_index,
+            green_index,
+            blue_index,
+            alpha_index: None,
+            recalculate_normal_z: false,
+            invert_green: false,
+        }
+    } else {
+        GeneratedImageKey {
+            root_index,
+            red_index: None,
+            green_index: None,
+            blue_index: None,
+            alpha_index: None,
+            recalculate_normal_z: false,
+            invert_green: false,
+        }
+    }
+}
+
 // TODO: how to make this faster?
 fn generate_image(
     key: GeneratedImageKey,
