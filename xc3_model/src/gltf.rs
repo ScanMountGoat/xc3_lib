@@ -20,7 +20,7 @@
 //! # Ok(())
 //! # }
 //! ```
-use std::{collections::BTreeMap, path::Path};
+use std::path::Path;
 
 use crate::{should_render_lod, MapRoot, ModelRoot};
 use glam::Mat4;
@@ -30,7 +30,7 @@ use thiserror::Error;
 
 use self::{
     buffer::{BufferKey, Buffers, WeightGroupKey},
-    material::{create_map_materials, create_materials, MaterialKey},
+    material::{MaterialCache, MaterialKey},
     texture::{image_name, TextureCache},
 };
 
@@ -83,10 +83,7 @@ impl GltfFile {
         flip_images_uvs: bool,
     ) -> Result<Self, CreateGltfError> {
         let mut texture_cache = TextureCache::new(roots.iter().map(|r| &r.image_textures));
-
-        let (materials, material_indices, textures, samplers) =
-            create_materials(roots, &mut texture_cache);
-
+        let mut material_cache = MaterialCache::default();
         let mut buffers = Buffers::default();
 
         let mut meshes = Vec::new();
@@ -107,6 +104,8 @@ impl GltfFile {
             // TODO: Avoid clone?
             let group_buffers = &[root.buffers.clone()];
 
+            material_cache.insert_samplers(&root.models, root_index, 0, 0);
+
             add_models(
                 &root.models,
                 group_buffers,
@@ -114,7 +113,9 @@ impl GltfFile {
                 &mut meshes,
                 &mut nodes,
                 &mut scene_nodes,
-                &material_indices,
+                &mut material_cache,
+                &mut texture_cache,
+                &root.image_textures,
                 root_index,
                 0,
                 0,
@@ -148,6 +149,13 @@ impl GltfFile {
             uri: Some(buffer_name.clone()),
         };
 
+        // TODO: proper sampler support for camdo?
+        if material_cache.samplers.is_empty() {
+            material_cache
+                .samplers
+                .push(gltf_json::texture::Sampler::default());
+        }
+
         let root = gltf::json::Root {
             accessors: buffers.accessors,
             buffers: vec![buffer],
@@ -160,11 +168,11 @@ impl GltfFile {
                 name: None,
                 nodes: scene_nodes,
             }],
-            materials,
-            textures,
+            materials: material_cache.materials,
+            textures: material_cache.textures,
             images,
             skins,
-            samplers,
+            samplers: material_cache.samplers,
             ..Default::default()
         };
 
@@ -191,10 +199,7 @@ impl GltfFile {
         flip_images_uvs: bool,
     ) -> Result<Self, CreateGltfError> {
         let mut texture_cache = TextureCache::new(roots.iter().map(|r| &r.image_textures));
-
-        let (materials, material_indices, textures, samplers) =
-            create_map_materials(roots, &mut texture_cache);
-
+        let mut material_cache = MaterialCache::default();
         let mut buffers = Buffers::default();
 
         let mut meshes = Vec::new();
@@ -204,6 +209,8 @@ impl GltfFile {
         for (root_index, root) in roots.iter().enumerate() {
             for (group_index, group) in root.groups.iter().enumerate() {
                 for (models_index, models) in group.models.iter().enumerate() {
+                    material_cache.insert_samplers(models, root_index, group_index, models_index);
+
                     add_models(
                         models,
                         &group.buffers,
@@ -211,7 +218,9 @@ impl GltfFile {
                         &mut meshes,
                         &mut nodes,
                         &mut scene_nodes,
-                        &material_indices,
+                        &mut material_cache,
+                        &mut texture_cache,
+                        &root.image_textures,
                         root_index,
                         group_index,
                         models_index,
@@ -259,10 +268,10 @@ impl GltfFile {
                 name: None,
                 nodes: scene_nodes,
             }],
-            materials,
-            textures,
+            materials: material_cache.materials,
+            textures: material_cache.textures,
             images,
-            samplers,
+            samplers: material_cache.samplers,
             ..Default::default()
         };
 
@@ -313,7 +322,9 @@ fn add_models(
     meshes: &mut Vec<gltf_json::Mesh>,
     nodes: &mut Vec<gltf_json::Node>,
     scene_nodes: &mut Vec<gltf_json::Index<gltf_json::Node>>,
-    material_indices: &BTreeMap<MaterialKey, usize>,
+    material_cache: &mut MaterialCache,
+    texture_cache: &mut TextureCache,
+    image_textures: &[crate::ImageTexture],
     root_index: usize,
     group_index: usize,
     models_index: usize,
@@ -389,14 +400,18 @@ fn add_models(
                     mesh.index_buffer_index,
                 )? as u32;
 
-                let material_index = material_indices
-                    .get(&MaterialKey {
+                // We lazy load meshes, so also lazy load materials to save space.
+                let material_index = material_cache.insert(
+                    material,
+                    texture_cache,
+                    image_textures,
+                    MaterialKey {
                         root_index,
                         group_index,
                         models_index,
                         material_index: mesh.material_index,
-                    })
-                    .unwrap();
+                    },
+                );
 
                 let targets = morph_targets(&vertex_buffer);
                 // The first target is baked into vertices, so don't set weights.
@@ -407,7 +422,7 @@ fn add_models(
                     extensions: Default::default(),
                     extras: Default::default(),
                     indices: Some(gltf::json::Index::new(index_accessor)),
-                    material: Some(gltf::json::Index::new(*material_index as u32)),
+                    material: Some(gltf::json::Index::new(material_index as u32)),
                     mode: Valid(gltf::json::mesh::Mode::Triangles),
                     targets,
                 };

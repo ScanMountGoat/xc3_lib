@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::gltf::texture::{
     albedo_generated_key, metallic_roughness_generated_key, normal_generated_key, TextureCache,
 };
-use crate::{AddressMode, ImageTexture, MapRoot, ModelRoot, Sampler};
+use crate::{AddressMode, ImageTexture, Sampler};
 use gltf::json::validation::Checked::Valid;
 
 use super::texture::{emissive_generated_key, GeneratedImageKey, ImageIndex};
@@ -16,121 +16,81 @@ pub struct MaterialKey {
     pub material_index: usize,
 }
 
-pub fn create_materials(
-    roots: &[ModelRoot],
-    texture_cache: &mut TextureCache,
-) -> (
-    Vec<gltf::json::Material>,
-    BTreeMap<MaterialKey, usize>,
-    Vec<gltf::json::Texture>,
-    Vec<gltf::json::texture::Sampler>,
-) {
-    let mut materials = Vec::new();
-    let mut material_indices = BTreeMap::new();
-    let mut textures = Vec::new();
-    let mut samplers = Vec::new();
-
-    for (root_index, root) in roots.iter().enumerate() {
-        add_models(
-            &root.models,
-            &mut samplers,
-            texture_cache,
-            &mut textures,
-            &mut materials,
-            &mut material_indices,
-            &root.image_textures,
-            root_index,
-            0,
-            0,
-        );
-    }
-
-    // TODO: proper sampler support for camdo?
-    if samplers.is_empty() {
-        samplers.push(gltf_json::texture::Sampler::default());
-    }
-
-    (materials, material_indices, textures, samplers)
-}
-
-pub fn create_map_materials(
-    roots: &[MapRoot],
-    texture_cache: &mut TextureCache,
-) -> (
-    Vec<gltf::json::Material>,
-    BTreeMap<MaterialKey, usize>,
-    Vec<gltf::json::Texture>,
-    Vec<gltf::json::texture::Sampler>,
-) {
-    let mut materials = Vec::new();
-    let mut material_indices = BTreeMap::new();
-    let mut textures = Vec::new();
-    let mut samplers = Vec::new();
-
-    for (root_index, root) in roots.iter().enumerate() {
-        for (group_index, group) in root.groups.iter().enumerate() {
-            for (models_index, models) in group.models.iter().enumerate() {
-                add_models(
-                    models,
-                    &mut samplers,
-                    texture_cache,
-                    &mut textures,
-                    &mut materials,
-                    &mut material_indices,
-                    &root.image_textures,
-                    root_index,
-                    group_index,
-                    models_index,
-                );
-            }
-        }
-    }
-
-    // TODO: proper sampler support for camdo?
-    if samplers.is_empty() {
-        samplers.push(gltf_json::texture::Sampler::default());
-    }
-
-    (materials, material_indices, textures, samplers)
-}
-
-fn add_models(
-    models: &crate::Models,
-    samplers: &mut Vec<gltf_json::texture::Sampler>,
-    texture_cache: &mut TextureCache,
-    textures: &mut Vec<gltf_json::Texture>,
-    materials: &mut Vec<gltf_json::Material>,
-    material_indices: &mut BTreeMap<MaterialKey, usize>,
-    image_textures: &[ImageTexture],
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct SamplerKey {
     root_index: usize,
     group_index: usize,
     models_index: usize,
-) {
-    // Each Models has its own separately indexed samplers.
-    let sampler_base_index = samplers.len();
-    samplers.extend(models.samplers.iter().map(create_sampler));
+}
 
-    for (material_index, material) in models.materials.iter().enumerate() {
-        let material = create_material(
-            material,
-            texture_cache,
-            textures,
-            root_index,
-            sampler_base_index,
-            image_textures,
-        );
-        let material_flattened_index = materials.len();
-        materials.push(material);
+#[derive(Default)]
+pub struct MaterialCache {
+    pub materials: Vec<gltf::json::Material>,
+    material_indices: BTreeMap<MaterialKey, usize>,
 
-        material_indices.insert(
-            MaterialKey {
+    pub textures: Vec<gltf::json::Texture>,
+
+    pub samplers: Vec<gltf::json::texture::Sampler>,
+    sampler_base_indices: BTreeMap<SamplerKey, usize>,
+}
+
+impl MaterialCache {
+    pub fn insert_samplers(
+        &mut self,
+        models: &crate::Models,
+        root_index: usize,
+        group_index: usize,
+        models_index: usize,
+    ) {
+        let sampler_base_index = self.samplers.len();
+        self.samplers
+            .extend(models.samplers.iter().map(create_sampler));
+
+        self.sampler_base_indices.insert(
+            SamplerKey {
                 root_index,
                 group_index,
                 models_index,
-                material_index,
             },
-            material_flattened_index,
+            sampler_base_index,
         );
+    }
+
+    pub fn insert(
+        &mut self,
+        material: &crate::Material,
+        texture_cache: &mut TextureCache,
+        image_textures: &[ImageTexture],
+        key: MaterialKey,
+    ) -> usize {
+        match self.material_indices.get(&key) {
+            Some(index) => *index,
+            None => {
+                let sampler_base_index = self
+                    .sampler_base_indices
+                    .get(&SamplerKey {
+                        root_index: key.root_index,
+                        group_index: key.group_index,
+                        models_index: key.models_index,
+                    })
+                    .copied()
+                    .unwrap_or_default();
+
+                let material = create_material(
+                    material,
+                    texture_cache,
+                    &mut self.textures,
+                    key.root_index,
+                    sampler_base_index,
+                    image_textures,
+                );
+                let new_index = self.materials.len();
+                self.materials.push(material);
+
+                self.material_indices.insert(key, new_index);
+                new_index
+            }
+        }
     }
 }
 
