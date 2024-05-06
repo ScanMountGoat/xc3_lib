@@ -25,7 +25,7 @@ pub enum File {
     Mtxt(Mtxt),
     Dds(Dds),
     Image(RgbaImage),
-    Wilay(MaybeXbc1<Wilay>),
+    Wilay(Box<MaybeXbc1<Wilay>>),
     Wimdo(Box<Mxmd>),
     Bmn(Bmn),
 }

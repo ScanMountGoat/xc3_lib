@@ -927,7 +927,7 @@ impl<'a> StreamingData<'a> {
 #[derive(BinRead)]
 enum AnimFile {
     Sar1(MaybeXbc1<Sar1>),
-    Bc(Bc),
+    Bc(Box<Bc>),
 }
 
 /// Load all animations from a `.anm`, `.mot`, or `.motstm_data` file.
@@ -979,7 +979,7 @@ pub fn load_animations<P: AsRef<Path>>(
             }
         },
         AnimFile::Bc(bc) => {
-            add_bc_animations(&mut animations, bc);
+            add_bc_animations(&mut animations, *bc);
         }
     }
 

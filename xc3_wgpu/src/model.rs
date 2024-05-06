@@ -632,9 +632,7 @@ fn create_model(
             per_mesh: per_mesh_bind_group(
                 device,
                 model_buffers,
-                mesh.lod,
-                mesh.flags2.into(),
-                mesh.vertex_buffer_index,
+                mesh,
                 &materials[mesh.material_index],
                 weights,
                 bone_names,
@@ -942,9 +940,7 @@ fn per_group_bind_group(
 fn per_mesh_bind_group(
     device: &wgpu::Device,
     buffers: &xc3_model::vertex::ModelBuffers,
-    lod: u16,
-    flags2: u32,
-    vertex_buffer_index: usize,
+    mesh: &xc3_model::Mesh,
     material: &Material,
     weights: Option<&xc3_model::skinning::Weights>,
     bone_names: Option<&[String]>,
@@ -954,9 +950,11 @@ fn per_mesh_bind_group(
         .weights
         .as_ref()
         .map(|weights| {
-            weights
-                .weight_groups
-                .weights_start_index(flags2, lod, material.pipeline_key.pass_type)
+            weights.weight_groups.weights_start_index(
+                mesh.flags2.into(),
+                mesh.lod,
+                material.pipeline_key.pass_type,
+            )
         })
         .unwrap_or_default();
 
@@ -969,7 +967,7 @@ fn per_mesh_bind_group(
 
     // TODO: How to correctly handle a missing skeleton or weights?
     let skin_weights = weights.and_then(|w| {
-        let skin_weights = w.weight_buffer(flags2)?;
+        let skin_weights = w.weight_buffer(mesh.flags2.into())?;
         bone_names.map(|names| skin_weights.reindex_bones(names.to_vec()))
     });
 
@@ -978,14 +976,14 @@ fn per_mesh_bind_group(
         .map(|w| w.weights.len())
         .unwrap_or_default();
 
-    for attribute in &buffers.vertex_buffers[vertex_buffer_index].attributes {
+    for attribute in &buffers.vertex_buffers[mesh.vertex_buffer_index].attributes {
         if let AttributeData::WeightIndex(weight_indices) = attribute {
             let max_index = weight_indices.iter().map(|i| i[0]).max().unwrap() as usize;
             if max_index + start >= skin_weight_count {
                 error!(
                 "Weight index start {} and max weight index {} exceed weight count {} with {:?}",
                 start, max_index, skin_weight_count,
-                (flags2, lod, material.pipeline_key.pass_type)
+                (mesh.flags2, mesh.lod, material.pipeline_key.pass_type)
             );
             }
         }
