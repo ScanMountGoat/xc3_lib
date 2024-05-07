@@ -311,6 +311,43 @@ impl SkinWeights {
             bone_names: bone_names.iter().map(|n| n.as_ref().to_string()).collect(),
         }
     }
+
+    // TODO: Tests for this
+    /// Add unique bone indices and weights from `influences`
+    /// and return the weight indices for `vertex_count` many vertices.
+    pub fn add_influences(
+        &mut self,
+        influences: &[Influence],
+        vertex_count: usize,
+    ) -> Vec<[u16; 2]> {
+        let new_weights = SkinWeights::from_influences(influences, vertex_count, &self.bone_names);
+
+        // TODO: Is there a limit on how high this count can be?
+        // TODO: xc2 has 384000 SSBO bytes / size(mat3x4) = 8000 unique elements?
+        // Add unique indices and weights from each buffer.
+        // TODO: Make this not O(N^2) with key ([u8; 4], Vec4)
+        new_weights
+            .bone_indices
+            .iter()
+            .zip(new_weights.weights.iter())
+            .map(|(bone_indices, bone_weights)| {
+                match self
+                    .bone_indices
+                    .iter()
+                    .zip(self.weights.iter())
+                    .position(|(i2, w2)| i2 == bone_indices && w2 == bone_weights)
+                {
+                    Some(index) => [index as u16, 0],
+                    None => {
+                        let new_index = self.bone_indices.len();
+                        self.bone_indices.push(*bone_indices);
+                        self.weights.push(*bone_weights);
+                        [new_index as u16, 0]
+                    }
+                }
+            })
+            .collect()
+    }
 }
 
 // TODO: Test using a different bone name list.
