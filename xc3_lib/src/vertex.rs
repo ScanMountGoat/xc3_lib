@@ -387,6 +387,7 @@ pub struct WeightGroup {
 
 // TODO: The material's pass index indexes into this?
 // TODO: Figure out by finding files with no more groups than pass ids?
+// TODO: Is this actually the pass from mesh.flags2?
 /// References to [WeightGroup] for each of the [RenderPassType](crate::mxmd::RenderPassType).
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone, BinRead, Xc3Write, Xc3WriteOffsets)]

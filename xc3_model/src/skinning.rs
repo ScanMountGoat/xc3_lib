@@ -73,6 +73,24 @@ impl Weights {
         b0.weights.extend_from_slice(&b1.weights);
         Some(b0)
     }
+
+    // TODO: Fully recreate all data and return Self?
+    /// Initialize all weight data to use a single shared weight buffer.
+    pub fn update_weights(&mut self, combined_weights: SkinWeights) {
+        if let WeightGroups::Groups { weight_groups, .. } = &mut self.weight_groups {
+            // TODO: Will making each group the same account for mesh.flags2?
+            // TODO: Recreate this from scratch based on lod count?
+            // TODO: What to do for the pass indices?
+            for group in weight_groups {
+                // TODO: Is it ok for these ranges to all overlap?
+                group.output_start_index = 0;
+                group.input_start_index = 0;
+                group.count = combined_weights.bone_indices.len() as u32;
+                group.max_influences = 4; // TODO: calculate this?
+            }
+        }
+        self.weight_buffers = vec![combined_weights];
+    }
 }
 
 impl WeightGroups {
