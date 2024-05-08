@@ -412,11 +412,11 @@ impl Xc3Renderer {
                         store: wgpu::StoreOp::Store,
                     },
                 }),
-                color_attachment_disabled(&self.textures.gbuffer.etc_buffer),
-                color_attachment_disabled(&self.textures.gbuffer.normal),
-                color_attachment_disabled(&self.textures.gbuffer.velocity),
-                color_attachment_disabled(&self.textures.gbuffer.depth),
-                color_attachment_disabled(&self.textures.gbuffer.lgt_color),
+                None,
+                None,
+                None,
+                None,
+                None,
             ],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.textures.depth_stencil,
@@ -460,11 +460,11 @@ impl Xc3Renderer {
                         store: wgpu::StoreOp::Store,
                     },
                 }),
-                color_attachment_disabled(&self.textures.gbuffer.etc_buffer),
-                color_attachment_disabled(&self.textures.gbuffer.normal),
-                color_attachment_disabled(&self.textures.gbuffer.velocity),
-                color_attachment_disabled(&self.textures.gbuffer.depth),
-                color_attachment_disabled(&self.textures.gbuffer.lgt_color),
+                None,
+                None,
+                None,
+                None,
+                None,
             ],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.textures.depth_stencil,
@@ -752,20 +752,6 @@ fn color_attachment(
         resolve_target: None,
         ops: wgpu::Operations {
             load: wgpu::LoadOp::Clear(color),
-            store: wgpu::StoreOp::Store,
-        },
-    })
-}
-
-fn color_attachment_disabled(view: &wgpu::TextureView) -> Option<wgpu::RenderPassColorAttachment> {
-    // Necessary to fix a validation error about writing to missing attachments.
-    // This could also be fixed by modifying the shader code.
-    // TODO: This doesn't disable writes?
-    Some(wgpu::RenderPassColorAttachment {
-        view,
-        resolve_target: None,
-        ops: wgpu::Operations {
-            load: wgpu::LoadOp::Load,
             store: wgpu::StoreOp::Store,
         },
     })

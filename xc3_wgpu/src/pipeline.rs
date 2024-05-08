@@ -82,31 +82,11 @@ pub fn model_pipeline(
                 blend: blend_state(key.flags.blend_mode),
                 write_mask: wgpu::ColorWrites::all(),
             }),
-            Some(wgpu::ColorTargetState {
-                format: GBUFFER_COLOR_FORMAT,
-                blend: None,
-                write_mask: wgpu::ColorWrites::empty(),
-            }),
-            Some(wgpu::ColorTargetState {
-                format: GBUFFER_COLOR_FORMAT,
-                blend: None,
-                write_mask: wgpu::ColorWrites::empty(),
-            }),
-            Some(wgpu::ColorTargetState {
-                format: GBUFFER_COLOR_FORMAT,
-                blend: None,
-                write_mask: wgpu::ColorWrites::empty(),
-            }),
-            Some(wgpu::ColorTargetState {
-                format: GBUFFER_COLOR_FORMAT,
-                blend: None,
-                write_mask: wgpu::ColorWrites::empty(),
-            }),
-            Some(wgpu::ColorTargetState {
-                format: GBUFFER_COLOR_FORMAT,
-                blend: None,
-                write_mask: wgpu::ColorWrites::empty(),
-            }),
+            None,
+            None,
+            None,
+            None,
+            None,
         ]
     };
 
