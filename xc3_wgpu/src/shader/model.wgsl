@@ -363,6 +363,7 @@ fn mrt_etc_buffer(g_etc_buffer: vec4<f32>, view_normal: vec3<f32>) -> vec4<f32> 
 // TODO: Is it reliable to detect this as U_Mate.gWrkFl4[i].c * 5?
 // TODO: what color is used for blending?
 
+// TODO: Separate entry for the alpha pass that only writes to a single output.
 @fragment
 fn fs_main(in: VertexOutput) -> FragmentOutput {
     let tangent = normalize(in.tangent);

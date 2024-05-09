@@ -26,15 +26,10 @@ impl BoneRenderer {
                     wgpu::VertexStepMode::Instance,
                 ),
             ),
-            fragment: Some(wgpu::FragmentState {
-                module: &module,
-                entry_point: crate::shader::bone::ENTRY_FS_MAIN,
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: COLOR_FORMAT,
-                    blend: None,
-                    write_mask: wgpu::ColorWrites::all(),
-                })],
-            }),
+            fragment: Some(crate::shader::bone::fragment_state(
+                &module,
+                &crate::shader::bone::fs_main_entry([Some(COLOR_FORMAT.into())]),
+            )),
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::LineList,
                 polygon_mode: wgpu::PolygonMode::Line,

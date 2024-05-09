@@ -74,16 +74,16 @@ pub fn model_pipeline(
         // Create a target for each of the G-Buffer textures.
         // TODO: check outputs in wgsl_to_wgpu?
         // TODO: Constant in wgsl for output count?
-        vec![
-            Some(wgpu::ColorTargetState {
-                format: GBUFFER_COLOR_FORMAT,
-                blend: None,
-                write_mask: wgpu::ColorWrites::all(),
-            });
-            6
+        [
+            Some(GBUFFER_COLOR_FORMAT.into()),
+            Some(GBUFFER_COLOR_FORMAT.into()),
+            Some(GBUFFER_COLOR_FORMAT.into()),
+            Some(GBUFFER_COLOR_FORMAT.into()),
+            Some(GBUFFER_COLOR_FORMAT.into()),
+            Some(GBUFFER_COLOR_FORMAT.into()),
         ]
     } else {
-        vec![
+        [
             Some(wgpu::ColorTargetState {
                 format: GBUFFER_COLOR_FORMAT,
                 blend: blend_state(key.flags.blend_mode),
@@ -114,11 +114,10 @@ pub fn model_pipeline(
         label: Some("Model Pipeline"),
         layout: Some(&data.layout),
         vertex: crate::shader::model::vertex_state(&data.module, &vertex_entry),
-        fragment: Some(wgpu::FragmentState {
-            module: &data.module,
-            entry_point: crate::shader::model::ENTRY_FS_MAIN,
-            targets: &targets,
-        }),
+        fragment: Some(crate::shader::model::fragment_state(
+            &data.module,
+            &crate::shader::model::fs_main_entry(targets),
+        )),
         primitive: wgpu::PrimitiveState {
             // TODO: Do all meshes using indexed triangle lists?
             topology: wgpu::PrimitiveTopology::TriangleList,

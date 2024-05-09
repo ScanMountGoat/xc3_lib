@@ -889,6 +889,7 @@ fn deferred_pipeline(device: &wgpu::Device, entry_point: &str) -> wgpu::RenderPi
                 blend: None,
                 write_mask: wgpu::ColorWrites::all(),
             })],
+            compilation_options: Default::default(),
         }),
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: Some(wgpu::DepthStencilState {
@@ -915,15 +916,14 @@ fn deferred_debug_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
             &module,
             &crate::shader::deferred::vs_main_entry(),
         ),
-        fragment: Some(wgpu::FragmentState {
-            module: &module,
-            entry_point: crate::shader::deferred::ENTRY_FS_DEBUG,
-            targets: &[Some(wgpu::ColorTargetState {
+        fragment: Some(crate::shader::deferred::fragment_state(
+            &module,
+            &crate::shader::deferred::fs_debug_entry([Some(wgpu::ColorTargetState {
                 format: COLOR_FORMAT,
                 blend: None,
                 write_mask: wgpu::ColorWrites::all(),
-            })],
-        }),
+            })]),
+        )),
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: Some(wgpu::DepthStencilState {
             format: MAT_ID_DEPTH_FORMAT,
@@ -948,15 +948,10 @@ fn solid_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
             &module,
             &crate::shader::solid::vs_main_entry(wgpu::VertexStepMode::Vertex),
         ),
-        fragment: Some(wgpu::FragmentState {
-            module: &module,
-            entry_point: crate::shader::solid::ENTRY_FS_MAIN,
-            targets: &[Some(wgpu::ColorTargetState {
-                format: COLOR_FORMAT,
-                blend: None,
-                write_mask: wgpu::ColorWrites::all(),
-            })],
-        }),
+        fragment: Some(crate::shader::solid::fragment_state(
+            &module,
+            &crate::shader::solid::fs_main_entry([Some(COLOR_FORMAT.into())]),
+        )),
         primitive: wgpu::PrimitiveState {
             topology: wgpu::PrimitiveTopology::LineList,
             polygon_mode: wgpu::PolygonMode::Line,
@@ -985,11 +980,10 @@ fn unbranch_to_depth_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
             &module,
             &crate::shader::unbranch_to_depth::vs_main_entry(),
         ),
-        fragment: Some(wgpu::FragmentState {
-            module: &module,
-            entry_point: crate::shader::unbranch_to_depth::ENTRY_FS_MAIN,
-            targets: &[],
-        }),
+        fragment: Some(crate::shader::unbranch_to_depth::fragment_state(
+            &module,
+            &crate::shader::unbranch_to_depth::fs_main_entry([]),
+        )),
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: Some(wgpu::DepthStencilState {
             format: MAT_ID_DEPTH_FORMAT,
@@ -1015,15 +1009,10 @@ fn snn_filter_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
             &module,
             &crate::shader::snn_filter::vs_main_entry(),
         ),
-        fragment: Some(wgpu::FragmentState {
-            module: &module,
-            entry_point: crate::shader::snn_filter::ENTRY_FS_MAIN,
-            targets: &[Some(wgpu::ColorTargetState {
-                format: COLOR_FORMAT,
-                blend: None,
-                write_mask: wgpu::ColorWrites::all(),
-            })],
-        }),
+        fragment: Some(crate::shader::snn_filter::fragment_state(
+            &module,
+            &crate::shader::snn_filter::fs_main_entry([Some(COLOR_FORMAT.into())]),
+        )),
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: Some(wgpu::DepthStencilState {
             format: DEPTH_STENCIL_FORMAT,
@@ -1060,15 +1049,10 @@ fn blit_hair_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
         label: Some("Blit Hair Pipeline"),
         layout: Some(&render_pipeline_layout),
         vertex: crate::shader::blit::vertex_state(&module, &crate::shader::blit::vs_main_entry()),
-        fragment: Some(wgpu::FragmentState {
-            module: &module,
-            entry_point: crate::shader::blit::ENTRY_FS_MAIN,
-            targets: &[Some(wgpu::ColorTargetState {
-                format: COLOR_FORMAT,
-                blend: None,
-                write_mask: wgpu::ColorWrites::all(),
-            })],
-        }),
+        fragment: Some(crate::shader::blit::fragment_state(
+            &module,
+            &crate::shader::blit::fs_main_entry([Some(COLOR_FORMAT.into())]),
+        )),
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: Some(wgpu::DepthStencilState {
             format: DEPTH_STENCIL_FORMAT,
@@ -1105,15 +1089,10 @@ fn blit_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
         label: Some("Blit Pipeline"),
         layout: Some(&render_pipeline_layout),
         vertex: crate::shader::blit::vertex_state(&module, &crate::shader::blit::vs_main_entry()),
-        fragment: Some(wgpu::FragmentState {
-            module: &module,
-            entry_point: crate::shader::blit::ENTRY_FS_MAIN,
-            targets: &[Some(wgpu::ColorTargetState {
-                format: COLOR_FORMAT,
-                blend: None,
-                write_mask: wgpu::ColorWrites::all(),
-            })],
-        }),
+        fragment: Some(crate::shader::blit::fragment_state(
+            &module,
+            &crate::shader::blit::fs_main_entry([Some(COLOR_FORMAT.into())]),
+        )),
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: Some(wgpu::DepthStencilState {
             format: DEPTH_STENCIL_FORMAT,

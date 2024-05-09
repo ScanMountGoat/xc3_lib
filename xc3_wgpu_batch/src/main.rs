@@ -64,7 +64,10 @@ fn main() {
         &wgpu::DeviceDescriptor {
             label: None,
             required_features: xc3_wgpu::FEATURES,
-            required_limits: wgpu::Limits::default(),
+            required_limits: wgpu::Limits {
+                max_color_attachment_bytes_per_sample: 48,
+                ..Default::default()
+            },
         },
         None,
     ))
