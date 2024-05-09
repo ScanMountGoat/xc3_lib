@@ -6,7 +6,7 @@ use log::{error, warn};
 use xc3_model::{ChannelAssignment, ImageTexture, OutputAssignment, OutputAssignments};
 
 use crate::{
-    pipeline::{model_pipeline, ModelPipelineData, PipelineKey},
+    pipeline::{model_pipeline, ModelPipelineData, Output5Type, PipelineKey},
     texture::create_default_black_texture,
     DeviceBufferExt, MonolibShaderTextures,
 };
@@ -26,7 +26,7 @@ pub struct Material {
 }
 
 // TODO: Create a special ID for unrecognized materials?
-const MAT_ID_PBR: f32 = (2.0 + 1.0) / 255.0;
+const MAT_ID_PBR: f32 = 1.0 / 255.0;
 
 // Choose defaults that have as close to no effect as possible.
 // TODO: Make a struct for this instead?
@@ -110,17 +110,17 @@ pub fn materials(
             // TODO: can a texture be used with more than one scale?
             // TODO: Include this logic with xc3_model?
             let mut texture_scale = [Vec4::ONE; 10];
-            for assignment in assignments.assignments {
+            for assignment in &assignments.assignments {
                 if let Some(ChannelAssignment::Texture {
                     name,
                     texcoord_scale: Some((u, v)),
                     ..
-                }) = assignment.x
+                }) = &assignment.x
                 {
                     // TODO: Don't assume there is a single texcoord attribute.
                     // TODO: make a method for index conversions?
-                    if let Some(index) = material_texture_index(&name) {
-                        texture_scale[index] = vec4(u, v, 1.0, 1.0);
+                    if let Some(index) = material_texture_index(name) {
+                        texture_scale[index] = vec4(*u, *v, 1.0, 1.0);
                     }
                 }
             }
@@ -189,6 +189,14 @@ pub fn materials(
                 },
             );
 
+            // Toon and hair materials seem to always use specular.
+            // TODO: Is there a more reliable way to check this?
+            let output5_type = if matches!(assignments.mat_id(), Some(2 | 5)) {
+                Output5Type::Specular
+            } else {
+                Output5Type::Emission
+            };
+
             // TODO: How to make sure the pipeline outputs match the render pass?
             // Each material only goes in exactly one pass?
             // TODO: Is it redundant to also store the unk type?
@@ -197,6 +205,7 @@ pub fn materials(
                 pass_type: material.pass_type,
                 flags: material.flags,
                 is_outline: material.name.ends_with("_outline"),
+                output5_type,
             };
             pipelines
                 .entry(pipeline_key)

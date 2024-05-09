@@ -307,11 +307,14 @@ impl Xc3Renderer {
         // This enables better performance, portability, etc.
         self.compute_morphs(encoder, models);
 
+        // TODO: changing the texture for output5 requires a new render pass?
+        // TODO: does the in game rendering group these in any meaningful way?
         self.opaque_pass(encoder, models);
         self.alpha1_pass(encoder, models);
         self.unbranch_to_depth_pass(encoder);
         self.deferred_pass(encoder);
         self.alpha2_pass(encoder, models);
+
         self.snn_filter_pass(encoder);
         self.final_pass(encoder, output_view, models, draw_bounds, draw_bones);
     }

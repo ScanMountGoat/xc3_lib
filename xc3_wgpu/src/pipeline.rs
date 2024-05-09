@@ -24,6 +24,13 @@ pub struct PipelineKey {
     pub pass_type: RenderPassType,
     pub flags: StateFlags,
     pub is_outline: bool,
+    pub output5_type: Output5Type,
+}
+
+#[derive(Debug, Hash, Clone, Copy, PartialEq, Eq)]
+pub enum Output5Type {
+    Specular,
+    Emission,
 }
 
 impl PipelineKey {
