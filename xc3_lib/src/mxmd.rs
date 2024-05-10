@@ -166,6 +166,8 @@ pub struct AlphaTestTexture {
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Technique {
+    /// The input attributes for the vertex shader.
+    /// The order defined here should also be used for the vertex buffer attributes to work properly in game.
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
     pub attributes: Vec<VertexAttribute>,

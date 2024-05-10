@@ -321,7 +321,7 @@ pub struct MaterialsUnk2 {
 pub struct Technique {
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub unk1: Vec<[u16; 4]>,
+    pub attributes: Vec<super::VertexAttribute>,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
