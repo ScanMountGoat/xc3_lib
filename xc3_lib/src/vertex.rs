@@ -162,7 +162,7 @@ pub struct VertexAttribute {
 pub enum DataType {
     /// Float32x3 "vPos" in shaders.
     Position = 0,
-    /// ??? "fWeight" in shaders.
+    /// Float32x3 "fWeight" in shaders.
     /// The fourth weight component is calculated as `w = 1.0 - x - y - z`.
     SkinWeights2 = 1,
     // TODO: xcx with 4 bytes?
@@ -224,10 +224,14 @@ pub enum DataType {
     /// Float32x3 "vPos" in shaders.
     Position2 = 36,
     /// Unorm8x4 "vNormal" in shaders.
+    /// Component values are in the range `[0.0, 1.0]` instead of `[-1.0, 1.0]`.
+    /// Calculate the actual vector as `v * 2.0 -1.0`.
     Normal4 = 37,
     /// Float32x3 "vOldPos" in shaders.
     OldPosition = 39,
     /// Unorm8x4 "vTan" in shaders.
+    /// Component values are in the range `[0.0, 1.0]` instead of `[-1.0, 1.0]`.
+    /// Calculate the actual vector as `v * 2.0 -1.0`.
     Tangent2 = 40,
     /// Unorm16x4 skin weights for up to 4 bone influences.
     SkinWeights = 41,
@@ -482,6 +486,59 @@ pub struct OutlineBufferDescriptor {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct UnkData {
     pub unk: [u32; 17],
+}
+
+impl DataType {
+    pub fn size_in_bytes(&self) -> usize {
+        match self {
+            DataType::Position => 12,
+            DataType::SkinWeights2 => 12,
+            DataType::BoneIndices2 => todo!(),
+            DataType::WeightIndex => 4,
+            DataType::WeightIndex2 => 4,
+            DataType::TexCoord0 => 8,
+            DataType::TexCoord1 => 8,
+            DataType::TexCoord2 => 8,
+            DataType::TexCoord3 => 8,
+            DataType::TexCoord4 => 8,
+            DataType::TexCoord5 => 8,
+            DataType::TexCoord6 => 8,
+            DataType::TexCoord7 => 8,
+            DataType::TexCoord8 => 8,
+            DataType::Blend => 4,
+            DataType::Unk15 => todo!(),
+            DataType::Unk16 => todo!(),
+            DataType::VertexColor => 4,
+            DataType::Unk18 => todo!(),
+            DataType::Unk24 => todo!(),
+            DataType::Unk25 => todo!(),
+            DataType::Unk26 => todo!(),
+            DataType::Normal => 4,
+            DataType::Tangent => 4,
+            DataType::Unk30 => todo!(),
+            DataType::Unk31 => todo!(),
+            DataType::Normal2 => 4,
+            DataType::Unk33 => todo!(),
+            DataType::Normal3 => 4,
+            DataType::VertexColor3 => todo!(),
+            DataType::Position2 => 12,
+            DataType::Normal4 => 4,
+            DataType::OldPosition => 12,
+            DataType::Tangent2 => 4,
+            DataType::SkinWeights => 8,
+            DataType::BoneIndices => 4,
+            DataType::Flow => todo!(),
+        }
+    }
+}
+
+impl From<DataType> for VertexAttribute {
+    fn from(data_type: DataType) -> Self {
+        Self {
+            data_type,
+            data_size: data_type.size_in_bytes() as u16,
+        }
+    }
 }
 
 xc3_write_binwrite_impl!(DataType, Unk1, Unk2, MorphTarget, VertexBufferExtInfoFlags);

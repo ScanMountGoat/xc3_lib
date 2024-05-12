@@ -95,42 +95,84 @@ impl Buffers {
         vertex_buffer: &crate::vertex::VertexBuffer,
         flip_uvs: bool,
     ) -> Result<VertexBuffer, binrw::Error> {
-        // Assume the base morph target is already applied.
-        let attributes = self.write_attributes(&vertex_buffer.attributes, flip_uvs)?;
+        let mut attributes = self.write_attributes(&vertex_buffer.attributes, flip_uvs)?;
 
-        // Morph targets have their own attribute data.
-        let morph_targets = vertex_buffer
-            .morph_targets
-            .iter()
-            .map(|target| {
-                // Convert from a sparse to a dense representation.
-                let vertex_count = vertex_buffer.attributes[0].len();
-                let mut position_deltas = vec![Vec3::ZERO; vertex_count];
-                let mut normal_deltas = vec![Vec3::ZERO; vertex_count];
-                let mut tangent_deltas = vec![Vec3::ZERO; vertex_count];
-                for (i, vertex_index) in target.vertex_indices.iter().enumerate() {
-                    position_deltas[*vertex_index as usize] = target.position_deltas[i];
-                    normal_deltas[*vertex_index as usize] = target.normal_deltas[i].xyz();
-                    tangent_deltas[*vertex_index as usize] = target.tangent_deltas[i].xyz();
-                }
+        // Apply attributes from the base blend target if present.
+        let blend_attributes =
+            self.write_attributes(&vertex_buffer.morph_blend_target, flip_uvs)?;
+        attributes.extend(blend_attributes);
 
-                // glTF morph targets are defined as a difference with the base target.
-                let mut attributes = attributes.clone();
-                self.insert_positions(&position_deltas, &mut attributes)?;
-
-                // Normals and tangents also use deltas.
-                // These should use Vec3 to avoid displacing the sign in tangent.w.
-                self.insert_vec3(&normal_deltas, gltf::Semantic::Normals, &mut attributes)?;
-                self.insert_vec3(&tangent_deltas, gltf::Semantic::Tangents, &mut attributes)?;
-
-                Ok(attributes)
-            })
-            .collect::<BinResult<Vec<_>>>()?;
+        let morph_targets = self.insert_morph_targets(vertex_buffer, &attributes)?;
 
         Ok(VertexBuffer {
             attributes,
             morph_targets,
         })
+    }
+
+    fn insert_morph_targets(
+        &mut self,
+        vertex_buffer: &crate::vertex::VertexBuffer,
+        attributes: &GltfAttributes,
+    ) -> Result<Vec<GltfAttributes>, binrw::Error> {
+        if !vertex_buffer.morph_targets.is_empty() {
+            let base_normals = vertex_buffer
+                .morph_blend_target
+                .iter()
+                .find_map(|a| {
+                    if let AttributeData::Normal4(v) = a {
+                        Some(v)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap();
+            let base_tangents = vertex_buffer
+                .morph_blend_target
+                .iter()
+                .find_map(|a| {
+                    if let AttributeData::Tangent2(v) = a {
+                        Some(v)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap();
+
+            vertex_buffer
+                .morph_targets
+                .iter()
+                .map(|target| {
+                    // Convert from a sparse to a dense representation.
+                    let vertex_count = vertex_buffer.attributes[0].len();
+                    let mut position_deltas = vec![Vec3::ZERO; vertex_count];
+                    let mut normal_deltas = vec![Vec3::ZERO; vertex_count];
+                    let mut tangent_deltas = vec![Vec3::ZERO; vertex_count];
+                    for (i, vertex_index) in target.vertex_indices.iter().enumerate() {
+                        position_deltas[*vertex_index as usize] = target.position_deltas[i];
+
+                        let normal = base_normals[*vertex_index as usize].xyz() * 2.0 - 1.0;
+                        normal_deltas[*vertex_index as usize] = target.normals[i].xyz() - normal;
+
+                        let tangent = base_tangents[*vertex_index as usize].xyz() * 2.0 - 1.0;
+                        tangent_deltas[*vertex_index as usize] = target.tangents[i].xyz() - tangent;
+                    }
+
+                    // glTF morph targets are defined as a difference with the base target.
+                    let mut attributes = attributes.clone();
+                    self.insert_positions(&position_deltas, &mut attributes)?;
+
+                    // Normals and tangents also use deltas.
+                    // These should use Vec3 to avoid displacing the sign in tangent.w.
+                    self.insert_vec3(&normal_deltas, gltf::Semantic::Normals, &mut attributes)?;
+                    self.insert_vec3(&tangent_deltas, gltf::Semantic::Tangents, &mut attributes)?;
+
+                    Ok(attributes)
+                })
+                .collect()
+        } else {
+            Ok(Vec::new())
+        }
     }
 
     pub fn insert_weight_group(
@@ -273,7 +315,7 @@ impl Buffers {
                     // Use a custom attribute to avoid rendering issues.
                     self.insert_vec4(
                         values,
-                        gltf::Semantic::Extras("_Color".to_string()),
+                        gltf::Semantic::Extras("VertexColor".to_string()),
                         &mut attributes,
                     )?;
                 }
@@ -289,6 +331,28 @@ impl Buffers {
                 AttributeData::WeightIndex(_) => (),
                 AttributeData::SkinWeights(_) => (),
                 AttributeData::BoneIndices(_) => (),
+                // TODO: Also handle morph attributes?
+                AttributeData::Position2(values) => {
+                    self.insert_positions(values, &mut attributes)?;
+                }
+                AttributeData::Normal4(values) => {
+                    // Not all applications will normalize the vertex normals.
+                    // Use Vec3 instead of Vec4 since it's better supported.
+                    let values: Vec<_> = values
+                        .iter()
+                        .map(|v| (v.xyz() * 2.0 - 1.0).normalize())
+                        .collect();
+                    self.insert_vec3(&values, gltf::Semantic::Normals, &mut attributes)?;
+                }
+                AttributeData::OldPosition(_) => (),
+                AttributeData::Tangent2(values) => {
+                    // Not all applications will normalize the vertex tangents.
+                    let values: Vec<_> = values
+                        .iter()
+                        .map(|v| (v.xyz() * 2.0 - 1.0).normalize().extend(v.w * 2.0 - 1.0))
+                        .collect();
+                    self.insert_vec4(&values, gltf::Semantic::Tangents, &mut attributes)?;
+                }
             }
         }
         Ok(attributes)

@@ -794,8 +794,8 @@ fn morph_buffers(
             let mut tangent_deltas = vec![Vec4::ZERO; vertex_count];
             for (i, vertex_index) in target.vertex_indices.iter().enumerate() {
                 position_deltas[*vertex_index as usize] = target.position_deltas[i].extend(0.0);
-                normal_deltas[*vertex_index as usize] = target.normal_deltas[i];
-                tangent_deltas[*vertex_index as usize] = target.tangent_deltas[i];
+                normal_deltas[*vertex_index as usize] = target.normals[i];
+                tangent_deltas[*vertex_index as usize] = target.tangents[i];
             }
 
             position_deltas
@@ -846,6 +846,7 @@ fn set_attributes(
     outline_buffers: &[xc3_model::vertex::OutlineBuffer],
 ) {
     set_buffer0_attributes(buffer0_vertices, &buffer.attributes);
+    set_buffer0_attributes(buffer0_vertices, &buffer.morph_blend_target);
     set_buffer1_attributes(buffer1_vertices, &buffer.attributes);
 
     if let Some(outline_buffer) = buffer
@@ -865,6 +866,16 @@ fn set_buffer0_attributes(verts: &mut [shader::model::VertexInput0], attributes:
             }
             AttributeData::Normal(vals) => set_attribute0(verts, vals, |v, t| v.normal = t),
             AttributeData::Tangent(vals) => set_attribute0(verts, vals, |v, t| v.tangent = t),
+            // Morph blend target attributes
+            AttributeData::Position2(vals) => {
+                set_attribute0(verts, vals, |v, t| v.position = t.extend(1.0))
+            }
+            AttributeData::Normal4(vals) => {
+                set_attribute0(verts, vals, |v, t| v.normal = t * 2.0 - 1.0)
+            }
+            AttributeData::Tangent2(vals) => {
+                set_attribute0(verts, vals, |v, t| v.tangent = t * 2.0 - 1.0)
+            }
             _ => (),
         }
     }

@@ -3,6 +3,7 @@ use indexmap::IndexMap;
 use xc3_lib::{
     msrd::Msrd,
     mxmd::{AlphaTable, Mxmd, VertexAttribute},
+    vertex::DataType,
 };
 
 use crate::{vertex::AttributeData, ImageTexture, ModelRoot};
@@ -172,16 +173,16 @@ fn match_technique_attributes(
     buffer: &mut crate::vertex::VertexBuffer,
     technique_attributes: &[VertexAttribute],
 ) {
+    // TODO: Morph targets always require positions, normals, and tangents.
+    // TODO: Update positions to use the existing positions?
+
     // Make sure the buffer attributes match the vertex shader's input attributes.
     // TODO: Is there a better way to match the shader order?
-    // TODO: How to handle morph targets and other buffers?
-    if buffer.morph_targets.is_empty() {
-        let count = buffer.vertex_count();
-        buffer.attributes = technique_attributes
-            .iter()
-            .map(|a| match_attribute(a, buffer, count))
-            .collect();
-    }
+    let count = buffer.vertex_count();
+    buffer.attributes = technique_attributes
+        .iter()
+        .map(|a| match_attribute(a.data_type, buffer, count))
+        .collect();
 }
 
 macro_rules! attribute {
@@ -196,18 +197,23 @@ macro_rules! attribute {
                     None
                 }
             })
-            .unwrap_or_else(|| $variant(vec![$default; $count]))
+            .unwrap_or_else(|| {
+                log::warn!(
+                    "Assigning default values for missing required attribute {}",
+                    stringify!($variant)
+                );
+                $variant(vec![$default; $count])
+            })
     };
 }
 
 fn match_attribute(
-    attribute: &VertexAttribute,
+    data_type: xc3_lib::vertex::DataType,
     buffer: &crate::vertex::VertexBuffer,
     count: usize,
 ) -> AttributeData {
     // Find the corresponding attribute or fill in a default value.
-    use xc3_lib::vertex::DataType;
-    match attribute.data_type {
+    match data_type {
         DataType::Position => attribute!(buffer, AttributeData::Position, Vec3::ZERO, count),
         DataType::SkinWeights2 => attribute!(buffer, AttributeData::SkinWeights, Vec4::ZERO, count),
         DataType::BoneIndices2 => attribute!(buffer, AttributeData::BoneIndices, [0; 4], count),

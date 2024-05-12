@@ -44,6 +44,8 @@ pub struct ModelBuffers {
 #[derive(Debug, PartialEq, Clone)]
 pub struct VertexBuffer {
     pub attributes: Vec<AttributeData>,
+    /// Default values for positions, normals, and tangents if morph targets are present.
+    pub morph_blend_target: Vec<AttributeData>,
     /// Animation targets for vertex attributes like positions and normals.
     /// The base target is already applied to [attributes](#structfield.attributes).
     pub morph_targets: Vec<MorphTarget>,
@@ -63,14 +65,13 @@ pub struct MorphTarget {
     #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3s))]
     pub position_deltas: Vec<Vec3>,
 
-    // TODO: Exclude the 4th sign component?
     #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))]
-    pub normal_deltas: Vec<Vec4>,
+    pub normals: Vec<Vec4>,
 
     #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))]
-    pub tangent_deltas: Vec<Vec4>,
+    pub tangents: Vec<Vec4>,
 
-    /// The index of the vertex affected by each offset deltas.
+    /// The indices of the vertices affected by the deltas.
     // TODO: method to convert to a non sparse format?
     pub vertex_indices: Vec<u32>,
 }
@@ -156,6 +157,22 @@ pub enum AttributeData {
     /// Data for [DataType::WeightIndex].
     WeightIndex(Vec<[u16; 2]>),
 
+    // TODO: morph only?
+    /// Data for [DataType::Position2].
+    Position2(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3s))] Vec<Vec3>),
+
+    /// Data for [DataType::Normal4].
+    /// Values should be used as `v * 2.0 - 1.0`.
+    Normal4(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+
+    /// Data for [DataType::OldPosition].
+    OldPosition(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3s))] Vec<Vec3>),
+
+    /// Data for [DataType::Tangent2].
+    /// Values should be used as `v * 2.0 - 1.0`.
+    Tangent2(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3s))] Vec<Vec4>),
+
+    // TODO: weight buffer only?
     /// Data for [DataType::SkinWeights].
     SkinWeights(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
 
@@ -181,6 +198,10 @@ impl AttributeData {
             AttributeData::VertexColor(v) => v.len(),
             AttributeData::Blend(v) => v.len(),
             AttributeData::WeightIndex(v) => v.len(),
+            AttributeData::Position2(v) => v.len(),
+            AttributeData::Normal4(v) => v.len(),
+            AttributeData::OldPosition(v) => v.len(),
+            AttributeData::Tangent2(v) => v.len(),
             AttributeData::SkinWeights(v) => v.len(),
             AttributeData::BoneIndices(v) => v.len(),
         }
@@ -243,6 +264,18 @@ impl AttributeData {
             AttributeData::WeightIndex(values) => {
                 write_data(writer, values, offset, stride, endian, write_u16x2)
             }
+            AttributeData::Position2(values) => {
+                write_data(writer, values, offset, stride, endian, write_f32x3)
+            }
+            AttributeData::Normal4(values) => {
+                write_data(writer, values, offset, stride, endian, write_unorm8x4)
+            }
+            AttributeData::OldPosition(values) => {
+                write_data(writer, values, offset, stride, endian, write_f32x3)
+            }
+            AttributeData::Tangent2(values) => {
+                write_data(writer, values, offset, stride, endian, write_unorm8x4)
+            }
             AttributeData::SkinWeights(values) => {
                 write_data(writer, values, offset, stride, endian, write_unorm16x4)
             }
@@ -251,79 +284,30 @@ impl AttributeData {
             }
         }
     }
-}
 
-impl From<&AttributeData> for xc3_lib::vertex::VertexAttribute {
-    fn from(value: &AttributeData) -> Self {
-        match value {
-            AttributeData::Position(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: DataType::Position,
-                data_size: 12,
-            },
-            AttributeData::Normal(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: DataType::Normal,
-                data_size: 4,
-            },
-            AttributeData::Tangent(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: DataType::Tangent,
-                data_size: 4,
-            },
-            AttributeData::TexCoord0(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: DataType::TexCoord0,
-                data_size: 8,
-            },
-            AttributeData::TexCoord1(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: DataType::TexCoord1,
-                data_size: 8,
-            },
-            AttributeData::TexCoord2(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: DataType::TexCoord2,
-                data_size: 8,
-            },
-            AttributeData::TexCoord3(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: DataType::TexCoord3,
-                data_size: 8,
-            },
-            AttributeData::TexCoord4(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: DataType::TexCoord4,
-                data_size: 8,
-            },
-            AttributeData::TexCoord5(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: DataType::TexCoord5,
-                data_size: 8,
-            },
-            AttributeData::TexCoord6(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: DataType::TexCoord6,
-                data_size: 8,
-            },
-            AttributeData::TexCoord7(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: DataType::TexCoord7,
-                data_size: 8,
-            },
-            AttributeData::TexCoord8(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: DataType::TexCoord8,
-                data_size: 8,
-            },
-            AttributeData::VertexColor(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: DataType::VertexColor,
-                data_size: 4,
-            },
-            AttributeData::Blend(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: DataType::Blend,
-                data_size: 4,
-            },
-            AttributeData::WeightIndex(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: DataType::WeightIndex,
-                data_size: 4,
-            },
-            AttributeData::SkinWeights(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: DataType::SkinWeights,
-                data_size: 8,
-            },
-            AttributeData::BoneIndices(_) => xc3_lib::vertex::VertexAttribute {
-                data_type: DataType::BoneIndices,
-                data_size: 4,
-            },
+    pub fn data_type(&self) -> DataType {
+        match self {
+            AttributeData::Position(_) => DataType::Position,
+            AttributeData::Normal(_) => DataType::Normal,
+            AttributeData::Tangent(_) => DataType::Tangent,
+            AttributeData::TexCoord0(_) => DataType::TexCoord0,
+            AttributeData::TexCoord1(_) => DataType::TexCoord1,
+            AttributeData::TexCoord2(_) => DataType::TexCoord2,
+            AttributeData::TexCoord3(_) => DataType::TexCoord3,
+            AttributeData::TexCoord4(_) => DataType::TexCoord4,
+            AttributeData::TexCoord5(_) => DataType::TexCoord5,
+            AttributeData::TexCoord6(_) => DataType::TexCoord6,
+            AttributeData::TexCoord7(_) => DataType::TexCoord7,
+            AttributeData::TexCoord8(_) => DataType::TexCoord8,
+            AttributeData::VertexColor(_) => DataType::VertexColor,
+            AttributeData::Blend(_) => DataType::Blend,
+            AttributeData::WeightIndex(_) => DataType::WeightIndex,
+            AttributeData::Position2(_) => DataType::Position2,
+            AttributeData::Normal4(_) => DataType::Normal4,
+            AttributeData::OldPosition(_) => DataType::OldPosition,
+            AttributeData::Tangent2(_) => DataType::Tangent2,
+            AttributeData::SkinWeights(_) => DataType::SkinWeights,
+            AttributeData::BoneIndices(_) => DataType::BoneIndices,
         }
     }
 }
@@ -340,11 +324,18 @@ fn read_vertex_buffers(
         .iter()
         .zip(vertex_data.vertex_buffer_info.iter())
         .map(|(descriptor, ext)| {
-            let attributes =
-                read_vertex_attributes(descriptor, &vertex_data.buffer, Endian::Little);
+            let attributes = read_vertex_attributes(
+                descriptor.data_offset,
+                descriptor.vertex_count,
+                descriptor.vertex_size,
+                &descriptor.attributes,
+                &vertex_data.buffer,
+                Endian::Little,
+            );
 
             VertexBuffer {
                 attributes,
+                morph_blend_target: Vec::new(),
                 morph_targets: Vec::new(),
                 outline_buffer_index: ext
                     .flags
@@ -366,7 +357,14 @@ fn read_vertex_buffers(
         let weights_index = vertex_weights.vertex_buffer_index as usize;
 
         let descriptor = vertex_data.vertex_buffers.get(weights_index)?;
-        let attributes = read_vertex_attributes(descriptor, &vertex_data.buffer, Endian::Little);
+        let attributes = read_vertex_attributes(
+            descriptor.data_offset,
+            descriptor.vertex_count,
+            descriptor.vertex_size,
+            &descriptor.attributes,
+            &vertex_data.buffer,
+            Endian::Little,
+        );
 
         let (weights, bone_indices) = skin_weights_bone_indices(&attributes)?;
 
@@ -404,26 +402,19 @@ fn assign_morph_targets(
         if let Some(buffer) = buffers.get_mut(descriptor.vertex_buffer_index as usize) {
             // Skip the default target since it can be generated when writing.
             if let Some((blend, _default, params)) = split_targets(descriptor, vertex_morphs) {
-                let base = read_morph_blend_target(blend, &vertex_data.buffer)?;
+                let attributes = read_morph_blend_target(blend, &vertex_data.buffer)?;
 
                 // TODO: What to do with the default target?
+                buffer.morph_blend_target = attributes;
                 buffer.morph_targets = params
                     .iter()
                     .zip(descriptor.param_indices.iter())
                     .map(|(target, param_index)| {
                         // Apply remaining targets onto the base target values.
                         // TODO: Lots of morph targets use the exact same bytes?
-                        read_morph_target(target, vertex_data, &base, *param_index)
+                        read_morph_target(target, vertex_data, *param_index)
                     })
                     .collect::<BinResult<Vec<_>>>()?;
-
-                buffer
-                    .attributes
-                    .push(AttributeData::Position(base.positions));
-                buffer.attributes.push(AttributeData::Normal(base.normals));
-                buffer
-                    .attributes
-                    .push(AttributeData::Tangent(base.tangents));
             }
         }
     }
@@ -434,34 +425,29 @@ fn assign_morph_targets(
 fn read_morph_target(
     target: &xc3_lib::vertex::MorphTarget,
     vertex_data: &VertexData,
-    base: &MorphBlendTargetAttributes,
     param_index: u16,
 ) -> BinResult<MorphTarget> {
     let vertices = read_morph_buffer_target(target, &vertex_data.buffer)?;
 
     let mut position_deltas = Vec::new();
-    let mut normal_deltas = Vec::new();
-    let mut tangent_deltas = Vec::new();
+    let mut normals = Vec::new();
+    let mut tangents = Vec::new();
     let mut vertex_indices = Vec::new();
 
     // Keep the sparse representation to save space.
     // The vertex indices only contain affected vertices.
     for vertex in vertices {
-        let i = vertex.vertex_index as usize;
         vertex_indices.push(vertex.vertex_index);
-
         position_deltas.push(vertex.position_delta);
-
-        // Convert every attribute to a delta for consistency.
-        normal_deltas.push(vertex.normal - base.normals[i]);
-        tangent_deltas.push(vertex.tangent - base.tangents[i]);
+        normals.push(vertex.normal);
+        tangents.push(vertex.tangent);
     }
 
     Ok(MorphTarget {
         morph_controller_index: param_index as usize,
         position_deltas,
-        normal_deltas,
-        tangent_deltas,
+        normals,
+        tangents,
         vertex_indices,
     })
 }
@@ -527,16 +513,26 @@ fn read_indices(
 }
 
 fn read_vertex_attributes(
-    descriptor: &VertexBufferDescriptor,
+    data_offset: u32,
+    vertex_count: u32,
+    vertex_size: u32,
+    attributes: &[xc3_lib::vertex::VertexAttribute],
     buffer: &[u8],
     endian: Endian,
 ) -> Vec<AttributeData> {
     let mut offset = 0;
-    descriptor
-        .attributes
+    attributes
         .iter()
         .filter_map(|a| {
-            let data = read_attribute(a, descriptor, offset, buffer, endian);
+            let data = read_attribute(
+                a,
+                data_offset,
+                vertex_count,
+                vertex_size,
+                offset,
+                buffer,
+                endian,
+            );
             offset += a.data_size as u64;
 
             data
@@ -544,9 +540,12 @@ fn read_vertex_attributes(
         .collect()
 }
 
+// TODO: make this a function of AttributeData?
 fn read_attribute(
     a: &xc3_lib::vertex::VertexAttribute,
-    d: &VertexBufferDescriptor,
+    data_offset: u32,
+    vertex_count: u32,
+    vertex_size: u32,
     relative_offset: u64,
     buffer: &[u8],
     endian: Endian,
@@ -554,110 +553,313 @@ fn read_attribute(
     // TODO: handle all cases and don't return option.
     match a.data_type {
         DataType::Position => Some(AttributeData::Position(
-            read_data(d, relative_offset, buffer, endian, read_f32x3).ok()?,
+            read_data(
+                data_offset,
+                vertex_count,
+                vertex_size,
+                relative_offset,
+                buffer,
+                endian,
+                read_f32x3,
+            )
+            .ok()?,
         )),
         DataType::SkinWeights2 => Some(AttributeData::SkinWeights(
-            read_data(d, relative_offset, buffer, endian, read_f32x3_weights).ok()?,
+            read_data(
+                data_offset,
+                vertex_count,
+                vertex_size,
+                relative_offset,
+                buffer,
+                endian,
+                read_f32x3_weights,
+            )
+            .ok()?,
         )),
         DataType::BoneIndices2 => Some(AttributeData::BoneIndices(
-            read_data(d, relative_offset, buffer, endian, read_u8x4).ok()?,
+            read_data(
+                data_offset,
+                vertex_count,
+                vertex_size,
+                relative_offset,
+                buffer,
+                endian,
+                read_u8x4,
+            )
+            .ok()?,
         )),
         DataType::WeightIndex => Some(AttributeData::WeightIndex(
-            read_data(d, relative_offset, buffer, endian, read_u16x2).ok()?,
+            read_data(
+                data_offset,
+                vertex_count,
+                vertex_size,
+                relative_offset,
+                buffer,
+                endian,
+                read_u16x2,
+            )
+            .ok()?,
         )),
         DataType::WeightIndex2 => None,
         DataType::TexCoord0 => Some(AttributeData::TexCoord0(
-            read_data(d, relative_offset, buffer, endian, read_f32x2).ok()?,
+            read_data(
+                data_offset,
+                vertex_count,
+                vertex_size,
+                relative_offset,
+                buffer,
+                endian,
+                read_f32x2,
+            )
+            .ok()?,
         )),
         DataType::TexCoord1 => Some(AttributeData::TexCoord1(
-            read_data(d, relative_offset, buffer, endian, read_f32x2).ok()?,
+            read_data(
+                data_offset,
+                vertex_count,
+                vertex_size,
+                relative_offset,
+                buffer,
+                endian,
+                read_f32x2,
+            )
+            .ok()?,
         )),
         DataType::TexCoord2 => Some(AttributeData::TexCoord2(
-            read_data(d, relative_offset, buffer, endian, read_f32x2).ok()?,
+            read_data(
+                data_offset,
+                vertex_count,
+                vertex_size,
+                relative_offset,
+                buffer,
+                endian,
+                read_f32x2,
+            )
+            .ok()?,
         )),
         DataType::TexCoord3 => Some(AttributeData::TexCoord3(
-            read_data(d, relative_offset, buffer, endian, read_f32x2).ok()?,
+            read_data(
+                data_offset,
+                vertex_count,
+                vertex_size,
+                relative_offset,
+                buffer,
+                endian,
+                read_f32x2,
+            )
+            .ok()?,
         )),
         DataType::TexCoord4 => Some(AttributeData::TexCoord4(
-            read_data(d, relative_offset, buffer, endian, read_f32x2).ok()?,
+            read_data(
+                data_offset,
+                vertex_count,
+                vertex_size,
+                relative_offset,
+                buffer,
+                endian,
+                read_f32x2,
+            )
+            .ok()?,
         )),
         DataType::TexCoord5 => Some(AttributeData::TexCoord5(
-            read_data(d, relative_offset, buffer, endian, read_f32x2).ok()?,
+            read_data(
+                data_offset,
+                vertex_count,
+                vertex_size,
+                relative_offset,
+                buffer,
+                endian,
+                read_f32x2,
+            )
+            .ok()?,
         )),
         DataType::TexCoord6 => Some(AttributeData::TexCoord6(
-            read_data(d, relative_offset, buffer, endian, read_f32x2).ok()?,
+            read_data(
+                data_offset,
+                vertex_count,
+                vertex_size,
+                relative_offset,
+                buffer,
+                endian,
+                read_f32x2,
+            )
+            .ok()?,
         )),
         DataType::TexCoord7 => Some(AttributeData::TexCoord7(
-            read_data(d, relative_offset, buffer, endian, read_f32x2).ok()?,
+            read_data(
+                data_offset,
+                vertex_count,
+                vertex_size,
+                relative_offset,
+                buffer,
+                endian,
+                read_f32x2,
+            )
+            .ok()?,
         )),
         DataType::TexCoord8 => Some(AttributeData::TexCoord8(
-            read_data(d, relative_offset, buffer, endian, read_f32x2).ok()?,
+            read_data(
+                data_offset,
+                vertex_count,
+                vertex_size,
+                relative_offset,
+                buffer,
+                endian,
+                read_f32x2,
+            )
+            .ok()?,
         )),
         DataType::Blend => Some(AttributeData::Blend(
-            read_data(d, relative_offset, buffer, endian, read_unorm8x4).ok()?,
+            read_data(
+                data_offset,
+                vertex_count,
+                vertex_size,
+                relative_offset,
+                buffer,
+                endian,
+                read_unorm8x4,
+            )
+            .ok()?,
         )),
         DataType::Unk15 => None,
         DataType::Unk16 => None,
         DataType::VertexColor => Some(AttributeData::VertexColor(
-            read_data(d, relative_offset, buffer, endian, read_unorm8x4).ok()?,
+            read_data(
+                data_offset,
+                vertex_count,
+                vertex_size,
+                relative_offset,
+                buffer,
+                endian,
+                read_unorm8x4,
+            )
+            .ok()?,
         )),
         DataType::Unk18 => None,
         DataType::Unk24 => None,
         DataType::Unk25 => None,
         DataType::Unk26 => None,
         DataType::Normal => Some(AttributeData::Normal(
-            read_data(d, relative_offset, buffer, endian, read_snorm8x4).ok()?,
+            read_data(
+                data_offset,
+                vertex_count,
+                vertex_size,
+                relative_offset,
+                buffer,
+                endian,
+                read_snorm8x4,
+            )
+            .ok()?,
         )),
         DataType::Tangent => Some(AttributeData::Tangent(
-            read_data(d, relative_offset, buffer, endian, read_snorm8x4).ok()?,
+            read_data(
+                data_offset,
+                vertex_count,
+                vertex_size,
+                relative_offset,
+                buffer,
+                endian,
+                read_snorm8x4,
+            )
+            .ok()?,
         )),
         DataType::Unk30 => None,
         DataType::Unk31 => None,
         DataType::Normal2 => Some(AttributeData::Normal(
-            read_data(d, relative_offset, buffer, endian, read_snorm8x4).ok()?,
+            read_data(
+                data_offset,
+                vertex_count,
+                vertex_size,
+                relative_offset,
+                buffer,
+                endian,
+                read_snorm8x4,
+            )
+            .ok()?,
         )),
         DataType::Unk33 => None,
         DataType::Normal3 => None,
         DataType::VertexColor3 => None,
-        DataType::Position2 => None,
-        DataType::Normal4 => None,
-        DataType::OldPosition => None,
-        DataType::Tangent2 => None,
+        DataType::Position2 => Some(AttributeData::Position2(
+            read_data(
+                data_offset,
+                vertex_count,
+                vertex_size,
+                relative_offset,
+                buffer,
+                endian,
+                read_f32x3,
+            )
+            .ok()?,
+        )),
+        DataType::Normal4 => Some(AttributeData::Normal4(
+            read_data(
+                data_offset,
+                vertex_count,
+                vertex_size,
+                relative_offset,
+                buffer,
+                endian,
+                read_unorm8x4,
+            )
+            .ok()?,
+        )),
+        DataType::OldPosition => Some(AttributeData::OldPosition(
+            read_data(
+                data_offset,
+                vertex_count,
+                vertex_size,
+                relative_offset,
+                buffer,
+                endian,
+                read_f32x3,
+            )
+            .ok()?,
+        )),
+        DataType::Tangent2 => Some(AttributeData::Tangent2(
+            read_data(
+                data_offset,
+                vertex_count,
+                vertex_size,
+                relative_offset,
+                buffer,
+                endian,
+                read_unorm8x4,
+            )
+            .ok()?,
+        )),
         DataType::SkinWeights => Some(AttributeData::SkinWeights(
-            read_data(d, relative_offset, buffer, endian, read_unorm16x4).ok()?,
+            read_data(
+                data_offset,
+                vertex_count,
+                vertex_size,
+                relative_offset,
+                buffer,
+                endian,
+                read_unorm16x4,
+            )
+            .ok()?,
         )),
         DataType::BoneIndices => Some(AttributeData::BoneIndices(
-            read_data(d, relative_offset, buffer, endian, read_u8x4).ok()?,
+            read_data(
+                data_offset,
+                vertex_count,
+                vertex_size,
+                relative_offset,
+                buffer,
+                endian,
+                read_u8x4,
+            )
+            .ok()?,
         )),
         DataType::Flow => None,
     }
 }
 
 fn read_data<T, F>(
-    descriptor: &VertexBufferDescriptor,
-    relative_offset: u64,
-    buffer: &[u8],
-    endian: Endian,
-    read_item: F,
-) -> BinResult<Vec<T>>
-where
-    F: Fn(&mut Cursor<&[u8]>, Endian) -> BinResult<T>,
-{
-    read_data_inner(
-        descriptor.data_offset as u64,
-        descriptor.vertex_count as u64,
-        descriptor.vertex_size as u64,
-        relative_offset,
-        buffer,
-        endian,
-        read_item,
-    )
-}
-
-fn read_data_inner<T, F>(
-    offset: u64,
-    vertex_count: u64,
-    vertex_size: u64,
+    offset: u32,
+    vertex_count: u32,
+    vertex_size: u32,
     relative_offset: u64,
     buffer: &[u8],
     endian: Endian,
@@ -669,8 +871,8 @@ where
     let mut reader = Cursor::new(buffer);
 
     let mut values = Vec::with_capacity(vertex_count as usize);
-    for i in 0..vertex_count {
-        let offset = offset + i * vertex_size + relative_offset;
+    for i in 0..vertex_count as u64 {
+        let offset = offset as u64 + i * vertex_size as u64 + relative_offset;
         reader.seek(SeekFrom::Start(offset))?;
 
         values.push(read_item(&mut reader, endian)?);
@@ -718,19 +920,6 @@ fn read_unorm16x4(reader: &mut Cursor<&[u8]>, endian: Endian) -> BinResult<Vec4>
     Ok(value.map(|u| u as f32 / 65535.0).into())
 }
 
-// The base target matches vertex attributes from RenderDoc.
-// 0 Float32x3 Position
-// 1 Unorm8x4 Normals
-// 2 Float32x3 Position
-// 3 Unorm8x4 Tangent
-#[derive(BinRead)]
-struct MorphBufferBlendTargetVertex {
-    position1: [f32; 3],
-    normal: [u8; 4],
-    _position2: [f32; 3],
-    tangent: [u8; 4],
-}
-
 // Default and param buffer attributes.
 #[derive(BinRead, BinWrite)]
 struct MorphBufferTargetVertex {
@@ -763,31 +952,25 @@ struct MorphTargetVertex {
 fn read_morph_blend_target(
     base_target: &xc3_lib::vertex::MorphTarget,
     model_bytes: &[u8],
-) -> BinResult<MorphBlendTargetAttributes> {
+) -> BinResult<Vec<AttributeData>> {
     // Only the base target contains data for all vertices.
     // This includes required position, normal, and tangent attributes.
-    let mut positions = Vec::new();
-    let mut normals = Vec::new();
-    let mut tangents = Vec::new();
-
-    let mut reader = Cursor::new(model_bytes);
-    for i in 0..base_target.vertex_count as u64 {
-        // TODO: assume data is tightly packed and seek once?
-        reader.seek(SeekFrom::Start(
-            base_target.data_offset as u64 + i * base_target.vertex_size as u64,
-        ))?;
-
-        let vertex: MorphBufferBlendTargetVertex = reader.read_le()?;
-        positions.push(vertex.position1.into());
-        normals.push(vertex.normal.map(|u| u as f32 / 255.0 * 2.0 - 1.0).into());
-        tangents.push(vertex.tangent.map(|u| u as f32 / 255.0 * 2.0 - 1.0).into());
-    }
-
-    Ok(MorphBlendTargetAttributes {
-        positions,
-        normals,
-        tangents,
-    })
+    // TODO: return values directly instead of enums?
+    // TODO: Custom reader for normal2 and tangent2 that does * 2 - 1?
+    let attributes = read_vertex_attributes(
+        base_target.data_offset,
+        base_target.vertex_count,
+        base_target.vertex_size,
+        &[
+            DataType::Position2.into(),
+            DataType::Normal4.into(),
+            DataType::OldPosition.into(),
+            DataType::Tangent2.into(),
+        ],
+        model_bytes,
+        Endian::Little,
+    );
+    Ok(attributes)
 }
 
 fn read_morph_buffer_target(
@@ -805,6 +988,8 @@ fn read_morph_buffer_target(
 
             let vertex: MorphBufferTargetVertex = reader.read_le()?;
 
+            // TODO: Don't remap for consistency?
+            // TODO: Read individual attributes?
             Ok(MorphTargetVertex {
                 position_delta: vertex.position_delta.into(),
                 normal: vertex.normal.map(|u| u as f32 / 255.0 * 2.0 - 1.0).into(),
@@ -856,10 +1041,10 @@ fn read_outline_attribute<T, F>(
 where
     F: Fn(&mut Cursor<&[u8]>, Endian) -> BinResult<T>,
 {
-    read_data_inner(
-        descriptor.data_offset as u64,
-        descriptor.vertex_count as u64,
-        descriptor.vertex_size as u64,
+    read_data(
+        descriptor.data_offset,
+        descriptor.vertex_count,
+        descriptor.vertex_size,
         relative_offset,
         buffer,
         Endian::Little,
@@ -931,26 +1116,8 @@ impl ModelBuffers {
         let mut buffer_writer = Cursor::new(Vec::new());
 
         for buffer in &self.vertex_buffers {
-            let vertex_buffer = if !buffer.morph_targets.is_empty() {
-                // Remove any attributes that should only be in the morph targets.
-                // TODO: Is it better to not store the base target in the buffer attributes?
-                let attributes: Vec<_> = buffer
-                    .attributes
-                    .iter()
-                    .filter(|a| {
-                        !matches!(
-                            a,
-                            AttributeData::Position(_)
-                                | AttributeData::Normal(_)
-                                | AttributeData::Tangent(_)
-                        )
-                    })
-                    .cloned()
-                    .collect();
-                write_vertex_buffer(&mut buffer_writer, &attributes, Endian::Little)?
-            } else {
-                write_vertex_buffer(&mut buffer_writer, &buffer.attributes, Endian::Little)?
-            };
+            let vertex_buffer =
+                write_vertex_buffer(&mut buffer_writer, &buffer.attributes, Endian::Little)?;
             vertex_buffers.push(vertex_buffer);
         }
 
@@ -1081,7 +1248,7 @@ impl ModelBuffers {
             };
             descriptors.push(descriptor);
 
-            let target = write_morph_blend_target(writer, buffer)?;
+            let target = write_morph_blend_target(writer, &buffer.morph_blend_target)?;
             targets.push(target);
 
             // The default target stores base values for modified vertices.
@@ -1096,7 +1263,7 @@ impl ModelBuffers {
 
             for morph_target in &buffer.morph_targets {
                 align(writer, 256)?;
-                let target = write_morph_param_target(writer, morph_target, buffer)?;
+                let target = write_morph_param_target(writer, morph_target)?;
                 targets.push(target);
             }
         }
@@ -1120,10 +1287,10 @@ fn write_morph_default_target(
     // TODO: None of these attributes are deltas?
     // TODO: Is there a cleaner way of doing this?
     let positions: Vec<_> = buffer
-        .attributes
+        .morph_blend_target
         .iter()
         .find_map(|a| {
-            if let AttributeData::Position(values) = a {
+            if let AttributeData::Position2(values) = a {
                 Some(
                     modified_indices
                         .iter()
@@ -1147,10 +1314,10 @@ fn write_morph_default_target(
     )?;
 
     let normals: Vec<_> = buffer
-        .attributes
+        .morph_blend_target
         .iter()
         .find_map(|a| {
-            if let AttributeData::Normal(values) = a {
+            if let AttributeData::Normal4(values) = a {
                 Some(
                     modified_indices
                         .iter()
@@ -1172,10 +1339,10 @@ fn write_morph_default_target(
     )?;
 
     let tangents: Vec<_> = buffer
-        .attributes
+        .morph_blend_target
         .iter()
         .find_map(|a| {
-            if let AttributeData::Tangent(values) = a {
+            if let AttributeData::Tangent2(values) = a {
                 Some(
                     modified_indices
                         .iter()
@@ -1219,7 +1386,6 @@ fn write_morph_default_target(
 fn write_morph_param_target(
     writer: &mut Cursor<Vec<u8>>,
     morph_target: &MorphTarget,
-    buffer: &VertexBuffer,
 ) -> Result<xc3_lib::vertex::MorphTarget, binrw::Error> {
     let offset = writer.stream_position()?;
 
@@ -1241,20 +1407,18 @@ fn write_morph_param_target(
         write_u32,
     )?;
 
-    let normals = calculate_morph_normals(buffer, morph_target);
     write_data(
         writer,
-        &normals,
+        &morph_target.normals,
         offset + 16,
         32,
         Endian::Little,
         write_unorm8x4,
     )?;
 
-    let tangents = calculate_morph_tangents(buffer, morph_target);
     write_data(
         writer,
-        &tangents,
+        &morph_target.tangents,
         offset + 20,
         32,
         Endian::Little,
@@ -1287,98 +1451,15 @@ fn write_morph_param_target(
     })
 }
 
-fn calculate_morph_normals(buffer: &VertexBuffer, morph_target: &MorphTarget) -> Vec<Vec4> {
-    let base_normals = buffer
-        .attributes
-        .iter()
-        .find_map(|a| {
-            if let AttributeData::Normal(values) = a {
-                Some(values)
-            } else {
-                None
-            }
-        })
-        .unwrap();
-
-    morph_target
-        .vertex_indices
-        .iter()
-        .zip(morph_target.normal_deltas.iter())
-        .map(|(i, d)| base_normals[*i as usize] + *d)
-        .collect()
-}
-
-fn calculate_morph_tangents(buffer: &VertexBuffer, morph_target: &MorphTarget) -> Vec<Vec4> {
-    let base_tangents = buffer
-        .attributes
-        .iter()
-        .find_map(|a| {
-            if let AttributeData::Tangent(values) = a {
-                Some(values)
-            } else {
-                None
-            }
-        })
-        .unwrap();
-
-    morph_target
-        .vertex_indices
-        .iter()
-        .zip(morph_target.tangent_deltas.iter())
-        .map(|(i, d)| base_tangents[*i as usize] + *d)
-        .collect()
-}
-
 fn write_morph_blend_target(
     writer: &mut Cursor<Vec<u8>>,
-    buffer: &VertexBuffer,
+    blend_target: &[AttributeData],
 ) -> Result<xc3_lib::vertex::MorphTarget, binrw::Error> {
-    let offset = writer.stream_position()?;
-
-    let position = buffer
-        .attributes
-        .iter()
-        .find_map(|a| {
-            if matches!(a, AttributeData::Position(_)) {
-                Some(a.clone())
-            } else {
-                None
-            }
-        })
-        .unwrap();
-
-    let normal = buffer
-        .attributes
-        .iter()
-        .find_map(|a| {
-            if matches!(a, AttributeData::Normal(_)) {
-                Some(a.clone())
-            } else {
-                None
-            }
-        })
-        .unwrap();
-
-    let tangent = buffer
-        .attributes
-        .iter()
-        .find_map(|a| {
-            if matches!(a, AttributeData::Tangent(_)) {
-                Some(a.clone())
-            } else {
-                None
-            }
-        })
-        .unwrap();
-
-    // TODO: Are the position values always the same?
-    let attributes = [position.clone(), normal, position, tangent];
-    let descriptor = write_vertex_buffer(writer, &attributes, Endian::Little)?;
-
+    let descriptor = write_vertex_buffer(writer, blend_target, Endian::Little)?;
     Ok(xc3_lib::vertex::MorphTarget {
-        data_offset: offset as u32,
+        data_offset: descriptor.data_offset,
         vertex_count: descriptor.vertex_count,
-        vertex_size: descriptor.vertex_size,
+        vertex_size: descriptor.vertex_size, // TODO: assert that this is 32?
         flags: MorphTargetFlags::new(0, true, false, false, 0u8.into()),
     })
 }
@@ -1419,18 +1500,14 @@ fn read_vertex_buffers_legacy(
         .iter()
         .map(|descriptor| VertexBuffer {
             attributes: read_vertex_attributes(
-                &VertexBufferDescriptor {
-                    data_offset,
-                    vertex_count: descriptor.vertex_count,
-                    vertex_size: descriptor.vertex_size,
-                    attributes: descriptor.attributes.clone(),
-                    unk1: 0,
-                    unk2: 0,
-                    unk3: 0,
-                },
+                data_offset,
+                descriptor.vertex_count,
+                descriptor.vertex_size,
+                &descriptor.attributes,
                 &descriptor.data,
                 Endian::Big,
             ),
+            morph_blend_target: Vec::new(),
             morph_targets: Vec::new(),
             outline_buffer_index: None,
         })
@@ -1605,9 +1682,9 @@ fn read_unk_buffer_attribute<T, F>(
 where
     F: Fn(&mut Cursor<&[u8]>, Endian) -> BinResult<T>,
 {
-    read_data_inner(
-        data_offset as u64 + descriptor.offset as u64,
-        descriptor.count as u64,
+    read_data(
+        data_offset + descriptor.offset,
+        descriptor.count,
         if descriptor.unk1 == 0 { 16 } else { 24 },
         relative_offset,
         buffer,
@@ -1650,9 +1727,9 @@ fn write_vertex_buffer<W: Write + Seek>(
 ) -> BinResult<VertexBufferDescriptor> {
     let data_offset = writer.stream_position()? as u32;
 
-    let attributes: Vec<_> = attribute_data
+    let attributes: Vec<xc3_lib::vertex::VertexAttribute> = attribute_data
         .iter()
-        .map(xc3_lib::vertex::VertexAttribute::from)
+        .map(|a| a.data_type().into())
         .collect();
 
     let vertex_size = attributes.iter().map(|a| a.data_size as u32).sum();
@@ -1869,7 +1946,14 @@ mod tests {
         ];
         assert_eq!(
             attributes,
-            read_vertex_attributes(&descriptor, &data, Endian::Little)
+            read_vertex_attributes(
+                descriptor.data_offset,
+                descriptor.vertex_count,
+                descriptor.vertex_size,
+                &descriptor.attributes,
+                &data,
+                Endian::Little
+            )
         );
 
         // Test write.
@@ -1918,7 +2002,14 @@ mod tests {
         ];
         assert_eq!(
             attributes,
-            read_vertex_attributes(&descriptor, &data, Endian::Little)
+            read_vertex_attributes(
+                descriptor.data_offset,
+                descriptor.vertex_count,
+                descriptor.vertex_size,
+                &descriptor.attributes,
+                &data,
+                Endian::Little
+            )
         );
 
         // Test write.
@@ -2089,7 +2180,14 @@ mod tests {
         ];
         assert_eq!(
             attributes,
-            read_vertex_attributes(&descriptor, &data, Endian::Little)
+            read_vertex_attributes(
+                descriptor.data_offset,
+                descriptor.vertex_count,
+                descriptor.vertex_size,
+                &descriptor.attributes,
+                &data,
+                Endian::Little
+            )
         );
 
         // Test write.
@@ -2100,7 +2198,7 @@ mod tests {
     }
 
     #[test]
-    fn read_morph_blend_target_vertices() {
+    fn morph_blend_target_vertices() {
         // xeno3/chr/ch/ch01027000.wismt, "face_D2_shape", target 324.
         let data = hex!(
             // vertex 0
@@ -2122,23 +2220,32 @@ mod tests {
             flags: xc3_lib::vertex::MorphTargetFlags::new(0u16, true, false, false, 0u8.into()),
         };
 
-        assert_eq!(
-            MorphBlendTargetAttributes {
-                positions: vec![
-                    vec3(0.043739468, 1.3661073, -0.033391867),
-                    vec3(0.048528977, 1.3739486, -0.03387388)
-                ],
-                normals: vec![
-                    vec4(0.8117647, -0.49019605, -0.29411763, -0.99215686),
-                    vec4(0.85882354, -0.40392154, -0.30196077, -0.99215686)
-                ],
-                tangents: vec![
-                    vec4(-0.019607842, 0.4901961, -0.8666667, 1.0),
-                    vec4(-0.035294116, 0.54509807, -0.827451, 1.0)
-                ]
-            },
-            read_morph_blend_target(&target, &data).unwrap()
-        );
+        // Test read.
+        let attributes = vec![
+            AttributeData::Position2(vec![
+                vec3(0.043739468, 1.3661073, -0.033391867),
+                vec3(0.048528977, 1.3739486, -0.03387388),
+            ]),
+            AttributeData::Normal4(vec![
+                vec4(0.90588236, 0.25490198, 0.3529412, 0.003921569),
+                vec4(0.92941177, 0.29803923, 0.34901962, 0.003921569),
+            ]),
+            AttributeData::OldPosition(vec![
+                vec3(0.043739468, 1.3661073, -0.033391867),
+                vec3(0.048528977, 1.3739486, -0.03387388),
+            ]),
+            AttributeData::Tangent2(vec![
+                vec4(0.49019608, 0.74509805, 0.06666667, 1.0),
+                vec4(0.48235294, 0.77254903, 0.08627451, 1.0),
+            ]),
+        ];
+        assert_eq!(attributes, read_morph_blend_target(&target, &data).unwrap());
+
+        // Test write.
+        let mut writer = Cursor::new(Vec::new());
+        let new_target = write_morph_blend_target(&mut writer, &attributes).unwrap();
+        assert_eq!(new_target, target);
+        assert_hex_eq!(data, writer.into_inner());
     }
 
     #[test]
@@ -2477,7 +2584,14 @@ mod tests {
         ];
         assert_eq!(
             attributes,
-            read_vertex_attributes(&descriptor, &data, Endian::Big)
+            read_vertex_attributes(
+                descriptor.data_offset,
+                descriptor.vertex_count,
+                descriptor.vertex_size,
+                &descriptor.attributes,
+                &data,
+                Endian::Big
+            )
         );
 
         // Test write.
@@ -2526,7 +2640,14 @@ mod tests {
         ];
         assert_eq!(
             attributes,
-            read_vertex_attributes(&descriptor, &data, Endian::Big)
+            read_vertex_attributes(
+                descriptor.data_offset,
+                descriptor.vertex_count,
+                descriptor.vertex_size,
+                &descriptor.attributes,
+                &data,
+                Endian::Big
+            )
         );
 
         // Test write.
