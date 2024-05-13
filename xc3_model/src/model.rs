@@ -178,9 +178,11 @@ fn match_technique_attributes(
 
     // Make sure the buffer attributes match the vertex shader's input attributes.
     // TODO: Is there a better way to match the shader order?
+    // TODO: Do we ever need to add buffer1 attributes?
     let count = buffer.vertex_count();
     buffer.attributes = technique_attributes
         .iter()
+        .filter(|a| a.buffer_index == 0)
         .map(|a| match_attribute(a.data_type, buffer, count))
         .collect();
 }
@@ -245,9 +247,9 @@ fn match_attribute(
         DataType::Normal3 => attribute!(buffer, AttributeData::Normal, Vec4::ZERO, count),
         DataType::VertexColor3 => attribute!(buffer, AttributeData::VertexColor, Vec4::ZERO, count),
         DataType::Position2 => attribute!(buffer, AttributeData::Position, Vec3::ZERO, count),
-        DataType::Normal4 => attribute!(buffer, AttributeData::Normal, Vec4::ZERO, count),
-        DataType::OldPosition => attribute!(buffer, AttributeData::Position, Vec3::ZERO, count),
-        DataType::Tangent2 => attribute!(buffer, AttributeData::Tangent, Vec4::ZERO, count),
+        DataType::Normal4 => attribute!(buffer, AttributeData::Normal4, Vec4::ZERO, count),
+        DataType::OldPosition => attribute!(buffer, AttributeData::OldPosition, Vec3::ZERO, count),
+        DataType::Tangent2 => attribute!(buffer, AttributeData::Tangent2, Vec4::ZERO, count),
         DataType::SkinWeights => attribute!(buffer, AttributeData::SkinWeights, Vec4::ZERO, count),
         DataType::BoneIndices => attribute!(buffer, AttributeData::BoneIndices, [0; 4], count),
         DataType::Flow => todo!(),
