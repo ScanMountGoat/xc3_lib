@@ -14,11 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 * Improved accuracy of render state and render pass assignments for Xenoblade X models.
 * Adjusted generated glTF textures to include material parameters and constants for more accurate materials.
+* Improved accuracy of rebuilding model and vertex data for `ModelRoot.to_mxmd_model` in xc3_model.
 
 ### Fixed
 * Fixed an issue where some animation files failed to load with `load_animations` for xc3_model.
 * Fixed an issue where animations did not loop properly due to the final keyframe not extrapolating to the final frame.
 * Fixed an issue where tangent and normal vertex attributes were not scaled properly.
+* Fixed an issue loading Xenoblade X textures with odd dimensions.
+* Fixed an issue where compressed sections in `.wismt` files did not save with the correct size.
 
 ## 0.8.0 - 2024-04-27
 ### Added
