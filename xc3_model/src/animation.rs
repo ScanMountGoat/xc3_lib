@@ -214,6 +214,62 @@ impl Animation {
             })
             .collect()
     }
+
+    // TODO: Can these parameters be simplified or use a different type?
+    /// Compute the the animated morph weights for each controller in `morph_controller_names`.
+    pub fn morph_weights(
+        &self,
+        morph_controller_names: &[String],
+        animation_morph_names: &[String],
+        morph_target_controller_indices: &[usize],
+        frame: f32,
+    ) -> Vec<f32> {
+        let frame_index = frame as usize;
+        let factor = frame.fract();
+        let next_frame_index = frame.ceil() as usize;
+        let final_frame_index = self.frame_count.saturating_sub(1) as usize;
+
+        // Default to the basis values if no morph animation is present.
+        let mut weights = vec![0.0f32; morph_controller_names.len()];
+
+        if let Some(morphs) = &self.morph_tracks {
+            for (i, track_index) in morphs.track_indices.iter().enumerate() {
+                // TODO: The counts and indices match up but don't select the right names?
+                let name = &animation_morph_names[i];
+
+                // TODO: This part isn't correct?
+                if let Some(target_index) = morph_target_controller_indices
+                    .iter()
+                    .position(|t| morph_controller_names[*t] == *name)
+                {
+                    // TODO: Why is this sometimes out of range?
+                    // TODO: log errors?
+                    let len = weights.len();
+                    if let Some(weight) = weights.get_mut(target_index % len) {
+                        if let Ok(track_index) = usize::try_from(*track_index) {
+                            // TODO: Is this how to handle multiple frames?
+                            let frame_value = morphs
+                                .track_values
+                                .get(track_index * frame_index.min(final_frame_index));
+
+                            let next_frame_value = morphs
+                                .track_values
+                                .get(track_index * next_frame_index.min(final_frame_index));
+                            if let Some(value) = frame_value {
+                                *weight = match next_frame_value {
+                                    Some(next_value) => {
+                                        *value * (1.0 - factor) + *next_value * factor
+                                    }
+                                    None => *value,
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        weights
+    }
 }
 
 fn anim_tracks(anim: &xc3_lib::bc::anim::Anim) -> Vec<Track> {

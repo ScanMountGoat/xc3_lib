@@ -392,55 +392,15 @@ impl ModelGroup {
 
         let frame = animation.current_frame(current_time_seconds);
 
-        let frame_index = frame as usize;
-        let factor = frame.fract();
-        let next_frame_index = frame.ceil() as usize;
-        let final_frame_index = animation.frame_count.saturating_sub(1) as usize;
-
-        // TODO: Move this logic to xc3_model.
         for buffers in &self.buffers {
             for buffer in &buffers.vertex_buffers {
                 if let Some(morph_buffers) = &buffer.morph_buffers {
-                    // Default to the basis values if no morph animation is present.
-                    let mut weights = vec![0.0f32; morph_controller_names.len()];
-
-                    if let Some(morphs) = &animation.morph_tracks {
-                        for (i, track_index) in morphs.track_indices.iter().enumerate() {
-                            // TODO: The counts and indices match up but don't select the right names?
-                            let name = &animation_morph_names[i];
-
-                            // TODO: This part isn't correct?
-                            if let Some(target_index) = morph_buffers
-                                .morph_target_controller_indices
-                                .iter()
-                                .position(|t| morph_controller_names[*t] == *name)
-                            {
-                                // TODO: Why is this sometimes out of range?
-                                // TODO: log errors?
-                                let len = weights.len();
-                                if let Some(weight) = weights.get_mut(target_index % len) {
-                                    if let Ok(track_index) = usize::try_from(*track_index) {
-                                        // TODO: Is this how to handle multiple frames?
-                                        let frame_value = morphs
-                                            .track_values
-                                            .get(track_index * frame_index.min(final_frame_index));
-
-                                        let next_frame_value = morphs.track_values.get(
-                                            track_index * next_frame_index.min(final_frame_index),
-                                        );
-                                        if let Some(value) = frame_value {
-                                            *weight = match next_frame_value {
-                                                Some(next_value) => {
-                                                    *value * (1.0 - factor) + *next_value * factor
-                                                }
-                                                None => *value,
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    let weights = animation.morph_weights(
+                        morph_controller_names,
+                        animation_morph_names,
+                        &morph_buffers.morph_target_controller_indices,
+                        frame,
+                    );
 
                     queue.write_storage_data(&morph_buffers.weights_buffer, &weights);
                 }
