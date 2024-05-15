@@ -389,10 +389,15 @@ impl ModelGroup {
         // TODO: Tests for this?
         let morph_controller_names = &self.models[0].morph_controller_names;
         let animation_morph_names = &self.models[0].animation_morph_names;
-        // TODO: interpolate between frames?
-        let frame = animation.current_frame(current_time_seconds);
-        let frame_index = frame as usize;
 
+        let frame = animation.current_frame(current_time_seconds);
+
+        let frame_index = frame as usize;
+        let factor = frame.fract();
+        let next_frame_index = frame.ceil() as usize;
+        let final_frame_index = animation.frame_count.saturating_sub(1) as usize;
+
+        // TODO: Move this logic to xc3_model.
         for buffers in &self.buffers {
             for buffer in &buffers.vertex_buffers {
                 if let Some(morph_buffers) = &buffer.morph_buffers {
@@ -410,16 +415,26 @@ impl ModelGroup {
                                 .iter()
                                 .position(|t| morph_controller_names[*t] == *name)
                             {
-                                // TODO: Why is this out of range?
+                                // TODO: Why is this sometimes out of range?
                                 // TODO: log errors?
                                 let len = weights.len();
                                 if let Some(weight) = weights.get_mut(target_index % len) {
-                                    if *track_index >= 0 {
+                                    if let Ok(track_index) = usize::try_from(*track_index) {
                                         // TODO: Is this how to handle multiple frames?
-                                        let track_values_index = *track_index as usize
-                                            * frame_index.min(animation.frame_count as usize - 1);
-                                        if track_values_index < morphs.track_values.len() {
-                                            *weight = morphs.track_values[track_values_index];
+                                        let frame_value = morphs
+                                            .track_values
+                                            .get(track_index * frame_index.min(final_frame_index));
+
+                                        let next_frame_value = morphs.track_values.get(
+                                            track_index * next_frame_index.min(final_frame_index),
+                                        );
+                                        if let Some(value) = frame_value {
+                                            *weight = match next_frame_value {
+                                                Some(next_value) => {
+                                                    *value * (1.0 - factor) + *next_value * factor
+                                                }
+                                                None => *value,
+                                            }
                                         }
                                     }
                                 }
