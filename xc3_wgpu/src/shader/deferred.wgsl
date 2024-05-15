@@ -38,9 +38,12 @@ var g_velocity: texture_2d<f32>;
 var g_depth: texture_2d<f32>;
 
 // TODO: the output at index 5 can be specular color or emission?
-// "gTSpecularCol" in "clustered" in monolib/shader/shd_lgt.wishp.
 @group(1) @binding(5)
 var g_lgt_color: texture_2d<f32>;
+
+// "gTSpecularCol" in "clustered" in monolib/shader/shd_lgt.wishp.
+@group(1) @binding(6)
+var g_specular_color: texture_2d<f32>;
 
 // PerDraw resources for each material ID type.
 @group(2) @binding(0)
@@ -169,7 +172,7 @@ fn calculate_toon_color(uv: vec2<f32>) -> vec4<f32> {
     let g_normal = textureSample(g_normal, shared_sampler, uv);
     let g_velocity = textureSample(g_velocity, shared_sampler, uv);
     let g_depth = textureSample(g_depth, shared_sampler, uv);
-    let g_lgt_color = textureSample(g_lgt_color, shared_sampler, uv);
+    let g_specular_color = textureSample(g_specular_color, shared_sampler, uv);
 
     let albedo = g_color.rgb;
     let metalness = g_etc_buffer.r; // TODO: different for toon?
@@ -212,7 +215,7 @@ fn calculate_toon_color(uv: vec2<f32>) -> vec4<f32> {
     // TODO: Correctly use both gradients to fix massive melee mythra hair.
     let toon_v = toon_grad_v(g_etc_buffer.z);
     let toon_diffuse = textureSample(g_toon_grad, shared_sampler, vec2(diffuse_lighting, toon_v)).rgb;
-    let toon_specular = specular_lighting * g_lgt_color.rgb;
+    let toon_specular = specular_lighting * g_specular_color.rgb;
 
     output = albedo * k_diffuse * toon_diffuse + toon_specular * k_specular * ambient_occlusion;
 

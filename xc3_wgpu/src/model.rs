@@ -10,7 +10,7 @@ use crate::{
     animation::animated_skinning_transforms,
     culling::is_within_frustum,
     material::{materials, Material},
-    pipeline::{ModelPipelineData, PipelineKey},
+    pipeline::{ModelPipelineData, Output5Type, PipelineKey},
     sampler::create_sampler,
     shader,
     texture::create_texture,
@@ -222,6 +222,7 @@ impl ModelGroup {
         is_transparent: bool,
         pass_id: MeshRenderPass,
         camera: &CameraData,
+        output5_type: Output5Type,
     ) {
         self.per_group.set(render_pass);
 
@@ -245,6 +246,7 @@ impl ModelGroup {
                         && !material.name.contains("_speff_")
                         && mesh.should_render_lod(models)
                         && mesh.flags2.render_pass() == pass_id
+                        && material.pipeline_key.output5_type == output5_type
                     {
                         mesh.per_mesh.set(render_pass);
 

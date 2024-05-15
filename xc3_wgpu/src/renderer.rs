@@ -3,8 +3,9 @@ use wgpu::util::DeviceExt;
 use xc3_model::MeshRenderPass;
 
 use crate::{
-    model::ModelGroup, skeleton::BoneRenderer, DeviceBufferExt, MonolibShaderTextures,
-    QueueBufferExt, COLOR_FORMAT, DEPTH_STENCIL_FORMAT, GBUFFER_COLOR_FORMAT,
+    model::ModelGroup, pipeline::Output5Type, skeleton::BoneRenderer, DeviceBufferExt,
+    MonolibShaderTextures, QueueBufferExt, COLOR_FORMAT, DEPTH_STENCIL_FORMAT,
+    GBUFFER_COLOR_FORMAT,
 };
 
 const MAT_ID_DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth16Unorm;
@@ -128,6 +129,8 @@ pub struct GBuffer {
     velocity: wgpu::TextureView,
     depth: wgpu::TextureView,
     lgt_color: wgpu::TextureView,
+    // TODO: What is this called in game?
+    spec_color: wgpu::TextureView,
 }
 
 impl Xc3Renderer {
@@ -347,12 +350,88 @@ impl Xc3Renderer {
     }
 
     fn opaque_pass(&self, encoder: &mut wgpu::CommandEncoder, models: &[ModelGroup]) {
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Model Pass"),
+        // TODO: Interleave emissive and specular passes?
+        let mut render_pass = self.begin_opaque_pass(encoder, Output5Type::Emission, false);
+        self.model_bind_group0.set(&mut render_pass);
+
+        for model in models {
+            model.draw(
+                &mut render_pass,
+                false,
+                MeshRenderPass::Unk1,
+                &self.camera,
+                Output5Type::Emission,
+            );
+            model.draw(
+                &mut render_pass,
+                false,
+                MeshRenderPass::Unk0,
+                &self.camera,
+                Output5Type::Emission,
+            );
+            // TODO: Where is this supposed to go?
+            model.draw(
+                &mut render_pass,
+                false,
+                MeshRenderPass::Unk4,
+                &self.camera,
+                Output5Type::Emission,
+            );
+        }
+        drop(render_pass);
+
+        let mut render_pass = self.begin_opaque_pass(encoder, Output5Type::Specular, true);
+        self.model_bind_group0.set(&mut render_pass);
+
+        for model in models {
+            model.draw(
+                &mut render_pass,
+                false,
+                MeshRenderPass::Unk1,
+                &self.camera,
+                Output5Type::Specular,
+            );
+            model.draw(
+                &mut render_pass,
+                false,
+                MeshRenderPass::Unk0,
+                &self.camera,
+                Output5Type::Specular,
+            );
+            // TODO: Where is this supposed to go?
+            model.draw(
+                &mut render_pass,
+                false,
+                MeshRenderPass::Unk4,
+                &self.camera,
+                Output5Type::Specular,
+            );
+        }
+    }
+
+    fn begin_opaque_pass<'a>(
+        &'a self,
+        encoder: &'a mut wgpu::CommandEncoder,
+        output5_type: Output5Type,
+        load: bool,
+    ) -> wgpu::RenderPass<'a> {
+        let attachment = |t, c| {
+            if load {
+                color_attachment_load(t)
+            } else {
+                color_attachment(t, c)
+            }
+        };
+
+        encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: match output5_type {
+                Output5Type::Specular => Some("Model Pass Spec"),
+                Output5Type::Emission => Some("Model Pass Emi"),
+            },
             color_attachments: &[
-                color_attachment(&self.textures.gbuffer.color, wgpu::Color::TRANSPARENT),
-                color_attachment(&self.textures.gbuffer.etc_buffer, wgpu::Color::TRANSPARENT),
-                color_attachment(
+                attachment(&self.textures.gbuffer.color, wgpu::Color::TRANSPARENT),
+                attachment(&self.textures.gbuffer.etc_buffer, wgpu::Color::TRANSPARENT),
+                attachment(
                     &self.textures.gbuffer.normal,
                     wgpu::Color {
                         r: 0.5,
@@ -361,8 +440,8 @@ impl Xc3Renderer {
                         a: 1.0,
                     },
                 ),
-                color_attachment(&self.textures.gbuffer.velocity, wgpu::Color::TRANSPARENT),
-                color_attachment(
+                attachment(&self.textures.gbuffer.velocity, wgpu::Color::TRANSPARENT),
+                attachment(
                     &self.textures.gbuffer.depth,
                     wgpu::Color {
                         r: 1.0,
@@ -371,7 +450,14 @@ impl Xc3Renderer {
                         a: 0.0,
                     },
                 ),
-                color_attachment(&self.textures.gbuffer.lgt_color, wgpu::Color::TRANSPARENT),
+                match output5_type {
+                    Output5Type::Specular => {
+                        attachment(&self.textures.gbuffer.spec_color, wgpu::Color::TRANSPARENT)
+                    }
+                    Output5Type::Emission => {
+                        attachment(&self.textures.gbuffer.lgt_color, wgpu::Color::TRANSPARENT)
+                    }
+                },
             ],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.textures.depth_stencil,
@@ -386,17 +472,7 @@ impl Xc3Renderer {
             }),
             timestamp_writes: None,
             occlusion_query_set: None,
-        });
-
-        // TODO: organize into per frame, per model, etc?
-        self.model_bind_group0.set(&mut render_pass);
-
-        for model in models {
-            model.draw(&mut render_pass, false, MeshRenderPass::Unk1, &self.camera);
-            model.draw(&mut render_pass, false, MeshRenderPass::Unk0, &self.camera);
-            // TODO: Where is this supposed to go?
-            model.draw(&mut render_pass, false, MeshRenderPass::Unk4, &self.camera);
-        }
+        })
     }
 
     fn alpha1_pass(&self, encoder: &mut wgpu::CommandEncoder, models: &[ModelGroup]) {
@@ -443,7 +519,13 @@ impl Xc3Renderer {
 
         // TODO: Is this the correct unk type?
         for model in models {
-            model.draw(&mut render_pass, true, MeshRenderPass::Unk8, &self.camera);
+            model.draw(
+                &mut render_pass,
+                true,
+                MeshRenderPass::Unk8,
+                &self.camera,
+                Output5Type::Emission,
+            );
         }
     }
 
@@ -491,7 +573,13 @@ impl Xc3Renderer {
 
         // TODO: Is this the correct unk type?
         for model in models {
-            model.draw(&mut render_pass, true, MeshRenderPass::Unk2, &self.camera);
+            model.draw(
+                &mut render_pass,
+                true,
+                MeshRenderPass::Unk2,
+                &self.camera,
+                Output5Type::Emission,
+            );
         }
     }
 
@@ -742,6 +830,7 @@ fn create_deferred_bind_group1(
             g_velocity: &gbuffer.velocity,
             g_depth: &gbuffer.depth,
             g_lgt_color: &gbuffer.lgt_color,
+            g_specular_color: &gbuffer.spec_color,
         },
     )
 }
@@ -760,6 +849,17 @@ fn color_attachment(
     })
 }
 
+fn color_attachment_load(view: &wgpu::TextureView) -> Option<wgpu::RenderPassColorAttachment> {
+    Some(wgpu::RenderPassColorAttachment {
+        view,
+        resolve_target: None,
+        ops: wgpu::Operations {
+            load: wgpu::LoadOp::Load,
+            store: wgpu::StoreOp::Store,
+        },
+    })
+}
+
 fn create_gbuffer(device: &wgpu::Device, width: u32, height: u32) -> GBuffer {
     GBuffer {
         color: create_gbuffer_texture(device, width, height, "g_color"),
@@ -768,6 +868,7 @@ fn create_gbuffer(device: &wgpu::Device, width: u32, height: u32) -> GBuffer {
         velocity: create_gbuffer_texture(device, width, height, "g_velocity"),
         depth: create_gbuffer_texture(device, width, height, "g_depth"),
         lgt_color: create_gbuffer_texture(device, width, height, "g_lgt_color"),
+        spec_color: create_gbuffer_texture(device, width, height, "g_specular_color"),
     }
 }
 
