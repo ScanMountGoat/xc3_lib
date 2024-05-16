@@ -14,7 +14,7 @@ use crate::{
     hash::hash_str_crc, parse_count32_offset32, parse_offset32_count32, parse_ptr32,
     parse_string_ptr32,
 };
-use binrw::{binread, BinRead, BinReaderExt, BinResult, NullString};
+use binrw::{BinRead, BinReaderExt, BinResult, NullString};
 use xc3_write::{write_full, Xc3Write, Xc3WriteOffsets};
 
 /// A simple archive containing named entries.
@@ -159,60 +159,6 @@ pub struct ChClUnk2 {
 pub struct ChClUnk7 {
     pub unk1: [[f32; 4]; 3],
     // TODO: Pointer to Idcm?
-}
-
-#[binread]
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets)]
-#[br(stream = r)]
-#[br(magic(b"IDCM"))]
-#[xc3(base_offset)]
-#[xc3(magic(b"IDCM"))]
-pub struct Idcm {
-    // Subtract the magic size.
-    #[br(temp, try_calc = r.stream_position().map(|p| p - 4))]
-    base_offset: u64,
-
-    pub version: u32,
-
-    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset_count(u32, u32))]
-    pub unk1: Vec<[u32; 19]>,
-
-    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset_count(u32, u32))]
-    pub unk2: Vec<[u32; 3]>,
-
-    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset_count(u32, u32))]
-    pub unk3: Vec<u64>,
-
-    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset_count(u32, u32))]
-    pub unk4: Vec<[u32; 17]>,
-
-    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset_count(u32, u32))]
-    pub unk5: Vec<u32>,
-
-    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset_count(u32, u32))]
-    pub unk6: Vec<u32>,
-
-    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset_count(u32, u32))]
-    pub unk7: Vec<[u32; 4]>,
-
-    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset_count(u32, u32))]
-    pub unk8: Vec<[f32; 4]>,
-
-    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset_count(u32, u32))]
-    pub unk9: Vec<u32>,
-
-    pub unk10: u64,
-    // TODO: more fields
 }
 
 // TODO: Is the padding always aligned?

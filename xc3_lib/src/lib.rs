@@ -59,6 +59,7 @@ pub mod efb0;
 pub mod error;
 pub mod eva;
 pub mod hash;
+pub mod idcm;
 pub mod lagp;
 pub mod laps;
 pub mod ltpc;
@@ -436,7 +437,8 @@ file_write_full_impl!(
     lagp::Lagp,
     laps::Laps,
     beb::Beb,
-    efb0::Efb0
+    efb0::Efb0,
+    idcm::Idcm
 );
 
 #[derive(Debug, Error)]
@@ -503,7 +505,8 @@ file_read_impl!(
     lagp::Lagp,
     laps::Laps,
     beb::Beb,
-    efb0::Efb0
+    efb0::Efb0,
+    idcm::Idcm
 );
 
 file_read_impl!(Endian::Big, mtxt::Mtxt, mxmd::legacy::MxmdLegacy, bmn::Bmn);

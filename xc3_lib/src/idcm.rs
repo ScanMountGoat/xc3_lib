@@ -1,0 +1,174 @@
+//! Map collision geometry in `.idcm` files or embedded in other files.
+//!
+//! # File Paths
+//! | Game | Versions | File Patterns |
+//! | --- | --- | --- |
+//! | Xenoblade Chronicles 1 DE | 10003 | `map/*.wiidcm` |
+//! | Xenoblade Chronicles 2 | 10003 | `map/*.wiidcm` |
+//! | Xenoblade Chronicles 3 | 10003 | `map/*.idcm` |
+use crate::{parse_offset32_count32, parse_ptr32};
+use binrw::{binread, BinRead};
+use xc3_write::{Xc3Write, Xc3WriteOffsets};
+
+#[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, Xc3Write)]
+#[br(stream = r)]
+#[br(magic(b"IDCM"))]
+#[xc3(base_offset)]
+#[xc3(magic(b"IDCM"))]
+pub struct Idcm {
+    // Subtract the magic size.
+    #[br(temp, try_calc = r.stream_position().map(|p| p - 4))]
+    base_offset: u64,
+
+    pub version: u32,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk1: Vec<[u32; 15]>,
+
+    #[br(parse_with = parse_offset32_count32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset_count(u32, u32))]
+    pub unk2: Vec<Unk2>,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk3: Vec<u64>,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk4: Vec<[u32; 2]>,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk5: Vec<u32>,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk6: Vec<u32>,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk7: Vec<[u32; 3]>,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk8: Vec<[f32; 4]>,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk9: Vec<[f32; 4]>,
+
+    pub unk10: u64,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk11: Vec<u32>, // TODO: type?
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk13: Vec<[f32; 8]>,
+
+    #[br(parse_with = parse_offset32_count32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset_count(u32, u32))]
+    pub unk19: Vec<Unk19>,
+
+    pub unks1_1: u32,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk18: Vec<[u32; 10]>,
+
+    // TODO: strings?
+    pub unks1_3: [u32; 4],
+
+    #[br(parse_with = parse_ptr32)]
+    #[xc3(offset(u32))]
+    pub unk15: [f32; 10],
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unks1_2: Vec<u32>, // TODO: type?
+
+    // TODO: string pointers?
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk16: Vec<[u32; 5]>,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk17: Vec<[u32; 4]>,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unks1_4: Vec<u32>, // TODO: type?
+
+    pub unks: [u32; 12], // TODO: padding?
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct Unk2 {
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk1: Vec<[u32; 2]>,
+    pub unk2: u32,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct Unk19 {
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub unk1: u32,
+    pub unk2: u32, // TODO: offset into floats?
+    pub unk3: u32,
+}
+
+impl<'a> Xc3WriteOffsets for IdcmOffsets<'a> {
+    fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
+        &self,
+        writer: &mut W,
+        _base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> xc3_write::Xc3Result<()> {
+        let base_offset = self.base_offset;
+        // Different order than field order.
+        self.unk15.write_full(writer, base_offset, data_ptr)?;
+        self.unk1.write_full(writer, base_offset, data_ptr)?;
+        self.unk17.write_full(writer, base_offset, data_ptr)?;
+        let unk2 = self.unk2.write(writer, base_offset, data_ptr)?;
+        self.unk3.write_full(writer, base_offset, data_ptr)?;
+        self.unk4.write_full(writer, base_offset, data_ptr)?;
+        self.unk18.write_full(writer, base_offset, data_ptr)?;
+        self.unk16.write_full(writer, base_offset, data_ptr)?;
+        self.unk5.write_full(writer, base_offset, data_ptr)?;
+        self.unk6.write_full(writer, base_offset, data_ptr)?;
+        self.unk7.write_full(writer, base_offset, data_ptr)?;
+        self.unk8.write_full(writer, base_offset, data_ptr)?;
+        self.unk9.write_full(writer, base_offset, data_ptr)?;
+
+        // TODO: A lot of empty lists go here?
+        self.unk11.write_full(writer, base_offset, data_ptr)?;
+        self.unks1_2.write_full(writer, base_offset, data_ptr)?;
+        self.unks1_4.write_full(writer, base_offset, data_ptr)?;
+
+        self.unk13.write_full(writer, base_offset, data_ptr)?;
+        let unk19 = self.unk19.write(writer, base_offset, data_ptr)?;
+
+        for u in unk2.0 {
+            u.write_offsets(writer, base_offset, data_ptr)?;
+        }
+
+        for u in unk19.0 {
+            u.write_offsets(writer, base_offset, data_ptr)?;
+        }
+
+        Ok(())
+    }
+}
