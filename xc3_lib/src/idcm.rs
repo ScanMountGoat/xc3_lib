@@ -6,7 +6,7 @@
 //! | Xenoblade Chronicles 1 DE | 10003 | `map/*.wiidcm` |
 //! | Xenoblade Chronicles 2 | 10003 | `map/*.wiidcm` |
 //! | Xenoblade Chronicles 3 | 10003 | `map/*.idcm` |
-use crate::{parse_offset32_count32, parse_ptr32};
+use crate::{parse_offset32_count16, parse_offset32_count32, parse_ptr32};
 use binrw::{binread, BinRead};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
@@ -109,14 +109,17 @@ pub struct Idcm {
     pub unks: [u32; 12], // TODO: padding?
 }
 
+// TODO: face data?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Unk2 {
-    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset_count(u32, u32))]
-    pub unk1: Vec<[u32; 2]>,
-    pub unk2: u32,
+    #[br(parse_with = parse_offset32_count16, offset = base_offset)]
+    #[xc3(offset_count(u32, u16))]
+    pub unk1: Vec<[u16; 3]>,
+
+    pub unk2: u16,
+    pub unk3: u32,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
