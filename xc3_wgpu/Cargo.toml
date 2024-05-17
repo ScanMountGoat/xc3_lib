@@ -21,4 +21,4 @@ tracing = "0.1.0"
 indexmap = "2.1.0"
 
 [build-dependencies]
-wgsl_to_wgpu = { git = "https://github.com/ScanMountGoat/wgsl_to_wgpu", rev = "1d6e5be" }
+wgsl_to_wgpu = "0.8.0"
