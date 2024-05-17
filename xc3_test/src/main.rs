@@ -212,12 +212,12 @@ fn main() {
     }
 
     if cli.efb0 || cli.all {
-        println!("Checking efb0 files ...");
+        println!("Checking Efb0 files ...");
         check_all(root, &["*.weifb"], check_efb0, Endian::Little, cli.rw);
     }
 
     if cli.idcm || cli.all {
-        println!("Checking IDCM files ...");
+        println!("Checking Idcm files ...");
         check_all(
             root,
             &["*.idcm", "*.wiidcm"],
