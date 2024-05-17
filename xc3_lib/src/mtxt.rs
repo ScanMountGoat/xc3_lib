@@ -36,26 +36,41 @@ const FOOTER_SIZE: u64 = 112;
 pub struct MtxtFooter {
     pub swizzle: u32,
     pub surface_dim: SurfaceDim,
+
     /// The width of the base mip level in pixels.
     pub width: u32,
+
     /// The height of the base mip level in pixels.
     pub height: u32,
+
     /// The depth of the base mip level in pixels for 3D textures
     /// or the number of array layers for 2D textures.
     pub depth_or_array_layers: u32,
+
     /// The number of mip levels or 1 if there are no mipmaps.
     pub mipmap_count: u32,
+
     pub surface_format: SurfaceFormat,
     pub size: u32, // TODO: linear or row-major size?
-    pub aa_mode: u32,
+
+    // TODO: 0 if and only if no mipmaps?
+    // TODO: points past the start of the last mipmap?
+    pub unk_mip_offset: u32, // TODO: what does this do?
+
     pub tile_mode: TileMode,
-    pub unk1: u32,      // TODO: usually identical to swizzle?
-    pub alignment: u32, // TODO: 512 * bytes per pixel?
+
+    pub unk1: u32, // TODO: usually identical to swizzle?
+
+    /// Usually set to `512 * bytes_per_pixel`.
+    pub alignment: u32, // TODO: Is it better to read this as bytes per pixel?
+
     pub pitch: u32,
+
     /// Offset into [image_data](struct.Mtxt.html#structfield.image_data)
     /// for each mipmap past the base level starting with mip 1.
     /// Mipmap offsets after mip 1 are relative to the mip 1 offset.
     pub mip_offsets: [u32; 13],
+
     pub version: u32, // 10001 or 10002?
 
     #[brw(magic(b"MTXT"))]
@@ -135,6 +150,7 @@ impl BinRead for Mtxt {
 impl Mtxt {
     /// Deswizzles all layers and mipmaps to a standard row-major memory layout.
     pub fn deswizzled_image_data(&self) -> Result<Vec<u8>, SwizzleError> {
+        // TODO: Why does this happen?
         let (block_width, block_height) = self.footer.surface_format.block_dim();
 
         let div_round_up = |x, d| (x + d - 1) / d;
@@ -142,7 +158,7 @@ impl Mtxt {
         // TODO: Add tests cases for mipmap offsets?
         // TODO: How to handle dimensions not divisible by block dimensions?
         let mut data = Vec::new();
-        for i in 0..self.footer.mipmap_count {
+        for i in 0..1 {
             let offset = if i == 0 {
                 // The mip 0 data is at the start of the image data.
                 0
@@ -188,7 +204,7 @@ impl Mtxt {
             } else {
                 1
             },
-            mipmaps: self.footer.mipmap_count,
+            mipmaps: 1,
             image_format: self.footer.surface_format.into(),
             data: self.deswizzled_image_data()?,
         })
@@ -219,7 +235,7 @@ impl Mtxt {
                 mipmap_count: surface.mipmaps,
                 surface_format,
                 size: 0,
-                aa_mode: 0,
+                unk_mip_offset: 0,
                 tile_mode: TileMode::D2TiledThin1,
                 unk1: 0,
                 alignment: surface_format.bytes_per_pixel() * 512,
