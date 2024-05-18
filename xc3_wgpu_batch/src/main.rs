@@ -158,7 +158,7 @@ fn main() {
                     xc3_wgpu::load_map(&device, &queue, &roots, &monolib_shader)
                 }
                 FileExtension::Camdo => {
-                    let root = xc3_model::load_model_legacy(model_path);
+                    let root = xc3_model::load_model_legacy(model_path).unwrap();
                     frame_model_bounds(&queue, &root, &mut renderer);
                     xc3_wgpu::load_model(&device, &queue, &[root], &monolib_shader)
                 }

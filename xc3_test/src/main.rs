@@ -856,6 +856,12 @@ fn check_mtxt(mtxt: Mtxt, path: &Path, original_bytes: &[u8], check_read_write: 
         }
         // TODO: Check read/write for dds?
     }
+    if let Err(e) = mtxt.deswizzled_image_data() {
+        println!(
+            "Error deswizzling surface for {path:?}: {e}\n{:#?}",
+            mtxt.footer
+        );
+    }
 }
 
 fn check_bmn(bmn: Bmn, path: &Path, _original_bytes: &[u8], check_read_write: bool) {
@@ -917,13 +923,16 @@ fn check_all_gltf<P: AsRef<Path>>(root: P) {
     globwalk::GlobWalkerBuilder::from_patterns(root.as_ref(), &["*.{camdo}"])
         .build()
         .unwrap()
-        // .par_bridge()
+        .par_bridge()
         .for_each(|entry| {
             let path = entry.as_ref().unwrap().path();
-            let root = xc3_model::load_model_legacy(path);
-            println!("{path:?}");
-            if let Err(e) = xc3_model::gltf::GltfFile::from_model("model", &[root], true) {
-                println!("Error converting {path:?}: {e}");
+            match xc3_model::load_model_legacy(path) {
+                Ok(root) => {
+                    if let Err(e) = xc3_model::gltf::GltfFile::from_model("model", &[root], true) {
+                        println!("Error converting {path:?}: {e}");
+                    }
+                }
+                Err(e) => println!("Error loading {path:?}: {e}"),
             }
         });
 

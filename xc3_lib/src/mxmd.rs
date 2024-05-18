@@ -789,13 +789,12 @@ pub struct Model {
     pub unks: [u32; 3],
 }
 
-// TODO: alpha table mapped to ext mesh?
 // TODO: Figure out remaining indices.
 /// Flags and resources associated with a single draw call.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Mesh {
-    pub flags1: u32,
+    pub flags1: u32, // TODO: possible bits that are set, check outline, speff, etc
     pub flags2: MeshRenderFlags2,
     /// Index into [vertex_buffers](../vertex/struct.VertexData.html#structfield.vertex_buffers)
     /// for the associated [VertexData].

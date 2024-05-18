@@ -526,11 +526,11 @@ fn load_chr(wimdo_path: &Path, model_name: String) -> Option<Sar1> {
 /// use xc3_model::load_model_legacy;
 ///
 /// // Tatsu
-/// let root = load_model_legacy("xenox/chr_np/np009001.camdo");
+/// let root = load_model_legacy("xenox/chr_np/np009001.camdo")?;
 /// # Ok(())
 /// # }
 /// ```
-pub fn load_model_legacy<P: AsRef<Path>>(camdo_path: P) -> ModelRoot {
+pub fn load_model_legacy<P: AsRef<Path>>(camdo_path: P) -> Result<ModelRoot, LoadModelError> {
     // TODO: avoid unwrap.
     let camdo_path = camdo_path.as_ref();
     let mxmd: MxmdLegacy = MxmdLegacy::from_file(camdo_path).unwrap();
@@ -538,7 +538,7 @@ pub fn load_model_legacy<P: AsRef<Path>>(camdo_path: P) -> ModelRoot {
         .streaming
         .as_ref()
         .map(|_| std::fs::read(camdo_path.with_extension("casmt")).unwrap());
-    ModelRoot::from_mxmd_model_legacy(&mxmd, casmt).unwrap()
+    ModelRoot::from_mxmd_model_legacy(&mxmd, casmt)
 }
 
 impl ModelRoot {

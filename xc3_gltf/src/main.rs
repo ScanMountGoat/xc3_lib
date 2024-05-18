@@ -10,6 +10,7 @@ use xc3_model::{gltf::GltfFile, load_model, load_model_legacy, shader_database::
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]
 struct Cli {
+    // TODO: Multiple paths
     /// The input wimdo, pcmdo, camdo, or wismhd file.
     input: String,
     /// The output gltf file.
@@ -54,7 +55,8 @@ fn main() -> anyhow::Result<()> {
                 .with_context(|| "failed to create glTF file")
         }
         "camdo" => {
-            let root = load_model_legacy(&cli.input);
+            let root = load_model_legacy(&cli.input)
+                .with_context(|| format!("failed to load .camdo model {:?}", cli.input))?;
             GltfFile::from_model(&name, &[root], true).with_context(|| "failed to create glTF file")
         }
         "wismhd" => {
