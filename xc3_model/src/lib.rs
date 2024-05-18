@@ -40,7 +40,7 @@ use log::error;
 use material::create_materials;
 use model::create_mxmd_model;
 use shader_database::ShaderDatabase;
-use texture::load_textures;
+use texture::{load_textures, load_textures_legacy};
 use thiserror::Error;
 use vertex::ModelBuffers;
 use xc3_lib::{
@@ -52,7 +52,6 @@ use xc3_lib::{
         streaming::{chr_tex_nx_folder, ExtractedTexture},
         Msrd,
     },
-    mtxt::Mtxt,
     mxmd::{legacy::MxmdLegacy, AlphaTable, Materials, Mxmd},
     sar1::Sar1,
     xbc1::MaybeXbc1,
@@ -588,7 +587,7 @@ impl ModelRoot {
 
         let models = Models::from_models_legacy(&mxmd.models, &mxmd.materials);
 
-        let image_textures = load_textures_legacy(mxmd, casmt);
+        let image_textures = load_textures_legacy(mxmd, casmt)?;
 
         Ok(Self {
             models,
@@ -628,63 +627,6 @@ fn load_skeleton_legacy(mxmd: &MxmdLegacy) -> Skeleton {
             })
             .collect(),
     }
-}
-
-fn load_textures_legacy(mxmd: &MxmdLegacy, casmt: Option<Vec<u8>>) -> Vec<ImageTexture> {
-    let mut image_textures: Vec<_> = mxmd
-        .packed_textures
-        .as_ref()
-        .map(|textures| {
-            textures
-                .textures
-                .iter()
-                .map(|t| {
-                    let mtxt = Mtxt::from_bytes(&t.mtxt_data).unwrap();
-                    ImageTexture::from_mtxt(&mtxt, Some(t.name.clone()), Some(t.usage)).unwrap()
-                })
-                .collect()
-        })
-        .unwrap_or_default();
-
-    // TODO: Share code for loading streaming data with legacy mibl data?
-    if let Some(streaming) = &mxmd.streaming {
-        // TODO: Handle this using a streaming type like with non legacy mxmd?
-        let casmt = casmt.unwrap();
-
-        // Assume all textures have a low texture.
-        let mut textures: Vec<_> = streaming
-            .low_textures
-            .textures
-            .iter()
-            .map(|t| {
-                let start = (streaming.low_texture_data_offset + t.mtxt_offset) as usize;
-                let size = t.mtxt_length as usize;
-                let low = Mtxt::from_bytes(&casmt[start..start + size]).unwrap();
-                // TODO: Create a different type for this if this is different enough.
-                (t.name.clone(), t.usage, low, None)
-            })
-            .collect();
-
-        // TODO: Does legacy streaming data use a base mipmap?
-        if let (Some(high), Some(indices)) = (&streaming.textures, &streaming.texture_indices) {
-            for (i, texture) in indices.iter().zip(high.textures.iter()) {
-                let start = (streaming.texture_data_offset + texture.mtxt_offset) as usize;
-                let size = texture.mtxt_length as usize;
-                let mid = Mtxt::from_bytes(&casmt[start..start + size]).unwrap();
-                textures[*i as usize].3 = Some(mid);
-            }
-        }
-
-        // TODO: find a cleaner way of writing this.
-        image_textures = textures
-            .into_iter()
-            .map(|t| {
-                t.3.map(|h| ImageTexture::from_mtxt(&h, Some(t.0.clone()), Some(t.1)).unwrap())
-                    .unwrap_or_else(|| ImageTexture::from_mtxt(&t.2, Some(t.0), Some(t.1)).unwrap())
-            })
-            .collect();
-    }
-    image_textures
 }
 
 // TODO: move this to xc3_lib?
