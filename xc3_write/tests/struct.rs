@@ -26,5 +26,5 @@ fn write_struct_no_offsets() {
     let mut writer = Cursor::new(Vec::new());
     value.xc3_write(&mut writer).unwrap();
 
-    assert_hex_eq!(hex!(01000000 02ffff61 626300), writer.into_inner());
+    assert_hex_eq!(hex!(01000000 02ffff61 626300 0000803f), writer.into_inner());
 }

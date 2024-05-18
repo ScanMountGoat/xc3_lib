@@ -330,8 +330,10 @@ impl Buffers {
                 // Skin weights are handled separately.
                 AttributeData::WeightIndex(_) => (),
                 AttributeData::SkinWeights(_) => (),
+                AttributeData::SkinWeights2(_) => (),
                 AttributeData::BoneIndices(_) => (),
-                // TODO: Also handle morph attributes?
+                AttributeData::BoneIndices2(_) => (),
+                // Also handle base morph attributes.
                 AttributeData::Position2(values) => {
                     self.insert_positions(values, &mut attributes)?;
                 }

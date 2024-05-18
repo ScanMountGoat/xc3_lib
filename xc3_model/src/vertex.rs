@@ -176,8 +176,14 @@ pub enum AttributeData {
     /// Data for [DataType::SkinWeights].
     SkinWeights(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
 
+    /// Data for [DataType::SkinWeights2].
+    SkinWeights2(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec3>),
+
     /// Data for [DataType::BoneIndices].
     BoneIndices(Vec<[u8; 4]>),
+
+    /// Data for [DataType::BoneIndices2].
+    BoneIndices2(Vec<[u8; 4]>),
 }
 
 impl AttributeData {
@@ -203,7 +209,9 @@ impl AttributeData {
             AttributeData::OldPosition(v) => v.len(),
             AttributeData::Tangent2(v) => v.len(),
             AttributeData::SkinWeights(v) => v.len(),
+            AttributeData::SkinWeights2(v) => v.len(),
             AttributeData::BoneIndices(v) => v.len(),
+            AttributeData::BoneIndices2(v) => v.len(),
         }
     }
 
@@ -279,7 +287,13 @@ impl AttributeData {
             AttributeData::SkinWeights(values) => {
                 write_data(writer, values, offset, stride, endian, write_unorm16x4)
             }
+            AttributeData::SkinWeights2(values) => {
+                write_data(writer, values, offset, stride, endian, write_f32x3)
+            }
             AttributeData::BoneIndices(values) => {
+                write_data(writer, values, offset, stride, endian, write_u8x4)
+            }
+            AttributeData::BoneIndices2(values) => {
                 write_data(writer, values, offset, stride, endian, write_u8x4)
             }
         }
@@ -307,7 +321,9 @@ impl AttributeData {
             AttributeData::OldPosition(_) => DataType::OldPosition,
             AttributeData::Tangent2(_) => DataType::Tangent2,
             AttributeData::SkinWeights(_) => DataType::SkinWeights,
+            AttributeData::SkinWeights2(_) => DataType::SkinWeights2,
             AttributeData::BoneIndices(_) => DataType::BoneIndices,
+            AttributeData::BoneIndices2(_) => DataType::BoneIndices2,
         }
     }
 }
@@ -473,12 +489,23 @@ fn split_targets<'a>(
 }
 
 fn skin_weights_bone_indices(attributes: &[AttributeData]) -> Option<(Vec<Vec4>, Vec<[u8; 4]>)> {
+    // Support both modern and legacy attributes.
     let weights = attributes.iter().find_map(|a| match a {
         AttributeData::SkinWeights(values) => Some(values.clone()),
+        AttributeData::SkinWeights2(values) => Some(
+            values
+                .iter()
+                .map(|v| {
+                    // Assume weights sum to 1.0.
+                    v.extend(1.0 - v.element_sum())
+                })
+                .collect(),
+        ),
         _ => None,
     })?;
     let indices = attributes.iter().find_map(|a| match a {
         AttributeData::BoneIndices(values) => Some(values.clone()),
+        AttributeData::BoneIndices2(values) => Some(values.clone()),
         _ => None,
     })?;
 
@@ -564,7 +591,7 @@ fn read_attribute(
             )
             .ok()?,
         )),
-        DataType::SkinWeights2 => Some(AttributeData::SkinWeights(
+        DataType::SkinWeights2 => Some(AttributeData::SkinWeights2(
             read_data(
                 data_offset,
                 vertex_count,
@@ -572,11 +599,11 @@ fn read_attribute(
                 relative_offset,
                 buffer,
                 endian,
-                read_f32x3_weights,
+                read_f32x3,
             )
             .ok()?,
         )),
-        DataType::BoneIndices2 => Some(AttributeData::BoneIndices(
+        DataType::BoneIndices2 => Some(AttributeData::BoneIndices2(
             read_data(
                 data_offset,
                 vertex_count,
@@ -896,13 +923,6 @@ fn read_f32x2(reader: &mut Cursor<&[u8]>, endian: Endian) -> BinResult<Vec2> {
 fn read_f32x3(reader: &mut Cursor<&[u8]>, endian: Endian) -> BinResult<Vec3> {
     let value: [f32; 3] = reader.read_type(endian)?;
     Ok(value.into())
-}
-
-fn read_f32x3_weights(reader: &mut Cursor<&[u8]>, endian: Endian) -> BinResult<Vec4> {
-    let value: [f32; 3] = reader.read_type(endian)?;
-    // Assume weights sum to 1.0.
-    let w = 1.0 - value[0] - value[1] - value[2];
-    Ok(Vec3::from(value).extend(w))
 }
 
 fn read_unorm8x4(reader: &mut Cursor<&[u8]>, endian: Endian) -> BinResult<Vec4> {
@@ -2635,8 +2655,8 @@ mod tests {
         // TODO: Separate 3 component attribute for skin weights to have eventual write support?
         // Test read.
         let attributes = vec![
-            AttributeData::SkinWeights(vec![vec4(1.0, 0.0, 0.0, 0.0), vec4(1.0, 0.0, 0.0, 0.0)]),
-            AttributeData::BoneIndices(vec![[0, 0, 0, 0], [1, 0, 0, 0]]),
+            AttributeData::SkinWeights2(vec![vec3(1.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0)]),
+            AttributeData::BoneIndices2(vec![[0, 0, 0, 0], [1, 0, 0, 0]]),
         ];
         assert_eq!(
             attributes,

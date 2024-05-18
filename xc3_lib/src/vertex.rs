@@ -493,7 +493,7 @@ impl DataType {
         match self {
             DataType::Position => 12,
             DataType::SkinWeights2 => 12,
-            DataType::BoneIndices2 => todo!(),
+            DataType::BoneIndices2 => 4,
             DataType::WeightIndex => 4,
             DataType::WeightIndex2 => 4,
             DataType::TexCoord0 => 8,
