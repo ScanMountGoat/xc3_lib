@@ -20,7 +20,7 @@ xc3_lib supports a number of in game formats. All formats support reading. Write
 | [Mibl](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/mibl.rs) | LBIM | `witex`, `witx` | ✔️ | 
 | [Msmd](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/msmd.rs) | DMSM | `wismhd` | ❌ | 
 | [Msrd](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/msrd.rs) | DRSM |  `wismt` | ✔️* |
-| [Mtxt](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/mxmd.rs) | MTXT | `catex`, `calut`, `caavp` | ✔️ | 
+| [Mtxt](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/mtxt.rs) | MTXT | `catex`, `calut`, `caavp` | ✔️ | 
 | [Mxmd](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/mxmd.rs) | DMXM | `wimdo` | ✔️* | 
 | [MxmdLegacy](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/mxmd/legacy.rs) | MXMD | `camdo` | ❌ | 
 | [Sar1](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/sar1.rs) | 1RAS | `arc`, `chr`, `mot` | ✔️ | 
