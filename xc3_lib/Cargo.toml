@@ -18,7 +18,7 @@ zune-inflate = "0.2.0"
 zstd = "0.13.1"
 thiserror = "1.0"
 tegra_swizzle = "0.3.1"
-wiiu_swizzle = { git = "https://github.com/ScanMountGoat/wiiu_swizzle", rev = "271c3ab" }
+wiiu_swizzle = { git = "https://github.com/ScanMountGoat/wiiu_swizzle", rev = "e841287" }
 bilge = "0.2.0"
 log = "0.4.19"
 murmur3 = "0.5.2"

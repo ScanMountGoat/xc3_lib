@@ -69,7 +69,7 @@ pub struct MtxtFooter {
     /// Offset into [image_data](struct.Mtxt.html#structfield.image_data)
     /// for each mipmap past the base level starting with mip 1.
     /// Mipmap offsets after mip 1 are relative to the mip 1 offset.
-    pub mip_offsets: [u32; 13],
+    pub mipmap_offsets: [u32; 13],
 
     pub version: u32, // TODO: 10001 or 10002?
 
@@ -150,43 +150,28 @@ impl BinRead for Mtxt {
 impl Mtxt {
     /// Deswizzles all layers and mipmaps to a standard row-major memory layout.
     pub fn deswizzled_image_data(&self) -> Result<Vec<u8>, SwizzleError> {
-        // TODO: Why does this happen?
-        let (block_width, block_height) = self.footer.surface_format.block_dim();
-
-        let div_round_up = |x, d| (x + d - 1) / d;
-
-        // TODO: Add tests cases for mipmap offsets?
-        // TODO: How to handle dimensions not divisible by block dimensions?
-        let mut data = Vec::new();
-        for i in 0..self.footer.mipmap_count {
-            let offset = if i == 0 {
-                // The mip 0 data is at the start of the image data.
-                0
-            } else if i == 1 {
-                // The mip 1 data is relative to the start of the image data.
-                self.footer.mip_offsets[0] as usize
+        wiiu_swizzle::Gx2Surface {
+            dim: (self.footer.surface_dim as u32).into(),
+            width: self.footer.width,
+            height: self.footer.height,
+            depth_or_array_layers: self.footer.depth_or_array_layers,
+            mipmap_count: self.footer.mipmap_count,
+            format: (self.footer.surface_format as u32).into(),
+            aa: wiiu_swizzle::AaMode::X1,
+            usage: 0,
+            image_data: &self.image_data,
+            mipmap_data: if self.footer.mipmap_count > 1 {
+                &self.image_data[self.footer.size as usize..]
             } else {
-                // Remaining mip levels are relative to the start of mip 1.
-                self.footer.mip_offsets[0] as usize
-                    + self.footer.mip_offsets[i as usize - 1] as usize
-            };
-
-            // TODO: This still isn't always correct for mipmaps?
-            // TODO: cemu uses mipPtr & 0x700 for swizzle for mipmaps?
-            let mip = wiiu_swizzle::deswizzle_surface(
-                div_round_up(self.footer.width, block_width) >> i,
-                div_round_up(self.footer.height, block_height) >> i,
-                self.footer.depth_or_array_layers,
-                &self.image_data[offset..],
-                self.footer.swizzle,
-                self.footer.pitch >> i,
-                self.footer.tile_mode.into(),
-                self.footer.surface_format.bytes_per_pixel(),
-            )?;
-            data.extend_from_slice(&mip);
+                &[]
+            },
+            tile_mode: (self.footer.tile_mode as u32).into(),
+            swizzle: self.footer.swizzle,
+            alignment: self.footer.swizzle,
+            pitch: self.footer.pitch,
+            mipmap_offsets: self.footer.mipmap_offsets,
         }
-
-        Ok(data)
+        .deswizzle()
     }
 
     /// Deswizzles all layers and mipmaps to a compatible surface for easier conversions.
@@ -240,7 +225,7 @@ impl Mtxt {
                 unk1: 0,
                 alignment: surface_format.bytes_per_pixel() * 512,
                 pitch: 0,
-                mip_offsets: [0; 13],
+                mipmap_offsets: [0; 13],
                 version: 10002,
             },
         })
@@ -277,16 +262,6 @@ impl TryFrom<image_dds::ImageFormat> for SurfaceFormat {
             image_dds::ImageFormat::BC4RUnorm => Ok(Self::BC4Unorm),
             image_dds::ImageFormat::BC5RgUnorm => Ok(Self::BC5Unorm),
             _ => Err(CreateMtxtError::UnsupportedImageFormat(value)),
-        }
-    }
-}
-
-impl From<TileMode> for wiiu_swizzle::AddrTileMode {
-    fn from(value: TileMode) -> Self {
-        match value {
-            TileMode::D1TiledThin1 => wiiu_swizzle::AddrTileMode::ADDR_TM_1D_TILED_THIN1,
-            TileMode::D2TiledThin1 => wiiu_swizzle::AddrTileMode::ADDR_TM_2D_TILED_THIN1,
-            TileMode::D2TiledThick => wiiu_swizzle::AddrTileMode::ADDR_TM_2D_TILED_THICK,
         }
     }
 }
