@@ -162,6 +162,7 @@ fn calculate_color(uv: vec2<f32>) -> vec4<f32> {
     let k_diffuse = 1.0 - metalness;
 
     output = albedo * k_diffuse * diffuse_lighting + specular_lighting * k_specular * ambient_occlusion;
+    output += g_lgt_color.rgb;
 
     return vec4(output, 1.0);
 }
