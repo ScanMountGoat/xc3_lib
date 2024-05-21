@@ -8,9 +8,16 @@ use convert::{
 };
 use image_dds::{ddsfile::Dds, image, ImageFormat, Quality};
 use strum::IntoEnumIterator;
-use xc3_lib::{bmn::Bmn, dds::DdsExt, mibl::Mibl, mtxt::Mtxt, mxmd::Mxmd, xbc1::MaybeXbc1};
+use xc3_lib::{
+    bmn::Bmn,
+    dds::DdsExt,
+    mibl::Mibl,
+    mtxt::Mtxt,
+    mxmd::{legacy::MxmdLegacy, Mxmd},
+    xbc1::MaybeXbc1,
+};
 
-use crate::convert::extract_bmn_to_folder;
+use crate::convert::{extract_bmn_to_folder, extract_camdo_to_folder};
 
 /// Convert texture files for Xenoblade X, Xenoblade 1 DE, Xenoblade 2, and Xenoblade 3.
 #[derive(Parser)]
@@ -28,7 +35,7 @@ struct Cli {
 
 #[derive(Parser)]
 struct ConvertArgs {
-    /// The input dds, witex, witx, wimdo, wismt, catex, or calut file.
+    /// The input dds, witex, witx, wimdo, wismt, camdo, catex, or calut file.
     /// Most uncompressed image formats like png, tiff, or jpeg are also supported.
     // TODO: how to make this required?
     input: String,
@@ -146,6 +153,13 @@ fn main() -> anyhow::Result<()> {
 
             let count = extract_wimdo_to_folder(*wimdo, &input, &output)?;
             println!("Converted {count} file(s) in {:?}", start.elapsed());
+        } else if let File::Camdo(camdo) = input_file {
+            // camdo and casmt contain multiple images that need to be saved.
+            std::fs::create_dir_all(&output)
+                .with_context(|| format!("failed to create output directory {output:?}"))?;
+
+            let count = extract_camdo_to_folder(*camdo, &input, &output)?;
+            println!("Converted {count} file(s) in {:?}", start.elapsed());
         } else if let File::Bmn(bmn) = input_file {
             // bmn contain multiple images that need to be saved.
             std::fs::create_dir_all(&output)
@@ -216,6 +230,10 @@ fn load_input_file(input: &PathBuf) -> anyhow::Result<File> {
             .with_context(|| format!("{input:?} is not a valid .wimdo file"))
             .map(Box::new)
             .map(File::Wimdo),
+        "camdo" => MxmdLegacy::from_file(input)
+            .with_context(|| format!("{input:?} is not a valid .camdo file"))
+            .map(Box::new)
+            .map(File::Camdo),
         "catex" | "calut" | "caavp" => Mtxt::from_file(input)
             .with_context(|| format!("{input:?} is not a valid .catex file"))
             .map(File::Mtxt),

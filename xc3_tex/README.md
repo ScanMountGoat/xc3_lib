@@ -36,3 +36,6 @@ Most Xenoblade 3 models store higher resolution textures in the `chr/tex/nx` fol
 
 `xc3_tex input/chr/ch/ch01011013.wimdo image_folder`  
 `xc3_tex edit-wimdo ch01011013.wimdo image_folder output/chr/ch/ch01011013.wimdo input/chr/tex/nx`  
+
+### Camdo/Casmt Texture Replacement
+Export the DDS images by dragging and dropping the `.camdo` file onto the executable or by running the terminal command. Note that Xenoblade X textures will appear flipped vertically from the expected orientation. This is how texture data is stored, and models have a matching UV layout. Tools like xc3_gltf or xenoblade_blender can flip the textures since they don't attempt to preserve the original texture data. Replacing textures in `.camdo` models is not currently supported.

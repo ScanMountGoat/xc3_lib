@@ -15,7 +15,7 @@ use xc3_lib::{
         Msrd,
     },
     mtxt::Mtxt,
-    mxmd::Mxmd,
+    mxmd::{legacy::MxmdLegacy, Mxmd},
     xbc1::{CompressionType, MaybeXbc1, Xbc1},
 };
 
@@ -27,6 +27,7 @@ pub enum File {
     Image(RgbaImage),
     Wilay(Box<MaybeXbc1<Wilay>>),
     Wimdo(Box<Mxmd>),
+    Camdo(Box<MxmdLegacy>),
     Bmn(Bmn),
 }
 
@@ -93,6 +94,9 @@ impl File {
             File::Wimdo(_) => Err(anyhow::anyhow!(
                 "wimdo textures must be saved to an output folder instead of a single image"
             )),
+            File::Camdo(_) => Err(anyhow::anyhow!(
+                "camdo textures must be saved to an output folder instead of a single image"
+            )),
             File::Bmn(_) => Err(anyhow::anyhow!(
                 "bmn textures must be saved to an output folder instead of a single image"
             )),
@@ -133,6 +137,9 @@ impl File {
             File::Wimdo(_) => Err(anyhow::anyhow!(
                 "wimdo textures must be saved to an output folder instead of a single image"
             )),
+            File::Camdo(_) => Err(anyhow::anyhow!(
+                "camdo textures must be saved to an output folder instead of a single image"
+            )),
             File::Bmn(_) => Err(anyhow::anyhow!(
                 "bmn textures must be saved to an output folder instead of a single image"
             )),
@@ -154,6 +161,9 @@ impl File {
             )),
             File::Wimdo(_) => Err(anyhow::anyhow!(
                 "wimdo textures must be saved to an output folder instead of a single image"
+            )),
+            File::Camdo(_) => Err(anyhow::anyhow!(
+                "camdo textures must be saved to an output folder instead of a single image"
             )),
             File::Bmn(_) => Err(anyhow::anyhow!(
                 "bmn textures must be saved to an output folder instead of a single image"
@@ -452,7 +462,6 @@ pub fn extract_wimdo_to_folder(
 ) -> anyhow::Result<usize> {
     let file_name = input.file_name().unwrap();
 
-    // TODO: packed mxmd textures.
     // TODO: chr/tex/nx folder as parameter?
     let chr_tex_nx = chr_tex_nx_folder(input);
     if has_chr_textures(&mxmd) && chr_tex_nx.is_none() {
@@ -461,18 +470,91 @@ pub fn extract_wimdo_to_folder(
         );
     }
 
-    let msrd = Msrd::from_file(input.with_extension("wismt"))?;
-    let (_, _, textures) = msrd.extract_files(chr_tex_nx.as_deref())?;
+    // Assume streaming textures override packed textures if present.
+    if mxmd.streaming.is_some() {
+        let msrd = Msrd::from_file(input.with_extension("wismt"))?;
+        let (_, _, textures) = msrd.extract_files(chr_tex_nx.as_deref())?;
 
-    for (i, texture) in textures.iter().enumerate() {
-        let dds = texture.mibl_final().to_dds()?;
-        let path = output_folder
-            .join(file_name)
-            .with_extension(format!("{i}.{}.dds", texture.name));
-        dds.save(path)?;
+        for (i, texture) in textures.iter().enumerate() {
+            let dds = texture.mibl_final().to_dds()?;
+            let path = output_folder
+                .join(file_name)
+                .with_extension(format!("{i}.{}.dds", texture.name));
+            dds.save(path)?;
+        }
+        Ok(textures.len())
+    } else if let Some(textures) = mxmd.packed_textures {
+        for (i, texture) in textures.textures.iter().enumerate() {
+            let mibl = Mibl::from_bytes(&texture.mibl_data)?;
+            let dds = mibl.to_dds()?;
+            let path = output_folder
+                .join(file_name)
+                .with_extension(format!("{i}.{}.dds", texture.name));
+            dds.save(path)?;
+        }
+        Ok(textures.textures.len())
+    } else {
+        Ok(0)
     }
+}
 
-    Ok(textures.len())
+// TODO: Avoid duplicating this logic with xc3_model?
+pub fn extract_camdo_to_folder(
+    mxmd: MxmdLegacy,
+    input: &Path,
+    output_folder: &Path,
+) -> anyhow::Result<usize> {
+    let file_name = input.file_name().unwrap();
+
+    // Assume streaming textures override packed textures if present.
+    if let Some(streaming) = mxmd.streaming {
+        let casmt = std::fs::read(input.with_extension("casmt")).unwrap();
+
+        // Assume all textures have a low texture.
+        let mut textures = streaming
+            .low_textures
+            .textures
+            .iter()
+            .map(|t| {
+                let start = (streaming.low_texture_data_offset + t.mtxt_offset) as usize;
+                let size = t.mtxt_length as usize;
+                let low = Mtxt::from_bytes(&casmt[start..start + size])?;
+                Ok((&t.name, low))
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+
+        // TODO: Does legacy streaming data use a base mipmap?
+        if let (Some(high), Some(indices)) = (&streaming.textures, &streaming.texture_indices) {
+            for (i, texture) in indices.iter().zip(high.textures.iter()) {
+                let start = (streaming.texture_data_offset + texture.mtxt_offset) as usize;
+                let size = texture.mtxt_length as usize;
+                let mid = Mtxt::from_bytes(&casmt[start..start + size])?;
+                textures[*i as usize].1 = mid;
+            }
+        }
+
+        for (i, (name, texture)) in textures.iter().enumerate() {
+            let dds = texture.to_dds()?;
+
+            let path = output_folder
+                .join(file_name)
+                .with_extension(format!("{i}.{}.dds", name));
+            dds.save(path)?;
+        }
+        Ok(textures.len())
+    } else if let Some(textures) = mxmd.packed_textures {
+        for (i, texture) in textures.textures.iter().enumerate() {
+            let mtxt = Mtxt::from_bytes(&texture.mtxt_data)?;
+            let dds = mtxt.to_dds()?;
+            let path = output_folder
+                .join(file_name)
+                .with_extension(format!("{i}.{}.dds", texture.name));
+            dds.save(path)?;
+        }
+        Ok(textures.textures.len())
+    } else {
+        Ok(0)
+    }
 }
 
 pub fn extract_bmn_to_folder(
