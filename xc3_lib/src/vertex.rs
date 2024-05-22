@@ -248,7 +248,7 @@ pub struct IndexBufferDescriptor {
     /// The offset into [buffer](struct.VertexData.html#structfield.buffer).
     pub data_offset: u32,
     pub index_count: u32,
-    pub primitive_format: PrimitiveType,
+    pub primitive_type: PrimitiveType,
     pub index_format: IndexFormat,
     // TODO: padding?
     pub unk3: u32,
