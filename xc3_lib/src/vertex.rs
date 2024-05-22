@@ -248,8 +248,8 @@ pub struct IndexBufferDescriptor {
     /// The offset into [buffer](struct.VertexData.html#structfield.buffer).
     pub data_offset: u32,
     pub index_count: u32,
-    pub unk1: Unk1, // TODO: primitive type?
-    pub unk2: Unk2, // TODO: index format?
+    pub primitive_format: PrimitiveType,
+    pub index_format: IndexFormat,
     // TODO: padding?
     pub unk3: u32,
     pub unk4: u32,
@@ -258,16 +258,20 @@ pub struct IndexBufferDescriptor {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy)]
 #[brw(repr(u16))]
-pub enum Unk1 {
-    Unk0 = 0,
-    Unk3 = 3,
+pub enum PrimitiveType {
+    TriangleList = 0,
+    QuadList = 1,
+    TriangleStrip = 2,
+    /// TODO: GL_TRIANGLES_ADJACENCY helps with geometry shaders?
+    TriangleListAdjacency = 3,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy)]
 #[brw(repr(u16))]
-pub enum Unk2 {
-    Unk0 = 0,
+pub enum IndexFormat {
+    Uint16 = 0,
+    Uint32 = 1,
 }
 
 /// Vertex animation data often called "vertex morphs", "shape keys", or "blend shapes".
@@ -541,7 +545,13 @@ impl From<DataType> for VertexAttribute {
     }
 }
 
-xc3_write_binwrite_impl!(DataType, Unk1, Unk2, MorphTarget, VertexBufferExtInfoFlags);
+xc3_write_binwrite_impl!(
+    DataType,
+    PrimitiveType,
+    IndexFormat,
+    MorphTarget,
+    VertexBufferExtInfoFlags
+);
 
 fn buffer_info_count(vertex_buffers: &[VertexBufferDescriptor]) -> usize {
     // TODO: Extra data for every buffer except the single weights buffer?

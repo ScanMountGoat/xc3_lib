@@ -1496,8 +1496,8 @@ fn read_index_buffers_legacy(vertex_data: &xc3_lib::mxmd::legacy::VertexData) ->
                 &IndexBufferDescriptor {
                     data_offset,
                     index_count: descriptor.index_count,
-                    unk1: xc3_lib::vertex::Unk1::Unk0,
-                    unk2: xc3_lib::vertex::Unk2::Unk0,
+                    primitive_type: xc3_lib::vertex::PrimitiveType::TriangleList,
+                    index_format: xc3_lib::vertex::IndexFormat::Uint16,
                     unk3: 0,
                     unk4: 0,
                 },
@@ -1733,8 +1733,8 @@ fn write_index_buffer<W: Write + Seek>(
     Ok(IndexBufferDescriptor {
         data_offset,
         index_count: indices.len() as u32,
-        unk1: xc3_lib::vertex::Unk1::Unk0,
-        unk2: xc3_lib::vertex::Unk2::Unk0,
+        primitive_type: xc3_lib::vertex::PrimitiveType::TriangleList,
+        index_format: xc3_lib::vertex::IndexFormat::Uint16,
         unk3: 0,
         unk4: 0,
     })
@@ -1868,8 +1868,8 @@ mod tests {
         let descriptor = IndexBufferDescriptor {
             data_offset: 0,
             index_count: 4,
-            unk1: xc3_lib::vertex::Unk1::Unk0,
-            unk2: xc3_lib::vertex::Unk2::Unk0,
+            primitive_type: xc3_lib::vertex::PrimitiveType::TriangleList,
+            index_format: xc3_lib::vertex::IndexFormat::Uint16,
             unk3: 0,
             unk4: 0,
         };
@@ -2685,8 +2685,8 @@ mod tests {
         let descriptor = IndexBufferDescriptor {
             data_offset: 0,
             index_count: 4,
-            unk1: xc3_lib::vertex::Unk1::Unk0,
-            unk2: xc3_lib::vertex::Unk2::Unk0,
+            primitive_type: xc3_lib::vertex::PrimitiveType::TriangleList,
+            index_format: xc3_lib::vertex::IndexFormat::Uint16,
             unk3: 0,
             unk4: 0,
         };
