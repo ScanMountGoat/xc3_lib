@@ -360,14 +360,14 @@ impl Xc3Renderer {
                 false,
                 MeshRenderPass::Unk1,
                 &self.camera,
-                Output5Type::Emission,
+                Some(Output5Type::Emission),
             );
             model.draw(
                 &mut render_pass,
                 false,
                 MeshRenderPass::Unk0,
                 &self.camera,
-                Output5Type::Emission,
+                Some(Output5Type::Emission),
             );
             // TODO: Where is this supposed to go?
             model.draw(
@@ -375,7 +375,7 @@ impl Xc3Renderer {
                 false,
                 MeshRenderPass::Unk4,
                 &self.camera,
-                Output5Type::Emission,
+                Some(Output5Type::Emission),
             );
         }
         drop(render_pass);
@@ -389,14 +389,14 @@ impl Xc3Renderer {
                 false,
                 MeshRenderPass::Unk1,
                 &self.camera,
-                Output5Type::Specular,
+                Some(Output5Type::Specular),
             );
             model.draw(
                 &mut render_pass,
                 false,
                 MeshRenderPass::Unk0,
                 &self.camera,
-                Output5Type::Specular,
+                Some(Output5Type::Specular),
             );
             // TODO: Where is this supposed to go?
             model.draw(
@@ -404,7 +404,7 @@ impl Xc3Renderer {
                 false,
                 MeshRenderPass::Unk4,
                 &self.camera,
-                Output5Type::Specular,
+                Some(Output5Type::Specular),
             );
         }
     }
@@ -532,7 +532,7 @@ impl Xc3Renderer {
                 true,
                 MeshRenderPass::Unk8,
                 &self.camera,
-                Output5Type::Emission,
+                None,
             );
         }
     }
@@ -586,7 +586,7 @@ impl Xc3Renderer {
                 true,
                 MeshRenderPass::Unk2,
                 &self.camera,
-                Output5Type::Emission,
+                None,
             );
         }
     }

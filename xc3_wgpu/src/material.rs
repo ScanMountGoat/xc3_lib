@@ -26,14 +26,14 @@ pub struct Material {
 }
 
 // TODO: Create a special ID for unrecognized materials?
-const MAT_ID_PBR: f32 = 1.0 / 255.0;
+const MAT_ID_TOON: f32 = 2.0 / 255.0;
 
 // Choose defaults that have as close to no effect as possible.
 // TODO: Make a struct for this instead?
 // TODO: Move these defaults to xc3_model?
 const OUTPUT_DEFAULTS: [Vec4; 6] = [
     Vec4::ONE,
-    Vec4::new(0.0, 0.0, 0.0, MAT_ID_PBR),
+    Vec4::new(0.0, 0.0, 0.0, MAT_ID_TOON),
     Vec4::new(0.5, 0.5, 1.0, 0.0),
     Vec4::ZERO,
     Vec4::new(1.0, 1.0, 1.0, 0.0),
@@ -191,10 +191,16 @@ pub fn materials(
 
             // Toon and hair materials seem to always use specular.
             // TODO: Is there a more reliable way to check this?
-            let output5_type = if matches!(assignments.mat_id(), Some(2 | 5)) {
-                Output5Type::Specular
-            } else {
-                Output5Type::Emission
+            let output5_type = match assignments.mat_id() {
+                Some(mat_id) => {
+                    if mat_id == 2 || mat_id == 5 {
+                        Output5Type::Specular
+                    } else {
+                        Output5Type::Emission
+                    }
+                }
+                // TODO: Set better defaults for xcx models?
+                None => Output5Type::Specular,
             };
 
             // TODO: How to make sure the pipeline outputs match the render pass?

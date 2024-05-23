@@ -222,7 +222,7 @@ impl ModelGroup {
         is_transparent: bool,
         pass_id: MeshRenderPass,
         camera: &CameraData,
-        output5_type: Output5Type,
+        output5_type: Option<Output5Type>,
     ) {
         self.per_group.set(render_pass);
 
@@ -242,11 +242,14 @@ impl ModelGroup {
                     // TODO: Group these into passes with separate shaders for each pass?
                     // TODO: The main pass is shared with outline, ope, and zpre?
                     // TODO: How to handle transparency?
+                    // Only check the output5 type if needed.
                     if (is_transparent != material.pipeline_key.write_to_all_outputs())
                         && !material.name.contains("_speff_")
                         && mesh.should_render_lod(models)
                         && mesh.flags2.render_pass() == pass_id
-                        && material.pipeline_key.output5_type == output5_type
+                        && output5_type
+                            .map(|ty| material.pipeline_key.output5_type == ty)
+                            .unwrap_or(true)
                     {
                         mesh.per_mesh.set(render_pass);
 
