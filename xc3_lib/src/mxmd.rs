@@ -634,8 +634,12 @@ pub struct Models {
     #[xc3(offset(u32), align(16))]
     pub morph_controllers: Option<MorphControllers>,
 
+    #[br(temp, restore_position)]
+    offsets: [u32; 4],
+
     // TODO: Also morph related but for animations?
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: base_offset as u32 + offsets[3]})]
     #[xc3(offset(u32), align(16))]
     pub model_unk1: Option<ModelUnk1>,
 
@@ -652,6 +656,7 @@ pub struct Models {
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(16))]
     pub alpha_table: Option<AlphaTable>,
+
     pub unk_field2: u32,
 
     // TODO: only for 10111?
@@ -814,7 +819,7 @@ pub struct Mesh {
     pub unk4: u32, // 0
     pub unk5: u16, // 0
     /// The index of the level of detail typically starting from 1.
-    pub lod: u16, // TODO: flags with one byte being lod?
+    pub lod: (u8, u8), // TODO: flags with one byte being lod?
     /// Index into [items](struct.AlphaTable.html#structfield.items).
     pub alpha_table_index: u16,
     pub unk6: u16, // TODO: flags?
@@ -1175,6 +1180,7 @@ pub struct ModelUnk11 {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
+#[br(import_raw(next_offset: u32))]
 #[xc3(base_offset)]
 pub struct ModelUnk1 {
     #[br(temp, try_calc = r.stream_position())]
@@ -1210,15 +1216,16 @@ pub struct ModelUnk1 {
     // TODO: not present for xc2?
     // TODO: Is this the correct check?
     #[br(if(unk4 != 0 || unk5 != 0))]
-    #[br(args_raw(base_offset))]
+    #[br(args { base_offset, next_offset })]
     pub extra: Option<ModelUnk1Extra>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-#[br(import_raw(base_offset: u64))]
+#[br(import { base_offset: u64, next_offset: u32 })]
 pub struct ModelUnk1Extra {
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: next_offset })]
     #[xc3(offset(u32))]
     pub unk_inner: Option<ModelUnk1Inner>,
 
@@ -1226,29 +1233,34 @@ pub struct ModelUnk1Extra {
     pub unk: [u32; 4],
 }
 
+// TODO: Another table like the alpha table?
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
+#[br(import_raw(next_offset: u32))]
 #[xc3(base_offset)]
 pub struct ModelUnk1Inner {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
+    // TODO: A mapping table for `(model_unk1_item1_index + 1, ???)`
+    // TODO: What indexes into this table?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
     pub items1: Vec<(u16, u16)>,
 
-    // 0..N-1 arranged in a different order?
+    // TODO: Is there a better way to infer this count?
+    #[br(temp, restore_position)]
+    offset: u32,
+    // TODO: 0..N arranged in a different order?
     #[br(parse_with = parse_ptr32)]
     #[br(args {
         offset: base_offset,
-        inner: args! {
-            count: items1.iter().map(|(a,_)| *a).max().unwrap_or_default() as usize
-        }
+        inner: args! { count: (next_offset - (base_offset as u32 + offset)) as usize / 2 }
     })]
     #[xc3(offset(u32))]
-    pub unk_offset: Vec<u16>,
+    pub items2: Vec<u16>,
 
     // TODO: padding?
     pub unks: [u32; 5],
