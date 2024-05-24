@@ -7,12 +7,12 @@
 //! | Xenoblade Chronicles 1 DE | |  |
 //! | Xenoblade Chronicles 2 |  | |
 //! | Xenoblade Chronicles 3 |  | `event/**/*.beh` |
-use crate::{parse_ptr32, xc3_write_binwrite_impl};
-use binrw::{binread, BinRead, BinWrite};
+use crate::{parse_offset32_count32, parse_ptr32};
+use binrw::{binread, BinRead};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 #[br(magic(b"hdev"))]
 #[xc3(magic(b"hdev"))]
 pub struct Beh {
@@ -43,45 +43,39 @@ pub struct BehInner {
 #[br(stream = r)]
 #[br(magic(b"test"))]
 #[xc3(magic(b"test"))]
+#[xc3(base_offset)]
 pub struct Unk4 {
     // Subtract the magic size.
     #[br(temp, try_calc = r.stream_position().map(|p| p - 4))]
     base_offset: u64,
 
-    pub unk4_count: u32,
-    pub unk2: u32,
+    pub count: u32,
 
-    #[br(parse_with = parse_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
-    pub unk3: [[f32; 4]; 4],
-
-    #[br(count = unk4_count)]
-    pub unk4: Vec<Unk4Unk4>,
+    #[br(args { count: count as usize, inner: base_offset })]
+    pub items: Vec<Unk4Item>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct Unk4Unk4 {
-    pub unk1: u32, // data type?
-    pub unk2: u32, // flags?
-    pub unk3: u32, // offset?
+#[br(import_raw(base_offset: u64))]
+pub struct Unk4Item {
+    pub unk1: u32, // TODO: affects data type and size?
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32), align(16))]
+    pub unk2: Vec<[u32; 4]>,
 }
 
-// TODO: is this actually an enum?
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
-#[brw(repr(u32))]
-pub enum Unk4DataType {
-    Unk0 = 0,   // 0 bytes (offset shared with previous)
-    Unk1 = 1,   // 16 bytes?
-    Unk2 = 2,   // 16 bytes?
-    Unk3 = 3,   // 16 bytes?
-    Unk4 = 4,   // 16 bytes?
-    Unk5 = 5,   // 32 bytes?
-    Unk6 = 6,   // 16 bytes?
-    Unk8 = 8,   // ???
-    Unk10 = 10, // 32 bytes?
-    Unk16 = 16, // 16 bytes?
+impl<'a> Xc3WriteOffsets for BehOffsets<'a> {
+    fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> xc3_write::Xc3Result<()> {
+        // Different order than field order.
+        self.inner.write_offsets(writer, base_offset, data_ptr)?;
+        self.unk3.write_offsets(writer, base_offset, data_ptr)?;
+        Ok(())
+    }
 }
-
-xc3_write_binwrite_impl!(Unk4DataType);
