@@ -322,7 +322,7 @@ impl Model {
                     unk_mesh_index1: mesh.unk_mesh_index1 as usize,
                     material_index: mesh.material_index as usize,
                     ext_mesh_index,
-                    lod: mesh.lod,
+                    lod: u16::from_le_bytes(mesh.lod.into()),
                     base_mesh_index,
                 }
             })

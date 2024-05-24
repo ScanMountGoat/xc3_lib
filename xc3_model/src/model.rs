@@ -81,7 +81,7 @@ pub fn create_mxmd_model(root: &ModelRoot, mxmd: &Mxmd, msrd: &Msrd) -> (Mxmd, M
                         ext_mesh_index: m.ext_mesh_index.unwrap_or_default() as u16,
                         unk4: 0,
                         unk5: 0, // TODO: flags?
-                        lod: m.lod,
+                        lod: m.lod.to_le_bytes().into(),
                         alpha_table_index,
                         unk6: 0, // TODO: flags?
                         base_mesh_index,
