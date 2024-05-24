@@ -10,6 +10,7 @@ use xc3_lib::{
     apmd::Apmd,
     bc::Bc,
     beb::Beb,
+    beh::Beh,
     bmn::Bmn,
     dhal::Dhal,
     efb0::Efb0,
@@ -78,6 +79,10 @@ struct Cli {
     /// Process Beb files from .beb
     #[arg(long)]
     beb: bool,
+
+    /// Process Beh files from .beh
+    #[arg(long)]
+    beh: bool,
 
     /// Process efb0 files from .wiefb
     #[arg(long)]
@@ -209,6 +214,11 @@ fn main() {
     if cli.beb || cli.all {
         println!("Checking Beb files ...");
         check_all(root, &["*.beb"], check_beb, Endian::Little, cli.rw);
+    }
+
+    if cli.beh || cli.all {
+        println!("Checking Beh files ...");
+        check_all(root, &["*.beh"], check_beh, Endian::Little, cli.rw);
     }
 
     if cli.efb0 || cli.all {
@@ -805,6 +815,16 @@ fn check_beb(beb: Beb, path: &Path, original_bytes: &[u8], check_read_write: boo
         beb.write(&mut writer).unwrap();
         if writer.into_inner() != original_bytes {
             println!("Beb read/write not 1:1 for {path:?}");
+        }
+    }
+}
+
+fn check_beh(beh: Beh, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+    if check_read_write {
+        let mut writer = Cursor::new(Vec::new());
+        beh.write(&mut writer).unwrap();
+        if writer.into_inner() != original_bytes {
+            println!("Beh read/write not 1:1 for {path:?}");
         }
     }
 }

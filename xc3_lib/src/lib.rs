@@ -52,6 +52,7 @@ use xc3_write::write_full;
 pub mod apmd;
 pub mod bc;
 pub mod beb;
+pub mod beh;
 pub mod bmn;
 pub mod dds;
 pub mod dhal;
@@ -462,6 +463,7 @@ file_write_full_impl!(
     lagp::Lagp,
     laps::Laps,
     beb::Beb,
+    beh::Beh,
     efb0::Efb0,
     idcm::Idcm
 );
@@ -530,6 +532,7 @@ file_read_impl!(
     lagp::Lagp,
     laps::Laps,
     beb::Beb,
+    beh::Beh,
     efb0::Efb0,
     idcm::Idcm
 );
