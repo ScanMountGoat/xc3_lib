@@ -70,3 +70,4 @@ Special thanks go to members of the World Tree Research discord (formerly the Wo
 * [XbTool](https://github.com/AlexCSDev/XbTool)
 * [XenoLib](https://github.com/PredatorCZ/XenoLib)
 * [SimpleDimple](https://github.com/modeco80/SimpleDimple)
+* [xc3_data_sheet.py](https://gist.github.com/RoccoDev/935c43c98384115f56dd3af57667b030)

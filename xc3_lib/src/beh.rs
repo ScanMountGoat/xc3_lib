@@ -7,7 +7,7 @@
 //! | Xenoblade Chronicles 1 DE | |  |
 //! | Xenoblade Chronicles 2 |  | |
 //! | Xenoblade Chronicles 3 |  | `event/**/*.beh` |
-use crate::{parse_offset32_count32, parse_ptr32};
+use crate::{parse_opt_ptr32, parse_ptr32};
 use binrw::{binread, BinRead};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
@@ -16,25 +16,24 @@ use xc3_write::{Xc3Write, Xc3WriteOffsets};
 #[br(magic(b"hdev"))]
 #[xc3(magic(b"hdev"))]
 pub struct Beh {
-    pub unk1: u32, // version?
+    pub count: u32,
     pub unk2: u32, // TODO: version 1, 2, 3?
 
     #[br(if(unk2 >= 2))]
-    pub unk3: Option<u32>, // string section ptr?
+    #[br(parse_with = parse_opt_ptr32)]
+    #[xc3(offset(u32))]
+    pub data_sheet: Option<DataSheet>,
 
-    // TODO: what is the correct check for this?
-    #[br(if(unk1 != 0))]
-    pub inner: Option<BehInner>,
+    #[br(count = count)]
+    pub offsets: Vec<Unk4Offset>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct BehInner {
+pub struct Unk4Offset {
     #[br(parse_with = parse_ptr32)]
-    #[xc3(offset(u32))]
-    pub unk4: Unk4, // ptr?
-    // TODO: padding?
-    pub unks: [u32; 3],
+    #[xc3(offset(u32), align(1))]
+    pub unk4: Unk4,
 }
 
 #[binread]
@@ -57,13 +56,24 @@ pub struct Unk4 {
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-#[br(import_raw(base_offset: u64))]
+#[br(import_raw(_base_offset: u64))]
 pub struct Unk4Item {
-    pub unk1: u32, // TODO: affects data type and size?
+    // TODO: what is this hashing?
+    /// Hash using [hash_str_crc](crate::hash::hash_str_crc).
+    pub hash: u32, // TODO: affects data type and size?
 
-    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset_count(u32, u32), align(16))]
-    pub unk2: Vec<[u32; 4]>,
+    pub offset: u32,
+    pub count: u32,
+}
+
+// TODO: module for this?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(magic(b"\x56\x34\x12\x00"))]
+pub struct DataSheet {
+    pub unk1: u32, // 0
+    pub unk2: u8,  // 15
+                   // TODO: data sheet?
 }
 
 impl<'a> Xc3WriteOffsets for BehOffsets<'a> {
@@ -74,8 +84,9 @@ impl<'a> Xc3WriteOffsets for BehOffsets<'a> {
         data_ptr: &mut u64,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
-        self.inner.write_offsets(writer, base_offset, data_ptr)?;
-        self.unk3.write_offsets(writer, base_offset, data_ptr)?;
+        *data_ptr = data_ptr.next_multiple_of(16);
+        self.offsets.write_offsets(writer, base_offset, data_ptr)?;
+        self.data_sheet.write_full(writer, base_offset, data_ptr)?;
         Ok(())
     }
 }
