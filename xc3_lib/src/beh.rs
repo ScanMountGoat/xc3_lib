@@ -7,7 +7,7 @@
 //! | Xenoblade Chronicles 1 DE | |  |
 //! | Xenoblade Chronicles 2 |  | |
 //! | Xenoblade Chronicles 3 |  | `event/**/*.beh` |
-use crate::{parse_opt_ptr32, parse_ptr32};
+use crate::{datasheet::DataSheet, parse_opt_ptr32, parse_ptr32};
 use binrw::{binread, BinRead};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
@@ -64,16 +64,6 @@ pub struct Unk4Item {
 
     pub offset: u32,
     pub count: u32,
-}
-
-// TODO: module for this?
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-#[br(magic(b"\x56\x34\x12\x00"))]
-pub struct DataSheet {
-    pub unk1: u32, // 0
-    pub unk2: u8,  // 15
-                   // TODO: data sheet?
 }
 
 impl<'a> Xc3WriteOffsets for BehOffsets<'a> {

@@ -245,7 +245,7 @@ macro_rules! xc3_write_impl {
     };
 }
 
-xc3_write_impl!(i8, i16, i32, i64, u8, u16, u32, u64, f32);
+xc3_write_impl!(i8, i16, i32, i64, u8, u16, u32, u64, f32, f64);
 
 // TODO: macro for handling larger tuples?
 impl<A: Xc3Write, B: Xc3Write> Xc3Write for (A, B) {

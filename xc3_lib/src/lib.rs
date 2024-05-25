@@ -54,6 +54,7 @@ pub mod bc;
 pub mod beb;
 pub mod beh;
 pub mod bmn;
+pub mod datasheet;
 pub mod dds;
 pub mod dhal;
 pub mod efb0;
@@ -465,7 +466,8 @@ file_write_full_impl!(
     beb::Beb,
     beh::Beh,
     efb0::Efb0,
-    idcm::Idcm
+    idcm::Idcm,
+    datasheet::DataSheet
 );
 
 #[derive(Debug, Error)]
@@ -534,7 +536,8 @@ file_read_impl!(
     beb::Beb,
     beh::Beh,
     efb0::Efb0,
-    idcm::Idcm
+    idcm::Idcm,
+    datasheet::DataSheet
 );
 
 file_read_impl!(Endian::Big, mtxt::Mtxt, mxmd::legacy::MxmdLegacy, bmn::Bmn);
