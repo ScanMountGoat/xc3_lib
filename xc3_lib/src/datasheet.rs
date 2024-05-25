@@ -34,13 +34,20 @@ pub struct KeyValues {
 pub enum Value {
     Integer(i64),
     Float(f64),
-    List(Vec<[Value; 2]>),
+    List(Vec<ListItem>),
     Struct(Vec<Field>),
     String(String),
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct ListItem {
+    pub size: Value,
+    pub value: Value,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Field {
     pub key: Value,
     pub size: Value,
@@ -132,24 +139,20 @@ impl BinRead for Value {
             }
             DataType::List1 => {
                 let count = read_var_int(ty_value, reader, endian, args)?;
-                let mut values = Vec::new();
+                let mut items = Vec::new();
                 for _ in 0..count {
-                    let size = Value::read_options(reader, endian, args)?;
-                    let value = Value::read_options(reader, endian, args)?;
-                    values.push([size, value])
+                    let item = ListItem::read_options(reader, endian, args)?;
+                    items.push(item)
                 }
-                Ok(Value::List(values))
+                Ok(Value::List(items))
             }
             DataType::Struct1 => {
                 let field_count = read_var_int(ty_value, reader, endian, args)?;
                 let mut fields = Vec::new();
-                for _ in 0..field_count as usize {
-                    let key = Value::read_options(reader, endian, args)?;
-                    let size = Value::read_options(reader, endian, args)?;
-                    let value = Value::read_options(reader, endian, args)?;
-                    fields.push(Field { key, size, value });
+                for _ in 0..field_count {
+                    let field = Field::read_options(reader, endian, args)?;
+                    fields.push(field);
                 }
-
                 Ok(Value::Struct(fields))
             }
             DataType::Bool => {
@@ -173,25 +176,19 @@ impl BinRead for Value {
                 Ok(Value::String(value))
             }
             DataType::List2 => {
-                let count = ty_value;
-                let mut values = Vec::new();
-                for _ in 0..count {
-                    let size = Value::read_options(reader, endian, args)?;
-                    let value = Value::read_options(reader, endian, args)?;
-                    values.push([size, value])
+                let mut items = Vec::new();
+                for _ in 0..ty_value {
+                    let item = ListItem::read_options(reader, endian, args)?;
+                    items.push(item)
                 }
-                Ok(Value::List(values))
+                Ok(Value::List(items))
             }
             DataType::Struct2 => {
-                let field_count = ty_value;
                 let mut fields = Vec::new();
-                for _ in 0..field_count {
-                    let key = Value::read_options(reader, endian, args)?;
-                    let size = Value::read_options(reader, endian, args)?;
-                    let value = Value::read_options(reader, endian, args)?;
-                    fields.push(Field { key, size, value });
+                for _ in 0..ty_value {
+                    let field = Field::read_options(reader, endian, args)?;
+                    fields.push(field);
                 }
-
                 Ok(Value::Struct(fields))
             }
             DataType::Unk15 => todo!(),

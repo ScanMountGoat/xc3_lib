@@ -535,7 +535,6 @@ pub fn find_buffer_parameters(
 mod tests {
     use super::*;
 
-    use glsl_lang::ast::TranslationUnit;
     use indoc::indoc;
 
     #[test]

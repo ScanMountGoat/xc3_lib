@@ -955,13 +955,6 @@ struct MorphBufferTargetVertex {
 // Final data as interpreted by the shader.
 // This simplifies non rendering applications.
 #[derive(Debug, PartialEq)]
-struct MorphBlendTargetAttributes {
-    positions: Vec<Vec3>,
-    normals: Vec<Vec4>,
-    tangents: Vec<Vec4>,
-}
-
-#[derive(Debug, PartialEq)]
 struct MorphTargetVertex {
     position_delta: Vec3,
     normal: Vec4,
@@ -1858,7 +1851,7 @@ mod tests {
 
     use glam::{vec2, vec3, vec4};
     use hexlit::hex;
-    use xc3_lib::vertex::{DataType, VertexAttribute};
+    use xc3_lib::vertex::VertexAttribute;
 
     #[test]
     fn vertex_buffer_indices() {
