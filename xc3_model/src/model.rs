@@ -60,7 +60,7 @@ pub fn create_mxmd_model(root: &ModelRoot, mxmd: &Mxmd, msrd: &Msrd) -> (Mxmd, M
                     let ext_index = m.ext_mesh_index.map(|i| i + 1).unwrap_or_default() as u16;
                     let new_index = alpha_table.len() as u16;
                     let alpha_table_index = *alpha_table
-                        .entry((ext_index, m.lod & 0xff))
+                        .entry((ext_index, m.lod as u16))
                         .or_insert(new_index);
 
                     // TODO: How to set these indices in applications?
@@ -81,7 +81,8 @@ pub fn create_mxmd_model(root: &ModelRoot, mxmd: &Mxmd, msrd: &Msrd) -> (Mxmd, M
                         ext_mesh_index: m.ext_mesh_index.unwrap_or_default() as u16,
                         unk4: 0,
                         unk5: 0, // TODO: flags?
-                        lod: m.lod.to_le_bytes().into(),
+                        lod_item_index: m.lod,
+                        unk_lod_index: 0, // TODO: how to set this?
                         alpha_table_index,
                         unk6: 0, // TODO: flags?
                         base_mesh_index,

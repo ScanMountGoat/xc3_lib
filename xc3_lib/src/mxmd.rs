@@ -818,8 +818,9 @@ pub struct Mesh {
     pub ext_mesh_index: u16,
     pub unk4: u32, // 0
     pub unk5: u16, // 0
-    /// The index of the level of detail typically starting from 1.
-    pub lod: (u8, u8), // TODO: flags with one byte being lod?
+    /// 1-based index into [items](struct.LodData.html#structfield.items).
+    pub lod_item_index: u8,
+    pub unk_lod_index: u8,
     /// Index into [items](struct.AlphaTable.html#structfield.items).
     pub alpha_table_index: u16,
     pub unk6: u16, // TODO: flags?
@@ -1012,7 +1013,7 @@ pub struct ModelUnk3Item {
     pub unk3: Vec<u16>,
 }
 
-/// A table for mapping [ExtMesh] to [LodItem1].
+/// A table for mapping [ExtMesh] to [LodItem].
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
@@ -1302,7 +1303,7 @@ pub struct LodData {
     // TODO: Count related to number of mesh lod values?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32), align(8))]
-    pub items1: Vec<LodItem1>,
+    pub items: Vec<LodItem>,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
@@ -1314,13 +1315,14 @@ pub struct LodData {
 // TODO: is lod: 0 in the mxmd special?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct LodItem1 {
-    pub unk1: [u32; 4],
-    pub unk2: f32,
-    // second element is index related to count in LodItem2?
-    // [0,0,1,0], [0,1,1,0], [0,2,1,0], ...
-    pub unk3: [u8; 4],
-    pub unk4: [u32; 2],
+pub struct LodItem {
+    pub unk1: [u32; 4], // [0, 0, 0, 0]
+    pub unk2: f32,      // distance or radius?
+    pub unk3: u8,       // 0
+    pub index: u8,      // index within lod group?
+    pub unk5: u8,       // 1, 2
+    pub unk6: u8,       // 0
+    pub unk7: [u32; 2], // [0, 0]
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -1330,9 +1332,6 @@ pub struct LodGroup {
     pub base_lod_index: u16,
     /// The number of LOD levels in this group.
     pub lod_count: u16,
-    // TODO: padding?
-    pub unk1: u32,
-    pub unk2: u32,
 }
 
 /// A collection of [Mibl](crate::mibl::Mibl) textures embedded in the current file.
@@ -1842,7 +1841,7 @@ impl<'a> Xc3WriteOffsets for LodDataOffsets<'a> {
         let base_offset = self.base_offset;
         // Different order than field order.
         self.groups.write_full(writer, base_offset, data_ptr)?;
-        self.items1.write_full(writer, base_offset, data_ptr)?;
+        self.items.write_full(writer, base_offset, data_ptr)?;
         Ok(())
     }
 }

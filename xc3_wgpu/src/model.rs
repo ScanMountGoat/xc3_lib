@@ -147,7 +147,7 @@ pub struct Mesh {
     index_buffer_index: usize,
     material_index: usize,
     flags2: MeshRenderFlags2,
-    lod: u16,
+    lod: u8,
     per_mesh: crate::shader::model::bind_groups::BindGroup3,
 }
 

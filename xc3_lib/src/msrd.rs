@@ -268,8 +268,8 @@ pub struct StreamEntry {
     pub offset: u32,
     /// The size in bytes of the decompressed data range in the stream.
     pub size: u32,
-    /// Index into [streams](struct.StreamingData.html#structfield.streams)
-    /// for the high resolution base mip level starting from 1.
+    /// 1-based index into [streams](struct.StreamingData.html#structfield.streams)
+    /// for the high resolution base mip level.
     /// Has no effect if [entry_type](#structfield.entry_type) is not [EntryType::Texture]
     /// or the index is 0.
     pub texture_base_mip_stream_index: u16,

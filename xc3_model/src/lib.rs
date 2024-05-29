@@ -188,7 +188,7 @@ pub struct Mesh {
     pub unk_mesh_index1: usize,
     pub material_index: usize,
     pub ext_mesh_index: Option<usize>,
-    pub lod: u16,
+    pub lod: u8,
     pub base_mesh_index: Option<usize>,
 }
 
@@ -322,7 +322,7 @@ impl Model {
                     unk_mesh_index1: mesh.unk_mesh_index1 as usize,
                     material_index: mesh.material_index as usize,
                     ext_mesh_index,
-                    lod: u16::from_le_bytes(mesh.lod.into()),
+                    lod: mesh.lod_item_index.into(),
                     base_mesh_index,
                 }
             })
@@ -368,14 +368,14 @@ impl Model {
 
 /// Returns `true` if a mesh with `lod` should be rendered
 /// as part of the highest detail or base level of detail (LOD).
-pub fn should_render_lod(lod: u16, base_lod_indices: &Option<Vec<u16>>) -> bool {
+pub fn should_render_lod(lod: u8, base_lod_indices: &Option<Vec<u16>>) -> bool {
     // TODO: Why are the mesh values 1-indexed and the models lod data 0-indexed?
     // TODO: should this also include 0?
     // TODO: How to handle the none case?
     // TODO: Add test cases for this?
     base_lod_indices
         .as_ref()
-        .map(|indices| indices.contains(&(lod & 0xff).saturating_sub(1)))
+        .map(|indices| indices.contains(&(lod as u16).saturating_sub(1)))
         .unwrap_or(true)
 }
 
