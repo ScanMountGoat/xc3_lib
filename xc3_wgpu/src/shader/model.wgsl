@@ -363,7 +363,61 @@ fn mrt_etc_buffer(g_etc_buffer: vec4<f32>, view_normal: vec3<f32>) -> vec4<f32> 
 // TODO: Is it reliable to detect this as U_Mate.gWrkFl4[i].c * 5?
 // TODO: what color is used for blending?
 
-// TODO: Separate entry for the alpha pass that only writes to a single output.
+@fragment
+fn fs_alpha(in: VertexOutput) -> @location(0) vec4<f32> {
+    let s0_color = textureSample(s0, s0_sampler, in.tex0 * per_material.texture_scale[0].xy);
+    let s1_color = textureSample(s1, s1_sampler, in.tex0 * per_material.texture_scale[1].xy);
+    let s2_color = textureSample(s2, s2_sampler, in.tex0 * per_material.texture_scale[2].xy);
+    let s3_color = textureSample(s3, s3_sampler, in.tex0 * per_material.texture_scale[3].xy);
+    let s4_color = textureSample(s4, s4_sampler, in.tex0 * per_material.texture_scale[4].xy);
+    let s5_color = textureSample(s5, s5_sampler, in.tex0 * per_material.texture_scale[5].xy);
+    let s6_color = textureSample(s6, s6_sampler, in.tex0 * per_material.texture_scale[6].xy);
+    let s7_color = textureSample(s7, s7_sampler, in.tex0 * per_material.texture_scale[7].xy);
+    let s8_color = textureSample(s8, s8_sampler, in.tex0 * per_material.texture_scale[8].xy);
+    let s9_color = textureSample(s9, s9_sampler, in.tex0 * per_material.texture_scale[9].xy);
+
+    let s_colors = array<vec4<f32>, 10>(
+        s0_color,
+        s1_color,
+        s2_color,
+        s3_color,
+        s4_color,
+        s5_color,
+        s6_color,
+        s7_color,
+        s8_color,
+        s9_color,
+    );
+
+    // An index of -1 disables alpha testing.
+    let alpha_texture = per_material.alpha_test_texture.x;
+    let alpha_texture_channel = u32(per_material.alpha_test_texture.y);
+    // Workaround for not being able to use a non constant index.
+    if assign_channel(alpha_texture, alpha_texture_channel, s_colors, 1.0) < per_material.alpha_test_ref.x {
+        // TODO: incorrect reference alpha for comparison?
+        discard;
+    }
+
+    // The layout of G-Buffer textures is fixed but assignments are not.
+    // Each material in game can have a unique shader program.
+    // Check the G-Buffer assignment database to simulate having unique shaders.
+    // TODO: How to properly handle missing assignments?
+    let assignments = per_material.output_assignments;
+    // Defaults incorporate constants, parameters, and default values.
+    let defaults = per_material.output_defaults;
+    let g_color = assign_texture(assignments[0], s_colors, defaults[0]);
+
+    // TODO: How to detect if vertex color is actually color?
+    // TODO: Some outlines aren't using vertex color?
+
+    // The ordering here is the order of per material fragment shader outputs.
+    // The input order for the deferred lighting pass is slightly different.
+    // TODO: alpha?
+    // TODO: How much shading is done in this pass?
+    // TODO: Is it ok to always apply gMatCol like this?
+    return g_color * per_material.mat_color * in.vertex_color;
+}
+
 @fragment
 fn fs_main(in: VertexOutput) -> FragmentOutput {
     let tangent = normalize(in.tangent);

@@ -489,22 +489,15 @@ impl Xc3Renderer {
         // TODO: Research more about how this is implemented in game.
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Alpha Pass 1"),
-            color_attachments: &[
-                Some(wgpu::RenderPassColorAttachment {
-                    view: &self.textures.gbuffer.color,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        // TODO: Does in game actually use load?
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    },
-                }),
-                None,
-                None,
-                None,
-                None,
-                None,
-            ],
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &self.textures.gbuffer.color,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    // TODO: Does in game actually use load?
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.textures.depth_stencil,
                 depth_ops: Some(wgpu::Operations {
@@ -543,22 +536,15 @@ impl Xc3Renderer {
         // TODO: Research more about how this is implemented in game.
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Alpha Pass 2"),
-            color_attachments: &[
-                Some(wgpu::RenderPassColorAttachment {
-                    view: &self.textures.deferred_output,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        // TODO: Does in game actually use load?
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    },
-                }),
-                None,
-                None,
-                None,
-                None,
-                None,
-            ],
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &self.textures.deferred_output,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    // TODO: Does in game actually use load?
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.textures.depth_stencil,
                 depth_ops: Some(wgpu::Operations {

@@ -67,36 +67,6 @@ pub fn model_pipeline(
     data: &ModelPipelineData,
     key: &PipelineKey,
 ) -> wgpu::RenderPipeline {
-    // Some shaders only write to the albedo output.
-    // TODO: Is there a better of handling this than modifying the render pass?
-    let targets = if key.write_to_all_outputs() {
-        // TODO: alpha blending?
-        // Create a target for each of the G-Buffer textures.
-        // TODO: check outputs in wgsl_to_wgpu?
-        // TODO: Constant in wgsl for output count?
-        [
-            Some(GBUFFER_COLOR_FORMAT.into()),
-            Some(GBUFFER_COLOR_FORMAT.into()),
-            Some(GBUFFER_COLOR_FORMAT.into()),
-            Some(GBUFFER_COLOR_FORMAT.into()),
-            Some(GBUFFER_COLOR_FORMAT.into()),
-            Some(GBUFFER_COLOR_FORMAT.into()),
-        ]
-    } else {
-        [
-            Some(wgpu::ColorTargetState {
-                format: GBUFFER_COLOR_FORMAT,
-                blend: blend_state(key.flags.blend_mode),
-                write_mask: wgpu::ColorWrites::all(),
-            }),
-            None,
-            None,
-            None,
-            None,
-            None,
-        ]
-    };
-
     let vertex_entry = if key.is_outline {
         crate::shader::model::vs_outline_main_entry(
             wgpu::VertexStepMode::Vertex,
@@ -110,13 +80,45 @@ pub fn model_pipeline(
             wgpu::VertexStepMode::Instance,
         )
     };
+
+    // Some shaders only write to the albedo output.
+    // TODO: Is there a better of handling this than modifying the render pass?
+    if key.write_to_all_outputs() {
+        // TODO: alpha blending?
+        // Create a target for each of the G-Buffer textures.
+        let entry = crate::shader::model::fs_main_entry([
+            Some(GBUFFER_COLOR_FORMAT.into()),
+            Some(GBUFFER_COLOR_FORMAT.into()),
+            Some(GBUFFER_COLOR_FORMAT.into()),
+            Some(GBUFFER_COLOR_FORMAT.into()),
+            Some(GBUFFER_COLOR_FORMAT.into()),
+            Some(GBUFFER_COLOR_FORMAT.into()),
+        ]);
+        model_pipeline_inner(device, data, vertex_entry, entry, key)
+    } else {
+        let entry = crate::shader::model::fs_alpha_entry([Some(wgpu::ColorTargetState {
+            format: GBUFFER_COLOR_FORMAT,
+            blend: blend_state(key.flags.blend_mode),
+            write_mask: wgpu::ColorWrites::all(),
+        })]);
+        model_pipeline_inner(device, data, vertex_entry, entry, key)
+    }
+}
+
+fn model_pipeline_inner<const N: usize>(
+    device: &wgpu::Device,
+    data: &ModelPipelineData,
+    vertex_entry: crate::shader::model::VertexEntry<3>,
+    fragment_entry: crate::shader::model::FragmentEntry<N>,
+    key: &PipelineKey,
+) -> wgpu::RenderPipeline {
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Model Pipeline"),
         layout: Some(&data.layout),
         vertex: crate::shader::model::vertex_state(&data.module, &vertex_entry),
         fragment: Some(crate::shader::model::fragment_state(
             &data.module,
-            &crate::shader::model::fs_main_entry(targets),
+            &fragment_entry,
         )),
         primitive: wgpu::PrimitiveState {
             // TODO: Do all meshes using indexed triangle lists?
