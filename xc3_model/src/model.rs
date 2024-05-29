@@ -82,7 +82,7 @@ pub fn create_mxmd_model(root: &ModelRoot, mxmd: &Mxmd, msrd: &Msrd) -> (Mxmd, M
                         unk4: 0,
                         unk5: 0, // TODO: flags?
                         lod_item_index: m.lod,
-                        unk_lod_index: 0, // TODO: how to set this?
+                        unk_mesh_index2: 0, // TODO: how to set this?
                         alpha_table_index,
                         unk6: 0, // TODO: flags?
                         base_mesh_index,
@@ -105,6 +105,8 @@ pub fn create_mxmd_model(root: &ModelRoot, mxmd: &Mxmd, msrd: &Msrd) -> (Mxmd, M
         items: alpha_table.keys().copied().collect(),
         unks: [0; 4],
     });
+
+    // TODO: Recreate lod data from a simpler representation?
 
     new_mxmd.models.min_xyz = new_mxmd
         .models

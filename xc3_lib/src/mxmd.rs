@@ -88,6 +88,9 @@ pub struct Materials {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
+    #[br(temp, restore_position)]
+    material_offset: u32,
+
     // TODO: Sometimes 108 and sometimes 112?
     #[br(parse_with = parse_offset32_count32, args { offset: base_offset, inner: base_offset })]
     #[xc3(offset_count(u32, u32), align(4))]
@@ -149,6 +152,9 @@ pub struct Materials {
 
     // TODO: padding?
     pub unks4: [u32; 3],
+
+    #[br(if(material_offset >= 112))]
+    pub unks5: Option<u32>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -652,9 +658,10 @@ pub struct Models {
     #[xc3(offset(u32), align(16))]
     pub lod_data: Option<LodData>,
 
+    // TODO: not always aligned to 16?
     // TODO: Only null for stage models?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset(u32), align(16))]
+    #[xc3(offset(u32), align(8))]
     pub alpha_table: Option<AlphaTable>,
 
     pub unk_field2: u32,
@@ -820,7 +827,7 @@ pub struct Mesh {
     pub unk5: u16, // 0
     /// 1-based index into [items](struct.LodData.html#structfield.items).
     pub lod_item_index: u8,
-    pub unk_lod_index: u8,
+    pub unk_mesh_index2: u8, // 1 to 20?
     /// Index into [items](struct.AlphaTable.html#structfield.items).
     pub alpha_table_index: u16,
     pub unk6: u16, // TODO: flags?
@@ -1794,7 +1801,6 @@ impl<'a> Xc3WriteOffsets for SkinningOffsets<'a> {
         for bone in bones.0 {
             bone.name.write_full(writer, base_offset, data_ptr)?;
         }
-
         Ok(())
     }
 }
