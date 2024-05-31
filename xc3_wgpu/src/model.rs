@@ -4,7 +4,7 @@ use glam::{uvec4, vec4, Mat4, Vec3, Vec4};
 use log::{error, info};
 use rayon::prelude::*;
 use wgpu::util::DeviceExt;
-use xc3_model::{vertex::AttributeData, ImageTexture, MeshRenderFlags2, MeshRenderPass};
+use xc3_model::{vertex::AttributeData, ImageTexture, LodData, MeshRenderFlags2, MeshRenderPass};
 
 use crate::{
     animation::animated_skinning_transforms,
@@ -54,7 +54,7 @@ pub struct Models {
     bounds: Bounds,
 
     // TODO: skinning?
-    base_lod_indices: Option<Vec<u16>>,
+    lod_data: Option<LodData>,
     morph_controller_names: Vec<String>,
     animation_morph_names: Vec<String>,
 
@@ -83,7 +83,7 @@ impl Models {
             .as_ref()
             .map(|s| s.bones.iter().map(|b| b.name.clone()).collect());
 
-        let base_lod_indices = models.base_lod_indices.clone();
+        let lod_data = models.lod_data.clone();
         let morph_controller_names = models.morph_controller_names.clone();
         let animation_morph_names = models.animation_morph_names.clone();
 
@@ -127,7 +127,7 @@ impl Models {
             models,
             materials,
             pipelines,
-            base_lod_indices,
+            lod_data,
             morph_controller_names,
             animation_morph_names,
             bounds,
@@ -147,7 +147,7 @@ pub struct Mesh {
     index_buffer_index: usize,
     material_index: usize,
     flags2: MeshRenderFlags2,
-    lod: u8,
+    lod: Option<usize>,
     per_mesh: crate::shader::model::bind_groups::BindGroup3,
 }
 
@@ -418,7 +418,11 @@ const fn div_round_up(x: u32, d: u32) -> u32 {
 
 impl Mesh {
     fn should_render_lod(&self, models: &Models) -> bool {
-        xc3_model::should_render_lod(self.lod, &models.base_lod_indices)
+        models
+            .lod_data
+            .as_ref()
+            .map(|d| d.is_base_lod(self.lod))
+            .unwrap_or(true)
     }
 }
 
@@ -607,7 +611,7 @@ fn create_model(
             vertex_buffer_index: mesh.vertex_buffer_index,
             index_buffer_index: mesh.index_buffer_index,
             material_index: mesh.material_index,
-            lod: mesh.lod,
+            lod: mesh.lod_item_index,
             flags2: mesh.flags2,
             per_mesh: per_mesh_bind_group(
                 device,
@@ -943,7 +947,7 @@ fn per_mesh_bind_group(
         .map(|weights| {
             weights.weight_groups.weights_start_index(
                 mesh.flags2.into(),
-                mesh.lod,
+                mesh.lod_item_index,
                 material.pipeline_key.pass_type,
             )
         })
@@ -974,7 +978,7 @@ fn per_mesh_bind_group(
                 error!(
                 "Weight index start {} and max weight index {} exceed weight count {} with {:?}",
                 start, max_index, skin_weight_count,
-                (mesh.flags2, mesh.lod, material.pipeline_key.pass_type)
+                (mesh.flags2, mesh.lod_item_index, material.pipeline_key.pass_type)
             );
             }
         }

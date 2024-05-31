@@ -824,13 +824,13 @@ pub struct Mesh {
     // TODO: enabled via a flag?
     pub ext_mesh_index: u16,
     pub unk4: u32, // 0
-    pub unk5: u16, // 0
+    pub unk5: u16, // TODO: used mostly for outline meshes?
     /// 1-based index into [items](struct.LodData.html#structfield.items).
     pub lod_item_index: u8,
     pub unk_mesh_index2: u8, // 1 to 20?
     /// Index into [items](struct.AlphaTable.html#structfield.items).
     pub alpha_table_index: u16,
-    pub unk6: u16, // TODO: flags?
+    pub unk6: u16, // TODO: used mostly for outline meshes?
     // TODO: -1 for xc3 for "base" meshes and always 0 for xc1 and xc2
     // TODO: index for parent or base mesh for speff materials?
     pub base_mesh_index: i32,
@@ -1335,7 +1335,7 @@ pub struct LodItem {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct LodGroup {
-    /// One minus the [lod](struct.Mesh.html#structfield.lod) for [Mesh] with the highest level of detail.
+    /// Index into [items](struct.LodData.html#structfield.items) for the highest level of detail.
     pub base_lod_index: u16,
     /// The number of LOD levels in this group.
     pub lod_count: u16,

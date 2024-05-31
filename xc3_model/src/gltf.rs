@@ -27,7 +27,7 @@
 //! ```
 use std::path::Path;
 
-use crate::{should_render_lod, MapRoot, ModelRoot};
+use crate::{MapRoot, ModelRoot};
 use glam::Mat4;
 use gltf::json::validation::Checked::Valid;
 use rayon::prelude::*;
@@ -347,7 +347,11 @@ fn add_models(
             // TODO: Make LOD selection configurable?
             // TODO: Add an option to export all material passes?
             let material = &models.materials[mesh.material_index];
-            if should_render_lod(mesh.lod, &models.base_lod_indices)
+            if models
+                .lod_data
+                .as_ref()
+                .map(|d| d.is_base_lod(mesh.lod_item_index))
+                .unwrap_or(true)
                 && !material.name.ends_with("_outline")
                 && !material.name.contains("_speff_")
             {
@@ -372,7 +376,7 @@ fn add_models(
                     .map(|w| {
                         w.weight_groups.weights_start_index(
                             mesh.flags2.into(),
-                            mesh.lod,
+                            mesh.lod_item_index,
                             material.pass_type,
                         )
                     })

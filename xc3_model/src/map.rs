@@ -15,7 +15,7 @@ use xc3_lib::{
 };
 
 use crate::{
-    create_materials, create_samplers, model_name,
+    create_materials, create_samplers, lod_data, model_name,
     shader_database::ShaderDatabase,
     texture::{self, CreateImageTextureError, ImageTexture},
     MapRoot, Material, Model, ModelBuffers, ModelGroup, Models, Texture,
@@ -385,11 +385,7 @@ fn load_prop_model_group(
         models: Vec::new(),
         materials,
         samplers,
-        base_lod_indices: model_data
-            .models
-            .lod_data
-            .as_ref()
-            .map(|data| data.groups.iter().map(|i| i.base_lod_index).collect()),
+        lod_data: model_data.models.lod_data.as_ref().map(lod_data),
         morph_controller_names: Vec::new(),
         animation_morph_names: Vec::new(),
         min_xyz: model_data.models.min_xyz.into(),
@@ -569,11 +565,7 @@ fn load_map_model_group(
         models,
         materials,
         samplers,
-        base_lod_indices: model_data
-            .models
-            .lod_data
-            .as_ref()
-            .map(|data| data.groups.iter().map(|i| i.base_lod_index).collect()),
+        lod_data: model_data.models.lod_data.as_ref().map(lod_data),
         morph_controller_names: Vec::new(),
         animation_morph_names: Vec::new(),
         min_xyz: model_data.models.min_xyz.into(),
@@ -664,10 +656,7 @@ fn load_foliage_model(
                 models,
                 materials,
                 samplers: Vec::new(),
-                base_lod_indices: model_data
-                    .models
-                    .lod_data
-                    .map(|data| data.groups.iter().map(|i| i.base_lod_index).collect()),
+                lod_data: None,
                 morph_controller_names: Vec::new(),
                 animation_morph_names: Vec::new(),
                 min_xyz: model_data.models.min_xyz.into(),

@@ -105,7 +105,7 @@ impl WeightGroups {
     pub fn weights_start_index(
         &self,
         flags2: u32,
-        lod: u8,
+        lod_item_index: Option<usize>,
         unk_type: xc3_lib::mxmd::RenderPassType,
     ) -> usize {
         match self {
@@ -115,7 +115,7 @@ impl WeightGroups {
                 weight_lods,
             } => {
                 // TODO: Error if none?
-                let group_index = weight_group_index(weight_lods, flags2, lod, unk_type);
+                let group_index = weight_group_index(weight_lods, flags2, lod_item_index, unk_type);
                 weight_groups
                     .get(group_index)
                     .map(|group| (group.input_start_index - group.output_start_index) as usize)
@@ -128,15 +128,18 @@ impl WeightGroups {
 fn weight_group_index(
     weight_lods: &[WeightLod],
     skin_flags: u32,
-    lod: u8,
+    lod_item_index: Option<usize>,
     unk_type: RenderPassType,
 ) -> usize {
     if !weight_lods.is_empty() {
         // TODO: Should this check skin flags?
         // TODO: Is lod actually some sort of flags?
         // TODO: Return none if skin_flags == 64?
-        let lod_index = lod.saturating_sub(1) as usize;
+        let lod_index = lod_item_index.unwrap_or_default();
+
         // TODO: More mesh lods than weight lods for models with multiple lod groups?
+        // TODO: Should this use the index in the LodItem?
+        // weight_lod_index = lod_data.items[lod - 1].index
         let weight_lod = &weight_lods[lod_index % weight_lods.len()];
 
         let pass_index = weight_pass_index(unk_type, skin_flags);
@@ -559,11 +562,11 @@ mod tests {
         }];
         assert_eq!(
             0,
-            weight_group_index(&weight_lods, 16385, 0, RenderPassType::Unk0)
+            weight_group_index(&weight_lods, 16385, None, RenderPassType::Unk0)
         );
         assert_eq!(
             1,
-            weight_group_index(&weight_lods, 16392, 0, RenderPassType::Unk7)
+            weight_group_index(&weight_lods, 16392, None, RenderPassType::Unk7)
         );
     }
 
@@ -583,19 +586,19 @@ mod tests {
         ];
         assert_eq!(
             0,
-            weight_group_index(&weight_lods, 16385, 1, RenderPassType::Unk0)
+            weight_group_index(&weight_lods, 16385, Some(0), RenderPassType::Unk0)
         );
         assert_eq!(
             0,
-            weight_group_index(&weight_lods, 1, 1, RenderPassType::Unk0)
+            weight_group_index(&weight_lods, 1, Some(0), RenderPassType::Unk0)
         );
         assert_eq!(
             3,
-            weight_group_index(&weight_lods, 2, 2, RenderPassType::Unk1)
+            weight_group_index(&weight_lods, 2, Some(1), RenderPassType::Unk1)
         );
         assert_eq!(
             5,
-            weight_group_index(&weight_lods, 2, 3, RenderPassType::Unk1)
+            weight_group_index(&weight_lods, 2, Some(1), RenderPassType::Unk1)
         );
     }
 
@@ -615,11 +618,11 @@ mod tests {
         ];
         assert_eq!(
             0,
-            weight_group_index(&weight_lods, 64, 1, RenderPassType::Unk0)
+            weight_group_index(&weight_lods, 64, Some(0), RenderPassType::Unk0)
         );
         assert_eq!(
             6,
-            weight_group_index(&weight_lods, 16400, 2, RenderPassType::Unk0)
+            weight_group_index(&weight_lods, 16400, Some(1), RenderPassType::Unk0)
         );
     }
 }

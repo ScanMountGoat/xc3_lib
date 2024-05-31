@@ -9,11 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 * Added support for extracting textures from `.wimdo` only models to xc3_tex.
 * Added support for extracting textures from `.camdo` models to xc3_tex.
+* Added `LodData`, `LodItem`, and `LodGroup` to xc3_model for working with level of detail (LOD) data.
+
+### Changed
+* Changed `Models.base_lod_indices` to `Models.lod_data` for xc3_model to better reflect in game data.
 
 ### Fixed
 * Fixed an issue loading mipmaps for some Xenoblade X textures.
 * Fixed an issue where alpha meshes for Xenoblade X models did not render.
 * Fixed an issue where some models did not load the correct meshes for the base level of detail (LOD).
+
+### Removed
+* Removed `xc3_model::should_render_lod`. Use the new `LodData::is_base_lod` method instead.
 
 ## 0.9.0 - 2024-05-17
 ### Added

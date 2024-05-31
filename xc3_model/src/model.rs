@@ -2,7 +2,7 @@ use glam::{Vec2, Vec3, Vec4};
 use indexmap::IndexMap;
 use xc3_lib::{
     msrd::Msrd,
-    mxmd::{AlphaTable, Mxmd, VertexAttribute},
+    mxmd::{AlphaTable, LodData, LodGroup, LodItem, Mxmd, VertexAttribute},
     vertex::DataType,
 };
 
@@ -60,7 +60,10 @@ pub fn create_mxmd_model(root: &ModelRoot, mxmd: &Mxmd, msrd: &Msrd) -> (Mxmd, M
                     let ext_index = m.ext_mesh_index.map(|i| i + 1).unwrap_or_default() as u16;
                     let new_index = alpha_table.len() as u16;
                     let alpha_table_index = *alpha_table
-                        .entry((ext_index, m.lod as u16))
+                        .entry((
+                            ext_index,
+                            m.lod_item_index.map(|i| i as u16 + 1).unwrap_or_default(),
+                        ))
                         .or_insert(new_index);
 
                     // TODO: How to set these indices in applications?
@@ -81,7 +84,7 @@ pub fn create_mxmd_model(root: &ModelRoot, mxmd: &Mxmd, msrd: &Msrd) -> (Mxmd, M
                         ext_mesh_index: m.ext_mesh_index.unwrap_or_default() as u16,
                         unk4: 0,
                         unk5: 0, // TODO: flags?
-                        lod_item_index: m.lod,
+                        lod_item_index: m.lod_item_index.map(|i| i as u8 + 1).unwrap_or_default(),
                         unk_mesh_index2: 0, // TODO: how to set this?
                         alpha_table_index,
                         unk6: 0, // TODO: flags?
@@ -106,7 +109,31 @@ pub fn create_mxmd_model(root: &ModelRoot, mxmd: &Mxmd, msrd: &Msrd) -> (Mxmd, M
         unks: [0; 4],
     });
 
-    // TODO: Recreate lod data from a simpler representation?
+    new_mxmd.models.lod_data = root.models.lod_data.as_ref().map(|data| LodData {
+        unk1: 0,
+        items: data
+            .items
+            .iter()
+            .map(|i| LodItem {
+                unk1: [0; 4],
+                unk2: i.unk2,
+                unk3: 0,
+                index: i.index,
+                unk5: i.unk5,
+                unk6: 0,
+                unk7: [0; 2],
+            })
+            .collect(),
+        groups: data
+            .groups
+            .iter()
+            .map(|g| LodGroup {
+                base_lod_index: g.base_lod_index as u16,
+                lod_count: g.lod_count as u16,
+            })
+            .collect(),
+        unks: [0; 4],
+    });
 
     new_mxmd.models.min_xyz = new_mxmd
         .models

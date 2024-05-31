@@ -135,11 +135,8 @@ pub struct Models {
 
     // TODO: Worth storing skinning here?
 
-    // TODO: Better way of organizing this data?
-    // TODO: How to handle the indices being off by 1?
     // TODO: when is this None?
-    // TODO: Create a type for this constructed from Models?
-    pub base_lod_indices: Option<Vec<u16>>,
+    pub lod_data: Option<LodData>,
 
     // TODO: Use none instead of empty?
     /// The name of the controller for each morph target like "mouth_shout".
@@ -188,8 +185,44 @@ pub struct Mesh {
     pub unk_mesh_index1: usize,
     pub material_index: usize,
     pub ext_mesh_index: Option<usize>,
-    pub lod: u8,
+    pub lod_item_index: Option<usize>,
     pub base_mesh_index: Option<usize>,
+}
+
+/// See [LodData](xc3_lib::mxmd::LodData).
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, PartialEq, Clone)]
+pub struct LodData {
+    pub items: Vec<LodItem>,
+    pub groups: Vec<LodGroup>,
+}
+
+/// See [LodItem](xc3_lib::mxmd::LodItem).
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, PartialEq, Clone)]
+pub struct LodItem {
+    pub unk2: f32,
+    pub index: u8,
+    pub unk5: u8,
+}
+
+/// See [LodGroup](xc3_lib::mxmd::LodGroup).
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, PartialEq, Clone)]
+pub struct LodGroup {
+    pub base_lod_index: usize,
+    pub lod_count: usize,
+}
+
+impl LodData {
+    /// Returns `true` if a mesh with `lod_item_index` should be rendered
+    /// as part of the highest detailed or base level of detail (LOD).
+    pub fn is_base_lod(&self, lod_item_index: Option<usize>) -> bool {
+        match lod_item_index {
+            Some(i) => self.groups.iter().any(|g| g.base_lod_index == i),
+            None => true,
+        }
+    }
 }
 
 impl Models {
@@ -208,10 +241,7 @@ impl Models {
                 .collect(),
             materials: create_materials(materials, spch),
             samplers: create_samplers(materials),
-            base_lod_indices: models
-                .lod_data
-                .as_ref()
-                .map(|data| data.groups.iter().map(|i| i.base_lod_index).collect()),
+            lod_data: models.lod_data.as_ref().map(|data| lod_data(data)),
             morph_controller_names: models
                 .morph_controllers
                 .as_ref()
@@ -279,12 +309,34 @@ impl Models {
                 })
                 .collect(),
             samplers: Vec::new(),
-            base_lod_indices: None,
+            lod_data: None,
             morph_controller_names: Vec::new(),
             animation_morph_names: Vec::new(),
             max_xyz: models.max_xyz.into(),
             min_xyz: models.min_xyz.into(),
         }
+    }
+}
+
+fn lod_data(data: &xc3_lib::mxmd::LodData) -> LodData {
+    LodData {
+        items: data
+            .items
+            .iter()
+            .map(|i| LodItem {
+                unk2: i.unk2,
+                index: i.index,
+                unk5: i.unk5,
+            })
+            .collect(),
+        groups: data
+            .groups
+            .iter()
+            .map(|g| LodGroup {
+                base_lod_index: g.base_lod_index as usize,
+                lod_count: g.lod_count as usize,
+            })
+            .collect(),
     }
 }
 
@@ -314,6 +366,12 @@ impl Model {
                 // TODO: This should also be None for xc1 and xc2?
                 let base_mesh_index = mesh.base_mesh_index.try_into().ok();
 
+                let lod_item_index = if mesh.lod_item_index > 0 {
+                    Some(mesh.lod_item_index as usize - 1)
+                } else {
+                    None
+                };
+
                 Mesh {
                     flags1: mesh.flags1,
                     flags2: mesh.flags2,
@@ -322,7 +380,7 @@ impl Model {
                     unk_mesh_index1: mesh.unk_mesh_index1 as usize,
                     material_index: mesh.material_index as usize,
                     ext_mesh_index,
-                    lod: mesh.lod_item_index,
+                    lod_item_index,
                     base_mesh_index,
                 }
             })
@@ -350,7 +408,7 @@ impl Model {
                 unk_mesh_index1: 0,
                 material_index: mesh.material_index as usize,
                 ext_mesh_index: None,
-                lod: 0,
+                lod_item_index: None,
                 base_mesh_index: None,
             })
             .collect();
@@ -364,19 +422,6 @@ impl Model {
             bounding_radius: model.bounding_radius,
         }
     }
-}
-
-/// Returns `true` if a mesh with `lod` should be rendered
-/// as part of the highest detail or base level of detail (LOD).
-pub fn should_render_lod(lod: u8, base_lod_indices: &Option<Vec<u16>>) -> bool {
-    // TODO: Why are the mesh values 1-indexed and the models lod data 0-indexed?
-    // TODO: should this also include 0?
-    // TODO: How to handle the none case?
-    // TODO: Add test cases for this?
-    base_lod_indices
-        .as_ref()
-        .map(|indices| indices.contains(&(lod as u16).saturating_sub(1)))
-        .unwrap_or(true)
 }
 
 #[derive(Debug, Error)]
