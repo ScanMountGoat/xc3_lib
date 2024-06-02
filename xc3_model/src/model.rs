@@ -77,7 +77,7 @@ pub fn create_mxmd_model(root: &ModelRoot, mxmd: &Mxmd, msrd: &Msrd) -> (Mxmd, M
                         flags2: m.flags2,
                         vertex_buffer_index: m.vertex_buffer_index as u16,
                         index_buffer_index: m.index_buffer_index as u16,
-                        unk_mesh_index1: m.unk_mesh_index1 as u16,
+                        index_buffer_index2: m.index_buffer_index2 as u16,
                         material_index: m.material_index as u16,
                         unk2: 0,
                         unk3: 0,

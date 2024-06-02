@@ -814,8 +814,10 @@ pub struct Mesh {
     /// Index into [index_buffers](../vertex/struct.VertexData.html#structfield.index_buffers)
     /// for the associated [VertexData].
     pub index_buffer_index: u16,
-    // TODO: some sort of grouping index shared with child meshes?
-    pub unk_mesh_index1: u16,
+    /// Index into [index_buffers](../vertex/struct.VertexData.html#structfield.index_buffers)
+    /// for the associated [VertexData] for the depth only draw call used for shadow rendering.
+    /// Custom models can use the same value as [index_buffer_index](#structfield.index_buffer_index).
+    pub index_buffer_index2: u16,
     /// Index into [materials](struct.Materials.html#structfield.materials).
     pub material_index: u16,
     pub unk2: u32, // 0

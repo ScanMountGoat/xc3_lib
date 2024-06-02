@@ -139,7 +139,7 @@ fn weight_group_index(
 
         // TODO: More mesh lods than weight lods for models with multiple lod groups?
         // TODO: Should this use the index in the LodItem?
-        // weight_lod_index = lod_data.items[lod - 1].index
+        // weight_lod_index = lod_data.items[lod].index
         let weight_lod = &weight_lods[lod_index % weight_lods.len()];
 
         let pass_index = weight_pass_index(unk_type, skin_flags);
@@ -598,7 +598,7 @@ mod tests {
         );
         assert_eq!(
             5,
-            weight_group_index(&weight_lods, 2, Some(1), RenderPassType::Unk1)
+            weight_group_index(&weight_lods, 2, Some(2), RenderPassType::Unk1)
         );
     }
 
