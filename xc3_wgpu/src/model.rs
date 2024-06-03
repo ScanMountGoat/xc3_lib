@@ -26,6 +26,9 @@ pub struct ModelGroup {
     per_group_buffer: wgpu::Buffer,
     pub(crate) bone_animated_transforms: wgpu::Buffer,
     pub(crate) bone_count: usize,
+
+    // Cache pipelines by their creation parameters.
+    pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
 }
 
 pub struct ModelBuffers {
@@ -57,9 +60,6 @@ pub struct Models {
     lod_data: Option<LodData>,
     morph_controller_names: Vec<String>,
     animation_morph_names: Vec<String>,
-
-    // Cache pipelines by their creation parameters.
-    pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
 }
 
 impl Models {
@@ -69,6 +69,7 @@ impl Models {
         models: &xc3_model::Models,
         buffers: &[xc3_model::vertex::ModelBuffers],
         skeleton: Option<&xc3_model::Skeleton>,
+        pipelines: &mut HashMap<PipelineKey, wgpu::RenderPipeline>,
         pipeline_data: &ModelPipelineData,
         textures: &[wgpu::Texture],
         image_textures: &[ImageTexture],
@@ -95,9 +96,10 @@ impl Models {
             .map(|s| create_sampler(device, s))
             .collect();
 
-        let (materials, pipelines) = materials(
+        let materials = materials(
             device,
             queue,
+            pipelines,
             pipeline_data,
             &models.materials,
             textures,
@@ -126,7 +128,6 @@ impl Models {
         Self {
             models,
             materials,
-            pipelines,
             lod_data,
             morph_controller_names,
             animation_morph_names,
@@ -254,7 +255,7 @@ impl ModelGroup {
                         mesh.per_mesh.set(render_pass);
 
                         // TODO: How to make sure the pipeline outputs match the render pass?
-                        let pipeline = &models.pipelines[&material.pipeline_key];
+                        let pipeline = &self.pipelines[&material.pipeline_key];
                         render_pass.set_pipeline(pipeline);
 
                         let stencil_reference = material.pipeline_key.stencil_reference();
@@ -542,6 +543,8 @@ fn create_model_group(
         .map(|buffers| ModelBuffers::from_buffers(device, buffers))
         .collect();
 
+    let mut pipelines = HashMap::new();
+
     let models = group
         .models
         .iter()
@@ -552,6 +555,7 @@ fn create_model_group(
                 models,
                 &group.buffers,
                 skeleton,
+                &mut pipelines,
                 pipeline_data,
                 textures,
                 image_textures,
@@ -568,6 +572,7 @@ fn create_model_group(
         skeleton: skeleton.cloned(),
         bone_animated_transforms,
         bone_count,
+        pipelines,
     }
 }
 

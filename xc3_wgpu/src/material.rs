@@ -44,13 +44,14 @@ const OUTPUT_DEFAULTS: [Vec4; 6] = [
 pub fn materials(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
+    pipelines: &mut HashMap<PipelineKey, wgpu::RenderPipeline>,
     pipeline_data: &ModelPipelineData,
     materials: &[xc3_model::Material],
     textures: &[wgpu::Texture],
     samplers: &[wgpu::Sampler],
     image_textures: &[ImageTexture],
     monolib_shader: &MonolibShaderTextures,
-) -> (Vec<Material>, HashMap<PipelineKey, wgpu::RenderPipeline>) {
+) -> Vec<Material> {
     // TODO: Is there a better way to handle missing textures?
     let default_black = create_default_black_texture(device, queue)
         .create_view(&wgpu::TextureViewDescriptor::default());
@@ -63,8 +64,6 @@ pub fn materials(
         mag_filter: wgpu::FilterMode::Linear,
         ..Default::default()
     });
-
-    let mut pipelines = HashMap::new();
 
     let materials = materials
         .iter()
@@ -226,8 +225,7 @@ pub fn materials(
         })
         .collect();
 
-    // TODO: is this the best place to cache pipelines?
-    (materials, pipelines)
+    materials
 }
 
 // TODO: Test cases for this
