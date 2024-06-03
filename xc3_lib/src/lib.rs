@@ -74,6 +74,7 @@ pub mod mxmd;
 pub mod sar1;
 pub mod spch;
 pub mod vertex;
+pub mod wipac;
 pub mod xbc1;
 
 struct Ptr<P> {
@@ -467,7 +468,8 @@ file_write_full_impl!(
     beh::Beh,
     efb0::Efb0,
     idcm::Idcm,
-    datasheet::DataSheet
+    datasheet::DataSheet,
+    wipac::Wipac
 );
 
 #[derive(Debug, Error)]
@@ -537,7 +539,8 @@ file_read_impl!(
     beh::Beh,
     efb0::Efb0,
     idcm::Idcm,
-    datasheet::DataSheet
+    datasheet::DataSheet,
+    wipac::Wipac
 );
 
 file_read_impl!(Endian::Big, mtxt::Mtxt, mxmd::legacy::MxmdLegacy, bmn::Bmn);
