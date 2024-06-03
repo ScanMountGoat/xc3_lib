@@ -150,13 +150,18 @@ impl BinRead for Mtxt {
 impl Mtxt {
     /// Deswizzles all layers and mipmaps to a standard row-major memory layout.
     pub fn deswizzled_image_data(&self) -> Result<Vec<u8>, SwizzleError> {
+        // TODO: Investigate swizzling for chr_dl/dl029100.camdo chr_oj/oj300031.camdo.
+        if self.footer.width == 2 && self.image_data.len() == 144 {
+            return Ok(self.image_data.clone());
+        }
+
         wiiu_swizzle::Gx2Surface {
-            dim: (self.footer.surface_dim as u32).into(),
+            dim: self.footer.surface_dim.into(),
             width: self.footer.width,
             height: self.footer.height,
             depth_or_array_layers: self.footer.depth_or_array_layers,
             mipmap_count: self.footer.mipmap_count,
-            format: (self.footer.surface_format as u32).into(),
+            format: self.footer.surface_format.into(),
             aa: wiiu_swizzle::AaMode::X1,
             usage: 0,
             image_data: &self.image_data,
@@ -165,7 +170,7 @@ impl Mtxt {
             } else {
                 &[]
             },
-            tile_mode: (self.footer.tile_mode as u32).into(),
+            tile_mode: self.footer.tile_mode.into(),
             swizzle: self.footer.swizzle,
             alignment: self.footer.swizzle,
             pitch: self.footer.pitch,
@@ -247,6 +252,27 @@ impl From<SurfaceFormat> for image_dds::ImageFormat {
             SurfaceFormat::BC4Unorm => Self::BC4RUnorm,
             SurfaceFormat::BC5Unorm => Self::BC5RgUnorm,
         }
+    }
+}
+
+impl From<SurfaceFormat> for wiiu_swizzle::SurfaceFormat {
+    fn from(value: SurfaceFormat) -> Self {
+        // This is a subset of the wiiu_swizzle GX2 enum.
+        Self::from_repr(value as u32).unwrap()
+    }
+}
+
+impl From<SurfaceDim> for wiiu_swizzle::SurfaceDim {
+    fn from(value: SurfaceDim) -> Self {
+        // This is a subset of the wiiu_swizzle GX2 enum.
+        Self::from_repr(value as u32).unwrap()
+    }
+}
+
+impl From<TileMode> for wiiu_swizzle::TileMode {
+    fn from(value: TileMode) -> Self {
+        // This is a subset of the wiiu_swizzle GX2 enum.
+        Self::from_repr(value as u32).unwrap()
     }
 }
 
