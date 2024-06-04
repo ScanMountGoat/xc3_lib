@@ -215,9 +215,25 @@ impl Shader {
     ) -> Option<&BufferDependency> {
         let output = format!("o{output_index}.{channel}");
 
-        // If a parameter is assigned, it will be the only dependency.
+        // If a parameter is assigned, it will likely be the only dependency.
         match self.output_dependencies.get(&output)?.first()? {
             Dependency::Buffer(b) => Some(b),
+            _ => None,
+        }
+    }
+
+    /// Returns the attribute assigned to the output
+    /// or `None` if the output does not use an attribute.
+    pub fn attribute(
+        &self,
+        output_index: usize,
+        channel: char,
+    ) -> Option<&AttributeDependency> {
+        let output = format!("o{output_index}.{channel}");
+
+        // If an attribute is assigned, it will likely be the only dependency.
+        match self.output_dependencies.get(&output)?.first()? {
+            Dependency::Attribute(b) => Some(b),
             _ => None,
         }
     }

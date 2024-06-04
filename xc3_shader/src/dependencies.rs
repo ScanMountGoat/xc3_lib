@@ -109,18 +109,13 @@ impl LineDependencies {
         &self,
         recursion_depth: Option<usize>,
     ) -> impl Iterator<Item = &AssignmentDependency> {
+        let max_depth = recursion_depth.unwrap_or(self.dependent_assignment_indices.len());
+
         self.dependent_assignment_indices
             .iter()
             .rev()
             .map(|d| &self.assignments[*d])
-            .enumerate()
-            .filter_map(move |(d, a)| {
-                if !matches!(recursion_depth, Some(max_depth) if d > max_depth) {
-                    Some(a)
-                } else {
-                    None
-                }
-            })
+            .take(max_depth + 1)
     }
 }
 
@@ -139,6 +134,7 @@ pub fn input_dependencies(translation_unit: &TranslationUnit, var: &str) -> Vec<
                     .map(Dependency::Buffer),
             );
 
+            // TODO: Depth not high enough for complex expressions involving attributes?
             let attributes = find_attribute_locations(translation_unit);
             dependencies.extend(
                 attribute_dependencies(&line_dependencies, &attributes, Some(1))

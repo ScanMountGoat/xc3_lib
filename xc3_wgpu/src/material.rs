@@ -71,7 +71,8 @@ pub fn materials(
             let mut name_to_index = IndexMap::new();
 
             let assignments = material.output_assignments(image_textures);
-            let output_assignments = output_assignments(&assignments, &mut name_to_index);
+            let sampler_assignments = sampler_assignments(&assignments, &mut name_to_index);
+            let attribute_assignments = attribute_assignments(&assignments);
             let output_defaults = output_default_assignments(&assignments);
 
             // Alpha textures might not be used in normal shaders.
@@ -130,7 +131,8 @@ pub fn materials(
                 "PerMaterial",
                 &[crate::shader::model::PerMaterial {
                     mat_color: material.parameters.mat_color.into(),
-                    output_assignments,
+                    sampler_assignments,
+                    attribute_assignments,
                     output_defaults,
                     texture_scale,
                     alpha_test_texture: {
@@ -229,24 +231,24 @@ pub fn materials(
 }
 
 // TODO: Test cases for this
-fn output_assignments(
+fn sampler_assignments(
     assignments: &OutputAssignments,
     name_to_index: &mut IndexMap<String, usize>,
-) -> [crate::shader::model::OutputAssignment; 6] {
+) -> [crate::shader::model::SamplerAssignment; 6] {
     // Each output channel may have a different input sampler and channel.
-    [0, 1, 2, 3, 4, 5].map(|i| output_assignment(&assignments.assignments[i], name_to_index))
+    [0, 1, 2, 3, 4, 5].map(|i| sampler_assignment(&assignments.assignments[i], name_to_index))
 }
 
-fn output_assignment(
+fn sampler_assignment(
     a: &OutputAssignment,
     name_to_index: &mut IndexMap<String, usize>,
-) -> crate::shader::model::OutputAssignment {
+) -> crate::shader::model::SamplerAssignment {
     let (s0, c0) = texture_channel_assignment(a.x.as_ref(), name_to_index).unwrap_or((-1, 0));
     let (s1, c1) = texture_channel_assignment(a.y.as_ref(), name_to_index).unwrap_or((-1, 1));
     let (s2, c2) = texture_channel_assignment(a.z.as_ref(), name_to_index).unwrap_or((-1, 2));
     let (s3, c3) = texture_channel_assignment(a.w.as_ref(), name_to_index).unwrap_or((-1, 3));
 
-    crate::shader::model::OutputAssignment {
+    crate::shader::model::SamplerAssignment {
         sampler_indices: ivec4(s0, s1, s2, s3),
         channel_indices: uvec4(c0, c1, c2, c3),
     }
@@ -266,6 +268,41 @@ fn texture_channel_assignment(
         let new_index = name_to_index.len();
         let index = *name_to_index.entry(name.clone()).or_insert(new_index);
         Some((index as i32, *channel_index as u32))
+    } else {
+        None
+    }
+}
+
+fn attribute_assignments(
+    assignments: &OutputAssignments,
+) -> [crate::shader::model::AttributeAssignment; 6] {
+    // Each output channel may have a different input sampler and channel.
+    [0, 1, 2, 3, 4, 5].map(|i| attribute_assignment(&assignments.assignments[i]))
+}
+
+fn attribute_assignment(a: &OutputAssignment) -> crate::shader::model::AttributeAssignment {
+    let c0 = attribute_channel_assignment(a.x.as_ref()).unwrap_or(-1);
+    let c1 = attribute_channel_assignment(a.y.as_ref()).unwrap_or(-1);
+    let c2 = attribute_channel_assignment(a.z.as_ref()).unwrap_or(-1);
+    let c3 = attribute_channel_assignment(a.w.as_ref()).unwrap_or(-1);
+
+    crate::shader::model::AttributeAssignment {
+        channel_indices: ivec4(c0, c1, c2, c3),
+    }
+}
+
+fn attribute_channel_assignment(assignment: Option<&ChannelAssignment>) -> Option<i32> {
+    if let Some(ChannelAssignment::Attribute {
+        name,
+        channel_index,
+    }) = assignment
+    {
+        // TODO: Support attributes other than vColor.
+        if name == "vColor" {
+            Some(*channel_index as i32)
+        } else {
+            None
+        }
     } else {
         None
     }

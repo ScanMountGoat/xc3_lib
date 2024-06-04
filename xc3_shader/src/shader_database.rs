@@ -28,9 +28,8 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
         output_dependencies: (0..=5)
             .flat_map(|i| {
                 "xyzw".chars().map(move |c| {
-                    // TODO: Handle cases with vertex color assignments.
                     // TODO: Handle cases with multiple operations before assignment?
-                    // TODO: Tests for the above?
+                    // TODO: Avoid calling dependency functions more than once to improve performance.
 
                     let name = format!("out_attr{i}.{c}");
                     let mut dependencies = input_dependencies(fragment, &name);
@@ -40,9 +39,7 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
                         // Most shaders apply UV transforms in the vertex shader.
                         apply_vertex_texcoord_params(vertex, fragment, &mut dependencies);
 
-                        // TODO: Use the attribute mapping to convert fragment inputs to vertex inputs.
-                        // fragment input -> vertex output by location
-                        // vertex output -> vertex input using attribute dependencies from input_dependencies()?
+                        apply_attribute_names(vertex, fragment, &mut dependencies);
                     }
 
                     // Simplify the output name to save space.
@@ -93,6 +90,46 @@ fn apply_vertex_texcoord_params(
                         // Remove any duplicates shared by multiple channels.
                         texcoord.params.sort();
                         texcoord.params.dedup();
+                    }
+                }
+            }
+        }
+    }
+}
+
+// TODO: Share code with texcoord function.
+fn apply_attribute_names(
+    vertex: &TranslationUnit,
+    fragment: &TranslationUnit,
+    dependencies: &mut [Dependency],
+) {
+    let vertex_attributes = find_attribute_locations(vertex);
+    let fragment_attributes = find_attribute_locations(fragment);
+
+    for dependency in dependencies {
+        if let Dependency::Attribute(attribute) = dependency {
+            // Convert a fragment input like "in_attr4" to its vertex output like "vTex0".
+            if let Some(fragment_location) = fragment_attributes
+                .input_locations
+                .get_by_left(&attribute.name)
+            {
+                if let Some(vertex_output_name) = vertex_attributes
+                    .output_locations
+                    .get_by_right(fragment_location)
+                {
+                    for c in attribute.channels.chars() {
+                        let output = format!("{vertex_output_name}.{c}");
+                        if let Some(vertex_dependencies) = line_dependencies(vertex, &output) {
+                            if let Some(input_attribute) = attribute_dependencies(
+                                &vertex_dependencies,
+                                &vertex_attributes,
+                                None,
+                            )
+                            .first()
+                            {
+                                attribute.name = input_attribute.name.clone();
+                            }
+                        }
                     }
                 }
             }
@@ -318,7 +355,9 @@ mod tests {
     use super::*;
 
     use indoc::indoc;
-    use xc3_model::shader_database::{BufferDependency, TexCoord, TextureDependency};
+    use xc3_model::shader_database::{
+        AttributeDependency, BufferDependency, TexCoord, TextureDependency,
+    };
 
     #[test]
     fn extract_program_index_multiple_digits() {
@@ -420,7 +459,7 @@ mod tests {
                 out_attr1.x = a;
                 out_attr1.y = U_Mate.data[1].w;
                 out_attr1.z = uniform_data[3].y;
-                out_attr1.w = 1.5;
+                out_attr1.w = temp_1;
             }
         "};
 
@@ -473,7 +512,13 @@ mod tests {
                             channels: "y".to_string()
                         })]
                     ),
-                    ("o1.w".to_string(), vec![Dependency::Constant(1.5.into())])
+                    (
+                        "o1.w".to_string(),
+                        vec![Dependency::Attribute(AttributeDependency {
+                            name: "tex0".to_string(),
+                            channels: "y".to_string()
+                        })]
+                    )
                 ]
                 .into()
             },

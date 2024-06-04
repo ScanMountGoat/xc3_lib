@@ -417,6 +417,7 @@ fn image_index(
                     texcoord_scale: texcoord_scale.map(|(u, v)| [u.into(), v.into()]),
                 })
         }
+        crate::ChannelAssignment::Attribute { .. } => None,
         crate::ChannelAssignment::Value(v) => Some(ImageIndex::Value((*v).into())),
     }
 }

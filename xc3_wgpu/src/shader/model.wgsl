@@ -88,18 +88,28 @@ var s9_sampler: sampler;
 
 // TODO: How to handle multiple inputs for each output channel?
 // Texture and channel input for each output channel.
-struct OutputAssignment {
+struct SamplerAssignment {
     sampler_indices: vec4<i32>,
     channel_indices: vec4<u32>
 }
 
+// TODO: Support attributes other than vColor.
+// Attribute and channel input for each output channel.
+struct AttributeAssignment {
+    // TODO: proper attribute selection similar to textures?
+    channel_indices: vec4<i32>
+}
+
 struct PerMaterial {
     mat_color: vec4<f32>,
-    // TODO: Make a struct with named fields instead of arrays?
-    output_assignments: array<OutputAssignment, 6>,
+
+    sampler_assignments: array<SamplerAssignment, 6>,
+    attribute_assignments: array<AttributeAssignment, 6>,
+
     // Parameters, constants, and defaults if no texture is assigned.
     output_defaults: array<vec4<f32>, 6>,
     texture_scale: array<vec4<f32>, 10>,
+
     // texture index, channel, index, 0, 0
     alpha_test_texture: vec4<i32>,
     alpha_test_ref: vec4<f32>,
@@ -251,15 +261,19 @@ fn vs_outline_main(in0: VertexInput0, in1: VertexInput1, instance: InstanceInput
     return vertex_output(in0, in1, instance, true);
 }
 
-fn assign_texture(assignment: OutputAssignment, s_colors: array<vec4<f32>, 10>, default_value: vec4<f32>) -> vec4<f32> {
-    let x = assign_channel(assignment.sampler_indices.x, assignment.channel_indices.x, s_colors, default_value.x);
-    let y = assign_channel(assignment.sampler_indices.y, assignment.channel_indices.y, s_colors, default_value.y);
-    let z = assign_channel(assignment.sampler_indices.z, assignment.channel_indices.z, s_colors, default_value.z);
-    let w = assign_channel(assignment.sampler_indices.w, assignment.channel_indices.w, s_colors, default_value.w);
+fn assign_texture(s: SamplerAssignment, s_colors: array<vec4<f32>, 10>, default_value: vec4<f32>, a: AttributeAssignment, vcolor: vec4<f32>) -> vec4<f32> {
+    let x = assign_channel(s.sampler_indices.x, s.channel_indices.x, a.channel_indices.x, s_colors, vcolor, default_value.x);
+    let y = assign_channel(s.sampler_indices.y, s.channel_indices.y, a.channel_indices.y, s_colors, vcolor, default_value.y);
+    let z = assign_channel(s.sampler_indices.z, s.channel_indices.z, a.channel_indices.z, s_colors, vcolor, default_value.z);
+    let w = assign_channel(s.sampler_indices.w, s.channel_indices.w, a.channel_indices.w, s_colors, vcolor, default_value.w);
     return vec4(x, y, z, w);
 }
 
-fn assign_channel(sampler_index: i32, channel_index: u32, s_colors: array<vec4<f32>, 10>, default_value: f32) -> f32 {
+fn assign_channel(sampler_index: i32, channel_index: u32, attribute_channel_index: i32, s_colors: array<vec4<f32>, 10>, vcolor: vec4<f32>, default_value: f32) -> f32 {
+    if attribute_channel_index >= 0 {
+        return vcolor[attribute_channel_index];
+    }
+    
     // Workaround for BC4 swizzle mask of RRR1.
     var channel = channel_index;
     if sampler_index >= 0 {
@@ -353,7 +367,7 @@ fn mrt_normal(normal: vec3<f32>, ao: f32) -> vec4<f32> {
 fn mrt_etc_buffer(g_etc_buffer: vec4<f32>, view_normal: vec3<f32>) -> vec4<f32> {
     var out = g_etc_buffer;
     // Antialiasing isn't necessary for parameters or constants.
-    if per_material.output_assignments[1].sampler_indices.y != -1 {
+    if per_material.sampler_assignments[1].sampler_indices.y != -1 {
         out.y = geometric_specular_aa(g_etc_buffer.y, view_normal);
     }
     return out;
@@ -393,7 +407,7 @@ fn fs_alpha(in: VertexOutput) -> @location(0) vec4<f32> {
     let alpha_texture = per_material.alpha_test_texture.x;
     let alpha_texture_channel = u32(per_material.alpha_test_texture.y);
     // Workaround for not being able to use a non constant index.
-    if assign_channel(alpha_texture, alpha_texture_channel, s_colors, 1.0) < per_material.alpha_test_ref.x {
+    if assign_channel(alpha_texture, alpha_texture_channel, -1, s_colors, vec4(1.0), 1.0) < per_material.alpha_test_ref.x {
         // TODO: incorrect reference alpha for comparison?
         discard;
     }
@@ -402,10 +416,10 @@ fn fs_alpha(in: VertexOutput) -> @location(0) vec4<f32> {
     // Each material in game can have a unique shader program.
     // Check the G-Buffer assignment database to simulate having unique shaders.
     // TODO: How to properly handle missing assignments?
-    let assignments = per_material.output_assignments;
+    let assignments = per_material.sampler_assignments;
     // Defaults incorporate constants, parameters, and default values.
     let defaults = per_material.output_defaults;
-    let g_color = assign_texture(assignments[0], s_colors, defaults[0]);
+    let g_color = assign_texture(assignments[0], s_colors, defaults[0], per_material.attribute_assignments[0], in.vertex_color);
 
     // TODO: How to detect if vertex color is actually color?
     // TODO: Some outlines aren't using vertex color?
@@ -417,6 +431,9 @@ fn fs_alpha(in: VertexOutput) -> @location(0) vec4<f32> {
     // TODO: Is it ok to always apply gMatCol like this?
     return g_color * per_material.mat_color * in.vertex_color;
 }
+
+// TODO: Separate entry for depth prepass.
+// TODO: depth func needs to be changed if using prepass?
 
 @fragment
 fn fs_main(in: VertexOutput) -> FragmentOutput {
@@ -452,7 +469,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     let alpha_texture = per_material.alpha_test_texture.x;
     let alpha_texture_channel = u32(per_material.alpha_test_texture.y);
     // Workaround for not being able to use a non constant index.
-    if assign_channel(alpha_texture, alpha_texture_channel, s_colors, 1.0) < per_material.alpha_test_ref.x {
+    if assign_channel(alpha_texture, alpha_texture_channel, -1, s_colors, vec4(1.0), 1.0) < per_material.alpha_test_ref.x {
         // TODO: incorrect reference alpha for comparison?
         discard;
     }
@@ -461,15 +478,17 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     // Each material in game can have a unique shader program.
     // Check the G-Buffer assignment database to simulate having unique shaders.
     // TODO: How to properly handle missing assignments?
-    let assignments = per_material.output_assignments;
+    let assignments = per_material.sampler_assignments;
+    let attributes = per_material.attribute_assignments;
+
     // Defaults incorporate constants, parameters, and default values.
     let defaults = per_material.output_defaults;
-    let g_color = assign_texture(assignments[0], s_colors, defaults[0]);
-    let g_etc_buffer = assign_texture(assignments[1], s_colors, defaults[1]);
-    let g_normal = assign_texture(assignments[2], s_colors, defaults[2]);
-    let g_velocity = assign_texture(assignments[3], s_colors, defaults[3]);
-    let g_depth = assign_texture(assignments[4], s_colors, defaults[4]);
-    let g_lgt_color = assign_texture(assignments[5], s_colors, defaults[5]);
+    let g_color = assign_texture(assignments[0], s_colors, defaults[0], attributes[0], in.vertex_color);
+    let g_etc_buffer = assign_texture(assignments[1], s_colors, defaults[1], attributes[1], in.vertex_color);
+    let g_normal = assign_texture(assignments[2], s_colors, defaults[2], attributes[2], in.vertex_color);
+    let g_velocity = assign_texture(assignments[3], s_colors, defaults[3], attributes[3], in.vertex_color);
+    let g_depth = assign_texture(assignments[4], s_colors, defaults[4], attributes[4], in.vertex_color);
+    let g_lgt_color = assign_texture(assignments[5], s_colors, defaults[5], attributes[5], in.vertex_color);
 
     // Assume each G-Buffer texture and channel always has the same usage.
     let normal_map = g_normal.xy;

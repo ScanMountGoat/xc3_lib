@@ -271,6 +271,10 @@ pub enum ChannelAssignment {
         texcoord_name: Option<String>,
         texcoord_scale: Option<(f32, f32)>,
     },
+    Attribute {
+        name: String,
+        channel_index: usize,
+    },
     Value(f32),
 }
 
@@ -389,10 +393,27 @@ fn channel_assignment(
     output_index: usize,
     channel_index: usize,
 ) -> Option<ChannelAssignment> {
-    // TODO: constant -> texture -> texture usage -> None?
+    // Prioritize direct assignments like parameters or constants.
     let channel = ['x', 'y', 'z', 'w'][channel_index];
     param_or_const(shader, parameters, output_index, channel_index)
         .map(ChannelAssignment::Value)
+        .or_else(|| {
+            shader.attribute(output_index, channel).map(|attribute| {
+                // Attributes may have multiple accessed channels like normal maps.
+                // First check if the current channel is used.
+                // TODO: Does this always work as intended?
+                let c = if attribute.channels.contains(channel) {
+                    channel
+                } else {
+                    attribute.channels.chars().next().unwrap()
+                };
+
+                ChannelAssignment::Attribute {
+                    name: attribute.name.clone(),
+                    channel_index: "xyzw".find(c).unwrap(),
+                }
+            })
+        })
         .or_else(|| {
             // TODO: How to deal with multiple textures used for color outputs?
             shader.texture(output_index, channel).map(|texture| {

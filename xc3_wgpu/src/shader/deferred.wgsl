@@ -228,7 +228,7 @@ fn calculate_toon_color(uv: vec2<f32>) -> vec4<f32> {
 // 1, PBR
 // 2, TOON
 // 3, vegetation and colony 9 tents (sss?)
-// 4, core crystal?
+// 4, core crystal and levialord fins?
 // 5, HAIR (xc3 only)
 
 fn toon_grad_v(etc_z: f32) -> f32 {
