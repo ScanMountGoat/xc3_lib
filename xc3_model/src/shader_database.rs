@@ -122,6 +122,7 @@ pub enum Dependency {
     Constant(OrderedFloat<f32>),
     Buffer(BufferDependency),
     Texture(TextureDependency),
+    Attribute(AttributeDependency),
 }
 
 /// A single buffer access like `UniformBuffer.field[0].y` in GLSL.
@@ -157,6 +158,14 @@ pub struct TexCoord {
     /// Parameter dependencies ordered by texture function texcoord parameters.
     /// These can generally be assumed to be scale or matrix transforms.
     pub params: Vec<BufferDependency>,
+}
+
+/// A single input attribute like `in_attr0.x` in GLSL.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
+pub struct AttributeDependency {
+    pub name: String,
+    pub channels: String,
 }
 
 impl Shader {

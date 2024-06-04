@@ -15,7 +15,9 @@ use xc3_model::shader_database::{Dependency, Map, Shader, ShaderDatabase, Shader
 
 use crate::{
     annotation::shader_source_no_extensions,
-    dependencies::{find_buffer_parameters, input_dependencies},
+    dependencies::{
+        attribute_dependencies, find_buffer_parameters, input_dependencies, line_dependencies,
+    },
 };
 
 fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit) -> Shader {
@@ -37,6 +39,10 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
                         // Add texture parameters used for the corresponding vertex output.
                         // Most shaders apply UV transforms in the vertex shader.
                         apply_vertex_texcoord_params(vertex, fragment, &mut dependencies);
+
+                        // TODO: Use the attribute mapping to convert fragment inputs to vertex inputs.
+                        // fragment input -> vertex output by location
+                        // vertex output -> vertex input using attribute dependencies from input_dependencies()?
                     }
 
                     // Simplify the output name to save space.
@@ -61,19 +67,27 @@ fn apply_vertex_texcoord_params(
         if let Dependency::Texture(texture) = dependency {
             if let Some(texcoord) = &mut texture.texcoord {
                 // Convert a fragment input like "in_attr4" to its vertex output like "vTex0".
-                // TODO: Figure out why the texcoord names aren't always accurate.
                 if let Some(fragment_location) = fragment_attributes
                     .input_locations
                     .get_by_left(&texcoord.name)
                 {
-                    if let Some(vertex_name) = vertex_attributes
+                    if let Some(vertex_output_name) = vertex_attributes
                         .output_locations
                         .get_by_right(fragment_location)
                     {
+                        if let Some(actual_name) = find_texcoord_input_name(
+                            texcoord,
+                            vertex,
+                            vertex_output_name,
+                            &vertex_attributes,
+                        ) {
+                            texcoord.name = actual_name;
+                        }
+
                         // Preserve the channel ordering here.
                         for c in texcoord.channels.chars() {
-                            let vertex_params =
-                                find_buffer_parameters(vertex, &format!("{vertex_name}.{c}"));
+                            let output = format!("{vertex_output_name}.{c}");
+                            let vertex_params = find_buffer_parameters(vertex, &output);
                             texcoord.params.extend(vertex_params);
                         }
                         // Remove any duplicates shared by multiple channels.
@@ -84,6 +98,21 @@ fn apply_vertex_texcoord_params(
             }
         }
     }
+}
+
+fn find_texcoord_input_name(
+    texcoord: &xc3_model::shader_database::TexCoord,
+    vertex: &TranslationUnit,
+    vertex_output_name: &str,
+    vertex_attributes: &Attributes,
+) -> Option<String> {
+    // Assume only one texcoord attribute is used for all components.
+    let c = texcoord.channels.chars().next()?;
+    let output = format!("{vertex_output_name}.{c}");
+    let vertex_dependencies = line_dependencies(&vertex, &output)?;
+    attribute_dependencies(&vertex_dependencies, vertex_attributes, None)
+        .first()
+        .map(|a| a.name.clone())
 }
 
 /// Find the texture dependencies for each fragment output channel.
@@ -219,9 +248,9 @@ struct AttributeVisitor {
 }
 
 #[derive(Debug, Default, PartialEq)]
-struct Attributes {
-    input_locations: BiBTreeMap<String, i32>,
-    output_locations: BiBTreeMap<String, i32>,
+pub struct Attributes {
+    pub input_locations: BiBTreeMap<String, i32>,
+    pub output_locations: BiBTreeMap<String, i32>,
 }
 
 impl Visitor for AttributeVisitor {
@@ -278,7 +307,7 @@ impl Visitor for AttributeVisitor {
     }
 }
 
-fn find_attribute_locations(translation_unit: &TranslationUnit) -> Attributes {
+pub fn find_attribute_locations(translation_unit: &TranslationUnit) -> Attributes {
     let mut visitor = AttributeVisitor::default();
     translation_unit.visit(&mut visitor);
     visitor.attributes
@@ -289,6 +318,7 @@ mod tests {
     use super::*;
 
     use indoc::indoc;
+    use xc3_model::shader_database::{BufferDependency, TexCoord, TextureDependency};
 
     #[test]
     fn extract_program_index_multiple_digits() {
@@ -337,6 +367,117 @@ mod tests {
                 .collect(),
             },
             find_attribute_locations(&tu)
+        );
+    }
+
+    #[test]
+    fn shader_from_vertex_fragment() {
+        let glsl = indoc! {"
+            layout(location = 0) in vec4 pos;
+            layout(location = 4) in vec4 tex0;
+            layout(location = 3) in vec4 color;
+
+            layout(location = 3) out vec4 out_attr0;
+            layout(location = 5) out vec4 out_attr1;
+            layout(location = 7) out vec4 out_attr2;
+
+            void main() 
+            {
+                float temp_0 = tex0.z;
+                float temp_1 = tex0.w;
+                float temp_2 = temp_0 * U_Mate.gWrkFl4[0].x;
+                float temp_3 = temp_1 * U_Mate.gWrkFl4[0].y;
+                out_attr0.x = 1.0;
+                out_attr0.y = 2.0;
+                out_attr0.z = 3.0;
+                out_attr0.w = 4.0;
+                out_attr1.x = temp_2;
+                out_attr1.y = temp_3;
+                out_attr1.z = 0.0;
+                out_attr1.w = 0.0;
+                out_attr2.x = 1.0;
+                out_attr2.y = 2.0;
+                out_attr2.z = 3.0;
+                out_attr2.w = 4.0;
+            }
+        "};
+        let vertex = TranslationUnit::parse(glsl).unwrap();
+
+        let glsl = indoc! {"
+            layout(location = 3) in vec4 in_attr0;
+            layout(location = 5) in vec4 in_attr1;
+            layout(location = 7) in vec4 in_attr2;
+
+            layout(location = 0) out vec4 out_attr0;
+            layout(location = 1) out vec4 out_attr1;
+            layout(location = 2) out vec4 out_attr2;
+
+            void main() 
+            {
+                float temp_0 = in_attr1.x;
+                float temp_1 = in_attr1.y;
+                float a = texture(texture1, vec2(temp_0, temp_1)).x;
+                out_attr1.x = a;
+                out_attr1.y = U_Mate.data[1].w;
+                out_attr1.z = uniform_data[3].y;
+                out_attr1.w = 1.5;
+            }
+        "};
+
+        let fragment = TranslationUnit::parse(glsl).unwrap();
+
+        let shader = shader_from_glsl(Some(&vertex), &fragment);
+        assert_eq!(
+            Shader {
+                output_dependencies: [
+                    (
+                        "o1.x".to_string(),
+                        vec![Dependency::Texture(TextureDependency {
+                            name: "texture1".to_string(),
+                            channels: "x".to_string(),
+                            texcoord: Some(TexCoord {
+                                name: "tex0".to_string(),
+                                channels: "xy".to_string(),
+                                params: vec![
+                                    BufferDependency {
+                                        name: "U_Mate".to_string(),
+                                        field: "gWrkFl4".to_string(),
+                                        index: 0,
+                                        channels: "x".to_string()
+                                    },
+                                    BufferDependency {
+                                        name: "U_Mate".to_string(),
+                                        field: "gWrkFl4".to_string(),
+                                        index: 0,
+                                        channels: "y".to_string()
+                                    }
+                                ]
+                            })
+                        }),]
+                    ),
+                    (
+                        "o1.y".to_string(),
+                        vec![Dependency::Buffer(BufferDependency {
+                            name: "U_Mate".to_string(),
+                            field: "data".to_string(),
+                            index: 1,
+                            channels: "w".to_string()
+                        })],
+                    ),
+                    (
+                        "o1.z".to_string(),
+                        vec![Dependency::Buffer(BufferDependency {
+                            name: "uniform_data".to_string(),
+                            field: "".to_string(),
+                            index: 3,
+                            channels: "y".to_string()
+                        })]
+                    ),
+                    ("o1.w".to_string(), vec![Dependency::Constant(1.5.into())])
+                ]
+                .into()
+            },
+            shader
         );
     }
 }

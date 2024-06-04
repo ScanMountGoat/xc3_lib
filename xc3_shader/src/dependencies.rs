@@ -10,9 +10,14 @@ use glsl_lang::{
     transpiler::glsl::{show_expr, FormattingState},
     visitor::{Host, Visit, Visitor},
 };
-use xc3_model::shader_database::{BufferDependency, Dependency, TexCoord, TextureDependency};
+use xc3_model::shader_database::{
+    AttributeDependency, BufferDependency, Dependency, TexCoord, TextureDependency,
+};
 
-use crate::annotation::shader_source_no_extensions;
+use crate::{
+    annotation::shader_source_no_extensions,
+    shader_database::{find_attribute_locations, Attributes},
+};
 
 #[derive(Debug, Default)]
 struct AssignmentVisitor {
@@ -94,9 +99,29 @@ enum LastAssignment {
     Global(String),
 }
 
-struct LineDependencies {
+pub struct LineDependencies {
     dependent_assignment_indices: BTreeSet<usize>,
     assignments: Vec<AssignmentDependency>,
+}
+
+impl LineDependencies {
+    fn assignments_recursive(
+        &self,
+        recursion_depth: Option<usize>,
+    ) -> impl Iterator<Item = &AssignmentDependency> {
+        self.dependent_assignment_indices
+            .iter()
+            .rev()
+            .map(|d| &self.assignments[*d])
+            .enumerate()
+            .filter_map(move |(d, a)| {
+                if !matches!(recursion_depth, Some(max_depth) if d > max_depth) {
+                    Some(a)
+                } else {
+                    None
+                }
+            })
+    }
 }
 
 pub fn input_dependencies(translation_unit: &TranslationUnit, var: &str) -> Vec<Dependency> {
@@ -106,44 +131,24 @@ pub fn input_dependencies(translation_unit: &TranslationUnit, var: &str) -> Vec<
             // TODO: Rework this to be cleaner and add more tests.
             let mut dependencies = texture_dependencies(&line_dependencies);
 
-            // Check if anything is directly assigned to the output variable.
-            // The dependent lines are sorted, so the last element is the final assignment.
-            // There should be at least one assignment if the value above is some.
-            let d = line_dependencies
-                .dependent_assignment_indices
-                .last()
-                .unwrap();
-            let final_assignment = &line_dependencies.assignments[*d].assignment_input;
-            add_assignment_dependencies(final_assignment, &mut dependencies);
+            // Add anything is directly assigned to the output variable.
+            dependencies.extend(constant_dependencies(&line_dependencies, Some(0)));
+            dependencies.extend(
+                buffer_dependencies(&line_dependencies, Some(0))
+                    .into_iter()
+                    .map(Dependency::Buffer),
+            );
+
+            let attributes = find_attribute_locations(translation_unit);
+            dependencies.extend(
+                attribute_dependencies(&line_dependencies, &attributes, Some(1))
+                    .into_iter()
+                    .map(Dependency::Attribute),
+            );
 
             dependencies
         })
         .unwrap_or_default()
-}
-
-fn add_assignment_dependencies(expr: &Expr, dependencies: &mut Vec<Dependency>) {
-    match &expr.content {
-        ExprData::Variable(_) => (),
-        ExprData::IntConst(_) => (),
-        ExprData::UIntConst(_) => (),
-        ExprData::BoolConst(_) => (),
-        ExprData::FloatConst(f) => dependencies.push(Dependency::Constant((*f).into())),
-        ExprData::DoubleConst(_) => (),
-        ExprData::Unary(_, _) => (),
-        ExprData::Binary(_, _, _) => (),
-        ExprData::Ternary(_, _, _) => (),
-        ExprData::Assignment(_, _, _) => (),
-        ExprData::Bracket(_, _) => (),
-        ExprData::FunCall(_, _) => (),
-        ExprData::Dot(e, channel) => {
-            if let Some(buffer) = buffer_dependency_from_dot_expr(e, channel) {
-                dependencies.push(Dependency::Buffer(buffer));
-            }
-        }
-        ExprData::PostInc(_) => (),
-        ExprData::PostDec(_) => (),
-        ExprData::Comma(_, _) => (),
-    }
 }
 
 fn buffer_dependency_from_dot_expr(e: &Expr, channel: &Identifier) -> Option<BufferDependency> {
@@ -179,15 +184,69 @@ fn buffer_dependency_from_dot_expr(e: &Expr, channel: &Identifier) -> Option<Buf
     None
 }
 
+pub fn attribute_dependencies(
+    dependencies: &LineDependencies,
+    attributes: &Attributes,
+    recursion_depth: Option<usize>,
+) -> Vec<AttributeDependency> {
+    dependencies
+        .assignments_recursive(recursion_depth)
+        .filter_map(|assignment| {
+            if let ExprData::Dot(e, channel) = &assignment.assignment_input.content {
+                if let ExprData::Variable(id) = &e.content {
+                    let name = id.content.to_string();
+                    if attributes.input_locations.contains_left(&name) {
+                        Some(AttributeDependency {
+                            name,
+                            channels: channel.content.to_string(),
+                        })
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+fn constant_dependencies(
+    dependencies: &LineDependencies,
+    recursion_depth: Option<usize>,
+) -> Vec<Dependency> {
+    dependencies
+        .assignments_recursive(recursion_depth)
+        .filter_map(|assignment| {
+            if let ExprData::FloatConst(f) = &assignment.assignment_input.content {
+                Some(Dependency::Constant((*f).into()))
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+fn buffer_dependencies(
+    dependencies: &LineDependencies,
+    recursion_depth: Option<usize>,
+) -> Vec<BufferDependency> {
+    dependencies
+        .assignments_recursive(recursion_depth)
+        .filter_map(|assignment| find_buffer_parameter(&assignment.assignment_input))
+        .collect()
+}
+
 fn texture_dependencies(dependencies: &LineDependencies) -> Vec<Dependency> {
+    // TODO: Use assignments_recursive here
     dependencies
         .dependent_assignment_indices
         .iter()
         .filter_map(|d| {
             let assignment = &dependencies.assignments[*d];
             texture_identifier_name(&assignment.assignment_input).and_then(|name| {
-                let texcoord = texcoord_name_channels(assignment, dependencies);
-
                 // Get the initial channels used for the texture function call.
                 // This defines the possible channels if we assume one access per texture.
                 // TODO: Why is this sometimes none?
@@ -220,14 +279,15 @@ fn texture_dependencies(dependencies: &LineDependencies) -> Vec<Dependency> {
                     })
                     .collect();
 
-                let texcoord = texcoord.map(|(name, channels)| TexCoord {
-                    name,
-                    channels,
-                    params,
-                });
+                let texcoord =
+                    texcoord_name_channels(assignment, dependencies).map(|(name, channels)| {
+                        TexCoord {
+                            name,
+                            channels,
+                            params,
+                        }
+                    });
 
-                // TODO: Add Vec<BufferDependency> for the texcoord?
-                // TODO: Store Vec<BufferDependency> for both vert and frag?
                 Some(Dependency::Texture(TextureDependency {
                     name,
                     texcoord,
@@ -432,7 +492,10 @@ fn print_expr(expr: &Expr) -> String {
     text
 }
 
-fn line_dependencies(translation_unit: &TranslationUnit, var: &str) -> Option<LineDependencies> {
+pub fn line_dependencies(
+    translation_unit: &TranslationUnit,
+    var: &str,
+) -> Option<LineDependencies> {
     // Visit each assignment to establish data dependencies.
     // This converts the code to a directed acyclic graph (DAG).
     let mut visitor = AssignmentVisitor::default();
@@ -507,27 +570,12 @@ pub fn glsl_dependencies(source: &str, var: &str) -> String {
         .unwrap_or_default()
 }
 
-// TODO: should this be recursive?
 pub fn find_buffer_parameters(
     translation_unit: &TranslationUnit,
     var: &str,
 ) -> Vec<BufferDependency> {
     line_dependencies(translation_unit, var)
-        .map(|dependencies| {
-            let assignment_index = dependencies.dependent_assignment_indices.last().unwrap();
-            let assignment = &dependencies.assignments[*assignment_index];
-            assignment
-                .input_last_assignments
-                .iter()
-                .filter_map(|(a, _)| {
-                    if let LastAssignment::LineNumber(l) = a {
-                        find_buffer_parameter(&dependencies.assignments[*l].assignment_input)
-                    } else {
-                        None
-                    }
-                })
-                .collect()
-        })
+        .map(|dependencies| buffer_dependencies(&dependencies, None))
         .unwrap_or_default()
 }
 
@@ -536,6 +584,7 @@ mod tests {
     use super::*;
 
     use indoc::indoc;
+    use xc3_model::shader_database::AttributeDependency;
 
     #[test]
     fn line_dependencies_final_assignment() {
@@ -858,6 +907,31 @@ mod tests {
         assert_eq!(
             vec![Dependency::Constant(1.5.into())],
             input_dependencies(&tu, "out_attr1.w")
+        );
+    }
+
+    #[test]
+    fn input_dependencies_attribute() {
+        let glsl = indoc! {"
+            layout(location = 2) in vec4 in_attr2;
+
+            void main() 
+            {
+                float temp_0 = in_attr2.z;
+                out_attr1.x = 1.0;
+                out_attr1.y = temp_0;
+                out_attr1.z = uniform_data[3].y;
+                out_attr1.w = 1.5;
+            }
+        "};
+
+        let tu = TranslationUnit::parse(glsl).unwrap();
+        assert_eq!(
+            vec![Dependency::Attribute(AttributeDependency {
+                name: "in_attr2".to_string(),
+                channels: "z".to_string(),
+            })],
+            input_dependencies(&tu, "out_attr1.y")
         );
     }
 
