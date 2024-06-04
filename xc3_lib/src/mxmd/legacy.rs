@@ -2,12 +2,12 @@ use std::io::SeekFrom;
 
 use crate::{
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
-    parse_string_ptr32, vertex::VertexAttribute, xc3_write_binwrite_impl,
+    parse_string_ptr32, vertex::VertexAttribute, xc3_write_binwrite_impl, StringOffset32,
 };
 use binrw::{args, binread, BinRead, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
-use super::{StateFlags, StringOffset};
+use super::StateFlags;
 
 // TODO: How much code can be shared with non legacy types?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -100,7 +100,7 @@ pub struct Models {
     #[br(parse_with = parse_offset32_count32)]
     #[br(args { offset: base_offset, inner: base_offset + bone_names_offset as u64 })]
     #[xc3(offset_count(u32, u32))]
-    pub bone_names: Vec<StringOffset>,
+    pub bone_names: Vec<StringOffset32>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]

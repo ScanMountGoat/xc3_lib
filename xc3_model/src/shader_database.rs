@@ -224,11 +224,7 @@ impl Shader {
 
     /// Returns the attribute assigned to the output
     /// or `None` if the output does not use an attribute.
-    pub fn attribute(
-        &self,
-        output_index: usize,
-        channel: char,
-    ) -> Option<&AttributeDependency> {
+    pub fn attribute(&self, output_index: usize, channel: char) -> Option<&AttributeDependency> {
         let output = format!("o{output_index}.{channel}");
 
         // If an attribute is assigned, it will likely be the only dependency.

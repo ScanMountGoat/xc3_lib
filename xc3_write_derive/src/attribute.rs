@@ -124,6 +124,7 @@ fn parse_two_idents(meta: &syn::meta::ParseNestedMeta<'_>) -> Result<(Ident, Ide
 pub struct TypeOptions {
     pub magic: Option<TokenStream>,
     pub has_base_offset: bool,
+    pub align: Option<u64>,
     pub align_after: Option<u64>,
 }
 
@@ -132,6 +133,7 @@ impl TypeOptions {
         let mut magic = None;
         let mut has_base_offset = false;
         let mut align_after = None;
+        let mut align = None;
 
         for a in attrs {
             if a.path().is_ident("xc3") {
@@ -148,6 +150,9 @@ impl TypeOptions {
                     } else if meta.path.is_ident("align_after") {
                         // #[xc3(align_after(4096))]
                         align_after = Some(parse_u64(&meta)?);
+                    } else if meta.path.is_ident("align") {
+                        // #[xc3(align(4))]
+                        align = Some(parse_u64(&meta)?);
                     }
                     Ok(())
                 });
@@ -157,6 +162,7 @@ impl TypeOptions {
         Self {
             magic,
             has_base_offset,
+            align,
             align_after,
         }
     }

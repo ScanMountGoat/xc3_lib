@@ -196,6 +196,7 @@ pub struct Unk13Unk1Unk3Unk2 {
     pub unk: [u32; 4],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, PartialEq, Clone)]
 pub struct UnkString(#[br(map(|x: NullString| x.to_string()))] pub String);
 

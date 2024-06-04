@@ -47,7 +47,7 @@ use binrw::{
 };
 use log::trace;
 use thiserror::Error;
-use xc3_write::write_full;
+use xc3_write::{write_full, Xc3Write, Xc3WriteOffsets};
 
 pub mod apmd;
 pub mod bc;
@@ -574,4 +574,27 @@ fn align<W: Write>(writer: &mut W, size: u64, align: u64, pad: u8) -> Result<(),
     let padding = aligned_size - size;
     writer.write_all(&vec![pad; padding as usize])?;
     Ok(())
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct Offset32<T>
+where
+    T: Xc3Write + 'static,
+    for<'a> <T as xc3_write::Xc3Write>::Offsets<'a>: Xc3WriteOffsets,
+    for<'a> T: BinRead<Args<'a> = ()>,
+{
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub value: T,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct StringOffset32 {
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub name: String,
 }

@@ -7,7 +7,7 @@
 //! | Xenoblade Chronicles 1 DE | |  |
 //! | Xenoblade Chronicles 2 |  | |
 //! | Xenoblade Chronicles 3 |  | `event/**/*.beh` |
-use crate::{datasheet::DataSheet, parse_opt_ptr32, parse_ptr32};
+use crate::{datasheet::DataSheet, parse_opt_ptr32, Offset32};
 use binrw::{binread, BinRead};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
@@ -25,15 +25,7 @@ pub struct Beh {
     pub data_sheet: Option<DataSheet>,
 
     #[br(count = count)]
-    pub offsets: Vec<Unk4Offset>,
-}
-
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct Unk4Offset {
-    #[br(parse_with = parse_ptr32)]
-    #[xc3(offset(u32), align(1))]
-    pub unk4: Unk4,
+    pub offsets: Vec<Offset32<Unk4>>,
 }
 
 #[binread]
@@ -43,6 +35,7 @@ pub struct Unk4Offset {
 #[br(magic(b"test"))]
 #[xc3(magic(b"test"))]
 #[xc3(base_offset)]
+#[xc3(align(1))]
 pub struct Unk4 {
     // Subtract the magic size.
     #[br(temp, try_calc = r.stream_position().map(|p| p - 4))]

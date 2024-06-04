@@ -8,7 +8,10 @@
 //! | Xenoblade Chronicles 3 | `monolib/shader/*.wishp` |
 use std::io::{Cursor, SeekFrom};
 
-use crate::{parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_string_ptr32};
+use crate::{
+    parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_string_ptr32,
+    StringOffset32,
+};
 use binrw::{args, binread, BinRead, BinReaderExt, BinResult};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
@@ -76,16 +79,7 @@ pub struct Spch {
 #[br(import { base_offset: u64, count: usize })]
 pub struct StringSection {
     #[br(args { count, inner: base_offset})]
-    pub program_names: Vec<StringOffset>,
-}
-
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-#[br(import_raw(base_offset: u64))]
-pub struct StringOffset {
-    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
-    pub name: String,
+    pub program_names: Vec<StringOffset32>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]

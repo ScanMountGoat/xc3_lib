@@ -4,6 +4,7 @@ use hexlit::hex;
 use xc3_write::{assert_hex_eq, Xc3Write, Xc3WriteOffsets};
 
 #[derive(Xc3Write, Xc3WriteOffsets)]
+#[xc3(align_after(20))]
 struct A {
     a: u32,
     b: u8,
@@ -24,7 +25,10 @@ fn write_struct_no_offsets() {
     };
 
     let mut writer = Cursor::new(Vec::new());
-    value.xc3_write(&mut writer).unwrap();
+    xc3_write::write_full(&value, &mut writer, 0, &mut 0).unwrap();
 
-    assert_hex_eq!(hex!(01000000 02ffff61 626300 0000803f), writer.into_inner());
+    assert_hex_eq!(
+        hex!(01000000 02ffff61 626300 0000803f 0000000000),
+        writer.into_inner()
+    );
 }

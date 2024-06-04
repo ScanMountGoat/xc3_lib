@@ -7,7 +7,7 @@
 //! | Xenoblade Chronicles 1 DE | |  |
 //! | Xenoblade Chronicles 2 |  | |
 //! | Xenoblade Chronicles 3 |  | `event/**/*.beb` |
-use crate::{parse_ptr32, xbc1::Xbc1};
+use crate::{xbc1::Xbc1, Offset32};
 use binrw::BinRead;
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
@@ -16,17 +16,9 @@ use xc3_write::{Xc3Write, Xc3WriteOffsets};
 pub struct Beb {
     pub xbc1_count: u32,
 
-    #[br(count = xbc1_count)]
-    pub xbc1_offsets: Vec<Xbc1Offset>,
-}
-
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct Xbc1Offset {
     // TODO: Some sort of container for bc anims?
-    #[br(parse_with = parse_ptr32)]
-    #[xc3(offset(u32))]
-    pub xbc1: Xbc1,
+    #[br(count = xbc1_count)]
+    pub xbc1_offsets: Vec<Offset32<Xbc1>>,
 }
 
 impl<'a> Xc3WriteOffsets for BebOffsets<'a> {

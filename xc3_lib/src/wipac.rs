@@ -7,7 +7,7 @@
 //! | Xenoblade Chronicles 1 DE | |  |
 //! | Xenoblade Chronicles 2 |  |  |
 //! | Xenoblade Chronicles 3 |  | `effect/**/*.wipac`  |
-use crate::{parse_ptr32, xc3_write_binwrite_impl};
+use crate::{parse_ptr32, xc3_write_binwrite_impl, Offset32};
 use binrw::{binread, BinRead, BinWrite, NullString};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
@@ -31,19 +31,10 @@ pub struct Wipac {
     pub unk4: String,
 
     #[br(count = unk2, align_after = 16)]
-    pub unk5: Vec<UnkOffset>,
+    pub unk5: Vec<Offset32<Unk>>,
 
     #[br(count = unk2)]
     pub unk6: Vec<Efxa>,
-}
-
-// TODO: Create a generic type for offsets?
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct UnkOffset {
-    #[br(parse_with = parse_ptr32)]
-    #[xc3(offset(u32))]
-    pub unk: Unk,
 }
 
 #[binread]

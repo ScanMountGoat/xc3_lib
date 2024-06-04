@@ -24,17 +24,25 @@ fn write_offset_full() {
     #[derive(Xc3Write, Xc3WriteOffsets)]
     struct Test {
         #[xc3(offset(u32))]
+        inner: Inner,
+    }
+
+    #[derive(Xc3Write, Xc3WriteOffsets)]
+    #[xc3(align(8))]
+    struct Inner {
         a: u32,
     }
 
-    let value = Test { a: 1 };
+    let value = Test {
+        inner: Inner { a: 1 },
+    };
 
     let mut writer = Cursor::new(Vec::new());
     let mut data_ptr = 0;
     write_full(&value, &mut writer, 0, &mut data_ptr).unwrap();
 
-    assert_hex_eq!(hex!(04000000 01000000), writer.into_inner());
-    assert_eq!(8, data_ptr);
+    assert_hex_eq!(hex!(08000000 00000000 01000000), writer.into_inner());
+    assert_eq!(12, data_ptr);
 }
 
 #[test]

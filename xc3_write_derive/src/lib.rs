@@ -122,6 +122,10 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
         _ => panic!("Unsupported type"),
     };
 
+    let alignment = options
+        .align
+        .map(|align| quote!(const ALIGNMENT: u64 = #align;));
+
     quote! {
         #define_offsets
 
@@ -142,6 +146,8 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
                 // Return positions of offsets to update later.
                 #initialize_offsets
             }
+
+            #alignment
         }
     }
     .into()

@@ -15,7 +15,7 @@ use crate::{
     parse_string_opt_ptr32, parse_string_ptr32,
     spch::Spch,
     vertex::{DataType, VertexData},
-    xc3_write_binwrite_impl,
+    xc3_write_binwrite_impl, StringOffset32,
 };
 use bilge::prelude::*;
 use binrw::{args, binread, BinRead, BinWrite};
@@ -1056,19 +1056,10 @@ pub struct ModelUnk5 {
     #[br(parse_with = parse_count32_offset32)]
     #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(count_offset(u32, u32))]
-    pub items: Vec<StringOffset>,
+    pub items: Vec<StringOffset32>,
 
     // TODO: padding?
     pub unks: [u32; 4],
-}
-
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-#[br(import_raw(base_offset: u64))]
-pub struct StringOffset {
-    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
-    pub name: String,
 }
 
 #[binread]

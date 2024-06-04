@@ -170,14 +170,14 @@ pub enum AttributeData {
 
     /// Data for [DataType::Tangent2].
     /// Values should be used as `v * 2.0 - 1.0`.
-    Tangent2(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3s))] Vec<Vec4>),
+    Tangent2(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
 
     // TODO: weight buffer only?
     /// Data for [DataType::SkinWeights].
     SkinWeights(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
 
     /// Data for [DataType::SkinWeights2].
-    SkinWeights2(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec3>),
+    SkinWeights2(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3s))] Vec<Vec3>),
 
     /// Data for [DataType::BoneIndices].
     BoneIndices(Vec<[u8; 4]>),
