@@ -28,6 +28,9 @@ use crate::skinning::{SkinWeights, WeightGroups, Weights};
 #[cfg(feature = "arbitrary")]
 use crate::{arbitrary_vec2s, arbitrary_vec3s, arbitrary_vec4s};
 
+// Reduce out of memory errors by not preallocating unrealistic buffer sizes.
+const MAX_VERT_CAPACITY: u32 = u16::MAX as u32;
+
 /// See [VertexData].
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
@@ -341,7 +344,7 @@ fn read_vertex_buffers(
         .zip(vertex_data.vertex_buffer_info.iter())
         .map(|(descriptor, ext)| {
             let attributes = read_vertex_attributes(
-                descriptor.data_offset,
+                descriptor.data_offset as u64,
                 descriptor.vertex_count,
                 descriptor.vertex_size,
                 &descriptor.attributes,
@@ -374,7 +377,7 @@ fn read_vertex_buffers(
 
         let descriptor = vertex_data.vertex_buffers.get(weights_index)?;
         let attributes = read_vertex_attributes(
-            descriptor.data_offset,
+            descriptor.data_offset as u64,
             descriptor.vertex_count,
             descriptor.vertex_size,
             &descriptor.attributes,
@@ -512,12 +515,14 @@ fn skin_weights_bone_indices(attributes: &[AttributeData]) -> Option<(Vec<Vec4>,
     Some((weights, indices))
 }
 
-fn read_index_buffers(vertex_data: &VertexData, endian: Endian) -> Vec<IndexBuffer> {
+fn read_index_buffers(vertex_data: &VertexData, endian: Endian) -> BinResult<Vec<IndexBuffer>> {
     vertex_data
         .index_buffers
         .iter()
-        .map(|descriptor| IndexBuffer {
-            indices: read_indices(descriptor, &vertex_data.buffer, endian).unwrap(),
+        .map(|descriptor| {
+            Ok(IndexBuffer {
+                indices: read_indices(descriptor, &vertex_data.buffer, endian)?,
+            })
         })
         .collect()
 }
@@ -527,11 +532,11 @@ fn read_indices(
     buffer: &[u8],
     endian: Endian,
 ) -> BinResult<Vec<u16>> {
-    // TODO: Are all index buffers using u16 for indices?
+    // TODO: Also read u32 indices.
     let mut reader = Cursor::new(buffer);
     reader.seek(SeekFrom::Start(descriptor.data_offset as u64))?;
 
-    let mut indices = Vec::with_capacity(descriptor.index_count as usize);
+    let mut indices = Vec::with_capacity(descriptor.index_count.min(MAX_VERT_CAPACITY) as usize);
     for _ in 0..descriptor.index_count {
         let index: u16 = reader.read_type(endian)?;
         indices.push(index);
@@ -540,7 +545,7 @@ fn read_indices(
 }
 
 fn read_vertex_attributes(
-    data_offset: u32,
+    data_offset: u64,
     vertex_count: u32,
     vertex_size: u32,
     attributes: &[xc3_lib::vertex::VertexAttribute],
@@ -570,7 +575,7 @@ fn read_vertex_attributes(
 // TODO: make this a function of AttributeData?
 fn read_attribute(
     a: &xc3_lib::vertex::VertexAttribute,
-    data_offset: u32,
+    data_offset: u64,
     vertex_count: u32,
     vertex_size: u32,
     relative_offset: u64,
@@ -884,7 +889,7 @@ fn read_attribute(
 }
 
 fn read_data<T, F>(
-    offset: u32,
+    offset: u64,
     vertex_count: u32,
     vertex_size: u32,
     relative_offset: u64,
@@ -895,11 +900,18 @@ fn read_data<T, F>(
 where
     F: Fn(&mut Cursor<&[u8]>, Endian) -> BinResult<T>,
 {
+    if vertex_size == 0 {
+        return Err(binrw::Error::AssertFail {
+            pos: offset,
+            message: format!("Attribute stride must not be 0"),
+        });
+    }
+
     let mut reader = Cursor::new(buffer);
 
-    let mut values = Vec::with_capacity(vertex_count as usize);
+    let mut values = Vec::with_capacity(vertex_count.min(MAX_VERT_CAPACITY) as usize);
     for i in 0..vertex_count as u64 {
-        let offset = offset as u64 + i * vertex_size as u64 + relative_offset;
+        let offset = offset + i * vertex_size as u64 + relative_offset;
         reader.seek(SeekFrom::Start(offset))?;
 
         values.push(read_item(&mut reader, endian)?);
@@ -971,7 +983,7 @@ fn read_morph_blend_target(
     // TODO: return values directly instead of enums?
     // TODO: Custom reader for normal2 and tangent2 that does * 2 - 1?
     let attributes = read_vertex_attributes(
-        base_target.data_offset,
+        base_target.data_offset as u64,
         base_target.vertex_count,
         base_target.vertex_size,
         &[
@@ -1055,7 +1067,7 @@ where
     F: Fn(&mut Cursor<&[u8]>, Endian) -> BinResult<T>,
 {
     read_data(
-        descriptor.data_offset,
+        descriptor.data_offset as u64,
         descriptor.vertex_count,
         descriptor.vertex_size,
         relative_offset,
@@ -1072,13 +1084,13 @@ impl ModelBuffers {
         skinning: Option<&xc3_lib::mxmd::Skinning>,
     ) -> BinResult<Self> {
         let (vertex_buffers, weights) = read_vertex_buffers(vertex_data, skinning)?;
-        let index_buffers = read_index_buffers(vertex_data, Endian::Little);
+        let index_buffers = read_index_buffers(vertex_data, Endian::Little)?;
 
         let outline_buffers = vertex_data
             .outline_buffers
             .iter()
             .map(|descriptor| outline_buffer(descriptor, &vertex_data.buffer))
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<BinResult<Vec<_>>>()?;
 
         // TODO: Preserve if this is none or not?
         let unk_buffers = match &vertex_data.unk7 {
@@ -1102,7 +1114,7 @@ impl ModelBuffers {
     ) -> BinResult<Self> {
         let vertex_buffers = read_vertex_buffers_legacy(vertex_data);
 
-        let index_buffers = read_index_buffers_legacy(vertex_data);
+        let index_buffers = read_index_buffers_legacy(vertex_data)?;
 
         // TODO: don't duplicate the weights buffers?
         let weights = weights_legacy(&vertex_buffers, models, vertex_data.weight_buffer_indices);
@@ -1477,27 +1489,30 @@ fn write_morph_blend_target(
     })
 }
 
-fn read_index_buffers_legacy(vertex_data: &xc3_lib::mxmd::legacy::VertexData) -> Vec<IndexBuffer> {
+fn read_index_buffers_legacy(
+    vertex_data: &xc3_lib::mxmd::legacy::VertexData,
+) -> BinResult<Vec<IndexBuffer>> {
     // Each buffer already has the data at the appropriate offset.
     let data_offset = 0;
 
     vertex_data
         .index_buffers
         .iter()
-        .map(|descriptor| IndexBuffer {
-            indices: read_indices(
-                &IndexBufferDescriptor {
-                    data_offset,
-                    index_count: descriptor.index_count,
-                    primitive_type: xc3_lib::vertex::PrimitiveType::TriangleList,
-                    index_format: xc3_lib::vertex::IndexFormat::Uint16,
-                    unk3: 0,
-                    unk4: 0,
-                },
-                &descriptor.data,
-                Endian::Big,
-            )
-            .unwrap(),
+        .map(|descriptor| {
+            Ok(IndexBuffer {
+                indices: read_indices(
+                    &IndexBufferDescriptor {
+                        data_offset,
+                        index_count: descriptor.index_count,
+                        primitive_type: xc3_lib::vertex::PrimitiveType::TriangleList,
+                        index_format: xc3_lib::vertex::IndexFormat::Uint16,
+                        unk3: 0,
+                        unk4: 0,
+                    },
+                    &descriptor.data,
+                    Endian::Big,
+                )?,
+            })
         })
         .collect()
 }
@@ -1622,13 +1637,13 @@ fn read_unk_buffers(
 ) -> BinResult<Vec<UnkBuffer>> {
     unk.buffers
         .iter()
-        .map(|descriptor| read_unk_buffer(descriptor, unk.data_offset, &vertex_data.buffer))
+        .map(|descriptor| read_unk_buffer(descriptor, unk.data_offset as u64, &vertex_data.buffer))
         .collect()
 }
 
 fn read_unk_buffer(
     descriptor: &UnkBufferDescriptor,
-    data_offset: u32,
+    data_offset: u64,
     buffer: &[u8],
 ) -> Result<UnkBuffer, binrw::Error> {
     // TODO: why is this 16 or 24 bytes?
@@ -1687,7 +1702,7 @@ fn read_unk_buffer(
 
 fn read_unk_buffer_attribute<T, F>(
     descriptor: &UnkBufferDescriptor,
-    data_offset: u32,
+    data_offset: u64,
     relative_offset: u64,
     buffer: &[u8],
     read_item: F,
@@ -1696,7 +1711,7 @@ where
     F: Fn(&mut Cursor<&[u8]>, Endian) -> BinResult<T>,
 {
     read_data(
-        data_offset + descriptor.offset,
+        data_offset + descriptor.offset as u64,
         descriptor.count,
         if descriptor.unk1 == 0 { 16 } else { 24 },
         relative_offset,
@@ -1960,7 +1975,7 @@ mod tests {
         assert_eq!(
             attributes,
             read_vertex_attributes(
-                descriptor.data_offset,
+                descriptor.data_offset as u64,
                 descriptor.vertex_count,
                 descriptor.vertex_size,
                 &descriptor.attributes,
@@ -2016,7 +2031,7 @@ mod tests {
         assert_eq!(
             attributes,
             read_vertex_attributes(
-                descriptor.data_offset,
+                descriptor.data_offset as u64,
                 descriptor.vertex_count,
                 descriptor.vertex_size,
                 &descriptor.attributes,
@@ -2194,7 +2209,7 @@ mod tests {
         assert_eq!(
             attributes,
             read_vertex_attributes(
-                descriptor.data_offset,
+                descriptor.data_offset as u64,
                 descriptor.vertex_count,
                 descriptor.vertex_size,
                 &descriptor.attributes,
@@ -2598,7 +2613,7 @@ mod tests {
         assert_eq!(
             attributes,
             read_vertex_attributes(
-                descriptor.data_offset,
+                descriptor.data_offset as u64,
                 descriptor.vertex_count,
                 descriptor.vertex_size,
                 &descriptor.attributes,
@@ -2654,7 +2669,7 @@ mod tests {
         assert_eq!(
             attributes,
             read_vertex_attributes(
-                descriptor.data_offset,
+                descriptor.data_offset as u64,
                 descriptor.vertex_count,
                 descriptor.vertex_size,
                 &descriptor.attributes,

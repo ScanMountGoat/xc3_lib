@@ -354,7 +354,7 @@ impl Model {
                 // TODO: Is there also a flag that disables the ext mesh?
                 let ext_mesh_index = if let Some(a) = alpha_table {
                     // This uses 1-based indexing so 0 is disabled.
-                    if a.items[mesh.alpha_table_index as usize].0 == 0 {
+                    if matches!(a.items.get(mesh.alpha_table_index as usize), Some((0, _))) {
                         None
                     } else {
                         Some(mesh.ext_mesh_index as usize)

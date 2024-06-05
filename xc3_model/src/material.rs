@@ -87,7 +87,8 @@ pub fn create_materials(materials: &Materials, spch: Option<&Spch>) -> Vec<Mater
                 })
                 .collect();
 
-            let parameters = assign_parameters(materials, material);
+            // TODO: Error for invalid parameters?
+            let parameters = assign_parameters(materials, material).unwrap_or_default();
 
             let alpha_test = find_alpha_test_texture(materials, material);
 
@@ -158,8 +159,10 @@ fn find_alpha_test_texture(
 fn assign_parameters(
     materials: &Materials,
     material: &xc3_lib::mxmd::Material,
-) -> MaterialParameters {
-    let work_values = &materials.work_values[material.work_value_start_index as usize..];
+) -> Option<MaterialParameters> {
+    let work_values = materials
+        .work_values
+        .get(material.work_value_start_index as usize..)?;
 
     // TODO: alpha test ref?
     let mut parameters = MaterialParameters {
@@ -214,7 +217,7 @@ fn assign_parameters(
         }
     }
 
-    parameters
+    Some(parameters)
 }
 
 fn read_param<const N: usize>(
