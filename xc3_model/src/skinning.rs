@@ -205,20 +205,17 @@ impl SkinWeights {
     // TODO: tests for this?
     /// Reindex bone indices to match the ordering defined in the new bone list.
     pub fn reindex_bones(&self, bone_names: Vec<String>) -> Self {
+        // TODO: Return an error if a bone is missing?
+        let index_remap: Vec<_> = self
+            .bone_names
+            .iter()
+            .map(|name| bone_names.iter().position(|n| n == name).unwrap() as u8)
+            .collect();
+
         let bone_indices = self
             .bone_indices
             .iter()
-            .map(|indices| {
-                indices.map(|i| {
-                    let name = &self.bone_names[i as usize];
-                    // TODO: Return an error if a bone is missing?
-                    bone_names
-                        .iter()
-                        .position(|n| n == name)
-                        .map(|i| i as u8)
-                        .unwrap()
-                })
-            })
+            .map(|indices| indices.map(|i| index_remap[i as usize]))
             .collect();
 
         Self {
