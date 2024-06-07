@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 * Changed `Models.base_lod_indices` to `Models.lod_data` for xc3_model to better reflect in game data.
+* Changed the behavior of `xc3_model::SkinWeights::to_influences` to skip unused influences.
 
 ### Fixed
 * Fixed an issue loading mipmaps for some Xenoblade X textures.
