@@ -595,11 +595,9 @@ pub struct UncompressedTexture {
 
 impl UncompressedTexture {
     /// Decode the JPEG/JFIF data to an RGB image.
-    pub fn to_image(
-        &self,
-    ) -> Result<image_dds::image::RgbImage, image_dds::image::error::ImageError> {
-        let mut reader = image_dds::image::io::Reader::new(Cursor::new(&self.jpeg_data));
-        reader.set_format(image_dds::image::ImageFormat::Jpeg);
+    pub fn to_image(&self) -> Result<image::RgbImage, image::error::ImageError> {
+        let mut reader = image::io::Reader::new(Cursor::new(&self.jpeg_data));
+        reader.set_format(image::ImageFormat::Jpeg);
         Ok(reader.decode()?.into_rgb8())
     }
 }
