@@ -248,7 +248,7 @@ impl SkinWeights {
     }
 
     // TODO: How should this handle of out range indices?
-    /// Convert the per-vertex indices and weights to per bone influences.
+    /// Convert the per-vertex indices and weights to per bone influences used by `weight_indices`.
     ///
     /// The `weight_indices` represent the data from [crate::vertex::AttributeData::WeightIndex].
     /// The `skeleton` defines the mapping from bone indices to bone names.
@@ -286,6 +286,8 @@ impl SkinWeights {
                 }
             }
         }
+
+        influences.retain(|i| !i.weights.is_empty());
 
         influences
     }
@@ -456,18 +458,13 @@ mod tests {
 
     #[test]
     fn bone_influences_zero_weights() {
-        assert_eq!(
-            vec![Influence {
-                bone_name: "root".to_string(),
-                weights: Vec::new()
-            }],
-            SkinWeights {
-                bone_indices: vec![[0u8; 4], [0u8; 4]],
-                weights: vec![Vec4::ZERO, Vec4::ZERO],
-                bone_names: vec!["root".to_string()]
-            }
-            .to_influences(&[[0, 0], [1, 0]])
-        );
+        assert!(SkinWeights {
+            bone_indices: vec![[0u8; 4], [0u8; 4]],
+            weights: vec![Vec4::ZERO, Vec4::ZERO],
+            bone_names: vec!["root".to_string()]
+        }
+        .to_influences(&[[0, 0], [1, 0]])
+        .is_empty());
     }
 
     #[test]
@@ -535,7 +532,7 @@ mod tests {
                         vertex_index: 0,
                         weight: 0.3
                     }]
-                }
+                },
             ],
             SkinWeights {
                 bone_indices: vec![[3, 1, 2, 0], [2, 1, 0, 0]],
@@ -545,6 +542,7 @@ mod tests {
                     "C".to_string(),
                     "B".to_string(),
                     "A".to_string(),
+                    "unused".to_string()
                 ]
             }
             .to_influences(&[[0, 0], [1, 0]])
