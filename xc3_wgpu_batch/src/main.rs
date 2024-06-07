@@ -29,6 +29,10 @@ struct Cli {
     /// Apply the first entry of the corresponding animation if found.
     #[arg(long)]
     anim: bool,
+
+    /// Draw axes for each bone in the skeleton.
+    #[arg(long)]
+    bones: bool,
 }
 
 #[derive(Copy, PartialEq, Clone, Eq, ValueEnum)]
@@ -181,7 +185,7 @@ fn main() {
                 label: Some("Render Encoder"),
             });
 
-            renderer.render_models(&output_view, &mut encoder, &groups, false, false);
+            renderer.render_models(&output_view, &mut encoder, &groups, false, cli.bones);
 
             let output_path = path.with_extension("png");
             save_screenshot(
