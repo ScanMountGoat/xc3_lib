@@ -326,6 +326,16 @@ impl SkinWeights {
             }
         }
 
+        // In game weights are in ascending order by weight.
+        // This can also reduce the number of unique weight values.
+        for (is, ws) in bone_indices.iter_mut().zip(weights.iter_mut()) {
+            let mut permutation = [0, 1, 2, 3];
+            permutation.sort_by_key(|i| ordered_float::OrderedFloat::from(-ws[*i]));
+
+            *is = permutation.map(|i| is[i]);
+            *ws = permutation.map(|i| ws[i]).into();
+        }
+
         Self {
             bone_indices,
             weights,
@@ -394,11 +404,11 @@ mod tests {
     fn bone_indices_weights_multiple_influences() {
         assert_eq!(
             SkinWeights {
-                bone_indices: vec![[2, 0, 0, 0], [0, 0, 0, 0], [0, 1, 0, 0]],
+                bone_indices: vec![[2, 0, 0, 0], [0, 0, 0, 0], [1, 0, 0, 0]],
                 weights: vec![
                     vec4(0.2, 0.0, 0.0, 0.0),
                     vec4(0.0, 0.0, 0.0, 0.0),
-                    vec4(0.11, 0.3, 0.0, 0.0)
+                    vec4(0.3, 0.11, 0.0, 0.0)
                 ],
                 bone_names: vec!["a".to_string(), "c".to_string(), "b".to_string()]
             },
@@ -618,6 +628,79 @@ mod tests {
         assert_eq!(
             6,
             weight_group_index(&weight_lods, 16400, Some(1), RenderPassType::Unk0)
+        );
+    }
+
+    #[test]
+    fn add_influences_from_empty() {
+        let influences = vec![
+            Influence {
+                bone_name: "D".to_string(),
+                weights: vec![VertexWeight {
+                    vertex_index: 0,
+                    weight: 0.2,
+                }],
+            },
+            Influence {
+                bone_name: "C".to_string(),
+                weights: vec![
+                    VertexWeight {
+                        vertex_index: 0,
+                        weight: 0.4,
+                    },
+                    VertexWeight {
+                        vertex_index: 1,
+                        weight: 0.3,
+                    },
+                ],
+            },
+            Influence {
+                bone_name: "B".to_string(),
+                weights: vec![
+                    VertexWeight {
+                        vertex_index: 0,
+                        weight: 0.1,
+                    },
+                    VertexWeight {
+                        vertex_index: 1,
+                        weight: 0.7,
+                    },
+                ],
+            },
+            Influence {
+                bone_name: "A".to_string(),
+                weights: vec![VertexWeight {
+                    vertex_index: 0,
+                    weight: 0.3,
+                }],
+            },
+        ];
+        let mut skin_weights = SkinWeights {
+            bone_indices: Vec::new(),
+            weights: Vec::new(),
+            bone_names: vec![
+                "D".to_string(),
+                "C".to_string(),
+                "B".to_string(),
+                "A".to_string(),
+                "unused".to_string(),
+            ],
+        };
+        skin_weights.add_influences(&influences, 2);
+
+        assert_eq!(
+            SkinWeights {
+                bone_indices: vec![[1, 3, 0, 2], [2, 1, 0, 0]],
+                weights: vec![vec4(0.4, 0.3, 0.2, 0.1), vec4(0.7, 0.3, 0.0, 0.0)],
+                bone_names: vec![
+                    "D".to_string(),
+                    "C".to_string(),
+                    "B".to_string(),
+                    "A".to_string(),
+                    "unused".to_string()
+                ]
+            },
+            skin_weights
         );
     }
 }
