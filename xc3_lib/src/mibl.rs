@@ -214,6 +214,18 @@ pub enum CreateMiblError {
 impl Mibl {
     /// Deswizzles all layers and mipmaps to a standard row-major memory layout.
     pub fn deswizzled_image_data(&self) -> Result<Vec<u8>, SwizzleError> {
+        if self
+            .footer
+            .width
+            .checked_mul(self.footer.height)
+            .and_then(|i| i.checked_mul(self.footer.depth))
+            .is_none()
+        {
+            return Err(SwizzleError::NotEnoughData {
+                expected_size: usize::MAX,
+                actual_size: self.image_data.len(),
+            });
+        }
         tegra_swizzle::surface::deswizzle_surface(
             self.footer.width as usize,
             self.footer.height as usize,
@@ -236,6 +248,7 @@ impl Mibl {
     pub fn with_base_mip(&self, base_mip_level: &[u8]) -> Self {
         // TODO: Will this always have the appropriate mipmap alignment?
         // TODO: How does this work for 3D or array layers?
+        // TODO: validate dimensions.
         let mut image_data = base_mip_level.to_vec();
         image_data.extend_from_slice(&self.image_data);
 

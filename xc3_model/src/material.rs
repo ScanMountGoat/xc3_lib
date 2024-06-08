@@ -198,18 +198,23 @@ fn assign_parameters(
     // TODO: Apply callbacks directly to the float buffer?
     if let Some(callbacks) = &materials.callbacks {
         let start = material.callback_start_index as usize;
-        for callback in &callbacks.work_callbacks[start..start + material.callback_count as usize] {
-            // (26, i+4) for dividing workfloat4 value by 255?
-            if callback.0 == 26 {
-                if let Some(work_float4) = &mut parameters.work_float4 {
-                    // TODO: What is the correct check for this?
-                    if callback.1 >= 4 {
-                        let index = callback.1 as usize - 4;
-                        let vector_index = index / 4;
-                        let component_index = index % 4;
-                        if let Some(vector) = work_float4.get_mut(vector_index) {
-                            // TODO: This interferes with UV scaling for xc2?
-                            vector[component_index] /= 255.0;
+        if let Some(callbacks) = callbacks
+            .work_callbacks
+            .get(start..start + material.callback_count as usize)
+        {
+            for callback in callbacks {
+                // (26, i+4) for dividing workfloat4 value by 255?
+                if callback.0 == 26 {
+                    if let Some(work_float4) = &mut parameters.work_float4 {
+                        // TODO: What is the correct check for this?
+                        if callback.1 >= 4 {
+                            let index = callback.1 as usize - 4;
+                            let vector_index = index / 4;
+                            let component_index = index % 4;
+                            if let Some(vector) = work_float4.get_mut(vector_index) {
+                                // TODO: This interferes with UV scaling for xc2?
+                                vector[component_index] /= 255.0;
+                            }
                         }
                     }
                 }
