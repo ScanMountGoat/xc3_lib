@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added support for extracting textures from `.wimdo` only models to xc3_tex.
 * Added support for extracting textures from `.camdo` models to xc3_tex.
 * Added `LodData`, `LodItem`, and `LodGroup` to xc3_model for working with level of detail (LOD) data.
+* Added the `disassemble-legacy-shaders` command to xc3_shader for extracting Xenoblade X shader programs.
 
 ### Changed
 * Changed `Models.base_lod_indices` to `Models.lod_data` for xc3_model to better reflect in game data.

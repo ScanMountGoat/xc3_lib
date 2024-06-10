@@ -11,6 +11,8 @@ use crate::parse_ptr32;
 use binrw::{helpers::until_eof, BinRead};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
+const HEADER_SIZE: u32 = 48;
+
 // Assume the reader only contains the MTHS data.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
@@ -90,4 +92,18 @@ pub struct FragmentShader {
 
     pub sampler_count: u32,
     pub sampler_offset: u32,
+}
+
+impl Mths {
+    pub fn vertex_binary(&self) -> Option<&[u8]> {
+        let start = self.program_offset + self.vertex_shader.program_offset - HEADER_SIZE;
+        let length = self.vertex_shader.program_length as usize;
+        self.data.get(start as usize..start as usize + length)
+    }
+
+    pub fn fragment_binary(&self) -> Option<&[u8]> {
+        let start = self.program_offset + self.fragment_shader.program_offset - HEADER_SIZE;
+        let length = self.fragment_shader.program_length as usize;
+        self.data.get(start as usize..start as usize + length)
+    }
 }

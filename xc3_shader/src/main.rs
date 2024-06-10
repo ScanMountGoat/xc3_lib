@@ -2,10 +2,13 @@ use std::io::BufReader;
 use std::path::Path;
 
 use clap::{Parser, Subcommand};
-use extract::extract_shader_binaries;
+use extract::{extract_legacy_shaders, extract_shaders};
+use rayon::prelude::*;
 use shader_database::create_shader_database;
 use xc3_lib::msmd::Msmd;
 use xc3_lib::msrd::Msrd;
+use xc3_lib::mths::Mths;
+use xc3_lib::mxmd::legacy::MxmdLegacy;
 use xc3_lib::mxmd::Mxmd;
 use xc3_lib::spch::Spch;
 
@@ -26,15 +29,24 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Extract and decompile shaders into a folder for each .wismt file.
+    /// Extract and decompile shaders into a folder for each .wimdo or .wismhd file.
     /// JSON metadata for each program will also be saved in the output folder.
     DecompileShaders {
-        /// The dump root folder for Xenoblade 2 or Xenoblade 3.
+        /// The root folder for Xenoblade 1 DE, Xenoblade 2, or Xenoblade 3.
         input_folder: String,
         /// The output folder for the decompiled shaders.
         output_folder: String,
         /// The path to the Ryujinx.ShaderTools executable
         shader_tools: Option<String>,
+    },
+    /// Extract and disassemble shaders into a folder for each .camdo file.
+    DisassembleLegacyShaders {
+        /// The root folder for Xenoblade X.
+        input_folder: String,
+        /// The output folder for the disassembled shaders.
+        output_folder: String,
+        /// The path to the gfd-tool executable
+        gfd_tool: String,
     },
     /// Create a JSON file containing textures used for fragment output attributes.
     ShaderDatabase {
@@ -73,6 +85,11 @@ fn main() {
             output_folder,
             shader_tools,
         } => extract_and_decompile_shaders(&input_folder, &output_folder, shader_tools.as_deref()),
+        Commands::DisassembleLegacyShaders {
+            input_folder,
+            output_folder,
+            gfd_tool,
+        } => extract_and_disassemble_shaders(&input_folder, &output_folder, &gfd_tool),
         Commands::ShaderDatabase {
             input_folder,
             output_file,
@@ -101,7 +118,7 @@ fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Option
             // Assume that file names are unique even across different folders.
             // This simplifies the output directory structure.
             // TODO: Preserve the original folder structure instead?
-            let output_folder = decompiled_output_folder(output, path);
+            let output_folder = shader_output_folder(output, path);
             std::fs::create_dir_all(&output_folder).unwrap();
             println!("{output_folder:?}");
 
@@ -109,7 +126,7 @@ fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Option
             match Mxmd::from_file(path) {
                 Ok(mxmd) => {
                     if let Some(spch) = mxmd.spch {
-                        extract_shader_binaries(&spch, &output_folder, shader_tools, false);
+                        extract_shaders(&spch, &output_folder, shader_tools, false);
                     }
                 }
                 Err(e) => println!("Error reading {path:?}: {e}"),
@@ -118,7 +135,7 @@ fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Option
             match Msrd::from_file(path.with_extension("wismt")) {
                 Ok(msrd) => {
                     let (_, spch, _) = msrd.extract_files(None).unwrap();
-                    extract_shader_binaries(&spch, &output_folder, shader_tools, false);
+                    extract_shaders(&spch, &output_folder, shader_tools, false);
                 }
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }
@@ -132,7 +149,7 @@ fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Option
             match Msmd::from_file(path) {
                 Ok(msmd) => {
                     // Get the embedded shaders from the map files.
-                    let output_folder = decompiled_output_folder(output, path);
+                    let output_folder = shader_output_folder(output, path);
                     std::fs::create_dir_all(&output_folder).unwrap();
                     println!("{output_folder:?}");
 
@@ -150,18 +167,18 @@ fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Option
             match Spch::from_file(path) {
                 Ok(spch) => {
                     // Get the embedded shaders from the map files.
-                    let output_folder = decompiled_output_folder(output, path);
+                    let output_folder = shader_output_folder(output, path);
                     std::fs::create_dir_all(&output_folder).unwrap();
                     println!("{output_folder:?}");
 
-                    extract_shader_binaries(&spch, &output_folder, shader_tools, false);
+                    extract_shaders(&spch, &output_folder, shader_tools, false);
                 }
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }
         });
 }
 
-fn decompiled_output_folder(output_folder: &str, path: &Path) -> std::path::PathBuf {
+fn shader_output_folder(output_folder: &str, path: &Path) -> std::path::PathBuf {
     // Use the name as a folder like "ch01011010.wismt" -> "ch01011010/".
     let name = path.with_extension("");
     let name = name.file_name().unwrap();
@@ -183,7 +200,7 @@ fn extract_and_decompile_msmd_shaders(
         let model_folder = output_folder.join("map").join(i.to_string());
         std::fs::create_dir_all(&model_folder).unwrap();
 
-        extract_shader_binaries(&data.spch, &model_folder, shader_tools, false);
+        extract_shaders(&data.spch, &model_folder, shader_tools, false);
     }
 
     for (i, model) in msmd.prop_models.iter().enumerate() {
@@ -192,7 +209,7 @@ fn extract_and_decompile_msmd_shaders(
         let model_folder = output_folder.join("prop").join(i.to_string());
         std::fs::create_dir_all(&model_folder).unwrap();
 
-        extract_shader_binaries(&data.spch, &model_folder, shader_tools, false);
+        extract_shaders(&data.spch, &model_folder, shader_tools, false);
     }
 
     for (i, model) in msmd.env_models.iter().enumerate() {
@@ -201,8 +218,39 @@ fn extract_and_decompile_msmd_shaders(
         let model_folder = output_folder.join("env").join(i.to_string());
         std::fs::create_dir_all(&model_folder).unwrap();
 
-        extract_shader_binaries(&data.spch, &model_folder, shader_tools, false);
+        extract_shaders(&data.spch, &model_folder, shader_tools, false);
     }
 
     // TODO: Foliage shaders?
+}
+
+pub fn extract_and_disassemble_shaders(input: &str, output: &str, gfd_tool: &str) {
+    globwalk::GlobWalkerBuilder::from_patterns(input, &["*.camdo"])
+        .build()
+        .unwrap()
+        .par_bridge()
+        .for_each(|entry| {
+            let path = entry.as_ref().unwrap().path();
+
+            // Assume that file names are unique even across different folders.
+            // This simplifies the output directory structure.
+            // TODO: Preserve the original folder structure instead?
+            let output_folder = shader_output_folder(output, path);
+            std::fs::create_dir_all(&output_folder).unwrap();
+
+            // Shaders are embedded in the camdo file.
+            match MxmdLegacy::from_file(path) {
+                Ok(mxmd) => {
+                    mxmd.shaders
+                        .shaders
+                        .iter()
+                        .enumerate()
+                        .for_each(|(i, shader)| match Mths::from_bytes(&shader.mths_data) {
+                            Ok(mths) => extract_legacy_shaders(&mths, &output_folder, gfd_tool, i),
+                            Err(e) => println!("Error extracting Mths from {path:?}: {e}"),
+                        });
+                }
+                Err(e) => println!("Error reading {path:?}: {e}"),
+            }
+        });
 }

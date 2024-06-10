@@ -6,10 +6,13 @@ use std::{
 use crate::annotation::{annotate_fragment, annotate_vertex};
 use log::error;
 use rayon::prelude::*;
-use xc3_lib::spch::{vertex_fragment_binaries, Nvsd, Spch};
+use xc3_lib::{
+    mths::Mths,
+    spch::{vertex_fragment_binaries, Nvsd, Spch},
+};
 
 // TODO: profile performance using a single thread and check threading with tracing?
-pub fn extract_shader_binaries<P: AsRef<Path>>(
+pub fn extract_shaders<P: AsRef<Path>>(
     spch: &Spch,
     output_folder: P,
     ryujinx_shader_tools: Option<&str>,
@@ -137,4 +140,40 @@ fn extract_shader(shader_tools: &str, binary_file: &Path) -> std::process::Child
         .stdout(std::process::Stdio::piped())
         .spawn()
         .unwrap()
+}
+
+pub fn extract_legacy_shaders<P: AsRef<Path>>(
+    mths: &Mths,
+    output_folder: P,
+    gfd_tool: &str,
+    index: usize,
+) {
+    let output_folder = output_folder.as_ref();
+
+    if let Some(vert) = mths.vertex_binary() {
+        let binary_path = output_folder.join(format!("{index}.vert.bin"));
+        dissassemble_shader(&binary_path, vert, gfd_tool);
+    }
+
+    if let Some(frag) = mths.fragment_binary() {
+        let binary_path = output_folder.join(format!("{index}.frag.bin"));
+        dissassemble_shader(&binary_path, frag, gfd_tool);
+    }
+}
+
+fn dissassemble_shader(binary_path: &Path, binary: &[u8], gfd_tool: &str) {
+    std::fs::write(&binary_path, binary).unwrap();
+
+    let output = std::process::Command::new(gfd_tool)
+        .arg("disassemble")
+        .arg(&binary_path)
+        .output()
+        .unwrap()
+        .stdout;
+    let text = String::from_utf8(output).unwrap();
+
+    std::fs::write(binary_path.with_extension("txt"), text).unwrap();
+
+    // TODO: add an option to preserve binaries?
+    std::fs::remove_file(binary_path).unwrap();
 }
