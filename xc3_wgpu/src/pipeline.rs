@@ -201,7 +201,7 @@ fn cull_mode(mode: CullMode) -> Option<wgpu::Face> {
 fn blend_state(state: BlendMode) -> Option<wgpu::BlendState> {
     match state {
         BlendMode::Disabled => None,
-        BlendMode::AlphaBlend => Some(wgpu::BlendState {
+        BlendMode::Blend => Some(wgpu::BlendState {
             color: wgpu::BlendComponent {
                 src_factor: wgpu::BlendFactor::SrcAlpha,
                 dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
@@ -213,7 +213,7 @@ fn blend_state(state: BlendMode) -> Option<wgpu::BlendState> {
                 operation: wgpu::BlendOperation::Add,
             },
         }),
-        BlendMode::Additive => Some(wgpu::BlendState {
+        BlendMode::Unk2 => Some(wgpu::BlendState {
             color: wgpu::BlendComponent {
                 src_factor: wgpu::BlendFactor::SrcAlpha,
                 dst_factor: wgpu::BlendFactor::One,
@@ -225,7 +225,7 @@ fn blend_state(state: BlendMode) -> Option<wgpu::BlendState> {
                 operation: wgpu::BlendOperation::Add,
             },
         }),
-        BlendMode::Multiplicative => Some(wgpu::BlendState {
+        BlendMode::Multiply => Some(wgpu::BlendState {
             color: wgpu::BlendComponent {
                 src_factor: wgpu::BlendFactor::Zero,
                 dst_factor: wgpu::BlendFactor::Src,
@@ -237,7 +237,30 @@ fn blend_state(state: BlendMode) -> Option<wgpu::BlendState> {
                 operation: wgpu::BlendOperation::Add,
             },
         }),
-        // TODO: How to handle unk5?
-        BlendMode::Unk5 | BlendMode::Unk6 => None,
+        BlendMode::MultiplyInverted => Some(wgpu::BlendState {
+            color: wgpu::BlendComponent {
+                src_factor: wgpu::BlendFactor::OneMinusDst,
+                dst_factor: wgpu::BlendFactor::Zero,
+                operation: wgpu::BlendOperation::Add,
+            },
+            alpha: wgpu::BlendComponent {
+                src_factor: wgpu::BlendFactor::OneMinusDst,
+                dst_factor: wgpu::BlendFactor::Zero,
+                operation: wgpu::BlendOperation::Add,
+            },
+        }),
+        BlendMode::Add => Some(wgpu::BlendState {
+            color: wgpu::BlendComponent {
+                src_factor: wgpu::BlendFactor::One,
+                dst_factor: wgpu::BlendFactor::One,
+                operation: wgpu::BlendOperation::Add,
+            },
+            alpha: wgpu::BlendComponent {
+                src_factor: wgpu::BlendFactor::One,
+                dst_factor: wgpu::BlendFactor::One,
+                operation: wgpu::BlendOperation::Add,
+            },
+        }),
+        BlendMode::Disabled2 => None,
     }
 }

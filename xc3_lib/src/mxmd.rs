@@ -486,25 +486,26 @@ pub struct StateFlags {
     pub color_write_mode: u8, // 0, 1, 10, 11
 }
 
-// TODO: Convert these to equations for RGB and alpha for docs.
-// TODO: Is it worth documenting this outside of xc3_wgpu?
-// flag, col src, col dst, col op, alpha src, alpha dst, alpha op
-// 0 = disabled
-// 1, Src Alpha, 1 - Src Alpha, Add, Src Alpha, 1 - Src Alpha, Add
-// 2, Src Alpha, One, Add, Src Alpha, One, Add
-// 3, Zero, Src Col, Add, Zero, Src Col, Add
-// 4, xenoblade x only???
-// 6, disabled + ???
+/// | Value | Col Src | Col Dst | Col Op | Alpha Src | Alpha Dst | Alpha Op |
+/// | --- | --- | --- | --- | --- | --- | --- |
+/// | 0 |  |  |  |  |  |  |
+/// | 1 | Src Alpha | 1 - Src Alpha | Add | Src Alpha | 1 - Src Alpha | Add |
+/// | 2 | Src Alpha | One | Add | Src Alpha | One | Add |
+/// | 3 | Zero | Src Col | Add | Zero | Src Col | Add |
+/// | 4 | 1 - Dst Col | Zero | Add | 1 - Dst Col | Zero | Add |
+/// | 5 | One | One | Add | One | One | Add |
+/// | 6 |  |  |  |  |  |  |
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
 #[brw(repr(u8))]
 pub enum BlendMode {
     Disabled = 0,
-    AlphaBlend = 1,
-    Additive = 2,
-    Multiplicative = 3,
-    Unk5 = 5, // TODO: test in RenderDoc for xc2
-    Unk6 = 6, // also disabled?
+    Blend = 1,
+    Unk2 = 2,
+    Multiply = 3,
+    MultiplyInverted = 4,
+    Add = 5,
+    Disabled2 = 6,
 }
 
 // TODO: manually test stencil values in renderdoc.
