@@ -111,14 +111,14 @@ pub struct Bone {
     pub name: String,
     /// The index in [bones](struct.Models.html#structfield.bones) of the parent bone.
     pub parent_index: i32,
-    pub child_start_end: i32,
-    pub child_end_index: i32,
-    pub unk3: i32,
+    pub descendants_start_index: i32,
+    pub descendants_end_index: i32,
+    pub unk3: i32, // TODO: bone index?
     pub translation: [f32; 3],
     /// XYZ rotation in radians.
     pub rotation_euler: [f32; 3],
     pub scale: [f32; 3],
-    pub unk4: [[f32; 4]; 4],
+    pub inverse_bind_transform: [[f32; 4]; 4],
     pub transform: [[f32; 4]; 4],
 }
 

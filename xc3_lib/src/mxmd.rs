@@ -364,7 +364,7 @@ pub struct Material {
 
     pub flags: MaterialFlags,
 
-    pub render_flags: u32,
+    pub render_flags: MaterialRenderFlags,
 
     /// Color multiplier value assigned to the `gMatCol` shader uniform.
     pub color: [f32; 4],
@@ -436,6 +436,40 @@ pub struct MaterialFlags {
     pub unk9: bool,
     pub fur: bool, // TODO: fur shading temp tex for xc2?
     pub unk: u22,
+}
+
+#[bitsize(32)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(DebugBits, FromBits, BinRead, BinWrite, PartialEq, Clone, Copy)]
+#[br(map = u32::into)]
+#[bw(map = |&x| u32::from(x))]
+pub struct MaterialRenderFlags {
+    pub unk1: bool,
+    pub unk2: bool,
+    pub unk3: bool,
+    pub unk4: bool,
+    pub unk5: bool,
+    pub unk6: bool,
+    /// Render in a depth only z-prepass.
+    /// Used exlusively for speff_zpre materials for Xenoblade 3.
+    pub speff_zpre: bool,
+    pub unk8: bool,
+    pub unk9: bool,
+    pub unk10: bool, // TODO: fur shading temp tex for xc2?
+    pub unk11: bool,
+    pub unk12: bool,
+    pub unk13: bool,
+    pub unk14: bool,
+    pub unk15: bool,
+    pub unk16: bool,
+    pub unk17: bool,
+    pub unk18: bool,
+    pub unk19: bool,
+    pub unk20: bool,
+    /// Used exclusively for speff_ope materials for Xenoblade 3.
+    // TODO: what does this toggle?
+    pub speff_ope: bool,
+    pub unk: u11,
 }
 
 /// Flags controlling pipeline state for rasterizer and fragment state.
@@ -557,7 +591,7 @@ pub enum RenderPassType {
     Unk0 = 0, // main opaque + some transparent?
     Unk1 = 1, // second layer transparent?
     Unk6 = 6, // used for maps?
-    Unk7 = 7, // additional eye effect layer?
+    Unk7 = 7, // additional eye effect layer and lanz scar?
     Unk9 = 9, // used for maps?
 }
 
@@ -1759,7 +1793,8 @@ xc3_write_binwrite_impl!(
     TextureUsage,
     ExtMeshFlags,
     MeshRenderFlags2,
-    MaterialFlags
+    MaterialFlags,
+    MaterialRenderFlags
 );
 
 impl<'a> Xc3WriteOffsets for SkinningOffsets<'a> {
