@@ -34,8 +34,9 @@ pub struct MxmdLegacy {
     #[xc3(offset(u32))]
     pub vertex: VertexData,
 
-    // TODO: shader data
-    pub mths: u32,
+    #[br(parse_with = parse_ptr32)]
+    #[xc3(offset(u32))]
+    pub shaders: Shaders,
 
     #[br(parse_with = parse_opt_ptr32)]
     #[xc3(offset(u32))]
@@ -558,6 +559,38 @@ pub struct PackedExternalTexture {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub name: String,
+}
+
+#[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, Xc3Write, PartialEq, Clone)]
+#[br(stream = r)]
+#[xc3(base_offset)]
+pub struct Shaders {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = parse_offset32_count32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset_count(u32, u32))]
+    pub shaders: Vec<Shader>,
+
+    pub unk2: u32,
+
+    // TODO: padding?
+    pub unks: [u32; 5],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct Shader {
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub mths_data: Vec<u8>,
+
+    // TODO: padding?
+    pub unks: [u32; 2],
 }
 
 xc3_write_binwrite_impl!(TextureUsage, UnkPassType);

@@ -63,11 +63,12 @@ Running `cargo build` without the `--release` will result in faster compile time
 ## Credits
 This project is based on previous reverse engineering work, including work done for Xenoblade X and Xenoblade 2.
 Special thanks go to members of the World Tree Research discord (formerly the World of Alrest discord) for their assistance.
-* [Xenoblade Data Hub](https://xenobladedata.github.io/)
 * [xc2f wiki](https://github.com/atnavon/xc2f/wiki)
 * [Xenoblade-Switch-Model-Importer-Noesis](https://github.com/Turk645/Xenoblade-Switch-Model-Importer-Noesis)
 * [fmt_xc3](https://github.com/Joschuka/fmt_xc3)
 * [XbTool](https://github.com/AlexCSDev/XbTool)
-* [XenoLib](https://github.com/PredatorCZ/XenoLib)
 * [SimpleDimple](https://github.com/modeco80/SimpleDimple)
 * [xc3_data_sheet.py](https://gist.github.com/RoccoDev/935c43c98384115f56dd3af57667b030)
+* [XenoLib](https://github.com/PredatorCZ/XenoLib)
+* [HavokLib](https://github.com/PredatorCZ/HavokLib)
+* [Xenoblade Data Hub](https://xenobladedata.github.io/)

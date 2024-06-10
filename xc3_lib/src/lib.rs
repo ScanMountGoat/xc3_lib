@@ -61,6 +61,7 @@ pub mod efb0;
 pub mod error;
 pub mod eva;
 pub mod hash;
+pub mod hkt;
 pub mod idcm;
 pub mod lagp;
 pub mod laps;
@@ -69,6 +70,7 @@ pub mod map;
 pub mod mibl;
 pub mod msmd;
 pub mod msrd;
+pub mod mths;
 pub mod mtxt;
 pub mod mxmd;
 pub mod sar1;
@@ -543,7 +545,14 @@ file_read_impl!(
     wipac::Wipac
 );
 
-file_read_impl!(Endian::Big, mtxt::Mtxt, mxmd::legacy::MxmdLegacy, bmn::Bmn);
+file_read_impl!(
+    Endian::Big,
+    mtxt::Mtxt,
+    mxmd::legacy::MxmdLegacy,
+    bmn::Bmn,
+    hkt::Hkt,
+    mths::Mths
+);
 
 macro_rules! xc3_write_binwrite_impl {
     ($($ty:ty),*) => {
