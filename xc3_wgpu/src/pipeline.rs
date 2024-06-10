@@ -200,7 +200,6 @@ fn cull_mode(mode: CullMode) -> Option<wgpu::Face> {
 
 fn blend_state(state: BlendMode) -> Option<wgpu::BlendState> {
     match state {
-        BlendMode::Disabled => None,
         BlendMode::Blend => Some(wgpu::BlendState {
             color: wgpu::BlendComponent {
                 src_factor: wgpu::BlendFactor::SrcAlpha,
@@ -261,6 +260,7 @@ fn blend_state(state: BlendMode) -> Option<wgpu::BlendState> {
                 operation: wgpu::BlendOperation::Add,
             },
         }),
-        BlendMode::Disabled2 => None,
+        // Values not in range [1,5] disable blending in setupMrtAlphaBlend in xc3 binary.
+        _ => None,
     }
 }
