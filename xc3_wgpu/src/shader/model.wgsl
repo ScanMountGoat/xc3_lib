@@ -227,13 +227,8 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance: InstanceInput, 
     // Some shaders have gTexA, gTexB, gTexC for up to 5 scaled versions of tex0.
     // This is handled in the fragment shader, so just return a single attribute.
     out.tex0 = in1.tex0.xy;
+    out.vertex_color = in1.vertex_color;
 
-    // TODO: Find a better way to only force vertex color for outlines.
-    if outline {
-        out.vertex_color = in1.vertex_color;
-    } else {
-        out.vertex_color = vec4(1.0);
-    }
     // Transform any direction vectors by the instance transform.
     // TODO: This assumes no scaling?
     out.normal = (model_matrix * vec4(normal_xyz, 0.0)).xyz;
@@ -429,12 +424,14 @@ fn fs_alpha(in: VertexOutput) -> @location(0) vec4<f32> {
     // TODO: alpha?
     // TODO: How much shading is done in this pass?
     // TODO: Is it ok to always apply gMatCol like this?
-    return g_color * per_material.mat_color * in.vertex_color;
+    // TODO: Detect multiply by vertex color?
+    return g_color * per_material.mat_color * vec4(1.0, 1.0, 1.0, in.vertex_color.w);
 }
 
 // TODO: Separate entry for depth prepass.
 // TODO: depth func needs to be changed if using prepass?
 
+// TODO: Share code with alpha pass?
 @fragment
 fn fs_main(in: VertexOutput) -> FragmentOutput {
     let tangent = normalize(in.tangent);
@@ -512,7 +509,8 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     // TODO: How much shading is done in this pass?
     // TODO: Is it ok to always apply gMatCol like this?
     var out: FragmentOutput;
-    out.g_color = g_color * per_material.mat_color * in.vertex_color;
+    // TODO: Detect multiply by vertex color?
+    out.g_color = g_color * per_material.mat_color * vec4(1.0, 1.0, 1.0, in.vertex_color.w);
     out.g_etc_buffer = mrt_etc_buffer(g_etc_buffer, view_normal);
     out.g_normal = mrt_normal(view_normal, g_normal.z);
     out.g_velocity = g_velocity;

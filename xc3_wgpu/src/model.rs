@@ -162,6 +162,7 @@ struct Bounds {
 struct VertexBuffer {
     vertex_buffer0: wgpu::Buffer,
     vertex_buffer1: wgpu::Buffer,
+    outline_vertex_buffer1: wgpu::Buffer,
     vertex_count: u32,
     morph_buffers: Option<MorphBuffers>,
 }
@@ -240,6 +241,9 @@ impl ModelGroup {
                 for mesh in &model.meshes {
                     let material = &models.materials[mesh.material_index];
 
+                    // TODO: Is there a flag that controls this?
+                    let is_outline = material.name.contains("outline");
+
                     // TODO: Group these into passes with separate shaders for each pass?
                     // TODO: The main pass is shared with outline, ope, and zpre?
                     // TODO: How to handle transparency?
@@ -263,7 +267,7 @@ impl ModelGroup {
 
                         material.bind_group2.set(render_pass);
 
-                        self.draw_mesh(model, mesh, render_pass);
+                        self.draw_mesh(model, mesh, render_pass, is_outline);
                     }
                 }
             }
@@ -294,6 +298,7 @@ impl ModelGroup {
         model: &'a Model,
         mesh: &Mesh,
         render_pass: &mut wgpu::RenderPass<'a>,
+        is_outline: bool,
     ) {
         let vertex_buffers =
             &self.buffers[model.model_buffers_index].vertex_buffers[mesh.vertex_buffer_index];
@@ -304,7 +309,12 @@ impl ModelGroup {
             render_pass.set_vertex_buffer(0, vertex_buffers.vertex_buffer0.slice(..));
         }
 
-        render_pass.set_vertex_buffer(1, vertex_buffers.vertex_buffer1.slice(..));
+        if is_outline {
+            render_pass.set_vertex_buffer(1, vertex_buffers.outline_vertex_buffer1.slice(..));
+        } else {
+            render_pass.set_vertex_buffer(1, vertex_buffers.vertex_buffer1.slice(..));
+        }
+
         render_pass.set_vertex_buffer(2, model.instance_buffer.slice(..));
 
         // TODO: Are all indices u16?
@@ -696,7 +706,8 @@ fn model_vertex_buffers(
     buffers
         .vertex_buffers
         .iter()
-        .map(|buffer| {
+        .enumerate()
+        .map(|(i, buffer)| {
             // Convert the attributes back to an interleaved representation for rendering.
             // Unused attributes will use a default value.
             // Using a single vertex representation reduces shader permutations.
@@ -719,12 +730,17 @@ fn model_vertex_buffers(
                 vertex_count
             ];
 
-            set_attributes(
-                &mut buffer0_vertices,
-                &mut buffer1_vertices,
-                buffer,
-                &buffers.outline_buffers,
-            );
+            set_attributes(&mut buffer0_vertices, &mut buffer1_vertices, buffer);
+
+            // Avoid overwriting the existing attributes.
+            // TODO: Do outline buffers only affect buffer1 attributes?
+            let mut outline_buffer1_vertices = buffer1_vertices.clone();
+            if let Some(outline_buffer) = buffer
+                .outline_buffer_index
+                .and_then(|i| buffers.outline_buffers.get(i))
+            {
+                set_buffer1_attributes(&mut outline_buffer1_vertices, &outline_buffer.attributes);
+            }
 
             let vertex_buffer0 = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("vertex buffer 0"),
@@ -740,6 +756,13 @@ fn model_vertex_buffers(
                 usage: wgpu::BufferUsages::VERTEX,
             });
 
+            let outline_vertex_buffer1 =
+                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("outline vertex buffer 1"),
+                    contents: bytemuck::cast_slice(&outline_buffer1_vertices),
+                    usage: wgpu::BufferUsages::VERTEX,
+                });
+
             // TODO: morph targets?
             let morph_buffers = if !buffer.morph_targets.is_empty() {
                 Some(morph_buffers(device, buffer0_vertices, buffer))
@@ -750,6 +773,7 @@ fn model_vertex_buffers(
             VertexBuffer {
                 vertex_buffer0,
                 vertex_buffer1,
+                outline_vertex_buffer1,
                 morph_buffers,
                 vertex_count: vertex_count as u32,
             }
@@ -832,19 +856,10 @@ fn set_attributes(
     buffer0_vertices: &mut [shader::model::VertexInput0],
     buffer1_vertices: &mut [shader::model::VertexInput1],
     buffer: &xc3_model::vertex::VertexBuffer,
-    outline_buffers: &[xc3_model::vertex::OutlineBuffer],
 ) {
     set_buffer0_attributes(buffer0_vertices, &buffer.attributes);
     set_buffer0_attributes(buffer0_vertices, &buffer.morph_blend_target);
     set_buffer1_attributes(buffer1_vertices, &buffer.attributes);
-
-    if let Some(outline_buffer) = buffer
-        .outline_buffer_index
-        .and_then(|i| outline_buffers.get(i))
-    {
-        // TODO: Should outline attributes not override existing attributes?
-        set_buffer1_attributes(buffer1_vertices, &outline_buffer.attributes)
-    }
 }
 
 fn set_buffer0_attributes(verts: &mut [shader::model::VertexInput0], attributes: &[AttributeData]) {
