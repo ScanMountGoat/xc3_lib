@@ -40,12 +40,16 @@ pub struct Hkt {
     pub unk6: String,
     pub unk7: [u32; 8],
 
-    pub unk8: [u32; 88],
+    #[br(count = unk3[2])]
+    pub unk8_1: Vec<u8>,
+
+    pub unk8_2: [u32; 52],
 
     // TODO: counts?
     pub count: u32,
     pub unk9_2: [u32; 19],
 
+    // TODO: offset 640 or 672?
     // TODO: root bone name?
     #[br(map(|x: NullString| x.to_string()))]
     #[br(pad_size_to = 16)]
@@ -53,11 +57,11 @@ pub struct Hkt {
 
     // Parent indices?
     #[br(count = count)]
-    #[br(align_after = 8)]
+    #[br(align_after = 16)]
     pub parent_indices: Vec<i16>,
 
     // TODO: padding until names?
-    #[br(count = count + 1)]
+    #[br(count = count)]
     pub unk11: Vec<u64>,
 
     // // TODO: root name is included in name list?
