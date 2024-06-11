@@ -706,8 +706,7 @@ fn model_vertex_buffers(
     buffers
         .vertex_buffers
         .iter()
-        .enumerate()
-        .map(|(i, buffer)| {
+        .map(|buffer| {
             // Convert the attributes back to an interleaved representation for rendering.
             // Unused attributes will use a default value.
             // Using a single vertex representation reduces shader permutations.
@@ -805,10 +804,15 @@ fn morph_buffers(
             let mut position_deltas = vec![Vec4::ZERO; vertex_count];
             let mut normal_deltas = vec![Vec4::ZERO; vertex_count];
             let mut tangent_deltas = vec![Vec4::ZERO; vertex_count];
+
             for (i, vertex_index) in target.vertex_indices.iter().enumerate() {
-                position_deltas[*vertex_index as usize] = target.position_deltas[i].extend(0.0);
-                normal_deltas[*vertex_index as usize] = target.normals[i];
-                tangent_deltas[*vertex_index as usize] = target.tangents[i];
+                let vertex_index = *vertex_index as usize;
+
+                position_deltas[vertex_index] = target.position_deltas[i].extend(0.0);
+                normal_deltas[vertex_index] =
+                    target.normals[i] - buffer0_vertices[vertex_index].normal;
+                tangent_deltas[vertex_index] =
+                    target.tangents[i] - buffer0_vertices[vertex_index].tangent;
             }
 
             position_deltas
