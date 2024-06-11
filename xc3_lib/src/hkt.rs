@@ -43,7 +43,7 @@ pub struct Hkt {
     pub unk8: [u32; 88],
 
     // TODO: counts?
-    pub unk9_1: u32,
+    pub count: u32,
     pub unk9_2: [u32; 19],
 
     // TODO: root bone name?
@@ -52,19 +52,39 @@ pub struct Hkt {
     pub unk10: String,
 
     // Parent indices?
-    #[br(count = unk9_1)]
+    #[br(count = count)]
     #[br(align_after = 8)]
-    pub indices: Vec<i16>,
+    pub parent_indices: Vec<i16>,
 
     // TODO: padding until names?
-    #[br(count = unk9_1 + 1)]
+    #[br(count = count + 1)]
     pub unk11: Vec<u64>,
 
-    // TODO: root bone name?
-    #[br(map(|x: NullString| x.to_string()))]
-    #[br(pad_size_to = 16)]
-    pub unk12: String,
-    // TODO: count for 16 byte names?
+    // // TODO: root name is included in name list?
+    // #[br(map(|x: NullString| x.to_string()))]
+    // #[br(pad_size_to = 24)]
+    // pub root_name: String,
+    #[br(count = count)]
+    pub names: Vec<BoneName>,
 
-    // TODO: mat3x4 or 3 vec4 for bone transforms?
+    // pub unk14: [u32; 4],
+    #[br(count = count)]
+    pub transforms: Vec<Transform>,
+    // TODO: more integer values?
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct Transform {
+    pub translation: [f32; 4],
+    pub rotation_quaternion: [f32; 4],
+    pub scale: [f32; 4],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct BoneName {
+    #[br(map(|x: NullString| x.to_string()))]
+    #[br(align_after = 16)]
+    pub name: String,
 }

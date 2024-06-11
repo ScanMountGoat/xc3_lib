@@ -209,7 +209,12 @@ impl SkinWeights {
         let index_remap: Vec<_> = self
             .bone_names
             .iter()
-            .map(|name| bone_names.iter().position(|n| n == name).unwrap() as u8)
+            .map(|name| {
+                bone_names
+                    .iter()
+                    .position(|n| n == name)
+                    .unwrap_or_default() as u8
+            })
             .collect();
 
         let bone_indices = self

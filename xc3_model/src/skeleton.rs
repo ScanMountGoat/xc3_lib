@@ -1,5 +1,6 @@
 use glam::{vec3, Mat4, Quat};
 use log::warn;
+use xc3_lib::hkt::Hkt;
 
 #[cfg(feature = "arbitrary")]
 use crate::arbitrary_mat4;
@@ -29,7 +30,7 @@ pub struct Bone {
 
 impl Skeleton {
     // TODO: Test this?
-    pub fn from_skel(
+    pub fn from_skeleton(
         skeleton: &xc3_lib::bc::skel::Skeleton,
         skinning: &xc3_lib::mxmd::Skinning,
     ) -> Self {
@@ -109,6 +110,33 @@ impl Skeleton {
         }
 
         Self { bones }
+    }
+
+    // TODO: Test this?
+    pub fn from_legacy_skeleton(hkt: &Hkt) -> Self {
+        Self {
+            bones: hkt
+                .names
+                .iter()
+                .zip(hkt.parent_indices.iter())
+                .zip(hkt.transforms.iter())
+                .map(|((name, parent_index), transform)| Bone {
+                    name: name.name.clone(),
+                    transform: Mat4::from_translation(
+                        [
+                            transform.translation[0],
+                            transform.translation[1],
+                            transform.translation[2],
+                        ]
+                        .into(),
+                    ) * Mat4::from_quat(Quat::from_array(transform.rotation_quaternion))
+                        * Mat4::from_scale(
+                            [transform.scale[0], transform.scale[1], transform.scale[2]].into(),
+                        ),
+                    parent_index: (*parent_index).try_into().ok(),
+                })
+                .collect(),
+        }
     }
 
     /// The global transform for each bone in model space

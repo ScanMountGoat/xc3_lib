@@ -47,6 +47,7 @@ use xc3_lib::{
     apmd::Apmd,
     bc::Bc,
     error::DecompressStreamError,
+    hkt::Hkt,
     mibl::Mibl,
     msrd::{
         streaming::{chr_tex_nx_folder, ExtractedTexture},
@@ -583,7 +584,18 @@ pub fn load_model_legacy<P: AsRef<Path>>(camdo_path: P) -> Result<ModelRoot, Loa
         .streaming
         .as_ref()
         .map(|_| std::fs::read(camdo_path.with_extension("casmt")).unwrap());
-    ModelRoot::from_mxmd_model_legacy(&mxmd, casmt)
+
+    let file_name = camdo_path
+        .file_stem()
+        .unwrap()
+        .to_string_lossy()
+        .to_string();
+    let hkt_path = camdo_path
+        .with_file_name(file_name + "_rig")
+        .with_extension("hkt");
+    let hkt = Hkt::from_file(hkt_path).ok();
+
+    ModelRoot::from_mxmd_model_legacy(&mxmd, casmt, hkt.as_ref())
 }
 
 impl ModelRoot {
@@ -624,8 +636,9 @@ impl ModelRoot {
     pub fn from_mxmd_model_legacy(
         mxmd: &MxmdLegacy,
         casmt: Option<Vec<u8>>,
+        hkt: Option<&Hkt>,
     ) -> Result<Self, LoadModelError> {
-        let skeleton = load_skeleton_legacy(mxmd);
+        let skeleton = hkt.map(Skeleton::from_legacy_skeleton);
 
         let buffers = ModelBuffers::from_vertex_data_legacy(&mxmd.vertex, &mxmd.models)
             .map_err(LoadModelError::VertexData)?;
@@ -638,7 +651,7 @@ impl ModelRoot {
             models,
             buffers,
             image_textures,
-            skeleton: Some(skeleton),
+            skeleton,
         })
     }
 
@@ -656,21 +669,6 @@ impl ModelRoot {
     /// to recreate the originals used to initialize this model as closely as possible.
     pub fn to_mxmd_model(&self, mxmd: &Mxmd, msrd: &Msrd) -> (Mxmd, Msrd) {
         create_mxmd_model(self, mxmd, msrd)
-    }
-}
-
-fn load_skeleton_legacy(mxmd: &MxmdLegacy) -> Skeleton {
-    Skeleton {
-        bones: mxmd
-            .models
-            .bones
-            .iter()
-            .map(|b| Bone {
-                name: b.name.clone(),
-                transform: Mat4::from_cols_array_2d(&b.transform),
-                parent_index: b.parent_index.try_into().ok(),
-            })
-            .collect(),
     }
 }
 
@@ -892,7 +890,7 @@ fn create_skeleton(
             _ => None,
         })?;
 
-    Some(Skeleton::from_skel(&skel.skeleton, skinning?))
+    Some(Skeleton::from_skeleton(&skel.skeleton, skinning?))
 }
 
 // TODO: Move this to xc3_shader?
