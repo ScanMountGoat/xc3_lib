@@ -431,7 +431,7 @@ fn assign_morph_targets(
                     .map(|(target, param_index)| {
                         // Apply remaining targets onto the base target values.
                         // TODO: Lots of morph targets use the exact same bytes?
-                        read_morph_target(target, vertex_data, *param_index)
+                        read_morph_target(target, &vertex_data.buffer, *param_index)
                     })
                     .collect::<BinResult<Vec<_>>>()?;
             }
@@ -443,10 +443,10 @@ fn assign_morph_targets(
 
 fn read_morph_target(
     target: &xc3_lib::vertex::MorphTarget,
-    vertex_data: &VertexData,
+    buffer: &[u8],
     param_index: u16,
 ) -> BinResult<MorphTarget> {
-    let vertices = read_morph_buffer_target(target, &vertex_data.buffer)?;
+    let vertices = read_morph_buffer_target(target, buffer)?;
 
     let mut position_deltas = Vec::new();
     let mut normals = Vec::new();
@@ -1432,18 +1432,29 @@ fn write_morph_param_target(
         write_u32,
     )?;
 
+    // TODO: is there a better way of handling the remapping?
+    let normals: Vec<_> = morph_target
+        .normals
+        .iter()
+        .map(|v| *v * 0.5 + 0.5)
+        .collect();
     write_data(
         writer,
-        &morph_target.normals,
+        &normals,
         offset + 16,
         32,
         Endian::Little,
         write_unorm8x4,
     )?;
 
+    let tangents: Vec<_> = morph_target
+        .tangents
+        .iter()
+        .map(|v| *v * 0.5 + 0.5)
+        .collect();
     write_data(
         writer,
-        &morph_target.tangents,
+        &tangents,
         offset + 20,
         32,
         Endian::Little,
@@ -2321,6 +2332,7 @@ mod tests {
             ],
             read_morph_buffer_target(&target, &data).unwrap()
         );
+        // TODO: Test write.
     }
 
     #[test]
@@ -2350,23 +2362,32 @@ mod tests {
             flags: xc3_lib::vertex::MorphTargetFlags::new(0u16, false, false, true, 0u8.into()),
         };
 
+        let actual_target = read_morph_target(&target, &data, 0).unwrap();
         assert_eq!(
-            vec![
-                MorphTargetVertex {
-                    position_delta: vec3(-0.0025982223, -0.005033493, 0.00014753453),
-                    normal: vec4(0.9372549, -0.12156862, 0.3176471, -1.0),
-                    tangent: vec4(-0.16862744, 0.654902, 0.73333335, 1.0),
-                    vertex_index: 216
-                },
-                MorphTargetVertex {
-                    position_delta: vec3(-0.0016574785, -0.003010869, -9.961426e-6),
-                    normal: vec4(0.92941177, -0.12941176, 0.32549024, -1.0),
-                    tangent: vec4(0.12941182, 0.9843137, 0.027451038, 1.0),
-                    vertex_index: 217
-                }
-            ],
-            read_morph_buffer_target(&target, &data).unwrap()
+            MorphTarget {
+                morph_controller_index: 0,
+                position_deltas: vec![
+                    vec3(-0.0025982223, -0.005033493, 0.00014753453),
+                    vec3(-0.0016574785, -0.003010869, -9.961426e-6)
+                ],
+                normals: vec![
+                    vec4(0.9372549, -0.12156862, 0.3176471, -1.0),
+                    vec4(0.92941177, -0.12941176, 0.32549024, -1.0)
+                ],
+                tangents: vec![
+                    vec4(-0.16862744, 0.654902, 0.73333335, 1.0),
+                    vec4(0.12941182, 0.9843137, 0.027451038, 1.0)
+                ],
+                vertex_indices: vec![216, 217]
+            },
+            actual_target
         );
+
+        // Test write.
+        let mut writer = Cursor::new(Vec::new());
+        let new_target = write_morph_param_target(&mut writer, &actual_target).unwrap();
+        assert_eq!(new_target, target);
+        assert_hex_eq!(data, writer.into_inner());
     }
 
     #[test]
