@@ -96,12 +96,30 @@ impl GltfFile {
         let mut scene_nodes = Vec::new();
         let mut skins = Vec::new();
 
+        // TODO: Create a node for each root like {model_name}.root{i}?
         for (root_index, root) in roots.iter().enumerate() {
+            let root_node_index = nodes.len() as u32;
+            nodes.push(gltf::json::Node {
+                camera: None,
+                children: Some(vec![gltf::json::Index::new(root_node_index + 1)]), // TODO: more accurate way to set this?
+                extensions: Default::default(),
+                extras: Default::default(),
+                matrix: None,
+                mesh: None,
+                name: Some(format!("{model_name}.{root_index}")),
+                rotation: None,
+                scale: None,
+                translation: None,
+                skin: None,
+                weights: None,
+            });
+            scene_nodes.push(gltf::json::Index::new(root_node_index));
+
             // TODO: Also include models skinning?
             let skin_index = create_skin(
                 root.skeleton.as_ref(),
                 &mut nodes,
-                &mut scene_nodes,
+                root_node_index,
                 &mut skins,
                 &mut buffers,
             );
@@ -117,10 +135,10 @@ impl GltfFile {
                 &mut buffers,
                 &mut meshes,
                 &mut nodes,
-                &mut scene_nodes,
                 &mut material_cache,
                 &mut texture_cache,
                 &root.image_textures,
+                model_name,
                 root_index,
                 0,
                 0,
@@ -211,21 +229,59 @@ impl GltfFile {
         let mut nodes = Vec::new();
         let mut scene_nodes = Vec::new();
 
+        // TODO: Create a node for each root like {model_name}.root{i}?
         for (root_index, root) in roots.iter().enumerate() {
+            let root_node_index = nodes.len() as u32;
+            nodes.push(gltf::json::Node {
+                camera: None,
+                children: None,
+                extensions: Default::default(),
+                extras: Default::default(),
+                matrix: None,
+                mesh: None,
+                name: Some(format!("{model_name}.{root_index}")),
+                rotation: None,
+                scale: None,
+                translation: None,
+                skin: None,
+                weights: None,
+            });
+            scene_nodes.push(gltf::json::Index::new(root_node_index));
+
+            let mut root_children = Vec::new();
             for (group_index, group) in root.groups.iter().enumerate() {
+                let group_node_index = nodes.len() as u32;
+                root_children.push(gltf::json::Index::new(group_node_index));
+
+                nodes.push(gltf::json::Node {
+                    camera: None,
+                    children: None,
+                    extensions: Default::default(),
+                    extras: Default::default(),
+                    matrix: None,
+                    mesh: None,
+                    name: Some(format!("{model_name}.{root_index}.{group_index}")),
+                    rotation: None,
+                    scale: None,
+                    translation: None,
+                    skin: None,
+                    weights: None,
+                });
+
+                let mut group_children = Vec::new();
                 for (models_index, models) in group.models.iter().enumerate() {
                     material_cache.insert_samplers(models, root_index, group_index, models_index);
 
-                    add_models(
+                    let models_node_index = add_models(
                         models,
                         &group.buffers,
                         &mut buffers,
                         &mut meshes,
                         &mut nodes,
-                        &mut scene_nodes,
                         &mut material_cache,
                         &mut texture_cache,
                         &root.image_textures,
+                        model_name,
                         root_index,
                         group_index,
                         models_index,
@@ -233,8 +289,11 @@ impl GltfFile {
                         None,
                         flip_images_uvs,
                     )?;
+                    group_children.push(gltf::json::Index::new(models_node_index));
                 }
+                nodes[group_index as usize].children = Some(group_children);
             }
+            nodes[root_node_index as usize].children = Some(root_children);
         }
 
         // The textures assume the images are in ascending order by index.
@@ -326,19 +385,19 @@ fn add_models(
     buffers: &mut Buffers,
     meshes: &mut Vec<gltf_json::Mesh>,
     nodes: &mut Vec<gltf_json::Node>,
-    scene_nodes: &mut Vec<gltf_json::Index<gltf_json::Node>>,
     material_cache: &mut MaterialCache,
     texture_cache: &mut TextureCache,
     image_textures: &[crate::ImageTexture],
+    model_name: &str,
     root_index: usize,
     group_index: usize,
     models_index: usize,
     skin_index: Option<usize>,
     skeleton: Option<&crate::skeleton::Skeleton>,
     flip_uvs: bool,
-) -> Result<(), CreateGltfError> {
-    let mut group_children = Vec::new();
-    for model in &models.models {
+) -> Result<u32, CreateGltfError> {
+    let mut models_children = Vec::new();
+    for (model_index, model) in models.models.iter().enumerate() {
         let mut children = Vec::new();
 
         let model_buffers = &group_buffers[model.model_buffers_index];
@@ -485,7 +544,9 @@ fn add_models(
             extras: Default::default(),
             matrix: None,
             mesh: None,
-            name: None,
+            name: Some(format!(
+                "{model_name}.{root_index}.{group_index}.{models_index}.{model_index}"
+            )),
             rotation: None,
             scale: None,
             translation: None,
@@ -495,26 +556,27 @@ fn add_models(
         let model_node_index = nodes.len() as u32;
         nodes.push(model_node);
 
-        group_children.push(gltf::json::Index::new(model_node_index));
+        models_children.push(gltf::json::Index::new(model_node_index));
     }
-    let group_node_index = nodes.len() as u32;
-    let group_node = gltf::json::Node {
+    let models_node = gltf::json::Node {
         camera: None,
-        children: Some(group_children),
+        children: Some(models_children),
         extensions: Default::default(),
         extras: Default::default(),
         matrix: None,
         mesh: None,
-        name: None,
+        name: Some(format!(
+            "{model_name}.{root_index}.{group_index}.{models_index}"
+        )),
         rotation: None,
         scale: None,
         translation: None,
         skin: None,
         weights: None,
     };
-    nodes.push(group_node);
-    scene_nodes.push(gltf::json::Index::new(group_node_index));
-    Ok(())
+    let models_node_index = nodes.len() as u32;
+    nodes.push(models_node);
+    Ok(models_node_index)
 }
 
 fn morph_targets(
@@ -540,14 +602,14 @@ fn morph_targets(
 fn create_skin(
     skeleton: Option<&crate::skeleton::Skeleton>,
     nodes: &mut Vec<gltf::json::Node>,
-    scene_nodes: &mut Vec<gltf::json::Index<gltf::json::Node>>,
+    root_node_index: u32,
     skins: &mut Vec<gltf::json::Skin>,
     buffers: &mut Buffers,
 ) -> Option<usize> {
     skeleton.as_ref().map(|skeleton| {
         let bone_start_index = nodes.len() as u32;
         for (i, bone) in skeleton.bones.iter().enumerate() {
-            let children = find_children(skeleton, i);
+            let children = find_children(skeleton, i, bone_start_index);
 
             let joint_node = gltf::json::Node {
                 camera: None,
@@ -571,13 +633,7 @@ fn create_skin(
                 skin: None,
                 weights: None,
             };
-            let joint_node_index = nodes.len() as u32;
             nodes.push(joint_node);
-
-            // Joint root nodes must belong to the scene.
-            if bone.parent_index.is_none() {
-                scene_nodes.push(gltf::json::Index::new(joint_node_index));
-            }
         }
 
         // TODO: Add this to skeleton.rs?
@@ -607,7 +663,7 @@ fn create_skin(
                 .map(gltf::json::Index::new)
                 .collect(),
             name: None,
-            skeleton: None,
+            skeleton: Some(gltf::json::Index::new(root_node_index)),
         };
         let skin_index = skins.len();
         skins.push(skin);
@@ -618,6 +674,7 @@ fn create_skin(
 fn find_children(
     skeleton: &crate::skeleton::Skeleton,
     bone_index: usize,
+    base_index: u32,
 ) -> Vec<gltf::json::Index<gltf::json::Node>> {
     // TODO: is is worth optimizing this lookup?
     skeleton
@@ -626,7 +683,7 @@ fn find_children(
         .enumerate()
         .filter_map(|(child_index, b)| {
             if b.parent_index == Some(bone_index) {
-                Some(gltf::json::Index::new(child_index as u32))
+                Some(gltf::json::Index::new(child_index as u32 + base_index))
             } else {
                 None
             }
