@@ -593,7 +593,7 @@ fn check_wimdo(data: Wimdo, path: &Path, original_bytes: &[u8], check_read_write
                 match entry.read_data() {
                     Ok(data) => match data {
                         xc3_lib::apmd::EntryData::Mxmd(mxmd) => {
-                            check_mxmd(mxmd, path, &entry.entry_data, check_read_write)
+                            check_mxmd(*mxmd, path, &entry.entry_data, check_read_write)
                         }
                         xc3_lib::apmd::EntryData::Dmis => (),
                         xc3_lib::apmd::EntryData::Dlgt(_) => (),

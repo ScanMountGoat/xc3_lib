@@ -242,7 +242,7 @@ impl Models {
                 .collect(),
             materials: create_materials(materials, spch),
             samplers: create_samplers(materials),
-            lod_data: models.lod_data.as_ref().map(|data| lod_data(data)),
+            lod_data: models.lod_data.as_ref().map(lod_data),
             morph_controller_names: models
                 .morph_controllers
                 .as_ref()

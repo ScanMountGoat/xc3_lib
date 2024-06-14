@@ -903,7 +903,7 @@ where
     if vertex_size == 0 {
         return Err(binrw::Error::AssertFail {
             pos: offset,
-            message: format!("Attribute stride must not be 0"),
+            message: "Attribute stride must not be 0".to_string(),
         });
     }
 

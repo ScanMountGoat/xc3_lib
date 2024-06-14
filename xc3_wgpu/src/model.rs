@@ -62,6 +62,7 @@ pub struct Models {
     animation_morph_names: Vec<String>,
 }
 
+#[allow(clippy::too_many_arguments)]
 impl Models {
     fn from_models(
         device: &wgpu::Device,
@@ -521,6 +522,7 @@ fn load_textures(
 }
 
 // TODO: Make this a method?
+#[allow(clippy::too_many_arguments)]
 #[tracing::instrument(skip_all)]
 fn create_model_group(
     device: &wgpu::Device,

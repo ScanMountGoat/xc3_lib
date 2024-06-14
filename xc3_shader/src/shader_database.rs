@@ -127,7 +127,7 @@ fn apply_attribute_names(
                             )
                             .first()
                             {
-                                attribute.name = input_attribute.name.clone();
+                                attribute.name.clone_from(&input_attribute.name);
                             }
                         }
                     }
@@ -146,7 +146,7 @@ fn find_texcoord_input_name(
     // Assume only one texcoord attribute is used for all components.
     let c = texcoord.channels.chars().next()?;
     let output = format!("{vertex_output_name}.{c}");
-    let vertex_dependencies = line_dependencies(&vertex, &output)?;
+    let vertex_dependencies = line_dependencies(vertex, &output)?;
     attribute_dependencies(&vertex_dependencies, vertex_attributes, None)
         .first()
         .map(|a| a.name.clone())

@@ -291,7 +291,7 @@ impl GltfFile {
                     )?;
                     group_children.push(gltf::json::Index::new(models_node_index));
                 }
-                nodes[group_index as usize].children = Some(group_children);
+                nodes[group_index].children = Some(group_children);
             }
             nodes[root_node_index as usize].children = Some(root_children);
         }
@@ -379,6 +379,7 @@ impl GltfFile {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn add_models(
     models: &crate::Models,
     group_buffers: &[crate::vertex::ModelBuffers],

@@ -162,11 +162,11 @@ pub fn extract_legacy_shaders<P: AsRef<Path>>(
 }
 
 fn dissassemble_shader(binary_path: &Path, binary: &[u8], gfd_tool: &str) {
-    std::fs::write(&binary_path, binary).unwrap();
+    std::fs::write(binary_path, binary).unwrap();
 
     let output = std::process::Command::new(gfd_tool)
         .arg("disassemble")
-        .arg(&binary_path)
+        .arg(binary_path)
         .output()
         .unwrap()
         .stdout;

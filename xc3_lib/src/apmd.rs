@@ -50,7 +50,7 @@ pub enum EntryType {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug)]
 pub enum EntryData {
-    Mxmd(Mxmd),
+    Mxmd(Box<Mxmd>),
     Dmis,
     Dlgt(Dlgt),
     Gibl(Gibl),

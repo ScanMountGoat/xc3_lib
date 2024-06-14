@@ -40,6 +40,7 @@ const OUTPUT_DEFAULTS: [Vec4; 6] = [
     Vec4::ZERO,
 ];
 
+#[allow(clippy::too_many_arguments)]
 #[tracing::instrument(skip_all)]
 pub fn materials(
     device: &wgpu::Device,
