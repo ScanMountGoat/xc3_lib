@@ -74,84 +74,32 @@ pub struct GltfFile {
     pub png_images: Vec<(String, Vec<u8>)>,
 }
 
-impl GltfFile {
-    /// Convert the Xenoblade model `roots` to glTF data.
-    /// See [load_model](crate::load_model) or [load_map](crate::load_map) for loading files.
-    ///
-    /// The `model_name` is used to create resource file names and should
-    /// usually match the file name for [save](GltfFile::save) without the `.gltf` extension.
-    ///
-    /// `flip_image_uvs` should only be set to `true` for Xenoblade X models.
-    pub fn from_model(
+struct GltfData {
+    texture_cache: TextureCache,
+    material_cache: MaterialCache,
+    buffers: Buffers,
+    meshes: Vec<gltf::json::Mesh>,
+    nodes: Vec<gltf::json::Node>,
+    scene_nodes: Vec<gltf::json::Index<gltf::json::Node>>,
+    skins: Vec<gltf::json::Skin>,
+}
+
+impl GltfData {
+    fn add_node(&mut self, node: gltf::json::Node) -> u32 {
+        let index = self.nodes.len() as u32;
+        self.nodes.push(node);
+        index
+    }
+
+    fn into_gltf(
+        self,
         model_name: &str,
-        roots: &[ModelRoot],
         flip_images_uvs: bool,
-    ) -> Result<Self, CreateGltfError> {
-        let mut texture_cache = TextureCache::new(roots.iter().map(|r| &r.image_textures));
-        let mut material_cache = MaterialCache::default();
-        let mut buffers = Buffers::default();
-
-        let mut meshes = Vec::new();
-        let mut nodes = Vec::new();
-        let mut scene_nodes = Vec::new();
-        let mut skins = Vec::new();
-
-        // TODO: Create a node for each root like {model_name}.root{i}?
-        for (root_index, root) in roots.iter().enumerate() {
-            let root_node_index = nodes.len() as u32;
-            nodes.push(gltf::json::Node {
-                camera: None,
-                children: Some(vec![gltf::json::Index::new(root_node_index + 1)]), // TODO: more accurate way to set this?
-                extensions: Default::default(),
-                extras: Default::default(),
-                matrix: None,
-                mesh: None,
-                name: Some(format!("{model_name}.{root_index}")),
-                rotation: None,
-                scale: None,
-                translation: None,
-                skin: None,
-                weights: None,
-            });
-            scene_nodes.push(gltf::json::Index::new(root_node_index));
-
-            // TODO: Also include models skinning?
-            let skin_index = create_skin(
-                root.skeleton.as_ref(),
-                &mut nodes,
-                root_node_index,
-                &mut skins,
-                &mut buffers,
-            );
-
-            // TODO: Avoid clone?
-            let group_buffers = &[root.buffers.clone()];
-
-            material_cache.insert_samplers(&root.models, root_index, 0, 0);
-
-            add_models(
-                &root.models,
-                group_buffers,
-                &mut buffers,
-                &mut meshes,
-                &mut nodes,
-                &mut material_cache,
-                &mut texture_cache,
-                &root.image_textures,
-                model_name,
-                root_index,
-                0,
-                0,
-                skin_index,
-                root.skeleton.as_ref(),
-                flip_images_uvs,
-            )?;
-        }
-
+    ) -> Result<GltfFile, CreateGltfError> {
         // The textures assume the images are in ascending order by index.
         // The texture cache already preserves insertion order.
         let mut images = Vec::new();
-        for key in texture_cache.generated_texture_indices.keys() {
+        for key in self.texture_cache.generated_texture_indices.keys() {
             images.push(gltf::json::Image {
                 buffer_view: None,
                 mime_type: None,
@@ -165,48 +113,116 @@ impl GltfFile {
         let buffer_name = format!("{model_name}.buffer0.bin");
 
         let buffer = gltf::json::Buffer {
-            byte_length: buffers.buffer_bytes.len() as u32,
+            byte_length: self.buffers.buffer_bytes.len() as u32,
             extensions: Default::default(),
             extras: Default::default(),
             name: None,
             uri: Some(buffer_name.clone()),
         };
 
-        // TODO: proper sampler support for camdo?
-        if material_cache.samplers.is_empty() {
-            material_cache
-                .samplers
-                .push(gltf_json::texture::Sampler::default());
-        }
-
         let root = gltf::json::Root {
-            accessors: buffers.accessors,
+            accessors: self.buffers.accessors,
             buffers: vec![buffer],
-            buffer_views: buffers.buffer_views,
-            meshes,
-            nodes,
+            buffer_views: self.buffers.buffer_views,
+            meshes: self.meshes,
+            nodes: self.nodes,
             scenes: vec![gltf::json::Scene {
                 extensions: Default::default(),
                 extras: Default::default(),
                 name: None,
-                nodes: scene_nodes,
+                nodes: self.scene_nodes,
             }],
-            materials: material_cache.materials,
-            textures: material_cache.textures,
+            materials: self.material_cache.materials,
+            textures: self.material_cache.textures,
             images,
-            skins,
-            samplers: material_cache.samplers,
+            skins: self.skins,
+            samplers: self.material_cache.samplers,
             ..Default::default()
         };
 
-        let png_images = texture_cache.generate_png_images(model_name, flip_images_uvs);
+        let png_images = self
+            .texture_cache
+            .generate_png_images(model_name, flip_images_uvs);
 
-        Ok(Self {
+        Ok(GltfFile {
             root,
             buffer_name,
-            buffer: buffers.buffer_bytes,
+            buffer: self.buffers.buffer_bytes,
             png_images,
         })
+    }
+}
+
+impl GltfFile {
+    /// Convert the Xenoblade model `roots` to glTF data.
+    /// See [load_model](crate::load_model) or [load_map](crate::load_map) for loading files.
+    ///
+    /// The `model_name` is used to create resource file names and should
+    /// usually match the file name for [save](GltfFile::save) without the `.gltf` extension.
+    ///
+    /// `flip_image_uvs` should only be set to `true` for Xenoblade X models.
+    pub fn from_model(
+        model_name: &str,
+        roots: &[ModelRoot],
+        flip_images_uvs: bool,
+    ) -> Result<Self, CreateGltfError> {
+        let mut data = GltfData {
+            texture_cache: TextureCache::new(roots.iter().map(|r| &r.image_textures)),
+            material_cache: Default::default(),
+            buffers: Default::default(),
+            meshes: Default::default(),
+            nodes: Default::default(),
+            scene_nodes: Default::default(),
+            skins: Default::default(),
+        };
+
+        for (root_index, root) in roots.iter().enumerate() {
+            let root_node_index = data.add_node(gltf::json::Node {
+                children: Some(vec![gltf::json::Index::new(data.nodes.len() as u32 + 1)]), // TODO: more accurate way to set this?
+                name: Some(format!("{model_name}.{root_index}")),
+                ..default_node()
+            });
+            data.scene_nodes
+                .push(gltf::json::Index::new(root_node_index));
+
+            // TODO: Also include models skinning?
+            let skin_index = create_skin(
+                root.skeleton.as_ref(),
+                &mut data.nodes,
+                root_node_index,
+                &mut data.skins,
+                &mut data.buffers,
+            );
+
+            // TODO: Avoid clone?
+            let group_buffers = &[root.buffers.clone()];
+
+            data.material_cache
+                .insert_samplers(&root.models, root_index, 0, 0);
+
+            add_models(
+                &root.models,
+                group_buffers,
+                &mut data,
+                &root.image_textures,
+                model_name,
+                root_index,
+                0,
+                0,
+                skin_index,
+                root.skeleton.as_ref(),
+                flip_images_uvs,
+            )?;
+        }
+
+        // TODO: proper sampler support for camdo?
+        if data.material_cache.samplers.is_empty() {
+            data.material_cache
+                .samplers
+                .push(gltf_json::texture::Sampler::default());
+        }
+
+        data.into_gltf(model_name, flip_images_uvs)
     }
 
     /// Convert the Xenoblade map `roots` to glTF data.
@@ -221,65 +237,46 @@ impl GltfFile {
         roots: &[MapRoot],
         flip_images_uvs: bool,
     ) -> Result<Self, CreateGltfError> {
-        let mut texture_cache = TextureCache::new(roots.iter().map(|r| &r.image_textures));
-        let mut material_cache = MaterialCache::default();
-        let mut buffers = Buffers::default();
+        let mut data = GltfData {
+            texture_cache: TextureCache::new(roots.iter().map(|r| &r.image_textures)),
+            material_cache: Default::default(),
+            buffers: Default::default(),
+            meshes: Default::default(),
+            nodes: Default::default(),
+            scene_nodes: Default::default(),
+            skins: Default::default(),
+        };
 
-        let mut meshes = Vec::new();
-        let mut nodes = Vec::new();
-        let mut scene_nodes = Vec::new();
-
-        // TODO: Create a node for each root like {model_name}.root{i}?
         for (root_index, root) in roots.iter().enumerate() {
-            let root_node_index = nodes.len() as u32;
-            nodes.push(gltf::json::Node {
-                camera: None,
-                children: None,
-                extensions: Default::default(),
-                extras: Default::default(),
-                matrix: None,
-                mesh: None,
+            let root_node_index = data.add_node(gltf::json::Node {
                 name: Some(format!("{model_name}.{root_index}")),
-                rotation: None,
-                scale: None,
-                translation: None,
-                skin: None,
-                weights: None,
+                ..default_node()
             });
-            scene_nodes.push(gltf::json::Index::new(root_node_index));
+            data.scene_nodes
+                .push(gltf::json::Index::new(root_node_index));
 
             let mut root_children = Vec::new();
             for (group_index, group) in root.groups.iter().enumerate() {
-                let group_node_index = nodes.len() as u32;
-                root_children.push(gltf::json::Index::new(group_node_index));
-
-                nodes.push(gltf::json::Node {
-                    camera: None,
-                    children: None,
-                    extensions: Default::default(),
-                    extras: Default::default(),
-                    matrix: None,
-                    mesh: None,
+                let group_node_index = data.add_node(gltf::json::Node {
                     name: Some(format!("{model_name}.{root_index}.{group_index}")),
-                    rotation: None,
-                    scale: None,
-                    translation: None,
-                    skin: None,
-                    weights: None,
+                    ..default_node()
                 });
+
+                root_children.push(gltf::json::Index::new(group_node_index));
 
                 let mut group_children = Vec::new();
                 for (models_index, models) in group.models.iter().enumerate() {
-                    material_cache.insert_samplers(models, root_index, group_index, models_index);
+                    data.material_cache.insert_samplers(
+                        models,
+                        root_index,
+                        group_index,
+                        models_index,
+                    );
 
                     let models_node_index = add_models(
                         models,
                         &group.buffers,
-                        &mut buffers,
-                        &mut meshes,
-                        &mut nodes,
-                        &mut material_cache,
-                        &mut texture_cache,
+                        &mut data,
                         &root.image_textures,
                         model_name,
                         root_index,
@@ -291,62 +288,12 @@ impl GltfFile {
                     )?;
                     group_children.push(gltf::json::Index::new(models_node_index));
                 }
-                nodes[group_index].children = Some(group_children);
+                data.nodes[group_index].children = Some(group_children);
             }
-            nodes[root_node_index as usize].children = Some(root_children);
+            data.nodes[root_node_index as usize].children = Some(root_children);
         }
 
-        // The textures assume the images are in ascending order by index.
-        // The texture cache already preserves insertion order.
-        let mut images = Vec::new();
-        for key in texture_cache.generated_texture_indices.keys() {
-            images.push(gltf::json::Image {
-                buffer_view: None,
-                mime_type: None,
-                name: None,
-                uri: Some(image_name(key, model_name)),
-                extensions: None,
-                extras: Default::default(),
-            });
-        }
-
-        let buffer_name = format!("{model_name}.buffer0.bin");
-
-        let buffer = gltf::json::Buffer {
-            byte_length: buffers.buffer_bytes.len() as u32,
-            extensions: Default::default(),
-            extras: Default::default(),
-            name: None,
-            uri: Some(buffer_name.clone()),
-        };
-
-        let root = gltf::json::Root {
-            accessors: buffers.accessors,
-            buffers: vec![buffer],
-            buffer_views: buffers.buffer_views,
-            meshes,
-            nodes,
-            scenes: vec![gltf::json::Scene {
-                extensions: Default::default(),
-                extras: Default::default(),
-                name: None,
-                nodes: scene_nodes,
-            }],
-            materials: material_cache.materials,
-            textures: material_cache.textures,
-            images,
-            samplers: material_cache.samplers,
-            ..Default::default()
-        };
-
-        let png_images = texture_cache.generate_png_images(model_name, flip_images_uvs);
-
-        Ok(Self {
-            root,
-            buffer_name,
-            buffer: buffers.buffer_bytes,
-            png_images,
-        })
+        data.into_gltf(model_name, flip_images_uvs)
     }
 
     /// Save the glTF data to the specified `path` with images and buffers stored in the same directory.
@@ -383,11 +330,7 @@ impl GltfFile {
 fn add_models(
     models: &crate::Models,
     group_buffers: &[crate::vertex::ModelBuffers],
-    buffers: &mut Buffers,
-    meshes: &mut Vec<gltf_json::Mesh>,
-    nodes: &mut Vec<gltf_json::Node>,
-    material_cache: &mut MaterialCache,
-    texture_cache: &mut TextureCache,
+    data: &mut GltfData,
     image_textures: &[crate::ImageTexture],
     model_name: &str,
     root_index: usize,
@@ -417,7 +360,8 @@ fn add_models(
             {
                 // Lazy load vertex buffers since not all are unused.
                 // TODO: How expensive is this clone?
-                let vertex_buffer = buffers
+                let vertex_buffer = data
+                    .buffers
                     .insert_vertex_buffer(
                         &model_buffers.vertex_buffers[mesh.vertex_buffer_index],
                         root_index,
@@ -442,7 +386,7 @@ fn add_models(
                     })
                     .unwrap_or_default();
 
-                if let Some(weight_group) = buffers.insert_weight_group(
+                if let Some(weight_group) = data.buffers.insert_weight_group(
                     model_buffers,
                     skeleton,
                     WeightGroupKey {
@@ -461,7 +405,7 @@ fn add_models(
                 }
 
                 // Lazy load index buffers since not all are unused.
-                let index_accessor = buffers.insert_index_buffer(
+                let index_accessor = data.buffers.insert_index_buffer(
                     &model_buffers.index_buffers[mesh.index_buffer_index],
                     root_index,
                     group_index,
@@ -470,9 +414,9 @@ fn add_models(
                 )? as u32;
 
                 // We lazy load meshes, so also lazy load materials to save space.
-                let material_index = material_cache.insert(
+                let material_index = data.material_cache.insert(
                     material,
-                    texture_cache,
+                    &mut data.texture_cache,
                     image_textures,
                     MaterialKey {
                         root_index,
@@ -505,61 +449,40 @@ fn add_models(
                     primitives: vec![primitive],
                     weights,
                 };
-                let mesh_index = meshes.len() as u32;
-                meshes.push(mesh);
+                let mesh_index = data.meshes.len() as u32;
+                data.meshes.push(mesh);
 
                 // Instancing is applied at the model level.
                 // Instance meshes instead so each node has only one parent.
                 // TODO: Use None instead of a single instance transform?
                 for instance in &model.instances {
-                    let mesh_node = gltf::json::Node {
-                        camera: None,
-                        children: None,
-                        extensions: Default::default(),
-                        extras: Default::default(),
+                    let child_index = data.add_node(gltf::json::Node {
                         matrix: if *instance == Mat4::IDENTITY {
                             None
                         } else {
                             Some(instance.to_cols_array())
                         },
                         mesh: Some(gltf::json::Index::new(mesh_index)),
-                        name: None,
-                        rotation: None,
-                        scale: None,
-                        translation: None,
                         skin: skin_index.map(|i| gltf::json::Index::new(i as u32)),
-                        weights: None,
-                    };
-                    let child_index = nodes.len() as u32;
-                    nodes.push(mesh_node);
+                        ..default_node()
+                    });
 
                     children.push(gltf::json::Index::new(child_index))
                 }
             }
         }
 
-        let model_node = gltf::json::Node {
-            camera: None,
+        let model_node_index = data.add_node(gltf::json::Node {
             children: Some(children.clone()),
-            extensions: Default::default(),
-            extras: Default::default(),
-            matrix: None,
-            mesh: None,
             name: Some(format!(
                 "{model_name}.{root_index}.{group_index}.{models_index}.{model_index}"
             )),
-            rotation: None,
-            scale: None,
-            translation: None,
-            skin: None,
-            weights: None,
-        };
-        let model_node_index = nodes.len() as u32;
-        nodes.push(model_node);
+            ..default_node()
+        });
 
         models_children.push(gltf::json::Index::new(model_node_index));
     }
-    let models_node = gltf::json::Node {
+    let models_node_index = data.add_node(gltf::json::Node {
         camera: None,
         children: Some(models_children),
         extensions: Default::default(),
@@ -574,10 +497,25 @@ fn add_models(
         translation: None,
         skin: None,
         weights: None,
-    };
-    let models_node_index = nodes.len() as u32;
-    nodes.push(models_node);
+    });
     Ok(models_node_index)
+}
+
+fn default_node() -> gltf::json::Node {
+    gltf::json::Node {
+        camera: None,
+        children: None,
+        extensions: Default::default(),
+        extras: Default::default(),
+        matrix: None,
+        mesh: None,
+        name: None,
+        rotation: None,
+        scale: None,
+        translation: None,
+        skin: None,
+        weights: None,
+    }
 }
 
 fn morph_targets(
