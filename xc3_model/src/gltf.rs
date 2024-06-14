@@ -483,20 +483,11 @@ fn add_models(
         models_children.push(gltf::json::Index::new(model_node_index));
     }
     let models_node_index = data.add_node(gltf::json::Node {
-        camera: None,
         children: Some(models_children),
-        extensions: Default::default(),
-        extras: Default::default(),
-        matrix: None,
-        mesh: None,
         name: Some(format!(
             "{model_name}.{root_index}.{group_index}.{models_index}"
         )),
-        rotation: None,
-        scale: None,
-        translation: None,
-        skin: None,
-        weights: None,
+        ..default_node()
     });
     Ok(models_node_index)
 }
@@ -551,26 +542,18 @@ fn create_skin(
             let children = find_children(skeleton, i, bone_start_index);
 
             let joint_node = gltf::json::Node {
-                camera: None,
                 children: if !children.is_empty() {
                     Some(children)
                 } else {
                     None
                 },
-                extensions: Default::default(),
-                extras: Default::default(),
                 matrix: if bone.transform != Mat4::IDENTITY {
                     Some(bone.transform.to_cols_array())
                 } else {
                     None
                 },
-                mesh: None,
                 name: Some(bone.name.clone()),
-                rotation: None,
-                scale: None,
-                translation: None,
-                skin: None,
-                weights: None,
+                ..default_node()
             };
             nodes.push(joint_node);
         }
