@@ -52,7 +52,7 @@ use xc3_lib::{
         streaming::{chr_tex_nx_folder, ExtractedTexture},
         Msrd,
     },
-    mxmd::{legacy::MxmdLegacy, AlphaTable, MaterialFlags, MaterialRenderFlags, Materials, Mxmd},
+    mxmd::{legacy::MxmdLegacy, AlphaTable, Materials, Mxmd},
     sar1::Sar1,
     xbc1::MaybeXbc1,
     ReadFileError,
@@ -67,8 +67,8 @@ pub use sampler::{AddressMode, FilterMode, Sampler};
 pub use skeleton::{Bone, Skeleton};
 pub use texture::{ExtractedTextures, ImageFormat, ImageTexture, ViewDimension};
 pub use xc3_lib::mxmd::{
-    BlendMode, CullMode, DepthFunc, MeshRenderFlags2, MeshRenderPass, RenderPassType, StateFlags,
-    StencilMode, StencilValue, TextureUsage,
+    BlendMode, CullMode, DepthFunc, MaterialFlags, MaterialRenderFlags, MeshRenderFlags2,
+    MeshRenderPass, RenderPassType, StateFlags, StencilMode, StencilValue, TextureUsage,
 };
 
 pub mod animation;
