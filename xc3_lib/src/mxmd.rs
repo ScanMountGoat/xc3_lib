@@ -401,7 +401,7 @@ pub struct Material {
     #[xc3(offset_count(u32, u32))]
     pub techniques: Vec<MaterialTechnique>,
 
-    pub unk5: u32,
+    pub unk5: u32, // 0
 
     /// Index into [work_callbacks](struct.MaterialCallbacks.html#structfield.work_callbacks).
     pub callback_start_index: u16,

@@ -1,5 +1,8 @@
 use log::warn;
-use xc3_lib::mxmd::{Materials, RenderPassType, StateFlags, Technique, TextureUsage};
+use xc3_lib::mxmd::{
+    MaterialFlags, MaterialRenderFlags, Materials, RenderPassType, StateFlags, Technique,
+    TextureUsage,
+};
 
 use crate::{
     shader_database::{BufferDependency, Shader, Spch, TextureDependency},
@@ -11,18 +14,41 @@ use crate::{
 #[derive(Debug, PartialEq, Clone)]
 pub struct Material {
     pub name: String,
-    pub flags: StateFlags,
-    pub textures: Vec<Texture>,
+    pub flags: MaterialFlags,
+    pub render_flags: MaterialRenderFlags,
+    pub state_flags: StateFlags,
 
+    pub textures: Vec<Texture>,
     pub alpha_test: Option<TextureAlphaTest>,
+
+    pub work_values: Vec<f32>,
+    pub shader_vars: Vec<(u16, u16)>,
+    pub work_callbacks: Vec<(u16, u16)>,
+
+    // TODO: final byte controls reference?
+    pub alpha_test_ref: [u8; 4],
+
+    // TODO: group indices for animations?
+    pub m_unks1_1: u32,
+    pub m_unks1_2: u32,
+    pub m_unks1_3: u32,
+    pub m_unks1_4: u32,
 
     /// Precomputed metadata from the decompiled shader source
     /// used to assign G-Buffer outputs
     /// or [None] if the database does not contain this model.
     pub shader: Option<Shader>,
 
+    // material technique
+    pub technique_index: usize,
     pub pass_type: RenderPassType,
+
+    // TODO: keep these as views over the work values?
+    // TODO: is there another way to preserve the work value buffer?
     pub parameters: MaterialParameters,
+
+    pub m_unks2_2: u16,
+    pub m_unks3_1: u16,
 }
 
 /// Information for alpha testing based on sampled texture values.
@@ -33,8 +59,6 @@ pub struct TextureAlphaTest {
     pub texture_index: usize,
     /// The RGBA channel to sample for the comparison.
     pub channel_index: usize,
-    // TODO: alpha test ref value?
-    pub ref_value: f32,
 }
 
 /// Values assigned to known shader uniforms or `None` if not present.
@@ -75,7 +99,8 @@ pub fn create_materials(materials: &Materials, spch: Option<&Spch>) -> Vec<Mater
     materials
         .materials
         .iter()
-        .map(|material| {
+        .enumerate()
+        .map(|(i, material)| {
             let shader = get_shader(material, spch);
 
             let textures = material
@@ -92,18 +117,53 @@ pub fn create_materials(materials: &Materials, spch: Option<&Spch>) -> Vec<Mater
 
             let alpha_test = find_alpha_test_texture(materials, material);
 
+            // Assume the work value start indices are in ascending order.
+            let work_value_start = material.work_value_start_index as usize;
+            let work_value_end = materials
+                .materials
+                .get(i + 1)
+                .map(|m| m.work_value_start_index as usize)
+                .unwrap_or(materials.work_values.len());
+
+            let shader_var_start = material.shader_var_start_index as usize;
+            let shader_var_end = shader_var_start + material.shader_var_count as usize;
+
+            let callback_start = material.callback_start_index as usize;
+            let callback_end = callback_start + material.callback_count as usize;
+
             Material {
                 name: material.name.clone(),
-                flags: material.state_flags,
+                flags: material.flags,
+                render_flags: material.render_flags,
+                state_flags: material.state_flags,
                 textures,
                 alpha_test,
+                alpha_test_ref: material.alpha_test_ref,
                 shader,
+                work_values: materials.work_values[work_value_start..work_value_end].to_vec(),
+                shader_vars: materials.shader_vars[shader_var_start..shader_var_end].to_vec(),
+                work_callbacks: materials
+                    .callbacks
+                    .as_ref()
+                    .map(|c| c.work_callbacks[callback_start..callback_end].to_vec())
+                    .unwrap_or_default(),
+                technique_index: material
+                    .techniques
+                    .first()
+                    .map(|t| t.technique_index as usize)
+                    .unwrap_or_default(),
                 pass_type: material
                     .techniques
                     .first()
-                    .map(|p| p.pass_type)
+                    .map(|t| t.pass_type)
                     .unwrap_or(RenderPassType::Unk0),
                 parameters,
+                m_unks1_1: material.m_unks1_1,
+                m_unks1_2: material.m_unks1_2,
+                m_unks1_3: material.m_unks1_3,
+                m_unks1_4: material.m_unks1_4,
+                m_unks2_2: material.m_unks2[2],
+                m_unks3_1: material.m_unks3[1],
             }
         })
         .collect()
@@ -146,7 +206,6 @@ fn find_alpha_test_texture(
         Some(TextureAlphaTest {
             texture_index,
             channel_index,
-            ref_value: 0.5,
         })
     } else {
         None

@@ -213,7 +213,7 @@ fn create_material(
         alpha_cutoff: material
             .alpha_test
             .as_ref()
-            .map(|a| gltf::json::material::AlphaCutoff(a.ref_value)),
+            .map(|_| gltf::json::material::AlphaCutoff(0.5)),
         ..Default::default()
     }
 }

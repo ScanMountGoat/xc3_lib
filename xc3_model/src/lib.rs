@@ -38,7 +38,6 @@ use binrw::{BinRead, BinReaderExt};
 use glam::{Mat4, Vec3};
 use log::error;
 use material::create_materials;
-use model::create_mxmd_model;
 use shader_database::ShaderDatabase;
 use texture::{load_textures, load_textures_legacy};
 use thiserror::Error;
@@ -53,7 +52,7 @@ use xc3_lib::{
         streaming::{chr_tex_nx_folder, ExtractedTexture},
         Msrd,
     },
-    mxmd::{legacy::MxmdLegacy, AlphaTable, Materials, Mxmd},
+    mxmd::{legacy::MxmdLegacy, AlphaTable, MaterialFlags, MaterialRenderFlags, Materials, Mxmd},
     sar1::Sar1,
     xbc1::MaybeXbc1,
     ReadFileError,
@@ -270,7 +269,9 @@ impl Models {
                 .iter()
                 .map(|m| Material {
                     name: m.name.clone(),
-                    flags: m.state_flags,
+                    flags: MaterialFlags::from(0u32),
+                    render_flags: MaterialRenderFlags::from(0u32),
+                    state_flags: m.state_flags,
                     textures: m
                         .textures
                         .iter()
@@ -287,10 +288,11 @@ impl Models {
                             .map(|texture_index| TextureAlphaTest {
                                 texture_index,
                                 channel_index: 3,
-                                ref_value: 0.5,
                             })
                     }),
+                    alpha_test_ref: [0; 4],
                     shader: None,
+                    technique_index: 0,
                     pass_type: match m.techniques[0].unk1 {
                         xc3_lib::mxmd::legacy::UnkPassType::Unk0 => RenderPassType::Unk0,
                         xc3_lib::mxmd::legacy::UnkPassType::Unk1 => RenderPassType::Unk1,
@@ -307,6 +309,15 @@ impl Models {
                         work_float4: None,
                         work_color: None,
                     },
+                    work_values: Vec::new(),
+                    shader_vars: Vec::new(),
+                    work_callbacks: Vec::new(),
+                    m_unks1_1: 0,
+                    m_unks1_2: 0,
+                    m_unks1_3: 0,
+                    m_unks1_4: 0,
+                    m_unks2_2: 0,
+                    m_unks3_1: 0,
                 })
                 .collect(),
             samplers: Vec::new(),
@@ -653,22 +664,6 @@ impl ModelRoot {
             image_textures,
             skeleton,
         })
-    }
-
-    // TODO: module for conversions?
-    // TODO: Not possible to make files compatible with all game versions?
-    // TODO: Will it be possible to do full imports in the future?
-    // TODO: Include chr to support skeleton edits?
-    // TODO: How to properly test this?
-    /// Apply the values from this model onto the original `mxmd` and `msrd`.
-    ///
-    /// Some of the original values will be retained due to exporting limitations.
-    /// For best results, use the [Mxmd] and [Msrd] used to initialize this model.
-    ///
-    /// If no edits were made to this model, the resulting files will attempt
-    /// to recreate the originals used to initialize this model as closely as possible.
-    pub fn to_mxmd_model(&self, mxmd: &Mxmd, msrd: &Msrd) -> (Mxmd, Msrd) {
-        create_mxmd_model(self, mxmd, msrd)
     }
 }
 

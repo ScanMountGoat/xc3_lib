@@ -696,12 +696,25 @@ fn foliage_materials(materials: &FoliageMaterials) -> Vec<Material> {
 
             Material {
                 name: material.name.clone(),
-                flags,
+                flags: xc3_lib::mxmd::MaterialFlags::from(0u32),
+                render_flags: xc3_lib::mxmd::MaterialRenderFlags::from(0u32),
+                state_flags: flags,
                 textures,
                 alpha_test: None,
                 shader,
+                alpha_test_ref: [0; 4],
+                technique_index: 0,
                 pass_type: RenderPassType::Unk0,
                 parameters: Default::default(),
+                work_values: Vec::new(),
+                shader_vars: Vec::new(),
+                work_callbacks: Vec::new(),
+                m_unks1_1: 0,
+                m_unks1_2: 0,
+                m_unks1_3: 0,
+                m_unks1_4: 0,
+                m_unks2_2: 0,
+                m_unks3_1: 0,
             }
         })
         .collect();

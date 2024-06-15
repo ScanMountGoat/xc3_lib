@@ -149,12 +149,9 @@ pub fn materials(
                             .unwrap_or((-1, 3));
                         IVec4::new(texture_index, channel_index, 0, 0)
                     },
+                    // TODO: what is this ref value?
                     alpha_test_ref: Vec4::splat(
-                        material
-                            .alpha_test
-                            .as_ref()
-                            .map(|a| a.ref_value)
-                            .unwrap_or(1.0),
+                        material.alpha_test.as_ref().map(|_| 0.5).unwrap_or(1.0),
                     ),
                     is_single_channel,
                 }],
@@ -211,7 +208,7 @@ pub fn materials(
             // TODO: Find a more accurate way to detect outline shaders.
             let pipeline_key = PipelineKey {
                 pass_type: material.pass_type,
-                flags: material.flags,
+                flags: material.state_flags,
                 is_outline: material.name.ends_with("_outline"),
                 output5_type,
             };
