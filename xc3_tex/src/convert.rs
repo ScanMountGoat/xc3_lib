@@ -1,12 +1,13 @@
 use std::{io::Cursor, path::Path};
 
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use binrw::BinRead;
 use image_dds::{ddsfile::Dds, image::RgbaImage, ImageFormat, Mipmaps, Quality, Surface};
 use xc3_lib::{
     bmn::Bmn,
     dds::DdsExt,
     dhal::Dhal,
+    laft::Laft,
     lagp::Lagp,
     laps::Laps,
     mibl::Mibl,
@@ -29,6 +30,7 @@ pub enum File {
     Wimdo(Box<Mxmd>),
     Camdo(Box<MxmdLegacy>),
     Bmn(Bmn),
+    Wifnt(Laft),
 }
 
 // TODO: Move this to xc3_lib?
@@ -52,6 +54,12 @@ impl File {
                 .with_context(|| "failed to convert Mibl to DDS"),
             File::Mtxt(mtxt) => mtxt
                 .to_dds()
+                .with_context(|| "failed to convert Mtxt to DDS"),
+            File::Wifnt(laft) => laft
+                .texture
+                .as_ref()
+                .ok_or(anyhow!("no texture in wifnt file"))
+                .and_then(|t| t.to_dds().map_err(Into::into))
                 .with_context(|| "failed to convert Mtxt to DDS"),
             File::Dds(dds) => {
                 // Handle changes in image format while preserving layers and mipmaps.
@@ -114,6 +122,10 @@ impl File {
             File::Mibl(mibl) => Ok(mibl.clone()),
             File::Mtxt(mtxt) => Mibl::from_surface(mtxt.to_surface()?)
                 .with_context(|| "failed to convert Mtxt to Mibl"),
+            File::Wifnt(laft) => laft
+                .texture
+                .clone()
+                .ok_or(anyhow!("no texture in wifnt file")),
             File::Dds(dds) => Mibl::from_dds(dds).with_context(|| "failed to create Mibl from DDS"),
             File::Image(image) => {
                 let dds = image_dds::dds_from_image(
@@ -152,6 +164,15 @@ impl File {
                 .with_context(|| "failed to decode Mibl image"),
             File::Mtxt(mtxt) => image_dds::image_from_dds(&mtxt.to_dds()?, 0)
                 .with_context(|| "failed to decode Mtxt image"),
+            File::Wifnt(laft) => image_dds::image_from_dds(
+                &laft
+                    .texture
+                    .as_ref()
+                    .ok_or(anyhow!("no texture in wifnt file"))
+                    .and_then(|t| t.to_dds().map_err(Into::into))?,
+                0,
+            )
+            .with_context(|| "failed to decode Laft image"),
             File::Dds(dds) => {
                 image_dds::image_from_dds(dds, 0).with_context(|| "failed to decode DDS")
             }

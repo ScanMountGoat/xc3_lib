@@ -1,7 +1,7 @@
-use std::io::SeekFrom;
+use std::io::{Cursor, SeekFrom};
 
 use crate::mibl::Mibl;
-use crate::{parse_offset32_count32, parse_opt_ptr32, parse_ptr32, parse_vec};
+use crate::{parse_offset32_count32, parse_ptr32, parse_vec};
 use binrw::file_ptr::FilePtrArgs;
 use binrw::{BinRead, BinResult};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
@@ -31,7 +31,7 @@ pub struct Laft {
 
     glyph_class_mask: u32,
 
-    #[br(parse_with = parse_opt_ptr32)]
+    #[br(parse_with = parse_opt_ptr32_limited)]
     #[xc3(offset_size(u32, u32))]
     pub texture: Option<Mibl>,
 
@@ -170,6 +170,34 @@ impl Laft {
             self.offsets.push(font_offset);
         }
     }
+}
+
+fn parse_opt_ptr32_limited<T, R, Args>(
+    reader: &mut R,
+    endian: binrw::Endian,
+    args: Args,
+) -> BinResult<Option<T>>
+where
+    for<'a> T: BinRead<Args<'a> = Args> + 'static,
+    R: std::io::Read + std::io::Seek,
+    Args: Clone,
+{
+    // Mibl uses SeekFrom::End to limit reads, we need to create a sub-cursor
+    let offset = u32::read_options(reader, endian, ())?;
+    let size: usize = u32::read_options(reader, endian, ())?.try_into().unwrap();
+
+    if offset == 0 || size == 0 {
+        return Ok(None);
+    }
+
+    let pos = reader.stream_position()?;
+    let mut buf = vec![0; size];
+
+    reader.seek(SeekFrom::Start(offset.into()))?;
+    reader.read_exact(&mut buf)?;
+    reader.seek(SeekFrom::Start(pos))?;
+
+    T::read_options(&mut Cursor::new(buf), endian, args).map(Some)
 }
 
 fn parse_offset32_glyph_count<T, R, Args>(
