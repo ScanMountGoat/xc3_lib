@@ -16,6 +16,7 @@ use xc3_lib::{
     efb0::Efb0,
     eva::Eva,
     idcm::Idcm,
+    laft::Laft,
     lagp::Lagp,
     laps::Laps,
     ltpc::Ltpc,
@@ -103,6 +104,10 @@ struct Cli {
     /// Process BMN files from .bmn
     #[arg(long)]
     bmn: bool,
+
+    /// Process LAFT files from .wifnt
+    #[arg(long)]
+    laft: bool,
 
     /// Process all file types except gltf and wimdo-model.
     #[arg(long)]
@@ -256,6 +261,11 @@ fn main() {
     if cli.bmn || cli.all {
         println!("Checking Bmn files ...");
         check_all(root, &["*.bmn"], check_bmn, Endian::Big, cli.rw);
+    }
+
+    if cli.laft || cli.all {
+        println!("Checking Laft files ...");
+        check_all(root, &["*.wifnt"], check_laft, Endian::Little, cli.rw);
     }
 
     if cli.gltf {
@@ -894,6 +904,21 @@ fn check_bmn(bmn: Bmn, path: &Path, _original_bytes: &[u8], check_read_write: bo
                 }
             }
         }
+    }
+}
+
+fn check_laft(laft: Laft, path: &Path, _original_bytes: &[u8], _check_read_write: bool) {
+    if !laft.mappings.len().is_power_of_two() {
+        println!("Laft: mappings len not power of 2 for {path:?}");
+    }
+    let read_glyphs = (0..u16::MAX)
+        .filter(|&code| laft.get_glyph(code).is_some_and(|g| g.1.codepoint == code))
+        .count();
+    if read_glyphs != laft.font_info.len() {
+        println!("Laft: found unreachable glyphs in {path:?}");
+    }
+    if let Some(texture) = laft.texture.clone() {
+        check_mibl(texture, path, &[], false);
     }
 }
 

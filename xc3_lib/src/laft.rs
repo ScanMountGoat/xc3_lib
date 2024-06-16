@@ -53,7 +53,7 @@ pub struct Laft {
     pub line_height: u32,
 }
 
-#[derive(BinRead, Xc3Write, Xc3WriteOffsets, Clone, Copy)]
+#[derive(BinRead, Xc3Write, Xc3WriteOffsets, Clone, Copy, Debug)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct FontSettings {
     pub texture_width: u32,
@@ -186,7 +186,7 @@ where
     let offset = u32::read_options(reader, endian, ())?;
     reader.seek(SeekFrom::Current(4))?;
     let count = u32::read_options(reader, endian, ())?;
-    reader.seek(SeekFrom::Current(-4))?;
+    reader.seek(SeekFrom::Current(-8))?;
 
     if offset == 0 && count != 0 {
         return Err(binrw::Error::AssertFail {
