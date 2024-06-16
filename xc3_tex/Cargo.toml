@@ -7,7 +7,7 @@ edition = "2021"
 xc3_lib = { path = "../xc3_lib" }
 image_dds = { version = "0.5.0", features = ["strum"] }
 clap = { version = "4.2.7", features = ["derive", "string"] }
-binrw = "0.13.3"
+binrw = "0.14.0"
 strum = "0.26.1"
 anyhow = "1.0"
 log = "0.4.19"
