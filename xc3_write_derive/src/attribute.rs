@@ -20,6 +20,7 @@ pub enum FieldType {
     Offset(Ident),
     OffsetCount(Ident, Ident),
     CountOffset(Ident, Ident),
+    OffsetSize(Ident, Ident),
 }
 
 impl FieldOptions {
@@ -59,6 +60,10 @@ impl FieldOptions {
                         // #[xc3(save_position(false))]
                         let skip = parse_bool(&meta)?;
                         field_type = Some(FieldType::SavePosition(skip));
+                    } else if meta.path.is_ident("offset_size") {
+                        // #[xc3(offset_size(u32, u32))]
+                        let (offset, size) = parse_two_idents(&meta)?;
+                        field_type = Some(FieldType::OffsetSize(offset, size));
                     }
                     Ok(())
                 });
