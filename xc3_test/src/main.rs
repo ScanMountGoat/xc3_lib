@@ -19,6 +19,7 @@ use xc3_lib::{
     laft::Laft,
     lagp::Lagp,
     laps::Laps,
+    last::Last,
     ltpc::Ltpc,
     mibl::Mibl,
     msmd::Msmd,
@@ -96,6 +97,10 @@ struct Cli {
     /// Process LAFT files from .wifnt
     #[arg(long)]
     laft: bool,
+
+    /// Process LAST files from .wisty
+    #[arg(long)]
+    last: bool,
 
     /// Process MTXT files from .catex, .calut, and .caavp
     #[arg(long)]
@@ -245,6 +250,11 @@ fn main() {
     if cli.laft || cli.all {
         println!("Checking Laft files ...");
         check_all(root, &["*.wifnt"], check_laft_data, Endian::Little, cli.rw);
+    }
+
+    if cli.last || cli.all {
+        println!("Checking Last files ...");
+        check_all(root, &["*.wisty"], check_last_data, Endian::Little, cli.rw);
     }
 
     if cli.mtxt || cli.all {
@@ -935,6 +945,26 @@ fn check_laft(laft: Laft, path: &Path, original_bytes: &[u8], check_read_write: 
         laft.write(&mut writer).unwrap();
         if writer.into_inner() != original_bytes {
             println!("Laft read/write not 1:1 for {path:?}");
+        }
+    }
+}
+
+fn check_last_data(
+    data: MaybeXbc1<Last>,
+    path: &Path,
+    original_bytes: &[u8],
+    check_read_write: bool,
+) {
+    check_maybe_xbc1(data, path, check_read_write, original_bytes, check_last);
+}
+
+fn check_last(last: Last, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+    if check_read_write {
+        let mut writer = Cursor::new(Vec::new());
+        last.write(&mut writer).unwrap();
+        if writer.get_ref() != original_bytes {
+            std::fs::write("/tmp/out.wisty", writer.into_inner()).unwrap();
+            println!("Last read/write not 1:1 for {path:?}");
         }
     }
 }
