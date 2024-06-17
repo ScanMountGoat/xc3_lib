@@ -643,24 +643,24 @@ mod tests {
     fn image_index_paths() {
         assert_eq!(
             Some(0),
-            image_index(&Path::new("a/b/file.0.dds"), "b/c/file.wilay")
+            image_index(Path::new("a/b/file.0.dds"), "b/c/file.wilay")
         );
         assert_eq!(
             Some(7),
-            image_index(&Path::new("file.7.dds"), "b/c/file.wilay")
+            image_index(Path::new("file.7.dds"), "b/c/file.wilay")
         );
-        assert_eq!(Some(7), image_index(&Path::new("file.7.dds"), "file.wilay"));
+        assert_eq!(Some(7), image_index(Path::new("file.7.dds"), "file.wilay"));
         assert_eq!(
             Some(7),
-            image_index(&Path::new("file.7.optional_name.dds"), "file.wilay")
+            image_index(Path::new("file.7.optional_name.dds"), "file.wilay")
         );
         assert_eq!(
             None,
-            image_index(&Path::new("file2.7.dds"), "b/c/file.wilay")
+            image_index(Path::new("file2.7.dds"), "b/c/file.wilay")
         );
         assert_eq!(
             None,
-            image_index(&Path::new("a/b/file.0.dds"), "b/c/file2.wilay")
+            image_index(Path::new("a/b/file.0.dds"), "b/c/file2.wilay")
         );
     }
 }

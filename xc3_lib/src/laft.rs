@@ -246,6 +246,23 @@ where
     parse_vec(reader, endian, args, offset as u64, count as usize)
 }
 
+impl<'a> Xc3WriteOffsets for LaftOffsets<'a> {
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> xc3_write::Xc3Result<()> {
+        // Different order than field order.
+        self.mappings.write_full(writer, base_offset, data_ptr)?;
+        self.offsets.write_full(writer, base_offset, data_ptr)?;
+        self.font_info.write_full(writer, base_offset, data_ptr)?;
+        self.settings.write_full(writer, base_offset, data_ptr)?;
+        self.texture.write_full(writer, base_offset, data_ptr)?;
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{FontSettings, GlyphFontInfo, Laft};
@@ -281,22 +298,5 @@ mod tests {
             assert_eq!(pos, i);
             assert_eq!(font.codepoint, code);
         }
-    }
-}
-
-impl<'a> Xc3WriteOffsets for LaftOffsets<'a> {
-    fn write_offsets<W: std::io::Write + std::io::Seek>(
-        &self,
-        writer: &mut W,
-        base_offset: u64,
-        data_ptr: &mut u64,
-    ) -> xc3_write::Xc3Result<()> {
-        // Different order than field order.
-        self.mappings.write_full(writer, base_offset, data_ptr)?;
-        self.offsets.write_full(writer, base_offset, data_ptr)?;
-        self.font_info.write_full(writer, base_offset, data_ptr)?;
-        self.settings.write_full(writer, base_offset, data_ptr)?;
-        self.texture.write_full(writer, base_offset, data_ptr)?;
-        Ok(())
     }
 }
