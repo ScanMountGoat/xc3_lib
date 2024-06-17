@@ -63,6 +63,7 @@ pub mod eva;
 pub mod hash;
 pub mod hkt;
 pub mod idcm;
+pub mod laft;
 pub mod lagp;
 pub mod laps;
 pub mod ltpc;
@@ -471,7 +472,8 @@ file_write_full_impl!(
     efb0::Efb0,
     idcm::Idcm,
     datasheet::DataSheet,
-    wipac::Wipac
+    wipac::Wipac,
+    laft::Laft
 );
 
 #[derive(Debug, Error)]
@@ -542,7 +544,8 @@ file_read_impl!(
     efb0::Efb0,
     idcm::Idcm,
     datasheet::DataSheet,
-    wipac::Wipac
+    wipac::Wipac,
+    laft::Laft
 );
 
 file_read_impl!(

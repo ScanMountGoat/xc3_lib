@@ -404,6 +404,25 @@ fn parse_named_fields(fields: &FieldsNamed) -> Vec<FieldData> {
                 // Store the information for later shared offsets.
                 FieldData::field_position(name, ty, should_write)
             }
+            Some(FieldType::OffsetSize(offset_ty, size_ty)) => {
+                let write_offset = write_dummy_offset(name, options.align, &offset_ty);
+                FieldData {
+                    name: name.clone(),
+                    offset_field: offset_field(name, &offset_ty, ty),
+                    write_impl: quote! {
+                        #write_offset
+                        {
+                            use binrw::BinWrite;
+                            let mut cur = std::io::Cursor::new(Vec::new());
+                            self.#name.write_le(&mut cur).map_err(std::io::Error::other)?;
+                            cur.into_inner().len() as #size_ty
+                        }.xc3_write(writer)?;
+                    },
+                    write_offset_impl: quote! {
+                        self.#name.write_full(writer, base_offset, data_ptr)?;
+                    },
+                }
+            }
             None => {
                 // Also include fields not marked as offsets in the struct.
                 // The field type may have offsets that need to be written later.
