@@ -66,6 +66,7 @@ pub mod idcm;
 pub mod laft;
 pub mod lagp;
 pub mod laps;
+pub mod last;
 pub mod ltpc;
 pub mod map;
 pub mod mibl;
@@ -473,7 +474,8 @@ file_write_full_impl!(
     idcm::Idcm,
     datasheet::DataSheet,
     wipac::Wipac,
-    laft::Laft
+    laft::Laft,
+    last::Last
 );
 
 #[derive(Debug, Error)]
@@ -545,7 +547,8 @@ file_read_impl!(
     idcm::Idcm,
     datasheet::DataSheet,
     wipac::Wipac,
-    laft::Laft
+    laft::Laft,
+    last::Last
 );
 
 file_read_impl!(

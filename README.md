@@ -18,6 +18,7 @@ xc3_lib supports a number of in game formats. All formats support reading. Write
 | [Laft](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/laft.rs) | LAFT | `wifnt` | ✔️ | 
 | [Lagp](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/lagp.rs) | LAGP | `wilay` | ✔️* | 
 | [Laps](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/laps.rs) | LAPS | `wilay` | ✔️* | 
+| [Last](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/last.rs) | LAST | `wisty` | ✔️ | 
 | [Ltpc](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/ltpc.rs) | LTPC | | ✔️ | 
 | [Mibl](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/mibl.rs) | LBIM | `witex`, `witx` | ✔️ | 
 | [Msmd](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/msmd.rs) | DMSM | `wismhd` | ❌ | 
