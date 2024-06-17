@@ -6,7 +6,10 @@ use xc3_lib::{
     vertex::DataType,
 };
 
-use crate::{vertex::AttributeData, ImageTexture, ModelRoot};
+use crate::{
+    vertex::{AttributeData, ModelBuffers},
+    ImageTexture, ModelRoot,
+};
 
 // TODO: Not possible to make files compatible with all game versions?
 // TODO: Will it be possible to do full imports in the future?
@@ -32,7 +35,7 @@ impl ModelRoot {
             .collect();
 
         let mut buffers = self.buffers.clone();
-        match_buffers_technique_attributes(&mut buffers.vertex_buffers, &self.models, mxmd);
+        self.match_technique_attributes(&mut buffers, mxmd);
         let new_vertex = buffers.to_vertex_data().unwrap();
 
         let mut new_mxmd = mxmd.clone();
@@ -251,39 +254,35 @@ impl ModelRoot {
                 .extend_from_slice(&m.work_callbacks);
         }
     }
-}
 
-fn match_buffers_technique_attributes(
-    buffers: &mut [crate::vertex::VertexBuffer],
-    models: &crate::Models,
-    mxmd: &Mxmd,
-) {
-    let attribute_count =
-        |attrs: &[VertexAttribute]| attrs.iter().filter(|a| a.buffer_index == 0).count();
+    fn match_technique_attributes(&self, buffers: &mut ModelBuffers, mxmd: &Mxmd) {
+        let attribute_count =
+            |attrs: &[VertexAttribute]| attrs.iter().filter(|a| a.buffer_index == 0).count();
 
-    // Make sure the vertex buffers have an attribute for each vertex shader attribute.
-    for (i, buffer) in buffers.iter_mut().enumerate() {
-        let techniques = models.models.iter().flat_map(|m| {
-            m.meshes.iter().find_map(|m| {
-                if m.vertex_buffer_index == i {
-                    let technique_index =
-                        &mxmd.materials.materials[m.material_index].techniques[0].technique_index;
-                    Some(&mxmd.materials.techniques[*technique_index as usize])
+        // Make sure the vertex buffers have an attribute for each vertex shader attribute.
+        for (i, buffer) in buffers.vertex_buffers.iter_mut().enumerate() {
+            let techniques = self.models.models.iter().flat_map(|m| {
+                m.meshes.iter().find_map(|m| {
+                    if m.vertex_buffer_index == i {
+                        let technique_index =
+                            self.models.materials[m.material_index].technique_index;
+                        Some(&mxmd.materials.techniques[technique_index])
+                    } else {
+                        None
+                    }
+                })
+            });
+            // Buffers can be used with more than one material technique.
+            // TODO: Will using the technique with the most buffer 0 attributes always work?
+            if let Some(attributes) = techniques.map(|t| &t.attributes).reduce(|acc, e| {
+                if attribute_count(e) > attribute_count(acc) {
+                    e
                 } else {
-                    None
+                    acc
                 }
-            })
-        });
-        // Buffers can be used with more than one material technique.
-        // TODO: Will using the technique with the most buffer 0 attributes always work?
-        if let Some(attributes) = techniques.map(|t| &t.attributes).reduce(|acc, e| {
-            if attribute_count(e) > attribute_count(acc) {
-                e
-            } else {
-                acc
+            }) {
+                match_technique_attributes(buffer, attributes);
             }
-        }) {
-            match_technique_attributes(buffer, attributes);
         }
     }
 }
