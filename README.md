@@ -15,8 +15,8 @@ xc3_lib supports a number of in game formats. All formats support reading. Write
 | [Bmn](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/bmn.rs) | BMN | `bmn` | ❌ | 
 | [Dhal](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/dhal.rs) | LAHD | `wilay` | ✔️* | 
 | [Eva](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/eva.rs) | eva | `eva` | ✔️* | 
+| [Laft](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/laft.rs) | LAFT | `wifnt` | ✔️ | 
 | [Lagp](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/lagp.rs) | LAGP | `wilay` | ✔️* | 
-| [Laft](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/laft.rs) | LAFT | `wifnt` | ✔️* | 
 | [Laps](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/laps.rs) | LAPS | `wilay` | ✔️* | 
 | [Ltpc](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/ltpc.rs) | LTPC | | ✔️ | 
 | [Mibl](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/mibl.rs) | LBIM | `witex`, `witx` | ✔️ | 
@@ -29,7 +29,7 @@ xc3_lib supports a number of in game formats. All formats support reading. Write
 | [Spch](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/spch.rs) | HCPS | `wishp` | ✔️ | 
 | [Xbc1](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/xbc1.rs) | xbc1 | `wismt` | ✔️ | 
 
-\* *Some files are not binary identical with the originals after saving.*
+\* *Some files are not binary identical with the originals after saving. This does not include compression differences for compressed archives.*
 
 ## Projects
 See [Architecture](https://github.com/ScanMountGoat/xc3_lib/blob/main/ARCHITECTURE.md) for a design overview of the various projects. 

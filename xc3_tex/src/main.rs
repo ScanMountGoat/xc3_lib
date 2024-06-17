@@ -241,7 +241,7 @@ fn load_input_file(input: &PathBuf) -> anyhow::Result<File> {
         "bmn" => Bmn::from_file(input)
             .with_context(|| format!("{input:?} is not a valid .bmn file"))
             .map(File::Bmn),
-        "wifnt" => Laft::from_file(input)
+        "wifnt" => MaybeXbc1::<Laft>::from_file(input)
             .with_context(|| format!("{input:?} is not a valid .wifnt file"))
             .map(File::Wifnt),
         _ => {

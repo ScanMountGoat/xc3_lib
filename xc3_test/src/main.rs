@@ -93,6 +93,10 @@ struct Cli {
     #[arg(long)]
     idcm: bool,
 
+    /// Process LAFT files from .wifnt
+    #[arg(long)]
+    laft: bool,
+
     /// Process MTXT files from .catex, .calut, and .caavp
     #[arg(long)]
     mtxt: bool,
@@ -104,10 +108,6 @@ struct Cli {
     /// Process BMN files from .bmn
     #[arg(long)]
     bmn: bool,
-
-    /// Process LAFT files from .wifnt
-    #[arg(long)]
-    laft: bool,
 
     /// Process all file types except gltf and wimdo-model.
     #[arg(long)]
@@ -242,6 +242,11 @@ fn main() {
         );
     }
 
+    if cli.laft || cli.all {
+        println!("Checking Laft files ...");
+        check_all(root, &["*.wifnt"], check_laft_data, Endian::Little, cli.rw);
+    }
+
     if cli.mtxt || cli.all {
         println!("Checking Mtxt files ...");
         check_all(
@@ -261,11 +266,6 @@ fn main() {
     if cli.bmn || cli.all {
         println!("Checking Bmn files ...");
         check_all(root, &["*.bmn"], check_bmn, Endian::Big, cli.rw);
-    }
-
-    if cli.laft || cli.all {
-        println!("Checking Laft files ...");
-        check_all(root, &["*.wifnt"], check_laft, Endian::Little, cli.rw);
     }
 
     if cli.gltf {
@@ -907,7 +907,16 @@ fn check_bmn(bmn: Bmn, path: &Path, _original_bytes: &[u8], check_read_write: bo
     }
 }
 
-fn check_laft(laft: Laft, path: &Path, _original_bytes: &[u8], _check_read_write: bool) {
+fn check_laft_data(
+    data: MaybeXbc1<Laft>,
+    path: &Path,
+    original_bytes: &[u8],
+    check_read_write: bool,
+) {
+    check_maybe_xbc1(data, path, check_read_write, original_bytes, check_laft);
+}
+
+fn check_laft(laft: Laft, path: &Path, original_bytes: &[u8], check_read_write: bool) {
     if !laft.mappings.len().is_power_of_two() {
         println!("Laft: mappings len not power of 2 for {path:?}");
     }
@@ -919,6 +928,14 @@ fn check_laft(laft: Laft, path: &Path, _original_bytes: &[u8], _check_read_write
     }
     if let Some(texture) = laft.texture.clone() {
         check_mibl(texture, path, &[], false);
+    }
+
+    if check_read_write {
+        let mut writer = Cursor::new(Vec::new());
+        laft.write(&mut writer).unwrap();
+        if writer.into_inner() != original_bytes {
+            println!("Laft read/write not 1:1 for {path:?}");
+        }
     }
 }
 

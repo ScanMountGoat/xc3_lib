@@ -30,7 +30,7 @@ pub enum File {
     Wimdo(Box<Mxmd>),
     Camdo(Box<MxmdLegacy>),
     Bmn(Bmn),
-    Wifnt(Laft),
+    Wifnt(MaybeXbc1<Laft>),
 }
 
 // TODO: Move this to xc3_lib?
@@ -55,12 +55,9 @@ impl File {
             File::Mtxt(mtxt) => mtxt
                 .to_dds()
                 .with_context(|| "failed to convert Mtxt to DDS"),
-            File::Wifnt(laft) => laft
-                .texture
-                .as_ref()
-                .ok_or(anyhow!("no texture in wifnt file"))
-                .and_then(|t| t.to_dds().map_err(Into::into))
-                .with_context(|| "failed to convert Mtxt to DDS"),
+            File::Wifnt(laft) => laft_mibl(laft)?
+                .to_dds()
+                .with_context(|| "failed to convert Laft to DDS"),
             File::Dds(dds) => {
                 // Handle changes in image format while preserving layers and mipmaps.
                 // TODO: dds doesn't implement clone?
@@ -122,10 +119,7 @@ impl File {
             File::Mibl(mibl) => Ok(mibl.clone()),
             File::Mtxt(mtxt) => Mibl::from_surface(mtxt.to_surface()?)
                 .with_context(|| "failed to convert Mtxt to Mibl"),
-            File::Wifnt(laft) => laft
-                .texture
-                .clone()
-                .ok_or(anyhow!("no texture in wifnt file")),
+            File::Wifnt(laft) => laft_mibl(laft),
             File::Dds(dds) => Mibl::from_dds(dds).with_context(|| "failed to create Mibl from DDS"),
             File::Image(image) => {
                 let dds = image_dds::dds_from_image(
@@ -164,15 +158,8 @@ impl File {
                 .with_context(|| "failed to decode Mibl image"),
             File::Mtxt(mtxt) => image_dds::image_from_dds(&mtxt.to_dds()?, 0)
                 .with_context(|| "failed to decode Mtxt image"),
-            File::Wifnt(laft) => image_dds::image_from_dds(
-                &laft
-                    .texture
-                    .as_ref()
-                    .ok_or(anyhow!("no texture in wifnt file"))
-                    .and_then(|t| t.to_dds().map_err(Into::into))?,
-                0,
-            )
-            .with_context(|| "failed to decode Laft image"),
+            File::Wifnt(laft) => image_dds::image_from_dds(&laft_mibl(laft)?.to_dds()?, 0)
+                .with_context(|| "failed to decode Laft image"),
             File::Dds(dds) => {
                 image_dds::image_from_dds(dds, 0).with_context(|| "failed to decode DDS")
             }
@@ -610,6 +597,20 @@ pub fn read_wismt_single_tex<P: AsRef<Path>>(path: P) -> anyhow::Result<Mibl> {
 pub fn create_wismt_single_tex(mibl: &Mibl) -> anyhow::Result<Xbc1> {
     // TODO: Set the name properly.
     Xbc1::new("middle.witx".to_string(), mibl, CompressionType::Zlib).map_err(Into::into)
+}
+
+fn laft_mibl(laft: &MaybeXbc1<Laft>) -> anyhow::Result<Mibl> {
+    match laft {
+        MaybeXbc1::Uncompressed(laft) => laft
+            .texture
+            .clone()
+            .ok_or(anyhow!("no texture in wifnt file")),
+        MaybeXbc1::Xbc1(xbc1) => xbc1
+            .extract::<Laft>()?
+            .texture
+            .clone()
+            .ok_or(anyhow!("no texture in wifnt file")),
+    }
 }
 
 #[cfg(test)]

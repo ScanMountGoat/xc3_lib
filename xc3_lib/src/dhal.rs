@@ -1,5 +1,5 @@
 //! User interface [Mibl](crate::mibl::Mibl) images in `.wilay` files.
-
+//!
 //! # File Paths
 //! Xenoblade 1 `.wilay` [Dhal] are in [Xbc1](crate::xbc1::Xbc1) archives.
 //!

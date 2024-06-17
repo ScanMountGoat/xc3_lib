@@ -1,15 +1,26 @@
+//! Fonts in `.wifnt` files.
+//!
+//! # File Paths
+//! Xenoblade 1 `.wifnt` [Laft] are in [Xbc1](crate::xbc1::Xbc1) archives.
+//!
+//! | Game | Versions | File Patterns |
+//! | --- | --- | --- |
+//! | Xenoblade Chronicles 1 DE | 10001, 10003 | `menu/font/*.wifnt` |
+//! | Xenoblade Chronicles 2 | 10001 | `menu/font/*.wifnt` |
+//! | Xenoblade Chronicles 3 | 10003 | `menu/font/*.wifnt` |
 use std::io::{Cursor, SeekFrom};
 
 use crate::mibl::Mibl;
 use crate::{parse_offset32_count32, parse_ptr32, parse_vec};
 use binrw::file_ptr::FilePtrArgs;
-use binrw::{BinRead, BinResult};
+use binrw::{binread, BinRead, BinResult};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
-const VERSION: u32 = 0x2711;
+const VERSION: u32 = 10001;
 
-#[derive(BinRead, Xc3Write, Xc3WriteOffsets, Clone)]
+#[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(magic = b"LAFT")]
 #[xc3(magic(b"LAFT"))]
 pub struct Laft {
@@ -25,14 +36,17 @@ pub struct Laft {
     #[xc3(offset_count(u32, u32))]
     pub offsets: Vec<u16>,
 
+    #[br(temp, restore_position)]
+    offset: u32,
+
     #[br(parse_with = parse_offset32_count32)]
     #[xc3(offset_count(u32, u32))]
     pub mappings: Vec<GlyphClass>,
 
-    glyph_class_mask: u32,
+    pub glyph_class_mask: u32,
 
     #[br(parse_with = parse_opt_ptr32_limited)]
-    #[xc3(offset_size(u32, u32))]
+    #[xc3(offset_size(u32, u32), align(4096))]
     pub texture: Option<Mibl>,
 
     #[br(parse_with = parse_ptr32)]
@@ -46,14 +60,19 @@ pub struct Laft {
     /// XC3 uses 4, but for new files I think it's best to keep it at 0 and adjust space manually
     /// on each glyph. It might have some other purpose I'm not aware of, though.
     pub global_width_reduction: u32,
+
     /// Used to align text vertically and control line breaks.
     ///
     /// Only used in DE/3. In those games, this value needs to be non-zero for text to display
     /// properly.
     pub line_height: u32,
+
+    // TODO: variable padding?
+    #[br(count = (offset - 56) / 4)]
+    pub unks: Vec<u32>,
 }
 
-#[derive(BinRead, Xc3Write, Xc3WriteOffsets, Clone, Copy, Debug)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone, Copy)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct FontSettings {
     pub texture_width: u32,
@@ -72,7 +91,7 @@ pub struct FontSettings {
 ///
 /// In the offset list, `size` consecutive entries can be found for this class, ordered by the
 /// codepoint of the glyph they point to.
-#[derive(BinRead, Xc3Write, Xc3WriteOffsets, Clone, Copy, Default)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone, Copy, Default)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct GlyphClass {
     /// Points to [`offsets`]. If `size > 1`, there will be consecutive entries for this class,
@@ -83,7 +102,7 @@ pub struct GlyphClass {
     pub size: u16,
 }
 
-#[derive(BinRead, Xc3Write, Xc3WriteOffsets, Clone, Copy)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone, Copy)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct GlyphFontInfo {
     /// The glyph's UTF-16 code point (max `U+FFFF`)
@@ -109,6 +128,7 @@ impl Laft {
             font_info: Vec::new(),
             settings,
             texture: None,
+            unks: vec![0; 7],
         }
     }
 
@@ -261,5 +281,22 @@ mod tests {
             assert_eq!(pos, i);
             assert_eq!(font.codepoint, code);
         }
+    }
+}
+
+impl<'a> Xc3WriteOffsets for LaftOffsets<'a> {
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+    ) -> xc3_write::Xc3Result<()> {
+        // Different order than field order.
+        self.mappings.write_full(writer, base_offset, data_ptr)?;
+        self.offsets.write_full(writer, base_offset, data_ptr)?;
+        self.font_info.write_full(writer, base_offset, data_ptr)?;
+        self.settings.write_full(writer, base_offset, data_ptr)?;
+        self.texture.write_full(writer, base_offset, data_ptr)?;
+        Ok(())
     }
 }
