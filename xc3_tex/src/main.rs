@@ -4,7 +4,8 @@ use anyhow::Context;
 use clap::{builder::PossibleValuesParser, Parser, Subcommand};
 use convert::{
     create_wismt_single_tex, extract_wilay_to_folder, extract_wimdo_to_folder,
-    read_wismt_single_tex, update_wilay_from_folder, update_wimdo_from_folder, File, Wilay,
+    read_wismt_single_tex, update_wifnt, update_wilay_from_folder, update_wimdo_from_folder, File,
+    Wilay,
 };
 use image_dds::{ddsfile::Dds, image, ImageFormat, Quality};
 use strum::IntoEnumIterator;
@@ -80,6 +81,15 @@ enum Commands {
         /// cannot be inferred from the input path.
         chr_tex_nx: Option<String>,
     },
+    /// Replace the Mibl in a .wifnt file.
+    EditWifnt {
+        /// The original .wifnt file.
+        input: String,
+        /// The DDS font texture to use for the .wifnt file.
+        input_image: String,
+        /// The output file. Defaults to the same as the input when not specified.
+        output: Option<String>,
+    },
 }
 
 mod convert;
@@ -121,6 +131,14 @@ fn main() -> anyhow::Result<()> {
                     chr_tex_nx,
                 )?;
                 println!("Converted {count} file(s) in {:?}", start.elapsed());
+            }
+            Commands::EditWifnt {
+                input,
+                input_image,
+                output,
+            } => {
+                update_wifnt(&input, &input_image, output.as_ref().unwrap_or(&input))?;
+                println!("Converted 1 file in {:?}", start.elapsed());
             }
         }
     } else if let Some(args) = cli.args {

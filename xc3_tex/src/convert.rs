@@ -589,6 +589,28 @@ pub fn extract_bmn_to_folder(
     Ok(count)
 }
 
+pub fn update_wifnt(input: &str, input_image: &str, output: &str) -> anyhow::Result<()> {
+    let mut laft = MaybeXbc1::<Laft>::from_file(input)?;
+
+    let dds = Dds::from_file(input_image)?;
+    let mibl = Mibl::from_dds(&dds)?;
+
+    match &mut laft {
+        MaybeXbc1::Uncompressed(laft) => {
+            laft.texture = Some(mibl);
+            laft.save(output)?;
+        }
+        MaybeXbc1::Xbc1(xbc1) => {
+            let mut laft: Laft = xbc1.extract()?;
+            laft.texture = Some(mibl);
+            let xbc1 = Xbc1::new(xbc1.name.clone(), &laft, CompressionType::Zlib)?;
+            xbc1.save(output)?;
+        }
+    }
+
+    Ok(())
+}
+
 // TODO: Move this to xc3_lib?
 pub fn read_wismt_single_tex<P: AsRef<Path>>(path: P) -> anyhow::Result<Mibl> {
     Xbc1::from_file(path)?.extract().map_err(Into::into)
