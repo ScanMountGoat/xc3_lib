@@ -17,6 +17,7 @@ use crate::dependencies::glsl_dependencies;
 mod annotation;
 mod dependencies;
 mod extract;
+mod graph;
 mod shader_database;
 
 #[derive(Parser)]

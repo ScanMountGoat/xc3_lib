@@ -20,11 +20,11 @@ use crate::{
 };
 
 #[derive(Debug, Default)]
-struct AssignmentVisitor {
-    assignments: Vec<AssignmentDependency>,
+pub struct AssignmentVisitor {
+    pub assignments: Vec<AssignmentDependency>,
 
     // Cache the last line where each variable was assigned.
-    last_assignment_index: HashMap<String, usize>,
+    pub last_assignment_index: HashMap<String, usize>,
 }
 
 impl AssignmentVisitor {
@@ -82,21 +82,22 @@ impl Visitor for AssignmentVisitor {
 }
 
 #[derive(Debug, Clone)]
-struct AssignmentDependency {
-    output_var: String,
+pub struct AssignmentDependency {
+    pub output_var: String,
 
-    assignment_input: Expr,
+    pub assignment_input: Expr,
 
     // Include where any inputs were last initialized.
     // This makes edge traversal O(1) later.
     // Also store color channels from dot expressions like "ZW".
-    input_last_assignments: Vec<(LastAssignment, Option<String>)>,
+    pub input_last_assignments: Vec<(LastAssignment, Option<String>)>,
 }
 
 #[derive(Debug, Clone)]
-enum LastAssignment {
+pub enum LastAssignment {
     LineNumber(usize),
     Global(String),
+    Constant(f32),
 }
 
 pub struct LineDependencies {
@@ -347,7 +348,7 @@ fn find_uv_attribute_channel(
                 &dependencies.assignments[*i].input_last_assignments,
                 dependencies,
             ),
-            LastAssignment::Global(_) => None,
+            _ => None,
         }),
     }
 }
@@ -443,7 +444,9 @@ fn add_vars(
         ExprData::IntConst(_) => (),
         ExprData::UIntConst(_) => (),
         ExprData::BoolConst(_) => (),
-        ExprData::FloatConst(_) => (),
+        ExprData::FloatConst(f) => {
+            vars.push((LastAssignment::Constant(*f), None));
+        }
         ExprData::DoubleConst(_) => (),
         ExprData::Unary(_, e) => add_vars(e, vars, most_recent_assignment, channel),
         ExprData::Binary(_, lh, rh) => {
@@ -537,7 +540,8 @@ fn add_dependencies(
                     add_dependencies(dependencies, last_assignment, assignments);
                 }
             }
-            LastAssignment::Global(_) => {
+            _ => {
+
                 // TODO: How to handle this case?
             }
         }
@@ -589,6 +593,8 @@ mod tests {
             {
                 vec4 fp_c9_data[0x1000];
             };
+
+            layout(location = 0) in vec4 in_attr0;
 
             void main() 
             {
