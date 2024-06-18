@@ -999,7 +999,11 @@ fn per_mesh_bind_group(
 
     for attribute in &buffers.vertex_buffers[mesh.vertex_buffer_index].attributes {
         if let AttributeData::WeightIndex(weight_indices) = attribute {
-            let max_index = weight_indices.iter().map(|i| i[0]).max().unwrap() as usize;
+            let max_index = weight_indices
+                .iter()
+                .map(|i| i[0])
+                .max()
+                .unwrap_or_default() as usize;
             if max_index + start >= skin_weight_count {
                 error!(
                 "Weight index start {} and max weight index {} exceed weight count {} with {:?}",
