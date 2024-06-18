@@ -21,27 +21,25 @@ pub struct Node {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Input {
-    Node {
-        node_index: usize,
-        channels: String,
-    },
+    /// A value assigned in a previous node.
+    Node { node_index: usize, channels: String },
+    /// A float constant like `1.0`.
     Constant(f32),
+    /// A buffer access like `name.field[index].x` or `name[index].x`.
     Parameter {
         name: String,
         field: Option<String>,
         index: usize,
         channels: String,
     },
-    Global {
-        name: String,
-        channels: String,
-    },
+    /// A global identifier like `in_attr0.x`.
+    Global { name: String, channels: String },
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Eq, PartialOrd, Ord)]
 pub struct Output {
-    name: String,
-    channels: String,
+    pub name: String,
+    pub channels: String,
 }
 
 #[derive(Debug, PartialEq, Clone)]

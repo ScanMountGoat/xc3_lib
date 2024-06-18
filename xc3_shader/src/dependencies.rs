@@ -16,9 +16,11 @@ use xc3_model::shader_database::{
 
 use crate::{
     annotation::shader_source_no_extensions,
+    graph::{Graph, Input},
     shader_database::{find_attribute_locations, Attributes},
 };
 
+// TODO: Delete this once everything is using the graph representation.
 #[derive(Debug, Default)]
 struct AssignmentVisitor {
     assignments: Vec<AssignmentDependency>,
@@ -122,19 +124,42 @@ impl LineDependencies {
 pub fn input_dependencies(translation_unit: &TranslationUnit, var: &str) -> Vec<Dependency> {
     line_dependencies(translation_unit, var)
         .map(|line_dependencies| {
-            // TODO: Rework this later to make fewer assumptions about the code structure.
+            // Find the most recent assignment for the output variable.
+            let graph = Graph::from_glsl(translation_unit);
+            let node = graph
+                .nodes
+                .iter()
+                .rfind(|n| format!("{}.{}", n.output.name, n.output.channels) == var);
+
+            // TODO: Rework this to use the graph structure.
             // TODO: Rework this to be cleaner and add more tests.
             let mut dependencies = texture_dependencies(&line_dependencies);
 
-            // Add anything is directly assigned to the output variable.
-            dependencies.extend(constant_dependencies(&line_dependencies, Some(0)));
-            dependencies.extend(
-                buffer_dependencies(&line_dependencies, Some(0))
-                    .into_iter()
-                    .map(Dependency::Buffer),
-            );
+            // Add anything directly assigned to the output variable.
+            if let Some(node) = node {
+                if node.operation.is_none() {
+                    match &node.inputs[..] {
+                        [Input::Constant(f)] => {
+                            dependencies.push(Dependency::Constant((*f).into()))
+                        }
+                        [Input::Parameter {
+                            name,
+                            field,
+                            index,
+                            channels,
+                        }] => dependencies.push(Dependency::Buffer(BufferDependency {
+                            name: name.clone(),
+                            field: field.clone().unwrap_or_default(),
+                            index: *index,
+                            channels: channels.clone(),
+                        })),
+                        _ => (),
+                    }
+                }
+            }
 
             // TODO: Depth not high enough for complex expressions involving attributes?
+            // TODO: Query the graph for known functions instead of hard coding recursion depth.
             let attributes = find_attribute_locations(translation_unit);
             dependencies.extend(
                 attribute_dependencies(&line_dependencies, &attributes, Some(1))
@@ -202,22 +227,6 @@ pub fn attribute_dependencies(
                 } else {
                     None
                 }
-            } else {
-                None
-            }
-        })
-        .collect()
-}
-
-fn constant_dependencies(
-    dependencies: &LineDependencies,
-    recursion_depth: Option<usize>,
-) -> Vec<Dependency> {
-    dependencies
-        .assignments_recursive(recursion_depth)
-        .filter_map(|assignment| {
-            if let ExprData::FloatConst(f) = &assignment.assignment_input.content {
-                Some(Dependency::Constant((*f).into()))
             } else {
                 None
             }

@@ -5,7 +5,6 @@ use glsl_lang::{
         DeclarationData, Expr, ExprData, FunIdentifierData, InitializerData, Statement,
         StatementData, TranslationUnit,
     },
-    transpiler::glsl::{show_expr, FormattingState},
     visitor::{Host, Visit, Visitor},
 };
 
@@ -16,30 +15,30 @@ struct AssignmentVisitor {
     assignments: Vec<AssignmentDependency>,
 
     // Cache the last line where each variable was assigned.
-    last_assignment_index: BTreeMap<String, usize>,
+    last_assignment_index: BTreeMap<Output, usize>,
 }
 
 #[derive(Debug, Clone)]
 struct AssignmentDependency {
-    output_var: String,
+    output: Output,
     assignment_input: Expr,
     inputs: Vec<Input>,
 }
 
 impl AssignmentVisitor {
-    fn add_assignment(&mut self, output: String, input: &Expr) {
+    fn add_assignment(&mut self, output: Output, input: &Expr) {
         let mut inputs = Vec::new();
         add_inputs(input, &mut inputs, &self.last_assignment_index, None);
 
         let assignment = AssignmentDependency {
-            output_var: output,
+            output: output.clone(),
             inputs,
             assignment_input: input.clone(),
         };
         // The visitor doesn't track line numbers.
         // We only need to look up the assignments, so use the index instead.
         self.last_assignment_index
-            .insert(assignment.output_var.clone(), self.assignments.len());
+            .insert(output, self.assignments.len());
         self.assignments.push(assignment);
     }
 }
@@ -51,8 +50,36 @@ impl Visitor for AssignmentVisitor {
                 if let Some(ExprData::Assignment(lh, _, rh)) =
                     expr.content.0.as_ref().map(|c| &c.content)
                 {
-                    let mut output = String::new();
-                    show_expr(&mut output, lh, &mut FormattingState::default()).unwrap();
+                    let output = match &lh.content {
+                        ExprData::Variable(id) => Output {
+                            name: id.to_string(),
+                            channels: String::new(),
+                        },
+                        ExprData::IntConst(_) => todo!(),
+                        ExprData::UIntConst(_) => todo!(),
+                        ExprData::BoolConst(_) => todo!(),
+                        ExprData::FloatConst(_) => todo!(),
+                        ExprData::DoubleConst(_) => todo!(),
+                        ExprData::Unary(_, _) => todo!(),
+                        ExprData::Binary(_, _, _) => todo!(),
+                        ExprData::Ternary(_, _, _) => todo!(),
+                        ExprData::Assignment(_, _, _) => todo!(),
+                        ExprData::Bracket(_, _) => todo!(),
+                        ExprData::FunCall(_, _) => todo!(),
+                        ExprData::Dot(e, channel) => {
+                            if let ExprData::Variable(id) = &e.content {
+                                Output {
+                                    name: id.to_string(),
+                                    channels: channel.to_string(),
+                                }
+                            } else {
+                                todo!()
+                            }
+                        }
+                        ExprData::PostInc(_) => todo!(),
+                        ExprData::PostDec(_) => todo!(),
+                        ExprData::Comma(_, _) => todo!(),
+                    };
 
                     self.add_assignment(output, rh);
                 }
@@ -66,7 +93,13 @@ impl Visitor for AssignmentVisitor {
                         l.head.initializer.as_ref().map(|c| &c.content)
                     {
                         let output = l.head.name.as_ref().unwrap().0.clone();
-                        self.add_assignment(output.to_string(), init);
+                        self.add_assignment(
+                            Output {
+                                name: output.to_string(),
+                                channels: String::new(),
+                            },
+                            init,
+                        );
                     }
                 }
 
@@ -84,19 +117,16 @@ impl Graph {
         let mut visitor = AssignmentVisitor::default();
         translation_unit.visit(&mut visitor);
 
-        // TODO: convert the visitor into nodes.
         let nodes = visitor
             .assignments
             .into_iter()
             .map(|a| Node {
-                output: Output {
-                    name: a.output_var.clone(),
-                    channels: String::new(),
-                },
+                output: a.output,
                 inputs: a.inputs,
                 operation: expr_operation(&a.assignment_input),
             })
             .collect();
+
         Self { nodes }
     }
 
@@ -175,11 +205,10 @@ fn channel_display(channels: &str) -> String {
     }
 }
 
-// TODO: module for glsl?
 fn add_inputs(
     expr: &Expr,
     inputs: &mut Vec<Input>,
-    last_assignment_index: &BTreeMap<String, usize>,
+    last_assignment_index: &BTreeMap<Output, usize>,
     channel: Option<&str>,
 ) {
     // Collect any variables used in an expression.
@@ -189,7 +218,10 @@ fn add_inputs(
         ExprData::Variable(i) => {
             // The base case is a single variable like temp_01.
             // Also handle values like buffer or texture names.
-            let input = match last_assignment_index.get(i.content.0.as_str()) {
+            let input = match last_assignment_index.get(&Output {
+                name: i.content.0.as_str().to_string(),
+                channels: channel.unwrap_or_default().to_string(),
+            }) {
                 Some(i) => Input::Node {
                     node_index: *i,
                     channels: channel.unwrap_or_default().to_string(),
@@ -320,7 +352,6 @@ fn expr_operation(expr: &Expr) -> Option<Operation> {
     }
 }
 
-// TODO: test converting to and from GLSL
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -429,8 +460,8 @@ mod tests {
                     },
                     Node {
                         output: Output {
-                            name: "OUT_Color.x".to_string(),
-                            channels: String::new()
+                            name: "OUT_Color".to_string(),
+                            channels: "x".to_string()
                         },
                         operation: Some(Operation::Sub),
                         inputs: vec![
@@ -532,8 +563,8 @@ mod tests {
                 },
                 Node {
                     output: Output {
-                        name: "OUT_Color.x".to_string(),
-                        channels: String::new(),
+                        name: "OUT_Color".to_string(),
+                        channels: "x".to_string(),
                     },
                     operation: Some(Operation::Sub),
                     inputs: vec![
