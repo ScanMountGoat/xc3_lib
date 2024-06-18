@@ -20,11 +20,11 @@ use crate::{
 };
 
 #[derive(Debug, Default)]
-pub struct AssignmentVisitor {
-    pub assignments: Vec<AssignmentDependency>,
+struct AssignmentVisitor {
+    assignments: Vec<AssignmentDependency>,
 
     // Cache the last line where each variable was assigned.
-    pub last_assignment_index: HashMap<String, usize>,
+    last_assignment_index: HashMap<String, usize>,
 }
 
 impl AssignmentVisitor {
@@ -82,22 +82,21 @@ impl Visitor for AssignmentVisitor {
 }
 
 #[derive(Debug, Clone)]
-pub struct AssignmentDependency {
-    pub output_var: String,
+struct AssignmentDependency {
+    output_var: String,
 
-    pub assignment_input: Expr,
+    assignment_input: Expr,
 
     // Include where any inputs were last initialized.
     // This makes edge traversal O(1) later.
     // Also store color channels from dot expressions like "ZW".
-    pub input_last_assignments: Vec<(LastAssignment, Option<String>)>,
+    input_last_assignments: Vec<(LastAssignment, Option<String>)>,
 }
 
 #[derive(Debug, Clone)]
-pub enum LastAssignment {
+enum LastAssignment {
     LineNumber(usize),
     Global(String),
-    Constant(f32),
 }
 
 pub struct LineDependencies {
@@ -444,9 +443,7 @@ fn add_vars(
         ExprData::IntConst(_) => (),
         ExprData::UIntConst(_) => (),
         ExprData::BoolConst(_) => (),
-        ExprData::FloatConst(f) => {
-            vars.push((LastAssignment::Constant(*f), None));
-        }
+        ExprData::FloatConst(_) => (),
         ExprData::DoubleConst(_) => (),
         ExprData::Unary(_, e) => add_vars(e, vars, most_recent_assignment, channel),
         ExprData::Binary(_, lh, rh) => {
