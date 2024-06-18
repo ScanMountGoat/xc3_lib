@@ -155,7 +155,7 @@ impl GltfData {
 
 impl GltfFile {
     /// Convert the Xenoblade model `roots` to glTF data.
-    /// See [load_model](crate::load_model) or [load_map](crate::load_map) for loading files.
+    /// See [load_model](crate::load_model) or [load_model_legacy](crate::load_model_legacy) for loading files.
     ///
     /// The `model_name` is used to create resource file names and should
     /// usually match the file name for [save](GltfFile::save) without the `.gltf` extension.
@@ -179,7 +179,7 @@ impl GltfFile {
         for (root_index, root) in roots.iter().enumerate() {
             let root_node_index = data.add_node(gltf::json::Node {
                 children: Some(vec![gltf::json::Index::new(data.nodes.len() as u32 + 1)]), // TODO: more accurate way to set this?
-                name: Some(format!("{model_name}.{root_index}")),
+                name: Some(format!("{model_name}.root{root_index}")),
                 ..default_node()
             });
             data.scene_nodes
@@ -205,7 +205,6 @@ impl GltfFile {
                 group_buffers,
                 &mut data,
                 &root.image_textures,
-                model_name,
                 root_index,
                 0,
                 0,
@@ -248,22 +247,8 @@ impl GltfFile {
         };
 
         for (root_index, root) in roots.iter().enumerate() {
-            let root_node_index = data.add_node(gltf::json::Node {
-                name: Some(format!("{model_name}.{root_index}")),
-                ..default_node()
-            });
-            data.scene_nodes
-                .push(gltf::json::Index::new(root_node_index));
-
             let mut root_children = Vec::new();
             for (group_index, group) in root.groups.iter().enumerate() {
-                let group_node_index = data.add_node(gltf::json::Node {
-                    name: Some(format!("{model_name}.{root_index}.{group_index}")),
-                    ..default_node()
-                });
-
-                root_children.push(gltf::json::Index::new(group_node_index));
-
                 let mut group_children = Vec::new();
                 for (models_index, models) in group.models.iter().enumerate() {
                     data.material_cache.insert_samplers(
@@ -278,7 +263,6 @@ impl GltfFile {
                         &group.buffers,
                         &mut data,
                         &root.image_textures,
-                        model_name,
                         root_index,
                         group_index,
                         models_index,
@@ -288,9 +272,22 @@ impl GltfFile {
                     )?;
                     group_children.push(gltf::json::Index::new(models_node_index));
                 }
-                data.nodes[group_index].children = Some(group_children);
+
+                let group_node_index = data.add_node(gltf::json::Node {
+                    name: Some(format!("group{group_index}")),
+                    children: Some(group_children),
+                    ..default_node()
+                });
+                root_children.push(gltf::json::Index::new(group_node_index));
             }
-            data.nodes[root_node_index as usize].children = Some(root_children);
+
+            let root_node_index = data.add_node(gltf::json::Node {
+                name: Some(format!("{model_name}.root{root_index}")),
+                children: Some(root_children),
+                ..default_node()
+            });
+            data.scene_nodes
+                .push(gltf::json::Index::new(root_node_index));
         }
 
         data.into_gltf(model_name, flip_images_uvs)
@@ -332,7 +329,6 @@ fn add_models(
     group_buffers: &[crate::vertex::ModelBuffers],
     data: &mut GltfData,
     image_textures: &[crate::ImageTexture],
-    model_name: &str,
     root_index: usize,
     group_index: usize,
     models_index: usize,
@@ -472,24 +468,26 @@ fn add_models(
             }
         }
 
-        let model_node_index = data.add_node(gltf::json::Node {
-            children: Some(children.clone()),
-            name: Some(format!(
-                "{model_name}.{root_index}.{group_index}.{models_index}.{model_index}"
-            )),
+        if skin_index.is_none() {
+            let model_node_index = data.add_node(gltf::json::Node {
+                children: Some(children.clone()),
+                name: Some(format!("model{model_index}")),
+                ..default_node()
+            });
+            models_children.push(gltf::json::Index::new(model_node_index));
+        }
+    }
+    // TODO: Find a better way to organize character roots?
+    if skin_index.is_some() {
+        Ok(0)
+    } else {
+        let models_node_index = data.add_node(gltf::json::Node {
+            children: Some(models_children),
+            name: Some(format!("models{models_index}")),
             ..default_node()
         });
-
-        models_children.push(gltf::json::Index::new(model_node_index));
+        Ok(models_node_index)
     }
-    let models_node_index = data.add_node(gltf::json::Node {
-        children: Some(models_children),
-        name: Some(format!(
-            "{model_name}.{root_index}.{group_index}.{models_index}"
-        )),
-        ..default_node()
-    });
-    Ok(models_node_index)
 }
 
 fn default_node() -> gltf::json::Node {
