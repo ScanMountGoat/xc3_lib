@@ -1,12 +1,7 @@
 use crate::dependencies::AssignmentVisitor;
 use glsl_lang::{
-    ast::{
-        DeclarationData, Expr, ExprData, FunIdentifierData, Identifier, InitializerData, Statement,
-        StatementData, TranslationUnit,
-    },
-    parse::DefaultParse,
-    transpiler::glsl::{show_expr, FormattingState},
-    visitor::{Host, Visit, Visitor},
+    ast::{Expr, ExprData, FunIdentifierData, TranslationUnit},
+    visitor::Host,
 };
 
 /// A directed graph of shader assignments and operations.
@@ -76,33 +71,101 @@ impl Graph {
         let nodes = visitor
             .assignments
             .into_iter()
-            .map(|a| {
-                Node {
-                    output: Output {
-                        name: a.output_var,
-                        channels: String::new(),
-                    },
-                    inputs: a
-                        .input_last_assignments
-                        .into_iter()
-                        .map(|(i, c)| match i {
-                            crate::dependencies::LastAssignment::LineNumber(l) => Input::Node {
-                                node_index: l,
-                                channels: c.unwrap_or_default(),
-                            },
-                            crate::dependencies::LastAssignment::Global(name) => Input::Global {
-                                name,
-                                channels: c.unwrap_or_default(),
-                            },
-                            crate::dependencies::LastAssignment::Constant(f) => Input::Constant(f),
-                        })
-                        .collect(),
-                    operation: expr_operation(&a.assignment_input),
-                }
+            .map(|a| Node {
+                output: Output {
+                    name: a.output_var,
+                    channels: String::new(),
+                },
+                inputs: a
+                    .input_last_assignments
+                    .into_iter()
+                    .map(|(i, c)| match i {
+                        crate::dependencies::LastAssignment::LineNumber(l) => Input::Node {
+                            node_index: l,
+                            channels: c.unwrap_or_default(),
+                        },
+                        crate::dependencies::LastAssignment::Global(name) => Input::Global {
+                            name,
+                            channels: c.unwrap_or_default(),
+                        },
+                        crate::dependencies::LastAssignment::Constant(f) => Input::Constant(f),
+                    })
+                    .collect(),
+                operation: expr_operation(&a.assignment_input),
             })
             .collect();
 
         Self { nodes }
+    }
+
+    fn to_glsl(&self) -> String {
+        let mut output = String::new();
+        for node in &self.nodes {
+            let input_expr = match &node.operation {
+                Some(op) => match op {
+                    Operation::Add => format!(
+                        "{} + {}",
+                        self.input_glsl(&node.inputs[0]),
+                        self.input_glsl(&node.inputs[1])
+                    ),
+                    Operation::Sub => format!(
+                        "{} - {}",
+                        self.input_glsl(&node.inputs[0]),
+                        self.input_glsl(&node.inputs[1])
+                    ),
+                    Operation::Mul => format!(
+                        "{} * {}",
+                        self.input_glsl(&node.inputs[0]),
+                        self.input_glsl(&node.inputs[1])
+                    ),
+                    Operation::Div => format!(
+                        "{} / {}",
+                        self.input_glsl(&node.inputs[0]),
+                        self.input_glsl(&node.inputs[1])
+                    ),
+                    Operation::Func(f) => format!(
+                        "{f}({})",
+                        node.inputs
+                            .iter()
+                            .map(|i| self.input_glsl(i))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ),
+                },
+                None => self.input_glsl(&node.inputs[0]),
+            };
+            let channels = channel_display(&node.output.channels);
+            output += &format!("{}{} = {input_expr};\n", node.output.name, channels);
+        }
+        output
+    }
+
+    fn input_glsl(&self, input: &Input) -> String {
+        match input {
+            Input::Node {
+                node_index,
+                channels,
+            } => format!(
+                "{}{}",
+                self.nodes[*node_index].output.name,
+                channel_display(channels)
+            ),
+            Input::Constant(f) => f.to_string(),
+            Input::Parameter {
+                name,
+                index,
+                channels,
+            } => format!("{name}[{index}]{}", channel_display(channels)),
+            Input::Global { name, channels } => format!("{name}{}", channel_display(channels)),
+        }
+    }
+}
+
+fn channel_display(channels: &str) -> String {
+    if channels.is_empty() {
+        String::new()
+    } else {
+        ".".to_string() + &channels
     }
 }
 
@@ -159,9 +222,9 @@ fn expr_operation(expr: &Expr) -> Option<Operation> {
 mod tests {
     use super::*;
 
+    use glsl_lang::parse::DefaultParse;
     use indoc::indoc;
 
-    // TODO: Test case for converting this graph to GLSL.
     #[test]
     fn graph_from_glsl() {
         let glsl = indoc! {"
@@ -191,6 +254,7 @@ mod tests {
                             channels: String::new()
                         },
                         operation: None,
+                        // TODO: This should be a parameter
                         inputs: vec![Input::Global {
                             name: "fp_c9_data".to_string(),
                             channels: "x".to_string()
@@ -279,6 +343,117 @@ mod tests {
                 ]
             },
             Graph::from_glsl(&tu)
+        );
+    }
+
+    #[test]
+    fn graph_to_glsl() {
+        let graph = Graph {
+            nodes: vec![
+                Node {
+                    output: Output {
+                        name: "a".to_string(),
+                        channels: String::new(),
+                    },
+                    operation: None,
+                    inputs: vec![Input::Parameter {
+                        name: "fp_c9_data".to_string(),
+                        index: 0,
+                        channels: "x".to_string(),
+                    }],
+                },
+                Node {
+                    output: Output {
+                        name: "b".to_string(),
+                        channels: String::new(),
+                    },
+                    operation: None,
+                    inputs: vec![Input::Global {
+                        name: "in_attr0".to_string(),
+                        channels: "z".to_string(),
+                    }],
+                },
+                Node {
+                    output: Output {
+                        name: "c".to_string(),
+                        channels: String::new(),
+                    },
+                    operation: Some(Operation::Mul),
+                    inputs: vec![
+                        Input::Node {
+                            node_index: 0,
+                            channels: String::new(),
+                        },
+                        Input::Node {
+                            node_index: 1,
+                            channels: String::new(),
+                        },
+                    ],
+                },
+                Node {
+                    output: Output {
+                        name: "d".to_string(),
+                        channels: String::new(),
+                    },
+                    operation: Some(Operation::Func("fma".to_string())),
+                    inputs: vec![
+                        Input::Node {
+                            node_index: 0,
+                            channels: String::new(),
+                        },
+                        Input::Node {
+                            node_index: 1,
+                            channels: String::new(),
+                        },
+                        Input::Node {
+                            node_index: 2,
+                            channels: String::new(),
+                        },
+                    ],
+                },
+                Node {
+                    output: Output {
+                        name: "d".to_string(),
+                        channels: String::new(),
+                    },
+                    operation: Some(Operation::Add),
+                    inputs: vec![
+                        Input::Node {
+                            node_index: 3,
+                            channels: String::new(),
+                        },
+                        Input::Constant(1.0),
+                    ],
+                },
+                Node {
+                    output: Output {
+                        name: "OUT_Color.x".to_string(),
+                        channels: String::new(),
+                    },
+                    operation: Some(Operation::Sub),
+                    inputs: vec![
+                        Input::Node {
+                            node_index: 2,
+                            channels: String::new(),
+                        },
+                        Input::Node {
+                            node_index: 4,
+                            channels: String::new(),
+                        },
+                    ],
+                },
+            ],
+        };
+        pretty_assertions::assert_eq!(
+            indoc! {"
+                a = fp_c9_data[0].x;
+                b = in_attr0.z;
+                c = a * b;
+                d = fma(a, b, c);
+                d = d + 1;
+                OUT_Color.x = c - d;
+            "},
+            graph.to_glsl()
         );
     }
 }
