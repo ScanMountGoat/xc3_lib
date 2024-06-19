@@ -15,6 +15,7 @@ use xc3_lib::{
     dhal::Dhal,
     efb0::Efb0,
     eva::Eva,
+    fnt::Fnt,
     idcm::Idcm,
     laft::Laft,
     lagp::Lagp,
@@ -90,6 +91,10 @@ struct Cli {
     /// Process efb0 files from .wiefb
     #[arg(long)]
     efb0: bool,
+
+    /// Process XCX fnt files from .fnt
+    #[arg(long)]
+    fnt: bool,
 
     /// Process IDCM files from .idcm or .wiidcm
     #[arg(long)]
@@ -235,6 +240,11 @@ fn main() {
     if cli.efb0 || cli.all {
         println!("Checking Efb0 files ...");
         check_all(root, &["*.weifb"], check_efb0, Endian::Little, cli.rw);
+    }
+
+    if cli.fnt || cli.all {
+        println!("Checking fnt files ...");
+        check_all(root, &["*.fnt"], check_fnt, Endian::Big, cli.rw);
     }
 
     if cli.idcm || cli.all {
@@ -880,6 +890,13 @@ fn check_last(last: Last, path: &Path, original_bytes: &[u8], check_read_write: 
     }
 }
 
+fn check_fnt(fnt: Fnt, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+    if check_read_write && !write_be_bytes_equals(&fnt, original_bytes) {
+        fnt.save("/tmp/out.fnt").unwrap();
+        println!("Fnt read/write not 1:1 for {path:?}");
+    }
+}
+
 fn check_all<P, T, F>(
     root: P,
     patterns: &[&str],
@@ -1029,5 +1046,15 @@ where
 {
     let mut writer = Cursor::new(Vec::new());
     xc3_write::write_full(value, &mut writer, 0, &mut 0, xc3_write::Endian::Little).unwrap();
+    writer.into_inner() == original_bytes
+}
+
+fn write_be_bytes_equals<T>(value: &T, original_bytes: &[u8]) -> bool
+where
+    T: Xc3Write + 'static,
+    for<'a> T::Offsets<'a>: Xc3WriteOffsets,
+{
+    let mut writer = Cursor::new(Vec::new());
+    xc3_write::write_full(value, &mut writer, 0, &mut 0, xc3_write::Endian::Big).unwrap();
     writer.into_inner() == original_bytes
 }

@@ -13,8 +13,11 @@ use std::io::SeekFrom;
 use binrw::{binrw, BinRead, BinWrite};
 use image_dds::{ddsfile::Dds, Surface};
 use thiserror::Error;
+use xc3_write::Xc3Write;
 
 pub use wiiu_swizzle::SwizzleError;
+
+use crate::xc3_write_binwrite_impl;
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinWrite, PartialEq, Eq, Clone)]
@@ -315,3 +318,5 @@ impl SurfaceFormat {
         }
     }
 }
+
+xc3_write_binwrite_impl!(Mtxt);
