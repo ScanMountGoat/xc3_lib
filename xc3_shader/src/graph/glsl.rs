@@ -566,9 +566,95 @@ mod tests {
         );
     }
 
-    // TODO: Split into two test cases.
     #[test]
-    fn graph_textures_to_and_from_glsl() {
+    fn graph_to_glsl_textures() {
+        // Test some more varied syntax.
+        let graph = Graph {
+            nodes: vec![
+                Node {
+                    output: Output {
+                        name: "a".to_string(),
+                        channels: String::new(),
+                    },
+                    input: Expr::Float(1.0),
+                },
+                Node {
+                    output: Output {
+                        name: "a2".to_string(),
+                        channels: String::new(),
+                    },
+                    input: Expr::Mul(
+                        Box::new(Expr::Node {
+                            node_index: 0,
+                            channels: String::new(),
+                        }),
+                        Box::new(Expr::Float(5.0)),
+                    ),
+                },
+                Node {
+                    output: Output {
+                        name: "b".to_string(),
+                        channels: String::new(),
+                    },
+                    input: Expr::Func {
+                        name: "texture".to_string(),
+                        args: vec![
+                            Expr::Global {
+                                name: "texture1".to_string(),
+                                channels: String::new(),
+                            },
+                            Expr::Func {
+                                name: "vec2".to_string(),
+                                args: vec![
+                                    Expr::Add(
+                                        Box::new(Expr::Node {
+                                            node_index: 1,
+                                            channels: String::new(),
+                                        }),
+                                        Box::new(Expr::Float(2.0)),
+                                    ),
+                                    Expr::Float(1.0),
+                                ],
+                                channels: String::new(),
+                            },
+                        ],
+                        channels: "x".to_string(),
+                    },
+                },
+                Node {
+                    output: Output {
+                        name: "c".to_string(),
+                        channels: String::new(),
+                    },
+                    input: Expr::Parameter {
+                        name: "data".to_string(),
+                        field: None,
+                        index: Box::new(Expr::Func {
+                            name: "int".to_string(),
+                            args: vec![Expr::Node {
+                                node_index: 2,
+                                channels: String::new(),
+                            }],
+                            channels: String::new(),
+                        }),
+                        channels: String::new(),
+                    },
+                },
+            ],
+        };
+        assert_eq!(
+            indoc! {"
+                a = 1;
+                a2 = a * 5;
+                b = texture(texture1, vec2(a2 + 2, 1)).x;
+                c = data[int(b)];
+            "},
+            graph.to_glsl()
+        );
+    }
+
+    #[test]
+    fn graph_from_glsl_textures() {
         // Test some more varied syntax.
         let glsl = indoc! {"
             void main() 
@@ -580,15 +666,81 @@ mod tests {
             }
         "};
         let tu = TranslationUnit::parse(glsl).unwrap();
-        let graph = Graph::from_glsl(&tu);
         assert_eq!(
-            indoc! {"
-                a = 1;
-                a2 = a * 5;
-                b = texture(texture1, vec2(a2 + 2, 1)).x;
-                c = data[int(b)];
-            "},
-            graph.to_glsl()
+            Graph {
+                nodes: vec![
+                    Node {
+                        output: Output {
+                            name: "a".to_string(),
+                            channels: String::new(),
+                        },
+                        input: Expr::Float(1.0,),
+                    },
+                    Node {
+                        output: Output {
+                            name: "a2".to_string(),
+                            channels: String::new(),
+                        },
+                        input: Expr::Mul(
+                            Box::new(Expr::Node {
+                                node_index: 0,
+                                channels: String::new(),
+                            }),
+                            Box::new(Expr::Float(5.0,)),
+                        ),
+                    },
+                    Node {
+                        output: Output {
+                            name: "b".to_string(),
+                            channels: String::new(),
+                        },
+                        input: Expr::Func {
+                            name: "texture".to_string(),
+                            args: vec![
+                                Expr::Global {
+                                    name: "texture1".to_string(),
+                                    channels: String::new(),
+                                },
+                                Expr::Func {
+                                    name: "vec2".to_string(),
+                                    args: vec![
+                                        Expr::Add(
+                                            Box::new(Expr::Node {
+                                                node_index: 1,
+                                                channels: String::new(),
+                                            }),
+                                            Box::new(Expr::Float(2.0,)),
+                                        ),
+                                        Expr::Float(1.0,),
+                                    ],
+                                    channels: String::new(),
+                                },
+                            ],
+                            channels: "x".to_string(),
+                        },
+                    },
+                    Node {
+                        output: Output {
+                            name: "c".to_string(),
+                            channels: String::new(),
+                        },
+                        input: Expr::Parameter {
+                            name: "data".to_string(),
+                            field: None,
+                            index: Box::new(Expr::Func {
+                                name: "int".to_string(),
+                                args: vec![Expr::Node {
+                                    node_index: 2,
+                                    channels: String::new(),
+                                }],
+                                channels: String::new(),
+                            }),
+                            channels: String::new(),
+                        },
+                    },
+                ]
+            },
+            Graph::from_glsl(&tu)
         );
     }
 }

@@ -83,7 +83,8 @@ impl Graph {
             dependent_lines.insert(i);
 
             // Follow data dependencies backwards to find all relevant lines.
-            add_dependencies(&mut dependent_lines, &n.input, &self.nodes);
+            // add_dependencies(&mut dependent_lines, &n.input, &self.nodes);
+            self.add_dependencies(n, &mut dependent_lines);
         }
 
         let max_depth = recursion_depth.unwrap_or(dependent_lines.len());
@@ -93,6 +94,17 @@ impl Graph {
             .take(max_depth + 1)
             .rev()
             .collect()
+    }
+
+    fn add_dependencies(&self, n: &Node, dependent_lines: &mut BTreeSet<usize>) {
+        for e in n.input.exprs_recursive() {
+            if let Expr::Node { node_index, .. } = e {
+                // Avoid processing the subtree rooted at a line more than once.
+                if dependent_lines.insert(*node_index) {
+                    self.add_dependencies(&self.nodes[*node_index], dependent_lines);
+                }
+            }
+        }
     }
 
     /// Return the GLSL for each line from [Self::assignments_recursive].
@@ -110,56 +122,54 @@ impl Graph {
     }
 }
 
-fn add_dependencies(dependencies: &mut BTreeSet<usize>, input: &Expr, nodes: &[Node]) {
-    // Recursively collect nodes that the given node depends on.
+// TODO: Turn this into an iterator or visitor that doesn't allocate?
+impl Expr {
+    /// Flatten all expressions recursively.
+    pub fn exprs_recursive(&self) -> Vec<&Expr> {
+        let mut exprs = Vec::new();
+        add_exprs(&mut exprs, self);
+        exprs
+    }
+}
+
+fn add_exprs<'a>(exprs: &mut Vec<&'a Expr>, input: &'a Expr) {
+    // Recursively collect exprs.
+    exprs.push(input);
     match input {
-        Expr::Node {
-            node_index,
-            channels,
-        } => {
-            // Avoid processing the subtree rooted at a line more than once.
-            if dependencies.insert(*node_index) {
-                add_dependencies(dependencies, &nodes[*node_index].input, nodes);
-            }
-        }
+        Expr::Node { .. } => (),
         Expr::Float(_) => (),
         Expr::Int(_) => (),
-        Expr::Parameter {
-            name,
-            field,
-            index,
-            channels,
-        } => {
-            add_dependencies(dependencies, &index, nodes);
+        Expr::Parameter { index, .. } => {
+            add_exprs(exprs, &index);
         }
-        Expr::Global { name, channels } => (),
+        Expr::Global { .. } => (),
         Expr::Add(lh, rh) => {
-            add_dependencies(dependencies, lh, nodes);
-            add_dependencies(dependencies, rh, nodes);
+            add_exprs(exprs, lh);
+            add_exprs(exprs, rh);
         }
         Expr::Sub(lh, rh) => {
-            add_dependencies(dependencies, lh, nodes);
-            add_dependencies(dependencies, rh, nodes);
+            add_exprs(exprs, lh);
+            add_exprs(exprs, rh);
         }
         Expr::Mul(lh, rh) => {
-            add_dependencies(dependencies, lh, nodes);
-            add_dependencies(dependencies, rh, nodes);
+            add_exprs(exprs, lh);
+            add_exprs(exprs, rh);
         }
         Expr::Div(lh, rh) => {
-            add_dependencies(dependencies, lh, nodes);
-            add_dependencies(dependencies, rh, nodes);
+            add_exprs(exprs, lh);
+            add_exprs(exprs, rh);
         }
         Expr::LShift(lh, rh) => {
-            add_dependencies(dependencies, lh, nodes);
-            add_dependencies(dependencies, rh, nodes);
+            add_exprs(exprs, lh);
+            add_exprs(exprs, rh);
         }
         Expr::RShift(lh, rh) => {
-            add_dependencies(dependencies, lh, nodes);
-            add_dependencies(dependencies, rh, nodes);
+            add_exprs(exprs, lh);
+            add_exprs(exprs, rh);
         }
         Expr::Func { args, .. } => {
             for arg in args {
-                add_dependencies(dependencies, arg, nodes);
+                add_exprs(exprs, arg);
             }
         }
     }

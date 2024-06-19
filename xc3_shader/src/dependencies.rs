@@ -154,7 +154,7 @@ pub fn input_dependencies(translation_unit: &TranslationUnit, var: &str) -> Vec<
                             dependencies.push(Dependency::Buffer(BufferDependency {
                                 name: name.clone(),
                                 field: field.clone().unwrap_or_default(),
-                                index: *index as usize,
+                                index: (*index).try_into().unwrap(),
                                 channels: channels.clone(),
                             }))
                         }
@@ -236,16 +236,6 @@ pub fn attribute_dependencies(
                 None
             }
         })
-        .collect()
-}
-
-fn buffer_dependencies(
-    dependencies: &LineDependencies,
-    recursion_depth: Option<usize>,
-) -> Vec<BufferDependency> {
-    dependencies
-        .assignments_recursive(recursion_depth)
-        .filter_map(|assignment| find_buffer_parameter(&assignment.assignment_input))
         .collect()
 }
 
@@ -572,9 +562,39 @@ pub fn find_buffer_parameters(
     translation_unit: &TranslationUnit,
     var: &str,
 ) -> Vec<BufferDependency> {
-    line_dependencies(translation_unit, var)
-        .map(|dependencies| buffer_dependencies(&dependencies, None))
-        .unwrap_or_default()
+    let (variable, channels) = var.split_once('.').unwrap_or((var, ""));
+    let graph = Graph::from_glsl(&translation_unit);
+    graph
+        .assignments_recursive(variable, channels, None)
+        .into_iter()
+        .flat_map(|i| {
+            // Check all exprs for binary ops, function args, etc.
+            let node = &graph.nodes[i];
+            node.input.exprs_recursive()
+        })
+        .filter_map(|e| {
+            if let crate::graph::Expr::Parameter {
+                name,
+                field,
+                index,
+                channels,
+            } = e
+            {
+                if let crate::graph::Expr::Int(index) = index.deref() {
+                    Some(BufferDependency {
+                        name: name.clone(),
+                        field: field.clone().unwrap_or_default(),
+                        index: (*index).try_into().unwrap(),
+                        channels: channels.clone(),
+                    })
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]
