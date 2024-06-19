@@ -564,9 +564,8 @@ pub fn glsl_dependencies(source: &str, var: &str) -> String {
     let source = shader_source_no_extensions(source);
     let translation_unit = TranslationUnit::parse(source).unwrap();
     let (variable, channels) = var.split_once('.').unwrap_or((var, ""));
-    Graph::from_glsl(&translation_unit)
-        .assignments_recursive(variable, channels, None)
-        .to_glsl()
+
+    Graph::from_glsl(&translation_unit).glsl_dependencies(variable, channels, None)
 }
 
 pub fn find_buffer_parameters(
@@ -657,7 +656,7 @@ mod tests {
 
         assert_eq!(
             indoc! {"
-                a = 0.;
+                a = 0;
                 b = uint(a) >> 2;
                 c = data[int(b)];
             "},
@@ -691,9 +690,9 @@ mod tests {
 
         assert_eq!(
             indoc! {"
-                a = 1.;
-                a2 = a * 5.;
-                b = texture(texture1, vec2(a2 + 2., 1.)).x;
+                a = 1;
+                a2 = a * 5;
+                b = texture(texture1, vec2(a2 + 2, 1)).x;
                 c = data[int(b)];
             "},
             glsl_dependencies(glsl, "c")

@@ -130,11 +130,15 @@ impl Graph {
     pub fn to_glsl(&self) -> String {
         let mut output = String::new();
         for node in &self.nodes {
-            let input_expr = self.expr_to_glsl(&node.input);
-            let channels = channel_display(&node.output.channels);
-            output += &format!("{}{} = {input_expr};\n", node.output.name, channels);
+            output += &self.node_to_glsl(node);
         }
         output
+    }
+
+    pub(crate) fn node_to_glsl(&self, node: &Node) -> String {
+        let input_expr = self.expr_to_glsl(&node.input);
+        let channels = channel_display(&node.output.channels);
+        format!("{}{} = {input_expr};\n", node.output.name, channels)
     }
 
     fn expr_to_glsl(&self, input: &Expr) -> String {

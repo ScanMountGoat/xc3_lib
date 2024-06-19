@@ -65,12 +65,14 @@ pub struct Output {
 // TODO: use this instead of line dependencies
 
 impl Graph {
+    /// Return the indices of dependent nodes for `variable` and `channels`
+    /// starting from the last assignment.
     pub fn assignments_recursive(
         &self,
         variable: &str,
         channels: &str,
         recursion_depth: Option<usize>,
-    ) -> Self {
+    ) -> Vec<usize> {
         let mut dependent_lines = BTreeSet::new();
         if let Some((i, n)) = self
             .nodes
@@ -85,15 +87,26 @@ impl Graph {
         }
 
         let max_depth = recursion_depth.unwrap_or(dependent_lines.len());
-        let nodes = dependent_lines
-            .iter()
+        dependent_lines
+            .into_iter()
             .rev()
-            .map(|d| self.nodes[*d].clone())
             .take(max_depth + 1)
             .rev()
-            .collect();
+            .collect()
+    }
 
-        Self { nodes }
+    /// Return the GLSL for each line from [Self::assignments_recursive].
+    pub fn glsl_dependencies(
+        &self,
+        variable: &str,
+        channels: &str,
+        recursion_depth: Option<usize>,
+    ) -> String {
+        let mut output = String::new();
+        for i in self.assignments_recursive(variable, channels, recursion_depth) {
+            output += &self.node_to_glsl(&self.nodes[i]);
+        }
+        output
     }
 }
 
@@ -117,7 +130,7 @@ fn add_dependencies(dependencies: &mut BTreeSet<usize>, input: &Expr, nodes: &[N
             index,
             channels,
         } => {
-            // TODO: index should be an expr
+            add_dependencies(dependencies, &index, nodes);
         }
         Expr::Global { name, channels } => (),
         Expr::Add(lh, rh) => {
