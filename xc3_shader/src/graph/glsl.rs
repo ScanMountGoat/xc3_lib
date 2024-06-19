@@ -16,7 +16,7 @@ struct AssignmentVisitor {
     assignments: Vec<AssignmentDependency>,
 
     // Cache the last line where each variable was assigned.
-    last_assignment_index: BTreeMap<Output, usize>,
+    last_assignment_index: BTreeMap<String, usize>,
 }
 
 #[derive(Debug, Clone)]
@@ -36,7 +36,7 @@ impl AssignmentVisitor {
         // The visitor doesn't track line numbers.
         // We only need to look up the assignments, so use the index instead.
         self.last_assignment_index
-            .insert(output, self.assignments.len());
+            .insert(output.name, self.assignments.len());
         self.assignments.push(assignment);
     }
 }
@@ -109,6 +109,7 @@ impl Visitor for AssignmentVisitor {
 }
 
 impl Graph {
+    /// Convert parsed GLSL into a graph representation.
     pub fn from_glsl(translation_unit: &TranslationUnit) -> Self {
         // Visit each assignment to establish data dependencies.
         // This converts the code to a directed acyclic graph (DAG).
@@ -127,6 +128,8 @@ impl Graph {
         Self { nodes }
     }
 
+    /// Pretty print the graph as GLSL code with an assignment line for each node.
+    /// The output may not be valid GLSL and should only be used for debugging.
     pub fn to_glsl(&self) -> String {
         let mut output = String::new();
         for node in &self.nodes {
@@ -203,7 +206,7 @@ fn channel_display(channels: &str) -> String {
 
 fn input_expr(
     expr: &glsl_lang::ast::Expr,
-    last_assignment_index: &BTreeMap<Output, usize>,
+    last_assignment_index: &BTreeMap<String, usize>,
     channel: Option<&str>,
 ) -> Expr {
     // Collect any variables used in an expression.
@@ -213,10 +216,7 @@ fn input_expr(
         ExprData::Variable(i) => {
             // The base case is a single variable like temp_01.
             // Also handle values like buffer or texture names.
-            match last_assignment_index.get(&Output {
-                name: i.content.0.as_str().to_string(),
-                channels: channel.unwrap_or_default().to_string(),
-            }) {
+            match last_assignment_index.get(i.content.0.as_str()) {
                 Some(i) => Expr::Node {
                     node_index: *i,
                     channels: channel.unwrap_or_default().to_string(),

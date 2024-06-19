@@ -73,14 +73,27 @@ impl Graph {
         channels: &str,
         recursion_depth: Option<usize>,
     ) -> Vec<usize> {
-        let mut dependent_lines = BTreeSet::new();
-        if let Some((i, n)) = self
+        if let Some(i) = self
             .nodes
             .iter()
-            .enumerate()
-            .rfind(|(_, n)| n.output.name == variable && n.output.channels == channels)
+            .rposition(|n| n.output.name == variable && n.output.channels == channels)
         {
-            dependent_lines.insert(i);
+            self.node_assignments_recursive(i, recursion_depth)
+        } else {
+            Vec::new()
+        }
+    }
+
+    /// Return the indices of dependent nodes for `node`
+    /// starting from the last assignment.
+    pub fn node_assignments_recursive(
+        &self,
+        node_index: usize,
+        recursion_depth: Option<usize>,
+    ) -> Vec<usize> {
+        let mut dependent_lines = BTreeSet::new();
+        if let Some(n) = self.nodes.get(node_index) {
+            dependent_lines.insert(node_index);
 
             // Follow data dependencies backwards to find all relevant lines.
             // add_dependencies(&mut dependent_lines, &n.input, &self.nodes);

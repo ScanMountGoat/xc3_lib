@@ -352,6 +352,7 @@ mod tests {
     use super::*;
 
     use indoc::indoc;
+    use pretty_assertions::assert_eq;
     use xc3_model::shader_database::{
         AttributeDependency, BufferDependency, TexCoord, TextureDependency,
     };
