@@ -12,6 +12,7 @@ use strum::IntoEnumIterator;
 use xc3_lib::{
     bmn::Bmn,
     dds::DdsExt,
+    fnt::Fnt,
     laft::Laft,
     mibl::Mibl,
     mtxt::Mtxt,
@@ -262,6 +263,9 @@ fn load_input_file(input: &PathBuf) -> anyhow::Result<File> {
         "wifnt" => MaybeXbc1::<Laft>::from_file(input)
             .with_context(|| format!("{input:?} is not a valid .wifnt file"))
             .map(File::Wifnt),
+        "fnt" => Fnt::from_file(input)
+            .with_context(|| format!("{input:?} is not a valid .fnt file"))
+            .map(File::XcxFnt),
         _ => {
             // Assume other formats are image formats.
             let image = image::open(input)

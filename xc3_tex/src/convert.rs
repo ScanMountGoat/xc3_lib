@@ -7,6 +7,7 @@ use xc3_lib::{
     bmn::Bmn,
     dds::DdsExt,
     dhal::Dhal,
+    fnt::Fnt,
     laft::Laft,
     lagp::Lagp,
     laps::Laps,
@@ -31,6 +32,7 @@ pub enum File {
     Camdo(Box<MxmdLegacy>),
     Bmn(Bmn),
     Wifnt(MaybeXbc1<Laft>),
+    XcxFnt(Fnt),
 }
 
 // TODO: Move this to xc3_lib?
@@ -58,6 +60,10 @@ impl File {
             File::Wifnt(laft) => laft_mibl(laft)?
                 .to_dds()
                 .with_context(|| "failed to convert Laft to DDS"),
+            File::XcxFnt(fnt) => fnt
+                .textures
+                .to_dds()
+                .with_context(|| "failed to convert Fnt to DDS"),
             File::Dds(dds) => {
                 // Handle changes in image format while preserving layers and mipmaps.
                 // TODO: dds doesn't implement clone?
@@ -120,6 +126,8 @@ impl File {
             File::Mtxt(mtxt) => Mibl::from_surface(mtxt.to_surface()?)
                 .with_context(|| "failed to convert Mtxt to Mibl"),
             File::Wifnt(laft) => laft_mibl(laft),
+            File::XcxFnt(fnt) => Mibl::from_surface(fnt.textures.to_surface()?)
+                .with_context(|| "failed to convert Fnt to Mibl"),
             File::Dds(dds) => Mibl::from_dds(dds).with_context(|| "failed to create Mibl from DDS"),
             File::Image(image) => {
                 let dds = image_dds::dds_from_image(
@@ -160,6 +168,8 @@ impl File {
                 .with_context(|| "failed to decode Mtxt image"),
             File::Wifnt(laft) => image_dds::image_from_dds(&laft_mibl(laft)?.to_dds()?, 0)
                 .with_context(|| "failed to decode Laft image"),
+            File::XcxFnt(fnt) => image_dds::image_from_dds(&fnt.textures.to_dds()?, 0)
+                .with_context(|| "failed to decode Fnt image"),
             File::Dds(dds) => {
                 image_dds::image_from_dds(dds, 0).with_context(|| "failed to decode DDS")
             }
