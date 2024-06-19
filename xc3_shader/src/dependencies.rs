@@ -16,7 +16,7 @@ use xc3_model::shader_database::{
 
 use crate::{
     annotation::shader_source_no_extensions,
-    graph::{Graph, Input},
+    graph::Graph,
     shader_database::{find_attribute_locations, Attributes},
 };
 
@@ -137,24 +137,22 @@ pub fn input_dependencies(translation_unit: &TranslationUnit, var: &str) -> Vec<
 
             // Add anything directly assigned to the output variable.
             if let Some(node) = node {
-                if node.operation.is_none() {
-                    match &node.inputs[..] {
-                        [Input::Constant(f)] => {
-                            dependencies.push(Dependency::Constant((*f).into()))
-                        }
-                        [Input::Parameter {
-                            name,
-                            field,
-                            index,
-                            channels,
-                        }] => dependencies.push(Dependency::Buffer(BufferDependency {
-                            name: name.clone(),
-                            field: field.clone().unwrap_or_default(),
-                            index: *index,
-                            channels: channels.clone(),
-                        })),
-                        _ => (),
+                match &node.input {
+                    crate::graph::Expr::Constant(f) => {
+                        dependencies.push(Dependency::Constant((*f).into()))
                     }
+                    crate::graph::Expr::Parameter {
+                        name,
+                        field,
+                        index,
+                        channels,
+                    } => dependencies.push(Dependency::Buffer(BufferDependency {
+                        name: name.clone(),
+                        field: field.clone().unwrap_or_default(),
+                        index: *index,
+                        channels: channels.clone(),
+                    })),
+                    _ => (),
                 }
             }
 
@@ -558,22 +556,10 @@ pub fn glsl_dependencies(source: &str, var: &str) -> String {
     // TODO: Correctly handle if statements?
     let source = shader_source_no_extensions(source);
     let translation_unit = TranslationUnit::parse(source).unwrap();
-    line_dependencies(&translation_unit, var)
-        .map(|dependencies| {
-            // Combine all the lines into source code again.
-            // These won't exactly match the originals due to formatting differences.
-            dependencies
-                .dependent_assignment_indices
-                .into_iter()
-                .map(|d| {
-                    let a = &dependencies.assignments[d];
-                    format!("{} = {};", a.output_var, print_expr(&a.assignment_input))
-                })
-                .collect::<Vec<_>>()
-                .join("\n")
-                + "\n"
-        })
-        .unwrap_or_default()
+    let (variable, channels) = var.split_once('.').unwrap_or((var, ""));
+    Graph::from_glsl(&translation_unit)
+        .assignments_recursive(variable, channels, None)
+        .to_glsl()
 }
 
 pub fn find_buffer_parameters(
@@ -590,6 +576,7 @@ mod tests {
     use super::*;
 
     use indoc::indoc;
+    use pretty_assertions::assert_eq;
     use xc3_model::shader_database::AttributeDependency;
 
     #[test]
@@ -616,10 +603,10 @@ mod tests {
         assert_eq!(
             indoc! {"
                 a = fp_c9_data[0].x;
-                b = 2.;
+                b = 2;
                 c = a * b;
                 d = fma(a, b, c);
-                d = d + 1.;
+                d = d + 1;
                 OUT_Color.x = c + d;
             "},
             glsl_dependencies(glsl, "OUT_Color.x")
@@ -642,7 +629,7 @@ mod tests {
 
         assert_eq!(
             indoc! {"
-                b = 2.;
+                b = 2;
                 c = 2 * b;
             "},
             glsl_dependencies(glsl, "c")

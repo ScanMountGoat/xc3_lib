@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 mod glsl;
 
 /// A directed graph of shader assignments and operations.
@@ -13,27 +15,38 @@ pub struct Graph {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Node {
     pub output: Output,
-    /// The operation performed on the inputs or `None` if assigned directly.
-    pub operation: Option<Operation>,
-    /// References to input values used in this assignment statement.
-    pub inputs: Vec<Input>,
+    /// The value assigned in this assignment statement.
+    pub input: Expr,
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum Input {
+pub enum Expr {
     /// A value assigned in a previous node.
-    Node { node_index: usize, channels: String },
+    Node {
+        node_index: usize,
+        channels: String,
+    },
     /// A float constant like `1.0`.
     Constant(f32),
     /// A buffer access like `name.field[index].x` or `name[index].x`.
     Parameter {
         name: String,
         field: Option<String>,
-        index: usize,
+        index: usize, // TODO: make this Box<Expr>
         channels: String,
     },
     /// A global identifier like `in_attr0.x`.
-    Global { name: String, channels: String },
+    Global {
+        name: String,
+        channels: String,
+    },
+    Add(Box<Expr>, Box<Expr>),
+    Sub(Box<Expr>, Box<Expr>),
+    Mul(Box<Expr>, Box<Expr>),
+    Div(Box<Expr>, Box<Expr>),
+    LShift(Box<Expr>, Box<Expr>),
+    RShift(Box<Expr>, Box<Expr>),
+    Func(String, Vec<Expr>),
 }
 
 #[derive(Debug, PartialEq, Clone, Eq, PartialOrd, Ord)]
@@ -42,14 +55,92 @@ pub struct Output {
     pub channels: String,
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub enum Operation {
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Func(String),
-}
-
 // TODO: more strongly typed channel swizzles?
 // TODO: use this instead of line dependencies
+
+impl Graph {
+    pub fn assignments_recursive(
+        &self,
+        variable: &str,
+        channels: &str,
+        recursion_depth: Option<usize>,
+    ) -> Self {
+        let mut dependent_lines = BTreeSet::new();
+        if let Some((i, n)) = self
+            .nodes
+            .iter()
+            .enumerate()
+            .rfind(|(_, n)| n.output.name == variable && n.output.channels == channels)
+        {
+            dependent_lines.insert(i);
+
+            // Follow data dependencies backwards to find all relevant lines.
+            add_dependencies(&mut dependent_lines, &n.input, &self.nodes);
+        }
+
+        let max_depth = recursion_depth.unwrap_or(dependent_lines.len());
+        let nodes = dependent_lines
+            .iter()
+            .rev()
+            .map(|d| self.nodes[*d].clone())
+            .take(max_depth + 1)
+            .rev()
+            .collect();
+
+        Self { nodes }
+    }
+}
+
+fn add_dependencies(dependencies: &mut BTreeSet<usize>, input: &Expr, nodes: &[Node]) {
+    // Recursively collect nodes that the given node depends on.
+    match input {
+        Expr::Node {
+            node_index,
+            channels,
+        } => {
+            // Avoid processing the subtree rooted at a line more than once.
+            if dependencies.insert(*node_index) {
+                add_dependencies(dependencies, &nodes[*node_index].input, nodes);
+            }
+        }
+        Expr::Constant(_) => (),
+        Expr::Parameter {
+            name,
+            field,
+            index,
+            channels,
+        } => {
+            // TODO: index should be an expr
+        }
+        Expr::Global { name, channels } => (),
+        Expr::Add(lh, rh) => {
+            add_dependencies(dependencies, lh, nodes);
+            add_dependencies(dependencies, rh, nodes);
+        }
+        Expr::Sub(lh, rh) => {
+            add_dependencies(dependencies, lh, nodes);
+            add_dependencies(dependencies, rh, nodes);
+        }
+        Expr::Mul(lh, rh) => {
+            add_dependencies(dependencies, lh, nodes);
+            add_dependencies(dependencies, rh, nodes);
+        }
+        Expr::Div(lh, rh) => {
+            add_dependencies(dependencies, lh, nodes);
+            add_dependencies(dependencies, rh, nodes);
+        }
+        Expr::LShift(lh, rh) => {
+            add_dependencies(dependencies, lh, nodes);
+            add_dependencies(dependencies, rh, nodes);
+        }
+        Expr::RShift(lh, rh) => {
+            add_dependencies(dependencies, lh, nodes);
+            add_dependencies(dependencies, rh, nodes);
+        }
+        Expr::Func(_, args) => {
+            for arg in args {
+                add_dependencies(dependencies, arg, nodes);
+            }
+        }
+    }
+}
