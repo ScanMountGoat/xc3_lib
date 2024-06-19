@@ -27,12 +27,14 @@ pub enum Expr {
         channels: String,
     },
     /// A float constant like `1.0`.
-    Constant(f32),
+    Float(f32),
+    /// An integer constant like `-1`.
+    Int(i32),
     /// A buffer access like `name.field[index].x` or `name[index].x`.
     Parameter {
         name: String,
         field: Option<String>,
-        index: usize, // TODO: make this Box<Expr>
+        index: Box<Expr>,
         channels: String,
     },
     /// A global identifier like `in_attr0.x`.
@@ -46,7 +48,11 @@ pub enum Expr {
     Div(Box<Expr>, Box<Expr>),
     LShift(Box<Expr>, Box<Expr>),
     RShift(Box<Expr>, Box<Expr>),
-    Func(String, Vec<Expr>),
+    Func {
+        name: String,
+        args: Vec<Expr>,
+        channels: String,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone, Eq, PartialOrd, Ord)]
@@ -103,7 +109,8 @@ fn add_dependencies(dependencies: &mut BTreeSet<usize>, input: &Expr, nodes: &[N
                 add_dependencies(dependencies, &nodes[*node_index].input, nodes);
             }
         }
-        Expr::Constant(_) => (),
+        Expr::Float(_) => (),
+        Expr::Int(_) => (),
         Expr::Parameter {
             name,
             field,
@@ -137,7 +144,7 @@ fn add_dependencies(dependencies: &mut BTreeSet<usize>, input: &Expr, nodes: &[N
             add_dependencies(dependencies, lh, nodes);
             add_dependencies(dependencies, rh, nodes);
         }
-        Expr::Func(_, args) => {
+        Expr::Func { args, .. } => {
             for arg in args {
                 add_dependencies(dependencies, arg, nodes);
             }

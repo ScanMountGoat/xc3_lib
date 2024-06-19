@@ -147,15 +147,24 @@ impl Graph {
                 self.nodes[*node_index].output.name,
                 channel_display(channels)
             ),
-            Expr::Constant(f) => f.to_string(),
+            Expr::Float(f) => f.to_string(),
+            Expr::Int(i) => i.to_string(),
             Expr::Parameter {
                 name,
                 field,
                 index,
                 channels,
             } => match field {
-                Some(field) => format!("{name}.{field}[{index}]{}", channel_display(channels)),
-                None => format!("{name}[{index}]{}", channel_display(channels)),
+                Some(field) => format!(
+                    "{name}.{field}[{}]{}",
+                    self.expr_to_glsl(index),
+                    channel_display(channels)
+                ),
+                None => format!(
+                    "{name}[{}]{}",
+                    self.expr_to_glsl(index),
+                    channel_display(channels)
+                ),
             },
             Expr::Global { name, channels } => format!("{name}{}", channel_display(channels)),
             Expr::Add(a, b) => format!("{} + {}", self.expr_to_glsl(a), self.expr_to_glsl(b)),
@@ -164,12 +173,17 @@ impl Graph {
             Expr::Div(a, b) => format!("{} / {}", self.expr_to_glsl(a), self.expr_to_glsl(b)),
             Expr::LShift(a, b) => format!("{} << {}", self.expr_to_glsl(a), self.expr_to_glsl(b)),
             Expr::RShift(a, b) => format!("{} >> {}", self.expr_to_glsl(a), self.expr_to_glsl(b)),
-            Expr::Func(f, args) => format!(
-                "{f}({})",
+            Expr::Func {
+                name,
+                args,
+                channels,
+            } => format!(
+                "{name}({}){}",
                 args.iter()
                     .map(|a| self.expr_to_glsl(a))
                     .collect::<Vec<_>>()
-                    .join(", ")
+                    .join(", "),
+                channel_display(channels)
             ),
         }
     }
@@ -209,10 +223,10 @@ fn input_expr(
                 },
             }
         }
-        ExprData::IntConst(_) => todo!(),
+        ExprData::IntConst(i) => Expr::Int(*i),
         ExprData::UIntConst(_) => todo!(),
         ExprData::BoolConst(_) => todo!(),
-        ExprData::FloatConst(f) => Expr::Constant(*f),
+        ExprData::FloatConst(f) => Expr::Float(*f),
         ExprData::DoubleConst(_) => todo!(),
         ExprData::Unary(_, e) => input_expr(e, last_assignment_index, channel),
         ExprData::Binary(op, lh, rh) => {
@@ -245,38 +259,29 @@ fn input_expr(
         }
         ExprData::Assignment(_, _, _) => todo!(),
         ExprData::Bracket(e, specifier) => {
-            if let ExprData::IntConst(index) = &specifier.content {
-                match &e.as_ref().content {
-                    ExprData::Variable(id) => {
-                        // buffer[index].x
-                        Expr::Parameter {
-                            name: id.content.to_string(),
-                            field: None,
-                            index: *index as usize,
-                            channels: channel.unwrap_or_default().to_string(),
-                        }
-                    }
-                    ExprData::Dot(e, field) => {
-                        if let ExprData::Variable(id) = &e.content {
-                            // buffer.field[index].x
-                            Expr::Parameter {
-                                name: id.content.to_string(),
-                                field: Some(field.0.to_string()),
-                                index: *index as usize,
-                                channels: channel.unwrap_or_default().to_string(),
-                            }
-                        } else {
-                            todo!()
-                        }
-                    }
-                    _ => input_expr(e, last_assignment_index, channel),
+            let (name, field) = match &e.as_ref().content {
+                ExprData::Variable(id) => {
+                    // buffer[index].x
+                    (id.content.to_string(), None)
                 }
-            } else {
-                // TODO: Expressions like array[index] depend on index.
-                // TODO: Do we also need to depend on array itself?
-                input_expr(e, last_assignment_index, channel);
-                input_expr(specifier, last_assignment_index, channel);
-                todo!()
+                ExprData::Dot(e, field) => {
+                    if let ExprData::Variable(id) = &e.content {
+                        // buffer.field[index].x
+                        (id.content.to_string(), Some(field.0.to_string()))
+                    } else {
+                        todo!()
+                    }
+                }
+                _ => todo!(),
+            };
+
+            let index = Box::new(input_expr(specifier, last_assignment_index, channel));
+
+            Expr::Parameter {
+                name,
+                field,
+                index,
+                channels: channel.unwrap_or_default().to_string(),
             }
         }
         ExprData::FunCall(id, es) => {
@@ -299,10 +304,14 @@ fn input_expr(
 
             let args = es
                 .iter()
-                .map(|e| input_expr(e, last_assignment_index, channel))
+                .map(|e| input_expr(e, last_assignment_index, None))
                 .collect();
 
-            Expr::Func(name, args)
+            Expr::Func {
+                name,
+                args,
+                channels: channel.unwrap_or_default().to_string(),
+            }
         }
         ExprData::Dot(e, channel) => {
             // Track the channels accessed by expressions like "value.rgb".
@@ -354,7 +363,7 @@ mod tests {
                         input: Expr::Parameter {
                             name: "fp_c9_data".to_string(),
                             field: None,
-                            index: 0,
+                            index: Box::new(Expr::Int(0)),
                             channels: "x".to_string(),
                         },
                     },
@@ -389,9 +398,9 @@ mod tests {
                             name: "d".to_string(),
                             channels: String::new(),
                         },
-                        input: Expr::Func(
-                            "fma".to_string(),
-                            vec![
+                        input: Expr::Func {
+                            name: "fma".to_string(),
+                            args: vec![
                                 Expr::Node {
                                     node_index: 0,
                                     channels: String::new(),
@@ -405,7 +414,8 @@ mod tests {
                                     channels: String::new(),
                                 },
                             ],
-                        ),
+                            channels: String::new()
+                        },
                     },
                     Node {
                         output: Output {
@@ -417,7 +427,7 @@ mod tests {
                                 node_index: 3,
                                 channels: String::new(),
                             }),
-                            Box::new(Expr::Constant(1.0)),
+                            Box::new(Expr::Float(1.0)),
                         ),
                     },
                     Node {
@@ -454,7 +464,7 @@ mod tests {
                     input: Expr::Parameter {
                         name: "fp_c9_data".to_string(),
                         field: None,
-                        index: 0,
+                        index: Box::new(Expr::Int(0)),
                         channels: "x".to_string(),
                     },
                 },
@@ -489,9 +499,9 @@ mod tests {
                         name: "d".to_string(),
                         channels: String::new(),
                     },
-                    input: Expr::Func(
-                        "fma".to_string(),
-                        vec![
+                    input: Expr::Func {
+                        name: "fma".to_string(),
+                        args: vec![
                             Expr::Node {
                                 node_index: 0,
                                 channels: String::new(),
@@ -505,7 +515,8 @@ mod tests {
                                 channels: String::new(),
                             },
                         ],
-                    ),
+                        channels: String::new(),
+                    },
                 },
                 Node {
                     output: Output {
@@ -517,7 +528,7 @@ mod tests {
                             node_index: 3,
                             channels: String::new(),
                         }),
-                        Box::new(Expr::Constant(1.0)),
+                        Box::new(Expr::Float(1.0)),
                     ),
                 },
                 Node {
@@ -566,13 +577,11 @@ mod tests {
         "};
         let tu = TranslationUnit::parse(glsl).unwrap();
         let graph = Graph::from_glsl(&tu);
-        // TODO: Correctly handle type specifier data and func calls in brackets.
-        // TODO: Some inputs may need to create new nodes?
         assert_eq!(
             indoc! {"
                 a = 1;
                 a2 = a * 5;
-                b = texture(texture1, vec2(a2 + 2., 1.)).x;
+                b = texture(texture1, vec2(a2 + 2, 1)).x;
                 c = data[int(b)];
             "},
             graph.to_glsl()

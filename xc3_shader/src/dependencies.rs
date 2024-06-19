@@ -1,5 +1,8 @@
 // TODO: make dependencies and annotation into a library?
-use std::collections::{BTreeSet, HashMap};
+use std::{
+    collections::{BTreeSet, HashMap},
+    ops::Deref,
+};
 
 use glsl_lang::{
     ast::{
@@ -138,7 +141,7 @@ pub fn input_dependencies(translation_unit: &TranslationUnit, var: &str) -> Vec<
             // Add anything directly assigned to the output variable.
             if let Some(node) = node {
                 match &node.input {
-                    crate::graph::Expr::Constant(f) => {
+                    crate::graph::Expr::Float(f) => {
                         dependencies.push(Dependency::Constant((*f).into()))
                     }
                     crate::graph::Expr::Parameter {
@@ -146,12 +149,16 @@ pub fn input_dependencies(translation_unit: &TranslationUnit, var: &str) -> Vec<
                         field,
                         index,
                         channels,
-                    } => dependencies.push(Dependency::Buffer(BufferDependency {
-                        name: name.clone(),
-                        field: field.clone().unwrap_or_default(),
-                        index: *index,
-                        channels: channels.clone(),
-                    })),
+                    } => {
+                        if let crate::graph::Expr::Int(index) = index.deref() {
+                            dependencies.push(Dependency::Buffer(BufferDependency {
+                                name: name.clone(),
+                                field: field.clone().unwrap_or_default(),
+                                index: *index as usize,
+                                channels: channels.clone(),
+                            }))
+                        }
+                    }
                     _ => (),
                 }
             }
