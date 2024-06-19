@@ -437,11 +437,11 @@ file_write_impl!(Endian::Little, mibl::Mibl, xbc1::Xbc1);
 file_write_impl!(Endian::Big, mtxt::Mtxt);
 
 macro_rules! file_write_full_impl {
-    ($($type_name:path),*) => {
+    ($endian:path, $($type_name:path),*) => {
         $(
             impl $type_name {
                 pub fn write<W: Write + Seek>(&self, writer: &mut W) -> xc3_write::Xc3Result<()> {
-                    write_full(self, writer, 0, &mut 0).map_err(Into::into)
+                    write_full(self, writer, 0, &mut 0, $endian).map_err(Into::into)
                 }
 
                 /// Write to `path` using a buffered writer for better performance.
@@ -455,6 +455,7 @@ macro_rules! file_write_full_impl {
 }
 
 file_write_full_impl!(
+    xc3_write::Endian::Little,
     apmd::Apmd,
     ltpc::Ltpc,
     msrd::Msrd,
@@ -570,8 +571,13 @@ macro_rules! xc3_write_binwrite_impl {
                 fn xc3_write<W: std::io::Write + std::io::Seek>(
                     &self,
                     writer: &mut W,
+                    endian: xc3_write::Endian
                 ) -> xc3_write::Xc3Result<Self::Offsets<'_>> {
-                    self.write_le(writer).map_err(std::io::Error::other)?;
+                    let endian = match endian {
+                        xc3_write::Endian::Little => binrw::Endian::Little,
+                        xc3_write::Endian::Big => binrw::Endian::Big
+                    };
+                    self.write_options(writer, endian, ()).map_err(std::io::Error::other)?;
                     Ok(())
                 }
 

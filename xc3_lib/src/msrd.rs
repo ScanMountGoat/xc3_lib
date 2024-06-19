@@ -389,10 +389,13 @@ impl<'a> Xc3WriteOffsets for MsrdOffsets<'a> {
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
+        endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
-        self.streaming.write_full(writer, base_offset, data_ptr)?;
-        self.data.write_full(writer, base_offset + 16, data_ptr)?;
+        self.streaming
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.data
+            .write_full(writer, base_offset + 16, data_ptr, endian)?;
         Ok(())
     }
 }
@@ -403,14 +406,15 @@ impl<'a> Xc3WriteOffsets for TextureResourcesOffsets<'a> {
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
+        endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
         self.chr_textures
-            .write_offsets(writer, base_offset, data_ptr)?;
+            .write_offsets(writer, base_offset, data_ptr, endian)?;
         self.texture_indices
-            .write_full(writer, base_offset, data_ptr)?;
+            .write_full(writer, base_offset, data_ptr, endian)?;
         self.low_textures
-            .write_full(writer, base_offset, data_ptr)?;
+            .write_full(writer, base_offset, data_ptr, endian)?;
 
         Ok(())
     }

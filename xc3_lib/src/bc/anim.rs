@@ -569,87 +569,105 @@ impl<'a> Xc3WriteOffsets for AnimOffsets<'a> {
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
+        endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<()> {
         // The binding points backwards to the animation.
         // This means the animation needs to be written first.
         let animation_position = *data_ptr;
-        let animation = self.binding.data.animation.xc3_write(writer)?;
+        let animation = self.binding.data.animation.xc3_write(writer, endian)?;
         animation
             .data
-            .write_offsets(writer, base_offset, data_ptr)?;
+            .write_offsets(writer, base_offset, data_ptr, endian)?;
 
         // TODO: Nicer way of writing this?
         let notifies = if !animation.notifies.data.is_empty() {
-            Some(animation.notifies.write(writer, base_offset, data_ptr)?)
+            Some(
+                animation
+                    .notifies
+                    .write(writer, base_offset, data_ptr, endian)?,
+            )
         } else {
             None
         };
 
         animation
             .locomotion
-            .write_full(writer, base_offset, data_ptr)?;
+            .write_full(writer, base_offset, data_ptr, endian)?;
 
-        let binding = self.binding.write(writer, base_offset, data_ptr)?;
+        let binding = self.binding.write(writer, base_offset, data_ptr, endian)?;
 
-        binding.animation.set_offset(writer, animation_position)?;
+        binding
+            .animation
+            .set_offset(writer, animation_position, endian)?;
 
         binding
             .bone_track_indices
-            .write_offsets(writer, base_offset, data_ptr)?;
+            .write_offsets(writer, base_offset, data_ptr, endian)?;
 
         // The names are stored in a single section for XC1 and XC3.
         let mut string_section = StringSection::default();
 
         match &binding.inner {
             AnimationBindingInnerOffsets::Unk1(unk1) => {
-                unk1.write_offsets(writer, base_offset, data_ptr)?;
+                unk1.write_offsets(writer, base_offset, data_ptr, endian)?;
             }
             AnimationBindingInnerOffsets::Unk2(unk2) => {
-                let bone_names = unk2.bone_names.write(writer, base_offset, data_ptr)?;
+                let bone_names = unk2
+                    .bone_names
+                    .write(writer, base_offset, data_ptr, endian)?;
                 for bone_name in &bone_names.0 {
                     string_section.insert_offset(&bone_name.name);
                 }
 
                 if !unk2.extra_track_bindings.data.is_empty() {
-                    let items = unk2
-                        .extra_track_bindings
-                        .write(writer, base_offset, data_ptr)?;
+                    let items =
+                        unk2.extra_track_bindings
+                            .write(writer, base_offset, data_ptr, endian)?;
 
                     for item in &items.0 {
-                        let extra =
-                            item.extra_track_animation
-                                .write(writer, base_offset, data_ptr)?;
+                        let extra = item.extra_track_animation.write(
+                            writer,
+                            base_offset,
+                            data_ptr,
+                            endian,
+                        )?;
                         if let Some(extra) = extra {
-                            extra.values.write_offsets(writer, base_offset, data_ptr)?;
+                            extra
+                                .values
+                                .write_offsets(writer, base_offset, data_ptr, endian)?;
                             string_section.insert_offset(&extra.name);
                         }
 
                         item.track_indices
-                            .write_full(writer, base_offset, data_ptr)?;
+                            .write_full(writer, base_offset, data_ptr, endian)?;
                     }
                 }
             }
             AnimationBindingInnerOffsets::Unk3(unk3) => {
                 if !unk3.bone_names.data.is_empty() {
-                    let bone_names = unk3.bone_names.write(writer, base_offset, data_ptr)?;
+                    let bone_names =
+                        unk3.bone_names
+                            .write(writer, base_offset, data_ptr, endian)?;
                     for bone_name in &bone_names.0 {
                         string_section.insert_offset(&bone_name.name);
                     }
                 }
 
                 unk3.extra_track_data
-                    .write_offsets(writer, base_offset, data_ptr)?;
+                    .write_offsets(writer, base_offset, data_ptr, endian)?;
             }
             AnimationBindingInnerOffsets::Unk4(unk4) => {
                 if !unk4.bone_names.data.is_empty() {
-                    let bone_names = unk4.bone_names.write(writer, base_offset, data_ptr)?;
+                    let bone_names =
+                        unk4.bone_names
+                            .write(writer, base_offset, data_ptr, endian)?;
                     for bone_name in &bone_names.0 {
                         string_section.insert_offset(&bone_name.name);
                     }
                 }
 
                 unk4.extra_track_data
-                    .write_offsets(writer, base_offset, data_ptr)?;
+                    .write_offsets(writer, base_offset, data_ptr, endian)?;
             }
         }
 
@@ -662,7 +680,7 @@ impl<'a> Xc3WriteOffsets for AnimOffsets<'a> {
         }
 
         // The names are the last item before the addresses.
-        string_section.write(writer, data_ptr, 8)?;
+        string_section.write(writer, data_ptr, 8, endian)?;
 
         Ok(())
     }
@@ -675,10 +693,11 @@ impl<'a> Xc3WriteOffsets for AnimationBindingInner1Offsets<'a> {
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
+        endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<()> {
         if !self.extra_track_bindings.data.is_empty() {
             self.extra_track_bindings
-                .write_full(writer, base_offset, data_ptr)?;
+                .write_full(writer, base_offset, data_ptr, endian)?;
         }
         Ok(())
     }
@@ -690,25 +709,28 @@ impl<'a> Xc3WriteOffsets for ExtraTrackAnimationBindingOffsets<'a> {
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
+        endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<()> {
         let animation = self
             .extra_track_animation
-            .write(writer, base_offset, data_ptr)?;
+            .write(writer, base_offset, data_ptr, endian)?;
 
         if let Some(animation) = &animation {
             animation
                 .values
-                .write_offsets(writer, base_offset, data_ptr)?;
+                .write_offsets(writer, base_offset, data_ptr, endian)?;
         }
 
         if !self.track_indices.data.is_empty() {
             self.track_indices
-                .write_full(writer, base_offset, data_ptr)?;
+                .write_full(writer, base_offset, data_ptr, endian)?;
         }
 
         // The name needs to be written at the end.
         if let Some(animation) = &animation {
-            animation.name.write_full(writer, base_offset, data_ptr)?;
+            animation
+                .name
+                .write_full(writer, base_offset, data_ptr, endian)?;
         }
 
         Ok(())
@@ -721,13 +743,17 @@ impl<'a> Xc3WriteOffsets for PackedCubicExtraDataOffsets<'a> {
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
+        endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
-        self.hashes.write_full(writer, base_offset, data_ptr)?;
-        self.unk_offset2.write_full(writer, base_offset, data_ptr)?;
-        self.unk_offset3.write_full(writer, base_offset, data_ptr)?;
+        self.hashes
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk_offset2
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk_offset3
+            .write_full(writer, base_offset, data_ptr, endian)?;
         self.extra_track_bindings
-            .write_full(writer, base_offset, data_ptr)?;
+            .write_full(writer, base_offset, data_ptr, endian)?;
         Ok(())
     }
 }
@@ -738,11 +764,15 @@ impl<'a> Xc3WriteOffsets for UncompressedExtraDataOffsets<'a> {
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
+        endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
-        self.motion.write_full(writer, base_offset, data_ptr)?;
-        self.hashes.write_full(writer, base_offset, data_ptr)?;
-        self.unk1.write_full(writer, base_offset, data_ptr)?;
+        self.motion
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.hashes
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk1
+            .write_full(writer, base_offset, data_ptr, endian)?;
         Ok(())
     }
 }
@@ -753,11 +783,15 @@ impl<'a> Xc3WriteOffsets for CubicExtraDataOffsets<'a> {
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
+        endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
-        self.data1.write_full(writer, base_offset, data_ptr)?;
-        self.data2.write_full(writer, base_offset, data_ptr)?;
-        self.unk1.write_full(writer, base_offset, data_ptr)?;
+        self.data1
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.data2
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk1
+            .write_full(writer, base_offset, data_ptr, endian)?;
         Ok(())
     }
 }

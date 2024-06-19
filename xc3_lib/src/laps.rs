@@ -78,22 +78,23 @@ impl<'a> Xc3WriteOffsets for LapsOffsets<'a> {
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
+        endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<()> {
         // Strings at the end of the file.
-        let unk2 = self.unk2.write(writer, base_offset, data_ptr)?;
-        let unk3 = self.unk3.write(writer, base_offset, data_ptr)?;
+        let unk2 = self.unk2.write(writer, base_offset, data_ptr, endian)?;
+        let unk3 = self.unk3.write(writer, base_offset, data_ptr, endian)?;
 
         for u in unk2.0 {
-            u.write_offsets(writer, base_offset, data_ptr)?;
+            u.write_offsets(writer, base_offset, data_ptr, endian)?;
         }
 
         for u in unk3.0 {
-            u.write_offsets(writer, base_offset, data_ptr)?;
+            u.write_offsets(writer, base_offset, data_ptr, endian)?;
         }
 
         // Align the file size to 16.
         let padding = data_ptr.next_multiple_of(16) - *data_ptr;
-        vec![0u8; padding as usize].xc3_write(writer)?;
+        vec![0u8; padding as usize].xc3_write(writer, endian)?;
         *data_ptr = (*data_ptr).max(writer.stream_position()?);
         Ok(())
     }

@@ -652,8 +652,14 @@ impl<T> Xc3Write for StreamEntry<T> {
     fn xc3_write<W: std::io::Write + Seek>(
         &self,
         writer: &mut W,
+        endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<Self::Offsets<'_>> {
-        self.write_le(writer).map_err(std::io::Error::other)?;
+        let endian = match endian {
+            xc3_write::Endian::Little => binrw::Endian::Little,
+            xc3_write::Endian::Big => binrw::Endian::Big,
+        };
+        self.write_options(writer, endian, ())
+            .map_err(std::io::Error::other)?;
         Ok(())
     }
 }

@@ -601,16 +601,19 @@ impl<'a> Xc3WriteOffsets for PackedExternalTexturesOffsets<'a> {
         writer: &mut W,
         _base_offset: u64,
         data_ptr: &mut u64,
+        endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
 
         // Names need to be written at the end.
-        let textures = self.textures.write(writer, base_offset, data_ptr)?;
+        let textures = self.textures.write(writer, base_offset, data_ptr, endian)?;
 
         self.strings_offset
-            .write_full(writer, base_offset, data_ptr)?;
+            .write_full(writer, base_offset, data_ptr, endian)?;
         for texture in &textures.0 {
-            texture.name.write_full(writer, base_offset, data_ptr)?;
+            texture
+                .name
+                .write_full(writer, base_offset, data_ptr, endian)?;
         }
         Ok(())
     }

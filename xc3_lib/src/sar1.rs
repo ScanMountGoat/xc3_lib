@@ -66,7 +66,7 @@ impl Entry {
         for<'a> T::Offsets<'a>: Xc3WriteOffsets,
     {
         let mut writer = Cursor::new(Vec::new());
-        write_full(data, &mut writer, 0, &mut 0)?;
+        write_full(data, &mut writer, 0, &mut 0, xc3_write::Endian::Little)?;
 
         Ok(Self::from_entry_data(name, writer.into_inner()))
     }
@@ -205,24 +205,32 @@ impl<'a> Xc3WriteOffsets for ChClInnerOffsets<'a> {
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
+        endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
-        self.unk1.write_full(writer, base_offset, data_ptr)?;
-        let unk2 = self.unk2.write(writer, base_offset, data_ptr)?;
+        self.unk1
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        let unk2 = self.unk2.write(writer, base_offset, data_ptr, endian)?;
         if !self.unk7.data.is_empty() {
-            self.unk7.write_full(writer, base_offset, data_ptr)?;
+            self.unk7
+                .write_full(writer, base_offset, data_ptr, endian)?;
         }
-        self.unk3.write_full(writer, base_offset, data_ptr)?;
+        self.unk3
+            .write_full(writer, base_offset, data_ptr, endian)?;
         if !self.unk4.data.is_empty() {
-            self.unk4.write_full(writer, base_offset, data_ptr)?;
+            self.unk4
+                .write_full(writer, base_offset, data_ptr, endian)?;
         }
-        self.unk5.write_full(writer, base_offset, data_ptr)?;
-        self.unk6.write_full(writer, base_offset, data_ptr)?;
+        self.unk5
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk6
+            .write_full(writer, base_offset, data_ptr, endian)?;
 
         // Strings appear at the end of the file.
         *data_ptr = data_ptr.next_multiple_of(4);
         for item in unk2.0 {
-            item.name.write_full(writer, base_offset, data_ptr)?;
+            item.name
+                .write_full(writer, base_offset, data_ptr, endian)?;
         }
 
         Ok(())
@@ -235,19 +243,22 @@ impl<'a> Xc3WriteOffsets for Sar1Offsets<'a> {
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
+        endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<()> {
         // Make sure the data offset points to the first entry data.
-        let entries = self.entries.write(writer, base_offset, data_ptr)?;
-        self.data_offset.write_full(writer, base_offset, data_ptr)?;
+        let entries = self.entries.write(writer, base_offset, data_ptr, endian)?;
+        self.data_offset
+            .write_full(writer, base_offset, data_ptr, endian)?;
         for entry in entries.0 {
-            entry.write_offsets(writer, base_offset, data_ptr)?;
+            entry.write_offsets(writer, base_offset, data_ptr, endian)?;
         }
 
         // Align the file size to 2048.
         let padding = data_ptr.next_multiple_of(2048) - *data_ptr;
-        vec![0u8; padding as usize].xc3_write(writer)?;
+        vec![0u8; padding as usize].xc3_write(writer, endian)?;
         *data_ptr = (*data_ptr).max(writer.stream_position()?);
-        self.file_size.write_full(writer, base_offset, data_ptr)?;
+        self.file_size
+            .write_full(writer, base_offset, data_ptr, endian)?;
 
         Ok(())
     }

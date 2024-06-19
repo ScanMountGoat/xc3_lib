@@ -637,6 +637,7 @@ impl Unk4KeyValueSection {
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
+        endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<()> {
         // Write all the keys and values.
         let mut value_to_position = HashMap::new();
@@ -644,7 +645,7 @@ impl Unk4KeyValueSection {
 
         for (value, _) in &self.value_to_offsets {
             let offset = writer.stream_position()?;
-            value.xc3_write(writer)?;
+            value.xc3_write(writer, endian)?;
             value_to_position.insert(value, offset);
         }
         *data_ptr = (*data_ptr).max(writer.stream_position()?);
@@ -656,7 +657,7 @@ impl Unk4KeyValueSection {
                 let final_offset = position - base_offset;
                 // Assume all pointers are 4 bytes.
                 writer.seek(std::io::SeekFrom::Start(*offset))?;
-                (final_offset as u32).xc3_write(writer)?;
+                (final_offset as u32).xc3_write(writer, endian)?;
             }
         }
 
@@ -670,20 +671,31 @@ impl<'a> Xc3WriteOffsets for DhalOffsets<'a> {
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
+        endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
-        self.unk1.write_full(writer, base_offset, data_ptr)?;
-        self.unk3.write_full(writer, base_offset, data_ptr)?;
-        self.unk4.write_full(writer, base_offset, data_ptr)?;
-        self.unk7.write_full(writer, base_offset, data_ptr)?;
-        self.unk9.write_full(writer, base_offset, data_ptr)?;
-        self.unk5.write_full(writer, base_offset, data_ptr)?;
-        self.unk6.write_full(writer, base_offset, data_ptr)?;
-        self.unk8.write_full(writer, base_offset, data_ptr)?;
-        self.unk2.write_full(writer, base_offset, data_ptr)?;
-        self.textures.write_full(writer, base_offset, data_ptr)?;
+        self.unk1
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk3
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk4
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk7
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk9
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk5
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk6
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk8
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk2
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.textures
+            .write_full(writer, base_offset, data_ptr, endian)?;
         self.uncompressed_textures
-            .write_full(writer, base_offset, data_ptr)?;
+            .write_full(writer, base_offset, data_ptr, endian)?;
         Ok(())
     }
 }
@@ -694,29 +706,34 @@ impl<'a> Xc3WriteOffsets for Unk4Offsets<'a> {
         writer: &mut W,
         _base_offset: u64,
         data_ptr: &mut u64,
+        endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
         let base_offset = self.base_offset;
 
-        self.unk2.write_full(writer, base_offset, data_ptr)?;
+        self.unk2
+            .write_full(writer, base_offset, data_ptr, endian)?;
 
         // TODO: Figure out the fields stored in this buffer.
         writer.write_all(self.buffer.data)?;
         *data_ptr = (*data_ptr).max(writer.stream_position()?);
 
-        self.extra.write_offsets(writer, base_offset, data_ptr)?;
-        self.unk7.write_full(writer, base_offset, data_ptr)?;
-        self.unk4.write_full(writer, base_offset, data_ptr)?;
+        self.extra
+            .write_offsets(writer, base_offset, data_ptr, endian)?;
+        self.unk7
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk4
+            .write_full(writer, base_offset, data_ptr, endian)?;
 
         // Only unique keys and values are stored in this section.
         let mut value_section = Unk4KeyValueSection::default();
-        if let Some(unk5) = self.unk5.write(writer, base_offset, data_ptr)? {
+        if let Some(unk5) = self.unk5.write(writer, base_offset, data_ptr, endian)? {
             for offsets in unk5.0 {
                 value_section.insert_key(&offsets.key);
                 value_section.insert_value(&offsets.value);
             }
         }
-        value_section.write(writer, base_offset, data_ptr)?;
+        value_section.write(writer, base_offset, data_ptr, endian)?;
 
         Ok(())
     }

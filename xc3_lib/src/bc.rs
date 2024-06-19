@@ -131,6 +131,7 @@ impl StringSection {
         writer: &mut W,
         data_ptr: &mut u64,
         alignment: u64,
+        endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<()> {
         // Write the string data.
         // TODO: Cleaner way to handle alignment?
@@ -152,7 +153,7 @@ impl StringSection {
                 let position = name_to_position[name];
                 // Assume all string pointers are 8 bytes.
                 writer.seek(std::io::SeekFrom::Start(*offset))?;
-                position.xc3_write(writer)?;
+                position.xc3_write(writer, endian)?;
             }
         }
 

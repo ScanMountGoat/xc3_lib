@@ -314,6 +314,7 @@ impl<'a> Xc3WriteOffsets for SkeletonOffsets<'a> {
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
+        endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<()> {
         // The names are stored in a single section.
         let mut string_section = StringSection::default();
@@ -321,65 +322,78 @@ impl<'a> Xc3WriteOffsets for SkeletonOffsets<'a> {
 
         // Different order than field order.
         if !self.unk1.elements.data.is_empty() {
-            self.unk1.write_offsets(writer, base_offset, data_ptr)?;
+            self.unk1
+                .write_offsets(writer, base_offset, data_ptr, endian)?;
         }
-        self.transforms.write_full(writer, base_offset, data_ptr)?;
+        self.transforms
+            .write_full(writer, base_offset, data_ptr, endian)?;
 
-        let names = self.names.elements.write(writer, base_offset, data_ptr)?;
+        let names = self
+            .names
+            .elements
+            .write(writer, base_offset, data_ptr, endian)?;
         for name in names.0 {
             string_section.insert_offset(&name.name);
         }
 
         self.parent_indices
-            .write_offsets(writer, base_offset, data_ptr)?;
+            .write_offsets(writer, base_offset, data_ptr, endian)?;
 
         if !self.extra_track_slots.data.is_empty() {
             let slots = self
                 .extra_track_slots
-                .write(writer, base_offset, data_ptr)?;
+                .write(writer, base_offset, data_ptr, endian)?;
             for slot in slots.0 {
                 string_section.insert_offset(&slot.unk1);
 
                 if !slot.unk2.elements.data.is_empty() {
-                    let names = slot.unk2.elements.write(writer, base_offset, data_ptr)?;
+                    let names = slot
+                        .unk2
+                        .elements
+                        .write(writer, base_offset, data_ptr, endian)?;
                     for name in names.0 {
                         string_section.insert_offset(&name.name);
                     }
                 }
 
                 if !slot.unk3.elements.data.is_empty() {
-                    slot.unk3.write_offsets(writer, base_offset, data_ptr)?;
+                    slot.unk3
+                        .write_offsets(writer, base_offset, data_ptr, endian)?;
                 }
                 if !slot.unk4.data.is_empty() {
-                    slot.unk4.write_full(writer, base_offset, data_ptr)?;
+                    slot.unk4
+                        .write_full(writer, base_offset, data_ptr, endian)?;
                 }
             }
         }
 
         if !self.mt_indices.data.is_empty() {
-            self.mt_indices.write_full(writer, base_offset, data_ptr)?;
+            self.mt_indices
+                .write_full(writer, base_offset, data_ptr, endian)?;
         }
         if !self.mt_names.data.is_empty() {
-            let names = self.mt_names.write(writer, base_offset, data_ptr)?;
+            let names = self.mt_names.write(writer, base_offset, data_ptr, endian)?;
             for name in names.0 {
                 string_section.insert_offset(&name.name);
             }
         }
         if !self.mt_transforms.data.is_empty() {
             self.mt_transforms
-                .write_full(writer, base_offset, data_ptr)?;
+                .write_full(writer, base_offset, data_ptr, endian)?;
         }
 
         // TODO: Only padded if MT data is not present?
         if self.mt_indices.data.is_empty() {
-            weird_skel_alignment(writer, data_ptr)?;
+            weird_skel_alignment(writer, data_ptr, endian)?;
         }
 
         if !self.labels.elements.data.is_empty() {
-            self.labels.write_offsets(writer, base_offset, data_ptr)?;
+            self.labels
+                .write_offsets(writer, base_offset, data_ptr, endian)?;
         }
 
-        self.extra.write_offsets(writer, base_offset, data_ptr)?;
+        self.extra
+            .write_offsets(writer, base_offset, data_ptr, endian)?;
 
         // The names are the last item before the addresses.
         let alignment = match self.extra {
@@ -388,7 +402,7 @@ impl<'a> Xc3WriteOffsets for SkeletonOffsets<'a> {
             SkeletonExtraOffsets::Unk2(_) => 8,
             SkeletonExtraOffsets::Unk3(_) => 8,
         };
-        string_section.write(writer, data_ptr, alignment)?;
+        string_section.write(writer, data_ptr, alignment, endian)?;
 
         Ok(())
     }
@@ -397,6 +411,7 @@ impl<'a> Xc3WriteOffsets for SkeletonOffsets<'a> {
 fn weird_skel_alignment<W: std::io::Write + std::io::Seek>(
     writer: &mut W,
     data_ptr: &mut u64,
+    endian: xc3_write::Endian,
 ) -> xc3_write::Xc3Result<()> {
     // TODO: What is this strange padding?
     // First align to 8.
@@ -406,14 +421,14 @@ fn weird_skel_alignment<W: std::io::Write + std::io::Seek>(
 
     // Now align to 16.
     // 0000 FF...
-    [0u8; 2].xc3_write(writer)?;
+    [0u8; 2].xc3_write(writer, endian)?;
     *data_ptr = (*data_ptr).max(writer.stream_position()?);
 
     let pos = writer.stream_position()?;
     align(writer, pos, 16, 0xff)?;
 
     // 0000
-    [0u8; 4].xc3_write(writer)?;
+    [0u8; 4].xc3_write(writer, endian)?;
     *data_ptr = (*data_ptr).max(writer.stream_position()?);
     Ok(())
 }
@@ -424,16 +439,25 @@ impl<'a> Xc3WriteOffsets for SkeletonExtraUnk3Offsets<'a> {
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
+        endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
-        self.unk6.write_full(writer, base_offset, data_ptr)?;
-        self.unk7.write_full(writer, base_offset, data_ptr)?;
-        self.unk12.write_full(writer, base_offset, data_ptr)?;
-        self.unk9.write_full(writer, base_offset, data_ptr)?;
-        self.unk8.write_full(writer, base_offset, data_ptr)?;
-        self.unk10.write_full(writer, base_offset, data_ptr)?;
-        self.unk11.write_full(writer, base_offset, data_ptr)?;
-        self.unk13.write_full(writer, base_offset, data_ptr)?;
+        self.unk6
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk7
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk12
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk9
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk8
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk10
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk11
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk13
+            .write_full(writer, base_offset, data_ptr, endian)?;
         Ok(())
     }
 }

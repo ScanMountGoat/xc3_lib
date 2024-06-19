@@ -1,7 +1,7 @@
 use std::io::Cursor;
 
 use hexlit::hex;
-use xc3_write::{assert_hex_eq, Xc3Write, Xc3WriteOffsets};
+use xc3_write::{assert_hex_eq, Endian, Xc3Write, Xc3WriteOffsets};
 
 #[test]
 fn write_enum_variant_magic() {
@@ -15,7 +15,7 @@ fn write_enum_variant_magic() {
     let value = A::B(3);
 
     let mut writer = Cursor::new(Vec::new());
-    value.xc3_write(&mut writer).unwrap();
+    value.xc3_write(&mut writer, Endian::Little).unwrap();
 
     assert_hex_eq!(hex!(01000000 02000000 03000000), writer.into_inner());
 }

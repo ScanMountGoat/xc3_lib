@@ -571,17 +571,22 @@ impl<'a> Xc3WriteOffsets for VertexDataOffsets<'a> {
         writer: &mut W,
         _base_offset: u64,
         data_ptr: &mut u64,
+        endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
 
-        let vertex_buffers = self.vertex_buffers.write(writer, base_offset, data_ptr)?;
-        self.index_buffers.write(writer, base_offset, data_ptr)?;
+        let vertex_buffers = self
+            .vertex_buffers
+            .write(writer, base_offset, data_ptr, endian)?;
+        self.index_buffers
+            .write(writer, base_offset, data_ptr, endian)?;
         self.vertex_buffer_info
-            .write(writer, base_offset, data_ptr)?;
+            .write(writer, base_offset, data_ptr, endian)?;
 
         // TODO: Do all empty lists use offset 0?
         if !self.outline_buffers.data.is_empty() {
-            self.outline_buffers.write(writer, base_offset, data_ptr)?;
+            self.outline_buffers
+                .write(writer, base_offset, data_ptr, endian)?;
         }
 
         // The first attribute is aligned to 16.
@@ -590,31 +595,37 @@ impl<'a> Xc3WriteOffsets for VertexDataOffsets<'a> {
         for vertex_buffer in vertex_buffers.0 {
             vertex_buffer
                 .attributes
-                .write(writer, base_offset, data_ptr)?;
+                .write(writer, base_offset, data_ptr, endian)?;
         }
 
-        self.weights.write_full(writer, base_offset, data_ptr)?;
+        self.weights
+            .write_full(writer, base_offset, data_ptr, endian)?;
 
-        self.unk_data.write(writer, base_offset, data_ptr)?;
+        self.unk_data.write(writer, base_offset, data_ptr, endian)?;
 
-        if let Some(vertex_animation) = self.vertex_morphs.write(writer, base_offset, data_ptr)? {
-            let descriptors = vertex_animation
-                .descriptors
-                .write(writer, base_offset, data_ptr)?;
+        if let Some(vertex_animation) =
+            self.vertex_morphs
+                .write(writer, base_offset, data_ptr, endian)?
+        {
+            let descriptors =
+                vertex_animation
+                    .descriptors
+                    .write(writer, base_offset, data_ptr, endian)?;
             vertex_animation
                 .targets
-                .write(writer, base_offset, data_ptr)?;
+                .write(writer, base_offset, data_ptr, endian)?;
 
             for descriptor in descriptors.0 {
                 descriptor
                     .param_indices
-                    .write(writer, base_offset, data_ptr)?;
+                    .write(writer, base_offset, data_ptr, endian)?;
             }
         }
 
-        self.unk7.write_full(writer, base_offset, data_ptr)?;
+        self.unk7
+            .write_full(writer, base_offset, data_ptr, endian)?;
 
-        self.buffer.write(writer, base_offset, data_ptr)?;
+        self.buffer.write(writer, base_offset, data_ptr, endian)?;
 
         Ok(())
     }

@@ -288,16 +288,25 @@ impl<'a> Xc3WriteOffsets for LagpOffsets<'a> {
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
+        endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
-        self.unk1.write_full(writer, base_offset, data_ptr)?;
-        self.unk3.write_full(writer, base_offset, data_ptr)?;
-        self.unk4.write_full(writer, base_offset, data_ptr)?;
-        self.unk13.write_full(writer, base_offset, data_ptr)?;
-        self.unk2.write_full(writer, base_offset, data_ptr)?;
-        self.unk5.write_full(writer, base_offset, data_ptr)?;
-        self.unk6.write_full(writer, base_offset, data_ptr)?;
-        self.textures.write_full(writer, base_offset, data_ptr)?;
+        self.unk1
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk3
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk4
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk13
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk2
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk5
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk6
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.textures
+            .write_full(writer, base_offset, data_ptr, endian)?;
         Ok(())
     }
 }
@@ -308,6 +317,7 @@ impl<'a> Xc3WriteOffsets for Unk13Offsets<'a> {
         writer: &mut W,
         _base_offset: u64,
         data_ptr: &mut u64,
+        endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
 
@@ -315,26 +325,28 @@ impl<'a> Xc3WriteOffsets for Unk13Offsets<'a> {
         // Strings should use insertion order instead of alphabetical.
         let mut string_section = StringSection::default();
 
-        let unk1 = self.unk1.write(writer, base_offset, data_ptr)?;
+        let unk1 = self.unk1.write(writer, base_offset, data_ptr, endian)?;
         for u in &unk1.0 {
-            u.unk6.write_full(writer, base_offset, data_ptr)?;
-            u.unk2.write_full(writer, base_offset, data_ptr)?;
-            u.unk4.write_full(writer, base_offset, data_ptr)?;
+            u.unk6.write_full(writer, base_offset, data_ptr, endian)?;
+            u.unk2.write_full(writer, base_offset, data_ptr, endian)?;
+            u.unk4.write_full(writer, base_offset, data_ptr, endian)?;
             string_section.insert_offset(&u.unk7);
-            if let Some(unk5) = u.unk5.write(writer, base_offset, data_ptr)? {
+            if let Some(unk5) = u.unk5.write(writer, base_offset, data_ptr, endian)? {
                 let base_offset = unk5.base_offset;
-                let items = unk5.items.write(writer, base_offset, data_ptr)?;
+                let items = unk5.items.write(writer, base_offset, data_ptr, endian)?;
                 for item in items.0 {
                     string_section.insert_offset(&item.unk1);
                 }
             }
-            u.unk3.write_full(writer, base_offset, data_ptr)?;
+            u.unk3.write_full(writer, base_offset, data_ptr, endian)?;
         }
 
-        self.unk2.write_full(writer, base_offset, data_ptr)?;
-        self.unk3.write_full(writer, base_offset, data_ptr)?;
+        self.unk2
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk3
+            .write_full(writer, base_offset, data_ptr, endian)?;
 
-        string_section.write(writer, base_offset, data_ptr, 1)?;
+        string_section.write(writer, base_offset, data_ptr, 1, endian)?;
         Ok(())
     }
 }
@@ -345,11 +357,14 @@ impl<'a> Xc3WriteOffsets for Unk13Unk1Unk3Unk2Offsets<'a> {
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
+        endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<()> {
         // The string offset is relative to the start of unk4 data.
         let string_start = *data_ptr;
-        self.unk4.write_full(writer, base_offset, data_ptr)?;
-        self.unk6.write_full(writer, string_start, data_ptr)?;
+        self.unk4
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk6
+            .write_full(writer, string_start, data_ptr, endian)?;
         Ok(())
     }
 }
@@ -360,17 +375,22 @@ impl<'a> Xc3WriteOffsets for Unk13Unk1Unk4Offsets<'a> {
         writer: &mut W,
         _base_offset: u64,
         data_ptr: &mut u64,
+        endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
-        self.unk1.write_full(writer, base_offset, data_ptr)?;
+        self.unk1
+            .write_full(writer, base_offset, data_ptr, endian)?;
         if !self.unk2.data.is_empty() {
-            self.unk2.write_full(writer, base_offset, data_ptr)?;
+            self.unk2
+                .write_full(writer, base_offset, data_ptr, endian)?;
         }
         if !self.unk3.data.is_empty() {
-            self.unk3.write_full(writer, base_offset, data_ptr)?;
+            self.unk3
+                .write_full(writer, base_offset, data_ptr, endian)?;
         }
         if !self.unk4.data.is_empty() {
-            self.unk4.write_full(writer, base_offset, data_ptr)?;
+            self.unk4
+                .write_full(writer, base_offset, data_ptr, endian)?;
         }
         Ok(())
     }
@@ -382,16 +402,17 @@ impl Xc3Write for UnkString {
     fn xc3_write<W: std::io::prelude::Write + std::io::prelude::Seek>(
         &self,
         writer: &mut W,
+        endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<Self::Offsets<'_>> {
         // TODO: Add align_size_to attribute to xc3_write_derive?
         // TODO: Just use binwrite for this?
         let start = writer.stream_position()?;
-        self.0.xc3_write(writer)?;
+        self.0.xc3_write(writer, endian)?;
         let end = writer.stream_position()?;
 
         let size = end - start;
         let aligned_size = size.next_multiple_of(4);
-        vec![0u8; (aligned_size - size) as usize].xc3_write(writer)?;
+        vec![0u8; (aligned_size - size) as usize].xc3_write(writer, endian)?;
         Ok(())
     }
 }
@@ -417,6 +438,7 @@ impl StringSection {
         base_offset: u64,
         data_ptr: &mut u64,
         alignment: u64,
+        endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<()> {
         // Write the string data.
         // TODO: Cleaner way to handle alignment?
@@ -439,7 +461,7 @@ impl StringSection {
                 // Assume all string pointers are 4 bytes.
                 writer.seek(std::io::SeekFrom::Start(*offset))?;
                 let final_offset = position - base_offset;
-                (final_offset as u32).xc3_write(writer)?;
+                (final_offset as u32).xc3_write(writer, endian)?;
             }
         }
 

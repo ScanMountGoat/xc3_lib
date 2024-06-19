@@ -218,39 +218,58 @@ impl<'a> Xc3WriteOffsets for AsmbInnerV1Offsets<'a> {
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
+        endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<()> {
         let mut string_section = StringSection::default();
 
         // Different order than field order.
-        let folders = self.folders.elements.write(writer, base_offset, data_ptr)?;
+        let folders = self
+            .folders
+            .elements
+            .write(writer, base_offset, data_ptr, endian)?;
         for f in folders.0 {
             string_section.insert_offset(&f.name);
         }
 
-        let unk5 = self.unk5.elements.write(writer, base_offset, data_ptr)?;
+        let unk5 = self
+            .unk5
+            .elements
+            .write(writer, base_offset, data_ptr, endian)?;
         for u in unk5.0 {
             string_section.insert_offset(&u.name);
         }
 
-        let unk6 = self.unk6.elements.write(writer, base_offset, data_ptr)?;
+        let unk6 = self
+            .unk6
+            .elements
+            .write(writer, base_offset, data_ptr, endian)?;
         for u in unk6.0 {
             string_section.insert_offset(&u.file_name);
         }
 
         // TODO: find a better way to handle nested data.
-        let unk4 = self.unk4.elements.write(writer, base_offset, data_ptr)?;
+        let unk4 = self
+            .unk4
+            .elements
+            .write(writer, base_offset, data_ptr, endian)?;
         for u in unk4.0 {
-            let u = u.value.write(writer, base_offset, data_ptr)?;
+            let u = u.value.write(writer, base_offset, data_ptr, endian)?;
             string_section.insert_offset(&u.name);
 
-            let children = u.children.elements.write(writer, base_offset, data_ptr)?;
+            let children = u
+                .children
+                .elements
+                .write(writer, base_offset, data_ptr, endian)?;
             for c in children.0 {
-                let c = c.value.write(writer, base_offset, data_ptr)?;
+                let c = c.value.write(writer, base_offset, data_ptr, endian)?;
                 string_section.insert_offset(&c.name);
             }
         }
 
-        let unk8 = self.unk8.elements.write(writer, base_offset, data_ptr)?;
+        let unk8 = self
+            .unk8
+            .elements
+            .write(writer, base_offset, data_ptr, endian)?;
         for u in unk8.0 {
             string_section.insert_offset(&u.key);
             string_section.insert_offset(&u.value);
@@ -262,7 +281,7 @@ impl<'a> Xc3WriteOffsets for AsmbInnerV1Offsets<'a> {
         // }
 
         // The names are the last item before the addresses.
-        string_section.write(writer, data_ptr, 8)?;
+        string_section.write(writer, data_ptr, 8, endian)?;
 
         Ok(())
     }

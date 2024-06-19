@@ -357,7 +357,7 @@ fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: 
     let chr_tex_nx = chr_tex_nx_folder(path);
     let (vertex, spch, textures) = msrd.extract_files(chr_tex_nx.as_deref()).unwrap();
 
-    if check_read_write && !write_bytes_equals(&msrd, original_bytes) {
+    if check_read_write && !write_le_bytes_equals(&msrd, original_bytes) {
         println!("Msrd read/write not 1:1 for {path:?}");
     }
 
@@ -391,7 +391,7 @@ fn check_vertex_data(
     original_bytes: &[u8],
     check_read_write: bool,
 ) {
-    if check_read_write && !write_bytes_equals(&vertex_data, original_bytes) {
+    if check_read_write && !write_le_bytes_equals(&vertex_data, original_bytes) {
         println!("VertexData read/write not 1:1 for {path:?}");
     }
 }
@@ -492,7 +492,7 @@ fn check_mibl(mibl: Mibl, path: &Path, original_bytes: &[u8], check_read_write: 
         println!("Mibl/DDS conversion not 1:1 for {path:?}");
     }
 
-    if check_read_write && !write_bytes_equals(&mibl, original_bytes) {
+    if check_read_write && !write_le_bytes_equals(&mibl, original_bytes) {
         println!("Mibl read/write not 1:1 for {path:?}");
     }
 }
@@ -548,7 +548,7 @@ fn check_dhal(dhal: Dhal, path: &Path, original_bytes: &[u8], check_read_write: 
         }
     }
 
-    if check_read_write && !write_bytes_equals(&dhal, original_bytes) {
+    if check_read_write && !write_le_bytes_equals(&dhal, original_bytes) {
         println!("Dhal read/write not 1:1 for {path:?}");
     }
 }
@@ -561,13 +561,13 @@ fn check_lagp(lagp: Lagp, path: &Path, original_bytes: &[u8], check_read_write: 
         }
     }
 
-    if check_read_write && !write_bytes_equals(&lagp, original_bytes) {
+    if check_read_write && !write_le_bytes_equals(&lagp, original_bytes) {
         println!("Lagp read/write not 1:1 for {path:?}");
     }
 }
 
 fn check_laps(laps: Laps, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    if check_read_write && !write_bytes_equals(&laps, original_bytes) {
+    if check_read_write && !write_le_bytes_equals(&laps, original_bytes) {
         println!("Laps read/write not 1:1 for {path:?}");
     }
 }
@@ -601,7 +601,7 @@ fn check_wimdo(data: Wimdo, path: &Path, original_bytes: &[u8], check_read_write
                 }
             }
 
-            if check_read_write && !write_bytes_equals(&apmd, original_bytes) {
+            if check_read_write && !write_le_bytes_equals(&apmd, original_bytes) {
                 println!("Apmd read/write not 1:1 for {path:?}");
             }
         }
@@ -613,7 +613,7 @@ fn check_mxmd(mxmd: Mxmd, path: &Path, original_bytes: &[u8], check_read_write: 
         println!("Inconsistent ModelsFlags for {path:?}");
     }
 
-    if check_read_write && !write_bytes_equals(&mxmd, original_bytes) {
+    if check_read_write && !write_le_bytes_equals(&mxmd, original_bytes) {
         println!("Mxmd read/write not 1:1 for {path:?}");
     }
 
@@ -662,13 +662,13 @@ fn check_spch(spch: Spch, path: &Path, original_bytes: &[u8], check_read_write: 
         }
     }
 
-    if check_read_write && !write_bytes_equals(&spch, original_bytes) {
+    if check_read_write && !write_le_bytes_equals(&spch, original_bytes) {
         println!("Spch read/write not 1:1 for {path:?}");
     }
 }
 
 fn check_ltpc(ltpc: Ltpc, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    if check_read_write && !write_bytes_equals(&ltpc, original_bytes) {
+    if check_read_write && !write_le_bytes_equals(&ltpc, original_bytes) {
         println!("Ltpc read/write not 1:1 for {path:?}");
     }
 }
@@ -696,17 +696,17 @@ fn check_sar1(sar1: Sar1, path: &Path, original_bytes: &[u8], check_read_write: 
                     check_bc(*bc, path, &entry.entry_data, check_read_write);
                 }
                 Sar1EntryData::ChCl(chcl) => {
-                    if check_read_write && !write_bytes_equals(&chcl, original_bytes) {
+                    if check_read_write && !write_le_bytes_equals(&chcl, original_bytes) {
                         println!("ChCl read/write not 1:1 for {:?} in {path:?}", entry.name);
                     }
                 }
                 Sar1EntryData::Csvb(csvb) => {
-                    if check_read_write && !write_bytes_equals(&csvb, original_bytes) {
+                    if check_read_write && !write_le_bytes_equals(&csvb, original_bytes) {
                         println!("Csvb read/write not 1:1 for {:?} in {path:?}", entry.name);
                     }
                 }
                 Sar1EntryData::Eva(eva) => {
-                    if check_read_write && !write_bytes_equals(&eva, original_bytes) {
+                    if check_read_write && !write_le_bytes_equals(&eva, original_bytes) {
                         println!("Eva read/write not 1:1 for {:?} in {path:?}", entry.name);
                     }
                 }
@@ -715,13 +715,13 @@ fn check_sar1(sar1: Sar1, path: &Path, original_bytes: &[u8], check_read_write: 
         }
     }
 
-    if check_read_write && !write_bytes_equals(&sar1, original_bytes) {
+    if check_read_write && !write_le_bytes_equals(&sar1, original_bytes) {
         println!("Sar1 read/write not 1:1 for {path:?}");
     }
 }
 
 fn check_bc(bc: Bc, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    if check_read_write && !write_bytes_equals(&bc, original_bytes) {
+    if check_read_write && !write_le_bytes_equals(&bc, original_bytes) {
         println!("Bc read/write not 1:1 for {path:?}");
     }
 
@@ -760,31 +760,31 @@ fn check_bc(bc: Bc, path: &Path, original_bytes: &[u8], check_read_write: bool) 
 }
 
 fn check_eva(eva: Eva, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    if check_read_write && !write_bytes_equals(&eva, original_bytes) {
+    if check_read_write && !write_le_bytes_equals(&eva, original_bytes) {
         println!("Eva read/write not 1:1 for {path:?}");
     }
 }
 
 fn check_beb(beb: Beb, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    if check_read_write && !write_bytes_equals(&beb, original_bytes) {
+    if check_read_write && !write_le_bytes_equals(&beb, original_bytes) {
         println!("Beb read/write not 1:1 for {path:?}");
     }
 }
 
 fn check_beh(beh: Beh, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    if check_read_write && !write_bytes_equals(&beh, original_bytes) {
+    if check_read_write && !write_le_bytes_equals(&beh, original_bytes) {
         println!("Beh read/write not 1:1 for {path:?}");
     }
 }
 
 fn check_efb0(efb0: Efb0, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    if check_read_write && !write_bytes_equals(&efb0, original_bytes) {
+    if check_read_write && !write_le_bytes_equals(&efb0, original_bytes) {
         println!("efb0 read/write not 1:1 for {path:?}");
     }
 }
 
 fn check_idcm(idcm: Idcm, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    if check_read_write && !write_bytes_equals(&idcm, original_bytes) {
+    if check_read_write && !write_le_bytes_equals(&idcm, original_bytes) {
         println!("Idcm read/write not 1:1 for {path:?}");
     }
 }
@@ -860,7 +860,7 @@ fn check_laft(laft: Laft, path: &Path, original_bytes: &[u8], check_read_write: 
         check_mibl(texture, path, &[], false);
     }
 
-    if check_read_write && !write_bytes_equals(&laft, original_bytes) {
+    if check_read_write && !write_le_bytes_equals(&laft, original_bytes) {
         println!("Laft read/write not 1:1 for {path:?}");
     }
 }
@@ -875,7 +875,7 @@ fn check_last_data(
 }
 
 fn check_last(last: Last, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    if check_read_write && !write_bytes_equals(&last, original_bytes) {
+    if check_read_write && !write_le_bytes_equals(&last, original_bytes) {
         println!("Last read/write not 1:1 for {path:?}");
     }
 }
@@ -1022,12 +1022,12 @@ fn check_all_animations<P: AsRef<Path>>(root: P, _check_read_write: bool) {
         });
 }
 
-fn write_bytes_equals<T>(value: &T, original_bytes: &[u8]) -> bool
+fn write_le_bytes_equals<T>(value: &T, original_bytes: &[u8]) -> bool
 where
     T: Xc3Write + 'static,
     for<'a> T::Offsets<'a>: Xc3WriteOffsets,
 {
     let mut writer = Cursor::new(Vec::new());
-    xc3_write::write_full(value, &mut writer, 0, &mut 0).unwrap();
+    xc3_write::write_full(value, &mut writer, 0, &mut 0, xc3_write::Endian::Little).unwrap();
     writer.into_inner() == original_bytes
 }

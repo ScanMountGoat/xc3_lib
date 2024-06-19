@@ -81,7 +81,7 @@ impl Xbc1 {
         T::Offsets<'a>: Xc3WriteOffsets,
     {
         let mut writer = Cursor::new(Vec::new());
-        write_full(data, &mut writer, 0, &mut 0)?;
+        write_full(data, &mut writer, 0, &mut 0, xc3_write::Endian::Little)?;
         let decompressed = writer.into_inner();
 
         Self::from_decompressed(name, &decompressed, compression_type)
@@ -154,8 +154,14 @@ impl Xc3Write for Xbc1 {
     fn xc3_write<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
+        endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<Self::Offsets<'_>> {
-        self.write_le(writer).map_err(std::io::Error::other)?;
+        let endian = match endian {
+            xc3_write::Endian::Little => binrw::Endian::Little,
+            xc3_write::Endian::Big => binrw::Endian::Big,
+        };
+        self.write_options(writer, endian, ())
+            .map_err(std::io::Error::other)?;
         Ok(())
     }
 

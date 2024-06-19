@@ -452,18 +452,22 @@ impl<'a> Xc3WriteOffsets for SpchOffsets<'a> {
         writer: &mut W,
         _base_offset: u64,
         data_ptr: &mut u64,
+        endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<()> {
         // The ordering is slightly different than the field order.
         let base_offset = self.base_offset;
         self.slct_offsets
-            .write_full(writer, base_offset, data_ptr)?;
-        self.unk4s.write_full(writer, base_offset, data_ptr)?;
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk4s
+            .write_full(writer, base_offset, data_ptr, endian)?;
         self.string_section
-            .write_full(writer, base_offset, data_ptr)?;
+            .write_full(writer, base_offset, data_ptr, endian)?;
         self.slct_section
-            .write_full(writer, base_offset, data_ptr)?;
-        self.unk_section.write_full(writer, base_offset, data_ptr)?;
-        self.xv4_section.write_full(writer, base_offset, data_ptr)?;
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk_section
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.xv4_section
+            .write_full(writer, base_offset, data_ptr, endian)?;
         Ok(())
     }
 }

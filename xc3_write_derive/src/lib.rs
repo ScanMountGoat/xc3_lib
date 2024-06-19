@@ -40,7 +40,9 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
         .has_base_offset
         .then_some(quote!(let base_offset = writer.stream_position()?;));
 
-    let write_magic = options.magic.map(|m| quote!(#m.xc3_write(writer)?;));
+    let write_magic = options
+        .magic
+        .map(|m| quote!(#m.xc3_write(writer, endian)?;));
 
     let (write_data, define_offsets, initialize_offsets) = match &input.data {
         Data::Struct(DataStruct {
@@ -96,14 +98,14 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
                 // TODO: Use xc3_write for this?
                 let write_magic = variant_options
                     .magic
-                    .map(|magic| quote!(#magic.xc3_write(writer)?;));
+                    .map(|magic| quote!(#magic.xc3_write(writer, endian)?;));
                 match &variant.fields {
                     Fields::Named(_) => todo!(),
                     // TODO: Don't assume one field.
                     Fields::Unnamed(_) => quote! {
                         Self::#name(data) => {
                             #write_magic
-                            #offsets::#name(data.xc3_write(writer)?)
+                            #offsets::#name(data.xc3_write(writer, endian)?)
                         }
                     },
                     Fields::Unit => quote!(Self::#name => #offsets::#name),
@@ -135,6 +137,7 @@ pub fn xc3_write_derive(input: TokenStream) -> TokenStream {
             fn xc3_write<W: std::io::Write + std::io::Seek>(
                 &self,
                 writer: &mut W,
+                endian: ::xc3_write::Endian,
             ) -> ::xc3_write::Xc3Result<Self::Offsets<'_>> {
                 #set_base_offset
 
@@ -208,7 +211,7 @@ pub fn xc3_write_offsets_derive(input: TokenStream) -> TokenStream {
                     Fields::Named(_) => todo!(),
                     Fields::Unnamed(_) => quote! {
                         // TODO: Don't assume one field.
-                        Self::#name(data) => data.write_offsets(writer, base_offset, data_ptr)?
+                        Self::#name(data) => data.write_offsets(writer, base_offset, data_ptr, endian)?
                     },
                     Fields::Unit => quote!(Self::#name =>()),
                 }
@@ -232,6 +235,7 @@ pub fn xc3_write_offsets_derive(input: TokenStream) -> TokenStream {
                 writer: &mut W,
                 base_offset: u64,
                 data_ptr: &mut u64,
+                endian: ::xc3_write::Endian,
             ) -> ::xc3_write::Xc3Result<()> {
                 // Assume data is arranged in order by field.
                 // TODO: investigate deriving other orderings.
@@ -266,7 +270,7 @@ impl FieldData {
             offset_field: offset_field(name, pointer, ty),
             write_impl: write_dummy_offset(name, alignment, pointer),
             write_offset_impl: quote! {
-                self.#name.write_full(writer, base_offset, data_ptr)?;
+                self.#name.write_full(writer, base_offset, data_ptr, endian)?;
             },
         }
     }
@@ -277,7 +281,7 @@ impl FieldData {
             offset_field: quote!(pub #name: ::xc3_write::Offset<'offsets, #pointer, ()>),
             write_impl: write_dummy_shared_offset(name, alignment, pointer),
             write_offset_impl: quote! {
-                self.#name.write_full(writer, base_offset, data_ptr)?;
+                self.#name.write_full(writer, base_offset, data_ptr, endian)?;
             },
         }
     }
@@ -302,7 +306,7 @@ fn write_dummy_offset(name: &Ident, alignment: Option<Padding>, pointer: &Ident)
     quote! {
         let #name = ::xc3_write::Offset::new(writer.stream_position()?, &self.#name, #align, #padding_byte);
         // Assume 0 is the default for the pointer type.
-        #pointer::default().xc3_write(writer)?;
+        #pointer::default().xc3_write(writer, endian)?;
     }
 }
 
@@ -320,7 +324,7 @@ fn write_dummy_shared_offset(
     quote! {
         let #name = ::xc3_write::Offset::new(writer.stream_position()?, &(), #align, #padding_byte);
         // Assume 0 is the default for the pointer type.
-        #pointer::default().xc3_write(writer)?;
+        #pointer::default().xc3_write(writer, endian)?;
     }
 }
 
@@ -328,7 +332,7 @@ fn write_field_position(name: &Ident, should_write: bool) -> TokenStream2 {
     if should_write {
         quote! {
             let #name = ::xc3_write::FieldPosition::new(writer.stream_position()?, &self.#name);
-            self.#name.xc3_write(writer)?;
+            self.#name.xc3_write(writer, endian)?;
         }
     } else {
         quote! {
@@ -372,11 +376,11 @@ fn parse_named_fields(fields: &FieldsNamed) -> Vec<FieldData> {
                     name: name.clone(),
                     offset_field: offset_field(name, &offset_ty, ty),
                     write_impl: quote! {
-                        (self.#name.len() as #count_ty).xc3_write(writer)?;
+                        (self.#name.len() as #count_ty).xc3_write(writer, endian)?;
                         #write_offset
                     },
                     write_offset_impl: quote! {
-                        self.#name.write_full(writer, base_offset, data_ptr)?;
+                        self.#name.write_full(writer, base_offset, data_ptr, endian)?;
                     },
                 }
             }
@@ -388,10 +392,10 @@ fn parse_named_fields(fields: &FieldsNamed) -> Vec<FieldData> {
                     offset_field: offset_field(name, &offset_ty, ty),
                     write_impl: quote! {
                         #write_offset
-                        (self.#name.len() as #count_ty).xc3_write(writer)?;
+                        (self.#name.len() as #count_ty).xc3_write(writer, endian)?;
                     },
                     write_offset_impl: quote! {
-                        self.#name.write_full(writer, base_offset, data_ptr)?;
+                        self.#name.write_full(writer, base_offset, data_ptr, endian)?;
                     },
                 }
             }
@@ -414,12 +418,12 @@ fn parse_named_fields(fields: &FieldsNamed) -> Vec<FieldData> {
                         {
                             use binrw::BinWrite;
                             let mut cur = std::io::Cursor::new(Vec::new());
-                            self.#name.write_le(&mut cur).map_err(std::io::Error::other)?;
+                            self.#name.xc3_write(&mut cur, endian)?;
                             cur.into_inner().len() as #size_ty
-                        }.xc3_write(writer)?;
+                        }.xc3_write(writer, endian)?;
                     },
                     write_offset_impl: quote! {
-                        self.#name.write_full(writer, base_offset, data_ptr)?;
+                        self.#name.write_full(writer, base_offset, data_ptr, endian)?;
                     },
                 }
             }
@@ -429,12 +433,12 @@ fn parse_named_fields(fields: &FieldsNamed) -> Vec<FieldData> {
                 let write_impl = if options.pad_size_to.is_some() {
                     quote! {
                         let before_pos = writer.stream_position()?;
-                        let #name = self.#name.xc3_write(writer)?;
+                        let #name = self.#name.xc3_write(writer, endian)?;
                         #pad_size_to
                     }
                 } else {
                     quote! {
-                        let #name = self.#name.xc3_write(writer)?;
+                        let #name = self.#name.xc3_write(writer, endian)?;
                     }
                 };
                 FieldData {
@@ -443,7 +447,7 @@ fn parse_named_fields(fields: &FieldsNamed) -> Vec<FieldData> {
                     write_impl,
                     write_offset_impl: quote! {
                         // This field isn't an Offset<T>, so just call write_offsets.
-                        self.#name.write_offsets(writer, base_offset, data_ptr)?;
+                        self.#name.write_offsets(writer, base_offset, data_ptr, endian)?;
                     },
                 }
             }
