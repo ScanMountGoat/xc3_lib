@@ -109,21 +109,6 @@ pub struct LineDependencies {
     assignments: Vec<AssignmentDependency>,
 }
 
-impl LineDependencies {
-    fn assignments_recursive(
-        &self,
-        recursion_depth: Option<usize>,
-    ) -> impl Iterator<Item = &AssignmentDependency> {
-        let max_depth = recursion_depth.unwrap_or(self.dependent_assignment_indices.len());
-
-        self.dependent_assignment_indices
-            .iter()
-            .rev()
-            .map(|d| &self.assignments[*d])
-            .take(max_depth + 1)
-    }
-}
-
 pub fn input_dependencies(translation_unit: &TranslationUnit, var: &str) -> Vec<Dependency> {
     line_dependencies(translation_unit, var)
         .map(|line_dependencies| {
@@ -167,7 +152,7 @@ pub fn input_dependencies(translation_unit: &TranslationUnit, var: &str) -> Vec<
             // TODO: Query the graph for known functions instead of hard coding recursion depth.
             let attributes = find_attribute_locations(translation_unit);
             dependencies.extend(
-                attribute_dependencies(&line_dependencies, &attributes, Some(1))
+                attribute_dependencies(&graph, var, &attributes, Some(1))
                     .into_iter()
                     .map(Dependency::Attribute),
             );
@@ -211,24 +196,29 @@ fn buffer_dependency_from_dot_expr(e: &Expr, channel: &Identifier) -> Option<Buf
 }
 
 pub fn attribute_dependencies(
-    dependencies: &LineDependencies,
+    graph: &Graph,
+    var: &str,
     attributes: &Attributes,
     recursion_depth: Option<usize>,
 ) -> Vec<AttributeDependency> {
-    dependencies
-        .assignments_recursive(recursion_depth)
-        .filter_map(|assignment| {
-            if let ExprData::Dot(e, channel) = &assignment.assignment_input.content {
-                if let ExprData::Variable(id) = &e.content {
-                    let name = id.content.to_string();
-                    if attributes.input_locations.contains_left(&name) {
-                        Some(AttributeDependency {
-                            name,
-                            channels: channel.content.to_string(),
-                        })
-                    } else {
-                        None
-                    }
+    let (variable, channels) = var.split_once('.').unwrap_or((var, ""));
+
+    graph
+        .assignments_recursive(variable, channels, recursion_depth)
+        .into_iter()
+        .flat_map(|i| {
+            // Check all exprs for binary ops, function args, etc.
+            // TODO: helper method for this?
+            let node = &graph.nodes[i];
+            node.input.exprs_recursive()
+        })
+        .filter_map(|e| {
+            if let crate::graph::Expr::Global { name, channels } = e {
+                if attributes.input_locations.contains_left(name) {
+                    Some(AttributeDependency {
+                        name: name.clone(),
+                        channels: channels.clone(),
+                    })
                 } else {
                     None
                 }
@@ -563,7 +553,7 @@ pub fn find_buffer_parameters(
     var: &str,
 ) -> Vec<BufferDependency> {
     let (variable, channels) = var.split_once('.').unwrap_or((var, ""));
-    let graph = Graph::from_glsl(&translation_unit);
+    let graph = Graph::from_glsl(translation_unit);
     graph
         .assignments_recursive(variable, channels, None)
         .into_iter()

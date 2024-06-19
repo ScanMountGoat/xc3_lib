@@ -15,9 +15,8 @@ use xc3_model::shader_database::{Dependency, Map, Shader, ShaderDatabase, Shader
 
 use crate::{
     annotation::shader_source_no_extensions,
-    dependencies::{
-        attribute_dependencies, find_buffer_parameters, input_dependencies, line_dependencies,
-    },
+    dependencies::{attribute_dependencies, find_buffer_parameters, input_dependencies},
+    graph::Graph,
 };
 
 fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit) -> Shader {
@@ -119,16 +118,13 @@ fn apply_attribute_names(
                 {
                     for c in attribute.channels.chars() {
                         let output = format!("{vertex_output_name}.{c}");
-                        if let Some(vertex_dependencies) = line_dependencies(vertex, &output) {
-                            if let Some(input_attribute) = attribute_dependencies(
-                                &vertex_dependencies,
-                                &vertex_attributes,
-                                None,
-                            )
-                            .first()
-                            {
-                                attribute.name.clone_from(&input_attribute.name);
-                            }
+
+                        let graph = Graph::from_glsl(vertex);
+                        if let Some(input_attribute) =
+                            attribute_dependencies(&graph, &output, &vertex_attributes, None)
+                                .first()
+                        {
+                            attribute.name.clone_from(&input_attribute.name);
                         }
                     }
                 }
@@ -146,8 +142,9 @@ fn find_texcoord_input_name(
     // Assume only one texcoord attribute is used for all components.
     let c = texcoord.channels.chars().next()?;
     let output = format!("{vertex_output_name}.{c}");
-    let vertex_dependencies = line_dependencies(vertex, &output)?;
-    attribute_dependencies(&vertex_dependencies, vertex_attributes, None)
+
+    let graph = Graph::from_glsl(vertex);
+    attribute_dependencies(&graph, &output, vertex_attributes, None)
         .first()
         .map(|a| a.name.clone())
 }

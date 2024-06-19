@@ -140,7 +140,7 @@ fn add_exprs<'a>(exprs: &mut Vec<&'a Expr>, input: &'a Expr) {
         Expr::Float(_) => (),
         Expr::Int(_) => (),
         Expr::Parameter { index, .. } => {
-            add_exprs(exprs, &index);
+            add_exprs(exprs, index);
         }
         Expr::Global { .. } => (),
         Expr::Add(lh, rh) => {

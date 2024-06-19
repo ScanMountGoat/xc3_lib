@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use glsl_lang::{
     ast::{
         DeclarationData, ExprData, FunIdentifierData, InitializerData, Statement, StatementData,
-        TranslationUnit, TypeSpecifierData,
+        TranslationUnit,
     },
     transpiler::glsl::{show_type_specifier, FormattingState},
     visitor::{Host, Visit, Visitor},
