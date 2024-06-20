@@ -60,6 +60,7 @@ pub mod dhal;
 pub mod efb0;
 pub mod error;
 pub mod eva;
+pub mod fnt;
 pub mod hash;
 pub mod hkt;
 pub mod idcm;
@@ -479,6 +480,8 @@ file_write_full_impl!(
     last::Last
 );
 
+file_write_full_impl!(xc3_write::Endian::Big, fnt::Fnt);
+
 #[derive(Debug, Error)]
 #[error("error reading {path:?}")]
 pub struct ReadFileError {
@@ -558,7 +561,8 @@ file_read_impl!(
     mxmd::legacy::MxmdLegacy,
     bmn::Bmn,
     hkt::Hkt,
-    mths::Mths
+    mths::Mths,
+    fnt::Fnt
 );
 
 macro_rules! xc3_write_binwrite_impl {
