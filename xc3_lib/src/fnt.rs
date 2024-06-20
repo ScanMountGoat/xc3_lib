@@ -69,7 +69,9 @@ pub struct XcxFont {
 pub struct XcxGlyph {
     /// UTF-16 code point, acting as the primary key for this glyph.
     ///
-    /// Both [`XcxFont::glyphs`] and the grid in the texture sheet must be ordered by this key.
+    /// Both [`XcxFont::glyphs`] and the grid in the texture sheet must be ordered by this key.  
+    /// Additionally, when the game wants to render an unsupported character, it tries to look up
+    /// character "*" (U+002A). If no such character is defined, the game crashes.
     pub code_utf16: u16,
     /// Shift-JIS code point, allows duplicates (e.g. unsupported characters share it with a similar
     /// character) and needs not be a sort key.

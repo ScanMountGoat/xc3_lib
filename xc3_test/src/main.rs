@@ -891,6 +891,9 @@ fn check_last(last: Last, path: &Path, original_bytes: &[u8], check_read_write: 
 }
 
 fn check_fnt(fnt: Fnt, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+    if fnt.font.get_glyph_by_utf16(0x2a).is_none() {
+        println!("{path:?} has no \"*\" character registered! The game will crash on unsupported characters.");
+    }
     if check_read_write && !write_be_bytes_equals(&fnt, original_bytes) {
         println!("Fnt read/write not 1:1 for {path:?}");
     }
