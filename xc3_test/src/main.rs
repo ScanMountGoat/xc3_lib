@@ -892,7 +892,6 @@ fn check_last(last: Last, path: &Path, original_bytes: &[u8], check_read_write: 
 
 fn check_fnt(fnt: Fnt, path: &Path, original_bytes: &[u8], check_read_write: bool) {
     if check_read_write && !write_be_bytes_equals(&fnt, original_bytes) {
-        fnt.save("/tmp/out.fnt").unwrap();
         println!("Fnt read/write not 1:1 for {path:?}");
     }
 }
