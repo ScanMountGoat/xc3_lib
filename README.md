@@ -15,6 +15,7 @@ xc3_lib supports a number of in game formats. All formats support reading. Write
 | [Bmn](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/bmn.rs) | BMN | `bmn` | ❌ | 
 | [Dhal](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/dhal.rs) | LAHD | `wilay` | ✔️* | 
 | [Eva](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/eva.rs) | eva | `eva` | ✔️* | 
+| [Fnt](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/fnt.rs) | | `fnt` | ✔️ | 
 | [Laft](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/laft.rs) | LAFT | `wifnt` | ✔️ | 
 | [Lagp](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/lagp.rs) | LAGP | `wilay` | ✔️* | 
 | [Laps](https://github.com/ScanMountGoat/xc3_lib/blob/main/xc3_lib/src/laps.rs) | LAPS | `wilay` | ✔️* | 
