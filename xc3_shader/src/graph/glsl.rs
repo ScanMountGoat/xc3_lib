@@ -237,6 +237,7 @@ fn input_expr(
             let a = Box::new(input_expr(lh, last_assignment_index, channel));
             let b = Box::new(input_expr(rh, last_assignment_index, channel));
             match &op.content {
+                // TODO: Fill in remaining ops.
                 glsl_lang::ast::BinaryOpData::Or => todo!(),
                 glsl_lang::ast::BinaryOpData::Xor => todo!(),
                 glsl_lang::ast::BinaryOpData::And => todo!(),

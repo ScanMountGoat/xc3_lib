@@ -21,7 +21,7 @@ pub fn input_dependencies(translation_unit: &TranslationUnit, var: &str) -> Vec<
         .rfind(|n| format!("{}.{}", n.output.name, n.output.channels) == var);
 
     let attributes = find_attribute_locations(translation_unit);
-    // TODO: Rework this to use the graph structure.
+
     // TODO: Rework this to be cleaner and add more tests.
     let mut dependencies = texture_dependencies(&graph, &attributes, var);
 
@@ -71,25 +71,22 @@ pub fn attribute_dependencies(
     graph
         .assignments_recursive(variable, channels, recursion_depth)
         .into_iter()
-        .flat_map(|i| {
+        .filter_map(|(i, final_channels)| {
             // Check all exprs for binary ops, function args, etc.
-            // TODO: helper method for this?
-            let node = &graph.nodes[i];
-            node.input.exprs_recursive()
-        })
-        .filter_map(|e| {
-            if let Expr::Global { name, channels } = e {
-                if attributes.input_locations.contains_left(name) {
-                    Some(AttributeDependency {
-                        name: name.clone(),
-                        channels: channels.clone(),
-                    })
+            graph.nodes[i].input.exprs_recursive().iter().find_map(|e| {
+                if let Expr::Global { name, .. } = e {
+                    if attributes.input_locations.contains_left(name) {
+                        Some(AttributeDependency {
+                            name: name.clone(),
+                            channels: final_channels.clone(),
+                        })
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 }
-            } else {
-                None
-            }
+            })
         })
         .collect()
 }
@@ -100,69 +97,31 @@ fn texture_dependencies(graph: &Graph, attributes: &Attributes, var: &str) -> Ve
     graph
         .assignments_recursive(variable, channels, None)
         .into_iter()
-        .flat_map(|i| {
+        .filter_map(|(i, final_channels)| {
             // Check all exprs for binary ops, function args, etc.
-            // TODO: helper method for this?
-            let node = &graph.nodes[i];
-            node.input.exprs_recursive()
+            graph.nodes[i]
+                .input
+                .exprs_recursive()
+                .iter()
+                .find_map(|e| texture_dependency(e, graph, attributes, &final_channels))
         })
-        .filter_map(|e| texture_dependency(e, graph, attributes))
         .collect()
 }
 
-fn texture_dependency(e: &Expr, graph: &Graph, attributes: &Attributes) -> Option<Dependency> {
-    if let Expr::Func {
-        name,
-        args,
-        channels,
-    } = e
-    {
+fn texture_dependency(
+    e: &Expr,
+    graph: &Graph,
+    attributes: &Attributes,
+    final_channels: &str,
+) -> Option<Dependency> {
+    if let Expr::Func { name, args, .. } = e {
         if name.starts_with("texture") {
             if let Some(Expr::Global { name, .. }) = args.first() {
-                // TODO: proper channel tracking
-
-                // TODO: Collect attributes and channels for all UV args.
-                // Search recursively to find texcoord variables.
-                let texcoords: Vec<_> = args
-                    .iter()
-                    .flat_map(|a| a.exprs_recursive())
-                    .filter_map(|e| {
-                        if let Expr::Node {
-                            node_index,
-                            channels,
-                        } = e
-                        {
-                            // Find the attribute used for this input.
-                            let node_assignments =
-                                graph.node_assignments_recursive(*node_index, None);
-                            let (name, channels) =
-                                texcoord_name_channels(&node_assignments, graph, attributes)?;
-
-                            let params = node_assignments
-                                .iter()
-                                .flat_map(|i| {
-                                    // Check all exprs for binary ops, function args, etc.
-                                    // TODO: Method for this?
-                                    let node = &graph.nodes[*i];
-                                    node.input.exprs_recursive()
-                                })
-                                .filter_map(|e| buffer_dependency(e))
-                                .collect();
-
-                            Some(TexCoord {
-                                name: name.clone(),
-                                channels: channels.clone(),
-                                params,
-                            })
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
+                let texcoords = texcoord_args(args, graph, attributes);
 
                 Some(Dependency::Texture(TextureDependency {
                     name: name.clone(),
-                    channels: channels.clone(),
+                    channels: final_channels.to_string(),
                     texcoords,
                 }))
             } else {
@@ -176,30 +135,69 @@ fn texture_dependency(e: &Expr, graph: &Graph, attributes: &Attributes) -> Optio
     }
 }
 
-fn texcoord_name_channels<'a>(
-    node_assignments: &[usize],
-    graph: &'a Graph,
-    attributes: &Attributes,
-) -> Option<(&'a String, &'a String)> {
-    node_assignments
+fn texcoord_args(args: &[Expr], graph: &Graph, attributes: &Attributes) -> Vec<TexCoord> {
+    // Search recursively to find texcoord variables.
+    // The first arg is always the texture name.
+    let texcoords: Vec<_> = args
         .iter()
-        .flat_map(|i| {
-            // Check all exprs for binary ops, function args, etc.
-            // TODO: Method for this?
-            let node = &graph.nodes[*i];
-            node.input.exprs_recursive()
-        })
-        .find_map(|e| {
-            if let Expr::Global { name, channels } = e {
-                if attributes.input_locations.contains_left(name) {
-                    Some((name, channels))
-                } else {
-                    None
-                }
+        .skip(1)
+        .flat_map(|a| a.exprs_recursive())
+        .filter_map(|e| {
+            if let Expr::Node { node_index, .. } = e {
+                // Find the attribute used for this input.
+                let node_assignments = graph.node_assignments_recursive(*node_index, None);
+                let (name, channels) =
+                    texcoord_name_channels(&node_assignments, graph, attributes)?;
+
+                // TODO: use find_buffer_parameters?
+                let params = node_assignments
+                    .into_iter()
+                    .filter_map(|(i, final_channels)| {
+                        // Check all exprs for binary ops, function args, etc.
+                        graph.nodes[i]
+                            .input
+                            .exprs_recursive()
+                            .into_iter()
+                            .find_map(|e| buffer_dependency(e, &final_channels))
+                    })
+                    .collect();
+
+                Some(TexCoord {
+                    name: name.clone(),
+                    channels: channels.clone(),
+                    params,
+                })
             } else {
                 None
             }
         })
+        .collect();
+    texcoords
+}
+
+fn texcoord_name_channels(
+    node_assignments: &[(usize, String)],
+    graph: &Graph,
+    attributes: &Attributes,
+) -> Option<(String, String)> {
+    node_assignments.iter().find_map(|(i, final_channels)| {
+        // Check all exprs for binary ops, function args, etc.
+        graph.nodes[*i]
+            .input
+            .exprs_recursive()
+            .into_iter()
+            .find_map(|e| {
+                if let Expr::Global { name, .. } = e {
+                    if attributes.input_locations.contains_left(name) {
+                        Some((name.clone(), final_channels.clone()))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+    })
 }
 
 pub fn glsl_dependencies(source: &str, var: &str) -> String {
@@ -213,28 +211,27 @@ pub fn glsl_dependencies(source: &str, var: &str) -> String {
 
 pub fn find_buffer_parameters(
     translation_unit: &TranslationUnit,
-    var: &str,
+    variable: &str,
+    channels: &str,
 ) -> Vec<BufferDependency> {
-    let (variable, channels) = var.split_once('.').unwrap_or((var, ""));
     let graph = Graph::from_glsl(translation_unit);
     graph
         .assignments_recursive(variable, channels, None)
         .into_iter()
-        .flat_map(|i| {
+        .filter_map(|(i, final_channels)| {
             // Check all exprs for binary ops, function args, etc.
-            let node = &graph.nodes[i];
-            node.input.exprs_recursive()
+            graph.nodes[i]
+                .input
+                .exprs_recursive()
+                .into_iter()
+                .find_map(|e| buffer_dependency(e, &final_channels))
         })
-        .filter_map(|e| buffer_dependency(e))
         .collect()
 }
 
-fn buffer_dependency(e: &Expr) -> Option<BufferDependency> {
+fn buffer_dependency(e: &Expr, channels: &str) -> Option<BufferDependency> {
     if let Expr::Parameter {
-        name,
-        field,
-        index,
-        channels,
+        name, field, index, ..
     } = e
     {
         if let Expr::Int(index) = index.deref() {
@@ -242,7 +239,7 @@ fn buffer_dependency(e: &Expr) -> Option<BufferDependency> {
                 name: name.clone(),
                 field: field.clone().unwrap_or_default(),
                 index: (*index).try_into().unwrap(),
-                channels: channels.clone(),
+                channels: channels.to_string(),
             })
         } else {
             None
@@ -395,11 +392,18 @@ mod tests {
             vec![Dependency::Texture(TextureDependency {
                 name: "texture1".to_string(),
                 channels: "w".to_string(),
-                texcoords: vec![TexCoord {
-                    name: "in_attr0".to_string(),
-                    channels: "xw".to_string(),
-                    params: Vec::new()
-                }]
+                texcoords: vec![
+                    TexCoord {
+                        name: "in_attr0".to_string(),
+                        channels: "x".to_string(),
+                        params: Vec::new()
+                    },
+                    TexCoord {
+                        name: "in_attr0".to_string(),
+                        channels: "w".to_string(),
+                        params: Vec::new()
+                    }
+                ]
             })],
             input_dependencies(&tu, "b")
         );
@@ -433,7 +437,7 @@ mod tests {
         assert_eq!(
             vec![Dependency::Texture(TextureDependency {
                 name: "gTResidentTex05".to_string(),
-                channels: "w".to_string(),
+                channels: "x".to_string(),
                 texcoords: vec![
                     TexCoord {
                         name: "in_attr4".to_string(),
@@ -504,6 +508,8 @@ mod tests {
     #[test]
     fn input_dependencies_scale_parameter() {
         let glsl = indoc! {"
+            layout(location = 4) in vec4 in_attr4;
+
             void main() 
             {
                 temp_0 = in_attr4.x;
@@ -521,24 +527,28 @@ mod tests {
             vec![Dependency::Texture(TextureDependency {
                 name: "gTResidentTex04".to_string(),
                 channels: "x".to_string(),
-                texcoords: vec![TexCoord {
-                    name: "in_attr4".to_string(),
-                    channels: "xy".to_string(),
-                    params: vec![
-                        BufferDependency {
+                texcoords: vec![
+                    TexCoord {
+                        name: "in_attr4".to_string(),
+                        channels: "x".to_string(),
+                        params: vec![BufferDependency {
                             name: "U_Mate".to_string(),
                             field: "gWrkFl4".to_string(),
                             index: 0,
                             channels: "z".to_string()
-                        },
-                        BufferDependency {
+                        }]
+                    },
+                    TexCoord {
+                        name: "in_attr4".to_string(),
+                        channels: "y".to_string(),
+                        params: vec![BufferDependency {
                             name: "U_Mate".to_string(),
                             field: "gWrkFl4".to_string(),
                             index: 0,
                             channels: "w".to_string()
-                        }
-                    ]
-                }]
+                        }]
+                    }
+                ]
             })],
             input_dependencies(&tu, "temp_170")
         );
@@ -578,11 +588,18 @@ mod tests {
 
         let tu = TranslationUnit::parse(glsl).unwrap();
         assert_eq!(
-            vec![Dependency::Texture(TextureDependency {
-                name: "texture1".to_string(),
-                channels: "zw".to_string(),
-                texcoords: Vec::new()
-            })],
+            vec![
+                Dependency::Texture(TextureDependency {
+                    name: "texture1".to_string(),
+                    channels: "w".to_string(),
+                    texcoords: Vec::new()
+                }),
+                Dependency::Texture(TextureDependency {
+                    name: "texture1".to_string(),
+                    channels: "z".to_string(),
+                    texcoords: Vec::new()
+                })
+            ],
             input_dependencies(&tu, "b")
         );
     }
@@ -642,21 +659,25 @@ mod tests {
 
             void main() 
             {
-                float temp_0 = in_attr2.z;
+                temp_0 = in_attr2.zwx;
+                temp_1 = temp_0.xzy;
                 out_attr1.x = 1.0;
-                out_attr1.y = temp_0;
+                out_attr1.y = temp_1.y;
                 out_attr1.z = uniform_data[3].y;
                 out_attr1.w = 1.5;
             }
         "};
 
+        // temp_0.zwx.xzy.y -> temp_0.zxw.y -> temp_0.x
         let tu = TranslationUnit::parse(glsl).unwrap();
+        let graph = Graph::from_glsl(&tu);
+        let attributes = find_attribute_locations(&tu);
         assert_eq!(
-            vec![Dependency::Attribute(AttributeDependency {
+            vec![AttributeDependency {
                 name: "in_attr2".to_string(),
-                channels: "z".to_string(),
-            })],
-            input_dependencies(&tu, "out_attr1.y")
+                channels: "x".to_string(),
+            }],
+            attribute_dependencies(&graph, "out_attr1.y", &attributes, None)
         );
     }
 
@@ -676,8 +697,8 @@ mod tests {
         "};
 
         let tu = TranslationUnit::parse(glsl).unwrap();
-        assert!(find_buffer_parameters(&tu, "out_attr4.x").is_empty());
-        assert!(find_buffer_parameters(&tu, "out_attr4.y").is_empty());
+        assert!(find_buffer_parameters(&tu, "out_attr4", "x").is_empty());
+        assert!(find_buffer_parameters(&tu, "out_attr4", "y").is_empty());
         assert_eq!(
             vec![BufferDependency {
                 name: "U_Mate".to_string(),
@@ -685,7 +706,7 @@ mod tests {
                 index: 0,
                 channels: "x".to_string()
             }],
-            find_buffer_parameters(&tu, "out_attr4.z")
+            find_buffer_parameters(&tu, "out_attr4", "z")
         );
         assert_eq!(
             vec![BufferDependency {
@@ -694,7 +715,7 @@ mod tests {
                 index: 0,
                 channels: "y".to_string()
             }],
-            find_buffer_parameters(&tu, "out_attr4.w")
+            find_buffer_parameters(&tu, "out_attr4", "w")
         );
     }
 }

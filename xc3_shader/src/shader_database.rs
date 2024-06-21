@@ -61,8 +61,7 @@ fn apply_vertex_texcoord_params(
 
     for dependency in dependencies {
         if let Dependency::Texture(texture) = dependency {
-            // TODO: Check U and V separately.
-            if let Some(texcoord) = texture.texcoords.first_mut() {
+            for texcoord in &mut texture.texcoords {
                 // Convert a fragment input like "in_attr4" to its vertex output like "vTex0".
                 if let Some(fragment_location) = fragment_attributes
                     .input_locations
@@ -72,19 +71,23 @@ fn apply_vertex_texcoord_params(
                         .output_locations
                         .get_by_right(fragment_location)
                     {
-                        if let Some(actual_name) = find_texcoord_input_name(
-                            texcoord,
-                            vertex,
-                            vertex_output_name,
-                            &vertex_attributes,
-                        ) {
+                        // Also fix channels since the zw output may just be scaled vTex0.xy.
+                        if let Some((actual_name, actual_channels)) =
+                            find_texcoord_input_name_channels(
+                                texcoord,
+                                vertex,
+                                vertex_output_name,
+                                &vertex_attributes,
+                            )
+                        {
                             texcoord.name = actual_name;
+                            texcoord.channels = actual_channels;
                         }
 
                         // Preserve the channel ordering here.
                         for c in texcoord.channels.chars() {
-                            let output = format!("{vertex_output_name}.{c}");
-                            let vertex_params = find_buffer_parameters(vertex, &output);
+                            let vertex_params =
+                                find_buffer_parameters(vertex, vertex_output_name, &c.to_string());
                             texcoord.params.extend(vertex_params);
                         }
                         // Remove any duplicates shared by multiple channels.
@@ -134,20 +137,20 @@ fn apply_attribute_names(
     }
 }
 
-fn find_texcoord_input_name(
+fn find_texcoord_input_name_channels(
     texcoord: &xc3_model::shader_database::TexCoord,
     vertex: &TranslationUnit,
     vertex_output_name: &str,
     vertex_attributes: &Attributes,
-) -> Option<String> {
-    // Assume only one texcoord attribute is used for all components.
+) -> Option<(String, String)> {
+    // We only need to look up one output per texcoord.
     let c = texcoord.channels.chars().next()?;
     let output = format!("{vertex_output_name}.{c}");
 
     let graph = Graph::from_glsl(vertex);
     attribute_dependencies(&graph, &output, vertex_attributes, None)
         .first()
-        .map(|a| a.name.clone())
+        .map(|a| (a.name.clone(), a.channels.clone()))
 }
 
 /// Find the texture dependencies for each fragment output channel.
@@ -354,9 +357,7 @@ mod tests {
 
     use indoc::indoc;
     use pretty_assertions::assert_eq;
-    use xc3_model::shader_database::{
-        AttributeDependency, BufferDependency, TexCoord, TextureDependency,
-    };
+    use xc3_model::shader_database::{BufferDependency, TexCoord, TextureDependency};
 
     #[test]
     fn extract_program_index_multiple_digits() {
@@ -486,7 +487,6 @@ mod tests {
 
         let fragment = TranslationUnit::parse(glsl).unwrap();
 
-        // TODO: fix expected values
         let shader = shader_from_glsl(Some(&vertex), &fragment);
         assert_eq!(
             Shader {
@@ -495,7 +495,7 @@ mod tests {
                         "o1.x".to_string(),
                         vec![Dependency::Texture(TextureDependency {
                             name: "s4".to_string(),
-                            channels: "xy".to_string(),
+                            channels: "y".to_string(),
                             texcoords: vec![
                                 TexCoord {
                                     name: "vTex0".to_string(),
