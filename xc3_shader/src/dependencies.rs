@@ -100,25 +100,17 @@ fn texture_dependencies(graph: &Graph, attributes: &Attributes, var: &str) -> Ve
     graph
         .assignments_recursive(variable, channels, None)
         .into_iter()
-        .map(|i| {
+        .flat_map(|i| {
             // Check all exprs for binary ops, function args, etc.
             // TODO: helper method for this?
             let node = &graph.nodes[i];
-            (i, node.input.exprs_recursive())
+            node.input.exprs_recursive()
         })
-        .filter_map(|(i, es)| {
-            es.into_iter()
-                .find_map(|e| texture_dependency(e, graph, i, attributes))
-        })
+        .filter_map(|e| texture_dependency(e, graph, attributes))
         .collect()
 }
 
-fn texture_dependency(
-    e: &Expr,
-    graph: &Graph,
-    node_index: usize,
-    attributes: &Attributes,
-) -> Option<Dependency> {
+fn texture_dependency(e: &Expr, graph: &Graph, attributes: &Attributes) -> Option<Dependency> {
     if let Expr::Func {
         name,
         args,
@@ -127,48 +119,51 @@ fn texture_dependency(
     {
         if name.starts_with("texture") {
             if let Some(Expr::Global { name, .. }) = args.first() {
-                // TODO: roper channel tracking
-                let node_assignments = graph.node_assignments_recursive(node_index, None);
-                let params = node_assignments
-                    .iter()
-                    .flat_map(|i| {
-                        // Check all exprs for binary ops, function args, etc.
-                        // TODO: Method for this?
-                        let node = &graph.nodes[*i];
-                        node.input.exprs_recursive()
-                    })
-                    .filter_map(|e| buffer_dependency(e))
-                    .collect();
+                // TODO: proper channel tracking
 
                 // TODO: Collect attributes and channels for all UV args.
-                let texcoord = node_assignments
+                // Search recursively to find texcoord variables.
+                let texcoords: Vec<_> = args
                     .iter()
-                    .flat_map(|i| {
-                        // Check all exprs for binary ops, function args, etc.
-                        // TODO: Method for this?
-                        let node = &graph.nodes[*i];
-                        node.input.exprs_recursive()
-                    })
-                    .find_map(|e| {
-                        if let Expr::Global { name, channels } = e {
-                            if attributes.input_locations.contains_left(name) {
-                                Some((name, channels))
-                            } else {
-                                None
-                            }
+                    .flat_map(|a| a.exprs_recursive())
+                    .filter_map(|e| {
+                        if let Expr::Node {
+                            node_index,
+                            channels,
+                        } = e
+                        {
+                            // Find the attribute used for this input.
+                            let node_assignments =
+                                graph.node_assignments_recursive(*node_index, None);
+                            let (name, channels) =
+                                texcoord_name_channels(&node_assignments, graph, attributes)?;
+
+                            let params = node_assignments
+                                .iter()
+                                .flat_map(|i| {
+                                    // Check all exprs for binary ops, function args, etc.
+                                    // TODO: Method for this?
+                                    let node = &graph.nodes[*i];
+                                    node.input.exprs_recursive()
+                                })
+                                .filter_map(|e| buffer_dependency(e))
+                                .collect();
+
+                            Some(TexCoord {
+                                name: name.clone(),
+                                channels: channels.clone(),
+                                params,
+                            })
                         } else {
                             None
                         }
-                    });
+                    })
+                    .collect();
 
                 Some(Dependency::Texture(TextureDependency {
                     name: name.clone(),
                     channels: channels.clone(),
-                    texcoord: texcoord.map(|(name, channels)| TexCoord {
-                        name: name.clone(),
-                        channels: channels.clone(),
-                        params,
-                    }),
+                    texcoords,
                 }))
             } else {
                 None
@@ -179,6 +174,32 @@ fn texture_dependency(
     } else {
         None
     }
+}
+
+fn texcoord_name_channels<'a>(
+    node_assignments: &[usize],
+    graph: &'a Graph,
+    attributes: &Attributes,
+) -> Option<(&'a String, &'a String)> {
+    node_assignments
+        .iter()
+        .flat_map(|i| {
+            // Check all exprs for binary ops, function args, etc.
+            // TODO: Method for this?
+            let node = &graph.nodes[*i];
+            node.input.exprs_recursive()
+        })
+        .find_map(|e| {
+            if let Expr::Global { name, channels } = e {
+                if attributes.input_locations.contains_left(name) {
+                    Some((name, channels))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
 }
 
 pub fn glsl_dependencies(source: &str, var: &str) -> String {
@@ -374,11 +395,11 @@ mod tests {
             vec![Dependency::Texture(TextureDependency {
                 name: "texture1".to_string(),
                 channels: "w".to_string(),
-                texcoord: Some(TexCoord {
+                texcoords: vec![TexCoord {
                     name: "in_attr0".to_string(),
                     channels: "xw".to_string(),
                     params: Vec::new()
-                })
+                }]
             })],
             input_dependencies(&tu, "b")
         );
@@ -386,6 +407,7 @@ mod tests {
 
     #[test]
     fn input_dependencies_scale_tex_matrix() {
+        // xeno3/chr/ch/ch01021013, shd0039.frag
         let glsl = indoc! {"
             layout(location = 4) in vec4 in_attr4;
 
@@ -401,7 +423,7 @@ mod tests {
                 temp_154 = fma(0., U_Mate.gTexMat[0].z, temp_148);
                 temp_155 = temp_152 + U_Mate.gTexMat[1].w;
                 temp_160 = temp_154 + U_Mate.gTexMat[0].w;
-                temp_162 = texture(gTResidentTex05, vec2(temp_160, temp_155)).wyz;
+                temp_162 = texture(gTResidentTex05, vec2(temp_160, temp_160)).x;
                 temp_163 = temp_162.x; 
             }
         "};
@@ -412,24 +434,68 @@ mod tests {
             vec![Dependency::Texture(TextureDependency {
                 name: "gTResidentTex05".to_string(),
                 channels: "w".to_string(),
-                texcoord: Some(TexCoord {
-                    name: "in_attr4".to_string(),
-                    channels: "yy".to_string(),
-                    params: vec![
-                        BufferDependency {
-                            name: "U_Mate".to_string(),
-                            field: "gTexMat".to_string(),
-                            index: 0,
-                            channels: "w".to_string()
-                        },
-                        BufferDependency {
-                            name: "U_Mate".to_string(),
-                            field: "gTexMat".to_string(),
-                            index: 1,
-                            channels: "w".to_string()
-                        }
-                    ]
-                })
+                texcoords: vec![
+                    TexCoord {
+                        name: "in_attr4".to_string(),
+                        channels: "x".to_string(),
+                        params: vec![
+                            BufferDependency {
+                                name: "U_Mate".to_string(),
+                                field: "gTexMat".to_string(),
+                                index: 0,
+                                channels: "x".to_string(),
+                            },
+                            BufferDependency {
+                                name: "U_Mate".to_string(),
+                                field: "gTexMat".to_string(),
+                                index: 0,
+                                channels: "y".to_string(),
+                            },
+                            BufferDependency {
+                                name: "U_Mate".to_string(),
+                                field: "gTexMat".to_string(),
+                                index: 0,
+                                channels: "z".to_string(),
+                            },
+                            BufferDependency {
+                                name: "U_Mate".to_string(),
+                                field: "gTexMat".to_string(),
+                                index: 0,
+                                channels: "w".to_string(),
+                            },
+                        ]
+                    },
+                    TexCoord {
+                        name: "in_attr4".to_string(),
+                        channels: "y".to_string(),
+                        params: vec![
+                            BufferDependency {
+                                name: "U_Mate".to_string(),
+                                field: "gTexMat".to_string(),
+                                index: 0,
+                                channels: "x".to_string(),
+                            },
+                            BufferDependency {
+                                name: "U_Mate".to_string(),
+                                field: "gTexMat".to_string(),
+                                index: 0,
+                                channels: "y".to_string(),
+                            },
+                            BufferDependency {
+                                name: "U_Mate".to_string(),
+                                field: "gTexMat".to_string(),
+                                index: 0,
+                                channels: "z".to_string(),
+                            },
+                            BufferDependency {
+                                name: "U_Mate".to_string(),
+                                field: "gTexMat".to_string(),
+                                index: 0,
+                                channels: "w".to_string(),
+                            },
+                        ]
+                    }
+                ]
             })],
             input_dependencies(&tu, "temp_163")
         );
@@ -455,7 +521,7 @@ mod tests {
             vec![Dependency::Texture(TextureDependency {
                 name: "gTResidentTex04".to_string(),
                 channels: "x".to_string(),
-                texcoord: Some(TexCoord {
+                texcoords: vec![TexCoord {
                     name: "in_attr4".to_string(),
                     channels: "xy".to_string(),
                     params: vec![
@@ -472,7 +538,7 @@ mod tests {
                             channels: "w".to_string()
                         }
                     ]
-                })
+                }]
             })],
             input_dependencies(&tu, "temp_170")
         );
@@ -494,7 +560,7 @@ mod tests {
             vec![Dependency::Texture(TextureDependency {
                 name: "texture1".to_string(),
                 channels: "z".to_string(),
-                texcoord: None
+                texcoords: Vec::new()
             })],
             input_dependencies(&tu, "b")
         );
@@ -515,7 +581,7 @@ mod tests {
             vec![Dependency::Texture(TextureDependency {
                 name: "texture1".to_string(),
                 channels: "zw".to_string(),
-                texcoord: None
+                texcoords: Vec::new()
             })],
             input_dependencies(&tu, "b")
         );
@@ -541,7 +607,7 @@ mod tests {
             vec![Dependency::Texture(TextureDependency {
                 name: "texture1".to_string(),
                 channels: "x".to_string(),
-                texcoord: None
+                texcoords: Vec::new()
             })],
             input_dependencies(&tu, "out_attr1.x")
         );

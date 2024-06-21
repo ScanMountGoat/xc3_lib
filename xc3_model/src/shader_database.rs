@@ -142,7 +142,7 @@ pub struct TextureDependency {
     pub name: String,
     pub channels: String,
     /// Texture coordinate values used for the texture function call.
-    pub texcoord: Option<TexCoord>,
+    pub texcoords: Vec<TexCoord>,
 }
 
 /// A texture coordinate attribute with optional transform parameters.
@@ -462,7 +462,7 @@ mod tests {
                     vec![Dependency::Texture(TextureDependency {
                         name: "s0".to_string(),
                         channels: "y".to_string(),
-                        texcoord: None,
+                        texcoords: Vec::new(),
                     })],
                 ),
                 (
@@ -471,12 +471,12 @@ mod tests {
                         Dependency::Texture(TextureDependency {
                             name: "tex".to_string(),
                             channels: "xyz".to_string(),
-                            texcoord: None,
+                            texcoords: Vec::new(),
                         }),
                         Dependency::Texture(TextureDependency {
                             name: "s2".to_string(),
                             channels: "z".to_string(),
-                            texcoord: None,
+                            texcoords: Vec::new(),
                         }),
                     ],
                 ),
@@ -485,7 +485,7 @@ mod tests {
                     vec![Dependency::Texture(TextureDependency {
                         name: "s3".to_string(),
                         channels: "xyz".to_string(),
-                        texcoord: None,
+                        texcoords: Vec::new(),
                     })],
                 ),
             ]
@@ -495,7 +495,7 @@ mod tests {
             Some(&TextureDependency {
                 name: "s2".to_string(),
                 channels: "z".to_string(),
-                texcoord: None,
+                texcoords: Vec::new()
             }),
             shader.texture(0, 'y')
         );
@@ -510,7 +510,7 @@ mod tests {
                     vec![Dependency::Texture(TextureDependency {
                         name: "s0".to_string(),
                         channels: "y".to_string(),
-                        texcoord: None,
+                        texcoords: Vec::new(),
                     })],
                 ),
                 (
@@ -519,12 +519,12 @@ mod tests {
                         Dependency::Texture(TextureDependency {
                             name: "tex".to_string(),
                             channels: "xyz".to_string(),
-                            texcoord: None,
+                            texcoords: Vec::new(),
                         }),
                         Dependency::Texture(TextureDependency {
                             name: "s2".to_string(),
                             channels: "z".to_string(),
-                            texcoord: None,
+                            texcoords: Vec::new(),
                         }),
                     ],
                 ),
@@ -545,7 +545,7 @@ mod tests {
                     vec![Dependency::Texture(TextureDependency {
                         name: "s0".to_string(),
                         channels: "y".to_string(),
-                        texcoord: None,
+                        texcoords: Vec::new(),
                     })],
                 ),
                 (
@@ -554,12 +554,12 @@ mod tests {
                         Dependency::Texture(TextureDependency {
                             name: "tex".to_string(),
                             channels: "xyz".to_string(),
-                            texcoord: None,
+                            texcoords: Vec::new(),
                         }),
                         Dependency::Texture(TextureDependency {
                             name: "s2".to_string(),
                             channels: "z".to_string(),
-                            texcoord: None,
+                            texcoords: Vec::new(),
                         }),
                     ],
                 ),

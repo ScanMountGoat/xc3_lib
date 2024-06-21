@@ -495,10 +495,11 @@ fn channel_assignment(
 
                 let texcoord_scale = texcoord_scale(texture, parameters);
 
+                // TODO: different attribute for U and V?
                 ChannelAssignment::Texture {
                     name: texture.name.clone(),
                     channel_index: "xyzw".find(c).unwrap(),
-                    texcoord_name: texture.texcoord.as_ref().map(|t| t.name.clone()),
+                    texcoord_name: texture.texcoords.first().map(|t| t.name.clone()),
                     texcoord_scale,
                 }
             })
@@ -509,7 +510,8 @@ fn texcoord_scale(
     texture: &TextureDependency,
     parameters: &MaterialParameters,
 ) -> Option<(f32, f32)> {
-    let texcoord = texture.texcoord.as_ref()?;
+    // TODO: check scale value for U and V
+    let texcoord = texture.texcoords.first()?;
     if let Some([u, v]) = texcoord.params.get(..2) {
         let scale_u = extract_parameter(u, parameters)?;
         let scale_v = extract_parameter(v, parameters)?;

@@ -61,7 +61,8 @@ fn apply_vertex_texcoord_params(
 
     for dependency in dependencies {
         if let Dependency::Texture(texture) = dependency {
-            if let Some(texcoord) = &mut texture.texcoord {
+            // TODO: Check U and V separately.
+            if let Some(texcoord) = texture.texcoords.first_mut() {
                 // Convert a fragment input like "in_attr4" to its vertex output like "vTex0".
                 if let Some(fragment_location) = fragment_attributes
                     .input_locations
@@ -409,60 +410,83 @@ mod tests {
 
     #[test]
     fn shader_from_vertex_fragment() {
+        // Test trimmed shaders from Pyra's metallic chest material.
+        // xeno2/bl/bl000101, "ho_BL_TS2", shd0022.vert
         let glsl = indoc! {"
-            layout(location = 0) in vec4 pos;
-            layout(location = 4) in vec4 tex0;
-            layout(location = 3) in vec4 color;
-
-            layout(location = 3) out vec4 out_attr0;
-            layout(location = 5) out vec4 out_attr1;
-            layout(location = 7) out vec4 out_attr2;
+            layout(location = 0) in vec4 vPos;
+            layout(location = 1) in vec4 nWgtIdx;
+            layout(location = 2) in vec4 vTex0;
+            layout(location = 3) in vec4 vColor;
+            layout(location = 4) in vec4 vNormal;
+            layout(location = 5) in vec4 vTan;
+            layout(location = 0) out vec4 out_attr0;
+            layout(location = 1) out vec4 out_attr1;
+            layout(location = 2) out vec4 out_attr2;
+            layout(location = 3) out vec4 out_attr3;
+            layout(location = 4) out vec4 out_attr4;
+            layout(location = 5) out vec4 out_attr5;
+            layout(location = 6) out vec4 out_attr6;
+            layout(location = 7) out vec4 out_attr7;
+            layout(location = 8) out vec4 out_attr8;
 
             void main() 
             {
-                float temp_0 = tex0.z;
-                float temp_1 = tex0.w;
-                float temp_2 = temp_0 * U_Mate.gWrkFl4[0].x;
-                float temp_3 = temp_1 * U_Mate.gWrkFl4[0].y;
-                out_attr0.x = 1.0;
-                out_attr0.y = 2.0;
-                out_attr0.z = 3.0;
-                out_attr0.w = 4.0;
-                out_attr1.x = temp_2;
-                out_attr1.y = temp_3;
-                out_attr1.z = 0.0;
-                out_attr1.w = 0.0;
-                out_attr2.x = 1.0;
-                out_attr2.y = 2.0;
-                out_attr2.z = 3.0;
-                out_attr2.w = 4.0;
+                temp_62 = vTex0.x;
+                temp_64 = vTex0.y;
+                temp_119 = temp_62 * U_Mate.gWrkFl4[0].x;
+                temp_179 = temp_64 * U_Mate.gWrkFl4[0].y;
+                out_attr4.x = temp_62;
+                out_attr4.y = temp_64;
+                out_attr4.z = temp_119;
+                out_attr4.w = temp_179;
             }
         "};
         let vertex = TranslationUnit::parse(glsl).unwrap();
 
+        // xeno2/bl/bl000101, "ho_BL_TS2", shd0022.frag
         let glsl = indoc! {"
-            layout(location = 3) in vec4 in_attr0;
-            layout(location = 5) in vec4 in_attr1;
-            layout(location = 7) in vec4 in_attr2;
-
+            layout(location = 0) in vec4 in_attr0;
+            layout(location = 1) in vec4 in_attr1;
+            layout(location = 2) in vec4 in_attr2;
+            layout(location = 3) in vec4 in_attr3;
+            layout(location = 4) in vec4 in_attr4;
+            layout(location = 5) in vec4 in_attr5;
+            layout(location = 6) in vec4 in_attr6;
+            layout(location = 7) in vec4 in_attr7;
             layout(location = 0) out vec4 out_attr0;
             layout(location = 1) out vec4 out_attr1;
             layout(location = 2) out vec4 out_attr2;
+            layout(location = 3) out vec4 out_attr3;
+            layout(location = 4) out vec4 out_attr4;
+            layout(location = 5) out vec4 out_attr5;
 
             void main() 
             {
-                float temp_0 = in_attr1.x;
-                float temp_1 = in_attr1.y;
-                float a = texture(texture1, vec2(temp_0, temp_1)).x;
-                out_attr1.x = a;
-                out_attr1.y = U_Mate.data[1].w;
-                out_attr1.z = uniform_data[3].y;
-                out_attr1.w = temp_1;
+                temp_1 = in_attr4.x;
+                temp_2 = in_attr4.y;
+                temp_15 = in_attr4.z;
+                temp_16 = in_attr4.w;
+                temp_17 = texture(s5, vec2(temp_15, temp_16)).xyz;
+                temp_18 = temp_17.x;
+                temp_19 = temp_17.y;
+                temp_20 = temp_17.z;
+                temp_21 = texture(s4, vec2(temp_1, temp_2)).xy;
+                temp_22 = temp_21.x;
+                temp_23 = temp_21.y;
+                out_attr1.x = temp_23;
+                out_attr1.y = U_Mate.gWrkFl4[2].x;
+                out_attr1.z = U_Mate.gWrkFl4[1].y;
+                out_attr1.w = 0.07098039;
+                out_attr5.x = temp_18;
+                out_attr5.y = temp_19;
+                out_attr5.z = temp_20;
+                out_attr5.w = 0.;
             }
         "};
 
         let fragment = TranslationUnit::parse(glsl).unwrap();
 
+        // TODO: fix expected values
         let shader = shader_from_glsl(Some(&vertex), &fragment);
         assert_eq!(
             Shader {
@@ -470,53 +494,132 @@ mod tests {
                     (
                         "o1.x".to_string(),
                         vec![Dependency::Texture(TextureDependency {
-                            name: "texture1".to_string(),
-                            channels: "x".to_string(),
-                            texcoord: Some(TexCoord {
-                                name: "tex0".to_string(),
-                                channels: "xy".to_string(),
-                                params: vec![
-                                    BufferDependency {
-                                        name: "U_Mate".to_string(),
-                                        field: "gWrkFl4".to_string(),
-                                        index: 0,
-                                        channels: "x".to_string()
-                                    },
-                                    BufferDependency {
-                                        name: "U_Mate".to_string(),
-                                        field: "gWrkFl4".to_string(),
-                                        index: 0,
-                                        channels: "y".to_string()
-                                    }
-                                ]
-                            })
-                        }),]
+                            name: "s4".to_string(),
+                            channels: "xy".to_string(),
+                            texcoords: vec![
+                                TexCoord {
+                                    name: "vTex0".to_string(),
+                                    channels: "x".to_string(),
+                                    params: Vec::new(),
+                                },
+                                TexCoord {
+                                    name: "vTex0".to_string(),
+                                    channels: "y".to_string(),
+                                    params: Vec::new(),
+                                },
+                            ]
+                        })]
                     ),
                     (
                         "o1.y".to_string(),
                         vec![Dependency::Buffer(BufferDependency {
                             name: "U_Mate".to_string(),
-                            field: "data".to_string(),
-                            index: 1,
-                            channels: "w".to_string()
-                        })],
+                            field: "gWrkFl4".to_string(),
+                            index: 2,
+                            channels: "x".to_string(),
+                        })]
                     ),
                     (
                         "o1.z".to_string(),
                         vec![Dependency::Buffer(BufferDependency {
-                            name: "uniform_data".to_string(),
-                            field: "".to_string(),
-                            index: 3,
-                            channels: "y".to_string()
+                            name: "U_Mate".to_string(),
+                            field: "gWrkFl4".to_string(),
+                            index: 1,
+                            channels: "y".to_string(),
                         })]
                     ),
                     (
                         "o1.w".to_string(),
-                        vec![Dependency::Attribute(AttributeDependency {
-                            name: "tex0".to_string(),
-                            channels: "y".to_string()
+                        vec![Dependency::Constant(0.07098039.into())]
+                    ),
+                    (
+                        "o5.x".to_string(),
+                        vec![Dependency::Texture(TextureDependency {
+                            name: "s5".to_string(),
+                            channels: "x".to_string(),
+                            texcoords: vec![
+                                TexCoord {
+                                    name: "vTex0".to_string(),
+                                    channels: "x".to_string(),
+                                    params: vec![BufferDependency {
+                                        name: "U_Mate".to_string(),
+                                        field: "gWrkFl4".to_string(),
+                                        index: 0,
+                                        channels: "x".to_string(),
+                                    }]
+                                },
+                                TexCoord {
+                                    name: "vTex0".to_string(),
+                                    channels: "y".to_string(),
+                                    params: vec![BufferDependency {
+                                        name: "U_Mate".to_string(),
+                                        field: "gWrkFl4".to_string(),
+                                        index: 0,
+                                        channels: "y".to_string(),
+                                    }]
+                                },
+                            ],
                         })]
-                    )
+                    ),
+                    (
+                        "o5.y".to_string(),
+                        vec![Dependency::Texture(TextureDependency {
+                            name: "s5".to_string(),
+                            channels: "y".to_string(),
+                            texcoords: vec![
+                                TexCoord {
+                                    name: "vTex0".to_string(),
+                                    channels: "x".to_string(),
+                                    params: vec![BufferDependency {
+                                        name: "U_Mate".to_string(),
+                                        field: "gWrkFl4".to_string(),
+                                        index: 0,
+                                        channels: "x".to_string(),
+                                    }]
+                                },
+                                TexCoord {
+                                    name: "vTex0".to_string(),
+                                    channels: "y".to_string(),
+                                    params: vec![BufferDependency {
+                                        name: "U_Mate".to_string(),
+                                        field: "gWrkFl4".to_string(),
+                                        index: 0,
+                                        channels: "y".to_string(),
+                                    }]
+                                },
+                            ],
+                        })]
+                    ),
+                    (
+                        "o5.z".to_string(),
+                        vec![Dependency::Texture(TextureDependency {
+                            name: "s5".to_string(),
+                            channels: "z".to_string(),
+                            texcoords: vec![
+                                TexCoord {
+                                    name: "vTex0".to_string(),
+                                    channels: "x".to_string(),
+                                    params: vec![BufferDependency {
+                                        name: "U_Mate".to_string(),
+                                        field: "gWrkFl4".to_string(),
+                                        index: 0,
+                                        channels: "x".to_string(),
+                                    }]
+                                },
+                                TexCoord {
+                                    name: "vTex0".to_string(),
+                                    channels: "y".to_string(),
+                                    params: vec![BufferDependency {
+                                        name: "U_Mate".to_string(),
+                                        field: "gWrkFl4".to_string(),
+                                        index: 0,
+                                        channels: "y".to_string(),
+                                    }]
+                                },
+                            ],
+                        })]
+                    ),
+                    ("o5.w".to_string(), vec![Dependency::Constant(0.0.into())]),
                 ]
                 .into()
             },
