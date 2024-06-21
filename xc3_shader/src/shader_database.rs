@@ -71,6 +71,16 @@ fn apply_vertex_texcoord_params(
                         .output_locations
                         .get_by_right(fragment_location)
                     {
+                        // Preserve the channel ordering here.
+                        for c in texcoord.channels.chars() {
+                            let vertex_params =
+                                find_buffer_parameters(vertex, vertex_output_name, &c.to_string());
+                            texcoord.params.extend(vertex_params);
+                        }
+                        // Remove any duplicates.
+                        texcoord.params.sort();
+                        texcoord.params.dedup();
+
                         // Also fix channels since the zw output may just be scaled vTex0.xy.
                         if let Some((actual_name, actual_channels)) =
                             find_texcoord_input_name_channels(
@@ -83,16 +93,6 @@ fn apply_vertex_texcoord_params(
                             texcoord.name = actual_name;
                             texcoord.channels = actual_channels;
                         }
-
-                        // Preserve the channel ordering here.
-                        for c in texcoord.channels.chars() {
-                            let vertex_params =
-                                find_buffer_parameters(vertex, vertex_output_name, &c.to_string());
-                            texcoord.params.extend(vertex_params);
-                        }
-                        // Remove any duplicates shared by multiple channels.
-                        texcoord.params.sort();
-                        texcoord.params.dedup();
                     }
                 }
             }

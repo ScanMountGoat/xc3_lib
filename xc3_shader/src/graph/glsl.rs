@@ -156,6 +156,8 @@ impl Graph {
             ),
             Expr::Float(f) => f.to_string(),
             Expr::Int(i) => i.to_string(),
+            Expr::Uint(u) => u.to_string(),
+            Expr::Bool(b) => b.to_string(),
             Expr::Parameter {
                 name,
                 field,
@@ -174,12 +176,28 @@ impl Graph {
                 ),
             },
             Expr::Global { name, channels } => format!("{name}{}", channel_display(channels)),
-            Expr::Add(a, b) => format!("{} + {}", self.expr_to_glsl(a), self.expr_to_glsl(b)),
-            Expr::Sub(a, b) => format!("{} - {}", self.expr_to_glsl(a), self.expr_to_glsl(b)),
-            Expr::Mul(a, b) => format!("{} * {}", self.expr_to_glsl(a), self.expr_to_glsl(b)),
-            Expr::Div(a, b) => format!("{} / {}", self.expr_to_glsl(a), self.expr_to_glsl(b)),
-            Expr::LShift(a, b) => format!("{} << {}", self.expr_to_glsl(a), self.expr_to_glsl(b)),
-            Expr::RShift(a, b) => format!("{} >> {}", self.expr_to_glsl(a), self.expr_to_glsl(b)),
+            Expr::Add(a, b) => self.binary_to_glsl(a, "+", b),
+            Expr::Sub(a, b) => self.binary_to_glsl(a, "-", b),
+            Expr::Mul(a, b) => self.binary_to_glsl(a, "*", b),
+            Expr::Div(a, b) => self.binary_to_glsl(a, "/", b),
+            Expr::LeftShift(a, b) => self.binary_to_glsl(a, "<<", b),
+            Expr::RightShift(a, b) => self.binary_to_glsl(a, ">>", b),
+            Expr::BitOr(a, b) => self.binary_to_glsl(a, "|", b),
+            Expr::BitAnd(a, b) => self.binary_to_glsl(a, "&", b),
+            Expr::Equal(a, b) => self.binary_to_glsl(a, "==", b),
+            Expr::NotEqual(a, b) => self.binary_to_glsl(a, "!=", b),
+            Expr::Less(a, b) => self.binary_to_glsl(a, "<", b),
+            Expr::Greater(a, b) => self.binary_to_glsl(a, ">", b),
+            Expr::LessEqual(a, b) => self.binary_to_glsl(a, "<=", b),
+            Expr::GreaterEqual(a, b) => self.binary_to_glsl(a, ">=", b),
+            Expr::Or(a, b) => self.binary_to_glsl(a, "||", b),
+            Expr::And(a, b) => self.binary_to_glsl(a, "&&", b),
+            Expr::Ternary(a, b, c) => format!(
+                "{} ? {} : {}",
+                self.expr_to_glsl(a),
+                self.expr_to_glsl(b),
+                self.expr_to_glsl(c)
+            ),
             Expr::Func {
                 name,
                 args,
@@ -193,6 +211,10 @@ impl Graph {
                 channel_display(channels)
             ),
         }
+    }
+
+    fn binary_to_glsl(&self, a: &Expr, op: &str, b: &Expr) -> String {
+        format!("{} {op} {}", self.expr_to_glsl(a), self.expr_to_glsl(b))
     }
 }
 
@@ -228,8 +250,8 @@ fn input_expr(
             }
         }
         ExprData::IntConst(i) => Expr::Int(*i),
-        ExprData::UIntConst(_) => todo!(),
-        ExprData::BoolConst(_) => todo!(),
+        ExprData::UIntConst(u) => Expr::Uint(*u),
+        ExprData::BoolConst(b) => Expr::Bool(*b),
         ExprData::FloatConst(f) => Expr::Float(*f),
         ExprData::DoubleConst(_) => todo!(),
         ExprData::Unary(_, e) => input_expr(e, last_assignment_index, channel),
@@ -238,20 +260,20 @@ fn input_expr(
             let b = Box::new(input_expr(rh, last_assignment_index, channel));
             match &op.content {
                 // TODO: Fill in remaining ops.
-                glsl_lang::ast::BinaryOpData::Or => todo!(),
+                glsl_lang::ast::BinaryOpData::Or => Expr::Or(a, b),
                 glsl_lang::ast::BinaryOpData::Xor => todo!(),
-                glsl_lang::ast::BinaryOpData::And => todo!(),
-                glsl_lang::ast::BinaryOpData::BitOr => todo!(),
+                glsl_lang::ast::BinaryOpData::And => Expr::And(a, b),
+                glsl_lang::ast::BinaryOpData::BitOr => Expr::BitOr(a, b),
                 glsl_lang::ast::BinaryOpData::BitXor => todo!(),
-                glsl_lang::ast::BinaryOpData::BitAnd => todo!(),
-                glsl_lang::ast::BinaryOpData::Equal => todo!(),
-                glsl_lang::ast::BinaryOpData::NonEqual => todo!(),
-                glsl_lang::ast::BinaryOpData::Lt => todo!(),
-                glsl_lang::ast::BinaryOpData::Gt => todo!(),
-                glsl_lang::ast::BinaryOpData::Lte => todo!(),
-                glsl_lang::ast::BinaryOpData::Gte => todo!(),
-                glsl_lang::ast::BinaryOpData::LShift => Expr::LShift(a, b),
-                glsl_lang::ast::BinaryOpData::RShift => Expr::RShift(a, b),
+                glsl_lang::ast::BinaryOpData::BitAnd => Expr::BitAnd(a, b),
+                glsl_lang::ast::BinaryOpData::Equal => Expr::Equal(a, b),
+                glsl_lang::ast::BinaryOpData::NonEqual => Expr::NotEqual(a, b),
+                glsl_lang::ast::BinaryOpData::Lt => Expr::Less(a, b),
+                glsl_lang::ast::BinaryOpData::Gt => Expr::Greater(a, b),
+                glsl_lang::ast::BinaryOpData::Lte => Expr::LessEqual(a, b),
+                glsl_lang::ast::BinaryOpData::Gte => Expr::GreaterEqual(a, b),
+                glsl_lang::ast::BinaryOpData::LShift => Expr::LeftShift(a, b),
+                glsl_lang::ast::BinaryOpData::RShift => Expr::RightShift(a, b),
                 glsl_lang::ast::BinaryOpData::Add => Expr::Add(a, b),
                 glsl_lang::ast::BinaryOpData::Sub => Expr::Sub(a, b),
                 glsl_lang::ast::BinaryOpData::Mult => Expr::Mul(a, b),
@@ -260,7 +282,10 @@ fn input_expr(
             }
         }
         ExprData::Ternary(a, b, c) => {
-            todo!()
+            let a = Box::new(input_expr(a, last_assignment_index, channel));
+            let b = Box::new(input_expr(b, last_assignment_index, channel));
+            let c = Box::new(input_expr(c, last_assignment_index, channel));
+            Expr::Ternary(a, b, c)
         }
         ExprData::Assignment(_, _, _) => todo!(),
         ExprData::Bracket(e, specifier) => {

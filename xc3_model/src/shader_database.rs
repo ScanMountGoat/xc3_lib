@@ -151,11 +151,8 @@ pub struct TextureDependency {
 pub struct TexCoord {
     /// The name of the attribute like "in_attr4".
     pub name: String,
-    /// The accessed channels like "zw".
-    /// ordered by texture function texcoord parameters.
-    /// This will usually be sequential like `texture(s0, vec2(attr.z, attr.w)`.
+    /// The accessed channels like "x" or "y".
     pub channels: String,
-    /// Parameter dependencies ordered by texture function texcoord parameters.
     /// These can generally be assumed to be scale or matrix transforms.
     pub params: Vec<BufferDependency>,
 }

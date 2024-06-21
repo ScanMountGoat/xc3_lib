@@ -8,7 +8,7 @@ use xc3_model::shader_database::{
 
 use crate::{
     annotation::shader_source_no_extensions,
-    graph::{Expr, Graph},
+    graph::{reduce_channels, Expr, Graph},
     shader_database::{find_attribute_locations, Attributes},
 };
 
@@ -229,9 +229,12 @@ pub fn find_buffer_parameters(
         .collect()
 }
 
-fn buffer_dependency(e: &Expr, channels: &str) -> Option<BufferDependency> {
+fn buffer_dependency(e: &Expr, final_channels: &str) -> Option<BufferDependency> {
     if let Expr::Parameter {
-        name, field, index, ..
+        name,
+        field,
+        index,
+        channels,
     } = e
     {
         if let Expr::Int(index) = index.deref() {
@@ -239,7 +242,7 @@ fn buffer_dependency(e: &Expr, channels: &str) -> Option<BufferDependency> {
                 name: name.clone(),
                 field: field.clone().unwrap_or_default(),
                 index: (*index).try_into().unwrap(),
-                channels: channels.to_string(),
+                channels: reduce_channels(&channels, final_channels),
             })
         } else {
             None
@@ -427,12 +430,12 @@ mod tests {
                 temp_154 = fma(0., U_Mate.gTexMat[0].z, temp_148);
                 temp_155 = temp_152 + U_Mate.gTexMat[1].w;
                 temp_160 = temp_154 + U_Mate.gTexMat[0].w;
-                temp_162 = texture(gTResidentTex05, vec2(temp_160, temp_160)).x;
+                temp_162 = texture(gTResidentTex05, vec2(temp_160, temp_155)).x;
                 temp_163 = temp_162.x; 
             }
         "};
 
-        // TODO: reliably detect channels even with matrix multiplication?
+        // TODO: Handle the case where multiple attribute components are used?
         let tu = TranslationUnit::parse(glsl).unwrap();
         assert_eq!(
             vec![Dependency::Texture(TextureDependency {
@@ -471,30 +474,30 @@ mod tests {
                     },
                     TexCoord {
                         name: "in_attr4".to_string(),
-                        channels: "y".to_string(),
+                        channels: "x".to_string(),
                         params: vec![
                             BufferDependency {
                                 name: "U_Mate".to_string(),
                                 field: "gTexMat".to_string(),
-                                index: 0,
+                                index: 1,
                                 channels: "x".to_string(),
                             },
                             BufferDependency {
                                 name: "U_Mate".to_string(),
                                 field: "gTexMat".to_string(),
-                                index: 0,
+                                index: 1,
                                 channels: "y".to_string(),
                             },
                             BufferDependency {
                                 name: "U_Mate".to_string(),
                                 field: "gTexMat".to_string(),
-                                index: 0,
+                                index: 1,
                                 channels: "z".to_string(),
                             },
                             BufferDependency {
                                 name: "U_Mate".to_string(),
                                 field: "gTexMat".to_string(),
-                                index: 0,
+                                index: 1,
                                 channels: "w".to_string(),
                             },
                         ]

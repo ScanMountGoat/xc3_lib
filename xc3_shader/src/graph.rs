@@ -30,6 +30,10 @@ pub enum Expr {
     Float(f32),
     /// An integer constant like `-1`.
     Int(i32),
+    /// An unsigned integer constant like `1`.
+    Uint(u32),
+    /// An boolean constant like `true`.
+    Bool(bool),
     /// A buffer access like `name.field[index].x` or `name[index].x`.
     Parameter {
         name: String,
@@ -46,8 +50,19 @@ pub enum Expr {
     Sub(Box<Expr>, Box<Expr>),
     Mul(Box<Expr>, Box<Expr>),
     Div(Box<Expr>, Box<Expr>),
-    LShift(Box<Expr>, Box<Expr>),
-    RShift(Box<Expr>, Box<Expr>),
+    LeftShift(Box<Expr>, Box<Expr>),
+    RightShift(Box<Expr>, Box<Expr>),
+    BitOr(Box<Expr>, Box<Expr>),
+    BitAnd(Box<Expr>, Box<Expr>),
+    Equal(Box<Expr>, Box<Expr>),
+    NotEqual(Box<Expr>, Box<Expr>),
+    Less(Box<Expr>, Box<Expr>),
+    Greater(Box<Expr>, Box<Expr>),
+    LessEqual(Box<Expr>, Box<Expr>),
+    GreaterEqual(Box<Expr>, Box<Expr>),
+    Or(Box<Expr>, Box<Expr>),
+    And(Box<Expr>, Box<Expr>),
+    Ternary(Box<Expr>, Box<Expr>, Box<Expr>),
     Func {
         name: String,
         args: Vec<Expr>,
@@ -175,17 +190,10 @@ impl Expr {
     pub fn channels(&self) -> Option<&str> {
         match self {
             Expr::Node { channels, .. } => Some(channels),
-            Expr::Float(_) => None,
-            Expr::Int(_) => None,
             Expr::Parameter { channels, .. } => Some(channels),
             Expr::Global { channels, .. } => Some(channels),
-            Expr::Add(_, _) => None,
-            Expr::Sub(_, _) => None,
-            Expr::Mul(_, _) => None,
-            Expr::Div(_, _) => None,
-            Expr::LShift(_, _) => None,
-            Expr::RShift(_, _) => None,
             Expr::Func { channels, .. } => Some(channels),
+            _ => None,
         }
     }
 }
@@ -197,6 +205,8 @@ fn add_exprs<'a>(exprs: &mut Vec<&'a Expr>, input: &'a Expr) {
         Expr::Node { .. } => (),
         Expr::Float(_) => (),
         Expr::Int(_) => (),
+        Expr::Uint(_) => (),
+        Expr::Bool(_) => (),
         Expr::Parameter { index, .. } => {
             add_exprs(exprs, index);
         }
@@ -217,13 +227,58 @@ fn add_exprs<'a>(exprs: &mut Vec<&'a Expr>, input: &'a Expr) {
             add_exprs(exprs, lh);
             add_exprs(exprs, rh);
         }
-        Expr::LShift(lh, rh) => {
+        Expr::LeftShift(lh, rh) => {
             add_exprs(exprs, lh);
             add_exprs(exprs, rh);
         }
-        Expr::RShift(lh, rh) => {
+        Expr::RightShift(lh, rh) => {
             add_exprs(exprs, lh);
             add_exprs(exprs, rh);
+        }
+        Expr::BitOr(lh, rh) => {
+            add_exprs(exprs, lh);
+            add_exprs(exprs, rh);
+        }
+        Expr::BitAnd(lh, rh) => {
+            add_exprs(exprs, lh);
+            add_exprs(exprs, rh);
+        }
+        Expr::Equal(lh, rh) => {
+            add_exprs(exprs, lh);
+            add_exprs(exprs, rh);
+        }
+        Expr::NotEqual(lh, rh) => {
+            add_exprs(exprs, lh);
+            add_exprs(exprs, rh);
+        }
+        Expr::Less(lh, rh) => {
+            add_exprs(exprs, lh);
+            add_exprs(exprs, rh);
+        }
+        Expr::Greater(lh, rh) => {
+            add_exprs(exprs, lh);
+            add_exprs(exprs, rh);
+        }
+        Expr::LessEqual(lh, rh) => {
+            add_exprs(exprs, lh);
+            add_exprs(exprs, rh);
+        }
+        Expr::GreaterEqual(lh, rh) => {
+            add_exprs(exprs, lh);
+            add_exprs(exprs, rh);
+        }
+        Expr::Or(lh, rh) => {
+            add_exprs(exprs, lh);
+            add_exprs(exprs, rh);
+        }
+        Expr::And(lh, rh) => {
+            add_exprs(exprs, lh);
+            add_exprs(exprs, rh);
+        }
+        Expr::Ternary(a, b, c) => {
+            add_exprs(exprs, a);
+            add_exprs(exprs, b);
+            add_exprs(exprs, c);
         }
         Expr::Func { args, .. } => {
             for arg in args {
@@ -234,7 +289,7 @@ fn add_exprs<'a>(exprs: &mut Vec<&'a Expr>, input: &'a Expr) {
 }
 
 // TODO: Test cases for this.
-fn reduce_channels(inner: &str, outer: &str) -> String {
+pub fn reduce_channels(inner: &str, outer: &str) -> String {
     if inner.is_empty() {
         // Reduce ".xyz" -> "xyz".
         outer.to_string()
