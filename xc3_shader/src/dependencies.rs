@@ -15,15 +15,17 @@ use crate::{
 pub fn input_dependencies(translation_unit: &TranslationUnit, var: &str) -> Vec<Dependency> {
     // Find the most recent assignment for the output variable.
     let graph = Graph::from_glsl(translation_unit);
+
+    let (variable, channels) = var.split_once('.').unwrap_or((var, ""));
     let node = graph
         .nodes
         .iter()
-        .rfind(|n| format!("{}.{}", n.output.name, n.output.channels) == var);
+        .rfind(|n| n.output.name == variable && n.output.channels == channels);
 
     let attributes = find_attribute_locations(translation_unit);
 
     // TODO: Rework this to be cleaner and add more tests.
-    let mut dependencies = texture_dependencies(&graph, &attributes, var);
+    let mut dependencies = texture_dependencies(&graph, &attributes, variable, channels);
 
     // Add anything directly assigned to the output variable.
     if let Some(node) = node {
@@ -50,9 +52,8 @@ pub fn input_dependencies(translation_unit: &TranslationUnit, var: &str) -> Vec<
 
     // TODO: Depth not high enough for complex expressions involving attributes?
     // TODO: Query the graph for known functions instead of hard coding recursion depth.
-    let attributes = find_attribute_locations(translation_unit);
     dependencies.extend(
-        attribute_dependencies(&graph, var, &attributes, Some(1))
+        attribute_dependencies(&graph, variable, channels, &attributes, Some(1))
             .into_iter()
             .map(Dependency::Attribute),
     );
@@ -62,12 +63,11 @@ pub fn input_dependencies(translation_unit: &TranslationUnit, var: &str) -> Vec<
 
 pub fn attribute_dependencies(
     graph: &Graph,
-    var: &str,
+    variable: &str,
+    channels: &str,
     attributes: &Attributes,
     recursion_depth: Option<usize>,
 ) -> Vec<AttributeDependency> {
-    let (variable, channels) = var.split_once('.').unwrap_or((var, ""));
-
     graph
         .assignments_recursive(variable, channels, recursion_depth)
         .into_iter()
@@ -91,9 +91,12 @@ pub fn attribute_dependencies(
         .collect()
 }
 
-fn texture_dependencies(graph: &Graph, attributes: &Attributes, var: &str) -> Vec<Dependency> {
-    let (variable, channels) = var.split_once('.').unwrap_or((var, ""));
-
+fn texture_dependencies(
+    graph: &Graph,
+    attributes: &Attributes,
+    variable: &str,
+    channels: &str,
+) -> Vec<Dependency> {
     graph
         .assignments_recursive(variable, channels, None)
         .into_iter()
@@ -210,11 +213,10 @@ pub fn glsl_dependencies(source: &str, var: &str) -> String {
 }
 
 pub fn find_buffer_parameters(
-    translation_unit: &TranslationUnit,
+    graph: &Graph,
     variable: &str,
     channels: &str,
 ) -> Vec<BufferDependency> {
-    let graph = Graph::from_glsl(translation_unit);
     graph
         .assignments_recursive(variable, channels, None)
         .into_iter()
@@ -242,7 +244,7 @@ fn buffer_dependency(e: &Expr, final_channels: &str) -> Option<BufferDependency>
                 name: name.clone(),
                 field: field.clone().unwrap_or_default(),
                 index: (*index).try_into().unwrap(),
-                channels: reduce_channels(&channels, final_channels),
+                channels: reduce_channels(channels, final_channels),
             })
         } else {
             None
@@ -680,7 +682,7 @@ mod tests {
                 name: "in_attr2".to_string(),
                 channels: "x".to_string(),
             }],
-            attribute_dependencies(&graph, "out_attr1.y", &attributes, None)
+            attribute_dependencies(&graph, "out_attr1", "y", &attributes, None)
         );
     }
 
@@ -700,8 +702,9 @@ mod tests {
         "};
 
         let tu = TranslationUnit::parse(glsl).unwrap();
-        assert!(find_buffer_parameters(&tu, "out_attr4", "x").is_empty());
-        assert!(find_buffer_parameters(&tu, "out_attr4", "y").is_empty());
+        let graph = Graph::from_glsl(&tu);
+        assert!(find_buffer_parameters(&graph, "out_attr4", "x").is_empty());
+        assert!(find_buffer_parameters(&graph, "out_attr4", "y").is_empty());
         assert_eq!(
             vec![BufferDependency {
                 name: "U_Mate".to_string(),
@@ -709,7 +712,7 @@ mod tests {
                 index: 0,
                 channels: "x".to_string()
             }],
-            find_buffer_parameters(&tu, "out_attr4", "z")
+            find_buffer_parameters(&graph, "out_attr4", "z")
         );
         assert_eq!(
             vec![BufferDependency {
@@ -718,7 +721,7 @@ mod tests {
                 index: 0,
                 channels: "y".to_string()
             }],
-            find_buffer_parameters(&tu, "out_attr4", "w")
+            find_buffer_parameters(&graph, "out_attr4", "w")
         );
     }
 }

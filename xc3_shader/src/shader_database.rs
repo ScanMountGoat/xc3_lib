@@ -59,6 +59,8 @@ fn apply_vertex_texcoord_params(
     let vertex_attributes = find_attribute_locations(vertex);
     let fragment_attributes = find_attribute_locations(fragment);
 
+    let vertex_graph = Graph::from_glsl(vertex);
+
     for dependency in dependencies {
         if let Dependency::Texture(texture) = dependency {
             for texcoord in &mut texture.texcoords {
@@ -73,8 +75,11 @@ fn apply_vertex_texcoord_params(
                     {
                         // Preserve the channel ordering here.
                         for c in texcoord.channels.chars() {
-                            let vertex_params =
-                                find_buffer_parameters(vertex, vertex_output_name, &c.to_string());
+                            let vertex_params = find_buffer_parameters(
+                                &vertex_graph,
+                                vertex_output_name,
+                                &c.to_string(),
+                            );
                             texcoord.params.extend(vertex_params);
                         }
                         // Remove any duplicates.
@@ -121,12 +126,15 @@ fn apply_attribute_names(
                     .get_by_right(fragment_location)
                 {
                     for c in attribute.channels.chars() {
-                        let output = format!("{vertex_output_name}.{c}");
-
                         let graph = Graph::from_glsl(vertex);
-                        if let Some(input_attribute) =
-                            attribute_dependencies(&graph, &output, &vertex_attributes, None)
-                                .first()
+                        if let Some(input_attribute) = attribute_dependencies(
+                            &graph,
+                            vertex_output_name,
+                            &c.to_string(),
+                            &vertex_attributes,
+                            None,
+                        )
+                        .first()
                         {
                             attribute.name.clone_from(&input_attribute.name);
                         }
@@ -145,12 +153,17 @@ fn find_texcoord_input_name_channels(
 ) -> Option<(String, String)> {
     // We only need to look up one output per texcoord.
     let c = texcoord.channels.chars().next()?;
-    let output = format!("{vertex_output_name}.{c}");
 
     let graph = Graph::from_glsl(vertex);
-    attribute_dependencies(&graph, &output, vertex_attributes, None)
-        .first()
-        .map(|a| (a.name.clone(), a.channels.clone()))
+    attribute_dependencies(
+        &graph,
+        vertex_output_name,
+        &c.to_string(),
+        vertex_attributes,
+        None,
+    )
+    .first()
+    .map(|a| (a.name.clone(), a.channels.clone()))
 }
 
 /// Find the texture dependencies for each fragment output channel.
