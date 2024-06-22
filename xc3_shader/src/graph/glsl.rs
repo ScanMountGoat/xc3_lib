@@ -27,7 +27,7 @@ struct AssignmentDependency {
 
 impl AssignmentVisitor {
     fn add_assignment(&mut self, output: Output, assignment_input: &glsl_lang::ast::Expr) {
-        let input = input_expr(assignment_input, &self.last_assignment_index, None);
+        let input = input_expr(assignment_input, &self.last_assignment_index, String::new());
 
         let assignment = AssignmentDependency {
             output: output.clone(),
@@ -62,7 +62,20 @@ impl Visitor for AssignmentVisitor {
                         ExprData::Binary(_, _, _) => todo!(),
                         ExprData::Ternary(_, _, _) => todo!(),
                         ExprData::Assignment(_, _, _) => todo!(),
-                        ExprData::Bracket(_, _) => todo!(),
+                        ExprData::Bracket(_, _) => {
+                            // TODO: Better support for assigning to array elements?
+                            let mut text = String::new();
+                            glsl_lang::transpiler::glsl::show_expr(
+                                &mut text,
+                                &lh,
+                                &mut FormattingState::default(),
+                            )
+                            .unwrap();
+                            Output {
+                                name: text,
+                                channels: String::new(),
+                            }
+                        }
                         ExprData::FunCall(_, _) => todo!(),
                         ExprData::Dot(e, channel) => {
                             if let ExprData::Variable(id) = &e.content {
@@ -183,6 +196,7 @@ impl Graph {
             Expr::LeftShift(a, b) => self.binary_to_glsl(a, "<<", b),
             Expr::RightShift(a, b) => self.binary_to_glsl(a, ">>", b),
             Expr::BitOr(a, b) => self.binary_to_glsl(a, "|", b),
+            Expr::BitXor(a, b) => self.binary_to_glsl(a, "^", b),
             Expr::BitAnd(a, b) => self.binary_to_glsl(a, "&", b),
             Expr::Equal(a, b) => self.binary_to_glsl(a, "==", b),
             Expr::NotEqual(a, b) => self.binary_to_glsl(a, "!=", b),
@@ -229,11 +243,12 @@ fn channel_display(channels: &str) -> String {
 fn input_expr(
     expr: &glsl_lang::ast::Expr,
     last_assignment_index: &BTreeMap<String, usize>,
-    channel: Option<&str>,
+    channels: String,
 ) -> Expr {
     // Collect any variables used in an expression.
     // Code like fma(a, b, c) should return [a, b, c].
     // TODO: Include constants?
+    // TODO: When should channels be passed into the inner function call?
     match &expr.content {
         ExprData::Variable(i) => {
             // The base case is a single variable like temp_01.
@@ -241,11 +256,11 @@ fn input_expr(
             match last_assignment_index.get(i.content.0.as_str()) {
                 Some(i) => Expr::Node {
                     node_index: *i,
-                    channels: channel.unwrap_or_default().to_string(),
+                    channels,
                 },
                 None => Expr::Global {
                     name: i.content.0.to_string(),
-                    channels: channel.unwrap_or_default().to_string(),
+                    channels,
                 },
             }
         }
@@ -254,17 +269,18 @@ fn input_expr(
         ExprData::BoolConst(b) => Expr::Bool(*b),
         ExprData::FloatConst(f) => Expr::Float(*f),
         ExprData::DoubleConst(_) => todo!(),
-        ExprData::Unary(_, e) => input_expr(e, last_assignment_index, channel),
+        // TODO: properly support unary ops.
+        ExprData::Unary(_, e) => input_expr(e, last_assignment_index, channels),
         ExprData::Binary(op, lh, rh) => {
-            let a = Box::new(input_expr(lh, last_assignment_index, channel));
-            let b = Box::new(input_expr(rh, last_assignment_index, channel));
+            let a = Box::new(input_expr(lh, last_assignment_index, String::new()));
+            let b = Box::new(input_expr(rh, last_assignment_index, String::new()));
             match &op.content {
                 // TODO: Fill in remaining ops.
                 glsl_lang::ast::BinaryOpData::Or => Expr::Or(a, b),
                 glsl_lang::ast::BinaryOpData::Xor => todo!(),
                 glsl_lang::ast::BinaryOpData::And => Expr::And(a, b),
                 glsl_lang::ast::BinaryOpData::BitOr => Expr::BitOr(a, b),
-                glsl_lang::ast::BinaryOpData::BitXor => todo!(),
+                glsl_lang::ast::BinaryOpData::BitXor => Expr::BitXor(a, b),
                 glsl_lang::ast::BinaryOpData::BitAnd => Expr::BitAnd(a, b),
                 glsl_lang::ast::BinaryOpData::Equal => Expr::Equal(a, b),
                 glsl_lang::ast::BinaryOpData::NonEqual => Expr::NotEqual(a, b),
@@ -282,9 +298,9 @@ fn input_expr(
             }
         }
         ExprData::Ternary(a, b, c) => {
-            let a = Box::new(input_expr(a, last_assignment_index, channel));
-            let b = Box::new(input_expr(b, last_assignment_index, channel));
-            let c = Box::new(input_expr(c, last_assignment_index, channel));
+            let a = Box::new(input_expr(a, last_assignment_index, String::new()));
+            let b = Box::new(input_expr(b, last_assignment_index, String::new()));
+            let c = Box::new(input_expr(c, last_assignment_index, String::new()));
             Expr::Ternary(a, b, c)
         }
         ExprData::Assignment(_, _, _) => todo!(),
@@ -302,16 +318,26 @@ fn input_expr(
                         todo!()
                     }
                 }
-                _ => todo!(),
+                _ => {
+                    // TODO: Better support for nested brackets like "U_BILL.data[int(temp_4)][temp_5];"
+                    let mut text = String::new();
+                    glsl_lang::transpiler::glsl::show_expr(
+                        &mut text,
+                        &e,
+                        &mut FormattingState::default(),
+                    )
+                    .unwrap();
+                    (text, None)
+                }
             };
 
-            let index = Box::new(input_expr(specifier, last_assignment_index, channel));
+            let index = Box::new(input_expr(specifier, last_assignment_index, String::new()));
 
             Expr::Parameter {
                 name,
                 field,
                 index,
-                channels: channel.unwrap_or_default().to_string(),
+                channels,
             }
         }
         ExprData::FunCall(id, es) => {
@@ -332,24 +358,24 @@ fn input_expr(
                 }
             };
 
+            // The function call channels don't affect its arguments.
             let args = es
                 .iter()
-                .map(|e| input_expr(e, last_assignment_index, None))
+                .map(|e| input_expr(e, last_assignment_index, String::new()))
                 .collect();
 
             Expr::Func {
                 name,
                 args,
-                channels: channel.unwrap_or_default().to_string(),
+                channels,
             }
         }
         ExprData::Dot(e, channel) => {
             // Track the channels accessed by expressions like "value.rgb".
-            // TODO: Detect buffer parameters?
-            input_expr(e, last_assignment_index, Some(channel.content.0.as_str()))
+            input_expr(e, last_assignment_index, channel.content.0.to_string())
         }
-        ExprData::PostInc(e) => input_expr(e, last_assignment_index, channel),
-        ExprData::PostDec(e) => input_expr(e, last_assignment_index, channel),
+        ExprData::PostInc(e) => input_expr(e, last_assignment_index, channels),
+        ExprData::PostDec(e) => input_expr(e, last_assignment_index, channels),
         ExprData::Comma(_, _) => todo!(),
     }
 }

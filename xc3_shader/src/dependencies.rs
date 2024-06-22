@@ -39,10 +39,10 @@ pub fn input_dependencies(translation_unit: &TranslationUnit, var: &str) -> Vec<
             } => {
                 if let Expr::Int(index) = index.deref() {
                     dependencies.push(Dependency::Buffer(BufferDependency {
-                        name: name.clone(),
-                        field: field.clone().unwrap_or_default(),
+                        name: name.to_string(),
+                        field: field.clone().unwrap_or_default().to_string(),
                         index: (*index).try_into().unwrap(),
-                        channels: channels.clone(),
+                        channels: channels.to_string(),
                     }))
                 }
             }
@@ -75,9 +75,9 @@ pub fn attribute_dependencies(
             // Check all exprs for binary ops, function args, etc.
             graph.nodes[i].input.exprs_recursive().iter().find_map(|e| {
                 if let Expr::Global { name, .. } = e {
-                    if attributes.input_locations.contains_left(name) {
+                    if attributes.input_locations.contains_left(name.as_str()) {
                         Some(AttributeDependency {
-                            name: name.clone(),
+                            name: name.to_string(),
                             channels: final_channels.clone(),
                         })
                     } else {
@@ -123,7 +123,7 @@ fn texture_dependency(
                 let texcoords = texcoord_args(args, graph, attributes);
 
                 Some(Dependency::Texture(TextureDependency {
-                    name: name.clone(),
+                    name: name.to_string(),
                     channels: final_channels.to_string(),
                     texcoords,
                 }))
@@ -191,8 +191,8 @@ fn texcoord_name_channels(
             .into_iter()
             .find_map(|e| {
                 if let Expr::Global { name, .. } = e {
-                    if attributes.input_locations.contains_left(name) {
-                        Some((name.clone(), final_channels.clone()))
+                    if attributes.input_locations.contains_left(name.as_str()) {
+                        Some((name.to_string(), final_channels.to_string()))
                     } else {
                         None
                     }
@@ -241,8 +241,8 @@ fn buffer_dependency(e: &Expr, final_channels: &str) -> Option<BufferDependency>
     {
         if let Expr::Int(index) = index.deref() {
             Some(BufferDependency {
-                name: name.clone(),
-                field: field.clone().unwrap_or_default(),
+                name: name.to_string(),
+                field: field.clone().unwrap_or_default().to_string(),
                 index: (*index).try_into().unwrap(),
                 channels: reduce_channels(channels, final_channels),
             })

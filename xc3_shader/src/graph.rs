@@ -2,10 +2,12 @@ use std::collections::BTreeSet;
 
 mod glsl;
 
-/// A directed graph of shader assignments and operations.
-/// This normalizes identifiers and preserves only the data flow of the code.
-/// Two graphs that perform the same operations will be isomorphic even if
-/// the variable names change or unrelated code lines are inserted between statements.
+/// A directed graph of shader assignments and input expressions to simplify analysis.
+///
+/// Two code snippets that perform the same operations will contain the same graph structure
+/// even if the variable names change or unrelated code lines are inserted between statements.
+/// A graph similarity or isomorphism check can simply ignore the output variable names
+/// and only look at the nodes and edges of the graph.
 #[derive(Debug, PartialEq, Clone)]
 pub struct Graph {
     pub nodes: Vec<Node>,
@@ -53,6 +55,7 @@ pub enum Expr {
     LeftShift(Box<Expr>, Box<Expr>),
     RightShift(Box<Expr>, Box<Expr>),
     BitOr(Box<Expr>, Box<Expr>),
+    BitXor(Box<Expr>, Box<Expr>),
     BitAnd(Box<Expr>, Box<Expr>),
     Equal(Box<Expr>, Box<Expr>),
     NotEqual(Box<Expr>, Box<Expr>),
@@ -239,6 +242,10 @@ fn add_exprs<'a>(exprs: &mut Vec<&'a Expr>, input: &'a Expr) {
             add_exprs(exprs, lh);
             add_exprs(exprs, rh);
         }
+        Expr::BitXor(lh, rh) => {
+            add_exprs(exprs, lh);
+            add_exprs(exprs, rh);
+        }
         Expr::BitAnd(lh, rh) => {
             add_exprs(exprs, lh);
             add_exprs(exprs, rh);
@@ -296,6 +303,9 @@ pub fn reduce_channels(inner: &str, outer: &str) -> String {
     } else if outer.is_empty() {
         // Reduce "xyz." -> "xyz".
         inner.to_string()
+    } else if inner == outer {
+        // TODO: Why is this case happening?
+        inner.to_string()
     } else {
         // TODO: handle errors
         // Reduce "xyz.zyx" -> "zyx".
@@ -305,9 +315,15 @@ pub fn reduce_channels(inner: &str, outer: &str) -> String {
                 .position(|c1| *c1 == c2)
                 .unwrap()
         };
+        // TODO: handle errors
         outer
             .chars()
-            .map(|c| inner.chars().nth(channel_index(c)).unwrap())
+            .map(|c| {
+                inner
+                    .chars()
+                    .nth(channel_index(c))
+                    .expect(&format!("{inner}.{outer}"))
+            })
             .collect()
     }
 }
