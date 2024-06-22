@@ -20,7 +20,10 @@ use crate::{
     dependencies::{
         attribute_dependencies, buffer_dependency, find_buffer_parameters, input_dependencies,
     },
-    graph::{Expr, Graph, Node},
+    graph::{
+        query::{clamp_x_zero_one, one_minus_x, one_plus_x, sqrt_x},
+        Expr, Graph,
+    },
 };
 
 fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit) -> Shader {
@@ -62,68 +65,6 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
     Shader {
         // IndexMap gives consistent ordering for attribute names.
         output_dependencies,
-    }
-}
-
-// TODO: module for queries.
-fn one_minus_x<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
-    let node = one_plus_x(nodes, node)?;
-    zero_minus_x(nodes, node)
-}
-
-fn zero_minus_x<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
-    match &node.input {
-        Expr::Sub(a, b) => match (a.deref(), b.deref()) {
-            (Expr::Float(0.0), Expr::Node { node_index, .. }) => nodes.get(*node_index),
-            _ => None,
-        },
-        _ => None,
-    }
-}
-
-fn one_plus_x<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
-    // Addition is commutative.
-    match &node.input {
-        Expr::Add(a, b) => match (a.deref(), b.deref()) {
-            (Expr::Node { node_index, .. }, Expr::Float(1.0)) => nodes.get(*node_index),
-            (Expr::Float(1.0), Expr::Node { node_index, .. }) => nodes.get(*node_index),
-            _ => None,
-        },
-        _ => None,
-    }
-}
-
-fn clamp_x_zero_one<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
-    match &node.input {
-        Expr::Func { name, args, .. } => {
-            if name == "clamp" {
-                match &args[..] {
-                    [Expr::Node { node_index, .. }, Expr::Float(0.0), Expr::Float(1.0)] => {
-                        nodes.get(*node_index)
-                    }
-                    _ => None,
-                }
-            } else {
-                None
-            }
-        }
-        _ => None,
-    }
-}
-
-fn sqrt_x<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
-    match &node.input {
-        Expr::Func { name, args, .. } => {
-            if name == "sqrt" {
-                match &args[..] {
-                    [Expr::Node { node_index, .. }] => nodes.get(*node_index),
-                    _ => None,
-                }
-            } else {
-                None
-            }
-        }
-        _ => None,
     }
 }
 
@@ -170,6 +111,7 @@ fn apply_geometric_specular_aa(fragment: &TranslationUnit) -> Option<BufferDepen
     }?;
     let node = one_plus_x(&graph.nodes, node)?;
     // TODO: Will this final node ever not be a parameter?
+    // TODO: Add an option to get the expr itself?
     match &node.input {
         Expr::Sub(a, b) => match (a.deref(), b.deref()) {
             (Expr::Float(0.0), e) => buffer_dependency(e, ""),

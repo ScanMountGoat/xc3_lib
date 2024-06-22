@@ -1,13 +1,9 @@
 use std::collections::BTreeSet;
 
 mod glsl;
+pub mod query;
 
 /// A directed graph of shader assignments and input expressions to simplify analysis.
-///
-/// Two code snippets that perform the same operations will contain the same graph structure
-/// even if the variable names change or unrelated code lines are inserted between statements.
-/// A graph similarity or isomorphism check can simply ignore the output variable names
-/// and only look at the nodes and edges of the graph.
 #[derive(Debug, PartialEq, Clone)]
 pub struct Graph {
     pub nodes: Vec<Node>,

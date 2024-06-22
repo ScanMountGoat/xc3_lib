@@ -1,0 +1,74 @@
+//! Identical shader code may have different variable names or whitespace.
+//! This is known in the literature as a "type-2 code clone".
+//! A proper solution needs to perform a structual match with a reference.
+//! This is possible using an AST graph with normalized identifiers.
+//! Ignoring all variable names accounts for different allocation of registers.
+//! Two code segments are considered equivalent if their graphs are isomorphic.
+//!
+//! The graph representation is chosen to allow structural matches
+//! using node expr indices as edges in the graph.
+//! Each node still stores its output variable name to facilitate debugging and searches.
+
+use super::{Expr, Node};
+use std::ops::Deref;
+
+pub fn one_minus_x<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
+    let node = one_plus_x(nodes, node)?;
+    zero_minus_x(nodes, node)
+}
+
+pub fn zero_minus_x<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
+    match &node.input {
+        Expr::Sub(a, b) => match (a.deref(), b.deref()) {
+            (Expr::Float(0.0), Expr::Node { node_index, .. }) => nodes.get(*node_index),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+pub fn one_plus_x<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
+    // Addition is commutative.
+    match &node.input {
+        Expr::Add(a, b) => match (a.deref(), b.deref()) {
+            (Expr::Node { node_index, .. }, Expr::Float(1.0)) => nodes.get(*node_index),
+            (Expr::Float(1.0), Expr::Node { node_index, .. }) => nodes.get(*node_index),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+pub fn clamp_x_zero_one<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
+    match &node.input {
+        Expr::Func { name, args, .. } => {
+            if name == "clamp" {
+                match &args[..] {
+                    [Expr::Node { node_index, .. }, Expr::Float(0.0), Expr::Float(1.0)] => {
+                        nodes.get(*node_index)
+                    }
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+pub fn sqrt_x<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
+    match &node.input {
+        Expr::Func { name, args, .. } => {
+            if name == "sqrt" {
+                match &args[..] {
+                    [Expr::Node { node_index, .. }] => nodes.get(*node_index),
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
