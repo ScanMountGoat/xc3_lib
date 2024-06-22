@@ -56,7 +56,7 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
 
                 // Simplify the output name to save space.
                 let output_name = format!("o{i}.{c}");
-                (output_name, dependencies)
+                (output_name.into(), dependencies)
             })
         })
         .filter(|(_, dependencies)| !dependencies.is_empty())
@@ -137,7 +137,7 @@ fn apply_vertex_texcoord_params(
                 // Convert a fragment input like "in_attr4" to its vertex output like "vTex0".
                 if let Some(fragment_location) = fragment_attributes
                     .input_locations
-                    .get_by_left(&texcoord.name)
+                    .get_by_left(texcoord.name.as_str())
                 {
                     if let Some(vertex_output_name) = vertex_attributes
                         .output_locations
@@ -165,8 +165,8 @@ fn apply_vertex_texcoord_params(
                                 &vertex_attributes,
                             )
                         {
-                            texcoord.name = actual_name;
-                            texcoord.channels = actual_channels;
+                            texcoord.name = actual_name.into();
+                            texcoord.channels = actual_channels.into();
                         }
                     }
                 }
@@ -189,7 +189,7 @@ fn apply_attribute_names(
             // Convert a fragment input like "in_attr4" to its vertex output like "vTex0".
             if let Some(fragment_location) = fragment_attributes
                 .input_locations
-                .get_by_left(&attribute.name)
+                .get_by_left(attribute.name.as_str())
             {
                 if let Some(vertex_output_name) = vertex_attributes
                     .output_locations
@@ -233,7 +233,7 @@ fn find_texcoord_input_name_channels(
         None,
     )
     .first()
-    .map(|a| (a.name.clone(), a.channels.clone()))
+    .map(|a| (a.name.to_string(), a.channels.to_string()))
 }
 
 /// Find the texture dependencies for each fragment output channel.
@@ -253,7 +253,7 @@ pub fn create_shader_database(input: &str) -> ShaderDatabase {
                 let programs = create_shader_programs(folder);
 
                 let file = folder.file_name().unwrap().to_string_lossy().to_string();
-                Some((file, Spch { programs }))
+                Some((file.into(), Spch { programs }))
             } else {
                 None
             }
@@ -271,7 +271,7 @@ pub fn create_shader_database(input: &str) -> ShaderDatabase {
 
                 let file = folder.file_name().unwrap().to_string_lossy().to_string();
                 Some((
-                    file,
+                    file.into(),
                     Map {
                         map_models,
                         prop_models,
@@ -575,134 +575,131 @@ mod tests {
             Shader {
                 output_dependencies: [
                     (
-                        "o1.x".to_string(),
+                        "o1.x".into(),
                         vec![Dependency::Texture(TextureDependency {
-                            name: "s4".to_string(),
-                            channels: "y".to_string(),
+                            name: "s4".into(),
+                            channels: "y".into(),
                             texcoords: vec![
                                 TexCoord {
-                                    name: "vTex0".to_string(),
-                                    channels: "x".to_string(),
+                                    name: "vTex0".into(),
+                                    channels: "x".into(),
                                     params: Vec::new(),
                                 },
                                 TexCoord {
-                                    name: "vTex0".to_string(),
-                                    channels: "y".to_string(),
+                                    name: "vTex0".into(),
+                                    channels: "y".into(),
                                     params: Vec::new(),
                                 },
                             ]
                         })]
                     ),
                     (
-                        "o1.y".to_string(),
+                        "o1.y".into(),
                         vec![Dependency::Buffer(BufferDependency {
-                            name: "U_Mate".to_string(),
-                            field: "gWrkFl4".to_string(),
+                            name: "U_Mate".into(),
+                            field: "gWrkFl4".into(),
                             index: 2,
-                            channels: "x".to_string(),
+                            channels: "x".into(),
                         })]
                     ),
                     (
-                        "o1.z".to_string(),
+                        "o1.z".into(),
                         vec![Dependency::Buffer(BufferDependency {
-                            name: "U_Mate".to_string(),
-                            field: "gWrkFl4".to_string(),
+                            name: "U_Mate".into(),
+                            field: "gWrkFl4".into(),
                             index: 1,
-                            channels: "y".to_string(),
+                            channels: "y".into(),
                         })]
                     ),
+                    ("o1.w".into(), vec![Dependency::Constant(0.07098039.into())]),
                     (
-                        "o1.w".to_string(),
-                        vec![Dependency::Constant(0.07098039.into())]
-                    ),
-                    (
-                        "o5.x".to_string(),
+                        "o5.x".into(),
                         vec![Dependency::Texture(TextureDependency {
-                            name: "s5".to_string(),
-                            channels: "x".to_string(),
+                            name: "s5".into(),
+                            channels: "x".into(),
                             texcoords: vec![
                                 TexCoord {
-                                    name: "vTex0".to_string(),
-                                    channels: "x".to_string(),
+                                    name: "vTex0".into(),
+                                    channels: "x".into(),
                                     params: vec![BufferDependency {
-                                        name: "U_Mate".to_string(),
-                                        field: "gWrkFl4".to_string(),
+                                        name: "U_Mate".into(),
+                                        field: "gWrkFl4".into(),
                                         index: 0,
-                                        channels: "x".to_string(),
+                                        channels: "x".into(),
                                     }]
                                 },
                                 TexCoord {
-                                    name: "vTex0".to_string(),
-                                    channels: "y".to_string(),
+                                    name: "vTex0".into(),
+                                    channels: "y".into(),
                                     params: vec![BufferDependency {
-                                        name: "U_Mate".to_string(),
-                                        field: "gWrkFl4".to_string(),
+                                        name: "U_Mate".into(),
+                                        field: "gWrkFl4".into(),
                                         index: 0,
-                                        channels: "y".to_string(),
+                                        channels: "y".into(),
                                     }]
                                 },
                             ],
                         })]
                     ),
                     (
-                        "o5.y".to_string(),
+                        "o5.y".into(),
                         vec![Dependency::Texture(TextureDependency {
-                            name: "s5".to_string(),
-                            channels: "y".to_string(),
+                            name: "s5".into(),
+                            channels: "y".into(),
                             texcoords: vec![
                                 TexCoord {
-                                    name: "vTex0".to_string(),
-                                    channels: "x".to_string(),
+                                    name: "vTex0".into(),
+                                    channels: "x".into(),
                                     params: vec![BufferDependency {
-                                        name: "U_Mate".to_string(),
-                                        field: "gWrkFl4".to_string(),
+                                        name: "U_Mate".into(),
+                                        field: "gWrkFl4".into(),
                                         index: 0,
-                                        channels: "x".to_string(),
+                                        channels: "x".into(),
                                     }]
                                 },
                                 TexCoord {
-                                    name: "vTex0".to_string(),
-                                    channels: "y".to_string(),
+                                    name: "vTex0".into(),
+                                    channels: "y".into(),
                                     params: vec![BufferDependency {
-                                        name: "U_Mate".to_string(),
-                                        field: "gWrkFl4".to_string(),
+                                        name: "U_Mate".into(),
+                                        field: "gWrkFl4".into(),
                                         index: 0,
-                                        channels: "y".to_string(),
+                                        channels: "y".into(),
                                     }]
                                 },
                             ],
                         })]
                     ),
                     (
-                        "o5.z".to_string(),
+                        "o5.z".into(),
                         vec![Dependency::Texture(TextureDependency {
-                            name: "s5".to_string(),
-                            channels: "z".to_string(),
+                            name: "s5".into(),
+                            channels: "z".into(),
                             texcoords: vec![
                                 TexCoord {
-                                    name: "vTex0".to_string(),
-                                    channels: "x".to_string(),
+                                    name: "vTex0".into(),
+                                    channels: "x".into(),
                                     params: vec![BufferDependency {
-                                        name: "U_Mate".to_string(),
-                                        field: "gWrkFl4".to_string(),
+                                        name: "U_Mate".into(),
+                                        field: "gWrkFl4".into(),
                                         index: 0,
-                                        channels: "x".to_string(),
+                                        channels: "x".into(),
                                     }]
                                 },
                                 TexCoord {
-                                    name: "vTex0".to_string(),
-                                    channels: "y".to_string(),
+                                    name: "vTex0".into(),
+                                    channels: "y".into(),
                                     params: vec![BufferDependency {
-                                        name: "U_Mate".to_string(),
-                                        field: "gWrkFl4".to_string(),
+                                        name: "U_Mate".into(),
+                                        field: "gWrkFl4".into(),
                                         index: 0,
-                                        channels: "y".to_string(),
+                                        channels: "y".into(),
                                     }]
                                 },
                             ],
                         })]
                     ),
-                    ("o5.w".to_string(), vec![Dependency::Constant(0.0.into())]),
+                    ("o5.w".into(), vec![Dependency::Constant(0.0.into())]),
                 ]
                 .into()
             },
@@ -875,12 +872,12 @@ mod tests {
         assert_eq!(
             Shader {
                 output_dependencies: [(
-                    "o1.y".to_string(),
+                    "o1.y".into(),
                     vec![Dependency::Buffer(BufferDependency {
-                        name: "U_Mate".to_string(),
-                        field: "gWrkFl4".to_string(),
+                        name: "U_Mate".into(),
+                        field: "gWrkFl4".into(),
                         index: 2,
-                        channels: "y".to_string()
+                        channels: "y".into()
                     })]
                 ),]
                 .into()

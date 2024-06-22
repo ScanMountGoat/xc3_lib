@@ -1,4 +1,5 @@
 use log::warn;
+use smol_str::SmolStr;
 use xc3_lib::mxmd::{
     MaterialFlags, MaterialRenderFlags, Materials, RenderPassType, StateFlags, Technique,
     TextureUsage,
@@ -333,13 +334,13 @@ pub enum ChannelAssignment {
         // TODO: Include matrix transform or scale?
         // TODO: Always convert everything to a matrix?
         // TODO: how often is the matrix even used?
-        name: String,
+        name: SmolStr,
         channel_index: usize,
-        texcoord_name: Option<String>,
+        texcoord_name: Option<SmolStr>,
         texcoord_scale: Option<(f32, f32)>,
     },
     Attribute {
-        name: String,
+        name: SmolStr,
         channel_index: usize,
     },
     Value(f32),
@@ -372,7 +373,7 @@ impl Material {
         // Guess reasonable defaults based on the texture names or types.
         let assignment = |i: Option<usize>, c| {
             i.map(|i| ChannelAssignment::Texture {
-                name: format!("s{i}"),
+                name: format!("s{i}").into(),
                 channel_index: c,
                 texcoord_name: None,
                 texcoord_scale: None,

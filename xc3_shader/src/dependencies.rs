@@ -39,10 +39,10 @@ pub fn input_dependencies(translation_unit: &TranslationUnit, var: &str) -> Vec<
             } => {
                 if let Expr::Int(index) = index.deref() {
                     dependencies.push(Dependency::Buffer(BufferDependency {
-                        name: name.to_string(),
-                        field: field.clone().unwrap_or_default().to_string(),
+                        name: name.into(),
+                        field: field.clone().unwrap_or_default().into(),
                         index: (*index).try_into().unwrap(),
-                        channels: channels.to_string(),
+                        channels: channels.into(),
                     }))
                 }
             }
@@ -77,8 +77,8 @@ pub fn attribute_dependencies(
                 if let Expr::Global { name, .. } = e {
                     if attributes.input_locations.contains_left(name.as_str()) {
                         Some(AttributeDependency {
-                            name: name.to_string(),
-                            channels: final_channels.clone(),
+                            name: name.into(),
+                            channels: final_channels.clone().into(),
                         })
                     } else {
                         None
@@ -123,8 +123,8 @@ fn texture_dependency(
                 let texcoords = texcoord_args(args, graph, attributes);
 
                 Some(Dependency::Texture(TextureDependency {
-                    name: name.to_string(),
-                    channels: final_channels.to_string(),
+                    name: name.into(),
+                    channels: final_channels.into(),
                     texcoords,
                 }))
             } else {
@@ -166,8 +166,8 @@ fn texcoord_args(args: &[Expr], graph: &Graph, attributes: &Attributes) -> Vec<T
                     .collect();
 
                 Some(TexCoord {
-                    name: name.clone(),
-                    channels: channels.clone(),
+                    name: name.into(),
+                    channels: channels.into(),
                     params,
                 })
             } else {
@@ -241,10 +241,10 @@ pub fn buffer_dependency(e: &Expr, final_channels: &str) -> Option<BufferDepende
     {
         if let Expr::Int(index) = index.deref() {
             Some(BufferDependency {
-                name: name.to_string(),
-                field: field.clone().unwrap_or_default().to_string(),
+                name: name.into(),
+                field: field.clone().unwrap_or_default().into(),
                 index: (*index).try_into().unwrap(),
-                channels: reduce_channels(channels, final_channels),
+                channels: reduce_channels(channels, final_channels).into(),
             })
         } else {
             None
@@ -395,17 +395,17 @@ mod tests {
         let tu = TranslationUnit::parse(glsl).unwrap();
         assert_eq!(
             vec![Dependency::Texture(TextureDependency {
-                name: "texture1".to_string(),
-                channels: "w".to_string(),
+                name: "texture1".into(),
+                channels: "w".into(),
                 texcoords: vec![
                     TexCoord {
-                        name: "in_attr0".to_string(),
-                        channels: "x".to_string(),
+                        name: "in_attr0".into(),
+                        channels: "x".into(),
                         params: Vec::new()
                     },
                     TexCoord {
-                        name: "in_attr0".to_string(),
-                        channels: "w".to_string(),
+                        name: "in_attr0".into(),
+                        channels: "w".into(),
                         params: Vec::new()
                     }
                 ]
@@ -441,66 +441,66 @@ mod tests {
         let tu = TranslationUnit::parse(glsl).unwrap();
         assert_eq!(
             vec![Dependency::Texture(TextureDependency {
-                name: "gTResidentTex05".to_string(),
-                channels: "x".to_string(),
+                name: "gTResidentTex05".into(),
+                channels: "x".into(),
                 texcoords: vec![
                     TexCoord {
-                        name: "in_attr4".to_string(),
-                        channels: "x".to_string(),
+                        name: "in_attr4".into(),
+                        channels: "x".into(),
                         params: vec![
                             BufferDependency {
-                                name: "U_Mate".to_string(),
-                                field: "gTexMat".to_string(),
+                                name: "U_Mate".into(),
+                                field: "gTexMat".into(),
                                 index: 0,
-                                channels: "x".to_string(),
+                                channels: "x".into(),
                             },
                             BufferDependency {
-                                name: "U_Mate".to_string(),
-                                field: "gTexMat".to_string(),
+                                name: "U_Mate".into(),
+                                field: "gTexMat".into(),
                                 index: 0,
-                                channels: "y".to_string(),
+                                channels: "y".into(),
                             },
                             BufferDependency {
-                                name: "U_Mate".to_string(),
-                                field: "gTexMat".to_string(),
+                                name: "U_Mate".into(),
+                                field: "gTexMat".into(),
                                 index: 0,
-                                channels: "z".to_string(),
+                                channels: "z".into(),
                             },
                             BufferDependency {
-                                name: "U_Mate".to_string(),
-                                field: "gTexMat".to_string(),
+                                name: "U_Mate".into(),
+                                field: "gTexMat".into(),
                                 index: 0,
-                                channels: "w".to_string(),
+                                channels: "w".into(),
                             },
                         ]
                     },
                     TexCoord {
-                        name: "in_attr4".to_string(),
-                        channels: "x".to_string(),
+                        name: "in_attr4".into(),
+                        channels: "x".into(),
                         params: vec![
                             BufferDependency {
-                                name: "U_Mate".to_string(),
-                                field: "gTexMat".to_string(),
+                                name: "U_Mate".into(),
+                                field: "gTexMat".into(),
                                 index: 1,
-                                channels: "x".to_string(),
+                                channels: "x".into(),
                             },
                             BufferDependency {
-                                name: "U_Mate".to_string(),
-                                field: "gTexMat".to_string(),
+                                name: "U_Mate".into(),
+                                field: "gTexMat".into(),
                                 index: 1,
-                                channels: "y".to_string(),
+                                channels: "y".into(),
                             },
                             BufferDependency {
-                                name: "U_Mate".to_string(),
-                                field: "gTexMat".to_string(),
+                                name: "U_Mate".into(),
+                                field: "gTexMat".into(),
                                 index: 1,
-                                channels: "z".to_string(),
+                                channels: "z".into(),
                             },
                             BufferDependency {
-                                name: "U_Mate".to_string(),
-                                field: "gTexMat".to_string(),
+                                name: "U_Mate".into(),
+                                field: "gTexMat".into(),
                                 index: 1,
-                                channels: "w".to_string(),
+                                channels: "w".into(),
                             },
                         ]
                     }
@@ -530,27 +530,27 @@ mod tests {
         let tu = TranslationUnit::parse(glsl).unwrap();
         assert_eq!(
             vec![Dependency::Texture(TextureDependency {
-                name: "gTResidentTex04".to_string(),
-                channels: "x".to_string(),
+                name: "gTResidentTex04".into(),
+                channels: "x".into(),
                 texcoords: vec![
                     TexCoord {
-                        name: "in_attr4".to_string(),
-                        channels: "x".to_string(),
+                        name: "in_attr4".into(),
+                        channels: "x".into(),
                         params: vec![BufferDependency {
-                            name: "U_Mate".to_string(),
-                            field: "gWrkFl4".to_string(),
+                            name: "U_Mate".into(),
+                            field: "gWrkFl4".into(),
                             index: 0,
-                            channels: "z".to_string()
+                            channels: "z".into()
                         }]
                     },
                     TexCoord {
-                        name: "in_attr4".to_string(),
-                        channels: "y".to_string(),
+                        name: "in_attr4".into(),
+                        channels: "y".into(),
                         params: vec![BufferDependency {
-                            name: "U_Mate".to_string(),
-                            field: "gWrkFl4".to_string(),
+                            name: "U_Mate".into(),
+                            field: "gWrkFl4".into(),
                             index: 0,
-                            channels: "w".to_string()
+                            channels: "w".into()
                         }]
                     }
                 ]
@@ -573,8 +573,8 @@ mod tests {
         let tu = TranslationUnit::parse(glsl).unwrap();
         assert_eq!(
             vec![Dependency::Texture(TextureDependency {
-                name: "texture1".to_string(),
-                channels: "z".to_string(),
+                name: "texture1".into(),
+                channels: "z".into(),
                 texcoords: Vec::new()
             })],
             input_dependencies(&tu, "b")
@@ -595,13 +595,13 @@ mod tests {
         assert_eq!(
             vec![
                 Dependency::Texture(TextureDependency {
-                    name: "texture1".to_string(),
-                    channels: "w".to_string(),
+                    name: "texture1".into(),
+                    channels: "w".into(),
                     texcoords: Vec::new()
                 }),
                 Dependency::Texture(TextureDependency {
-                    name: "texture1".to_string(),
-                    channels: "z".to_string(),
+                    name: "texture1".into(),
+                    channels: "z".into(),
                     texcoords: Vec::new()
                 })
             ],
@@ -627,27 +627,27 @@ mod tests {
         let tu = TranslationUnit::parse(glsl).unwrap();
         assert_eq!(
             vec![Dependency::Texture(TextureDependency {
-                name: "texture1".to_string(),
-                channels: "x".to_string(),
+                name: "texture1".into(),
+                channels: "x".into(),
                 texcoords: Vec::new()
             })],
             input_dependencies(&tu, "out_attr1.x")
         );
         assert_eq!(
             vec![Dependency::Buffer(BufferDependency {
-                name: "U_Mate".to_string(),
-                field: "data".to_string(),
+                name: "U_Mate".into(),
+                field: "data".into(),
                 index: 1,
-                channels: "w".to_string()
+                channels: "w".into()
             })],
             input_dependencies(&tu, "out_attr1.y")
         );
         assert_eq!(
             vec![Dependency::Buffer(BufferDependency {
-                name: "uniform_data".to_string(),
-                field: String::new(),
+                name: "uniform_data".into(),
+                field: Default::default(),
                 index: 3,
-                channels: "y".to_string()
+                channels: "y".into()
             })],
             input_dependencies(&tu, "out_attr1.z")
         );
@@ -679,8 +679,8 @@ mod tests {
         let attributes = find_attribute_locations(&tu);
         assert_eq!(
             vec![AttributeDependency {
-                name: "in_attr2".to_string(),
-                channels: "x".to_string(),
+                name: "in_attr2".into(),
+                channels: "x".into(),
             }],
             attribute_dependencies(&graph, "out_attr1", "y", &attributes, None)
         );
@@ -707,19 +707,19 @@ mod tests {
         assert!(find_buffer_parameters(&graph, "out_attr4", "y").is_empty());
         assert_eq!(
             vec![BufferDependency {
-                name: "U_Mate".to_string(),
-                field: "gWrkFl4".to_string(),
+                name: "U_Mate".into(),
+                field: "gWrkFl4".into(),
                 index: 0,
-                channels: "x".to_string()
+                channels: "x".into()
             }],
             find_buffer_parameters(&graph, "out_attr4", "z")
         );
         assert_eq!(
             vec![BufferDependency {
-                name: "U_Mate".to_string(),
-                field: "gWrkFl4".to_string(),
+                name: "U_Mate".into(),
+                field: "gWrkFl4".into(),
                 index: 0,
-                channels: "y".to_string()
+                channels: "y".into()
             }],
             find_buffer_parameters(&graph, "out_attr4", "w")
         );

@@ -39,6 +39,7 @@ use glam::{Mat4, Vec3};
 use log::error;
 use material::create_materials;
 use shader_database::ShaderDatabase;
+use smol_str::SmolStr;
 use texture::{load_textures, load_textures_legacy};
 use thiserror::Error;
 use vertex::ModelBuffers;
@@ -545,7 +546,7 @@ pub fn load_model<P: AsRef<Path>>(
     let streaming_data = StreamingData::new(&mxmd, &wismt_path, is_pc, chr_tex_folder.as_deref())?;
 
     let model_name = model_name(wimdo_path);
-    let spch = shader_database.and_then(|database| database.files.get(&model_name));
+    let spch = shader_database.and_then(|database| database.files.get(&SmolStr::from(&model_name)));
 
     let chr = load_chr(wimdo_path, model_name);
 

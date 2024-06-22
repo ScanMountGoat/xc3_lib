@@ -264,7 +264,7 @@ fn texture_channel_assignment(
     {
         // TODO: Should this ever return -1?
         let new_index = name_to_index.len();
-        let index = *name_to_index.entry(name.clone()).or_insert(new_index);
+        let index = *name_to_index.entry(name.to_string()).or_insert(new_index);
         Some((index as i32, *channel_index as u32))
     } else {
         None

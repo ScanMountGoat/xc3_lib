@@ -14,6 +14,7 @@ use std::path::Path;
 use indexmap::IndexMap;
 use ordered_float::OrderedFloat;
 use serde::{Deserialize, Serialize};
+use smol_str::SmolStr;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -38,9 +39,9 @@ pub enum SaveShaderDatabaseError {
 #[derive(Debug, PartialEq, Clone)]
 pub struct ShaderDatabase {
     /// The `.wimdo` file name without the extension and shader data for each file.
-    pub files: IndexMap<String, Spch>,
+    pub files: IndexMap<SmolStr, Spch>,
     /// The `.wismhd` file name without the extension and shader data for each map.
-    pub map_files: IndexMap<String, Map>,
+    pub map_files: IndexMap<SmolStr, Map>,
 }
 
 impl ShaderDatabase {
@@ -113,7 +114,7 @@ pub struct Shader {
     ///
     /// Each dependency can be thought of as a link
     /// between the dependency node and group output in a shader node graph.
-    pub output_dependencies: IndexMap<String, Vec<Dependency>>,
+    pub output_dependencies: IndexMap<SmolStr, Vec<Dependency>>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -129,18 +130,18 @@ pub enum Dependency {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Serialize, Deserialize)]
 pub struct BufferDependency {
-    pub name: String,
-    pub field: String,
+    pub name: SmolStr,
+    pub field: SmolStr,
     pub index: usize,
-    pub channels: String,
+    pub channels: SmolStr,
 }
 
 /// A single texture access like `texture(s0, tex0.xy).rgb` in GLSL.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct TextureDependency {
-    pub name: String,
-    pub channels: String,
+    pub name: SmolStr,
+    pub channels: SmolStr,
     /// Texture coordinate values used for the texture function call.
     pub texcoords: Vec<TexCoord>,
 }
@@ -150,9 +151,9 @@ pub struct TextureDependency {
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct TexCoord {
     /// The name of the attribute like "in_attr4".
-    pub name: String,
+    pub name: SmolStr,
     /// The accessed channels like "x" or "y".
-    pub channels: String,
+    pub channels: SmolStr,
     /// These can generally be assumed to be scale or matrix transforms.
     pub params: Vec<BufferDependency>,
 }
@@ -161,8 +162,8 @@ pub struct TexCoord {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct AttributeDependency {
-    pub name: String,
-    pub channels: String,
+    pub name: SmolStr,
+    pub channels: SmolStr,
 }
 
 impl Shader {
@@ -176,7 +177,7 @@ impl Shader {
         // Find the first material referenced samplers like "s0" or "s1".
         let mut textures: Vec<_> = self
             .output_dependencies
-            .get(&output)?
+            .get(&SmolStr::from(output))?
             .iter()
             .filter_map(|d| match d {
                 Dependency::Texture(t) => Some(t),
@@ -202,7 +203,7 @@ impl Shader {
         let output = format!("o{output_index}.{channel}");
 
         // If a constant is assigned, it will be the only dependency.
-        match self.output_dependencies.get(&output)?.first()? {
+        match self.output_dependencies.get(&SmolStr::from(output))?.first()? {
             Dependency::Constant(f) => Some(f.0),
             _ => None,
         }
@@ -218,7 +219,7 @@ impl Shader {
         let output = format!("o{output_index}.{channel}");
 
         // If a parameter is assigned, it will likely be the only dependency.
-        match self.output_dependencies.get(&output)?.first()? {
+        match self.output_dependencies.get(&SmolStr::from(output))?.first()? {
             Dependency::Buffer(b) => Some(b),
             _ => None,
         }
@@ -230,7 +231,7 @@ impl Shader {
         let output = format!("o{output_index}.{channel}");
 
         // If an attribute is assigned, it will likely be the only dependency.
-        match self.output_dependencies.get(&output)?.first()? {
+        match self.output_dependencies.get(&SmolStr::from(output))?.first()? {
             Dependency::Attribute(b) => Some(b),
             _ => None,
         }
@@ -256,11 +257,13 @@ fn material_sampler_index(sampler: &str) -> usize {
 }
 
 // Create a separate smaller representation for on disk.
+// TODO: Also create a DependencyIndexed.
 #[derive(Debug, Serialize, Deserialize)]
 struct ShaderDatabaseIndexed {
-    files: IndexMap<String, SpchIndexed>,
-    map_files: IndexMap<String, MapIndexed>,
+    files: IndexMap<SmolStr, SpchIndexed>,
+    map_files: IndexMap<SmolStr, MapIndexed>,
     dependencies: Vec<Dependency>,
+    outputs: Vec<SmolStr>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -270,6 +273,7 @@ struct MapIndexed {
     env_models: Vec<SpchIndexed>,
 }
 
+// TODO: rename to ShaderPrograms.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(transparent)]
 struct SpchIndexed {
@@ -288,7 +292,7 @@ struct ShaderProgramIndexed {
 struct ShaderIndexed {
     // There are very few unique dependencies across all shaders in a game dump.
     // Normalize the data to greatly reduce the size of the JSON representation.
-    output_dependencies: IndexMap<String, Vec<usize>>,
+    output_dependencies: IndexMap<usize, Vec<usize>>,
 }
 
 // Take the disk representation by value to reduce clones.
@@ -298,7 +302,7 @@ impl From<ShaderDatabaseIndexed> for ShaderDatabase {
             files: value
                 .files
                 .into_iter()
-                .map(|(n, s)| (n, spch_from_indexed(s, &value.dependencies)))
+                .map(|(n, s)| (n, spch_from_indexed(s, &value.dependencies, &value.outputs)))
                 .collect(),
             map_files: value
                 .map_files
@@ -310,17 +314,17 @@ impl From<ShaderDatabaseIndexed> for ShaderDatabase {
                             map_models: m
                                 .map_models
                                 .into_iter()
-                                .map(|s| spch_from_indexed(s, &value.dependencies))
+                                .map(|s| spch_from_indexed(s, &value.dependencies, &value.outputs))
                                 .collect(),
                             prop_models: m
                                 .prop_models
                                 .into_iter()
-                                .map(|s| spch_from_indexed(s, &value.dependencies))
+                                .map(|s| spch_from_indexed(s, &value.dependencies, &value.outputs))
                                 .collect(),
                             env_models: m
                                 .env_models
                                 .into_iter()
-                                .map(|s| spch_from_indexed(s, &value.dependencies))
+                                .map(|s| spch_from_indexed(s, &value.dependencies, &value.outputs))
                                 .collect(),
                         },
                     )
@@ -333,11 +337,17 @@ impl From<ShaderDatabaseIndexed> for ShaderDatabase {
 impl From<&ShaderDatabase> for ShaderDatabaseIndexed {
     fn from(value: &ShaderDatabase) -> Self {
         let mut dependency_to_index = IndexMap::new();
+        let mut output_to_index = IndexMap::new();
         Self {
             files: value
                 .files
                 .iter()
-                .map(|(n, s)| (n.clone(), spch_indexed(s, &mut dependency_to_index)))
+                .map(|(n, s)| {
+                    (
+                        n.clone(),
+                        spch_indexed(s, &mut dependency_to_index, &mut output_to_index),
+                    )
+                })
                 .collect(),
             map_files: value
                 .map_files
@@ -349,28 +359,39 @@ impl From<&ShaderDatabase> for ShaderDatabaseIndexed {
                             map_models: m
                                 .map_models
                                 .iter()
-                                .map(|s| spch_indexed(s, &mut dependency_to_index))
+                                .map(|s| {
+                                    spch_indexed(s, &mut dependency_to_index, &mut output_to_index)
+                                })
                                 .collect(),
                             prop_models: m
                                 .prop_models
                                 .iter()
-                                .map(|s| spch_indexed(s, &mut dependency_to_index))
+                                .map(|s| {
+                                    spch_indexed(s, &mut dependency_to_index, &mut output_to_index)
+                                })
                                 .collect(),
                             env_models: m
                                 .env_models
                                 .iter()
-                                .map(|s| spch_indexed(s, &mut dependency_to_index))
+                                .map(|s| {
+                                    spch_indexed(s, &mut dependency_to_index, &mut output_to_index)
+                                })
                                 .collect(),
                         },
                     )
                 })
                 .collect(),
             dependencies: dependency_to_index.into_keys().collect(),
+            outputs: output_to_index.into_keys().collect(),
         }
     }
 }
 
-fn spch_indexed(spch: &Spch, dependency_to_index: &mut IndexMap<Dependency, usize>) -> SpchIndexed {
+fn spch_indexed(
+    spch: &Spch,
+    dependency_to_index: &mut IndexMap<Dependency, usize>,
+    output_to_index: &mut IndexMap<SmolStr, usize>,
+) -> SpchIndexed {
     SpchIndexed {
         programs: spch
             .programs
@@ -384,8 +405,12 @@ fn spch_indexed(spch: &Spch, dependency_to_index: &mut IndexMap<Dependency, usiz
                             .output_dependencies
                             .iter()
                             .map(|(output, dependencies)| {
+                                // This works since the map preserves insertion order.
+                                let new_index = output_to_index.len();
+                                let output_index =
+                                    *output_to_index.entry(output.clone()).or_insert(new_index);
                                 (
-                                    output.clone(),
+                                    output_index,
                                     dependencies
                                         .iter()
                                         .map(|d| {
@@ -406,7 +431,7 @@ fn spch_indexed(spch: &Spch, dependency_to_index: &mut IndexMap<Dependency, usiz
     }
 }
 
-fn spch_from_indexed(spch: SpchIndexed, dependencies: &[Dependency]) -> Spch {
+fn spch_from_indexed(spch: SpchIndexed, dependencies: &[Dependency], outputs: &[SmolStr]) -> Spch {
     Spch {
         programs: spch
             .programs
@@ -421,7 +446,7 @@ fn spch_from_indexed(spch: SpchIndexed, dependencies: &[Dependency]) -> Spch {
                             .into_iter()
                             .map(|(output, output_dependencies)| {
                                 (
-                                    output,
+                                    outputs[output].clone(),
                                     output_dependencies
                                         .into_iter()
                                         .map(|d| dependencies[d].clone())
@@ -451,7 +476,7 @@ mod tests {
     #[test]
     fn material_channel_assignment_single_output_no_assignment() {
         let shader = Shader {
-            output_dependencies: [("o0.x".to_string(), Vec::new())].into(),
+            output_dependencies: [("o0.x".into(), Vec::new())].into(),
         };
         assert_eq!(None, shader.texture(0, 'x'));
     }
@@ -461,33 +486,33 @@ mod tests {
         let shader = Shader {
             output_dependencies: [
                 (
-                    "o0.x".to_string(),
+                    "o0.x".into(),
                     vec![Dependency::Texture(TextureDependency {
-                        name: "s0".to_string(),
-                        channels: "y".to_string(),
+                        name: "s0".into(),
+                        channels: "y".into(),
                         texcoords: Vec::new(),
                     })],
                 ),
                 (
-                    "o0.y".to_string(),
+                    "o0.y".into(),
                     vec![
                         Dependency::Texture(TextureDependency {
-                            name: "tex".to_string(),
-                            channels: "xyz".to_string(),
+                            name: "tex".into(),
+                            channels: "xyz".into(),
                             texcoords: Vec::new(),
                         }),
                         Dependency::Texture(TextureDependency {
-                            name: "s2".to_string(),
-                            channels: "z".to_string(),
+                            name: "s2".into(),
+                            channels: "z".into(),
                             texcoords: Vec::new(),
                         }),
                     ],
                 ),
                 (
-                    "o1.x".to_string(),
+                    "o1.x".into(),
                     vec![Dependency::Texture(TextureDependency {
-                        name: "s3".to_string(),
-                        channels: "xyz".to_string(),
+                        name: "s3".into(),
+                        channels: "xyz".into(),
                         texcoords: Vec::new(),
                     })],
                 ),
@@ -496,8 +521,8 @@ mod tests {
         };
         assert_eq!(
             Some(&TextureDependency {
-                name: "s2".to_string(),
-                channels: "z".to_string(),
+                name: "s2".into(),
+                channels: "z".into(),
                 texcoords: Vec::new()
             }),
             shader.texture(0, 'y')
@@ -509,29 +534,29 @@ mod tests {
         let shader = Shader {
             output_dependencies: [
                 (
-                    "o0.x".to_string(),
+                    "o0.x".into(),
                     vec![Dependency::Texture(TextureDependency {
-                        name: "s0".to_string(),
-                        channels: "y".to_string(),
+                        name: "s0".into(),
+                        channels: "y".into(),
                         texcoords: Vec::new(),
                     })],
                 ),
                 (
-                    "o0.y".to_string(),
+                    "o0.y".into(),
                     vec![
                         Dependency::Texture(TextureDependency {
-                            name: "tex".to_string(),
-                            channels: "xyz".to_string(),
+                            name: "tex".into(),
+                            channels: "xyz".into(),
                             texcoords: Vec::new(),
                         }),
                         Dependency::Texture(TextureDependency {
-                            name: "s2".to_string(),
-                            channels: "z".to_string(),
+                            name: "s2".into(),
+                            channels: "z".into(),
                             texcoords: Vec::new(),
                         }),
                     ],
                 ),
-                ("o1.z".to_string(), vec![Dependency::Constant(0.5.into())]),
+                ("o1.z".into(), vec![Dependency::Constant(0.5.into())]),
             ]
             .into(),
         };
@@ -544,35 +569,35 @@ mod tests {
         let shader = Shader {
             output_dependencies: [
                 (
-                    "o0.x".to_string(),
+                    "o0.x".into(),
                     vec![Dependency::Texture(TextureDependency {
-                        name: "s0".to_string(),
-                        channels: "y".to_string(),
+                        name: "s0".into(),
+                        channels: "y".into(),
                         texcoords: Vec::new(),
                     })],
                 ),
                 (
-                    "o0.y".to_string(),
+                    "o0.y".into(),
                     vec![
                         Dependency::Texture(TextureDependency {
-                            name: "tex".to_string(),
-                            channels: "xyz".to_string(),
+                            name: "tex".into(),
+                            channels: "xyz".into(),
                             texcoords: Vec::new(),
                         }),
                         Dependency::Texture(TextureDependency {
-                            name: "s2".to_string(),
-                            channels: "z".to_string(),
+                            name: "s2".into(),
+                            channels: "z".into(),
                             texcoords: Vec::new(),
                         }),
                     ],
                 ),
                 (
-                    "o1.z".to_string(),
+                    "o1.z".into(),
                     vec![Dependency::Buffer(BufferDependency {
-                        name: "U_Mate".to_string(),
-                        field: "param".to_string(),
+                        name: "U_Mate".into(),
+                        field: "param".into(),
                         index: 31,
-                        channels: "w".to_string(),
+                        channels: "w".into(),
                     })],
                 ),
             ]
@@ -581,10 +606,10 @@ mod tests {
         assert_eq!(None, shader.buffer_parameter(0, 'x'));
         assert_eq!(
             Some(&BufferDependency {
-                name: "U_Mate".to_string(),
-                field: "param".to_string(),
+                name: "U_Mate".into(),
+                field: "param".into(),
                 index: 31,
-                channels: "w".to_string()
+                channels: "w".into()
             }),
             shader.buffer_parameter(1, 'z')
         );
