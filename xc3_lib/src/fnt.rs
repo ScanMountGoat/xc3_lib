@@ -45,13 +45,12 @@ pub struct XcxFont {
     pub unk_1: u32,
     /// Final width property for glyph rendering.
     ///
-    /// Glyph indexes use the regular grid dimensions ([`grid_width`] x [`grid_height`]). To render
-    /// the glyph, the game then clips/extends the sprite to this width.
+    /// Glyph indexes use the regular grid dimensions
+    /// ([grid_width](#structfield.grid_width) x [grid_height](#structfield.grid_height)).
+    /// To render the glyph, the game then clips/extends the sprite to this width.
     ///
-    /// Unlike [`Laft`], glyph-specific x/width does not shift the sprite box (potentially overlapping
+    /// Unlike [Laft](crate::laft::Laft), glyph-specific x/width does not shift the sprite box (potentially overlapping
     /// other glyphs), instead it just controls how much whitespace is rendered before and after the glyph.
-    ///
-    /// [`Laft`]: crate::laft::Laft
     pub subgrid_width: u32,
     /// No visual differences when changed
     pub unk_2: u32,

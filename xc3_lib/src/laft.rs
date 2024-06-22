@@ -94,10 +94,8 @@ pub struct FontSettings {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone, Copy, Default)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct GlyphClass {
-    /// Points to [`offsets`]. If `size > 1`, there will be consecutive entries for this class,
+    /// Points to [offsets](struct.Laft.html.#structfield.offsets). If `size > 1`, there will be consecutive entries for this class,
     /// ordered by the codepoint of the glyph they point to.
-    ///
-    /// [`offsets`]: Wifnt::offsets
     pub representative_offset: u16,
     pub size: u16,
 }
