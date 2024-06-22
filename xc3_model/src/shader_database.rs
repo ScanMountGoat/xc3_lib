@@ -188,7 +188,12 @@ impl Shader {
         textures
             .sort_by(|a, b| material_sampler_index(&a.name).cmp(&material_sampler_index(&b.name)));
 
-        textures.first().copied()
+        // TODO: Better heuristic for textures that use multiple channels like xc3's calcMonochrome?
+        textures
+            .iter()
+            .find(|t| t.channels.chars().next() == Some(channel))
+            .copied()
+            .or_else(|| textures.first().copied())
     }
 
     /// Returns the float constant assigned directly to the output
@@ -277,6 +282,7 @@ struct ShaderProgramIndexed {
     shaders: Vec<ShaderIndexed>,
 }
 
+// TODO: How to reduce size of buffer parameters for texture coordinates?
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(transparent)]
 struct ShaderIndexed {

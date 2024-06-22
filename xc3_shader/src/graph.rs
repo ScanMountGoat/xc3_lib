@@ -139,12 +139,10 @@ impl Graph {
                 reduce_channels(n.input.channels().unwrap_or_default(), &previous_channels);
 
             // Channels don't apply to function arguments or buffer indices.
-            // TODO: This isn't right either?
             let should_pass_channels = !matches!(
                 n.input,
                 Expr::Func { .. } | Expr::Parameter { .. } | Expr::Global { .. }
             );
-            // dbg!(node_index, should_pass_channels);
 
             // Avoid processing the subtree rooted at a line more than once.
             if dependent_lines.insert((node_index, channels)) {
@@ -174,8 +172,12 @@ impl Graph {
         recursion_depth: Option<usize>,
     ) -> String {
         let mut output = String::new();
+        let mut visited = BTreeSet::new();
         for (i, _) in self.assignments_recursive(variable, channels, recursion_depth) {
-            output += &self.node_to_glsl(&self.nodes[i]);
+            // Some nodes may be repeated with different tracked channels.
+            if visited.insert(i) {
+                output += &self.node_to_glsl(&self.nodes[i]);
+            }
         }
         output
     }
