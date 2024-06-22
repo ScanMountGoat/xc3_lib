@@ -231,7 +231,7 @@ pub fn find_buffer_parameters(
         .collect()
 }
 
-fn buffer_dependency(e: &Expr, final_channels: &str) -> Option<BufferDependency> {
+pub fn buffer_dependency(e: &Expr, final_channels: &str) -> Option<BufferDependency> {
     if let Expr::Parameter {
         name,
         field,
@@ -286,10 +286,10 @@ mod tests {
         assert_eq!(
             indoc! {"
                 a = fp_c9_data[0].x;
-                b = 2;
+                b = 2.0;
                 c = a * b;
                 d = fma(a, b, c);
-                d = d + 1;
+                d = d + 1.0;
                 OUT_Color.x = c + d;
             "},
             glsl_dependencies(glsl, "OUT_Color.x")
@@ -312,7 +312,7 @@ mod tests {
 
         assert_eq!(
             indoc! {"
-                b = 2;
+                b = 2.0;
                 c = 2 * b;
             "},
             glsl_dependencies(glsl, "c")
@@ -333,7 +333,7 @@ mod tests {
 
         assert_eq!(
             indoc! {"
-                a = 0;
+                a = 0.0;
                 b = uint(a) >> 2;
                 c = data[int(b)];
             "},
@@ -367,9 +367,9 @@ mod tests {
 
         assert_eq!(
             indoc! {"
-                a = 1;
-                a2 = a * 5;
-                b = texture(texture1, vec2(a2 + 2, 1)).x;
+                a = 1.0;
+                a2 = a * 5.0;
+                b = texture(texture1, vec2(a2 + 2.0, 1.0)).x;
                 c = data[int(b)];
             "},
             glsl_dependencies(glsl, "c")

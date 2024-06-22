@@ -167,7 +167,7 @@ impl Graph {
                 self.nodes[*node_index].output.name,
                 channel_display(channels)
             ),
-            Expr::Float(f) => f.to_string(),
+            Expr::Float(f) => format!("{f:?}"),
             Expr::Int(i) => i.to_string(),
             Expr::Uint(u) => u.to_string(),
             Expr::Bool(b) => b.to_string(),
@@ -611,7 +611,7 @@ mod tests {
                 b = in_attr0.z;
                 c = a * b;
                 d = fma(a, b, c);
-                d = d + 1;
+                d = d + 1.0;
                 OUT_Color.x = c - d;
             "},
             graph.to_glsl()
@@ -696,9 +696,9 @@ mod tests {
         };
         assert_eq!(
             indoc! {"
-                a = 1;
-                a2 = a * 5;
-                b = texture(texture1, vec2(a2 + 2, 1)).x;
+                a = 1.0;
+                a2 = a * 5.0;
+                b = texture(texture1, vec2(a2 + 2.0, 1.0)).x;
                 c = data[int(b)];
             "},
             graph.to_glsl()

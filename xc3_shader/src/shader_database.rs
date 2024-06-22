@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{ops::Deref, path::Path};
 
 use bimap::BiBTreeMap;
 use glsl_lang::{
@@ -11,43 +11,171 @@ use glsl_lang::{
 };
 use log::error;
 use rayon::prelude::*;
-use xc3_model::shader_database::{Dependency, Map, Shader, ShaderDatabase, ShaderProgram, Spch};
+use xc3_model::shader_database::{
+    BufferDependency, Dependency, Map, Shader, ShaderDatabase, ShaderProgram, Spch,
+};
 
 use crate::{
     annotation::shader_source_no_extensions,
-    dependencies::{attribute_dependencies, find_buffer_parameters, input_dependencies},
-    graph::Graph,
+    dependencies::{
+        attribute_dependencies, buffer_dependency, find_buffer_parameters, input_dependencies,
+    },
+    graph::{Expr, Graph, Node},
 };
 
 fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit) -> Shader {
-    // Get the textures used to initialize each fragment output channel.
-    // Unused outputs will have an empty dependency list.
+    let output_dependencies = (0..=5)
+        .flat_map(|i| {
+            "xyzw".chars().map(move |c| {
+                // TODO: Handle cases with multiple operations before assignment?
+                // TODO: Avoid calling dependency functions more than once to improve performance.
+
+                // TODO: Split this?
+                let name = format!("out_attr{i}.{c}");
+                let mut dependencies = input_dependencies(fragment, &name);
+
+                if let Some(vertex) = vertex {
+                    // Add texture parameters used for the corresponding vertex output.
+                    // Most shaders apply UV transforms in the vertex shader.
+                    apply_vertex_texcoord_params(vertex, fragment, &mut dependencies);
+
+                    apply_attribute_names(vertex, fragment, &mut dependencies);
+                }
+
+                // TODO: set o1.y to account for specular AA if the graph matches.
+                // We only need the glossiness input for now.
+                // TODO: is specular AA ever used with textures as input?
+                if i == 1 && c == 'y' {
+                    if let Some(param) = apply_geometric_specular_aa(fragment) {
+                        dependencies = vec![Dependency::Buffer(param)];
+                    }
+                }
+
+                // Simplify the output name to save space.
+                let output_name = format!("o{i}.{c}");
+                (output_name, dependencies)
+            })
+        })
+        .filter(|(_, dependencies)| !dependencies.is_empty())
+        .collect();
+
     Shader {
         // IndexMap gives consistent ordering for attribute names.
-        output_dependencies: (0..=5)
-            .flat_map(|i| {
-                "xyzw".chars().map(move |c| {
-                    // TODO: Handle cases with multiple operations before assignment?
-                    // TODO: Avoid calling dependency functions more than once to improve performance.
+        output_dependencies,
+    }
+}
 
-                    let name = format!("out_attr{i}.{c}");
-                    let mut dependencies = input_dependencies(fragment, &name);
+// TODO: module for queries.
+fn one_minus_x<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
+    let node = one_plus_x(nodes, node)?;
+    zero_minus_x(nodes, node)
+}
 
-                    if let Some(vertex) = vertex {
-                        // Add texture parameters used for the corresponding vertex output.
-                        // Most shaders apply UV transforms in the vertex shader.
-                        apply_vertex_texcoord_params(vertex, fragment, &mut dependencies);
+fn zero_minus_x<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
+    match &node.input {
+        Expr::Sub(a, b) => match (a.deref(), b.deref()) {
+            (Expr::Float(0.0), Expr::Node { node_index, .. }) => nodes.get(*node_index),
+            _ => None,
+        },
+        _ => None,
+    }
+}
 
-                        apply_attribute_names(vertex, fragment, &mut dependencies);
+fn one_plus_x<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
+    // Addition is commutative.
+    match &node.input {
+        Expr::Add(a, b) => match (a.deref(), b.deref()) {
+            (Expr::Node { node_index, .. }, Expr::Float(1.0)) => nodes.get(*node_index),
+            (Expr::Float(1.0), Expr::Node { node_index, .. }) => nodes.get(*node_index),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn clamp_x_zero_one<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
+    match &node.input {
+        Expr::Func { name, args, .. } => {
+            if name == "clamp" {
+                match &args[..] {
+                    [Expr::Node { node_index, .. }, Expr::Float(0.0), Expr::Float(1.0)] => {
+                        nodes.get(*node_index)
                     }
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
 
-                    // Simplify the output name to save space.
-                    let output_name = format!("o{i}.{c}");
-                    (output_name, dependencies)
-                })
-            })
-            .filter(|(_, dependencies)| !dependencies.is_empty())
-            .collect(),
+fn sqrt_x<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
+    match &node.input {
+        Expr::Func { name, args, .. } => {
+            if name == "sqrt" {
+                match &args[..] {
+                    [Expr::Node { node_index, .. }] => nodes.get(*node_index),
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+fn apply_geometric_specular_aa(fragment: &TranslationUnit) -> Option<BufferDependency> {
+    // TODO: Avoid constructing the graph more than once.
+    // Extract the glossiness input from the following expression.
+    // glossiness = 1.0 - sqrt(clamp((1.0 - glossiness)^2 + kernelRoughness2 0.0, 1.0))
+    let graph = Graph::from_glsl(&fragment);
+    let node_index = graph
+        .nodes
+        .iter()
+        .rposition(|n| n.output.name == "out_attr1" && n.output.channels == "y")?;
+    let nodes: Vec<_> = graph
+        .node_assignments_recursive(node_index, None)
+        .into_iter()
+        .map(|(i, _)| &graph.nodes[i])
+        .collect();
+    // TODO: Define query function or macro?
+    let node = match &nodes.last()?.input {
+        Expr::Node { node_index, .. } => graph.nodes.get(*node_index),
+        _ => None,
+    }?;
+    let node = one_minus_x(&graph.nodes, node)?;
+    let node = sqrt_x(&graph.nodes, node)?;
+    let node = clamp_x_zero_one(&graph.nodes, node)?;
+    let node = match &node.input {
+        Expr::Func { name, args, .. } => {
+            if name == "fma" {
+                match &args[..] {
+                    [Expr::Node { node_index: i1, .. }, Expr::Node { node_index: i2, .. }, Expr::Node { .. }] => {
+                        if i1 == i2 {
+                            graph.nodes.get(*i1)
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }?;
+    let node = one_plus_x(&graph.nodes, node)?;
+    // TODO: Will this final node ever not be a parameter?
+    match &node.input {
+        Expr::Sub(a, b) => match (a.deref(), b.deref()) {
+            (Expr::Float(0.0), e) => buffer_dependency(e, ""),
+            _ => None,
+        },
+        _ => None,
     }
 }
 
@@ -423,7 +551,7 @@ mod tests {
     }
 
     #[test]
-    fn shader_from_vertex_fragment() {
+    fn shader_from_vertex_fragment_pyra_body() {
         // Test trimmed shaders from Pyra's metallic chest material.
         // xeno2/bl/bl000101, "ho_BL_TS2", shd0022.vert
         let glsl = indoc! {"
@@ -634,6 +762,185 @@ mod tests {
                     ),
                     ("o5.w".to_string(), vec![Dependency::Constant(0.0.into())]),
                 ]
+                .into()
+            },
+            shader
+        );
+    }
+
+    #[test]
+    fn shader_from_vertex_fragment_mio_skirt() {
+        // xeno3/chr/ch/ch11021013, "body_skert2", shd0028.frag
+        let glsl = indoc! {"
+            void main() {
+                temp_0 = in_attr3.x;
+                temp_1 = in_attr3.y;
+                temp_2 = in_attr3.z;
+                temp_3 = in_attr3.w;
+                temp_8 = texture(s2, vec2(temp_0, temp_1)).xy;
+                temp_8 = texture(s2, vec2(temp_0, temp_1)).xy;
+                temp_9 = temp_8.x;
+                temp_10 = temp_8.y;
+                temp_11 = texture(gTResidentTex09, vec2(temp_2, temp_3)).xy;
+                temp_11 = texture(gTResidentTex09, vec2(temp_2, temp_3)).xy;
+                temp_12 = temp_11.x;
+                temp_13 = temp_11.y;
+                temp_26 = fma(temp_9, 2.0, 1.0039216);
+                temp_27 = fma(temp_10, 2.0, 1.0039216);
+                temp_28 = temp_26 * temp_26;
+                temp_29 = fma(temp_12, 2.0, 1.0039216);
+                temp_30 = fma(temp_13, 2.0, 1.0039216);
+                temp_31 = 0.0 + temp_27;
+                temp_32 = fma(temp_27, temp_27, temp_28);
+                temp_33 = temp_29 * temp_29;
+                temp_34 = 0.0 - temp_32;
+                temp_35 = temp_34 + 1.0;
+                temp_36 = fma(temp_30, temp_30, temp_33);
+                temp_37 = sqrt(temp_35);
+                temp_38 = 0.0 + temp_26;
+                temp_40 = 0.0 - temp_36;
+                temp_41 = temp_40 + 1.0;
+                temp_42 = 0.0 - temp_38;
+                temp_43 = temp_29 * temp_42;
+                temp_44 = sqrt(temp_41);
+                temp_47 = max(0.0, temp_37);
+                temp_48 = 0.0 - temp_31;
+                temp_49 = fma(temp_30, temp_48, temp_43);
+                temp_51 = temp_47 + 1.0;
+                temp_52 = max(0.0, temp_44);
+                temp_53 = in_attr1.y;
+                temp_54 = 0.0 - temp_51;
+                temp_55 = temp_29 * temp_54;
+                temp_56 = in_attr1.x;
+                temp_57 = fma(temp_52, temp_51, temp_49);
+                temp_58 = temp_52 * temp_51;
+                temp_59 = 0.0 - temp_55;
+                temp_60 = fma(temp_38, temp_57, temp_59);
+                temp_61 = 0.0 - temp_51;
+                temp_62 = temp_30 * temp_61;
+                temp_63 = in_attr1.z;
+                temp_64 = 0.0 - temp_58;
+                temp_65 = fma(temp_51, temp_57, temp_64);
+                temp_66 = 0.0 - temp_62;
+                temp_67 = fma(temp_31, temp_57, temp_66);
+                temp_68 = temp_56 * temp_56;
+                temp_69 = fma(temp_53, temp_53, temp_68);
+                temp_70 = temp_60 * temp_60;
+                temp_71 = fma(temp_63, temp_63, temp_69);
+                temp_72 = fma(temp_67, temp_67, temp_70);
+                temp_73 = inversesqrt(temp_71);
+                temp_74 = fma(temp_65, temp_65, temp_72);
+                temp_75 = in_attr0.x;
+                temp_76 = temp_56 * temp_73;
+                temp_77 = inversesqrt(temp_74);
+                temp_78 = temp_53 * temp_73;
+                temp_79 = temp_63 * temp_73;
+                temp_80 = 0.0 - temp_26;
+                temp_81 = fma(temp_60, temp_77, temp_80);
+                temp_82 = 0.0 - temp_27;
+                temp_83 = fma(temp_67, temp_77, temp_82);
+                temp_84 = in_attr0.y;
+                temp_85 = 0.0 - temp_47;
+                temp_86 = fma(temp_65, temp_77, temp_85);
+                temp_87 = in_attr0.z;
+                temp_88 = fma(temp_81, U_Mate.gWrkFl4[1].z, temp_26);
+                temp_89 = fma(temp_83, U_Mate.gWrkFl4[1].z, temp_27);
+                temp_90 = fma(temp_86, U_Mate.gWrkFl4[1].z, temp_47);
+                temp_91 = temp_75 * temp_75;
+                temp_92 = temp_88 * temp_88;
+                temp_93 = fma(temp_89, temp_89, temp_92);
+                temp_94 = fma(temp_84, temp_84, temp_91);
+                temp_95 = fma(temp_87, temp_87, temp_94);
+                temp_96 = fma(temp_90, temp_90, temp_93);
+                temp_97 = inversesqrt(temp_95);
+                temp_100 = inversesqrt(temp_96);
+                temp_105 = temp_75 * temp_97;
+                temp_106 = temp_84 * temp_97;
+                temp_107 = temp_87 * temp_97;
+                temp_108 = in_attr2.x;
+                temp_109 = temp_88 * temp_100;
+                temp_110 = temp_90 * temp_100;
+                temp_111 = temp_89 * temp_100;
+                temp_112 = in_attr2.y;
+                temp_114 = temp_109 * temp_76;
+                temp_115 = temp_109 * temp_78;
+                temp_116 = in_attr2.z;
+                temp_117 = temp_109 * temp_79;
+                temp_118 = fma(temp_110, temp_105, temp_114);
+                temp_120 = fma(temp_110, temp_106, temp_115);
+                temp_121 = fma(temp_110, temp_107, temp_117);
+                temp_122 = temp_108 * temp_108;
+                temp_123 = fma(temp_112, temp_112, temp_122);
+                temp_125 = fma(temp_116, temp_116, temp_123);
+                temp_126 = inversesqrt(temp_125);
+                temp_127 = temp_108 * temp_126;
+                temp_128 = temp_112 * temp_126;
+                temp_129 = temp_116 * temp_126;
+                temp_130 = fma(temp_111, temp_127, temp_118);
+                temp_132 = fma(temp_111, temp_128, temp_120);
+                temp_133 = fma(temp_111, temp_129, temp_121);
+                temp_134 = 0.0 - U_Mate.gWrkFl4[2].y;
+                temp_135 = 1.0 + temp_134;
+                temp_136 = temp_130 * temp_130;
+                temp_137 = fma(temp_132, temp_132, temp_136);
+                temp_138 = fma(temp_133, temp_133, temp_137);
+                temp_140 = inversesqrt(temp_138);
+                temp_143 = temp_130 * temp_140;
+                temp_144 = temp_132 * temp_140;
+                temp_145 = temp_133 * temp_140;
+                temp_149 = 0.0 - temp_143;
+                temp_150 = temp_149 + 0.0;
+                temp_146 = temp_150;
+                temp_151 = 0.0 - temp_144;
+                temp_152 = temp_151 + 0.0;
+                temp_147 = temp_152;
+                temp_153 = 0.0 - temp_145;
+                temp_154 = temp_153 + 0.0;
+                temp_148 = temp_154;
+                temp_155 = dFdy(temp_146);
+                temp_156 = dFdy(temp_147);
+                temp_157 = 1.0 * temp_155;
+                temp_158 = dFdy(temp_148);
+                temp_159 = 1.0 * temp_156;
+                temp_160 = dFdx(temp_146);
+                temp_161 = temp_157 * temp_157;
+                temp_162 = 1.0 * temp_158;
+                temp_164 = dFdx(temp_147);
+                temp_165 = temp_160 * temp_160;
+                temp_166 = fma(temp_159, temp_159, temp_161);
+                temp_168 = fma(temp_164, temp_164, temp_165);
+                temp_170 = fma(temp_162, temp_162, temp_166);
+                temp_174 = dFdx(temp_148);
+                temp_176 = fma(temp_174, temp_174, temp_168);
+                temp_177 = temp_176 + temp_170;
+                temp_182 = temp_177 * 0.5;
+                temp_183 = min(temp_182, fp_c1.data[0].y);
+                temp_184 = fma(temp_135, temp_135, temp_183);
+                temp_185 = clamp(temp_184, 0.0, 1.0);
+                temp_186 = sqrt(temp_185);
+                temp_192 = 0.0 - temp_186;
+                temp_193 = temp_192 + 1.0;
+                out_attr1.y = temp_193;
+            }
+        "};
+
+        // The pcmdo calcGeometricSpecularAA function compiles to the expression
+        // glossiness = 1.0 - sqrt(clamp((1.0 - glossiness)^2 + kernelRoughness2 0.0, 1.0))
+        // Consuming applications only care about the glossiness input.
+        // This also avoids considering normal maps as a dependency.
+        let fragment = TranslationUnit::parse(glsl).unwrap();
+        let shader = shader_from_glsl(None, &fragment);
+        assert_eq!(
+            Shader {
+                output_dependencies: [(
+                    "o1.y".to_string(),
+                    vec![Dependency::Buffer(BufferDependency {
+                        name: "U_Mate".to_string(),
+                        field: "gWrkFl4".to_string(),
+                        index: 2,
+                        channels: "y".to_string()
+                    })]
+                ),]
                 .into()
             },
             shader
