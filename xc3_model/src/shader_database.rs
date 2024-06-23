@@ -17,6 +17,8 @@ use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 use thiserror::Error;
 
+use crate::IndexMapExt;
+
 #[derive(Debug, Error)]
 pub enum LoadShaderDatabaseError {
     #[error("error reading shader JSON file")]
@@ -203,7 +205,11 @@ impl Shader {
         let output = format!("o{output_index}.{channel}");
 
         // If a constant is assigned, it will be the only dependency.
-        match self.output_dependencies.get(&SmolStr::from(output))?.first()? {
+        match self
+            .output_dependencies
+            .get(&SmolStr::from(output))?
+            .first()?
+        {
             Dependency::Constant(f) => Some(f.0),
             _ => None,
         }
@@ -219,7 +225,11 @@ impl Shader {
         let output = format!("o{output_index}.{channel}");
 
         // If a parameter is assigned, it will likely be the only dependency.
-        match self.output_dependencies.get(&SmolStr::from(output))?.first()? {
+        match self
+            .output_dependencies
+            .get(&SmolStr::from(output))?
+            .first()?
+        {
             Dependency::Buffer(b) => Some(b),
             _ => None,
         }
@@ -231,7 +241,11 @@ impl Shader {
         let output = format!("o{output_index}.{channel}");
 
         // If an attribute is assigned, it will likely be the only dependency.
-        match self.output_dependencies.get(&SmolStr::from(output))?.first()? {
+        match self
+            .output_dependencies
+            .get(&SmolStr::from(output))?
+            .first()?
+        {
             Dependency::Attribute(b) => Some(b),
             _ => None,
         }
@@ -406,20 +420,12 @@ fn spch_indexed(
                             .iter()
                             .map(|(output, dependencies)| {
                                 // This works since the map preserves insertion order.
-                                let new_index = output_to_index.len();
-                                let output_index =
-                                    *output_to_index.entry(output.clone()).or_insert(new_index);
+                                let output_index = output_to_index.entry_index(output.clone());
                                 (
                                     output_index,
                                     dependencies
                                         .iter()
-                                        .map(|d| {
-                                            // This works since the map preserves insertion order.
-                                            let new_index = dependency_to_index.len();
-                                            *dependency_to_index
-                                                .entry(d.clone())
-                                                .or_insert(new_index)
-                                        })
+                                        .map(|d| dependency_to_index.entry_index(d.clone()))
                                         .collect(),
                                 )
                             })

@@ -29,6 +29,7 @@
 
 use std::{
     borrow::Cow,
+    hash::Hash,
     io::Cursor,
     path::{Path, PathBuf},
 };
@@ -36,6 +37,7 @@ use std::{
 use animation::Animation;
 use binrw::{BinRead, BinReaderExt};
 use glam::{Mat4, Vec3};
+use indexmap::IndexMap;
 use log::error;
 use material::create_materials;
 use shader_database::ShaderDatabase;
@@ -965,4 +967,21 @@ macro_rules! assert_hex_eq {
     ($a:expr, $b:expr) => {
         pretty_assertions::assert_str_eq!(hex::encode($a), hex::encode($b))
     };
+}
+
+/// A trait for mapping unique items to an index.
+pub trait IndexMapExt<T> {
+    /// The index value associated with `key`.
+    /// Inserts `key` with an index equal to the current length if not present.
+    fn entry_index(&mut self, key: T) -> usize;
+}
+
+impl<T> IndexMapExt<T> for IndexMap<T, usize>
+where
+    T: Hash + Eq,
+{
+    fn entry_index(&mut self, key: T) -> usize {
+        let new_value = self.len();
+        *self.entry(key).or_insert(new_value)
+    }
 }

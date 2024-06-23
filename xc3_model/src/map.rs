@@ -18,7 +18,7 @@ use crate::{
     create_materials, create_samplers, lod_data, model_name,
     shader_database::ShaderDatabase,
     texture::{self, CreateImageTextureError, ImageTexture},
-    MapRoot, Material, Model, ModelBuffers, ModelGroup, Models, Texture,
+    IndexMapExt, MapRoot, Material, Model, ModelBuffers, ModelGroup, Models, Texture,
 };
 
 #[derive(Debug, Error)]
@@ -177,11 +177,7 @@ impl TextureCache {
             texture.low_textures_entry_index,
             texture.texture_index,
         );
-        let new_index = self.texture_to_image_texture_index.len();
-        *self
-            .texture_to_image_texture_index
-            .entry(key)
-            .or_insert(new_index)
+        self.texture_to_image_texture_index.entry_index(key)
     }
 
     fn get_low_texture(&self, entry_index: i16, index: i16) -> Option<&(TextureUsage, Mibl)> {

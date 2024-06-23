@@ -8,7 +8,7 @@ use xc3_lib::{
 
 use crate::{
     vertex::{AttributeData, ModelBuffers},
-    ImageTexture, ModelRoot,
+    ImageTexture, IndexMapExt, ModelRoot,
 };
 
 // TODO: Not possible to make files compatible with all game versions?
@@ -69,13 +69,10 @@ impl ModelRoot {
                         // An index of 0 represents no ext mesh.
                         // TODO: Why is the lod index set to 0 for some xc3 models?
                         let ext_index = m.ext_mesh_index.map(|i| i + 1).unwrap_or_default() as u16;
-                        let new_index = alpha_table.len() as u16;
-                        let alpha_table_index = *alpha_table
-                            .entry((
-                                ext_index,
-                                m.lod_item_index.map(|i| i as u16 + 1).unwrap_or_default(),
-                            ))
-                            .or_insert(new_index);
+                        let alpha_table_index = alpha_table.entry_index((
+                            ext_index,
+                            m.lod_item_index.map(|i| i as u16 + 1).unwrap_or_default(),
+                        )) as u16;
 
                         // TODO: How to set these indices in applications?
                         let base_mesh_index = m

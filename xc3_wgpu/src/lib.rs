@@ -52,11 +52,14 @@ mod shader;
 mod skeleton;
 mod texture;
 
-use encase::{internal::WriteInto, ShaderSize, ShaderType, StorageBuffer, UniformBuffer};
 pub use material::Material;
 pub use model::{load_map, load_model, Mesh, Model, ModelBuffers, ModelGroup, Models};
 pub use monolib::MonolibShaderTextures;
 pub use renderer::{CameraData, RenderMode, Xc3Renderer};
+
+use encase::{internal::WriteInto, ShaderSize, ShaderType, StorageBuffer, UniformBuffer};
+use indexmap::IndexMap;
+use std::hash::Hash;
 use wgpu::util::DeviceExt;
 
 // TODO: How is sRGB gamma handled in game?
@@ -158,5 +161,20 @@ impl QueueBufferExt for wgpu::Queue {
         bytes.write(&data).unwrap();
 
         self.write_buffer(buffer, 0, &bytes.into_inner());
+    }
+}
+
+/// A trait for mapping unique items to an index.
+pub trait IndexMapExt<T> {
+    fn entry_index(&mut self, key: T) -> usize;
+}
+
+impl<T> IndexMapExt<T> for IndexMap<T, usize>
+where
+    T: Hash + Eq,
+{
+    fn entry_index(&mut self, key: T) -> usize {
+        let new_value = self.len();
+        *self.entry(key).or_insert(new_value)
     }
 }

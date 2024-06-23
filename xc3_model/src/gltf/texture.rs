@@ -1,4 +1,4 @@
-use crate::{ChannelAssignment, ImageTexture, OutputAssignments};
+use crate::{ChannelAssignment, ImageTexture, IndexMapExt, OutputAssignments};
 use image_dds::image::{codecs::png::PngEncoder, RgbaImage};
 use indexmap::IndexMap;
 use ordered_float::OrderedFloat;
@@ -39,7 +39,7 @@ pub struct ImageKey {
 pub struct TextureCache {
     original_images: IndexMap<ImageKey, RgbaImage>,
     // Use a map that preserves insertion order to get consistent ordering.
-    pub generated_texture_indices: IndexMap<GeneratedImageKey, u32>,
+    pub generated_texture_indices: IndexMap<GeneratedImageKey, usize>,
 }
 
 impl TextureCache {
@@ -55,20 +55,13 @@ impl TextureCache {
 
     pub fn insert(&mut self, key: GeneratedImageKey) -> Option<u32> {
         // Use a cache to avoid costly image generation if possible.
-        let new_index = self.generated_texture_indices.len() as u32;
-
         // TODO: Find a cleaner way to prevent generating empty images.
         if key.red_index.is_some()
             || key.green_index.is_some()
             || key.blue_index.is_some()
             || key.alpha_index.is_some()
         {
-            Some(
-                *self
-                    .generated_texture_indices
-                    .entry(key)
-                    .or_insert(new_index),
-            )
+            Some(self.generated_texture_indices.entry_index(key) as u32)
         } else {
             None
         }

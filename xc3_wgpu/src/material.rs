@@ -3,7 +3,9 @@ use std::collections::HashMap;
 use glam::{ivec4, uvec4, vec4, IVec4, UVec4, Vec4};
 use indexmap::IndexMap;
 use log::{error, warn};
-use xc3_model::{ChannelAssignment, ImageTexture, OutputAssignment, OutputAssignments};
+use xc3_model::{
+    ChannelAssignment, ImageTexture, IndexMapExt, OutputAssignment, OutputAssignments,
+};
 
 use crate::{
     pipeline::{model_pipeline, ModelPipelineData, Output5Type, PipelineKey},
@@ -78,17 +80,13 @@ pub fn materials(
 
             // Alpha textures might not be used in normal shaders.
             if let Some(a) = &material.alpha_test {
-                let new_index = name_to_index.len();
-                name_to_index
-                    .entry(format!("s{}", a.texture_index))
-                    .or_insert(new_index);
+                name_to_index.entry_index(format!("s{}", a.texture_index));
             }
 
             // It's possible that some material textures had no assignment.
             // Assign remaining textures by index to make GPU debugging easier.
             for i in 0..material.textures.len() {
-                let new_index = name_to_index.len();
-                name_to_index.entry(format!("s{i}")).or_insert(new_index);
+                name_to_index.entry_index(format!("s{i}"));
             }
 
             let mut texture_views: [Option<_>; 10] = std::array::from_fn(|_| None);
@@ -263,8 +261,7 @@ fn texture_channel_assignment(
     }) = assignment
     {
         // TODO: Should this ever return -1?
-        let new_index = name_to_index.len();
-        let index = *name_to_index.entry(name.to_string()).or_insert(new_index);
+        let index = name_to_index.entry_index(name.to_string());
         Some((index as i32, *channel_index as u32))
     } else {
         None
