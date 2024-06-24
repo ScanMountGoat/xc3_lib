@@ -5,6 +5,7 @@ use indexmap::IndexMap;
 use log::{error, warn};
 use xc3_model::{
     ChannelAssignment, ImageTexture, IndexMapExt, OutputAssignment, OutputAssignments,
+    TextureAssignment,
 };
 
 use crate::{
@@ -99,9 +100,9 @@ pub fn materials(
                         if texture.format() == wgpu::TextureFormat::Bc4RUnorm {
                             is_single_channel[*i] = uvec4(1, 0, 0, 0);
                         }
-                    } else {
-                        warn!("Missing texture for {name:?}. Assigning default black texture.");
                     }
+                } else {
+                    warn!("Missing texture for {name:?}. Assigning default black texture.");
                 }
             }
 
@@ -110,16 +111,18 @@ pub fn materials(
             // TODO: Include this logic with xc3_model?
             let mut texture_scale = [Vec4::ONE; 10];
             for assignment in &assignments.assignments {
-                if let Some(ChannelAssignment::Texture {
-                    name,
-                    texcoord_scale: Some((u, v)),
-                    ..
-                }) = &assignment.x
-                {
-                    // TODO: Don't assume there is a single texcoord attribute.
-                    // TODO: make a method for index conversions?
-                    if let Some(index) = material_texture_index(name) {
-                        texture_scale[index] = vec4(*u, *v, 1.0, 1.0);
+                if let Some(ChannelAssignment::Textures(textures)) = &assignment.x {
+                    if let Some(TextureAssignment {
+                        name,
+                        texcoord_scale: Some((u, v)),
+                        ..
+                    }) = textures.first()
+                    {
+                        // TODO: Don't assume there is a single texcoord attribute.
+                        // TODO: make a method for index conversions?
+                        if let Some(index) = material_texture_index(name) {
+                            texture_scale[index] = vec4(*u, *v, 1.0, 1.0);
+                        }
                     }
                 }
             }
@@ -239,30 +242,53 @@ fn sampler_assignment(
     a: &OutputAssignment,
     name_to_index: &mut IndexMap<String, usize>,
 ) -> crate::shader::model::SamplerAssignment {
-    let (s0, c0) = texture_channel_assignment(a.x.as_ref(), name_to_index).unwrap_or((-1, 0));
-    let (s1, c1) = texture_channel_assignment(a.y.as_ref(), name_to_index).unwrap_or((-1, 1));
-    let (s2, c2) = texture_channel_assignment(a.z.as_ref(), name_to_index).unwrap_or((-1, 2));
-    let (s3, c3) = texture_channel_assignment(a.w.as_ref(), name_to_index).unwrap_or((-1, 3));
+    let (s00, c00) = texture_channel(a.x.as_ref(), name_to_index, 'x', false).unwrap_or((-1, 0));
+    let (s10, c10) = texture_channel(a.y.as_ref(), name_to_index, 'y', false).unwrap_or((-1, 1));
+    let (s20, c20) = texture_channel(a.z.as_ref(), name_to_index, 'z', false).unwrap_or((-1, 2));
+    let (s30, c30) = texture_channel(a.w.as_ref(), name_to_index, 'w', false).unwrap_or((-1, 3));
+
+    let (s01, c01) = texture_channel(a.x.as_ref(), name_to_index, 'x', true).unwrap_or((-1, 0));
+    let (s11, c11) = texture_channel(a.y.as_ref(), name_to_index, 'y', true).unwrap_or((-1, 1));
+    let (s21, c21) = texture_channel(a.z.as_ref(), name_to_index, 'z', true).unwrap_or((-1, 2));
+    let (s31, c31) = texture_channel(a.w.as_ref(), name_to_index, 'w', true).unwrap_or((-1, 3));
 
     crate::shader::model::SamplerAssignment {
-        sampler_indices: ivec4(s0, s1, s2, s3),
-        channel_indices: uvec4(c0, c1, c2, c3),
+        sampler_indices: ivec4(s00, s10, s20, s30),
+        channel_indices: uvec4(c00, c10, c20, c30),
+        sampler_indices2: ivec4(s01, s11, s21, s31),
+        channel_indices2: uvec4(c01, c11, c21, c31),
     }
 }
 
-fn texture_channel_assignment(
+fn texture_channel(
     assignment: Option<&ChannelAssignment>,
     name_to_index: &mut IndexMap<String, usize>,
+    channel: char,
+    is_second_layer: bool,
 ) -> Option<(i32, u32)> {
-    if let Some(ChannelAssignment::Texture {
-        name,
-        channel_index,
-        ..
-    }) = assignment
-    {
-        // TODO: Should this ever return -1?
-        let index = name_to_index.entry_index(name.to_string());
-        Some((index as i32, *channel_index as u32))
+    if let Some(ChannelAssignment::Textures(textures)) = assignment {
+        // Some textures like normal maps may use multiple input channels.
+        // First check if the current channel is used.
+        // TODO: Should this only be used for color and normals?
+        let this_channel: Vec<_> = textures
+            .iter()
+            .filter(|t| t.channels.as_str() == channel.to_string())
+            .collect();
+
+        let texture = if !is_second_layer {
+            this_channel.first().copied().or_else(|| textures.first())
+        } else {
+            textures.get(2)
+        };
+
+        if let Some(TextureAssignment { name, channels, .. }) = texture {
+            let channel_index = "xyzw".find(channels.chars().next().unwrap()).unwrap();
+            // TODO: Should this ever return -1?
+            let index = name_to_index.entry_index(name.to_string());
+            Some((index as i32, channel_index as u32))
+        } else {
+            None
+        }
     } else {
         None
     }

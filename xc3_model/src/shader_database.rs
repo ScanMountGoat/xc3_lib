@@ -169,17 +169,19 @@ pub struct AttributeDependency {
 }
 
 impl Shader {
-    /// Returns the first texture assigned to the output or `None` if the output does not use a sampler.
+    /// Returns the textures assigned to the output or `None` if the output does not use any texture.
     ///
     /// This currently uses a heuristic where textures like "s0" are returned before "s4" or "gTResidentTex05"
     /// to resolve some assignment issues.
-    pub fn texture(&self, output_index: usize, channel: char) -> Option<&TextureDependency> {
+    pub fn textures(&self, output_index: usize, channel: char) -> Vec<&TextureDependency> {
         let output = format!("o{output_index}.{channel}");
 
         // Find the first material referenced samplers like "s0" or "s1".
         let mut textures: Vec<_> = self
             .output_dependencies
-            .get(&SmolStr::from(output))?
+            .get(&SmolStr::from(output))
+            .map(|d| d.as_slice())
+            .unwrap_or_default()
             .iter()
             .filter_map(|d| match d {
                 Dependency::Texture(t) => Some(t),
@@ -190,13 +192,7 @@ impl Shader {
         // TODO: Is there a better heuristic than always picking the lowest sampler index?
         textures
             .sort_by(|a, b| material_sampler_index(&a.name).cmp(&material_sampler_index(&b.name)));
-
-        // TODO: Better heuristic for textures that use multiple channels like xc3's calcMonochrome?
         textures
-            .iter()
-            .find(|t| t.channels.chars().next() == Some(channel))
-            .copied()
-            .or_else(|| textures.first().copied())
     }
 
     /// Returns the float constant assigned directly to the output
@@ -476,7 +472,7 @@ mod tests {
         let shader = Shader {
             output_dependencies: IndexMap::new(),
         };
-        assert_eq!(None, shader.texture(0, 'x'));
+        assert!(shader.textures(0, 'x').is_empty());
     }
 
     #[test]
@@ -484,7 +480,7 @@ mod tests {
         let shader = Shader {
             output_dependencies: [("o0.x".into(), Vec::new())].into(),
         };
-        assert_eq!(None, shader.texture(0, 'x'));
+        assert!(shader.textures(0, 'x').is_empty());
     }
 
     #[test]
@@ -526,12 +522,19 @@ mod tests {
             .into(),
         };
         assert_eq!(
-            Some(&TextureDependency {
-                name: "s2".into(),
-                channels: "z".into(),
-                texcoords: Vec::new()
-            }),
-            shader.texture(0, 'y')
+            vec![
+                &TextureDependency {
+                    name: "s2".into(),
+                    channels: "z".into(),
+                    texcoords: Vec::new()
+                },
+                &TextureDependency {
+                    name: "tex".into(),
+                    channels: "xyz".into(),
+                    texcoords: Vec::new()
+                }
+            ],
+            shader.textures(0, 'y')
         );
     }
 

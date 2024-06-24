@@ -330,20 +330,20 @@ pub struct OutputAssignment {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ChannelAssignment {
-    Texture {
-        // TODO: Include matrix transform or scale?
-        // TODO: Always convert everything to a matrix?
-        // TODO: how often is the matrix even used?
-        name: SmolStr,
-        channel_index: usize,
-        texcoord_name: Option<SmolStr>,
-        texcoord_scale: Option<(f32, f32)>,
-    },
-    Attribute {
-        name: SmolStr,
-        channel_index: usize,
-    },
+    Textures(Vec<TextureAssignment>),
+    Attribute { name: SmolStr, channel_index: usize },
     Value(f32),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TextureAssignment {
+    // TODO: Include matrix transform or scale?
+    // TODO: Always convert everything to a matrix?
+    // TODO: how often is the matrix even used?
+    pub name: SmolStr,
+    pub channels: SmolStr,
+    pub texcoord_name: Option<SmolStr>,
+    pub texcoord_scale: Option<(f32, f32)>,
 }
 
 // TODO: Test cases for this?
@@ -371,12 +371,14 @@ impl Material {
     fn infer_assignment_from_textures(&self, textures: &[ImageTexture]) -> OutputAssignments {
         // No assignment data is available.
         // Guess reasonable defaults based on the texture names or types.
-        let assignment = |i: Option<usize>, c| {
-            i.map(|i| ChannelAssignment::Texture {
-                name: format!("s{i}").into(),
-                channel_index: c,
-                texcoord_name: None,
-                texcoord_scale: None,
+        let assignment = |i: Option<usize>, c: usize| {
+            i.map(|i| {
+                ChannelAssignment::Textures(vec![TextureAssignment {
+                    name: format!("s{i}").into(),
+                    channels: ["x", "y", "z", "w"][c].into(),
+                    texcoord_name: None,
+                    texcoord_scale: None,
+                }])
             })
         };
 
@@ -483,27 +485,24 @@ fn channel_assignment(
             })
         })
         .or_else(|| {
-            // TODO: How to deal with multiple textures used for color outputs?
-            shader.texture(output_index, channel).map(|texture| {
-                // Textures may have multiple accessed channels like normal maps.
-                // First check if the current channel is used.
-                // TODO: Does this always work as intended?
-                let c = if texture.channels.contains(channel) {
-                    channel
-                } else {
-                    texture.channels.chars().next().unwrap()
-                };
+            // TODO: How to deal with multiple textures used for color and normal outputs?
+            let textures = shader
+                .textures(output_index, channel)
+                .iter()
+                .map(|texture| {
+                    let texcoord_scale = texcoord_scale(texture, parameters);
 
-                let texcoord_scale = texcoord_scale(texture, parameters);
+                    // TODO: different attribute for U and V?
+                    TextureAssignment {
+                        name: texture.name.clone(),
+                        channels: texture.channels.clone(),
+                        texcoord_name: texture.texcoords.first().map(|t| t.name.clone()),
+                        texcoord_scale,
+                    }
+                })
+                .collect();
 
-                // TODO: different attribute for U and V?
-                ChannelAssignment::Texture {
-                    name: texture.name.clone(),
-                    channel_index: "xyzw".find(c).unwrap(),
-                    texcoord_name: texture.texcoords.first().map(|t| t.name.clone()),
-                    texcoord_scale,
-                }
-            })
+            Some(ChannelAssignment::Textures(textures))
         })
 }
 
@@ -538,7 +537,8 @@ fn param_or_const(
 
 fn extract_parameter(p: &BufferDependency, parameters: &MaterialParameters) -> Option<f32> {
     // TODO: Handle multiple channels?
-    let c = "xyzw".find(p.channels.chars().next().unwrap()).unwrap();
+    // TODO: How to handle the case where the input has no channels?
+    let c = "xyzw".find(p.channels.chars().next()?).unwrap();
     match (p.name.as_str(), p.field.as_str()) {
         ("U_Mate", "gWrkFl4") => Some(parameters.work_float4.as_ref()?.get(p.index)?[c]),
         ("U_Mate", "gWrkCol") => Some(parameters.work_color.as_ref()?.get(p.index)?[c]),

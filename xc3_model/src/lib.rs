@@ -64,7 +64,7 @@ use xc3_lib::{
 pub use map::{load_map, LoadMapError};
 pub use material::{
     ChannelAssignment, Material, MaterialParameters, OutputAssignment, OutputAssignments, Texture,
-    TextureAlphaTest,
+    TextureAlphaTest, TextureAssignment,
 };
 pub use sampler::{AddressMode, FilterMode, Sampler};
 pub use skeleton::{Bone, Skeleton};

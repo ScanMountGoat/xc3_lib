@@ -307,12 +307,7 @@ pub fn reduce_channels(inner: &str, outer: &str) -> String {
     } else {
         // TODO: handle errors
         // Reduce "xyz.zyx" -> "zyx".
-        let channel_index = |c2: char| {
-            ['x', 'y', 'z', 'w']
-                .iter()
-                .position(|c1| *c1 == c2)
-                .unwrap()
-        };
+        let channel_index = |c: char| "xyzw".find(c).unwrap();
         // TODO: handle errors
         outer
             .chars()

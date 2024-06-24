@@ -90,7 +90,10 @@ var s9_sampler: sampler;
 // Texture and channel input for each output channel.
 struct SamplerAssignment {
     sampler_indices: vec4<i32>,
-    channel_indices: vec4<u32>
+    channel_indices: vec4<u32>,
+    // TODO: Better way to store multiple layers?
+    sampler_indices2: vec4<i32>,
+    channel_indices2: vec4<u32>,
 }
 
 // TODO: Support attributes other than vColor.
@@ -104,6 +107,7 @@ struct PerMaterial {
     mat_color: vec4<f32>,
 
     sampler_assignments: array<SamplerAssignment, 6>,
+
     attribute_assignments: array<AttributeAssignment, 6>,
 
     // Parameters, constants, and defaults if no texture is assigned.
@@ -264,6 +268,14 @@ fn assign_texture(s: SamplerAssignment, s_colors: array<vec4<f32>, 10>, default_
     return vec4(x, y, z, w);
 }
 
+fn assign_texture_layer2(s: SamplerAssignment, s_colors: array<vec4<f32>, 10>, default_value: vec4<f32>) -> vec4<f32> {
+    let x = assign_channel(s.sampler_indices2.x, s.channel_indices2.x, -1, s_colors, default_value, default_value.x);
+    let y = assign_channel(s.sampler_indices2.y, s.channel_indices2.y, -1, s_colors, default_value, default_value.y);
+    let z = assign_channel(s.sampler_indices2.z, s.channel_indices2.z, -1, s_colors, default_value, default_value.z);
+    let w = assign_channel(s.sampler_indices2.w, s.channel_indices2.w, -1, s_colors, default_value, default_value.w);
+    return vec4(x, y, z, w);
+}
+
 fn assign_channel(sampler_index: i32, channel_index: u32, attribute_channel_index: i32, s_colors: array<vec4<f32>, 10>, vcolor: vec4<f32>, default_value: f32) -> f32 {
     if attribute_channel_index >= 0 {
         return vcolor[attribute_channel_index];
@@ -316,17 +328,33 @@ fn assign_channel(sampler_index: i32, channel_index: u32, attribute_channel_inde
 }
 
 // Adapted from shd00036 GLSL from ch11021013.pcsmt (xc3). 
-fn apply_normal_map(normal: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<f32>, normal_map: vec2<f32>) -> vec3<f32> {
+fn apply_normal_map(normal_map: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
+    // Normal mapping is a change of basis using the TBN vectors.
+    let x = normal_map.x;
+    let y = normal_map.y;
+    let z = normal_map.z;
+    return normalize(tangent * x + bitangent * y + normal * z);
+}
+
+// Adapted from shd00028 GLSL from ch11021013.pcsmt (xc3).
+fn create_normal_map(col: vec2<f32>) -> vec3<f32> {
     // Remap the tangent space normal map to the correct range.
     // The additional offset determines the "neutral" normal map value.
-    let x = 2.0 * normal_map.x - 1.0 - (1.0 / 256.0);
-    let y = 2.0 * normal_map.y - 1.0 - (1.0 / 256.0);
+    let x = 2.0 * col.x - 1.0 - (1.0 / 256.0);
+    let y = 2.0 * col.y - 1.0 - (1.0 / 256.0);
 
     // Calculate z based on the fact that x*x + y*y + z*z = 1.
     let z = sqrt(abs(1.0 - (x * x) + (y * y)));
 
-    // Normal mapping is a change of basis using the TBN vectors.
-    return normalize(tangent * x + bitangent * y + normal * z);
+    return vec3(x, y, z);
+}
+
+// Adapted from shd00028 GLSL from ch11021013.pcsmt (xc3).
+fn add_normal_maps(n1: vec3<f32>, n2: vec3<f32>, ratio: f32) -> vec3<f32> {
+    let t = n1.xyz * vec3(1.0, 1.0, 1.0) + vec3(0.0, 0.0, 1.0);
+    let u = n2.xyz * vec3(-1.0);
+    let r = t * dot(t, u) - u * t.z;
+    return normalize(mix(n1, normalize(r), ratio));
 }
 
 // Adapted from shd00036 GLSL from ch11021013.pcsmt (xc3). 
@@ -438,6 +466,8 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     let vertex_normal = normalize(in.normal.xyz);
     let bitangent = normalize(in.bitangent);
 
+    // TODO: These texture scales aren't always set correctly.
+    // TODO: use a tex matrix for everything?
     let s0_color = textureSample(s0, s0_sampler, in.tex0 * per_material.texture_scale[0].xy);
     let s1_color = textureSample(s1, s1_sampler, in.tex0 * per_material.texture_scale[1].xy);
     let s2_color = textureSample(s2, s2_sampler, in.tex0 * per_material.texture_scale[2].xy);
@@ -479,22 +509,28 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     let attributes = per_material.attribute_assignments;
 
     // Defaults incorporate constants, parameters, and default values.
+    // Assume each G-Buffer texture and channel always has the same usage.
     let defaults = per_material.output_defaults;
     let g_color = assign_texture(assignments[0], s_colors, defaults[0], attributes[0], in.vertex_color);
     let g_etc_buffer = assign_texture(assignments[1], s_colors, defaults[1], attributes[1], in.vertex_color);
     let g_normal = assign_texture(assignments[2], s_colors, defaults[2], attributes[2], in.vertex_color);
+    let g_normal2 = assign_texture_layer2(assignments[2], s_colors, defaults[2]);
     let g_velocity = assign_texture(assignments[3], s_colors, defaults[3], attributes[3], in.vertex_color);
     let g_depth = assign_texture(assignments[4], s_colors, defaults[4], attributes[4], in.vertex_color);
     let g_lgt_color = assign_texture(assignments[5], s_colors, defaults[5], attributes[5], in.vertex_color);
-
-    // Assume each G-Buffer texture and channel always has the same usage.
-    let normal_map = g_normal.xy;
 
     // Not all materials and shaders use normal mapping.
     // TODO: Is this a good way to check for this?
     var normal = vertex_normal;
     if assignments[2].sampler_indices.x != -1 && assignments[2].sampler_indices.y != -1 {
-        normal = apply_normal_map(vertex_normal, tangent, bitangent, normal_map);
+        var normal_map = create_normal_map(g_normal.xy);
+        if assignments[2].sampler_indices2.x != -1 && assignments[2].sampler_indices2.y != -1 {
+            // TODO: What should the weight be for blending?
+            let normal_map2 = create_normal_map(g_normal2.xy);
+            normal_map = add_normal_maps(normal_map, normal_map2, 1.0);
+        }
+
+        normal = apply_normal_map(normal_map, tangent, bitangent, vertex_normal);
     }
 
     // In game normals in view space.

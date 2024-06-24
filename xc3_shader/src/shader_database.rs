@@ -72,7 +72,7 @@ fn apply_geometric_specular_aa(fragment: &TranslationUnit) -> Option<BufferDepen
     // TODO: Avoid constructing the graph more than once.
     // Extract the glossiness input from the following expression.
     // glossiness = 1.0 - sqrt(clamp((1.0 - glossiness)^2 + kernelRoughness2 0.0, 1.0))
-    let graph = Graph::from_glsl(&fragment);
+    let graph = Graph::from_glsl(fragment);
     let node_index = graph
         .nodes
         .iter()

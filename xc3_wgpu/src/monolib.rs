@@ -21,6 +21,9 @@ pub struct MonolibShaderTextures {
 
     /// `monolib/shader/eyepatch_mask.witex`
     pub eyepatch_mask: Option<wgpu::Texture>,
+
+    /// `monolib/shader/hatching_a_ptnrm.witex`
+    pub hatching_a_ptrnm: Option<wgpu::Texture>,
 }
 
 impl MonolibShaderTextures {
@@ -32,6 +35,7 @@ impl MonolibShaderTextures {
         let eyepatch_nrm = load_mibl(device, queue, path.as_ref(), "eyepatch_nrm.witex");
         let eyepatch_ao = load_mibl(device, queue, path.as_ref(), "eyepatch_ao.witex");
         let eyepatch_mask = load_mibl(device, queue, path.as_ref(), "eyepatch_mask.witex");
+        let hatching_a_ptrnm = load_mibl(device, queue, path.as_ref(), "hatching_a_ptnrm.witex");
 
         Self {
             toon_grad,
@@ -39,12 +43,14 @@ impl MonolibShaderTextures {
             eyepatch_nrm,
             eyepatch_ao,
             eyepatch_mask,
+            hatching_a_ptrnm,
         }
     }
 
     /// Find the texture corresponding to a `sampler_name` like `gTResidentTex44`.
     pub fn global_texture(&self, sampler_name: &str) -> Option<&wgpu::Texture> {
         match sampler_name {
+            "gTResidentTex09" => self.hatching_a_ptrnm.as_ref(),
             "gTResidentTex43" => self.eyepatch_ao.as_ref(),
             "gTResidentTex44" => self.eyepatch_col.as_ref(),
             "gTResidentTex45" => self.eyepatch_mask.as_ref(),

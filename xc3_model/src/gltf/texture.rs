@@ -1,4 +1,6 @@
-use crate::{ChannelAssignment, ImageTexture, IndexMapExt, OutputAssignments};
+use crate::{
+    material::TextureAssignment, ChannelAssignment, ImageTexture, IndexMapExt, OutputAssignments,
+};
 use image_dds::image::{codecs::png::PngEncoder, RgbaImage};
 use indexmap::IndexMap;
 use ordered_float::OrderedFloat;
@@ -391,12 +393,17 @@ fn image_index(
 ) -> Option<ImageIndex> {
     // TODO: scale?
     match assignment? {
-        crate::ChannelAssignment::Texture {
-            name,
-            channel_index,
-            texcoord_name: _,
-            texcoord_scale,
-        } => {
+        crate::ChannelAssignment::Textures(textures) => {
+            // TODO: This won't always work?
+            let TextureAssignment {
+                name,
+                channels,
+                texcoord_scale,
+                ..
+            } = textures.first()?;
+
+            let channel = "xyzw".find(channels.chars().next().unwrap()).unwrap();
+
             let sampler_index = material_texture_index(name)?;
             // Find the sampler from the material.
             // Find the texture referenced by this sampler.
@@ -406,7 +413,7 @@ fn image_index(
                 .map(|t| ImageIndex::Image {
                     image_texture: t.image_texture_index,
                     sampler: t.sampler_index,
-                    channel: *channel_index,
+                    channel,
                     texcoord_scale: texcoord_scale.map(|(u, v)| [u.into(), v.into()]),
                 })
         }
