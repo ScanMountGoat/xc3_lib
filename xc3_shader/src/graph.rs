@@ -315,7 +315,7 @@ pub fn reduce_channels(inner: &str, outer: &str) -> String {
                 inner
                     .chars()
                     .nth(channel_index(c))
-                    .expect(&format!("{inner}.{outer}"))
+                    .unwrap_or_else(|| panic!("{inner}.{outer}"))
             })
             .collect()
     }

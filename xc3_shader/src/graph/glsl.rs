@@ -67,7 +67,7 @@ impl Visitor for AssignmentVisitor {
                             let mut text = String::new();
                             glsl_lang::transpiler::glsl::show_expr(
                                 &mut text,
-                                &lh,
+                                lh,
                                 &mut FormattingState::default(),
                             )
                             .unwrap();
@@ -323,7 +323,7 @@ fn input_expr(
                     let mut text = String::new();
                     glsl_lang::transpiler::glsl::show_expr(
                         &mut text,
-                        &e,
+                        e,
                         &mut FormattingState::default(),
                     )
                     .unwrap();
