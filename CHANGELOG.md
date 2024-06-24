@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## unreleased
+### Added
+* Added rendering support for layered normal maps to xc3_wgpu.
+
+### Changed
+* Optimized the performance for loading the shader database JSON file for xc3_model.
+
 ### Fixed
 * Fixed an issue where some Xenoblade 3 shader database entires assigned normal maps to glossiness.
 * Fixed an issue where some UV scale and material parameter values would be incorrect due to incorrectly applying callbacks.

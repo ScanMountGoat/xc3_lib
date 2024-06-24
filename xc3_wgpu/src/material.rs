@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use glam::{ivec4, uvec4, vec4, IVec4, UVec4, Vec4};
 use indexmap::IndexMap;
 use log::{error, warn};
+use smol_str::SmolStr;
 use xc3_model::{
     ChannelAssignment, ImageTexture, IndexMapExt, OutputAssignment, OutputAssignments,
     TextureAssignment,
@@ -60,7 +61,6 @@ pub fn materials(
     let default_black = create_default_black_texture(device, queue)
         .create_view(&wgpu::TextureViewDescriptor::default());
 
-    // TODO: Does each texture in the material have its own sampler parameters?
     let default_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
         address_mode_u: wgpu::AddressMode::Repeat,
         address_mode_v: wgpu::AddressMode::Repeat,
@@ -73,21 +73,23 @@ pub fn materials(
         .iter()
         .map(|material| {
             let mut name_to_index = IndexMap::new();
+            let mut name_to_scale = IndexMap::new();
 
             let assignments = material.output_assignments(image_textures);
-            let sampler_assignments = sampler_assignments(&assignments, &mut name_to_index);
+            let sampler_assignments =
+                sampler_assignments(&assignments, &mut name_to_index, &mut name_to_scale);
             let attribute_assignments = attribute_assignments(&assignments);
             let output_defaults = output_default_assignments(&assignments);
 
             // Alpha textures might not be used in normal shaders.
             if let Some(a) = &material.alpha_test {
-                name_to_index.entry_index(format!("s{}", a.texture_index));
+                name_to_index.entry_index(format!("s{}", a.texture_index).into());
             }
 
             // It's possible that some material textures had no assignment.
             // Assign remaining textures by index to make GPU debugging easier.
             for i in 0..material.textures.len() {
-                name_to_index.entry_index(format!("s{i}"));
+                name_to_index.entry_index(format!("s{i}").into());
             }
 
             let mut texture_views: [Option<_>; 10] = std::array::from_fn(|_| None);
@@ -110,20 +112,13 @@ pub fn materials(
             // TODO: can a texture be used with more than one scale?
             // TODO: Include this logic with xc3_model?
             let mut texture_scale = [Vec4::ONE; 10];
-            for assignment in &assignments.assignments {
-                if let Some(ChannelAssignment::Textures(textures)) = &assignment.x {
-                    // TODO: Force this to use the same texture assigned above.
-                    if let Some(TextureAssignment {
-                        name,
-                        texcoord_scale: Some((u, v)),
-                        ..
-                    }) = textures.first()
-                    {
-                        // TODO: Don't assume there is a single texcoord attribute.
-                        if let Some(index) = name_to_index.get(name.as_str()) {
-                            texture_scale[*index] = vec4(*u, *v, 1.0, 1.0);
-                        }
-                    }
+
+            // Find the scale parameters for any textures assigned above.
+            // TODO: Don't assume these are all scaled from a single vTex0 input attribute.
+            // TODO: Is there a more efficient way of doing this?
+            for (name, (u, v)) in &name_to_scale {
+                if let Some(index) = name_to_index.get(name.as_str()) {
+                    texture_scale[*index] = vec4(*u, *v, 1.0, 1.0);
                 }
             }
 
@@ -142,10 +137,8 @@ pub fn materials(
                             .alpha_test
                             .as_ref()
                             .map(|a| {
-                                (
-                                    name_to_index[&format!("s{}", a.texture_index)] as i32,
-                                    a.channel_index as i32,
-                                )
+                                let name: SmolStr = format!("s{}", a.texture_index).into();
+                                (name_to_index[&name] as i32, a.channel_index as i32)
                             })
                             .unwrap_or((-1, 3));
                         IVec4::new(texture_index, channel_index, 0, 0)
@@ -232,25 +225,36 @@ pub fn materials(
 // TODO: Test cases for this
 fn sampler_assignments(
     assignments: &OutputAssignments,
-    name_to_index: &mut IndexMap<String, usize>,
+    name_to_index: &mut IndexMap<SmolStr, usize>,
+    name_to_scale: &mut IndexMap<SmolStr, (f32, f32)>,
 ) -> [crate::shader::model::SamplerAssignment; 6] {
     // Each output channel may have a different input sampler and channel.
-    [0, 1, 2, 3, 4, 5].map(|i| sampler_assignment(&assignments.assignments[i], name_to_index))
+    [0, 1, 2, 3, 4, 5]
+        .map(|i| sampler_assignment(&assignments.assignments[i], name_to_index, name_to_scale))
 }
 
 fn sampler_assignment(
     a: &OutputAssignment,
-    name_to_index: &mut IndexMap<String, usize>,
+    name_to_index: &mut IndexMap<SmolStr, usize>,
+    name_to_scale: &mut IndexMap<SmolStr, (f32, f32)>,
 ) -> crate::shader::model::SamplerAssignment {
-    let (s00, c00) = texture_channel(a.x.as_ref(), name_to_index, 'x', false).unwrap_or((-1, 0));
-    let (s10, c10) = texture_channel(a.y.as_ref(), name_to_index, 'y', false).unwrap_or((-1, 1));
-    let (s20, c20) = texture_channel(a.z.as_ref(), name_to_index, 'z', false).unwrap_or((-1, 2));
-    let (s30, c30) = texture_channel(a.w.as_ref(), name_to_index, 'w', false).unwrap_or((-1, 3));
+    let (s00, c00) =
+        texture_channel(a.x.as_ref(), name_to_index, name_to_scale, 'x', false).unwrap_or((-1, 0));
+    let (s10, c10) =
+        texture_channel(a.y.as_ref(), name_to_index, name_to_scale, 'y', false).unwrap_or((-1, 1));
+    let (s20, c20) =
+        texture_channel(a.z.as_ref(), name_to_index, name_to_scale, 'z', false).unwrap_or((-1, 2));
+    let (s30, c30) =
+        texture_channel(a.w.as_ref(), name_to_index, name_to_scale, 'w', false).unwrap_or((-1, 3));
 
-    let (s01, c01) = texture_channel(a.x.as_ref(), name_to_index, 'x', true).unwrap_or((-1, 0));
-    let (s11, c11) = texture_channel(a.y.as_ref(), name_to_index, 'y', true).unwrap_or((-1, 1));
-    let (s21, c21) = texture_channel(a.z.as_ref(), name_to_index, 'z', true).unwrap_or((-1, 2));
-    let (s31, c31) = texture_channel(a.w.as_ref(), name_to_index, 'w', true).unwrap_or((-1, 3));
+    let (s01, c01) =
+        texture_channel(a.x.as_ref(), name_to_index, name_to_scale, 'x', true).unwrap_or((-1, 0));
+    let (s11, c11) =
+        texture_channel(a.y.as_ref(), name_to_index, name_to_scale, 'y', true).unwrap_or((-1, 1));
+    let (s21, c21) =
+        texture_channel(a.z.as_ref(), name_to_index, name_to_scale, 'z', true).unwrap_or((-1, 2));
+    let (s31, c31) =
+        texture_channel(a.w.as_ref(), name_to_index, name_to_scale, 'w', true).unwrap_or((-1, 3));
 
     crate::shader::model::SamplerAssignment {
         sampler_indices: ivec4(s00, s10, s20, s30),
@@ -262,7 +266,8 @@ fn sampler_assignment(
 
 fn texture_channel(
     assignment: Option<&ChannelAssignment>,
-    name_to_index: &mut IndexMap<String, usize>,
+    name_to_index: &mut IndexMap<SmolStr, usize>,
+    name_to_scale: &mut IndexMap<SmolStr, (f32, f32)>,
     channel: char,
     is_second_layer: bool,
 ) -> Option<(i32, u32)> {
@@ -281,10 +286,21 @@ fn texture_channel(
             textures.get(2)
         };
 
-        if let Some(TextureAssignment { name, channels, .. }) = texture {
+        if let Some(TextureAssignment {
+            name,
+            channels,
+            texcoord_scale,
+            ..
+        }) = texture
+        {
+            // TODO: Also store the texcoord name?
+            if let Some(scale) = texcoord_scale {
+                name_to_scale.insert(name.clone(), *scale);
+            }
+
             let channel_index = "xyzw".find(channels.chars().next().unwrap()).unwrap();
             // TODO: Should this ever return -1?
-            let index = name_to_index.entry_index(name.to_string());
+            let index = name_to_index.entry_index(name.clone());
             Some((index as i32, channel_index as u32))
         } else {
             None

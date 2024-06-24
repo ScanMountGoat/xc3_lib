@@ -19,6 +19,7 @@ rayon = "1.8.1"
 log = "0.4.19"
 tracing = "0.1.0"
 indexmap = "2.1.0"
+smol_str = "0.2.2"
 
 [build-dependencies]
 wgsl_to_wgpu = "0.8.0"
