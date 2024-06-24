@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## unreleased
 ### Fixed
 * Fixed an issue where some Xenoblade 3 shader database entires assigned normal maps to glossiness.
+* Fixed an issue where some UV scale and material parameter values would be incorrect due to incorrectly applying callbacks.
 
 ## 0.10.0 - 2024-06-18
 ### Added

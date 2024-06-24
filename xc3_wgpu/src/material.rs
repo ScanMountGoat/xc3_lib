@@ -112,6 +112,7 @@ pub fn materials(
             let mut texture_scale = [Vec4::ONE; 10];
             for assignment in &assignments.assignments {
                 if let Some(ChannelAssignment::Textures(textures)) = &assignment.x {
+                    // TODO: Force this to use the same texture assigned above.
                     if let Some(TextureAssignment {
                         name,
                         texcoord_scale: Some((u, v)),
@@ -119,9 +120,8 @@ pub fn materials(
                     }) = textures.first()
                     {
                         // TODO: Don't assume there is a single texcoord attribute.
-                        // TODO: make a method for index conversions?
-                        if let Some(index) = material_texture_index(name) {
-                            texture_scale[index] = vec4(*u, *v, 1.0, 1.0);
+                        if let Some(index) = name_to_index.get(name.as_str()) {
+                            texture_scale[*index] = vec4(*u, *v, 1.0, 1.0);
                         }
                     }
                 }

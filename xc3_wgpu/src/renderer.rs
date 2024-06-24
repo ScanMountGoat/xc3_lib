@@ -452,7 +452,8 @@ impl Xc3Renderer {
                 ),
                 match output5_type {
                     Output5Type::Specular => {
-                        attachment(&self.textures.gbuffer.spec_color, wgpu::Color::TRANSPARENT)
+                        // Always clear specular since it hasn't been rendered to yet.
+                        color_attachment(&self.textures.gbuffer.spec_color, wgpu::Color::TRANSPARENT)
                     }
                     Output5Type::Emission => {
                         attachment(&self.textures.gbuffer.lgt_color, wgpu::Color::TRANSPARENT)

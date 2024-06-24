@@ -113,9 +113,6 @@ pub fn create_materials(materials: &Materials, spch: Option<&Spch>) -> Vec<Mater
                 })
                 .collect();
 
-            // TODO: Error for invalid parameters?
-            let parameters = assign_parameters(materials, material).unwrap_or_default();
-
             let alpha_test = find_alpha_test_texture(materials, material);
 
             // Assume the work value start indices are in ascending order.
@@ -125,12 +122,17 @@ pub fn create_materials(materials: &Materials, spch: Option<&Spch>) -> Vec<Mater
                 .get(i + 1)
                 .map(|m| m.work_value_start_index as usize)
                 .unwrap_or(materials.work_values.len());
+            let work_values = materials.work_values[work_value_start..work_value_end].to_vec();
 
             let shader_var_start = material.shader_var_start_index as usize;
             let shader_var_end = shader_var_start + material.shader_var_count as usize;
 
             let callback_start = material.callback_start_index as usize;
             let callback_end = callback_start + material.callback_count as usize;
+
+            // TODO: Error for invalid parameters?
+            let parameters =
+                assign_parameters(materials, material, &work_values).unwrap_or_default();
 
             Material {
                 name: material.name.clone(),
@@ -141,7 +143,7 @@ pub fn create_materials(materials: &Materials, spch: Option<&Spch>) -> Vec<Mater
                 alpha_test,
                 alpha_test_ref: material.alpha_test_ref,
                 shader,
-                work_values: materials.work_values[work_value_start..work_value_end].to_vec(),
+                work_values,
                 shader_vars: materials.shader_vars[shader_var_start..shader_var_end].to_vec(),
                 work_callbacks: materials
                     .callbacks
@@ -215,18 +217,35 @@ fn find_alpha_test_texture(
 
 // TODO: Some elements get set by values not in the floats array?
 // TODO: How to test this?
-// TODO: This doesn't work properly for all models?
 fn assign_parameters(
     materials: &Materials,
     material: &xc3_lib::mxmd::Material,
+    work_values: &[f32],
 ) -> Option<MaterialParameters> {
-    let work_values = materials
-        .work_values
-        .get(material.work_value_start_index as usize..)?;
+    let mut work_values = work_values.to_vec();
+
+    // Callbacks are applied directly to the work values.
+    if let Some(callbacks) = &materials.callbacks {
+        let start = material.callback_start_index as usize;
+        if let Some(callbacks) = callbacks
+            .work_callbacks
+            .get(start..start + material.callback_count as usize)
+        {
+            // TODO: What do the remaining callback types do?
+            for callback in callbacks {
+                // (26, i) for dividing work value i value by 255?
+                if callback.0 == 26 {
+                    if let Some(value) = work_values.get_mut(callback.1 as usize) {
+                        *value /= 255.0;
+                    }
+                }
+            }
+        }
+    }
 
     // TODO: alpha test ref?
     let mut parameters = MaterialParameters {
-        mat_color: material.color,
+        mat_color: material.color, // TODO: store with material.
         alpha_test_ref: 0.5,
         tex_matrix: None,
         work_float4: None,
@@ -238,46 +257,19 @@ fn assign_parameters(
             match param.param_type {
                 xc3_lib::mxmd::ParamType::Unk0 => (),
                 xc3_lib::mxmd::ParamType::TexMatrix => {
-                    parameters.tex_matrix = Some(read_param(param, work_values));
+                    parameters.tex_matrix = Some(read_param(param, &work_values));
                 }
                 xc3_lib::mxmd::ParamType::WorkFloat4 => {
-                    parameters.work_float4 = Some(read_param(param, work_values));
+                    parameters.work_float4 = Some(read_param(param, &work_values));
                 }
                 xc3_lib::mxmd::ParamType::WorkColor => {
-                    parameters.work_color = Some(read_param(param, work_values));
+                    parameters.work_color = Some(read_param(param, &work_values));
                 }
                 xc3_lib::mxmd::ParamType::Unk4 => (),
                 xc3_lib::mxmd::ParamType::Unk5 => (),
                 xc3_lib::mxmd::ParamType::Unk6 => (),
                 xc3_lib::mxmd::ParamType::Unk7 => (),
                 xc3_lib::mxmd::ParamType::Unk10 => (),
-            }
-        }
-    }
-
-    // TODO: Apply callbacks directly to the float buffer?
-    if let Some(callbacks) = &materials.callbacks {
-        let start = material.callback_start_index as usize;
-        if let Some(callbacks) = callbacks
-            .work_callbacks
-            .get(start..start + material.callback_count as usize)
-        {
-            for callback in callbacks {
-                // (26, i+4) for dividing workfloat4 value by 255?
-                if callback.0 == 26 {
-                    if let Some(work_float4) = &mut parameters.work_float4 {
-                        // TODO: What is the correct check for this?
-                        if callback.1 >= 4 {
-                            let index = callback.1 as usize - 4;
-                            let vector_index = index / 4;
-                            let component_index = index % 4;
-                            if let Some(vector) = work_float4.get_mut(vector_index) {
-                                // TODO: This interferes with UV scaling for xc2?
-                                vector[component_index] /= 255.0;
-                            }
-                        }
-                    }
-                }
             }
         }
     }
@@ -510,11 +502,11 @@ fn texcoord_scale(
     texture: &TextureDependency,
     parameters: &MaterialParameters,
 ) -> Option<(f32, f32)> {
-    // TODO: check scale value for U and V
-    let texcoord = texture.texcoords.first()?;
-    if let Some([u, v]) = texcoord.params.get(..2) {
-        let scale_u = extract_parameter(u, parameters)?;
-        let scale_v = extract_parameter(v, parameters)?;
+    // Each texcoord component has its own params.
+    // TODO: Also handle matrix multiplication.
+    if let Some([u, v]) = texture.texcoords.get(..2) {
+        let scale_u = extract_parameter(u.params.first()?, parameters)?;
+        let scale_v = extract_parameter(v.params.first()?, parameters)?;
         Some((scale_u, scale_v))
     } else {
         None
