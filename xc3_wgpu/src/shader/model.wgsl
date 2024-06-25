@@ -327,7 +327,7 @@ fn assign_channel(sampler_index: i32, channel_index: u32, attribute_channel_inde
     }
 }
 
-// Adapted from shd00036 GLSL from ch11021013.pcsmt (xc3). 
+// Adapted from xeno3/chr/ch/ch11021013.pcsmt, shd00028, getCalcNormalMap,
 fn apply_normal_map(normal_map: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
     // Normal mapping is a change of basis using the TBN vectors.
     let x = normal_map.x;
@@ -336,7 +336,7 @@ fn apply_normal_map(normal_map: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<f
     return normalize(tangent * x + bitangent * y + normal * z);
 }
 
-// Adapted from shd00028 GLSL from ch11021013.pcsmt (xc3).
+// Adapted from xeno3/chr/ch/ch11021013.pcsmt, shd00028, createNormalMapTex_B5XY.
 fn create_normal_map(col: vec2<f32>) -> vec3<f32> {
     // Remap the tangent space normal map to the correct range.
     // The additional offset determines the "neutral" normal map value.
@@ -349,10 +349,12 @@ fn create_normal_map(col: vec2<f32>) -> vec3<f32> {
     return vec3(x, y, z);
 }
 
-// Adapted from shd00028 GLSL from ch11021013.pcsmt (xc3).
+// Adapted from xeno3/chr/ch/ch11021013.pcsmt, shd00028, getPixelCalcAddNormal,
+// This appears to match "Reoriented Normal Mapping (RNM)" described here:
+// https://blog.selfshadow.com/publications/blending-in-detail/
 fn add_normal_maps(n1: vec3<f32>, n2: vec3<f32>, ratio: f32) -> vec3<f32> {
-    let t = n1.xyz * vec3(1.0, 1.0, 1.0) + vec3(0.0, 0.0, 1.0);
-    let u = n2.xyz * vec3(-1.0);
+    let t = n1.xyz + vec3(0.0, 0.0, 1.0);
+    let u = -n2.xyz;
     let r = t * dot(t, u) - u * t.z;
     return normalize(mix(n1, normalize(r), ratio));
 }
