@@ -208,6 +208,7 @@ impl Graph {
             Expr::And(a, b) => self.binary_to_glsl(a, "&&", b),
             Expr::Negate(a) => self.unary_to_glsl("-", a),
             Expr::Not(a) => self.unary_to_glsl("!", a),
+            Expr::Complement(a) => self.unary_to_glsl("~", a),
             Expr::Ternary(a, b, c) => format!(
                 "{} ? {} : {}",
                 self.expr_to_glsl(a),
@@ -283,7 +284,7 @@ fn input_expr(
                 glsl_lang::ast::UnaryOpData::Add => todo!(),
                 glsl_lang::ast::UnaryOpData::Minus => Expr::Negate(a),
                 glsl_lang::ast::UnaryOpData::Not => Expr::Not(a),
-                glsl_lang::ast::UnaryOpData::Complement => todo!(),
+                glsl_lang::ast::UnaryOpData::Complement => Expr::Complement(a),
             }
         }
         ExprData::Binary(op, lh, rh) => {

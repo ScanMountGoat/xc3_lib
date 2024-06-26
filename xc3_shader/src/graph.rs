@@ -63,6 +63,7 @@ pub enum Expr {
     And(Box<Expr>, Box<Expr>),
     Negate(Box<Expr>),
     Not(Box<Expr>),
+    Complement(Box<Expr>),
     Ternary(Box<Expr>, Box<Expr>, Box<Expr>),
     Func {
         name: String,
@@ -291,6 +292,9 @@ fn add_exprs<'a>(exprs: &mut Vec<&'a Expr>, input: &'a Expr) {
             add_exprs(exprs, a);
         }
         Expr::Not(a) => {
+            add_exprs(exprs, a);
+        }
+        Expr::Complement(a) => {
             add_exprs(exprs, a);
         }
         Expr::Func { args, .. } => {
