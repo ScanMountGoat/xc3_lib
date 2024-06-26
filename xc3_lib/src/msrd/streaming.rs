@@ -315,11 +315,12 @@ impl StreamingData {
             .read_xbc1(data, first_xbc1_offset)
             .map_err(DecompressStreamError::from)?
             .decompress()?;
-        let vertex =
-            VertexData::from_bytes(self.entry_bytes(self.vertex_data_entry_index, &stream0))
-                .map_err(DecompressStreamError::from)?;
-        let spch = Spch::from_bytes(self.entry_bytes(self.shader_entry_index, &stream0))
-            .map_err(DecompressStreamError::from)?;
+
+        let vertex_bytes = self.entry_bytes(self.vertex_data_entry_index, &stream0);
+        let vertex = VertexData::from_bytes(vertex_bytes).map_err(DecompressStreamError::from)?;
+
+        let spch_bytes = self.entry_bytes(self.shader_entry_index, &stream0);
+        let spch = Spch::from_bytes(spch_bytes).map_err(DecompressStreamError::from)?;
 
         // TODO: is this always in the first stream?
         let low_texture_bytes = self.entry_bytes(self.low_textures_entry_index, &stream0);

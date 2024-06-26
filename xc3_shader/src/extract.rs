@@ -8,7 +8,7 @@ use log::error;
 use rayon::prelude::*;
 use xc3_lib::{
     mths::Mths,
-    spch::{vertex_fragment_binaries, Nvsd, Spch},
+    spch::{vertex_fragment_binaries, Nvsd, ShaderBinary, Spch},
 };
 
 // TODO: profile performance using a single thread and check threading with tracing?
@@ -31,7 +31,13 @@ pub fn extract_shaders<P: AsRef<Path>>(
                 .map(|p| p.read_nvsd().unwrap())
                 .collect();
 
-            let binaries = vertex_fragment_binaries(&nvsds, &spch.xv4_section, slct.xv4_offset);
+            let binaries = vertex_fragment_binaries(
+                &nvsds,
+                &spch.xv4_section,
+                slct.xv4_offset,
+                &spch.unk_section,
+                slct.unk_item_offset,
+            );
 
             for (nvsd_index, (vertex, fragment)) in binaries.into_iter().enumerate() {
                 // Each NVSD has separate metadata since the shaders are different.
@@ -87,21 +93,28 @@ pub fn extract_shaders<P: AsRef<Path>>(
 fn process_shader<F>(
     binary_path: PathBuf,
     glsl_path: PathBuf,
-    binary: &[u8],
+    binary: ShaderBinary,
     ryujinx_shader_tools: Option<&str>,
     nvsd: &Nvsd,
     save_binaries: bool,
     annotate: F,
 ) where
-    F: Fn(&str, &Nvsd) -> Result<String, Box<dyn Error>>,
+    F: Fn(&str, &Nvsd, Option<&[[f32; 4]; 16]>) -> Result<String, Box<dyn Error>>,
 {
     // Strip the xv4 headers to work with Ryujinx.ShaderTools.
-    std::fs::write(&binary_path, &binary[48..]).unwrap();
+    std::fs::write(&binary_path, &binary.program_binary[48..]).unwrap();
 
     // Decompile using Ryujinx.ShaderTools.exe.
     // There isn't Rust code for this, so just take an exe path.
     if let Some(shader_tools) = &ryujinx_shader_tools {
-        decompile_glsl_shader(shader_tools, &binary_path, &glsl_path, nvsd, annotate);
+        decompile_glsl_shader(
+            shader_tools,
+            &binary_path,
+            &glsl_path,
+            nvsd,
+            binary.constant_buffer.as_ref(),
+            annotate,
+        );
     }
 
     // We needed to temporarily create binaries for ShaderTools to decompile.
@@ -116,16 +129,17 @@ fn decompile_glsl_shader<F>(
     binary_path: &Path,
     glsl_path: &Path,
     nvsd: &Nvsd,
+    constants: Option<&[[f32; 4]; 16]>,
     annotate: F,
 ) where
-    F: Fn(&str, &Nvsd) -> Result<String, Box<dyn Error>>,
+    F: Fn(&str, &Nvsd, Option<&[[f32; 4]; 16]>) -> Result<String, Box<dyn Error>>,
 {
     let process = extract_shader(shader_tools, binary_path);
 
     // TODO: Check exit code?
     let glsl = String::from_utf8(process.wait_with_output().unwrap().stdout).unwrap();
 
-    match annotate(&glsl, nvsd) {
+    match annotate(&glsl, nvsd, constants) {
         Ok(glsl) => std::fs::write(glsl_path, glsl).unwrap(),
         Err(e) => {
             error!("Error annotating {binary_path:?}: {e}");

@@ -6,7 +6,7 @@
 //! | Xenoblade Chronicles 1 DE | `monolib/shader/*.wishp` |
 //! | Xenoblade Chronicles 2 | `monolib/shader/*.wishp` |
 //! | Xenoblade Chronicles 3 | `monolib/shader/*.wishp` |
-use std::io::{Cursor, SeekFrom};
+use std::io::{Cursor, Read, Seek, SeekFrom};
 
 use crate::{
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_string_ptr32,
@@ -218,11 +218,16 @@ pub struct Nvsd {
     pub unk_item_total_size: u32,
 }
 
-// TODO: add read method to slct?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(BinRead, Debug)]
+#[binread]
+#[derive(Debug)]
+#[br(magic(b"\x34\x12\x76\x98"))]
+#[br(stream = r)]
 pub struct UnkItem {
-    pub unk1: u32,
+    // Subtract the magic size.
+    #[br(temp, try_calc = r.stream_position().map(|p| p - 4))]
+    base_offset: u64,
+
     pub unk2: u32,
     pub unk3: u32,
     pub unk4: u32,
@@ -236,11 +241,20 @@ pub struct UnkItem {
     pub unk9: u32,
     // TODO: more fields?
 
+    // TODO: is this offset stored somewhere?
+    #[br(seek_before = SeekFrom::Start(base_offset + 1776))]
+    pub unk10: u32,
+    pub unk11: u32,
+    pub unk12: u32,
+    pub unk13: u32,
     // TODO: Always 256 bytes in length?
-    // TODO: same as fragment xv4 size?
-    #[br(seek_before = SeekFrom::Start(3968))]
-    pub const_buffer_offset: u32,
-    pub shader_size: u32,
+    /// Offset relative to the start of the shader program binary for the constant buffer.
+    /// This can be assumed to be be 256 bytes of floating point values at the end
+    /// of the fragment shader program binary.
+    pub constant_buffer_offset: u32,
+    pub unk15: u32,
+    pub unk16: u32,
+    pub unk17: u32,
 }
 
 // TODO: Does anything actually point to the nvsd magic?
@@ -372,24 +386,46 @@ impl ShaderProgram {
 
 impl Nvsd {
     // TODO: Add option to strip xv4 header?
-    fn vertex_binary<'a>(&self, offset: usize, xv4_section: &'a [u8]) -> Option<&'a [u8]> {
+    fn read_vertex_binary<'a, R: Read>(&self, reader: &mut R) -> Vec<u8> {
         // TODO: Always use the last item?
-        let shaders = self.nvsd_shaders.last()?;
-        if shaders.vertex_xv4_size > 0 {
-            xv4_section.get(offset..offset + shaders.vertex_xv4_size as usize)
-        } else {
-            None
-        }
+        let shaders = &self.nvsd_shaders.last().unwrap();
+        let mut buffer = vec![0u8; shaders.vertex_xv4_size as usize];
+        reader.read_exact(&mut buffer).unwrap();
+        buffer
     }
 
-    fn fragment_binary<'a>(&self, offset: usize, xv4_section: &'a [u8]) -> Option<&'a [u8]> {
+    fn read_fragment_binary<R: Read>(&self, reader: &mut R) -> Vec<u8> {
         // TODO: Always use the last item?
-        let shaders = &self.nvsd_shaders.last()?;
-        if shaders.fragment_xv4_size > 0 {
-            xv4_section.get(offset..offset + shaders.fragment_xv4_size as usize)
+        let shaders = &self.nvsd_shaders.last().unwrap();
+        let mut buffer = vec![0u8; shaders.fragment_xv4_size as usize];
+        reader.read_exact(&mut buffer).unwrap();
+        buffer
+    }
+
+    fn read_fragment_unk_item<R: Read + Seek>(&self, reader: &mut R) -> Option<UnkItem> {
+        // TODO: Always use the last item?
+        let shaders = &self.nvsd_shaders.last().unwrap();
+
+        let start = reader.stream_position().unwrap();
+
+        reader
+            .seek(SeekFrom::Current(shaders.vertex_unk_item_size as i64))
+            .unwrap();
+
+        let fragment_unk = if shaders.fragment_unk_item_size > 0 {
+            Some(reader.read_le().unwrap())
         } else {
             None
-        }
+        };
+
+        // TODO: Read all data to avoid needing this?
+        reader
+            .seek(SeekFrom::Start(
+                start + shaders.vertex_unk_item_size as u64 + shaders.fragment_unk_item_size as u64,
+            ))
+            .unwrap();
+
+        fragment_unk
     }
 }
 
@@ -424,24 +460,57 @@ impl Nvsp {
     }
 }
 
+pub struct ShaderBinary {
+    pub program_binary: Vec<u8>,
+    pub constant_buffer: Option<[[f32; 4]; 16]>,
+}
+
 /// Extract the vertex and fragment binary for each of the [Nvsd] in `nvsds`.
-pub fn vertex_fragment_binaries<'a>(
+pub fn vertex_fragment_binaries(
     nvsds: &[Nvsd],
-    xv4_section: &'a [u8],
+    xv4_section: &[u8],
     xv4_offset: u32,
-) -> Vec<(Option<&'a [u8]>, Option<&'a [u8]>)> {
+    unk_section: &[u8],
+    unk_offset: u32,
+) -> Vec<(Option<ShaderBinary>, Option<ShaderBinary>)> {
+    let mut xv4 = Cursor::new(xv4_section);
+    xv4.set_position(xv4_offset as u64);
+
+    let mut unk = Cursor::new(unk_section);
+    unk.set_position(unk_offset as u64);
+
     // Each SLCT can have multiple NVSD.
-    // Each NVSD has a vertex and fragment shader.
-    let mut offset = xv4_offset as usize;
     nvsds
         .iter()
         .map(|nvsd| {
-            let vertex = nvsd.vertex_binary(offset, xv4_section);
-            offset += vertex.map(|v| v.len()).unwrap_or_default();
+            // Each NVSD can have a vertex and fragment shader.
+            // TODO: Why is only the last set of shaders used?
+            let vertex = nvsd.read_vertex_binary(&mut xv4);
+            let fragment = nvsd.read_fragment_binary(&mut xv4);
 
-            let fragment = nvsd.fragment_binary(offset, xv4_section);
-            offset += fragment.map(|f| f.len()).unwrap_or_default();
-            (vertex, fragment)
+            // TODO: do vertex shaders ever use constants?
+            let fragment_unk = nvsd.read_fragment_unk_item(&mut unk);
+
+            // Assume each constant buffer is 256 bytes.
+            let fragment_constants = fragment_unk.and_then(|u| {
+                if u.constant_buffer_offset as usize == fragment.len() {
+                    None
+                } else {
+                    let mut reader = Cursor::new(&fragment[u.constant_buffer_offset as usize..]);
+                    Some(<[[f32; 4]; 16]>::read_le(&mut reader).unwrap())
+                }
+            });
+
+            (
+                (!vertex.is_empty()).then_some(ShaderBinary {
+                    program_binary: vertex,
+                    constant_buffer: None,
+                }),
+                (!fragment.is_empty()).then_some(ShaderBinary {
+                    program_binary: fragment,
+                    constant_buffer: fragment_constants,
+                }),
+            )
         })
         .collect()
 }

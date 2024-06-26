@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 * Optimized the performance for loading the shader database JSON file for xc3_model.
+* Adjusted decompiled shader annotation to replace constant buffer parameters with their values.
 
 ### Fixed
 * Fixed an issue where some Xenoblade 3 shader database entires assigned normal maps to glossiness.

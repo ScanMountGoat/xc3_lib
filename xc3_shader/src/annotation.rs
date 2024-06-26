@@ -3,8 +3,8 @@ use std::{collections::HashMap, error::Error};
 use glsl_lang::{
     ast::{
         ArraySpecifier, ArraySpecifierData, ArraySpecifierDimensionData, ArrayedIdentifierData,
-        Block, Expr, ExprData, Identifier, Node, StructFieldSpecifierData, TranslationUnit,
-        TypeSpecifierData, TypeSpecifierNonArrayData,
+        Block, Expr, ExprData, Identifier, IdentifierData, Node, StructFieldSpecifierData,
+        TranslationUnit, TypeSpecifierData, TypeSpecifierNonArrayData,
     },
     parse::DefaultParse,
     transpiler::glsl::{show_translation_unit, FormattingState},
@@ -21,6 +21,7 @@ const VEC4_SIZE: u32 = 16;
 struct Annotator {
     replacements: HashMap<String, String>,
     struct_fields: HashMap<String, Vec<Field>>,
+    constant_values: HashMap<(usize, char), f32>,
 }
 
 struct Field {
@@ -63,7 +64,7 @@ impl VisitorMut for Annotator {
                         // buffer[index].x
                         // TODO: How to handle this case?
                     }
-                    ExprData::Dot(e, _field) => {
+                    ExprData::Dot(e, c) => {
                         if let ExprData::Variable(id) = &e.content {
                             // buffer.field[index].x
                             if let Some(buffer_name) = self.replacements.get(id.as_str()) {
@@ -107,6 +108,24 @@ impl VisitorMut for Annotator {
                         }
                     }
                     _ => (),
+                }
+            }
+        } else if let ExprData::Dot(e1, c) = &mut expr.content {
+            if let ExprData::Bracket(var, specifier) = &mut e1.content {
+                if let ExprData::IntConst(index) = &specifier.content {
+                    if let ExprData::Dot(id, field) = &var.content {
+                        if let ExprData::Variable(id) = &id.content {
+                            // TODO: Don't hard code the constant buffer name and field?
+                            if id.as_str() == "fp_c1" && field.as_str() == "data" {
+                                if let Some(constant) = self.constant_values.get(&(
+                                    (*index).try_into().unwrap(),
+                                    c.as_str().chars().next().unwrap(),
+                                )) {
+                                    *expr = Expr::new(ExprData::FloatConst(*constant), None);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -172,16 +191,33 @@ fn field(field: &Field) -> Node<StructFieldSpecifierData> {
     )
 }
 
-pub fn annotate_fragment(glsl: &str, metadata: &Nvsd) -> Result<String, Box<dyn Error>> {
+pub fn annotate_fragment(
+    glsl: &str,
+    metadata: &Nvsd,
+    constants: Option<&[[f32; 4]; 16]>,
+) -> Result<String, Box<dyn Error>> {
     let mut replacements = HashMap::new();
     let mut struct_fields = HashMap::new();
+    let mut constant_values = HashMap::new();
 
     annotate_samplers(&mut replacements, metadata);
     annotate_buffers(&mut replacements, &mut struct_fields, "fp", metadata);
 
+    // Annotate constants from fp_c1 with tests.
+    // Assume the constant buffer is 256 bytes of float32x4.
+    if let Some(constants) = constants {
+        for i in 0..16 {
+            constant_values.insert((i, 'x'), constants[i][0]);
+            constant_values.insert((i, 'y'), constants[i][1]);
+            constant_values.insert((i, 'z'), constants[i][2]);
+            constant_values.insert((i, 'w'), constants[i][3]);
+        }
+    }
+
     let mut visitor = Annotator {
         replacements,
         struct_fields,
+        constant_values,
     };
 
     let modified_source = shader_source_no_extensions(glsl);
@@ -204,7 +240,11 @@ fn annotate_samplers(replacements: &mut HashMap<String, String>, metadata: &Nvsd
     }
 }
 
-pub fn annotate_vertex(glsl: &str, metadata: &Nvsd) -> Result<String, Box<dyn Error>> {
+pub fn annotate_vertex(
+    glsl: &str,
+    metadata: &Nvsd,
+    _: Option<&[[f32; 4]; 16]>,
+) -> Result<String, Box<dyn Error>> {
     let mut replacements = HashMap::new();
     let mut struct_fields = HashMap::new();
 
@@ -217,6 +257,7 @@ pub fn annotate_vertex(glsl: &str, metadata: &Nvsd) -> Result<String, Box<dyn Er
     let mut visitor = Annotator {
         replacements,
         struct_fields,
+        constant_values: HashMap::new(),
     };
 
     // TODO: Find a better way to skip unsupported extensions.
@@ -730,7 +771,7 @@ mod tests {
                 layout(location = 4) in vec4 vNormal;
                 layout(location = 5) in vec4 vTan;"
             },
-            annotate_vertex(glsl, &metadata).unwrap()
+            annotate_vertex(glsl, &metadata, None).unwrap()
         );
     }
 
@@ -777,6 +818,7 @@ mod tests {
             layout (binding = 6) uniform sampler2D fp_t_tcb_12;
 
             void main() {
+                temp_677 = temp_659 + fp_c1.data[1].x;
                 out_attr0.x = fp_c4.data[2].x;
                 out_attr0.y = fp_c4.data[3].y;
                 out_attr0.z = fp_c4.data[4].z;
@@ -789,6 +831,9 @@ mod tests {
         "};
 
         let metadata = metadata();
+
+        let mut constants = [[0.0; 4]; 16];
+        constants[1][0] = 7.0;
 
         assert_eq!(
             indoc! {"
@@ -837,6 +882,7 @@ mod tests {
                 layout(binding = 5) uniform sampler2D s0;
                 layout(binding = 6) uniform sampler2D gTSpEffNoise1;
                 void main() {
+                    temp_677 = temp_659 + 7.;
                     out_attr0.x = U_Mate.gWrkFl4[0].x;
                     out_attr0.y = U_Mate.gWrkFl4[1].y;
                     out_attr0.z = U_Mate.gWrkFl4[2].z;
@@ -847,7 +893,7 @@ mod tests {
                     out_attr1.w = 0.008235293;
                 }
             "},
-            annotate_fragment(glsl, &metadata).unwrap()
+            annotate_fragment(glsl, &metadata, Some(&constants)).unwrap()
         );
     }
 }
