@@ -354,7 +354,7 @@ fn create_normal_map(col: vec2<f32>) -> vec3<f32> {
 // https://blog.selfshadow.com/publications/blending-in-detail/
 fn add_normal_maps(n1: vec3<f32>, n2: vec3<f32>, ratio: f32) -> vec3<f32> {
     let t = n1.xyz + vec3(0.0, 0.0, 1.0);
-    let u = -n2.xyz;
+    let u = n2.xyz * vec3(-1.0, -1.0, 1.0);
     let r = t * dot(t, u) - u * t.z;
     return normalize(mix(n1, normalize(r), ratio));
 }
