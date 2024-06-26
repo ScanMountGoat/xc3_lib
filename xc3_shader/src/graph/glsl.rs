@@ -206,6 +206,8 @@ impl Graph {
             Expr::GreaterEqual(a, b) => self.binary_to_glsl(a, ">=", b),
             Expr::Or(a, b) => self.binary_to_glsl(a, "||", b),
             Expr::And(a, b) => self.binary_to_glsl(a, "&&", b),
+            Expr::Negate(a) => self.unary_to_glsl("-", a),
+            Expr::Not(a) => self.unary_to_glsl("!", a),
             Expr::Ternary(a, b, c) => format!(
                 "{} ? {} : {}",
                 self.expr_to_glsl(a),
@@ -225,6 +227,10 @@ impl Graph {
                 channel_display(channels)
             ),
         }
+    }
+
+    fn unary_to_glsl(&self, op: &str, a: &Expr) -> String {
+        format!("{op}{}", self.expr_to_glsl(a))
     }
 
     fn binary_to_glsl(&self, a: &Expr, op: &str, b: &Expr) -> String {
@@ -269,8 +275,17 @@ fn input_expr(
         ExprData::BoolConst(b) => Expr::Bool(*b),
         ExprData::FloatConst(f) => Expr::Float(*f),
         ExprData::DoubleConst(_) => todo!(),
-        // TODO: properly support unary ops.
-        ExprData::Unary(_, e) => input_expr(e, last_assignment_index, channels),
+        ExprData::Unary(op, e) => {
+            let a = Box::new(input_expr(e, last_assignment_index, channels));
+            match op.content {
+                glsl_lang::ast::UnaryOpData::Inc => todo!(),
+                glsl_lang::ast::UnaryOpData::Dec => todo!(),
+                glsl_lang::ast::UnaryOpData::Add => todo!(),
+                glsl_lang::ast::UnaryOpData::Minus => Expr::Negate(a),
+                glsl_lang::ast::UnaryOpData::Not => Expr::Not(a),
+                glsl_lang::ast::UnaryOpData::Complement => todo!(),
+            }
+        }
         ExprData::Binary(op, lh, rh) => {
             let a = Box::new(input_expr(lh, last_assignment_index, String::new()));
             let b = Box::new(input_expr(rh, last_assignment_index, String::new()));

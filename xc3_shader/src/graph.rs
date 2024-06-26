@@ -61,6 +61,8 @@ pub enum Expr {
     GreaterEqual(Box<Expr>, Box<Expr>),
     Or(Box<Expr>, Box<Expr>),
     And(Box<Expr>, Box<Expr>),
+    Negate(Box<Expr>),
+    Not(Box<Expr>),
     Ternary(Box<Expr>, Box<Expr>, Box<Expr>),
     Func {
         name: String,
@@ -284,6 +286,12 @@ fn add_exprs<'a>(exprs: &mut Vec<&'a Expr>, input: &'a Expr) {
             add_exprs(exprs, a);
             add_exprs(exprs, b);
             add_exprs(exprs, c);
+        }
+        Expr::Negate(a) => {
+            add_exprs(exprs, a);
+        }
+        Expr::Not(a) => {
+            add_exprs(exprs, a);
         }
         Expr::Func { args, .. } => {
             for arg in args {
