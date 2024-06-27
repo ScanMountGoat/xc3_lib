@@ -9,23 +9,19 @@ use xc3_model::shader_database::{
 use crate::{
     annotation::shader_source_no_extensions,
     graph::{reduce_channels, Expr, Graph},
-    shader_database::{find_attribute_locations, Attributes},
+    shader_database::Attributes,
 };
 
-pub fn input_dependencies(translation_unit: &TranslationUnit, var: &str) -> Vec<Dependency> {
+pub fn input_dependencies(graph: &Graph, attributes: &Attributes, var: &str) -> Vec<Dependency> {
     // Find the most recent assignment for the output variable.
-    let graph = Graph::from_glsl(translation_unit);
-
     let (variable, channels) = var.split_once('.').unwrap_or((var, ""));
     let node = graph
         .nodes
         .iter()
         .rfind(|n| n.output.name == variable && n.output.channels == channels);
 
-    let attributes = find_attribute_locations(translation_unit);
-
     // TODO: Rework this to be cleaner and add more tests.
-    let mut dependencies = texture_dependencies(&graph, &attributes, variable, channels);
+    let mut dependencies = texture_dependencies(graph, attributes, variable, channels);
 
     // Add anything directly assigned to the output variable.
     if let Some(node) = node {
@@ -53,7 +49,7 @@ pub fn input_dependencies(translation_unit: &TranslationUnit, var: &str) -> Vec<
     // TODO: Depth not high enough for complex expressions involving attributes?
     // TODO: Query the graph for known functions instead of hard coding recursion depth.
     dependencies.extend(
-        attribute_dependencies(&graph, variable, channels, &attributes, Some(1))
+        attribute_dependencies(graph, variable, channels, attributes, Some(1))
             .into_iter()
             .map(Dependency::Attribute),
     );
@@ -258,6 +254,7 @@ pub fn buffer_dependency(e: &Expr, final_channels: &str) -> Option<BufferDepende
 mod tests {
     use super::*;
 
+    use crate::shader_database::find_attribute_locations;
     use indoc::indoc;
     use pretty_assertions::assert_eq;
     use xc3_model::shader_database::AttributeDependency;
@@ -393,6 +390,9 @@ mod tests {
         "};
 
         let tu = TranslationUnit::parse(glsl).unwrap();
+        let graph = Graph::from_glsl(&tu);
+        let attributes = find_attribute_locations(&tu);
+
         assert_eq!(
             vec![Dependency::Texture(TextureDependency {
                 name: "texture1".into(),
@@ -410,7 +410,7 @@ mod tests {
                     }
                 ]
             })],
-            input_dependencies(&tu, "b")
+            input_dependencies(&graph, &attributes, "b")
         );
     }
 
@@ -439,6 +439,9 @@ mod tests {
 
         // TODO: Handle the case where multiple attribute components are used?
         let tu = TranslationUnit::parse(glsl).unwrap();
+        let graph = Graph::from_glsl(&tu);
+        let attributes = find_attribute_locations(&tu);
+
         assert_eq!(
             vec![Dependency::Texture(TextureDependency {
                 name: "gTResidentTex05".into(),
@@ -506,7 +509,7 @@ mod tests {
                     }
                 ]
             })],
-            input_dependencies(&tu, "temp_163")
+            input_dependencies(&graph, &attributes, "temp_163")
         );
     }
 
@@ -528,6 +531,9 @@ mod tests {
         "};
 
         let tu = TranslationUnit::parse(glsl).unwrap();
+        let graph = Graph::from_glsl(&tu);
+        let attributes = find_attribute_locations(&tu);
+
         assert_eq!(
             vec![Dependency::Texture(TextureDependency {
                 name: "gTResidentTex04".into(),
@@ -555,7 +561,7 @@ mod tests {
                     }
                 ]
             })],
-            input_dependencies(&tu, "temp_170")
+            input_dependencies(&graph, &attributes, "temp_170")
         );
     }
 
@@ -571,13 +577,16 @@ mod tests {
         "};
 
         let tu = TranslationUnit::parse(glsl).unwrap();
+        let graph = Graph::from_glsl(&tu);
+        let attributes = find_attribute_locations(&tu);
+
         assert_eq!(
             vec![Dependency::Texture(TextureDependency {
                 name: "texture1".into(),
                 channels: "z".into(),
                 texcoords: Vec::new()
             })],
-            input_dependencies(&tu, "b")
+            input_dependencies(&graph, &attributes, "b")
         );
     }
 
@@ -592,6 +601,9 @@ mod tests {
         "};
 
         let tu = TranslationUnit::parse(glsl).unwrap();
+        let graph = Graph::from_glsl(&tu);
+        let attributes = find_attribute_locations(&tu);
+
         assert_eq!(
             vec![
                 Dependency::Texture(TextureDependency {
@@ -605,7 +617,7 @@ mod tests {
                     texcoords: Vec::new()
                 })
             ],
-            input_dependencies(&tu, "b")
+            input_dependencies(&graph, &attributes, "b")
         );
     }
 
@@ -625,13 +637,16 @@ mod tests {
         "};
 
         let tu = TranslationUnit::parse(glsl).unwrap();
+        let graph = Graph::from_glsl(&tu);
+        let attributes = find_attribute_locations(&tu);
+
         assert_eq!(
             vec![Dependency::Texture(TextureDependency {
                 name: "texture1".into(),
                 channels: "x".into(),
                 texcoords: Vec::new()
             })],
-            input_dependencies(&tu, "out_attr1.x")
+            input_dependencies(&graph, &attributes, "out_attr1.x")
         );
         assert_eq!(
             vec![Dependency::Buffer(BufferDependency {
@@ -640,7 +655,7 @@ mod tests {
                 index: 1,
                 channels: "w".into()
             })],
-            input_dependencies(&tu, "out_attr1.y")
+            input_dependencies(&graph, &attributes, "out_attr1.y")
         );
         assert_eq!(
             vec![Dependency::Buffer(BufferDependency {
@@ -649,11 +664,11 @@ mod tests {
                 index: 3,
                 channels: "y".into()
             })],
-            input_dependencies(&tu, "out_attr1.z")
+            input_dependencies(&graph, &attributes, "out_attr1.z")
         );
         assert_eq!(
             vec![Dependency::Constant(1.5.into())],
-            input_dependencies(&tu, "out_attr1.w")
+            input_dependencies(&graph, &attributes, "out_attr1.w")
         );
     }
 

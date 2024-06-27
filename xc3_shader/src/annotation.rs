@@ -3,8 +3,8 @@ use std::{collections::HashMap, error::Error};
 use glsl_lang::{
     ast::{
         ArraySpecifier, ArraySpecifierData, ArraySpecifierDimensionData, ArrayedIdentifierData,
-        Block, Expr, ExprData, Identifier, IdentifierData, Node, StructFieldSpecifierData,
-        TranslationUnit, TypeSpecifierData, TypeSpecifierNonArrayData,
+        Block, Expr, ExprData, Identifier, Node, StructFieldSpecifierData, TranslationUnit,
+        TypeSpecifierData, TypeSpecifierNonArrayData,
     },
     parse::DefaultParse,
     transpiler::glsl::{show_translation_unit, FormattingState},
@@ -206,11 +206,11 @@ pub fn annotate_fragment(
     // Annotate constants from fp_c1 with tests.
     // Assume the constant buffer is 256 bytes of float32x4.
     if let Some(constants) = constants {
-        for i in 0..16 {
-            constant_values.insert((i, 'x'), constants[i][0]);
-            constant_values.insert((i, 'y'), constants[i][1]);
-            constant_values.insert((i, 'z'), constants[i][2]);
-            constant_values.insert((i, 'w'), constants[i][3]);
+        for (i, value) in constants.iter().enumerate() {
+            constant_values.insert((i, 'x'), value[0]);
+            constant_values.insert((i, 'y'), value[1]);
+            constant_values.insert((i, 'z'), value[2]);
+            constant_values.insert((i, 'w'), value[3]);
         }
     }
 

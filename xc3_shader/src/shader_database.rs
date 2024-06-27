@@ -12,7 +12,7 @@ use glsl_lang::{
 use log::error;
 use rayon::prelude::*;
 use xc3_model::shader_database::{
-    BufferDependency, Dependency, Map, Shader, ShaderDatabase, ShaderProgram, Spch,
+    BufferDependency, Dependency, Map, ShaderDatabase, ShaderProgram, Spch,
 };
 
 use crate::{
@@ -26,30 +26,39 @@ use crate::{
     },
 };
 
-fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit) -> Shader {
+fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit) -> ShaderProgram {
+    let frag = &Graph::from_glsl(fragment);
+    let frag_attributes = &find_attribute_locations(fragment);
+
+    let vertex = &vertex.map(|v| (Graph::from_glsl(v), find_attribute_locations(v)));
+
     let output_dependencies = (0..=5)
         .flat_map(|i| {
             "xyzw".chars().map(move |c| {
-                // TODO: Handle cases with multiple operations before assignment?
-                // TODO: Avoid calling dependency functions more than once to improve performance.
-
                 // TODO: Split this?
                 let name = format!("out_attr{i}.{c}");
-                let mut dependencies = input_dependencies(fragment, &name);
+                let mut dependencies = input_dependencies(frag, frag_attributes, &name);
 
-                if let Some(vertex) = vertex {
+                if let Some((vert, vert_attributes)) = vertex {
                     // Add texture parameters used for the corresponding vertex output.
                     // Most shaders apply UV transforms in the vertex shader.
-                    apply_vertex_texcoord_params(vertex, fragment, &mut dependencies);
+                    apply_vertex_texcoord_params(
+                        vert,
+                        vert_attributes,
+                        frag_attributes,
+                        &mut dependencies,
+                    );
 
-                    apply_attribute_names(vertex, fragment, &mut dependencies);
+                    apply_attribute_names(
+                        vert,
+                        vert_attributes,
+                        frag_attributes,
+                        &mut dependencies,
+                    );
                 }
 
-                // TODO: set o1.y to account for specular AA if the graph matches.
-                // We only need the glossiness input for now.
-                // TODO: is specular AA ever used with textures as input?
                 if i == 1 && c == 'y' {
-                    if let Some(param) = apply_geometric_specular_aa(fragment) {
+                    if let Some(param) = apply_geometric_specular_aa(frag) {
                         dependencies = vec![Dependency::Buffer(param)];
                     }
                 }
@@ -62,41 +71,40 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
         .filter(|(_, dependencies)| !dependencies.is_empty())
         .collect();
 
-    Shader {
+    ShaderProgram {
         // IndexMap gives consistent ordering for attribute names.
         output_dependencies,
     }
 }
 
-fn apply_geometric_specular_aa(fragment: &TranslationUnit) -> Option<BufferDependency> {
-    // TODO: Avoid constructing the graph more than once.
+fn apply_geometric_specular_aa(frag: &Graph) -> Option<BufferDependency> {
+    // TODO: is specular AA ever used with textures as input?
     // Extract the glossiness input from the following expression.
     // glossiness = 1.0 - sqrt(clamp((1.0 - glossiness)^2 + kernelRoughness2 0.0, 1.0))
-    let graph = Graph::from_glsl(fragment);
-    let node_index = graph
+    let node_index = frag
         .nodes
         .iter()
         .rposition(|n| n.output.name == "out_attr1" && n.output.channels == "y")?;
-    let nodes: Vec<_> = graph
+    let nodes: Vec<_> = frag
         .node_assignments_recursive(node_index, None)
         .into_iter()
-        .map(|(i, _)| &graph.nodes[i])
+        .map(|(i, _)| &frag.nodes[i])
         .collect();
     // TODO: Define query function or macro?
     let node = match &nodes.last()?.input {
-        Expr::Node { node_index, .. } => graph.nodes.get(*node_index),
+        Expr::Node { node_index, .. } => frag.nodes.get(*node_index),
         _ => None,
     }?;
-    let node = one_minus_x(&graph.nodes, node)?;
-    let node = sqrt_x(&graph.nodes, node)?;
-    let node = clamp_x_zero_one(&graph.nodes, node)?;
+    let node = one_minus_x(&frag.nodes, node)?;
+    let node = sqrt_x(&frag.nodes, node)?;
+    let node = clamp_x_zero_one(&frag.nodes, node)?;
     let node = match &node.input {
         Expr::Func { name, args, .. } => {
             if name == "fma" {
                 match &args[..] {
                     [Expr::Node { node_index: i1, .. }, Expr::Node { node_index: i2, .. }, Expr::Node { .. }] => {
                         if i1 == i2 {
-                            graph.nodes.get(*i1)
+                            frag.nodes.get(*i1)
                         } else {
                             None
                         }
@@ -109,7 +117,7 @@ fn apply_geometric_specular_aa(fragment: &TranslationUnit) -> Option<BufferDepen
         }
         _ => None,
     }?;
-    let node = one_plus_x(&graph.nodes, node)?;
+    let node = one_plus_x(&frag.nodes, node)?;
     // TODO: Will this final node ever not be a parameter?
     // TODO: Add an option to get the expr itself?
     match &node.input {
@@ -121,16 +129,23 @@ fn apply_geometric_specular_aa(fragment: &TranslationUnit) -> Option<BufferDepen
     }
 }
 
+// TODO: Test 1, 2, and 3 layers.
+fn _apply_normal_map_layering() {
+    // want to find mix(n1, normalize(r), ratio)
+    // compiled to (normalize(r) - n1) * ratio + n1
+    // TODO: how specific does this need to be?
+    // d = r (check for normal maps)
+    // c = 0.0 - n1.x
+    // a = fma(d, ???, c)
+    // fma(a, ratio, n1.x)
+}
+
 fn apply_vertex_texcoord_params(
-    vertex: &TranslationUnit,
-    fragment: &TranslationUnit,
+    vertex: &Graph,
+    vertex_attributes: &Attributes,
+    fragment_attributes: &Attributes,
     dependencies: &mut [Dependency],
 ) {
-    let vertex_attributes = find_attribute_locations(vertex);
-    let fragment_attributes = find_attribute_locations(fragment);
-
-    let vertex_graph = Graph::from_glsl(vertex);
-
     for dependency in dependencies {
         if let Dependency::Texture(texture) = dependency {
             for texcoord in &mut texture.texcoords {
@@ -145,11 +160,8 @@ fn apply_vertex_texcoord_params(
                     {
                         // Preserve the channel ordering here.
                         for c in texcoord.channels.chars() {
-                            let vertex_params = find_buffer_parameters(
-                                &vertex_graph,
-                                vertex_output_name,
-                                &c.to_string(),
-                            );
+                            let vertex_params =
+                                find_buffer_parameters(vertex, vertex_output_name, &c.to_string());
                             texcoord.params.extend(vertex_params);
                         }
                         // Remove any duplicates.
@@ -159,10 +171,10 @@ fn apply_vertex_texcoord_params(
                         // Also fix channels since the zw output may just be scaled vTex0.xy.
                         if let Some((actual_name, actual_channels)) =
                             find_texcoord_input_name_channels(
-                                texcoord,
                                 vertex,
+                                texcoord,
                                 vertex_output_name,
-                                &vertex_attributes,
+                                vertex_attributes,
                             )
                         {
                             texcoord.name = actual_name.into();
@@ -177,13 +189,11 @@ fn apply_vertex_texcoord_params(
 
 // TODO: Share code with texcoord function.
 fn apply_attribute_names(
-    vertex: &TranslationUnit,
-    fragment: &TranslationUnit,
+    vertex: &Graph,
+    vertex_attributes: &Attributes,
+    fragment_attributes: &Attributes,
     dependencies: &mut [Dependency],
 ) {
-    let vertex_attributes = find_attribute_locations(vertex);
-    let fragment_attributes = find_attribute_locations(fragment);
-
     for dependency in dependencies {
         if let Dependency::Attribute(attribute) = dependency {
             // Convert a fragment input like "in_attr4" to its vertex output like "vTex0".
@@ -196,12 +206,11 @@ fn apply_attribute_names(
                     .get_by_right(fragment_location)
                 {
                     for c in attribute.channels.chars() {
-                        let graph = Graph::from_glsl(vertex);
                         if let Some(input_attribute) = attribute_dependencies(
-                            &graph,
+                            vertex,
                             vertex_output_name,
                             &c.to_string(),
-                            &vertex_attributes,
+                            vertex_attributes,
                             None,
                         )
                         .first()
@@ -216,17 +225,16 @@ fn apply_attribute_names(
 }
 
 fn find_texcoord_input_name_channels(
+    vertex: &Graph,
     texcoord: &xc3_model::shader_database::TexCoord,
-    vertex: &TranslationUnit,
     vertex_output_name: &str,
     vertex_attributes: &Attributes,
 ) -> Option<(String, String)> {
     // We only need to look up one output per texcoord.
     let c = texcoord.channels.chars().next()?;
 
-    let graph = Graph::from_glsl(vertex);
     attribute_dependencies(
-        &graph,
+        vertex,
         vertex_output_name,
         &c.to_string(),
         vertex_attributes,
@@ -338,9 +346,7 @@ fn create_shader_programs(folder: &Path) -> Vec<ShaderProgram> {
             let frag_source = std::fs::read_to_string(path).unwrap();
             let frag_source = shader_source_no_extensions(&frag_source);
             match TranslationUnit::parse(frag_source) {
-                Ok(fragment) => Some(ShaderProgram {
-                    shaders: vec![shader_from_glsl(vertex.as_ref(), &fragment)],
-                }),
+                Ok(fragment) => Some(shader_from_glsl(vertex.as_ref(), &fragment)),
                 Err(e) => {
                     error!("Error parsing {path:?}: {e}");
                     None
@@ -572,7 +578,7 @@ mod tests {
 
         let shader = shader_from_glsl(Some(&vertex), &fragment);
         assert_eq!(
-            Shader {
+            ShaderProgram {
                 output_dependencies: [
                     (
                         "o1.x".into(),
@@ -870,7 +876,7 @@ mod tests {
         let fragment = TranslationUnit::parse(glsl).unwrap();
         let shader = shader_from_glsl(None, &fragment);
         assert_eq!(
-            Shader {
+            ShaderProgram {
                 output_dependencies: [(
                     "o1.y".into(),
                     vec![Dependency::Buffer(BufferDependency {

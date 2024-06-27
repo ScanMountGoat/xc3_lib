@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 
 use super::{
-    AttributeDependency, BufferDependency, Dependency, Map, Shader, ShaderDatabase, ShaderProgram,
-    Spch, TexCoord, TextureDependency,
+    AttributeDependency, BufferDependency, Dependency, Map, ShaderDatabase, ShaderProgram, Spch,
+    TexCoord, TextureDependency,
 };
 
 // Create a separate smaller representation for on disk.
@@ -36,18 +36,12 @@ struct SpchIndexed {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(transparent)]
 struct ShaderProgramIndexed {
-    shaders: Vec<ShaderIndexed>,
-}
-
-// TODO: How to reduce size of buffer parameters for texture coordinates?
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(transparent)]
-struct ShaderIndexed {
     // There are very few unique dependencies across all shaders in a game dump.
     // Normalize the data to greatly reduce the size of the JSON representation.
     output_dependencies: IndexMap<usize, Vec<usize>>,
 }
 
+// TODO: Also index texture and texcoord names?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 enum DependencyIndexed {
@@ -64,6 +58,7 @@ struct TexCoordIndexed(SmolStr, SmolStr, Vec<usize>);
 // Take the disk representation by value to reduce clones.
 impl From<ShaderDatabaseIndexed> for ShaderDatabase {
     fn from(value: ShaderDatabaseIndexed) -> Self {
+        dbg!(value.dependencies.len(), value.buffer_dependencies.len());
         let dependencies: Vec<_> = value
             .dependencies
             .into_iter()
@@ -223,25 +218,19 @@ fn spch_indexed(
             .programs
             .iter()
             .map(|p| ShaderProgramIndexed {
-                shaders: p
-                    .shaders
+                output_dependencies: p
+                    .output_dependencies
                     .iter()
-                    .map(|s| ShaderIndexed {
-                        output_dependencies: s
-                            .output_dependencies
-                            .iter()
-                            .map(|(output, dependencies)| {
-                                // This works since the map preserves insertion order.
-                                let output_index = output_to_index.entry_index(output.clone());
-                                (
-                                    output_index,
-                                    dependencies
-                                        .iter()
-                                        .map(|d| dependency_to_index.entry_index(d.clone()))
-                                        .collect(),
-                                )
-                            })
-                            .collect(),
+                    .map(|(output, dependencies)| {
+                        // This works since the map preserves insertion order.
+                        let output_index = output_to_index.entry_index(output.clone());
+                        (
+                            output_index,
+                            dependencies
+                                .iter()
+                                .map(|d| dependency_to_index.entry_index(d.clone()))
+                                .collect(),
+                        )
                     })
                     .collect(),
             })
@@ -255,23 +244,17 @@ fn spch_from_indexed(spch: SpchIndexed, dependencies: &[Dependency], outputs: &[
             .programs
             .into_iter()
             .map(|p| ShaderProgram {
-                shaders: p
-                    .shaders
+                output_dependencies: p
+                    .output_dependencies
                     .into_iter()
-                    .map(|s| Shader {
-                        output_dependencies: s
-                            .output_dependencies
-                            .into_iter()
-                            .map(|(output, output_dependencies)| {
-                                (
-                                    outputs[output].clone(),
-                                    output_dependencies
-                                        .into_iter()
-                                        .map(|d| dependencies[d].clone())
-                                        .collect(),
-                                )
-                            })
-                            .collect(),
+                    .map(|(output, output_dependencies)| {
+                        (
+                            outputs[output].clone(),
+                            output_dependencies
+                                .into_iter()
+                                .map(|d| dependencies[d].clone())
+                                .collect(),
+                        )
                     })
                     .collect(),
             })

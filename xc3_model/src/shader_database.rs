@@ -90,32 +90,21 @@ pub struct Spch {
     pub programs: Vec<ShaderProgram>,
 }
 
-/// A collection of shaders.
+// TODO: Document how to try sampler, constant, parameter in order.
+/// A single shader program with a vertex and fragment shader.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct ShaderProgram {
-    /// Some shaders have multiple NVSD sections, so the length may be greater than 1.
-    pub shaders: Vec<Shader>,
-}
-
-// TODO: Document how to try sampler, constant, parameter in order.
-/// The buffer elements, textures, and constants used to initialize each fragment output.
-///
-/// This assumes inputs are assigned directly to outputs without any modifications.
-/// Fragment shaders typically only perform basic input and channel selection in practice.
-///
-/// This assignment information is needed to accurately recreate the G-Buffer texture values.
-/// Renderers can generate unique shaders for each model
-/// or select inputs in a shared shader at render time like xc3_wgpu.
-/// Node based editors like Blender's shader editor should use these values
-/// to determine how to construct node groups.
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, PartialEq, Clone)]
-pub struct Shader {
-    /// A list of input dependencies like "s0.xyz" assigned to each output like "out_attr0.x".
+    /// The input values used to initialize each fragment output.
     ///
     /// Each dependency can be thought of as a link
     /// between the dependency node and group output in a shader node graph.
+    ///
+    /// This assignment information is needed to accurately recreate the G-Buffer texture values.
+    /// Renderers can generate unique shaders for each model
+    /// or select inputs in a shared shader at render time like xc3_wgpu.
+    /// Node based editors like Blender's shader editor should use these values
+    /// to determine how to construct node groups.
     pub output_dependencies: IndexMap<SmolStr, Vec<Dependency>>,
 }
 
@@ -168,7 +157,7 @@ pub struct AttributeDependency {
     pub channels: SmolStr,
 }
 
-impl Shader {
+impl ShaderProgram {
     /// Returns the textures assigned to the output or `None` if the output does not use any texture.
     ///
     /// This currently uses a heuristic where textures like "s0" are returned before "s4" or "gTResidentTex05"
@@ -272,7 +261,7 @@ mod tests {
 
     #[test]
     fn material_channel_assignment_empty() {
-        let shader = Shader {
+        let shader = ShaderProgram {
             output_dependencies: IndexMap::new(),
         };
         assert!(shader.textures(0, 'x').is_empty());
@@ -280,7 +269,7 @@ mod tests {
 
     #[test]
     fn material_channel_assignment_single_output_no_assignment() {
-        let shader = Shader {
+        let shader = ShaderProgram {
             output_dependencies: [("o0.x".into(), Vec::new())].into(),
         };
         assert!(shader.textures(0, 'x').is_empty());
@@ -288,7 +277,7 @@ mod tests {
 
     #[test]
     fn material_channel_assignment_multiple_output_assignment() {
-        let shader = Shader {
+        let shader = ShaderProgram {
             output_dependencies: [
                 (
                     "o0.x".into(),
@@ -343,7 +332,7 @@ mod tests {
 
     #[test]
     fn float_constant_multiple_assigments() {
-        let shader = Shader {
+        let shader = ShaderProgram {
             output_dependencies: [
                 (
                     "o0.x".into(),
@@ -378,7 +367,7 @@ mod tests {
 
     #[test]
     fn buffer_parameter_multiple_assigments() {
-        let shader = Shader {
+        let shader = ShaderProgram {
             output_dependencies: [
                 (
                     "o0.x".into(),

@@ -6,7 +6,7 @@ use xc3_lib::mxmd::{
 };
 
 use crate::{
-    shader_database::{BufferDependency, Shader, Spch, TextureDependency},
+    shader_database::{BufferDependency, ShaderProgram, Spch, TextureDependency},
     ImageTexture,
 };
 
@@ -38,7 +38,7 @@ pub struct Material {
     /// Precomputed metadata from the decompiled shader source
     /// used to assign G-Buffer outputs
     /// or [None] if the database does not contain this model.
-    pub shader: Option<Shader>,
+    pub shader: Option<ShaderProgram>,
 
     // material technique
     pub technique_index: usize,
@@ -172,10 +172,9 @@ pub fn create_materials(materials: &Materials, spch: Option<&Spch>) -> Vec<Mater
         .collect()
 }
 
-fn get_shader(material: &xc3_lib::mxmd::Material, spch: Option<&Spch>) -> Option<Shader> {
-    // TODO: How to choose between the two fragment shaders?
+fn get_shader(material: &xc3_lib::mxmd::Material, spch: Option<&Spch>) -> Option<ShaderProgram> {
     let program_index = material.techniques.first()?.technique_index as usize;
-    spch?.programs.get(program_index)?.shaders.first().cloned()
+    spch?.programs.get(program_index).cloned()
 }
 
 fn get_technique<'a>(
@@ -430,14 +429,17 @@ impl Material {
     }
 }
 
-fn output_assignments(shader: &Shader, parameters: &MaterialParameters) -> OutputAssignments {
+fn output_assignments(
+    shader: &ShaderProgram,
+    parameters: &MaterialParameters,
+) -> OutputAssignments {
     OutputAssignments {
         assignments: [0, 1, 2, 3, 4, 5].map(|i| output_assignment(shader, parameters, i)),
     }
 }
 
 fn output_assignment(
-    shader: &Shader,
+    shader: &ShaderProgram,
     parameters: &MaterialParameters,
     output_index: usize,
 ) -> OutputAssignment {
@@ -450,7 +452,7 @@ fn output_assignment(
 }
 
 fn channel_assignment(
-    shader: &Shader,
+    shader: &ShaderProgram,
     parameters: &MaterialParameters,
     output_index: usize,
     channel_index: usize,
@@ -515,7 +517,7 @@ fn texcoord_scale(
 
 // TODO: Tests for this?
 fn param_or_const(
-    shader: &Shader,
+    shader: &ShaderProgram,
     parameters: &MaterialParameters,
     i: usize,
     c: usize,
