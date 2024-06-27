@@ -12,7 +12,7 @@ use glsl_lang::{
 use log::error;
 use rayon::prelude::*;
 use xc3_model::shader_database::{
-    BufferDependency, Dependency, Map, ShaderDatabase, ShaderProgram, Spch,
+    BufferDependency, Dependency, MapPrograms, ModelPrograms, ShaderDatabase, ShaderProgram,
 };
 
 use crate::{
@@ -261,7 +261,7 @@ pub fn create_shader_database(input: &str) -> ShaderDatabase {
                 let programs = create_shader_programs(folder);
 
                 let file = folder.file_name().unwrap().to_string_lossy().to_string();
-                Some((file.into(), Spch { programs }))
+                Some((file.into(), ModelPrograms { programs }))
             } else {
                 None
             }
@@ -280,7 +280,7 @@ pub fn create_shader_database(input: &str) -> ShaderDatabase {
                 let file = folder.file_name().unwrap().to_string_lossy().to_string();
                 Some((
                     file.into(),
-                    Map {
+                    MapPrograms {
                         map_models,
                         prop_models,
                         env_models,
@@ -295,7 +295,7 @@ pub fn create_shader_database(input: &str) -> ShaderDatabase {
     ShaderDatabase { files, map_files }
 }
 
-fn create_map_spchs(folder: &Path) -> Vec<Spch> {
+fn create_map_spchs(folder: &Path) -> Vec<ModelPrograms> {
     // TODO: Not all maps have env or prop models?
     if let Ok(dir) = std::fs::read_dir(folder) {
         // Folders are generated like "ma01a/prop/4".
@@ -305,7 +305,7 @@ fn create_map_spchs(folder: &Path) -> Vec<Spch> {
 
         paths
             .into_iter()
-            .map(|path| Spch {
+            .map(|path| ModelPrograms {
                 programs: create_shader_programs(&path),
             })
             .collect()

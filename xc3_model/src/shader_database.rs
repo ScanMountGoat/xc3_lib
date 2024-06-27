@@ -37,13 +37,14 @@ pub enum SaveShaderDatabaseError {
     Json(#[from] serde_json::Error),
 }
 
+// TODO: Wrap the io type and just expose get_map and get_model?
 /// Metadata for the assigned [Shader] for all models and maps in a game dump.
 #[derive(Debug, PartialEq, Clone)]
 pub struct ShaderDatabase {
     /// The `.wimdo` file name without the extension and shader data for each file.
-    pub files: IndexMap<SmolStr, Spch>,
+    pub files: IndexMap<SmolStr, ModelPrograms>,
     /// The `.wismhd` file name without the extension and shader data for each map.
-    pub map_files: IndexMap<SmolStr, Map>,
+    pub map_files: IndexMap<SmolStr, MapPrograms>,
 }
 
 impl ShaderDatabase {
@@ -77,16 +78,16 @@ impl ShaderDatabase {
 
 /// Shaders for the different map model types.
 #[derive(Debug, PartialEq, Clone)]
-pub struct Map {
-    pub map_models: Vec<Spch>,
-    pub prop_models: Vec<Spch>,
-    pub env_models: Vec<Spch>,
+pub struct MapPrograms {
+    pub map_models: Vec<ModelPrograms>,
+    pub prop_models: Vec<ModelPrograms>,
+    pub env_models: Vec<ModelPrograms>,
 }
 
 /// The decompiled shader data for a single shader container file.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
-pub struct Spch {
+pub struct ModelPrograms {
     pub programs: Vec<ShaderProgram>,
 }
 

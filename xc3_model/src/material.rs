@@ -6,7 +6,7 @@ use xc3_lib::mxmd::{
 };
 
 use crate::{
-    shader_database::{BufferDependency, ShaderProgram, Spch, TextureDependency},
+    shader_database::{BufferDependency, ModelPrograms, ShaderProgram, TextureDependency},
     ImageTexture,
 };
 
@@ -96,13 +96,16 @@ pub struct Texture {
     pub sampler_index: usize,
 }
 
-pub fn create_materials(materials: &Materials, spch: Option<&Spch>) -> Vec<Material> {
+pub fn create_materials(
+    materials: &Materials,
+    model_programs: Option<&ModelPrograms>,
+) -> Vec<Material> {
     materials
         .materials
         .iter()
         .enumerate()
         .map(|(i, material)| {
-            let shader = get_shader(material, spch);
+            let shader = get_shader(material, model_programs);
 
             let textures = material
                 .textures
@@ -172,9 +175,12 @@ pub fn create_materials(materials: &Materials, spch: Option<&Spch>) -> Vec<Mater
         .collect()
 }
 
-fn get_shader(material: &xc3_lib::mxmd::Material, spch: Option<&Spch>) -> Option<ShaderProgram> {
+fn get_shader(
+    material: &xc3_lib::mxmd::Material,
+    model_programs: Option<&ModelPrograms>,
+) -> Option<ShaderProgram> {
     let program_index = material.techniques.first()?.technique_index as usize;
-    spch?.programs.get(program_index).cloned()
+    model_programs?.programs.get(program_index).cloned()
 }
 
 fn get_technique<'a>(

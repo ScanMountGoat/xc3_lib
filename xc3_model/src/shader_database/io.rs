@@ -5,14 +5,14 @@ use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 
 use super::{
-    AttributeDependency, BufferDependency, Dependency, Map, ShaderDatabase, ShaderProgram, Spch,
-    TexCoord, TextureDependency,
+    AttributeDependency, BufferDependency, Dependency, MapPrograms, ModelPrograms, ShaderDatabase,
+    ShaderProgram, TexCoord, TextureDependency,
 };
 
 // Create a separate smaller representation for on disk.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ShaderDatabaseIndexed {
-    files: IndexMap<SmolStr, SpchIndexed>,
+    files: IndexMap<SmolStr, ModelIndexed>,
     map_files: IndexMap<SmolStr, MapIndexed>,
     dependencies: Vec<DependencyIndexed>,
     buffer_dependencies: Vec<BufferDependency>,
@@ -21,15 +21,15 @@ pub struct ShaderDatabaseIndexed {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct MapIndexed {
-    map_models: Vec<SpchIndexed>,
-    prop_models: Vec<SpchIndexed>,
-    env_models: Vec<SpchIndexed>,
+    map_models: Vec<ModelIndexed>,
+    prop_models: Vec<ModelIndexed>,
+    env_models: Vec<ModelIndexed>,
 }
 
 // TODO: rename to ShaderPrograms.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(transparent)]
-struct SpchIndexed {
+struct ModelIndexed {
     programs: Vec<ShaderProgramIndexed>,
 }
 
@@ -94,7 +94,7 @@ impl From<ShaderDatabaseIndexed> for ShaderDatabase {
             files: value
                 .files
                 .into_iter()
-                .map(|(n, s)| (n, spch_from_indexed(s, &dependencies, &value.outputs)))
+                .map(|(n, s)| (n, model_from_indexed(s, &dependencies, &value.outputs)))
                 .collect(),
             map_files: value
                 .map_files
@@ -102,21 +102,21 @@ impl From<ShaderDatabaseIndexed> for ShaderDatabase {
                 .map(|(n, m)| {
                     (
                         n,
-                        Map {
+                        MapPrograms {
                             map_models: m
                                 .map_models
                                 .into_iter()
-                                .map(|s| spch_from_indexed(s, &dependencies, &value.outputs))
+                                .map(|s| model_from_indexed(s, &dependencies, &value.outputs))
                                 .collect(),
                             prop_models: m
                                 .prop_models
                                 .into_iter()
-                                .map(|s| spch_from_indexed(s, &dependencies, &value.outputs))
+                                .map(|s| model_from_indexed(s, &dependencies, &value.outputs))
                                 .collect(),
                             env_models: m
                                 .env_models
                                 .into_iter()
-                                .map(|s| spch_from_indexed(s, &dependencies, &value.outputs))
+                                .map(|s| model_from_indexed(s, &dependencies, &value.outputs))
                                 .collect(),
                         },
                     )
@@ -139,7 +139,7 @@ impl From<&ShaderDatabase> for ShaderDatabaseIndexed {
                 .map(|(n, s)| {
                     (
                         n.clone(),
-                        spch_indexed(s, &mut dependency_to_index, &mut output_to_index),
+                        model_indexed(s, &mut dependency_to_index, &mut output_to_index),
                     )
                 })
                 .collect(),
@@ -154,21 +154,21 @@ impl From<&ShaderDatabase> for ShaderDatabaseIndexed {
                                 .map_models
                                 .iter()
                                 .map(|s| {
-                                    spch_indexed(s, &mut dependency_to_index, &mut output_to_index)
+                                    model_indexed(s, &mut dependency_to_index, &mut output_to_index)
                                 })
                                 .collect(),
                             prop_models: m
                                 .prop_models
                                 .iter()
                                 .map(|s| {
-                                    spch_indexed(s, &mut dependency_to_index, &mut output_to_index)
+                                    model_indexed(s, &mut dependency_to_index, &mut output_to_index)
                                 })
                                 .collect(),
                             env_models: m
                                 .env_models
                                 .iter()
                                 .map(|s| {
-                                    spch_indexed(s, &mut dependency_to_index, &mut output_to_index)
+                                    model_indexed(s, &mut dependency_to_index, &mut output_to_index)
                                 })
                                 .collect(),
                         },
@@ -208,13 +208,13 @@ impl From<&ShaderDatabase> for ShaderDatabaseIndexed {
     }
 }
 
-fn spch_indexed(
-    spch: &Spch,
+fn model_indexed(
+    model: &ModelPrograms,
     dependency_to_index: &mut IndexMap<Dependency, usize>,
     output_to_index: &mut IndexMap<SmolStr, usize>,
-) -> SpchIndexed {
-    SpchIndexed {
-        programs: spch
+) -> ModelIndexed {
+    ModelIndexed {
+        programs: model
             .programs
             .iter()
             .map(|p| ShaderProgramIndexed {
@@ -238,9 +238,13 @@ fn spch_indexed(
     }
 }
 
-fn spch_from_indexed(spch: SpchIndexed, dependencies: &[Dependency], outputs: &[SmolStr]) -> Spch {
-    Spch {
-        programs: spch
+fn model_from_indexed(
+    model: ModelIndexed,
+    dependencies: &[Dependency],
+    outputs: &[SmolStr],
+) -> ModelPrograms {
+    ModelPrograms {
+        programs: model
             .programs
             .into_iter()
             .map(|p| ShaderProgram {

@@ -8,7 +8,7 @@ struct Input {
     chr: Option<xc3_lib::sar1::Sar1>,
     vertex: xc3_lib::vertex::VertexData,
     textures: xc3_model::ExtractedTextures,
-    spch: Option<xc3_model::shader_database::Spch>,
+    model_programs: Option<xc3_model::shader_database::ModelPrograms>,
 }
 
 fuzz_target!(|input: Input| {
@@ -20,6 +20,6 @@ fuzz_target!(|input: Input| {
         &input.mxmd,
         input.chr,
         &streaming_data,
-        input.spch.as_ref(),
+        model_programs.spch.as_ref(),
     );
 });

@@ -232,7 +232,7 @@ impl Models {
     pub fn from_models(
         models: &xc3_lib::mxmd::Models,
         materials: &xc3_lib::mxmd::Materials,
-        spch: Option<&shader_database::Spch>,
+        model_programs: Option<&shader_database::ModelPrograms>,
     ) -> Self {
         Self {
             models: models
@@ -242,7 +242,7 @@ impl Models {
                     Model::from_model(model, vec![Mat4::IDENTITY], 0, models.alpha_table.as_ref())
                 })
                 .collect(),
-            materials: create_materials(materials, spch),
+            materials: create_materials(materials, model_programs),
             samplers: create_samplers(materials),
             lod_data: models.lod_data.as_ref().map(lod_data),
             morph_controller_names: models
@@ -619,7 +619,7 @@ impl ModelRoot {
         mxmd: &Mxmd,
         chr: Option<Sar1>,
         streaming_data: &StreamingData<'_>,
-        spch: Option<&shader_database::Spch>,
+        model_programs: Option<&shader_database::ModelPrograms>,
     ) -> Result<Self, LoadModelError> {
         if mxmd.models.skinning.is_some() && chr.is_none() {
             error!("Failed to load .arc or .chr skeleton for model with vertex skinning.");
@@ -633,7 +633,7 @@ impl ModelRoot {
             ModelBuffers::from_vertex_data(&streaming_data.vertex, mxmd.models.skinning.as_ref())
                 .map_err(LoadModelError::VertexData)?;
 
-        let models = Models::from_models(&mxmd.models, &mxmd.materials, spch);
+        let models = Models::from_models(&mxmd.models, &mxmd.materials, model_programs);
 
         let image_textures = load_textures(&streaming_data.textures)?;
 
