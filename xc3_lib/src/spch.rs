@@ -386,7 +386,7 @@ impl ShaderProgram {
 
 impl Nvsd {
     // TODO: Add option to strip xv4 header?
-    fn read_vertex_binary<'a, R: Read>(&self, reader: &mut R) -> Vec<u8> {
+    fn read_vertex_binary<R: Read>(&self, reader: &mut R) -> Vec<u8> {
         // TODO: Always use the last item?
         let shaders = &self.nvsd_shaders.last().unwrap();
         let mut buffer = vec![0u8; shaders.vertex_xv4_size as usize];
@@ -402,30 +402,26 @@ impl Nvsd {
         buffer
     }
 
-    fn read_fragment_unk_item<R: Read + Seek>(&self, reader: &mut R) -> Option<UnkItem> {
+    fn read_fragment_unk_item<R: Read + Seek>(&self, reader: &mut R) -> BinResult<Option<UnkItem>> {
         // TODO: Always use the last item?
         let shaders = &self.nvsd_shaders.last().unwrap();
 
-        let start = reader.stream_position().unwrap();
+        let start = reader.stream_position()?;
 
-        reader
-            .seek(SeekFrom::Current(shaders.vertex_unk_item_size as i64))
-            .unwrap();
+        reader.seek(SeekFrom::Current(shaders.vertex_unk_item_size as i64))?;
 
         let fragment_unk = if shaders.fragment_unk_item_size > 0 {
-            Some(reader.read_le().unwrap())
+            Some(reader.read_le()?)
         } else {
             None
         };
 
         // TODO: Read all data to avoid needing this?
-        reader
-            .seek(SeekFrom::Start(
-                start + shaders.vertex_unk_item_size as u64 + shaders.fragment_unk_item_size as u64,
-            ))
-            .unwrap();
+        reader.seek(SeekFrom::Start(
+            start + shaders.vertex_unk_item_size as u64 + shaders.fragment_unk_item_size as u64,
+        ))?;
 
-        fragment_unk
+        Ok(fragment_unk)
     }
 }
 
@@ -488,8 +484,9 @@ pub fn vertex_fragment_binaries(
             let vertex = nvsd.read_vertex_binary(&mut xv4);
             let fragment = nvsd.read_fragment_binary(&mut xv4);
 
+            // TODO: Avoid unwrap.
             // TODO: do vertex shaders ever use constants?
-            let fragment_unk = nvsd.read_fragment_unk_item(&mut unk);
+            let fragment_unk = nvsd.read_fragment_unk_item(&mut unk).ok().flatten();
 
             // Assume each constant buffer is 256 bytes.
             let fragment_constants = fragment_unk.and_then(|u| {
