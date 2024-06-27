@@ -37,7 +37,7 @@ pub enum SaveShaderDatabaseError {
     Json(#[from] serde_json::Error),
 }
 
-/// Metadata for the assigned [Shader] for all models and maps in a game dump.
+/// Metadata for the assigned shaders for all models and maps in a game dump.
 #[derive(Debug, PartialEq, Clone)]
 pub struct ShaderDatabase(io::ShaderDatabaseIndexed);
 
