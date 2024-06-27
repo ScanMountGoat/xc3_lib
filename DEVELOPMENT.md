@@ -41,7 +41,7 @@ Some projects have [tracing](https://github.com/tokio-rs/tracing) support for pr
 
 ## GPU Debugging
 [RenderDoc](https://renderdoc.org/) is a powerful GPU debugging tool. 
-RenderDoc can be used to debug rendering and graphics API usage issues not only in projects like xc3_wgpu and xc3_viewer but even the game itself running under an emulator like Ryujinx. 
+RenderDoc can be used to debug rendering and graphics API usage issues not only in projects like xc3_wgpu and xc3_viewer but even the game itself running under an emulator like Ryujinx. RenderDoc may not always connect properly to Ryujinx. Compiling Ryujinx.Gtk3 from source and using the Vulkan API tends to be more reliable at least on Windows.
 This is especially helpful when identifying why the output of xc3_wgpu does not match up with in game by comparing the same model or scene in RenderDoc in the application and in game. Make sure to compile xc3_viewer in debug mode to enable labels for GPU resources like textures or render passes in RenderDoc.
 
 ## GPU Profiling
