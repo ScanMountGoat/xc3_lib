@@ -5,12 +5,12 @@ use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 
 use super::{
-    AttributeDependency, BufferDependency, Dependency, MapPrograms, ModelPrograms, ShaderDatabase,
-    ShaderProgram, TexCoord, TextureDependency,
+    AttributeDependency, BufferDependency, Dependency, MapPrograms, ModelPrograms, ShaderProgram,
+    TexCoord, TextureDependency,
 };
 
 // Create a separate smaller representation for on disk.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct ShaderDatabaseIndexed {
     files: IndexMap<SmolStr, ModelIndexed>,
     map_files: IndexMap<SmolStr, MapIndexed>,
@@ -19,7 +19,7 @@ pub struct ShaderDatabaseIndexed {
     outputs: Vec<SmolStr>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 struct MapIndexed {
     map_models: Vec<ModelIndexed>,
     prop_models: Vec<ModelIndexed>,
@@ -27,13 +27,13 @@ struct MapIndexed {
 }
 
 // TODO: rename to ShaderPrograms.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
 struct ModelIndexed {
     programs: Vec<ShaderProgramIndexed>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
 struct ShaderProgramIndexed {
     // There are very few unique dependencies across all shaders in a game dump.
@@ -55,118 +55,102 @@ enum DependencyIndexed {
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 struct TexCoordIndexed(SmolStr, SmolStr, Vec<usize>);
 
-// Take the disk representation by value to reduce clones.
-impl From<ShaderDatabaseIndexed> for ShaderDatabase {
-    fn from(value: ShaderDatabaseIndexed) -> Self {
-        dbg!(value.dependencies.len(), value.buffer_dependencies.len());
-        let dependencies: Vec<_> = value
-            .dependencies
-            .into_iter()
-            .map(|d| match d {
-                DependencyIndexed::Constant(f) => Dependency::Constant(f),
-                DependencyIndexed::Buffer(i) => {
-                    Dependency::Buffer(value.buffer_dependencies[i].clone())
-                }
-                DependencyIndexed::Texture(name, channels, texcoords) => {
-                    Dependency::Texture(TextureDependency {
-                        name,
-                        channels,
-                        texcoords: texcoords
-                            .into_iter()
-                            .map(|TexCoordIndexed(name, channels, params)| TexCoord {
-                                name,
-                                channels,
-                                params: params
-                                    .into_iter()
-                                    .map(|i| value.buffer_dependencies[i].clone())
-                                    .collect(),
-                            })
-                            .collect(),
-                    })
-                }
-                DependencyIndexed::Attribute(name, channels) => {
-                    Dependency::Attribute(AttributeDependency { name, channels })
-                }
-            })
-            .collect();
-
-        Self {
-            files: value
-                .files
-                .into_iter()
-                .map(|(n, s)| (n, model_from_indexed(s, &dependencies, &value.outputs)))
-                .collect(),
-            map_files: value
-                .map_files
-                .into_iter()
-                .map(|(n, m)| {
-                    (
-                        n,
-                        MapPrograms {
-                            map_models: m
-                                .map_models
-                                .into_iter()
-                                .map(|s| model_from_indexed(s, &dependencies, &value.outputs))
-                                .collect(),
-                            prop_models: m
-                                .prop_models
-                                .into_iter()
-                                .map(|s| model_from_indexed(s, &dependencies, &value.outputs))
-                                .collect(),
-                            env_models: m
-                                .env_models
-                                .into_iter()
-                                .map(|s| model_from_indexed(s, &dependencies, &value.outputs))
-                                .collect(),
-                        },
-                    )
-                })
-                .collect(),
-        }
+impl ShaderDatabaseIndexed {
+    pub fn model(&self, name: &str) -> Option<ModelPrograms> {
+        self.files.get(&SmolStr::from(name)).map(|model| {
+            model_from_indexed(
+                model,
+                &self.dependencies,
+                &self.buffer_dependencies,
+                &self.outputs,
+            )
+        })
     }
-}
 
-impl From<&ShaderDatabase> for ShaderDatabaseIndexed {
-    fn from(value: &ShaderDatabase) -> Self {
+    pub fn map(&self, name: &str) -> Option<MapPrograms> {
+        self.map_files
+            .get(&SmolStr::from(name))
+            .map(|map| MapPrograms {
+                map_models: map
+                    .map_models
+                    .iter()
+                    .map(|s| {
+                        model_from_indexed(
+                            s,
+                            &self.dependencies,
+                            &self.buffer_dependencies,
+                            &self.outputs,
+                        )
+                    })
+                    .collect(),
+                prop_models: map
+                    .prop_models
+                    .iter()
+                    .map(|s| {
+                        model_from_indexed(
+                            s,
+                            &self.dependencies,
+                            &self.buffer_dependencies,
+                            &self.outputs,
+                        )
+                    })
+                    .collect(),
+                env_models: map
+                    .env_models
+                    .iter()
+                    .map(|s| {
+                        model_from_indexed(
+                            s,
+                            &self.dependencies,
+                            &self.buffer_dependencies,
+                            &self.outputs,
+                        )
+                    })
+                    .collect(),
+            })
+    }
+
+    pub fn from_models_maps(
+        models: IndexMap<String, ModelPrograms>,
+        maps: IndexMap<String, MapPrograms>,
+    ) -> Self {
         let mut dependency_to_index = IndexMap::new();
         let mut output_to_index = IndexMap::new();
         let mut buffer_dependency_to_index = IndexMap::new();
 
         Self {
-            files: value
-                .files
-                .iter()
+            files: models
+                .into_iter()
                 .map(|(n, s)| {
                     (
-                        n.clone(),
+                        n.into(),
                         model_indexed(s, &mut dependency_to_index, &mut output_to_index),
                     )
                 })
                 .collect(),
-            map_files: value
-                .map_files
-                .iter()
+            map_files: maps
+                .into_iter()
                 .map(|(n, m)| {
                     (
-                        n.clone(),
+                        n.into(),
                         MapIndexed {
                             map_models: m
                                 .map_models
-                                .iter()
+                                .into_iter()
                                 .map(|s| {
                                     model_indexed(s, &mut dependency_to_index, &mut output_to_index)
                                 })
                                 .collect(),
                             prop_models: m
                                 .prop_models
-                                .iter()
+                                .into_iter()
                                 .map(|s| {
                                     model_indexed(s, &mut dependency_to_index, &mut output_to_index)
                                 })
                                 .collect(),
                             env_models: m
                                 .env_models
-                                .iter()
+                                .into_iter()
                                 .map(|s| {
                                     model_indexed(s, &mut dependency_to_index, &mut output_to_index)
                                 })
@@ -208,27 +192,57 @@ impl From<&ShaderDatabase> for ShaderDatabaseIndexed {
     }
 }
 
+fn dependency_from_indexed(
+    d: DependencyIndexed,
+    buffer_dependencies: &[BufferDependency],
+) -> Dependency {
+    match d {
+        DependencyIndexed::Constant(f) => Dependency::Constant(f),
+        DependencyIndexed::Buffer(i) => Dependency::Buffer(buffer_dependencies[i].clone()),
+        DependencyIndexed::Texture(name, channels, texcoords) => {
+            Dependency::Texture(TextureDependency {
+                name,
+                channels,
+                texcoords: texcoords
+                    .into_iter()
+                    .map(|TexCoordIndexed(name, channels, params)| TexCoord {
+                        name,
+                        channels,
+                        params: params
+                            .into_iter()
+                            .map(|i| buffer_dependencies[i].clone())
+                            .collect(),
+                    })
+                    .collect(),
+            })
+        }
+        DependencyIndexed::Attribute(name, channels) => {
+            Dependency::Attribute(AttributeDependency { name, channels })
+        }
+    }
+}
+
 fn model_indexed(
-    model: &ModelPrograms,
+    model: ModelPrograms,
     dependency_to_index: &mut IndexMap<Dependency, usize>,
     output_to_index: &mut IndexMap<SmolStr, usize>,
 ) -> ModelIndexed {
     ModelIndexed {
         programs: model
             .programs
-            .iter()
+            .into_iter()
             .map(|p| ShaderProgramIndexed {
                 output_dependencies: p
                     .output_dependencies
-                    .iter()
+                    .into_iter()
                     .map(|(output, dependencies)| {
                         // This works since the map preserves insertion order.
-                        let output_index = output_to_index.entry_index(output.clone());
+                        let output_index = output_to_index.entry_index(output);
                         (
                             output_index,
                             dependencies
-                                .iter()
-                                .map(|d| dependency_to_index.entry_index(d.clone()))
+                                .into_iter()
+                                .map(|d| dependency_to_index.entry_index(d))
                                 .collect(),
                         )
                     })
@@ -239,24 +253,30 @@ fn model_indexed(
 }
 
 fn model_from_indexed(
-    model: ModelIndexed,
-    dependencies: &[Dependency],
+    model: &ModelIndexed,
+    dependencies: &[DependencyIndexed],
+    buffer_dependencies: &[BufferDependency],
     outputs: &[SmolStr],
 ) -> ModelPrograms {
     ModelPrograms {
         programs: model
             .programs
-            .into_iter()
+            .iter()
             .map(|p| ShaderProgram {
                 output_dependencies: p
                     .output_dependencies
-                    .into_iter()
+                    .iter()
                     .map(|(output, output_dependencies)| {
                         (
-                            outputs[output].clone(),
+                            outputs[*output].clone(),
                             output_dependencies
-                                .into_iter()
-                                .map(|d| dependencies[d].clone())
+                                .iter()
+                                .map(|d| {
+                                    dependency_from_indexed(
+                                        dependencies[*d].clone(),
+                                        buffer_dependencies,
+                                    )
+                                })
                                 .collect(),
                         )
                     })

@@ -261,7 +261,7 @@ pub fn create_shader_database(input: &str) -> ShaderDatabase {
                 let programs = create_shader_programs(folder);
 
                 let file = folder.file_name().unwrap().to_string_lossy().to_string();
-                Some((file.into(), ModelPrograms { programs }))
+                Some((file, ModelPrograms { programs }))
             } else {
                 None
             }
@@ -279,7 +279,7 @@ pub fn create_shader_database(input: &str) -> ShaderDatabase {
 
                 let file = folder.file_name().unwrap().to_string_lossy().to_string();
                 Some((
-                    file.into(),
+                    file,
                     MapPrograms {
                         map_models,
                         prop_models,
@@ -292,7 +292,7 @@ pub fn create_shader_database(input: &str) -> ShaderDatabase {
         })
         .collect();
 
-    ShaderDatabase { files, map_files }
+    ShaderDatabase::from_models_maps(files, map_files)
 }
 
 fn create_map_spchs(folder: &Path) -> Vec<ModelPrograms> {

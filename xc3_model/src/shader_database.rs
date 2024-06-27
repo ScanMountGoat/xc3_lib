@@ -37,24 +37,20 @@ pub enum SaveShaderDatabaseError {
     Json(#[from] serde_json::Error),
 }
 
-// TODO: Wrap the io type and just expose get_map and get_model?
 /// Metadata for the assigned [Shader] for all models and maps in a game dump.
 #[derive(Debug, PartialEq, Clone)]
-pub struct ShaderDatabase {
-    /// The `.wimdo` file name without the extension and shader data for each file.
-    pub files: IndexMap<SmolStr, ModelPrograms>,
-    /// The `.wismhd` file name without the extension and shader data for each map.
-    pub map_files: IndexMap<SmolStr, MapPrograms>,
-}
+pub struct ShaderDatabase(io::ShaderDatabaseIndexed);
 
 impl ShaderDatabase {
     /// Loads and deserializes the JSON data from `path`.
     ///
     /// This uses a modified JSON representation internally to reduce file size.
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, LoadShaderDatabaseError> {
+        // Avoid converting the indexed database to improve load times.
+        // Most uses cases will only need data for a single model or map.
         let json = std::fs::read_to_string(path)?;
-        let indexed: io::ShaderDatabaseIndexed = serde_json::from_str(&json)?;
-        Ok(indexed.into())
+        let indexed = serde_json::from_str(&json)?;
+        Ok(Self(indexed))
     }
 
     /// Serialize and save the JSON data from `path`.
@@ -65,14 +61,31 @@ impl ShaderDatabase {
         path: P,
         pretty_print: bool,
     ) -> Result<(), SaveShaderDatabaseError> {
-        let indexed = io::ShaderDatabaseIndexed::from(self);
         let json = if pretty_print {
-            serde_json::to_string_pretty(&indexed)?
+            serde_json::to_string_pretty(&self.0)?
         } else {
-            serde_json::to_string(&indexed)?
+            serde_json::to_string(&self.0)?
         };
         std::fs::write(path, json)?;
         Ok(())
+    }
+
+    /// The shader information for the `.wimdo` file name without the extension.
+    pub fn model(&self, name: &str) -> Option<ModelPrograms> {
+        self.0.model(name)
+    }
+
+    /// The shader information for the `.wismhd` file name without the extension.
+    pub fn map(&self, name: &str) -> Option<MapPrograms> {
+        self.0.map(name)
+    }
+
+    /// Create the internal database representation from non indexed data.
+    pub fn from_models_maps(
+        models: IndexMap<String, ModelPrograms>,
+        maps: IndexMap<String, MapPrograms>,
+    ) -> Self {
+        Self(io::ShaderDatabaseIndexed::from_models_maps(models, maps))
     }
 }
 

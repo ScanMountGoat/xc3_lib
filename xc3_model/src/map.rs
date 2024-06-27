@@ -16,7 +16,7 @@ use xc3_lib::{
 
 use crate::{
     create_materials, create_samplers, lod_data, model_name,
-    shader_database::ShaderDatabase,
+    shader_database::{MapPrograms, ShaderDatabase},
     texture::{self, CreateImageTextureError, ImageTexture},
     IndexMapExt, MapRoot, Material, Model, ModelBuffers, ModelGroup, Models, Texture,
 };
@@ -73,18 +73,13 @@ pub fn load_map<P: AsRef<Path>>(
     // Some maps don't use XBC1 compressed archives in the .wismda file.
     let compressed = msmd.wismda_info.compressed_length != msmd.wismda_info.decompressed_length;
 
+    let map_programs = shader_database.and_then(|database| database.map(&model_folder));
+
     // TODO: Better way to combine models?
     let mut roots = Vec::new();
 
     for (i, model) in msmd.env_models.iter().enumerate() {
-        let root = load_env_model(
-            &wismda,
-            compressed,
-            model,
-            i,
-            &model_folder,
-            shader_database,
-        )?;
+        let root = load_env_model(&wismda, compressed, model, i, map_programs.as_ref())?;
         roots.push(root);
     }
 
@@ -101,18 +96,16 @@ pub fn load_map<P: AsRef<Path>>(
         &msmd,
         &wismda,
         compressed,
-        &model_folder,
         &mut texture_cache,
-        shader_database,
+        map_programs.as_ref(),
     )?;
 
     let prop_model_group = props_group(
         &msmd,
         &wismda,
         compressed,
-        model_folder,
         &mut texture_cache,
-        shader_database,
+        map_programs.as_ref(),
     )?;
 
     roots.push(MapRoot {
@@ -219,9 +212,8 @@ fn map_models_group(
     msmd: &Msmd,
     wismda: &Vec<u8>,
     compressed: bool,
-    model_folder: &str,
     texture_cache: &mut TextureCache,
-    shader_database: Option<&ShaderDatabase>,
+    map_programs: Option<&MapPrograms>,
 ) -> Result<ModelGroup, LoadMapError> {
     let buffers = create_buffers(&msmd.map_vertex_data, wismda, compressed)?;
 
@@ -241,13 +233,7 @@ fn map_models_group(
             .map(|t| texture_cache.insert(t))
             .collect();
 
-        load_map_model_group(
-            model_data,
-            i,
-            model_folder,
-            &material_root_texture_indices,
-            shader_database,
-        )
+        load_map_model_group(model_data, i, &material_root_texture_indices, map_programs)
     }));
 
     Ok(ModelGroup { models, buffers })
@@ -257,9 +243,8 @@ fn props_group(
     msmd: &Msmd,
     wismda: &Vec<u8>,
     compressed: bool,
-    model_folder: String,
     texture_cache: &mut TextureCache,
-    shader_database: Option<&ShaderDatabase>,
+    map_programs: Option<&MapPrograms>,
 ) -> Result<ModelGroup, LoadMapError> {
     let buffers = create_buffers(&msmd.prop_vertex_data, wismda, compressed)?;
 
@@ -292,9 +277,8 @@ fn props_group(
                 i,
                 msmd.parts.as_ref(),
                 &prop_positions,
-                &model_folder,
                 &material_root_texture_indices,
-                shader_database,
+                map_programs,
             )
         })
         .collect();
@@ -324,13 +308,10 @@ fn load_prop_model_group(
     model_index: usize,
     parts: Option<&MapParts>,
     prop_positions: &[PropPositions],
-    model_folder: &str,
     material_root_texture_indices: &[usize],
-    shader_database: Option<&ShaderDatabase>,
+    map_programs: Option<&MapPrograms>,
 ) -> Models {
-    let spch = shader_database
-        .and_then(|database| database.map_files.get(model_folder))
-        .and_then(|map| map.prop_models.get(model_index));
+    let model_programs = map_programs.and_then(|map| map.prop_models.get(model_index));
 
     // Calculate instances separately from models.
     // This allows us to avoid loading unused models later.
@@ -372,7 +353,7 @@ fn load_prop_model_group(
     // TODO: Group by vertex data index?
     // TODO: empty groups?
 
-    let mut materials = create_materials(&model_data.materials, spch);
+    let mut materials = create_materials(&model_data.materials, model_programs);
     apply_material_texture_indices(&mut materials, material_root_texture_indices);
 
     let samplers = create_samplers(&model_data.materials);
@@ -518,15 +499,12 @@ fn add_animated_part_instances(
 fn load_map_model_group(
     model_data: &xc3_lib::map::MapModelData,
     model_index: usize,
-    model_folder: &str,
     material_root_texture_indices: &[usize],
-    shader_database: Option<&ShaderDatabase>,
+    map_programs: Option<&MapPrograms>,
 ) -> Models {
-    let spch = shader_database
-        .and_then(|database| database.map_files.get(model_folder))
-        .and_then(|map| map.map_models.get(model_index));
+    let model_programs = map_programs.and_then(|map| map.map_models.get(model_index));
 
-    let mut materials = create_materials(&model_data.materials, spch);
+    let mut materials = create_materials(&model_data.materials, model_programs);
     apply_material_texture_indices(&mut materials, material_root_texture_indices);
 
     let samplers = create_samplers(&model_data.materials);
@@ -574,8 +552,7 @@ fn load_env_model(
     compressed: bool,
     model: &xc3_lib::msmd::EnvModel,
     model_index: usize,
-    model_folder: &str,
-    shader_database: Option<&ShaderDatabase>,
+    map_programs: Option<&MapPrograms>,
 ) -> Result<MapRoot, LoadMapError> {
     let mut wismda = Cursor::new(&wismda);
 
@@ -589,9 +566,7 @@ fn load_env_model(
         .map(ImageTexture::from_packed_texture)
         .collect::<Result<Vec<_>, _>>()?;
 
-    let spch = shader_database
-        .and_then(|database| database.map_files.get(model_folder))
-        .and_then(|map| map.env_models.get(model_index));
+    let model_programs = map_programs.and_then(|map| map.env_models.get(model_index));
 
     let buffers = ModelBuffers::from_vertex_data(&model_data.vertex_data, None)?;
 
@@ -600,7 +575,7 @@ fn load_env_model(
             models: vec![Models::from_models(
                 &model_data.models,
                 &model_data.materials,
-                spch,
+                model_programs,
             )],
             buffers: vec![buffers],
         }],
