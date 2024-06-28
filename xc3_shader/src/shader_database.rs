@@ -18,10 +18,10 @@ use xc3_model::shader_database::{
 use crate::{
     annotation::shader_source_no_extensions,
     dependencies::{
-        attribute_dependencies, buffer_dependency, find_buffer_parameters, input_dependencies,
+        attribute_dependencies, buffer_dependency, input_dependencies, texcoord_params,
     },
     graph::{
-        query::{clamp_x_zero_one, one_minus_x, one_plus_x, sqrt_x},
+        query::{assign_x, clamp_x_zero_one, one_minus_x, one_plus_x, sqrt_x},
         Expr, Graph,
     },
 };
@@ -58,7 +58,7 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
                 }
 
                 if i == 1 && c == 'y' {
-                    if let Some(param) = apply_geometric_specular_aa(frag) {
+                    if let Some(param) = geometric_specular_aa(frag) {
                         dependencies = vec![Dependency::Buffer(param)];
                     }
                 }
@@ -77,24 +77,18 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
     }
 }
 
-fn apply_geometric_specular_aa(frag: &Graph) -> Option<BufferDependency> {
+fn geometric_specular_aa(frag: &Graph) -> Option<BufferDependency> {
     // TODO: is specular AA ever used with textures as input?
-    // Extract the glossiness input from the following expression.
+    // Extract the glossiness input from the following expression:
     // glossiness = 1.0 - sqrt(clamp((1.0 - glossiness)^2 + kernelRoughness2 0.0, 1.0))
     let node_index = frag
         .nodes
         .iter()
         .rposition(|n| n.output.name == "out_attr1" && n.output.channels == "y")?;
-    let nodes: Vec<_> = frag
-        .node_assignments_recursive(node_index, None)
-        .into_iter()
-        .map(|(i, _)| &frag.nodes[i])
-        .collect();
-    // TODO: Define query function or macro?
-    let node = match &nodes.last()?.input {
-        Expr::Node { node_index, .. } => frag.nodes.get(*node_index),
-        _ => None,
-    }?;
+    let last_node_index = frag.node_assignments_recursive(node_index, None).last()?.0;
+    let last_node = frag.nodes.get(last_node_index)?;
+
+    let node = assign_x(&frag.nodes, last_node)?;
     let node = one_minus_x(&frag.nodes, node)?;
     let node = sqrt_x(&frag.nodes, node)?;
     let node = clamp_x_zero_one(&frag.nodes, node)?;
@@ -159,14 +153,20 @@ fn apply_vertex_texcoord_params(
                         .get_by_right(fragment_location)
                     {
                         // Preserve the channel ordering here.
+                        // Find any additional scale parameters.
                         for c in texcoord.channels.chars() {
-                            let vertex_params =
-                                find_buffer_parameters(vertex, vertex_output_name, &c.to_string());
-                            texcoord.params.extend(vertex_params);
+                            if let Some(node) = vertex.nodes.iter().rfind(|n| {
+                                &n.output.name == vertex_output_name
+                                    && n.output.channels == c.to_string()
+                            }) {
+                                if let Expr::Node { node_index, .. } = &node.input {
+                                    // Detect common cases for transforming UV coordinates.
+                                    if let Some(params) = texcoord_params(vertex, *node_index) {
+                                        texcoord.params = Some(params);
+                                    }
+                                }
+                            }
                         }
-                        // Remove any duplicates.
-                        texcoord.params.sort();
-                        texcoord.params.dedup();
 
                         // Also fix channels since the zw output may just be scaled vTex0.xy.
                         if let Some((actual_name, actual_channels)) =
@@ -446,7 +446,9 @@ mod tests {
 
     use indoc::indoc;
     use pretty_assertions::assert_eq;
-    use xc3_model::shader_database::{BufferDependency, TexCoord, TextureDependency};
+    use xc3_model::shader_database::{
+        BufferDependency, TexCoord, TexCoordParams, TextureDependency,
+    };
 
     #[test]
     fn extract_program_index_multiple_digits() {
@@ -589,12 +591,12 @@ mod tests {
                                 TexCoord {
                                     name: "vTex0".into(),
                                     channels: "x".into(),
-                                    params: Vec::new(),
+                                    params: None,
                                 },
                                 TexCoord {
                                     name: "vTex0".into(),
                                     channels: "y".into(),
-                                    params: Vec::new(),
+                                    params: None,
                                 },
                             ]
                         })]
@@ -627,22 +629,22 @@ mod tests {
                                 TexCoord {
                                     name: "vTex0".into(),
                                     channels: "x".into(),
-                                    params: vec![BufferDependency {
+                                    params: Some(TexCoordParams::Scale(BufferDependency {
                                         name: "U_Mate".into(),
                                         field: "gWrkFl4".into(),
                                         index: 0,
                                         channels: "x".into(),
-                                    }]
+                                    }))
                                 },
                                 TexCoord {
                                     name: "vTex0".into(),
                                     channels: "y".into(),
-                                    params: vec![BufferDependency {
+                                    params: Some(TexCoordParams::Scale(BufferDependency {
                                         name: "U_Mate".into(),
                                         field: "gWrkFl4".into(),
                                         index: 0,
                                         channels: "y".into(),
-                                    }]
+                                    }))
                                 },
                             ],
                         })]
@@ -656,22 +658,22 @@ mod tests {
                                 TexCoord {
                                     name: "vTex0".into(),
                                     channels: "x".into(),
-                                    params: vec![BufferDependency {
+                                    params: Some(TexCoordParams::Scale(BufferDependency {
                                         name: "U_Mate".into(),
                                         field: "gWrkFl4".into(),
                                         index: 0,
                                         channels: "x".into(),
-                                    }]
+                                    }))
                                 },
                                 TexCoord {
                                     name: "vTex0".into(),
                                     channels: "y".into(),
-                                    params: vec![BufferDependency {
+                                    params: Some(TexCoordParams::Scale(BufferDependency {
                                         name: "U_Mate".into(),
                                         field: "gWrkFl4".into(),
                                         index: 0,
                                         channels: "y".into(),
-                                    }]
+                                    }))
                                 },
                             ],
                         })]
@@ -685,22 +687,22 @@ mod tests {
                                 TexCoord {
                                     name: "vTex0".into(),
                                     channels: "x".into(),
-                                    params: vec![BufferDependency {
+                                    params: Some(TexCoordParams::Scale(BufferDependency {
                                         name: "U_Mate".into(),
                                         field: "gWrkFl4".into(),
                                         index: 0,
                                         channels: "x".into(),
-                                    }]
+                                    }))
                                 },
                                 TexCoord {
                                     name: "vTex0".into(),
                                     channels: "y".into(),
-                                    params: vec![BufferDependency {
+                                    params: Some(TexCoordParams::Scale(BufferDependency {
                                         name: "U_Mate".into(),
                                         field: "gWrkFl4".into(),
                                         index: 0,
                                         channels: "y".into(),
-                                    }]
+                                    }))
                                 },
                             ],
                         })]

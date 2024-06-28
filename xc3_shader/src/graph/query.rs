@@ -22,6 +22,13 @@
 use super::{Expr, Node};
 use std::ops::Deref;
 
+pub fn assign_x<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
+    match &node.input {
+        Expr::Node { node_index, .. } => nodes.get(*node_index),
+        _ => None,
+    }
+}
+
 pub fn one_minus_x<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
     let node = one_plus_x(nodes, node)?;
     zero_minus_x(nodes, node)

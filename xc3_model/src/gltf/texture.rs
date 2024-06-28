@@ -398,11 +398,14 @@ fn image_index(
             let TextureAssignment {
                 name,
                 channels,
-                texcoord_scale,
+                texcoord_transforms,
                 ..
             } = textures.first()?;
 
             let channel = "xyzw".find(channels.chars().next().unwrap()).unwrap();
+
+            // TODO: proper mat2x4 support?
+            let texcoord_scale = texcoord_transforms.map(|(u, v)| [u.x.into(), v.y.into()]);
 
             let sampler_index = material_texture_index(name)?;
             // Find the sampler from the material.
@@ -414,7 +417,7 @@ fn image_index(
                     image_texture: t.image_texture_index,
                     sampler: t.sampler_index,
                     channel,
-                    texcoord_scale: texcoord_scale.map(|(u, v)| [u.into(), v.into()]),
+                    texcoord_scale,
                 })
         }
         crate::ChannelAssignment::Attribute { .. } => None,

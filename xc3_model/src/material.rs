@@ -1,3 +1,4 @@
+use glam::{vec4, Vec4};
 use log::warn;
 use smol_str::SmolStr;
 use xc3_lib::mxmd::{
@@ -340,7 +341,7 @@ pub struct TextureAssignment {
     pub name: SmolStr,
     pub channels: SmolStr,
     pub texcoord_name: Option<SmolStr>,
-    pub texcoord_scale: Option<(f32, f32)>,
+    pub texcoord_transforms: Option<(Vec4, Vec4)>,
 }
 
 // TODO: Test cases for this?
@@ -374,7 +375,7 @@ impl Material {
                     name: format!("s{i}").into(),
                     channels: ["x", "y", "z", "w"][c].into(),
                     texcoord_name: None,
-                    texcoord_scale: None,
+                    texcoord_transforms: None,
                 }])
             })
         };
@@ -490,14 +491,14 @@ fn channel_assignment(
                 .textures(output_index, channel)
                 .iter()
                 .map(|texture| {
-                    let texcoord_scale = texcoord_scale(texture, parameters);
+                    let texcoord_transforms = texcoord_transforms(texture, parameters);
 
                     // TODO: different attribute for U and V?
                     TextureAssignment {
                         name: texture.name.clone(),
                         channels: texture.channels.clone(),
                         texcoord_name: texture.texcoords.first().map(|t| t.name.clone()),
-                        texcoord_scale,
+                        texcoord_transforms,
                     }
                 })
                 .collect();
@@ -506,18 +507,43 @@ fn channel_assignment(
         })
 }
 
-fn texcoord_scale(
+fn texcoord_transforms(
     texture: &TextureDependency,
     parameters: &MaterialParameters,
-) -> Option<(f32, f32)> {
+) -> Option<(Vec4, Vec4)> {
     // Each texcoord component has its own params.
-    // TODO: Also handle matrix multiplication.
+    // TODO: return a vector for everything.
     if let Some([u, v]) = texture.texcoords.get(..2) {
-        let scale_u = extract_parameter(u.params.first()?, parameters)?;
-        let scale_v = extract_parameter(v.params.first()?, parameters)?;
-        Some((scale_u, scale_v))
+        let transform_u = texcoord_transform(u, parameters, 0)?;
+        let transform_v = texcoord_transform(v, parameters, 1)?;
+        Some((transform_u, transform_v))
     } else {
         None
+    }
+}
+
+fn texcoord_transform(
+    u: &crate::shader_database::TexCoord,
+    parameters: &MaterialParameters,
+    index: usize,
+) -> Option<Vec4> {
+    match u.params.as_ref()? {
+        crate::shader_database::TexCoordParams::Scale(s) => {
+            // Select and scale the appropriate component.
+            let scale = extract_parameter(s, parameters)?;
+            let mut transform = Vec4::ZERO;
+            transform[index] = scale;
+            Some(transform)
+        }
+        crate::shader_database::TexCoordParams::Matrix([x, y, z, w]) => Some(
+            vec4(
+                extract_parameter(x, parameters)?,
+                extract_parameter(y, parameters)?,
+                extract_parameter(z, parameters)?,
+                extract_parameter(w, parameters)?,
+            )
+            .into(),
+        ),
     }
 }
 

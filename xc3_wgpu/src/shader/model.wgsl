@@ -112,7 +112,7 @@ struct PerMaterial {
 
     // Parameters, constants, and defaults if no texture is assigned.
     output_defaults: array<vec4<f32>, 6>,
-    texture_scale: array<vec4<f32>, 10>,
+    texture_transforms: array<array<vec4<f32>, 2>, 10>,
 
     // texture index, channel, index, 0, 0
     alpha_test_texture: vec4<i32>,
@@ -359,7 +359,7 @@ fn add_normal_maps(n1: vec3<f32>, n2: vec3<f32>, ratio: f32) -> vec3<f32> {
     return normalize(mix(n1, normalize(r), ratio));
 }
 
-// Adapted from shd00036 GLSL from ch11021013.pcsmt (xc3). 
+// Adapted from xeno3/chr/ch/ch11021013.pcsmt, shd00036, calcGeometricSpecularAA,
 fn geometric_specular_aa(shininess: f32, normal: vec3<f32>) -> f32 {
     let sigma2 = 0.25;
     let kappa = 0.18;
@@ -373,7 +373,7 @@ fn geometric_specular_aa(shininess: f32, normal: vec3<f32>) -> f32 {
     return (1.0 - sqrt(filteredRoughness2));
 }
 
-// Adapted from shd00036 GLSL from ch11021013.pcsmt (xc3). 
+// Adapted from xeno3/chr/ch/ch11021013.pcsmt, shd00036, setMrtDepth,
 // TODO: What is this conversion doing?
 fn mrt_depth(depth: f32, param: f32) -> vec4<f32> {
     var o = vec2(depth * 8.0, floor(depth * 8.0) / 255.0);
@@ -381,14 +381,14 @@ fn mrt_depth(depth: f32, param: f32) -> vec4<f32> {
     return vec4(o.xy - t.xy, t.y / 255.0, param);
 }
 
-// Adapted from shd00036 GLSL from ch11021013.pcsmt (xc3). 
+// Adapted from xeno3/chr/ch/ch11021013.pcsmt, shd00036, setMrtNormal,
 // TODO: What is this conversion doing?
 fn mrt_normal(normal: vec3<f32>, ao: f32) -> vec4<f32> {
     let temp = normal * vec3(0.5, 0.5, 1000.0) + vec3(0.5);
     return vec4(temp.xy, ao, temp.z);
 }
 
-// Adapted from shd00036 GLSL from ch11021013.pcsmt (xc3). 
+// Adapted from xeno3/chr/ch/ch11021013.pcsmt, shd00036, setMrtEtcBuffer,
 fn mrt_etc_buffer(g_etc_buffer: vec4<f32>, view_normal: vec3<f32>) -> vec4<f32> {
     var out = g_etc_buffer;
     // Antialiasing isn't necessary for parameters or constants.
@@ -402,18 +402,25 @@ fn mrt_etc_buffer(g_etc_buffer: vec4<f32>, view_normal: vec3<f32>) -> vec4<f32> 
 // TODO: Is it reliable to detect this as U_Mate.gWrkFl4[i].c * 5?
 // TODO: what color is used for blending?
 
+// Adapted from xeno3/chr/ch/ch11021013.pcsmt, shd00028, getTextureMatrix.
+// Scale parameters are converted to "matrices" for consistency.
+fn transform_uv(uv: vec2<f32>, matrix: array<vec4<f32>, 2>) -> vec2<f32> {
+    let v = vec4(uv, 0.0, 1.0);
+    return vec2(dot(v, matrix[0]), dot(v, matrix[1]));
+}
+
 @fragment
 fn fs_alpha(in: VertexOutput) -> @location(0) vec4<f32> {
-    let s0_color = textureSample(s0, s0_sampler, in.tex0 * per_material.texture_scale[0].xy);
-    let s1_color = textureSample(s1, s1_sampler, in.tex0 * per_material.texture_scale[1].xy);
-    let s2_color = textureSample(s2, s2_sampler, in.tex0 * per_material.texture_scale[2].xy);
-    let s3_color = textureSample(s3, s3_sampler, in.tex0 * per_material.texture_scale[3].xy);
-    let s4_color = textureSample(s4, s4_sampler, in.tex0 * per_material.texture_scale[4].xy);
-    let s5_color = textureSample(s5, s5_sampler, in.tex0 * per_material.texture_scale[5].xy);
-    let s6_color = textureSample(s6, s6_sampler, in.tex0 * per_material.texture_scale[6].xy);
-    let s7_color = textureSample(s7, s7_sampler, in.tex0 * per_material.texture_scale[7].xy);
-    let s8_color = textureSample(s8, s8_sampler, in.tex0 * per_material.texture_scale[8].xy);
-    let s9_color = textureSample(s9, s9_sampler, in.tex0 * per_material.texture_scale[9].xy);
+    let s0_color = textureSample(s0, s0_sampler, transform_uv(in.tex0, per_material.texture_transforms[0]));
+    let s1_color = textureSample(s1, s1_sampler, transform_uv(in.tex0, per_material.texture_transforms[1]));
+    let s2_color = textureSample(s2, s2_sampler, transform_uv(in.tex0, per_material.texture_transforms[2]));
+    let s3_color = textureSample(s3, s3_sampler, transform_uv(in.tex0, per_material.texture_transforms[3]));
+    let s4_color = textureSample(s4, s4_sampler, transform_uv(in.tex0, per_material.texture_transforms[4]));
+    let s5_color = textureSample(s5, s5_sampler, transform_uv(in.tex0, per_material.texture_transforms[5]));
+    let s6_color = textureSample(s6, s6_sampler, transform_uv(in.tex0, per_material.texture_transforms[6]));
+    let s7_color = textureSample(s7, s7_sampler, transform_uv(in.tex0, per_material.texture_transforms[7]));
+    let s8_color = textureSample(s8, s8_sampler, transform_uv(in.tex0, per_material.texture_transforms[8]));
+    let s9_color = textureSample(s9, s9_sampler, transform_uv(in.tex0, per_material.texture_transforms[9]));
 
     let s_colors = array<vec4<f32>, 10>(
         s0_color,
@@ -468,18 +475,16 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     let vertex_normal = normalize(in.normal.xyz);
     let bitangent = normalize(in.bitangent);
 
-    // TODO: These texture scales aren't always set correctly.
-    // TODO: use a tex matrix for everything?
-    let s0_color = textureSample(s0, s0_sampler, in.tex0 * per_material.texture_scale[0].xy);
-    let s1_color = textureSample(s1, s1_sampler, in.tex0 * per_material.texture_scale[1].xy);
-    let s2_color = textureSample(s2, s2_sampler, in.tex0 * per_material.texture_scale[2].xy);
-    let s3_color = textureSample(s3, s3_sampler, in.tex0 * per_material.texture_scale[3].xy);
-    let s4_color = textureSample(s4, s4_sampler, in.tex0 * per_material.texture_scale[4].xy);
-    let s5_color = textureSample(s5, s5_sampler, in.tex0 * per_material.texture_scale[5].xy);
-    let s6_color = textureSample(s6, s6_sampler, in.tex0 * per_material.texture_scale[6].xy);
-    let s7_color = textureSample(s7, s7_sampler, in.tex0 * per_material.texture_scale[7].xy);
-    let s8_color = textureSample(s8, s8_sampler, in.tex0 * per_material.texture_scale[8].xy);
-    let s9_color = textureSample(s9, s9_sampler, in.tex0 * per_material.texture_scale[9].xy);
+    let s0_color = textureSample(s0, s0_sampler, transform_uv(in.tex0, per_material.texture_transforms[0]));
+    let s1_color = textureSample(s1, s1_sampler, transform_uv(in.tex0, per_material.texture_transforms[1]));
+    let s2_color = textureSample(s2, s2_sampler, transform_uv(in.tex0, per_material.texture_transforms[2]));
+    let s3_color = textureSample(s3, s3_sampler, transform_uv(in.tex0, per_material.texture_transforms[3]));
+    let s4_color = textureSample(s4, s4_sampler, transform_uv(in.tex0, per_material.texture_transforms[4]));
+    let s5_color = textureSample(s5, s5_sampler, transform_uv(in.tex0, per_material.texture_transforms[5]));
+    let s6_color = textureSample(s6, s6_sampler, transform_uv(in.tex0, per_material.texture_transforms[6]));
+    let s7_color = textureSample(s7, s7_sampler, transform_uv(in.tex0, per_material.texture_transforms[7]));
+    let s8_color = textureSample(s8, s8_sampler, transform_uv(in.tex0, per_material.texture_transforms[8]));
+    let s9_color = textureSample(s9, s9_sampler, transform_uv(in.tex0, per_material.texture_transforms[9]));
 
     let s_colors = array<vec4<f32>, 10>(
         s0_color,

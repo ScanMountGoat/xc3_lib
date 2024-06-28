@@ -73,11 +73,11 @@ pub fn materials(
         .iter()
         .map(|material| {
             let mut name_to_index = IndexMap::new();
-            let mut name_to_scale = IndexMap::new();
+            let mut name_to_transforms = IndexMap::new();
 
             let assignments = material.output_assignments(image_textures);
             let sampler_assignments =
-                sampler_assignments(&assignments, &mut name_to_index, &mut name_to_scale);
+                sampler_assignments(&assignments, &mut name_to_index, &mut name_to_transforms);
             let attribute_assignments = attribute_assignments(&assignments);
             let output_defaults = output_default_assignments(&assignments);
 
@@ -111,14 +111,14 @@ pub fn materials(
             // TODO: Is it ok to switch on the texcoord for each channel lookup?
             // TODO: can a texture be used with more than one scale?
             // TODO: Include this logic with xc3_model?
-            let mut texture_scale = [Vec4::ONE; 10];
+            let mut texture_transforms = [[Vec4::X, Vec4::Y]; 10];
 
             // Find the scale parameters for any textures assigned above.
             // TODO: Don't assume these are all scaled from a single vTex0 input attribute.
             // TODO: Is there a more efficient way of doing this?
-            for (name, (u, v)) in &name_to_scale {
+            for (name, (u, v)) in &name_to_transforms {
                 if let Some(index) = name_to_index.get(name.as_str()) {
-                    texture_scale[*index] = vec4(*u, *v, 1.0, 1.0);
+                    texture_transforms[*index] = [*u, *v];
                 }
             }
 
@@ -131,7 +131,7 @@ pub fn materials(
                     sampler_assignments,
                     attribute_assignments,
                     output_defaults,
-                    texture_scale,
+                    texture_transforms,
                     alpha_test_texture: {
                         let (texture_index, channel_index) = material
                             .alpha_test
@@ -226,35 +226,40 @@ pub fn materials(
 fn sampler_assignments(
     assignments: &OutputAssignments,
     name_to_index: &mut IndexMap<SmolStr, usize>,
-    name_to_scale: &mut IndexMap<SmolStr, (f32, f32)>,
+    name_to_transforms: &mut IndexMap<SmolStr, (Vec4, Vec4)>,
 ) -> [crate::shader::model::SamplerAssignment; 6] {
     // Each output channel may have a different input sampler and channel.
-    [0, 1, 2, 3, 4, 5]
-        .map(|i| sampler_assignment(&assignments.assignments[i], name_to_index, name_to_scale))
+    [0, 1, 2, 3, 4, 5].map(|i| {
+        sampler_assignment(
+            &assignments.assignments[i],
+            name_to_index,
+            name_to_transforms,
+        )
+    })
 }
 
 fn sampler_assignment(
     a: &OutputAssignment,
     name_to_index: &mut IndexMap<SmolStr, usize>,
-    name_to_scale: &mut IndexMap<SmolStr, (f32, f32)>,
+    name_to_transforms: &mut IndexMap<SmolStr, (Vec4, Vec4)>,
 ) -> crate::shader::model::SamplerAssignment {
-    let (s00, c00) =
-        texture_channel(a.x.as_ref(), name_to_index, name_to_scale, 'x', false).unwrap_or((-1, 0));
-    let (s10, c10) =
-        texture_channel(a.y.as_ref(), name_to_index, name_to_scale, 'y', false).unwrap_or((-1, 1));
-    let (s20, c20) =
-        texture_channel(a.z.as_ref(), name_to_index, name_to_scale, 'z', false).unwrap_or((-1, 2));
-    let (s30, c30) =
-        texture_channel(a.w.as_ref(), name_to_index, name_to_scale, 'w', false).unwrap_or((-1, 3));
+    let (s00, c00) = texture_channel(a.x.as_ref(), name_to_index, name_to_transforms, 'x', false)
+        .unwrap_or((-1, 0));
+    let (s10, c10) = texture_channel(a.y.as_ref(), name_to_index, name_to_transforms, 'y', false)
+        .unwrap_or((-1, 1));
+    let (s20, c20) = texture_channel(a.z.as_ref(), name_to_index, name_to_transforms, 'z', false)
+        .unwrap_or((-1, 2));
+    let (s30, c30) = texture_channel(a.w.as_ref(), name_to_index, name_to_transforms, 'w', false)
+        .unwrap_or((-1, 3));
 
-    let (s01, c01) =
-        texture_channel(a.x.as_ref(), name_to_index, name_to_scale, 'x', true).unwrap_or((-1, 0));
-    let (s11, c11) =
-        texture_channel(a.y.as_ref(), name_to_index, name_to_scale, 'y', true).unwrap_or((-1, 1));
-    let (s21, c21) =
-        texture_channel(a.z.as_ref(), name_to_index, name_to_scale, 'z', true).unwrap_or((-1, 2));
-    let (s31, c31) =
-        texture_channel(a.w.as_ref(), name_to_index, name_to_scale, 'w', true).unwrap_or((-1, 3));
+    let (s01, c01) = texture_channel(a.x.as_ref(), name_to_index, name_to_transforms, 'x', true)
+        .unwrap_or((-1, 0));
+    let (s11, c11) = texture_channel(a.y.as_ref(), name_to_index, name_to_transforms, 'y', true)
+        .unwrap_or((-1, 1));
+    let (s21, c21) = texture_channel(a.z.as_ref(), name_to_index, name_to_transforms, 'z', true)
+        .unwrap_or((-1, 2));
+    let (s31, c31) = texture_channel(a.w.as_ref(), name_to_index, name_to_transforms, 'w', true)
+        .unwrap_or((-1, 3));
 
     crate::shader::model::SamplerAssignment {
         sampler_indices: ivec4(s00, s10, s20, s30),
@@ -267,7 +272,7 @@ fn sampler_assignment(
 fn texture_channel(
     assignment: Option<&ChannelAssignment>,
     name_to_index: &mut IndexMap<SmolStr, usize>,
-    name_to_scale: &mut IndexMap<SmolStr, (f32, f32)>,
+    name_to_transforms: &mut IndexMap<SmolStr, (Vec4, Vec4)>,
     channel: char,
     is_second_layer: bool,
 ) -> Option<(i32, u32)> {
@@ -289,13 +294,13 @@ fn texture_channel(
         if let Some(TextureAssignment {
             name,
             channels,
-            texcoord_scale,
+            texcoord_transforms,
             ..
         }) = texture
         {
             // TODO: Also store the texcoord name?
-            if let Some(scale) = texcoord_scale {
-                name_to_scale.insert(name.clone(), *scale);
+            if let Some(transforms) = texcoord_transforms {
+                name_to_transforms.insert(name.clone(), *transforms);
             }
 
             let channel_index = "xyzw".find(channels.chars().next().unwrap()).unwrap();

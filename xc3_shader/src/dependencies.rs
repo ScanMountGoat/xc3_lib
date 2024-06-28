@@ -3,7 +3,7 @@ use std::ops::Deref;
 
 use glsl_lang::{ast::TranslationUnit, parse::DefaultParse};
 use xc3_model::shader_database::{
-    AttributeDependency, BufferDependency, Dependency, TexCoord, TextureDependency,
+    AttributeDependency, BufferDependency, Dependency, TexCoord, TexCoordParams, TextureDependency,
 };
 
 use crate::{
@@ -148,18 +148,8 @@ fn texcoord_args(args: &[Expr], graph: &Graph, attributes: &Attributes) -> Vec<T
                 let (name, channels) =
                     texcoord_name_channels(&node_assignments, graph, attributes)?;
 
-                // TODO: use find_buffer_parameters?
-                let params = node_assignments
-                    .into_iter()
-                    .filter_map(|(i, final_channels)| {
-                        // Check all exprs for binary ops, function args, etc.
-                        graph.nodes[i]
-                            .input
-                            .exprs_recursive()
-                            .into_iter()
-                            .find_map(|e| buffer_dependency(e, &final_channels))
-                    })
-                    .collect();
+                // Detect common cases for transforming UV coordinates.
+                let params = texcoord_params(graph, *node_index);
 
                 Some(TexCoord {
                     name: name.into(),
@@ -172,6 +162,104 @@ fn texcoord_args(args: &[Expr], graph: &Graph, attributes: &Attributes) -> Vec<T
         })
         .collect();
     texcoords
+}
+
+pub fn texcoord_params(graph: &Graph, node_index: usize) -> Option<TexCoordParams> {
+    scale_parameter(graph, node_index)
+        .map(TexCoordParams::Scale)
+        .or_else(|| tex_matrix(graph, node_index).map(TexCoordParams::Matrix))
+}
+
+pub fn scale_parameter(graph: &Graph, node_index: usize) -> Option<BufferDependency> {
+    // Detect simple multiplication by scale parameters.
+    // TODO: Also check that the attribute name matches?
+    // temp_0 = vTex0.x
+    // temp_1 = temp_0 * scale_param
+    // temp_2 = temp_1
+    let node = graph.nodes.get(node_index)?;
+    match &node.input {
+        Expr::Mul(a, b) => match (a.deref(), b.deref()) {
+            (Expr::Node { .. }, e) => buffer_dependency(e, ""),
+            (e, Expr::Node { .. }) => buffer_dependency(e, ""),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+pub fn tex_matrix(graph: &Graph, node_index: usize) -> Option<[BufferDependency; 4]> {
+    // TODO: Also check that the attribute name matches?
+    // Detect matrix multiplication for the mat4x2 "gTexMat * vec4(u, v, 0.0, 1.0)".
+    // U and V have the same pattern but use a different row of the matrix.
+    // temp_0 = in_attr4.x;
+    // temp_1 = in_attr4.y;
+    // temp_147 = temp_0 * U_Mate.gTexMat[1].x;
+    // temp_151 = fma(temp_1, U_Mate.gTexMat[1].y, temp_147);
+    // temp_152 = fma(0., U_Mate.gTexMat[1].z, temp_151);
+    // temp_155 = temp_152 + U_Mate.gTexMat[1].w;
+    let node = graph.nodes.get(node_index)?;
+    // TODO: Add query functions for matching like this?
+    let (node, w) = match &node.input {
+        Expr::Add(a, b) => match (a.deref(), b.deref()) {
+            (Expr::Node { node_index, .. }, e) => {
+                Some((graph.nodes.get(*node_index)?, buffer_dependency(e, "")?))
+            }
+            (e, Expr::Node { node_index, .. }) => {
+                Some((graph.nodes.get(*node_index)?, buffer_dependency(e, "")?))
+            }
+            _ => None,
+        },
+        _ => None,
+    }?;
+    let (node, z) = match &node.input {
+        Expr::Func { name, args, .. } => {
+            if name == "fma" {
+                match &args[..] {
+                    [Expr::Float(0.0), e, Expr::Node { node_index, .. }] => {
+                        Some((graph.nodes.get(*node_index)?, buffer_dependency(e, "")?))
+                    }
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }?;
+    let (v, y, node2) = match &node.input {
+        Expr::Func { name, args, .. } => {
+            if name == "fma" {
+                match &args[..] {
+                    [Expr::Node { node_index: n1, .. }, e, Expr::Node { node_index: n2, .. }] => {
+                        Some((
+                            graph.nodes.get(*n1)?,
+                            buffer_dependency(e, "")?,
+                            graph.nodes.get(*n2)?,
+                        ))
+                    }
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }?;
+    let (u, x) = match &node2.input {
+        Expr::Mul(a, b) => match (a.deref(), b.deref()) {
+            (Expr::Node { node_index, .. }, e) => {
+                Some((graph.nodes.get(*node_index)?, buffer_dependency(e, "")?))
+            }
+            (e, Expr::Node { node_index, .. }) => {
+                Some((graph.nodes.get(*node_index)?, buffer_dependency(e, "")?))
+            }
+            _ => None,
+        },
+        _ => None,
+    }?;
+
+    // TODO: Also detect UV texcoord names?
+    Some([x, y, z, w])
 }
 
 fn texcoord_name_channels(
@@ -206,25 +294,6 @@ pub fn glsl_dependencies(source: &str, var: &str) -> String {
     let (variable, channels) = var.split_once('.').unwrap_or((var, ""));
 
     Graph::from_glsl(&translation_unit).glsl_dependencies(variable, channels, None)
-}
-
-pub fn find_buffer_parameters(
-    graph: &Graph,
-    variable: &str,
-    channels: &str,
-) -> Vec<BufferDependency> {
-    graph
-        .assignments_recursive(variable, channels, None)
-        .into_iter()
-        .filter_map(|(i, final_channels)| {
-            // Check all exprs for binary ops, function args, etc.
-            graph.nodes[i]
-                .input
-                .exprs_recursive()
-                .into_iter()
-                .find_map(|e| buffer_dependency(e, &final_channels))
-        })
-        .collect()
 }
 
 pub fn buffer_dependency(e: &Expr, final_channels: &str) -> Option<BufferDependency> {
@@ -401,12 +470,12 @@ mod tests {
                     TexCoord {
                         name: "in_attr0".into(),
                         channels: "x".into(),
-                        params: Vec::new()
+                        params: None
                     },
                     TexCoord {
                         name: "in_attr0".into(),
                         channels: "w".into(),
-                        params: Vec::new()
+                        params: None
                     }
                 ]
             })],
@@ -415,7 +484,7 @@ mod tests {
     }
 
     #[test]
-    fn input_dependencies_scale_tex_matrix() {
+    fn input_dependencies_tex_matrix() {
         // xeno3/chr/ch/ch01021013, shd0039.frag
         let glsl = indoc! {"
             layout(location = 4) in vec4 in_attr4;
@@ -433,7 +502,7 @@ mod tests {
                 temp_155 = temp_152 + U_Mate.gTexMat[1].w;
                 temp_160 = temp_154 + U_Mate.gTexMat[0].w;
                 temp_162 = texture(gTResidentTex05, vec2(temp_160, temp_155)).x;
-                temp_163 = temp_162.x; 
+                temp_163 = temp_162.x;
             }
         "};
 
@@ -450,7 +519,7 @@ mod tests {
                     TexCoord {
                         name: "in_attr4".into(),
                         channels: "x".into(),
-                        params: vec![
+                        params: Some(TexCoordParams::Matrix([
                             BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gTexMat".into(),
@@ -474,13 +543,13 @@ mod tests {
                                 field: "gTexMat".into(),
                                 index: 0,
                                 channels: "w".into(),
-                            },
-                        ]
+                            }
+                        ]))
                     },
                     TexCoord {
                         name: "in_attr4".into(),
                         channels: "x".into(),
-                        params: vec![
+                        params: Some(TexCoordParams::Matrix([
                             BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gTexMat".into(),
@@ -504,8 +573,8 @@ mod tests {
                                 field: "gTexMat".into(),
                                 index: 1,
                                 channels: "w".into(),
-                            },
-                        ]
+                            }
+                        ]))
                     }
                 ]
             })],
@@ -514,7 +583,7 @@ mod tests {
     }
 
     #[test]
-    fn input_dependencies_scale_parameter() {
+    fn input_dependencies_scale_parameters() {
         let glsl = indoc! {"
             layout(location = 4) in vec4 in_attr4;
 
@@ -542,22 +611,22 @@ mod tests {
                     TexCoord {
                         name: "in_attr4".into(),
                         channels: "x".into(),
-                        params: vec![BufferDependency {
+                        params: Some(TexCoordParams::Scale(BufferDependency {
                             name: "U_Mate".into(),
                             field: "gWrkFl4".into(),
                             index: 0,
                             channels: "z".into()
-                        }]
+                        }))
                     },
                     TexCoord {
                         name: "in_attr4".into(),
                         channels: "y".into(),
-                        params: vec![BufferDependency {
+                        params: Some(TexCoordParams::Scale(BufferDependency {
                             name: "U_Mate".into(),
                             field: "gWrkFl4".into(),
                             index: 0,
                             channels: "w".into()
-                        }]
+                        }))
                     }
                 ]
             })],
@@ -698,45 +767,6 @@ mod tests {
                 channels: "x".into(),
             }],
             attribute_dependencies(&graph, "out_attr1", "y", &attributes, None)
-        );
-    }
-
-    #[test]
-    fn find_vertex_texcoord_parameters() {
-        let glsl = indoc! {"
-            void main() {
-                temp_62 = vTex0.x;
-                temp_64 = vTex0.y;
-                temp_119 = temp_62 * U_Mate.gWrkFl4[0].x;
-                out_attr4.z = temp_119;
-                out_attr4.x = temp_62;
-                out_attr4.y = temp_64;
-                temp_179 = temp_64 * U_Mate.gWrkFl4[0].y;
-                out_attr4.w = temp_179;
-            }
-        "};
-
-        let tu = TranslationUnit::parse(glsl).unwrap();
-        let graph = Graph::from_glsl(&tu);
-        assert!(find_buffer_parameters(&graph, "out_attr4", "x").is_empty());
-        assert!(find_buffer_parameters(&graph, "out_attr4", "y").is_empty());
-        assert_eq!(
-            vec![BufferDependency {
-                name: "U_Mate".into(),
-                field: "gWrkFl4".into(),
-                index: 0,
-                channels: "x".into()
-            }],
-            find_buffer_parameters(&graph, "out_attr4", "z")
-        );
-        assert_eq!(
-            vec![BufferDependency {
-                name: "U_Mate".into(),
-                field: "gWrkFl4".into(),
-                index: 0,
-                channels: "y".into()
-            }],
-            find_buffer_parameters(&graph, "out_attr4", "w")
         );
     }
 }

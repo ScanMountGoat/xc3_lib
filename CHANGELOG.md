@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## unreleased
 ### Added
 * Added rendering support for layered normal maps to xc3_wgpu.
+* Added support for texture scale matrices to xc3_wgpu and the shader database.
 
 ### Changed
 * Optimized the performance for loading the shader database JSON file for xc3_model.

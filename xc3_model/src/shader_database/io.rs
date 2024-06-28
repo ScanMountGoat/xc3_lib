@@ -6,7 +6,7 @@ use smol_str::SmolStr;
 
 use super::{
     AttributeDependency, BufferDependency, Dependency, MapPrograms, ModelPrograms, ShaderProgram,
-    TexCoord, TextureDependency,
+    TexCoord, TexCoordParams, TextureDependency,
 };
 
 // Create a separate smaller representation for on disk.
@@ -53,7 +53,14 @@ enum DependencyIndexed {
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-struct TexCoordIndexed(SmolStr, SmolStr, Vec<usize>);
+struct TexCoordIndexed(SmolStr, SmolStr, Option<TexCoordParamsIndexed>);
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
+pub enum TexCoordParamsIndexed {
+    Scale(usize),
+    Matrix([usize; 4]),
+}
 
 impl ShaderDatabaseIndexed {
     pub fn model(&self, name: &str) -> Option<ModelPrograms> {
@@ -175,10 +182,14 @@ impl ShaderDatabaseIndexed {
                                 TexCoordIndexed(
                                     t.name,
                                     t.channels,
-                                    t.params
-                                        .into_iter()
-                                        .map(|p| buffer_dependency_to_index.entry_index(p))
-                                        .collect(),
+                                    t.params.map(|params| match params {
+                                        TexCoordParams::Scale(s) => TexCoordParamsIndexed::Scale(
+                                            buffer_dependency_to_index.entry_index(s),
+                                        ),
+                                        TexCoordParams::Matrix(m) => TexCoordParamsIndexed::Matrix(
+                                            m.map(|v| buffer_dependency_to_index.entry_index(v)),
+                                        ),
+                                    }),
                                 )
                             })
                             .collect(),
@@ -208,10 +219,14 @@ fn dependency_from_indexed(
                     .map(|TexCoordIndexed(name, channels, params)| TexCoord {
                         name,
                         channels,
-                        params: params
-                            .into_iter()
-                            .map(|i| buffer_dependencies[i].clone())
-                            .collect(),
+                        params: params.map(|params| match params {
+                            TexCoordParamsIndexed::Scale(s) => {
+                                TexCoordParams::Scale(buffer_dependencies[s].clone())
+                            }
+                            TexCoordParamsIndexed::Matrix(m) => {
+                                TexCoordParams::Matrix(m.map(|v| buffer_dependencies[v].clone()))
+                            }
+                        }),
                     })
                     .collect(),
             })

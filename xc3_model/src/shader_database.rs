@@ -159,8 +159,20 @@ pub struct TexCoord {
     pub name: SmolStr,
     /// The accessed channels like "x" or "y".
     pub channels: SmolStr,
-    /// These can generally be assumed to be scale or matrix transforms.
-    pub params: Vec<BufferDependency>,
+    pub params: Option<TexCoordParams>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub enum TexCoordParams {
+    // A single scale parameter.
+    Scale(BufferDependency),
+    /// A float2x4 texture matrix.
+    /// ```text
+    /// u = dot(vec4(u, v, 0.0, 1.0), gTexMat[0].xyzw);
+    /// v = dot(vec4(u, v, 0.0, 1.0), gTexMat[1].xyzw);
+    /// ```
+    Matrix([BufferDependency; 4]),
 }
 
 /// A single input attribute like `in_attr0.x` in GLSL.
