@@ -35,7 +35,7 @@ pub enum Output5Type {
 
 impl PipelineKey {
     pub fn write_to_all_outputs(&self) -> bool {
-        self.pass_type == RenderPassType::Unk0
+        matches!(self.pass_type, RenderPassType::Unk0 | RenderPassType::Unk7)
     }
 
     pub fn stencil_reference(&self) -> u32 {
@@ -84,10 +84,14 @@ pub fn model_pipeline(
     // Some shaders only write to the albedo output.
     // TODO: Is there a better of handling this than modifying the render pass?
     if key.write_to_all_outputs() {
-        // TODO: alpha blending?
+        // TODO: Do outputs other than color ever use blending?
         // Create a target for each of the G-Buffer textures.
         let entry = crate::shader::model::fs_main_entry([
-            Some(GBUFFER_COLOR_FORMAT.into()),
+            Some(wgpu::ColorTargetState {
+                format: GBUFFER_COLOR_FORMAT,
+                blend: blend_state(key.flags.blend_mode),
+                write_mask: wgpu::ColorWrites::all(),
+            }),
             Some(GBUFFER_COLOR_FORMAT.into()),
             Some(GBUFFER_COLOR_FORMAT.into()),
             Some(GBUFFER_COLOR_FORMAT.into()),

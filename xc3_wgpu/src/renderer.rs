@@ -314,9 +314,10 @@ impl Xc3Renderer {
         // TODO: does the in game rendering group these in any meaningful way?
         self.opaque_pass(encoder, models);
         self.alpha1_pass(encoder, models);
+        self.alpha2_pass(encoder, models);
         self.unbranch_to_depth_pass(encoder);
         self.deferred_pass(encoder);
-        self.alpha2_pass(encoder, models);
+        self.alpha3_pass(encoder, models);
 
         self.snn_filter_pass(encoder);
         self.final_pass(encoder, output_view, models, draw_bounds, draw_bones);
@@ -357,14 +358,14 @@ impl Xc3Renderer {
         for model in models {
             model.draw(
                 &mut render_pass,
-                false,
+                true,
                 MeshRenderPass::Unk1,
                 &self.camera,
                 Some(Output5Type::Emission),
             );
             model.draw(
                 &mut render_pass,
-                false,
+                true,
                 MeshRenderPass::Unk0,
                 &self.camera,
                 Some(Output5Type::Emission),
@@ -372,7 +373,7 @@ impl Xc3Renderer {
             // TODO: Where is this supposed to go?
             model.draw(
                 &mut render_pass,
-                false,
+                true,
                 MeshRenderPass::Unk4,
                 &self.camera,
                 Some(Output5Type::Emission),
@@ -386,14 +387,14 @@ impl Xc3Renderer {
         for model in models {
             model.draw(
                 &mut render_pass,
-                false,
+                true,
                 MeshRenderPass::Unk1,
                 &self.camera,
                 Some(Output5Type::Specular),
             );
             model.draw(
                 &mut render_pass,
-                false,
+                true,
                 MeshRenderPass::Unk0,
                 &self.camera,
                 Some(Output5Type::Specular),
@@ -401,7 +402,7 @@ impl Xc3Renderer {
             // TODO: Where is this supposed to go?
             model.draw(
                 &mut render_pass,
-                false,
+                true,
                 MeshRenderPass::Unk4,
                 &self.camera,
                 Some(Output5Type::Specular),
@@ -489,7 +490,7 @@ impl Xc3Renderer {
 
     fn alpha1_pass(&self, encoder: &mut wgpu::CommandEncoder, models: &[ModelGroup]) {
         // Deferred rendering requires a second forward pass for transparent meshes.
-        // The transparent pass only writes to the color output.
+        // This pass only writes to the color output.
         // TODO: Research more about how this is implemented in game.
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Alpha Pass 1"),
@@ -526,7 +527,7 @@ impl Xc3Renderer {
         for model in models {
             model.draw(
                 &mut render_pass,
-                true,
+                false,
                 MeshRenderPass::Unk8,
                 &self.camera,
                 None,
@@ -534,12 +535,98 @@ impl Xc3Renderer {
         }
     }
 
+    // TODO: Share code for drawing?
     fn alpha2_pass(&self, encoder: &mut wgpu::CommandEncoder, models: &[ModelGroup]) {
+        // Deferred rendering requires a second forward pass for transparent meshes.
+        // This pass writes to all outputs.
+        // TODO: Research more about how this is implemented in game.
+        let mut render_pass = self.begin_alpha2_pass(encoder, Output5Type::Emission);
+
+        // TODO: organize into per frame, per model, etc?
+        self.model_bind_group0.set(&mut render_pass);
+
+        // TODO: Is this the correct unk type?
+        for model in models {
+            model.draw(
+                &mut render_pass,
+                true,
+                MeshRenderPass::Unk8,
+                &self.camera,
+                Some(Output5Type::Emission),
+            );
+        }
+        drop(render_pass);
+
+        // TODO: Share code with above.
+        let mut render_pass = self.begin_alpha2_pass(encoder, Output5Type::Specular);
+
+        // TODO: organize into per frame, per model, etc?
+        self.model_bind_group0.set(&mut render_pass);
+
+        // TODO: Is this the correct unk type?
+        for model in models {
+            model.draw(
+                &mut render_pass,
+                true,
+                MeshRenderPass::Unk8,
+                &self.camera,
+                Some(Output5Type::Specular),
+            );
+        }
+        drop(render_pass);
+    }
+
+    // TODO: This can share code with the opaque pass?
+    fn begin_alpha2_pass<'a>(
+        &'a self,
+        encoder: &'a mut wgpu::CommandEncoder,
+        output5_type: Output5Type,
+    ) -> wgpu::RenderPass<'a> {
+        encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: match output5_type {
+                Output5Type::Specular => Some("Alpha Pass 2 Spec"),
+                Output5Type::Emission => Some("Alpha Pass 2 Emi"),
+            },
+            color_attachments: &[
+                color_attachment_load(&self.textures.gbuffer.color),
+                color_attachment_load(&self.textures.gbuffer.etc_buffer),
+                color_attachment_load(&self.textures.gbuffer.normal),
+                color_attachment_load(&self.textures.gbuffer.velocity),
+                color_attachment_load(&self.textures.gbuffer.depth),
+                match output5_type {
+                    Output5Type::Specular => {
+                        // Always clear specular since it hasn't been rendered to yet.
+                        color_attachment_load(&self.textures.gbuffer.spec_color)
+                    }
+                    Output5Type::Emission => {
+                        color_attachment_load(&self.textures.gbuffer.lgt_color)
+                    }
+                },
+            ],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.textures.depth_stencil,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    // TODO: Write to depth buffer?
+                    store: wgpu::StoreOp::Store,
+                }),
+                // TODO: Does this pass ever write to the stencil buffer?
+                stencil_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                }),
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        })
+    }
+
+    fn alpha3_pass(&self, encoder: &mut wgpu::CommandEncoder, models: &[ModelGroup]) {
         // Deferred rendering requires a second forward pass for transparent meshes.
         // The transparent pass only writes to the color output.
         // TODO: Research more about how this is implemented in game.
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Alpha Pass 2"),
+            label: Some("Alpha Pass 3"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &self.textures.deferred_output,
                 resolve_target: None,
@@ -573,7 +660,7 @@ impl Xc3Renderer {
         for model in models {
             model.draw(
                 &mut render_pass,
-                true,
+                false,
                 MeshRenderPass::Unk2,
                 &self.camera,
                 None,

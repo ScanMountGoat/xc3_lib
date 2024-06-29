@@ -222,7 +222,7 @@ impl ModelGroup {
     pub fn draw<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
-        is_transparent: bool,
+        write_to_all_outputs: bool,
         pass_id: MeshRenderPass,
         camera: &CameraData,
         output5_type: Option<Output5Type>,
@@ -249,7 +249,7 @@ impl ModelGroup {
                     // TODO: The main pass is shared with outline, ope, and zpre?
                     // TODO: How to handle transparency?
                     // Only check the output5 type if needed.
-                    if (is_transparent != material.pipeline_key.write_to_all_outputs())
+                    if (write_to_all_outputs == material.pipeline_key.write_to_all_outputs())
                         && !material.name.contains("_speff_")
                         && mesh.should_render_lod(models)
                         && mesh.flags2.render_pass() == pass_id
