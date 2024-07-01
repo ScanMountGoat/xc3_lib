@@ -82,14 +82,25 @@ pub struct Textures {
 
 impl Textures {
     fn new(device: &wgpu::Device, width: u32, height: u32) -> Self {
-        let depth_view = create_depth_stencil_texture(device, width, height);
-        let mat_id_depth_view = create_mat_id_depth_texture(device, width, height);
+        let depth_view =
+            create_texture(device, width, height, "depth texture", DEPTH_STENCIL_FORMAT);
+        let mat_id_depth_view = create_texture(
+            device,
+            width,
+            height,
+            "material ID depth texture",
+            MAT_ID_DEPTH_FORMAT,
+        );
         let gbuffer = create_gbuffer(device, width, height);
         let deferred_bind_group1 = create_deferred_bind_group1(device, &gbuffer);
         let unbranch_to_depth_bind_group0 = create_unbranch_to_depth_bindgroup(device, &gbuffer);
-        let deferred_output = create_output_texture(device, "GBuffer Output", width, height);
 
-        let snn_filter_output = create_output_texture(device, "SNN Filter Output", width, height);
+        // TODO: This uses a higher precision floating point format in game?
+        // TODO: Does this need to support HDR for bloom?
+        let deferred_output = create_texture(device, width, height, "GBuffer Output", COLOR_FORMAT);
+        let snn_filter_output =
+            create_texture(device, width, height, "SNN Filter Output", COLOR_FORMAT);
+
         let snn_filter_bind_group0 =
             create_snn_filter_bindgroup(device, &gbuffer, &deferred_output);
 
@@ -947,73 +958,31 @@ fn color_attachment_load(view: &wgpu::TextureView) -> Option<wgpu::RenderPassCol
 
 fn create_gbuffer(device: &wgpu::Device, width: u32, height: u32) -> GBuffer {
     GBuffer {
-        color: create_gbuffer_texture(device, width, height, "g_color"),
-        etc_buffer: create_gbuffer_texture(device, width, height, "g_etc_buffer"),
-        normal: create_gbuffer_texture(device, width, height, "g_normal"),
-        velocity: create_gbuffer_texture(device, width, height, "g_velocity"),
-        depth: create_gbuffer_texture(device, width, height, "g_depth"),
-        lgt_color: create_gbuffer_texture(device, width, height, "g_lgt_color"),
-        spec_color: create_gbuffer_texture(device, width, height, "g_specular_color"),
+        color: create_texture(device, width, height, "g_color", GBUFFER_COLOR_FORMAT),
+        etc_buffer: create_texture(device, width, height, "g_etc_buffer", GBUFFER_COLOR_FORMAT),
+        normal: create_texture(device, width, height, "g_normal", GBUFFER_COLOR_FORMAT),
+        velocity: create_texture(device, width, height, "g_velocity", GBUFFER_COLOR_FORMAT),
+        depth: create_texture(device, width, height, "g_depth", GBUFFER_COLOR_FORMAT),
+        lgt_color: create_texture(device, width, height, "g_lgt_color", GBUFFER_COLOR_FORMAT),
+        spec_color: create_texture(
+            device,
+            width,
+            height,
+            "g_specular_color",
+            GBUFFER_COLOR_FORMAT,
+        ),
     }
 }
 
-fn create_gbuffer_texture(
+fn create_texture(
     device: &wgpu::Device,
     width: u32,
     height: u32,
-    name: &str,
-) -> wgpu::TextureView {
-    device
-        .create_texture(&wgpu::TextureDescriptor {
-            label: Some(name),
-            size: wgpu::Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: GBUFFER_COLOR_FORMAT,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        })
-        .create_view(&wgpu::TextureViewDescriptor::default())
-}
-
-fn create_output_texture(
-    device: &wgpu::Device,
     label: &str,
-    width: u32,
-    height: u32,
-) -> wgpu::TextureView {
-    // TODO: This uses a higher precision floating point format in game?
-    // TODO: Does this need to support HDR for bloom?
-    device
-        .create_texture(&wgpu::TextureDescriptor {
-            label: Some(label),
-            size: wgpu::Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: COLOR_FORMAT,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        })
-        .create_view(&wgpu::TextureViewDescriptor::default())
-}
-
-fn create_depth_stencil_texture(
-    device: &wgpu::Device,
-    width: u32,
-    height: u32,
+    format: wgpu::TextureFormat,
 ) -> wgpu::TextureView {
     let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("depth texture"),
+        label: Some(label),
         size: wgpu::Extent3d {
             width,
             height,
@@ -1022,31 +991,8 @@ fn create_depth_stencil_texture(
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: DEPTH_STENCIL_FORMAT,
+        format,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-        view_formats: &[],
-    });
-
-    depth_texture.create_view(&Default::default())
-}
-
-fn create_mat_id_depth_texture(
-    device: &wgpu::Device,
-    width: u32,
-    height: u32,
-) -> wgpu::TextureView {
-    let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("material ID depth texture"),
-        size: wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: MAT_ID_DEPTH_FORMAT,
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
         view_formats: &[],
     });
 
