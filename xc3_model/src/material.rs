@@ -487,7 +487,7 @@ fn channel_assignment(
         })
         .or_else(|| {
             // TODO: How to deal with multiple textures used for color and normal outputs?
-            let textures = shader
+            let textures: Vec<_> = shader
                 .textures(output_index, channel)
                 .iter()
                 .map(|texture| {
@@ -503,7 +503,7 @@ fn channel_assignment(
                 })
                 .collect();
 
-            Some(ChannelAssignment::Textures(textures))
+            (!textures.is_empty()).then_some(ChannelAssignment::Textures(textures))
         })
 }
 
