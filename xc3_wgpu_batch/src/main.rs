@@ -5,7 +5,7 @@ use futures::executor::block_on;
 use glam::{vec3, Mat4, Vec3};
 use image::ImageBuffer;
 use xc3_model::{load_animations, shader_database::ShaderDatabase};
-use xc3_wgpu::{CameraData, MonolibShaderTextures, Xc3Renderer};
+use xc3_wgpu::{CameraData, MonolibShaderTextures, Renderer};
 
 const WIDTH: u32 = 1024;
 const HEIGHT: u32 = 1024;
@@ -84,7 +84,7 @@ fn main() {
         Path::new(&cli.root_folder).join("monolib/shader"),
     );
 
-    let mut renderer = Xc3Renderer::new(&device, &queue, WIDTH, HEIGHT, &monolib_shader);
+    let mut renderer = Renderer::new(&device, &queue, WIDTH, HEIGHT, &monolib_shader);
 
     // Initialize the camera transform.
     let translation = vec3(0.0, -1.0, -10.0);
@@ -219,12 +219,12 @@ fn apply_anim(queue: &wgpu::Queue, groups: &[xc3_wgpu::ModelGroup], path: &Path)
 fn frame_model_bounds(
     queue: &wgpu::Queue,
     root: &xc3_model::ModelRoot,
-    renderer: &mut Xc3Renderer,
+    renderer: &mut Renderer,
 ) {
     frame_bounds(queue, renderer, root.models.min_xyz, root.models.max_xyz);
 }
 
-fn frame_map_bounds(queue: &wgpu::Queue, roots: &[xc3_model::MapRoot], renderer: &mut Xc3Renderer) {
+fn frame_map_bounds(queue: &wgpu::Queue, roots: &[xc3_model::MapRoot], renderer: &mut Renderer) {
     let min_xyz = roots
         .iter()
         .flat_map(|r| {
@@ -248,7 +248,7 @@ fn frame_map_bounds(queue: &wgpu::Queue, roots: &[xc3_model::MapRoot], renderer:
     frame_bounds(queue, renderer, min_xyz, max_xyz);
 }
 
-fn frame_bounds(queue: &wgpu::Queue, renderer: &mut Xc3Renderer, min_xyz: Vec3, max_xyz: Vec3) {
+fn frame_bounds(queue: &wgpu::Queue, renderer: &mut Renderer, min_xyz: Vec3, max_xyz: Vec3) {
     let center = (min_xyz + max_xyz) / 2.0;
     let bounds_size = max_xyz - min_xyz;
 

@@ -55,7 +55,7 @@ mod texture;
 pub use material::Material;
 pub use model::{load_map, load_model, Mesh, Model, ModelBuffers, ModelGroup, Models};
 pub use monolib::MonolibShaderTextures;
-pub use renderer::{CameraData, RenderMode, Xc3Renderer};
+pub use renderer::{CameraData, RenderMode, Renderer};
 
 use encase::{internal::WriteInto, ShaderSize, ShaderType, StorageBuffer, UniformBuffer};
 use indexmap::IndexMap;

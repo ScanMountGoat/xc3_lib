@@ -10,9 +10,8 @@ use crate::{
 
 const MAT_ID_DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth16Unorm;
 
-// TODO: Rename this since it supports all 3 games?
 // TODO: Add fallback textures for all the monolib shader textures?
-pub struct Xc3Renderer {
+pub struct Renderer {
     camera_buffer: wgpu::Buffer,
     camera: CameraData,
 
@@ -144,7 +143,7 @@ pub struct GBuffer {
     spec_color: wgpu::TextureView,
 }
 
-impl Xc3Renderer {
+impl Renderer {
     pub fn new(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
@@ -363,19 +362,19 @@ impl Xc3Renderer {
 
     fn opaque_pass(&self, encoder: &mut wgpu::CommandEncoder, models: &[ModelGroup]) {
         // TODO: Interleave emissive and specular passes?
-        let mut render_pass = self.begin_opaque_pass(encoder, Output5Type::Emission, false);
-        self.model_bind_group0.set(&mut render_pass);
+        let mut pass = self.begin_opaque_pass(encoder, Output5Type::Emission, false);
+        self.model_bind_group0.set(&mut pass);
 
         for model in models {
             model.draw(
-                &mut render_pass,
+                &mut pass,
                 true,
                 MeshRenderPass::Unk1,
                 &self.camera,
                 Some(Output5Type::Emission),
             );
             model.draw(
-                &mut render_pass,
+                &mut pass,
                 true,
                 MeshRenderPass::Unk0,
                 &self.camera,
@@ -383,14 +382,14 @@ impl Xc3Renderer {
             );
             // TODO: Where is this supposed to go?
             model.draw(
-                &mut render_pass,
+                &mut pass,
                 true,
                 MeshRenderPass::Unk4,
                 &self.camera,
                 Some(Output5Type::Emission),
             );
         }
-        drop(render_pass);
+        drop(pass);
 
         let mut render_pass = self.begin_opaque_pass(encoder, Output5Type::Specular, true);
         self.model_bind_group0.set(&mut render_pass);
@@ -606,7 +605,6 @@ impl Xc3Renderer {
                 color_attachment_load(&self.textures.gbuffer.depth),
                 match output5_type {
                     Output5Type::Specular => {
-                        // Always clear specular since it hasn't been rendered to yet.
                         color_attachment_load(&self.textures.gbuffer.spec_color)
                     }
                     Output5Type::Emission => {
@@ -618,10 +616,8 @@ impl Xc3Renderer {
                 view: &self.textures.depth_stencil,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Load,
-                    // TODO: Write to depth buffer?
                     store: wgpu::StoreOp::Store,
                 }),
-                // TODO: Does this pass ever write to the stencil buffer?
                 stencil_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Load,
                     store: wgpu::StoreOp::Store,
