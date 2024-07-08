@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 
 mod glsl;
+mod latte;
 pub mod query;
 
 /// A directed graph of shader assignments and input expressions to simplify analysis.
