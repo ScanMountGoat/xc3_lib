@@ -164,14 +164,14 @@ pub fn extract_legacy_shaders<P: AsRef<Path>>(
 ) {
     let output_folder = output_folder.as_ref();
 
-    if let Some(vert) = mths.vertex_binary() {
+    if let Ok(vert) = mths.vertex_shader() {
         let binary_path = output_folder.join(format!("{index}.vert.bin"));
-        dissassemble_shader(&binary_path, vert, gfd_tool);
+        dissassemble_shader(&binary_path, &vert.inner.program_binary, gfd_tool);
     }
 
-    if let Some(frag) = mths.fragment_binary() {
+    if let Ok(frag) = mths.fragment_shader() {
         let binary_path = output_folder.join(format!("{index}.frag.bin"));
-        dissassemble_shader(&binary_path, frag, gfd_tool);
+        dissassemble_shader(&binary_path, &frag.program_binary, gfd_tool);
     }
 }
 
