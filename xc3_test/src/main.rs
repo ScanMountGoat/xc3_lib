@@ -414,14 +414,18 @@ fn check_msmd(msmd: Msmd, path: &Path, _original_bytes: &[u8], check_read_write:
 
     for (i, model) in msmd.map_models.iter().enumerate() {
         match model.entry.extract(&mut reader, compressed) {
-            Ok(_) => (),
+            Ok(model) => {
+                check_spch(model.spch, path, &[], false);
+            }
             Err(e) => println!("Error extracting map model {i} in {path:?}: {e}"),
         }
     }
 
     for (i, model) in msmd.prop_models.iter().enumerate() {
         match model.entry.extract(&mut reader, compressed) {
-            Ok(_) => (),
+            Ok(model) => {
+                check_spch(model.spch, path, &[], false);
+            }
             Err(e) => println!("Error extracting prop model {i} in {path:?}: {e}"),
         }
     }
@@ -473,7 +477,9 @@ fn check_msmd(msmd: Msmd, path: &Path, _original_bytes: &[u8], check_read_write:
 
     for (i, model) in msmd.low_models.iter().enumerate() {
         match model.entry.extract(&mut reader, compressed) {
-            Ok(_) => (),
+            Ok(model) => {
+                check_spch(model.spch, path, &[], false);
+            }
             Err(e) => println!("Error extracting low model {i} in {path:?}: {e}"),
         }
     }
@@ -661,12 +667,9 @@ fn check_spch(spch: Spch, path: &Path, original_bytes: &[u8], check_read_write: 
     for (i, slct_offset) in spch.slct_offsets.iter().enumerate() {
         match slct_offset.read_slct(&spch.slct_section) {
             Ok(slct) => {
-                for (p, program) in slct.programs.iter().enumerate() {
-                    // TODO: Check that the extracted binary sizes add up to the total size.
-                    if let Err(e) = program.read_nvsd() {
-                        println!("Error reading Slct {i} and Nvsd {p} for {path:?}: {e}");
-                    }
-                }
+                // TODO: Check that the extracted binary sizes add up to the total size.
+                // TODO: check constant buffer size.
+                // slct.vertex_fragment_binaries(&spch.xv4_section, &spch.unk_section);
             }
             Err(e) => println!("Error reading Slct {i} for {path:?}: {e}"),
         }

@@ -216,11 +216,7 @@ fn apply_anim(queue: &wgpu::Queue, groups: &[xc3_wgpu::ModelGroup], path: &Path)
     }
 }
 
-fn frame_model_bounds(
-    queue: &wgpu::Queue,
-    root: &xc3_model::ModelRoot,
-    renderer: &mut Renderer,
-) {
+fn frame_model_bounds(queue: &wgpu::Queue, root: &xc3_model::ModelRoot, renderer: &mut Renderer) {
     frame_bounds(queue, renderer, root.models.min_xyz, root.models.max_xyz);
 }
 

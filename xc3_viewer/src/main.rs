@@ -16,9 +16,7 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 use xc3_model::{animation::Animation, load_animations, shader_database::ShaderDatabase};
-use xc3_wgpu::{
-    CameraData, ModelGroup, MonolibShaderTextures, RenderMode, Renderer, COLOR_FORMAT,
-};
+use xc3_wgpu::{CameraData, ModelGroup, MonolibShaderTextures, RenderMode, Renderer, COLOR_FORMAT};
 
 #[cfg(feature = "tracing")]
 use tracing_subscriber::prelude::*;
@@ -119,8 +117,7 @@ impl<'a> State<'a> {
         }
         let monolib_shader =
             MonolibShaderTextures::from_file(&device, &queue, root_folder.join("monolib/shader"));
-        let mut renderer =
-            Renderer::new(&device, &queue, size.width, size.height, &monolib_shader);
+        let mut renderer = Renderer::new(&device, &queue, size.width, size.height, &monolib_shader);
 
         // Initialize the camera transform.
         let translation = vec3(0.0, -0.5, -15.0);

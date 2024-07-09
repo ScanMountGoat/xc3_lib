@@ -69,8 +69,9 @@ pub use sampler::{AddressMode, FilterMode, Sampler};
 pub use skeleton::{Bone, Skeleton};
 pub use texture::{ExtractedTextures, ImageFormat, ImageTexture, ViewDimension};
 pub use xc3_lib::mxmd::{
-    BlendMode, CullMode, DepthFunc, MaterialFlags, MaterialRenderFlags, MeshRenderFlags2,
-    MeshRenderPass, RenderPassType, StateFlags, StencilMode, StencilValue, TextureUsage,
+    BlendMode, ColorWriteMode, CullMode, DepthFunc, MaterialFlags, MaterialRenderFlags,
+    MeshRenderFlags2, MeshRenderPass, RenderPassType, StateFlags, StencilMode, StencilValue,
+    TextureUsage,
 };
 
 pub mod animation;
@@ -81,6 +82,7 @@ pub mod gltf;
 mod map;
 mod material;
 mod model;
+pub mod monolib;
 mod sampler;
 pub mod shader_database;
 mod skeleton;
