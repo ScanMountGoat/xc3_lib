@@ -7,8 +7,8 @@ float      = @{ "-"? ~ ('0'..'9')+ ~ ("." ~ ('0'..'9')+ ~ ("e-" ~ ('0'..'9')+)?)
 
 cf_inst        = { inst_count ~ cf_opcode ~ cf_inst_properties }
 cf_exp_inst    = { inst_count ~ exp_opcode ~ ":" ~ (exp_pix_target | exp_pos_target | exp_param_target) ~ "," ~ exp_src ~ cf_inst_properties }
-tex_clause     = { (inst_count ~ tex_clause_inst_type ~ ":" ~ tex_clause_properties) ~ (tex_inst)* }
-alu_clause     = { (inst_count ~ alu_clause_inst_type ~ ":" ~ alu_clause_properties) ~ (alu_group)* }
+tex_clause     = { inst_count ~ tex_clause_inst_type ~ ":" ~ tex_clause_properties ~ (tex_inst)* }
+alu_clause     = { inst_count ~ alu_clause_inst_type ~ ":" ~ alu_clause_properties ~ (alu_group)* }
 end_of_program = { "END_OF_PROGRAM" }
 
 inst_count        = { number }

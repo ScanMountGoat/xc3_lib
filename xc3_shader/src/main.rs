@@ -254,4 +254,23 @@ pub fn extract_and_disassemble_shaders(input: &str, output: &str, gfd_tool: &str
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }
         });
+
+    globwalk::GlobWalkerBuilder::from_patterns(input, &["*.cashd"])
+        .build()
+        .unwrap()
+        .par_bridge()
+        .for_each(|entry| {
+            let path = entry.as_ref().unwrap().path();
+
+            // Assume that file names are unique even across different folders.
+            // This simplifies the output directory structure.
+            // TODO: Preserve the original folder structure instead?
+            let output_folder = shader_output_folder(output, path);
+            std::fs::create_dir_all(&output_folder).unwrap();
+
+            match Mths::from_file(path) {
+                Ok(mths) => extract_legacy_shaders(&mths, &output_folder, gfd_tool, 0),
+                Err(e) => println!("Error reading {path:?}: {e}"),
+            }
+        });
 }

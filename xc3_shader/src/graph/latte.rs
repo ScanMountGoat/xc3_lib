@@ -3,13 +3,83 @@ use pest_derive::Parser;
 
 use super::*;
 
+// TODO: Compare assembly and Cemu GLSL for Elma's legs (PC221115).
+// TODO: PV6 is a temp value (____ mask) written to in instruction count 6?
+// TODO: exp_done with brstcnt assigns sequential registers to sequential outputs
+// TODO: mov/2 a b is equivalent to a = b / 2
+// TODO: unit tests for sample shaders to test all these cases
 impl Graph {
     pub fn from_latte_asm(asm: &str) -> Self {
-        let file = LatteParser::parse(Rule::program, asm).unwrap();
+        let program = LatteParser::parse(Rule::program, asm)
+            .unwrap()
+            .next()
+            .unwrap();
 
         // TODO: Convert rules into a graph.
+        // TODO: Convert vector to 4 scalar instructions.
+        // TODO: Handle burstcnt outputs.
+        // TODO: How to handle masks?
+        let mut nodes = Vec::new();
+        for pair in program.into_inner() {
+            match pair.as_rule() {
+                Rule::instruction => {
+                    let inst = pair.into_inner().next().unwrap();
+                    dbg!(inst.as_rule());
+                    match inst.as_rule() {
+                        // TODO: functions that return option to clean this up
+                        Rule::cf_inst => {
+                            let mut rules = inst.into_inner();
+                            let inst_count: usize = rules.next().unwrap().as_str().parse().unwrap();
+                            let op_code = rules.next().unwrap().as_str();
+                            while let Some(property) = rules.next() {}
+                            // dbg!(inst_count, op_code, properties);
+                        }
+                        Rule::cf_exp_inst => {
+                            let mut rules = inst.into_inner();
+                            let inst_count: usize = rules.next().unwrap().as_str().parse().unwrap();
+                            let op_code = rules.next().unwrap().as_str();
+                            let target = rules.next().unwrap().as_str();
+                            let source = rules.next().unwrap().as_str();
 
-        Self { nodes: Vec::new() }
+                            // TODO: track source register range and output range
+                            while let Some(property) = rules.next() {
+                                dbg!(property.as_str());
+                                dbg!(property.as_rule());
+                                for inner in property.into_inner() {
+                                    if inner.as_rule() == Rule::burstcnt {
+                                        let burst_count: usize = inner.into_inner().next().unwrap().as_str().parse().unwrap();
+                                        dbg!(burst_count);
+                                    }
+                                }                         
+                            }
+                        }
+                        Rule::tex_clause => {
+                            let mut rules = inst.into_inner();
+                            let inst_count: usize = rules.next().unwrap().as_str().parse().unwrap();
+                            let _inst_type = rules.next().unwrap().as_str();
+                            let properties = rules.next().unwrap().as_str();
+                            dbg!(inst_count, properties);
+                            while let Some(tex_instruction) = rules.next() {
+                                dbg!(tex_instruction.as_str());
+                            }
+                        }
+                        Rule::alu_clause => {
+                            let mut rules = inst.into_inner();
+                            let inst_count: usize = rules.next().unwrap().as_str().parse().unwrap();
+                            let _inst_type = rules.next().unwrap().as_str();
+                            let properties = rules.next().unwrap().as_str();
+                            while let Some(group) = rules.next() {
+                                dbg!(group.as_str());
+                            }
+                        }
+                        _ => (),
+                    }
+                }
+                _ => (),
+            }
+        }
+
+        Self { nodes }
     }
 }
 
@@ -198,5 +268,6 @@ mod tests {
         "};
 
         assert_eq!(Graph { nodes: vec![] }, Graph::from_latte_asm(asm));
+        assert!(false);
     }
 }
