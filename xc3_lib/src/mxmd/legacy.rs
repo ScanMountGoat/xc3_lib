@@ -2,7 +2,7 @@ use std::io::SeekFrom;
 
 use crate::{
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
-    parse_string_ptr32, vertex::VertexAttribute, xc3_write_binwrite_impl, StringOffset32,
+    parse_string_ptr32, vertex::VertexAttribute, xc3_write_binwrite_impl, StringOffset32,parse_count32_offset32_unchecked,parse_offset32_count32_unchecked
 };
 use binrw::{args, binread, BinRead, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
@@ -617,36 +617,4 @@ impl<'a> Xc3WriteOffsets for PackedExternalTexturesOffsets<'a> {
         }
         Ok(())
     }
-}
-
-fn parse_offset32_count32_unchecked<T, R, Args>(
-    reader: &mut R,
-    endian: binrw::Endian,
-    args: binrw::file_ptr::FilePtrArgs<Args>,
-) -> binrw::BinResult<Vec<T>>
-where
-    for<'a> T: BinRead<Args<'a> = Args> + 'static,
-    R: std::io::Read + std::io::Seek,
-    Args: Clone,
-{
-    let offset = u32::read_options(reader, endian, ())?;
-    let count = u32::read_options(reader, endian, ())?;
-
-    crate::parse_vec(reader, endian, args, offset as u64, count as usize)
-}
-
-fn parse_count32_offset32_unchecked<T, R, Args>(
-    reader: &mut R,
-    endian: binrw::Endian,
-    args: binrw::file_ptr::FilePtrArgs<Args>,
-) -> binrw::BinResult<Vec<T>>
-where
-    for<'a> T: BinRead<Args<'a> = Args> + 'static,
-    R: std::io::Read + std::io::Seek,
-    Args: Clone,
-{
-    let count = u32::read_options(reader, endian, ())?;
-    let offset = u32::read_options(reader, endian, ())?;
-
-    crate::parse_vec(reader, endian, args, offset as u64, count as usize)
 }

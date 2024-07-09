@@ -662,7 +662,7 @@ fn foliage_materials(materials: &FoliageMaterials) -> Vec<Material> {
                 stencil_value: xc3_lib::mxmd::StencilValue::Unk0,
                 stencil_mode: xc3_lib::mxmd::StencilMode::Unk0,
                 depth_func: xc3_lib::mxmd::DepthFunc::LessEqual,
-                color_write_mode: 0,
+                color_write_mode: xc3_lib::mxmd::ColorWriteMode::Unk0,
             };
 
             Material {

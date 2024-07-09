@@ -483,7 +483,23 @@ pub struct StateFlags {
     pub stencil_value: StencilValue,
     pub stencil_mode: StencilMode,
     pub depth_func: DepthFunc,
-    pub color_write_mode: u8, // 0, 1, 10, 11
+    pub color_write_mode: ColorWriteMode,
+}
+
+// TODO: 0, 10 write to all outputs and 1,11 write to just color?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
+#[brw(repr(u8))]
+pub enum ColorWriteMode {
+    Unk0 = 0,
+    Unk1 = 1,
+    Unk2 = 2, // TODO: xcx only?
+    Unk3 = 3, // TODO: xcx only?
+    Unk6 = 6, // TODO: xcx only?
+    Unk9 = 9, // TODO: xcx only?
+    Unk10 = 10,
+    Unk11 = 11,
+    Unk12 = 12, // TODO: xcx only?
 }
 
 /// | Value | Col Src | Col Dst | Col Op | Alpha Src | Alpha Dst | Alpha Op |
@@ -590,9 +606,9 @@ pub struct MaterialTechnique {
 #[brw(repr(u16))]
 pub enum RenderPassType {
     Unk0 = 0, // main opaque + some transparent?
-    Unk1 = 1, // second layer transparent?
+    Unk1 = 1, // transparent pass with color output
     Unk6 = 6, // used for maps?
-    Unk7 = 7, // additional eye effect layer and lanz scar?
+    Unk7 = 7, // transparent pass but writes to all outputs
     Unk9 = 9, // used for maps?
 }
 

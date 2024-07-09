@@ -43,7 +43,7 @@ use std::{
 };
 
 use binrw::{
-    file_ptr::FilePtrArgs, BinRead, BinReaderExt, BinResult, BinWrite, Endian, NullString, VecArgs,
+    file_ptr::FilePtrArgs, BinRead, BinReaderExt, BinResult, BinWrite, Endian, FilePtr32, NullString, VecArgs
 };
 use log::trace;
 use thiserror::Error;
@@ -230,6 +230,40 @@ where
     parse_vec(reader, endian, args, offset as u64, count as usize)
 }
 
+// TODO: Better name than unchecked?
+fn parse_offset32_count32_unchecked<T, R, Args>(
+    reader: &mut R,
+    endian: binrw::Endian,
+    args: binrw::file_ptr::FilePtrArgs<Args>,
+) -> binrw::BinResult<Vec<T>>
+where
+    for<'a> T: BinRead<Args<'a> = Args> + 'static,
+    R: std::io::Read + std::io::Seek,
+    Args: Clone,
+{
+    let offset = u32::read_options(reader, endian, ())?;
+    let count = u32::read_options(reader, endian, ())?;
+
+    crate::parse_vec(reader, endian, args, offset as u64, count as usize)
+}
+
+fn parse_count32_offset32_unchecked<T, R, Args>(
+    reader: &mut R,
+    endian: binrw::Endian,
+    args: binrw::file_ptr::FilePtrArgs<Args>,
+) -> binrw::BinResult<Vec<T>>
+where
+    for<'a> T: BinRead<Args<'a> = Args> + 'static,
+    R: std::io::Read + std::io::Seek,
+    Args: Clone,
+{
+    let count = u32::read_options(reader, endian, ())?;
+    let offset = u32::read_options(reader, endian, ())?;
+
+    crate::parse_vec(reader, endian, args, offset as u64, count as usize)
+}
+
+
 fn parse_offset64_count32<T, R, Args>(
     reader: &mut R,
     endian: binrw::Endian,
@@ -334,6 +368,15 @@ fn parse_string_ptr32<R: Read + Seek>(
     args: FilePtrArgs<()>,
 ) -> BinResult<String> {
     let value: NullString = parse_ptr32(reader, endian, args)?;
+    Ok(value.to_string())
+}
+
+fn parse_string_ptr32_unchecked<R: Read + Seek>(
+    reader: &mut R,
+    endian: binrw::Endian,
+    args: FilePtrArgs<()>,
+) -> BinResult<String> {
+    let value: NullString = FilePtr32::parse(reader, endian, args)?;
     Ok(value.to_string())
 }
 
