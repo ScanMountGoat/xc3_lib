@@ -16,6 +16,7 @@ use crate::{parse_count32_offset32_unchecked, parse_string_ptr32_unchecked};
 
 const HEADER_SIZE: u32 = 48;
 
+// TODO: list.cashd is an SHPC file.
 // Assume the reader only contains the MTHS data.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
@@ -41,10 +42,10 @@ pub struct Mths {
 // TODO: Just duplicate the fields to avoid having a fragment inside a vertex shader?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, PartialEq, Clone)]
-#[br(import { 
-    program_offset: u64, 
-    uniform_buffer_offset: u64, 
-    uniform_offset: u64, 
+#[br(import {
+    program_offset: u64,
+    uniform_buffer_offset: u64,
+    uniform_offset: u64,
     string_offset: u64,
     sampler_offset: u64,
     attribute_offset: u64
@@ -63,10 +64,10 @@ pub struct VertexShader {
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, PartialEq, Clone)]
-#[br(import { 
-    program_offset: u64, 
-    uniform_buffer_offset: u64, 
-    uniform_offset: u64, 
+#[br(import {
+    program_offset: u64,
+    uniform_buffer_offset: u64,
+    uniform_offset: u64,
     string_offset: u64,
     sampler_offset: u64,
 })]
@@ -110,7 +111,7 @@ pub struct UniformBuffer {
 pub struct Uniform {
     #[br(parse_with = parse_string_ptr32_unchecked, offset = base_offset)]
     pub name: String,
-    pub data_type: u32,
+    pub data_type: VarType,
     pub count: u32,
     pub offset: u32,
     /// The index into [uniform_buffers](struct.FragmentShader.html#structfield.uniform_buffers)
@@ -124,7 +125,7 @@ pub struct Uniform {
 pub struct Attribute {
     #[br(parse_with = parse_string_ptr32_unchecked, offset = base_offset)]
     pub name: String,
-    pub data_type: u32,
+    pub data_type: VarType,
     pub count: u32,
     pub location: u32,
 }
@@ -135,7 +136,7 @@ pub struct Attribute {
 pub struct Sampler {
     #[br(parse_with = parse_string_ptr32_unchecked, offset = base_offset)]
     pub name: String,
-    pub data_type: u32,
+    pub data_type: VarType,
     pub location: u32,
 }
 
@@ -144,7 +145,26 @@ pub struct Sampler {
 #[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy, Hash)]
 #[brw(repr(u32))]
 pub enum ShaderMode {
-    UniformRegister,
+    UniformRegister = 0, // TODO: uniforms but no buffers?
+    UniformBlock = 1,
+}
+
+/// GX2VarType variants used by Xenoblade X.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy, Hash)]
+#[brw(repr(u32))]
+pub enum VarType {
+    Void = 0,
+    Bool = 1,
+    Float = 4,
+    Vec2 = 9,
+    Vec3 = 10,
+    Vec4 = 11,
+    IVec2 = 15,
+    IVec4 = 17,
+    Mat2x4 = 23,
+    Mat3x4 = 26,
+    Mat4 = 29,
 }
 
 impl Mths {

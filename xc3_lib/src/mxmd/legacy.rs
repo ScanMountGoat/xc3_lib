@@ -1,8 +1,9 @@
 use std::io::SeekFrom;
 
 use crate::{
-    parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
-    parse_string_ptr32, vertex::VertexAttribute, xc3_write_binwrite_impl, StringOffset32,parse_count32_offset32_unchecked,parse_offset32_count32_unchecked
+    parse_count32_offset32, parse_count32_offset32_unchecked, parse_offset32_count32,
+    parse_offset32_count32_unchecked, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
+    vertex::VertexAttribute, xc3_write_binwrite_impl, StringOffset32,
 };
 use binrw::{args, binread, BinRead, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};

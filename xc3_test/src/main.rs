@@ -25,6 +25,7 @@ use xc3_lib::{
     mibl::Mibl,
     msmd::Msmd,
     msrd::{streaming::chr_tex_nx_folder, Msrd},
+    mths::Mths,
     mtxt::Mtxt,
     mxmd::{legacy::MxmdLegacy, Mxmd},
     sar1::{ChCl, Csvb, Sar1},
@@ -119,6 +120,10 @@ struct Cli {
     /// Process BMN files from .bmn
     #[arg(long)]
     bmn: bool,
+
+    /// Process MTHS files from .cashd
+    #[arg(long)]
+    mths: bool,
 
     /// Process all file types except gltf and wimdo-model.
     #[arg(long)]
@@ -287,6 +292,11 @@ fn main() {
     if cli.bmn || cli.all {
         println!("Checking Bmn files ...");
         check_all(root, &["*.bmn"], check_bmn, Endian::Big, cli.rw);
+    }
+
+    if cli.mths || cli.all {
+        println!("Checking Mths files ...");
+        check_all(root, &["*.cashd"], check_mths, Endian::Big, cli.rw);
     }
 
     if cli.gltf {
@@ -666,10 +676,9 @@ fn is_valid_models_flags(mxmd: &Mxmd) -> bool {
 fn check_spch(spch: Spch, path: &Path, original_bytes: &[u8], check_read_write: bool) {
     for (i, slct_offset) in spch.slct_offsets.iter().enumerate() {
         match slct_offset.read_slct(&spch.slct_section) {
-            Ok(slct) => {
+            Ok(_) => {
                 // TODO: Check that the extracted binary sizes add up to the total size.
                 // TODO: check constant buffer size.
-                // slct.vertex_fragment_binaries(&spch.xv4_section, &spch.unk_section);
             }
             Err(e) => println!("Error reading Slct {i} for {path:?}: {e}"),
         }
@@ -816,8 +825,26 @@ fn check_mxmd_legacy(
             }
         }
     }
+
+    for shader in mxmd.shaders.shaders {
+        match Mths::from_bytes(&shader.mths_data) {
+            Ok(mths) => {
+                check_mths(mths, path, &shader.mths_data, check_read_write);
+            }
+            Err(e) => println!("Error reading Mths in {path:?}: {e}"),
+        }
+    }
     // TODO: check read/write for camdo?
     // TODO: Also test loading casmt data?
+}
+
+fn check_mths(mths: Mths, path: &Path, _original_bytes: &[u8], _check_read_write: bool) {
+    if let Err(e) = mths.vertex_shader() {
+        println!("Error reading vertex shader in {path:?}: {e}")
+    }
+    if let Err(e) = mths.fragment_shader() {
+        println!("Error reading fragment shader in {path:?}: {e}")
+    }
 }
 
 fn check_mtxt(mtxt: Mtxt, path: &Path, original_bytes: &[u8], check_read_write: bool) {

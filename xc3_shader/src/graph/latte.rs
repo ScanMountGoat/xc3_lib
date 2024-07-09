@@ -47,10 +47,16 @@ impl Graph {
                                 dbg!(property.as_rule());
                                 for inner in property.into_inner() {
                                     if inner.as_rule() == Rule::burstcnt {
-                                        let burst_count: usize = inner.into_inner().next().unwrap().as_str().parse().unwrap();
+                                        let burst_count: usize = inner
+                                            .into_inner()
+                                            .next()
+                                            .unwrap()
+                                            .as_str()
+                                            .parse()
+                                            .unwrap();
                                         dbg!(burst_count);
                                     }
-                                }                         
+                                }
                             }
                         }
                         Rule::tex_clause => {

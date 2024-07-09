@@ -43,7 +43,8 @@ use std::{
 };
 
 use binrw::{
-    file_ptr::FilePtrArgs, BinRead, BinReaderExt, BinResult, BinWrite, Endian, FilePtr32, NullString, VecArgs
+    file_ptr::FilePtrArgs, BinRead, BinReaderExt, BinResult, BinWrite, Endian, FilePtr32,
+    NullString, VecArgs,
 };
 use log::trace;
 use thiserror::Error;
@@ -262,7 +263,6 @@ where
 
     crate::parse_vec(reader, endian, args, offset as u64, count as usize)
 }
-
 
 fn parse_offset64_count32<T, R, Args>(
     reader: &mut R,
