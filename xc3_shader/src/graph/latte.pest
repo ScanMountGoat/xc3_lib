@@ -85,9 +85,9 @@ pass_jump_addr        = { "PASS_JUMP_ADDR(" ~ number ~ ")" }
 
 exp_src          =  { (gpr | gpr_rel) ~ four_comp_swizzle? }
 exp_opcode       =  { "EXP_DONE" | "EXP" }
-exp_pix_target   = @{ "PIX" ~ number }
-exp_pos_target   = @{ "POS" ~ number }
-exp_param_target = @{ "PARAM" ~ number }
+exp_pix_target   = ${ "PIX" ~ number }
+exp_pos_target   = ${ "POS" ~ number }
+exp_param_target = ${ "PARAM" ~ number }
 
 tex_inst        =  { inst_count ~ tex_opcode ~ tex_dst ~ "," ~ tex_src ~ "," ~ tex_resource_id ~ "," ~ tex_sampler_id ~ tex_properties }
 tex_opcode      =  {
@@ -130,9 +130,9 @@ tex_opcode      =  {
   | "GATHER4"
   | "GET_BUFFER_RESINFO"
 }
-tex_dst         =  { (gpr ~ TexRel? ~ four_comp_swizzle?) | write_mask }
-tex_src         =  { gpr ~ TexRel? ~ four_comp_swizzle? }
-TexRel          =  { "[AL]" }
+tex_dst         =  { (gpr ~ tex_rel? ~ four_comp_swizzle?) | write_mask }
+tex_src         =  { gpr ~ tex_rel? ~ four_comp_swizzle? }
+tex_rel          =  { "[AL]" }
 tex_resource_id = @{ "t" ~ number }
 tex_sampler_id  = @{ "s" ~ number }
 tex_properties  =  { ((alt_const | bc_frac_mode | denorm | norm | lod | whole_quad_mode | xoffset | yoffset | zoffset))* }
@@ -148,9 +148,9 @@ zoffset         =  { "ZOFFSET(" ~ float ~ ")" }
 alu_group           =  { inst_count ~ ((alu_scalar3 | alu_scalar2 | alu_scalar1 | alu_scalar0))+ }
 alu_unit            =  { "x" | "y" | "z" | "w" | "t" }
 alu_scalar0         =  { alu_unit ~ ":" ~ alu_opcode0 ~ alu_output_modifier? ~ alu_dst ~ alu_properties }
-alu_scalar1         =  { alu_unit ~ ":" ~ alu_opcode1 ~ alu_output_modifier? ~ alu_dst ~ "," ~ AluSrc ~ alu_properties }
-alu_scalar2         =  { alu_unit ~ ":" ~ alu_opcode2 ~ alu_output_modifier? ~ alu_dst ~ "," ~ AluSrc ~ "," ~ AluSrc ~ alu_properties }
-alu_scalar3         =  { alu_unit ~ ":" ~ alu_opcode3 ~ alu_dst ~ "," ~ AluSrc ~ "," ~ AluSrc ~ "," ~ AluSrc ~ alu_properties }
+alu_scalar1         =  { alu_unit ~ ":" ~ alu_opcode1 ~ alu_output_modifier? ~ alu_dst ~ "," ~ alu_src ~ alu_properties }
+alu_scalar2         =  { alu_unit ~ ":" ~ alu_opcode2 ~ alu_output_modifier? ~ alu_dst ~ "," ~ alu_src ~ "," ~ alu_src ~ alu_properties }
+alu_scalar3         =  { alu_unit ~ ":" ~ alu_opcode3 ~ alu_dst ~ "," ~ alu_src ~ "," ~ alu_src ~ "," ~ alu_src ~ alu_properties }
 alu_opcode0         =  { "NOP" | "SET_MODE" | "SET_CF_IDX0" | "SET_CF_IDX1" }
 alu_opcode1         =  {
     "FLT64_TO_FLT32"
@@ -317,7 +317,7 @@ alu_opcode3         =  {
 alu_output_modifier =  { "*2" | "*4" | "/2" | "|4" }
 alu_rel             = @{ ("[AR." ~ ("x" | "y" | "z" | "w" | "t" | "X" | "Y" | "Z" | "W" | "T") ~ "]") | "[AL]" }
 alu_dst             =  { (gpr ~ alu_rel? ~ one_comp_swizzle?) | write_mask }
-AluSrc              =  { negate? ~ (alu_abs_src_value | alu_src_value) ~ alu_rel? ~ one_comp_swizzle? }
+alu_src              =  { negate? ~ (alu_abs_src_value | alu_src_value) ~ alu_rel? ~ one_comp_swizzle? }
 alu_abs_src_value   =  { "|" ~ alu_src_value ~ "|" }
 alu_src_value       =  { gpr | constant_cache0 | constant_cache1 | constant_file | literal | previous_scalar | previous_vector }
 alu_properties      =  { ((bank_swizzle | update_exec_mask | update_pred | pred_sel | clamp))* }

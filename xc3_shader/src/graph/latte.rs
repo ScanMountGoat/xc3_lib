@@ -1,4 +1,4 @@
-use pest::Parser;
+use pest::{iterators::Pair, Parser};
 use pest_derive::Parser;
 
 use super::*;
@@ -8,6 +8,8 @@ use super::*;
 // TODO: exp_done with brstcnt assigns sequential registers to sequential outputs
 // TODO: mov/2 a b is equivalent to a = b / 2
 // TODO: unit tests for sample shaders to test all these cases
+// TODO: MULADD_D2 is fma and then divide by 2
+// TODO: The first registers are always input attributes?
 impl Graph {
     pub fn from_latte_asm(asm: &str) -> Self {
         let program = LatteParser::parse(Rule::program, asm)
@@ -21,72 +23,172 @@ impl Graph {
         // TODO: How to handle masks?
         let mut nodes = Vec::new();
         for pair in program.into_inner() {
-            match pair.as_rule() {
-                Rule::instruction => {
-                    let inst = pair.into_inner().next().unwrap();
-                    dbg!(inst.as_rule());
-                    match inst.as_rule() {
-                        // TODO: functions that return option to clean this up
-                        Rule::cf_inst => {
-                            let mut rules = inst.into_inner();
-                            let inst_count: usize = rules.next().unwrap().as_str().parse().unwrap();
-                            let op_code = rules.next().unwrap().as_str();
-                            while let Some(property) = rules.next() {}
-                            // dbg!(inst_count, op_code, properties);
-                        }
-                        Rule::cf_exp_inst => {
-                            let mut rules = inst.into_inner();
-                            let inst_count: usize = rules.next().unwrap().as_str().parse().unwrap();
-                            let op_code = rules.next().unwrap().as_str();
-                            let target = rules.next().unwrap().as_str();
-                            let source = rules.next().unwrap().as_str();
+            if pair.as_rule() == Rule::instruction {
+                let inst = pair.into_inner().next().unwrap();
+                match inst.as_rule() {
+                    // TODO: functions that return option to clean this up
+                    Rule::cf_inst => {
+                        let mut inner = inst.into_inner();
+                        let inst_count: usize = inner.next().unwrap().as_str().parse().unwrap();
+                        let op_code = inner.next().unwrap().as_str();
+                        for property in inner {}
+                    }
+                    Rule::cf_exp_inst => {
+                        let mut inner = inst.into_inner();
+                        let inst_count: usize = inner.next().unwrap().as_str().parse().unwrap();
+                        let op_code = inner.next().unwrap().as_str();
 
-                            // TODO: track source register range and output range
-                            while let Some(property) = rules.next() {
-                                dbg!(property.as_str());
-                                dbg!(property.as_rule());
-                                for inner in property.into_inner() {
-                                    if inner.as_rule() == Rule::burstcnt {
-                                        let burst_count: usize = inner
-                                            .into_inner()
-                                            .next()
-                                            .unwrap()
-                                            .as_str()
-                                            .parse()
-                                            .unwrap();
-                                        dbg!(burst_count);
-                                    }
+                        let target = inner.next().unwrap();
+                        let (target_name, target_index) = exp_target(target);
+
+                        let source = inner.next().unwrap().as_str();
+
+                        // TODO: track source register range and output range
+                        let mut burst_count = 1;
+                        for property in inner {
+                            for inner in property.into_inner() {
+                                if inner.as_rule() == Rule::burstcnt {
+                                    burst_count = inner
+                                        .into_inner()
+                                        .next()
+                                        .unwrap()
+                                        .as_str()
+                                        .parse()
+                                        .unwrap();
                                 }
                             }
                         }
-                        Rule::tex_clause => {
-                            let mut rules = inst.into_inner();
-                            let inst_count: usize = rules.next().unwrap().as_str().parse().unwrap();
-                            let _inst_type = rules.next().unwrap().as_str();
-                            let properties = rules.next().unwrap().as_str();
-                            dbg!(inst_count, properties);
-                            while let Some(tex_instruction) = rules.next() {
-                                dbg!(tex_instruction.as_str());
-                            }
+
+                        // BURSTCNT assigns consecutive input and output registers.
+                        for i in 0..burst_count {
+                            // TODO: Track previous node assignments for source.
+                            // TODO: use out_attr{i} for consistency with GLSL?
+                            let node = Node {
+                                output: Output {
+                                    name: format!("{target_name}{}", target_index + i),
+                                    channels: String::new(),
+                                },
+                                input: Expr::Node {
+                                    node_index: 0,
+                                    channels: String::new(),
+                                },
+                            };
+                            nodes.push(node);
                         }
-                        Rule::alu_clause => {
-                            let mut rules = inst.into_inner();
-                            let inst_count: usize = rules.next().unwrap().as_str().parse().unwrap();
-                            let _inst_type = rules.next().unwrap().as_str();
-                            let properties = rules.next().unwrap().as_str();
-                            while let Some(group) = rules.next() {
-                                dbg!(group.as_str());
-                            }
-                        }
-                        _ => (),
                     }
+                    Rule::tex_clause => {
+                        let mut inner = inst.into_inner();
+                        let inst_count: usize = inner.next().unwrap().as_str().parse().unwrap();
+                        let _inst_type = inner.next().unwrap().as_str();
+                        let properties = inner.next().unwrap().as_str();
+                        for tex_instruction in inner {
+                            let node = tex_inst_node(tex_instruction).unwrap();
+                            nodes.push(node);
+                        }
+                    }
+                    Rule::alu_clause => {
+                        let mut inner = inst.into_inner();
+                        let inst_count: usize = inner.next().unwrap().as_str().parse().unwrap();
+                        let _inst_type = inner.next().unwrap().as_str();
+                        let properties = inner.next().unwrap().as_str();
+                        for group in inner {}
+                    }
+                    _ => (),
                 }
-                _ => (),
             }
         }
 
         Self { nodes }
     }
+}
+
+fn exp_target(target: Pair<Rule>) -> (&'static str, usize) {
+    let target_name = match target.as_rule() {
+        Rule::exp_pix_target => "PIX",
+        Rule::exp_pos_target => "POS",
+
+        Rule::exp_param_target => "PARAM",
+        _ => unreachable!(),
+    };
+    let target_index: usize = target
+        .into_inner()
+        .next()
+        .unwrap()
+        .as_str()
+        .parse()
+        .unwrap();
+    (target_name, target_index)
+}
+
+fn tex_inst_node(tex_instruction: Pair<Rule>) -> Option<Node> {
+    let mut inner = tex_instruction.into_inner();
+    // TODO: why does this have trailing white space?
+    let inst_count = inner.next()?.as_str();
+
+    // TODO: Check that this is SAMPLE?
+    let op_code = inner.next()?.as_str();
+
+    // TODO: Get the input names and channels.
+    // TODO: register or mask?
+    let dest = inner.next()?;
+    let output = texture_inst_dest(dest)?;
+
+    let src = inner.next()?;
+    let texcoords = texture_inst_src(src)?;
+
+    let texture = inner.next()?.as_str();
+    let sampler = inner.next()?.as_str();
+    // TODO: always ignore properties?
+
+    let texture_name = Expr::Global {
+        name: texture.to_string(),
+        channels: String::new(),
+    };
+
+    // TODO: Generate a "texture" function node.
+    Some(Node {
+        output,
+        input: Expr::Func {
+            name: "texture".to_string(),
+            args: vec![texture_name, texcoords],
+            channels: String::new(),
+        },
+    })
+}
+
+fn texture_inst_dest(dest: Pair<Rule>) -> Option<Output> {
+    // TODO: Handle other cases from grammar.
+    let mut inner = dest.into_inner();
+    let gpr = inner.next()?.as_str();
+    let swizzle = inner.next()?.as_str();
+    Some(Output {
+        name: gpr.to_string(),
+        channels: String::new(),
+    })
+}
+
+fn texture_inst_src(dest: Pair<Rule>) -> Option<Expr> {
+    // TODO: Handle other cases from grammar.
+    let mut inner = dest.into_inner();
+    let gpr = inner.next()?.as_str();
+    let swizzle = inner.next()?.as_str();
+
+    // TODO: Also handle cube maps.
+    // TODO: Will these always use input attributes?
+    Some(Expr::Func {
+        name: "vec2".to_string(),
+        args: vec![
+            Expr::Global {
+                name: gpr.to_string(),
+                channels: String::new(),
+            },
+            Expr::Global {
+                name: gpr.to_string(),
+                channels: String::new(),
+            },
+        ],
+        channels: String::new(),
+    })
 }
 
 // Grammar adapted from the cpp-peglib grammer used for decaf-emu:
@@ -273,7 +375,7 @@ mod tests {
             END_OF_PROGRAM
         "};
 
+        // TODO: Figure out the expected nodes.
         assert_eq!(Graph { nodes: vec![] }, Graph::from_latte_asm(asm));
-        assert!(false);
     }
 }

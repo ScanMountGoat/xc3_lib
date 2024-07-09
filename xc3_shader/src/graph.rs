@@ -18,6 +18,7 @@ pub struct Node {
     pub input: Expr,
 }
 
+// TODO: SmolStr?
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
     /// A value assigned in a previous node.
