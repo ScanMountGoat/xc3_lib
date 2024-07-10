@@ -220,6 +220,82 @@ impl Graph {
                                         let src1 = inner.next().unwrap().as_str().trim();
                                         let src2 = inner.next().unwrap().as_str().trim();
                                         let src3 = inner.next().unwrap().as_str().trim();
+
+                                        match op_code {
+                                            "MULADD" => {
+                                                let input = Expr::Func {
+                                                    name: "fma".to_string(),
+                                                    args: vec![
+                                                        Expr::Global {
+                                                            name: src1.to_string(),
+                                                            channels: String::new(),
+                                                        },
+                                                        Expr::Global {
+                                                            name: src2.to_string(),
+                                                            channels: String::new(),
+                                                        },
+                                                        Expr::Global {
+                                                            name: src3.to_string(),
+                                                            channels: String::new(),
+                                                        },
+                                                    ],
+                                                    channels: String::new(),
+                                                };
+                                                let node = Node {
+                                                    output: Output {
+                                                        name: dst.to_string(),
+                                                        channels: String::new(),
+                                                    },
+                                                    input,
+                                                };
+                                                nodes.push(node);
+                                            }
+                                            "MULADD_D2" => {
+                                                let input = Expr::Func {
+                                                    name: "fma".to_string(),
+                                                    args: vec![
+                                                        Expr::Global {
+                                                            name: src1.to_string(),
+                                                            channels: String::new(),
+                                                        },
+                                                        Expr::Global {
+                                                            name: src2.to_string(),
+                                                            channels: String::new(),
+                                                        },
+                                                        Expr::Global {
+                                                            name: src3.to_string(),
+                                                            channels: String::new(),
+                                                        },
+                                                    ],
+                                                    channels: String::new(),
+                                                };
+                                                let node = Node {
+                                                    output: Output {
+                                                        name: dst.to_string(),
+                                                        channels: String::new(),
+                                                    },
+                                                    input,
+                                                };
+                                                let node_index = nodes.len();
+                                                nodes.push(node);
+
+                                                let node = Node {
+                                                    output: Output {
+                                                        name: dst.to_string(),
+                                                        channels: String::new(),
+                                                    },
+                                                    input: Expr::Div(
+                                                        Box::new(Expr::Node {
+                                                            node_index,
+                                                            channels: String::new(),
+                                                        }),
+                                                        Box::new(Expr::Float(2.0)),
+                                                    ),
+                                                };
+                                                nodes.push(node);
+                                            }
+                                            _ => panic!("unexpected opcode3: {op_code}"),
+                                        };
                                     }
                                     _ => todo!(),
                                 }
@@ -537,6 +613,8 @@ mod tests {
             R7 = texture(t2, vec2(R6, R6));
             R9 = texture(t5, vec2(R6, R6));
             R6 = texture(t4, vec2(R6, R6));
+            R125.x = fma(R2.x, (0x40000000, 2), -1.0f);
+            R125.y = fma(R2.y, (0x40000000, 2), -1.0f);
             R124.w = R2.z * (0x41000000, 8);
             ____ = 0.0;
             ____ = 0.0;
@@ -568,7 +646,13 @@ mod tests {
             ____ = R126.w * PV11.y;
             ____ = R127.z * PV11.y;
             R126.y = R0.y * PS11;
+            R123.x = fma(R126.z, R125.x, PV12.z);
+            R123.y = fma(R127.w, R125.x, PV12.x);
             ____ = R0.z * R125.w;
+            R123.w = fma(R126.x, R125.x, PV12.w);
+            R126.x = fma(R127.y, R125.y, PV13.y);
+            R127.y = fma(R126.y, R125.y, PV13.x);
+            R125.z = fma(PV13.z, R125.y, PV13.w);
             R3.x = R124.w + -R125.z;
             ____ = 0.0;
             ____ = 0.0;
@@ -594,16 +678,31 @@ mod tests {
             ____ = PV19.x + PV19.x;
             R0.y = -PS19 + 1.0f;
             R0.z = R126.x + 1.0f;
+            R123.z = fma(-PV20.x, R126.x, -R127.x);
+            R123.z = R123.z / 2.0;
+            R123.w = fma(-PV20.x, R127.y, -R124.y);
+            R123.w = R123.w / 2.0;
             R4.x = PV21.z + 0.5f;
             R4.y = PV21.w + 0.5f;
             R4 = texture(t6, vec2(R4, R4));
             R0 = texture(t0, vec2(R0, R0));
+            R4.x = fma(KC0[0].x, R0.x, 0.0f);
+            R4.x = R4.x / 2.0;
             ____ = -R8.z + R4.z;
             ____ = -R8.y + R4.y;
             ____ = -R8.x + R4.x;
+            R4.y = fma(KC0[0].y, R0.y, 0.0f);
+            R4.y = R4.y / 2.0;
+            R123.x = fma(PV25.w, R7.x, R8.x);
+            R123.z = fma(PV25.y, R7.z, R8.z);
+            R123.w = fma(PV25.z, R7.y, R8.y);
+            R4.z = fma(KC0[0].z, R0.z, 0.0f);
+            R4.z = R4.z / 2.0;
             R9.x = R1.x * PV26.x;
             R9.y = R1.y * PV26.w;
             R9.z = R1.z * PV26.z;
+            R4.w = fma(KC0[0].w, R0.w, 0.0f);
+            R4.w = R4.w / 2.0;
             PIX0.xyzw = R10.xyzw;
             PIX1.xyzw = R11.xyzw;
             PIX2.xyzw = R12.xyzw;
