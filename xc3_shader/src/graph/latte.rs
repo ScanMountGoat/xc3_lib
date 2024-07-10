@@ -3,8 +3,11 @@ use pest_derive::Parser;
 
 use super::*;
 
+// Each ALU group has 4 vector operations xyzw and a scalar operation t.
+// TODO: PV6 is a temp xyzw vector value (____ mask) written to in instruction count 6
+// TODO: PS6 is the temp t value (____ mask) written to in instruction count 6
+
 // TODO: Compare assembly and Cemu GLSL for Elma's legs (PC221115).
-// TODO: PV6 is a temp value (____ mask) written to in instruction count 6?
 // TODO: exp_done with brstcnt assigns sequential registers to sequential outputs
 // TODO: mov/2 a b is equivalent to a = b / 2
 // TODO: unit tests for sample shaders to test all these cases
@@ -41,7 +44,8 @@ impl Graph {
                         let target = inner.next().unwrap();
                         let (target_name, target_index) = exp_target(target);
 
-                        let source = inner.next().unwrap().as_str();
+                        let source = inner.next().unwrap();
+                        let (source_name, source_index, channels) = exp_src(source).unwrap();
 
                         // TODO: track source register range and output range
                         let mut burst_count = 1;
@@ -66,11 +70,11 @@ impl Graph {
                             let node = Node {
                                 output: Output {
                                     name: format!("{target_name}{}", target_index + i),
-                                    channels: String::new(),
+                                    channels: channels.unwrap_or_default().to_string(),
                                 },
-                                input: Expr::Node {
-                                    node_index: 0,
-                                    channels: String::new(),
+                                input: Expr::Global {
+                                    name: format!("{source_name}{}", source_index + i),
+                                    channels: channels.unwrap_or_default().to_string(),
                                 },
                             };
                             nodes.push(node);
@@ -91,7 +95,136 @@ impl Graph {
                         let inst_count: usize = inner.next().unwrap().as_str().parse().unwrap();
                         let _inst_type = inner.next().unwrap().as_str();
                         let properties = inner.next().unwrap().as_str();
-                        for group in inner {}
+                        for group in inner {
+                            let mut inner = group.into_inner();
+                            let _inst_count = inner.next().unwrap().as_str();
+
+                            // TODO: Create scalar nodes for each ALU operation.
+                            for alu_scalar in inner {
+                                match alu_scalar.as_rule() {
+                                    Rule::alu_scalar0 => {
+                                        let mut inner = alu_scalar.into_inner();
+                                        let alu_unit = inner.next().unwrap().as_str(); // xyzwt
+                                        let op_code = inner.next().unwrap().as_str();
+
+                                        // TODO: optional modifier like /2 or *2
+                                        let modifier = inner.peek().and_then(|p| {
+                                            // Only advance the iterator if it's the expected type.
+                                            if p.as_rule() == Rule::alu_output_modifier {
+                                                Some(inner.next().unwrap().as_str())
+                                            } else {
+                                                None
+                                            }
+                                        });
+                                        let dst = inner.next().unwrap().as_str();
+                                    }
+                                    Rule::alu_scalar1 => {
+                                        let mut inner = alu_scalar.into_inner();
+                                        let alu_unit = inner.next().unwrap().as_str(); // xyzwt
+                                        let op_code = inner.next().unwrap().as_str();
+
+                                        // TODO: optional modifier like /2 or *2
+                                        let modifier = inner.peek().and_then(|p| {
+                                            // Only advance the iterator if it's the expected type.
+                                            if p.as_rule() == Rule::alu_output_modifier {
+                                                Some(inner.next().unwrap().as_str())
+                                            } else {
+                                                None
+                                            }
+                                        });
+                                        let dst = inner.next().unwrap().as_str();
+                                        let src = inner.next().unwrap().as_str().trim();
+                                    }
+                                    Rule::alu_scalar2 => {
+                                        let mut inner = alu_scalar.into_inner();
+                                        let alu_unit = inner.next().unwrap().as_str(); // xyzwt
+                                        let op_code = inner.next().unwrap().as_str();
+
+                                        // TODO: optional modifier like /2 or *2
+                                        let modifier = inner.peek().and_then(|p| {
+                                            // Only advance the iterator if it's the expected type.
+                                            if p.as_rule() == Rule::alu_output_modifier {
+                                                Some(inner.next().unwrap().as_str())
+                                            } else {
+                                                None
+                                            }
+                                        });
+                                        let dst = inner.next().unwrap().as_str();
+                                        let src1 = inner.next().unwrap().as_str().trim();
+                                        let src2 = inner.next().unwrap().as_str().trim();
+
+                                        // TODO: Track previous assignments.
+                                        // TODO: Correctly handle constants.
+                                        let input = match op_code {
+                                            "ADD" => Expr::Add(
+                                                Box::new(Expr::Global {
+                                                    name: src1.to_string(),
+                                                    channels: String::new(),
+                                                }),
+                                                Box::new(Expr::Global {
+                                                    name: src2.to_string(),
+                                                    channels: String::new(),
+                                                }),
+                                            ),
+                                            "MAX" => Expr::Func {
+                                                name: "max".to_string(),
+                                                args: vec![
+                                                    Expr::Global {
+                                                        name: src1.to_string(),
+                                                        channels: String::new(),
+                                                    },
+                                                    Expr::Global {
+                                                        name: src2.to_string(),
+                                                        channels: String::new(),
+                                                    },
+                                                ],
+                                                channels: String::new(),
+                                            },
+                                            "MUL" => Expr::Mul(
+                                                Box::new(Expr::Global {
+                                                    name: src1.to_string(),
+                                                    channels: String::new(),
+                                                }),
+                                                Box::new(Expr::Global {
+                                                    name: src2.to_string(),
+                                                    channels: String::new(),
+                                                }),
+                                            ),
+                                            "DOT4" => {
+                                                // TODO: TODO: dot function or multiplies and adds?
+                                                // TODO: this always involves xyzw?
+                                                Expr::Float(0.0)
+                                            }
+                                            "DOT4_IEEE" => {
+                                                // TODO: TODO: dot function or multiplies and adds?
+                                                // TODO: this always involves xyzw?
+                                                Expr::Float(0.0)
+                                            }
+                                            _ => panic!("unexpected opcode2: {op_code}"),
+                                        };
+
+                                        let node = Node {
+                                            output: Output {
+                                                name: dst.to_string(),
+                                                channels: String::new(),
+                                            },
+                                            input,
+                                        };
+                                        nodes.push(node);
+                                    }
+                                    Rule::alu_scalar3 => {
+                                        let mut inner = alu_scalar.into_inner();
+                                        let alu_unit = inner.next().unwrap().as_str(); // xyzwt
+                                        let op_code = inner.next().unwrap().as_str();
+                                        let dst = inner.next().unwrap().as_str();
+                                        let src1 = inner.next().unwrap().as_str().trim();
+                                        let src2 = inner.next().unwrap().as_str().trim();
+                                        let src3 = inner.next().unwrap().as_str().trim();
+                                    }
+                                    _ => todo!(),
+                                }
+                            }
+                        }
                     }
                     _ => (),
                 }
@@ -100,6 +233,27 @@ impl Graph {
 
         Self { nodes }
     }
+}
+
+fn exp_src(source: Pair<Rule>) -> Option<(&'static str, usize, Option<&str>)> {
+    let mut source_inner = source.into_inner();
+    let name_pair = source_inner.next()?;
+    let name = match name_pair.as_rule() {
+        Rule::gpr => "R",
+        Rule::gpr_rel => todo!(),
+        _ => unreachable!(),
+    };
+    let index = name_pair.into_inner().next()?.as_str().parse().unwrap();
+
+    let channels = source_inner.next().and_then(|p| {
+        if p.as_rule() == Rule::four_comp_swizzle {
+            Some(p.as_str().trim_start_matches('.'))
+        } else {
+            None
+        }
+    });
+
+    Some((name, index, channels))
 }
 
 fn exp_target(target: Pair<Rule>) -> (&'static str, usize) {
@@ -205,7 +359,9 @@ mod tests {
     use super::*;
 
     use indoc::indoc;
+    use pretty_assertions::assert_eq;
 
+    // TODO ALso test the GLSL output for a known shader.
     #[test]
     fn graph_from_asm_dl019100_frag_0() {
         let asm = indoc! {"
@@ -375,7 +531,87 @@ mod tests {
             END_OF_PROGRAM
         "};
 
+        let expected = indoc! {"
+            R2 = texture(t3, vec2(R6, R6));
+            R8 = texture(t1, vec2(R6, R6));
+            R7 = texture(t2, vec2(R6, R6));
+            R9 = texture(t5, vec2(R6, R6));
+            R6 = texture(t4, vec2(R6, R6));
+            R124.w = R2.z * (0x41000000, 8);
+            ____ = 0.0;
+            ____ = 0.0;
+            ____ = 0.0;
+            ____ = 0.0;
+            ____ = 0.0;
+            ____ = 0.0;
+            ____ = 0.0;
+            ____ = 0.0;
+            R127.z = -PV6.x + 1.0f;
+            ____ = 0.0;
+            R127.y = 0.0;
+            ____ = 0.0;
+            ____ = 0.0;
+            R127.x = R5.x * PS8;
+            R124.y = R125.z * (0x3B808081, 0.003921569);
+            R127.z = R5.z * PS8;
+            R126.w = R5.y * PS8;
+            ____ = 0.0;
+            ____ = 0.0;
+            ____ = 0.0;
+            ____ = 0.0;
+            R126.x = R3.z * PS10;
+            ____ = max(R127.w, 0.0f);
+            R126.z = R3.y * PS10;
+            R127.w = R3.x * PS10;
+            ____ = R127.x * PV11.y;
+            R127.y = R0.x * PS11;
+            ____ = R126.w * PV11.y;
+            ____ = R127.z * PV11.y;
+            R126.y = R0.y * PS11;
+            ____ = R0.z * R125.w;
+            R3.x = R124.w + -R125.z;
+            ____ = 0.0;
+            ____ = 0.0;
+            ____ = 0.0;
+            ____ = 0.0;
+            R3.y = R124.y + -R125.x;
+            ____ = 0.0;
+            ____ = 0.0;
+            ____ = 0.0;
+            ____ = 0.0;
+            R127.x = R4.x * PS16;
+            R124.y = R4.y * PS16;
+            R126.z = R4.z * PS16;
+            R126.x = R126.x * PS17;
+            R127.y = R127.y * PS17;
+            ____ = R125.z * PS17;
+            R3.z = R125.x * (0x3B808081, 0.003921569);
+            ____ = 0.0;
+            ____ = 0.0;
+            ____ = 0.0;
+            ____ = 0.0;
+            ____ = PV18.y + 1.0f;
+            ____ = PV19.x + PV19.x;
+            R0.y = -PS19 + 1.0f;
+            R0.z = R126.x + 1.0f;
+            R4.x = PV21.z + 0.5f;
+            R4.y = PV21.w + 0.5f;
+            R4 = texture(t6, vec2(R4, R4));
+            R0 = texture(t0, vec2(R0, R0));
+            ____ = -R8.z + R4.z;
+            ____ = -R8.y + R4.y;
+            ____ = -R8.x + R4.x;
+            R9.x = R1.x * PV26.x;
+            R9.y = R1.y * PV26.w;
+            R9.z = R1.z * PV26.z;
+            PIX0.xyzw = R10.xyzw;
+            PIX1.xyzw = R11.xyzw;
+            PIX2.xyzw = R12.xyzw;
+            PIX3.xyzw = R13.xyzw;
+        "};
+
         // TODO: Figure out the expected nodes.
-        assert_eq!(Graph { nodes: vec![] }, Graph::from_latte_asm(asm));
+        let graph = Graph::from_latte_asm(asm);
+        assert_eq!(expected, graph.to_glsl());
     }
 }
