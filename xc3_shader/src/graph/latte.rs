@@ -19,6 +19,11 @@ impl Graph {
             .next()
             .unwrap();
 
+        // TODO: track previous nodes while also handling channels?
+        // i.e. R0.x should be tracked separately from R0.y.
+        // R0.xyz affects the value of R0.x
+        // TODO: Can we ignore channel swizzling like R1.zyx = R1.xyz if this is just the previous assignment?
+
         // TODO: How to handle masks?
         let mut nodes = Vec::new();
         for pair in program.into_inner() {
@@ -151,6 +156,11 @@ fn add_alu_clause(inst: Pair<Rule>, nodes: &mut Vec<Node>) {
                         },
                         "RECIPSQRT_IEEE" => Expr::Func {
                             name: "inversesqrt".to_string(),
+                            args: vec![src],
+                            channels: String::new(),
+                        },
+                        "EXP_IEEE" => Expr::Func {
+                            name: "exp2".to_string(),
                             args: vec![src],
                             channels: String::new(),
                         },
@@ -326,6 +336,8 @@ fn alu_output_modifier(modifier: &str, dst: &str, node_index: usize) -> Node {
 
 fn alu_src_expr(source: Pair<Rule>) -> Expr {
     // TODO: track previous assignments
+    // TODO: handle unary ops like negate
+    // TODO: constants and literals
     Expr::Global {
         name: source.as_str().trim().to_string(),
         channels: String::new(),
