@@ -150,46 +150,19 @@ impl Graph {
                                             }
                                         });
                                         let dst = inner.next().unwrap().as_str();
-                                        let src1 = inner.next().unwrap().as_str().trim();
-                                        let src2 = inner.next().unwrap().as_str().trim();
+                                        let src1 = alu_src_expr(inner.next().unwrap());
+                                        let src2 = alu_src_expr(inner.next().unwrap());
 
                                         // TODO: Track previous assignments.
                                         // TODO: Correctly handle constants.
                                         let input = match op_code {
-                                            "ADD" => Expr::Add(
-                                                Box::new(Expr::Global {
-                                                    name: src1.to_string(),
-                                                    channels: String::new(),
-                                                }),
-                                                Box::new(Expr::Global {
-                                                    name: src2.to_string(),
-                                                    channels: String::new(),
-                                                }),
-                                            ),
+                                            "ADD" => Expr::Add(Box::new(src1), Box::new(src2)),
                                             "MAX" => Expr::Func {
                                                 name: "max".to_string(),
-                                                args: vec![
-                                                    Expr::Global {
-                                                        name: src1.to_string(),
-                                                        channels: String::new(),
-                                                    },
-                                                    Expr::Global {
-                                                        name: src2.to_string(),
-                                                        channels: String::new(),
-                                                    },
-                                                ],
+                                                args: vec![src1, src2],
                                                 channels: String::new(),
                                             },
-                                            "MUL" => Expr::Mul(
-                                                Box::new(Expr::Global {
-                                                    name: src1.to_string(),
-                                                    channels: String::new(),
-                                                }),
-                                                Box::new(Expr::Global {
-                                                    name: src2.to_string(),
-                                                    channels: String::new(),
-                                                }),
-                                            ),
+                                            "MUL" => Expr::Mul(Box::new(src1), Box::new(src2)),
                                             "DOT4" => {
                                                 // TODO: TODO: dot function or multiplies and adds?
                                                 // TODO: this always involves xyzw?
@@ -217,28 +190,15 @@ impl Graph {
                                         let alu_unit = inner.next().unwrap().as_str(); // xyzwt
                                         let op_code = inner.next().unwrap().as_str();
                                         let dst = inner.next().unwrap().as_str();
-                                        let src1 = inner.next().unwrap().as_str().trim();
-                                        let src2 = inner.next().unwrap().as_str().trim();
-                                        let src3 = inner.next().unwrap().as_str().trim();
+                                        let src1 = alu_src_expr(inner.next().unwrap());
+                                        let src2 = alu_src_expr(inner.next().unwrap());
+                                        let src3 = alu_src_expr(inner.next().unwrap());
 
                                         match op_code {
                                             "MULADD" => {
                                                 let input = Expr::Func {
                                                     name: "fma".to_string(),
-                                                    args: vec![
-                                                        Expr::Global {
-                                                            name: src1.to_string(),
-                                                            channels: String::new(),
-                                                        },
-                                                        Expr::Global {
-                                                            name: src2.to_string(),
-                                                            channels: String::new(),
-                                                        },
-                                                        Expr::Global {
-                                                            name: src3.to_string(),
-                                                            channels: String::new(),
-                                                        },
-                                                    ],
+                                                    args: vec![src1, src2, src3],
                                                     channels: String::new(),
                                                 };
                                                 let node = Node {
@@ -253,20 +213,7 @@ impl Graph {
                                             "MULADD_D2" => {
                                                 let input = Expr::Func {
                                                     name: "fma".to_string(),
-                                                    args: vec![
-                                                        Expr::Global {
-                                                            name: src1.to_string(),
-                                                            channels: String::new(),
-                                                        },
-                                                        Expr::Global {
-                                                            name: src2.to_string(),
-                                                            channels: String::new(),
-                                                        },
-                                                        Expr::Global {
-                                                            name: src3.to_string(),
-                                                            channels: String::new(),
-                                                        },
-                                                    ],
+                                                    args: vec![src1, src2, src3],
                                                     channels: String::new(),
                                                 };
                                                 let node = Node {
@@ -308,6 +255,14 @@ impl Graph {
         }
 
         Self { nodes }
+    }
+}
+
+fn alu_src_expr(source: Pair<Rule>) -> Expr {
+    // TODO: track previous assignments
+    Expr::Global {
+        name: source.as_str().trim().to_string(),
+        channels: String::new(),
     }
 }
 
