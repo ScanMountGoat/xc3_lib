@@ -149,10 +149,72 @@ fn add_alu_clause(inst: Pair<Rule>, nodes: &mut Vec<Node>) {
             })
             .collect();
 
-        // TODO: Detect dot product.
+        let dot_node_index = dot_product_node_index(&scalars, inst_count, nodes);
+
         for scalar in scalars {
-            add_scalar(scalar, nodes);
+            if scalar.op_code.starts_with("DOT4") {
+                // Dot products write the result to all vector components.
+                if let Some(node_index) = dot_node_index {
+                    let node = Node {
+                        output: scalar.output,
+                        input: Expr::Node {
+                            node_index,
+                            channels: String::new(),
+                        },
+                    };
+                    nodes.push(node);
+                }
+            } else {
+                add_scalar(scalar, nodes);
+            }
         }
+    }
+}
+
+fn dot_product_node_index(
+    scalars: &[AluScalar],
+    inst_count: usize,
+    nodes: &mut Vec<Node>,
+) -> Option<usize> {
+    let (dot4_a, dot4_b): (Vec<_>, Vec<_>) = scalars
+        .iter()
+        .filter_map(|s| {
+            if s.op_code.starts_with("DOT4") {
+                Some((s.sources[0].clone(), s.sources[1].clone()))
+            } else {
+                None
+            }
+        })
+        .unzip();
+    if !dot4_a.is_empty() && !dot4_b.is_empty() {
+        let node_index = nodes.len();
+
+        let node = Node {
+            output: Output {
+                name: format!("temp{inst_count}"),
+                channels: String::new(),
+            },
+            input: Expr::Func {
+                name: "dot".to_string(),
+                args: vec![
+                    Expr::Func {
+                        name: "vec4".to_string(),
+                        args: dot4_a,
+                        channels: String::new(),
+                    },
+                    Expr::Func {
+                        name: "vec4".to_string(),
+                        args: dot4_b,
+                        channels: String::new(),
+                    },
+                ],
+                channels: String::new(),
+            },
+        };
+        nodes.push(node);
+        Some(node_index)
+    } else {
+        None
     }
 }
 
@@ -244,24 +306,9 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Vec<Node>) {
             };
             nodes.push(node);
         }
-        "DOT4" => {
-            // TODO: dot function assigned to a temp value
-            // TODO: dot product result is assigned to xyzw outputs
-            // This could be a combination of pv or register values like r5.x, pv.y, pv.z, pv.w
-            // temp{inst_count} = dot(...)
-            // r5.x, pv.y, pv.z, pv.w = temp
-            let node = Node {
-                output,
-                input: Expr::Float(0.0),
-            };
-            nodes.push(node);
-        }
-        "DOT4_IEEE" => {
-            let node = Node {
-                output,
-                input: Expr::Float(0.0),
-            };
-            nodes.push(node);
+        "DOT4" | "DOT4_IEEE" => {
+            // Handled in a previous check.
+            unreachable!()
         }
         // scalar3
         "MULADD" => {
@@ -317,6 +364,8 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Vec<Node>) {
 }
 
 fn alu_dst_output(pair: Pair<Rule>, inst_count: usize, alu_unit: &str) -> Output {
+    // ____ mask for xyzw writes to a previous vector "PV".
+    // ____ mask for t writes to a previous scalar "PS".
     let text = pair.as_str();
     let name = if pair.into_inner().next().map(|p| p.as_rule()) == Some(Rule::write_mask) {
         match alu_unit {
@@ -384,15 +433,9 @@ fn alu_src_expr(source: Pair<Rule>) -> Expr {
         })
         .unwrap_or_default();
 
-    // TODO: constants and literals
     // TODO: abs value?
     let value = inner.next().unwrap();
     let alu_src_value = value.into_inner().next().unwrap();
-
-    // TODO: Previous vector "PV6" is a temp xyzw vector value
-    // (____ mask) written to in instruction count 6
-    // TODO: Previous scalar PS6 is the temp t value
-    // (____ mask) written to in instruction count 6
     let value = match alu_src_value.as_rule() {
         Rule::literal => {
             let mut inner = alu_src_value.into_inner();
@@ -757,30 +800,34 @@ mod tests {
             PV5.z = 0.0;
             R124.w = R2.z * 8;
             R6.w = 0.0;
-            PV6.x = 0.0;
-            PV6.y = 0.0;
-            PV6.z = 0.0;
-            PV6.w = 0.0;
+            temp6 = dot(vec4(PV5.x, PV5.y, PV5.z, -0), vec4(PV5.x, PV5.y, PV5.y, 0.0));
+            PV6.x = temp6;
+            PV6.y = temp6;
+            PV6.z = temp6;
+            PV6.w = temp6;
             R125.z = floor(PV5.w);
-            PV7.x = 0.0;
-            PV7.y = 0.0;
-            PV7.z = 0.0;
-            PV7.w = 0.0;
+            temp7 = dot(vec4(R5.x, R5.y, R5.z, -0), vec4(R5.x, R5.y, R5.z, 0.0));
+            PV7.x = temp7;
+            PV7.y = temp7;
+            PV7.z = temp7;
+            PV7.w = temp7;
             R127.z = -PV6.x + 1.0;
-            PV8.x = 0.0;
-            R127.y = 0.0;
-            PV8.z = 0.0;
-            PV8.w = 0.0;
+            temp8 = dot(vec4(R3.x, R3.y, R3.z, -0), vec4(R3.x, R3.y, R3.z, 0.0));
+            PV8.x = temp8;
+            R127.y = temp8;
+            PV8.z = temp8;
+            PV8.w = temp8;
             PS8 = inversesqrt(PV7.x);
             R127.x = R5.x * PS8;
             R124.y = R125.z * 0.003921569;
             R127.z = R5.z * PS8;
             R126.w = R5.y * PS8;
             R127.w = sqrt(R127.z);
-            PV10.x = 0.0;
-            PV10.y = 0.0;
-            PV10.z = 0.0;
-            PV10.w = 0.0;
+            temp10 = dot(vec4(R0.x, R0.y, R0.z, -0), vec4(R0.x, R0.y, R0.z, 0.0));
+            PV10.x = temp10;
+            PV10.y = temp10;
+            PV10.z = temp10;
+            PV10.w = temp10;
             PS10 = inversesqrt(R127.y);
             R126.x = R3.z * PS10;
             PV11.y = max(R127.w, 0.0);
@@ -802,15 +849,17 @@ mod tests {
             R125.z = fma(PV13.z, R125.y, PV13.w);
             R3.w = KC0[1].w;
             R3.x = R124.w + -R125.z;
-            PV15.x = 0.0;
-            PV15.y = 0.0;
-            PV15.z = 0.0;
-            PV15.w = 0.0;
+            temp15 = dot(vec4(R4.x, R4.y, R4.z, -0), vec4(R4.x, R4.y, R4.z, 0.0));
+            PV15.x = temp15;
+            PV15.y = temp15;
+            PV15.z = temp15;
+            PV15.w = temp15;
             R3.y = R124.y + -R125.x;
-            PV16.x = 0.0;
-            PV16.y = 0.0;
-            PV16.z = 0.0;
-            PV16.w = 0.0;
+            temp16 = dot(vec4(R126.x, R127.y, R125.z, -0), vec4(R126.x, R127.y, R125.z, 0.0));
+            PV16.x = temp16;
+            PV16.y = temp16;
+            PV16.z = temp16;
+            PV16.w = temp16;
             PS16 = inversesqrt(PV15.x);
             R127.x = R4.x * PS16;
             R124.y = R4.y * PS16;
@@ -820,10 +869,11 @@ mod tests {
             R127.y = R127.y * PS17;
             PV18.z = R125.z * PS17;
             R3.z = R125.x * 0.003921569;
-            PV19.x = 0.0;
-            PV19.y = 0.0;
-            PV19.z = 0.0;
-            PV19.w = 0.0;
+            temp19 = dot(vec4(-R127.x, -R124.y, -R126.z, -0), vec4(PV18.x, PV18.y, PV18.z, 0.0));
+            PV19.x = temp19;
+            PV19.y = temp19;
+            PV19.z = temp19;
+            PV19.w = temp19;
             PS19 = PV18.y + 1.0;
             PS19 = PS19 / 2.0;
             PV20.x = PV19.x + PV19.x;
