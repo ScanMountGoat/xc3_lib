@@ -93,6 +93,43 @@ fn add_tex_clause(inst: Pair<Rule>, nodes: &mut Vec<Node>) {
     }
 }
 
+struct AluScalar {
+    alu_unit: String,
+    op_code: String,
+    output_modifier: Option<String>,
+    output: Output,
+    sources: Vec<Expr>,
+}
+
+impl AluScalar {
+    fn from_pair(pair: Pair<Rule>, inst_count: usize, source_count: usize) -> Self {
+        let mut inner = pair.into_inner();
+        let alu_unit = inner.next().unwrap().as_str().to_string(); // xyzwt
+        let op_code = inner.next().unwrap().as_str().to_string();
+
+        // TODO: optional modifier like /2 or *2
+        let output_modifier = inner.peek().and_then(|p| {
+            // Only advance the iterator if it's the expected type.
+            if p.as_rule() == Rule::alu_output_modifier {
+                Some(inner.next().unwrap().as_str().to_string())
+            } else {
+                None
+            }
+        });
+
+        let output = alu_dst_output(inner.next().unwrap(), inst_count, &alu_unit);
+        let sources = inner.take(source_count).map(alu_src_expr).collect();
+
+        Self {
+            alu_unit,
+            op_code,
+            output_modifier,
+            output,
+            sources,
+        }
+    }
+}
+
 fn add_alu_clause(inst: Pair<Rule>, nodes: &mut Vec<Node>) {
     let mut inner = inst.into_inner();
     let inst_count: usize = inner.next().unwrap().as_str().parse().unwrap();
@@ -102,193 +139,180 @@ fn add_alu_clause(inst: Pair<Rule>, nodes: &mut Vec<Node>) {
         let mut inner = group.into_inner();
         let inst_count: usize = inner.next().unwrap().as_str().trim().parse().unwrap();
 
-        // TODO: Create scalar nodes for each ALU operation.
-        for alu_scalar in inner {
-            match alu_scalar.as_rule() {
-                Rule::alu_scalar0 => {
-                    let mut inner = alu_scalar.into_inner();
-                    let _alu_unit = inner.next().unwrap().as_str(); // xyzwt
-                    let op_code = inner.next().unwrap().as_str();
+        let scalars: Vec<_> = inner
+            .map(|alu_scalar| match alu_scalar.as_rule() {
+                Rule::alu_scalar0 => AluScalar::from_pair(alu_scalar, inst_count, 0),
+                Rule::alu_scalar1 => AluScalar::from_pair(alu_scalar, inst_count, 1),
+                Rule::alu_scalar2 => AluScalar::from_pair(alu_scalar, inst_count, 2),
+                Rule::alu_scalar3 => AluScalar::from_pair(alu_scalar, inst_count, 3),
+                _ => unreachable!(),
+            })
+            .collect();
 
-                    // TODO: optional modifier like /2 or *2
-                    let modifier = inner.peek().and_then(|p| {
-                        // Only advance the iterator if it's the expected type.
-                        if p.as_rule() == Rule::alu_output_modifier {
-                            Some(inner.next().unwrap().as_str())
-                        } else {
-                            None
-                        }
-                    });
-                    let dst = inner.next().unwrap().as_str();
-                }
-                Rule::alu_scalar1 => {
-                    let mut inner = alu_scalar.into_inner();
-                    let alu_unit = inner.next().unwrap().as_str(); // xyzwt
-                    let op_code = inner.next().unwrap().as_str();
-
-                    let modifier = inner.peek().and_then(|p| {
-                        // Only advance the iterator if it's the expected type.
-                        if p.as_rule() == Rule::alu_output_modifier {
-                            Some(inner.next().unwrap().as_str())
-                        } else {
-                            None
-                        }
-                    });
-                    let output = alu_dst_output(inner.next().unwrap(), inst_count, alu_unit);
-                    let dst = output.name.clone();
-                    let src = alu_src_expr(inner.next().unwrap());
-
-                    let input = match op_code {
-                        "MOV" => src,
-                        "FLOOR" => Expr::Func {
-                            name: "floor".to_string(),
-                            args: vec![src],
-                            channels: String::new(),
-                        },
-                        "SQRT_IEEE" => Expr::Func {
-                            name: "sqrt".to_string(),
-                            args: vec![src],
-                            channels: String::new(),
-                        },
-                        "RECIPSQRT_IEEE" => Expr::Func {
-                            name: "inversesqrt".to_string(),
-                            args: vec![src],
-                            channels: String::new(),
-                        },
-                        "EXP_IEEE" => Expr::Func {
-                            name: "exp2".to_string(),
-                            args: vec![src],
-                            channels: String::new(),
-                        },
-                        _ => panic!("unexpected opcode1: {op_code}"),
-                    };
-
-                    let node_index = nodes.len();
-                    let node = Node { output, input };
-                    nodes.push(node);
-
-                    if let Some(modifier) = modifier {
-                        let node = alu_output_modifier(modifier, &dst, node_index);
-                        nodes.push(node);
-                    }
-                }
-                Rule::alu_scalar2 => {
-                    let mut inner = alu_scalar.into_inner();
-                    let _alu_unit = inner.next().unwrap().as_str(); // xyzwt
-                    let op_code = inner.next().unwrap().as_str();
-
-                    // TODO: optional modifier like /2 or *2
-                    let modifier = inner.peek().and_then(|p| {
-                        // Only advance the iterator if it's the expected type.
-                        if p.as_rule() == Rule::alu_output_modifier {
-                            Some(inner.next().unwrap().as_str())
-                        } else {
-                            None
-                        }
-                    });
-                    let dst = inner.next().unwrap().as_str();
-                    let src1 = alu_src_expr(inner.next().unwrap());
-                    let src2 = alu_src_expr(inner.next().unwrap());
-
-                    // TODO: Correctly handle constants.
-                    let input = match op_code {
-                        "ADD" => Expr::Add(Box::new(src1), Box::new(src2)),
-                        "MAX" => Expr::Func {
-                            name: "max".to_string(),
-                            args: vec![src1, src2],
-                            channels: String::new(),
-                        },
-                        "MUL" => Expr::Mul(Box::new(src1), Box::new(src2)),
-                        "DOT4" => {
-                            // TODO: TODO: dot function or multiplies and adds?
-                            // TODO: this always involves xyzw?
-                            Expr::Float(0.0)
-                        }
-                        "DOT4_IEEE" => {
-                            // TODO: TODO: dot function or multiplies and adds?
-                            // TODO: this always involves xyzw?
-                            Expr::Float(0.0)
-                        }
-                        _ => panic!("unexpected opcode2: {op_code}"),
-                    };
-
-                    let node_index = nodes.len();
-                    let node = Node {
-                        output: Output {
-                            name: dst.to_string(),
-                            channels: String::new(),
-                        },
-                        input,
-                    };
-                    nodes.push(node);
-
-                    if let Some(modifier) = modifier {
-                        let node = alu_output_modifier(modifier, dst, node_index);
-                        nodes.push(node);
-                    }
-                }
-                Rule::alu_scalar3 => {
-                    let mut inner = alu_scalar.into_inner();
-                    let alu_unit = inner.next().unwrap().as_str(); // xyzwt
-                    let op_code = inner.next().unwrap().as_str();
-                    let dst = inner.next().unwrap().as_str();
-                    let src1 = alu_src_expr(inner.next().unwrap());
-                    let src2 = alu_src_expr(inner.next().unwrap());
-                    let src3 = alu_src_expr(inner.next().unwrap());
-
-                    match op_code {
-                        "MULADD" => {
-                            let input = Expr::Func {
-                                name: "fma".to_string(),
-                                args: vec![src1, src2, src3],
-                                channels: String::new(),
-                            };
-                            let node = Node {
-                                output: Output {
-                                    name: dst.to_string(),
-                                    channels: String::new(),
-                                },
-                                input,
-                            };
-                            nodes.push(node);
-                        }
-                        "MULADD_D2" => {
-                            let input = Expr::Func {
-                                name: "fma".to_string(),
-                                args: vec![src1, src2, src3],
-                                channels: String::new(),
-                            };
-                            let node = Node {
-                                output: Output {
-                                    name: dst.to_string(),
-                                    channels: String::new(),
-                                },
-                                input,
-                            };
-                            let node_index = nodes.len();
-                            nodes.push(node);
-
-                            let node = Node {
-                                output: Output {
-                                    name: dst.to_string(),
-                                    channels: String::new(),
-                                },
-                                input: Expr::Div(
-                                    Box::new(Expr::Node {
-                                        node_index,
-                                        channels: String::new(),
-                                    }),
-                                    Box::new(Expr::Float(2.0)),
-                                ),
-                            };
-                            nodes.push(node);
-                        }
-                        _ => panic!("unexpected opcode3: {op_code}"),
-                    };
-                }
-                _ => todo!(),
-            }
+        // TODO: Detect dot product.
+        for scalar in scalars {
+            add_scalar(scalar, nodes);
         }
+    }
+}
+
+fn add_scalar(scalar: AluScalar, nodes: &mut Vec<Node>) {
+    let dst = scalar.output.name.clone();
+    let output = scalar.output;
+    match scalar.op_code.as_str() {
+        // scalar1
+        "MOV" => {
+            let node = Node {
+                output,
+                input: scalar.sources[0].clone(),
+            };
+            nodes.push(node);
+        }
+        "FLOOR" => {
+            let node = Node {
+                output,
+                input: Expr::Func {
+                    name: "floor".to_string(),
+                    args: vec![scalar.sources[0].clone()],
+                    channels: String::new(),
+                },
+            };
+            nodes.push(node);
+        }
+        "SQRT_IEEE" => {
+            let node = Node {
+                output,
+                input: Expr::Func {
+                    name: "sqrt".to_string(),
+                    args: vec![scalar.sources[0].clone()],
+                    channels: String::new(),
+                },
+            };
+            nodes.push(node);
+        }
+        "RECIPSQRT_IEEE" => {
+            let node = Node {
+                output,
+                input: Expr::Func {
+                    name: "inversesqrt".to_string(),
+                    args: vec![scalar.sources[0].clone()],
+                    channels: String::new(),
+                },
+            };
+            nodes.push(node);
+        }
+        "EXP_IEEE" => {
+            let node = Node {
+                output,
+                input: Expr::Func {
+                    name: "exp2".to_string(),
+                    args: vec![scalar.sources[0].clone()],
+                    channels: String::new(),
+                },
+            };
+            nodes.push(node);
+        }
+        // scalar2
+        "ADD" => {
+            let node = Node {
+                output,
+                input: Expr::Add(
+                    Box::new(scalar.sources[0].clone()),
+                    Box::new(scalar.sources[1].clone()),
+                ),
+            };
+            nodes.push(node);
+        }
+        "MAX" => {
+            let node = Node {
+                output,
+                input: Expr::Func {
+                    name: "max".to_string(),
+                    args: vec![scalar.sources[0].clone(), scalar.sources[1].clone()],
+                    channels: String::new(),
+                },
+            };
+            nodes.push(node);
+        }
+        "MUL" => {
+            let node = Node {
+                output,
+                input: Expr::Mul(
+                    Box::new(scalar.sources[0].clone()),
+                    Box::new(scalar.sources[1].clone()),
+                ),
+            };
+            nodes.push(node);
+        }
+        "DOT4" => {
+            // TODO: dot function assigned to a temp value
+            // TODO: dot product result is assigned to xyzw outputs
+            // This could be a combination of pv or register values like r5.x, pv.y, pv.z, pv.w
+            // temp{inst_count} = dot(...)
+            // r5.x, pv.y, pv.z, pv.w = temp
+            let node = Node {
+                output,
+                input: Expr::Float(0.0),
+            };
+            nodes.push(node);
+        }
+        "DOT4_IEEE" => {
+            let node = Node {
+                output,
+                input: Expr::Float(0.0),
+            };
+            nodes.push(node);
+        }
+        // scalar3
+        "MULADD" => {
+            let input = Expr::Func {
+                name: "fma".to_string(),
+                args: vec![
+                    scalar.sources[0].clone(),
+                    scalar.sources[1].clone(),
+                    scalar.sources[2].clone(),
+                ],
+                channels: String::new(),
+            };
+            let node = Node { output, input };
+            nodes.push(node);
+        }
+        "MULADD_D2" => {
+            let input = Expr::Func {
+                name: "fma".to_string(),
+                args: vec![
+                    scalar.sources[0].clone(),
+                    scalar.sources[1].clone(),
+                    scalar.sources[2].clone(),
+                ],
+                channels: String::new(),
+            };
+            let node = Node {
+                output: output.clone(),
+                input,
+            };
+            let node_index = nodes.len();
+            nodes.push(node);
+
+            let node = Node {
+                output,
+                input: Expr::Div(
+                    Box::new(Expr::Node {
+                        node_index,
+                        channels: String::new(),
+                    }),
+                    Box::new(Expr::Float(2.0)),
+                ),
+            };
+            nodes.push(node);
+        }
+        _ => panic!("unexpected opcode: {}", scalar.op_code),
+    };
+
+    let node_index = nodes.len();
+    if let Some(modifier) = scalar.output_modifier {
+        let node = alu_output_modifier(&modifier, &dst, node_index);
+        nodes.push(node);
     }
 }
 
@@ -733,44 +757,44 @@ mod tests {
             PV5.z = 0.0;
             R124.w = R2.z * 8;
             R6.w = 0.0;
-            ____ = 0.0;
-            ____ = 0.0;
-            ____ = 0.0;
-            ____ = 0.0;
+            PV6.x = 0.0;
+            PV6.y = 0.0;
+            PV6.z = 0.0;
+            PV6.w = 0.0;
             R125.z = floor(PV5.w);
-            ____ = 0.0;
-            ____ = 0.0;
-            ____ = 0.0;
-            ____ = 0.0;
+            PV7.x = 0.0;
+            PV7.y = 0.0;
+            PV7.z = 0.0;
+            PV7.w = 0.0;
             R127.z = -PV6.x + 1.0;
-            ____ = 0.0;
+            PV8.x = 0.0;
             R127.y = 0.0;
-            ____ = 0.0;
-            ____ = 0.0;
+            PV8.z = 0.0;
+            PV8.w = 0.0;
             PS8 = inversesqrt(PV7.x);
             R127.x = R5.x * PS8;
             R124.y = R125.z * 0.003921569;
             R127.z = R5.z * PS8;
             R126.w = R5.y * PS8;
             R127.w = sqrt(R127.z);
-            ____ = 0.0;
-            ____ = 0.0;
-            ____ = 0.0;
-            ____ = 0.0;
+            PV10.x = 0.0;
+            PV10.y = 0.0;
+            PV10.z = 0.0;
+            PV10.w = 0.0;
             PS10 = inversesqrt(R127.y);
             R126.x = R3.z * PS10;
-            ____ = max(R127.w, 0.0);
+            PV11.y = max(R127.w, 0.0);
             R126.z = R3.y * PS10;
             R127.w = R3.x * PS10;
             R125.w = inversesqrt(PV10.x);
-            ____ = R127.x * PV11.y;
+            PV12.x = R127.x * PV11.y;
             R127.y = R0.x * PS11;
-            ____ = R126.w * PV11.y;
-            ____ = R127.z * PV11.y;
+            PV12.z = R126.w * PV11.y;
+            PV12.w = R127.z * PV11.y;
             R126.y = R0.y * PS11;
             R123.x = fma(R126.z, R125.x, PV12.z);
             R123.y = fma(R127.w, R125.x, PV12.x);
-            ____ = R0.z * R125.w;
+            PV13.z = R0.z * R125.w;
             R123.w = fma(R126.x, R125.x, PV12.w);
             R125.x = floor(R124.y);
             R126.x = fma(R127.y, R125.y, PV13.y);
@@ -778,15 +802,15 @@ mod tests {
             R125.z = fma(PV13.z, R125.y, PV13.w);
             R3.w = KC0[1].w;
             R3.x = R124.w + -R125.z;
-            ____ = 0.0;
-            ____ = 0.0;
-            ____ = 0.0;
-            ____ = 0.0;
+            PV15.x = 0.0;
+            PV15.y = 0.0;
+            PV15.z = 0.0;
+            PV15.w = 0.0;
             R3.y = R124.y + -R125.x;
-            ____ = 0.0;
-            ____ = 0.0;
-            ____ = 0.0;
-            ____ = 0.0;
+            PV16.x = 0.0;
+            PV16.y = 0.0;
+            PV16.z = 0.0;
+            PV16.w = 0.0;
             PS16 = inversesqrt(PV15.x);
             R127.x = R4.x * PS16;
             R124.y = R4.y * PS16;
@@ -794,15 +818,15 @@ mod tests {
             PS17 = inversesqrt(PV16.x);
             R126.x = R126.x * PS17;
             R127.y = R127.y * PS17;
-            ____ = R125.z * PS17;
+            PV18.z = R125.z * PS17;
             R3.z = R125.x * 0.003921569;
-            ____ = 0.0;
-            ____ = 0.0;
-            ____ = 0.0;
-            ____ = 0.0;
-            ____ = PV18.y + 1.0;
-            ____ = ____ / 2.0;
-            ____ = PV19.x + PV19.x;
+            PV19.x = 0.0;
+            PV19.y = 0.0;
+            PV19.z = 0.0;
+            PV19.w = 0.0;
+            PS19 = PV18.y + 1.0;
+            PS19 = PS19 / 2.0;
+            PV20.x = PV19.x + PV19.x;
             R0.y = -PS19 + 1.0;
             R0.z = R126.x + 1.0;
             R0.z = R0.z / 2.0;
@@ -818,9 +842,9 @@ mod tests {
             R0 = texture(t0, vec2(R0.z, R0.y));
             R4.x = fma(KC0[0].x, R0.x, 0.0);
             R4.x = R4.x / 2.0;
-            ____ = -R8.z + R4.z;
-            ____ = -R8.y + R4.y;
-            ____ = -R8.x + R4.x;
+            PV25.y = -R8.z + R4.z;
+            PV25.z = -R8.y + R4.y;
+            PV25.w = -R8.x + R4.x;
             R4.y = fma(KC0[0].y, R0.y, 0.0);
             R4.y = R4.y / 2.0;
             R123.x = fma(PV25.w, R7.x, R8.x);
