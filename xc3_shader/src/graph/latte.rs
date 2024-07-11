@@ -60,17 +60,20 @@ fn add_exp_inst(inst: Pair<Rule>, nodes: &mut Vec<Node>) {
     // BURSTCNT assigns consecutive input and output registers.
     for i in 0..=burst_count {
         // TODO: use out_attr{i} for consistency with GLSL?
-        let node = Node {
-            output: Output {
-                name: format!("{target_name}{}", target_index + i),
-                channels: channels.unwrap_or_default().to_string(),
-            },
-            input: Expr::Global {
-                name: format!("{source_name}{}", source_index + i),
-                channels: channels.unwrap_or_default().to_string(),
-            },
-        };
-        nodes.push(node);
+        for c in channels.unwrap_or_default().chars() {
+            let node = Node {
+                output: Output {
+                    name: format!("{target_name}{}", target_index + i),
+                    channels: c.to_string(),
+                },
+                input: previous_assignment(
+                    nodes,
+                    &format!("{source_name}{}", source_index + i),
+                    &c.to_string(),
+                ),
+            };
+            nodes.push(node);
+        }
     }
 }
 
@@ -214,6 +217,7 @@ fn dot_product_node_index(
 }
 
 fn add_scalar(scalar: AluScalar, nodes: &mut Vec<Node>) {
+    // TODO: helper functions to clean this up.
     let dst = scalar.output.name.clone();
     let output = scalar.output;
     match scalar.op_code.as_str() {
@@ -247,6 +251,16 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Vec<Node>) {
             };
             nodes.push(node);
         }
+        "RECIP_IEEE" => {
+            let node = Node {
+                output,
+                input: Expr::Div(
+                    Box::new(Expr::Float(1.0)),
+                    Box::new(scalar.sources[0].clone()),
+                ),
+            };
+            nodes.push(node);
+        }
         "RECIPSQRT_IEEE" => {
             let node = Node {
                 output,
@@ -269,6 +283,17 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Vec<Node>) {
             };
             nodes.push(node);
         }
+        "LOG_CLAMPED" => {
+            let node = Node {
+                output,
+                input: Expr::Func {
+                    name: "log2".to_string(),
+                    args: vec![scalar.sources[0].clone()],
+                    channels: String::new(),
+                },
+            };
+            nodes.push(node);
+        }
         // scalar2
         "ADD" => {
             let node = Node {
@@ -280,7 +305,18 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Vec<Node>) {
             };
             nodes.push(node);
         }
-        "MAX" => {
+        "MIN" | "MIN_DX10" => {
+            let node = Node {
+                output,
+                input: Expr::Func {
+                    name: "min".to_string(),
+                    args: vec![scalar.sources[0].clone(), scalar.sources[1].clone()],
+                    channels: String::new(),
+                },
+            };
+            nodes.push(node);
+        }
+        "MAX" | "MAX_DX10" => {
             let node = Node {
                 output,
                 input: Expr::Func {
@@ -291,7 +327,7 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Vec<Node>) {
             };
             nodes.push(node);
         }
-        "MUL" => {
+        "MUL" | "MUL_IEEE" => {
             let node = Node {
                 output,
                 input: Expr::Mul(
@@ -306,7 +342,7 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Vec<Node>) {
             unreachable!()
         }
         // scalar3
-        "MULADD" => {
+        "MULADD" | "MULADD_IEEE" => {
             let input = Expr::Func {
                 name: "fma".to_string(),
                 args: vec![
@@ -348,6 +384,7 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Vec<Node>) {
             };
             nodes.push(node);
         }
+        "NOP" => (),
         _ => panic!("unexpected opcode: {}", scalar.op_code),
     };
 
@@ -455,13 +492,19 @@ fn alu_src_expr(source: Pair<Rule>, nodes: &[Node]) -> Expr {
     let channels = comp_swizzle(inner);
 
     // Find a previous assignment that modifies the desired channel.
-    let expr = nodes
+    let expr = previous_assignment(nodes, value, channels);
+
+    if negate {
+        Expr::Negate(Box::new(expr))
+    } else {
+        expr
+    }
+}
+
+fn previous_assignment(nodes: &[Node], value: &str, channels: &str) -> Expr {
+    nodes
         .iter()
-        .rposition(|n| {
-            n.output.name == value
-                && (n.output.channels.is_empty()
-                    || channels.chars().all(|c| n.output.channels.contains(c)))
-        })
+        .rposition(|n| n.output.name == value && n.output.contains_channels(channels))
         .map(|node_index| Expr::Node {
             node_index,
             channels: channels.to_string(),
@@ -469,13 +512,7 @@ fn alu_src_expr(source: Pair<Rule>, nodes: &[Node]) -> Expr {
         .unwrap_or(Expr::Global {
             name: value.to_string(),
             channels: channels.to_string(),
-        });
-
-    if negate {
-        Expr::Negate(Box::new(expr))
-    } else {
-        expr
-    }
+        })
 }
 
 fn comp_swizzle(mut inner: pest::iterators::Pairs<Rule>) -> &str {
@@ -934,14 +971,30 @@ mod tests {
             R12.y = R5.y;
             R12.z = R5.z;
             R12.w = R5.z;
-            PIX0.xyzw = R10.xyzw;
-            PIX1.xyzw = R11.xyzw;
-            PIX2.xyzw = R12.xyzw;
-            PIX3.xyzw = R13.xyzw;
-            PIX4.xyzw = R14.xyzw;
+            PIX0.x = R10.x;
+            PIX0.y = R10.y;
+            PIX0.z = R10.z;
+            PIX0.w = R10.w;
+            PIX1.x = R11.x;
+            PIX1.y = R11.y;
+            PIX1.z = R11.z;
+            PIX1.w = R11.w;
+            PIX2.x = R12.x;
+            PIX2.y = R12.y;
+            PIX2.z = R12.z;
+            PIX2.w = R12.w;
+            PIX3.x = R13.x;
+            PIX3.y = R13.y;
+            PIX3.z = R13.z;
+            PIX3.w = R13.w;
+            PIX4.x = R14.x;
+            PIX4.y = R14.y;
+            PIX4.z = R14.z;
+            PIX4.w = R14.w;
         "};
 
         // TODO: Figure out the expected nodes to test previous node references.
+        // TODO: Test expected nodes on a handwritten example?
         let graph = Graph::from_latte_asm(asm);
         assert_eq!(expected, graph.to_glsl());
     }

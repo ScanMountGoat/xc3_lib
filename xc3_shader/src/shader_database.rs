@@ -77,6 +77,46 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
     }
 }
 
+fn shader_from_latte_asm(vertex: &str, fragment: &str) -> ShaderProgram {
+    let frag = &Graph::from_latte_asm(fragment);
+    let frag_attributes = &Attributes::default();
+
+    // TODO: Fix vertex parsing errors.
+    // let vert = &Graph::from_latte_asm(vertex);
+    // let vert_attributes = &Attributes::default();
+
+    let output_dependencies = (0..=5)
+        .flat_map(|i| {
+            "xyzw".chars().map(move |c| {
+                // TODO: Split this?
+                let name = format!("PIX{i}.{c}");
+                let dependencies = input_dependencies(frag, frag_attributes, &name);
+
+                // Add texture parameters used for the corresponding vertex output.
+                // Most shaders apply UV transforms in the vertex shader.
+                // apply_vertex_texcoord_params(
+                //     vert,
+                //     vert_attributes,
+                //     frag_attributes,
+                //     &mut dependencies,
+                // );
+
+                // apply_attribute_names(vert, vert_attributes, frag_attributes, &mut dependencies);
+
+                // Simplify the output name to save space.
+                let output_name = format!("o{i}.{c}");
+                (output_name.into(), dependencies)
+            })
+        })
+        .filter(|(_, dependencies)| !dependencies.is_empty())
+        .collect();
+
+    ShaderProgram {
+        // IndexMap gives consistent ordering for attribute names.
+        output_dependencies,
+    }
+}
+
 fn geometric_specular_aa(frag: &Graph) -> Option<BufferDependency> {
     // TODO: is specular AA ever used with textures as input?
     // Extract the glossiness input from the following expression:
@@ -244,7 +284,6 @@ fn find_texcoord_input_name_channels(
     .map(|a| (a.name.to_string(), a.channels.to_string()))
 }
 
-/// Find the texture dependencies for each fragment output channel.
 pub fn create_shader_database(input: &str) -> ShaderDatabase {
     // Sort to make the output consistent.
     let mut folders: Vec<_> = std::fs::read_dir(input)
@@ -293,6 +332,27 @@ pub fn create_shader_database(input: &str) -> ShaderDatabase {
         .collect();
 
     ShaderDatabase::from_models_maps(files, map_files)
+}
+
+pub fn create_shader_database_legacy(input: &str) -> ShaderDatabase {
+    // Sort to make the output consistent.
+    let mut folders: Vec<_> = std::fs::read_dir(input)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .collect();
+    folders.sort();
+
+    // TODO: Should both the inner and outer loops use par_iter?
+    let files = folders
+        .par_iter()
+        .map(|folder| {
+            let programs = create_shader_programs_legacy(folder);
+            let file = folder.file_name().unwrap().to_string_lossy().to_string();
+            (file, ModelPrograms { programs })
+        })
+        .collect();
+
+    ShaderDatabase::from_models_maps(files, Default::default())
 }
 
 fn create_map_spchs(folder: &Path) -> Vec<ModelPrograms> {
@@ -366,6 +426,46 @@ fn extract_program_index(p: &Path) -> usize {
 fn extract_folder_index(p: &Path) -> usize {
     let name = p.file_name().unwrap().to_string_lossy();
     name.parse::<usize>().unwrap()
+}
+
+fn create_shader_programs_legacy(folder: &Path) -> Vec<ShaderProgram> {
+    // Only check the first shader for now.
+    // TODO: What do additional nvsd shader entries do?
+    let mut paths: Vec<_> = globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.frag.txt"])
+        .build()
+        .unwrap()
+        .filter_map(|e| e.map(|e| e.path().to_owned()).ok())
+        .collect();
+
+    // Shaders are generated as "{program_index}.frag.txt".
+    // Sort by {program_index} to process files in the right order.
+    paths.sort_by_cached_key(|p| extract_program_index_legacy(p));
+
+    paths
+        .iter()
+        .filter_map(|path| {
+            // TODO: Should both shaders be mandatory?
+            let vertex_source = std::fs::read_to_string(
+                path.with_extension("")
+                    .with_extension("")
+                    .with_extension("vert.txt"),
+            )
+            .unwrap();
+            let frag_source = std::fs::read_to_string(path).unwrap();
+            Some(shader_from_latte_asm(&vertex_source, &frag_source))
+        })
+        .collect()
+}
+
+fn extract_program_index_legacy(p: &Path) -> usize {
+    p.file_name()
+        .unwrap()
+        .to_string_lossy()
+        .split_once('.')
+        .unwrap()
+        .0
+        .parse::<usize>()
+        .unwrap()
 }
 
 // TODO: module for this?

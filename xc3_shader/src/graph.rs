@@ -80,6 +80,12 @@ pub struct Output {
     pub channels: String,
 }
 
+impl Output {
+    pub fn contains_channels(&self, channels: &str) -> bool {
+        self.channels.is_empty() || channels.chars().all(|c| self.channels.contains(c))
+    }
+}
+
 // TODO: more strongly typed channel swizzles?
 // TODO: use this instead of line dependencies
 

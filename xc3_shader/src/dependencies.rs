@@ -18,7 +18,7 @@ pub fn input_dependencies(graph: &Graph, attributes: &Attributes, var: &str) -> 
     let node = graph
         .nodes
         .iter()
-        .rfind(|n| n.output.name == variable && n.output.channels == channels);
+        .rfind(|n| n.output.name == variable && n.output.contains_channels(channels));
 
     // TODO: Rework this to be cleaner and add more tests.
     let mut dependencies = texture_dependencies(graph, attributes, variable, channels);

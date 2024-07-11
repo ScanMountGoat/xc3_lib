@@ -4,7 +4,7 @@ use std::path::Path;
 use clap::{Parser, Subcommand};
 use extract::{extract_legacy_shaders, extract_shaders};
 use rayon::prelude::*;
-use shader_database::create_shader_database;
+use shader_database::{create_shader_database, create_shader_database_legacy};
 use xc3_lib::msmd::Msmd;
 use xc3_lib::msrd::Msrd;
 use xc3_lib::mths::Mths;
@@ -59,6 +59,16 @@ enum Commands {
         #[arg(long)]
         pretty: bool,
     },
+    /// Create a JSON file containing textures used for fragment output attributes for Xenoblade X.
+    ShaderDatabaseLegacy {
+        /// The output folder from decompiling shaders.
+        input_folder: String,
+        /// The output JSON file.
+        output_file: String,
+        /// Pretty print the JSON file
+        #[arg(long)]
+        pretty: bool,
+    },
     /// Find all lines of GLSL code influencing the final assignment of a variable.
     GlslDependencies {
         /// The input GLSL file.
@@ -97,6 +107,14 @@ fn main() {
             pretty,
         } => {
             let database = create_shader_database(&input_folder);
+            database.save(output_file, pretty).unwrap();
+        }
+        Commands::ShaderDatabaseLegacy {
+            input_folder,
+            output_file,
+            pretty,
+        } => {
+            let database = create_shader_database_legacy(&input_folder);
             database.save(output_file, pretty).unwrap();
         }
         Commands::GlslDependencies { input, output, var } => {
