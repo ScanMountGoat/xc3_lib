@@ -4,13 +4,8 @@ use pest_derive::Parser;
 use super::*;
 
 // Each ALU group has 4 vector operations xyzw and a scalar operation t.
-// TODO: PV6 is a temp xyzw vector value (____ mask) written to in instruction count 6
-// TODO: PS6 is the temp t value (____ mask) written to in instruction count 6
-
 // TODO: Compare assembly and Cemu GLSL for Elma's legs (PC221115).
-// TODO: mov/2 a b is equivalent to a = b / 2
 // TODO: unit tests for sample shaders to test all these cases
-// TODO: MULADD_D2 is fma and then divide by 2
 // TODO: The first registers are always input attributes?
 impl Graph {
     pub fn from_latte_asm(asm: &str) -> Self {
@@ -336,11 +331,73 @@ fn alu_output_modifier(modifier: &str, dst: &str, node_index: usize) -> Node {
 
 fn alu_src_expr(source: Pair<Rule>) -> Expr {
     // TODO: track previous assignments
-    // TODO: handle unary ops like negate
+    let mut inner = source.into_inner();
+    let negate = inner
+        .peek()
+        .map(|p| {
+            // Only advance the iterator if it's the expected type.
+            if p.as_rule() == Rule::negate {
+                inner.next().unwrap();
+                true
+            } else {
+                false
+            }
+        })
+        .unwrap_or_default();
+
     // TODO: constants and literals
-    Expr::Global {
-        name: source.as_str().trim().to_string(),
-        channels: String::new(),
+    // TODO: abs value?
+    let value = inner.next().unwrap();
+    let alu_src_value = value.into_inner().next().unwrap();
+
+    // TODO: Previous vector "PV6" is a temp xyzw vector value
+    // (____ mask) written to in instruction count 6
+    // TODO: Previous scalar PS6 is the temp t value
+    // (____ mask) written to in instruction count 6
+    let value = match alu_src_value.as_rule() {
+        Rule::literal => {
+            let mut inner = alu_src_value.into_inner();
+            let a = inner.next().unwrap();
+            let b = inner.next();
+            match (a.as_rule(), b.as_ref().map(|b| b.as_rule())) {
+                (Rule::hex_number, None) => a.as_str(),
+                (Rule::float, None) => a.as_str().trim_end_matches('f'),
+                (Rule::hex_number, Some(Rule::float)) => {
+                    // Extract the non hex portion from a float literal.
+                    b.unwrap().as_str()
+                }
+                _ => unreachable!(),
+            }
+        }
+        _ => alu_src_value.as_str(),
+    };
+
+    if matches!(inner.peek(), Some(p) if p.as_rule() == Rule::alu_rel) {
+        inner.next().unwrap();
+    }
+
+    // TODO: channels.
+    let channels = inner
+        .peek()
+        .and_then(|p| {
+            // Only advance the iterator if it's the expected type.
+            if p.as_rule() == Rule::one_comp_swizzle {
+                Some(inner.next().unwrap().as_str().trim_start_matches('.'))
+            } else {
+                None
+            }
+        })
+        .unwrap_or_default();
+
+    let expr = Expr::Global {
+        name: value.to_string(),
+        channels: channels.to_string(),
+    };
+
+    if negate {
+        Expr::Negate(Box::new(expr))
+    } else {
+        expr
     }
 }
 
@@ -640,18 +697,17 @@ mod tests {
             END_OF_PROGRAM
         "};
 
-        // TODO: Remove f from literals.
         let expected = indoc! {"
             R2 = texture(t3, vec2(R6, R6));
             R8 = texture(t1, vec2(R6, R6));
             R7 = texture(t2, vec2(R6, R6));
             R9 = texture(t5, vec2(R6, R6));
             R6 = texture(t4, vec2(R6, R6));
-            R125.x = fma(R2.x, (0x40000000, 2), -1.0f);
-            R125.y = fma(R2.y, (0x40000000, 2), -1.0f);
-            ____ = 0.0f;
-            R124.w = R2.z * (0x41000000, 8);
-            R6.w = 0.0f;
+            R125.x = fma(R2.x, 2, -1.0);
+            R125.y = fma(R2.y, 2, -1.0);
+            ____ = 0.0;
+            R124.w = R2.z * 8;
+            R6.w = 0.0;
             ____ = 0.0;
             ____ = 0.0;
             ____ = 0.0;
@@ -661,14 +717,14 @@ mod tests {
             ____ = 0.0;
             ____ = 0.0;
             ____ = 0.0;
-            R127.z = -PV6.x + 1.0f;
+            R127.z = -PV6.x + 1.0;
             ____ = 0.0;
             R127.y = 0.0;
             ____ = 0.0;
             ____ = 0.0;
             ____ = inversesqrt(PV7.x);
             R127.x = R5.x * PS8;
-            R124.y = R125.z * (0x3B808081, 0.003921569);
+            R124.y = R125.z * 0.003921569;
             R127.z = R5.z * PS8;
             R126.w = R5.y * PS8;
             R127.w = sqrt(R127.z);
@@ -678,7 +734,7 @@ mod tests {
             ____ = 0.0;
             ____ = inversesqrt(R127.y);
             R126.x = R3.z * PS10;
-            ____ = max(R127.w, 0.0f);
+            ____ = max(R127.w, 0.0);
             R126.z = R3.y * PS10;
             R127.w = R3.x * PS10;
             R125.w = inversesqrt(PV10.x);
@@ -714,16 +770,16 @@ mod tests {
             R126.x = R126.x * PS17;
             R127.y = R127.y * PS17;
             ____ = R125.z * PS17;
-            R3.z = R125.x * (0x3B808081, 0.003921569);
+            R3.z = R125.x * 0.003921569;
             ____ = 0.0;
             ____ = 0.0;
             ____ = 0.0;
             ____ = 0.0;
-            ____ = PV18.y + 1.0f;
+            ____ = PV18.y + 1.0;
             ____ = ____ / 2.0;
             ____ = PV19.x + PV19.x;
-            R0.y = -PS19 + 1.0f;
-            R0.z = R126.x + 1.0f;
+            R0.y = -PS19 + 1.0;
+            R0.z = R126.x + 1.0;
             R0.z = R0.z / 2.0;
             R5.w = R126.x;
             R5.y = R127.y;
@@ -731,26 +787,26 @@ mod tests {
             R123.z = R123.z / 2.0;
             R123.w = fma(-PV20.x, R127.y, -R124.y);
             R123.w = R123.w / 2.0;
-            R4.x = PV21.z + 0.5f;
-            R4.y = PV21.w + 0.5f;
+            R4.x = PV21.z + 0.5;
+            R4.y = PV21.w + 0.5;
             R4 = texture(t6, vec2(R4, R4));
             R0 = texture(t0, vec2(R0, R0));
-            R4.x = fma(KC0[0].x, R0.x, 0.0f);
+            R4.x = fma(KC0[0].x, R0.x, 0.0);
             R4.x = R4.x / 2.0;
             ____ = -R8.z + R4.z;
             ____ = -R8.y + R4.y;
             ____ = -R8.x + R4.x;
-            R4.y = fma(KC0[0].y, R0.y, 0.0f);
+            R4.y = fma(KC0[0].y, R0.y, 0.0);
             R4.y = R4.y / 2.0;
             R123.x = fma(PV25.w, R7.x, R8.x);
             R123.z = fma(PV25.y, R7.z, R8.z);
             R123.w = fma(PV25.z, R7.y, R8.y);
-            R4.z = fma(KC0[0].z, R0.z, 0.0f);
+            R4.z = fma(KC0[0].z, R0.z, 0.0);
             R4.z = R4.z / 2.0;
             R9.x = R1.x * PV26.x;
             R9.y = R1.y * PV26.w;
             R9.z = R1.z * PV26.z;
-            R4.w = fma(KC0[0].w, R0.w, 0.0f);
+            R4.w = fma(KC0[0].w, R0.w, 0.0);
             R4.w = R4.w / 2.0;
             R14.x = R3.x;
             R14.y = R3.y;
