@@ -100,7 +100,7 @@ fn add_alu_clause(inst: Pair<Rule>, nodes: &mut Vec<Node>) {
     let properties = inner.next().unwrap().as_str();
     for group in inner {
         let mut inner = group.into_inner();
-        let _inst_count = inner.next().unwrap().as_str();
+        let inst_count: usize = inner.next().unwrap().as_str().trim().parse().unwrap();
 
         // TODO: Create scalar nodes for each ALU operation.
         for alu_scalar in inner {
@@ -123,7 +123,7 @@ fn add_alu_clause(inst: Pair<Rule>, nodes: &mut Vec<Node>) {
                 }
                 Rule::alu_scalar1 => {
                     let mut inner = alu_scalar.into_inner();
-                    let _alu_unit = inner.next().unwrap().as_str(); // xyzwt
+                    let alu_unit = inner.next().unwrap().as_str(); // xyzwt
                     let op_code = inner.next().unwrap().as_str();
 
                     let modifier = inner.peek().and_then(|p| {
@@ -134,7 +134,8 @@ fn add_alu_clause(inst: Pair<Rule>, nodes: &mut Vec<Node>) {
                             None
                         }
                     });
-                    let dst = inner.next().unwrap().as_str();
+                    let output = alu_dst_output(inner.next().unwrap(), inst_count, alu_unit);
+                    let dst = output.name.clone();
                     let src = alu_src_expr(inner.next().unwrap());
 
                     let input = match op_code {
@@ -163,17 +164,11 @@ fn add_alu_clause(inst: Pair<Rule>, nodes: &mut Vec<Node>) {
                     };
 
                     let node_index = nodes.len();
-                    let node = Node {
-                        output: Output {
-                            name: dst.to_string(),
-                            channels: String::new(),
-                        },
-                        input,
-                    };
+                    let node = Node { output, input };
                     nodes.push(node);
 
                     if let Some(modifier) = modifier {
-                        let node = alu_output_modifier(modifier, dst, node_index);
+                        let node = alu_output_modifier(modifier, &dst, node_index);
                         nodes.push(node);
                     }
                 }
@@ -297,6 +292,26 @@ fn add_alu_clause(inst: Pair<Rule>, nodes: &mut Vec<Node>) {
     }
 }
 
+fn alu_dst_output(pair: Pair<Rule>, inst_count: usize, alu_unit: &str) -> Output {
+    let text = pair.as_str();
+    let name = if pair.into_inner().next().map(|p| p.as_rule()) == Some(Rule::write_mask) {
+        match alu_unit {
+            "x" => format!("PV{inst_count}.x"),
+            "y" => format!("PV{inst_count}.y"),
+            "z" => format!("PV{inst_count}.z"),
+            "w" => format!("PV{inst_count}.w"),
+            "t" => format!("PS{inst_count}"),
+            _ => unreachable!(),
+        }
+    } else {
+        text.to_string()
+    };
+    Output {
+        name,
+        channels: String::new(),
+    }
+}
+
 fn alu_output_modifier(modifier: &str, dst: &str, node_index: usize) -> Node {
     match modifier {
         "/2" => Node {
@@ -372,22 +387,12 @@ fn alu_src_expr(source: Pair<Rule>) -> Expr {
         _ => alu_src_value.as_str(),
     };
 
-    if matches!(inner.peek(), Some(p) if p.as_rule() == Rule::alu_rel) {
+    if inner.peek().map(|p| p.as_rule()) == Some(Rule::alu_rel) {
         inner.next().unwrap();
     }
 
     // TODO: channels.
-    let channels = inner
-        .peek()
-        .and_then(|p| {
-            // Only advance the iterator if it's the expected type.
-            if p.as_rule() == Rule::one_comp_swizzle {
-                Some(inner.next().unwrap().as_str().trim_start_matches('.'))
-            } else {
-                None
-            }
-        })
-        .unwrap_or_default();
+    let channels = comp_swizzle(inner);
 
     let expr = Expr::Global {
         name: value.to_string(),
@@ -399,6 +404,23 @@ fn alu_src_expr(source: Pair<Rule>) -> Expr {
     } else {
         expr
     }
+}
+
+fn comp_swizzle(mut inner: pest::iterators::Pairs<Rule>) -> &str {
+    inner
+        .peek()
+        .and_then(|p| {
+            // Only advance the iterator if it's the expected type.
+            if matches!(
+                p.as_rule(),
+                Rule::one_comp_swizzle | Rule::four_comp_swizzle
+            ) {
+                Some(inner.next().unwrap().as_str().trim_start_matches('.'))
+            } else {
+                None
+            }
+        })
+        .unwrap_or_default()
 }
 
 fn exp_src(source: Pair<Rule>) -> Option<(&'static str, usize, Option<&str>)> {
@@ -491,7 +513,10 @@ fn texture_inst_src(dest: Pair<Rule>) -> Option<Expr> {
     // TODO: Handle other cases from grammar.
     let mut inner = dest.into_inner();
     let gpr = inner.next()?.as_str();
-    let swizzle = inner.next()?.as_str();
+    if inner.peek().map(|p| p.as_rule()) == Some(Rule::tex_rel) {
+        inner.next().unwrap();
+    }
+    let channels = comp_swizzle(inner);
 
     // TODO: Also handle cube maps.
     // TODO: Will these always use input attributes?
@@ -500,11 +525,11 @@ fn texture_inst_src(dest: Pair<Rule>) -> Option<Expr> {
         args: vec![
             Expr::Global {
                 name: gpr.to_string(),
-                channels: String::new(),
+                channels: channels.chars().nth(0).unwrap().to_string(),
             },
             Expr::Global {
                 name: gpr.to_string(),
-                channels: String::new(),
+                channels: channels.chars().nth(1).unwrap().to_string(),
             },
         ],
         channels: String::new(),
@@ -698,14 +723,14 @@ mod tests {
         "};
 
         let expected = indoc! {"
-            R2 = texture(t3, vec2(R6, R6));
-            R8 = texture(t1, vec2(R6, R6));
-            R7 = texture(t2, vec2(R6, R6));
-            R9 = texture(t5, vec2(R6, R6));
-            R6 = texture(t4, vec2(R6, R6));
+            R2 = texture(t3, vec2(R6.x, R6.y));
+            R8 = texture(t1, vec2(R6.x, R6.y));
+            R7 = texture(t2, vec2(R6.x, R6.y));
+            R9 = texture(t5, vec2(R6.x, R6.y));
+            R6 = texture(t4, vec2(R6.x, R6.y));
             R125.x = fma(R2.x, 2, -1.0);
             R125.y = fma(R2.y, 2, -1.0);
-            ____ = 0.0;
+            PV5.z = 0.0;
             R124.w = R2.z * 8;
             R6.w = 0.0;
             ____ = 0.0;
@@ -722,7 +747,7 @@ mod tests {
             R127.y = 0.0;
             ____ = 0.0;
             ____ = 0.0;
-            ____ = inversesqrt(PV7.x);
+            PS8 = inversesqrt(PV7.x);
             R127.x = R5.x * PS8;
             R124.y = R125.z * 0.003921569;
             R127.z = R5.z * PS8;
@@ -732,7 +757,7 @@ mod tests {
             ____ = 0.0;
             ____ = 0.0;
             ____ = 0.0;
-            ____ = inversesqrt(R127.y);
+            PS10 = inversesqrt(R127.y);
             R126.x = R3.z * PS10;
             ____ = max(R127.w, 0.0);
             R126.z = R3.y * PS10;
@@ -762,11 +787,11 @@ mod tests {
             ____ = 0.0;
             ____ = 0.0;
             ____ = 0.0;
-            ____ = inversesqrt(PV15.x);
+            PS16 = inversesqrt(PV15.x);
             R127.x = R4.x * PS16;
             R124.y = R4.y * PS16;
             R126.z = R4.z * PS16;
-            ____ = inversesqrt(PV16.x);
+            PS17 = inversesqrt(PV16.x);
             R126.x = R126.x * PS17;
             R127.y = R127.y * PS17;
             ____ = R125.z * PS17;
@@ -789,8 +814,8 @@ mod tests {
             R123.w = R123.w / 2.0;
             R4.x = PV21.z + 0.5;
             R4.y = PV21.w + 0.5;
-            R4 = texture(t6, vec2(R4, R4));
-            R0 = texture(t0, vec2(R0, R0));
+            R4 = texture(t6, vec2(R4.x, R4.y));
+            R0 = texture(t0, vec2(R0.z, R0.y));
             R4.x = fma(KC0[0].x, R0.x, 0.0);
             R4.x = R4.x / 2.0;
             ____ = -R8.z + R4.z;
@@ -835,7 +860,7 @@ mod tests {
             PIX4.xyzw = R14.xyzw;
         "};
 
-        // TODO: Figure out the expected nodes.
+        // TODO: Figure out the expected nodes to test previous node references.
         let graph = Graph::from_latte_asm(asm);
         assert_eq!(expected, graph.to_glsl());
     }
