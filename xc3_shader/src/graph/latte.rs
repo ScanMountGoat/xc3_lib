@@ -14,12 +14,6 @@ impl Graph {
             .next()
             .unwrap();
 
-        // TODO: track previous nodes while also handling channels?
-        // i.e. R0.x should be tracked separately from R0.y.
-        // R0.xyz affects the value of R0.x
-        // TODO: Can we ignore channel swizzling like R1.zyx = R1.xyz if this is just the previous assignment?
-
-        // TODO: How to handle masks?
         let mut nodes = Vec::new();
         for pair in program.into_inner() {
             if pair.as_rule() == Rule::instruction {
@@ -54,7 +48,6 @@ fn add_exp_inst(inst: Pair<Rule>, nodes: &mut Vec<Node>) {
     let source = inner.next().unwrap();
     let (source_name, source_index, channels) = exp_src(source).unwrap();
 
-    // TODO: track source register range and output range
     let mut burst_count = 1;
     for property in inner {
         for inner in property.into_inner() {
@@ -66,7 +59,6 @@ fn add_exp_inst(inst: Pair<Rule>, nodes: &mut Vec<Node>) {
 
     // BURSTCNT assigns consecutive input and output registers.
     for i in 0..=burst_count {
-        // TODO: Track previous node assignments for source.
         // TODO: use out_attr{i} for consistency with GLSL?
         let node = Node {
             output: Output {
@@ -102,12 +94,12 @@ struct AluScalar {
 }
 
 impl AluScalar {
-    fn from_pair(pair: Pair<Rule>, inst_count: usize, source_count: usize) -> Self {
+    fn from_pair(pair: Pair<Rule>, nodes: &[Node], inst_count: usize, source_count: usize) -> Self {
         let mut inner = pair.into_inner();
         let alu_unit = inner.next().unwrap().as_str().to_string(); // xyzwt
         let op_code = inner.next().unwrap().as_str().to_string();
 
-        // TODO: optional modifier like /2 or *2
+        // Optional modifier like /2 or *2
         let output_modifier = inner.peek().and_then(|p| {
             // Only advance the iterator if it's the expected type.
             if p.as_rule() == Rule::alu_output_modifier {
@@ -118,7 +110,10 @@ impl AluScalar {
         });
 
         let output = alu_dst_output(inner.next().unwrap(), inst_count, &alu_unit);
-        let sources = inner.take(source_count).map(alu_src_expr).collect();
+        let sources = inner
+            .take(source_count)
+            .map(|p| alu_src_expr(p, nodes))
+            .collect();
 
         Self {
             alu_unit,
@@ -141,10 +136,10 @@ fn add_alu_clause(inst: Pair<Rule>, nodes: &mut Vec<Node>) {
 
         let scalars: Vec<_> = inner
             .map(|alu_scalar| match alu_scalar.as_rule() {
-                Rule::alu_scalar0 => AluScalar::from_pair(alu_scalar, inst_count, 0),
-                Rule::alu_scalar1 => AluScalar::from_pair(alu_scalar, inst_count, 1),
-                Rule::alu_scalar2 => AluScalar::from_pair(alu_scalar, inst_count, 2),
-                Rule::alu_scalar3 => AluScalar::from_pair(alu_scalar, inst_count, 3),
+                Rule::alu_scalar0 => AluScalar::from_pair(alu_scalar, nodes, inst_count, 0),
+                Rule::alu_scalar1 => AluScalar::from_pair(alu_scalar, nodes, inst_count, 1),
+                Rule::alu_scalar2 => AluScalar::from_pair(alu_scalar, nodes, inst_count, 2),
+                Rule::alu_scalar3 => AluScalar::from_pair(alu_scalar, nodes, inst_count, 3),
                 _ => unreachable!(),
             })
             .collect();
@@ -417,8 +412,7 @@ fn alu_output_modifier(modifier: &str, dst: &str, node_index: usize) -> Node {
     }
 }
 
-fn alu_src_expr(source: Pair<Rule>) -> Expr {
-    // TODO: track previous assignments
+fn alu_src_expr(source: Pair<Rule>, nodes: &[Node]) -> Expr {
     let mut inner = source.into_inner();
     let negate = inner
         .peek()
@@ -458,13 +452,24 @@ fn alu_src_expr(source: Pair<Rule>) -> Expr {
         inner.next().unwrap();
     }
 
-    // TODO: channels.
     let channels = comp_swizzle(inner);
 
-    let expr = Expr::Global {
-        name: value.to_string(),
-        channels: channels.to_string(),
-    };
+    // Find a previous assignment that modifies the desired channel.
+    let expr = nodes
+        .iter()
+        .rposition(|n| {
+            n.output.name == value
+                && (n.output.channels.is_empty()
+                    || channels.chars().all(|c| n.output.channels.contains(c)))
+        })
+        .map(|node_index| Expr::Node {
+            node_index,
+            channels: channels.to_string(),
+        })
+        .unwrap_or(Expr::Global {
+            name: value.to_string(),
+            channels: channels.to_string(),
+        });
 
     if negate {
         Expr::Negate(Box::new(expr))
@@ -554,7 +559,6 @@ fn tex_inst_node(tex_instruction: Pair<Rule>) -> Option<Node> {
         channels: String::new(),
     };
 
-    // TODO: Generate a "texture" function node.
     Some(Node {
         output,
         input: Expr::Func {
@@ -569,10 +573,13 @@ fn texture_inst_dest(dest: Pair<Rule>) -> Option<Output> {
     // TODO: Handle other cases from grammar.
     let mut inner = dest.into_inner();
     let gpr = inner.next()?.as_str();
-    let swizzle = inner.next()?.as_str();
+    if inner.peek().map(|p| p.as_rule()) == Some(Rule::tex_rel) {
+        inner.next().unwrap();
+    }
+    let channels = comp_swizzle(inner);
     Some(Output {
         name: gpr.to_string(),
-        channels: String::new(),
+        channels: channels.trim_matches('_').to_string(),
     })
 }
 
@@ -592,7 +599,7 @@ fn texture_inst_src(dest: Pair<Rule>) -> Option<Expr> {
         args: vec![
             Expr::Global {
                 name: gpr.to_string(),
-                channels: channels.chars().nth(0).unwrap().to_string(),
+                channels: channels.chars().next().unwrap().to_string(),
             },
             Expr::Global {
                 name: gpr.to_string(),
@@ -790,11 +797,11 @@ mod tests {
         "};
 
         let expected = indoc! {"
-            R2 = texture(t3, vec2(R6.x, R6.y));
-            R8 = texture(t1, vec2(R6.x, R6.y));
-            R7 = texture(t2, vec2(R6.x, R6.y));
-            R9 = texture(t5, vec2(R6.x, R6.y));
-            R6 = texture(t4, vec2(R6.x, R6.y));
+            R2.xy = texture(t3, vec2(R6.x, R6.y));
+            R8.xyz = texture(t1, vec2(R6.x, R6.y));
+            R7.xxx = texture(t2, vec2(R6.x, R6.y));
+            R9.x = texture(t5, vec2(R6.x, R6.y));
+            R6.xyz = texture(t4, vec2(R6.x, R6.y));
             R125.x = fma(R2.x, 2, -1.0);
             R125.y = fma(R2.y, 2, -1.0);
             PV5.z = 0.0;
@@ -888,8 +895,8 @@ mod tests {
             R123.w = R123.w / 2.0;
             R4.x = PV21.z + 0.5;
             R4.y = PV21.w + 0.5;
-            R4 = texture(t6, vec2(R4.x, R4.y));
-            R0 = texture(t0, vec2(R0.z, R0.y));
+            R4.xyz = texture(t6, vec2(R4.x, R4.y));
+            R0.xyzw = texture(t0, vec2(R0.z, R0.y));
             R4.x = fma(KC0[0].x, R0.x, 0.0);
             R4.x = R4.x / 2.0;
             PV25.y = -R8.z + R4.z;
