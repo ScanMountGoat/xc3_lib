@@ -328,15 +328,10 @@ pub fn reduce_channels(inner: &str, outer: &str) -> String {
         // TODO: handle errors
         // Reduce "xyz.zyx" -> "zyx".
         let channel_index = |c: char| "xyzw".find(c).unwrap();
-        // TODO: handle errors
+        // TODO: better way to handle "a.z = b.y; out = a.z;" than filter_map?
         outer
             .chars()
-            .map(|c| {
-                inner
-                    .chars()
-                    .nth(channel_index(c))
-                    .unwrap_or_else(|| panic!("cannot reduce {inner}.{outer}"))
-            })
+            .filter_map(|c| inner.chars().nth(channel_index(c)))
             .collect()
     }
 }

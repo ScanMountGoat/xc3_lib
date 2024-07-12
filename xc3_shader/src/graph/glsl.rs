@@ -811,4 +811,42 @@ mod tests {
             Graph::from_glsl(&tu)
         );
     }
+
+    #[test]
+    fn graph_from_glsl_vector_registers() {
+        let glsl = indoc! {"
+            void main() {
+                R12.w = R9.z;
+                PIX2.w = R12.w;
+            }
+        "};
+        let tu = TranslationUnit::parse(glsl).unwrap();
+        assert_eq!(
+            Graph {
+                nodes: vec![
+                    Node {
+                        output: Output {
+                            name: "R12".to_string(),
+                            channels: "w".to_string(),
+                        },
+                        input: Expr::Global {
+                            name: "R9".to_string(),
+                            channels: "z".to_string(),
+                        },
+                    },
+                    Node {
+                        output: Output {
+                            name: "PIX2".to_string(),
+                            channels: "w".to_string(),
+                        },
+                        input: Expr::Node {
+                            node_index: 0,
+                            channels: "w".to_string(),
+                        },
+                    },
+                ],
+            },
+            Graph::from_glsl(&tu)
+        );
+    }
 }

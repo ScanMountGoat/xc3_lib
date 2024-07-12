@@ -769,4 +769,28 @@ mod tests {
             attribute_dependencies(&graph, "out_attr1", "y", &attributes, None)
         );
     }
+
+    #[test]
+    fn input_dependencies_vector_registers() {
+        let glsl = indoc! {"
+            void main() {
+                R9.z = texture(tex, vec2(0.0)).x;
+                R12.w = R9.z;
+                PIX2.w = R12.w;
+            }
+        "};
+
+        let tu = TranslationUnit::parse(glsl).unwrap();
+        let graph = Graph::from_glsl(&tu);
+        let attributes = find_attribute_locations(&tu);
+
+        assert_eq!(
+            vec![Dependency::Texture(TextureDependency {
+                name: "tex".into(),
+                channels: "x".into(),
+                texcoords: Vec::new()
+            })],
+            input_dependencies(&graph, &attributes, "PIX2.w")
+        );
+    }
 }
