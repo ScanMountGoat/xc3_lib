@@ -101,7 +101,7 @@ impl Graph {
         if let Some(i) = self
             .nodes
             .iter()
-            .rposition(|n| n.output.name == variable && n.output.channels == channels)
+            .rposition(|n| n.output.name == variable && n.output.contains_channels(channels))
         {
             self.node_assignments_recursive(i, recursion_depth)
         } else {
@@ -335,7 +335,7 @@ pub fn reduce_channels(inner: &str, outer: &str) -> String {
                 inner
                     .chars()
                     .nth(channel_index(c))
-                    .unwrap_or_else(|| panic!("{inner}.{outer}"))
+                    .unwrap_or_else(|| panic!("cannot reduce {inner}.{outer}"))
             })
             .collect()
     }
