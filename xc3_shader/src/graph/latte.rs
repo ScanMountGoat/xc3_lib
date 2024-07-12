@@ -244,14 +244,14 @@ fn dot_product_node_index(
 fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
     // TODO: helper functions to clean this u
     let output = scalar.output.clone();
-    match scalar.op_code.as_str() {
+    let node_index = match scalar.op_code.as_str() {
         // scalar1
         "MOV" => {
             let node = Node {
                 output,
                 input: scalar.sources[0].clone(),
             };
-            nodes.add_node(node, &scalar.alu_unit, inst_count);
+            nodes.add_node(node, &scalar.alu_unit, inst_count)
         }
         "FLOOR" => {
             let node = Node {
@@ -262,7 +262,7 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
                     channels: String::new(),
                 },
             };
-            nodes.add_node(node, &scalar.alu_unit, inst_count);
+            nodes.add_node(node, &scalar.alu_unit, inst_count)
         }
         "SQRT_IEEE" => {
             let node = Node {
@@ -273,7 +273,7 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
                     channels: String::new(),
                 },
             };
-            nodes.add_node(node, &scalar.alu_unit, inst_count);
+            nodes.add_node(node, &scalar.alu_unit, inst_count)
         }
         "RECIP_IEEE" => {
             let node = Node {
@@ -283,7 +283,7 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
                     Box::new(scalar.sources[0].clone()),
                 ),
             };
-            nodes.add_node(node, &scalar.alu_unit, inst_count);
+            nodes.add_node(node, &scalar.alu_unit, inst_count)
         }
         "RECIPSQRT_IEEE" => {
             let node = Node {
@@ -294,7 +294,7 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
                     channels: String::new(),
                 },
             };
-            nodes.add_node(node, &scalar.alu_unit, inst_count);
+            nodes.add_node(node, &scalar.alu_unit, inst_count)
         }
         "EXP_IEEE" => {
             let node = Node {
@@ -305,7 +305,7 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
                     channels: String::new(),
                 },
             };
-            nodes.add_node(node, &scalar.alu_unit, inst_count);
+            nodes.add_node(node, &scalar.alu_unit, inst_count)
         }
         "LOG_CLAMPED" => {
             let node = Node {
@@ -316,7 +316,7 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
                     channels: String::new(),
                 },
             };
-            nodes.add_node(node, &scalar.alu_unit, inst_count);
+            nodes.add_node(node, &scalar.alu_unit, inst_count)
         }
         // scalar2
         "ADD" => {
@@ -327,7 +327,7 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
                     Box::new(scalar.sources[1].clone()),
                 ),
             };
-            nodes.add_node(node, &scalar.alu_unit, inst_count);
+            nodes.add_node(node, &scalar.alu_unit, inst_count)
         }
         "MIN" | "MIN_DX10" => {
             let node = Node {
@@ -338,7 +338,7 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
                     channels: String::new(),
                 },
             };
-            nodes.add_node(node, &scalar.alu_unit, inst_count);
+            nodes.add_node(node, &scalar.alu_unit, inst_count)
         }
         "MAX" | "MAX_DX10" => {
             let node = Node {
@@ -349,7 +349,7 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
                     channels: String::new(),
                 },
             };
-            nodes.add_node(node, &scalar.alu_unit, inst_count);
+            nodes.add_node(node, &scalar.alu_unit, inst_count)
         }
         "MUL" | "MUL_IEEE" => {
             let node = Node {
@@ -359,7 +359,7 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
                     Box::new(scalar.sources[1].clone()),
                 ),
             };
-            nodes.add_node(node, &scalar.alu_unit, inst_count);
+            nodes.add_node(node, &scalar.alu_unit, inst_count)
         }
         "DOT4" | "DOT4_IEEE" => {
             // Handled in a previous check.
@@ -377,7 +377,7 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
                 channels: String::new(),
             };
             let node = Node { output, input };
-            nodes.add_node(node, &scalar.alu_unit, inst_count);
+            nodes.add_node(node, &scalar.alu_unit, inst_count)
         }
         "MULADD_D2" => {
             let input = Expr::Func {
@@ -405,14 +405,13 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
                     Box::new(Expr::Float(2.0)),
                 ),
             };
-            nodes.add_node(node, &scalar.alu_unit, inst_count);
+            nodes.add_node(node, &scalar.alu_unit, inst_count)
         }
-        "NOP" => (),
+        "NOP" => 0,
         // TODO: Handle additional opcodes?
-        _ => (), //println!("unexpected opcode: {}", scalar.op_code),
+        _ => 0,
     };
 
-    let node_index = nodes.nodes.len();
     if let Some(modifier) = scalar.output_modifier {
         let node = alu_output_modifier(&modifier, scalar.output, node_index);
         nodes.add_node(node, &scalar.alu_unit, inst_count);
@@ -695,8 +694,9 @@ fn tex_inst_node(tex_instruction: Pair<Rule>, nodes: &Nodes) -> Option<Node> {
     let sampler = inner.next()?.as_str();
     // TODO: always ignore properties?
 
+    // TODO: Add proper annotations instead of assuming shaders use names like "s3".
     let texture_name = Expr::Global {
-        name: texture.to_string(),
+        name: sampler.to_string(),
         channels: String::new(),
     };
 
@@ -978,10 +978,10 @@ mod tests {
         "};
 
         let expected = indoc! {"
-            R2.xy = texture(t3, vec2(R6.x, R6.y)).xy;
-            R8.xyz = texture(t2, vec2(R6.x, R6.y)).xyz;
-            R7.xyz = texture(t1, vec2(R6.x, R6.y)).xyz;
-            R6.xyz = texture(t4, vec2(R6.x, R6.y)).xyz;
+            R2.xy = texture(s3, vec2(R6.x, R6.y)).xy;
+            R8.xyz = texture(s2, vec2(R6.x, R6.y)).xyz;
+            R7.xyz = texture(s1, vec2(R6.x, R6.y)).xyz;
+            R6.xyz = texture(s4, vec2(R6.x, R6.y)).xyz;
             R125.x = fma(R2.x, 2, -1.0);
             R126.y = fma(R2.y, 2, -1.0);
             PV4.z = 0.0;
@@ -1110,8 +1110,8 @@ mod tests {
             R1.x = R123.x + 0.5;
             R1.y = R123.w + 0.5;
             R4.z = -PV28.y + 1.0;
-            R3.xyzw = texture(t0, vec2(R3.w, R3.y)).xyzw;
-            R1.xyz = texture(t5, vec2(R1.x, R1.y)).xyz;
+            R3.xyzw = texture(s0, vec2(R3.w, R3.y)).xyzw;
+            R1.xyz = texture(s5, vec2(R1.x, R1.y)).xyz;
             R126.x = fma(KC0[0].z, R3.z, 0.0);
             R127.y = fma(KC0[0].y, R3.y, 0.0);
             R123.z = fma(KC0[0].w, R3.w, 0.0);

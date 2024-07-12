@@ -55,7 +55,7 @@ fn main() -> anyhow::Result<()> {
                 .with_context(|| "failed to create glTF file")
         }
         "camdo" => {
-            let root = load_model_legacy(&cli.input)
+            let root = load_model_legacy(&cli.input, database.as_ref())
                 .with_context(|| format!("failed to load .camdo model {:?}", cli.input))?;
             GltfFile::from_model(&name, &[root], true).with_context(|| "failed to create glTF file")
         }

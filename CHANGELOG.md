@@ -9,11 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 * Added rendering support for layered normal maps to xc3_wgpu.
 * Added support for texture scale matrices to xc3_wgpu and the shader database.
+* Added the `shader-database-legacy` command to xc3_shader for generating the Xenoblade X shader assignment database.
 
 ### Changed
 * Optimized the performance for loading the shader database JSON file for xc3_model.
 * Adjusted decompiled shader annotation to replace constant buffer parameters with their values.
 * Changed `xc3_model::shader_database::ShaderDatabase` to be an opaque wrapper. Get data using the `model` and `map` methods.
+* Changed `xc3_model::load_legacy` to also take an optional shader database parameter.
 
 ### Fixed
 * Fixed an issue where some Xenoblade 3 shader database entries incorrectly assigned normal maps to glossiness.

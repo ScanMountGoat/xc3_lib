@@ -340,7 +340,41 @@ fn get_shader_legacy(
     model_programs: Option<&ModelPrograms>,
 ) -> Option<ShaderProgram> {
     let program_index = material.techniques.first()?.technique_index as usize;
-    model_programs?.programs.get(program_index).cloned()
+    let program = model_programs?.programs.get(program_index)?;
+
+    // The texture outputs are different in Xenoblade X.
+    // We handle this here to avoid needing to regenerate the database for updates.
+    // G-Buffer Textures:
+    // lighting (ao * ???, alpha is specular brdf?)
+    // color (alpha is emission?)
+    // normal (only xy)
+    // specular (alpha is spec?)
+    // depth (alpha is glossiness?)
+    Some(ShaderProgram {
+        output_dependencies: program
+            .output_dependencies
+            .iter()
+            .filter_map(|(k, v)| match k.as_str() {
+                "o1.x" => Some(("o0.x".into(), v.clone())),
+                "o1.y" => Some(("o0.y".into(), v.clone())),
+                "o1.z" => Some(("o0.z".into(), v.clone())),
+                "o1.w" => Some(("o0.w".into(), v.clone())),
+                "o2.x" => Some(("o2.x".into(), v.clone())),
+                "o2.y" => Some(("o2.y".into(), v.clone())),
+                "o2.z" => Some(("o2.z".into(), v.clone())),
+                "o2.w" => Some(("o2.w".into(), v.clone())),
+                "o3.x" => Some(("o5.x".into(), v.clone())),
+                "o3.y" => Some(("o5.y".into(), v.clone())),
+                "o3.z" => Some(("o5.z".into(), v.clone())),
+                "o3.w" => Some(("o5.w".into(), v.clone())),
+                "o4.x" => Some(("o4.x".into(), v.clone())),
+                "o4.y" => Some(("o4.y".into(), v.clone())),
+                "o4.z" => Some(("o4.z".into(), v.clone())),
+                "o4.w" => Some(("o4.w".into(), v.clone())),
+                _ => None,
+            })
+            .collect(),
+    })
 }
 
 fn lod_data(data: &xc3_lib::mxmd::LodData) -> LodData {
