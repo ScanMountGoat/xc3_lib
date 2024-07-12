@@ -11,7 +11,7 @@ tex_clause     = { inst_count ~ tex_clause_inst_type ~ ":" ~ tex_clause_properti
 alu_clause     = { inst_count ~ alu_clause_inst_type ~ ":" ~ alu_clause_properties ~ (alu_group)* }
 end_of_program = { "END_OF_PROGRAM" }
 
-inst_count        = { number }
+inst_count        =  { number }
 gpr               = ${ "R" ~ number }
 gpr_rel           = ${ "R[AL" ~ "+" ~ number ~ "]" }
 constant_file     = ${ "C" ~ number }
@@ -21,7 +21,7 @@ previous_scalar   = ${ "PS" ~ number }
 previous_vector   = ${ "PV" ~ number }
 one_comp_swizzle  = ${ "." ~ ("x" | "y" | "z" | "w" | "X" | "Y" | "Z" | "W") }
 four_comp_swizzle = ${ "." ~ ("x" | "y" | "z" | "w" | "X" | "Y" | "Z" | "W" | "0" | "1" | "_")+ }
-literal           = { hex_number | float | "(" ~ hex_number ~ "," ~ float ~ ")" }
+literal           =  { hex_number | float | "(" ~ hex_number ~ "," ~ float ~ ")" }
 write_mask        = ${ "_"+ }
 negate            = ${ "-" }
 
@@ -314,11 +314,11 @@ alu_opcode3         =  {
   | "CNDE_INT"
   | "CNDE"
 }
-alu_output_modifier =  { "*2" | "*4" | "/2" | "|4" }
+alu_output_modifier =  { "*2" | "*4" | "/2" | "/4" }
 alu_rel             = @{ ("[AR." ~ ("x" | "y" | "z" | "w" | "t" | "X" | "Y" | "Z" | "W" | "T") ~ "]") | "[AL]" }
 alu_dst             =  { (gpr ~ alu_rel? ~ one_comp_swizzle?) | write_mask }
 alu_src             =  { negate? ~ (alu_abs_src_value | alu_src_value) ~ alu_rel? ~ one_comp_swizzle? }
-alu_abs_src_value   =  { "|" ~ alu_src_value ~ "|" }
+alu_abs_src_value   =  { "|" ~ alu_src_value ~ one_comp_swizzle? ~ "|" }
 alu_src_value       =  { gpr | constant_cache0 | constant_cache1 | constant_file | literal | previous_scalar | previous_vector }
 alu_properties      =  { ((bank_swizzle | update_exec_mask | update_pred | pred_sel | clamp))* }
 update_pred         =  { "UPDATE_PRED" }

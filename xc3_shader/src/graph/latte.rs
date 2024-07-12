@@ -25,7 +25,17 @@ impl Nodes {
 // TODO: The first registers are always input attributes?
 impl Graph {
     pub fn from_latte_asm(asm: &str) -> Self {
-        let program = LatteParser::parse(Rule::program, asm)
+        // TODO: The FETCH instruction isn't part of the official grammar?
+        let asm = asm
+            .lines()
+            .filter(|l| !l.contains("FETCH"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        if asm.is_empty() {
+            return Graph::default();
+        }
+
+        let program = LatteParser::parse(Rule::program, &asm)
             .unwrap()
             .next()
             .unwrap();
@@ -398,7 +408,8 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
             nodes.add_node(node, &scalar.alu_unit, inst_count);
         }
         "NOP" => (),
-        _ => panic!("unexpected opcode: {}", scalar.op_code),
+        // TODO: Handle additional opcodes?
+        _ => (), //println!("unexpected opcode: {}", scalar.op_code),
     };
 
     let node_index = nodes.nodes.len();
@@ -462,6 +473,16 @@ fn alu_output_modifier(modifier: &str, output: Output, node_index: usize) -> Nod
                 Box::new(Expr::Float(2.0)),
             ),
         },
+        "/4" => Node {
+            output,
+            input: Expr::Div(
+                Box::new(Expr::Node {
+                    node_index,
+                    channels,
+                }),
+                Box::new(Expr::Float(4.0)),
+            ),
+        },
         "*2" => Node {
             output,
             input: Expr::Mul(
@@ -470,6 +491,16 @@ fn alu_output_modifier(modifier: &str, output: Output, node_index: usize) -> Nod
                     channels,
                 }),
                 Box::new(Expr::Float(2.0)),
+            ),
+        },
+        "*4" => Node {
+            output,
+            input: Expr::Mul(
+                Box::new(Expr::Node {
+                    node_index,
+                    channels,
+                }),
+                Box::new(Expr::Float(4.0)),
             ),
         },
         _ => panic!("unexpected modifier: {modifier}"),
@@ -546,7 +577,10 @@ fn previous_assignment(value: &str, channels: &str, nodes: &Nodes) -> Expr {
                     None
                 }
             })
-            .unwrap()
+            .unwrap_or(Expr::Global {
+                name: value.to_string(),
+                channels: channels.to_string(),
+            })
     } else if value.starts_with("PS") {
         let inst_count: usize = value.split_once("PS").unwrap().1.parse().unwrap();
 
@@ -563,7 +597,10 @@ fn previous_assignment(value: &str, channels: &str, nodes: &Nodes) -> Expr {
                     None
                 }
             })
-            .unwrap()
+            .unwrap_or(Expr::Global {
+                name: value.to_string(),
+                channels: channels.to_string(),
+            })
     } else {
         nodes
             .nodes
@@ -709,9 +746,6 @@ fn texture_inst_src(dest: Pair<Rule>, nodes: &Nodes) -> Option<Expr> {
 
 // Grammar adapted from the cpp-peglib grammer used for decaf-emu:
 // https://github.com/decaf-emu/decaf-emu/blob/master/tools/latte-assembler/resources/grammar.txt
-// TODO: Double check that whitespace is handled the same using @ where appropriate
-// TODO: comments?
-// TODO: reduce repetition in grammar
 #[derive(Parser)]
 #[grammar = "graph/latte.pest"]
 struct LatteParser;

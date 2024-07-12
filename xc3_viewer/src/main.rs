@@ -163,7 +163,7 @@ impl<'a> State<'a> {
             "camdo" => {
                 let mut roots = Vec::new();
                 for path in &cli.models {
-                    let root = xc3_model::load_model_legacy(path)
+                    let root = xc3_model::load_model_legacy(path, database.as_ref())
                         .with_context(|| format!("failed to load .camdo model from {path:?}"))?;
                     roots.push(root);
                 }

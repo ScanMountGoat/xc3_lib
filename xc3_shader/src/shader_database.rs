@@ -85,11 +85,13 @@ fn shader_from_latte_asm(vertex: &str, fragment: &str) -> ShaderProgram {
     // let vert = &Graph::from_latte_asm(vertex);
     // let vert_attributes = &Attributes::default();
 
+    // TODO: What is the largest number of outputs?
     let output_dependencies = (0..=5)
         .flat_map(|i| {
             "xyzw".chars().map(move |c| {
                 // TODO: Split this?
                 let name = format!("PIX{i}.{c}");
+
                 let dependencies = input_dependencies(frag, frag_attributes, &name);
 
                 // Add texture parameters used for the corresponding vertex output.

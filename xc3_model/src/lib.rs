@@ -40,7 +40,7 @@ use glam::{Mat4, Vec3};
 use indexmap::IndexMap;
 use log::error;
 use material::create_materials;
-use shader_database::ShaderDatabase;
+use shader_database::{ModelPrograms, ShaderDatabase, ShaderProgram};
 use texture::{load_textures, load_textures_legacy};
 use thiserror::Error;
 use vertex::ModelBuffers;
@@ -264,6 +264,7 @@ impl Models {
     pub fn from_models_legacy(
         models: &xc3_lib::mxmd::legacy::Models,
         materials: &xc3_lib::mxmd::legacy::Materials,
+        model_programs: Option<&shader_database::ModelPrograms>,
     ) -> Self {
         // TODO: move material code to material module
         Self {
@@ -295,7 +296,7 @@ impl Models {
                             })
                     }),
                     alpha_test_ref: [0; 4],
-                    shader: None,
+                    shader: get_shader_legacy(m, model_programs),
                     technique_index: 0,
                     pass_type: match m.techniques[0].unk1 {
                         xc3_lib::mxmd::legacy::UnkPassType::Unk0 => RenderPassType::Unk0,
@@ -332,6 +333,14 @@ impl Models {
             min_xyz: models.min_xyz.into(),
         }
     }
+}
+
+fn get_shader_legacy(
+    material: &xc3_lib::mxmd::legacy::Material,
+    model_programs: Option<&ModelPrograms>,
+) -> Option<ShaderProgram> {
+    let program_index = material.techniques.first()?.technique_index as usize;
+    model_programs?.programs.get(program_index).cloned()
 }
 
 fn lod_data(data: &xc3_lib::mxmd::LodData) -> LodData {
@@ -584,14 +593,18 @@ fn load_chr(wimdo_path: &Path, model_name: String) -> Option<Sar1> {
 ///
 /// ``` rust no_run
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// use xc3_model::load_model_legacy;
+/// use xc3_model::{load_model_legacy, shader_database::ShaderDatabase};
 ///
 /// // Tatsu
-/// let root = load_model_legacy("xenox/chr_np/np009001.camdo")?;
+/// let database = ShaderDatabase::from_file("xcx.json")?;
+/// let root = load_model_legacy("xenox/chr_np/np009001.camdo", Some(&database))?;
 /// # Ok(())
 /// # }
 /// ```
-pub fn load_model_legacy<P: AsRef<Path>>(camdo_path: P) -> Result<ModelRoot, LoadModelError> {
+pub fn load_model_legacy<P: AsRef<Path>>(
+    camdo_path: P,
+    shader_database: Option<&ShaderDatabase>,
+) -> Result<ModelRoot, LoadModelError> {
     // TODO: avoid unwrap.
     let camdo_path = camdo_path.as_ref();
     let mxmd: MxmdLegacy = MxmdLegacy::from_file(camdo_path).unwrap();
@@ -600,17 +613,15 @@ pub fn load_model_legacy<P: AsRef<Path>>(camdo_path: P) -> Result<ModelRoot, Loa
         .as_ref()
         .map(|_| std::fs::read(camdo_path.with_extension("casmt")).unwrap());
 
-    let file_name = camdo_path
-        .file_stem()
-        .unwrap()
-        .to_string_lossy()
-        .to_string();
+    let model_name = model_name(camdo_path);
     let hkt_path = camdo_path
-        .with_file_name(file_name + "_rig")
+        .with_file_name(model_name.clone() + "_rig")
         .with_extension("hkt");
     let hkt = Hkt::from_file(hkt_path).ok();
 
-    ModelRoot::from_mxmd_model_legacy(&mxmd, casmt, hkt.as_ref())
+    let model_programs = shader_database.and_then(|database| database.model(&model_name));
+
+    ModelRoot::from_mxmd_model_legacy(&mxmd, casmt, hkt.as_ref(), model_programs.as_ref())
 }
 
 impl ModelRoot {
@@ -652,13 +663,14 @@ impl ModelRoot {
         mxmd: &MxmdLegacy,
         casmt: Option<Vec<u8>>,
         hkt: Option<&Hkt>,
+        model_programs: Option<&shader_database::ModelPrograms>,
     ) -> Result<Self, LoadModelError> {
         let skeleton = hkt.map(Skeleton::from_legacy_skeleton);
 
         let buffers = ModelBuffers::from_vertex_data_legacy(&mxmd.vertex, &mxmd.models)
             .map_err(LoadModelError::VertexData)?;
 
-        let models = Models::from_models_legacy(&mxmd.models, &mxmd.materials);
+        let models = Models::from_models_legacy(&mxmd.models, &mxmd.materials, model_programs);
 
         let image_textures = load_textures_legacy(mxmd, casmt)?;
 
