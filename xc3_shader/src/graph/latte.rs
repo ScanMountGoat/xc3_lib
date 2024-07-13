@@ -242,7 +242,6 @@ fn dot_product_node_index(
 }
 
 fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
-    // TODO: helper functions to clean this u
     let output = scalar.output.clone();
     let node_index = match scalar.op_code.as_str() {
         // scalar1
@@ -253,28 +252,8 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
             };
             nodes.add_node(node, &scalar.alu_unit, inst_count)
         }
-        "FLOOR" => {
-            let node = Node {
-                output,
-                input: Expr::Func {
-                    name: "floor".to_string(),
-                    args: vec![scalar.sources[0].clone()],
-                    channels: String::new(),
-                },
-            };
-            nodes.add_node(node, &scalar.alu_unit, inst_count)
-        }
-        "SQRT_IEEE" => {
-            let node = Node {
-                output,
-                input: Expr::Func {
-                    name: "sqrt".to_string(),
-                    args: vec![scalar.sources[0].clone()],
-                    channels: String::new(),
-                },
-            };
-            nodes.add_node(node, &scalar.alu_unit, inst_count)
-        }
+        "FLOOR" => add_func("floor", 1, &scalar, output, inst_count, nodes),
+        "SQRT_IEEE" => add_func("sqrt", 1, &scalar, output, inst_count, nodes),
         "RECIP_IEEE" => {
             let node = Node {
                 output,
@@ -285,39 +264,9 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
             };
             nodes.add_node(node, &scalar.alu_unit, inst_count)
         }
-        "RECIPSQRT_IEEE" => {
-            let node = Node {
-                output,
-                input: Expr::Func {
-                    name: "inversesqrt".to_string(),
-                    args: vec![scalar.sources[0].clone()],
-                    channels: String::new(),
-                },
-            };
-            nodes.add_node(node, &scalar.alu_unit, inst_count)
-        }
-        "EXP_IEEE" => {
-            let node = Node {
-                output,
-                input: Expr::Func {
-                    name: "exp2".to_string(),
-                    args: vec![scalar.sources[0].clone()],
-                    channels: String::new(),
-                },
-            };
-            nodes.add_node(node, &scalar.alu_unit, inst_count)
-        }
-        "LOG_CLAMPED" => {
-            let node = Node {
-                output,
-                input: Expr::Func {
-                    name: "log2".to_string(),
-                    args: vec![scalar.sources[0].clone()],
-                    channels: String::new(),
-                },
-            };
-            nodes.add_node(node, &scalar.alu_unit, inst_count)
-        }
+        "RECIPSQRT_IEEE" => add_func("inversesqrt", 1, &scalar, output, inst_count, nodes),
+        "EXP_IEEE" => add_func("exp2", 1, &scalar, output, inst_count, nodes),
+        "LOG_CLAMPED" => add_func("log2", 1, &scalar, output, inst_count, nodes),
         // scalar2
         "ADD" => {
             let node = Node {
@@ -329,28 +278,8 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
             };
             nodes.add_node(node, &scalar.alu_unit, inst_count)
         }
-        "MIN" | "MIN_DX10" => {
-            let node = Node {
-                output,
-                input: Expr::Func {
-                    name: "min".to_string(),
-                    args: vec![scalar.sources[0].clone(), scalar.sources[1].clone()],
-                    channels: String::new(),
-                },
-            };
-            nodes.add_node(node, &scalar.alu_unit, inst_count)
-        }
-        "MAX" | "MAX_DX10" => {
-            let node = Node {
-                output,
-                input: Expr::Func {
-                    name: "max".to_string(),
-                    args: vec![scalar.sources[0].clone(), scalar.sources[1].clone()],
-                    channels: String::new(),
-                },
-            };
-            nodes.add_node(node, &scalar.alu_unit, inst_count)
-        }
+        "MIN" | "MIN_DX10" => add_func("min", 2, &scalar, output, inst_count, nodes),
+        "MAX" | "MAX_DX10" => add_func("max", 2, &scalar, output, inst_count, nodes),
         "MUL" | "MUL_IEEE" => {
             let node = Node {
                 output,
@@ -366,19 +295,7 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
             unreachable!()
         }
         // scalar3
-        "MULADD" | "MULADD_IEEE" => {
-            let input = Expr::Func {
-                name: "fma".to_string(),
-                args: vec![
-                    scalar.sources[0].clone(),
-                    scalar.sources[1].clone(),
-                    scalar.sources[2].clone(),
-                ],
-                channels: String::new(),
-            };
-            let node = Node { output, input };
-            nodes.add_node(node, &scalar.alu_unit, inst_count)
-        }
+        "MULADD" | "MULADD_IEEE" => add_func("fma", 3, &scalar, output, inst_count, nodes),
         "MULADD_D2" => {
             let input = Expr::Func {
                 name: "fma".to_string(),
@@ -416,6 +333,25 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
         let node = alu_output_modifier(&modifier, scalar.output, node_index);
         nodes.add_node(node, &scalar.alu_unit, inst_count);
     }
+}
+
+fn add_func(
+    func: &str,
+    arg_count: usize,
+    scalar: &AluScalar,
+    output: Output,
+    inst_count: usize,
+    nodes: &mut Nodes,
+) -> usize {
+    let node = Node {
+        output,
+        input: Expr::Func {
+            name: func.to_string(),
+            args: (0..arg_count).map(|i| scalar.sources[i].clone()).collect(),
+            channels: String::new(),
+        },
+    };
+    nodes.add_node(node, &scalar.alu_unit, inst_count)
 }
 
 fn alu_dst_output(pair: Pair<Rule>, inst_count: usize, alu_unit: &str) -> Output {
