@@ -258,8 +258,8 @@ fn assign_parameters(
         work_color: None,
     };
 
-    if let Some(info) = get_technique(material, &materials.techniques) {
-        for param in &info.parameters {
+    if let Some(technique) = get_technique(material, &materials.techniques) {
+        for param in &technique.parameters {
             match param.param_type {
                 xc3_lib::mxmd::ParamType::Unk0 => (),
                 xc3_lib::mxmd::ParamType::TexMatrix => {
@@ -288,11 +288,17 @@ fn read_param<const N: usize>(
     work_values: &[f32],
 ) -> Vec<[f32; N]> {
     // Assume any parameter can be an array, so read a vec.
-    // TODO: avoid unwrap.
     work_values[param.work_value_index as usize..]
-        .chunks_exact(N)
-        .take(param.count as usize)
-        .map(|v| v.try_into().unwrap())
+        .chunks(N)
+        .map(|v| {
+            // TODO: Just keep indices to reference values instead?
+            // TODO: The param count field doesn't work here for Pyra ho_BL_TS2?
+            let mut output = [0.0; N];
+            for (o, v) in output.iter_mut().zip(v) {
+                *o = *v;
+            }
+            output
+        })
         .collect()
 }
 

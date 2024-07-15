@@ -460,7 +460,7 @@ impl Model {
             .iter()
             .map(|mesh| Mesh {
                 flags1: mesh.flags1,
-                flags2: mesh.flags2.try_into().unwrap(),
+                flags2: mesh.flags2.try_into().unwrap(), // TODO: same type?
                 vertex_buffer_index: mesh.vertex_buffer_index as usize,
                 index_buffer_index: mesh.index_buffer_index as usize,
                 index_buffer_index2: 0,
