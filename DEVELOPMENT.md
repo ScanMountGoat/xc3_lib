@@ -40,9 +40,12 @@ debug = true
 Some projects have [tracing](https://github.com/tokio-rs/tracing) support for profiling with `#[tracing::instrument]`. This can be used to generate spans, which are helpful for understanding the performance of multithreaded code. When compiling with `--features=tracing`, xc3_viewer can use `tracing-tracy` to connect to the profiling tool and trace viewer [tracy](https://github.com/wolfpld/tracy/releases/tag/v0.10).
 
 ## GPU Debugging
-[RenderDoc](https://renderdoc.org/) is a powerful GPU debugging tool. 
-RenderDoc can be used to debug rendering and graphics API usage issues not only in projects like xc3_wgpu and xc3_viewer but even the game itself running under an emulator like Ryujinx. RenderDoc may not always connect properly to Ryujinx. Compiling Ryujinx.Gtk3 from source and using the Vulkan API tends to be more reliable at least on Windows.
-This is especially helpful when identifying why the output of xc3_wgpu does not match up with in game by comparing the same model or scene in RenderDoc in the application and in game. Make sure to compile xc3_viewer in debug mode to enable labels for GPU resources like textures or render passes in RenderDoc.
+[RenderDoc](https://renderdoc.org/) is a powerful GPU debugging tool for Windows and Linux. 
+RenderDoc can be used to debug rendering and graphics API usage issues not only in projects like xc3_wgpu and xc3_viewer but even the game itself running under an emulator like Ryujinx. This is especially helpful when identifying why the output of xc3_wgpu does not match up with in game by comparing the same model or scene in RenderDoc in the application and in game. Make sure to compile xc3_viewer in debug mode to enable labels for GPU resources like textures or render passes in RenderDoc.
+
+Use the Vulkan API for best compatibility with RenderDoc with emulators. Using OpenGL will require compiling a custom build that disables unsupported OpenGL functionality. RenderDoc may not always connect properly to Ryujinx. Compiling Ryujinx.Gtk3 from source tends to be more reliable at least on Windows. For Cemu, use the Vulkan API and edit shaders by selecting "Decompile with SPIRV-Cross" in the edit drop down in RenderDoc.
+
+MacOS users should use the GPU debugging capabilities built into XCode.
 
 ## GPU Profiling
 GPU hardware manufacturers provide their own profiling tools that are more advanced than tools like RenderDoc or traditional FPS overlays. 
