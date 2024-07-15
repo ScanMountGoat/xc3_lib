@@ -117,6 +117,12 @@ fn unpack_normal(g_normal: vec2<f32>) -> vec3<f32> {
     return vec3(normal_x, normal_y, normal_z);
 }
 
+fn unpack_etc_flags(etc_a: f32) -> u32 {
+    // Adapted from "unbranch_to_depth" in xeno3/monolib/shader/shd_post.
+    // This is also the same logic used in the deferred shaders.
+    return u32(etc_a * 255.0 + 0.1);
+}
+
 fn calculate_color(uv: vec2<f32>) -> vec4<f32> {
     let g_color = textureSample(g_color, shared_sampler, uv);
     let g_etc_buffer = textureSample(g_etc_buffer, shared_sampler, uv);
@@ -178,6 +184,11 @@ fn calculate_toon_color(uv: vec2<f32>) -> vec4<f32> {
     let albedo = g_color.rgb;
     let metalness = g_etc_buffer.r; // TODO: different for toon?
     let glossiness = g_etc_buffer.g;
+
+    let flags = unpack_etc_flags(g_etc_buffer.a);
+
+    // Adapted from xeno3/chr/ch/ch11021013.pcsmt, shd00036, createBitInfo,
+    let b_specular_col = (flags & (1u << 4u)) != 0u;
     
     // TODO: clamped using constant buffer?
     let roughness = clamp(1.0 - glossiness, 0.04, 0.995);
@@ -201,6 +212,12 @@ fn calculate_toon_color(uv: vec2<f32>) -> vec4<f32> {
     let diffuse_direct = 1.0;
     let diffuse_lighting = mix(diffuse_indirect, diffuse_direct, n_dot_v);
 
+    // TODO: What is the default specular color?
+    var specular_color = vec3(1.0);
+    if b_specular_col {
+        specular_color = g_specular_color.rgb;
+    }
+
     // TODO: Does toon shading use ggx?
     let ggx = ggx_brdf(roughness, n_dot_h);
 
@@ -216,7 +233,7 @@ fn calculate_toon_color(uv: vec2<f32>) -> vec4<f32> {
     // TODO: Correctly use both gradients to fix massive melee mythra hair.
     let toon_v = toon_grad_v(g_etc_buffer.z);
     let toon_diffuse = textureSample(g_toon_grad, shared_sampler, vec2(diffuse_lighting, toon_v)).rgb;
-    let toon_specular = specular_lighting * g_specular_color.rgb;
+    let toon_specular = specular_lighting * specular_color;
 
     output = albedo * k_diffuse * toon_diffuse + toon_specular * k_specular * ambient_occlusion;
 
