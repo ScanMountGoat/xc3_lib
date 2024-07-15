@@ -359,10 +359,9 @@ fn get_shader_legacy(
                 "o1.y" => Some(("o0.y".into(), v.clone())),
                 "o1.z" => Some(("o0.z".into(), v.clone())),
                 "o1.w" => Some(("o0.w".into(), v.clone())),
+                // The normal output has only RG channels.
                 "o2.x" => Some(("o2.x".into(), v.clone())),
                 "o2.y" => Some(("o2.y".into(), v.clone())),
-                "o2.z" => Some(("o2.z".into(), v.clone())),
-                "o2.w" => Some(("o2.w".into(), v.clone())),
                 "o3.x" => Some(("o5.x".into(), v.clone())),
                 "o3.y" => Some(("o5.y".into(), v.clone())),
                 "o3.z" => Some(("o5.z".into(), v.clone())),

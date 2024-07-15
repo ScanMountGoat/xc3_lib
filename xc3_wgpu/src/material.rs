@@ -282,12 +282,13 @@ fn texture_channel(
         // TODO: Should this only be used for color and normals?
         let this_channel: Vec<_> = textures
             .iter()
-            .filter(|t| t.channels.as_str() == channel.to_string())
+            .filter(|t| t.channels.contains(channel))
             .collect();
 
         let texture = if !is_second_layer {
             this_channel.first().copied().or_else(|| textures.first())
         } else {
+            // TODO: Don't assume the first two textures are separate XY assignments.
             textures.get(2)
         };
 
@@ -303,7 +304,12 @@ fn texture_channel(
                 name_to_transforms.insert(name.clone(), *transforms);
             }
 
-            let channel_index = "xyzw".find(channels.chars().next().unwrap()).unwrap();
+            // TODO: how to handle empty input channels?
+            let channel_index = if channels.contains(channel) || channels.is_empty() {
+                "xyzw".find(channel).unwrap()
+            } else {
+                "xyzw".find(channels.chars().next().unwrap()).unwrap()
+            };
             // TODO: Should this ever return -1?
             let index = name_to_index.entry_index(name.clone());
             Some((index as i32, channel_index as u32))
