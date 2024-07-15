@@ -158,11 +158,14 @@ fn extract_shader(shader_tools: &str, binary_file: &Path) -> std::process::Child
 
 pub fn extract_legacy_shaders<P: AsRef<Path>>(
     mths: &Mths,
+    mths_bytes: &[u8],
     output_folder: P,
     gfd_tool: &str,
     index: usize,
 ) {
     let output_folder = output_folder.as_ref();
+
+    std::fs::write(output_folder.join(format!("{index}.cashd")), mths_bytes).unwrap();
 
     if let Ok(vert) = mths.vertex_shader() {
         let binary_path = output_folder.join(format!("{index}.vert.bin"));

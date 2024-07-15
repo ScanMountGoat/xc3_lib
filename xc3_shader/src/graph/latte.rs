@@ -19,9 +19,6 @@ impl Nodes {
     }
 }
 
-// Each ALU group has 4 vector operations xyzw and a scalar operation t.
-// TODO: Compare assembly and Cemu GLSL for Elma's legs (PC221115).
-// TODO: unit tests for sample shaders to test all these cases
 // TODO: The first registers are always input attributes?
 impl Graph {
     pub fn from_latte_asm(asm: &str) -> Self {
@@ -457,7 +454,6 @@ fn alu_src_expr(source: Pair<Rule>, nodes: &Nodes) -> Expr {
         })
         .unwrap_or_default();
 
-    // TODO: abs value?
     let value = inner.next().unwrap();
     let alu_src_value = value.into_inner().next().unwrap();
     let value = match alu_src_value.as_rule() {
@@ -630,9 +626,8 @@ fn tex_inst_node(tex_instruction: Pair<Rule>, nodes: &Nodes) -> Option<Node> {
     let sampler = inner.next()?.as_str();
     // TODO: always ignore properties?
 
-    // TODO: Add proper annotations instead of assuming shaders use names like "s3".
     let texture_name = Expr::Global {
-        name: sampler.to_string(),
+        name: texture.to_string(),
         channels: String::new(),
     };
 
@@ -914,10 +909,10 @@ mod tests {
         "};
 
         let expected = indoc! {"
-            R2.xy = texture(s3, vec2(R6.x, R6.y)).xy;
-            R8.xyz = texture(s2, vec2(R6.x, R6.y)).xyz;
-            R7.xyz = texture(s1, vec2(R6.x, R6.y)).xyz;
-            R6.xyz = texture(s4, vec2(R6.x, R6.y)).xyz;
+            R2.xy = texture(t3, vec2(R6.x, R6.y)).xy;
+            R8.xyz = texture(t2, vec2(R6.x, R6.y)).xyz;
+            R7.xyz = texture(t1, vec2(R6.x, R6.y)).xyz;
+            R6.xyz = texture(t4, vec2(R6.x, R6.y)).xyz;
             R125.x = fma(R2.x, 2, -1.0);
             R126.y = fma(R2.y, 2, -1.0);
             PV4.z = 0.0;
@@ -1046,8 +1041,8 @@ mod tests {
             R1.x = R123.x + 0.5;
             R1.y = R123.w + 0.5;
             R4.z = -PV28.y + 1.0;
-            R3.xyzw = texture(s0, vec2(R3.w, R3.y)).xyzw;
-            R1.xyz = texture(s5, vec2(R1.x, R1.y)).xyz;
+            R3.xyzw = texture(t0, vec2(R3.w, R3.y)).xyzw;
+            R1.xyz = texture(t5, vec2(R1.x, R1.y)).xyz;
             R126.x = fma(KC0[0].z, R3.z, 0.0);
             R127.y = fma(KC0[0].y, R3.y, 0.0);
             R123.z = fma(KC0[0].w, R3.w, 0.0);

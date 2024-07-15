@@ -265,7 +265,13 @@ pub fn extract_and_disassemble_shaders(input: &str, output: &str, gfd_tool: &str
                         .iter()
                         .enumerate()
                         .for_each(|(i, shader)| match Mths::from_bytes(&shader.mths_data) {
-                            Ok(mths) => extract_legacy_shaders(&mths, &output_folder, gfd_tool, i),
+                            Ok(mths) => extract_legacy_shaders(
+                                &mths,
+                                &shader.mths_data,
+                                &output_folder,
+                                gfd_tool,
+                                i,
+                            ),
                             Err(e) => println!("Error extracting Mths from {path:?}: {e}"),
                         });
                 }
@@ -286,8 +292,9 @@ pub fn extract_and_disassemble_shaders(input: &str, output: &str, gfd_tool: &str
             let output_folder = shader_output_folder(output, path);
             std::fs::create_dir_all(&output_folder).unwrap();
 
-            match Mths::from_file(path) {
-                Ok(mths) => extract_legacy_shaders(&mths, &output_folder, gfd_tool, 0),
+            let bytes = std::fs::read(path).unwrap();
+            match Mths::from_bytes(&bytes) {
+                Ok(mths) => extract_legacy_shaders(&mths, &bytes, &output_folder, gfd_tool, 0),
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }
         });

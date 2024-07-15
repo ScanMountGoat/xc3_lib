@@ -11,6 +11,7 @@ use glsl_lang::{
 };
 use log::error;
 use rayon::prelude::*;
+use xc3_lib::mths::Mths;
 use xc3_model::shader_database::{
     BufferDependency, Dependency, MapPrograms, ModelPrograms, ShaderDatabase, ShaderProgram,
 };
@@ -77,7 +78,7 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
     }
 }
 
-fn shader_from_latte_asm(vertex: &str, fragment: &str) -> ShaderProgram {
+fn shader_from_latte_asm(vertex: &str, fragment: &str, mths: &Mths) -> ShaderProgram {
     let frag = &Graph::from_latte_asm(fragment);
     let frag_attributes = &Attributes::default();
 
@@ -92,7 +93,7 @@ fn shader_from_latte_asm(vertex: &str, fragment: &str) -> ShaderProgram {
                 // TODO: Split this?
                 let name = format!("PIX{i}.{c}");
 
-                let dependencies = input_dependencies(frag, frag_attributes, &name);
+                let mut dependencies = input_dependencies(frag, frag_attributes, &name);
 
                 // Add texture parameters used for the corresponding vertex output.
                 // Most shaders apply UV transforms in the vertex shader.
@@ -104,6 +105,25 @@ fn shader_from_latte_asm(vertex: &str, fragment: &str) -> ShaderProgram {
                 // );
 
                 // apply_attribute_names(vert, vert_attributes, frag_attributes, &mut dependencies);
+
+                // Apply annotations from the shader metadata.
+                // We don't annotate the assembly itself to avoid parsing errors.
+                if let Ok(frag) = mths.fragment_shader() {
+                    for d in &mut dependencies {
+                        match d {
+                            Dependency::Constant(_) => todo!(),
+                            Dependency::Buffer(_) => todo!(),
+                            Dependency::Texture(t) => {
+                                for sampler in &frag.samplers {
+                                    if t.name == format!("t{}", sampler.location) {
+                                        t.name = (&sampler.name).into();
+                                    }
+                                }
+                            }
+                            Dependency::Attribute(_) => todo!(),
+                        }
+                    }
+                }
 
                 // Simplify the output name to save space.
                 let output_name = format!("o{i}.{c}");
@@ -446,15 +466,15 @@ fn create_shader_programs_legacy(folder: &Path) -> Vec<ShaderProgram> {
     paths
         .iter()
         .filter_map(|path| {
+            // f/i.frag.txt -> f/i
+            let path = path.with_extension("").with_extension("");
+
+            let mths = Mths::from_file(path.with_extension("cashd")).unwrap();
+
             // TODO: Should both shaders be mandatory?
-            let vertex_source = std::fs::read_to_string(
-                path.with_extension("")
-                    .with_extension("")
-                    .with_extension("vert.txt"),
-            )
-            .unwrap();
-            let frag_source = std::fs::read_to_string(path).unwrap();
-            Some(shader_from_latte_asm(&vertex_source, &frag_source))
+            let vertex_source = std::fs::read_to_string(path.with_extension("vert.txt")).unwrap();
+            let frag_source = std::fs::read_to_string(path.with_extension("frag.txt")).unwrap();
+            Some(shader_from_latte_asm(&vertex_source, &frag_source, &mths))
         })
         .collect()
 }
