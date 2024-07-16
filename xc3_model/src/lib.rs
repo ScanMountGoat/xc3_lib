@@ -342,14 +342,14 @@ fn get_shader_legacy(
     let program_index = material.techniques.first()?.technique_index as usize;
     let program = model_programs?.programs.get(program_index)?;
 
-    // The texture outputs are different in Xenoblade X.
+    // The texture outputs are different in Xenoblade X compared to Switch.
     // We handle this here to avoid needing to regenerate the database for updates.
     // G-Buffer Textures:
-    // lighting (ao * ???, alpha is specular brdf?)
-    // color (alpha is emission?)
-    // normal (only xy)
-    // specular (alpha is spec?)
-    // depth (alpha is glossiness?)
+    // 0: lighting (ao * ???, alpha is specular brdf?)
+    // 1: color (alpha is emission?)
+    // 2: normal (only xy)
+    // 3: specular (alpha is spec?)
+    // 4: depth (alpha is glossiness)
     Some(ShaderProgram {
         output_dependencies: program
             .output_dependencies
@@ -369,7 +369,7 @@ fn get_shader_legacy(
                 "o4.x" => Some(("o4.x".into(), v.clone())),
                 "o4.y" => Some(("o4.y".into(), v.clone())),
                 "o4.z" => Some(("o4.z".into(), v.clone())),
-                "o4.w" => Some(("o4.w".into(), v.clone())),
+                "o4.w" => Some(("o1.y".into(), v.clone())),
                 _ => None,
             })
             .collect(),

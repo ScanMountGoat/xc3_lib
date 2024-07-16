@@ -140,31 +140,41 @@ impl Graph {
         dependent_lines: &mut BTreeSet<(usize, String)>,
         previous_channels: String,
     ) {
+        // TODO: Find a more straightforward way to track and reduce channels.
+        // TODO: Just split swizzles into scalar operations and make channels a char?
+        // i.e. a.xyz = b.xyz is equivalent to a.x = b.x; a.y = b.y; a.z = b.z;
+        // TODO: This will avoid needing to track channels?
         if let Some(n) = self.nodes.get(node_index) {
-            // The final channels should always include all node channels.
-            let channels =
-                reduce_channels(n.input.channels().unwrap_or_default(), &previous_channels);
+            // Also handle cases where we assign to the expected channels.
+            // ex: "R4.w = R3.z; PIX4.w = R4.w" shouldn't reduce to "R3.z.w".
+            let already_handled_channels =
+                previous_channels == n.output.channels || previous_channels.is_empty();
 
             // Channels don't apply to function arguments or buffer indices.
-            let should_pass_channels = !matches!(
-                n.input,
-                Expr::Func { .. } | Expr::Parameter { .. } | Expr::Global { .. }
-            );
+            let should_pass_channels = matches!(n.input, Expr::Node { .. });
+
+            // The final channels should always include all node channels.
+            let input_channels = n.input.channels().unwrap_or_default();
+            let parent_channels = if !already_handled_channels {
+                reduce_channels(input_channels, &previous_channels)
+            } else {
+                input_channels.to_string()
+            };
 
             // Avoid processing the subtree rooted at a line more than once.
-            if dependent_lines.insert((node_index, channels)) {
+            if dependent_lines.insert((node_index, parent_channels.clone())) {
                 for e in n.input.exprs_recursive() {
                     if let Expr::Node {
                         node_index,
                         channels,
                     } = e
                     {
-                        let new_channels = if should_pass_channels {
-                            reduce_channels(channels, &previous_channels)
+                        let new_inner_channels = if should_pass_channels {
+                            parent_channels.clone()
                         } else {
-                            String::new()
+                            channels.clone()
                         };
-                        self.add_dependencies(*node_index, dependent_lines, new_channels);
+                        self.add_dependencies(*node_index, dependent_lines, new_inner_channels);
                     }
                 }
             }

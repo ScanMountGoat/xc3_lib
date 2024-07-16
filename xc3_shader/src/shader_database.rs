@@ -694,7 +694,7 @@ mod tests {
                 out_attr5.x = temp_18;
                 out_attr5.y = temp_19;
                 out_attr5.z = temp_20;
-                out_attr5.w = 0.;
+                out_attr5.w = 0.0;
             }
         "};
 

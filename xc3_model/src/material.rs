@@ -492,8 +492,7 @@ fn channel_assignment(
             })
         })
         .or_else(|| {
-            // TODO: How to deal with multiple textures used for color and normal outputs?
-            let textures: Vec<_> = shader
+            let mut textures: Vec<_> = shader
                 .textures(output_index, channel)
                 .iter()
                 .map(|texture| {
@@ -509,8 +508,17 @@ fn channel_assignment(
                 })
                 .collect();
 
+            // TODO: How to deal with multiple textures used for color and normal outputs?
+            textures.sort_by_cached_key(|t| sampler_index(t.name.as_str()).unwrap_or(usize::MAX));
+
             (!textures.is_empty()).then_some(ChannelAssignment::Textures(textures))
         })
+}
+
+fn sampler_index(sampler_name: &str) -> Option<usize> {
+    // Convert names like "s3" to index 3.
+    // Materials always use this naming convention in the shader.
+    sampler_name.strip_prefix('s')?.parse().ok()
 }
 
 fn texcoord_transforms(
