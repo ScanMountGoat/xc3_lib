@@ -36,9 +36,8 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
     let output_dependencies = (0..=5)
         .flat_map(|i| {
             "xyzw".chars().map(move |c| {
-                // TODO: Split this?
-                let name = format!("out_attr{i}.{c}");
-                let mut dependencies = input_dependencies(frag, frag_attributes, &name);
+                let name = format!("out_attr{i}");
+                let mut dependencies = input_dependencies(frag, frag_attributes, &name, Some(c));
 
                 if let Some((vert, vert_attributes)) = vertex {
                     // Add texture parameters used for the corresponding vertex output.
@@ -90,10 +89,9 @@ fn shader_from_latte_asm(vertex: &str, fragment: &str, mths: &Mths) -> ShaderPro
     let output_dependencies = (0..=5)
         .flat_map(|i| {
             "xyzw".chars().map(move |c| {
-                // TODO: Split this?
-                let name = format!("PIX{i}.{c}");
+                let name = format!("PIX{i}");
 
-                let mut dependencies = input_dependencies(frag, frag_attributes, &name);
+                let mut dependencies = input_dependencies(frag, frag_attributes, &name, Some(c));
 
                 // Add texture parameters used for the corresponding vertex output.
                 // Most shaders apply UV transforms in the vertex shader.
@@ -843,7 +841,6 @@ mod tests {
                 temp_8 = texture(s2, vec2(temp_0, temp_1)).xy;
                 temp_9 = temp_8.x;
                 temp_10 = temp_8.y;
-                temp_11 = texture(gTResidentTex09, vec2(temp_2, temp_3)).xy;
                 temp_11 = texture(gTResidentTex09, vec2(temp_2, temp_3)).xy;
                 temp_12 = temp_11.x;
                 temp_13 = temp_11.y;

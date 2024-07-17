@@ -5,7 +5,7 @@ use glsl_lang::{
         DeclarationData, ExprData, FunIdentifierData, InitializerData, Statement, StatementData,
         TranslationUnit,
     },
-    transpiler::glsl::{show_type_specifier, FormattingState},
+    transpiler::glsl::{show_expr, show_type_specifier, FormattingState},
     visitor::{Host, Visit, Visitor},
 };
 
@@ -33,43 +33,26 @@ impl AssignmentVisitor {
         assignment_input: &glsl_lang::ast::Expr,
     ) {
         let inputs = input_expr(assignment_input, &self.last_assignment_index);
+        let mut channels = if output_channels.is_empty() && inputs.len() > 1 {
+            "xyzw".chars()
+        } else {
+            output_channels.chars()
+        };
 
-        if inputs.len() == 1 {
+        // Convert vector swizzles to scalar operations to simplify analysis code.
+        for input in inputs {
             let assignment = AssignmentDependency {
                 output: Output {
                     name: output_name.to_string(),
-                    channel: None,
+                    channel: channels.next(),
                 },
-                input: inputs[0].clone(),
+                input,
             };
             // The visitor doesn't track line numbers.
             // We only need to look up the assignments, so use the index instead.
             self.last_assignment_index
                 .insert(assignment.output.clone(), self.assignments.len());
             self.assignments.push(assignment);
-        } else {
-            let channels = if output_channels.is_empty() {
-                // No swizzle assigns to all channels.
-                "xyzw".chars()
-            } else {
-                output_channels.chars()
-            };
-
-            // Convert vector swizzles to scalar operations to simplify analysis code.
-            for (input, channel) in inputs.into_iter().zip(channels) {
-                let assignment = AssignmentDependency {
-                    output: Output {
-                        name: output_name.to_string(),
-                        channel: Some(channel),
-                    },
-                    input,
-                };
-                // The visitor doesn't track line numbers.
-                // We only need to look up the assignments, so use the index instead.
-                self.last_assignment_index
-                    .insert(assignment.output.clone(), self.assignments.len());
-                self.assignments.push(assignment);
-            }
         }
     }
 }
@@ -95,12 +78,7 @@ impl Visitor for AssignmentVisitor {
                         ExprData::Bracket(_, _) => {
                             // TODO: Better support for assigning to array elements?
                             let mut text = String::new();
-                            glsl_lang::transpiler::glsl::show_expr(
-                                &mut text,
-                                lh,
-                                &mut FormattingState::default(),
-                            )
-                            .unwrap();
+                            show_expr(&mut text, lh, &mut FormattingState::default()).unwrap();
                             (text, "")
                         }
                         ExprData::FunCall(_, _) => todo!(),
@@ -378,12 +356,7 @@ fn input_expr_inner(
                 _ => {
                     // TODO: Better support for nested brackets like "U_BILL.data[int(temp_4)][temp_5];"
                     let mut text = String::new();
-                    glsl_lang::transpiler::glsl::show_expr(
-                        &mut text,
-                        e,
-                        &mut FormattingState::default(),
-                    )
-                    .unwrap();
+                    show_expr(&mut text, e, &mut FormattingState::default()).unwrap();
                     (text, None)
                 }
             };
@@ -431,9 +404,16 @@ fn input_expr_inner(
             // Track the channels accessed by expressions like "value.rgb".
             if channel.as_str().len() == 1 {
                 input_expr_inner(e, last_assignment_index, channel.as_str().chars().next())
+            } else if !channel.as_str().chars().all(|c| "xyzw".contains(c)) {
+                // TODO: Is there a better way to handle float params like U_Mate.gAlInf?
+                let mut text = String::new();
+                show_expr(&mut text, e, &mut FormattingState::default()).unwrap();                
+                Expr::Global { name: text, channel: None }
             } else {
                 // TODO: how to handle values with multiple channels like a.xyz * b.wzy?
-                todo!()
+                let mut text = String::new();
+                show_expr(&mut text, e, &mut FormattingState::default()).unwrap();
+                panic!("{}.{}\n", text, channel.to_string())
             }
         }
         ExprData::PostInc(e) => input_expr_inner(e, last_assignment_index, channel),

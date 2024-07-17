@@ -12,11 +12,13 @@ use crate::{
     shader_database::Attributes,
 };
 
-pub fn input_dependencies(graph: &Graph, attributes: &Attributes, var: &str) -> Vec<Dependency> {
+pub fn input_dependencies(
+    graph: &Graph,
+    attributes: &Attributes,
+    variable: &str,
+    channel: Option<char>,
+) -> Vec<Dependency> {
     // Find the most recent assignment for the output variable.
-    let (variable, channels) = var.split_once('.').unwrap_or((var, ""));
-    let channel = channels.chars().next();
-
     let node = graph
         .nodes
         .iter()
@@ -482,7 +484,7 @@ mod tests {
                     }
                 ]
             })],
-            input_dependencies(&graph, &attributes, "b")
+            input_dependencies(&graph, &attributes, "b", None)
         );
     }
 
@@ -581,7 +583,7 @@ mod tests {
                     }
                 ]
             })],
-            input_dependencies(&graph, &attributes, "temp_163")
+            input_dependencies(&graph, &attributes, "temp_163", None)
         );
     }
 
@@ -633,7 +635,7 @@ mod tests {
                     }
                 ]
             })],
-            input_dependencies(&graph, &attributes, "temp_170")
+            input_dependencies(&graph, &attributes, "temp_170", None)
         );
     }
 
@@ -658,7 +660,7 @@ mod tests {
                 channels: "z".into(),
                 texcoords: Vec::new()
             })],
-            input_dependencies(&graph, &attributes, "b")
+            input_dependencies(&graph, &attributes, "b", None)
         );
     }
 
@@ -689,7 +691,7 @@ mod tests {
                     texcoords: Vec::new()
                 })
             ],
-            input_dependencies(&graph, &attributes, "b")
+            input_dependencies(&graph, &attributes, "b", None)
         );
     }
 
@@ -718,7 +720,7 @@ mod tests {
                 channels: "x".into(),
                 texcoords: Vec::new()
             })],
-            input_dependencies(&graph, &attributes, "out_attr1.x")
+            input_dependencies(&graph, &attributes, "out_attr1", Some('x'))
         );
         assert_eq!(
             vec![Dependency::Buffer(BufferDependency {
@@ -727,7 +729,7 @@ mod tests {
                 index: 1,
                 channels: "w".into()
             })],
-            input_dependencies(&graph, &attributes, "out_attr1.y")
+            input_dependencies(&graph, &attributes, "out_attr1", Some('y'))
         );
         assert_eq!(
             vec![Dependency::Buffer(BufferDependency {
@@ -736,11 +738,11 @@ mod tests {
                 index: 3,
                 channels: "y".into()
             })],
-            input_dependencies(&graph, &attributes, "out_attr1.z")
+            input_dependencies(&graph, &attributes, "out_attr1", Some('z'))
         );
         assert_eq!(
             vec![Dependency::Constant(1.5.into())],
-            input_dependencies(&graph, &attributes, "out_attr1.w")
+            input_dependencies(&graph, &attributes, "out_attr1", Some('w'))
         );
     }
 
@@ -793,7 +795,7 @@ mod tests {
                 channels: "x".into(),
                 texcoords: Vec::new()
             })],
-            input_dependencies(&graph, &attributes, "PIX2.w")
+            input_dependencies(&graph, &attributes, "PIX2", Some('w'))
         );
     }
 }
