@@ -8,20 +8,22 @@ use xc3_model::shader_database::{
 
 use crate::{
     annotation::shader_source_no_extensions,
-    graph::{reduce_channels, Expr, Graph},
+    graph::{Expr, Graph},
     shader_database::Attributes,
 };
 
 pub fn input_dependencies(graph: &Graph, attributes: &Attributes, var: &str) -> Vec<Dependency> {
     // Find the most recent assignment for the output variable.
     let (variable, channels) = var.split_once('.').unwrap_or((var, ""));
+    let channel = channels.chars().next();
+
     let node = graph
         .nodes
         .iter()
-        .rfind(|n| n.output.name == variable && n.output.contains_channels(channels));
+        .rfind(|n| n.output.name == variable && n.output.channel == channel);
 
     // TODO: Rework this to be cleaner and add more tests.
-    let mut dependencies = texture_dependencies(graph, attributes, variable, channels);
+    let mut dependencies = texture_dependencies(graph, attributes, variable, channel);
 
     // Add anything directly assigned to the output variable.
     if let Some(node) = node {
@@ -31,14 +33,14 @@ pub fn input_dependencies(graph: &Graph, attributes: &Attributes, var: &str) -> 
                 name,
                 field,
                 index,
-                channels,
+                channel,
             } => {
                 if let Expr::Int(index) = index.deref() {
                     dependencies.push(Dependency::Buffer(BufferDependency {
                         name: name.into(),
                         field: field.clone().unwrap_or_default().into(),
                         index: (*index).try_into().unwrap(),
-                        channels: channels.into(),
+                        channels: channel.map(|c| c.to_string().into()).unwrap_or_default(),
                     }))
                 }
             }
@@ -49,7 +51,7 @@ pub fn input_dependencies(graph: &Graph, attributes: &Attributes, var: &str) -> 
     // TODO: Depth not high enough for complex expressions involving attributes?
     // TODO: Query the graph for known functions instead of hard coding recursion depth.
     dependencies.extend(
-        attribute_dependencies(graph, variable, channels, attributes, Some(1))
+        attribute_dependencies(graph, variable, channel, attributes, Some(1))
             .into_iter()
             .map(Dependency::Attribute),
     );
@@ -60,21 +62,21 @@ pub fn input_dependencies(graph: &Graph, attributes: &Attributes, var: &str) -> 
 pub fn attribute_dependencies(
     graph: &Graph,
     variable: &str,
-    channels: &str,
+    channel: Option<char>,
     attributes: &Attributes,
     recursion_depth: Option<usize>,
 ) -> Vec<AttributeDependency> {
     graph
-        .assignments_recursive(variable, channels, recursion_depth)
+        .assignments_recursive(variable, channel, recursion_depth)
         .into_iter()
-        .filter_map(|(i, final_channels)| {
+        .filter_map(|i| {
             // Check all exprs for binary ops, function args, etc.
             graph.nodes[i].input.exprs_recursive().iter().find_map(|e| {
-                if let Expr::Global { name, .. } = e {
+                if let Expr::Global { name, channel } = e {
                     if attributes.input_locations.contains_left(name.as_str()) {
                         Some(AttributeDependency {
                             name: name.into(),
-                            channels: final_channels.clone().into(),
+                            channels: channel.map(|c| c.to_string().into()).unwrap_or_default(),
                         })
                     } else {
                         None
@@ -91,36 +93,36 @@ fn texture_dependencies(
     graph: &Graph,
     attributes: &Attributes,
     variable: &str,
-    channels: &str,
+    channel: Option<char>,
 ) -> Vec<Dependency> {
     graph
-        .assignments_recursive(variable, channels, None)
+        .assignments_recursive(variable, channel, None)
         .into_iter()
-        .filter_map(|(i, final_channels)| {
+        .filter_map(|i| {
             // Check all exprs for binary ops, function args, etc.
             graph.nodes[i]
                 .input
                 .exprs_recursive()
                 .iter()
-                .find_map(|e| texture_dependency(e, graph, attributes, &final_channels))
+                .find_map(|e| texture_dependency(e, graph, attributes))
         })
         .collect()
 }
 
-fn texture_dependency(
-    e: &Expr,
-    graph: &Graph,
-    attributes: &Attributes,
-    final_channels: &str,
-) -> Option<Dependency> {
-    if let Expr::Func { name, args, .. } = e {
+fn texture_dependency(e: &Expr, graph: &Graph, attributes: &Attributes) -> Option<Dependency> {
+    if let Expr::Func {
+        name,
+        args,
+        channel,
+    } = e
+    {
         if name.starts_with("texture") {
             if let Some(Expr::Global { name, .. }) = args.first() {
                 let texcoords = texcoord_args(args, graph, attributes);
 
                 Some(Dependency::Texture(TextureDependency {
                     name: name.into(),
-                    channels: final_channels.into(),
+                    channels: channel.map(|c| c.to_string().into()).unwrap_or_default(),
                     texcoords,
                 }))
             } else {
@@ -179,8 +181,8 @@ pub fn scale_parameter(graph: &Graph, node_index: usize) -> Option<BufferDepende
     let node = graph.nodes.get(node_index)?;
     match &node.input {
         Expr::Mul(a, b) => match (a.deref(), b.deref()) {
-            (Expr::Node { .. }, e) => buffer_dependency(e, ""),
-            (e, Expr::Node { .. }) => buffer_dependency(e, ""),
+            (Expr::Node { .. }, e) => buffer_dependency(e),
+            (e, Expr::Node { .. }) => buffer_dependency(e),
             _ => None,
         },
         _ => None,
@@ -202,10 +204,10 @@ pub fn tex_matrix(graph: &Graph, node_index: usize) -> Option<[BufferDependency;
     let (node, w) = match &node.input {
         Expr::Add(a, b) => match (a.deref(), b.deref()) {
             (Expr::Node { node_index, .. }, e) => {
-                Some((graph.nodes.get(*node_index)?, buffer_dependency(e, "")?))
+                Some((graph.nodes.get(*node_index)?, buffer_dependency(e)?))
             }
             (e, Expr::Node { node_index, .. }) => {
-                Some((graph.nodes.get(*node_index)?, buffer_dependency(e, "")?))
+                Some((graph.nodes.get(*node_index)?, buffer_dependency(e)?))
             }
             _ => None,
         },
@@ -216,7 +218,7 @@ pub fn tex_matrix(graph: &Graph, node_index: usize) -> Option<[BufferDependency;
             if name == "fma" {
                 match &args[..] {
                     [Expr::Float(0.0), e, Expr::Node { node_index, .. }] => {
-                        Some((graph.nodes.get(*node_index)?, buffer_dependency(e, "")?))
+                        Some((graph.nodes.get(*node_index)?, buffer_dependency(e)?))
                     }
                     _ => None,
                 }
@@ -233,7 +235,7 @@ pub fn tex_matrix(graph: &Graph, node_index: usize) -> Option<[BufferDependency;
                     [Expr::Node { node_index: n1, .. }, e, Expr::Node { node_index: n2, .. }] => {
                         Some((
                             graph.nodes.get(*n1)?,
-                            buffer_dependency(e, "")?,
+                            buffer_dependency(e)?,
                             graph.nodes.get(*n2)?,
                         ))
                     }
@@ -248,10 +250,10 @@ pub fn tex_matrix(graph: &Graph, node_index: usize) -> Option<[BufferDependency;
     let (u, x) = match &node2.input {
         Expr::Mul(a, b) => match (a.deref(), b.deref()) {
             (Expr::Node { node_index, .. }, e) => {
-                Some((graph.nodes.get(*node_index)?, buffer_dependency(e, "")?))
+                Some((graph.nodes.get(*node_index)?, buffer_dependency(e)?))
             }
             (e, Expr::Node { node_index, .. }) => {
-                Some((graph.nodes.get(*node_index)?, buffer_dependency(e, "")?))
+                Some((graph.nodes.get(*node_index)?, buffer_dependency(e)?))
             }
             _ => None,
         },
@@ -263,20 +265,23 @@ pub fn tex_matrix(graph: &Graph, node_index: usize) -> Option<[BufferDependency;
 }
 
 fn texcoord_name_channels(
-    node_assignments: &[(usize, String)],
+    node_assignments: &[usize],
     graph: &Graph,
     attributes: &Attributes,
 ) -> Option<(String, String)> {
-    node_assignments.iter().find_map(|(i, final_channels)| {
+    node_assignments.iter().find_map(|i| {
         // Check all exprs for binary ops, function args, etc.
         graph.nodes[*i]
             .input
             .exprs_recursive()
             .into_iter()
             .find_map(|e| {
-                if let Expr::Global { name, .. } = e {
+                if let Expr::Global { name, channel } = e {
                     if attributes.input_locations.contains_left(name.as_str()) {
-                        Some((name.to_string(), final_channels.to_string()))
+                        Some((
+                            name.to_string(),
+                            channel.map(|c| c.to_string()).unwrap_or_default(),
+                        ))
                     } else {
                         None
                     }
@@ -287,21 +292,19 @@ fn texcoord_name_channels(
     })
 }
 
-pub fn glsl_dependencies(source: &str, var: &str) -> String {
+pub fn glsl_dependencies(source: &str, variable: &str, channel: Option<char>) -> String {
     // TODO: Correctly handle if statements?
     let source = shader_source_no_extensions(source);
     let translation_unit = TranslationUnit::parse(source).unwrap();
-    let (variable, channels) = var.split_once('.').unwrap_or((var, ""));
-
-    Graph::from_glsl(&translation_unit).glsl_dependencies(variable, channels, None)
+    Graph::from_glsl(&translation_unit).glsl_dependencies(variable, channel, None)
 }
 
-pub fn buffer_dependency(e: &Expr, final_channels: &str) -> Option<BufferDependency> {
+pub fn buffer_dependency(e: &Expr) -> Option<BufferDependency> {
     if let Expr::Parameter {
         name,
         field,
         index,
-        channels,
+        channel,
     } = e
     {
         if let Expr::Int(index) = index.deref() {
@@ -309,7 +312,7 @@ pub fn buffer_dependency(e: &Expr, final_channels: &str) -> Option<BufferDepende
                 name: name.into(),
                 field: field.clone().unwrap_or_default().into(),
                 index: (*index).try_into().unwrap(),
-                channels: reduce_channels(channels, final_channels).into(),
+                channels: channel.map(|c| c.to_string().into()).unwrap_or_default(),
             })
         } else {
             None
@@ -358,7 +361,7 @@ mod tests {
                 d = d + 1.0;
                 OUT_Color.x = c + d;
             "},
-            glsl_dependencies(glsl, "OUT_Color.x")
+            glsl_dependencies(glsl, "OUT_Color", Some('x'))
         );
     }
 
@@ -381,7 +384,7 @@ mod tests {
                 b = 2.0;
                 c = 2 * b;
             "},
-            glsl_dependencies(glsl, "c")
+            glsl_dependencies(glsl, "c", None)
         );
     }
 
@@ -403,7 +406,7 @@ mod tests {
                 b = uint(a) >> 2;
                 c = data[int(b)];
             "},
-            glsl_dependencies(glsl, "c")
+            glsl_dependencies(glsl, "c", None)
         );
     }
 
@@ -416,7 +419,7 @@ mod tests {
             }
         "};
 
-        assert_eq!("", glsl_dependencies(glsl, "d"));
+        assert_eq!("", glsl_dependencies(glsl, "d", None));
     }
 
     #[test]
@@ -438,7 +441,7 @@ mod tests {
                 b = texture(texture1, vec2(a2 + 2.0, 1.0)).x;
                 c = data[int(b)];
             "},
-            glsl_dependencies(glsl, "c")
+            glsl_dependencies(glsl, "c", None)
         );
     }
 
@@ -677,12 +680,12 @@ mod tests {
             vec![
                 Dependency::Texture(TextureDependency {
                     name: "texture1".into(),
-                    channels: "w".into(),
+                    channels: "z".into(),
                     texcoords: Vec::new()
                 }),
                 Dependency::Texture(TextureDependency {
                     name: "texture1".into(),
-                    channels: "z".into(),
+                    channels: "w".into(),
                     texcoords: Vec::new()
                 })
             ],
@@ -766,7 +769,7 @@ mod tests {
                 name: "in_attr2".into(),
                 channels: "x".into(),
             }],
-            attribute_dependencies(&graph, "out_attr1", "y", &attributes, None)
+            attribute_dependencies(&graph, "out_attr1", Some('y'), &attributes, None)
         );
     }
 

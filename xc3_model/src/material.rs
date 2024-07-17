@@ -549,15 +549,12 @@ fn texcoord_transform(
             transform[index] = scale;
             Some(transform)
         }
-        crate::shader_database::TexCoordParams::Matrix([x, y, z, w]) => Some(
-            vec4(
-                extract_parameter(x, parameters)?,
-                extract_parameter(y, parameters)?,
-                extract_parameter(z, parameters)?,
-                extract_parameter(w, parameters)?,
-            )
-            .into(),
-        ),
+        crate::shader_database::TexCoordParams::Matrix([x, y, z, w]) => Some(vec4(
+            extract_parameter(x, parameters)?,
+            extract_parameter(y, parameters)?,
+            extract_parameter(z, parameters)?,
+            extract_parameter(w, parameters)?,
+        )),
     }
 }
 

@@ -146,8 +146,8 @@ fn geometric_specular_aa(frag: &Graph) -> Option<BufferDependency> {
     let node_index = frag
         .nodes
         .iter()
-        .rposition(|n| n.output.name == "out_attr1" && n.output.channels == "y")?;
-    let last_node_index = frag.node_assignments_recursive(node_index, None).last()?.0;
+        .rposition(|n| n.output.name == "out_attr1" && n.output.channel == Some('y'))?;
+    let last_node_index = *frag.node_assignments_recursive(node_index, None).last()?;
     let last_node = frag.nodes.get(last_node_index)?;
 
     let node = assign_x(&frag.nodes, last_node)?;
@@ -178,7 +178,7 @@ fn geometric_specular_aa(frag: &Graph) -> Option<BufferDependency> {
     // TODO: Add an option to get the expr itself?
     match &node.input {
         Expr::Sub(a, b) => match (a.deref(), b.deref()) {
-            (Expr::Float(0.0), e) => buffer_dependency(e, ""),
+            (Expr::Float(0.0), e) => buffer_dependency(e),
             _ => None,
         },
         _ => None,
@@ -218,8 +218,7 @@ fn apply_vertex_texcoord_params(
                         // Find any additional scale parameters.
                         for c in texcoord.channels.chars() {
                             if let Some(node) = vertex.nodes.iter().rfind(|n| {
-                                &n.output.name == vertex_output_name
-                                    && n.output.channels == c.to_string()
+                                &n.output.name == vertex_output_name && n.output.channel == Some(c)
                             }) {
                                 if let Expr::Node { node_index, .. } = &node.input {
                                     // Detect common cases for transforming UV coordinates.
@@ -271,7 +270,7 @@ fn apply_attribute_names(
                         if let Some(input_attribute) = attribute_dependencies(
                             vertex,
                             vertex_output_name,
-                            &c.to_string(),
+                            Some(c),
                             vertex_attributes,
                             None,
                         )
@@ -293,17 +292,11 @@ fn find_texcoord_input_name_channels(
     vertex_attributes: &Attributes,
 ) -> Option<(String, String)> {
     // We only need to look up one output per texcoord.
-    let c = texcoord.channels.chars().next()?;
+    let c = texcoord.channels.chars().next();
 
-    attribute_dependencies(
-        vertex,
-        vertex_output_name,
-        &c.to_string(),
-        vertex_attributes,
-        None,
-    )
-    .first()
-    .map(|a| (a.name.to_string(), a.channels.to_string()))
+    attribute_dependencies(vertex, vertex_output_name, c, vertex_attributes, None)
+        .first()
+        .map(|a| (a.name.to_string(), a.channels.to_string()))
 }
 
 pub fn create_shader_database(input: &str) -> ShaderDatabase {
@@ -465,7 +458,7 @@ fn create_shader_programs_legacy(folder: &Path) -> Vec<ShaderProgram> {
 
     paths
         .iter()
-        .filter_map(|path| {
+        .map(|path| {
             // f/i.frag.txt -> f/i
             let path = path.with_extension("").with_extension("");
 
@@ -474,7 +467,7 @@ fn create_shader_programs_legacy(folder: &Path) -> Vec<ShaderProgram> {
             // TODO: Should both shaders be mandatory?
             let vertex_source = std::fs::read_to_string(path.with_extension("vert.txt")).unwrap();
             let frag_source = std::fs::read_to_string(path.with_extension("frag.txt")).unwrap();
-            Some(shader_from_latte_asm(&vertex_source, &frag_source, &mths))
+            shader_from_latte_asm(&vertex_source, &frag_source, &mths)
         })
         .collect()
 }

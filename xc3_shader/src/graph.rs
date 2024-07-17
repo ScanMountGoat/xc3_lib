@@ -24,7 +24,7 @@ pub enum Expr {
     /// A value assigned in a previous node.
     Node {
         node_index: usize,
-        channels: String,
+        channel: Option<char>,
     },
     /// A float constant like `1.0`.
     Float(f32),
@@ -39,12 +39,12 @@ pub enum Expr {
         name: String,
         field: Option<String>,
         index: Box<Expr>,
-        channels: String,
+        channel: Option<char>,
     },
     /// A global identifier like `in_attr0.x`.
     Global {
         name: String,
-        channels: String,
+        channel: Option<char>,
     },
     Add(Box<Expr>, Box<Expr>),
     Sub(Box<Expr>, Box<Expr>),
@@ -70,20 +70,18 @@ pub enum Expr {
     Func {
         name: String,
         args: Vec<Expr>,
-        channels: String,
+        channel: Option<char>,
     },
 }
 
 #[derive(Debug, PartialEq, Clone, Eq, PartialOrd, Ord)]
 pub struct Output {
+    /// The name of the output variable like `out` in `out.x = in`
     pub name: String,
-    pub channels: String,
-}
-
-impl Output {
-    pub fn contains_channels(&self, channels: &str) -> bool {
-        self.channels.is_empty() || channels.chars().all(|c| self.channels.contains(c))
-    }
+    // TODO: use a char index instead?
+    /// The channel to assign to like `x` in `out.x = in`.
+    /// Multiple channel assignments need to be split into multiple scalar assignments.
+    pub channel: Option<char>,
 }
 
 // TODO: more strongly typed channel swizzles?
@@ -95,13 +93,13 @@ impl Graph {
     pub fn assignments_recursive(
         &self,
         variable: &str,
-        channels: &str,
+        channel: Option<char>,
         recursion_depth: Option<usize>,
-    ) -> Vec<(usize, String)> {
+    ) -> Vec<usize> {
         if let Some(i) = self
             .nodes
             .iter()
-            .rposition(|n| n.output.name == variable && n.output.contains_channels(channels))
+            .rposition(|n| n.output.name == variable && n.output.channel == channel)
         {
             self.node_assignments_recursive(i, recursion_depth)
         } else {
@@ -109,18 +107,17 @@ impl Graph {
         }
     }
 
-    // TODO: can this also track channels?
     /// Return the indices of dependent nodes for `node`
     /// starting from the last assignment.
     pub fn node_assignments_recursive(
         &self,
         node_index: usize,
         recursion_depth: Option<usize>,
-    ) -> Vec<(usize, String)> {
+    ) -> Vec<usize> {
         let mut dependent_lines = BTreeSet::new();
 
         // Follow data dependencies backwards to find all relevant lines.
-        self.add_dependencies(node_index, &mut dependent_lines, String::new());
+        self.add_dependencies(node_index, &mut dependent_lines);
 
         // TODO: return type for accumulated channels.
         let max_depth = recursion_depth.unwrap_or(dependent_lines.len());
@@ -132,49 +129,13 @@ impl Graph {
             .collect()
     }
 
-    // TODO: only Node references impact channels recursively?
-    // TODO: function calls or parameters don't impact channels of arguments?
-    fn add_dependencies(
-        &self,
-        node_index: usize,
-        dependent_lines: &mut BTreeSet<(usize, String)>,
-        previous_channels: String,
-    ) {
-        // TODO: Find a more straightforward way to track and reduce channels.
-        // TODO: Just split swizzles into scalar operations and make channels a char?
-        // i.e. a.xyz = b.xyz is equivalent to a.x = b.x; a.y = b.y; a.z = b.z;
-        // TODO: This will avoid needing to track channels?
+    fn add_dependencies(&self, node_index: usize, dependent_lines: &mut BTreeSet<usize>) {
         if let Some(n) = self.nodes.get(node_index) {
-            // Also handle cases where we assign to the expected channels.
-            // ex: "R4.w = R3.z; PIX4.w = R4.w" shouldn't reduce to "R3.z.w".
-            let already_handled_channels =
-                previous_channels == n.output.channels || previous_channels.is_empty();
-
-            // Channels don't apply to function arguments or buffer indices.
-            let should_pass_channels = matches!(n.input, Expr::Node { .. });
-
-            // The final channels should always include all node channels.
-            let input_channels = n.input.channels().unwrap_or_default();
-            let parent_channels = if !already_handled_channels {
-                reduce_channels(input_channels, &previous_channels)
-            } else {
-                input_channels.to_string()
-            };
-
             // Avoid processing the subtree rooted at a line more than once.
-            if dependent_lines.insert((node_index, parent_channels.clone())) {
+            if dependent_lines.insert(node_index) {
                 for e in n.input.exprs_recursive() {
-                    if let Expr::Node {
-                        node_index,
-                        channels,
-                    } = e
-                    {
-                        let new_inner_channels = if should_pass_channels {
-                            parent_channels.clone()
-                        } else {
-                            channels.clone()
-                        };
-                        self.add_dependencies(*node_index, dependent_lines, new_inner_channels);
+                    if let Expr::Node { node_index, .. } = e {
+                        self.add_dependencies(*node_index, dependent_lines);
                     }
                 }
             }
@@ -185,12 +146,12 @@ impl Graph {
     pub fn glsl_dependencies(
         &self,
         variable: &str,
-        channels: &str,
+        channel: Option<char>,
         recursion_depth: Option<usize>,
     ) -> String {
         let mut output = String::new();
         let mut visited = BTreeSet::new();
-        for (i, _) in self.assignments_recursive(variable, channels, recursion_depth) {
+        for i in self.assignments_recursive(variable, channel, recursion_depth) {
             // Some nodes may be repeated with different tracked channels.
             if visited.insert(i) {
                 output += &self.node_to_glsl(&self.nodes[i]);
@@ -207,16 +168,6 @@ impl Expr {
         let mut exprs = Vec::new();
         add_exprs(&mut exprs, self);
         exprs
-    }
-
-    pub fn channels(&self) -> Option<&str> {
-        match self {
-            Expr::Node { channels, .. } => Some(channels),
-            Expr::Parameter { channels, .. } => Some(channels),
-            Expr::Global { channels, .. } => Some(channels),
-            Expr::Func { channels, .. } => Some(channels),
-            _ => None,
-        }
     }
 }
 
@@ -320,28 +271,5 @@ fn add_exprs<'a>(exprs: &mut Vec<&'a Expr>, input: &'a Expr) {
                 add_exprs(exprs, arg);
             }
         }
-    }
-}
-
-// TODO: Test cases for this.
-pub fn reduce_channels(inner: &str, outer: &str) -> String {
-    if inner.is_empty() {
-        // Reduce ".xyz" -> "xyz".
-        outer.to_string()
-    } else if outer.is_empty() {
-        // Reduce "xyz." -> "xyz".
-        inner.to_string()
-    } else if inner == outer {
-        // TODO: Why is this case happening?
-        inner.to_string()
-    } else {
-        // TODO: handle errors
-        // Reduce "xyz.zyx" -> "zyx".
-        let channel_index = |c: char| "xyzw".find(c).unwrap();
-        // TODO: better way to handle "a.z = b.y; out = a.z;" than filter_map?
-        outer
-            .chars()
-            .filter_map(|c| inner.chars().nth(channel_index(c)))
-            .collect()
     }
 }

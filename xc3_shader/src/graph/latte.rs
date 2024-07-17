@@ -6,15 +6,15 @@ use super::*;
 #[derive(Default)]
 struct Nodes {
     nodes: Vec<Node>,
-    node_index_alu_unit_inst_count: Vec<(usize, String, usize)>,
+    node_index_alu_unit_inst_count: Vec<(usize, Option<char>, usize)>,
 }
 
 impl Nodes {
-    fn add_node(&mut self, node: Node, alu_unit: &str, inst_count: usize) -> usize {
+    fn add_node(&mut self, node: Node, alu_unit: Option<char>, inst_count: usize) -> usize {
         let index = self.nodes.len();
         self.nodes.push(node);
         self.node_index_alu_unit_inst_count
-            .push((index, alu_unit.to_string(), inst_count));
+            .push((index, alu_unit, inst_count));
         index
     }
 }
@@ -84,19 +84,19 @@ fn add_exp_inst(inst: Pair<Rule>, nodes: &mut Nodes) {
     // BURSTCNT assigns consecutive input and output registers.
     for i in 0..=burst_count {
         // TODO: use out_attr{i} for consistency with GLSL?
-        for c in channels.unwrap_or_default().chars() {
+        for c in channels.chars() {
             let node = Node {
                 output: Output {
                     name: format!("{target_name}{}", target_index + i),
-                    channels: c.to_string(),
+                    channel: Some(c),
                 },
                 input: previous_assignment(
                     &format!("{source_name}{}", source_index + i),
-                    &c.to_string(),
+                    Some(c),
                     nodes,
                 ),
             };
-            nodes.add_node(node, "", inst_count);
+            nodes.add_node(node, None, inst_count);
         }
     }
 }
@@ -107,13 +107,15 @@ fn add_tex_clause(inst: Pair<Rule>, nodes: &mut Nodes) {
     let _inst_type = inner.next().unwrap().as_str();
     let properties = inner.next().unwrap().as_str();
     for tex_instruction in inner {
-        let node = tex_inst_node(tex_instruction, nodes).unwrap();
-        nodes.add_node(node, "", inst_count);
+        let tex_nodes = tex_inst_node(tex_instruction, nodes).unwrap();
+        for node in tex_nodes {
+            nodes.add_node(node, None, inst_count);
+        }
     }
 }
 
 struct AluScalar {
-    alu_unit: String,
+    alu_unit: char,
     op_code: String,
     output_modifier: Option<String>,
     output: Output,
@@ -123,7 +125,7 @@ struct AluScalar {
 impl AluScalar {
     fn from_pair(pair: Pair<Rule>, nodes: &Nodes, inst_count: usize, source_count: usize) -> Self {
         let mut inner = pair.into_inner();
-        let alu_unit = inner.next().unwrap().as_str().to_string(); // xyzwt
+        let alu_unit = inner.next().unwrap().as_str().chars().next().unwrap(); // xyzwt
         let op_code = inner.next().unwrap().as_str().to_string();
 
         // Optional modifier like /2 or *2
@@ -136,7 +138,7 @@ impl AluScalar {
             }
         });
 
-        let output = alu_dst_output(inner.next().unwrap(), inst_count, &alu_unit);
+        let output = alu_dst_output(inner.next().unwrap(), inst_count, alu_unit);
         let sources = inner
             .take(source_count)
             .map(|p| alu_src_expr(p, nodes))
@@ -181,10 +183,10 @@ fn add_alu_clause(inst: Pair<Rule>, nodes: &mut Nodes) {
                         output: scalar.output,
                         input: Expr::Node {
                             node_index,
-                            channels: String::new(),
+                            channel: None,
                         },
                     };
-                    nodes.add_node(node, &scalar.alu_unit, inst_count);
+                    nodes.add_node(node, Some(scalar.alu_unit), inst_count);
                 }
             } else {
                 add_scalar(scalar, nodes, inst_count);
@@ -212,7 +214,7 @@ fn dot_product_node_index(
         let node = Node {
             output: Output {
                 name: format!("temp{inst_count}"),
-                channels: String::new(),
+                channel: None,
             },
             input: Expr::Func {
                 name: "dot".to_string(),
@@ -220,18 +222,18 @@ fn dot_product_node_index(
                     Expr::Func {
                         name: "vec4".to_string(),
                         args: dot4_a,
-                        channels: String::new(),
+                        channel: None,
                     },
                     Expr::Func {
                         name: "vec4".to_string(),
                         args: dot4_b,
-                        channels: String::new(),
+                        channel: None,
                     },
                 ],
-                channels: String::new(),
+                channel: None,
             },
         };
-        let node_index = nodes.add_node(node, "", inst_count);
+        let node_index = nodes.add_node(node, None, inst_count);
         Some(node_index)
     } else {
         None
@@ -247,7 +249,7 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
                 output,
                 input: scalar.sources[0].clone(),
             };
-            nodes.add_node(node, &scalar.alu_unit, inst_count)
+            nodes.add_node(node, Some(scalar.alu_unit), inst_count)
         }
         "FLOOR" => add_func("floor", 1, &scalar, output, inst_count, nodes),
         "SQRT_IEEE" => add_func("sqrt", 1, &scalar, output, inst_count, nodes),
@@ -259,7 +261,7 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
                     Box::new(scalar.sources[0].clone()),
                 ),
             };
-            nodes.add_node(node, &scalar.alu_unit, inst_count)
+            nodes.add_node(node, Some(scalar.alu_unit), inst_count)
         }
         "RECIPSQRT_IEEE" => add_func("inversesqrt", 1, &scalar, output, inst_count, nodes),
         "EXP_IEEE" => add_func("exp2", 1, &scalar, output, inst_count, nodes),
@@ -273,7 +275,7 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
                     Box::new(scalar.sources[1].clone()),
                 ),
             };
-            nodes.add_node(node, &scalar.alu_unit, inst_count)
+            nodes.add_node(node, Some(scalar.alu_unit), inst_count)
         }
         "MIN" | "MIN_DX10" => add_func("min", 2, &scalar, output, inst_count, nodes),
         "MAX" | "MAX_DX10" => add_func("max", 2, &scalar, output, inst_count, nodes),
@@ -285,7 +287,7 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
                     Box::new(scalar.sources[1].clone()),
                 ),
             };
-            nodes.add_node(node, &scalar.alu_unit, inst_count)
+            nodes.add_node(node, Some(scalar.alu_unit), inst_count)
         }
         "DOT4" | "DOT4_IEEE" => {
             // Handled in a previous check.
@@ -301,25 +303,25 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
                     scalar.sources[1].clone(),
                     scalar.sources[2].clone(),
                 ],
-                channels: String::new(),
+                channel: None,
             };
             let node = Node {
                 output: output.clone(),
                 input,
             };
-            let node_index = nodes.add_node(node, &scalar.alu_unit, inst_count);
+            let node_index = nodes.add_node(node, Some(scalar.alu_unit), inst_count);
 
             let node = Node {
                 output,
                 input: Expr::Div(
                     Box::new(Expr::Node {
                         node_index,
-                        channels: scalar.output.channels.clone(),
+                        channel: scalar.output.channel,
                     }),
                     Box::new(Expr::Float(2.0)),
                 ),
             };
-            nodes.add_node(node, &scalar.alu_unit, inst_count)
+            nodes.add_node(node, Some(scalar.alu_unit), inst_count)
         }
         "NOP" => 0,
         // TODO: Handle additional opcodes?
@@ -328,7 +330,7 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
 
     if let Some(modifier) = scalar.output_modifier {
         let node = alu_output_modifier(&modifier, scalar.output, node_index);
-        nodes.add_node(node, &scalar.alu_unit, inst_count);
+        nodes.add_node(node, Some(scalar.alu_unit), inst_count);
     }
 }
 
@@ -345,37 +347,37 @@ fn add_func(
         input: Expr::Func {
             name: func.to_string(),
             args: (0..arg_count).map(|i| scalar.sources[i].clone()).collect(),
-            channels: String::new(),
+            channel: None,
         },
     };
-    nodes.add_node(node, &scalar.alu_unit, inst_count)
+    nodes.add_node(node, Some(scalar.alu_unit), inst_count)
 }
 
-fn alu_dst_output(pair: Pair<Rule>, inst_count: usize, alu_unit: &str) -> Output {
+fn alu_dst_output(pair: Pair<Rule>, inst_count: usize, alu_unit: char) -> Output {
     let mut inner = pair.into_inner();
     if inner.peek().map(|p| p.as_rule()) == Some(Rule::write_mask) {
         // ____ mask for xyzw writes to a previous vector "PV".
         // ____ mask for t writes to a previous scalar "PS".
         match alu_unit {
-            "x" => Output {
+            'x' => Output {
                 name: format!("PV{inst_count}"),
-                channels: "x".to_string(),
+                channel: Some('x'),
             },
-            "y" => Output {
+            'y' => Output {
                 name: format!("PV{inst_count}"),
-                channels: "y".to_string(),
+                channel: Some('y'),
             },
-            "z" => Output {
+            'z' => Output {
                 name: format!("PV{inst_count}"),
-                channels: "z".to_string(),
+                channel: Some('z'),
             },
-            "w" => Output {
+            'w' => Output {
                 name: format!("PV{inst_count}"),
-                channels: "w".to_string(),
+                channel: Some('w'),
             },
-            "t" => Output {
+            't' => Output {
                 name: format!("PS{inst_count}"),
-                channels: String::new(),
+                channel: None,
             },
             _ => unreachable!(),
         }
@@ -384,23 +386,23 @@ fn alu_dst_output(pair: Pair<Rule>, inst_count: usize, alu_unit: &str) -> Output
         if inner.peek().map(|p| p.as_rule()) == Some(Rule::tex_rel) {
             inner.next().unwrap();
         }
-        let channels = comp_swizzle(inner);
+        let channel = one_comp_swizzle(inner);
         Output {
             name: gpr.to_string(),
-            channels: channels.to_string(),
+            channel,
         }
     }
 }
 
 fn alu_output_modifier(modifier: &str, output: Output, node_index: usize) -> Node {
-    let channels = output.channels.clone();
+    let channel = output.channel;
     match modifier {
         "/2" => Node {
             output,
             input: Expr::Div(
                 Box::new(Expr::Node {
                     node_index,
-                    channels,
+                    channel,
                 }),
                 Box::new(Expr::Float(2.0)),
             ),
@@ -410,7 +412,7 @@ fn alu_output_modifier(modifier: &str, output: Output, node_index: usize) -> Nod
             input: Expr::Div(
                 Box::new(Expr::Node {
                     node_index,
-                    channels,
+                    channel,
                 }),
                 Box::new(Expr::Float(4.0)),
             ),
@@ -420,7 +422,7 @@ fn alu_output_modifier(modifier: &str, output: Output, node_index: usize) -> Nod
             input: Expr::Mul(
                 Box::new(Expr::Node {
                     node_index,
-                    channels,
+                    channel,
                 }),
                 Box::new(Expr::Float(2.0)),
             ),
@@ -430,7 +432,7 @@ fn alu_output_modifier(modifier: &str, output: Output, node_index: usize) -> Nod
             input: Expr::Mul(
                 Box::new(Expr::Node {
                     node_index,
-                    channels,
+                    channel,
                 }),
                 Box::new(Expr::Float(4.0)),
             ),
@@ -478,10 +480,10 @@ fn alu_src_expr(source: Pair<Rule>, nodes: &Nodes) -> Expr {
         inner.next().unwrap();
     }
 
-    let channels = comp_swizzle(inner);
+    let channel = one_comp_swizzle(inner);
 
     // Find a previous assignment that modifies the desired channel.
-    let expr = previous_assignment(value, channels, nodes);
+    let expr = previous_assignment(value, channel, nodes);
 
     if negate {
         Expr::Negate(Box::new(expr))
@@ -490,7 +492,7 @@ fn alu_src_expr(source: Pair<Rule>, nodes: &Nodes) -> Expr {
     }
 }
 
-fn previous_assignment(value: &str, channels: &str, nodes: &Nodes) -> Expr {
+fn previous_assignment(value: &str, channel: Option<char>, nodes: &Nodes) -> Expr {
     // PV can also refer to an actual register if not all outputs were masked.
     if value.starts_with("PV") {
         let inst_count: usize = value.split_once("PV").unwrap().1.parse().unwrap();
@@ -499,10 +501,10 @@ fn previous_assignment(value: &str, channels: &str, nodes: &Nodes) -> Expr {
             .node_index_alu_unit_inst_count
             .iter()
             .find_map(|(n, alu, i)| {
-                if *i == inst_count && alu == channels {
+                if *i == inst_count && *alu == channel {
                     Some(Expr::Node {
                         node_index: *n,
-                        channels: nodes.nodes[*n].output.channels.clone(),
+                        channel: nodes.nodes[*n].output.channel,
                     })
                 } else {
                     None
@@ -510,7 +512,7 @@ fn previous_assignment(value: &str, channels: &str, nodes: &Nodes) -> Expr {
             })
             .unwrap_or(Expr::Global {
                 name: value.to_string(),
-                channels: channels.to_string(),
+                channel,
             })
     } else if value.starts_with("PS") {
         let inst_count: usize = value.split_once("PS").unwrap().1.parse().unwrap();
@@ -519,10 +521,10 @@ fn previous_assignment(value: &str, channels: &str, nodes: &Nodes) -> Expr {
             .node_index_alu_unit_inst_count
             .iter()
             .find_map(|(n, alu, i)| {
-                if *i == inst_count && alu == "t" {
+                if *i == inst_count && *alu == Some('t') {
                     Some(Expr::Node {
                         node_index: *n,
-                        channels: nodes.nodes[*n].output.channels.clone(),
+                        channel: nodes.nodes[*n].output.channel,
                     })
                 } else {
                     None
@@ -530,33 +532,50 @@ fn previous_assignment(value: &str, channels: &str, nodes: &Nodes) -> Expr {
             })
             .unwrap_or(Expr::Global {
                 name: value.to_string(),
-                channels: channels.to_string(),
+                channel,
             })
     } else {
         nodes
             .nodes
             .iter()
-            .rposition(|n| n.output.name == value && n.output.contains_channels(channels))
+            .rposition(|n| n.output.name == value && n.output.channel == channel)
             .map(|node_index| Expr::Node {
                 node_index,
-                channels: channels.to_string(),
+                channel,
             })
             .unwrap_or(Expr::Global {
                 name: value.to_string(),
-                channels: channels.to_string(),
+                channel,
             })
     }
 }
 
-fn comp_swizzle(mut inner: pest::iterators::Pairs<Rule>) -> &str {
+fn one_comp_swizzle(mut inner: pest::iterators::Pairs<Rule>) -> Option<char> {
+    inner.peek().and_then(|p| {
+        // Only advance the iterator if it's the expected type.
+        if matches!(p.as_rule(), Rule::one_comp_swizzle) {
+            Some(
+                inner
+                    .next()
+                    .unwrap()
+                    .as_str()
+                    .trim_start_matches('.')
+                    .chars()
+                    .next()
+                    .unwrap(),
+            )
+        } else {
+            None
+        }
+    })
+}
+
+fn four_comp_swizzle(mut inner: pest::iterators::Pairs<Rule>) -> &str {
     inner
         .peek()
         .and_then(|p| {
             // Only advance the iterator if it's the expected type.
-            if matches!(
-                p.as_rule(),
-                Rule::one_comp_swizzle | Rule::four_comp_swizzle
-            ) {
+            if matches!(p.as_rule(), Rule::four_comp_swizzle) {
                 Some(inner.next().unwrap().as_str().trim_start_matches('.'))
             } else {
                 None
@@ -565,23 +584,16 @@ fn comp_swizzle(mut inner: pest::iterators::Pairs<Rule>) -> &str {
         .unwrap_or_default()
 }
 
-fn exp_src(source: Pair<Rule>) -> Option<(&'static str, usize, Option<&str>)> {
-    let mut source_inner = source.into_inner();
-    let name_pair = source_inner.next()?;
+fn exp_src(source: Pair<Rule>) -> Option<(&'static str, usize, &str)> {
+    let mut inner = source.into_inner();
+    let name_pair = inner.next()?;
     let name = match name_pair.as_rule() {
         Rule::gpr => "R",
         Rule::gpr_rel => todo!(),
         _ => unreachable!(),
     };
     let index = name_pair.into_inner().next()?.as_str().parse().unwrap();
-
-    let channels = source_inner.next().and_then(|p| {
-        if p.as_rule() == Rule::four_comp_swizzle {
-            Some(p.as_str().trim_start_matches('.'))
-        } else {
-            None
-        }
-    });
+    let channels = four_comp_swizzle(inner);
 
     Some((name, index, channels))
 }
@@ -604,7 +616,7 @@ fn exp_target(target: Pair<Rule>) -> (&'static str, usize) {
     (target_name, target_index)
 }
 
-fn tex_inst_node(tex_instruction: Pair<Rule>, nodes: &Nodes) -> Option<Node> {
+fn tex_inst_node(tex_instruction: Pair<Rule>, nodes: &Nodes) -> Option<Vec<Node>> {
     let mut inner = tex_instruction.into_inner();
     // TODO: why does this have trailing white space?
     let inst_count = inner.next()?.as_str();
@@ -615,9 +627,7 @@ fn tex_inst_node(tex_instruction: Pair<Rule>, nodes: &Nodes) -> Option<Node> {
     // TODO: Get the input names and channels.
     // TODO: register or mask?
     let dest = inner.next()?;
-    let output = texture_inst_dest(dest)?;
-
-    let channels = output.channels.clone();
+    let (output_name, output_channels) = texture_inst_dest(dest)?;
 
     let src = inner.next()?;
     let texcoords = texture_inst_src(src, nodes)?;
@@ -628,31 +638,52 @@ fn tex_inst_node(tex_instruction: Pair<Rule>, nodes: &Nodes) -> Option<Node> {
 
     let texture_name = Expr::Global {
         name: texture.to_string(),
-        channels: String::new(),
+        channel: None,
     };
 
-    Some(Node {
-        output,
-        input: Expr::Func {
-            name: "texture".to_string(),
-            args: vec![texture_name, texcoords],
-            channels,
-        },
-    })
+    if output_channels.is_empty() {
+        Some(vec![Node {
+            output: Output {
+                name: output_name,
+                channel: None,
+            },
+            input: Expr::Func {
+                name: "texture".to_string(),
+                args: vec![texture_name, texcoords],
+                channel: None,
+            },
+        }])
+    } else {
+        // Convert vector swizzles to scalar operations to simplify analysis code.
+        Some(
+            output_channels
+                .chars()
+                .map(|c| Node {
+                    output: Output {
+                        name: output_name.clone(),
+                        channel: Some(c),
+                    },
+                    input: Expr::Func {
+                        name: "texture".to_string(),
+                        args: vec![texture_name.clone(), texcoords.clone()],
+                        channel: Some(c),
+                    },
+                })
+                .collect(),
+        )
+    }
 }
 
-fn texture_inst_dest(dest: Pair<Rule>) -> Option<Output> {
+fn texture_inst_dest(dest: Pair<Rule>) -> Option<(String, String)> {
     // TODO: Handle other cases from grammar.
     let mut inner = dest.into_inner();
     let gpr = inner.next()?.as_str();
     if inner.peek().map(|p| p.as_rule()) == Some(Rule::tex_rel) {
         inner.next().unwrap();
     }
-    let channels = comp_swizzle(inner);
-    Some(Output {
-        name: gpr.to_string(),
-        channels: channels.trim_matches('_').to_string(),
-    })
+    let channels = four_comp_swizzle(inner);
+
+    Some((gpr.to_string(), channels.trim_matches('_').to_string()))
 }
 
 fn texture_inst_src(dest: Pair<Rule>, nodes: &Nodes) -> Option<Expr> {
@@ -662,16 +693,16 @@ fn texture_inst_src(dest: Pair<Rule>, nodes: &Nodes) -> Option<Expr> {
     if inner.peek().map(|p| p.as_rule()) == Some(Rule::tex_rel) {
         inner.next().unwrap();
     }
-    let channels = comp_swizzle(inner);
+    let mut channels = four_comp_swizzle(inner).chars();
 
     // TODO: Also handle cube maps.
     Some(Expr::Func {
         name: "vec2".to_string(),
         args: vec![
-            previous_assignment(gpr, &channels.chars().next().unwrap().to_string(), nodes),
-            previous_assignment(gpr, &channels.chars().nth(1).unwrap().to_string(), nodes),
+            previous_assignment(gpr, channels.next(), nodes),
+            previous_assignment(gpr, channels.next(), nodes),
         ],
-        channels: String::new(),
+        channel: None,
     })
 }
 
@@ -909,10 +940,17 @@ mod tests {
         "};
 
         let expected = indoc! {"
-            R2.xy = texture(t3, vec2(R6.x, R6.y)).xy;
-            R8.xyz = texture(t2, vec2(R6.x, R6.y)).xyz;
-            R7.xyz = texture(t1, vec2(R6.x, R6.y)).xyz;
-            R6.xyz = texture(t4, vec2(R6.x, R6.y)).xyz;
+            R2.x = texture(t3, vec2(R6.x, R6.y)).x;
+            R2.y = texture(t3, vec2(R6.x, R6.y)).y;
+            R8.x = texture(t2, vec2(R6.x, R6.y)).x;
+            R8.y = texture(t2, vec2(R6.x, R6.y)).y;
+            R8.z = texture(t2, vec2(R6.x, R6.y)).z;
+            R7.x = texture(t1, vec2(R6.x, R6.y)).x;
+            R7.y = texture(t1, vec2(R6.x, R6.y)).y;
+            R7.z = texture(t1, vec2(R6.x, R6.y)).z;
+            R6.x = texture(t4, vec2(R6.x, R6.y)).x;
+            R6.y = texture(t4, vec2(R6.x, R6.y)).y;
+            R6.z = texture(t4, vec2(R6.x, R6.y)).z;
             R125.x = fma(R2.x, 2, -1.0);
             R126.y = fma(R2.y, 2, -1.0);
             PV4.z = 0.0;
@@ -1041,8 +1079,13 @@ mod tests {
             R1.x = R123.x + 0.5;
             R1.y = R123.w + 0.5;
             R4.z = -PV28.y + 1.0;
-            R3.xyzw = texture(t0, vec2(R3.w, R3.y)).xyzw;
-            R1.xyz = texture(t5, vec2(R1.x, R1.y)).xyz;
+            R3.x = texture(t0, vec2(R3.w, R3.y)).x;
+            R3.y = texture(t0, vec2(R3.w, R3.y)).y;
+            R3.z = texture(t0, vec2(R3.w, R3.y)).z;
+            R3.w = texture(t0, vec2(R3.w, R3.y)).w;
+            R1.x = texture(t5, vec2(R1.x, R1.y)).x;
+            R1.y = texture(t5, vec2(R1.x, R1.y)).y;
+            R1.z = texture(t5, vec2(R1.x, R1.y)).z;
             R126.x = fma(KC0[0].z, R3.z, 0.0);
             R127.y = fma(KC0[0].y, R3.y, 0.0);
             R123.z = fma(KC0[0].w, R3.w, 0.0);
