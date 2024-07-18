@@ -355,6 +355,7 @@ fn get_shader_legacy(
             .output_dependencies
             .iter()
             .filter_map(|(k, v)| match k.as_str() {
+                "o0.x" => Some(("o2.z".into(), v.clone())),
                 "o1.x" => Some(("o0.x".into(), v.clone())),
                 "o1.y" => Some(("o0.y".into(), v.clone())),
                 "o1.z" => Some(("o0.z".into(), v.clone())),
