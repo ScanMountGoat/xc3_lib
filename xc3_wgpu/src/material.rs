@@ -288,34 +288,32 @@ fn texture_channel(
         let texture = if !is_second_layer {
             this_channel.first().copied().or_else(|| textures.first())
         } else {
-            // TODO: Don't assume the first two textures are separate XY assignments.
-            textures.get(2)
-        };
+            // TODO: Add proper detection for layering code in the shader graph.
+            let first_tex = &this_channel.first()?.name;
+            this_channel.iter().find(|t| &t.name != first_tex).copied()
+        }?;
 
-        if let Some(TextureAssignment {
+        let TextureAssignment {
             name,
             channels,
             texcoord_transforms,
             ..
-        }) = texture
-        {
-            // TODO: Also store the texcoord name?
-            if let Some(transforms) = texcoord_transforms {
-                name_to_transforms.insert(name.clone(), *transforms);
-            }
+        } = texture;
 
-            // TODO: how to handle empty input channels?
-            let channel_index = if channels.contains(channel) || channels.is_empty() {
-                "xyzw".find(channel).unwrap()
-            } else {
-                "xyzw".find(channels.chars().next().unwrap()).unwrap()
-            };
-            // TODO: Should this ever return -1?
-            let index = name_to_index.entry_index(name.clone());
-            Some((index as i32, channel_index as u32))
-        } else {
-            None
+        // TODO: Also store the texcoord name?
+        if let Some(transforms) = texcoord_transforms {
+            name_to_transforms.insert(name.clone(), *transforms);
         }
+
+        // TODO: how to handle empty input channels?
+        let channel_index = if channels.contains(channel) || channels.is_empty() {
+            "xyzw".find(channel).unwrap()
+        } else {
+            "xyzw".find(channels.chars().next().unwrap()).unwrap()
+        };
+        // TODO: Should this ever return -1?
+        let index = name_to_index.entry_index(name.clone());
+        Some((index as i32, channel_index as u32))
     } else {
         None
     }
