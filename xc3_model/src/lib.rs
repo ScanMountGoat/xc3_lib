@@ -339,7 +339,8 @@ fn get_shader_legacy(
     material: &xc3_lib::mxmd::legacy::Material,
     model_programs: Option<&ModelPrograms>,
 ) -> Option<ShaderProgram> {
-    let program_index = material.techniques.first()?.technique_index as usize;
+    // TODO: Some alpha materials have two techniques?
+    let program_index = material.techniques.last()?.technique_index as usize;
     let program = model_programs?.programs.get(program_index)?;
 
     // The texture outputs are different in Xenoblade X compared to Switch.
@@ -350,8 +351,8 @@ fn get_shader_legacy(
     // 2: normal (only xy)
     // 3: specular (alpha is spec?)
     // 4: depth (alpha is glossiness)
-    Some(ShaderProgram {
-        output_dependencies: program
+    let output_dependencies = if program.output_dependencies.len() > 4 {
+        program
             .output_dependencies
             .iter()
             .filter_map(|(k, v)| match k.as_str() {
@@ -373,7 +374,14 @@ fn get_shader_legacy(
                 "o4.w" => Some(("o1.y".into(), v.clone())),
                 _ => None,
             })
-            .collect(),
+            .collect()
+    } else {
+        // Some shaders only write to color and shouldn't be remapped.
+        program.output_dependencies.clone()
+    };
+
+    Some(ShaderProgram {
+        output_dependencies,
     })
 }
 

@@ -72,7 +72,7 @@ fn add_exp_inst(inst: Pair<Rule>, nodes: &mut Nodes) {
     let source = inner.next().unwrap();
     let (source_name, source_index, channels) = exp_src(source).unwrap();
 
-    let mut burst_count = 1;
+    let mut burst_count = 0;
     for property in inner {
         for inner in property.into_inner() {
             if inner.as_rule() == Rule::burstcnt {
