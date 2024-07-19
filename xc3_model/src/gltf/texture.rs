@@ -100,30 +100,33 @@ pub fn albedo_generated_key(
     root_index: usize,
 ) -> GeneratedImageKey {
     // Assume the first texture is albedo if no assignments are possible.
-    let red_index = image_index(material, assignments.assignments[0].x.as_ref()).or_else(|| {
-        material.textures.first().map(|t| ImageIndex::Image {
-            image_texture: t.image_texture_index,
-            sampler: 0,
-            channel: 0,
-            texcoord_scale: None,
-        })
-    });
-    let green_index = image_index(material, assignments.assignments[0].y.as_ref()).or_else(|| {
-        material.textures.first().map(|t| ImageIndex::Image {
-            image_texture: t.image_texture_index,
-            sampler: 0,
-            channel: 1,
-            texcoord_scale: None,
-        })
-    });
-    let blue_index = image_index(material, assignments.assignments[0].z.as_ref()).or_else(|| {
-        material.textures.first().map(|t| ImageIndex::Image {
-            image_texture: t.image_texture_index,
-            sampler: 0,
-            channel: 2,
-            texcoord_scale: None,
-        })
-    });
+    let red_index =
+        image_index(material, assignments.assignments[0].x.as_ref(), 'x').or_else(|| {
+            material.textures.first().map(|t| ImageIndex::Image {
+                image_texture: t.image_texture_index,
+                sampler: 0,
+                channel: 0,
+                texcoord_scale: None,
+            })
+        });
+    let green_index =
+        image_index(material, assignments.assignments[0].y.as_ref(), 'y').or_else(|| {
+            material.textures.first().map(|t| ImageIndex::Image {
+                image_texture: t.image_texture_index,
+                sampler: 0,
+                channel: 1,
+                texcoord_scale: None,
+            })
+        });
+    let blue_index =
+        image_index(material, assignments.assignments[0].z.as_ref(), 'z').or_else(|| {
+            material.textures.first().map(|t| ImageIndex::Image {
+                image_texture: t.image_texture_index,
+                sampler: 0,
+                channel: 2,
+                texcoord_scale: None,
+            })
+        });
 
     // Some materials have alpha testing in a separate depth prepass.
     // glTF expects the alpha to be part of the main albedo texture.
@@ -157,8 +160,8 @@ pub fn normal_generated_key(
     assignments: &OutputAssignments,
     root_index: usize,
 ) -> GeneratedImageKey {
-    let red_index = image_index(material, assignments.assignments[2].x.as_ref());
-    let green_index = image_index(material, assignments.assignments[2].y.as_ref());
+    let red_index = image_index(material, assignments.assignments[2].x.as_ref(), 'x');
+    let green_index = image_index(material, assignments.assignments[2].y.as_ref(), 'y');
 
     GeneratedImageKey {
         root_index,
@@ -177,9 +180,9 @@ pub fn metallic_roughness_generated_key(
     root_index: usize,
 ) -> GeneratedImageKey {
     // The red channel is unused, we can pack occlusion here.
-    let occlusion_index = image_index(material, assignments.assignments[2].z.as_ref());
-    let metalness_index = image_index(material, assignments.assignments[1].x.as_ref());
-    let glossiness_index = image_index(material, assignments.assignments[1].y.as_ref());
+    let occlusion_index = image_index(material, assignments.assignments[2].z.as_ref(), 'z');
+    let metalness_index = image_index(material, assignments.assignments[1].x.as_ref(), 'x');
+    let glossiness_index = image_index(material, assignments.assignments[1].y.as_ref(), 'y');
 
     // Invert the glossiness since glTF uses roughness.
     GeneratedImageKey {
@@ -201,9 +204,9 @@ pub fn emissive_generated_key(
     // TODO: Is it correct to assume only toon and hair materials use specular?
     let has_emission = !matches!(assignments.mat_id(), Some(2 | 5));
     if has_emission {
-        let red_index = image_index(material, assignments.assignments[5].x.as_ref());
-        let green_index = image_index(material, assignments.assignments[5].y.as_ref());
-        let blue_index = image_index(material, assignments.assignments[5].z.as_ref());
+        let red_index = image_index(material, assignments.assignments[5].x.as_ref(), 'x');
+        let green_index = image_index(material, assignments.assignments[5].y.as_ref(), 'y');
+        let blue_index = image_index(material, assignments.assignments[5].z.as_ref(), 'z');
 
         GeneratedImageKey {
             root_index,
@@ -390,19 +393,26 @@ fn channel_name(index: Option<ImageIndex>) -> Option<String> {
 fn image_index(
     material: &crate::Material,
     assignment: Option<&ChannelAssignment>,
+    channel: char,
 ) -> Option<ImageIndex> {
     // TODO: scale?
     match assignment? {
         crate::ChannelAssignment::Textures(textures) => {
-            // TODO: This won't always work?
+            // Some textures like normal maps may use multiple input channels.
+            // First check if the current channel is used.
+            // TODO: Should this only be used for color and normals?
+            let this_channel: Vec<_> = textures
+                .iter()
+                .filter(|t| t.channels.contains(channel))
+                .collect();
             let TextureAssignment {
                 name,
                 channels,
                 texcoord_transforms,
                 ..
-            } = textures.first()?;
+            } = this_channel.first().copied().or_else(|| textures.first())?;
 
-            let channel = "xyzw".find(channels.chars().next().unwrap()).unwrap();
+            let channel_index = "xyzw".find(channels.chars().next().unwrap()).unwrap();
 
             // TODO: proper mat2x4 support?
             let texcoord_scale = texcoord_transforms.map(|(u, v)| [u.x.into(), v.y.into()]);
@@ -416,7 +426,7 @@ fn image_index(
                 .map(|t| ImageIndex::Image {
                     image_texture: t.image_texture_index,
                     sampler: t.sampler_index,
-                    channel,
+                    channel: channel_index,
                     texcoord_scale,
                 })
         }
