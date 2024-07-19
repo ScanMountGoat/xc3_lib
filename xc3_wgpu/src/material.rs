@@ -116,9 +116,12 @@ pub fn materials(
             // Find the scale parameters for any textures assigned above.
             // TODO: Don't assume these are all scaled from a single vTex0 input attribute.
             // TODO: Is there a more efficient way of doing this?
+            // TODO: xc1 needs more than 10 textures?
             for (name, (u, v)) in &name_to_transforms {
                 if let Some(index) = name_to_index.get(name.as_str()) {
-                    texture_transforms[*index] = [*u, *v];
+                    if let Some(transform) = texture_transforms.get_mut(*index) {
+                        *transform = [*u, *v];
+                    }
                 }
             }
 
