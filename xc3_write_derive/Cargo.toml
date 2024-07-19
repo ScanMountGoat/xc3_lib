@@ -1,6 +1,6 @@
 [package]
 name = "xc3_write_derive"
-version = "0.10.0"
+version = "0.11.0"
 authors = ["ScanMountGoat <>"]
 description = "xc3_write derive macros"
 license = "MIT"
