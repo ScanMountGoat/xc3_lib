@@ -299,15 +299,18 @@ fn main() {
         check_all(root, &["*.cashd"], check_mths, Endian::Big, cli.rw);
     }
 
-    if cli.gltf {
+    if cli.gltf || cli.all {
+        println!("Checking glTF export ...");
         check_all_gltf(root);
     }
 
-    if cli.wimdo_model {
+    if cli.wimdo_model || cli.all {
+        println!("Checking wimdo model conversions ...");
         check_all_wimdo_model(root, cli.rw);
     }
 
-    if cli.animation {
+    if cli.animation || cli.all {
+        println!("Checking animations ...");
         check_all_animations(root, cli.rw);
     }
 
