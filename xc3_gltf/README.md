@@ -1,5 +1,5 @@
 # xc3_gltf
-A command line tool for converting models and maps from Xenoblade 1 DE, Xenoblade 2, and Xenoblade 3 to glTF.
+A command line tool for converting models and maps from Xenoblade X, Xenoblade 1 DE, Xenoblade 2, and Xenoblade 3 to glTF.
 
 glTF is an open interchange format designed for efficiently transmitting and loading 3D models. The goal of xc3_gltf is to be able to quickly export models and maps into a format that can be understood by many 3D modeling applications and game engines.
 
