@@ -1,5 +1,5 @@
 # xc3_viewer
-A simple model and map renderer for Xenoblade 1 DE, Xenoblade 2, and Xenoblade 3.
+A simple model and map renderer for Xenoblade X, Xenoblade 1 DE, Xenoblade 2, and Xenoblade 3.
 
 ## Usage
 The shader database parameter is optional but highly recommended since the fallback texture assignments do not handle channel assignments.
