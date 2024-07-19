@@ -136,7 +136,7 @@ pub struct Attribute {
 pub struct Sampler {
     #[br(parse_with = parse_string_ptr32_unchecked, offset = base_offset)]
     pub name: String,
-    pub data_type: VarType,
+    pub sampler_type: SamplerType,
     pub location: u32,
 }
 
@@ -165,6 +165,17 @@ pub enum VarType {
     Mat2x4 = 23,
     Mat3x4 = 26,
     Mat4 = 29,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy, Hash)]
+#[brw(repr(u32))]
+pub enum SamplerType {
+    Unk1 = 0,
+    D2 = 1,
+    Unk2 = 2,
+    Unk3 = 3,
+    Unk4 = 4,
 }
 
 impl Mths {

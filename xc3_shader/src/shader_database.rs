@@ -11,7 +11,7 @@ use glsl_lang::{
 };
 use log::error;
 use rayon::prelude::*;
-use xc3_lib::mths::Mths;
+use xc3_lib::mths::{FragmentShader, Mths};
 use xc3_model::shader_database::{
     BufferDependency, Dependency, MapPrograms, ModelPrograms, ShaderDatabase, ShaderProgram,
 };
@@ -77,7 +77,11 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
     }
 }
 
-fn shader_from_latte_asm(vertex: &str, fragment: &str, mths: &Mths) -> ShaderProgram {
+fn shader_from_latte_asm(
+    vertex: &str,
+    fragment: &str,
+    fragment_shader: &FragmentShader,
+) -> ShaderProgram {
     let frag = &Graph::from_latte_asm(fragment);
     let frag_attributes = &Attributes::default();
 
@@ -106,20 +110,18 @@ fn shader_from_latte_asm(vertex: &str, fragment: &str, mths: &Mths) -> ShaderPro
 
                 // Apply annotations from the shader metadata.
                 // We don't annotate the assembly itself to avoid parsing errors.
-                if let Ok(frag) = mths.fragment_shader() {
-                    for d in &mut dependencies {
-                        match d {
-                            Dependency::Constant(_) => todo!(),
-                            Dependency::Buffer(_) => todo!(),
-                            Dependency::Texture(t) => {
-                                for sampler in &frag.samplers {
-                                    if t.name == format!("t{}", sampler.location) {
-                                        t.name = (&sampler.name).into();
-                                    }
+                for d in &mut dependencies {
+                    match d {
+                        Dependency::Constant(_) => todo!(),
+                        Dependency::Buffer(_) => todo!(),
+                        Dependency::Texture(t) => {
+                            for sampler in &fragment_shader.samplers {
+                                if t.name == format!("t{}", sampler.location) {
+                                    t.name = (&sampler.name).into();
                                 }
                             }
-                            Dependency::Attribute(_) => todo!(),
                         }
+                        Dependency::Attribute(_) => todo!(),
                     }
                 }
 
@@ -465,7 +467,8 @@ fn create_shader_programs_legacy(folder: &Path) -> Vec<ShaderProgram> {
             // TODO: Should both shaders be mandatory?
             let vertex_source = std::fs::read_to_string(path.with_extension("vert.txt")).unwrap();
             let frag_source = std::fs::read_to_string(path.with_extension("frag.txt")).unwrap();
-            shader_from_latte_asm(&vertex_source, &frag_source, &mths)
+            let fragment_shader = mths.fragment_shader().unwrap();
+            shader_from_latte_asm(&vertex_source, &frag_source, &fragment_shader)
         })
         .collect()
 }
@@ -690,7 +693,6 @@ mod tests {
         "};
 
         let fragment = TranslationUnit::parse(glsl).unwrap();
-
         let shader = shader_from_glsl(Some(&vertex), &fragment);
         assert_eq!(
             ShaderProgram {
@@ -1000,6 +1002,552 @@ mod tests {
                         channels: "y".into()
                     })]
                 ),]
+                .into()
+            },
+            shader
+        );
+    }
+
+    #[test]
+    fn shader_from_latte_asm_pc221115_frag_0() {
+        // Elma's legs (visible on title screen).
+        let asm = indoc! {"
+            00 TEX: ADDR(208) CNT(4)
+
+            0      SAMPLE          R2.xy__, R6.xy0x, t3, s3
+
+            1      SAMPLE          R8.xyz_, R6.xy0x, t2, s2
+
+            2      SAMPLE          R7.xyz_, R6.xy0x, t1, s1
+
+            3      SAMPLE          R6.xyz_, R6.xy0x, t4, s4
+
+            01 ALU: ADDR(32) CNT(127) KCACHE0(CB1:0-15)
+            4   x: MULADD          R125.x, R2.x, (0x40000000, 2), -1.0f
+                y: MULADD          R126.y, R2.y, (0x40000000, 2), -1.0f
+                z: MOV             ____, 0.0f
+                w: MUL             R124.w, R2.z, (0x41000000, 8)
+                t: SQRT_IEEE       ____, R5.w SCL_210
+
+            5   x: DOT4            ____, PV4.x, PV4.x
+                y: DOT4            ____, PV4.y, PV4.y
+                z: DOT4            ____, PV4.z, PV4.y
+                w: DOT4            ____, (0x80000000, -0), 0.0f
+                t: ADD             R0.w, -PS4, 1.0f CLAMP
+
+            6   x: DOT4_IEEE       ____, R5.x, R5.x
+                y: DOT4_IEEE       ____, R5.y, R5.y
+                z: DOT4_IEEE       ____, R5.z, R5.z
+                w: DOT4_IEEE       ____, (0x80000000, -0), 0.0f
+                t: ADD             R127.w, -PV5.x, 1.0f
+
+            7   x: DOT4_IEEE       ____, R3.x, R3.x
+                y: DOT4_IEEE       R127.y, R3.y, R3.y
+                z: DOT4_IEEE       ____, R3.z, R3.z
+                w: DOT4_IEEE       ____, (0x80000000, -0), 0.0f
+                t: RECIPSQRT_IEEE  ____, PV6.x SCL_210
+
+            8   x: MUL             R127.x, R5.x, PS7
+                y: FLOOR           R125.y, R124.w
+                z: MUL             R126.z, R5.z, PS7
+                w: MUL             R127.w, R5.y, PS7
+                t: SQRT_IEEE       R127.z, R127.w SCL_210
+
+            9   x: DOT4_IEEE       ____, R0.x, R0.x
+                y: DOT4_IEEE       ____, R0.y, R0.y
+                z: DOT4_IEEE       ____, R0.z, R0.z
+                w: DOT4_IEEE       ____, (0x80000000, -0), 0.0f
+                t: RECIPSQRT_IEEE  ____, R127.y SCL_210
+
+            10  x: MUL             R126.x, R3.z, PS9
+                y: MAX             ____, R127.z, 0.0f VEC_120
+                z: MUL             R127.z, R3.y, PS9
+                w: MUL             R126.w, R3.x, PS9
+                t: RECIPSQRT_IEEE  R125.w, PV9.x SCL_210
+
+            11  x: MUL             ____, R126.z, PV10.y
+                y: MUL             ____, R127.w, PV10.y
+                z: MUL             R126.z, R0.x, PS10
+                w: MUL             ____, R127.x, PV10.y VEC_120
+                t: MUL             R127.y, R0.y, PS10
+
+            12  x: MUL             ____, R0.z, R125.w
+                y: MULADD          R123.y, R126.x, R125.x, PV11.x
+                z: MULADD          R123.z, R126.w, R125.x, PV11.w
+                w: MULADD          R123.w, R127.z, R125.x, PV11.y VEC_120
+                t: MUL             R124.y, R125.y, (0x3B808081, 0.003921569)
+
+            13  x: MULADD          R126.x, R126.z, R126.y, PV12.z
+                y: MULADD          R127.y, R127.y, R126.y, PV12.w
+                z: MULADD          R126.z, PV12.x, R126.y, PV12.y
+                w: FLOOR           R126.w, PS12
+                t: MOV             R2.w, 0.0f
+
+            14  x: DOT4_IEEE       ____, R1.x, R1.x
+                y: DOT4_IEEE       ____, R1.y, R1.y
+                z: DOT4_IEEE       ____, R1.z, R1.z
+                w: DOT4_IEEE       ____, (0x80000000, -0), 0.0f
+                t: MOV             R6.w, KC0[1].x
+
+            15  x: DOT4_IEEE       ____, R126.x, R126.x
+                y: DOT4_IEEE       ____, R127.y, R127.y
+                z: DOT4_IEEE       ____, R126.z, R126.z
+                w: DOT4_IEEE       ____, (0x80000000, -0), 0.0f
+                t: RECIPSQRT_IEEE  ____, PV14.x SCL_210
+
+            16  x: MUL             R125.x, R1.x, PS15
+                y: MUL             R126.y, R1.y, PS15
+                z: MUL             R127.z, R1.z, PS15
+                w: MOV             R5.w, R8.z VEC_120
+                t: RECIPSQRT_IEEE  ____, PV15.x SCL_210
+
+            17  x: MUL             R126.x, R126.x, PS16
+                y: MUL             R127.y, R127.y, PS16
+                z: MUL             R126.z, R126.z, PS16
+                w: MUL_IEEE        ____, R4.z, R4.z VEC_120
+                t: ADD             R5.x, R124.w, -R125.y
+
+            18  x: DOT4            ____, R125.x, PV17.x
+                y: DOT4            ____, R126.y, PV17.y
+                z: DOT4            ____, R127.z, PV17.z
+                w: DOT4            ____, (0x80000000, -0), 0.0f
+                t: MULADD_IEEE     R122.x, R4.y, R4.y, PV17.w
+
+            19  x: MULADD_IEEE     R123.x, R4.x, R4.x, PS18
+                y: MUL             ____, PV18.x, R0.w VEC_021
+                z: MUL             R5.z, R126.w, (0x3B808081, 0.003921569)
+                t: ADD             R5.y, R124.y, -R126.w
+
+            20  x: MULADD          R126.x, -R125.x, PV19.y, R126.x
+                y: MULADD          R127.y, -R126.y, PV19.y, R127.y
+                z: MULADD          R127.z, -R127.z, PV19.y, R126.z
+                t: RECIPSQRT_IEEE  R126.w, PV19.x SCL_210
+
+            21  x: DOT4_IEEE       ____, PV20.x, PV20.x
+                y: DOT4_IEEE       ____, PV20.y, PV20.y
+                z: DOT4_IEEE       ____, PV20.z, PV20.z
+                w: DOT4_IEEE       ____, (0x80000000, -0), 0.0f
+                t: MUL             R1.x, R4.x, PS20
+
+            22  y: MUL             R1.y, R4.y, R126.w
+                z: MUL             R126.z, R4.z, R126.w
+                t: RECIPSQRT_IEEE  ____, PV21.x SCL_210
+
+            23  x: MUL             R4.x, R126.x, PS22
+                y: MUL             R4.y, R127.y, PS22
+                z: MUL             R127.z, R127.z, PS22
+
+            24  x: MOV             R9.x, PV23.x
+                y: ADD/2           ____, PV23.y, 1.0f
+                z: ADD/2           ____, PV23.x, 1.0f
+                w: MOV             R9.w, PV23.y
+                t: MUL             ____, -R126.z, PV23.z
+
+            25  x: ADD             ____, -PV24.y, 1.0f
+                y: MUL             ____, R126.z, R127.z
+                w: MAX             ____, PV24.z, 0.0f
+                t: MULADD          R122.x, -R1.y, R4.y, PS24
+
+            26  x: MULADD          R123.x, -R1.x, R4.x, PS25
+                z: MAX             ____, PV25.x, 0.0f
+                w: MIN             R3.w, PV25.w, 1.0f
+                t: MULADD          R122.x, R1.y, R4.y, PV25.y
+
+            27  y: MIN             R3.y, PV26.z, 1.0f
+                z: ADD             R4.z, PV26.x, PV26.x
+                w: MULADD          R0.w, R1.x, R4.x, PS26
+
+            28  x: MULADD_D2       R123.x, -R4.z, R4.x, -R1.x
+                y: MAX_DX10        ____, R0.w, -R0.w
+                w: MULADD_D2       R123.w, -R4.z, R4.y, -R1.y
+
+            29  x: ADD             R1.x, PV28.x, 0.5f
+                y: ADD             R1.y, PV28.w, 0.5f
+                z: ADD             R4.z, -PV28.y, 1.0f CLAMP
+
+            02 TEX: ADDR(216) CNT(2) VALID_PIX
+
+            30     SAMPLE          R3.xyzw, R3.wy0w, t0, s0
+
+            31     SAMPLE          R1.xyz_, R1.xy0x, t5, s5
+
+            03 ALU: ADDR(159) CNT(40) KCACHE0(CB1:0-15)
+            32  x: MULADD          R126.x, KC0[0].z, R3.z, 0.0f
+                y: MULADD          R127.y, KC0[0].y, R3.y, 0.0f
+                z: MULADD          R123.z, KC0[0].w, R3.w, 0.0f
+                w: MULADD          R126.w, KC0[0].x, R3.x, 0.0f
+                t: LOG_CLAMPED     ____, R4.z SCL_210
+
+            33  x: MULADD          R2.x, R8.x, R1.x, R7.x
+                y: MULADD          R2.y, R8.x, R1.y, R7.y
+                z: MULADD          R2.z, R8.x, R1.z, R7.z
+                w: MUL             ____, KC0[2].w, PS32
+                t: MOV/2           R1.w, PV32.z
+
+            34  t: EXP_IEEE        ____, PV33.w SCL_210
+
+            35  x: MULADD          R123.x, KC0[2].x, PS34, R126.w
+                z: MULADD          R123.z, KC0[2].y, PS34, R127.y
+                w: MULADD          R123.w, KC0[2].z, PS34, R126.x
+
+            36  x: MUL             ____, R8.y, PV35.z
+                y: MUL             ____, R8.y, PV35.x
+                z: MUL             ____, R8.y, PV35.w
+
+            37  x: MOV/2           R1.x, PV36.y
+                y: MOV/2           R1.y, PV36.x
+                z: MOV/2           R1.z, PV36.z
+
+            38  x: MOV             R14.x, R5.x
+                y: MOV             R14.y, R5.y
+                z: MOV             R14.z, R5.z
+                w: MOV             R14.w, R5.w
+
+            39  x: MOV             R13.x, R6.x
+                y: MOV             R13.y, R6.y
+                z: MOV             R13.z, R6.z
+                w: MOV             R13.w, R6.w
+
+            40  x: MOV             R11.x, R2.x
+                y: MOV             R11.y, R2.y
+                z: MOV             R11.z, R2.z
+                w: MOV             R11.w, R2.w
+
+            41  x: MOV             R10.x, R1.x
+                y: MOV             R10.y, R1.y
+                z: MOV             R10.z, R1.z
+                w: MOV             R10.w, R1.w
+
+            42  x: MOV             R12.x, R9.x
+                y: MOV             R12.y, R9.w
+                z: MOV             R12.z, R9.z
+                w: MOV             R12.w, R9.z
+
+            04 EXP_DONE: PIX0, R10.xyzw BURSTCNT(4)
+
+            END_OF_PROGRAM
+        "};
+
+        // TODO: Make this easier to test by taking metadata directly?
+        let fragment_shader = xc3_lib::mths::FragmentShader {
+            unk1: 0,
+            unk2: 0,
+            program_binary: Vec::new(),
+            shader_mode: xc3_lib::mths::ShaderMode::UniformBlock,
+            uniform_buffers: vec![xc3_lib::mths::UniformBuffer {
+                name: "U_Mate".to_string(),
+                offset: 1,
+                size: 48,
+            }],
+            uniforms: vec![
+                xc3_lib::mths::Uniform {
+                    name: "Q".to_string(),
+                    data_type: xc3_lib::mths::VarType::Vec4,
+                    count: 1,
+                    offset: 0,
+                    uniform_buffer_index: 0,
+                },
+                xc3_lib::mths::Uniform {
+                    name: "Q".to_string(),
+                    data_type: xc3_lib::mths::VarType::Vec4,
+                    count: 1,
+                    offset: 8,
+                    uniform_buffer_index: 0,
+                },
+                xc3_lib::mths::Uniform {
+                    name: "Q".to_string(),
+                    data_type: xc3_lib::mths::VarType::Vec4,
+                    count: 1,
+                    offset: 4,
+                    uniform_buffer_index: 0,
+                },
+            ],
+            unk9: [0, 0, 0, 0],
+            samplers: vec![
+                xc3_lib::mths::Sampler {
+                    name: "gIBL".to_string(),
+                    sampler_type: xc3_lib::mths::SamplerType::D2,
+                    location: 0,
+                },
+                xc3_lib::mths::Sampler {
+                    name: "s0".to_string(),
+                    sampler_type: xc3_lib::mths::SamplerType::D2,
+                    location: 1,
+                },
+                xc3_lib::mths::Sampler {
+                    name: "s1".to_string(),
+                    sampler_type: xc3_lib::mths::SamplerType::D2,
+                    location: 2,
+                },
+                xc3_lib::mths::Sampler {
+                    name: "s2".to_string(),
+                    sampler_type: xc3_lib::mths::SamplerType::D2,
+                    location: 3,
+                },
+                xc3_lib::mths::Sampler {
+                    name: "s3".to_string(),
+                    sampler_type: xc3_lib::mths::SamplerType::D2,
+                    location: 4,
+                },
+                xc3_lib::mths::Sampler {
+                    name: "texRef".to_string(),
+                    sampler_type: xc3_lib::mths::SamplerType::D2,
+                    location: 5,
+                },
+            ],
+        };
+        let shader = shader_from_latte_asm("".into(), &asm, &fragment_shader);
+        assert_eq!(
+            ShaderProgram {
+                output_dependencies: [
+                    (
+                        "o0.x".into(),
+                        vec![
+                            Dependency::Texture(TextureDependency {
+                                name: "s2".into(),
+                                channels: "x".into(),
+                                texcoords: Vec::new(),
+                            }),
+                            Dependency::Texture(TextureDependency {
+                                name: "s2".into(),
+                                channels: "y".into(),
+                                texcoords: Vec::new(),
+                            }),
+                            Dependency::Texture(TextureDependency {
+                                name: "s1".into(),
+                                channels: "y".into(),
+                                texcoords: Vec::new(),
+                            }),
+                            Dependency::Texture(TextureDependency {
+                                name: "gIBL".into(),
+                                channels: "x".into(),
+                                texcoords: Vec::new(),
+                            }),
+                        ]
+                    ),
+                    (
+                        "o0.y".into(),
+                        vec![
+                            Dependency::Texture(TextureDependency {
+                                name: "s2".into(),
+                                channels: "x".into(),
+                                texcoords: Vec::new(),
+                            }),
+                            Dependency::Texture(TextureDependency {
+                                name: "s2".into(),
+                                channels: "y".into(),
+                                texcoords: Vec::new(),
+                            }),
+                            Dependency::Texture(TextureDependency {
+                                name: "s1".into(),
+                                channels: "y".into(),
+                                texcoords: Vec::new(),
+                            }),
+                            Dependency::Texture(TextureDependency {
+                                name: "gIBL".into(),
+                                channels: "y".into(),
+                                texcoords: Vec::new(),
+                            }),
+                        ]
+                    ),
+                    (
+                        "o0.z".into(),
+                        vec![
+                            Dependency::Texture(TextureDependency {
+                                name: "s2".into(),
+                                channels: "x".into(),
+                                texcoords: Vec::new(),
+                            }),
+                            Dependency::Texture(TextureDependency {
+                                name: "s2".into(),
+                                channels: "y".into(),
+                                texcoords: Vec::new(),
+                            }),
+                            Dependency::Texture(TextureDependency {
+                                name: "s1".into(),
+                                channels: "y".into(),
+                                texcoords: Vec::new(),
+                            }),
+                            Dependency::Texture(TextureDependency {
+                                name: "gIBL".into(),
+                                channels: "z".into(),
+                                texcoords: Vec::new(),
+                            }),
+                        ]
+                    ),
+                    (
+                        "o0.w".into(),
+                        vec![
+                            Dependency::Texture(TextureDependency {
+                                name: "s2".into(),
+                                channels: "x".into(),
+                                texcoords: Vec::new(),
+                            }),
+                            Dependency::Texture(TextureDependency {
+                                name: "s2".into(),
+                                channels: "y".into(),
+                                texcoords: Vec::new(),
+                            }),
+                            Dependency::Texture(TextureDependency {
+                                name: "gIBL".into(),
+                                channels: "w".into(),
+                                texcoords: Vec::new(),
+                            }),
+                        ]
+                    ),
+                    (
+                        "o1.x".into(),
+                        vec![
+                            Dependency::Texture(TextureDependency {
+                                name: "s2".into(),
+                                channels: "x".into(),
+                                texcoords: Vec::new(),
+                            }),
+                            Dependency::Texture(TextureDependency {
+                                name: "s2".into(),
+                                channels: "y".into(),
+                                texcoords: Vec::new(),
+                            }),
+                            Dependency::Texture(TextureDependency {
+                                name: "s1".into(),
+                                channels: "x".into(),
+                                texcoords: Vec::new(),
+                            }),
+                            Dependency::Texture(TextureDependency {
+                                name: "s0".into(),
+                                channels: "x".into(),
+                                texcoords: Vec::new(),
+                            }),
+                            Dependency::Texture(TextureDependency {
+                                name: "texRef".into(),
+                                channels: "x".into(),
+                                texcoords: Vec::new(),
+                            }),
+                        ]
+                    ),
+                    (
+                        "o1.y".into(),
+                        vec![
+                            Dependency::Texture(TextureDependency {
+                                name: "s2".into(),
+                                channels: "x".into(),
+                                texcoords: Vec::new(),
+                            }),
+                            Dependency::Texture(TextureDependency {
+                                name: "s2".into(),
+                                channels: "y".into(),
+                                texcoords: Vec::new(),
+                            }),
+                            Dependency::Texture(TextureDependency {
+                                name: "s1".into(),
+                                channels: "x".into(),
+                                texcoords: Vec::new(),
+                            }),
+                            Dependency::Texture(TextureDependency {
+                                name: "s0".into(),
+                                channels: "y".into(),
+                                texcoords: Vec::new(),
+                            }),
+                            Dependency::Texture(TextureDependency {
+                                name: "texRef".into(),
+                                channels: "y".into(),
+                                texcoords: Vec::new(),
+                            }),
+                        ]
+                    ),
+                    (
+                        "o1.z".into(),
+                        vec![
+                            Dependency::Texture(TextureDependency {
+                                name: "s2".into(),
+                                channels: "x".into(),
+                                texcoords: Vec::new(),
+                            }),
+                            Dependency::Texture(TextureDependency {
+                                name: "s2".into(),
+                                channels: "y".into(),
+                                texcoords: Vec::new(),
+                            }),
+                            Dependency::Texture(TextureDependency {
+                                name: "s1".into(),
+                                channels: "x".into(),
+                                texcoords: Vec::new(),
+                            }),
+                            Dependency::Texture(TextureDependency {
+                                name: "s0".into(),
+                                channels: "z".into(),
+                                texcoords: Vec::new(),
+                            }),
+                            Dependency::Texture(TextureDependency {
+                                name: "texRef".into(),
+                                channels: "z".into(),
+                                texcoords: Vec::new(),
+                            }),
+                        ]
+                    ),
+                    (
+                        "o2.x".into(),
+                        vec![
+                            Dependency::Texture(TextureDependency {
+                                name: "s2".into(),
+                                channels: "x".into(),
+                                texcoords: Vec::new(),
+                            }),
+                            Dependency::Texture(TextureDependency {
+                                name: "s2".into(),
+                                channels: "y".into(),
+                                texcoords: Vec::new(),
+                            }),
+                        ]
+                    ),
+                    (
+                        "o2.y".into(),
+                        vec![
+                            Dependency::Texture(TextureDependency {
+                                name: "s2".into(),
+                                channels: "x".into(),
+                                texcoords: Vec::new(),
+                            }),
+                            Dependency::Texture(TextureDependency {
+                                name: "s2".into(),
+                                channels: "y".into(),
+                                texcoords: Vec::new(),
+                            }),
+                        ]
+                    ),
+                    (
+                        "o3.x".into(),
+                        vec![Dependency::Texture(TextureDependency {
+                            name: "s3".into(),
+                            channels: "x".into(),
+                            texcoords: Vec::new(),
+                        })]
+                    ),
+                    (
+                        "o3.y".into(),
+                        vec![Dependency::Texture(TextureDependency {
+                            name: "s3".into(),
+                            channels: "y".into(),
+                            texcoords: Vec::new(),
+                        })]
+                    ),
+                    (
+                        "o3.z".into(),
+                        vec![Dependency::Texture(TextureDependency {
+                            name: "s3".into(),
+                            channels: "z".into(),
+                            texcoords: Vec::new(),
+                        })],
+                    ),
+                    (
+                        "o4.w".into(),
+                        vec![Dependency::Texture(TextureDependency {
+                            name: "s1".into(),
+                            channels: "z".into(),
+                            texcoords: Vec::new(),
+                        })],
+                    )
+                ]
                 .into()
             },
             shader
