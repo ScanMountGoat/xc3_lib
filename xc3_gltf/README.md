@@ -4,7 +4,7 @@ A command line tool for converting models and maps from Xenoblade X, Xenoblade 1
 glTF is an open interchange format designed for efficiently transmitting and loading 3D models. The goal of xc3_gltf is to be able to quickly export models and maps into a format that can be understood by many 3D modeling applications and game engines.
 
 ## Usage
-Convert `.wimdo` or `.wismhd` files to `.gltf`. The shader database parameter is optional but highly recommended since the fallback texture assignments do not support channel packing of temp textures. Texture file names will start with the name chosen for the output glTF file.
+Convert `.wimdo`, `.wismhd`, or `.camdo` files to `.gltf`. The shader database parameter is optional but highly recommended since the fallback texture assignments do not support channel packing of temp textures. Texture file names will start with the name chosen for the output glTF file.
 
 `xc3_gltf --help`  
 `xc3_gltf "Xeno 2 Dump\map\ma02a.wismhd" export\map.gltf xc2.json`  
