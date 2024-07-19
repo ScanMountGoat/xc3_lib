@@ -462,7 +462,7 @@ fn fs_alpha(in: VertexOutput) -> @location(0) vec4<f32> {
     // TODO: How much shading is done in this pass?
     // TODO: Is it ok to always apply gMatCol like this?
     // TODO: Detect multiply by vertex color?
-    return g_color * per_material.mat_color * vec4(1.0, 1.0, 1.0, in.vertex_color.w);
+    return g_color * per_material.mat_color;
 }
 
 // TODO: Separate entry for depth prepass.
@@ -553,7 +553,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     // TODO: Is it ok to always apply gMatCol like this?
     var out: FragmentOutput;
     // TODO: Detect multiply by vertex color?
-    out.g_color = g_color * per_material.mat_color * vec4(1.0, 1.0, 1.0, in.vertex_color.w);
+    out.g_color = g_color * per_material.mat_color;
     out.g_etc_buffer = mrt_etc_buffer(g_etc_buffer, view_normal);
     out.g_normal = mrt_normal(view_normal, g_normal.z);
     out.g_velocity = g_velocity;

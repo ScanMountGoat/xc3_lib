@@ -326,10 +326,13 @@ impl Renderer {
         self.alpha1_pass(encoder, models);
         self.alpha2_pass(encoder, models);
         self.unbranch_to_depth_pass(encoder);
-        self.deferred_pass(encoder);
-        self.alpha3_pass(encoder, models);
-
-        self.snn_filter_pass(encoder);
+        if self.render_mode == RenderMode::Shaded {
+            self.deferred_pass(encoder);
+            self.alpha3_pass(encoder, models);
+            self.snn_filter_pass(encoder);
+        } else {
+            self.deferred_debug_pass(encoder);
+        }
         self.final_pass(encoder, output_view, models, draw_bounds, draw_bones);
     }
 
@@ -663,12 +666,21 @@ impl Renderer {
         // TODO: organize into per frame, per model, etc?
         self.model_bind_group0.set(&mut render_pass);
 
-        // TODO: Is this the correct unk type?
+        // TODO: Is this the correct pass type?
         for model in models {
             model.draw(
                 &mut render_pass,
                 false,
                 MeshRenderPass::Unk2,
+                &self.camera,
+                None,
+            );
+            // TODO: 0x21 is single output after deferred in xcx?
+            // TODO: Test how this actually works in game.
+            model.draw(
+                &mut render_pass,
+                false,
+                MeshRenderPass::Unk1,
                 &self.camera,
                 None,
             );
@@ -724,76 +736,96 @@ impl Renderer {
             occlusion_query_set: None,
         });
 
-        if self.render_mode == RenderMode::Shaded {
-            for (pipeline, bind_group2) in self
-                .deferred_pipelines
-                .iter()
-                .zip(&self.deferred_bind_group2)
-            {
-                // Each material ID type renders with a separate pipeline in game.
-                render_pass.set_pipeline(pipeline);
-
-                crate::shader::deferred::set_bind_groups(
-                    &mut render_pass,
-                    &self.deferred_bind_group0,
-                    &self.textures.deferred_bind_group1,
-                    bind_group2,
-                );
-
-                render_pass.draw(0..3, 0..1);
-            }
-        } else {
-            render_pass.set_pipeline(&self.deferred_debug_pipeline);
+        for (pipeline, bind_group2) in self
+            .deferred_pipelines
+            .iter()
+            .zip(&self.deferred_bind_group2)
+        {
+            // Each material ID type renders with a separate pipeline in game.
+            render_pass.set_pipeline(pipeline);
 
             crate::shader::deferred::set_bind_groups(
                 &mut render_pass,
                 &self.deferred_bind_group0,
                 &self.textures.deferred_bind_group1,
-                &self.deferred_bind_group2[0],
+                bind_group2,
             );
 
             render_pass.draw(0..3, 0..1);
         }
     }
 
-    fn snn_filter_pass(&self, encoder: &mut wgpu::CommandEncoder) {
-        if self.render_mode == RenderMode::Shaded {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Hair SNN Filter Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &self.textures.snn_filter_output,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.textures.depth_stencil,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    }),
+    fn deferred_debug_pass(&self, encoder: &mut wgpu::CommandEncoder) {
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Deferred Debug Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &self.textures.deferred_output,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.textures.mat_id_depth,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
                 }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
+                stencil_ops: None,
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
 
-            render_pass.set_pipeline(&self.snn_filter_pipeline);
+        render_pass.set_pipeline(&self.deferred_debug_pipeline);
 
-            render_pass.set_stencil_reference(0x40);
+        crate::shader::deferred::set_bind_groups(
+            &mut render_pass,
+            &self.deferred_bind_group0,
+            &self.textures.deferred_bind_group1,
+            &self.deferred_bind_group2[0],
+        );
 
-            crate::shader::snn_filter::set_bind_groups(
-                &mut render_pass,
-                &self.textures.snn_filter_bind_group0,
-            );
+        render_pass.draw(0..3, 0..1);
+    }
 
-            render_pass.draw(0..3, 0..1);
-        }
+    fn snn_filter_pass(&self, encoder: &mut wgpu::CommandEncoder) {
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Hair SNN Filter Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &self.textures.snn_filter_output,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.textures.depth_stencil,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                }),
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+
+        render_pass.set_pipeline(&self.snn_filter_pipeline);
+
+        render_pass.set_stencil_reference(0x40);
+
+        crate::shader::snn_filter::set_bind_groups(
+            &mut render_pass,
+            &self.textures.snn_filter_bind_group0,
+        );
+
+        render_pass.draw(0..3, 0..1);
     }
 
     fn final_pass(
