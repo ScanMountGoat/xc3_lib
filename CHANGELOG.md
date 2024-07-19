@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Adjusted decompiled shader annotation to replace constant buffer parameters with their values.
 * Changed `xc3_model::shader_database::ShaderDatabase` to be an opaque wrapper. Get data using the `model` and `map` methods.
 * Changed `xc3_model::load_legacy` to also take an optional shader database parameter for improved material assignment accuracy.
+* Changed the behavior of `xc3_tex edit-wimdo` to support adding or deleting textures as long as indices form a valid range.
 
 ### Fixed
 * Fixed an issue where some Xenoblade 3 shader database entries incorrectly assigned normal maps to glossiness.

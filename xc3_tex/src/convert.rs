@@ -13,7 +13,7 @@ use xc3_lib::{
     laps::Laps,
     mibl::Mibl,
     msrd::{
-        streaming::{chr_tex_nx_folder, HighTexture},
+        streaming::{chr_tex_nx_folder, ExtractedTexture, HighTexture},
         Msrd,
     },
     mtxt::Mtxt,
@@ -336,26 +336,47 @@ pub fn update_wimdo_from_folder(
     let msrd = Msrd::from_file(input_path.with_extension("wismt"))?;
     let (vertex, spch, mut textures) = msrd.extract_files(chr_tex_nx_input.as_deref())?;
 
-    let mut count = 0;
+    // Replace all textures to support adding or deleting textures.
+    let mut mibls: Vec<_> = std::fs::read_dir(input_folder)?
+        .into_iter()
+        .filter_map(|e| {
+            let path = e.unwrap().path();
+            image_index(&path, input).and_then(|i| {
+                let dds = Dds::from_file(path).ok()?;
+                let mibl = Mibl::from_dds(&dds).unwrap();
+                Some((i, mibl))
+            })
+        })
+        .collect();
+    mibls.sort_by_key(|(i, _)| *i);
 
-    for entry in std::fs::read_dir(input_folder)? {
-        let path = entry?.path();
-        if let Some(i) = image_index(&path, input) {
-            if let Ok(dds) = Dds::from_file(path) {
-                let new_mibl = Mibl::from_dds(&dds)?;
-                if let Some(high) = &mut textures[i].high {
-                    let (mid, base_mip) = new_mibl.split_base_mip();
-                    *high = HighTexture {
-                        mid,
-                        base_mip: Some(base_mip),
-                    };
-                } else {
-                    textures[i].low = new_mibl;
-                }
-                count += 1;
-            }
+    // Check if all indices in 0..N are used.
+    for (i, (index, _)) in mibls.iter().enumerate() {
+        if i != *index {
+            return Err(anyhow!("Found image index {index} but expected {i}"));
         }
     }
+
+    // TODO: Also extract the name.
+    textures = mibls
+        .into_iter()
+        .map(|(i, mibl)| {
+            let (mid, base_mip) = mibl.split_base_mip();
+
+            ExtractedTexture {
+                name: textures.get(i).map(|t| t.name.clone()).unwrap_or_default(),
+                usage: textures
+                    .get(i)
+                    .map(|t| t.usage)
+                    .unwrap_or(xc3_lib::mxmd::TextureUsage::Col),
+                low: mid.clone(),
+                high: Some(HighTexture {
+                    mid,
+                    base_mip: Some(base_mip),
+                }),
+            }
+        })
+        .collect();
 
     // Save files to disk.
     let new_msrd = Msrd::from_extracted_files(&vertex, &spch, &textures, uses_chr)?;
@@ -364,7 +385,7 @@ pub fn update_wimdo_from_folder(
     mxmd.save(output_path)?;
     new_msrd.save(output_path.with_extension("wismt"))?;
 
-    Ok(count)
+    Ok(textures.len())
 }
 
 fn has_chr_textures(mxmd: &Mxmd) -> bool {
