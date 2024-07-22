@@ -1,5 +1,6 @@
 use crate::{
-    material::TextureAssignment, ChannelAssignment, ImageTexture, IndexMapExt, OutputAssignments,
+    material::TextureAssignment, texture_layer_assignment, ChannelAssignment, ImageTexture,
+    IndexMapExt, OutputAssignments,
 };
 use image_dds::image::{codecs::png::PngEncoder, RgbaImage};
 use indexmap::IndexMap;
@@ -398,19 +399,12 @@ fn image_index(
     // TODO: scale?
     match assignment? {
         crate::ChannelAssignment::Textures(textures) => {
-            // Some textures like normal maps may use multiple input channels.
-            // First check if the current channel is used.
-            // TODO: Should this only be used for color and normals?
-            let this_channel: Vec<_> = textures
-                .iter()
-                .filter(|t| t.channels.contains(channel))
-                .collect();
             let TextureAssignment {
                 name,
                 channels,
                 texcoord_transforms,
                 ..
-            } = this_channel.first().copied().or_else(|| textures.first())?;
+            } = texture_layer_assignment(textures, channel, false)?;
 
             let channel_index = "xyzw".find(channels.chars().next().unwrap()).unwrap();
 

@@ -442,6 +442,31 @@ impl Material {
     }
 }
 
+/// Returns the texture assigned to the given channel and layer.
+///
+/// This currently uses a heuristic that resolves some assignment issues where
+/// multiple input channels are used but may not work accurately in some cases.
+pub fn texture_layer_assignment<'a>(
+    textures: &'a [TextureAssignment],
+    channel: char,
+    is_second_layer: bool,
+) -> Option<&'a TextureAssignment> {
+    // Some textures like normal maps may use multiple input channels.
+    // First check if the current channel is used.
+    // TODO: Should this only be used for color and normals?
+    let this_channel: Vec<_> = textures
+        .iter()
+        .filter(|t| t.channels.contains(channel))
+        .collect();
+    if !is_second_layer {
+        this_channel.first().copied().or_else(|| textures.first())
+    } else {
+        // TODO: Add proper detection for layering code in the shader graph.
+        let first_tex = &this_channel.first()?.name;
+        this_channel.iter().find(|t| &t.name != first_tex).copied()
+    }
+}
+
 fn output_assignments(
     shader: &ShaderProgram,
     parameters: &MaterialParameters,

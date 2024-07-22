@@ -62,8 +62,8 @@ use xc3_lib::{
 
 pub use map::{load_map, LoadMapError};
 pub use material::{
-    ChannelAssignment, Material, MaterialParameters, OutputAssignment, OutputAssignments, Texture,
-    TextureAlphaTest, TextureAssignment,
+    texture_layer_assignment, ChannelAssignment, Material, MaterialParameters, OutputAssignment,
+    OutputAssignments, Texture, TextureAlphaTest, TextureAssignment,
 };
 pub use sampler::{AddressMode, FilterMode, Sampler};
 pub use skeleton::{Bone, Skeleton};
@@ -74,11 +74,10 @@ pub use xc3_lib::mxmd::{
     TextureUsage,
 };
 
-pub mod animation;
-
 #[cfg(feature = "gltf")]
 pub mod gltf;
 
+pub mod animation;
 mod map;
 mod material;
 mod model;

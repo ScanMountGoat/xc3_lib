@@ -5,8 +5,7 @@ use indexmap::IndexMap;
 use log::{error, warn};
 use smol_str::SmolStr;
 use xc3_model::{
-    ChannelAssignment, ImageTexture, IndexMapExt, OutputAssignment, OutputAssignments,
-    TextureAssignment,
+    texture_layer_assignment, ChannelAssignment, ImageTexture, IndexMapExt, OutputAssignment, OutputAssignments, TextureAssignment
 };
 
 use crate::{
@@ -280,21 +279,7 @@ fn texture_channel(
     is_second_layer: bool,
 ) -> Option<(i32, u32)> {
     if let Some(ChannelAssignment::Textures(textures)) = assignment {
-        // Some textures like normal maps may use multiple input channels.
-        // First check if the current channel is used.
-        // TODO: Should this only be used for color and normals?
-        let this_channel: Vec<_> = textures
-            .iter()
-            .filter(|t| t.channels.contains(channel))
-            .collect();
-
-        let texture = if !is_second_layer {
-            this_channel.first().copied().or_else(|| textures.first())
-        } else {
-            // TODO: Add proper detection for layering code in the shader graph.
-            let first_tex = &this_channel.first()?.name;
-            this_channel.iter().find(|t| &t.name != first_tex).copied()
-        }?;
+        let texture = texture_layer_assignment(textures, channel, is_second_layer)?;
 
         let TextureAssignment {
             name,
