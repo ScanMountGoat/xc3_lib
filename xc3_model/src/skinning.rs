@@ -358,9 +358,9 @@ impl SkinWeights {
     ) -> Vec<[u16; 2]> {
         let new_weights = SkinWeights::from_influences(influences, vertex_count, &self.bone_names);
 
-        // TODO: Is there a limit on how high this count can be?
-        // TODO: xc2 has 384000 SSBO bytes / size(mat3x4) = 8000 unique elements?
         // Add unique indices and weights from each buffer.
+        // TODO: Xenoblade 2 has 384000 SSBO bytes / sizeof(mat3x4) = 8000 unique elements.
+        // TODO: Xenoblade 3 has 576560 SSBO bytes / sizeof(mat3x4) = 12011 unique elements.
         // TODO: Make this not O(N^2) with key ([u8; 4], Vec4)
         new_weights
             .bone_indices
