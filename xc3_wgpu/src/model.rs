@@ -163,6 +163,7 @@ struct Bounds {
 struct VertexBuffer {
     vertex_buffer0: wgpu::Buffer,
     vertex_buffer1: wgpu::Buffer,
+    outline_vertex_buffer0: wgpu::Buffer,
     outline_vertex_buffer1: wgpu::Buffer,
     vertex_count: u32,
     morph_buffers: Option<MorphBuffers>,
@@ -306,6 +307,8 @@ impl ModelGroup {
 
         if let Some(morph_buffers) = &vertex_buffers.morph_buffers {
             render_pass.set_vertex_buffer(0, morph_buffers.vertex_buffer0.slice(..));
+        } else if is_outline {
+            render_pass.set_vertex_buffer(0, vertex_buffers.outline_vertex_buffer0.slice(..));
         } else {
             render_pass.set_vertex_buffer(0, vertex_buffers.vertex_buffer0.slice(..));
         }
@@ -734,12 +737,13 @@ fn model_vertex_buffers(
             set_attributes(&mut buffer0_vertices, &mut buffer1_vertices, buffer);
 
             // Avoid overwriting the existing attributes.
-            // TODO: Do outline buffers only affect buffer1 attributes?
+            let mut outline_buffer0_vertices = buffer0_vertices.clone();
             let mut outline_buffer1_vertices = buffer1_vertices.clone();
             if let Some(outline_buffer) = buffer
                 .outline_buffer_index
                 .and_then(|i| buffers.outline_buffers.get(i))
             {
+                set_buffer0_attributes(&mut outline_buffer0_vertices, &outline_buffer.attributes);
                 set_buffer1_attributes(&mut outline_buffer1_vertices, &outline_buffer.attributes);
             }
 
@@ -756,6 +760,13 @@ fn model_vertex_buffers(
                 contents: bytemuck::cast_slice(&buffer1_vertices),
                 usage: wgpu::BufferUsages::VERTEX,
             });
+
+            let outline_vertex_buffer0 =
+                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("outline vertex buffer 0"),
+                    contents: bytemuck::cast_slice(&outline_buffer0_vertices),
+                    usage: wgpu::BufferUsages::VERTEX,
+                });
 
             let outline_vertex_buffer1 =
                 device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -774,6 +785,7 @@ fn model_vertex_buffers(
             VertexBuffer {
                 vertex_buffer0,
                 vertex_buffer1,
+                outline_vertex_buffer0,
                 outline_vertex_buffer1,
                 morph_buffers,
                 vertex_count: vertex_count as u32,
