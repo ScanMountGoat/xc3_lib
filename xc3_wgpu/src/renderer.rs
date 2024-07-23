@@ -4,10 +4,11 @@ use xc3_model::MeshRenderPass;
 
 use crate::{
     model::ModelGroup, pipeline::Output5Type, skeleton::BoneRenderer, DeviceBufferExt,
-    MonolibShaderTextures, QueueBufferExt, COLOR_FORMAT, DEPTH_STENCIL_FORMAT,
-    GBUFFER_COLOR_FORMAT,
+    MonolibShaderTextures, QueueBufferExt, COLOR_FORMAT, GBUFFER_COLOR_FORMAT,
+    GBUFFER_NORMAL_FORMAT,
 };
 
+const DEPTH_STENCIL_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth24PlusStencil8;
 const MAT_ID_DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth16Unorm;
 
 // TODO: Add fallback textures for all the monolib shader textures?
@@ -149,6 +150,7 @@ impl Renderer {
         queue: &wgpu::Queue,
         width: u32,
         height: u32,
+        surface_format: wgpu::TextureFormat,
         monolib_shader: &MonolibShaderTextures,
     ) -> Self {
         let camera = CameraData {
@@ -240,12 +242,12 @@ impl Renderer {
 
         let snn_filter_pipeline = snn_filter_pipeline(device);
 
-        let blit_pipeline = blit_pipeline(device);
-        let blit_hair_pipeline = blit_hair_pipeline(device);
+        let blit_pipeline = blit_pipeline(device, surface_format);
+        let blit_hair_pipeline = blit_hair_pipeline(device, surface_format);
 
         let textures = Textures::new(device, width, height);
 
-        let solid_pipeline = solid_pipeline(device);
+        let solid_pipeline = solid_pipeline(device, surface_format);
         let solid_bind_group0 = crate::shader::solid::bind_groups::BindGroup0::from_bindings(
             device,
             crate::shader::solid::bind_groups::BindGroupLayout0 {
@@ -988,7 +990,7 @@ fn create_gbuffer(device: &wgpu::Device, width: u32, height: u32) -> GBuffer {
     GBuffer {
         color: create_texture(device, width, height, "g_color", GBUFFER_COLOR_FORMAT),
         etc_buffer: create_texture(device, width, height, "g_etc_buffer", GBUFFER_COLOR_FORMAT),
-        normal: create_texture(device, width, height, "g_normal", GBUFFER_COLOR_FORMAT),
+        normal: create_texture(device, width, height, "g_normal", GBUFFER_NORMAL_FORMAT),
         velocity: create_texture(device, width, height, "g_velocity", GBUFFER_COLOR_FORMAT),
         depth: create_texture(device, width, height, "g_depth", GBUFFER_COLOR_FORMAT),
         lgt_color: create_texture(device, width, height, "g_lgt_color", GBUFFER_COLOR_FORMAT),
@@ -1097,7 +1099,7 @@ fn deferred_debug_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
     })
 }
 
-fn solid_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
+fn solid_pipeline(device: &wgpu::Device, format: wgpu::TextureFormat) -> wgpu::RenderPipeline {
     let module = crate::shader::solid::create_shader_module(device);
     let render_pipeline_layout = crate::shader::solid::create_pipeline_layout(device);
 
@@ -1110,7 +1112,7 @@ fn solid_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
         ),
         fragment: Some(crate::shader::solid::fragment_state(
             &module,
-            &crate::shader::solid::fs_main_entry([Some(COLOR_FORMAT.into())]),
+            &crate::shader::solid::fs_main_entry([Some(format.into())]),
         )),
         primitive: wgpu::PrimitiveState {
             topology: wgpu::PrimitiveTopology::LineList,
@@ -1201,7 +1203,7 @@ fn snn_filter_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
     })
 }
 
-fn blit_hair_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
+fn blit_hair_pipeline(device: &wgpu::Device, format: wgpu::TextureFormat) -> wgpu::RenderPipeline {
     let module = crate::shader::blit::create_shader_module(device);
     let render_pipeline_layout = crate::shader::blit::create_pipeline_layout(device);
 
@@ -1211,7 +1213,7 @@ fn blit_hair_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
         vertex: crate::shader::blit::vertex_state(&module, &crate::shader::blit::vs_main_entry()),
         fragment: Some(crate::shader::blit::fragment_state(
             &module,
-            &crate::shader::blit::fs_main_entry([Some(COLOR_FORMAT.into())]),
+            &crate::shader::blit::fs_main_entry([Some(format.into())]),
         )),
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: Some(wgpu::DepthStencilState {
@@ -1241,7 +1243,7 @@ fn blit_hair_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
     })
 }
 
-fn blit_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
+fn blit_pipeline(device: &wgpu::Device, format: wgpu::TextureFormat) -> wgpu::RenderPipeline {
     let module = crate::shader::blit::create_shader_module(device);
     let render_pipeline_layout = crate::shader::blit::create_pipeline_layout(device);
 
@@ -1251,7 +1253,7 @@ fn blit_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
         vertex: crate::shader::blit::vertex_state(&module, &crate::shader::blit::vs_main_entry()),
         fragment: Some(crate::shader::blit::fragment_state(
             &module,
-            &crate::shader::blit::fs_main_entry([Some(COLOR_FORMAT.into())]),
+            &crate::shader::blit::fs_main_entry([Some(format.into())]),
         )),
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: Some(wgpu::DepthStencilState {

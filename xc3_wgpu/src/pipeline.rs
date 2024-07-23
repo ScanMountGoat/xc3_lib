@@ -1,6 +1,6 @@
 use xc3_model::{BlendMode, ColorWriteMode, CullMode, RenderPassType, StateFlags};
 
-use crate::{DEPTH_STENCIL_FORMAT, GBUFFER_COLOR_FORMAT};
+use crate::{DEPTH_STENCIL_FORMAT, GBUFFER_COLOR_FORMAT, GBUFFER_NORMAL_FORMAT};
 
 #[derive(Debug)]
 pub struct ModelPipelineData {
@@ -95,7 +95,7 @@ pub fn model_pipeline(
                 write_mask: wgpu::ColorWrites::all(),
             }),
             Some(GBUFFER_COLOR_FORMAT.into()),
-            Some(GBUFFER_COLOR_FORMAT.into()),
+            Some(GBUFFER_NORMAL_FORMAT.into()),
             Some(GBUFFER_COLOR_FORMAT.into()),
             Some(GBUFFER_COLOR_FORMAT.into()),
             Some(GBUFFER_COLOR_FORMAT.into()),

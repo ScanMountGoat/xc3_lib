@@ -5,7 +5,8 @@ use indexmap::IndexMap;
 use log::{error, warn};
 use smol_str::SmolStr;
 use xc3_model::{
-    texture_layer_assignment, ChannelAssignment, ImageTexture, IndexMapExt, OutputAssignment, OutputAssignments, TextureAssignment
+    texture_layer_assignment, ChannelAssignment, ImageTexture, IndexMapExt, OutputAssignment,
+    OutputAssignments, TextureAssignment,
 };
 
 use crate::{

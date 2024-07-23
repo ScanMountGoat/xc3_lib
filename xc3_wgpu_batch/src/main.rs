@@ -84,14 +84,6 @@ fn main() {
         Path::new(&cli.root_folder).join("monolib/shader"),
     );
 
-    let mut renderer = Renderer::new(&device, &queue, WIDTH, HEIGHT, &monolib_shader);
-
-    // Initialize the camera transform.
-    let translation = vec3(0.0, -1.0, -10.0);
-    let rotation = vec3(0.0, -20f32.to_radians(), 0.0);
-    let camera_data = calculate_camera_data(WIDTH, HEIGHT, translation, rotation);
-    renderer.update_camera(&queue, &camera_data);
-
     let size = wgpu::Extent3d {
         width: WIDTH,
         height: HEIGHT,
@@ -102,7 +94,7 @@ fn main() {
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: xc3_wgpu::COLOR_FORMAT,
+        format: wgpu::TextureFormat::Rgba8Unorm,
         usage: wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::RENDER_ATTACHMENT,
         label: None,
         view_formats: &[],
@@ -116,6 +108,21 @@ fn main() {
         label: None,
         mapped_at_creation: false,
     });
+
+    let mut renderer = Renderer::new(
+        &device,
+        &queue,
+        WIDTH,
+        HEIGHT,
+        texture_desc.format,
+        &monolib_shader,
+    );
+
+    // Initialize the camera transform.
+    let translation = vec3(0.0, -1.0, -10.0);
+    let rotation = vec3(0.0, -20f32.to_radians(), 0.0);
+    let camera_data = calculate_camera_data(WIDTH, HEIGHT, translation, rotation);
+    renderer.update_camera(&queue, &camera_data);
 
     let database = cli
         .shader_database
