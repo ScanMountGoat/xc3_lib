@@ -1029,16 +1029,14 @@ fn read_outline_buffer(
     descriptor: &xc3_lib::vertex::OutlineBufferDescriptor,
     buffer: &[u8],
 ) -> BinResult<Vec<AttributeData>> {
-    // TODO: outline buffer normally just has vColor?
-    // TODO: Some buffers have 8 bytes per vertex instead of 4?
-    // TODO: What are the in game names of these attributes?
     if descriptor.vertex_size == 8 {
+        // vNormal and vColor in shaders.
         Ok(vec![
-            AttributeData::VertexColor(read_outline_attribute(
+            AttributeData::Normal(read_outline_attribute(
                 descriptor,
                 0,
                 buffer,
-                read_unorm8x4,
+                read_snorm8x4,
             )?),
             AttributeData::VertexColor(read_outline_attribute(
                 descriptor,
@@ -1048,6 +1046,7 @@ fn read_outline_buffer(
             )?),
         ])
     } else {
+        // vColor in shaders.
         Ok(vec![AttributeData::VertexColor(read_outline_attribute(
             descriptor,
             0,
@@ -2539,12 +2538,11 @@ mod tests {
             unk: 0,
         };
 
-        // TODO: What is the second attribute?
         assert_eq!(
             vec![
-                AttributeData::VertexColor(vec![
-                    vec4(0.47843137, 0.8745098, 0.9882353, 0.0),
-                    vec4(0.47843137, 0.8745098, 0.9882353, 0.0)
+                AttributeData::Normal(vec![
+                    vec4(0.96062994, -0.25984251, -0.031496063, 0.0),
+                    vec4(0.96062994, -0.25984251, -0.031496063, 0.0)
                 ]),
                 AttributeData::VertexColor(vec![
                     vec4(0.29411766, 0.21568628, 0.16078432, 0.29803923),
