@@ -620,7 +620,7 @@ pub struct Texture {
     pub texture_index: u16,
     /// Index into the samplers in [samplers](struct.Materials.html#structfield.samplers).
     pub sampler_index: u16,
-    pub unk2: u16,
+    pub unk2: u16, // TODO: sometimes 1?
     pub unk3: u16,
 }
 
@@ -1674,10 +1674,16 @@ pub struct SkeletonUnk5 {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    // TODO: element size?
-    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
-    #[xc3(count_offset(u32, u32))]
-    pub unk1: Vec<[u16; 105]>,
+    pub unk1: u32,
+
+    #[br(temp, restore_position)]
+    offsets: [u32; 2],
+
+    // TODO: count and element size?
+    #[br(parse_with = parse_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: (offsets[1] - offsets[0]) as usize / 4 }})]
+    #[xc3(offset(u32))]
+    pub unk2: Vec<f32>,
 
     // TODO: count?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
