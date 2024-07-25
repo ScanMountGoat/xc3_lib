@@ -276,6 +276,7 @@ impl Models {
                     flags: MaterialFlags::from(0u32),
                     render_flags: MaterialRenderFlags::from(0u32),
                     state_flags: m.state_flags,
+                    color: m.color,
                     textures: m
                         .textures
                         .iter()
@@ -307,7 +308,6 @@ impl Models {
                         xc3_lib::mxmd::legacy::UnkPassType::Unk8 => RenderPassType::Unk0,
                     },
                     parameters: MaterialParameters {
-                        mat_color: [1.0; 4],
                         alpha_test_ref: 0.0,
                         tex_matrix: None,
                         work_float4: None,

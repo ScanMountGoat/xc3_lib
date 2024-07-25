@@ -202,7 +202,7 @@ impl ModelRoot {
                 name: m.name.clone(),
                 flags: m.flags,
                 render_flags: m.render_flags,
-                color: m.parameters.mat_color,
+                color: m.color,
                 alpha_test_ref: m.alpha_test_ref,
                 textures: m
                     .textures

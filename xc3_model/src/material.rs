@@ -20,6 +20,8 @@ pub struct Material {
     pub render_flags: MaterialRenderFlags,
     pub state_flags: StateFlags,
 
+    pub color: [f32; 4],
+
     pub textures: Vec<Texture>,
     pub alpha_test: Option<TextureAlphaTest>,
 
@@ -67,7 +69,6 @@ pub struct TextureAlphaTest {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct MaterialParameters {
-    pub mat_color: [f32; 4],
     pub alpha_test_ref: f32,
     // Assume each param type is used at most once.
     pub tex_matrix: Option<Vec<[f32; 8]>>, // TODO: mat2x4?
@@ -78,7 +79,6 @@ pub struct MaterialParameters {
 impl Default for MaterialParameters {
     fn default() -> Self {
         Self {
-            mat_color: [1.0; 4],
             alpha_test_ref: 1.0,
             tex_matrix: None,
             work_float4: None,
@@ -143,6 +143,7 @@ pub fn create_materials(
                 flags: material.flags,
                 render_flags: material.render_flags,
                 state_flags: material.state_flags,
+                color: material.color,
                 textures,
                 alpha_test,
                 alpha_test_ref: material.alpha_test_ref,
@@ -240,7 +241,6 @@ fn assign_parameters(
 
     // TODO: alpha test ref?
     let mut parameters = MaterialParameters {
-        mat_color: material.color, // TODO: store with material.
         alpha_test_ref: 0.5,
         tex_matrix: None,
         work_float4: None,
@@ -262,10 +262,12 @@ fn assign_parameters(
                 }
                 // TODO: Find the corresponding uniform name.
                 xc3_lib::mxmd::ParamType::Unk4 => (),
-                xc3_lib::mxmd::ParamType::Unk5 => (),
-                xc3_lib::mxmd::ParamType::Unk6 => (),
+                // TODO: index and count is always 0?
+                // TODO: Do these take values from the work values?
+                xc3_lib::mxmd::ParamType::AlphaInfo => (),
+                xc3_lib::mxmd::ParamType::MaterialColor => (),
                 xc3_lib::mxmd::ParamType::Unk7 => (),
-                xc3_lib::mxmd::ParamType::Unk10 => (),
+                xc3_lib::mxmd::ParamType::ToonHeadMatrix => (),
             }
         }
     }

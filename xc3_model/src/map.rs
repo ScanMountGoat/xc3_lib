@@ -670,6 +670,7 @@ fn foliage_materials(materials: &FoliageMaterials) -> Vec<Material> {
                 flags: xc3_lib::mxmd::MaterialFlags::from(0u32),
                 render_flags: xc3_lib::mxmd::MaterialRenderFlags::from(0u32),
                 state_flags: flags,
+                color: [1.0; 4],
                 textures,
                 alpha_test: None,
                 shader,

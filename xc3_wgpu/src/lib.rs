@@ -23,7 +23,7 @@
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! # let (device, queue) = test();
 //! let monolib_shader = MonolibShaderTextures::from_file(&device, &queue, "monolib/shader");
-//! let renderer = Renderer::new(&device, &queue, 1920, 1080, &monolib_shader);
+//! let renderer = Renderer::new(&device, &queue, 1920, 1080, wgpu::TextureFormat::Bgra8Unorm, &monolib_shader);
 //!
 //! let database = ShaderDatabase::from_file("xc3.json")?;
 //!

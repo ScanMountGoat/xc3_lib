@@ -241,11 +241,13 @@ pub enum ParamType {
     Unk4 = 4,
     /// `gAlInf` uniform in the [Spch] and
     /// `ml::DrMdoSetup::unimate_alphaInfo` in the Xenoblade 2 binary.
-    Unk5 = 5,
-    Unk6 = 6,
+    AlphaInfo = 5,
+    /// `gMatCol` uniform in the [Spch].
+    /// Takes the value of [color](struct.Material.html#structfield.color).
+    MaterialColor = 6,
     Unk7 = 7,
     /// `gToonHeadMat` uniform in the [Spch].
-    Unk10 = 10,
+    ToonHeadMatrix = 10,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]

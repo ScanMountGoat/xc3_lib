@@ -407,13 +407,16 @@ fn input_expr_inner(
             } else if !channel.as_str().chars().all(|c| "xyzw".contains(c)) {
                 // TODO: Is there a better way to handle float params like U_Mate.gAlInf?
                 let mut text = String::new();
-                show_expr(&mut text, e, &mut FormattingState::default()).unwrap();                
-                Expr::Global { name: text, channel: None }
+                show_expr(&mut text, e, &mut FormattingState::default()).unwrap();
+                Expr::Global {
+                    name: text,
+                    channel: None,
+                }
             } else {
                 // TODO: how to handle values with multiple channels like a.xyz * b.wzy?
                 let mut text = String::new();
                 show_expr(&mut text, e, &mut FormattingState::default()).unwrap();
-                panic!("{}.{}\n", text, channel.to_string())
+                panic!("{}.{}\n", text, channel)
             }
         }
         ExprData::PostInc(e) => input_expr_inner(e, last_assignment_index, channel),
