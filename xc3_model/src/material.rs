@@ -126,7 +126,11 @@ pub fn create_materials(
                 .get(i + 1)
                 .map(|m| m.work_value_start_index as usize)
                 .unwrap_or(materials.work_values.len());
-            let work_values = materials.work_values[work_value_start..work_value_end].to_vec();
+            let work_values = materials
+                .work_values
+                .get(work_value_start..work_value_end)
+                .unwrap_or_default()
+                .to_vec();
 
             let shader_var_start = material.shader_var_start_index as usize;
             let shader_var_end = shader_var_start + material.shader_var_count as usize;
@@ -149,12 +153,17 @@ pub fn create_materials(
                 alpha_test_ref: material.alpha_test_ref,
                 shader,
                 work_values,
-                shader_vars: materials.shader_vars[shader_var_start..shader_var_end].to_vec(),
+                shader_vars: materials
+                    .shader_vars
+                    .get(shader_var_start..shader_var_end)
+                    .unwrap_or_default()
+                    .to_vec(),
                 work_callbacks: materials
                     .callbacks
                     .as_ref()
-                    .map(|c| c.work_callbacks[callback_start..callback_end].to_vec())
-                    .unwrap_or_default(),
+                    .and_then(|c| c.work_callbacks.get(callback_start..callback_end))
+                    .unwrap_or_default()
+                    .to_vec(),
                 technique_index: material
                     .techniques
                     .first()

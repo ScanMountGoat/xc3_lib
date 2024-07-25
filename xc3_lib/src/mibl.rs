@@ -124,7 +124,7 @@ impl ImageFormat {
         }
     }
 
-    pub fn bytes_per_pixel(&self) -> usize {
+    pub fn bytes_per_pixel(&self) -> u32 {
         match self {
             ImageFormat::R8Unorm => 1,
             ImageFormat::R8G8B8A8Unorm => 4,
@@ -227,14 +227,14 @@ impl Mibl {
             });
         }
         tegra_swizzle::surface::deswizzle_surface(
-            self.footer.width as usize,
-            self.footer.height as usize,
-            self.footer.depth as usize,
+            self.footer.width,
+            self.footer.height,
+            self.footer.depth,
             &self.image_data,
             self.footer.image_format.block_dim(),
             None,
             self.footer.image_format.bytes_per_pixel(),
-            self.footer.mipmap_count as usize,
+            self.footer.mipmap_count,
             if self.footer.view_dimension == ViewDimension::Cube {
                 6
             } else {
@@ -322,15 +322,15 @@ impl Mibl {
         let image_format = ImageFormat::try_from(image_format)?;
 
         let image_data = tegra_swizzle::surface::swizzle_surface(
-            width as usize,
-            height as usize,
-            depth as usize,
+            width,
+            height,
+            depth,
             data.as_ref(),
             image_format.block_dim(),
             None,
             image_format.bytes_per_pixel(),
-            mipmaps as usize,
-            layers as usize,
+            mipmaps,
+            layers,
         )?;
 
         let image_size = image_data.len().next_multiple_of(4096) as u32;
@@ -374,13 +374,13 @@ impl Mibl {
 impl MiblFooter {
     fn swizzled_surface_size(&self) -> usize {
         tegra_swizzle::surface::swizzled_surface_size(
-            self.width as usize,
-            self.height as usize,
-            self.depth as usize,
+            self.width,
+            self.height,
+            self.depth,
             self.image_format.block_dim(),
             None,
             self.image_format.bytes_per_pixel(),
-            self.mipmap_count as usize,
+            self.mipmap_count,
             if self.view_dimension == ViewDimension::Cube {
                 6
             } else {
@@ -391,9 +391,9 @@ impl MiblFooter {
 
     fn swizzled_base_mip_size(&self) -> usize {
         tegra_swizzle::surface::swizzled_surface_size(
-            self.width as usize,
-            self.height as usize,
-            self.depth as usize,
+            self.width,
+            self.height,
+            self.depth,
             self.image_format.block_dim(),
             None,
             self.image_format.bytes_per_pixel(),
