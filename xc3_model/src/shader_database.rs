@@ -17,6 +17,9 @@ use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 use thiserror::Error;
 
+#[cfg(feature = "arbitrary")]
+use crate::arbitrary_smolstr;
+
 mod io;
 
 #[derive(Debug, Error)]
@@ -106,7 +109,6 @@ pub struct ModelPrograms {
 
 // TODO: Document how to try sampler, constant, parameter in order.
 /// A single shader program with a vertex and fragment shader.
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct ShaderProgram {
     /// The input values used to initialize each fragment output.
@@ -135,9 +137,12 @@ pub enum Dependency {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Serialize, Deserialize)]
 pub struct BufferDependency {
+    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_smolstr))]
     pub name: SmolStr,
+    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_smolstr))]
     pub field: SmolStr,
     pub index: usize,
+    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_smolstr))]
     pub channels: SmolStr,
 }
 
@@ -145,7 +150,9 @@ pub struct BufferDependency {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct TextureDependency {
+    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_smolstr))]
     pub name: SmolStr,
+    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_smolstr))]
     pub channels: SmolStr,
     /// Texture coordinate values used for the texture function call.
     pub texcoords: Vec<TexCoord>,
@@ -156,8 +163,10 @@ pub struct TextureDependency {
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct TexCoord {
     /// The name of the attribute like "in_attr4".
+    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_smolstr))]
     pub name: SmolStr,
     /// The accessed channels like "x" or "y".
+    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_smolstr))]
     pub channels: SmolStr,
     pub params: Option<TexCoordParams>,
 }
@@ -179,7 +188,9 @@ pub enum TexCoordParams {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct AttributeDependency {
+    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_smolstr))]
     pub name: SmolStr,
+    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_smolstr))]
     pub channels: SmolStr,
 }
 
@@ -278,6 +289,20 @@ fn material_sampler_index(sampler: &str) -> usize {
         "s9" => 9,
         // TODO: How to handle this case?
         _ => usize::MAX,
+    }
+}
+
+// TODO: Do this for other types that use with to be cleaner.
+#[cfg(feature = "arbitrary")]
+impl<'a> arbitrary::Arbitrary<'a> for ShaderProgram {
+    fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
+        let output_dependencies: Vec<(String, Vec<Dependency>)> = u.arbitrary()?;
+        Ok(Self {
+            output_dependencies: output_dependencies
+                .into_iter()
+                .map(|(k, v)| (k.into(), v))
+                .collect(),
+        })
     }
 }
 

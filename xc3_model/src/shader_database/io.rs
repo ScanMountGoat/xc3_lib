@@ -42,7 +42,6 @@ struct ShaderProgramIndexed {
 }
 
 // TODO: Also index texture and texcoord names?
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 enum DependencyIndexed {
     Constant(OrderedFloat<f32>),
@@ -51,11 +50,9 @@ enum DependencyIndexed {
     Attribute(SmolStr, SmolStr),
 }
 
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 struct TexCoordIndexed(SmolStr, SmolStr, Option<TexCoordParamsIndexed>);
 
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub enum TexCoordParamsIndexed {
     Scale(usize),

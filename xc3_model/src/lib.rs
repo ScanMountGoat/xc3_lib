@@ -1015,6 +1015,12 @@ fn arbitrary_mat4s(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Vec<gla
     Ok(elements)
 }
 
+#[cfg(feature = "arbitrary")]
+fn arbitrary_smolstr(u: &mut arbitrary::Unstructured) -> arbitrary::Result<smol_str::SmolStr> {
+    let text: String = u.arbitrary()?;
+    Ok(text.into())
+}
+
 #[cfg(test)]
 #[macro_export]
 macro_rules! assert_hex_eq {

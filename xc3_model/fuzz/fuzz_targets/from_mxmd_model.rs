@@ -20,6 +20,6 @@ fuzz_target!(|input: Input| {
         &input.mxmd,
         input.chr,
         &streaming_data,
-        model_programs.spch.as_ref(),
+        input.model_programs.as_ref(),
     );
 });

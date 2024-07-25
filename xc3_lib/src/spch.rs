@@ -218,8 +218,8 @@ pub struct Nvsd {
     pub unk_item_total_size: u32,
 }
 
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug)]
 #[br(magic(b"\x34\x12\x76\x98"))]
 #[br(stream = r)]

@@ -18,15 +18,15 @@ use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 const VERSION: u32 = 10001;
 
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(magic = b"LAST")]
 #[xc3(magic(b"LAST"))]
 #[xc3(align_after(16))]
 pub struct Last {
     #[br(assert(version == VERSION))]
-    version: u32,
+    pub version: u32,
 
     #[br(temp, restore_position)]
     offset: u32,
@@ -36,7 +36,7 @@ pub struct Last {
     pub styles: Vec<FontStyle>,
 
     #[br(count = (offset - 16) / 4)]
-    unks: Vec<u32>,
+    pub unks: Vec<u32>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
