@@ -298,14 +298,15 @@ impl Models {
                     alpha_test_ref: [0; 4],
                     shader: get_shader_legacy(m, model_programs),
                     technique_index: 0,
-                    pass_type: match m.techniques[0].unk1 {
-                        xc3_lib::mxmd::legacy::UnkPassType::Unk0 => RenderPassType::Unk0,
-                        xc3_lib::mxmd::legacy::UnkPassType::Unk1 => RenderPassType::Unk1,
+                    pass_type: match m.techniques.first().map(|t| t.unk1) {
+                        Some(xc3_lib::mxmd::legacy::UnkPassType::Unk0) => RenderPassType::Unk0,
+                        Some(xc3_lib::mxmd::legacy::UnkPassType::Unk1) => RenderPassType::Unk1,
                         // TODO: How to handle these variants?
-                        xc3_lib::mxmd::legacy::UnkPassType::Unk2 => RenderPassType::Unk0,
-                        xc3_lib::mxmd::legacy::UnkPassType::Unk3 => RenderPassType::Unk0,
-                        xc3_lib::mxmd::legacy::UnkPassType::Unk5 => RenderPassType::Unk0,
-                        xc3_lib::mxmd::legacy::UnkPassType::Unk8 => RenderPassType::Unk0,
+                        Some(xc3_lib::mxmd::legacy::UnkPassType::Unk2) => RenderPassType::Unk0,
+                        Some(xc3_lib::mxmd::legacy::UnkPassType::Unk3) => RenderPassType::Unk0,
+                        Some(xc3_lib::mxmd::legacy::UnkPassType::Unk5) => RenderPassType::Unk0,
+                        Some(xc3_lib::mxmd::legacy::UnkPassType::Unk8) => RenderPassType::Unk0,
+                        None => RenderPassType::Unk0,
                     },
                     parameters: MaterialParameters {
                         alpha_test_ref: 0.0,
@@ -468,7 +469,10 @@ impl Model {
             .iter()
             .map(|mesh| Mesh {
                 flags1: mesh.flags1,
-                flags2: mesh.flags2.try_into().unwrap(), // TODO: same type?
+                flags2: mesh
+                    .flags2
+                    .try_into()
+                    .unwrap_or(MeshRenderFlags2::new(MeshRenderPass::Unk0, 0u8.into())), // TODO: same type?
                 vertex_buffer_index: mesh.vertex_buffer_index as usize,
                 index_buffer_index: mesh.index_buffer_index as usize,
                 index_buffer_index2: 0,

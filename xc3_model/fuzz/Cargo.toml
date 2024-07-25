@@ -32,3 +32,10 @@ path = "fuzz_targets/model_buffers_from_vertex_data.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "from_mxmd_model_legacy"
+path = "fuzz_targets/from_mxmd_model_legacy.rs"
+test = false
+doc = false
+bench = false
