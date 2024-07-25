@@ -1669,23 +1669,17 @@ pub struct UnkBone {
 
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct SkeletonUnk5 {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    pub unk1: u32,
-
-    #[br(temp, restore_position)]
-    offsets: [u32; 2],
-
-    // TODO: count and element size?
-    #[br(parse_with = parse_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: (offsets[1] - offsets[0]) as usize / 4 }})]
-    #[xc3(offset(u32))]
-    pub unk2: Vec<f32>,
+    #[br(parse_with = parse_count32_offset32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(count_offset(u32, u32))]
+    pub unk1: Vec<SkeletonUnk5Unk1>,
 
     // TODO: count?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
@@ -1694,6 +1688,25 @@ pub struct SkeletonUnk5 {
 
     // TODO: padding?
     pub unk: [u32; 5],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct SkeletonUnk5Unk1 {
+    pub unk1: [[f32; 4]; 4],
+    pub unk2: u32,
+
+    // TODO: all unk3 and then all unk4?
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub unk3: Vec<[f32; 2]>,
+
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub unk4: Vec<u32>,
+
+    pub unk7: [f32; 15],
 }
 
 // TODO: Data for AS_ bones?
@@ -2199,6 +2212,30 @@ impl<'a> Xc3WriteOffsets for PackedExternalTexturesOffsets<'a> {
                 .name
                 .write_full(writer, base_offset, data_ptr, endian)?;
         }
+        Ok(())
+    }
+}
+
+impl<'a> Xc3WriteOffsets for SkeletonUnk5Offsets<'a> {
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        _base_offset: u64,
+        data_ptr: &mut u64,
+        endian: xc3_write::Endian,
+    ) -> xc3_write::Xc3Result<()> {
+        let base_offset = self.base_offset;
+
+        let unk1 = self.unk1.write(writer, base_offset, data_ptr, endian)?;
+        for u in &unk1.0 {
+            u.unk3.write_full(writer, base_offset, data_ptr, endian)?;
+        }
+        for u in &unk1.0 {
+            u.unk4.write_full(writer, base_offset, data_ptr, endian)?;
+        }
+        self.unk_offset
+            .write_full(writer, base_offset, data_ptr, endian)?;
+
         Ok(())
     }
 }
