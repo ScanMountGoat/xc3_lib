@@ -228,26 +228,15 @@ fn assign_parameters(
     material: &xc3_lib::mxmd::Material,
     work_values: &[f32],
 ) -> Option<MaterialParameters> {
-    let mut work_values = work_values.to_vec();
+    let callback_start = material.callback_start_index as usize;
+    let callbacks = materials
+        .callbacks
+        .as_ref()?
+        .work_callbacks
+        .get(callback_start..callback_start + material.callback_count as usize)
+        .unwrap_or_default();
 
-    // Callbacks are applied directly to the work values.
-    if let Some(callbacks) = &materials.callbacks {
-        let start = material.callback_start_index as usize;
-        if let Some(callbacks) = callbacks
-            .work_callbacks
-            .get(start..start + material.callback_count as usize)
-        {
-            // TODO: What do the remaining callback types do?
-            for callback in callbacks {
-                // (26, i) for dividing work value i value by 255?
-                if callback.0 == 26 {
-                    if let Some(value) = work_values.get_mut(callback.1 as usize) {
-                        *value /= 255.0;
-                    }
-                }
-            }
-        }
-    }
+    let work_values = apply_callbacks(work_values, callbacks);
 
     // TODO: alpha test ref?
     let mut parameters = MaterialParameters {
@@ -271,6 +260,7 @@ fn assign_parameters(
                 xc3_lib::mxmd::ParamType::WorkColor => {
                     parameters.work_color = Some(read_param(param, &work_values));
                 }
+                // TODO: Find the corresponding uniform name.
                 xc3_lib::mxmd::ParamType::Unk4 => (),
                 xc3_lib::mxmd::ParamType::Unk5 => (),
                 xc3_lib::mxmd::ParamType::Unk6 => (),
@@ -281,6 +271,22 @@ fn assign_parameters(
     }
 
     Some(parameters)
+}
+
+fn apply_callbacks(work_values: &[f32], callbacks: &[(u16, u16)]) -> Vec<f32> {
+    let mut work_values = work_values.to_vec();
+
+    // Callbacks are applied directly to the work values.
+    // TODO: What do the remaining callback types do?
+    for callback in callbacks {
+        // (26, i) for dividing work value i value by 255?
+        if callback.0 == 26 {
+            if let Some(value) = work_values.get_mut(callback.1 as usize) {
+                *value /= 255.0;
+            }
+        }
+    }
+    work_values
 }
 
 fn read_param<const N: usize>(
@@ -605,5 +611,45 @@ fn extract_parameter(p: &BufferDependency, parameters: &MaterialParameters) -> O
         ("U_Mate", "gWrkFl4") => Some(parameters.work_float4.as_ref()?.get(p.index)?[c]),
         ("U_Mate", "gWrkCol") => Some(parameters.work_color.as_ref()?.get(p.index)?[c]),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn apply_material_callbacks() {
+        // xeno3/chr/ch/ch01011013.wimdo, "body"
+        let work_values: Vec<_> = (0..24).map(|i| i as f32).collect();
+        assert_eq!(
+            vec![
+                0.0,
+                1.0,
+                2.0,
+                3.0,
+                4.0,
+                5.0,
+                6.0,
+                7.0,
+                8.0,
+                9.0,
+                10.0,
+                11.0 / 255.0,
+                12.0,
+                13.0,
+                14.0,
+                15.0,
+                16.0,
+                17.0,
+                18.0,
+                19.0,
+                20.0,
+                21.0,
+                22.0,
+                23.0
+            ],
+            apply_callbacks(&work_values, &[(26, 11), (36, 15)])
+        );
     }
 }
