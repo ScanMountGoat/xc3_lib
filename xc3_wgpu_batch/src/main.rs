@@ -314,11 +314,8 @@ fn save_screenshot(
         block_on(rx.receive()).unwrap().unwrap();
 
         let data = buffer_slice.get_mapped_range();
-        let mut buffer =
+        let buffer =
             ImageBuffer::<image::Rgba<u8>, _>::from_raw(WIDTH, HEIGHT, data.to_owned()).unwrap();
-        // Convert BGRA to RGBA.
-        buffer.pixels_mut().for_each(|p| p.0.swap(0, 2));
-
         buffer.save(output_path).unwrap();
     }
     output_buffer.unmap();
