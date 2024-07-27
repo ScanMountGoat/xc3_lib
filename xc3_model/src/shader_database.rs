@@ -17,9 +17,6 @@ use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 use thiserror::Error;
 
-#[cfg(feature = "arbitrary")]
-use crate::arbitrary_smolstr;
-
 mod io;
 
 #[derive(Debug, Error)]
@@ -134,39 +131,29 @@ pub enum Dependency {
 }
 
 /// A single buffer access like `UniformBuffer.field[0].y` in GLSL.
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Serialize, Deserialize)]
 pub struct BufferDependency {
-    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_smolstr))]
     pub name: SmolStr,
-    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_smolstr))]
     pub field: SmolStr,
     pub index: usize,
-    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_smolstr))]
     pub channels: SmolStr,
 }
 
 /// A single texture access like `texture(s0, tex0.xy).rgb` in GLSL.
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct TextureDependency {
-    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_smolstr))]
     pub name: SmolStr,
-    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_smolstr))]
     pub channels: SmolStr,
     /// Texture coordinate values used for the texture function call.
     pub texcoords: Vec<TexCoord>,
 }
 
 /// A texture coordinate attribute with optional transform parameters.
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct TexCoord {
     /// The name of the attribute like "in_attr4".
-    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_smolstr))]
     pub name: SmolStr,
     /// The accessed channels like "x" or "y".
-    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_smolstr))]
     pub channels: SmolStr,
     pub params: Option<TexCoordParams>,
 }
@@ -185,12 +172,9 @@ pub enum TexCoordParams {
 }
 
 /// A single input attribute like `in_attr0.x` in GLSL.
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct AttributeDependency {
-    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_smolstr))]
     pub name: SmolStr,
-    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_smolstr))]
     pub channels: SmolStr,
 }
 
@@ -292,7 +276,54 @@ fn material_sampler_index(sampler: &str) -> usize {
     }
 }
 
-// TODO: Do this for other types that use with to be cleaner.
+#[cfg(feature = "arbitrary")]
+impl<'a> arbitrary::Arbitrary<'a> for AttributeDependency {
+    fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
+        let output_dependencies: Vec<(String, Vec<Dependency>)> = u.arbitrary()?;
+        Ok(Self {
+            name: crate::arbitrary_smolstr(u)?,
+            channels: crate::arbitrary_smolstr(u)?,
+        })
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> arbitrary::Arbitrary<'a> for BufferDependency {
+    fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
+        let output_dependencies: Vec<(String, Vec<Dependency>)> = u.arbitrary()?;
+        Ok(Self {
+            name: crate::arbitrary_smolstr(u)?,
+            field: crate::arbitrary_smolstr(u)?,
+            index: u.arbitrary()?,
+            channels: crate::arbitrary_smolstr(u)?,
+        })
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> arbitrary::Arbitrary<'a> for TextureDependency {
+    fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
+        let output_dependencies: Vec<(String, Vec<Dependency>)> = u.arbitrary()?;
+        Ok(Self {
+            name: crate::arbitrary_smolstr(u)?,
+            channels: crate::arbitrary_smolstr(u)?,
+            texcoords: u.arbitrary()?,
+        })
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> arbitrary::Arbitrary<'a> for TexCoord {
+    fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
+        let output_dependencies: Vec<(String, Vec<Dependency>)> = u.arbitrary()?;
+        Ok(Self {
+            name: crate::arbitrary_smolstr(u)?,
+            channels: crate::arbitrary_smolstr(u)?,
+            params: u.arbitrary()?,
+        })
+    }
+}
+
 #[cfg(feature = "arbitrary")]
 impl<'a> arbitrary::Arbitrary<'a> for ShaderProgram {
     fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
