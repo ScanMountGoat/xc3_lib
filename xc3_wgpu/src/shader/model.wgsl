@@ -409,6 +409,14 @@ fn transform_uv(uv: vec2<f32>, matrix: array<vec4<f32>, 2>) -> vec2<f32> {
     return vec2(dot(v, matrix[0]), dot(v, matrix[1]));
 }
 
+fn overlay_blend(a: vec3<f32>, b: vec3<f32>) -> vec3<f32> {
+    // Trick to avoid a conditional branch from xenox/chr_fc/fc281011.camdo.
+    let is_a_gt_half = clamp((a - vec3(0.5)) * 1000.0, vec3(0.0), vec3(1.0));
+    let screen = 1.0 - 2.0 * (1.0 - a) * (1.0 - b);
+    let multiply = 2.0 * a * b;
+    return screen * is_a_gt_half + multiply * (1.0 - is_a_gt_half);
+}
+
 @fragment
 fn fs_alpha(in: VertexOutput) -> @location(0) vec4<f32> {
     let s0_color = textureSample(s0, s0_sampler, transform_uv(in.tex0, per_material.texture_transforms[0]));
@@ -552,7 +560,9 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     // TODO: How much shading is done in this pass?
     // TODO: Is it ok to always apply gMatCol like this?
     var out: FragmentOutput;
-    // TODO: Detect multiply by vertex color?
+    // TODO: Detect multiply by vertex color and gMatCol.
+    // TODO: Just detect if gMatCol is part of the technique parameters?
+    // TODO: Create a separate entry point fs_outline that always uses vertex color?
     out.g_color = g_color * per_material.mat_color;
     out.g_etc_buffer = mrt_etc_buffer(g_etc_buffer, view_normal);
     out.g_normal = mrt_normal(view_normal, g_normal.z);

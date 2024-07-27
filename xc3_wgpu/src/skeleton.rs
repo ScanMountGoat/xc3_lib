@@ -44,6 +44,7 @@ impl BoneRenderer {
             }),
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
+            cache: None,
         });
 
         let bind_group0 = crate::shader::bone::bind_groups::BindGroup0::from_bindings(

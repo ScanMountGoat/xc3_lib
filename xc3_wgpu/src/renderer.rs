@@ -1063,6 +1063,7 @@ fn deferred_pipeline(device: &wgpu::Device, entry_point: &str) -> wgpu::RenderPi
         }),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
+        cache: None,
     })
 }
 
@@ -1096,6 +1097,7 @@ fn deferred_debug_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
         }),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
+        cache: None,
     })
 }
 
@@ -1128,6 +1130,7 @@ fn solid_pipeline(device: &wgpu::Device, format: wgpu::TextureFormat) -> wgpu::R
         }),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
+        cache: None,
     })
 }
 
@@ -1156,6 +1159,7 @@ fn unbranch_to_depth_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
         }),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
+        cache: None,
     })
 }
 
@@ -1200,6 +1204,7 @@ fn snn_filter_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
         }),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
+        cache: None,
     })
 }
 
@@ -1240,6 +1245,7 @@ fn blit_hair_pipeline(device: &wgpu::Device, format: wgpu::TextureFormat) -> wgp
         }),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
+        cache: None,
     })
 }
 
@@ -1265,6 +1271,7 @@ fn blit_pipeline(device: &wgpu::Device, format: wgpu::TextureFormat) -> wgpu::Re
         }),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
+        cache: None,
     })
 }
 

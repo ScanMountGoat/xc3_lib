@@ -86,6 +86,7 @@ impl<'a> State<'a> {
                         max_color_attachment_bytes_per_sample: 48,
                         ..Default::default()
                     },
+                    memory_hints: wgpu::MemoryHints::default(),
                 },
                 None,
             )

@@ -147,6 +147,7 @@ fn model_pipeline_inner<const N: usize>(
         }),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
+        cache: None,
     })
 }
 

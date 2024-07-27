@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 xc3_wgpu = { path = "../xc3_wgpu" }
 xc3_model = { path = "../xc3_model" }
-wgpu = "0.20.0"
+wgpu = "22.0.0"
 futures = "0.3.27"
 futures-intrusive = "0.4.0"
 globwalk = "0.9.1"
