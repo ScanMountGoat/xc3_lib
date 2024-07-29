@@ -83,6 +83,9 @@ pub struct MorphTarget {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct OutlineBuffer {
+    /// The additional attributes used for outline mesh rendering.
+    /// This should usually be [AttributeData::Normal] and [AttributeData::VertexColor].
+    /// Buffers for meshes with [MorphTarget] should omit the [AttributeData::Normal].
     pub attributes: Vec<AttributeData>,
 }
 
@@ -1031,6 +1034,8 @@ fn read_outline_buffer(
 ) -> BinResult<Vec<AttributeData>> {
     if descriptor.vertex_size == 8 {
         // vNormal and vColor in shaders.
+        // Buffer 0: vertex buffer
+        // Buffer 1: outline buffer
         Ok(vec![
             AttributeData::Normal(read_outline_attribute(
                 descriptor,
@@ -1047,6 +1052,9 @@ fn read_outline_buffer(
         ])
     } else {
         // vColor in shaders.
+        // Buffer 0: vertex buffer
+        // Buffer 1: outline buffer
+        // Buffer 2: morph target
         Ok(vec![AttributeData::VertexColor(read_outline_attribute(
             descriptor,
             0,
