@@ -34,6 +34,7 @@ use xc3_lib::{
 };
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
+// TODO: Avoid redundant loads for wimdo and wismhd
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]
@@ -1017,44 +1018,55 @@ fn check_all_wimdo_model<P: AsRef<Path>>(root: P, check_read_write: bool) {
             let path = entry.as_ref().unwrap().path();
 
             // Test reimporting models without any changes.
-            let mxmd = Mxmd::from_file(path).unwrap();
-            let msrd = mxmd
-                .streaming
-                .is_some()
-                .then(|| Msrd::from_file(path.with_extension("wismt")).unwrap());
-            let streaming_data =
-                xc3_model::StreamingData::new(&mxmd, &path.with_extension("wismt"), false, None)
+            match Mxmd::from_file(path) {
+                Ok(mxmd) => {
+                    let msrd = mxmd
+                        .streaming
+                        .is_some()
+                        .then(|| Msrd::from_file(path.with_extension("wismt")).unwrap());
+                    let streaming_data = xc3_model::StreamingData::new(
+                        &mxmd,
+                        &path.with_extension("wismt"),
+                        false,
+                        None,
+                    )
                     .unwrap();
 
-            match xc3_model::ModelRoot::from_mxmd_model(&mxmd, None, &streaming_data, None) {
-                Ok(root) => {
-                    // TODO: Create a function that loads files from wimdo path?
-                    // TODO: Should this take the msrd or streaming?
-                    // TODO: Is it worth being able to test this without compression?
-                    if check_read_write {
-                        // TODO: Should to_mxmd_model make the msrd optional?
-                        if let Some(msrd) = msrd {
-                            let (new_mxmd, new_msrd) = root.to_mxmd_model(&mxmd, &msrd);
-                            match new_msrd.extract_files(None) {
-                                Ok((new_vertex, _, _)) => {
-                                    if &new_vertex != streaming_data.vertex.as_ref() {
-                                        println!("VertexData not 1:1 for {path:?}")
+                    match xc3_model::ModelRoot::from_mxmd_model(&mxmd, None, &streaming_data, None)
+                    {
+                        Ok(root) => {
+                            // TODO: Create a function that loads files from wimdo path?
+                            // TODO: Should this take the msrd or streaming?
+                            // TODO: Is it worth being able to test this without compression?
+                            if check_read_write {
+                                // TODO: Should to_mxmd_model make the msrd optional?
+                                if let Some(msrd) = msrd {
+                                    let (new_mxmd, new_msrd) = root.to_mxmd_model(&mxmd, &msrd);
+                                    match new_msrd.extract_files(None) {
+                                        Ok((new_vertex, _, _)) => {
+                                            if &new_vertex != streaming_data.vertex.as_ref() {
+                                                println!("VertexData not 1:1 for {path:?}")
+                                            }
+                                        }
+                                        Err(e) => {
+                                            println!("Error extracting new msrd for {path:?}: {e}")
+                                        }
+                                    }
+
+                                    // TODO: How many of these fields should be preserved?
+                                    if new_mxmd.models.alpha_table != mxmd.models.alpha_table {
+                                        println!("Alpha table not 1:1 for {path:?}");
+                                    }
+                                    if new_mxmd.models.models != mxmd.models.models {
+                                        println!("Model list not 1:1 for {path:?}");
                                     }
                                 }
-                                Err(e) => println!("Error extracting new msrd for {path:?}: {e}"),
-                            }
-
-                            // TODO: How many of these fields should be preserved?
-                            if new_mxmd.models.alpha_table != mxmd.models.alpha_table {
-                                println!("Alpha table not 1:1 for {path:?}");
-                            }
-                            if new_mxmd.models.models != mxmd.models.models {
-                                println!("Model list not 1:1 for {path:?}");
                             }
                         }
+                        Err(e) => println!("Error loading {path:?}: {e}"),
                     }
                 }
-                Err(e) => println!("Error loading {path:?}: {e}"),
+                Err(e) => println!("Error reading {path:?}: {e}"),
             }
         });
 }
