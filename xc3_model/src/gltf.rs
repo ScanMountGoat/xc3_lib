@@ -113,7 +113,7 @@ impl GltfData {
         let buffer_name = format!("{model_name}.buffer0.bin");
 
         let buffer = gltf::json::Buffer {
-            byte_length: self.buffers.buffer_bytes.len() as u32,
+            byte_length: self.buffers.buffer_bytes.len().into(),
             extensions: Default::default(),
             extras: Default::default(),
             name: None,

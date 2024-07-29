@@ -387,8 +387,8 @@ impl Buffers {
             // Assume everything uses the same buffer for now.
             let view = gltf::json::buffer::View {
                 buffer: gltf::json::Index::new(0),
-                byte_length: index_bytes.len() as u32,
-                byte_offset: Some(self.buffer_bytes.len() as u32),
+                byte_length: index_bytes.len().into(),
+                byte_offset: Some(self.buffer_bytes.len().into()),
                 byte_stride: None,
                 extensions: Default::default(),
                 extras: Default::default(),
@@ -398,8 +398,8 @@ impl Buffers {
 
             let indices = gltf::json::Accessor {
                 buffer_view: Some(gltf::json::Index::new(self.buffer_views.len() as u32)),
-                byte_offset: Some(0),
-                count: index_buffer.indices.len() as u32,
+                byte_offset: Some(gltf::json::validation::USize64(0)),
+                count: index_buffer.indices.len().into(),
                 component_type: Valid(gltf::json::accessor::GenericComponentType(
                     gltf::json::accessor::ComponentType::U16,
                 )),
@@ -569,9 +569,10 @@ impl Buffers {
         // Each attribute is in its own section and thus has its own view.
         let view = gltf::json::buffer::View {
             buffer: gltf::json::Index::new(0),
-            byte_length: attribute_bytes.len() as u32,
-            byte_offset: Some(self.buffer_bytes.len() as u32),
-            byte_stride: byte_stride.then_some(std::mem::size_of::<T>() as u32),
+            byte_length: attribute_bytes.len().into(),
+            byte_offset: Some(self.buffer_bytes.len().into()),
+            byte_stride: byte_stride
+                .then_some(gltf::json::buffer::Stride(std::mem::size_of::<T>())),
             extensions: Default::default(),
             extras: Default::default(),
             name: None,
@@ -583,8 +584,8 @@ impl Buffers {
 
         let accessor = gltf::json::Accessor {
             buffer_view: Some(gltf::json::Index::new(self.buffer_views.len() as u32)),
-            byte_offset: Some(0),
-            count: values.len() as u32,
+            byte_offset: Some(gltf::json::validation::USize64(0)),
+            count: values.len().into(),
             component_type: Valid(gltf::json::accessor::GenericComponentType(component_type)),
             extensions: Default::default(),
             extras: Default::default(),

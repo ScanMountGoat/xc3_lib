@@ -338,7 +338,6 @@ pub fn update_wimdo_from_folder(
 
     // Replace all textures to support adding or deleting textures.
     let mut mibls: Vec<_> = std::fs::read_dir(input_folder)?
-        .into_iter()
         .filter_map(|e| {
             let path = e.unwrap().path();
             image_index(&path, input).and_then(|i| {
