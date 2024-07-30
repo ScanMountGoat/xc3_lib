@@ -12,6 +12,7 @@ use crate::{
     align,
     error::DecompressStreamError,
     mibl::Mibl,
+    mtxt::Mtxt,
     mxmd::TextureUsage,
     spch::Spch,
     vertex::VertexData,
@@ -71,6 +72,13 @@ impl ExtractedTexture<Mibl, TextureUsage> {
                     .unwrap_or(Cow::Borrowed(&h.mid))
             })
             .unwrap_or(Cow::Borrowed(&self.low))
+    }
+}
+
+impl ExtractedTexture<Mtxt, crate::mxmd::legacy::TextureUsage> {
+    /// Returns the highest possible quality [Mtxt] after trying low and high.
+    pub fn mtxt_final(&self) -> &Mtxt {
+        self.high.as_ref().map(|h| &h.mid).unwrap_or(&self.low)
     }
 }
 

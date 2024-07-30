@@ -119,7 +119,6 @@ pub struct StreamingDataLegacy {
     pub texture_data_compressed_size: u32,
 }
 
-// TODO Make this generic over the packed texture type?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]

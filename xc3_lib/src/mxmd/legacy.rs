@@ -48,7 +48,7 @@ pub struct MxmdLegacy {
     /// Streaming information for the .casmt file or [None] if no .casmt file.
     #[br(parse_with = parse_opt_ptr32)]
     #[xc3(offset(u32))]
-    pub streaming: Option<StreamingLegacy>,
+    pub streaming: Option<Streaming>,
 
     // TODO: padding?
     pub unk: [u32; 7],
@@ -485,13 +485,13 @@ pub enum TextureUsage {
     Cube = 65569,
 }
 
-// TODO: Nearly identical to StreamingDataLegacy but not compressed?
+// TODO: Nearly identical to legacy wimdo but not compressed?
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
-pub struct StreamingLegacy {
+pub struct Streaming {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 

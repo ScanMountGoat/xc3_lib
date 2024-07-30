@@ -558,12 +558,7 @@ pub fn extract_camdo_to_folder(
             .extract_textures(low_data, high_data, |bytes| Mtxt::from_bytes(bytes))?;
 
         for (i, texture) in textures.iter().enumerate() {
-            let dds = texture
-                .high
-                .as_ref()
-                .map(|h| &h.mid)
-                .unwrap_or(&texture.low)
-                .to_dds()?;
+            let dds = texture.mtxt_final().to_dds()?;
 
             let path = output_folder
                 .join(file_name)

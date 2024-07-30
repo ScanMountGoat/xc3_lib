@@ -333,11 +333,7 @@ pub fn load_textures_legacy(
             image_textures = textures
                 .into_iter()
                 .map(|t| {
-                    ImageTexture::from_mtxt(
-                        t.high.as_ref().map(|h| &h.mid).unwrap_or(&t.low),
-                        Some(t.name),
-                        Some(t.usage),
-                    )
+                    ImageTexture::from_mtxt(t.mtxt_final(), Some(t.name.clone()), Some(t.usage))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             low_texture_indices = indices;
