@@ -722,11 +722,12 @@ fn write_low_textures(
     ))
 }
 
+// TODO: Find a way to share code with casmt.
 impl StreamingDataLegacy {
     pub fn extract_textures(
         &self,
         data: &[u8],
-    ) -> Result<Vec<ExtractedTexture<Mibl>>, DecompressStreamError> {
+    ) -> Result<(Vec<u16>, Vec<ExtractedTexture<Mibl>>), DecompressStreamError> {
         // Start with lower resolution textures.
         let low_data = self.low_texture_data(data)?;
 
@@ -765,7 +766,8 @@ impl StreamingDataLegacy {
             }
         }
 
-        Ok(textures)
+        // Material texture indices can be remapped.
+        Ok((self.low_texture_indices.clone(), textures))
     }
 
     fn low_texture_data<'a>(&self, data: &'a [u8]) -> Result<Cow<'a, [u8]>, DecompressStreamError> {

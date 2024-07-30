@@ -99,6 +99,7 @@ pub struct Texture {
 
 pub fn create_materials(
     materials: &Materials,
+    texture_indices: Option<&[u16]>,
     model_programs: Option<&ModelPrograms>,
 ) -> Vec<Material> {
     materials
@@ -111,9 +112,19 @@ pub fn create_materials(
             let textures = material
                 .textures
                 .iter()
-                .map(|texture| Texture {
-                    image_texture_index: texture.texture_index as usize,
-                    sampler_index: texture.sampler_index as usize,
+                .map(|texture| {
+                    // Legacy models can remap material texture indices.
+                    Texture {
+                        image_texture_index: texture_indices
+                            .map(|indices| {
+                                indices
+                                    .iter()
+                                    .position(|i| *i == texture.texture_index)
+                                    .unwrap_or_default()
+                            })
+                            .unwrap_or(texture.texture_index as usize),
+                        sampler_index: texture.sampler_index as usize,
+                    }
                 })
                 .collect();
 

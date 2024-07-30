@@ -504,7 +504,8 @@ pub struct StreamingLegacy {
     #[xc3(offset(u32))]
     pub textures: Option<PackedExternalTextures>,
 
-    // TODO: Why are these necessary?
+    /// The index referenced by the material texture's [texture_index](struct.Texture.html#structfield.texture_index)
+    /// for each of the textures in [low_textures](#structfield.low_textures).
     #[br(parse_with = parse_ptr32)]
     #[br(args {
         offset: base_offset,
@@ -513,6 +514,8 @@ pub struct StreamingLegacy {
     #[xc3(offset(u32))]
     pub low_texture_indices: Vec<u16>,
 
+    /// Index into [low_textures](#structfield.low_textures) for each of the higher resolution textures.
+    /// This allows assigning higher resolution versions to only some of the textures.
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args {
         offset: base_offset,

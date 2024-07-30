@@ -232,6 +232,7 @@ impl Models {
     pub fn from_models(
         models: &xc3_lib::mxmd::Models,
         materials: &xc3_lib::mxmd::Materials,
+        texture_indices: Option<&[u16]>,
         model_programs: Option<&shader_database::ModelPrograms>,
     ) -> Self {
         Self {
@@ -242,7 +243,7 @@ impl Models {
                     Model::from_model(model, vec![Mat4::IDENTITY], 0, models.alpha_table.as_ref())
                 })
                 .collect(),
-            materials: create_materials(materials, model_programs),
+            materials: create_materials(materials, texture_indices, model_programs),
             samplers: create_samplers(materials),
             lod_data: models.lod_data.as_ref().map(lod_data),
             morph_controller_names: models
@@ -264,6 +265,7 @@ impl Models {
         models: &xc3_lib::mxmd::legacy::Models,
         materials: &xc3_lib::mxmd::legacy::Materials,
         model_programs: Option<&shader_database::ModelPrograms>,
+        texture_indices: &[u16],
     ) -> Self {
         // TODO: move material code to material module
         Self {
@@ -280,9 +282,15 @@ impl Models {
                     textures: m
                         .textures
                         .iter()
-                        .map(|t| Texture {
-                            image_texture_index: t.texture_index as usize,
-                            sampler_index: 0,
+                        .map(|t| {
+                            // Texture indices are remapped by some models like chr_np/np025301.camdo.
+                            Texture {
+                                image_texture_index: texture_indices
+                                    .iter()
+                                    .position(|i| *i == t.texture_index)
+                                    .unwrap_or_default(),
+                                sampler_index: 0,
+                            }
                         })
                         .collect(),
                     alpha_test: materials.alpha_test_textures.first().and_then(|a| {
@@ -690,7 +698,12 @@ impl ModelRoot {
             ModelBuffers::from_vertex_data(&streaming_data.vertex, mxmd.models.skinning.as_ref())
                 .map_err(LoadModelError::VertexData)?;
 
-        let models = Models::from_models(&mxmd.models, &mxmd.materials, model_programs);
+        let models = Models::from_models(
+            &mxmd.models,
+            &mxmd.materials,
+            streaming_data.texture_indices.as_deref(),
+            model_programs,
+        );
 
         let image_textures = load_textures(&streaming_data.textures)?;
 
@@ -715,9 +728,14 @@ impl ModelRoot {
         let buffers = ModelBuffers::from_vertex_data_legacy(&mxmd.vertex, &mxmd.models)
             .map_err(LoadModelError::VertexData)?;
 
-        let models = Models::from_models_legacy(&mxmd.models, &mxmd.materials, model_programs);
+        let (texture_indices, image_textures) = load_textures_legacy(mxmd, casmt)?;
 
-        let image_textures = load_textures_legacy(mxmd, casmt)?;
+        let models = Models::from_models_legacy(
+            &mxmd.models,
+            &mxmd.materials,
+            model_programs,
+            &texture_indices,
+        );
 
         Ok(Self {
             models,
@@ -773,6 +791,7 @@ fn load_wimdo(wimdo_path: &Path) -> Result<Mxmd, LoadModelError> {
 pub struct StreamingData<'a> {
     pub vertex: Cow<'a, xc3_lib::vertex::VertexData>,
     pub textures: ExtractedTextures,
+    pub texture_indices: Option<Vec<u16>>,
 }
 
 impl<'a> StreamingData<'a> {
@@ -794,6 +813,8 @@ impl<'a> StreamingData<'a> {
                         })
                     })?;
 
+                    let (texture_indices, textures) = legacy.extract_textures(&data)?;
+
                     // TODO: Error on missing vertex data?
                     Ok(StreamingData {
                         vertex: Cow::Borrowed(
@@ -801,7 +822,8 @@ impl<'a> StreamingData<'a> {
                                 .as_ref()
                                 .ok_or(LoadModelError::MissingMxmdVertexData)?,
                         ),
-                        textures: ExtractedTextures::Switch(legacy.extract_textures(&data)?),
+                        textures: ExtractedTextures::Switch(textures),
+                        texture_indices: Some(texture_indices),
                     })
                 }
                 xc3_lib::msrd::StreamingInner::Streaming(_) => {
@@ -812,6 +834,7 @@ impl<'a> StreamingData<'a> {
                         Ok(StreamingData {
                             vertex: Cow::Owned(vertex),
                             textures: ExtractedTextures::Pc(textures),
+                            texture_indices: None,
                         })
                     } else {
                         let (vertex, _, textures) = msrd.extract_files(chr_tex_folder)?;
@@ -819,34 +842,38 @@ impl<'a> StreamingData<'a> {
                         Ok(StreamingData {
                             vertex: Cow::Owned(vertex),
                             textures: ExtractedTextures::Switch(textures),
+                            texture_indices: None,
                         })
                     }
                 }
             })
             .unwrap_or_else(|| {
+                let textures = match &mxmd.packed_textures {
+                    Some(textures) => textures
+                        .textures
+                        .iter()
+                        .map(|t| {
+                            Ok(ExtractedTexture {
+                                name: t.name.clone(),
+                                usage: t.usage,
+                                low: Mibl::from_bytes(&t.mibl_data).map_err(|e| {
+                                    LoadModelError::WimdoPackedTexture { source: e }
+                                })?,
+                                high: None,
+                            })
+                        })
+                        .collect::<Result<Vec<_>, LoadModelError>>()?,
+                    None => Vec::new(),
+                };
+
                 Ok(StreamingData {
                     vertex: Cow::Borrowed(
                         mxmd.vertex_data
                             .as_ref()
                             .ok_or(LoadModelError::MissingMxmdVertexData)?,
                     ),
-                    textures: ExtractedTextures::Switch(match &mxmd.packed_textures {
-                        Some(textures) => textures
-                            .textures
-                            .iter()
-                            .map(|t| {
-                                Ok(ExtractedTexture {
-                                    name: t.name.clone(),
-                                    usage: t.usage,
-                                    low: Mibl::from_bytes(&t.mibl_data).map_err(|e| {
-                                        LoadModelError::WimdoPackedTexture { source: e }
-                                    })?,
-                                    high: None,
-                                })
-                            })
-                            .collect::<Result<Vec<_>, LoadModelError>>()?,
-                        None => Vec::new(),
-                    }),
+                    textures: ExtractedTextures::Switch(textures),
+                    texture_indices: None,
                 })
             })
     }

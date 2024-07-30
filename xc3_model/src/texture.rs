@@ -296,7 +296,7 @@ pub fn load_textures(
 pub fn load_textures_legacy(
     mxmd: &MxmdLegacy,
     casmt: Option<Vec<u8>>,
-) -> Result<Vec<ImageTexture>, CreateImageTextureError> {
+) -> Result<(Vec<u16>, Vec<ImageTexture>), CreateImageTextureError> {
     let mut image_textures: Vec<_> = mxmd
         .packed_textures
         .as_ref()
@@ -312,6 +312,9 @@ pub fn load_textures_legacy(
         })
         .transpose()?
         .unwrap_or_default();
+
+    // Material texture indices can be remapped.
+    let mut low_texture_indices: Vec<_> = (0..image_textures.len() as u16).collect();
 
     // TODO: Share code for loading streaming data with legacy mibl data?
     if let Some(streaming) = &mxmd.streaming {
@@ -349,10 +352,12 @@ pub fn load_textures_legacy(
                         .unwrap_or_else(|| ImageTexture::from_mtxt(&t.2, Some(t.0), Some(t.1)))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
+
+            low_texture_indices = streaming.low_texture_indices.clone();
         }
     }
 
-    Ok(image_textures)
+    Ok((low_texture_indices, image_textures))
 }
 
 #[cfg(feature = "arbitrary")]

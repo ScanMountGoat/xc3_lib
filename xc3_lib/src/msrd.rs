@@ -71,6 +71,7 @@ pub struct Msrd {
     pub streaming: Streaming,
 }
 
+// TODO: Move this to mxmd?
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
@@ -105,6 +106,7 @@ pub enum StreamingInner {
 pub struct StreamingDataLegacy {
     pub flags: StreamingFlagsLegacy,
 
+    // TODO: This can share types with camdo.
     #[br(parse_with = parse_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub low_textures: PackedExternalTextures,
@@ -113,12 +115,15 @@ pub struct StreamingDataLegacy {
     #[xc3(offset(u32))]
     pub textures: Option<PackedExternalTextures>,
 
-    // TODO: Why are these necessary?
+    /// The index referenced by the material texture's [texture_index](../mxmd/struct.Texture.html#structfield.texture_index).
+    /// for each of the textures in [low_textures](#structfield.low_textures).
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: low_textures.textures.len() }})]
     #[xc3(offset(u32))]
     pub low_texture_indices: Vec<u16>,
 
+    /// Index into [low_textures](#structfield.low_textures) for each of the higher resolution textures.
+    /// This allows assigning higher resolution versions to only some of the textures.
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args {
         offset: base_offset,

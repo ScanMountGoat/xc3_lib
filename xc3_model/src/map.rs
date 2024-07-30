@@ -353,7 +353,7 @@ fn load_prop_model_group(
     // TODO: Group by vertex data index?
     // TODO: empty groups?
 
-    let mut materials = create_materials(&model_data.materials, model_programs);
+    let mut materials = create_materials(&model_data.materials, None, model_programs);
     apply_material_texture_indices(&mut materials, material_root_texture_indices);
 
     let samplers = create_samplers(&model_data.materials);
@@ -504,7 +504,7 @@ fn load_map_model_group(
 ) -> Models {
     let model_programs = map_programs.and_then(|map| map.map_models.get(model_index));
 
-    let mut materials = create_materials(&model_data.materials, model_programs);
+    let mut materials = create_materials(&model_data.materials, None, model_programs);
     apply_material_texture_indices(&mut materials, material_root_texture_indices);
 
     let samplers = create_samplers(&model_data.materials);
@@ -575,6 +575,7 @@ fn load_env_model(
             models: vec![Models::from_models(
                 &model_data.models,
                 &model_data.materials,
+                None,
                 model_programs,
             )],
             buffers: vec![buffers],
