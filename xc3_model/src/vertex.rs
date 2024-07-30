@@ -263,94 +263,41 @@ impl AttributeData {
         stride: u64,
         endian: Endian,
     ) -> BinResult<()> {
+        let d = AttributeWriteArgs {
+            offset,
+            stride,
+            endian,
+        };
         match self {
-            AttributeData::Position(values) => {
-                write_data(writer, values, offset, stride, endian, write_f32x3)
-            }
-            AttributeData::SkinWeights2(values) => {
-                write_data(writer, values, offset, stride, endian, write_f32x3)
-            }
-            AttributeData::BoneIndices2(values) => {
-                write_data(writer, values, offset, stride, endian, write_u8x4)
-            }
-            AttributeData::WeightIndex(values) => {
-                write_data(writer, values, offset, stride, endian, write_u16x2)
-            }
-            AttributeData::WeightIndex2(values) => {
-                write_data(writer, values, offset, stride, endian, write_u16x2)
-            }
-            AttributeData::TexCoord0(values) => {
-                write_data(writer, values, offset, stride, endian, write_f32x2)
-            }
-            AttributeData::TexCoord1(values) => {
-                write_data(writer, values, offset, stride, endian, write_f32x2)
-            }
-            AttributeData::TexCoord2(values) => {
-                write_data(writer, values, offset, stride, endian, write_f32x2)
-            }
-            AttributeData::TexCoord3(values) => {
-                write_data(writer, values, offset, stride, endian, write_f32x2)
-            }
-            AttributeData::TexCoord4(values) => {
-                write_data(writer, values, offset, stride, endian, write_f32x2)
-            }
-            AttributeData::TexCoord5(values) => {
-                write_data(writer, values, offset, stride, endian, write_f32x2)
-            }
-            AttributeData::TexCoord6(values) => {
-                write_data(writer, values, offset, stride, endian, write_f32x2)
-            }
-            AttributeData::TexCoord7(values) => {
-                write_data(writer, values, offset, stride, endian, write_f32x2)
-            }
-            AttributeData::TexCoord8(values) => {
-                write_data(writer, values, offset, stride, endian, write_f32x2)
-            }
-            AttributeData::Blend(values) => {
-                write_data(writer, values, offset, stride, endian, write_unorm8x4)
-            }
-            AttributeData::Unk15(values) => {
-                write_data(writer, values, offset, stride, endian, write_f32x3)
-            }
-            AttributeData::Unk16(values) => {
-                write_data(writer, values, offset, stride, endian, write_u16x2)
-            }
-            AttributeData::VertexColor(values) => {
-                write_data(writer, values, offset, stride, endian, write_unorm8x4)
-            }
-            AttributeData::Unk18(values) => {
-                write_data(writer, values, offset, stride, endian, write_f32x3)
-            }
-            AttributeData::Normal(values) => {
-                write_data(writer, values, offset, stride, endian, write_snorm8x4)
-            }
-            AttributeData::Tangent(values) => {
-                write_data(writer, values, offset, stride, endian, write_snorm8x4)
-            }
-            AttributeData::Normal2(values) => {
-                write_data(writer, values, offset, stride, endian, write_snorm8x4)
-            }
-            AttributeData::ValInf(values) => {
-                write_data(writer, values, offset, stride, endian, write_snorm8x4)
-            }
-            AttributeData::Position2(values) => {
-                write_data(writer, values, offset, stride, endian, write_f32x3)
-            }
-            AttributeData::Normal4(values) => {
-                write_data(writer, values, offset, stride, endian, write_unorm8x4)
-            }
-            AttributeData::OldPosition(values) => {
-                write_data(writer, values, offset, stride, endian, write_f32x3)
-            }
-            AttributeData::Tangent2(values) => {
-                write_data(writer, values, offset, stride, endian, write_unorm8x4)
-            }
-            AttributeData::SkinWeights(values) => {
-                write_data(writer, values, offset, stride, endian, write_unorm16x4)
-            }
-            AttributeData::BoneIndices(values) => {
-                write_data(writer, values, offset, stride, endian, write_u8x4)
-            }
+            AttributeData::Position(values) => d.write(writer, values, write_f32x3),
+            AttributeData::SkinWeights2(values) => d.write(writer, values, write_f32x3),
+            AttributeData::BoneIndices2(values) => d.write(writer, values, write_u8x4),
+            AttributeData::WeightIndex(values) => d.write(writer, values, write_u16x2),
+            AttributeData::WeightIndex2(values) => d.write(writer, values, write_u16x2),
+            AttributeData::TexCoord0(values) => d.write(writer, values, write_f32x2),
+            AttributeData::TexCoord1(values) => d.write(writer, values, write_f32x2),
+            AttributeData::TexCoord2(values) => d.write(writer, values, write_f32x2),
+            AttributeData::TexCoord3(values) => d.write(writer, values, write_f32x2),
+            AttributeData::TexCoord4(values) => d.write(writer, values, write_f32x2),
+            AttributeData::TexCoord5(values) => d.write(writer, values, write_f32x2),
+            AttributeData::TexCoord6(values) => d.write(writer, values, write_f32x2),
+            AttributeData::TexCoord7(values) => d.write(writer, values, write_f32x2),
+            AttributeData::TexCoord8(values) => d.write(writer, values, write_f32x2),
+            AttributeData::Blend(values) => d.write(writer, values, write_unorm8x4),
+            AttributeData::Unk15(values) => d.write(writer, values, write_f32x3),
+            AttributeData::Unk16(values) => d.write(writer, values, write_u16x2),
+            AttributeData::VertexColor(values) => d.write(writer, values, write_unorm8x4),
+            AttributeData::Unk18(values) => d.write(writer, values, write_f32x3),
+            AttributeData::Normal(values) => d.write(writer, values, write_snorm8x4),
+            AttributeData::Tangent(values) => d.write(writer, values, write_snorm8x4),
+            AttributeData::Normal2(values) => d.write(writer, values, write_snorm8x4),
+            AttributeData::ValInf(values) => d.write(writer, values, write_snorm8x4),
+            AttributeData::Position2(values) => d.write(writer, values, write_f32x3),
+            AttributeData::Normal4(values) => d.write(writer, values, write_unorm8x4),
+            AttributeData::OldPosition(values) => d.write(writer, values, write_f32x3),
+            AttributeData::Tangent2(values) => d.write(writer, values, write_unorm8x4),
+            AttributeData::SkinWeights(values) => d.write(writer, values, write_unorm16x4),
+            AttributeData::BoneIndices(values) => d.write(writer, values, write_u8x4),
         }
     }
 
@@ -613,15 +560,6 @@ fn read_vertex_attributes(
     buffer: &[u8],
     endian: Endian,
 ) -> BinResult<Vec<AttributeData>> {
-    // if attributes.iter().any(|a| a.data_type == DataType::Unk15) {
-    //     dbg!(&attributes);
-    //     std::fs::write(
-    //         "out.bin",
-    //         &buffer[data_offset as usize..data_offset as usize + vertex_size as usize],
-    //     )
-    //     .unwrap();
-    // }
-
     let mut offset = 0;
     attributes
         .iter()
@@ -651,10 +589,10 @@ fn read_attribute(
     buffer: &[u8],
     endian: Endian,
 ) -> BinResult<AttributeData> {
-    let d = AttributeDescriptor {
+    let d = AttributeReadArgs {
         offset: data_offset,
-        item_count: vertex_count,
-        item_size: vertex_size,
+        count: vertex_count,
+        stride: vertex_size,
         relative_offset,
         endian,
     };
@@ -701,20 +639,20 @@ fn read_attribute(
     }
 }
 
-struct AttributeDescriptor {
+struct AttributeReadArgs {
     offset: u64,
-    item_count: u32,
-    item_size: u32,
+    count: u32,
+    stride: u32,
     relative_offset: u64,
     endian: Endian,
 }
 
-impl AttributeDescriptor {
+impl AttributeReadArgs {
     fn read<T, F>(&self, buffer: &[u8], read_item: F) -> BinResult<Vec<T>>
     where
         F: Fn(&mut Cursor<&[u8]>, Endian) -> BinResult<T>,
     {
-        if self.item_size == 0 {
+        if self.stride == 0 {
             return Err(binrw::Error::AssertFail {
                 pos: self.offset,
                 message: "Attribute stride must not be 0".to_string(),
@@ -723,14 +661,35 @@ impl AttributeDescriptor {
 
         let mut reader = Cursor::new(buffer);
 
-        let mut values = Vec::with_capacity(self.item_count.min(MAX_VERT_CAPACITY) as usize);
-        for i in 0..self.item_count as u64 {
-            let offset = self.offset + i * self.item_size as u64 + self.relative_offset;
+        let mut values = Vec::with_capacity(self.count.min(MAX_VERT_CAPACITY) as usize);
+        for i in 0..self.count as u64 {
+            let offset = self.offset + i * self.stride as u64 + self.relative_offset;
             reader.seek(SeekFrom::Start(offset))?;
 
             values.push(read_item(&mut reader, self.endian)?);
         }
         Ok(values)
+    }
+}
+
+struct AttributeWriteArgs {
+    offset: u64,
+    stride: u64,
+    endian: Endian,
+}
+
+impl AttributeWriteArgs {
+    fn write<T, F, W>(&self, writer: &mut W, values: &[T], write_item: F) -> BinResult<()>
+    where
+        W: Write + Seek,
+        F: Fn(&mut W, &T, Endian) -> BinResult<()>,
+    {
+        for (i, value) in values.iter().enumerate() {
+            writer.seek(SeekFrom::Start(self.offset + i as u64 * self.stride))?;
+            write_item(writer, value, self.endian)?;
+        }
+
+        Ok(())
     }
 }
 
@@ -884,10 +843,10 @@ fn read_outline_attribute<T, F>(
 where
     F: Fn(&mut Cursor<&[u8]>, Endian) -> BinResult<T>,
 {
-    AttributeDescriptor {
+    AttributeReadArgs {
         offset: descriptor.data_offset as u64,
-        item_count: descriptor.vertex_count,
-        item_size: descriptor.vertex_size,
+        count: descriptor.vertex_count,
+        stride: descriptor.vertex_size,
         relative_offset,
         endian: Endian::Little,
     }
@@ -1540,10 +1499,10 @@ fn read_unk_buffer_attribute<T, F>(
 where
     F: Fn(&mut Cursor<&[u8]>, Endian) -> BinResult<T>,
 {
-    AttributeDescriptor {
+    AttributeReadArgs {
         offset: data_offset + descriptor.offset as u64,
-        item_count: descriptor.count,
-        item_size: if descriptor.unk1 == 0 { 16 } else { 24 },
+        count: descriptor.count,
+        stride: if descriptor.unk1 == 0 { 16 } else { 24 },
         relative_offset,
         endian: Endian::Little,
     }
@@ -1638,12 +1597,12 @@ where
     W: Write + Seek,
     F: Fn(&mut W, &T, Endian) -> BinResult<()>,
 {
-    for (i, value) in values.iter().enumerate() {
-        writer.seek(SeekFrom::Start(offset + i as u64 * stride))?;
-        write_item(writer, value, endian)?;
+    AttributeWriteArgs {
+        offset,
+        stride,
+        endian,
     }
-
-    Ok(())
+    .write(writer, values, write_item)
 }
 
 fn write_u16x2<W: Write + Seek>(writer: &mut W, value: &[u16; 2], endian: Endian) -> BinResult<()> {
