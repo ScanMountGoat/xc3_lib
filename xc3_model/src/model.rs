@@ -331,12 +331,13 @@ fn match_attribute(
     count: usize,
 ) -> AttributeData {
     // Find the corresponding attribute or fill in a default value.
+    // TODO: Can some of these attributes use alternates like normal2 for normal?
     match data_type {
         DataType::Position => attribute!(buffer, AttributeData::Position, Vec3::ZERO, count),
         DataType::SkinWeights2 => attribute!(buffer, AttributeData::SkinWeights, Vec4::ZERO, count),
         DataType::BoneIndices2 => attribute!(buffer, AttributeData::BoneIndices, [0; 4], count),
         DataType::WeightIndex => attribute!(buffer, AttributeData::WeightIndex, [0; 2], count),
-        DataType::WeightIndex2 => attribute!(buffer, AttributeData::WeightIndex, [0; 2], count),
+        DataType::WeightIndex2 => attribute!(buffer, AttributeData::WeightIndex2, [0; 2], count),
         DataType::TexCoord0 => attribute!(buffer, AttributeData::TexCoord0, Vec2::ZERO, count),
         DataType::TexCoord1 => attribute!(buffer, AttributeData::TexCoord1, Vec2::ZERO, count),
         DataType::TexCoord2 => attribute!(buffer, AttributeData::TexCoord2, Vec2::ZERO, count),
@@ -347,10 +348,10 @@ fn match_attribute(
         DataType::TexCoord7 => attribute!(buffer, AttributeData::TexCoord7, Vec2::ZERO, count),
         DataType::TexCoord8 => attribute!(buffer, AttributeData::TexCoord8, Vec2::ZERO, count),
         DataType::Blend => attribute!(buffer, AttributeData::Blend, Vec4::ZERO, count),
-        DataType::Unk15 => todo!(),
-        DataType::Unk16 => todo!(),
+        DataType::Unk15 => attribute!(buffer, AttributeData::Unk15, Vec3::ZERO, count),
+        DataType::Unk16 => attribute!(buffer, AttributeData::Unk16, [0; 2], count),
         DataType::VertexColor => attribute!(buffer, AttributeData::VertexColor, Vec4::ZERO, count),
-        DataType::Unk18 => todo!(),
+        DataType::Unk18 => attribute!(buffer, AttributeData::Unk18, Vec3::ZERO, count),
         DataType::Unk24 => todo!(),
         DataType::Unk25 => todo!(),
         DataType::Unk26 => todo!(),

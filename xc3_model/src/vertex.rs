@@ -121,11 +121,17 @@ pub enum AttributeData {
     /// Data for [DataType::Position].
     Position(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3s))] Vec<Vec3>),
 
-    /// Data for [DataType::Normal] or [DataType::Normal2].
-    Normal(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+    /// Data for [DataType::SkinWeights2].
+    SkinWeights2(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3s))] Vec<Vec3>),
 
-    /// Data for [DataType::Tangent].
-    Tangent(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+    /// Data for [DataType::BoneIndices2].
+    BoneIndices2(Vec<[u8; 4]>),
+
+    /// Data for [DataType::WeightIndex].
+    WeightIndex(Vec<[u16; 2]>),
+
+    /// Data for [DataType::WeightIndex2].
+    WeightIndex2(Vec<[u16; 2]>),
 
     /// Data for [DataType::TexCoord0].
     TexCoord0(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec2s))] Vec<Vec2>),
@@ -154,17 +160,38 @@ pub enum AttributeData {
     /// Data for [DataType::TexCoord8].
     TexCoord8(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec2s))] Vec<Vec2>),
 
+    /// Data for [DataType::Blend].
+    Blend(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+
+    /// Data for [DataType::Unk15].
+    Unk15(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3s))] Vec<Vec3>),
+
+    // TODO: Is this actually 2 snorm8x4?
+    /// Data for [DataType::Unk16].
+    Unk16(Vec<[u16; 2]>),
+
+    // TODO: unk16
     /// Data for [DataType::VertexColor].
     VertexColor(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
 
-    /// Data for [DataType::Blend].
-    Blend(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+    /// Data for [DataType::Unk18].
+    Unk18(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3s))] Vec<Vec3>),
+
+    // TODO: unk24, unk25, unk26
+    /// Data for [DataType::Normal].
+    Normal(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+
+    /// Data for [DataType::Tangent].
+    Tangent(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+
+    // TODO: unk30, unk31, normal2
+    /// Data for [DataType::Normal2].
+    Normal2(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
 
     /// Data for [DataType::ValInf].
     ValInf(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
 
-    /// Data for [DataType::WeightIndex].
-    WeightIndex(Vec<[u16; 2]>),
+    // TODO: normal3, vertexcolor3
 
     // TODO: morph only?
     /// Data for [DataType::Position2].
@@ -185,22 +212,19 @@ pub enum AttributeData {
     /// Data for [DataType::SkinWeights].
     SkinWeights(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
 
-    /// Data for [DataType::SkinWeights2].
-    SkinWeights2(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3s))] Vec<Vec3>),
-
     /// Data for [DataType::BoneIndices].
     BoneIndices(Vec<[u8; 4]>),
-
-    /// Data for [DataType::BoneIndices2].
-    BoneIndices2(Vec<[u8; 4]>),
+    // TODO: flow
 }
 
 impl AttributeData {
     pub fn len(&self) -> usize {
         match self {
             AttributeData::Position(v) => v.len(),
-            AttributeData::Normal(v) => v.len(),
-            AttributeData::Tangent(v) => v.len(),
+            AttributeData::SkinWeights2(v) => v.len(),
+            AttributeData::BoneIndices2(v) => v.len(),
+            AttributeData::WeightIndex(v) => v.len(),
+            AttributeData::WeightIndex2(v) => v.len(),
             AttributeData::TexCoord0(v) => v.len(),
             AttributeData::TexCoord1(v) => v.len(),
             AttributeData::TexCoord2(v) => v.len(),
@@ -210,18 +234,21 @@ impl AttributeData {
             AttributeData::TexCoord6(v) => v.len(),
             AttributeData::TexCoord7(v) => v.len(),
             AttributeData::TexCoord8(v) => v.len(),
-            AttributeData::VertexColor(v) => v.len(),
             AttributeData::Blend(v) => v.len(),
+            AttributeData::Unk15(v) => v.len(),
+            AttributeData::Unk16(v) => v.len(),
+            AttributeData::VertexColor(v) => v.len(),
+            AttributeData::Unk18(v) => v.len(),
+            AttributeData::Normal(v) => v.len(),
+            AttributeData::Tangent(v) => v.len(),
+            AttributeData::Normal2(v) => v.len(),
             AttributeData::ValInf(v) => v.len(),
-            AttributeData::WeightIndex(v) => v.len(),
             AttributeData::Position2(v) => v.len(),
             AttributeData::Normal4(v) => v.len(),
             AttributeData::OldPosition(v) => v.len(),
             AttributeData::Tangent2(v) => v.len(),
             AttributeData::SkinWeights(v) => v.len(),
-            AttributeData::SkinWeights2(v) => v.len(),
             AttributeData::BoneIndices(v) => v.len(),
-            AttributeData::BoneIndices2(v) => v.len(),
         }
     }
 
@@ -240,11 +267,17 @@ impl AttributeData {
             AttributeData::Position(values) => {
                 write_data(writer, values, offset, stride, endian, write_f32x3)
             }
-            AttributeData::Normal(values) => {
-                write_data(writer, values, offset, stride, endian, write_snorm8x4)
+            AttributeData::SkinWeights2(values) => {
+                write_data(writer, values, offset, stride, endian, write_f32x3)
             }
-            AttributeData::Tangent(values) => {
-                write_data(writer, values, offset, stride, endian, write_snorm8x4)
+            AttributeData::BoneIndices2(values) => {
+                write_data(writer, values, offset, stride, endian, write_u8x4)
+            }
+            AttributeData::WeightIndex(values) => {
+                write_data(writer, values, offset, stride, endian, write_u16x2)
+            }
+            AttributeData::WeightIndex2(values) => {
+                write_data(writer, values, offset, stride, endian, write_u16x2)
             }
             AttributeData::TexCoord0(values) => {
                 write_data(writer, values, offset, stride, endian, write_f32x2)
@@ -273,17 +306,32 @@ impl AttributeData {
             AttributeData::TexCoord8(values) => {
                 write_data(writer, values, offset, stride, endian, write_f32x2)
             }
-            AttributeData::VertexColor(values) => {
-                write_data(writer, values, offset, stride, endian, write_unorm8x4)
-            }
             AttributeData::Blend(values) => {
                 write_data(writer, values, offset, stride, endian, write_unorm8x4)
             }
-            AttributeData::ValInf(values) => {
+            AttributeData::Unk15(values) => {
+                write_data(writer, values, offset, stride, endian, write_f32x3)
+            }
+            AttributeData::Unk16(values) => {
+                write_data(writer, values, offset, stride, endian, write_u16x2)
+            }
+            AttributeData::VertexColor(values) => {
+                write_data(writer, values, offset, stride, endian, write_unorm8x4)
+            }
+            AttributeData::Unk18(values) => {
+                write_data(writer, values, offset, stride, endian, write_f32x3)
+            }
+            AttributeData::Normal(values) => {
                 write_data(writer, values, offset, stride, endian, write_snorm8x4)
             }
-            AttributeData::WeightIndex(values) => {
-                write_data(writer, values, offset, stride, endian, write_u16x2)
+            AttributeData::Tangent(values) => {
+                write_data(writer, values, offset, stride, endian, write_snorm8x4)
+            }
+            AttributeData::Normal2(values) => {
+                write_data(writer, values, offset, stride, endian, write_snorm8x4)
+            }
+            AttributeData::ValInf(values) => {
+                write_data(writer, values, offset, stride, endian, write_snorm8x4)
             }
             AttributeData::Position2(values) => {
                 write_data(writer, values, offset, stride, endian, write_f32x3)
@@ -300,13 +348,7 @@ impl AttributeData {
             AttributeData::SkinWeights(values) => {
                 write_data(writer, values, offset, stride, endian, write_unorm16x4)
             }
-            AttributeData::SkinWeights2(values) => {
-                write_data(writer, values, offset, stride, endian, write_f32x3)
-            }
             AttributeData::BoneIndices(values) => {
-                write_data(writer, values, offset, stride, endian, write_u8x4)
-            }
-            AttributeData::BoneIndices2(values) => {
                 write_data(writer, values, offset, stride, endian, write_u8x4)
             }
         }
@@ -315,8 +357,10 @@ impl AttributeData {
     pub fn data_type(&self) -> DataType {
         match self {
             AttributeData::Position(_) => DataType::Position,
-            AttributeData::Normal(_) => DataType::Normal,
-            AttributeData::Tangent(_) => DataType::Tangent,
+            AttributeData::SkinWeights2(_) => DataType::SkinWeights2,
+            AttributeData::BoneIndices2(_) => DataType::BoneIndices2,
+            AttributeData::WeightIndex(_) => DataType::WeightIndex,
+            AttributeData::WeightIndex2(_) => DataType::WeightIndex2,
             AttributeData::TexCoord0(_) => DataType::TexCoord0,
             AttributeData::TexCoord1(_) => DataType::TexCoord1,
             AttributeData::TexCoord2(_) => DataType::TexCoord2,
@@ -327,17 +371,20 @@ impl AttributeData {
             AttributeData::TexCoord7(_) => DataType::TexCoord7,
             AttributeData::TexCoord8(_) => DataType::TexCoord8,
             AttributeData::VertexColor(_) => DataType::VertexColor,
+            AttributeData::Unk18(_) => DataType::Unk18,
             AttributeData::Blend(_) => DataType::Blend,
+            AttributeData::Unk15(_) => DataType::Unk15,
+            AttributeData::Unk16(_) => DataType::Unk16,
+            AttributeData::Normal(_) => DataType::Normal,
+            AttributeData::Tangent(_) => DataType::Tangent,
+            AttributeData::Normal2(_) => DataType::Normal2,
             AttributeData::ValInf(_) => DataType::ValInf,
-            AttributeData::WeightIndex(_) => DataType::WeightIndex,
             AttributeData::Position2(_) => DataType::Position2,
             AttributeData::Normal4(_) => DataType::Normal4,
             AttributeData::OldPosition(_) => DataType::OldPosition,
             AttributeData::Tangent2(_) => DataType::Tangent2,
             AttributeData::SkinWeights(_) => DataType::SkinWeights,
-            AttributeData::SkinWeights2(_) => DataType::SkinWeights2,
             AttributeData::BoneIndices(_) => DataType::BoneIndices,
-            AttributeData::BoneIndices2(_) => DataType::BoneIndices2,
         }
     }
 }
@@ -349,7 +396,8 @@ fn read_vertex_buffers(
     // TODO: This skips the weights buffer since it doesn't have ext info?
     // TODO: Save the weights buffer for converting back to xc3_lib types?
     // TODO: Panic if the weights buffer is not the last buffer?
-    let mut buffers: Vec<_> = vertex_data
+    // println!("{:#?}", vertex_data.vertex_buffers);
+    let mut buffers = vertex_data
         .vertex_buffers
         .iter()
         .zip(vertex_data.vertex_buffer_info.iter())
@@ -361,9 +409,9 @@ fn read_vertex_buffers(
                 &descriptor.attributes,
                 &vertex_data.buffer,
                 Endian::Little,
-            );
+            )?;
 
-            VertexBuffer {
+            Ok(VertexBuffer {
                 attributes,
                 morph_blend_target: Vec::new(),
                 morph_targets: Vec::new(),
@@ -371,9 +419,9 @@ fn read_vertex_buffers(
                     .flags
                     .has_outline_buffer()
                     .then_some(ext.outline_buffer_index as usize),
-            }
+            })
         })
-        .collect();
+        .collect::<BinResult<Vec<_>>>()?;
 
     // TODO: Get names from the mxmd?
     // TODO: Add better tests for morph target data.
@@ -387,6 +435,7 @@ fn read_vertex_buffers(
         let weights_index = vertex_weights.vertex_buffer_index as usize;
 
         let descriptor = vertex_data.vertex_buffers.get(weights_index)?;
+        // TODO: return error instead?
         let attributes = read_vertex_attributes(
             descriptor.data_offset as u64,
             descriptor.vertex_count,
@@ -394,7 +443,8 @@ fn read_vertex_buffers(
             &descriptor.attributes,
             &vertex_data.buffer,
             Endian::Little,
-        );
+        )
+        .ok()?;
 
         let (weights, bone_indices) = skin_weights_bone_indices(&attributes)?;
 
@@ -562,11 +612,20 @@ fn read_vertex_attributes(
     attributes: &[xc3_lib::vertex::VertexAttribute],
     buffer: &[u8],
     endian: Endian,
-) -> Vec<AttributeData> {
+) -> BinResult<Vec<AttributeData>> {
+    // if attributes.iter().any(|a| a.data_type == DataType::Unk15) {
+    //     dbg!(&attributes);
+    //     std::fs::write(
+    //         "out.bin",
+    //         &buffer[data_offset as usize..data_offset as usize + vertex_size as usize],
+    //     )
+    //     .unwrap();
+    // }
+
     let mut offset = 0;
     attributes
         .iter()
-        .filter_map(|a| {
+        .map(|a| {
             let data = read_attribute(
                 a,
                 data_offset,
@@ -577,7 +636,6 @@ fn read_vertex_attributes(
                 endian,
             );
             offset += a.data_size as u64;
-
             data
         })
         .collect()
@@ -592,353 +650,88 @@ fn read_attribute(
     relative_offset: u64,
     buffer: &[u8],
     endian: Endian,
-) -> Option<AttributeData> {
-    // TODO: handle all cases and don't return option.
+) -> BinResult<AttributeData> {
+    let d = AttributeDescriptor {
+        offset: data_offset,
+        item_count: vertex_count,
+        item_size: vertex_size,
+        relative_offset,
+        endian,
+    };
+    let b = buffer;
+
     match a.data_type {
-        DataType::Position => Some(AttributeData::Position(
-            read_data(
-                data_offset,
-                vertex_count,
-                vertex_size,
-                relative_offset,
-                buffer,
-                endian,
-                read_f32x3,
-            )
-            .ok()?,
-        )),
-        DataType::SkinWeights2 => Some(AttributeData::SkinWeights2(
-            read_data(
-                data_offset,
-                vertex_count,
-                vertex_size,
-                relative_offset,
-                buffer,
-                endian,
-                read_f32x3,
-            )
-            .ok()?,
-        )),
-        DataType::BoneIndices2 => Some(AttributeData::BoneIndices2(
-            read_data(
-                data_offset,
-                vertex_count,
-                vertex_size,
-                relative_offset,
-                buffer,
-                endian,
-                read_u8x4,
-            )
-            .ok()?,
-        )),
-        DataType::WeightIndex => Some(AttributeData::WeightIndex(
-            read_data(
-                data_offset,
-                vertex_count,
-                vertex_size,
-                relative_offset,
-                buffer,
-                endian,
-                read_u16x2,
-            )
-            .ok()?,
-        )),
-        DataType::WeightIndex2 => None,
-        DataType::TexCoord0 => Some(AttributeData::TexCoord0(
-            read_data(
-                data_offset,
-                vertex_count,
-                vertex_size,
-                relative_offset,
-                buffer,
-                endian,
-                read_f32x2,
-            )
-            .ok()?,
-        )),
-        DataType::TexCoord1 => Some(AttributeData::TexCoord1(
-            read_data(
-                data_offset,
-                vertex_count,
-                vertex_size,
-                relative_offset,
-                buffer,
-                endian,
-                read_f32x2,
-            )
-            .ok()?,
-        )),
-        DataType::TexCoord2 => Some(AttributeData::TexCoord2(
-            read_data(
-                data_offset,
-                vertex_count,
-                vertex_size,
-                relative_offset,
-                buffer,
-                endian,
-                read_f32x2,
-            )
-            .ok()?,
-        )),
-        DataType::TexCoord3 => Some(AttributeData::TexCoord3(
-            read_data(
-                data_offset,
-                vertex_count,
-                vertex_size,
-                relative_offset,
-                buffer,
-                endian,
-                read_f32x2,
-            )
-            .ok()?,
-        )),
-        DataType::TexCoord4 => Some(AttributeData::TexCoord4(
-            read_data(
-                data_offset,
-                vertex_count,
-                vertex_size,
-                relative_offset,
-                buffer,
-                endian,
-                read_f32x2,
-            )
-            .ok()?,
-        )),
-        DataType::TexCoord5 => Some(AttributeData::TexCoord5(
-            read_data(
-                data_offset,
-                vertex_count,
-                vertex_size,
-                relative_offset,
-                buffer,
-                endian,
-                read_f32x2,
-            )
-            .ok()?,
-        )),
-        DataType::TexCoord6 => Some(AttributeData::TexCoord6(
-            read_data(
-                data_offset,
-                vertex_count,
-                vertex_size,
-                relative_offset,
-                buffer,
-                endian,
-                read_f32x2,
-            )
-            .ok()?,
-        )),
-        DataType::TexCoord7 => Some(AttributeData::TexCoord7(
-            read_data(
-                data_offset,
-                vertex_count,
-                vertex_size,
-                relative_offset,
-                buffer,
-                endian,
-                read_f32x2,
-            )
-            .ok()?,
-        )),
-        DataType::TexCoord8 => Some(AttributeData::TexCoord8(
-            read_data(
-                data_offset,
-                vertex_count,
-                vertex_size,
-                relative_offset,
-                buffer,
-                endian,
-                read_f32x2,
-            )
-            .ok()?,
-        )),
-        DataType::Blend => Some(AttributeData::Blend(
-            read_data(
-                data_offset,
-                vertex_count,
-                vertex_size,
-                relative_offset,
-                buffer,
-                endian,
-                read_unorm8x4,
-            )
-            .ok()?,
-        )),
-        DataType::Unk15 => None,
-        DataType::Unk16 => None,
-        DataType::VertexColor => Some(AttributeData::VertexColor(
-            read_data(
-                data_offset,
-                vertex_count,
-                vertex_size,
-                relative_offset,
-                buffer,
-                endian,
-                read_unorm8x4,
-            )
-            .ok()?,
-        )),
-        DataType::Unk18 => None,
-        DataType::Unk24 => None,
-        DataType::Unk25 => None,
-        DataType::Unk26 => None,
-        DataType::Normal => Some(AttributeData::Normal(
-            read_data(
-                data_offset,
-                vertex_count,
-                vertex_size,
-                relative_offset,
-                buffer,
-                endian,
-                read_snorm8x4,
-            )
-            .ok()?,
-        )),
-        DataType::Tangent => Some(AttributeData::Tangent(
-            read_data(
-                data_offset,
-                vertex_count,
-                vertex_size,
-                relative_offset,
-                buffer,
-                endian,
-                read_snorm8x4,
-            )
-            .ok()?,
-        )),
-        DataType::Unk30 => None,
-        DataType::Unk31 => None,
-        DataType::Normal2 => Some(AttributeData::Normal(
-            read_data(
-                data_offset,
-                vertex_count,
-                vertex_size,
-                relative_offset,
-                buffer,
-                endian,
-                read_snorm8x4,
-            )
-            .ok()?,
-        )),
-        DataType::ValInf => Some(AttributeData::ValInf(
-            read_data(
-                data_offset,
-                vertex_count,
-                vertex_size,
-                relative_offset,
-                buffer,
-                endian,
-                read_snorm8x4,
-            )
-            .ok()?,
-        )),
-        DataType::Normal3 => None,
-        DataType::VertexColor3 => None,
-        DataType::Position2 => Some(AttributeData::Position2(
-            read_data(
-                data_offset,
-                vertex_count,
-                vertex_size,
-                relative_offset,
-                buffer,
-                endian,
-                read_f32x3,
-            )
-            .ok()?,
-        )),
-        DataType::Normal4 => Some(AttributeData::Normal4(
-            read_data(
-                data_offset,
-                vertex_count,
-                vertex_size,
-                relative_offset,
-                buffer,
-                endian,
-                read_unorm8x4,
-            )
-            .ok()?,
-        )),
-        DataType::OldPosition => Some(AttributeData::OldPosition(
-            read_data(
-                data_offset,
-                vertex_count,
-                vertex_size,
-                relative_offset,
-                buffer,
-                endian,
-                read_f32x3,
-            )
-            .ok()?,
-        )),
-        DataType::Tangent2 => Some(AttributeData::Tangent2(
-            read_data(
-                data_offset,
-                vertex_count,
-                vertex_size,
-                relative_offset,
-                buffer,
-                endian,
-                read_unorm8x4,
-            )
-            .ok()?,
-        )),
-        DataType::SkinWeights => Some(AttributeData::SkinWeights(
-            read_data(
-                data_offset,
-                vertex_count,
-                vertex_size,
-                relative_offset,
-                buffer,
-                endian,
-                read_unorm16x4,
-            )
-            .ok()?,
-        )),
-        DataType::BoneIndices => Some(AttributeData::BoneIndices(
-            read_data(
-                data_offset,
-                vertex_count,
-                vertex_size,
-                relative_offset,
-                buffer,
-                endian,
-                read_u8x4,
-            )
-            .ok()?,
-        )),
-        DataType::Flow => None,
+        DataType::Position => d.read(b, read_f32x3).map(AttributeData::Position),
+        DataType::SkinWeights2 => d.read(b, read_f32x3).map(AttributeData::SkinWeights2),
+        DataType::BoneIndices2 => d.read(b, read_u8x4).map(AttributeData::BoneIndices2),
+        DataType::WeightIndex => d.read(b, read_u16x2).map(AttributeData::WeightIndex),
+        DataType::WeightIndex2 => d.read(b, read_u16x2).map(AttributeData::WeightIndex2),
+        DataType::TexCoord0 => d.read(b, read_f32x2).map(AttributeData::TexCoord0),
+        DataType::TexCoord1 => d.read(b, read_f32x2).map(AttributeData::TexCoord1),
+        DataType::TexCoord2 => d.read(b, read_f32x2).map(AttributeData::TexCoord2),
+        DataType::TexCoord3 => d.read(b, read_f32x2).map(AttributeData::TexCoord3),
+        DataType::TexCoord4 => d.read(b, read_f32x2).map(AttributeData::TexCoord4),
+        DataType::TexCoord5 => d.read(b, read_f32x2).map(AttributeData::TexCoord5),
+        DataType::TexCoord6 => d.read(b, read_f32x2).map(AttributeData::TexCoord6),
+        DataType::TexCoord7 => d.read(b, read_f32x2).map(AttributeData::TexCoord7),
+        DataType::TexCoord8 => d.read(b, read_f32x2).map(AttributeData::TexCoord8),
+        DataType::Blend => d.read(b, read_unorm8x4).map(AttributeData::Blend),
+        DataType::Unk15 => d.read(b, read_f32x3).map(AttributeData::Unk15),
+        DataType::Unk16 => d.read(b, read_u16x2).map(AttributeData::Unk16),
+        DataType::VertexColor => d.read(b, read_unorm8x4).map(AttributeData::VertexColor),
+        DataType::Unk18 => d.read(b, read_f32x3).map(AttributeData::Unk18),
+        DataType::Unk24 => todo!(),
+        DataType::Unk25 => todo!(),
+        DataType::Unk26 => todo!(),
+        DataType::Normal => d.read(b, read_snorm8x4).map(AttributeData::Normal),
+        DataType::Tangent => d.read(b, read_snorm8x4).map(AttributeData::Tangent),
+        DataType::Unk30 => todo!(),
+        DataType::Unk31 => todo!(),
+        DataType::Normal2 => d.read(b, read_snorm8x4).map(AttributeData::Normal2),
+        DataType::ValInf => d.read(b, read_snorm8x4).map(AttributeData::ValInf),
+        DataType::Normal3 => todo!(),
+        DataType::VertexColor3 => todo!(),
+        DataType::Position2 => d.read(b, read_f32x3).map(AttributeData::Position2),
+        DataType::Normal4 => d.read(b, read_unorm8x4).map(AttributeData::Normal4),
+        DataType::OldPosition => d.read(b, read_f32x3).map(AttributeData::OldPosition),
+        DataType::Tangent2 => d.read(b, read_unorm8x4).map(AttributeData::Tangent2),
+        DataType::SkinWeights => d.read(b, read_unorm16x4).map(AttributeData::SkinWeights),
+        DataType::BoneIndices => d.read(b, read_u8x4).map(AttributeData::BoneIndices),
+        DataType::Flow => todo!(),
     }
 }
 
-fn read_data<T, F>(
+struct AttributeDescriptor {
     offset: u64,
-    vertex_count: u32,
-    vertex_size: u32,
+    item_count: u32,
+    item_size: u32,
     relative_offset: u64,
-    buffer: &[u8],
     endian: Endian,
-    read_item: F,
-) -> BinResult<Vec<T>>
-where
-    F: Fn(&mut Cursor<&[u8]>, Endian) -> BinResult<T>,
-{
-    if vertex_size == 0 {
-        return Err(binrw::Error::AssertFail {
-            pos: offset,
-            message: "Attribute stride must not be 0".to_string(),
-        });
+}
+
+impl AttributeDescriptor {
+    fn read<T, F>(&self, buffer: &[u8], read_item: F) -> BinResult<Vec<T>>
+    where
+        F: Fn(&mut Cursor<&[u8]>, Endian) -> BinResult<T>,
+    {
+        if self.item_size == 0 {
+            return Err(binrw::Error::AssertFail {
+                pos: self.offset,
+                message: "Attribute stride must not be 0".to_string(),
+            });
+        }
+
+        let mut reader = Cursor::new(buffer);
+
+        let mut values = Vec::with_capacity(self.item_count.min(MAX_VERT_CAPACITY) as usize);
+        for i in 0..self.item_count as u64 {
+            let offset = self.offset + i * self.item_size as u64 + self.relative_offset;
+            reader.seek(SeekFrom::Start(offset))?;
+
+            values.push(read_item(&mut reader, self.endian)?);
+        }
+        Ok(values)
     }
-
-    let mut reader = Cursor::new(buffer);
-
-    let mut values = Vec::with_capacity(vertex_count.min(MAX_VERT_CAPACITY) as usize);
-    for i in 0..vertex_count as u64 {
-        let offset = offset + i * vertex_size as u64 + relative_offset;
-        reader.seek(SeekFrom::Start(offset))?;
-
-        values.push(read_item(&mut reader, endian)?);
-    }
-    Ok(values)
 }
 
 fn read_u16x2(reader: &mut Cursor<&[u8]>, endian: Endian) -> BinResult<[u16; 2]> {
@@ -1004,7 +797,7 @@ fn read_morph_blend_target(
     // This includes required position, normal, and tangent attributes.
     // TODO: return values directly instead of enums?
     // TODO: Custom reader for normal2 and tangent2 that does * 2 - 1?
-    let attributes = read_vertex_attributes(
+    read_vertex_attributes(
         base_target.data_offset as u64,
         base_target.vertex_count,
         base_target.vertex_size,
@@ -1016,8 +809,7 @@ fn read_morph_blend_target(
         ],
         model_bytes,
         Endian::Little,
-    );
-    Ok(attributes)
+    )
 }
 
 fn read_morph_buffer_target(
@@ -1092,15 +884,14 @@ fn read_outline_attribute<T, F>(
 where
     F: Fn(&mut Cursor<&[u8]>, Endian) -> BinResult<T>,
 {
-    read_data(
-        descriptor.data_offset as u64,
-        descriptor.vertex_count,
-        descriptor.vertex_size,
+    AttributeDescriptor {
+        offset: descriptor.data_offset as u64,
+        item_count: descriptor.vertex_count,
+        item_size: descriptor.vertex_size,
         relative_offset,
-        buffer,
-        Endian::Little,
-        read_item,
-    )
+        endian: Endian::Little,
+    }
+    .read(buffer, read_item)
 }
 
 impl ModelBuffers {
@@ -1138,7 +929,7 @@ impl ModelBuffers {
         vertex_data: &xc3_lib::mxmd::legacy::VertexData,
         models: &xc3_lib::mxmd::legacy::Models,
     ) -> BinResult<Self> {
-        let vertex_buffers = read_vertex_buffers_legacy(vertex_data);
+        let vertex_buffers = read_vertex_buffers_legacy(vertex_data)?;
 
         let index_buffers = read_index_buffers_legacy(vertex_data)?;
 
@@ -1556,25 +1347,27 @@ fn read_index_buffers_legacy(
 
 fn read_vertex_buffers_legacy(
     vertex_data: &xc3_lib::mxmd::legacy::VertexData,
-) -> Vec<VertexBuffer> {
+) -> BinResult<Vec<VertexBuffer>> {
     // Each buffer already has the data at the appropriate offset.
     let data_offset = 0;
 
     vertex_data
         .vertex_buffers
         .iter()
-        .map(|descriptor| VertexBuffer {
-            attributes: read_vertex_attributes(
-                data_offset,
-                descriptor.vertex_count,
-                descriptor.vertex_size,
-                &descriptor.attributes,
-                &descriptor.data,
-                Endian::Big,
-            ),
-            morph_blend_target: Vec::new(),
-            morph_targets: Vec::new(),
-            outline_buffer_index: None,
+        .map(|descriptor| {
+            Ok(VertexBuffer {
+                attributes: read_vertex_attributes(
+                    data_offset,
+                    descriptor.vertex_count,
+                    descriptor.vertex_size,
+                    &descriptor.attributes,
+                    &descriptor.data,
+                    Endian::Big,
+                )?,
+                morph_blend_target: Vec::new(),
+                morph_targets: Vec::new(),
+                outline_buffer_index: None,
+            })
         })
         .collect()
 }
@@ -1747,15 +1540,14 @@ fn read_unk_buffer_attribute<T, F>(
 where
     F: Fn(&mut Cursor<&[u8]>, Endian) -> BinResult<T>,
 {
-    read_data(
-        data_offset + descriptor.offset as u64,
-        descriptor.count,
-        if descriptor.unk1 == 0 { 16 } else { 24 },
+    AttributeDescriptor {
+        offset: data_offset + descriptor.offset as u64,
+        item_count: descriptor.count,
+        item_size: if descriptor.unk1 == 0 { 16 } else { 24 },
         relative_offset,
-        buffer,
-        Endian::Little,
-        read_item,
-    )
+        endian: Endian::Little,
+    }
+    .read(buffer, read_item)
 }
 
 fn align(buffer_writer: &mut Cursor<Vec<u8>>, align: u64) -> Result<(), binrw::Error> {
@@ -2019,6 +1811,7 @@ mod tests {
                 &data,
                 Endian::Little
             )
+            .unwrap()
         );
 
         // Test write.
@@ -2098,7 +1891,7 @@ mod tests {
                 vec4(-0.54330707, -0.79527557, -0.24409449, -1.0),
                 vec4(-0.6929134, 0.48031497, -0.52755904, -1.0),
             ]),
-            AttributeData::Normal(vec![
+            AttributeData::Normal2(vec![
                 vec4(0.44094488, -0.52755904, 0.71653545, 1.0),
                 vec4(0.11811024, 0.8031496, 0.5748032, 1.0),
             ]),
@@ -2117,6 +1910,7 @@ mod tests {
                 &data,
                 Endian::Little
             )
+            .unwrap()
         );
 
         // Test write.
@@ -2173,6 +1967,7 @@ mod tests {
                 &data,
                 Endian::Little
             )
+            .unwrap()
         );
 
         // Test write.
@@ -2351,6 +2146,7 @@ mod tests {
                 &data,
                 Endian::Little
             )
+            .unwrap()
         );
 
         // Test write.
@@ -2764,6 +2560,7 @@ mod tests {
                 &data,
                 Endian::Big
             )
+            .unwrap()
         );
 
         // Test write.
@@ -2820,6 +2617,7 @@ mod tests {
                 &data,
                 Endian::Big
             )
+            .unwrap()
         );
 
         // Test write.

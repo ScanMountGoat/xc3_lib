@@ -164,8 +164,10 @@ pub enum DataType {
     Position = 0,
     /// Float32x3 "fWeight" in shaders.
     /// The fourth weight component is calculated as `w = 1.0 - x - y - z`.
+    /// Only used for Xenoblade X.
     SkinWeights2 = 1,
     // TODO: xcx with 4 bytes?
+    /// Only used for Xenoblade X.
     BoneIndices2 = 2,
     /// Uint16x2 "nWgtIdx" in shaders.
     ///
@@ -174,7 +176,7 @@ pub enum DataType {
     WeightIndex = 3,
     /// Uint16x2 "nWgtIdx" in shaders.
     ///
-    /// Used for some stage models.
+    /// Used for some stage and object models.
     WeightIndex2 = 4,
     /// Float32x2 "vTex0" in shaders.
     TexCoord0 = 5,
@@ -196,10 +198,12 @@ pub enum DataType {
     TexCoord8 = 13,
     /// Unorm8x4 "vBlend" in shaders.
     Blend = 14,
+    /// Float32x3 ??? in shaders.
     Unk15 = 15,
-    Unk16 = 16,
+    Unk16 = 16, // TODO: 2 snorm8x4? 
     /// Unorm8x4 "vColor" in shaders.
     VertexColor = 17,
+    /// Float32x3 ??? in shaders.
     Unk18 = 18,
     /// ??? "vGmCal1" in shaders.
     Unk24 = 24,
@@ -512,10 +516,10 @@ impl DataType {
             DataType::TexCoord7 => 8,
             DataType::TexCoord8 => 8,
             DataType::Blend => 4,
-            DataType::Unk15 => todo!(),
-            DataType::Unk16 => todo!(),
+            DataType::Unk15 => 12,
+            DataType::Unk16 => 8,
             DataType::VertexColor => 4,
-            DataType::Unk18 => todo!(),
+            DataType::Unk18 => 12,
             DataType::Unk24 => todo!(),
             DataType::Unk25 => todo!(),
             DataType::Unk26 => todo!(),

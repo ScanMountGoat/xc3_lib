@@ -200,6 +200,7 @@ impl Buffers {
         let vertex_buffer = &buffers.vertex_buffers[key.buffer.buffer_index];
         let weight_indices = vertex_buffer.attributes.iter().find_map(|a| match a {
             AttributeData::WeightIndex(indices) => Some(indices),
+            AttributeData::WeightIndex2(indices) => Some(indices),
             _ => None,
         })?;
 
@@ -275,6 +276,12 @@ impl Buffers {
                     let values: Vec<_> = values.iter().map(|v| v.xyz().normalize()).collect();
                     self.insert_vec3(&values, gltf::Semantic::Normals, &mut attributes)?;
                 }
+                AttributeData::Normal2(values) => {
+                    // Not all applications will normalize the vertex normals.
+                    // Use Vec3 instead of Vec4 since it's better supported.
+                    let values: Vec<_> = values.iter().map(|v| v.xyz().normalize()).collect();
+                    self.insert_vec3(&values, gltf::Semantic::Normals, &mut attributes)?;
+                }
                 AttributeData::Tangent(values) => {
                     // Not all applications will normalize the vertex tangents.
                     let values: Vec<_> = values
@@ -328,8 +335,12 @@ impl Buffers {
                     )?;
                 }
                 AttributeData::ValInf(_) => (),
+                AttributeData::Unk15(_) => (),
+                AttributeData::Unk16(_) => (),
+                AttributeData::Unk18(_) => (),
                 // Skin weights are handled separately.
                 AttributeData::WeightIndex(_) => (),
+                AttributeData::WeightIndex2(_) => (),
                 AttributeData::SkinWeights(_) => (),
                 AttributeData::SkinWeights2(_) => (),
                 AttributeData::BoneIndices(_) => (),
