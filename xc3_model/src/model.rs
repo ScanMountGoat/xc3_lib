@@ -359,7 +359,7 @@ fn match_attribute(
         DataType::Unk30 => todo!(),
         DataType::Unk31 => todo!(),
         DataType::Normal2 => attribute!(buffer, AttributeData::Normal, Vec4::ZERO, count),
-        DataType::Unk33 => todo!(),
+        DataType::ValInf => attribute!(buffer, AttributeData::ValInf, Vec4::ZERO, count),
         DataType::Normal3 => attribute!(buffer, AttributeData::Normal, Vec4::ZERO, count),
         DataType::VertexColor3 => attribute!(buffer, AttributeData::VertexColor, Vec4::ZERO, count),
         DataType::Position2 => attribute!(buffer, AttributeData::Position, Vec3::ZERO, count),

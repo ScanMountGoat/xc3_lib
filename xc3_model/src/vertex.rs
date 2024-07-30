@@ -160,6 +160,9 @@ pub enum AttributeData {
     /// Data for [DataType::Blend].
     Blend(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
 
+    /// Data for [DataType::ValInf].
+    ValInf(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+
     /// Data for [DataType::WeightIndex].
     WeightIndex(Vec<[u16; 2]>),
 
@@ -209,6 +212,7 @@ impl AttributeData {
             AttributeData::TexCoord8(v) => v.len(),
             AttributeData::VertexColor(v) => v.len(),
             AttributeData::Blend(v) => v.len(),
+            AttributeData::ValInf(v) => v.len(),
             AttributeData::WeightIndex(v) => v.len(),
             AttributeData::Position2(v) => v.len(),
             AttributeData::Normal4(v) => v.len(),
@@ -275,6 +279,9 @@ impl AttributeData {
             AttributeData::Blend(values) => {
                 write_data(writer, values, offset, stride, endian, write_unorm8x4)
             }
+            AttributeData::ValInf(values) => {
+                write_data(writer, values, offset, stride, endian, write_snorm8x4)
+            }
             AttributeData::WeightIndex(values) => {
                 write_data(writer, values, offset, stride, endian, write_u16x2)
             }
@@ -321,6 +328,7 @@ impl AttributeData {
             AttributeData::TexCoord8(_) => DataType::TexCoord8,
             AttributeData::VertexColor(_) => DataType::VertexColor,
             AttributeData::Blend(_) => DataType::Blend,
+            AttributeData::ValInf(_) => DataType::ValInf,
             AttributeData::WeightIndex(_) => DataType::WeightIndex,
             AttributeData::Position2(_) => DataType::Position2,
             AttributeData::Normal4(_) => DataType::Normal4,
@@ -812,7 +820,18 @@ fn read_attribute(
             )
             .ok()?,
         )),
-        DataType::Unk33 => None,
+        DataType::ValInf => Some(AttributeData::ValInf(
+            read_data(
+                data_offset,
+                vertex_count,
+                vertex_size,
+                relative_offset,
+                buffer,
+                endian,
+                read_snorm8x4,
+            )
+            .ok()?,
+        )),
         DataType::Normal3 => None,
         DataType::VertexColor3 => None,
         DataType::Position2 => Some(AttributeData::Position2(
@@ -1988,6 +2007,104 @@ mod tests {
             AttributeData::Tangent(vec![
                 vec4(0.96062994, 0.0, -0.25984251, 1.0),
                 vec4(0.62204725, 0.0, -0.77165353, 1.0),
+            ]),
+        ];
+        assert_eq!(
+            attributes,
+            read_vertex_attributes(
+                descriptor.data_offset as u64,
+                descriptor.vertex_count,
+                descriptor.vertex_size,
+                &descriptor.attributes,
+                &data,
+                Endian::Little
+            )
+        );
+
+        // Test write.
+        let mut writer = Cursor::new(Vec::new());
+        let new_descriptor = write_vertex_buffer(&mut writer, &attributes, Endian::Little).unwrap();
+        assert_eq!(new_descriptor, descriptor);
+        assert_hex_eq!(data, writer.into_inner());
+    }
+
+    #[test]
+    fn vertex_buffer_vertices_val_inf() {
+        // xeno3/chr/en/en01000230.wismt, vertex buffer 2
+        let data = hex!(
+            // vertex 0
+            0x95085ebd 7d3c9a3f 7ac87c3f
+            ee080000
+            60269e3e 3038873d
+            bb9be181
+            38bd5b7f
+            38bd5b7f
+            // vertex 1
+            eb8274bd 098c9d3f e90e7d3f
+            ee080000
+            30259e3e 6017983c
+            a83dbd81
+            0f66497f
+            0f66497f
+        );
+
+        let descriptor = VertexBufferDescriptor {
+            data_offset: 0,
+            vertex_count: 2,
+            vertex_size: 36,
+            attributes: vec![
+                VertexAttribute {
+                    data_type: DataType::Position,
+                    data_size: 12,
+                },
+                VertexAttribute {
+                    data_type: DataType::WeightIndex,
+                    data_size: 4,
+                },
+                VertexAttribute {
+                    data_type: DataType::TexCoord0,
+                    data_size: 8,
+                },
+                VertexAttribute {
+                    data_type: DataType::Tangent,
+                    data_size: 4,
+                },
+                VertexAttribute {
+                    data_type: DataType::Normal2,
+                    data_size: 4,
+                },
+                VertexAttribute {
+                    data_type: DataType::ValInf,
+                    data_size: 4,
+                },
+            ],
+            unk1: 0,
+            unk2: 0,
+            unk3: 0,
+        };
+
+        // Test read.
+        let attributes = vec![
+            AttributeData::Position(vec![
+                vec3(-0.054207403, 1.204971, 0.987434),
+                vec3(-0.059695166, 1.230836, 0.98850876),
+            ]),
+            AttributeData::WeightIndex(vec![[2286, 0], [2286, 0]]),
+            AttributeData::TexCoord0(vec![
+                vec2(0.30888653, 0.06602514),
+                vec2(0.30887747, 0.018565834),
+            ]),
+            AttributeData::Tangent(vec![
+                vec4(-0.54330707, -0.79527557, -0.24409449, -1.0),
+                vec4(-0.6929134, 0.48031497, -0.52755904, -1.0),
+            ]),
+            AttributeData::Normal(vec![
+                vec4(0.44094488, -0.52755904, 0.71653545, 1.0),
+                vec4(0.11811024, 0.8031496, 0.5748032, 1.0),
+            ]),
+            AttributeData::ValInf(vec![
+                vec4(0.44094488, -0.52755904, 0.71653545, 1.0),
+                vec4(0.11811024, 0.8031496, 0.5748032, 1.0),
             ]),
         ];
         assert_eq!(

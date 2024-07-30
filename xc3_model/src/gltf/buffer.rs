@@ -327,6 +327,7 @@ impl Buffers {
                         &mut attributes,
                     )?;
                 }
+                AttributeData::ValInf(_) => (),
                 // Skin weights are handled separately.
                 AttributeData::WeightIndex(_) => (),
                 AttributeData::SkinWeights(_) => (),

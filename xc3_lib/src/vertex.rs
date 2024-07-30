@@ -216,7 +216,9 @@ pub enum DataType {
     Unk31 = 31, // TODO: xcx only?
     /// Snorm8x4 "vNormal" in shaders.
     Normal2 = 32,
-    Unk33 = 33,
+    /// Snorm8x4 "vValInf" in shaders.
+    // TODO: related to normals?
+    ValInf = 33,
     /// Snorm8x4 "vNormal" in shaders.
     Normal3 = 34,
     /// Unorm8x4 "vColor" in shaders.
@@ -522,7 +524,7 @@ impl DataType {
             DataType::Unk30 => todo!(),
             DataType::Unk31 => todo!(),
             DataType::Normal2 => 4,
-            DataType::Unk33 => todo!(),
+            DataType::ValInf => 4,
             DataType::Normal3 => 4,
             DataType::VertexColor3 => todo!(),
             DataType::Position2 => 12,
