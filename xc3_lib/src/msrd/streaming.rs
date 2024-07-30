@@ -34,9 +34,9 @@ pub enum ExtractFilesError {
 /// All the mip levels and metadata for an [Mibl] (Switch) or [Dds] (PC) texture.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug)]
-pub struct ExtractedTexture<T> {
+pub struct ExtractedTexture<T, U> {
     pub name: String,
-    pub usage: TextureUsage,
+    pub usage: U,
     pub low: T,
     pub high: Option<HighTexture<T>>,
 }
@@ -49,7 +49,7 @@ pub struct HighTexture<T> {
     pub base_mip: Option<Vec<u8>>,
 }
 
-impl ExtractedTexture<Dds> {
+impl ExtractedTexture<Dds, TextureUsage> {
     /// Returns the highest possible quality [Dds] after trying low, high, or high + base mip level.
     pub fn dds_final(&self) -> &Dds {
         // TODO: Try and get the base mip level to work?
@@ -58,7 +58,7 @@ impl ExtractedTexture<Dds> {
     }
 }
 
-impl ExtractedTexture<Mibl> {
+impl ExtractedTexture<Mibl, TextureUsage> {
     /// Returns the highest possible quality [Mibl] after trying low, high, or high + base mip level.
     /// Only high + base mip level returns [Cow::Owned].
     pub fn mibl_final(&self) -> Cow<'_, Mibl> {
@@ -101,7 +101,7 @@ impl ChrTextureStreams {
 /// Compress the high resolution and base mip levels for `textures`
 /// to Xenoblade 3 `chr/tex/nx` folder data.
 pub fn pack_chr_textures(
-    textures: &[ExtractedTexture<Mibl>],
+    textures: &[ExtractedTexture<Mibl, TextureUsage>],
 ) -> Result<(ChrTexTextures, Vec<ChrTextureStreams>), CreateXbc1Error> {
     let streams = textures
         .iter()
@@ -174,7 +174,8 @@ impl Msrd {
     pub fn extract_files(
         &self,
         chr_tex_nx: Option<&Path>,
-    ) -> Result<(VertexData, Spch, Vec<ExtractedTexture<Mibl>>), ExtractFilesError> {
+    ) -> Result<(VertexData, Spch, Vec<ExtractedTexture<Mibl, TextureUsage>>), ExtractFilesError>
+    {
         // TODO: Return just textures for legacy data?
         match &self.streaming.inner {
             StreamingInner::StreamingLegacy(_) => todo!(),
@@ -185,7 +186,8 @@ impl Msrd {
     /// Extract all embedded files for a `pcsmt` file.
     pub fn extract_files_pc(
         &self,
-    ) -> Result<(VertexData, Spch, Vec<ExtractedTexture<Dds>>), ExtractFilesError> {
+    ) -> Result<(VertexData, Spch, Vec<ExtractedTexture<Dds, TextureUsage>>), ExtractFilesError>
+    {
         match &self.streaming.inner {
             StreamingInner::StreamingLegacy(_) => todo!(),
             StreamingInner::Streaming(data) => data.extract_files(&self.data, None),
@@ -223,7 +225,7 @@ impl Msrd {
     pub fn from_extracted_files(
         vertex: &VertexData,
         spch: &Spch,
-        textures: &[ExtractedTexture<Mibl>],
+        textures: &[ExtractedTexture<Mibl, TextureUsage>],
         use_chr_textures: bool,
     ) -> Result<Self, CreateXbc1Error> {
         // TODO: This should actually be checking if the game is xenoblade 3.
@@ -306,7 +308,7 @@ impl StreamingData {
         &self,
         data: &[u8],
         chr_tex_nx: Option<&Path>,
-    ) -> Result<(VertexData, Spch, Vec<ExtractedTexture<T>>), ExtractFilesError> {
+    ) -> Result<(VertexData, Spch, Vec<ExtractedTexture<T, TextureUsage>>), ExtractFilesError> {
         let first_xbc1_offset = self.streams[0].xbc1_offset;
 
         // Extract all at once to avoid costly redundant decompression operations.
@@ -332,14 +334,14 @@ impl StreamingData {
     fn extract_low_textures<T: Texture>(
         &self,
         low_texture_data: &[u8],
-    ) -> Result<Vec<ExtractedTexture<T>>, DecompressStreamError> {
+    ) -> Result<Vec<ExtractedTexture<T, TextureUsage>>, DecompressStreamError> {
         match &self.texture_resources.low_textures {
             Some(low_textures) => low_textures
                 .textures
                 .iter()
                 .map(|t| {
-                    let mibl_bytes = &low_texture_data
-                        [t.mibl_offset as usize..t.mibl_offset as usize + t.mibl_length as usize];
+                    let mibl_bytes =
+                        &low_texture_data[t.offset as usize..t.offset as usize + t.length as usize];
                     Ok(ExtractedTexture {
                         name: t.name.clone(),
                         usage: t.usage,
@@ -357,7 +359,7 @@ impl StreamingData {
         data: &[u8],
         low_texture_data: &[u8],
         chr_tex_nx: Option<P>,
-    ) -> Result<Vec<ExtractedTexture<T>>, ExtractFilesError> {
+    ) -> Result<Vec<ExtractedTexture<T, TextureUsage>>, ExtractFilesError> {
         // Start with no high res textures or base mip levels.
         let mut textures = self.extract_low_textures(low_texture_data)?;
 
@@ -451,7 +453,7 @@ fn read_chr_tex_m_texture<T: Texture>(m_path: &Path) -> Result<T, ExtractFilesEr
 fn pack_files(
     vertex: &VertexData,
     spch: &Spch,
-    textures: &[ExtractedTexture<Mibl>],
+    textures: &[ExtractedTexture<Mibl, TextureUsage>],
     use_chr_textures: bool,
 ) -> Result<(StreamingData, Vec<u8>), CreateXbc1Error> {
     let Streams {
@@ -534,14 +536,14 @@ fn stream_entry_index(stream_entries: &[StreamEntry], entry_type: EntryType) -> 
 struct Streams {
     stream_entries: Vec<StreamEntry>,
     streams: Vec<Stream>,
-    low_textures: Vec<PackedExternalTexture>,
+    low_textures: Vec<PackedExternalTexture<TextureUsage>>,
     data: Vec<u8>,
 }
 
 fn create_streams(
     vertex: &VertexData,
     spch: &Spch,
-    textures: &[ExtractedTexture<Mibl>],
+    textures: &[ExtractedTexture<Mibl, TextureUsage>],
 ) -> Result<Streams, CreateXbc1Error> {
     // Entries are in ascending order by offset and stream.
     // Data order is Vertex, Shader, LowTextures, Textures.
@@ -609,8 +611,8 @@ fn write_stream0(
     stream_entries: &mut Vec<StreamEntry>,
     vertex: &VertexData,
     spch: &Spch,
-    textures: &[ExtractedTexture<Mibl>],
-) -> Result<(Vec<PackedExternalTexture>, Vec<u8>), CreateXbc1Error> {
+    textures: &[ExtractedTexture<Mibl, TextureUsage>],
+) -> Result<(Vec<PackedExternalTexture<TextureUsage>>, Vec<u8>), CreateXbc1Error> {
     // Data in streams is tightly packed.
     let mut writer = Cursor::new(Vec::new());
     stream_entries.push(write_stream_data(&mut writer, vertex, EntryType::Vertex)?);
@@ -624,7 +626,7 @@ fn write_stream0(
 
 fn write_stream1(
     stream_entries: &mut Vec<StreamEntry>,
-    textures: &[ExtractedTexture<Mibl>],
+    textures: &[ExtractedTexture<Mibl, TextureUsage>],
 ) -> Vec<u8> {
     // Add higher resolution textures.
     let mut writer = Cursor::new(Vec::new());
@@ -641,7 +643,7 @@ fn write_stream1(
 
 fn write_base_mip_streams<'a>(
     stream_entries: &mut [StreamEntry],
-    textures: &'a [ExtractedTexture<Mibl>],
+    textures: &'a [ExtractedTexture<Mibl, TextureUsage>],
     streams_count: u16,
     entry_start_index: usize,
 ) -> Vec<&'a Vec<u8>> {
@@ -690,8 +692,8 @@ where
 
 fn write_low_textures(
     writer: &mut Cursor<Vec<u8>>,
-    textures: &[ExtractedTexture<Mibl>],
-) -> Xc3Result<(StreamEntry, Vec<PackedExternalTexture>)> {
+    textures: &[ExtractedTexture<Mibl, TextureUsage>],
+) -> Xc3Result<(StreamEntry, Vec<PackedExternalTexture<TextureUsage>>)> {
     let mut low_textures = Vec::new();
 
     let offset = writer.stream_position()?;
@@ -702,8 +704,8 @@ fn write_low_textures(
 
         low_textures.push(PackedExternalTexture {
             usage: texture.usage,
-            mibl_length: mibl_length as u32,
-            mibl_offset: mibl_offset as u32 - offset as u32,
+            length: mibl_length as u32,
+            offset: mibl_offset as u32 - offset as u32,
             name: texture.name.clone(),
         })
     }
@@ -727,47 +729,11 @@ impl StreamingDataLegacy {
     pub fn extract_textures(
         &self,
         data: &[u8],
-    ) -> Result<(Vec<u16>, Vec<ExtractedTexture<Mibl>>), DecompressStreamError> {
-        // Start with lower resolution textures.
+    ) -> Result<(Vec<u16>, Vec<ExtractedTexture<Mibl, TextureUsage>>), DecompressStreamError> {
         let low_data = self.low_texture_data(data)?;
-
-        let mut textures = self
-            .low_textures
-            .textures
-            .iter()
-            .map(|t| {
-                let mibl = Mibl::from_bytes(
-                    &low_data
-                        [t.mibl_offset as usize..t.mibl_offset as usize + t.mibl_length as usize],
-                )?;
-                Ok(ExtractedTexture {
-                    name: t.name.clone(),
-                    usage: t.usage,
-                    low: mibl,
-                    high: None,
-                })
-            })
-            .collect::<Result<Vec<_>, DecompressStreamError>>()?;
-
-        // Apply higher resolution texture data if present.
-        if let (Some(texture_indices), Some(high_textures)) =
-            (&self.texture_indices, &self.textures)
-        {
-            let high_data = self.high_texture_data(data)?;
-
-            for (i, t) in texture_indices.iter().zip(high_textures.textures.iter()) {
-                let bytes = &high_data
-                    [t.mibl_offset as usize..t.mibl_offset as usize + t.mibl_length as usize];
-                let mibl = Mibl::from_bytes(bytes)?;
-                textures[*i as usize].high = Some(HighTexture {
-                    mid: mibl,
-                    base_mip: None,
-                });
-            }
-        }
-
-        // Material texture indices can be remapped.
-        Ok((self.low_texture_indices.clone(), textures))
+        let high_data = self.high_texture_data(data)?;
+        self.inner
+            .extract_textures(&low_data, &high_data, |bytes| Mibl::from_bytes(bytes))
     }
 
     fn low_texture_data<'a>(&self, data: &'a [u8]) -> Result<Cow<'a, [u8]>, DecompressStreamError> {
@@ -797,6 +763,57 @@ impl StreamingDataLegacy {
                 Ok(Cow::Owned(xbc1.decompress()?))
             }
         }
+    }
+}
+
+impl<U> StreamingDataLegacyInner<U>
+where
+    U: Xc3Write + Copy + 'static,
+    for<'a> U: BinRead<Args<'a> = ()>,
+    for<'a> U::Offsets<'a>: Xc3WriteOffsets,
+{
+    pub fn extract_textures<T, F>(
+        &self,
+        low_data: &[u8],
+        high_data: &[u8],
+        read_t: F,
+    ) -> Result<(Vec<u16>, Vec<ExtractedTexture<T, U>>), DecompressStreamError>
+    where
+        F: Fn(&[u8]) -> BinResult<T>,
+    {
+        // Start with lower resolution textures.
+        let mut textures = self
+            .low_textures
+            .textures
+            .iter()
+            .map(|t| {
+                let low =
+                    read_t(&low_data[t.offset as usize..t.offset as usize + t.length as usize])?;
+                Ok(ExtractedTexture {
+                    name: t.name.clone(),
+                    usage: t.usage,
+                    low,
+                    high: None,
+                })
+            })
+            .collect::<Result<Vec<_>, DecompressStreamError>>()?;
+
+        // Apply higher resolution texture data if present.
+        if let (Some(texture_indices), Some(high_textures)) =
+            (&self.texture_indices, &self.textures)
+        {
+            for (i, t) in texture_indices.iter().zip(high_textures.textures.iter()) {
+                let bytes = &high_data[t.offset as usize..t.offset as usize + t.length as usize];
+                let mid = read_t(bytes)?;
+                textures[*i as usize].high = Some(HighTexture {
+                    mid,
+                    base_mip: None,
+                });
+            }
+        }
+
+        // Material texture indices can be remapped.
+        Ok((self.low_texture_indices.clone(), textures))
     }
 }
 

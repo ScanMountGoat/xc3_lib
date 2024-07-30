@@ -14,10 +14,10 @@ pub use xc3_lib::mxmd::TextureUsage;
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug)]
 pub enum ExtractedTextures {
-    Switch(Vec<ExtractedTexture<Mibl>>),
+    Switch(Vec<ExtractedTexture<Mibl, TextureUsage>>),
     Pc(
         #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_dds_textures))]
-        Vec<ExtractedTexture<Dds>>,
+        Vec<ExtractedTexture<Dds, TextureUsage>>,
     ),
 }
 
@@ -193,7 +193,7 @@ impl ImageTexture {
         Mibl::from_surface(self.to_surface())
     }
 
-    pub(crate) fn extracted_texture(image: &ImageTexture) -> ExtractedTexture<Mibl> {
+    pub(crate) fn extracted_texture(image: &ImageTexture) -> ExtractedTexture<Mibl, TextureUsage> {
         // Low textures typically use a smaller 4x4 version of the texture.
         // Resizing and decoding and encoding the full texture is expensive.
         // The low texture is only visible briefly before data is streamed in.
@@ -320,40 +320,27 @@ pub fn load_textures_legacy(
     if let Some(streaming) = &mxmd.streaming {
         // TODO: Handle this using a streaming type like with non legacy mxmd?
         if let Some(casmt) = casmt {
-            // Assume all textures have a low texture.
-            let mut textures = streaming
-                .low_textures
-                .textures
-                .iter()
-                .map(|t| {
-                    let start = (streaming.low_texture_data_offset + t.mtxt_offset) as usize;
-                    let size = t.mtxt_length as usize;
-                    let low = Mtxt::from_bytes(&casmt[start..start + size])?;
-                    // TODO: Create a different type for this if this is different enough.
-                    Ok((t.name.clone(), t.usage, low, None))
-                })
-                .collect::<Result<Vec<_>, CreateImageTextureError>>()?;
+            let low_data = &casmt[streaming.low_texture_data_offset as usize
+                ..streaming.low_texture_data_offset as usize + streaming.low_texture_size as usize];
+            let high_data = &casmt[streaming.texture_data_offset as usize
+                ..streaming.texture_data_offset as usize + streaming.texture_size as usize];
 
-            // TODO: Does legacy streaming data use a base mipmap?
-            if let (Some(high), Some(indices)) = (&streaming.textures, &streaming.texture_indices) {
-                for (i, texture) in indices.iter().zip(high.textures.iter()) {
-                    let start = (streaming.texture_data_offset + texture.mtxt_offset) as usize;
-                    let size = texture.mtxt_length as usize;
-                    let mid = Mtxt::from_bytes(&casmt[start..start + size])?;
-                    textures[*i as usize].3 = Some(mid);
-                }
-            }
+            let (indices, textures) =
+                streaming
+                    .inner
+                    .extract_textures(low_data, high_data, |bytes| Mtxt::from_bytes(bytes))?;
 
-            // TODO: find a cleaner way of writing this.
             image_textures = textures
                 .into_iter()
                 .map(|t| {
-                    t.3.map(|h| ImageTexture::from_mtxt(&h, Some(t.0.clone()), Some(t.1)))
-                        .unwrap_or_else(|| ImageTexture::from_mtxt(&t.2, Some(t.0), Some(t.1)))
+                    ImageTexture::from_mtxt(
+                        t.high.as_ref().map(|h| &h.mid).unwrap_or(&t.low),
+                        Some(t.name),
+                        Some(t.usage),
+                    )
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-
-            low_texture_indices = streaming.low_texture_indices.clone();
+            low_texture_indices = indices;
         }
     }
 

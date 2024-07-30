@@ -1429,14 +1429,19 @@ pub struct PackedTexture {
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
-pub struct PackedExternalTextures {
+pub struct PackedExternalTextures<U>
+where
+    U: Xc3Write + 'static,
+    for<'a> U: BinRead<Args<'a> = ()>,
+    for<'a> U::Offsets<'a>: Xc3WriteOffsets,
+{
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
     // TODO: Always identical to low textures in msrd?
     #[br(parse_with = parse_count32_offset32, args { offset: base_offset, inner: base_offset })]
     #[xc3(count_offset(u32, u32), align(2))]
-    pub textures: Vec<PackedExternalTexture>,
+    pub textures: Vec<PackedExternalTexture<U>>,
 
     pub unk2: u32, // 0
 
@@ -1447,17 +1452,25 @@ pub struct PackedExternalTextures {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
-pub struct PackedExternalTexture {
-    pub usage: TextureUsage,
+pub struct PackedExternalTexture<U>
+where
+    U: Xc3Write + 'static,
+    for<'a> U: BinRead<Args<'a> = ()>,
+    for<'a> U::Offsets<'a>: Xc3WriteOffsets,
+{
+    pub usage: U,
 
-    pub mibl_length: u32,
-    pub mibl_offset: u32,
+    /// The size of the texture file in bytes.
+    pub length: u32,
+    /// The offset of the texture file in bytes.
+    pub offset: u32,
 
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub name: String,
 }
 
+// TODO: These are big endian?
 // TODO: Are these some sort of flags?
 // TODO: Use these for default assignments without database?
 // TODO: Possible to guess temp texture channels?
@@ -2192,7 +2205,12 @@ impl<'a> Xc3WriteOffsets for PackedTexturesOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for PackedExternalTexturesOffsets<'a> {
+impl<'a, U> Xc3WriteOffsets for PackedExternalTexturesOffsets<'a, U>
+where
+    U: Xc3Write + 'static,
+    for<'b> U: BinRead<Args<'b> = ()>,
+    for<'b> U::Offsets<'b>: Xc3WriteOffsets,
+{
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
         &self,
         writer: &mut W,

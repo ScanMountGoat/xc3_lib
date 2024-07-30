@@ -1,11 +1,11 @@
 use std::io::SeekFrom;
 
 use crate::{
-    parse_count32_offset32, parse_count32_offset32_unchecked, parse_offset32_count32,
-    parse_offset32_count32_unchecked, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
-    vertex::VertexAttribute, xc3_write_binwrite_impl, StringOffset32,
+    msrd::StreamingDataLegacyInner, parse_count32_offset32, parse_count32_offset32_unchecked,
+    parse_offset32_count32, parse_offset32_count32_unchecked, parse_opt_ptr32, parse_ptr32,
+    parse_string_ptr32, vertex::VertexAttribute, xc3_write_binwrite_impl, StringOffset32,
 };
-use binrw::{args, binread, BinRead, BinWrite};
+use binrw::{binread, BinRead, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 use super::StateFlags;
@@ -289,6 +289,7 @@ pub enum UnkPassType {
     Unk8 = 8,
 }
 
+// TODO: Same as wimdo?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Texture {
@@ -450,6 +451,7 @@ pub struct PackedTexture {
     pub name: String,
 }
 
+// TODO: Is this actually identical to the one used for wimdo just read with a different endian?
 /// Hints on how the texture is used.
 /// Actual usage is determined by the shader.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -496,73 +498,13 @@ pub struct StreamingLegacy {
     pub unk1: u32,
     pub unk2: u32,
 
-    #[br(parse_with = parse_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
-    pub low_textures: PackedExternalTextures,
-
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
-    pub textures: Option<PackedExternalTextures>,
-
-    /// The index referenced by the material texture's [texture_index](struct.Texture.html#structfield.texture_index)
-    /// for each of the textures in [low_textures](#structfield.low_textures).
-    #[br(parse_with = parse_ptr32)]
-    #[br(args {
-        offset: base_offset,
-        inner: args! { count: low_textures.textures.len() }
-    })]
-    #[xc3(offset(u32))]
-    pub low_texture_indices: Vec<u16>,
-
-    /// Index into [low_textures](#structfield.low_textures) for each of the higher resolution textures.
-    /// This allows assigning higher resolution versions to only some of the textures.
-    #[br(parse_with = parse_opt_ptr32)]
-    #[br(args {
-        offset: base_offset,
-        inner: args! { count: textures.as_ref().map(|t| t.textures.len()).unwrap_or_default() }
-    })]
-    #[xc3(offset(u32))]
-    pub texture_indices: Option<Vec<u16>>,
+    #[br(args_raw(base_offset))]
+    pub inner: StreamingDataLegacyInner<TextureUsage>,
 
     pub low_texture_data_offset: u32,
     pub low_texture_size: u32,
     pub texture_data_offset: u32,
     pub texture_size: u32,
-}
-
-// TODO: Share type by making this generic over the texture type?
-/// References to [Mibl](crate::mibl::Mibl) textures in a separate file.
-#[binread]
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write, PartialEq, Clone)]
-#[br(stream = r)]
-#[xc3(base_offset)]
-pub struct PackedExternalTextures {
-    #[br(temp, try_calc = r.stream_position())]
-    base_offset: u64,
-
-    #[br(parse_with = parse_count32_offset32, args { offset: base_offset, inner: base_offset })]
-    #[xc3(count_offset(u32, u32))]
-    pub textures: Vec<PackedExternalTexture>,
-
-    pub unk2: u32, // 0
-
-    #[xc3(shared_offset)]
-    pub strings_offset: u32,
-}
-
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-#[br(import_raw(base_offset: u64))]
-pub struct PackedExternalTexture {
-    pub usage: TextureUsage,
-
-    pub mtxt_length: u32,
-    pub mtxt_offset: u32,
-
-    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
-    pub name: String,
 }
 
 #[binread]
@@ -598,27 +540,3 @@ pub struct Shader {
 }
 
 xc3_write_binwrite_impl!(TextureUsage, UnkPassType);
-
-impl<'a> Xc3WriteOffsets for PackedExternalTexturesOffsets<'a> {
-    fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
-        &self,
-        writer: &mut W,
-        _base_offset: u64,
-        data_ptr: &mut u64,
-        endian: xc3_write::Endian,
-    ) -> xc3_write::Xc3Result<()> {
-        let base_offset = self.base_offset;
-
-        // Names need to be written at the end.
-        let textures = self.textures.write(writer, base_offset, data_ptr, endian)?;
-
-        self.strings_offset
-            .write_full(writer, base_offset, data_ptr, endian)?;
-        for texture in &textures.0 {
-            texture
-                .name
-                .write_full(writer, base_offset, data_ptr, endian)?;
-        }
-        Ok(())
-    }
-}

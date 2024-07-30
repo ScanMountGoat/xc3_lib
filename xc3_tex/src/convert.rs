@@ -548,35 +548,26 @@ pub fn extract_camdo_to_folder(
     if let Some(streaming) = mxmd.streaming {
         let casmt = std::fs::read(input.with_extension("casmt")).unwrap();
 
-        // Assume all textures have a low texture.
-        let mut textures = streaming
-            .low_textures
-            .textures
-            .iter()
-            .map(|t| {
-                let start = (streaming.low_texture_data_offset + t.mtxt_offset) as usize;
-                let size = t.mtxt_length as usize;
-                let low = Mtxt::from_bytes(&casmt[start..start + size])?;
-                Ok((&t.name, low))
-            })
-            .collect::<anyhow::Result<Vec<_>>>()?;
+        let low_data = &casmt[streaming.low_texture_data_offset as usize
+            ..streaming.low_texture_data_offset as usize + streaming.low_texture_size as usize];
+        let high_data = &casmt[streaming.texture_data_offset as usize
+            ..streaming.texture_data_offset as usize + streaming.texture_size as usize];
 
-        // TODO: Does legacy streaming data use a base mipmap?
-        if let (Some(high), Some(indices)) = (&streaming.textures, &streaming.texture_indices) {
-            for (i, texture) in indices.iter().zip(high.textures.iter()) {
-                let start = (streaming.texture_data_offset + texture.mtxt_offset) as usize;
-                let size = texture.mtxt_length as usize;
-                let mid = Mtxt::from_bytes(&casmt[start..start + size])?;
-                textures[*i as usize].1 = mid;
-            }
-        }
+        let (_, textures) = streaming
+            .inner
+            .extract_textures(low_data, high_data, |bytes| Mtxt::from_bytes(bytes))?;
 
-        for (i, (name, texture)) in textures.iter().enumerate() {
-            let dds = texture.to_dds()?;
+        for (i, texture) in textures.iter().enumerate() {
+            let dds = texture
+                .high
+                .as_ref()
+                .map(|h| &h.mid)
+                .unwrap_or(&texture.low)
+                .to_dds()?;
 
             let path = output_folder
                 .join(file_name)
-                .with_extension(format!("{i}.{}.dds", name));
+                .with_extension(format!("{i}.{}.dds", texture.name));
             dds.save(path)?;
         }
         Ok(textures.len())

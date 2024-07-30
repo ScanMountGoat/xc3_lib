@@ -35,7 +35,7 @@ use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 
 use crate::{
     dds::DdsExt,
-    mxmd::{PackedExternalTexture, PackedExternalTextures},
+    mxmd::{PackedExternalTexture, PackedExternalTextures, TextureUsage},
     parse_count32_offset32, parse_opt_ptr32, parse_ptr32,
     xbc1::Xbc1,
     xc3_write_binwrite_impl,
@@ -106,14 +106,36 @@ pub enum StreamingInner {
 pub struct StreamingDataLegacy {
     pub flags: StreamingFlagsLegacy,
 
-    // TODO: This can share types with camdo.
+    #[br(args_raw(base_offset))]
+    pub inner: StreamingDataLegacyInner<TextureUsage>,
+
+    pub low_texture_data_offset: u32,
+    pub texture_data_offset: u32,
+
+    pub low_texture_data_uncompressed_size: u32,
+    pub texture_data_uncompressed_size: u32,
+
+    pub low_texture_data_compressed_size: u32,
+    pub texture_data_compressed_size: u32,
+}
+
+// TODO Make this generic over the packed texture type?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct StreamingDataLegacyInner<U>
+where
+    U: Xc3Write + 'static,
+    for<'a> U: BinRead<Args<'a> = ()>,
+    for<'a> U::Offsets<'a>: Xc3WriteOffsets,
+{
     #[br(parse_with = parse_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    pub low_textures: PackedExternalTextures,
+    pub low_textures: PackedExternalTextures<U>,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    pub textures: Option<PackedExternalTextures>,
+    pub textures: Option<PackedExternalTextures<U>>,
 
     /// The index referenced by the material texture's [texture_index](../mxmd/struct.Texture.html#structfield.texture_index).
     /// for each of the textures in [low_textures](#structfield.low_textures).
@@ -131,15 +153,6 @@ pub struct StreamingDataLegacy {
     })]
     #[xc3(offset(u32))]
     pub texture_indices: Option<Vec<u16>>,
-
-    pub low_texture_data_offset: u32,
-    pub texture_data_offset: u32,
-
-    pub low_texture_data_uncompressed_size: u32,
-    pub texture_data_uncompressed_size: u32,
-
-    pub low_texture_data_compressed_size: u32,
-    pub texture_data_compressed_size: u32,
 }
 
 /// Flags indicating the way data is stored in the model's `.wismt` file.
@@ -215,7 +228,7 @@ pub struct TextureResources {
     /// Name and data range for each of the [Mibl](crate::mibl::Mibl) textures.
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(2))]
-    pub low_textures: Option<PackedExternalTextures>,
+    pub low_textures: Option<PackedExternalTextures<TextureUsage>>,
 
     /// Always `0`.
     pub unk1: u32,

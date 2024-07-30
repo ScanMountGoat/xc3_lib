@@ -83,7 +83,7 @@ pub struct StringOffset {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct BcOffset<T>
 where
-    T: 'static + BinRead + Xc3Write,
+    T: Xc3Write + 'static,
     for<'a> T: BinRead<Args<'a> = ()>,
     for<'a> T::Offsets<'a>: Xc3WriteOffsets,
 {
@@ -98,7 +98,7 @@ where
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct BcList<T>
 where
-    T: BinRead + Xc3Write + 'static,
+    T: Xc3Write + 'static,
     for<'a> T: BinRead<Args<'a> = ()>,
     for<'a> VecOffsets<<T as Xc3Write>::Offsets<'a>>: Xc3WriteOffsets,
 {
