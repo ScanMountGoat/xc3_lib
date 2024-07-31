@@ -338,6 +338,7 @@ impl Buffers {
                 AttributeData::Unk15(_) => (),
                 AttributeData::Unk16(_) => (),
                 AttributeData::Unk18(_) => (),
+                AttributeData::Unk31(_) => (),
                 // Skin weights are handled separately.
                 AttributeData::WeightIndex(_) => (),
                 AttributeData::WeightIndex2(_) => (),

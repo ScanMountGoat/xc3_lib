@@ -166,7 +166,7 @@ pub enum DataType {
     /// The fourth weight component is calculated as `w = 1.0 - x - y - z`.
     /// Only used for Xenoblade X.
     SkinWeights2 = 1,
-    // TODO: xcx with 4 bytes?
+    /// Uint8x4 bone indices for up to 4 bone infuences.
     /// Only used for Xenoblade X.
     BoneIndices2 = 2,
     /// Uint16x2 "nWgtIdx" in shaders.
@@ -200,7 +200,7 @@ pub enum DataType {
     Blend = 14,
     /// Float32x3 ??? in shaders.
     Unk15 = 15,
-    Unk16 = 16, // TODO: 2 snorm8x4? 
+    Unk16 = 16, // TODO: 2 snorm8x4?
     /// Unorm8x4 "vColor" in shaders.
     VertexColor = 17,
     /// Float32x3 ??? in shaders.
@@ -526,7 +526,7 @@ impl DataType {
             DataType::Normal => 4,
             DataType::Tangent => 4,
             DataType::Unk30 => todo!(),
-            DataType::Unk31 => todo!(),
+            DataType::Unk31 => 4,
             DataType::Normal2 => 4,
             DataType::ValInf => 4,
             DataType::Normal3 => 4,

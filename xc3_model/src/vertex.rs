@@ -184,7 +184,10 @@ pub enum AttributeData {
     /// Data for [DataType::Tangent].
     Tangent(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
 
-    // TODO: unk30, unk31, normal2
+    // TODO: unk30
+    /// Data for [DataType::Unk31].
+    Unk31(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+
     /// Data for [DataType::Normal2].
     Normal2(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
 
@@ -241,6 +244,7 @@ impl AttributeData {
             AttributeData::Unk18(v) => v.len(),
             AttributeData::Normal(v) => v.len(),
             AttributeData::Tangent(v) => v.len(),
+            AttributeData::Unk31(v) => v.len(),
             AttributeData::Normal2(v) => v.len(),
             AttributeData::ValInf(v) => v.len(),
             AttributeData::Position2(v) => v.len(),
@@ -290,6 +294,7 @@ impl AttributeData {
             AttributeData::Unk18(values) => a.write(writer, values, write_f32x3),
             AttributeData::Normal(values) => a.write(writer, values, write_snorm8x4),
             AttributeData::Tangent(values) => a.write(writer, values, write_snorm8x4),
+            AttributeData::Unk31(values) => a.write(writer, values, write_unorm8x4),
             AttributeData::Normal2(values) => a.write(writer, values, write_snorm8x4),
             AttributeData::ValInf(values) => a.write(writer, values, write_snorm8x4),
             AttributeData::Position2(values) => a.write(writer, values, write_f32x3),
@@ -324,6 +329,7 @@ impl AttributeData {
             AttributeData::Unk16(_) => DataType::Unk16,
             AttributeData::Normal(_) => DataType::Normal,
             AttributeData::Tangent(_) => DataType::Tangent,
+            AttributeData::Unk31(_) => DataType::Unk31,
             AttributeData::Normal2(_) => DataType::Normal2,
             AttributeData::ValInf(_) => DataType::ValInf,
             AttributeData::Position2(_) => DataType::Position2,
@@ -623,7 +629,7 @@ fn read_attribute(
         DataType::Normal => a.read(b, read_snorm8x4).map(AttributeData::Normal),
         DataType::Tangent => a.read(b, read_snorm8x4).map(AttributeData::Tangent),
         DataType::Unk30 => todo!(),
-        DataType::Unk31 => todo!(),
+        DataType::Unk31 => a.read(b, read_unorm8x4).map(AttributeData::Unk31),
         DataType::Normal2 => a.read(b, read_snorm8x4).map(AttributeData::Normal2),
         DataType::ValInf => a.read(b, read_snorm8x4).map(AttributeData::ValInf),
         DataType::Normal3 => todo!(),

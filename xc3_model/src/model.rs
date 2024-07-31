@@ -358,7 +358,7 @@ fn match_attribute(
         DataType::Normal => attribute!(buffer, AttributeData::Normal, Vec4::ZERO, count),
         DataType::Tangent => attribute!(buffer, AttributeData::Tangent, Vec4::ZERO, count),
         DataType::Unk30 => todo!(),
-        DataType::Unk31 => todo!(),
+        DataType::Unk31 => attribute!(buffer, AttributeData::Unk31, Vec4::ZERO, count),
         DataType::Normal2 => attribute!(buffer, AttributeData::Normal2, Vec4::ZERO, count),
         DataType::ValInf => attribute!(buffer, AttributeData::ValInf, Vec4::ZERO, count),
         DataType::Normal3 => todo!(),
