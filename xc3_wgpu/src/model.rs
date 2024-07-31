@@ -887,6 +887,7 @@ fn set_buffer0_attributes(verts: &mut [shader::model::VertexInput0], attributes:
                 set_attribute0(verts, vals, |v, t| v.position = t.extend(1.0))
             }
             AttributeData::Normal(vals) => set_attribute0(verts, vals, |v, t| v.normal = t),
+            AttributeData::Normal2(vals) => set_attribute0(verts, vals, |v, t| v.normal = t),
             AttributeData::Tangent(vals) => set_attribute0(verts, vals, |v, t| v.tangent = t),
             // Morph blend target attributes
             AttributeData::Position2(vals) => {
