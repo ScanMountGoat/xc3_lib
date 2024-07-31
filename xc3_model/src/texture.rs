@@ -318,12 +318,10 @@ pub fn load_textures_legacy(
 
     // TODO: Share code for loading streaming data with legacy mibl data?
     if let Some(streaming) = &mxmd.streaming {
-        // TODO: Handle this using a streaming type like with non legacy mxmd?
         if let Some(casmt) = casmt {
-            let low_data = &casmt[streaming.low_texture_data_offset as usize
-                ..streaming.low_texture_data_offset as usize + streaming.low_texture_size as usize];
-            let high_data = &casmt[streaming.texture_data_offset as usize
-                ..streaming.texture_data_offset as usize + streaming.texture_size as usize];
+            // TODO: Why are the sizes sometimes 0?
+            let low_data = &casmt[streaming.low_texture_data_offset as usize..];
+            let high_data = &casmt[streaming.texture_data_offset as usize..];
 
             let (indices, textures) =
                 streaming
