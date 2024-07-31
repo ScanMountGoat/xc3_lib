@@ -38,7 +38,7 @@ struct State<'a> {
 
     renderer: Renderer,
 
-    model_name: String,
+    model_names: String,
     groups: Vec<ModelGroup>,
 
     // Animation
@@ -218,12 +218,18 @@ impl<'a> State<'a> {
             elapsed
         );
 
-        // TODO: Show all paths with common folders stripped?
-        let model_name = Path::new(&cli.models[0])
-            .file_name()
-            .unwrap()
-            .to_string_lossy()
-            .to_string();
+        let model_names = cli
+            .models
+            .iter()
+            .map(|m| {
+                Path::new(m)
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .to_string()
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
 
         let animations = match &cli.anim {
             Some(p) => load_animations(p)
@@ -231,7 +237,7 @@ impl<'a> State<'a> {
             None => Vec::new(),
         };
         let animation_index = cli.anim_index.unwrap_or_default();
-        update_window_title(window, &model_name, &animations, animation_index);
+        update_window_title(window, &model_names, &animations, animation_index);
 
         Ok(Self {
             surface,
@@ -241,7 +247,7 @@ impl<'a> State<'a> {
             config,
             translation,
             rotation_xyz,
-            model_name,
+            model_names,
             groups,
             renderer,
             animations,
@@ -354,7 +360,7 @@ impl<'a> State<'a> {
                                     self.animation_index += 1;
                                     update_window_title(
                                         window,
-                                        &self.model_name,
+                                        &self.model_names,
                                         &self.animations,
                                         self.animation_index,
                                     );
@@ -366,7 +372,7 @@ impl<'a> State<'a> {
                                     self.animation_index = self.animation_index.saturating_sub(1);
                                     update_window_title(
                                         window,
-                                        &self.model_name,
+                                        &self.model_names,
                                         &self.animations,
                                         self.animation_index,
                                     );
@@ -435,13 +441,19 @@ impl<'a> State<'a> {
     }
 }
 
-fn update_window_title(window: &Window, model_name: &str, anims: &[Animation], anim_index: usize) {
+fn update_window_title(window: &Window, model_names: &str, anims: &[Animation], anim_index: usize) {
     if let Some(anim) = anims.get(anim_index) {
         window.set_title(&format!(
             "{} - {} - {}",
             concat!("xc3_wgpu ", env!("CARGO_PKG_VERSION")),
-            model_name,
+            model_names,
             anim.name
+        ));
+    } else {
+        window.set_title(&format!(
+            "{} - {}",
+            concat!("xc3_wgpu ", env!("CARGO_PKG_VERSION")),
+            model_names,
         ));
     }
 }

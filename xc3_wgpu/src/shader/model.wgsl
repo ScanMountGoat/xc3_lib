@@ -417,68 +417,7 @@ fn overlay_blend(a: vec3<f32>, b: vec3<f32>) -> vec3<f32> {
     return screen * is_a_gt_half + multiply * (1.0 - is_a_gt_half);
 }
 
-@fragment
-fn fs_alpha(in: VertexOutput) -> @location(0) vec4<f32> {
-    let s0_color = textureSample(s0, s0_sampler, transform_uv(in.tex0, per_material.texture_transforms[0]));
-    let s1_color = textureSample(s1, s1_sampler, transform_uv(in.tex0, per_material.texture_transforms[1]));
-    let s2_color = textureSample(s2, s2_sampler, transform_uv(in.tex0, per_material.texture_transforms[2]));
-    let s3_color = textureSample(s3, s3_sampler, transform_uv(in.tex0, per_material.texture_transforms[3]));
-    let s4_color = textureSample(s4, s4_sampler, transform_uv(in.tex0, per_material.texture_transforms[4]));
-    let s5_color = textureSample(s5, s5_sampler, transform_uv(in.tex0, per_material.texture_transforms[5]));
-    let s6_color = textureSample(s6, s6_sampler, transform_uv(in.tex0, per_material.texture_transforms[6]));
-    let s7_color = textureSample(s7, s7_sampler, transform_uv(in.tex0, per_material.texture_transforms[7]));
-    let s8_color = textureSample(s8, s8_sampler, transform_uv(in.tex0, per_material.texture_transforms[8]));
-    let s9_color = textureSample(s9, s9_sampler, transform_uv(in.tex0, per_material.texture_transforms[9]));
-
-    let s_colors = array<vec4<f32>, 10>(
-        s0_color,
-        s1_color,
-        s2_color,
-        s3_color,
-        s4_color,
-        s5_color,
-        s6_color,
-        s7_color,
-        s8_color,
-        s9_color,
-    );
-
-    // An index of -1 disables alpha testing.
-    let alpha_texture = per_material.alpha_test_texture.x;
-    let alpha_texture_channel = u32(per_material.alpha_test_texture.y);
-    // Workaround for not being able to use a non constant index.
-    if assign_channel(alpha_texture, alpha_texture_channel, -1, s_colors, vec4(1.0), 1.0) < per_material.alpha_test_ref.x {
-        // TODO: incorrect reference alpha for comparison?
-        discard;
-    }
-
-    // The layout of G-Buffer textures is fixed but assignments are not.
-    // Each material in game can have a unique shader program.
-    // Check the G-Buffer assignment database to simulate having unique shaders.
-    // TODO: How to properly handle missing assignments?
-    let assignments = per_material.sampler_assignments;
-    // Defaults incorporate constants, parameters, and default values.
-    let defaults = per_material.output_defaults;
-    let g_color = assign_texture(assignments[0], s_colors, defaults[0], per_material.attribute_assignments[0], in.vertex_color);
-
-    // TODO: How to detect if vertex color is actually color?
-    // TODO: Some outlines aren't using vertex color?
-
-    // The ordering here is the order of per material fragment shader outputs.
-    // The input order for the deferred lighting pass is slightly different.
-    // TODO: alpha?
-    // TODO: How much shading is done in this pass?
-    // TODO: Is it ok to always apply gMatCol like this?
-    // TODO: Detect multiply by vertex color?
-    return g_color * per_material.mat_color;
-}
-
-// TODO: Separate entry for depth prepass.
-// TODO: depth func needs to be changed if using prepass?
-
-// TODO: Share code with alpha pass?
-@fragment
-fn fs_main(in: VertexOutput) -> FragmentOutput {
+fn fragment_output(in: VertexOutput) -> FragmentOutput {
     let tangent = normalize(in.tangent);
     let vertex_normal = normalize(in.normal.xyz);
     let bitangent = normalize(in.bitangent);
@@ -559,10 +498,10 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     // TODO: alpha?
     // TODO: How much shading is done in this pass?
     // TODO: Is it ok to always apply gMatCol like this?
-    var out: FragmentOutput;
     // TODO: Detect multiply by vertex color and gMatCol.
     // TODO: Just detect if gMatCol is part of the technique parameters?
     // TODO: Create a separate entry point fs_outline that always uses vertex color?
+    var out: FragmentOutput;
     out.g_color = g_color * per_material.mat_color;
     out.g_etc_buffer = mrt_etc_buffer(g_etc_buffer, view_normal);
     out.g_normal = mrt_normal(view_normal, g_normal.z);
@@ -570,4 +509,30 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     out.g_depth = mrt_depth(in.position.z, 0.0);
     out.g_lgt_color = g_lgt_color;
     return out;
+}
+
+@fragment
+fn fs_alpha(in: VertexOutput) -> @location(0) vec4<f32> {
+    let output = fragment_output(in);
+    return output.g_color;
+}
+
+// TODO: Separate entry for depth prepass.
+// TODO: depth func needs to be changed if using prepass?
+
+@fragment
+fn fs_main(in: VertexOutput) -> FragmentOutput {
+    return fragment_output(in);
+}
+
+@fragment
+fn fs_outline(in: VertexOutput) -> FragmentOutput {
+    if in.vertex_color.a <= 0.0 {
+        discard;
+    }
+
+    // TODO: Detect multiply by vertex color and gMatCol.
+    var output = fragment_output(in);
+    output.g_color = vec4(in.vertex_color.rgb, 0.0);
+    return output;
 }

@@ -84,8 +84,18 @@ pub fn model_pipeline(
     };
 
     // Some shaders only write to the albedo output.
-    // TODO: Is there a better of handling this than modifying the render pass?
-    if key.write_to_all_outputs() {
+    // TODO: Is there a better way of handling this than modifying the render pass?
+    if key.is_outline {
+        let entry = crate::shader::model::fs_outline_entry([
+            Some(GBUFFER_COLOR_FORMAT.into()),
+            Some(GBUFFER_COLOR_FORMAT.into()),
+            Some(GBUFFER_NORMAL_FORMAT.into()),
+            Some(GBUFFER_COLOR_FORMAT.into()),
+            Some(GBUFFER_COLOR_FORMAT.into()),
+            Some(GBUFFER_COLOR_FORMAT.into()),
+        ]);
+        model_pipeline_inner(device, data, vertex_entry, entry, key)
+    } else if key.write_to_all_outputs() {
         // TODO: Do outputs other than color ever use blending?
         // Create a target for each of the G-Buffer textures.
         let entry = crate::shader::model::fs_main_entry([
