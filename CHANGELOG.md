@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## unreleased
 ### Changed
 * Improved rendering accuracy of outline meshes.
+* Adjusted xc3_viewer window to show all loaded model file names.
 
 ### Fixed
 * Fixed an issue where `.camdo` and legacy `.wimdo` models did not correctly remap indices for texture assignments.
