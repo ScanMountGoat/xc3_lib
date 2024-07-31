@@ -565,7 +565,7 @@ fn read_vertex_attributes(
         .iter()
         .map(|a| {
             let data = read_attribute(
-                a,
+                a.data_type,
                 data_offset,
                 vertex_count,
                 vertex_size,
@@ -581,7 +581,7 @@ fn read_vertex_attributes(
 
 // TODO: make this a function of AttributeData?
 fn read_attribute(
-    a: &xc3_lib::vertex::VertexAttribute,
+    data_type: DataType,
     data_offset: u64,
     vertex_count: u32,
     vertex_size: u32,
@@ -598,7 +598,7 @@ fn read_attribute(
     };
     let b = buffer;
 
-    match a.data_type {
+    match data_type {
         DataType::Position => d.read(b, read_f32x3).map(AttributeData::Position),
         DataType::SkinWeights2 => d.read(b, read_f32x3).map(AttributeData::SkinWeights2),
         DataType::BoneIndices2 => d.read(b, read_u8x4).map(AttributeData::BoneIndices2),
@@ -1190,70 +1190,21 @@ fn write_morph_param_target(
 ) -> Result<xc3_lib::vertex::MorphTarget, binrw::Error> {
     let offset = writer.stream_position()?;
 
-    write_data(
-        writer,
-        &morph_target.position_deltas,
-        offset,
-        32,
-        Endian::Little,
-        write_f32x3,
-    )?;
-
-    write_data(
-        writer,
-        &vec![0u32; morph_target.position_deltas.len()],
-        offset + 12,
-        32,
-        Endian::Little,
-        write_u32,
-    )?;
-
-    // TODO: is there a better way of handling the remapping?
-    let normals: Vec<_> = morph_target
-        .normals
+    // TODO: validate that lengths are equal?
+    for (((position, normal), tangent), index) in morph_target
+        .position_deltas
         .iter()
-        .map(|v| *v * 0.5 + 0.5)
-        .collect();
-    write_data(
-        writer,
-        &normals,
-        offset + 16,
-        32,
-        Endian::Little,
-        write_unorm8x4,
-    )?;
-
-    let tangents: Vec<_> = morph_target
-        .tangents
-        .iter()
-        .map(|v| *v * 0.5 + 0.5)
-        .collect();
-    write_data(
-        writer,
-        &tangents,
-        offset + 20,
-        32,
-        Endian::Little,
-        write_unorm8x4,
-    )?;
-
-    write_data(
-        writer,
-        &vec![0u32; morph_target.position_deltas.len()],
-        offset + 24,
-        32,
-        Endian::Little,
-        write_u32,
-    )?;
-
-    write_data(
-        writer,
-        &morph_target.vertex_indices,
-        offset + 28,
-        32,
-        Endian::Little,
-        write_u32,
-    )?;
+        .zip(morph_target.normals.iter())
+        .zip(morph_target.tangents.iter())
+        .zip(morph_target.vertex_indices.iter())
+    {
+        write_f32x3(writer, position, Endian::Little)?;
+        write_u32(writer, &0, Endian::Little)?;
+        write_unorm8x4(writer, &(*normal * 0.5 + 0.5), Endian::Little)?;
+        write_unorm8x4(writer, &(*tangent * 0.5 + 0.5), Endian::Little)?;
+        write_u32(writer, &0, Endian::Little)?;
+        write_u32(writer, index, Endian::Little)?;
+    }
 
     Ok(xc3_lib::vertex::MorphTarget {
         data_offset: offset as u32,
