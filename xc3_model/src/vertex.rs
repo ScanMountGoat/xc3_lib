@@ -263,41 +263,41 @@ impl AttributeData {
         stride: u64,
         endian: Endian,
     ) -> BinResult<()> {
-        let d = AttributeWriteArgs {
+        let a = AttributeWriteArgs {
             offset,
             stride,
             endian,
         };
         match self {
-            AttributeData::Position(values) => d.write(writer, values, write_f32x3),
-            AttributeData::SkinWeights2(values) => d.write(writer, values, write_f32x3),
-            AttributeData::BoneIndices2(values) => d.write(writer, values, write_u8x4),
-            AttributeData::WeightIndex(values) => d.write(writer, values, write_u16x2),
-            AttributeData::WeightIndex2(values) => d.write(writer, values, write_u16x2),
-            AttributeData::TexCoord0(values) => d.write(writer, values, write_f32x2),
-            AttributeData::TexCoord1(values) => d.write(writer, values, write_f32x2),
-            AttributeData::TexCoord2(values) => d.write(writer, values, write_f32x2),
-            AttributeData::TexCoord3(values) => d.write(writer, values, write_f32x2),
-            AttributeData::TexCoord4(values) => d.write(writer, values, write_f32x2),
-            AttributeData::TexCoord5(values) => d.write(writer, values, write_f32x2),
-            AttributeData::TexCoord6(values) => d.write(writer, values, write_f32x2),
-            AttributeData::TexCoord7(values) => d.write(writer, values, write_f32x2),
-            AttributeData::TexCoord8(values) => d.write(writer, values, write_f32x2),
-            AttributeData::Blend(values) => d.write(writer, values, write_unorm8x4),
-            AttributeData::Unk15(values) => d.write(writer, values, write_f32x3),
-            AttributeData::Unk16(values) => d.write(writer, values, write_u16x2),
-            AttributeData::VertexColor(values) => d.write(writer, values, write_unorm8x4),
-            AttributeData::Unk18(values) => d.write(writer, values, write_f32x3),
-            AttributeData::Normal(values) => d.write(writer, values, write_snorm8x4),
-            AttributeData::Tangent(values) => d.write(writer, values, write_snorm8x4),
-            AttributeData::Normal2(values) => d.write(writer, values, write_snorm8x4),
-            AttributeData::ValInf(values) => d.write(writer, values, write_snorm8x4),
-            AttributeData::Position2(values) => d.write(writer, values, write_f32x3),
-            AttributeData::Normal4(values) => d.write(writer, values, write_unorm8x4),
-            AttributeData::OldPosition(values) => d.write(writer, values, write_f32x3),
-            AttributeData::Tangent2(values) => d.write(writer, values, write_unorm8x4),
-            AttributeData::SkinWeights(values) => d.write(writer, values, write_unorm16x4),
-            AttributeData::BoneIndices(values) => d.write(writer, values, write_u8x4),
+            AttributeData::Position(values) => a.write(writer, values, write_f32x3),
+            AttributeData::SkinWeights2(values) => a.write(writer, values, write_f32x3),
+            AttributeData::BoneIndices2(values) => a.write(writer, values, write_u8x4),
+            AttributeData::WeightIndex(values) => a.write(writer, values, write_u16x2),
+            AttributeData::WeightIndex2(values) => a.write(writer, values, write_u16x2),
+            AttributeData::TexCoord0(values) => a.write(writer, values, write_f32x2),
+            AttributeData::TexCoord1(values) => a.write(writer, values, write_f32x2),
+            AttributeData::TexCoord2(values) => a.write(writer, values, write_f32x2),
+            AttributeData::TexCoord3(values) => a.write(writer, values, write_f32x2),
+            AttributeData::TexCoord4(values) => a.write(writer, values, write_f32x2),
+            AttributeData::TexCoord5(values) => a.write(writer, values, write_f32x2),
+            AttributeData::TexCoord6(values) => a.write(writer, values, write_f32x2),
+            AttributeData::TexCoord7(values) => a.write(writer, values, write_f32x2),
+            AttributeData::TexCoord8(values) => a.write(writer, values, write_f32x2),
+            AttributeData::Blend(values) => a.write(writer, values, write_unorm8x4),
+            AttributeData::Unk15(values) => a.write(writer, values, write_f32x3),
+            AttributeData::Unk16(values) => a.write(writer, values, write_u16x2),
+            AttributeData::VertexColor(values) => a.write(writer, values, write_unorm8x4),
+            AttributeData::Unk18(values) => a.write(writer, values, write_f32x3),
+            AttributeData::Normal(values) => a.write(writer, values, write_snorm8x4),
+            AttributeData::Tangent(values) => a.write(writer, values, write_snorm8x4),
+            AttributeData::Normal2(values) => a.write(writer, values, write_snorm8x4),
+            AttributeData::ValInf(values) => a.write(writer, values, write_snorm8x4),
+            AttributeData::Position2(values) => a.write(writer, values, write_f32x3),
+            AttributeData::Normal4(values) => a.write(writer, values, write_unorm8x4),
+            AttributeData::OldPosition(values) => a.write(writer, values, write_f32x3),
+            AttributeData::Tangent2(values) => a.write(writer, values, write_unorm8x4),
+            AttributeData::SkinWeights(values) => a.write(writer, values, write_unorm16x4),
+            AttributeData::BoneIndices(values) => a.write(writer, values, write_u8x4),
         }
     }
 
@@ -349,7 +349,7 @@ fn read_vertex_buffers(
         .iter()
         .zip(vertex_data.vertex_buffer_info.iter())
         .map(|(descriptor, ext)| {
-            let attributes = read_vertex_attributes(
+            let attributes = read_attributes(
                 descriptor.data_offset as u64,
                 descriptor.vertex_count,
                 descriptor.vertex_size,
@@ -383,7 +383,7 @@ fn read_vertex_buffers(
 
         let descriptor = vertex_data.vertex_buffers.get(weights_index)?;
         // TODO: return error instead?
-        let attributes = read_vertex_attributes(
+        let attributes = read_attributes(
             descriptor.data_offset as u64,
             descriptor.vertex_count,
             descriptor.vertex_size,
@@ -552,7 +552,7 @@ fn read_indices(
     Ok(indices)
 }
 
-fn read_vertex_attributes(
+fn read_attributes(
     data_offset: u64,
     vertex_count: u32,
     vertex_size: u32,
@@ -579,7 +579,6 @@ fn read_vertex_attributes(
         .collect()
 }
 
-// TODO: make this a function of AttributeData?
 fn read_attribute(
     data_type: DataType,
     data_offset: u64,
@@ -589,7 +588,7 @@ fn read_attribute(
     buffer: &[u8],
     endian: Endian,
 ) -> BinResult<AttributeData> {
-    let d = AttributeReadArgs {
+    let a = AttributeReadArgs {
         offset: data_offset,
         count: vertex_count,
         stride: vertex_size,
@@ -599,42 +598,42 @@ fn read_attribute(
     let b = buffer;
 
     match data_type {
-        DataType::Position => d.read(b, read_f32x3).map(AttributeData::Position),
-        DataType::SkinWeights2 => d.read(b, read_f32x3).map(AttributeData::SkinWeights2),
-        DataType::BoneIndices2 => d.read(b, read_u8x4).map(AttributeData::BoneIndices2),
-        DataType::WeightIndex => d.read(b, read_u16x2).map(AttributeData::WeightIndex),
-        DataType::WeightIndex2 => d.read(b, read_u16x2).map(AttributeData::WeightIndex2),
-        DataType::TexCoord0 => d.read(b, read_f32x2).map(AttributeData::TexCoord0),
-        DataType::TexCoord1 => d.read(b, read_f32x2).map(AttributeData::TexCoord1),
-        DataType::TexCoord2 => d.read(b, read_f32x2).map(AttributeData::TexCoord2),
-        DataType::TexCoord3 => d.read(b, read_f32x2).map(AttributeData::TexCoord3),
-        DataType::TexCoord4 => d.read(b, read_f32x2).map(AttributeData::TexCoord4),
-        DataType::TexCoord5 => d.read(b, read_f32x2).map(AttributeData::TexCoord5),
-        DataType::TexCoord6 => d.read(b, read_f32x2).map(AttributeData::TexCoord6),
-        DataType::TexCoord7 => d.read(b, read_f32x2).map(AttributeData::TexCoord7),
-        DataType::TexCoord8 => d.read(b, read_f32x2).map(AttributeData::TexCoord8),
-        DataType::Blend => d.read(b, read_unorm8x4).map(AttributeData::Blend),
-        DataType::Unk15 => d.read(b, read_f32x3).map(AttributeData::Unk15),
-        DataType::Unk16 => d.read(b, read_u16x2).map(AttributeData::Unk16),
-        DataType::VertexColor => d.read(b, read_unorm8x4).map(AttributeData::VertexColor),
-        DataType::Unk18 => d.read(b, read_f32x3).map(AttributeData::Unk18),
+        DataType::Position => a.read(b, read_f32x3).map(AttributeData::Position),
+        DataType::SkinWeights2 => a.read(b, read_f32x3).map(AttributeData::SkinWeights2),
+        DataType::BoneIndices2 => a.read(b, read_u8x4).map(AttributeData::BoneIndices2),
+        DataType::WeightIndex => a.read(b, read_u16x2).map(AttributeData::WeightIndex),
+        DataType::WeightIndex2 => a.read(b, read_u16x2).map(AttributeData::WeightIndex2),
+        DataType::TexCoord0 => a.read(b, read_f32x2).map(AttributeData::TexCoord0),
+        DataType::TexCoord1 => a.read(b, read_f32x2).map(AttributeData::TexCoord1),
+        DataType::TexCoord2 => a.read(b, read_f32x2).map(AttributeData::TexCoord2),
+        DataType::TexCoord3 => a.read(b, read_f32x2).map(AttributeData::TexCoord3),
+        DataType::TexCoord4 => a.read(b, read_f32x2).map(AttributeData::TexCoord4),
+        DataType::TexCoord5 => a.read(b, read_f32x2).map(AttributeData::TexCoord5),
+        DataType::TexCoord6 => a.read(b, read_f32x2).map(AttributeData::TexCoord6),
+        DataType::TexCoord7 => a.read(b, read_f32x2).map(AttributeData::TexCoord7),
+        DataType::TexCoord8 => a.read(b, read_f32x2).map(AttributeData::TexCoord8),
+        DataType::Blend => a.read(b, read_unorm8x4).map(AttributeData::Blend),
+        DataType::Unk15 => a.read(b, read_f32x3).map(AttributeData::Unk15),
+        DataType::Unk16 => a.read(b, read_u16x2).map(AttributeData::Unk16),
+        DataType::VertexColor => a.read(b, read_unorm8x4).map(AttributeData::VertexColor),
+        DataType::Unk18 => a.read(b, read_f32x3).map(AttributeData::Unk18),
         DataType::Unk24 => todo!(),
         DataType::Unk25 => todo!(),
         DataType::Unk26 => todo!(),
-        DataType::Normal => d.read(b, read_snorm8x4).map(AttributeData::Normal),
-        DataType::Tangent => d.read(b, read_snorm8x4).map(AttributeData::Tangent),
+        DataType::Normal => a.read(b, read_snorm8x4).map(AttributeData::Normal),
+        DataType::Tangent => a.read(b, read_snorm8x4).map(AttributeData::Tangent),
         DataType::Unk30 => todo!(),
         DataType::Unk31 => todo!(),
-        DataType::Normal2 => d.read(b, read_snorm8x4).map(AttributeData::Normal2),
-        DataType::ValInf => d.read(b, read_snorm8x4).map(AttributeData::ValInf),
+        DataType::Normal2 => a.read(b, read_snorm8x4).map(AttributeData::Normal2),
+        DataType::ValInf => a.read(b, read_snorm8x4).map(AttributeData::ValInf),
         DataType::Normal3 => todo!(),
         DataType::VertexColor3 => todo!(),
-        DataType::Position2 => d.read(b, read_f32x3).map(AttributeData::Position2),
-        DataType::Normal4 => d.read(b, read_unorm8x4).map(AttributeData::Normal4),
-        DataType::OldPosition => d.read(b, read_f32x3).map(AttributeData::OldPosition),
-        DataType::Tangent2 => d.read(b, read_unorm8x4).map(AttributeData::Tangent2),
-        DataType::SkinWeights => d.read(b, read_unorm16x4).map(AttributeData::SkinWeights),
-        DataType::BoneIndices => d.read(b, read_u8x4).map(AttributeData::BoneIndices),
+        DataType::Position2 => a.read(b, read_f32x3).map(AttributeData::Position2),
+        DataType::Normal4 => a.read(b, read_unorm8x4).map(AttributeData::Normal4),
+        DataType::OldPosition => a.read(b, read_f32x3).map(AttributeData::OldPosition),
+        DataType::Tangent2 => a.read(b, read_unorm8x4).map(AttributeData::Tangent2),
+        DataType::SkinWeights => a.read(b, read_unorm16x4).map(AttributeData::SkinWeights),
+        DataType::BoneIndices => a.read(b, read_u8x4).map(AttributeData::BoneIndices),
         DataType::Flow => todo!(),
     }
 }
@@ -755,8 +754,8 @@ fn read_morph_blend_target(
     // Only the base target contains data for all vertices.
     // This includes required position, normal, and tangent attributes.
     // TODO: return values directly instead of enums?
-    // TODO: Custom reader for normal2 and tangent2 that does * 2 - 1?
-    read_vertex_attributes(
+    // TODO: Custom reader for normal4 and tangent2 that does unorm8x4 * 2 - 1?
+    read_attributes(
         base_target.data_offset as u64,
         base_target.vertex_count,
         base_target.vertex_size,
@@ -806,51 +805,28 @@ fn read_outline_buffer(
         // vNormal and vColor in shaders.
         // Buffer 0: vertex buffer
         // Buffer 1: outline buffer
-        Ok(vec![
-            AttributeData::Normal(read_outline_attribute(
-                descriptor,
-                0,
-                buffer,
-                read_snorm8x4,
-            )?),
-            AttributeData::VertexColor(read_outline_attribute(
-                descriptor,
-                4,
-                buffer,
-                read_unorm8x4,
-            )?),
-        ])
+        read_attributes(
+            descriptor.data_offset as u64,
+            descriptor.vertex_count,
+            descriptor.vertex_size,
+            &[DataType::Normal.into(), DataType::VertexColor.into()],
+            buffer,
+            Endian::Little,
+        )
     } else {
         // vColor in shaders.
         // Buffer 0: vertex buffer
         // Buffer 1: outline buffer
         // Buffer 2: morph target
-        Ok(vec![AttributeData::VertexColor(read_outline_attribute(
-            descriptor,
-            0,
+        read_attributes(
+            descriptor.data_offset as u64,
+            descriptor.vertex_count,
+            descriptor.vertex_size,
+            &[DataType::VertexColor.into()],
             buffer,
-            read_unorm8x4,
-        )?)])
+            Endian::Little,
+        )
     }
-}
-
-fn read_outline_attribute<T, F>(
-    descriptor: &xc3_lib::vertex::OutlineBufferDescriptor,
-    relative_offset: u64,
-    buffer: &[u8],
-    read_item: F,
-) -> BinResult<Vec<T>>
-where
-    F: Fn(&mut Cursor<&[u8]>, Endian) -> BinResult<T>,
-{
-    AttributeReadArgs {
-        offset: descriptor.data_offset as u64,
-        count: descriptor.vertex_count,
-        stride: descriptor.vertex_size,
-        relative_offset,
-        endian: Endian::Little,
-    }
-    .read(buffer, read_item)
 }
 
 impl ModelBuffers {
@@ -1266,7 +1242,7 @@ fn read_vertex_buffers_legacy(
         .iter()
         .map(|descriptor| {
             Ok(VertexBuffer {
-                attributes: read_vertex_attributes(
+                attributes: read_attributes(
                     data_offset,
                     descriptor.vertex_count,
                     descriptor.vertex_size,
@@ -1389,75 +1365,30 @@ fn read_unk_buffer(
     // TODO: why is this 16 or 24 bytes?
     Ok(UnkBuffer {
         attributes: if descriptor.unk1 == 0 {
-            vec![
-                AttributeData::Position(read_unk_buffer_attribute(
-                    descriptor,
-                    data_offset,
-                    0,
-                    buffer,
-                    read_f32x3,
-                )?),
-                AttributeData::VertexColor(read_unk_buffer_attribute(
-                    descriptor,
-                    data_offset,
-                    12,
-                    buffer,
-                    read_unorm8x4,
-                )?),
-            ]
+            read_attributes(
+                data_offset + descriptor.offset as u64,
+                descriptor.count,
+                16,
+                &[DataType::Position.into(), DataType::VertexColor.into()],
+                buffer,
+                Endian::Little,
+            )?
         } else {
-            vec![
-                AttributeData::Position(read_unk_buffer_attribute(
-                    descriptor,
-                    data_offset,
-                    0,
-                    buffer,
-                    read_f32x3,
-                )?),
-                AttributeData::VertexColor(read_unk_buffer_attribute(
-                    descriptor,
-                    data_offset,
-                    12,
-                    buffer,
-                    read_unorm8x4,
-                )?),
-                AttributeData::VertexColor(read_unk_buffer_attribute(
-                    descriptor,
-                    data_offset,
-                    16,
-                    buffer,
-                    read_unorm8x4,
-                )?),
-                AttributeData::VertexColor(read_unk_buffer_attribute(
-                    descriptor,
-                    data_offset,
-                    20,
-                    buffer,
-                    read_unorm8x4,
-                )?),
-            ]
+            read_attributes(
+                data_offset + descriptor.offset as u64,
+                descriptor.count,
+                24,
+                &[
+                    DataType::Position.into(),
+                    DataType::VertexColor.into(),
+                    DataType::VertexColor.into(),
+                    DataType::VertexColor.into(),
+                ],
+                buffer,
+                Endian::Little,
+            )?
         },
     })
-}
-
-fn read_unk_buffer_attribute<T, F>(
-    descriptor: &UnkBufferDescriptor,
-    data_offset: u64,
-    relative_offset: u64,
-    buffer: &[u8],
-    read_item: F,
-) -> BinResult<Vec<T>>
-where
-    F: Fn(&mut Cursor<&[u8]>, Endian) -> BinResult<T>,
-{
-    AttributeReadArgs {
-        offset: data_offset + descriptor.offset as u64,
-        count: descriptor.count,
-        stride: if descriptor.unk1 == 0 { 16 } else { 24 },
-        relative_offset,
-        endian: Endian::Little,
-    }
-    .read(buffer, read_item)
 }
 
 fn align(buffer_writer: &mut Cursor<Vec<u8>>, align: u64) -> Result<(), binrw::Error> {
@@ -1713,7 +1644,7 @@ mod tests {
         ];
         assert_eq!(
             attributes,
-            read_vertex_attributes(
+            read_attributes(
                 descriptor.data_offset as u64,
                 descriptor.vertex_count,
                 descriptor.vertex_size,
@@ -1812,7 +1743,7 @@ mod tests {
         ];
         assert_eq!(
             attributes,
-            read_vertex_attributes(
+            read_attributes(
                 descriptor.data_offset as u64,
                 descriptor.vertex_count,
                 descriptor.vertex_size,
@@ -1869,7 +1800,7 @@ mod tests {
         ];
         assert_eq!(
             attributes,
-            read_vertex_attributes(
+            read_attributes(
                 descriptor.data_offset as u64,
                 descriptor.vertex_count,
                 descriptor.vertex_size,
@@ -2048,7 +1979,7 @@ mod tests {
         ];
         assert_eq!(
             attributes,
-            read_vertex_attributes(
+            read_attributes(
                 descriptor.data_offset as u64,
                 descriptor.vertex_count,
                 descriptor.vertex_size,
@@ -2462,7 +2393,7 @@ mod tests {
         ];
         assert_eq!(
             attributes,
-            read_vertex_attributes(
+            read_attributes(
                 descriptor.data_offset as u64,
                 descriptor.vertex_count,
                 descriptor.vertex_size,
@@ -2519,7 +2450,7 @@ mod tests {
         ];
         assert_eq!(
             attributes,
-            read_vertex_attributes(
+            read_attributes(
                 descriptor.data_offset as u64,
                 descriptor.vertex_count,
                 descriptor.vertex_size,
