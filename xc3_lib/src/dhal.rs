@@ -8,10 +8,7 @@
 //! | Xenoblade Chronicles 1 DE | 10001, 10003 | `menu/image/*.wilay` |
 //! | Xenoblade Chronicles 2 | 10001 | `menu/image/*.wilay` |
 //! | Xenoblade Chronicles 3 | 10003 | `menu/image/*.wilay` |
-use std::{
-    collections::HashMap,
-    io::{Cursor, SeekFrom},
-};
+use std::{collections::HashMap, io::SeekFrom};
 
 use crate::{
     parse_offset32_count32, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
@@ -595,8 +592,9 @@ pub struct UncompressedTexture {
 
 impl UncompressedTexture {
     /// Decode the JPEG/JFIF data to an RGB image.
+    #[cfg(feature = "image")]
     pub fn to_image(&self) -> Result<image::RgbImage, image::error::ImageError> {
-        let mut reader = image::ImageReader::new(Cursor::new(&self.jpeg_data));
+        let mut reader = image::ImageReader::new(std::io::Cursor::new(&self.jpeg_data));
         reader.set_format(image::ImageFormat::Jpeg);
         Ok(reader.decode()?.into_rgb8())
     }
