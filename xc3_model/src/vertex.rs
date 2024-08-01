@@ -969,9 +969,16 @@ impl ModelBuffers {
 
         if let Some(morphs) = &vertex_morphs {
             for descriptor in &morphs.descriptors {
+                let count = if descriptor.param_indices.is_empty() {
+                    0
+                } else {
+                    // Count the blend and default targets.
+                    descriptor.param_indices.len() + 2
+                };
+
                 let info = &mut vertex_buffer_info[descriptor.vertex_buffer_index as usize];
                 info.morph_target_start_index = descriptor.target_start_index as u16;
-                info.morph_target_count = descriptor.param_indices.len() as u16;
+                info.morph_target_count = count as u16;
             }
         }
 
@@ -989,7 +996,7 @@ impl ModelBuffers {
                     vertex_buffer_index: vertex_buffers.len() as u16 - 1,
                     weight_lods: weight_lods.clone(),
                     unk4: 1,
-                    unks5: [0; 4],
+                    unks: [0; 4],
                 }),
             });
 
@@ -1034,6 +1041,7 @@ impl ModelBuffers {
 
             let target = write_morph_blend_target(writer, &buffer.morph_blend_target)?;
             targets.push(target);
+            align(writer, 256)?;
 
             // The default target stores base values for modified vertices.
             let modified_indices: BTreeSet<_> = buffer
@@ -1044,11 +1052,12 @@ impl ModelBuffers {
                 .collect();
             let target = write_morph_default_target(writer, modified_indices, buffer)?;
             targets.push(target);
+            align(writer, 256)?;
 
             for morph_target in &buffer.morph_targets {
-                align(writer, 256)?;
                 let target = write_morph_param_target(writer, morph_target)?;
                 targets.push(target);
+                align(writer, 256)?;
             }
         }
 

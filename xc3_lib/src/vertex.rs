@@ -313,10 +313,8 @@ pub struct MorphDescriptor {
     pub param_indices: Vec<u16>,
 
     // flags?
-    // TODO: 4 or 3?
-    // TODO: exported count is off by 2 when this is set to 3?
     // TODO: 3 also adds extra "vertices" with all 0's for data?
-    pub unk2: u32,
+    pub unk2: u32, // 3, 4, 259, 260
 }
 
 // TODO: vertex attributes for vertex animation data?
@@ -367,8 +365,10 @@ pub struct Weights {
     #[xc3(count_offset(u16, u32))]
     pub weight_lods: Vec<WeightLod>,
 
-    pub unk4: u32,
-    pub unks5: [u32; 4], // padding?
+    pub unk4: u32, // 0, 1
+
+    // TODO: padding?
+    pub unks: [u32; 4],
 }
 
 /// A range of elements in the weights buffer.
