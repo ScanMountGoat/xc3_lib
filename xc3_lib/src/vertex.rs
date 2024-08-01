@@ -313,6 +313,9 @@ pub struct MorphDescriptor {
     pub param_indices: Vec<u16>,
 
     // flags?
+    // TODO: 4 or 3?
+    // TODO: exported count is off by 2 when this is set to 3?
+    // TODO: 3 also adds extra "vertices" with all 0's for data?
     pub unk2: u32,
 }
 
@@ -438,16 +441,14 @@ pub struct Unk {
     pub unks: [u32; 8],
 }
 
-// TODO: each element is 24 bytes?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct UnkBufferDescriptor {
     pub unk1: u16,
-    pub unk2: u16,
+    pub unk2: u16, // TODO: index?
     pub count: u32,
     pub offset: u32,
     pub unk5: u32,
-    // sum of previous counts?
     pub start_index: u32,
 }
 

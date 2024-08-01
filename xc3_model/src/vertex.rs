@@ -93,6 +93,7 @@ pub struct OutlineBuffer {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct UnkBuffer {
+    pub unk2: u16,
     pub attributes: Vec<AttributeData>,
 }
 
@@ -1313,8 +1314,8 @@ fn write_unk_buffers(
     let mut buffers = Vec::new();
     let mut start_index = 0;
 
-    for (i, buffer) in unk_buffers.iter().enumerate() {
-        let unk_buffer = write_unk_buffer(writer, buffer, data_offset, i as u16, start_index)?;
+    for buffer in unk_buffers {
+        let unk_buffer = write_unk_buffer(writer, buffer, data_offset, start_index)?;
         start_index += unk_buffer.count;
         buffers.push(unk_buffer);
     }
@@ -1333,21 +1334,16 @@ fn write_unk_buffer<W: Write + Seek>(
     writer: &mut W,
     buffer: &UnkBuffer,
     data_offset: u32,
-    unk2: u16,
     start_index: u32,
 ) -> BinResult<UnkBufferDescriptor> {
-    let buffer = write_vertex_buffer(writer, &buffer.attributes, Endian::Little)?;
+    let descriptor = write_vertex_buffer(writer, &buffer.attributes, Endian::Little)?;
 
     // Offsets are relative to the start of the section.
     Ok(UnkBufferDescriptor {
-        unk1: if buffer.vertex_size == 16 { 0 } else { 1 },
-        unk2: if buffer.vertex_size == 16 {
-            unk2
-        } else {
-            unk2 + 1
-        },
-        count: buffer.vertex_count,
-        offset: buffer.data_offset - data_offset,
+        unk1: if descriptor.vertex_size == 16 { 0 } else { 1 },
+        unk2: buffer.unk2,
+        count: descriptor.vertex_count,
+        offset: descriptor.data_offset - data_offset,
         unk5: 0,
         start_index,
     })
@@ -1370,6 +1366,7 @@ fn read_unk_buffer(
 ) -> Result<UnkBuffer, binrw::Error> {
     // TODO: why is this 16 or 24 bytes?
     Ok(UnkBuffer {
+        unk2: descriptor.unk2,
         attributes: if descriptor.unk1 == 0 {
             read_attributes(
                 data_offset + descriptor.offset as u64,
@@ -2186,6 +2183,7 @@ mod tests {
         let buffer = read_unk_buffer(&descriptor, 0, &data).unwrap();
         assert_eq!(
             UnkBuffer {
+                unk2: 1,
                 attributes: vec![
                     AttributeData::Position(vec![
                         vec3(-0.038012017, 1.6167967, -0.10723422),
@@ -2210,7 +2208,7 @@ mod tests {
 
         // Test write.
         let mut writer = Cursor::new(Vec::new());
-        let new_descriptor = write_unk_buffer(&mut writer, &buffer, 0, 0, 0).unwrap();
+        let new_descriptor = write_unk_buffer(&mut writer, &buffer, 0, 0).unwrap();
         assert_eq!(new_descriptor, descriptor);
         assert_hex_eq!(data, writer.into_inner());
     }
@@ -2240,6 +2238,7 @@ mod tests {
         let buffer = read_unk_buffer(&descriptor, 0, &data).unwrap();
         assert_eq!(
             UnkBuffer {
+                unk2: 0,
                 attributes: vec![
                     AttributeData::Position(vec![
                         vec3(-0.03853178, 0.01579536, -0.17696129),
@@ -2256,7 +2255,7 @@ mod tests {
 
         // Test write.
         let mut writer = Cursor::new(Vec::new());
-        let new_descriptor = write_unk_buffer(&mut writer, &buffer, 0, 0, 0).unwrap();
+        let new_descriptor = write_unk_buffer(&mut writer, &buffer, 0, 0).unwrap();
         assert_eq!(new_descriptor, descriptor);
         assert_hex_eq!(data, writer.into_inner());
     }
