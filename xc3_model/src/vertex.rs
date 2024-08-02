@@ -21,7 +21,7 @@ use xc3_lib::vertex::{
     VertexBufferExtInfoFlags, VertexData,
 };
 
-pub use xc3_lib::vertex::{WeightGroup, WeightLod};
+pub use xc3_lib::vertex::{PrimitiveType, WeightGroup, WeightLod};
 
 use crate::skinning::{SkinWeights, WeightGroups, Weights};
 
@@ -104,6 +104,7 @@ pub struct UnkBuffer {
 pub struct IndexBuffer {
     // TODO: support u32?
     pub indices: Vec<u16>,
+    pub primitive_type: PrimitiveType,
 }
 
 // TODO: particles in xc2f wiki?
@@ -547,19 +548,15 @@ fn read_index_buffers(vertex_data: &VertexData, endian: Endian) -> BinResult<Vec
     vertex_data
         .index_buffers
         .iter()
-        .map(|descriptor| {
-            Ok(IndexBuffer {
-                indices: read_indices(descriptor, &vertex_data.buffer, endian)?,
-            })
-        })
+        .map(|descriptor| read_index_buffer(descriptor, &vertex_data.buffer, endian))
         .collect()
 }
 
-fn read_indices(
+fn read_index_buffer(
     descriptor: &IndexBufferDescriptor,
     buffer: &[u8],
     endian: Endian,
-) -> BinResult<Vec<u16>> {
+) -> BinResult<IndexBuffer> {
     // TODO: Also read u32 indices.
     let mut reader = Cursor::new(buffer);
     reader.seek(SeekFrom::Start(descriptor.data_offset as u64))?;
@@ -569,7 +566,11 @@ fn read_indices(
         let index: u16 = reader.read_type(endian)?;
         indices.push(index);
     }
-    Ok(indices)
+
+    Ok(IndexBuffer {
+        indices,
+        primitive_type: descriptor.primitive_type,
+    })
 }
 
 fn read_attributes(
@@ -945,7 +946,7 @@ impl ModelBuffers {
 
         for buffer in &self.index_buffers {
             align(&mut writer, 4)?;
-            let index_buffer = write_index_buffer(&mut writer, &buffer.indices, Endian::Little)?;
+            let index_buffer = write_index_buffer(&mut writer, buffer, Endian::Little)?;
             index_buffers.push(index_buffer);
         }
 
@@ -1298,20 +1299,18 @@ fn read_index_buffers_legacy(
         .index_buffers
         .iter()
         .map(|descriptor| {
-            Ok(IndexBuffer {
-                indices: read_indices(
-                    &IndexBufferDescriptor {
-                        data_offset,
-                        index_count: descriptor.index_count,
-                        primitive_type: xc3_lib::vertex::PrimitiveType::TriangleList,
-                        index_format: xc3_lib::vertex::IndexFormat::Uint16,
-                        unk3: 0,
-                        unk4: 0,
-                    },
-                    &descriptor.data,
-                    Endian::Big,
-                )?,
-            })
+            read_index_buffer(
+                &IndexBufferDescriptor {
+                    data_offset,
+                    index_count: descriptor.index_count,
+                    primitive_type: PrimitiveType::TriangleList,
+                    index_format: xc3_lib::vertex::IndexFormat::Uint16,
+                    unk3: 0,
+                    unk4: 0,
+                },
+                &descriptor.data,
+                Endian::Big,
+            )
         })
         .collect()
 }
@@ -1508,17 +1507,17 @@ fn align(buffer_writer: &mut Cursor<Vec<u8>>, align: u64) -> Result<(), binrw::E
 // TODO: support u32?
 fn write_index_buffer<W: Write + Seek>(
     writer: &mut W,
-    indices: &[u16],
+    buffer: &IndexBuffer,
     endian: Endian,
 ) -> BinResult<IndexBufferDescriptor> {
     let data_offset = writer.stream_position()? as u32;
 
-    indices.write_options(writer, endian, ())?;
+    buffer.indices.write_options(writer, endian, ())?;
 
     Ok(IndexBufferDescriptor {
         data_offset,
-        index_count: indices.len() as u32,
-        primitive_type: xc3_lib::vertex::PrimitiveType::TriangleList,
+        index_count: buffer.indices.len() as u32,
+        primitive_type: buffer.primitive_type,
         index_format: xc3_lib::vertex::IndexFormat::Uint16,
         unk3: 0,
         unk4: 0,
@@ -1660,12 +1659,18 @@ mod tests {
         };
 
         // Test read.
-        let indices = read_indices(&descriptor, &data, Endian::Little).unwrap();
-        assert_eq!(vec![0, 1, 2, 1], indices);
+        let buffer = read_index_buffer(&descriptor, &data, Endian::Little).unwrap();
+        assert_eq!(
+            IndexBuffer {
+                indices: vec![0, 1, 2, 1],
+                primitive_type: PrimitiveType::TriangleList
+            },
+            buffer
+        );
 
         // Test write.
         let mut writer = Cursor::new(Vec::new());
-        let new_descriptor = write_index_buffer(&mut writer, &indices, Endian::Little).unwrap();
+        let new_descriptor = write_index_buffer(&mut writer, &buffer, Endian::Little).unwrap();
         assert_eq!(new_descriptor, descriptor);
         assert_hex_eq!(data, writer.into_inner());
     }
@@ -2592,8 +2597,14 @@ mod tests {
         };
 
         // Test read.
-        let indices = read_indices(&descriptor, &data, Endian::Big).unwrap();
-        assert_eq!(vec![0, 1, 2, 2], indices);
+        let indices = read_index_buffer(&descriptor, &data, Endian::Big).unwrap();
+        assert_eq!(
+            IndexBuffer {
+                indices: vec![0, 1, 2, 2],
+                primitive_type: PrimitiveType::TriangleList
+            },
+            indices
+        );
 
         // Test write.
         let mut writer = Cursor::new(Vec::new());
