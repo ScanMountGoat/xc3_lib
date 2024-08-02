@@ -496,7 +496,15 @@ pub struct OutlineBufferDescriptor {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct UnkData {
-    pub unk: [u32; 17],
+    pub unk1: u32, // 1
+    pub vertex_data_offset: u32,
+    pub vertex_data_length: u32,
+    pub uniform_data_offset: u32,
+    pub uniform_data_length: u32,
+    pub vertex_count: u32,
+    pub vertex_size: u32,
+    // TODO: AABB for vertices?
+    pub unk: [f32; 6],
 }
 
 impl DataType {

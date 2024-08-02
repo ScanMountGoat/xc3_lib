@@ -382,11 +382,6 @@ fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: 
     let chr_tex_nx = chr_tex_nx_folder(path);
     let (vertex, spch, textures) = msrd.extract_files(chr_tex_nx.as_deref()).unwrap();
 
-    for buffer in &vertex.vertex_buffers {
-        if buffer.attributes.iter().any(|a| a.data_type == DataType::Unk24) {
-            println!("{path:?}\n{:#?}", buffer.attributes);
-        }
-    }
     if check_read_write && !write_le_bytes_equals(&msrd, original_bytes) {
         println!("Msrd read/write not 1:1 for {path:?}");
     }
@@ -413,7 +408,6 @@ fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: 
             check_mibl(high.mid, path, &[], false);
         }
     }
-
 }
 
 fn check_vertex_data(
@@ -433,7 +427,6 @@ fn check_msmd(msmd: Msmd, path: &Path, _original_bytes: &[u8], check_read_write:
 
     let compressed = msmd.wismda_info.compressed_length != msmd.wismda_info.decompressed_length;
 
-    let ty = DataType::Unk24;
     for (i, model) in msmd.map_models.iter().enumerate() {
         match model.entry.extract(&mut reader, compressed) {
             Ok(model) => {
@@ -455,12 +448,6 @@ fn check_msmd(msmd: Msmd, path: &Path, _original_bytes: &[u8], check_read_write:
     for (i, model) in msmd.env_models.iter().enumerate() {
         match model.entry.extract(&mut reader, compressed) {
             Ok(model) => {
-                for buffer in &model.vertex_data.vertex_buffers {
-                    if buffer.attributes.iter().any(|a| a.data_type == ty) {
-                        println!("{path:?}\n{:#?}", buffer.attributes);
-                    }
-                }
-
                 for texture in model.textures.textures {
                     let mibl = Mibl::from_bytes(&texture.mibl_data).unwrap();
                     check_mibl(mibl, path, &texture.mibl_data, check_read_write);
@@ -473,12 +460,6 @@ fn check_msmd(msmd: Msmd, path: &Path, _original_bytes: &[u8], check_read_write:
     for (i, entry) in msmd.prop_vertex_data.iter().enumerate() {
         match entry.extract(&mut reader, compressed) {
             Ok(vertex_data) => {
-                for buffer in &vertex_data.vertex_buffers {
-                    if buffer.attributes.iter().any(|a| a.data_type == ty) {
-                        println!("{path:?}\n{:#?}", buffer.attributes);
-                    }
-                }
-
                 let original_bytes = entry.decompress(&mut reader, compressed).unwrap();
                 check_vertex_data(vertex_data, path, &original_bytes, check_read_write);
             }
@@ -489,15 +470,10 @@ fn check_msmd(msmd: Msmd, path: &Path, _original_bytes: &[u8], check_read_write:
     for (i, model) in msmd.foliage_models.iter().enumerate() {
         match model.entry.extract(&mut reader, compressed) {
             Ok(model) => {
+                check_vertex_data(model.vertex_data, path, &[], false);
                 for texture in model.textures.textures {
                     let mibl = Mibl::from_bytes(&texture.mibl_data).unwrap();
                     check_mibl(mibl, path, &texture.mibl_data, check_read_write);
-                }
-
-                for buffer in &model.vertex_data.vertex_buffers {
-                    if buffer.attributes.iter().any(|a| a.data_type == ty) {
-                        println!("{path:?}\n{:#?}", buffer.attributes);
-                    }
                 }
             }
             Err(e) => println!("Error extracting foliage model {i} in {path:?}: {e}"),
@@ -518,12 +494,7 @@ fn check_msmd(msmd: Msmd, path: &Path, _original_bytes: &[u8], check_read_write:
     for (i, model) in msmd.low_models.iter().enumerate() {
         match model.entry.extract(&mut reader, compressed) {
             Ok(model) => {
-                for buffer in &model.vertex_data.vertex_buffers {
-                    if buffer.attributes.iter().any(|a| a.data_type == ty) {
-                        println!("{path:?}\n{:#?}", buffer.attributes);
-                    }
-                }
-
+                check_vertex_data(model.vertex_data, path, &[], false);
                 check_spch(model.spch, path, &[], false);
             }
             Err(e) => println!("Error extracting low model {i} in {path:?}: {e}"),
@@ -537,12 +508,6 @@ fn check_msmd(msmd: Msmd, path: &Path, _original_bytes: &[u8], check_read_write:
     for (i, entry) in msmd.map_vertex_data.iter().enumerate() {
         match entry.extract(&mut reader, compressed) {
             Ok(vertex_data) => {
-                for buffer in &vertex_data.vertex_buffers {
-                    if buffer.attributes.iter().any(|a| a.data_type == ty) {
-                        println!("{path:?}\n{:#?}", buffer.attributes);
-                    }
-                }
-
                 let original_bytes = entry.decompress(&mut reader, compressed).unwrap();
                 check_vertex_data(vertex_data, path, &original_bytes, check_read_write);
             }
@@ -877,17 +842,6 @@ fn check_mxmd_legacy(
         }
     }
 
-    for technique in mxmd.materials.techniques {
-        if technique.attributes.iter().any(|a| a.data_type == DataType::Unk24) {
-            println!("{:#?}\n{path:?}", technique.attributes);
-        }
-    }
-
-    for buffer in &mxmd.vertex.vertex_buffers {
-        if buffer.attributes.iter().any(|a| a.data_type == DataType::Unk24) {
-            println!("{path:?}\n{:#?}", buffer.attributes);
-        }
-    }
     // TODO: check read/write for camdo?
     // TODO: Also test loading casmt data?
 }

@@ -10,14 +10,14 @@
 //! A collection of [AttributeData] can always be packed into an interleaved form for rendering.
 use std::{
     collections::BTreeSet,
-    io::{Cursor, Seek, SeekFrom, Write},
+    io::{Cursor, Read, Seek, SeekFrom, Write},
 };
 
 use binrw::{BinRead, BinReaderExt, BinResult, BinWrite, Endian};
 use glam::{Vec2, Vec3, Vec4};
 use xc3_lib::vertex::{
     DataType, IndexBufferDescriptor, MorphDescriptor, MorphTargetFlags, OutlineBufferDescriptor,
-    Unk, UnkBufferDescriptor, VertexBufferDescriptor, VertexBufferExtInfo,
+    Unk, UnkBufferDescriptor, UnkData, VertexBufferDescriptor, VertexBufferExtInfo,
     VertexBufferExtInfoFlags, VertexData,
 };
 
@@ -39,6 +39,7 @@ pub struct ModelBuffers {
     pub outline_buffers: Vec<OutlineBuffer>,
     pub index_buffers: Vec<IndexBuffer>,
     pub unk_buffers: Vec<UnkBuffer>,
+    pub unk_data: Option<UnkDataBuffer>,
     pub weights: Option<Weights>,
 }
 
@@ -103,6 +104,18 @@ pub struct UnkBuffer {
 pub struct IndexBuffer {
     // TODO: support u32?
     pub indices: Vec<u16>,
+}
+
+// TODO: particles in xc2f wiki?
+/// See [UnkData].
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, PartialEq, Clone)]
+pub struct UnkDataBuffer {
+    // TODO: find the data type used in game?
+    pub attribute1: Vec<[u32; 3]>,
+    pub attribute2: Vec<u32>,
+    pub uniform_data: Vec<u8>,
+    pub unk: [f32; 6],
 }
 
 impl VertexBuffer {
@@ -853,15 +866,22 @@ impl ModelBuffers {
 
         // TODO: Preserve if this is none or not?
         let unk_buffers = match &vertex_data.unk7 {
-            Some(unk) => read_unk_buffers(unk, vertex_data)?,
+            Some(unk) => read_unk_buffers(unk, &vertex_data.buffer)?,
             None => Vec::new(),
         };
+
+        let unk_data = vertex_data
+            .unk_data
+            .as_ref()
+            .map(|u| read_unk_data_buffer(u, &vertex_data.buffer))
+            .transpose()?;
 
         Ok(Self {
             vertex_buffers,
             outline_buffers,
             index_buffers,
             unk_buffers,
+            unk_data,
             weights,
         })
     }
@@ -883,6 +903,7 @@ impl ModelBuffers {
             outline_buffers: Vec::new(),
             index_buffers,
             unk_buffers: Vec::new(),
+            unk_data: None,
             weights,
         })
     }
@@ -897,17 +918,17 @@ impl ModelBuffers {
         let mut outline_buffers = Vec::new();
 
         // Match the ordering and alignment from in game.
-        let mut buffer_writer = Cursor::new(Vec::new());
+        let mut writer = Cursor::new(Vec::new());
 
         for buffer in &self.vertex_buffers {
             let vertex_buffer =
-                write_vertex_buffer(&mut buffer_writer, &buffer.attributes, Endian::Little)?;
+                write_vertex_buffer(&mut writer, &buffer.attributes, Endian::Little)?;
             vertex_buffers.push(vertex_buffer);
         }
 
         if let Some(weights) = &self.weights {
             let weights_buffer = write_vertex_buffer(
-                &mut buffer_writer,
+                &mut writer,
                 &[
                     AttributeData::SkinWeights(weights.weight_buffers[0].weights.clone()),
                     AttributeData::BoneIndices(weights.weight_buffers[0].bone_indices.clone()),
@@ -918,38 +939,47 @@ impl ModelBuffers {
         }
 
         for buffer in &self.outline_buffers {
-            let outline_buffer = write_outline_buffer(&mut buffer_writer, &buffer.attributes)?;
+            let outline_buffer = write_outline_buffer(&mut writer, &buffer.attributes)?;
             outline_buffers.push(outline_buffer);
         }
 
         for buffer in &self.index_buffers {
-            align(&mut buffer_writer, 4)?;
-            let index_buffer =
-                write_index_buffer(&mut buffer_writer, &buffer.indices, Endian::Little)?;
+            align(&mut writer, 4)?;
+            let index_buffer = write_index_buffer(&mut writer, &buffer.indices, Endian::Little)?;
             index_buffers.push(index_buffer);
         }
 
-        align(&mut buffer_writer, 256)?;
+        align(&mut writer, 256)?;
 
         let vertex_morphs = if self
             .vertex_buffers
             .iter()
             .any(|b| !b.morph_targets.is_empty())
         {
-            Some(self.write_morph_targets(&mut buffer_writer)?)
+            Some(self.write_morph_targets(&mut writer)?)
         } else {
             None
         };
 
-        align(&mut buffer_writer, 256)?;
+        align(&mut writer, 256)?;
 
         let unk7 = if !self.unk_buffers.is_empty() {
-            Some(write_unk_buffers(&mut buffer_writer, &self.unk_buffers)?)
+            Some(write_unk_buffers(&mut writer, &self.unk_buffers)?)
         } else {
             None
         };
 
-        align(&mut buffer_writer, 4096)?;
+        align(&mut writer, 256)?;
+
+        // TODO: Offset 2 is just bytes?
+        // TODO: unk data offset 2 and then offset 1
+        let unk_data = self
+            .unk_data
+            .as_ref()
+            .map(|unk_data| write_unk_data_buffer(&mut writer, unk_data))
+            .transpose()?;
+
+        align(&mut writer, 4096)?;
 
         let mut vertex_buffer_info: Vec<_> = self
             .vertex_buffers
@@ -1010,8 +1040,8 @@ impl ModelBuffers {
             outline_buffers,
             // TODO: Set remaining data.
             vertex_morphs,
-            buffer: buffer_writer.into_inner(),
-            unk_data: None,
+            buffer: writer.into_inner(),
+            unk_data,
             weights,
             unk7,
             unks: [0; 5],
@@ -1067,6 +1097,45 @@ impl ModelBuffers {
             unks: [0; 4],
         })
     }
+}
+
+fn write_unk_data_buffer(
+    writer: &mut Cursor<Vec<u8>>,
+    unk_data: &UnkDataBuffer,
+) -> BinResult<UnkData> {
+    let uniform_data_offset = writer.stream_position()? as u32;
+    writer.write_all(&unk_data.uniform_data)?;
+
+    let vertex_data_offset = writer.stream_position()? as u32;
+    // TODO: Store this using AttributeData?
+    if unk_data.attribute2.is_empty() {
+        for a1 in &unk_data.attribute1 {
+            a1.write_le(writer)?;
+        }
+    } else {
+        for (a1, a2) in unk_data.attribute1.iter().zip(unk_data.attribute2.iter()) {
+            a1.write_le(writer)?;
+            a2.write_le(writer)?;
+        }
+    }
+
+    let vertex_size = if unk_data.attribute2.is_empty() {
+        12
+    } else {
+        16
+    };
+    let vertex_count = unk_data.attribute1.len() as u32;
+
+    Ok(UnkData {
+        unk1: if vertex_size == 12 { 1 } else { 3 },
+        vertex_data_offset,
+        vertex_data_length: vertex_size * vertex_count,
+        uniform_data_offset,
+        uniform_data_length: unk_data.uniform_data.len() as u32,
+        vertex_count,
+        vertex_size,
+        unk: unk_data.unk,
+    })
 }
 
 // TODO: share writing code with param target.
@@ -1358,13 +1427,10 @@ fn write_unk_buffer<W: Write + Seek>(
     })
 }
 
-fn read_unk_buffers(
-    unk: &xc3_lib::vertex::Unk,
-    vertex_data: &VertexData,
-) -> BinResult<Vec<UnkBuffer>> {
+fn read_unk_buffers(unk: &xc3_lib::vertex::Unk, buffer: &[u8]) -> BinResult<Vec<UnkBuffer>> {
     unk.buffers
         .iter()
-        .map(|descriptor| read_unk_buffer(descriptor, unk.data_offset as u64, &vertex_data.buffer))
+        .map(|descriptor| read_unk_buffer(descriptor, unk.data_offset as u64, buffer))
         .collect()
 }
 
@@ -1400,6 +1466,35 @@ fn read_unk_buffer(
                 Endian::Little,
             )?
         },
+    })
+}
+
+// TODO: Test case for 12 and 16 bytes.
+fn read_unk_data_buffer(unk: &UnkData, buffer: &[u8]) -> BinResult<UnkDataBuffer> {
+    let mut reader = Cursor::new(buffer);
+    reader.set_position(unk.vertex_data_offset as u64);
+
+    // TODO: Just store these as is for now to support rebuilding.
+    let mut attribute1 = Vec::new();
+    let mut attribute2 = Vec::new();
+    for _ in 0..unk.vertex_count {
+        let xyz: [u32; 3] = reader.read_le()?;
+        attribute1.push(xyz);
+        if unk.vertex_size == 16 {
+            let unk: u32 = reader.read_le()?;
+            attribute2.push(unk);
+        }
+    }
+
+    let mut uniform_data = vec![0u8; unk.uniform_data_length as usize];
+    reader.set_position(unk.uniform_data_offset as u64);
+    reader.read_exact(&mut uniform_data)?;
+
+    Ok(UnkDataBuffer {
+        attribute1,
+        attribute2,
+        uniform_data,
+        unk: unk.unk,
     })
 }
 
