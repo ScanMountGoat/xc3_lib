@@ -365,6 +365,7 @@ pub struct Weights {
     #[xc3(count_offset(u16, u32))]
     pub weight_lods: Vec<WeightLod>,
 
+    // TODO: always 0 for xc2?
     pub unk4: u32, // 0, 1
 
     // TODO: padding?

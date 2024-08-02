@@ -1026,7 +1026,7 @@ impl ModelBuffers {
                     groups: weight_groups.clone(),
                     vertex_buffer_index: vertex_buffers.len() as u16 - 1,
                     weight_lods: weight_lods.clone(),
-                    unk4: 1,
+                    unk4: 1, // TODO: sometimes 0
                     unks: [0; 4],
                 }),
             });
@@ -1065,7 +1065,11 @@ impl ModelBuffers {
             let descriptor = MorphDescriptor {
                 vertex_buffer_index: i as u32,
                 target_start_index: targets.len() as u32,
-                param_indices: (0..buffer.morph_targets.len() as u16).collect(),
+                param_indices: buffer
+                    .morph_targets
+                    .iter()
+                    .map(|t| t.morph_controller_index as u16)
+                    .collect(),
                 unk2: 3, // TODO: how to set this?
             };
             descriptors.push(descriptor);
