@@ -62,8 +62,10 @@ pub enum RenderMode {
     GBuffer3 = 4,
     /// Debug the fifth gbuffer texture "gtDep".
     GBuffer4 = 5,
-    /// Debug the sixth gbuffer texture "gtSpecularCol" or "MrtLgtColor".
+    /// Debug the sixth gbuffer texture "MrtLgtColor".
     GBuffer5 = 6,
+    /// Debug the sixth gbuffer texture "gtSpecularCol".
+    GBuffer6 = 7,
 }
 
 // Group resizable resources to avoid duplicating this logic.

@@ -280,6 +280,7 @@ fn fs_debug(in: VertexOutput) -> FragmentOutput {
     let g_velocity = textureSample(g_velocity, shared_sampler, in.uv);
     let g_depth = textureSample(g_depth, shared_sampler, in.uv);
     let g_lgt_color = textureSample(g_lgt_color, shared_sampler, in.uv);
+    let g_specular_color = textureSample(g_specular_color, shared_sampler, in.uv);
 
     var out: FragmentOutput;
     switch (debug_settings.render_mode) {
@@ -300,6 +301,9 @@ fn fs_debug(in: VertexOutput) -> FragmentOutput {
         }
         case 6u: {
             out.color = g_lgt_color;
+        }
+        case 7u: {
+            out.color = g_specular_color;
         }
         default: {
             out.color = vec4(0.0);

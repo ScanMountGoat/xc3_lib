@@ -353,6 +353,7 @@ impl<'a> State<'a> {
                             "4" => self.update_debug_settings(RenderMode::GBuffer3),
                             "5" => self.update_debug_settings(RenderMode::GBuffer4),
                             "6" => self.update_debug_settings(RenderMode::GBuffer5),
+                            "7" => self.update_debug_settings(RenderMode::GBuffer6),
                             // Animation playback.
                             "." => {
                                 if event.state == ElementState::Released {
