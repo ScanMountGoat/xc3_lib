@@ -31,19 +31,28 @@ fn closest(a: vec3<f32>, b: vec3<f32>, c: vec3<f32>) -> vec3<f32> {
     }
 }
 
-// TODO: Can this use compute instead?
+fn unpack_depth(depth: vec3<f32>) -> f32 {
+    return depth.z * 8128.125 + depth.y * 31.875 + depth.x * 0.125;
+}
+
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Adapted from "snnFilterFast" in xeno3/monolib/shader/shd_post.
     // Symmetric nearest neighbor (SNN) is an edge preserving blur kernel.
     // The effect is similar to the Kuwahara or "oil paint" filter.
-    // TODO: unpack depth from gbuffer
-    // TODO: uv offsets based on depth value?
     let c = textureSample(g_color, shared_sampler, in.uv).rgb;
 
+    let gt_dep = textureSample(g_depth, shared_sampler, in.uv).xyz;
+    let depth = unpack_depth(gt_dep);
+
+    // TODO: Should these parameters change with the camera?
+    let depth_remapped = clamp((depth - 1.43352) / (8.60111 - 1.43352 + 0.0001), 0.0, 1.0);
+    let depth_scale = 2.0 / 3.0 * (1.0 - depth_remapped);
+    // This is only horizontal since uvOffset.y is 0.0.
+    let scale = vec2(depth_scale, 0.0);
+
     // Calculate offsets in terms of pixels.
-    // TODO: Is this supposed to just be a horizontal blur?
-    let offset = 1.0 / vec2<f32>(textureDimensions(g_color)) * vec2(1.0, 0.0);
+    let offset = 1.0 / vec2<f32>(textureDimensions(g_color)) * scale;
 
     let c1 = textureSample(g_color, shared_sampler, in.uv + offset * 6.5).rgb;
     let c2 = textureSample(g_color, shared_sampler, in.uv + offset * -6.5).rgb;
