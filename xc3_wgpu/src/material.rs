@@ -187,16 +187,19 @@ pub fn materials(
 
             // Toon and hair materials seem to always use specular.
             // TODO: Is there a more reliable way to check this?
-            let output5_type = match assignments.mat_id() {
-                Some(mat_id) => {
-                    if mat_id == 2 || mat_id == 5 {
-                        Output5Type::Specular
-                    } else {
-                        Output5Type::Emission
-                    }
+            // TODO: Is any frag shader with 7 outputs using specular?
+            // TODO: melia queen has 6 outputs but uses specular?
+            // TODO: Something in the wimdo matches up with shader outputs?
+            // TODO: unk12-14 in material render flags?
+            let output5_type = if assignments.mat_id().is_some() {
+                if material.render_flags.specular() {
+                    Output5Type::Specular
+                } else {
+                    Output5Type::Emission
                 }
+            } else {
                 // TODO: Set better defaults for xcx models?
-                None => Output5Type::Specular,
+                Output5Type::Specular
             };
 
             // TODO: How to make sure the pipeline outputs match the render pass?

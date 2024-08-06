@@ -3,6 +3,9 @@
 var g_etc_buffer: texture_2d<f32>;
 
 @group(0) @binding(1)
+var g_depth: texture_2d<f32>;
+
+@group(0) @binding(2)
 var shared_sampler: sampler;
 
 struct VertexOutput {
@@ -28,17 +31,20 @@ struct FragmentOutput {
 @fragment
 fn fs_main(in: VertexOutput) -> @builtin(frag_depth) f32 {
     // Adapted from "unbranch_to_depth" in xeno3/monolib/shader/shd_post.
-    // Extract the material ID from the first 3 bits.
-    let g_etc_buffer = textureSample(g_etc_buffer, shared_sampler, in.uv);
-    let mat_id = u32(g_etc_buffer.a * 255.0 + 0.1) & 0x7u;
+    let coords = vec2<u32>(in.uv * vec2<f32>(textureDimensions(g_etc_buffer)));
 
-    // Assume a Depth16 output format.
-    // This creates an ID mask to use with depth function equals.
-    var depth = (f32(mat_id) + 1.0) / 65535.0;
+    // Extract the material ID from the first 3 bits.
+    let g_etc_buffer = textureLoad(g_etc_buffer, coords, 0);
+    let mat_id = u32(g_etc_buffer.w * 255.0 + 0.1) & 0x7u;
+
     // Avoid writing depth to unused fragments.
-    // TODO: The in game check uses the model depth buffer.
-    if g_etc_buffer.a == 0.0 {
-        depth = 0.0;
+    // TODO: The in game check uses bit operations with stencil?
+    let g_depth = textureLoad(g_depth, coords, 0).z;
+    if g_depth != 1.0 {
+        // Assume a Depth16 output format.
+        // This creates an ID mask to use with depth function equals.
+        return (f32(mat_id) + 1.0) / 65535.0;
+    } else {
+        return 0.0;
     }
-    return depth;
 }

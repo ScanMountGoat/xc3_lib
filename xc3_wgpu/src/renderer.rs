@@ -82,8 +82,8 @@ pub struct Textures {
 
 impl Textures {
     fn new(device: &wgpu::Device, width: u32, height: u32) -> Self {
-        let depth_view =
-            create_texture(device, width, height, "depth texture", DEPTH_STENCIL_FORMAT);
+        let depth_stencil =
+            create_texture(device, width, height, "depth_texture", DEPTH_STENCIL_FORMAT);
         let mat_id_depth_view = create_texture(
             device,
             width,
@@ -108,7 +108,7 @@ impl Textures {
         let blit_deferred_bind_group = create_blit_bindgroup(device, &deferred_output);
 
         Self {
-            depth_stencil: depth_view,
+            depth_stencil,
             mat_id_depth: mat_id_depth_view,
             deferred_output,
             gbuffer,
@@ -938,6 +938,7 @@ fn create_unbranch_to_depth_bindgroup(
         device,
         crate::shader::unbranch_to_depth::bind_groups::BindGroupLayout0 {
             g_etc_buffer: &gbuffer.etc_buffer,
+            g_depth: &gbuffer.depth,
             shared_sampler: &shared_sampler,
         },
     )
@@ -1011,7 +1012,7 @@ fn create_texture(
     label: &str,
     format: wgpu::TextureFormat,
 ) -> wgpu::TextureView {
-    let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some(label),
         size: wgpu::Extent3d {
             width,
@@ -1026,7 +1027,7 @@ fn create_texture(
         view_formats: &[],
     });
 
-    depth_texture.create_view(&Default::default())
+    texture.create_view(&Default::default())
 }
 
 // TODO: Create 5-6 pipelines for each material type.

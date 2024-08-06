@@ -185,11 +185,11 @@ pub struct Technique {
     // TODO: matches up with uniform parameters for U_Mate?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub parameters: Vec<MaterialParameter>, // var table?
+    pub parameters: Vec<MaterialParameter>,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub textures: Vec<u16>, // textures?
+    pub textures: Vec<u16>,
 
     // ssbos and then uniform buffers ordered by handle?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
@@ -454,14 +454,14 @@ pub struct MaterialRenderFlags {
     pub unk6: bool,
     /// Render in a depth only z-prepass.
     /// Used exlusively for speff_zpre materials for Xenoblade 3.
-    pub speff_zpre: bool,
+    pub speff_zpre: bool, // TODO: start of gbuffer flags?
     pub unk8: bool,
     pub unk9: bool,
     pub unk10: bool, // TODO: fur shading temp tex for xc2?
     pub unk11: bool,
-    pub unk12: bool,
-    pub unk13: bool,
-    pub unk14: bool,
+    pub specular: bool, // TODO: specular for out_attr5?
+    pub unk13: bool,    // TODO: true for core crystals?
+    pub unk14: bool,    // TODO: true for core crystals?
     pub unk15: bool,
     pub unk16: bool,
     pub unk17: bool,
