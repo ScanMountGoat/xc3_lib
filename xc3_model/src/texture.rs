@@ -344,7 +344,7 @@ pub fn load_textures_legacy(
 #[cfg(feature = "arbitrary")]
 fn arbitrary_dds_textures(
     _u: &mut arbitrary::Unstructured,
-) -> arbitrary::Result<Vec<ExtractedTexture<Dds>>> {
+) -> arbitrary::Result<Vec<ExtractedTexture<Dds, TextureUsage>>> {
     // TODO: Generate random DDS files?
     Ok(Vec::new())
 }
