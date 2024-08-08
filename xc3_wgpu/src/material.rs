@@ -72,7 +72,12 @@ pub fn materials(
     let materials = materials
         .iter()
         .map(|material| {
-            let mut name_to_index = IndexMap::new();
+            // Assign material textures by index to make GPU debugging easier.
+            // TODO: Match the ordering in the actual in game shader using technique?
+            let mut name_to_index = (0..material.textures.len())
+                .map(|i| (format!("s{i}").into(), i))
+                .collect();
+
             let mut name_to_transforms = IndexMap::new();
 
             let assignments = material.output_assignments(image_textures);
@@ -84,12 +89,6 @@ pub fn materials(
             // Alpha textures might not be used in normal shaders.
             if let Some(a) = &material.alpha_test {
                 name_to_index.entry_index(format!("s{}", a.texture_index).into());
-            }
-
-            // It's possible that some material textures had no assignment.
-            // Assign remaining textures by index to make GPU debugging easier.
-            for i in 0..material.textures.len() {
-                name_to_index.entry_index(format!("s{i}").into());
             }
 
             let mut texture_views: [Option<_>; 10] = std::array::from_fn(|_| None);

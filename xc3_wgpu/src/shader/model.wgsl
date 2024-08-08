@@ -533,6 +533,6 @@ fn fs_outline(in: VertexOutput) -> FragmentOutput {
 
     // TODO: Detect multiply by vertex color and gMatCol.
     var output = fragment_output(in);
-    output.g_color = vec4(in.vertex_color.rgb, 0.0);
+    output.g_color = vec4(in.vertex_color.rgb * per_material.mat_color.rgb, 0.0);
     return output;
 }

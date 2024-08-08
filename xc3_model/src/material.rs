@@ -545,8 +545,9 @@ fn channel_assignment(
             })
         })
         .or_else(|| {
-            let mut textures: Vec<_> = shader
-                .textures(output_index, channel)
+            let textures = shader.textures(output_index, channel);
+
+            let mut sorted_textures: Vec<_> = textures
                 .iter()
                 .map(|texture| {
                     let texcoord_transforms = texcoord_transforms(texture, parameters);
@@ -561,16 +562,42 @@ fn channel_assignment(
                 })
                 .collect();
 
-            // TODO: How to deal with multiple textures used for color and normal outputs?
-            textures.sort_by_cached_key(|t| sampler_index(t.name.as_str()).unwrap_or(usize::MAX));
+            // TODO: The correct approach is to detect layering and masks when generating the database.
+            if output_index == 2 {
+                // Normal maps are usually just XY BC5 textures.
+                // Sort so that these textures are accessed first.
+                sorted_textures.sort_by_cached_key(|t| {
+                    let count = textures.iter().filter(|t2| t2.name == t.name).count();
+                    (
+                        count != 2,
+                        sampler_index(t.name.as_str()).unwrap_or(usize::MAX),
+                    )
+                });
+            } else {
+                // Color maps typically assign s0 using RGB or a single channel.
+                // Ignore single channel masks if an RGB input is present.
+                // Ignore XY BC5 normal maps by placing them at the end.
+                sorted_textures.sort_by_cached_key(|t| {
+                    let count = textures.iter().filter(|t2| t2.name == t.name).count();
+                    (
+                        match count {
+                            3 => 0,
+                            1 => 1,
+                            2 => u8::MAX,
+                            _ => 2,
+                        },
+                        sampler_index(t.name.as_str()).unwrap_or(usize::MAX),
+                    )
+                });
+            }
 
-            (!textures.is_empty()).then_some(ChannelAssignment::Textures(textures))
+            (!sorted_textures.is_empty()).then_some(ChannelAssignment::Textures(sorted_textures))
         })
 }
 
 fn sampler_index(sampler_name: &str) -> Option<usize> {
     // Convert names like "s3" to index 3.
-    // Materials always use this naming convention in the shader.
+    // Material textures always use this naming convention in the shader.
     sampler_name.strip_prefix('s')?.parse().ok()
 }
 

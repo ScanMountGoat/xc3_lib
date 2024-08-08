@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Adjusted xc3_viewer window to show all loaded model file names.
 * Moved image support for xc3_lib and xc3_model to an optional "image" feature.
 * Improved accuracy of vertex data rebuilding.
+* Improved the heuristic for color and normal map layer material texture assignments.
 
 ### Fixed
 * Fixed an issue where `.camdo` and legacy `.wimdo` models did not correctly remap indices for texture assignments.

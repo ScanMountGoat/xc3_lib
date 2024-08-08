@@ -180,15 +180,10 @@ pub struct AttributeDependency {
 
 impl ShaderProgram {
     /// Returns the textures assigned to the output or `None` if the output does not use any texture.
-    ///
-    /// This currently uses a heuristic where textures like "s0" are returned before "s4" or "gTResidentTex05"
-    /// to resolve some assignment issues.
     pub fn textures(&self, output_index: usize, channel: char) -> Vec<&TextureDependency> {
         let output = format!("o{output_index}.{channel}");
 
-        // Find the first material referenced samplers like "s0" or "s1".
-        let mut textures: Vec<_> = self
-            .output_dependencies
+        self.output_dependencies
             .get(&SmolStr::from(output))
             .map(|d| d.as_slice())
             .unwrap_or_default()
@@ -197,12 +192,7 @@ impl ShaderProgram {
                 Dependency::Texture(t) => Some(t),
                 _ => None,
             })
-            .collect();
-
-        // TODO: Is there a better heuristic than always picking the lowest sampler index?
-        textures
-            .sort_by(|a, b| material_sampler_index(&a.name).cmp(&material_sampler_index(&b.name)));
-        textures
+            .collect()
     }
 
     /// Returns the float constant assigned directly to the output
@@ -255,24 +245,6 @@ impl ShaderProgram {
             Dependency::Attribute(b) => Some(b),
             _ => None,
         }
-    }
-}
-
-fn material_sampler_index(sampler: &str) -> usize {
-    // TODO: Just parse int?
-    match sampler {
-        "s0" => 0,
-        "s1" => 1,
-        "s2" => 2,
-        "s3" => 3,
-        "s4" => 4,
-        "s5" => 5,
-        "s6" => 6,
-        "s7" => 7,
-        "s8" => 8,
-        "s9" => 9,
-        // TODO: How to handle this case?
-        _ => usize::MAX,
     }
 }
 
