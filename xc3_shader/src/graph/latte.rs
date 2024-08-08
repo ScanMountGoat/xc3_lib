@@ -458,23 +458,6 @@ fn alu_src_expr(source: Pair<Rule>, nodes: &Nodes) -> Expr {
 
     let value = inner.next().unwrap();
     let alu_src_value = value.into_inner().next().unwrap();
-    let value = match alu_src_value.as_rule() {
-        Rule::literal => {
-            let mut inner = alu_src_value.into_inner();
-            let a = inner.next().unwrap();
-            let b = inner.next();
-            match (a.as_rule(), b.as_ref().map(|b| b.as_rule())) {
-                (Rule::hex_number, None) => a.as_str(),
-                (Rule::float, None) => a.as_str().trim_end_matches('f'),
-                (Rule::hex_number, Some(Rule::float)) => {
-                    // Extract the non hex portion from a float literal.
-                    b.unwrap().as_str()
-                }
-                _ => unreachable!(),
-            }
-        }
-        _ => alu_src_value.as_str(),
-    };
 
     if inner.peek().map(|p| p.as_rule()) == Some(Rule::alu_rel) {
         inner.next().unwrap();
@@ -482,8 +465,48 @@ fn alu_src_expr(source: Pair<Rule>, nodes: &Nodes) -> Expr {
 
     let channel = one_comp_swizzle(inner);
 
-    // Find a previous assignment that modifies the desired channel.
-    let expr = previous_assignment(value, channel, nodes);
+    let expr = match alu_src_value.as_rule() {
+        Rule::literal => {
+            let mut inner = alu_src_value.into_inner();
+            let a = inner.next().unwrap();
+            let b = inner.next();
+            let value = match (a.as_rule(), b.as_ref().map(|b| b.as_rule())) {
+                (Rule::hex_number, None) => a.as_str().parse().unwrap(),
+                (Rule::float, None) => a.as_str().trim_end_matches('f').parse().unwrap(),
+                (Rule::hex_number, Some(Rule::float)) => {
+                    // Extract the non hex portion from a float literal.
+                    b.unwrap().as_str().parse().unwrap()
+                }
+                _ => unreachable!(),
+            };
+            Expr::Float(value)
+        }
+        Rule::constant_cache0 => {
+            let mut inner = alu_src_value.into_inner();
+            let number = inner.next().unwrap().as_str().parse().unwrap();
+            Expr::Parameter {
+                name: "KC0".to_string(),
+                field: None,
+                index: Box::new(Expr::Int(number)),
+                channel,
+            }
+        }
+        Rule::constant_cache1 => {
+            let mut inner = alu_src_value.into_inner();
+            let number = inner.next().unwrap().as_str().parse().unwrap();
+            Expr::Parameter {
+                name: "KC1".to_string(),
+                field: None,
+                index: Box::new(Expr::Int(number)),
+                channel,
+            }
+        }
+        _ => {
+            // Find a previous assignment that modifies the desired channel.
+            let name = alu_src_value.as_str();
+            previous_assignment(name, channel, nodes)
+        }
+    };
 
     if negate {
         Expr::Negate(Box::new(expr))
@@ -951,24 +974,24 @@ mod tests {
             R6.x = texture(t4, vec2(R6.x, R6.y)).x;
             R6.y = texture(t4, vec2(R6.x, R6.y)).y;
             R6.z = texture(t4, vec2(R6.x, R6.y)).z;
-            R125.x = fma(R2.x, 2, -1.0);
-            R126.y = fma(R2.y, 2, -1.0);
+            R125.x = fma(R2.x, 2.0, -1.0);
+            R126.y = fma(R2.y, 2.0, -1.0);
             PV4.z = 0.0;
-            R124.w = R2.z * 8;
+            R124.w = R2.z * 8.0;
             PS4 = sqrt(R5.w);
-            temp5 = dot(vec4(R125.x, R126.y, PV4.z, -0), vec4(R125.x, R126.y, R126.y, 0.0));
+            temp5 = dot(vec4(R125.x, R126.y, PV4.z, -0.0), vec4(R125.x, R126.y, R126.y, 0.0));
             PV5.x = temp5;
             PV5.y = temp5;
             PV5.z = temp5;
             PV5.w = temp5;
             R0.w = -PS4 + 1.0;
-            temp6 = dot(vec4(R5.x, R5.y, R5.z, -0), vec4(R5.x, R5.y, R5.z, 0.0));
+            temp6 = dot(vec4(R5.x, R5.y, R5.z, -0.0), vec4(R5.x, R5.y, R5.z, 0.0));
             PV6.x = temp6;
             PV6.y = temp6;
             PV6.z = temp6;
             PV6.w = temp6;
             R127.w = -PV5.x + 1.0;
-            temp7 = dot(vec4(R3.x, R3.y, R3.z, -0), vec4(R3.x, R3.y, R3.z, 0.0));
+            temp7 = dot(vec4(R3.x, R3.y, R3.z, -0.0), vec4(R3.x, R3.y, R3.z, 0.0));
             PV7.x = temp7;
             R127.y = temp7;
             PV7.z = temp7;
@@ -979,7 +1002,7 @@ mod tests {
             R126.z = R5.z * PS7;
             R127.w = R5.y * PS7;
             R127.z = sqrt(R127.w);
-            temp9 = dot(vec4(R0.x, R0.y, R0.z, -0), vec4(R0.x, R0.y, R0.z, 0.0));
+            temp9 = dot(vec4(R0.x, R0.y, R0.z, -0.0), vec4(R0.x, R0.y, R0.z, 0.0));
             PV9.x = temp9;
             PV9.y = temp9;
             PV9.z = temp9;
@@ -1005,13 +1028,13 @@ mod tests {
             R126.z = fma(PV12.x, R126.y, R123.y);
             R126.w = floor(R124.y);
             R2.w = 0.0;
-            temp14 = dot(vec4(R1.x, R1.y, R1.z, -0), vec4(R1.x, R1.y, R1.z, 0.0));
+            temp14 = dot(vec4(R1.x, R1.y, R1.z, -0.0), vec4(R1.x, R1.y, R1.z, 0.0));
             PV14.x = temp14;
             PV14.y = temp14;
             PV14.z = temp14;
             PV14.w = temp14;
             R6.w = KC0[1].x;
-            temp15 = dot(vec4(R126.x, R127.y, R126.z, -0), vec4(R126.x, R127.y, R126.z, 0.0));
+            temp15 = dot(vec4(R126.x, R127.y, R126.z, -0.0), vec4(R126.x, R127.y, R126.z, 0.0));
             PV15.x = temp15;
             PV15.y = temp15;
             PV15.z = temp15;
@@ -1027,7 +1050,7 @@ mod tests {
             R126.z = R126.z * PS16;
             PV17.w = R4.z * R4.z;
             R5.x = R124.w + -R125.y;
-            temp18 = dot(vec4(R125.x, R126.y, R127.z, -0), vec4(R126.x, R127.y, R126.z, 0.0));
+            temp18 = dot(vec4(R125.x, R126.y, R127.z, -0.0), vec4(R126.x, R127.y, R126.z, 0.0));
             PV18.x = temp18;
             PV18.y = temp18;
             PV18.z = temp18;
@@ -1041,7 +1064,7 @@ mod tests {
             R127.y = fma(-R126.y, PV19.y, R127.y);
             R127.z = fma(-R127.z, PV19.y, R126.z);
             R126.w = inversesqrt(R123.x);
-            temp21 = dot(vec4(R126.x, R127.y, R127.z, -0), vec4(R126.x, R127.y, R127.z, 0.0));
+            temp21 = dot(vec4(R126.x, R127.y, R127.z, -0.0), vec4(R126.x, R127.y, R127.z, 0.0));
             PV21.x = temp21;
             PV21.y = temp21;
             PV21.z = temp21;

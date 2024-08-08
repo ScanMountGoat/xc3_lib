@@ -90,7 +90,7 @@ pub struct Output {
 impl Graph {
     /// Return the indices of dependent nodes for `variable` and `channels`
     /// starting from the last assignment.
-    pub fn assignments_recursive(
+    pub fn dependencies_recursive(
         &self,
         variable: &str,
         channel: Option<char>,
@@ -101,7 +101,7 @@ impl Graph {
             .iter()
             .rposition(|n| n.output.name == variable && n.output.channel == channel)
         {
-            self.node_assignments_recursive(i, recursion_depth)
+            self.node_dependencies_recursive(i, recursion_depth)
         } else {
             Vec::new()
         }
@@ -109,7 +109,7 @@ impl Graph {
 
     /// Return the indices of dependent nodes for `node`
     /// starting from the last assignment.
-    pub fn node_assignments_recursive(
+    pub fn node_dependencies_recursive(
         &self,
         node_index: usize,
         recursion_depth: Option<usize>,
@@ -142,6 +142,43 @@ impl Graph {
         }
     }
 
+    /// Return the indices of dependent nodes for `node`
+    /// starting from the last assignment.
+    ///
+    /// Unlike [Self::node_dependencies_recursive],
+    /// this only considers direct assignment chains like
+    /// `a = b; c = a;` and does not recurse into operands or arguments.
+    pub fn node_assignments_recursive(
+        &self,
+        node_index: usize,
+        recursion_depth: Option<usize>,
+    ) -> Vec<usize> {
+        let mut dependent_lines = BTreeSet::new();
+
+        // Follow data dependencies backwards to find all relevant lines.
+        self.add_assignments(node_index, &mut dependent_lines);
+
+        // TODO: return type for accumulated channels.
+        let max_depth = recursion_depth.unwrap_or(dependent_lines.len());
+        dependent_lines
+            .into_iter()
+            .rev()
+            .take(max_depth + 1)
+            .rev()
+            .collect()
+    }
+
+    fn add_assignments(&self, node_index: usize, dependent_lines: &mut BTreeSet<usize>) {
+        if let Some(n) = self.nodes.get(node_index) {
+            // Avoid processing the subtree rooted at a line more than once.
+            if dependent_lines.insert(node_index) {
+                if let Expr::Node { node_index, .. } = n.input {
+                    self.add_assignments(node_index, dependent_lines);
+                }
+            }
+        }
+    }
+
     /// Return the GLSL for each line from [Self::assignments_recursive].
     pub fn glsl_dependencies(
         &self,
@@ -151,7 +188,7 @@ impl Graph {
     ) -> String {
         let mut output = String::new();
         let mut visited = BTreeSet::new();
-        for i in self.assignments_recursive(variable, channel, recursion_depth) {
+        for i in self.dependencies_recursive(variable, channel, recursion_depth) {
             // Some nodes may be repeated with different tracked channels.
             if visited.insert(i) {
                 output += &self.node_to_glsl(&self.nodes[i]);

@@ -19,34 +19,36 @@ pub fn input_dependencies(
     channel: Option<char>,
 ) -> Vec<Dependency> {
     // Find the most recent assignment for the output variable.
-    let node = graph
+    let node_index = graph
         .nodes
         .iter()
-        .rfind(|n| n.output.name == variable && n.output.channel == channel);
+        .rposition(|n| n.output.name == variable && n.output.channel == channel);
 
     // TODO: Rework this to be cleaner and add more tests.
     let mut dependencies = texture_dependencies(graph, attributes, variable, channel);
 
-    // Add anything directly assigned to the output variable.
-    if let Some(node) = node {
-        match &node.input {
-            Expr::Float(f) => dependencies.push(Dependency::Constant((*f).into())),
-            Expr::Parameter {
-                name,
-                field,
-                index,
-                channel,
-            } => {
-                if let Expr::Int(index) = index.deref() {
-                    dependencies.push(Dependency::Buffer(BufferDependency {
-                        name: name.into(),
-                        field: field.clone().unwrap_or_default().into(),
-                        index: (*index).try_into().unwrap(),
-                        channels: channel.map(|c| c.to_string().into()).unwrap_or_default(),
-                    }))
+    // Add anything assigned directly to the output.
+    if let Some(node_index) = node_index {
+        for i in graph.node_assignments_recursive(node_index, None) {
+            match &graph.nodes[i].input {
+                Expr::Float(f) => dependencies.push(Dependency::Constant((*f).into())),
+                Expr::Parameter {
+                    name,
+                    field,
+                    index,
+                    channel,
+                } => {
+                    if let Expr::Int(index) = index.deref() {
+                        dependencies.push(Dependency::Buffer(BufferDependency {
+                            name: name.into(),
+                            field: field.clone().unwrap_or_default().into(),
+                            index: (*index).try_into().unwrap(),
+                            channels: channel.map(|c| c.to_string().into()).unwrap_or_default(),
+                        }))
+                    }
                 }
+                _ => (),
             }
-            _ => (),
         }
     }
 
@@ -69,7 +71,7 @@ pub fn attribute_dependencies(
     recursion_depth: Option<usize>,
 ) -> Vec<AttributeDependency> {
     graph
-        .assignments_recursive(variable, channel, recursion_depth)
+        .dependencies_recursive(variable, channel, recursion_depth)
         .into_iter()
         .filter_map(|i| {
             // Check all exprs for binary ops, function args, etc.
@@ -98,7 +100,7 @@ fn texture_dependencies(
     channel: Option<char>,
 ) -> Vec<Dependency> {
     graph
-        .assignments_recursive(variable, channel, None)
+        .dependencies_recursive(variable, channel, None)
         .into_iter()
         .filter_map(|i| {
             // Check all exprs for binary ops, function args, etc.
@@ -148,7 +150,7 @@ fn texcoord_args(args: &[Expr], graph: &Graph, attributes: &Attributes) -> Vec<T
         .filter_map(|e| {
             if let Expr::Node { node_index, .. } = e {
                 // Find the attribute used for this input.
-                let node_assignments = graph.node_assignments_recursive(*node_index, None);
+                let node_assignments = graph.node_dependencies_recursive(*node_index, None);
                 let (name, channels) =
                     texcoord_name_channels(&node_assignments, graph, attributes)?;
 

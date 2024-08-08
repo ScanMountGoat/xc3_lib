@@ -112,8 +112,8 @@ fn shader_from_latte_asm(
                 // We don't annotate the assembly itself to avoid parsing errors.
                 for d in &mut dependencies {
                     match d {
-                        Dependency::Constant(_) => todo!(),
-                        Dependency::Buffer(_) => todo!(),
+                        Dependency::Constant(_) => (),
+                        Dependency::Buffer(_) => (),
                         Dependency::Texture(t) => {
                             for sampler in &fragment_shader.samplers {
                                 if t.name == format!("t{}", sampler.location) {
@@ -147,7 +147,7 @@ fn geometric_specular_aa(frag: &Graph) -> Option<BufferDependency> {
         .nodes
         .iter()
         .rposition(|n| n.output.name == "out_attr1" && n.output.channel == Some('y'))?;
-    let last_node_index = *frag.node_assignments_recursive(node_index, None).last()?;
+    let last_node_index = *frag.node_dependencies_recursive(node_index, None).last()?;
     let last_node = frag.nodes.get(last_node_index)?;
 
     let node = assign_x(&frag.nodes, last_node)?;
@@ -1485,6 +1485,7 @@ mod tests {
                             }),
                         ]
                     ),
+                    ("o1.w".into(), vec![Dependency::Constant(0.0.into())]),
                     (
                         "o2.x".into(),
                         vec![
@@ -1537,6 +1538,15 @@ mod tests {
                             name: "s3".into(),
                             channels: "z".into(),
                             texcoords: Vec::new(),
+                        })],
+                    ),
+                    (
+                        "o3.w".into(),
+                        vec![Dependency::Buffer(BufferDependency {
+                            name: "KC0".into(),
+                            field: "".into(),
+                            index: 1,
+                            channels: "x".into(),
                         })],
                     ),
                     (
