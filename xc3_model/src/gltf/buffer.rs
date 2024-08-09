@@ -360,10 +360,7 @@ impl Buffers {
                 AttributeData::Normal4(values) => {
                     // Not all applications will normalize the vertex normals.
                     // Use Vec3 instead of Vec4 since it's better supported.
-                    let values: Vec<_> = values
-                        .iter()
-                        .map(|v| (v.xyz() * 2.0 - 1.0).normalize())
-                        .collect();
+                    let values: Vec<_> = values.iter().map(|v| (v.xyz()).normalize()).collect();
                     self.insert_vec3(&values, gltf::Semantic::Normals, &mut attributes)?;
                 }
                 AttributeData::OldPosition(_) => (),
@@ -371,7 +368,7 @@ impl Buffers {
                     // Not all applications will normalize the vertex tangents.
                     let values: Vec<_> = values
                         .iter()
-                        .map(|v| (v.xyz() * 2.0 - 1.0).normalize().extend(v.w * 2.0 - 1.0))
+                        .map(|v| (v.xyz()).normalize().extend(v.w))
                         .collect();
                     self.insert_vec4(&values, gltf::Semantic::Tangents, &mut attributes)?;
                 }

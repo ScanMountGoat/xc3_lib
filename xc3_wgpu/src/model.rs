@@ -893,12 +893,8 @@ fn set_buffer0_attributes(verts: &mut [shader::model::VertexInput0], attributes:
             AttributeData::Position2(vals) => {
                 set_attribute0(verts, vals, |v, t| v.position = t.extend(1.0))
             }
-            AttributeData::Normal4(vals) => {
-                set_attribute0(verts, vals, |v, t| v.normal = t * 2.0 - 1.0)
-            }
-            AttributeData::Tangent2(vals) => {
-                set_attribute0(verts, vals, |v, t| v.tangent = t * 2.0 - 1.0)
-            }
+            AttributeData::Normal4(vals) => set_attribute0(verts, vals, |v, t| v.normal = t),
+            AttributeData::Tangent2(vals) => set_attribute0(verts, vals, |v, t| v.tangent = t),
             _ => (),
         }
     }

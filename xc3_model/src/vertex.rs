@@ -231,14 +231,12 @@ pub enum AttributeData {
     Position2(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3s))] Vec<Vec3>),
 
     /// Data for [DataType::Normal4].
-    /// Values should be used as `v * 2.0 - 1.0`.
     Normal4(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
 
     /// Data for [DataType::OldPosition].
     OldPosition(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3s))] Vec<Vec3>),
 
     /// Data for [DataType::Tangent2].
-    /// Values should be used as `v * 2.0 - 1.0`.
     Tangent2(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
 
     // TODO: weight buffer only?
@@ -343,9 +341,9 @@ impl AttributeData {
             AttributeData::Normal3(values) => a.write(writer, values, write_snorm8x4),
             AttributeData::VertexColor3(values) => a.write(writer, values, write_unorm8x4),
             AttributeData::Position2(values) => a.write(writer, values, write_f32x3),
-            AttributeData::Normal4(values) => a.write(writer, values, write_unorm8x4),
+            AttributeData::Normal4(values) => a.write(writer, values, write_unorm8x4_signed),
             AttributeData::OldPosition(values) => a.write(writer, values, write_f32x3),
-            AttributeData::Tangent2(values) => a.write(writer, values, write_unorm8x4),
+            AttributeData::Tangent2(values) => a.write(writer, values, write_unorm8x4_signed),
             AttributeData::SkinWeights(values) => a.write(writer, values, write_unorm16x4),
             AttributeData::BoneIndices(values) => a.write(writer, values, write_u8x4),
             AttributeData::Flow(values) => a.write(writer, values, write_u16),
@@ -687,9 +685,9 @@ fn read_attribute(
         DataType::Normal3 => a.read(b, read_snorm8x4).map(AttributeData::Normal3),
         DataType::VertexColor3 => a.read(b, read_unorm8x4).map(AttributeData::VertexColor3),
         DataType::Position2 => a.read(b, read_f32x3).map(AttributeData::Position2),
-        DataType::Normal4 => a.read(b, read_unorm8x4).map(AttributeData::Normal4),
+        DataType::Normal4 => a.read(b, read_unorm8x4_signed).map(AttributeData::Normal4),
         DataType::OldPosition => a.read(b, read_f32x3).map(AttributeData::OldPosition),
-        DataType::Tangent2 => a.read(b, read_unorm8x4).map(AttributeData::Tangent2),
+        DataType::Tangent2 => a.read(b, read_unorm8x4_signed).map(AttributeData::Tangent2),
         DataType::SkinWeights => a.read(b, read_unorm16x4).map(AttributeData::SkinWeights),
         DataType::BoneIndices => a.read(b, read_u8x4).map(AttributeData::BoneIndices),
         DataType::Flow => a.read(b, read_u16).map(AttributeData::Flow),
@@ -787,6 +785,11 @@ fn read_snorm8x4(reader: &mut Cursor<&[u8]>, endian: Endian) -> BinResult<Vec4> 
     Ok(value.map(|i| i as f32 / 127.0).into())
 }
 
+fn read_unorm8x4_signed(reader: &mut Cursor<&[u8]>, endian: Endian) -> BinResult<Vec4> {
+    let value: [u8; 4] = reader.read_type(endian)?;
+    Ok(value.map(|u| u as f32 / 127.5 - 1.0).into())
+}
+
 fn read_unorm16x4(reader: &mut Cursor<&[u8]>, endian: Endian) -> BinResult<Vec4> {
     let value: [u16; 4] = reader.read_type(endian)?;
     Ok(value.map(|u| u as f32 / 65535.0).into())
@@ -821,7 +824,6 @@ fn read_morph_blend_target(
     // Only the base target contains data for all vertices.
     // This includes required position, normal, and tangent attributes.
     // TODO: return values directly instead of enums?
-    // TODO: Custom reader for normal4 and tangent2 that does unorm8x4 * 2 - 1?
     read_attributes(
         base_target.data_offset as u64,
         base_target.vertex_count,
@@ -856,8 +858,8 @@ fn read_morph_buffer_target(
             // TODO: Read individual attributes?
             Ok(MorphTargetVertex {
                 position_delta: vertex.position_delta.into(),
-                normal: vertex.normal.map(|u| u as f32 / 255.0 * 2.0 - 1.0).into(),
-                tangent: vertex.tangent.map(|u| u as f32 / 255.0 * 2.0 - 1.0).into(),
+                normal: vertex.normal.map(|u| u as f32 / 127.5 - 1.0).into(),
+                tangent: vertex.tangent.map(|u| u as f32 / 127.5 - 1.0).into(),
                 vertex_index: vertex.vertex_index,
             })
         })
@@ -1199,23 +1201,23 @@ fn write_morph_default_target(
 
     // TODO: None of these attributes are deltas?
     // TODO: Is there a cleaner way of doing this?
-    let positions: Vec<_> = buffer
+    let positions = buffer
         .morph_blend_target
         .iter()
         .find_map(|a| {
             if let AttributeData::Position2(values) = a {
-                Some(
+                Some(AttributeData::Position2(
                     modified_indices
                         .iter()
                         .map(|i| values[*i as usize])
                         .collect(),
-                )
+                ))
             } else {
                 None
             }
         })
         .unwrap();
-    write_data(writer, &positions, offset, 32, Endian::Little, write_f32x3)?;
+    positions.write(writer, offset, 32, Endian::Little)?;
 
     write_data(
         writer,
@@ -1226,55 +1228,41 @@ fn write_morph_default_target(
         write_u32,
     )?;
 
-    let normals: Vec<_> = buffer
+    let normals = buffer
         .morph_blend_target
         .iter()
         .find_map(|a| {
             if let AttributeData::Normal4(values) = a {
-                Some(
+                Some(AttributeData::Normal4(
                     modified_indices
                         .iter()
                         .map(|i| values[*i as usize])
                         .collect(),
-                )
+                ))
             } else {
                 None
             }
         })
         .unwrap();
-    write_data(
-        writer,
-        &normals,
-        offset + 16,
-        32,
-        Endian::Little,
-        write_unorm8x4,
-    )?;
+    normals.write(writer, offset + 16, 32, Endian::Little)?;
 
-    let tangents: Vec<_> = buffer
+    let tangents = buffer
         .morph_blend_target
         .iter()
         .find_map(|a| {
             if let AttributeData::Tangent2(values) = a {
-                Some(
+                Some(AttributeData::Tangent2(
                     modified_indices
                         .iter()
                         .map(|i| values[*i as usize])
                         .collect(),
-                )
+                ))
             } else {
                 None
             }
         })
         .unwrap();
-    write_data(
-        writer,
-        &tangents,
-        offset + 20,
-        32,
-        Endian::Little,
-        write_unorm8x4,
-    )?;
+    tangents.write(writer, offset + 20, 32, Endian::Little)?;
 
     write_data(
         writer,
@@ -1312,8 +1300,8 @@ fn write_morph_param_target(
     {
         write_f32x3(writer, position, Endian::Little)?;
         write_u32(writer, &0, Endian::Little)?;
-        write_unorm8x4(writer, &(*normal * 0.5 + 0.5), Endian::Little)?;
-        write_unorm8x4(writer, &(*tangent * 0.5 + 0.5), Endian::Little)?;
+        write_unorm8x4_signed(writer, normal, Endian::Little)?;
+        write_unorm8x4_signed(writer, tangent, Endian::Little)?;
         write_u32(writer, &0, Endian::Little)?;
         write_u32(writer, index, Endian::Little)?;
     }
@@ -1692,6 +1680,17 @@ fn write_snorm8x4<W: Write + Seek>(writer: &mut W, value: &Vec4, endian: Endian)
     value
         .to_array()
         .map(|f| (f * 127.0) as i8)
+        .write_options(writer, endian, ())
+}
+
+fn write_unorm8x4_signed<W: Write + Seek>(
+    writer: &mut W,
+    value: &Vec4,
+    endian: Endian,
+) -> BinResult<()> {
+    value
+        .to_array()
+        .map(|f| (f * 127.5 + 127.5) as u8)
         .write_options(writer, endian, ())
 }
 
@@ -2200,16 +2199,16 @@ mod tests {
                 vec3(0.048528977, 1.3739486, -0.03387388),
             ]),
             AttributeData::Normal4(vec![
-                vec4(0.90588236, 0.25490198, 0.3529412, 0.003921569),
-                vec4(0.92941177, 0.29803923, 0.34901962, 0.003921569),
+                vec4(0.8117647, -0.49019605, -0.29411763, -0.99215686),
+                vec4(0.85882354, -0.40392154, -0.30196077, -0.99215686),
             ]),
             AttributeData::OldPosition(vec![
                 vec3(0.043739468, 1.3661073, -0.033391867),
                 vec3(0.048528977, 1.3739486, -0.03387388),
             ]),
             AttributeData::Tangent2(vec![
-                vec4(0.49019608, 0.74509805, 0.06666667, 1.0),
-                vec4(0.48235294, 0.77254903, 0.08627451, 1.0),
+                vec4(-0.019607842, 0.4901961, -0.8666667, 1.0),
+                vec4(-0.035294116, 0.54509807, -0.827451, 1.0),
             ]),
         ];
         assert_eq!(attributes, read_morph_blend_target(&target, &data).unwrap());
