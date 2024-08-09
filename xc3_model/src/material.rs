@@ -316,18 +316,23 @@ fn read_param<const N: usize>(
     work_values: &[f32],
 ) -> Vec<[f32; N]> {
     // Assume any parameter can be an array, so read a vec.
-    work_values[param.work_value_index as usize..]
-        .chunks(N)
-        .map(|v| {
-            // TODO: Just keep indices to reference values instead?
-            // TODO: The param count field doesn't work here for Pyra ho_BL_TS2?
-            let mut output = [0.0; N];
-            for (o, v) in output.iter_mut().zip(v) {
-                *o = *v;
-            }
-            output
+    work_values
+        .get(param.work_value_index as usize..)
+        .map(|values| {
+            values
+                .chunks(N)
+                .map(|v| {
+                    // TODO: Just keep indices to reference values instead?
+                    // TODO: The param count field doesn't work here for Pyra ho_BL_TS2?
+                    let mut output = [0.0; N];
+                    for (o, v) in output.iter_mut().zip(v) {
+                        *o = *v;
+                    }
+                    output
+                })
+                .collect()
         })
-        .collect()
+        .unwrap_or_default()
 }
 
 // TODO: Add a mat_id method that checks o1.w and returns an enum?
