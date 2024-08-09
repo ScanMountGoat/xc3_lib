@@ -191,14 +191,26 @@ pub enum AttributeData {
     /// Data for [DataType::Unk18].
     Unk18(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3s))] Vec<Vec3>),
 
-    // TODO: unk24, unk25, unk26
+    // TODO: Only used for buffer 1 for stages and some post processing shaders?
+    /// Data for [DataType::Unk24].
+    Unk24(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+
+    /// Data for [DataType::Unk25].
+    Unk25(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+
+    /// Data for [DataType::Unk26].
+    Unk26(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+
     /// Data for [DataType::Normal].
     Normal(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
 
     /// Data for [DataType::Tangent].
     Tangent(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
 
-    // TODO: unk30
+    // TODO: what is the data size for this?
+    /// Data for [DataType::Unk30].
+    Unk30(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+
     /// Data for [DataType::Unk31].
     Unk31(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
 
@@ -262,8 +274,12 @@ impl AttributeData {
             AttributeData::Unk16(v) => v.len(),
             AttributeData::VertexColor(v) => v.len(),
             AttributeData::Unk18(v) => v.len(),
+            AttributeData::Unk24(v) => v.len(),
+            AttributeData::Unk25(v) => v.len(),
+            AttributeData::Unk26(v) => v.len(),
             AttributeData::Normal(v) => v.len(),
             AttributeData::Tangent(v) => v.len(),
+            AttributeData::Unk30(v) => v.len(),
             AttributeData::Unk31(v) => v.len(),
             AttributeData::Normal2(v) => v.len(),
             AttributeData::ValInf(v) => v.len(),
@@ -315,8 +331,12 @@ impl AttributeData {
             AttributeData::Unk16(values) => a.write(writer, values, write_u16x2),
             AttributeData::VertexColor(values) => a.write(writer, values, write_unorm8x4),
             AttributeData::Unk18(values) => a.write(writer, values, write_f32x3),
+            AttributeData::Unk24(values) => a.write(writer, values, write_f32x4),
+            AttributeData::Unk25(values) => a.write(writer, values, write_f32x4),
+            AttributeData::Unk26(values) => a.write(writer, values, write_f32x4),
             AttributeData::Normal(values) => a.write(writer, values, write_snorm8x4),
             AttributeData::Tangent(values) => a.write(writer, values, write_snorm8x4),
+            AttributeData::Unk30(values) => a.write(writer, values, write_unorm8x4),
             AttributeData::Unk31(values) => a.write(writer, values, write_unorm8x4),
             AttributeData::Normal2(values) => a.write(writer, values, write_snorm8x4),
             AttributeData::ValInf(values) => a.write(writer, values, write_snorm8x4),
@@ -350,11 +370,15 @@ impl AttributeData {
             AttributeData::TexCoord8(_) => DataType::TexCoord8,
             AttributeData::VertexColor(_) => DataType::VertexColor,
             AttributeData::Unk18(_) => DataType::Unk18,
+            AttributeData::Unk24(_) => DataType::Unk24,
+            AttributeData::Unk25(_) => DataType::Unk25,
+            AttributeData::Unk26(_) => DataType::Unk26,
             AttributeData::Blend(_) => DataType::Blend,
             AttributeData::Unk15(_) => DataType::Unk15,
             AttributeData::Unk16(_) => DataType::Unk16,
             AttributeData::Normal(_) => DataType::Normal,
             AttributeData::Tangent(_) => DataType::Tangent,
+            AttributeData::Unk30(_) => DataType::Unk30,
             AttributeData::Unk31(_) => DataType::Unk31,
             AttributeData::Normal2(_) => DataType::Normal2,
             AttributeData::ValInf(_) => DataType::ValInf,
@@ -651,12 +675,12 @@ fn read_attribute(
         DataType::Unk16 => a.read(b, read_u16x2).map(AttributeData::Unk16),
         DataType::VertexColor => a.read(b, read_unorm8x4).map(AttributeData::VertexColor),
         DataType::Unk18 => a.read(b, read_f32x3).map(AttributeData::Unk18),
-        DataType::Unk24 => todo!(),
-        DataType::Unk25 => todo!(),
-        DataType::Unk26 => todo!(),
+        DataType::Unk24 => a.read(b, read_f32x4).map(AttributeData::Unk24),
+        DataType::Unk25 => a.read(b, read_f32x4).map(AttributeData::Unk25),
+        DataType::Unk26 => a.read(b, read_f32x4).map(AttributeData::Unk26),
         DataType::Normal => a.read(b, read_snorm8x4).map(AttributeData::Normal),
         DataType::Tangent => a.read(b, read_snorm8x4).map(AttributeData::Tangent),
-        DataType::Unk30 => todo!(),
+        DataType::Unk30 => a.read(b, read_unorm8x4).map(AttributeData::Unk30),
         DataType::Unk31 => a.read(b, read_unorm8x4).map(AttributeData::Unk31),
         DataType::Normal2 => a.read(b, read_snorm8x4).map(AttributeData::Normal2),
         DataType::ValInf => a.read(b, read_snorm8x4).map(AttributeData::ValInf),
@@ -745,6 +769,11 @@ fn read_f32x2(reader: &mut Cursor<&[u8]>, endian: Endian) -> BinResult<Vec2> {
 
 fn read_f32x3(reader: &mut Cursor<&[u8]>, endian: Endian) -> BinResult<Vec3> {
     let value: [f32; 3] = reader.read_type(endian)?;
+    Ok(value.into())
+}
+
+fn read_f32x4(reader: &mut Cursor<&[u8]>, endian: Endian) -> BinResult<Vec4> {
+    let value: [f32; 4] = reader.read_type(endian)?;
     Ok(value.into())
 }
 
@@ -1635,6 +1664,10 @@ fn write_f32x2<W: Write + Seek>(writer: &mut W, value: &Vec2, endian: Endian) ->
 }
 
 fn write_f32x3<W: Write + Seek>(writer: &mut W, value: &Vec3, endian: Endian) -> BinResult<()> {
+    value.to_array().write_options(writer, endian, ())
+}
+
+fn write_f32x4<W: Write + Seek>(writer: &mut W, value: &Vec4, endian: Endian) -> BinResult<()> {
     value.to_array().write_options(writer, endian, ())
 }
 
