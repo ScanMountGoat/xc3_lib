@@ -8,7 +8,7 @@ use ordered_float::OrderedFloat;
 use rayon::prelude::*;
 
 // TODO: This will eventually need to account for parameters and constants.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct GeneratedImageKey {
     pub root_index: usize,
     pub red_index: Option<ImageIndex>,
@@ -19,13 +19,14 @@ pub struct GeneratedImageKey {
     pub invert_green: bool,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ImageIndex {
     Image {
         image_texture: usize,
         // TODO: This shouldn't be keyed as part of the generated images.
         sampler: usize,
         channel: usize,
+        texcoord_name: String,
         texcoord_scale: Option<[OrderedFloat<f32>; 2]>,
     },
     Value(OrderedFloat<f32>),
@@ -79,7 +80,7 @@ impl TextureCache {
         self.generated_texture_indices
             .par_iter()
             .map(|(key, _)| {
-                let image = generate_image(*key, &self.original_images, flip_vertical);
+                let image = generate_image(key.clone(), &self.original_images, flip_vertical);
 
                 // Compress ahead of time to reduce memory usage.
                 // The final results will need to be saved as PNG anyway.
@@ -107,6 +108,7 @@ pub fn albedo_generated_key(
                 image_texture: t.image_texture_index,
                 sampler: 0,
                 channel: 0,
+                texcoord_name: String::new(),
                 texcoord_scale: None,
             })
         });
@@ -116,6 +118,7 @@ pub fn albedo_generated_key(
                 image_texture: t.image_texture_index,
                 sampler: 0,
                 channel: 1,
+                texcoord_name: String::new(),
                 texcoord_scale: None,
             })
         });
@@ -125,6 +128,7 @@ pub fn albedo_generated_key(
                 image_texture: t.image_texture_index,
                 sampler: 0,
                 channel: 2,
+                texcoord_name: String::new(),
                 texcoord_scale: None,
             })
         });
@@ -140,6 +144,7 @@ pub fn albedo_generated_key(
             image_texture: texture.image_texture_index,
             sampler: texture.sampler_index,
             channel: a.channel_index,
+            texcoord_name: String::new(),
             texcoord_scale: None,
         }
     });
@@ -237,10 +242,10 @@ fn generate_image(
     original_images: &IndexMap<ImageKey, RgbaImage>,
     flip_vertical: bool,
 ) -> RgbaImage {
-    let red_image = find_image_channel(original_images, key.red_index, key.root_index);
-    let green_image = find_image_channel(original_images, key.green_index, key.root_index);
-    let blue_image = find_image_channel(original_images, key.blue_index, key.root_index);
-    let alpha_image = find_image_channel(original_images, key.alpha_index, key.root_index);
+    let red_image = find_image_channel(original_images, &key.red_index, key.root_index);
+    let green_image = find_image_channel(original_images, &key.green_index, key.root_index);
+    let blue_image = find_image_channel(original_images, &key.blue_index, key.root_index);
+    let alpha_image = find_image_channel(original_images, &key.alpha_index, key.root_index);
 
     // Use the dimensions of the largest image to avoid quality loss.
     // Choose a small default size to avoid crashes on images with only constants.
@@ -256,10 +261,10 @@ fn generate_image(
         pixel[3] = 255u8;
     }
 
-    let red_value = find_value(key.red_index);
-    let green_value = find_value(key.green_index);
-    let blue_value = find_value(key.blue_index);
-    let alpha_value = find_value(key.alpha_index);
+    let red_value = find_value(&key.red_index);
+    let green_value = find_value(&key.green_index);
+    let blue_value = find_value(&key.blue_index);
+    let alpha_value = find_value(&key.alpha_index);
 
     // TODO: optimize assigning multiple channels in order?
     // TODO: cache resizing operations for images?
@@ -293,12 +298,12 @@ fn generate_image(
     image
 }
 
-fn find_image_channel(
-    original_images: &IndexMap<ImageKey, RgbaImage>,
-    index: Option<ImageIndex>,
+fn find_image_channel<'a>(
+    original_images: &'a IndexMap<ImageKey, RgbaImage>,
+    index: &Option<ImageIndex>,
     root_index: usize,
-) -> Option<(&RgbaImage, usize)> {
-    index.and_then(|index| match index {
+) -> Option<(&'a RgbaImage, usize)> {
+    index.as_ref().and_then(|index| match index {
         ImageIndex::Image {
             image_texture,
             channel,
@@ -306,16 +311,16 @@ fn find_image_channel(
         } => original_images
             .get(&ImageKey {
                 root_index,
-                image_index: image_texture,
+                image_index: *image_texture,
             })
-            .map(|i| (i, channel)),
+            .map(|i| (i, *channel)),
         ImageIndex::Value(_) => None,
     })
 }
 
-fn find_value(index: Option<ImageIndex>) -> Option<f32> {
+fn find_value(index: &Option<ImageIndex>) -> Option<f32> {
     match index {
-        Some(ImageIndex::Value(v)) => Some(*v),
+        Some(ImageIndex::Value(v)) => Some(**v),
         _ => None,
     }
 }
@@ -362,23 +367,23 @@ fn assign_pixels(
 
 pub fn image_name(key: &GeneratedImageKey, model_name: &str) -> String {
     let mut name = format!("{model_name}_root{}", key.root_index);
-    if let Some(text) = channel_name(key.red_index) {
+    if let Some(text) = channel_name(&key.red_index) {
         name += &format!("_r{text}");
     }
-    if let Some(text) = channel_name(key.green_index) {
+    if let Some(text) = channel_name(&key.green_index) {
         name += &format!("_g{text}");
     }
-    if let Some(text) = channel_name(key.blue_index) {
+    if let Some(text) = channel_name(&key.blue_index) {
         name += &format!("_b{text}");
     }
-    if let Some(text) = channel_name(key.alpha_index) {
+    if let Some(text) = channel_name(&key.alpha_index) {
         name += &format!("_a{text}");
     }
     // Use PNG since it's lossless and widely supported.
     name + ".png"
 }
 
-fn channel_name(index: Option<ImageIndex>) -> Option<String> {
+fn channel_name(index: &Option<ImageIndex>) -> Option<String> {
     // TODO: Include sampler data?
     match index {
         Some(ImageIndex::Image {
@@ -402,14 +407,19 @@ fn image_index(
             let TextureAssignment {
                 name,
                 channels,
+                texcoord_name,
                 texcoord_transforms,
-                ..
             } = texture_layer_assignment(textures, channel, false)?;
 
             let channel_index = "xyzw".find(channels.chars().next().unwrap()).unwrap();
 
             // TODO: proper mat2x4 support?
             let texcoord_scale = texcoord_transforms.map(|(u, v)| [u.x.into(), v.y.into()]);
+
+            let texcoord_name = texcoord_name
+                .as_ref()
+                .map(|n| n.to_string())
+                .unwrap_or_default();
 
             let sampler_index = material_texture_index(name)?;
             // Find the sampler from the material.
@@ -421,6 +431,7 @@ fn image_index(
                     image_texture: t.image_texture_index,
                     sampler: t.sampler_index,
                     channel: channel_index,
+                    texcoord_name,
                     texcoord_scale,
                 })
         }

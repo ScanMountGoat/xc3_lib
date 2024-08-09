@@ -10,7 +10,7 @@
 //! A collection of [AttributeData] can always be packed into an interleaved form for rendering.
 use std::{
     collections::BTreeSet,
-    io::{Cursor, Read, Seek, SeekFrom, Write},
+    io::{Cursor, Seek, SeekFrom, Write},
 };
 
 use binrw::{BinRead, BinReaderExt, BinResult, BinWrite, Endian};

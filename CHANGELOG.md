@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## unreleased
 ### Added
 * Added support for constants and parameters to legacy shader database.
+* Added support for different texture coordinates to glTF export.
 
 ### Changed
 * Improved rendering accuracy of outline meshes.

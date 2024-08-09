@@ -129,46 +129,30 @@ fn create_material(
     let assignments = material.output_assignments(image_textures);
 
     let albedo_key = albedo_generated_key(material, &assignments, root_index);
-    let albedo_index = texture_cache.insert(albedo_key);
+    let albedo_index = texture_cache.insert(albedo_key.clone());
 
     let normal_key = normal_generated_key(material, &assignments, root_index);
-    let normal_index = texture_cache.insert(normal_key);
+    let normal_index = texture_cache.insert(normal_key.clone());
 
     let metallic_roughness_key =
         metallic_roughness_generated_key(material, &assignments, root_index);
-    let metallic_roughness_index = texture_cache.insert(metallic_roughness_key);
+    let metallic_roughness_index = texture_cache.insert(metallic_roughness_key.clone());
 
     let emissive_key = emissive_generated_key(material, &assignments, root_index);
-    let emissive_index = texture_cache.insert(emissive_key);
+    let emissive_index = texture_cache.insert(emissive_key.clone());
 
     gltf::json::Material {
         name: Some(material.name.clone()),
         pbr_metallic_roughness: gltf::json::material::PbrMetallicRoughness {
             base_color_texture: albedo_index.map(|i| {
                 let texture_index = add_texture(textures, &albedo_key, i, sampler_base_index);
-
-                let scale = texture_scale(albedo_key);
-
-                gltf::json::texture::Info {
-                    index: gltf::json::Index::new(texture_index),
-                    tex_coord: 0,
-                    extensions: texture_transform_ext(scale),
-                    extras: Default::default(),
-                }
+                texture_info(texture_index, &albedo_key)
             }),
             metallic_roughness_texture: metallic_roughness_index.map(|i| {
                 let texture_index =
                     add_texture(textures, &metallic_roughness_key, i, sampler_base_index);
 
-                // Assume all channels have the same UV attribute and scale.
-                let scale = texture_scale(metallic_roughness_key);
-
-                gltf::json::texture::Info {
-                    index: gltf::json::Index::new(texture_index),
-                    tex_coord: 0,
-                    extensions: texture_transform_ext(scale),
-                    extras: Default::default(),
-                }
+                texture_info(texture_index, &metallic_roughness_key)
             }),
             ..Default::default()
         },
@@ -179,7 +163,7 @@ fn create_material(
             gltf::json::material::NormalTexture {
                 index: gltf::json::Index::new(texture_index),
                 scale: 1.0,
-                tex_coord: 0,
+                tex_coord: tex_coord(&normal_key),
                 extensions: None,
                 extras: Default::default(),
             }
@@ -199,12 +183,7 @@ fn create_material(
                 extras: Default::default(),
             }
         }),
-        emissive_texture: emissive_index.map(|i| gltf_json::texture::Info {
-            index: gltf::json::Index::new(i),
-            tex_coord: 0,
-            extensions: None,
-            extras: Default::default(),
-        }),
+        emissive_texture: emissive_index.map(|i| texture_info(i, &emissive_key)),
         alpha_mode: if material.alpha_test.is_some() {
             Valid(gltf::json::material::AlphaMode::Mask)
         } else {
@@ -218,7 +197,19 @@ fn create_material(
     }
 }
 
-fn texture_scale(key: GeneratedImageKey) -> Option<[ordered_float::OrderedFloat<f32>; 2]> {
+fn texture_info(texture_index: u32, key: &GeneratedImageKey) -> gltf_json::texture::Info {
+    let tex_coord = tex_coord(key);
+    let scale = texture_scale(key);
+
+    gltf::json::texture::Info {
+        index: gltf::json::Index::new(texture_index),
+        tex_coord,
+        extensions: texture_transform_ext(scale, tex_coord),
+        extras: Default::default(),
+    }
+}
+
+fn texture_scale(key: &GeneratedImageKey) -> Option<[ordered_float::OrderedFloat<f32>; 2]> {
     // Assume all channels have the same UV attribute and scale.
     match &key.red_index {
         Some(ImageIndex::Image { texcoord_scale, .. }) => *texcoord_scale,
@@ -226,8 +217,29 @@ fn texture_scale(key: GeneratedImageKey) -> Option<[ordered_float::OrderedFloat<
     }
 }
 
+fn tex_coord(key: &GeneratedImageKey) -> u32 {
+    // Assume all channels have the same UV attribute and scale.
+    match &key.red_index {
+        // Match the indices assigned for "TexCoord0" to "TexCoord8" attributes.
+        Some(ImageIndex::Image { texcoord_name, .. }) => match texcoord_name.as_str() {
+            "vTex0" => 0,
+            "vTex1" => 1,
+            "vTex2" => 2,
+            "vTex3" => 3,
+            "vTex4" => 4,
+            "vTex5" => 5,
+            "vTex6" => 6,
+            "vTex7" => 7,
+            "vTex8" => 8,
+            _ => 0,
+        },
+        _ => 0,
+    }
+}
+
 fn texture_transform_ext(
     scale: Option<[ordered_float::OrderedFloat<f32>; 2]>,
+    tex_coord: u32,
 ) -> Option<gltf_json::extensions::texture::Info> {
     // TODO: Don't assume the first UV map?
     scale.map(|[u, v]| gltf::json::extensions::texture::Info {
@@ -235,7 +247,7 @@ fn texture_transform_ext(
             offset: gltf::json::extensions::texture::TextureTransformOffset([0.0; 2]),
             rotation: gltf::json::extensions::texture::TextureTransformRotation(0.0),
             scale: gltf::json::extensions::texture::TextureTransformScale([u.0, v.0]),
-            tex_coord: Some(0),
+            tex_coord: Some(tex_coord),
             extras: None,
         }),
     })
@@ -249,7 +261,7 @@ fn add_texture(
 ) -> u32 {
     // The channel packing means an image could theoretically require 4 samplers.
     // The samplers are unlikely to differ in practice, so just pick one.
-    let sampler_index = image_key.red_index.and_then(|i| match i {
+    let sampler_index = image_key.red_index.as_ref().and_then(|i| match i {
         ImageIndex::Image { sampler, .. } => Some(sampler),
         ImageIndex::Value(_) => None,
     });
