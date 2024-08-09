@@ -1523,7 +1523,7 @@ fn read_unk_data_buffer(unk: &UnkData, buffer: &[u8]) -> BinResult<UnkDataBuffer
     let mut reader = Cursor::new(buffer);
     reader.set_position(unk.vertex_data_offset as u64);
 
-    // TODO: Just store these as is for now to support rebuilding.
+    // Just store these as is for now to support rebuilding.
     let mut attribute1 = Vec::new();
     let mut attribute2 = Vec::new();
     for _ in 0..unk.vertex_count {
@@ -1535,9 +1535,12 @@ fn read_unk_data_buffer(unk: &UnkData, buffer: &[u8]) -> BinResult<UnkDataBuffer
         }
     }
 
-    let mut uniform_data = vec![0u8; unk.uniform_data_length as usize];
+    // TODO: most of this data is 0?
+    let mut uniform_data = Vec::new();
     reader.set_position(unk.uniform_data_offset as u64);
-    reader.read_exact(&mut uniform_data)?;
+    for _ in 0..unk.uniform_data_length {
+        uniform_data.push(reader.read_le()?);
+    }
 
     Ok(UnkDataBuffer {
         attribute1,

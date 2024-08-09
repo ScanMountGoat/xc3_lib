@@ -254,13 +254,15 @@ impl Mibl {
 
         let image_size = image_data.len().next_multiple_of(4096) as u32;
 
+        // TODO: Error if invalid dimensions?
+        // TODO: Mipmaps shouldn't be more than 32 for 32-bit dimensions.
         Self {
             image_data,
             footer: MiblFooter {
                 image_size,
-                width: self.footer.width * 2,
-                height: self.footer.height * 2,
-                mipmap_count: self.footer.mipmap_count + 1,
+                width: self.footer.width.saturating_mul(2),
+                height: self.footer.height.saturating_mul(2),
+                mipmap_count: self.footer.mipmap_count.saturating_add(1),
                 ..self.footer
             },
         }
