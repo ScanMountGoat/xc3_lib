@@ -313,6 +313,7 @@ pub struct MorphDescriptor {
     pub param_indices: Vec<u16>,
 
     // flags?
+    // TODO: 259 and 260 have twice as many targets (ch01031011)?
     // TODO: 3 also adds extra "vertices" with all 0's for data?
     pub unk2: u32, // 3, 4, 259, 260
 }
@@ -547,7 +548,7 @@ impl DataType {
             DataType::Tangent2 => 4,
             DataType::SkinWeights => 8,
             DataType::BoneIndices => 4,
-            DataType::Flow => todo!(),
+            DataType::Flow => 2,
         }
     }
 }

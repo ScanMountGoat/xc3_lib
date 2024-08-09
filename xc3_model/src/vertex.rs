@@ -185,7 +185,6 @@ pub enum AttributeData {
     /// Data for [DataType::Unk16].
     Unk16(Vec<[u16; 2]>),
 
-    // TODO: unk16
     /// Data for [DataType::VertexColor].
     VertexColor(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
 
@@ -209,7 +208,11 @@ pub enum AttributeData {
     /// Data for [DataType::ValInf].
     ValInf(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
 
-    // TODO: normal3, vertexcolor3
+    /// Data for [DataType::Normal3].
+    Normal3(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+
+    /// Data for [DataType::VertexColor3].
+    VertexColor3(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
 
     // TODO: morph only?
     /// Data for [DataType::Position2].
@@ -232,7 +235,9 @@ pub enum AttributeData {
 
     /// Data for [DataType::BoneIndices].
     BoneIndices(Vec<[u8; 4]>),
-    // TODO: flow
+
+    /// Data for [DataType::Flow].
+    Flow(Vec<u16>),
 }
 
 impl AttributeData {
@@ -262,12 +267,15 @@ impl AttributeData {
             AttributeData::Unk31(v) => v.len(),
             AttributeData::Normal2(v) => v.len(),
             AttributeData::ValInf(v) => v.len(),
+            AttributeData::Normal3(v) => v.len(),
+            AttributeData::VertexColor3(v) => v.len(),
             AttributeData::Position2(v) => v.len(),
             AttributeData::Normal4(v) => v.len(),
             AttributeData::OldPosition(v) => v.len(),
             AttributeData::Tangent2(v) => v.len(),
             AttributeData::SkinWeights(v) => v.len(),
             AttributeData::BoneIndices(v) => v.len(),
+            AttributeData::Flow(v) => v.len(),
         }
     }
 
@@ -312,12 +320,15 @@ impl AttributeData {
             AttributeData::Unk31(values) => a.write(writer, values, write_unorm8x4),
             AttributeData::Normal2(values) => a.write(writer, values, write_snorm8x4),
             AttributeData::ValInf(values) => a.write(writer, values, write_snorm8x4),
+            AttributeData::Normal3(values) => a.write(writer, values, write_snorm8x4),
+            AttributeData::VertexColor3(values) => a.write(writer, values, write_unorm8x4),
             AttributeData::Position2(values) => a.write(writer, values, write_f32x3),
             AttributeData::Normal4(values) => a.write(writer, values, write_unorm8x4),
             AttributeData::OldPosition(values) => a.write(writer, values, write_f32x3),
             AttributeData::Tangent2(values) => a.write(writer, values, write_unorm8x4),
             AttributeData::SkinWeights(values) => a.write(writer, values, write_unorm16x4),
             AttributeData::BoneIndices(values) => a.write(writer, values, write_u8x4),
+            AttributeData::Flow(values) => a.write(writer, values, write_u16),
         }
     }
 
@@ -347,12 +358,15 @@ impl AttributeData {
             AttributeData::Unk31(_) => DataType::Unk31,
             AttributeData::Normal2(_) => DataType::Normal2,
             AttributeData::ValInf(_) => DataType::ValInf,
+            AttributeData::Normal3(_) => DataType::Normal3,
+            AttributeData::VertexColor3(_) => DataType::VertexColor3,
             AttributeData::Position2(_) => DataType::Position2,
             AttributeData::Normal4(_) => DataType::Normal4,
             AttributeData::OldPosition(_) => DataType::OldPosition,
             AttributeData::Tangent2(_) => DataType::Tangent2,
             AttributeData::SkinWeights(_) => DataType::SkinWeights,
             AttributeData::BoneIndices(_) => DataType::BoneIndices,
+            AttributeData::Flow(_) => DataType::Flow,
         }
     }
 }
@@ -364,7 +378,6 @@ fn read_vertex_buffers(
     // TODO: This skips the weights buffer since it doesn't have ext info?
     // TODO: Save the weights buffer for converting back to xc3_lib types?
     // TODO: Panic if the weights buffer is not the last buffer?
-    // println!("{:#?}", vertex_data.vertex_buffers);
     let mut buffers = vertex_data
         .vertex_buffers
         .iter()
@@ -647,15 +660,15 @@ fn read_attribute(
         DataType::Unk31 => a.read(b, read_unorm8x4).map(AttributeData::Unk31),
         DataType::Normal2 => a.read(b, read_snorm8x4).map(AttributeData::Normal2),
         DataType::ValInf => a.read(b, read_snorm8x4).map(AttributeData::ValInf),
-        DataType::Normal3 => todo!(),
-        DataType::VertexColor3 => todo!(),
+        DataType::Normal3 => a.read(b, read_snorm8x4).map(AttributeData::Normal3),
+        DataType::VertexColor3 => a.read(b, read_unorm8x4).map(AttributeData::VertexColor3),
         DataType::Position2 => a.read(b, read_f32x3).map(AttributeData::Position2),
         DataType::Normal4 => a.read(b, read_unorm8x4).map(AttributeData::Normal4),
         DataType::OldPosition => a.read(b, read_f32x3).map(AttributeData::OldPosition),
         DataType::Tangent2 => a.read(b, read_unorm8x4).map(AttributeData::Tangent2),
         DataType::SkinWeights => a.read(b, read_unorm16x4).map(AttributeData::SkinWeights),
         DataType::BoneIndices => a.read(b, read_u8x4).map(AttributeData::BoneIndices),
-        DataType::Flow => todo!(),
+        DataType::Flow => a.read(b, read_u16).map(AttributeData::Flow),
     }
 }
 
@@ -711,6 +724,10 @@ impl AttributeWriteArgs {
 
         Ok(())
     }
+}
+
+fn read_u16(reader: &mut Cursor<&[u8]>, endian: Endian) -> BinResult<u16> {
+    reader.read_type(endian)
 }
 
 fn read_u16x2(reader: &mut Cursor<&[u8]>, endian: Endian) -> BinResult<[u16; 2]> {
@@ -1595,6 +1612,10 @@ where
         endian,
     }
     .write(writer, values, write_item)
+}
+
+fn write_u16<W: Write + Seek>(writer: &mut W, value: &u16, endian: Endian) -> BinResult<()> {
+    value.write_options(writer, endian, ())
 }
 
 fn write_u16x2<W: Write + Seek>(writer: &mut W, value: &[u16; 2], endian: Endian) -> BinResult<()> {
