@@ -370,15 +370,15 @@ mod tests {
         assert_eq!(
             vec![
                 &TextureDependency {
+                    name: "tex".into(),
+                    channels: "xyz".into(),
+                    texcoords: Vec::new()
+                },
+                &TextureDependency {
                     name: "s2".into(),
                     channels: "z".into(),
                     texcoords: Vec::new()
                 },
-                &TextureDependency {
-                    name: "tex".into(),
-                    channels: "xyz".into(),
-                    texcoords: Vec::new()
-                }
             ],
             shader.textures(0, 'y')
         );
