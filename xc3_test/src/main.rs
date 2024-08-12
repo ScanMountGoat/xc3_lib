@@ -30,6 +30,7 @@ use xc3_lib::{
     mxmd::{legacy::MxmdLegacy, Mxmd},
     sar1::{ChCl, Csvb, Sar1},
     spch::Spch,
+    vertex::DataType,
     xbc1::{MaybeXbc1, Xbc1},
 };
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
@@ -417,6 +418,14 @@ fn check_vertex_data(
 ) {
     if check_read_write && !write_le_bytes_equals(&vertex_data, original_bytes) {
         println!("VertexData read/write not 1:1 for {path:?}");
+    }
+
+    for buffer in vertex_data.vertex_buffers {
+        for a in buffer.attributes {
+            if a.data_type.size_in_bytes() != a.data_size as usize {
+                println!("Unexpected size {} for {:?}", a.data_size, a.data_type);
+            }
+        }
     }
 }
 
@@ -843,6 +852,14 @@ fn check_mxmd_legacy(
 
     // TODO: check read/write for camdo?
     // TODO: Also test loading casmt data?
+
+    for buffer in mxmd.vertex.vertex_buffers {
+        for a in buffer.attributes {
+            if a.data_type.size_in_bytes() != a.data_size as usize {
+                println!("Unexpected size {} for {:?}", a.data_size, a.data_type);
+            }
+        }
+    }
 }
 
 fn check_mths(mths: Mths, path: &Path, _original_bytes: &[u8], _check_read_write: bool) {
