@@ -90,6 +90,7 @@ impl ShaderDatabase {
 }
 
 /// Shaders for the different map model types.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct MapPrograms {
     pub map_models: Vec<ModelPrograms>,

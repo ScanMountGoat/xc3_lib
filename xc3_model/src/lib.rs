@@ -678,7 +678,6 @@ pub fn load_model_legacy<P: AsRef<Path>>(
 }
 
 impl ModelRoot {
-    // TODO: fuzz test this?
     /// Load models from parsed file data for Xenoblade 1 DE, Xenoblade 2, or Xenoblade 3.
     pub fn from_mxmd_model(
         mxmd: &Mxmd,

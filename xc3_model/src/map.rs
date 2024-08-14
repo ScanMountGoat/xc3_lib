@@ -62,58 +62,58 @@ pub fn load_map<P: AsRef<Path>>(
     wismhd_path: P,
     shader_database: Option<&ShaderDatabase>,
 ) -> Result<Vec<MapRoot>, LoadMapError> {
+    let model_folder = model_name(wismhd_path.as_ref());
+    let map_programs = shader_database.and_then(|database| database.map(&model_folder));
+
     let msmd = Msmd::from_file(wismhd_path.as_ref()).map_err(LoadMapError::Wismhd)?;
     let wismda = std::fs::read(wismhd_path.as_ref().with_extension("wismda"))?;
 
-    // Loading is CPU intensive due to decompression and decoding.
-    // The .wismda is loaded into memory as &[u8].
-    // Extracting can be parallelized without locks by creating multiple readers.
-    let model_folder = model_name(wismhd_path.as_ref());
+    MapRoot::from_msmd(&msmd, &wismda, map_programs.as_ref())
+}
 
-    // Some maps don't use XBC1 compressed archives in the .wismda file.
-    let compressed = msmd.wismda_info.compressed_length != msmd.wismda_info.decompressed_length;
+impl MapRoot {
+    pub fn from_msmd(
+        msmd: &Msmd,
+        wismda: &[u8],
+        map_programs: Option<&MapPrograms>,
+    ) -> Result<Vec<Self>, LoadMapError> {
+        // Loading is CPU intensive due to decompression and decoding.
+        // The .wismda is loaded into memory as &[u8].
+        // Extracting can be parallelized without locks by creating multiple readers.
 
-    let map_programs = shader_database.and_then(|database| database.map(&model_folder));
+        // Some maps don't use XBC1 compressed archives in the .wismda file.
+        let compressed = msmd.wismda_info.compressed_length != msmd.wismda_info.decompressed_length;
 
-    // TODO: Better way to combine models?
-    let mut roots = Vec::new();
+        // TODO: Better way to combine models?
+        let mut roots = Vec::new();
 
-    for (i, model) in msmd.env_models.iter().enumerate() {
-        let root = load_env_model(&wismda, compressed, model, i, map_programs.as_ref())?;
-        roots.push(root);
+        for (i, model) in msmd.env_models.iter().enumerate() {
+            let root = load_env_model(wismda, compressed, model, i, map_programs)?;
+            roots.push(root);
+        }
+
+        for foliage_model in &msmd.foliage_models {
+            let root = load_foliage_model(wismda, compressed, foliage_model)?;
+            roots.push(root);
+        }
+
+        // TODO: How much does a mutable cache negatively impact parallelization?
+        // TODO: Is there enough reuse for it to be worth caching these?
+        let mut texture_cache = TextureCache::new(&msmd, wismda, compressed)?;
+
+        let map_model_group =
+            map_models_group(&msmd, wismda, compressed, &mut texture_cache, map_programs)?;
+
+        let prop_model_group =
+            props_group(&msmd, wismda, compressed, &mut texture_cache, map_programs)?;
+
+        roots.push(MapRoot {
+            groups: vec![map_model_group, prop_model_group],
+            image_textures: texture_cache.image_textures()?,
+        });
+
+        Ok(roots)
     }
-
-    for foliage_model in &msmd.foliage_models {
-        let root = load_foliage_model(&wismda, compressed, foliage_model)?;
-        roots.push(root);
-    }
-
-    // TODO: How much does a mutable cache negatively impact parallelization?
-    // TODO: Is there enough reuse for it to be worth caching these?
-    let mut texture_cache = TextureCache::new(&msmd, &wismda, compressed)?;
-
-    let map_model_group = map_models_group(
-        &msmd,
-        &wismda,
-        compressed,
-        &mut texture_cache,
-        map_programs.as_ref(),
-    )?;
-
-    let prop_model_group = props_group(
-        &msmd,
-        &wismda,
-        compressed,
-        &mut texture_cache,
-        map_programs.as_ref(),
-    )?;
-
-    roots.push(MapRoot {
-        groups: vec![map_model_group, prop_model_group],
-        image_textures: texture_cache.image_textures()?,
-    });
-
-    Ok(roots)
 }
 
 // TODO: Is there a better way of doing this?
@@ -210,7 +210,7 @@ impl TextureCache {
 
 fn map_models_group(
     msmd: &Msmd,
-    wismda: &Vec<u8>,
+    wismda: &[u8],
     compressed: bool,
     texture_cache: &mut TextureCache,
     map_programs: Option<&MapPrograms>,
@@ -241,7 +241,7 @@ fn map_models_group(
 
 fn props_group(
     msmd: &Msmd,
-    wismda: &Vec<u8>,
+    wismda: &[u8],
     compressed: bool,
     texture_cache: &mut TextureCache,
     map_programs: Option<&MapPrograms>,
@@ -288,7 +288,7 @@ fn props_group(
 
 fn create_buffers(
     vertex_data: &[StreamEntry<xc3_lib::vertex::VertexData>],
-    wismda: &Vec<u8>,
+    wismda: &[u8],
     compressed: bool,
 ) -> Result<Vec<ModelBuffers>, DecompressStreamError> {
     // Process vertex data ahead of time in parallel.
