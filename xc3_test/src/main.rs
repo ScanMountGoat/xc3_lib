@@ -30,7 +30,6 @@ use xc3_lib::{
     mxmd::{legacy::MxmdLegacy, Mxmd},
     sar1::{ChCl, Csvb, Sar1},
     spch::Spch,
-    vertex::DataType,
     xbc1::{MaybeXbc1, Xbc1},
 };
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
@@ -1064,7 +1063,7 @@ fn check_all_wimdo_model<P: AsRef<Path>>(root: P, check_read_write: bool) {
                                     let (new_mxmd, new_msrd) = root.to_mxmd_model(&mxmd, &msrd);
                                     match new_msrd.extract_files(None) {
                                         Ok((new_vertex, _, _)) => {
-                                            if &new_vertex.buffer != &streaming_data.vertex.buffer {
+                                            if new_vertex.buffer != streaming_data.vertex.buffer {
                                                 println!("VertexData buffer not 1:1 for {path:?}");
                                             } else if &new_vertex != streaming_data.vertex.as_ref()
                                             {
