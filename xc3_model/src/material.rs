@@ -568,7 +568,11 @@ fn channel_assignment(
                 .collect();
 
             // TODO: The correct approach is to detect layering and masks when generating the database.
-            if output_index == 2 {
+            if output_index == 0 {
+                // Color maps typically assign s0 using RGB or a single channel.
+                sorted_textures
+                    .sort_by_cached_key(|t| sampler_index(t.name.as_str()).unwrap_or(usize::MAX));
+            } else if output_index == 2 {
                 // Normal maps are usually just XY BC5 textures.
                 // Sort so that these textures are accessed first.
                 sorted_textures.sort_by_cached_key(|t| {
