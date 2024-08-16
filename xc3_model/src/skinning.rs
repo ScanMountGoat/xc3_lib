@@ -242,8 +242,11 @@ impl SkinWeights {
         let mut bone_indices = Vec::new();
         for i in weight_indices {
             let index = i[0] as usize + weight_group_input_start_index as usize;
-            weights.push(self.weights[index]);
-            bone_indices.push(self.bone_indices[index]);
+            // TODO: Why is this sometimes out of bounds.
+            if index < self.weights.len() && index < self.bone_indices.len() {
+                weights.push(self.weights[index]);
+                bone_indices.push(self.bone_indices[index]);
+            }
         }
         Self {
             bone_indices,
