@@ -50,15 +50,6 @@ Click on the docs.rs links below to see the generated rustdoc documentation.
 - [xc3_viewer](https://github.com/ScanMountGoat/xc3_lib/tree/main/xc3_viewer) - simple model viewer for testing `xc3_wgpu`
 - [xc3_wgpu_batch](https://github.com/ScanMountGoat/xc3_lib/tree/main/xc3_wgpu_batch) - batch render models and maps to PNG
 
-## Usage
-These projects are still highly unstable. When using the latest version from github, specify a specific git revision or commit the Cargo.lock file to source control. This locks the version and avoids any breaking changes. The debug or JSON output has not stabilized and should not be assumed to be the same between commits.
-
-```toml
-xc3_model = { git = "https://github.com/ScanMountGoat/xc3_lib", rev = "commit_hash" }
-xc3_wgpu = { git = "https://github.com/ScanMountGoat/xc3_lib", rev = "commit_hash" }
-xc3_lib = { git = "https://github.com/ScanMountGoat/xc3_lib", rev = "commit_hash" }
-```
-
 ## Building
 After installing the [Rust toolchain](https://www.rust-lang.org/tools/install), run `cargo build --release` in the repository directory to build the tools to `target/release`.
 Running `cargo build` without the `--release` will result in faster compile times during development but dramatically worse runtime performance. The tools can also be run using `cargo run --release -p <project> <args>`. xc3_tex uses [image_dds](https://github.com/ScanMountGoat/image_dds), which supports Windows x86, Linux x86, MacOS x86, and MacOS Apple Silicon due to using precompiled kernels for DDS encoding. Other projects should build on other platforms without issues.
