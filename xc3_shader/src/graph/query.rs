@@ -89,3 +89,81 @@ pub fn sqrt_x<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
         _ => None,
     }
 }
+
+pub fn mix_a_b_ratio<'a>(
+    nodes: &'a [Node],
+    node: &'a Node,
+) -> Option<(&'a Node, &'a Node, &'a Expr)> {
+    // mix(a, b, ratio) = fma(b - a, ratio, a)
+    // = ratio * b - ratio * a + a
+    // = ratio * b + (1.0 - ratio) * a
+    let (b_minus_a, ratio, a1) = match &node.input {
+        Expr::Func { name, args, .. } => {
+            if name == "fma" {
+                match &args[..] {
+                    [Expr::Node {
+                        node_index: b_minus_a,
+                        ..
+                    }, ratio, Expr::Node { node_index: a, .. }] => {
+                        Some((nodes.get(*b_minus_a)?, ratio, a))
+                    }
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }?;
+    let (b, neg_a) = match &b_minus_a.input {
+        Expr::Add(a, b) => match (a.deref(), b.deref()) {
+            (
+                Expr::Node {
+                    node_index: neg_b, ..
+                },
+                Expr::Node { node_index: a, .. },
+            ) => Some((nodes.get(*a)?, nodes.get(*neg_b)?)),
+            _ => None,
+        },
+        _ => None,
+    }?;
+    let a = zero_minus_x(&nodes, neg_a)?;
+    if a != nodes.get(*a1)? {
+        return None;
+    }
+    Some((a, b, ratio))
+}
+
+pub fn dot3_a_b<'a>(nodes: &'a [Node], node: &'a Node) -> Option<([&'a Node; 3], [&'a Expr; 3])> {
+    // result = a1 * b1;
+    // result = fma(a2, b2, result);
+    // result = fma(a3, b3, result);
+    let (a3, b3, x) = fma_a_b_c(nodes, node)?;
+    let (a2, b2, x) = fma_a_b_c(nodes, x)?;
+    let (a1, b1) = match &x.input {
+        Expr::Mul(x, y) => match (x.deref(), y.deref()) {
+            (Expr::Node { node_index: x, .. }, y) => Some((nodes.get(*x)?, y)),
+            _ => None,
+        },
+        _ => None,
+    }?;
+    Some(([a1, a2, a3], [b1, b2, b3]))
+}
+
+fn fma_a_b_c<'a>(nodes: &'a [Node], node: &'a Node) -> Option<(&'a Node, &'a Expr, &'a Node)> {
+    match &node.input {
+        Expr::Func { name, args, .. } => {
+            if name == "fma" {
+                match &args[..] {
+                    [Expr::Node { node_index: a3, .. }, b3, Expr::Node { node_index, .. }] => {
+                        Some((nodes.get(*a3)?, b3, nodes.get(*node_index)?))
+                    }
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}

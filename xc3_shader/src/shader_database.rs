@@ -22,8 +22,11 @@ use crate::{
         attribute_dependencies, buffer_dependency, input_dependencies, texcoord_params,
     },
     graph::{
-        query::{assign_x, clamp_x_zero_one, one_minus_x, one_plus_x, sqrt_x},
-        Expr, Graph,
+        query::{
+            assign_x, clamp_x_zero_one, dot3_a_b, mix_a_b_ratio, one_minus_x, one_plus_x, sqrt_x,
+            zero_minus_x,
+        },
+        Expr, Graph, Node,
     },
 };
 
@@ -57,7 +60,9 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
                     );
                 }
 
-                if i == 1 && c == 'y' {
+                if i == 0 {
+                    col_layers(frag);
+                } else if i == 1 && c == 'y' {
                     if let Some(param) = geometric_specular_aa(frag) {
                         dependencies = vec![Dependency::Buffer(param)];
                     }
@@ -137,6 +142,45 @@ fn shader_from_latte_asm(
         // IndexMap gives consistent ordering for attribute names.
         output_dependencies,
     }
+}
+
+fn col_layers(frag: &Graph) -> Option<&Node> {
+    // TODO: Select the appropriate channel.
+    let node_index = frag
+        .nodes
+        .iter()
+        .rposition(|n| n.output.name == "out_attr0" && n.output.channel == Some('x'))?;
+    let last_node_index = *frag.node_dependencies_recursive(node_index, None).last()?;
+    let last_node = frag.nodes.get(last_node_index)?;
+
+    let mut current_mat_col = assign_x(&frag.nodes, last_node)?;
+
+    // This isn't always present for all materials in all games.
+    // Xenoblade 1 DE and Xenoblade 3 both seem to do this for non map materials.
+    if let Some((mat_cols, monochrome_ratio)) = calc_monochrome(&frag.nodes, current_mat_col) {
+        // TODO: Select the appropriate channel.
+        current_mat_col = mat_cols[0];
+    }
+
+    dbg!(current_mat_col);
+
+    // Shaders can blend multiple layers with getPixelCalcOver.
+    // TODO: Store layering information.
+    while let Some((mat_col, layer, ratio)) = mix_a_b_ratio(&frag.nodes, current_mat_col) {
+        dbg!(mat_col, layer, ratio);
+        current_mat_col = mat_col;
+    }
+    dbg!(current_mat_col);
+
+    Some(current_mat_col)
+}
+
+fn calc_monochrome<'a>(nodes: &'a [Node], node: &'a Node) -> Option<([&'a Node; 3], &'a Expr)> {
+    // calcMonochrome in pcmdo fragment shaders fro XC1 and XC3.
+    // TODO: Check weight values for XC1 (0.3, 0.59, 0.11) or XC3 (0.01, 0.01, 0.01)?
+    let (mat_col, monochrome, monochrome_ratio) = mix_a_b_ratio(nodes, node)?;
+    let (mat_col, monochrome_weights) = dot3_a_b(nodes, monochrome)?;
+    Some((mat_col, monochrome_ratio))
 }
 
 fn geometric_specular_aa(frag: &Graph) -> Option<BufferDependency> {
