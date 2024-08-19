@@ -115,6 +115,11 @@ impl Visitor for AssignmentVisitor {
             _ => Visit::Children,
         }
     }
+
+    fn visit_selection_statement(&mut self, _: &glsl_lang::ast::SelectionStatement) -> Visit {
+        // TODO: How to properly handle if statements in graph?
+        Visit::Parent
+    }
 }
 
 impl Graph {
