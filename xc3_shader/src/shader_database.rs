@@ -24,7 +24,7 @@ use crate::{
     graph::{
         query::{
             assign_x, clamp_x_zero_one, dot3_a_b, fma_half_half, mix_a_b_ratio, normalize,
-            one_minus_x, one_plus_x, sqrt_x, zero_minus_x,
+            one_minus_x, one_plus_x, sqrt_x,
         },
         Expr, Graph, Node,
     },
@@ -190,6 +190,7 @@ fn calc_monochrome<'a>(nodes: &'a [Node], node: &'a Node) -> Option<([&'a Node; 
 
 // TODO: This only needs to check the X channel?
 fn normal_layers(frag: &Graph) -> Option<&Node> {
+    dbg!("hello");
     // TODO: Select the appropriate channel.
     let node_index = frag
         .nodes
@@ -202,29 +203,59 @@ fn normal_layers(frag: &Graph) -> Option<&Node> {
 
     // TODO: function for detecting fma?
     // setMrtNormal in pcmdo shaders.
-    let view_normal = fma_half_half(&frag.nodes, node)?;
+    let mut view_normal = fma_half_half(&frag.nodes, node)?;
     // TODO: How many of these assignments are there?
-    let view_normal = assign_x(&frag.nodes, view_normal)?;
-    let view_normal = assign_x(&frag.nodes, view_normal)?;
+    while let Some(assignment) = assign_x(&frag.nodes, view_normal) {
+        view_normal = assignment;
+    }
+    //  view_normal = assign_x(&frag.nodes, view_normal)?;
+    //  view_normal = assign_x(&frag.nodes, view_normal)?;
 
     let view_normal = normalize(&frag.nodes, view_normal)?;
     dbg!(view_normal);
 
     // TODO: front facing in calcNormalZAbs in pcmdo?
 
-    // TODO: getCalcNormalMap in pcmdo shaders.
-
-    // TODO: just output the xy for nomWork?
-
-    // nomWork in pcmdo shaders.
+    // nomWork input for getCalcNormalMap in pcmdo shaders.
     let nom_work = calc_normal_map(frag, view_normal)?;
-
+    let mut nom_work = nom_work[0];
     dbg!(nom_work);
 
-    // TODO: getPixelCalcAddNormal in pcmdo shaders.
-    // TODO: normalize from addnormal?
-    // want to find normalize(mix(nomWork, normalize(r), ratio))
+    // Some shaders layer more than one additional normal map.
+    while let Some((layer_x, layer_nom_work, ratio)) = pixel_calc_add_normal(&frag.nodes, nom_work)
+    {
+        dbg!(layer_x, layer_nom_work, ratio);
+        nom_work = layer_nom_work;
+    }
+
     None
+}
+
+fn pixel_calc_add_normal<'a>(
+    nodes: &'a [Node],
+    nom_work: &'a Node,
+) -> Option<(&'a Node, &'a Node, &'a Expr)> {
+    // getPixelCalcAddNormal in pcmdo shaders.
+    // normalize(mix(nomWork, normalize(r), ratio))
+    // compiled to (normalize(r) - nomWork) * ratio + nomWork
+    // TODO: Is it worth detecting the textures used for r?
+    let result = normalize(nodes, nom_work)?;
+    let (x, nom_work, ratio) = match &result.input {
+        Expr::Func { name, args, .. } => {
+            if name == "fma" {
+                match &args[..] {
+                    [Expr::Node { node_index: a, .. }, ratio, Expr::Node { node_index: b, .. }] => {
+                        Some((nodes.get(*a)?, nodes.get(*b)?, ratio))
+                    }
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }?;
+    Some((x, nom_work, ratio))
 }
 
 fn calc_normal_map<'a>(frag: &'a Graph, view_normal: &'a Node) -> Option<[&'a Node; 3]> {
@@ -866,6 +897,25 @@ mod tests {
                 name: "U_Mate".into(),
                 field: "gWrkFl4".into(),
                 index: 2,
+                channels: "y".into()
+            })],
+            shader.output_dependencies[&SmolStr::from("o1.y")]
+        );
+    }
+
+    #[test]
+    fn shader_from_fragment_mio_metal() {
+        // xeno3/chr/ch/ch11021013, "tlent_mio_metal1", shd0031.frag
+        let glsl = include_str!("data/ch11021013.31.frag");
+
+        // Test multiple calls to getPixelCalcAddNormal.
+        let fragment = TranslationUnit::parse(glsl).unwrap();
+        let shader = shader_from_glsl(None, &fragment);
+        assert_eq!(
+            vec![Dependency::Buffer(BufferDependency {
+                name: "U_Mate".into(),
+                field: "gWrkFl4".into(),
+                index: 3,
                 channels: "y".into()
             })],
             shader.output_dependencies[&SmolStr::from("o1.y")]
