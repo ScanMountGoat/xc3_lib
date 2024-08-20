@@ -23,8 +23,8 @@ use crate::{
     },
     graph::{
         query::{
-            assign_x, clamp_x_zero_one, dot3_a_b, mix_a_b_ratio, one_minus_x, one_plus_x, sqrt_x,
-            zero_minus_x,
+            assign_x, clamp_x_zero_one, dot3_a_b, fma_half_half, mix_a_b_ratio, normalize,
+            one_minus_x, one_plus_x, sqrt_x, zero_minus_x,
         },
         Expr, Graph, Node,
     },
@@ -61,11 +61,15 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
                 }
 
                 if i == 0 {
-                    col_layers(frag);
+                    color_layers(frag);
                 } else if i == 1 && c == 'y' {
                     if let Some(param) = geometric_specular_aa(frag) {
                         dependencies = vec![Dependency::Buffer(param)];
                     }
+                } else if i == 2 {
+                    // TODO: detect normal map layers
+                    // TODO: xc1 is fma 2, -1?
+                    normal_layers(frag);
                 }
 
                 // Simplify the output name to save space.
@@ -144,7 +148,7 @@ fn shader_from_latte_asm(
     }
 }
 
-fn col_layers(frag: &Graph) -> Option<&Node> {
+fn color_layers(frag: &Graph) -> Option<&Node> {
     // TODO: Select the appropriate channel.
     let node_index = frag
         .nodes
@@ -153,26 +157,27 @@ fn col_layers(frag: &Graph) -> Option<&Node> {
     let last_node_index = *frag.node_dependencies_recursive(node_index, None).last()?;
     let last_node = frag.nodes.get(last_node_index)?;
 
-    let mut current_mat_col = assign_x(&frag.nodes, last_node)?;
+    // matCol.xyz in pcmdo shaders.
+    let mut current_col = assign_x(&frag.nodes, last_node)?;
 
     // This isn't always present for all materials in all games.
     // Xenoblade 1 DE and Xenoblade 3 both seem to do this for non map materials.
-    if let Some((mat_cols, monochrome_ratio)) = calc_monochrome(&frag.nodes, current_mat_col) {
+    if let Some((mat_cols, monochrome_ratio)) = calc_monochrome(&frag.nodes, current_col) {
         // TODO: Select the appropriate channel.
-        current_mat_col = mat_cols[0];
+        current_col = mat_cols[0];
     }
 
-    dbg!(current_mat_col);
+    // dbg!(current_col);
 
     // Shaders can blend multiple layers with getPixelCalcOver.
     // TODO: Store layering information.
-    while let Some((mat_col, layer, ratio)) = mix_a_b_ratio(&frag.nodes, current_mat_col) {
-        dbg!(mat_col, layer, ratio);
-        current_mat_col = mat_col;
+    while let Some((mat_col, layer, ratio)) = mix_a_b_ratio(&frag.nodes, current_col) {
+        // dbg!(mat_col, layer, ratio);
+        current_col = mat_col;
     }
-    dbg!(current_mat_col);
+    // dbg!(current_col);
 
-    Some(current_mat_col)
+    Some(current_col)
 }
 
 fn calc_monochrome<'a>(nodes: &'a [Node], node: &'a Node) -> Option<([&'a Node; 3], &'a Expr)> {
@@ -183,8 +188,57 @@ fn calc_monochrome<'a>(nodes: &'a [Node], node: &'a Node) -> Option<([&'a Node; 
     Some((mat_col, monochrome_ratio))
 }
 
+// TODO: This only needs to check the X channel?
+fn normal_layers(frag: &Graph) -> Option<&Node> {
+    // TODO: Select the appropriate channel.
+    let node_index = frag
+        .nodes
+        .iter()
+        .rposition(|n| n.output.name == "out_attr2" && n.output.channel == Some('x'))?;
+    let last_node_index = *frag.node_dependencies_recursive(node_index, None).last()?;
+    let last_node = frag.nodes.get(last_node_index)?;
+
+    let node = assign_x(&frag.nodes, last_node)?;
+
+    // TODO: function for detecting fma?
+    // setMrtNormal in pcmdo shaders.
+    let view_normal = fma_half_half(&frag.nodes, node)?;
+    // TODO: How many of these assignments are there?
+    let view_normal = assign_x(&frag.nodes, view_normal)?;
+    let view_normal = assign_x(&frag.nodes, view_normal)?;
+
+    let view_normal = normalize(&frag.nodes, view_normal)?;
+    dbg!(view_normal);
+
+    // TODO: front facing in calcNormalZAbs in pcmdo?
+
+    // TODO: getCalcNormalMap in pcmdo shaders.
+
+    // TODO: just output the xy for nomWork?
+
+    // nomWork in pcmdo shaders.
+    let nom_work = calc_normal_map(frag, view_normal)?;
+
+    dbg!(nom_work);
+
+    // TODO: getPixelCalcAddNormal in pcmdo shaders.
+    // TODO: normalize from addnormal?
+    // want to find normalize(mix(nomWork, normalize(r), ratio))
+    None
+}
+
+fn calc_normal_map<'a>(frag: &'a Graph, view_normal: &'a Node) -> Option<[&'a Node; 3]> {
+    // getCalcNormalMap in pcmdo shaders.
+    // result = normalize(nomWork).x, normalize(tangent).x
+    // result = fma(normalize(nomWork).y, normalize(bitangent).x, result)
+    // result = fma(normalize(nomWork).z, normalize(normal).x, result)
+    let (nrm, _tangent_normal_bitangent) = dot3_a_b(&frag.nodes, &view_normal)?;
+    Some(nrm)
+}
+
 fn geometric_specular_aa(frag: &Graph) -> Option<BufferDependency> {
     // TODO: is specular AA ever used with textures as input?
+    // calcGeometricSpecularAA in pcmdo shaders.
     // Extract the glossiness input from the following expression:
     // glossiness = 1.0 - sqrt(clamp((1.0 - glossiness)^2 + kernelRoughness2 0.0, 1.0))
     let node_index = frag
@@ -227,17 +281,6 @@ fn geometric_specular_aa(frag: &Graph) -> Option<BufferDependency> {
         },
         _ => None,
     }
-}
-
-// TODO: Test 1, 2, and 3 layers.
-fn _apply_normal_map_layering() {
-    // want to find mix(n1, normalize(r), ratio)
-    // compiled to (normalize(r) - n1) * ratio + n1
-    // TODO: how specific does this need to be?
-    // d = r (check for normal maps)
-    // c = 0.0 - n1.x
-    // a = fma(d, ???, c)
-    // fma(a, ratio, n1.x)
 }
 
 fn apply_vertex_texcoord_params(

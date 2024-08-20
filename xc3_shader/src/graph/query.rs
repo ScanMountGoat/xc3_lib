@@ -167,3 +167,42 @@ fn fma_a_b_c<'a>(nodes: &'a [Node], node: &'a Node) -> Option<(&'a Node, &'a Exp
         _ => None,
     }
 }
+
+pub fn fma_half_half<'a>(nodes: &'a [Node], node: &'a Node) -> Option<&'a Node> {
+    match &node.input {
+        Expr::Func { name, args, .. } => {
+            if name == "fma" {
+                match &args[..] {
+                    [Expr::Node { node_index, .. }, Expr::Float(f1), Expr::Float(f2)] => {
+                        if *f1 == 0.5 && *f2 == 0.5 {
+                            nodes.get(*node_index)
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+pub fn normalize<'a>(nodes: &'a [Node], node: &'a Node) -> Option<&'a Node> {
+    let (x, length) = match &node.input {
+        Expr::Mul(a, b) => match (a.deref(), b.deref()) {
+            (Expr::Node { node_index: a, .. }, Expr::Node { node_index: b, .. }) => {
+                Some((nodes.get(*a)?, nodes.get(*b)?))
+            }
+            _ => None,
+        },
+        _ => None,
+    }?;
+    if !matches!(&length.input, Expr::Func { name, .. } if name == "inversesqrt") {
+        return None;
+    }
+
+    Some(x)
+}
