@@ -80,11 +80,12 @@ pub fn materials(
 
             let mut name_to_transforms = IndexMap::new();
 
-            let assignments = material.output_assignments(image_textures);
-            let sampler_assignments =
-                sampler_assignments(&assignments, &mut name_to_index, &mut name_to_transforms);
-            let attribute_assignments = attribute_assignments(&assignments);
-            let output_defaults = output_default_assignments(&assignments);
+            let material_assignments = material.output_assignments(image_textures);
+            let assignments = output_assignments(
+                &material_assignments,
+                &mut name_to_index,
+                &mut name_to_transforms,
+            );
 
             // Alpha textures might not be used in normal shaders.
             if let Some(a) = &material.alpha_test {
@@ -130,9 +131,7 @@ pub fn materials(
                 "PerMaterial",
                 &[crate::shader::model::PerMaterial {
                     mat_color: material.color.into(),
-                    sampler_assignments,
-                    attribute_assignments,
-                    output_defaults,
+                    assignments,
                     texture_transforms,
                     alpha_test_texture: {
                         let (texture_index, channel_index) = material
@@ -190,7 +189,7 @@ pub fn materials(
             // TODO: melia queen has 6 outputs but uses specular?
             // TODO: Something in the wimdo matches up with shader outputs?
             // TODO: unk12-14 in material render flags?
-            let output5_type = if assignments.mat_id().is_some() {
+            let output5_type = if material_assignments.mat_id().is_some() {
                 if material.render_flags.specular() {
                     Output5Type::Specular
                 } else {
@@ -227,19 +226,20 @@ pub fn materials(
     materials
 }
 
-// TODO: Test cases for this
-fn sampler_assignments(
+fn output_assignments(
     assignments: &OutputAssignments,
     name_to_index: &mut IndexMap<SmolStr, usize>,
     name_to_transforms: &mut IndexMap<SmolStr, (Vec4, Vec4)>,
-) -> [crate::shader::model::SamplerAssignment; 6] {
+) -> [crate::shader::model::OutputAssignment; 6] {
     // Each output channel may have a different input sampler and channel.
     [0, 1, 2, 3, 4, 5].map(|i| {
-        sampler_assignment(
-            &assignments.assignments[i],
-            name_to_index,
-            name_to_transforms,
-        )
+        let assignment = &assignments.assignments[i];
+        crate::shader::model::OutputAssignment {
+            samplers: sampler_assignment(assignment, name_to_index, name_to_transforms, false),
+            samplers2: sampler_assignment(assignment, name_to_index, name_to_transforms, true),
+            attributes: attribute_assignment(assignment),
+            default_value: output_default(assignment, i),
+        }
     })
 }
 
@@ -247,30 +247,47 @@ fn sampler_assignment(
     a: &OutputAssignment,
     name_to_index: &mut IndexMap<SmolStr, usize>,
     name_to_transforms: &mut IndexMap<SmolStr, (Vec4, Vec4)>,
+    is_second_layer: bool,
 ) -> crate::shader::model::SamplerAssignment {
-    let (s00, c00) = texture_channel(a.x.as_ref(), name_to_index, name_to_transforms, 'x', false)
-        .unwrap_or((-1, 0));
-    let (s10, c10) = texture_channel(a.y.as_ref(), name_to_index, name_to_transforms, 'y', false)
-        .unwrap_or((-1, 1));
-    let (s20, c20) = texture_channel(a.z.as_ref(), name_to_index, name_to_transforms, 'z', false)
-        .unwrap_or((-1, 2));
-    let (s30, c30) = texture_channel(a.w.as_ref(), name_to_index, name_to_transforms, 'w', false)
-        .unwrap_or((-1, 3));
+    let (s0, c0) = texture_channel(
+        a.x.as_ref(),
+        name_to_index,
+        name_to_transforms,
+        'x',
+        is_second_layer,
+    )
+    .unwrap_or((-1, 0));
 
-    let (s01, c01) = texture_channel(a.x.as_ref(), name_to_index, name_to_transforms, 'x', true)
-        .unwrap_or((-1, 0));
-    let (s11, c11) = texture_channel(a.y.as_ref(), name_to_index, name_to_transforms, 'y', true)
-        .unwrap_or((-1, 1));
-    let (s21, c21) = texture_channel(a.z.as_ref(), name_to_index, name_to_transforms, 'z', true)
-        .unwrap_or((-1, 2));
-    let (s31, c31) = texture_channel(a.w.as_ref(), name_to_index, name_to_transforms, 'w', true)
-        .unwrap_or((-1, 3));
+    let (s1, c1) = texture_channel(
+        a.y.as_ref(),
+        name_to_index,
+        name_to_transforms,
+        'y',
+        is_second_layer,
+    )
+    .unwrap_or((-1, 1));
+
+    let (s2, c2) = texture_channel(
+        a.z.as_ref(),
+        name_to_index,
+        name_to_transforms,
+        'z',
+        is_second_layer,
+    )
+    .unwrap_or((-1, 2));
+
+    let (s3, c3) = texture_channel(
+        a.w.as_ref(),
+        name_to_index,
+        name_to_transforms,
+        'w',
+        is_second_layer,
+    )
+    .unwrap_or((-1, 3));
 
     crate::shader::model::SamplerAssignment {
-        sampler_indices: ivec4(s00, s10, s20, s30),
-        channel_indices: uvec4(c00, c10, c20, c30),
-        sampler_indices2: ivec4(s01, s11, s21, s31),
-        channel_indices2: uvec4(c01, c11, c21, c31),
+        sampler_indices: ivec4(s0, s1, s2, s3),
+        channel_indices: uvec4(c0, c1, c2, c3),
     }
 }
 
@@ -310,13 +327,6 @@ fn texture_channel(
     }
 }
 
-fn attribute_assignments(
-    assignments: &OutputAssignments,
-) -> [crate::shader::model::AttributeAssignment; 6] {
-    // Each output channel may have a different input sampler and channel.
-    [0, 1, 2, 3, 4, 5].map(|i| attribute_assignment(&assignments.assignments[i]))
-}
-
 fn attribute_assignment(a: &OutputAssignment) -> crate::shader::model::AttributeAssignment {
     let c0 = attribute_channel_assignment(a.x.as_ref()).unwrap_or(-1);
     let c1 = attribute_channel_assignment(a.y.as_ref()).unwrap_or(-1);
@@ -343,10 +353,6 @@ fn attribute_channel_assignment(assignment: Option<&ChannelAssignment>) -> Optio
     } else {
         None
     }
-}
-
-fn output_default_assignments(assignments: &OutputAssignments) -> [Vec4; 6] {
-    [0, 1, 2, 3, 4, 5].map(|i| output_default(&assignments.assignments[i], i))
 }
 
 fn output_default(a: &OutputAssignment, i: usize) -> Vec4 {
