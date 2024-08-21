@@ -5,8 +5,8 @@ use indexmap::IndexMap;
 use log::{error, warn};
 use smol_str::SmolStr;
 use xc3_model::{
-    texture_layer_assignment, ChannelAssignment, ImageTexture, IndexMapExt, OutputAssignment,
-    OutputAssignments, TextureAssignment,
+    shader_database::Dependency, texture_layer_assignment, ChannelAssignment, ImageTexture,
+    IndexMapExt, OutputAssignment, OutputAssignments, TextureAssignment,
 };
 
 use crate::{
@@ -125,6 +125,44 @@ pub fn materials(
                 }
             }
 
+            // TODO: Should this also override the assignment information for layer 1 and layer2?
+            let normal_layers = material
+                .shader
+                .as_ref()
+                .map(|s| {
+                    // TODO: get default weights from ratio dependencies.
+                    let (s0, c0) = s
+                        .normal_layers
+                        .iter()
+                        .nth(1)
+                        .and_then(|l| {
+                            match &l.ratio {
+                                // TODO: Handle other dependency variants.
+                                Some(Dependency::Texture(t)) => Some((
+                                    name_to_index.entry_index(t.name.clone()) as i32,
+                                    "xyzw"
+                                        .chars()
+                                        .position(|c| Some(c) == l.channel)
+                                        .unwrap_or_default()
+                                        as u32,
+                                )),
+                                _ => None,
+                            }
+                        })
+                        .unwrap_or((-1, 0));
+
+                    crate::shader::model::NormalLayers {
+                        sampler_indices: ivec4(s0, -1, -1, -1),
+                        channel_indices: uvec4(c0, 0, 0, 0),
+                        default_weights: Vec4::ZERO,
+                    }
+                })
+                .unwrap_or(crate::shader::model::NormalLayers {
+                    sampler_indices: ivec4(-1, -1, -1, -1),
+                    channel_indices: uvec4(0, 0, 0, 0),
+                    default_weights: Vec4::ZERO,
+                });
+
             // TODO: This is normally done using a depth prepass.
             // TODO: Is it ok to combine the prepass alpha in the main pass like this?
             let per_material = device.create_uniform_buffer(
@@ -132,6 +170,7 @@ pub fn materials(
                 &[crate::shader::model::PerMaterial {
                     mat_color: material.color.into(),
                     assignments,
+                    normal_layers,
                     texture_transforms,
                     alpha_test_texture: {
                         let (texture_index, channel_index) = material

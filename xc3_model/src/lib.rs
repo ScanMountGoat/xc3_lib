@@ -390,6 +390,7 @@ fn get_shader_legacy(
 
     Some(ShaderProgram {
         output_dependencies,
+        normal_layers: Vec::new()
     })
 }
 

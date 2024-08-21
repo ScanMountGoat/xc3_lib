@@ -120,6 +120,8 @@ pub struct ShaderProgram {
     /// Node based editors like Blender's shader editor should use these values
     /// to determine how to construct node groups.
     pub output_dependencies: IndexMap<SmolStr, Vec<Dependency>>,
+
+    pub normal_layers: Vec<TextureLayer>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -177,6 +179,13 @@ pub enum TexCoordParams {
 pub struct AttributeDependency {
     pub name: SmolStr,
     pub channels: SmolStr,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct TextureLayer {
+    pub name: String,
+    pub channel: Option<char>,
+    pub ratio: Option<Dependency>,
 }
 
 impl ShaderProgram {
@@ -318,6 +327,7 @@ mod tests {
     fn material_channel_assignment_empty() {
         let shader = ShaderProgram {
             output_dependencies: IndexMap::new(),
+            normal_layers: Vec::new(),
         };
         assert!(shader.textures(0, 'x').is_empty());
     }
@@ -326,6 +336,7 @@ mod tests {
     fn material_channel_assignment_single_output_no_assignment() {
         let shader = ShaderProgram {
             output_dependencies: [("o0.x".into(), Vec::new())].into(),
+            normal_layers: Vec::new(),
         };
         assert!(shader.textures(0, 'x').is_empty());
     }
@@ -367,6 +378,7 @@ mod tests {
                 ),
             ]
             .into(),
+            normal_layers: Vec::new(),
         };
         assert_eq!(
             vec![
@@ -415,6 +427,7 @@ mod tests {
                 ("o1.z".into(), vec![Dependency::Constant(0.5.into())]),
             ]
             .into(),
+            normal_layers: Vec::new(),
         };
         assert_eq!(None, shader.float_constant(0, 'x'));
         assert_eq!(Some(0.5), shader.float_constant(1, 'z'));
@@ -458,6 +471,7 @@ mod tests {
                 ),
             ]
             .into(),
+            normal_layers: Vec::new(),
         };
         assert_eq!(None, shader.buffer_parameter(0, 'x'));
         assert_eq!(

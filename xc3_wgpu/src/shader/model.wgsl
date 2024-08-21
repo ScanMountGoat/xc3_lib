@@ -110,12 +110,19 @@ struct OutputAssignment {
     default_value: vec4<f32>
 }
 
+struct NormalLayers {
+    // Weights for up to 4 additional layers.
+    sampler_indices: vec4<i32>,
+    channel_indices: vec4<u32>,
+    default_weights: vec4<f32>
+}
+
 struct PerMaterial {
     mat_color: vec4<f32>,
 
+    // Shader database information.
     assignments: array<OutputAssignment, 6>,
-
-    // Parameters, constants, and defaults if no texture is assigned.
+    normal_layers: NormalLayers,
     texture_transforms: array<array<vec4<f32>, 2>, 10>,
 
     // texture index, channel, index, 0, 0
@@ -481,8 +488,11 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
         var normal_map = create_normal_map(g_normal.xy);
         if per_material.assignments[2].samplers2.sampler_indices.x != -1 && per_material.assignments[2].samplers2.sampler_indices.y != -1 {
             // TODO: What should the weight be for blending?
+            let layers = per_material.normal_layers; 
+            let weight = assign_channel(layers.sampler_indices.x, layers.channel_indices.x, -1, s_colors, vec4(0.0), 1.0);
+
             let normal_map2 = create_normal_map(g_normal2.xy);
-            normal_map = add_normal_maps(normal_map, normal_map2, 1.0);
+            normal_map = add_normal_maps(normal_map, normal_map2, weight);
         }
 
         normal = apply_normal_map(normal_map, tangent, bitangent, vertex_normal);

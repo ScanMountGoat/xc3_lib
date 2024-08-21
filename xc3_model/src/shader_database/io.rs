@@ -6,7 +6,7 @@ use smol_str::SmolStr;
 
 use super::{
     AttributeDependency, BufferDependency, Dependency, MapPrograms, ModelPrograms, ShaderProgram,
-    TexCoord, TexCoordParams, TextureDependency,
+    TexCoord, TexCoordParams, TextureDependency, TextureLayer,
 };
 
 // Create a separate smaller representation for on disk.
@@ -34,11 +34,14 @@ struct ModelIndexed {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-#[serde(transparent)]
 struct ShaderProgramIndexed {
     // There are very few unique dependencies across all shaders in a game dump.
     // Normalize the data to greatly reduce the size of the JSON representation.
     output_dependencies: IndexMap<usize, Vec<usize>>,
+
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
+    normal_layers: Vec<TextureLayerIndexed>,
 }
 
 // TODO: Also index texture and texcoord names?
@@ -57,6 +60,13 @@ struct TexCoordIndexed(SmolStr, SmolStr, Option<TexCoordParamsIndexed>);
 pub enum TexCoordParamsIndexed {
     Scale(usize),
     Matrix([usize; 4]),
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+struct TextureLayerIndexed {
+    name: String,
+    channel: Option<char>,
+    ratio: Option<usize>,
 }
 
 impl ShaderDatabaseIndexed {
@@ -259,6 +269,15 @@ fn model_indexed(
                         )
                     })
                     .collect(),
+                normal_layers: p
+                    .normal_layers
+                    .into_iter()
+                    .map(|l| TextureLayerIndexed {
+                        name: l.name,
+                        channel: l.channel,
+                        ratio: l.ratio.map(|r| dependency_to_index.entry_index(r)),
+                    })
+                    .collect(),
             })
             .collect(),
     }
@@ -291,6 +310,17 @@ fn model_from_indexed(
                                 })
                                 .collect(),
                         )
+                    })
+                    .collect(),
+                normal_layers: p
+                    .normal_layers
+                    .iter()
+                    .map(|l| TextureLayer {
+                        name: l.name.clone(),
+                        channel: l.channel,
+                        ratio: l.ratio.map(|i| {
+                            dependency_from_indexed(dependencies[i].clone(), buffer_dependencies)
+                        }),
                     })
                     .collect(),
             })

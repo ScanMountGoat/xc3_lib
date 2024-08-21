@@ -9,11 +9,13 @@ use glsl_lang::{
     parse::DefaultParse,
     visitor::{Host, Visit, Visitor},
 };
+use indexmap::IndexMap;
 use log::error;
 use rayon::prelude::*;
 use xc3_lib::mths::{FragmentShader, Mths};
 use xc3_model::shader_database::{
     BufferDependency, Dependency, MapPrograms, ModelPrograms, ShaderDatabase, ShaderProgram,
+    TextureDependency, TextureLayer,
 };
 
 use crate::{
@@ -36,52 +38,50 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
 
     let vertex = &vertex.map(|v| (Graph::from_glsl(v), find_attribute_locations(v)));
 
-    let output_dependencies = (0..=5)
-        .flat_map(|i| {
-            "xyzw".chars().map(move |c| {
-                let name = format!("out_attr{i}");
-                let mut dependencies = input_dependencies(frag, frag_attributes, &name, Some(c));
+    let mut normal_layers = Vec::new();
 
-                if let Some((vert, vert_attributes)) = vertex {
-                    // Add texture parameters used for the corresponding vertex output.
-                    // Most shaders apply UV transforms in the vertex shader.
-                    apply_vertex_texcoord_params(
-                        vert,
-                        vert_attributes,
-                        frag_attributes,
-                        &mut dependencies,
-                    );
+    let mut output_dependencies = IndexMap::new();
+    for i in 0..=5 {
+        for c in "xyzw".chars() {
+            let name = format!("out_attr{i}");
+            let mut dependencies = input_dependencies(frag, frag_attributes, &name, Some(c));
 
-                    apply_attribute_names(
-                        vert,
-                        vert_attributes,
-                        frag_attributes,
-                        &mut dependencies,
-                    );
+            if let Some((vert, vert_attributes)) = vertex {
+                // Add texture parameters used for the corresponding vertex output.
+                // Most shaders apply UV transforms in the vertex shader.
+                apply_vertex_texcoord_params(
+                    vert,
+                    vert_attributes,
+                    frag_attributes,
+                    &mut dependencies,
+                );
+
+                apply_attribute_names(vert, vert_attributes, frag_attributes, &mut dependencies);
+            }
+
+            if i == 0 {
+                color_layers(frag);
+            } else if i == 1 && c == 'y' {
+                if let Some(param) = geometric_specular_aa(frag) {
+                    dependencies = vec![Dependency::Buffer(param)];
                 }
+            } else if i == 2 && c == 'x' {
+                normal_layers = find_normal_layers(frag, "out_attr2", Some('x'), &dependencies)
+                    .unwrap_or_default();
+            }
 
-                if i == 0 {
-                    color_layers(frag);
-                } else if i == 1 && c == 'y' {
-                    if let Some(param) = geometric_specular_aa(frag) {
-                        dependencies = vec![Dependency::Buffer(param)];
-                    }
-                } else if i == 2 && c == 'x' {
-                    // TODO: How to store this layering information?
-                    let layers = normal_layers(frag, "out_attr2", Some('x')).unwrap_or_default();
-                }
-
+            if !dependencies.is_empty() {
                 // Simplify the output name to save space.
                 let output_name = format!("o{i}.{c}");
-                (output_name.into(), dependencies)
-            })
-        })
-        .filter(|(_, dependencies)| !dependencies.is_empty())
-        .collect();
+                output_dependencies.insert(output_name.into(), dependencies);
+            }
+        }
+    }
 
     ShaderProgram {
         // IndexMap gives consistent ordering for attribute names.
         output_dependencies,
+        normal_layers,
     }
 }
 
@@ -144,6 +144,7 @@ fn shader_from_latte_asm(
     ShaderProgram {
         // IndexMap gives consistent ordering for attribute names.
         output_dependencies,
+        normal_layers: Vec::new(),
     }
 }
 
@@ -183,14 +184,12 @@ fn calc_monochrome<'a>(nodes: &'a [Node], node: &'a Node) -> Option<([&'a Node; 
     Some((mat_col, monochrome_ratio))
 }
 
-#[derive(Debug)]
-struct TextureLayer {
-    name: String,
+fn find_normal_layers(
+    frag: &Graph,
+    output: &str,
     channel: Option<char>,
-    ratio: Option<Expr>,
-}
-
-fn normal_layers(frag: &Graph, output: &str, channel: Option<char>) -> Option<Vec<TextureLayer>> {
+    dependencies: &[Dependency],
+) -> Option<Vec<TextureLayer>> {
     let node_index = frag
         .nodes
         .iter()
@@ -220,10 +219,11 @@ fn normal_layers(frag: &Graph, output: &str, channel: Option<char>) -> Option<Ve
     // Some shaders layer more than one additional normal map.
     while let Some((n2, layer_nom_work, ratio)) = pixel_calc_add_normal(&frag.nodes, nom_work) {
         if let Some((name, channel)) = texture_name_channel(&n2.input) {
+            let ratio = ratio_dependency(ratio, dependencies);
             layers.push(TextureLayer {
                 name,
                 channel,
-                ratio: Some(ratio.clone()),
+                ratio,
             });
         }
         if let Some(n1) = pixel_calc_add_normal_n1(&frag.nodes, layer_nom_work) {
@@ -242,6 +242,36 @@ fn normal_layers(frag: &Graph, output: &str, channel: Option<char>) -> Option<Ve
     layers.reverse();
 
     Some(layers)
+}
+
+fn ratio_dependency(ratio: &Expr, dependencies: &[Dependency]) -> Option<Dependency> {
+    buffer_dependency(ratio)
+        .map(Dependency::Buffer)
+        .or_else(|| match ratio {
+            Expr::Func {
+                name,
+                args,
+                channel,
+            } => {
+                if let Some(Expr::Global { name, .. }) = args.first() {
+                    dependencies
+                        .iter()
+                        .find(|d| {
+                            if let Dependency::Texture(t) = d {
+                                t.name == name && t.channels.contains(channel.unwrap())
+                            } else {
+                                false
+                            }
+                        })
+                        .cloned()
+                } else {
+                    // TODO: How to handle this case?
+                    None
+                }
+            }
+            // TODO: Find dependencies recursively?
+            _ => None,
+        })
 }
 
 fn texture_name_channel(input: &Expr) -> Option<(String, Option<char>)> {
@@ -1637,7 +1667,8 @@ mod tests {
                         })],
                     )
                 ]
-                .into()
+                .into(),
+                normal_layers: Vec::new()
             },
             shader
         );
