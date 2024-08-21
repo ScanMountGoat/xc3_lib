@@ -479,11 +479,11 @@ impl Material {
 ///
 /// This currently uses a heuristic that resolves some assignment issues where
 /// multiple input channels are used but may not work accurately in some cases.
-pub fn texture_layer_assignment<'a>(
-    textures: &'a [TextureAssignment],
+pub fn texture_layer_assignment(
+    textures: &[TextureAssignment],
     channel: char,
     is_second_layer: bool,
-) -> Option<&'a TextureAssignment> {
+) -> Option<&TextureAssignment> {
     // Some textures like normal maps may use multiple input channels.
     // First check if the current channel is used.
     // TODO: Should this only be used for color and normals?

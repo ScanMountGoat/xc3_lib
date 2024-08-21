@@ -99,13 +99,13 @@ impl MapRoot {
 
         // TODO: How much does a mutable cache negatively impact parallelization?
         // TODO: Is there enough reuse for it to be worth caching these?
-        let mut texture_cache = TextureCache::new(&msmd, wismda, compressed)?;
+        let mut texture_cache = TextureCache::new(msmd, wismda, compressed)?;
 
         let map_model_group =
-            map_models_group(&msmd, wismda, compressed, &mut texture_cache, map_programs)?;
+            map_models_group(msmd, wismda, compressed, &mut texture_cache, map_programs)?;
 
         let prop_model_group =
-            props_group(&msmd, wismda, compressed, &mut texture_cache, map_programs)?;
+            props_group(msmd, wismda, compressed, &mut texture_cache, map_programs)?;
 
         roots.push(MapRoot {
             groups: vec![map_model_group, prop_model_group],
