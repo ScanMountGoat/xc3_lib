@@ -265,23 +265,21 @@ fn texture_name_channel(input: &Expr) -> Option<(String, Option<char>)> {
     }
 }
 
-// TODO: Is this different in xc2?
 fn pixel_calc_add_normal<'a>(
     nodes: &'a [Node],
     nom_work: &'a Node,
 ) -> Option<(&'a Node, &'a Node, &'a Expr)> {
     // getPixelCalcAddNormal in pcmdo shaders.
     // normalize(mix(nomWork, normalize(r), ratio))
-    // compiled to (normalize(r) - nomWork) * ratio + nomWork
+    // XC2: ratio * (normalize(r) - nomWork) + nomWork
+    // XC3: (normalize(r) - nomWork) * ratio + nomWork
     // TODO: Is it worth detecting the textures used for r?
     let result = normalize(nodes, nom_work)?;
-    let (r, nom_work, ratio) = match &result.input {
+    let (a, b, nom_work) = match &result.input {
         Expr::Func { name, args, .. } => {
             if name == "fma" {
                 match &args[..] {
-                    [Expr::Node { node_index: a, .. }, ratio, Expr::Node { node_index: b, .. }] => {
-                        Some((nodes.get(*a)?, nodes.get(*b)?, ratio))
-                    }
+                    [a, b, Expr::Node { node_index, .. }] => Some((a, b, nodes.get(*node_index)?)),
                     _ => None,
                 }
             } else {
@@ -290,10 +288,31 @@ fn pixel_calc_add_normal<'a>(
         }
         _ => None,
     }?;
-    // TODO: process this further to get the name and channel?
-    let n2 = pixel_calc_add_normal_n2(nodes, r)?;
+    // Detect ratio * r or r * ratio to handle both XC2 and XC3.
+    let (n2, mut ratio) = node_expr(nodes, a)
+        .and_then(|r| Some((pixel_calc_add_normal_n2(nodes, r)?, b)))
+        .or_else(|| {
+            node_expr(nodes, b).and_then(|r| Some((pixel_calc_add_normal_n2(nodes, r)?, a)))
+        })?;
+
+    // Reduce any assignment chains for what's likely a parameter or texture assignment.
+    // TODO: Convert ratio to a dependency.
+    if let Some(mut n) = node_expr(nodes, ratio) {
+        while let Some(new_n) = assign_x(nodes, n) {
+            n = new_n;
+        }
+        ratio = &n.input;
+    }
 
     Some((n2, nom_work, ratio))
+}
+
+fn node_expr<'a>(nodes: &'a [Node], e: &Expr) -> Option<&'a Node> {
+    if let Expr::Node { node_index, .. } = e {
+        nodes.get(*node_index)
+    } else {
+        None
+    }
 }
 
 fn pixel_calc_add_normal_n1<'a>(nodes: &'a [Node], nom_work: &'a Node) -> Option<&'a Node> {
