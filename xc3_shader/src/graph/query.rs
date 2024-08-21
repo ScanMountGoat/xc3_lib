@@ -127,7 +127,7 @@ pub fn mix_a_b_ratio<'a>(
         },
         _ => None,
     }?;
-    let a = zero_minus_x(&nodes, neg_a)?;
+    let a = zero_minus_x(nodes, neg_a)?;
     if a != nodes.get(*a1)? {
         return None;
     }

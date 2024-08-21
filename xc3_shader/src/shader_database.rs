@@ -24,7 +24,7 @@ use crate::{
     graph::{
         query::{
             assign_x, clamp_x_zero_one, dot3_a_b, fma_half_half, mix_a_b_ratio, normalize,
-            one_minus_x, one_plus_x, sqrt_x,
+            one_minus_x, one_plus_x, sqrt_x, zero_minus_x,
         },
         Expr, Graph, Node,
     },
@@ -66,10 +66,9 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
                     if let Some(param) = geometric_specular_aa(frag) {
                         dependencies = vec![Dependency::Buffer(param)];
                     }
-                } else if i == 2 {
-                    // TODO: detect normal map layers
-                    // TODO: xc1 is fma 2, -1?
-                    normal_layers(frag);
+                } else if i == 2 && c == 'x' {
+                    // TODO: How to store this layering information?
+                    let layers = normal_layers(frag, "out_attr2", Some('x')).unwrap_or_default();
                 }
 
                 // Simplify the output name to save space.
@@ -167,15 +166,11 @@ fn color_layers(frag: &Graph) -> Option<&Node> {
         current_col = mat_cols[0];
     }
 
-    // dbg!(current_col);
-
     // Shaders can blend multiple layers with getPixelCalcOver.
     // TODO: Store layering information.
     while let Some((mat_col, layer, ratio)) = mix_a_b_ratio(&frag.nodes, current_col) {
-        // dbg!(mat_col, layer, ratio);
         current_col = mat_col;
     }
-    // dbg!(current_col);
 
     Some(current_col)
 }
@@ -188,14 +183,18 @@ fn calc_monochrome<'a>(nodes: &'a [Node], node: &'a Node) -> Option<([&'a Node; 
     Some((mat_col, monochrome_ratio))
 }
 
-// TODO: This only needs to check the X channel?
-fn normal_layers(frag: &Graph) -> Option<&Node> {
-    dbg!("hello");
-    // TODO: Select the appropriate channel.
+#[derive(Debug)]
+struct TextureLayer {
+    name: String,
+    channel: Option<char>,
+    ratio: Option<Expr>,
+}
+
+fn normal_layers(frag: &Graph, output: &str, channel: Option<char>) -> Option<Vec<TextureLayer>> {
     let node_index = frag
         .nodes
         .iter()
-        .rposition(|n| n.output.name == "out_attr2" && n.output.channel == Some('x'))?;
+        .rposition(|n| n.output.name == output && n.output.channel == channel)?;
     let last_node_index = *frag.node_dependencies_recursive(node_index, None).last()?;
     let last_node = frag.nodes.get(last_node_index)?;
 
@@ -204,33 +203,69 @@ fn normal_layers(frag: &Graph) -> Option<&Node> {
     // TODO: function for detecting fma?
     // setMrtNormal in pcmdo shaders.
     let mut view_normal = fma_half_half(&frag.nodes, node)?;
-    // TODO: How many of these assignments are there?
     while let Some(assignment) = assign_x(&frag.nodes, view_normal) {
         view_normal = assignment;
     }
-    //  view_normal = assign_x(&frag.nodes, view_normal)?;
-    //  view_normal = assign_x(&frag.nodes, view_normal)?;
 
     let view_normal = normalize(&frag.nodes, view_normal)?;
-    dbg!(view_normal);
 
     // TODO: front facing in calcNormalZAbs in pcmdo?
 
     // nomWork input for getCalcNormalMap in pcmdo shaders.
     let nom_work = calc_normal_map(frag, view_normal)?;
     let mut nom_work = nom_work[0];
-    dbg!(nom_work);
+
+    let mut layers = Vec::new();
 
     // Some shaders layer more than one additional normal map.
-    while let Some((layer_x, layer_nom_work, ratio)) = pixel_calc_add_normal(&frag.nodes, nom_work)
-    {
-        dbg!(layer_x, layer_nom_work, ratio);
+    while let Some((n2, layer_nom_work, ratio)) = pixel_calc_add_normal(&frag.nodes, nom_work) {
+        if let Some((name, channel)) = texture_name_channel(&n2.input) {
+            layers.push(TextureLayer {
+                name,
+                channel,
+                ratio: Some(ratio.clone()),
+            });
+        }
+        if let Some(n1) = pixel_calc_add_normal_n1(&frag.nodes, layer_nom_work) {
+            if let Some((name, channel)) = texture_name_channel(&n1.input) {
+                layers.push(TextureLayer {
+                    name,
+                    channel,
+                    ratio: None,
+                });
+            }
+        }
         nom_work = layer_nom_work;
     }
 
-    None
+    // We start from the output, so these are in reverse order.
+    layers.reverse();
+
+    Some(layers)
 }
 
+fn texture_name_channel(input: &Expr) -> Option<(String, Option<char>)> {
+    match input {
+        Expr::Func {
+            name,
+            args,
+            channel,
+        } => {
+            if name == "texture" {
+                if let Some(Expr::Global { name, .. }) = args.first() {
+                    Some((name.clone(), *channel))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+// TODO: Is this different in xc2?
 fn pixel_calc_add_normal<'a>(
     nodes: &'a [Node],
     nom_work: &'a Node,
@@ -240,7 +275,7 @@ fn pixel_calc_add_normal<'a>(
     // compiled to (normalize(r) - nomWork) * ratio + nomWork
     // TODO: Is it worth detecting the textures used for r?
     let result = normalize(nodes, nom_work)?;
-    let (x, nom_work, ratio) = match &result.input {
+    let (r, nom_work, ratio) = match &result.input {
         Expr::Func { name, args, .. } => {
             if name == "fma" {
                 match &args[..] {
@@ -255,7 +290,89 @@ fn pixel_calc_add_normal<'a>(
         }
         _ => None,
     }?;
-    Some((x, nom_work, ratio))
+    // TODO: process this further to get the name and channel?
+    let n2 = pixel_calc_add_normal_n2(nodes, r)?;
+
+    Some((n2, nom_work, ratio))
+}
+
+fn pixel_calc_add_normal_n1<'a>(nodes: &'a [Node], nom_work: &'a Node) -> Option<&'a Node> {
+    // Extract the texture for n1 if present.
+    // This will only work for the base layer.
+    let node = match &nom_work.input {
+        Expr::Func { name, args, .. } => {
+            if name == "fma" {
+                match &args[..] {
+                    [Expr::Node { node_index, .. }, _, _] => nodes.get(*node_index),
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }?;
+    let node = assign_x(nodes, node)?;
+    Some(node)
+}
+
+fn pixel_calc_add_normal_n2<'a>(nodes: &'a [Node], r: &'a Node) -> Option<&'a Node> {
+    // Extract n2 from the expression for r.
+    // n2 = nor.x
+    // n = fma(n2, 2.0, -1.0)
+    // n = n * ???
+    // n = 0.0 - n
+    // n = ??? * ??? - n
+    // n * inversesqrt(???) - n1.x
+    let node = match &r.input {
+        Expr::Func { name, args, .. } => {
+            if name == "fma" {
+                match &args[..] {
+                    [Expr::Node { node_index, .. }, _, _] => nodes.get(*node_index),
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }?;
+    let node = match &node.input {
+        Expr::Func { name, args, .. } => {
+            if name == "fma" {
+                match &args[..] {
+                    [_, _, Expr::Node { node_index, .. }] => nodes.get(*node_index),
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }?;
+    let node = zero_minus_x(nodes, node)?;
+    let node = match &node.input {
+        Expr::Mul(x, y) => match (x.deref(), y.deref()) {
+            (Expr::Node { node_index: x, .. }, _) => nodes.get(*x),
+            _ => None,
+        },
+        _ => None,
+    }?;
+    let n2 = match &node.input {
+        Expr::Func { name, args, .. } => {
+            if name == "fma" {
+                match &args[..] {
+                    [Expr::Node { node_index, .. }, _, _] => nodes.get(*node_index),
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }?;
+    let n2 = assign_x(nodes, n2)?;
+    Some(n2)
 }
 
 fn calc_normal_map<'a>(frag: &'a Graph, view_normal: &'a Node) -> Option<[&'a Node; 3]> {
@@ -263,7 +380,7 @@ fn calc_normal_map<'a>(frag: &'a Graph, view_normal: &'a Node) -> Option<[&'a No
     // result = normalize(nomWork).x, normalize(tangent).x
     // result = fma(normalize(nomWork).y, normalize(bitangent).x, result)
     // result = fma(normalize(nomWork).z, normalize(normal).x, result)
-    let (nrm, _tangent_normal_bitangent) = dot3_a_b(&frag.nodes, &view_normal)?;
+    let (nrm, _tangent_normal_bitangent) = dot3_a_b(&frag.nodes, view_normal)?;
     Some(nrm)
 }
 
@@ -919,6 +1036,250 @@ mod tests {
                 channels: "y".into()
             })],
             shader.output_dependencies[&SmolStr::from("o1.y")]
+        );
+        assert_eq!(
+            vec![
+                Dependency::Texture(TextureDependency {
+                    name: "gTResidentTex09".into(),
+                    channels: "x".into(),
+                    texcoords: vec![
+                        TexCoord {
+                            name: "in_attr4".into(),
+                            channels: "z".into(),
+                            params: None,
+                        },
+                        TexCoord {
+                            name: "in_attr4".into(),
+                            channels: "w".into(),
+                            params: None,
+                        },
+                    ],
+                }),
+                Dependency::Texture(TextureDependency {
+                    name: "gTResidentTex09".into(),
+                    channels: "y".into(),
+                    texcoords: vec![
+                        TexCoord {
+                            name: "in_attr4".into(),
+                            channels: "z".into(),
+                            params: None,
+                        },
+                        TexCoord {
+                            name: "in_attr4".into(),
+                            channels: "w".into(),
+                            params: None,
+                        },
+                    ],
+                }),
+                Dependency::Texture(TextureDependency {
+                    name: "s2".into(),
+                    channels: "x".into(),
+                    texcoords: vec![
+                        TexCoord {
+                            name: "in_attr4".into(),
+                            channels: "x".into(),
+                            params: None,
+                        },
+                        TexCoord {
+                            name: "in_attr4".into(),
+                            channels: "y".into(),
+                            params: None,
+                        },
+                    ],
+                }),
+                Dependency::Texture(TextureDependency {
+                    name: "s2".into(),
+                    channels: "y".into(),
+                    texcoords: vec![
+                        TexCoord {
+                            name: "in_attr4".into(),
+                            channels: "x".into(),
+                            params: None,
+                        },
+                        TexCoord {
+                            name: "in_attr4".into(),
+                            channels: "y".into(),
+                            params: None,
+                        },
+                    ],
+                }),
+                Dependency::Texture(TextureDependency {
+                    name: "s3".into(),
+                    channels: "x".into(),
+                    texcoords: vec![
+                        TexCoord {
+                            name: "in_attr5".into(),
+                            channels: "x".into(),
+                            params: None,
+                        },
+                        TexCoord {
+                            name: "in_attr5".into(),
+                            channels: "y".into(),
+                            params: None,
+                        },
+                    ],
+                }),
+                Dependency::Texture(TextureDependency {
+                    name: "s3".into(),
+                    channels: "y".into(),
+                    texcoords: vec![
+                        TexCoord {
+                            name: "in_attr5".into(),
+                            channels: "x".into(),
+                            params: None,
+                        },
+                        TexCoord {
+                            name: "in_attr5".into(),
+                            channels: "y".into(),
+                            params: None,
+                        },
+                    ],
+                }),
+            ],
+            shader.output_dependencies[&SmolStr::from("o2.x")]
+        );
+    }
+
+    #[test]
+    fn shader_from_fragment_haze_body() {
+        // xeno2/model/np/np001101, "body", shd0013.frag
+        let glsl = include_str!("data/np001101.13.frag");
+
+        // Test multiple normal layers with texture masks.
+        let fragment = TranslationUnit::parse(glsl).unwrap();
+        let shader = shader_from_glsl(None, &fragment);
+        assert_eq!(
+            vec![
+                Dependency::Texture(TextureDependency {
+                    name: "s2".into(),
+                    channels: "x".into(),
+                    texcoords: vec![
+                        TexCoord {
+                            name: "in_attr4".into(),
+                            channels: "x".into(),
+                            params: None,
+                        },
+                        TexCoord {
+                            name: "in_attr4".into(),
+                            channels: "y".into(),
+                            params: None,
+                        },
+                    ],
+                }),
+                Dependency::Texture(TextureDependency {
+                    name: "s2".into(),
+                    channels: "y".into(),
+                    texcoords: vec![
+                        TexCoord {
+                            name: "in_attr4".into(),
+                            channels: "x".into(),
+                            params: None,
+                        },
+                        TexCoord {
+                            name: "in_attr4".into(),
+                            channels: "y".into(),
+                            params: None,
+                        },
+                    ],
+                }),
+                Dependency::Texture(TextureDependency {
+                    name: "s3".into(),
+                    channels: "x".into(),
+                    texcoords: vec![
+                        TexCoord {
+                            name: "in_attr4".into(),
+                            channels: "z".into(),
+                            params: None,
+                        },
+                        TexCoord {
+                            name: "in_attr4".into(),
+                            channels: "w".into(),
+                            params: None,
+                        },
+                    ],
+                }),
+                Dependency::Texture(TextureDependency {
+                    name: "s3".into(),
+                    channels: "y".into(),
+                    texcoords: vec![
+                        TexCoord {
+                            name: "in_attr4".into(),
+                            channels: "z".into(),
+                            params: None,
+                        },
+                        TexCoord {
+                            name: "in_attr4".into(),
+                            channels: "w".into(),
+                            params: None,
+                        },
+                    ],
+                }),
+                Dependency::Texture(TextureDependency {
+                    name: "s4".into(),
+                    channels: "x".into(),
+                    texcoords: vec![
+                        TexCoord {
+                            name: "in_attr4".into(),
+                            channels: "x".into(),
+                            params: None,
+                        },
+                        TexCoord {
+                            name: "in_attr4".into(),
+                            channels: "y".into(),
+                            params: None,
+                        },
+                    ],
+                }),
+                Dependency::Texture(TextureDependency {
+                    name: "s5".into(),
+                    channels: "x".into(),
+                    texcoords: vec![
+                        TexCoord {
+                            name: "in_attr5".into(),
+                            channels: "x".into(),
+                            params: None,
+                        },
+                        TexCoord {
+                            name: "in_attr5".into(),
+                            channels: "y".into(),
+                            params: None,
+                        },
+                    ],
+                }),
+                Dependency::Texture(TextureDependency {
+                    name: "s5".into(),
+                    channels: "y".into(),
+                    texcoords: vec![
+                        TexCoord {
+                            name: "in_attr5".into(),
+                            channels: "x".into(),
+                            params: None,
+                        },
+                        TexCoord {
+                            name: "in_attr5".into(),
+                            channels: "y".into(),
+                            params: None,
+                        },
+                    ],
+                }),
+                Dependency::Texture(TextureDependency {
+                    name: "s6".into(),
+                    channels: "x".into(),
+                    texcoords: vec![
+                        TexCoord {
+                            name: "in_attr4".into(),
+                            channels: "x".into(),
+                            params: None,
+                        },
+                        TexCoord {
+                            name: "in_attr4".into(),
+                            channels: "y".into(),
+                            params: None,
+                        },
+                    ],
+                }),
+            ],
+            shader.output_dependencies[&SmolStr::from("o2.x")]
         );
     }
 
