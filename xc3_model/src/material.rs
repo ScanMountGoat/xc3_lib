@@ -1,3 +1,5 @@
+use std::usize;
+
 use glam::{vec4, Vec4};
 use log::warn;
 use smol_str::SmolStr;
@@ -74,6 +76,19 @@ pub struct MaterialParameters {
     pub tex_matrix: Option<Vec<[f32; 8]>>, // TODO: mat2x4?
     pub work_float4: Option<Vec<[f32; 4]>>,
     pub work_color: Option<Vec<[f32; 4]>>,
+}
+
+impl MaterialParameters {
+    pub fn get_dependency(&self, p: &BufferDependency) -> Option<f32> {
+        // TODO: Handle multiple channels?
+        // TODO: How to handle the case where the input has no channels?
+        let c = "xyzw".find(p.channels.chars().next()?).unwrap();
+        match (p.name.as_str(), p.field.as_str()) {
+            ("U_Mate", "gWrkFl4") => Some(self.work_float4.as_ref()?.get(p.index)?[c]),
+            ("U_Mate", "gWrkCol") => Some(self.work_color.as_ref()?.get(p.index)?[c]),
+            _ => None,
+        }
+    }
 }
 
 impl Default for MaterialParameters {
@@ -573,15 +588,23 @@ fn channel_assignment(
                 sorted_textures
                     .sort_by_cached_key(|t| sampler_index(t.name.as_str()).unwrap_or(usize::MAX));
             } else if output_index == 2 {
-                // Normal maps are usually just XY BC5 textures.
-                // Sort so that these textures are accessed first.
-                sorted_textures.sort_by_cached_key(|t| {
-                    let count = textures.iter().filter(|t2| t2.name == t.name).count();
-                    (
-                        count != 2,
-                        sampler_index(t.name.as_str()).unwrap_or(usize::MAX),
-                    )
-                });
+                if !shader.normal_layers.is_empty() {
+                    // Match the correct layer order if present.
+                    sorted_textures.sort_by_cached_key(|t| {
+                        shader
+                            .normal_layers
+                            .iter()
+                            .position(|l| l.name == t.name)
+                            .unwrap_or(usize::MAX)
+                    });
+                } else {
+                    // Normal maps are usually just XY BC5 textures.
+                    // Sort so that these textures are accessed first.
+                    sorted_textures.sort_by_cached_key(|t| {
+                        let count = textures.iter().filter(|t2| t2.name == t.name).count();
+                        count != 2
+                    });
+                }
             } else {
                 // Color maps typically assign s0 using RGB or a single channel.
                 // Ignore single channel masks if an RGB input is present.
@@ -633,16 +656,16 @@ fn texcoord_transform(
     match u.params.as_ref()? {
         crate::shader_database::TexCoordParams::Scale(s) => {
             // Select and scale the appropriate component.
-            let scale = extract_parameter(s, parameters)?;
+            let scale = parameters.get_dependency(s)?;
             let mut transform = Vec4::ZERO;
             transform[index] = scale;
             Some(transform)
         }
         crate::shader_database::TexCoordParams::Matrix([x, y, z, w]) => Some(vec4(
-            extract_parameter(x, parameters)?,
-            extract_parameter(y, parameters)?,
-            extract_parameter(z, parameters)?,
-            extract_parameter(w, parameters)?,
+            parameters.get_dependency(x)?,
+            parameters.get_dependency(y)?,
+            parameters.get_dependency(z)?,
+            parameters.get_dependency(w)?,
         )),
     }
 }
@@ -657,19 +680,8 @@ fn param_or_const(
     let channel = ['x', 'y', 'z', 'w'][c];
     shader
         .buffer_parameter(i, channel)
-        .and_then(|p| extract_parameter(p, parameters))
+        .and_then(|b| parameters.get_dependency(b))
         .or_else(|| shader.float_constant(i, channel))
-}
-
-fn extract_parameter(p: &BufferDependency, parameters: &MaterialParameters) -> Option<f32> {
-    // TODO: Handle multiple channels?
-    // TODO: How to handle the case where the input has no channels?
-    let c = "xyzw".find(p.channels.chars().next()?).unwrap();
-    match (p.name.as_str(), p.field.as_str()) {
-        ("U_Mate", "gWrkFl4") => Some(parameters.work_float4.as_ref()?.get(p.index)?[c]),
-        ("U_Mate", "gWrkCol") => Some(parameters.work_color.as_ref()?.get(p.index)?[c]),
-        _ => None,
-    }
 }
 
 #[cfg(test)]

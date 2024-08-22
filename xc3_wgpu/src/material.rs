@@ -125,43 +125,7 @@ pub fn materials(
                 }
             }
 
-            // TODO: Should this also override the assignment information for layer 1 and layer2?
-            let normal_layers = material
-                .shader
-                .as_ref()
-                .map(|s| {
-                    // TODO: get default weights from ratio dependencies.
-                    let (s0, c0) = s
-                        .normal_layers
-                        .iter()
-                        .nth(1)
-                        .and_then(|l| {
-                            match &l.ratio {
-                                // TODO: Handle other dependency variants.
-                                Some(Dependency::Texture(t)) => Some((
-                                    name_to_index.entry_index(t.name.clone()) as i32,
-                                    "xyzw"
-                                        .chars()
-                                        .position(|c| Some(c) == l.channel)
-                                        .unwrap_or_default()
-                                        as u32,
-                                )),
-                                _ => None,
-                            }
-                        })
-                        .unwrap_or((-1, 0));
-
-                    crate::shader::model::NormalLayers {
-                        sampler_indices: ivec4(s0, -1, -1, -1),
-                        channel_indices: uvec4(c0, 0, 0, 0),
-                        default_weights: Vec4::ZERO,
-                    }
-                })
-                .unwrap_or(crate::shader::model::NormalLayers {
-                    sampler_indices: ivec4(-1, -1, -1, -1),
-                    channel_indices: uvec4(0, 0, 0, 0),
-                    default_weights: Vec4::ZERO,
-                });
+            let normal_layers = normal_layers(material, &name_to_index);
 
             // TODO: This is normally done using a depth prepass.
             // TODO: Is it ok to combine the prepass alpha in the main pass like this?
@@ -263,6 +227,57 @@ pub fn materials(
         .collect();
 
     materials
+}
+
+fn normal_layers(
+    material: &xc3_model::Material,
+    name_to_index: &IndexMap<SmolStr, usize>,
+) -> crate::shader::model::NormalLayers {
+    material
+        .shader
+        .as_ref()
+        .map(|s| {
+            // TODO: Handle multiple layers.
+            let (s0, c0) = s
+                .normal_layers
+                .iter()
+                .nth(1)
+                .and_then(|l| {
+                    match &l.ratio {
+                        // TODO: Handle other dependency variants.
+                        Some(Dependency::Texture(t)) => Some((
+                            name_to_index.get(&t.name).map(|i| *i as i32).unwrap_or(-1),
+                            "xyzw"
+                                .chars()
+                                .position(|c| Some(c) == l.channel)
+                                .unwrap_or_default() as u32,
+                        )),
+                        _ => None,
+                    }
+                })
+                .unwrap_or((-1, 0));
+            // TODO: Handle other dependency variants.
+            let w0 = s
+                .normal_layers
+                .iter()
+                .nth(1)
+                .and_then(|l| match &l.ratio {
+                    Some(Dependency::Buffer(b)) => material.parameters.get_dependency(b),
+                    _ => None,
+                })
+                .unwrap_or_default();
+
+            crate::shader::model::NormalLayers {
+                sampler_indices: ivec4(s0, -1, -1, -1),
+                channel_indices: uvec4(c0, 0, 0, 0),
+                default_weights: vec4(w0, 0.0, 0.0, 0.0),
+            }
+        })
+        .unwrap_or(crate::shader::model::NormalLayers {
+            sampler_indices: ivec4(-1, -1, -1, -1),
+            channel_indices: uvec4(0, 0, 0, 0),
+            default_weights: Vec4::ZERO,
+        })
 }
 
 fn output_assignments(

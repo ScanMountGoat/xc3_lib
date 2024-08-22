@@ -476,7 +476,6 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     let g_color = assign_texture(per_material.assignments[0], s_colors, in.vertex_color);
     let g_etc_buffer = assign_texture(per_material.assignments[1], s_colors, in.vertex_color);
     let g_normal = assign_texture(per_material.assignments[2], s_colors, in.vertex_color);
-    let g_normal2 = assign_texture_layer2(per_material.assignments[2], s_colors);
     let g_velocity = assign_texture(per_material.assignments[3], s_colors, in.vertex_color);
     let g_depth = assign_texture(per_material.assignments[4], s_colors, in.vertex_color);
     let g_lgt_color = assign_texture(per_material.assignments[5], s_colors, in.vertex_color);
@@ -486,11 +485,11 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     var normal = vertex_normal;
     if per_material.assignments[2].samplers.sampler_indices.x != -1 && per_material.assignments[2].samplers.sampler_indices.y != -1 {
         var normal_map = create_normal_map(g_normal.xy);
-        if per_material.assignments[2].samplers2.sampler_indices.x != -1 && per_material.assignments[2].samplers2.sampler_indices.y != -1 {
-            // TODO: What should the weight be for blending?
-            let layers = per_material.normal_layers; 
-            let weight = assign_channel(layers.sampler_indices.x, layers.channel_indices.x, -1, s_colors, vec4(0.0), 1.0);
 
+        if per_material.assignments[2].samplers2.sampler_indices.x != -1 && per_material.assignments[2].samplers2.sampler_indices.y != -1 {
+            let layers = per_material.normal_layers;
+            let weight = assign_channel(layers.sampler_indices.x, layers.channel_indices.x, -1, s_colors, vec4(0.0), layers.default_weights.x);
+            let g_normal2 = assign_texture_layer2(per_material.assignments[2], s_colors);
             let normal_map2 = create_normal_map(g_normal2.xy);
             normal_map = add_normal_maps(normal_map, normal_map2, weight);
         }
