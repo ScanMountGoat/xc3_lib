@@ -1,6 +1,7 @@
 use std::usize;
 
 use glam::{vec4, Vec4};
+use indexmap::IndexSet;
 use log::warn;
 use smol_str::SmolStr;
 use xc3_lib::mxmd::{
@@ -497,7 +498,7 @@ impl Material {
 pub fn texture_layer_assignment(
     textures: &[TextureAssignment],
     channel: char,
-    is_second_layer: bool,
+    layer_index: usize,
 ) -> Option<&TextureAssignment> {
     // Some textures like normal maps may use multiple input channels.
     // First check if the current channel is used.
@@ -506,13 +507,15 @@ pub fn texture_layer_assignment(
         .iter()
         .filter(|t| t.channels.contains(channel))
         .collect();
-    if !is_second_layer {
-        this_channel.first().copied().or_else(|| textures.first())
-    } else {
-        // TODO: Add proper detection for layering code in the shader graph.
-        let first_tex = &this_channel.first()?.name;
-        this_channel.iter().find(|t| &t.name != first_tex).copied()
-    }
+
+    // Assume these are already sorted by layer.
+    let layer_names: IndexSet<_> = this_channel.iter().map(|t| &t.name).collect();
+    let layer_name = layer_names.iter().nth(layer_index)?;
+
+    this_channel
+        .iter()
+        .find(|t| &t.name == *layer_name)
+        .copied()
 }
 
 fn output_assignments(

@@ -15,7 +15,7 @@ use rayon::prelude::*;
 use xc3_lib::mths::{FragmentShader, Mths};
 use xc3_model::shader_database::{
     BufferDependency, Dependency, MapPrograms, ModelPrograms, ShaderDatabase, ShaderProgram,
-    TextureDependency, TextureLayer,
+    TextureLayer,
 };
 
 use crate::{

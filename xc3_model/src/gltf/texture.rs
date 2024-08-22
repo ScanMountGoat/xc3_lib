@@ -409,7 +409,7 @@ fn image_index(
                 channels,
                 texcoord_name,
                 texcoord_transforms,
-            } = texture_layer_assignment(textures, channel, false)?;
+            } = texture_layer_assignment(textures, channel, 0)?;
 
             let channel_index = "xyzw".find(channels.chars().next().unwrap()).unwrap();
 

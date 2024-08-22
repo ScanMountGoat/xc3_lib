@@ -104,14 +104,17 @@ struct AttributeAssignment {
 }
 
 struct OutputAssignment {
-    samplers: SamplerAssignment,
+    samplers1: SamplerAssignment,
     samplers2: SamplerAssignment,
+    samplers3: SamplerAssignment,
+    samplers4: SamplerAssignment,
+    samplers5: SamplerAssignment,
     attributes: AttributeAssignment,
     default_value: vec4<f32>
 }
 
 struct NormalLayers {
-    // Weights for up to 4 additional layers.
+    // wimdo and wismhd models use up to 4 additional layers.
     sampler_indices: vec4<i32>,
     channel_indices: vec4<u32>,
     default_weights: vec4<f32>
@@ -272,18 +275,18 @@ fn vs_outline_main(in0: VertexInput0, in1: VertexInput1, instance: InstanceInput
 }
 
 fn assign_texture(a: OutputAssignment, s_colors: array<vec4<f32>, 10>, vcolor: vec4<f32>) -> vec4<f32> {
-    let x = assign_channel(a.samplers.sampler_indices.x, a.samplers.channel_indices.x, a.attributes.channel_indices.x, s_colors, vcolor, a.default_value.x);
-    let y = assign_channel(a.samplers.sampler_indices.y, a.samplers.channel_indices.y, a.attributes.channel_indices.y, s_colors, vcolor, a.default_value.y);
-    let z = assign_channel(a.samplers.sampler_indices.z, a.samplers.channel_indices.z, a.attributes.channel_indices.z, s_colors, vcolor, a.default_value.z);
-    let w = assign_channel(a.samplers.sampler_indices.w, a.samplers.channel_indices.w, a.attributes.channel_indices.w, s_colors, vcolor, a.default_value.w);
+    let x = assign_channel(a.samplers1.sampler_indices.x, a.samplers1.channel_indices.x, a.attributes.channel_indices.x, s_colors, vcolor, a.default_value.x);
+    let y = assign_channel(a.samplers1.sampler_indices.y, a.samplers1.channel_indices.y, a.attributes.channel_indices.y, s_colors, vcolor, a.default_value.y);
+    let z = assign_channel(a.samplers1.sampler_indices.z, a.samplers1.channel_indices.z, a.attributes.channel_indices.z, s_colors, vcolor, a.default_value.z);
+    let w = assign_channel(a.samplers1.sampler_indices.w, a.samplers1.channel_indices.w, a.attributes.channel_indices.w, s_colors, vcolor, a.default_value.w);
     return vec4(x, y, z, w);
 }
 
-fn assign_texture_layer2(a: OutputAssignment, s_colors: array<vec4<f32>, 10>) -> vec4<f32> {
-    let x = assign_channel(a.samplers2.sampler_indices.x, a.samplers2.channel_indices.x, -1, s_colors, a.default_value, a.default_value.x);
-    let y = assign_channel(a.samplers2.sampler_indices.y, a.samplers2.channel_indices.y, -1, s_colors, a.default_value, a.default_value.y);
-    let z = assign_channel(a.samplers2.sampler_indices.z, a.samplers2.channel_indices.z, -1, s_colors, a.default_value, a.default_value.z);
-    let w = assign_channel(a.samplers2.sampler_indices.w, a.samplers2.channel_indices.w, -1, s_colors, a.default_value, a.default_value.w);
+fn assign_texture_layer(a: OutputAssignment, s: SamplerAssignment, s_colors: array<vec4<f32>, 10>) -> vec4<f32> {
+    let x = assign_channel(s.sampler_indices.x, s.channel_indices.x, -1, s_colors, a.default_value, a.default_value.x);
+    let y = assign_channel(s.sampler_indices.y, s.channel_indices.y, -1, s_colors, a.default_value, a.default_value.y);
+    let z = assign_channel(s.sampler_indices.z, s.channel_indices.z, -1, s_colors, a.default_value, a.default_value.z);
+    let w = assign_channel(s.sampler_indices.w, s.channel_indices.w, -1, s_colors, a.default_value, a.default_value.w);
     return vec4(x, y, z, w);
 }
 
@@ -403,7 +406,7 @@ fn mrt_normal(normal: vec3<f32>, ao: f32) -> vec4<f32> {
 fn mrt_etc_buffer(g_etc_buffer: vec4<f32>, view_normal: vec3<f32>) -> vec4<f32> {
     var out = g_etc_buffer;
     // Antialiasing isn't necessary for parameters or constants.
-    if per_material.assignments[1].samplers.sampler_indices.y != -1 {
+    if per_material.assignments[1].samplers1.sampler_indices.y != -1 {
         out.y = geometric_specular_aa(g_etc_buffer.y, view_normal);
     }
     return out;
@@ -470,28 +473,56 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     // Each material in game can have a unique shader program.
     // Check the G-Buffer assignment database to simulate having unique shaders.
     // TODO: How to properly handle missing assignments?
+    let assignments = per_material.assignments;
 
     // Defaults incorporate constants, parameters, and default values.
     // Assume each G-Buffer texture and channel always has the same usage.
-    let g_color = assign_texture(per_material.assignments[0], s_colors, in.vertex_color);
-    let g_etc_buffer = assign_texture(per_material.assignments[1], s_colors, in.vertex_color);
-    let g_normal = assign_texture(per_material.assignments[2], s_colors, in.vertex_color);
-    let g_velocity = assign_texture(per_material.assignments[3], s_colors, in.vertex_color);
-    let g_depth = assign_texture(per_material.assignments[4], s_colors, in.vertex_color);
-    let g_lgt_color = assign_texture(per_material.assignments[5], s_colors, in.vertex_color);
+    let g_color = assign_texture(assignments[0], s_colors, in.vertex_color);
+    let g_etc_buffer = assign_texture(assignments[1], s_colors, in.vertex_color);
+    let g_normal = assign_texture(assignments[2], s_colors, in.vertex_color);
+    let g_velocity = assign_texture(assignments[3], s_colors, in.vertex_color);
+    let g_depth = assign_texture(assignments[4], s_colors, in.vertex_color);
+    let g_lgt_color = assign_texture(assignments[5], s_colors, in.vertex_color);
 
     // Not all materials and shaders use normal mapping.
     // TODO: Is this a good way to check for this?
     var normal = vertex_normal;
-    if per_material.assignments[2].samplers.sampler_indices.x != -1 && per_material.assignments[2].samplers.sampler_indices.y != -1 {
+    if assignments[2].samplers1.sampler_indices.x != -1 && assignments[2].samplers1.sampler_indices.y != -1 {
+        // Layer 1
         var normal_map = create_normal_map(g_normal.xy);
 
-        if per_material.assignments[2].samplers2.sampler_indices.x != -1 && per_material.assignments[2].samplers2.sampler_indices.y != -1 {
-            let layers = per_material.normal_layers;
+        let layers = per_material.normal_layers;
+
+        // Layer 2
+        if assignments[2].samplers2.sampler_indices.x != -1 && assignments[2].samplers2.sampler_indices.y != -1 {
             let weight = assign_channel(layers.sampler_indices.x, layers.channel_indices.x, -1, s_colors, vec4(0.0), layers.default_weights.x);
-            let g_normal2 = assign_texture_layer2(per_material.assignments[2], s_colors);
+            let g_normal2 = assign_texture_layer(assignments[2], assignments[2].samplers2, s_colors);
             let normal_map2 = create_normal_map(g_normal2.xy);
             normal_map = add_normal_maps(normal_map, normal_map2, weight);
+        }
+
+        // Layer 3
+        if assignments[2].samplers3.sampler_indices.x != -1 && assignments[2].samplers3.sampler_indices.y != -1 {
+            let weight = assign_channel(layers.sampler_indices.y, layers.channel_indices.y, -1, s_colors, vec4(0.0), layers.default_weights.y);
+            let g_normal3 = assign_texture_layer(assignments[2], assignments[2].samplers3, s_colors);
+            let normal_map3 = create_normal_map(g_normal3.xy);
+            normal_map = add_normal_maps(normal_map, normal_map3, weight);
+        }
+
+        // Layer 4
+        if assignments[2].samplers4.sampler_indices.x != -1 && assignments[2].samplers4.sampler_indices.y != -1 {
+            let weight = assign_channel(layers.sampler_indices.z, layers.channel_indices.z, -1, s_colors, vec4(0.0), layers.default_weights.z);
+            let g_normal4 = assign_texture_layer(assignments[2], assignments[2].samplers4, s_colors);
+            let normal_map4 = create_normal_map(g_normal4.xy);
+            normal_map = add_normal_maps(normal_map, normal_map4, weight);
+        }
+
+        // Layer 5
+        if assignments[2].samplers5.sampler_indices.x != -1 && assignments[2].samplers5.sampler_indices.y != -1 {
+            let weight = assign_channel(layers.sampler_indices.w, layers.channel_indices.w, -1, s_colors, vec4(0.0), layers.default_weights.w);
+            let g_normal5 = assign_texture_layer(assignments[2], assignments[2].samplers5, s_colors);
+            let normal_map5 = create_normal_map(g_normal5.xy);
+            normal_map = add_normal_maps(normal_map, normal_map5, weight);
         }
 
         normal = apply_normal_map(normal_map, tangent, bitangent, vertex_normal);
