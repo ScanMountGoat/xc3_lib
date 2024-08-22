@@ -253,19 +253,23 @@ fn ratio_dependency(ratio: &Expr, dependencies: &[Dependency]) -> Option<Depende
                 args,
                 channel,
             } => {
-                if let Some(Expr::Global { name, .. }) = args.first() {
-                    dependencies
-                        .iter()
-                        .find(|d| {
-                            if let Dependency::Texture(t) = d {
-                                t.name == name && t.channels.contains(channel.unwrap())
-                            } else {
-                                false
-                            }
-                        })
-                        .cloned()
+                if name == "texture" {
+                    if let Some(Expr::Global { name, .. }) = args.first() {
+                        dependencies
+                            .iter()
+                            .find(|d| {
+                                if let Dependency::Texture(t) = d {
+                                    t.name == name && t.channels.contains(channel.unwrap())
+                                } else {
+                                    false
+                                }
+                            })
+                            .cloned()
+                    } else {
+                        // TODO: How to handle this case?
+                        None
+                    }
                 } else {
-                    // TODO: How to handle this case?
                     None
                 }
             }

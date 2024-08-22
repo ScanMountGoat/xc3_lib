@@ -34,15 +34,14 @@ struct ModelIndexed {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-struct ShaderProgramIndexed {
+struct ShaderProgramIndexed(
     // There are very few unique dependencies across all shaders in a game dump.
     // Normalize the data to greatly reduce the size of the JSON representation.
-    output_dependencies: IndexMap<usize, Vec<usize>>,
-
+    IndexMap<usize, Vec<usize>>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     #[serde(default)]
-    normal_layers: Vec<TextureLayerIndexed>,
-}
+    Vec<TextureLayerIndexed>,
+);
 
 // TODO: Also index texture and texcoord names?
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
@@ -253,31 +252,31 @@ fn model_indexed(
         programs: model
             .programs
             .into_iter()
-            .map(|p| ShaderProgramIndexed {
-                output_dependencies: p
-                    .output_dependencies
-                    .into_iter()
-                    .map(|(output, dependencies)| {
-                        // This works since the map preserves insertion order.
-                        let output_index = output_to_index.entry_index(output);
-                        (
-                            output_index,
-                            dependencies
-                                .into_iter()
-                                .map(|d| dependency_to_index.entry_index(d))
-                                .collect(),
-                        )
-                    })
-                    .collect(),
-                normal_layers: p
-                    .normal_layers
-                    .into_iter()
-                    .map(|l| TextureLayerIndexed {
-                        name: l.name,
-                        channel: l.channel,
-                        ratio: l.ratio.map(|r| dependency_to_index.entry_index(r)),
-                    })
-                    .collect(),
+            .map(|p| {
+                ShaderProgramIndexed(
+                    p.output_dependencies
+                        .into_iter()
+                        .map(|(output, dependencies)| {
+                            // This works since the map preserves insertion order.
+                            let output_index = output_to_index.entry_index(output);
+                            (
+                                output_index,
+                                dependencies
+                                    .into_iter()
+                                    .map(|d| dependency_to_index.entry_index(d))
+                                    .collect(),
+                            )
+                        })
+                        .collect(),
+                    p.normal_layers
+                        .into_iter()
+                        .map(|l| TextureLayerIndexed {
+                            name: l.name,
+                            channel: l.channel,
+                            ratio: l.ratio.map(|r| dependency_to_index.entry_index(r)),
+                        })
+                        .collect(),
+                )
             })
             .collect(),
     }
@@ -295,7 +294,7 @@ fn model_from_indexed(
             .iter()
             .map(|p| ShaderProgram {
                 output_dependencies: p
-                    .output_dependencies
+                    .0
                     .iter()
                     .map(|(output, output_dependencies)| {
                         (
@@ -313,7 +312,7 @@ fn model_from_indexed(
                     })
                     .collect(),
                 normal_layers: p
-                    .normal_layers
+                    .1
                     .iter()
                     .map(|l| TextureLayer {
                         name: l.name.clone(),
