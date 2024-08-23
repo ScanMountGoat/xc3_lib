@@ -10,7 +10,9 @@ use xc3_lib::mxmd::{
 };
 
 use crate::{
-    shader_database::{BufferDependency, ModelPrograms, ShaderProgram, TextureDependency},
+    shader_database::{
+        BufferDependency, Dependency, ModelPrograms, ShaderProgram, TextureDependency,
+    },
     ImageTexture,
 };
 
@@ -399,6 +401,13 @@ pub struct TextureAssignment {
     pub texcoord_transforms: Option<(Vec4, Vec4)>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct TextureLayer {
+    pub name: String,
+    pub channel: Option<char>,
+    pub ratio: Option<ChannelAssignment>,
+}
+
 // TODO: Test cases for this?
 impl Material {
     // TODO: Store these values instead of making them a method?
@@ -489,6 +498,34 @@ impl Material {
             ],
         }
     }
+
+    /// Get information for layered normal map blending.
+    /// The first base layer will have no blending parameters.
+    /// Subsequent layers will typically use a texture or value for the blend weight.
+    pub fn normal_layers(&self) -> Vec<TextureLayer> {
+        self.shader
+            .as_ref()
+            .map(|s| {
+                s.normal_layers
+                    .iter()
+                    .map(|l| TextureLayer {
+                        name: l.name.clone(),
+                        channel: l.channel,
+                        ratio: match &l.ratio {
+                            // TODO: Handle other dependency variants.
+                            Some(Dependency::Texture(t)) => Some(ChannelAssignment::Textures(
+                                vec![texture_assignment(t, &self.parameters)],
+                            )),
+                            Some(Dependency::Buffer(b)) => Some(ChannelAssignment::Value(
+                                self.parameters.get_dependency(b).unwrap_or_default(),
+                            )),
+                            _ => None,
+                        },
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
 }
 
 /// Returns the texture assigned to the given channel and layer.
@@ -572,17 +609,7 @@ fn channel_assignment(
 
             let mut sorted_textures: Vec<_> = textures
                 .iter()
-                .map(|texture| {
-                    let texcoord_transforms = texcoord_transforms(texture, parameters);
-
-                    // TODO: different attribute for U and V?
-                    TextureAssignment {
-                        name: texture.name.clone(),
-                        channels: texture.channels.clone(),
-                        texcoord_name: texture.texcoords.first().map(|t| t.name.clone()),
-                        texcoord_transforms,
-                    }
-                })
+                .map(|texture| texture_assignment(texture, parameters))
                 .collect();
 
             // TODO: The correct approach is to detect layering and masks when generating the database.
@@ -628,6 +655,21 @@ fn channel_assignment(
 
             (!sorted_textures.is_empty()).then_some(ChannelAssignment::Textures(sorted_textures))
         })
+}
+
+fn texture_assignment(
+    texture: &TextureDependency,
+    parameters: &MaterialParameters,
+) -> TextureAssignment {
+    let texcoord_transforms = texcoord_transforms(texture, parameters);
+
+    // TODO: different attribute for U and V?
+    TextureAssignment {
+        name: texture.name.clone(),
+        channels: texture.channels.clone(),
+        texcoord_name: texture.texcoords.first().map(|t| t.name.clone()),
+        texcoord_transforms,
+    }
 }
 
 fn sampler_index(sampler_name: &str) -> Option<usize> {

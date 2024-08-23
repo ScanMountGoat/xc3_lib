@@ -5,8 +5,8 @@ use indexmap::IndexMap;
 use log::{error, warn};
 use smol_str::SmolStr;
 use xc3_model::{
-    shader_database::Dependency, texture_layer_assignment, ChannelAssignment, ImageTexture,
-    IndexMapExt, OutputAssignment, OutputAssignments, TextureAssignment,
+    texture_layer_assignment, ChannelAssignment, ImageTexture, IndexMapExt, OutputAssignment,
+    OutputAssignments, TextureAssignment, TextureLayer,
 };
 
 use crate::{
@@ -233,44 +233,37 @@ fn normal_layers(
     material: &xc3_model::Material,
     name_to_index: &IndexMap<SmolStr, usize>,
 ) -> crate::shader::model::NormalLayers {
-    material
-        .shader
-        .as_ref()
-        .map(|s| {
-            // Skip the base layer since it doesn't need blending.
-            let (s0, c0, w0) = normal_layer_indices(s, name_to_index, material, 1);
-            let (s1, c1, w1) = normal_layer_indices(s, name_to_index, material, 2);
-            let (s2, c2, w2) = normal_layer_indices(s, name_to_index, material, 3);
-            let (s3, c3, w3) = normal_layer_indices(s, name_to_index, material, 4);
+    let layers = material.normal_layers();
 
-            crate::shader::model::NormalLayers {
-                sampler_indices: ivec4(s0, s1, s2, s3),
-                channel_indices: uvec4(c0, c1, c2, c3),
-                default_weights: vec4(w0, w1, w2, w3),
-            }
-        })
-        .unwrap_or(crate::shader::model::NormalLayers {
-            sampler_indices: ivec4(-1, -1, -1, -1),
-            channel_indices: uvec4(0, 0, 0, 0),
-            default_weights: Vec4::ZERO,
-        })
+    // Skip the base layer since it doesn't need blending.
+    let (s0, c0, w0) = normal_layer_indices(&layers, name_to_index, 1);
+    let (s1, c1, w1) = normal_layer_indices(&layers, name_to_index, 2);
+    let (s2, c2, w2) = normal_layer_indices(&layers, name_to_index, 3);
+    let (s3, c3, w3) = normal_layer_indices(&layers, name_to_index, 4);
+
+    crate::shader::model::NormalLayers {
+        sampler_indices: ivec4(s0, s1, s2, s3),
+        channel_indices: uvec4(c0, c1, c2, c3),
+        default_weights: vec4(w0, w1, w2, w3),
+    }
 }
 
 fn normal_layer_indices(
-    shader: &xc3_model::shader_database::ShaderProgram,
+    layers: &[TextureLayer],
     name_to_index: &IndexMap<SmolStr, usize>,
-    material: &xc3_model::Material,
     layer: usize,
 ) -> (i32, u32, f32) {
-    let (s, c) = shader
-        .normal_layers
+    let (s, c) = layers
         .iter()
         .nth(layer)
         .and_then(|l| {
             match &l.ratio {
                 // TODO: Handle other dependency variants.
-                Some(Dependency::Texture(t)) => Some((
-                    name_to_index.get(&t.name).map(|i| *i as i32).unwrap_or(-1),
+                Some(ChannelAssignment::Textures(t)) => Some((
+                    name_to_index
+                        .get(&t.first()?.name)
+                        .map(|i| *i as i32)
+                        .unwrap_or(-1),
                     "xyzw"
                         .chars()
                         .position(|c| Some(c) == l.channel)
@@ -282,12 +275,11 @@ fn normal_layer_indices(
         .unwrap_or((-1, 0));
 
     // TODO: Handle other dependency variants.
-    let w = shader
-        .normal_layers
+    let w = layers
         .iter()
         .nth(layer)
         .and_then(|l| match &l.ratio {
-            Some(Dependency::Buffer(b)) => material.parameters.get_dependency(b),
+            Some(ChannelAssignment::Value(f)) => Some(*f),
             _ => None,
         })
         .unwrap_or_default();
