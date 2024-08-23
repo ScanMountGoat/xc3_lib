@@ -1,7 +1,6 @@
 use std::usize;
 
 use glam::{vec4, Vec4};
-use indexmap::IndexSet;
 use log::warn;
 use smol_str::SmolStr;
 use xc3_lib::mxmd::{
@@ -398,7 +397,7 @@ pub struct OutputLayerAssignment {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ChannelAssignment {
-    Textures(Vec<TextureAssignment>),
+    Texture(TextureAssignment),
     Attribute { name: SmolStr, channel_index: usize },
     Value(f32),
 }
@@ -416,7 +415,6 @@ pub struct TextureAssignment {
 
 // TODO: Test cases for this?
 impl Material {
-    // TODO: Store these values instead of making them a method?
     /// Get the texture or value assigned to each shader output texture and channel.
     /// Most model shaders write to the G-Buffer textures.
     ///
@@ -441,12 +439,12 @@ impl Material {
         // Guess reasonable defaults based on the texture names or types.
         let assignment = |i: Option<usize>, c: usize| {
             i.map(|i| {
-                ChannelAssignment::Textures(vec![TextureAssignment {
+                ChannelAssignment::Texture(TextureAssignment {
                     name: format!("s{i}").into(),
                     channels: ["x", "y", "z", "w"][c].into(),
                     texcoord_name: None,
                     texcoord_transforms: None,
-                }])
+                })
             })
         };
 
@@ -509,33 +507,6 @@ impl Material {
     }
 }
 
-/// Returns the texture assigned to the given channel and layer.
-///
-/// This currently uses a heuristic that resolves some assignment issues where
-/// multiple input channels are used but may not work accurately in some cases.
-pub fn texture_layer_assignment(
-    textures: &[TextureAssignment],
-    channel: char,
-    layer_index: usize,
-) -> Option<&TextureAssignment> {
-    // Some textures like normal maps may use multiple input channels.
-    // First check if the current channel is used.
-    // TODO: Should this only be used for color and normals?
-    let this_channel: Vec<_> = textures
-        .iter()
-        .filter(|t| t.channels.contains(channel))
-        .collect();
-
-    // Assume these are already sorted by layer.
-    let layer_names: IndexSet<_> = this_channel.iter().map(|t| &t.name).collect();
-    let layer_name = layer_names.iter().nth(layer_index)?;
-
-    this_channel
-        .iter()
-        .find(|t| &t.name == *layer_name)
-        .copied()
-}
-
 fn output_assignments(
     shader: &ShaderProgram,
     parameters: &MaterialParameters,
@@ -567,18 +538,18 @@ fn output_assignment(
                 .map(|l| OutputLayerAssignment {
                     x: textures.iter().find_map(|t| {
                         if t.name == l.name && t.channels.contains('x') {
-                            Some(ChannelAssignment::Textures(vec![texture_assignment(
+                            Some(ChannelAssignment::Texture(texture_assignment(
                                 t, parameters,
-                            )]))
+                            )))
                         } else {
                             None
                         }
                     }),
                     y: textures.iter().find_map(|t| {
                         if t.name == l.name && t.channels.contains('y') {
-                            Some(ChannelAssignment::Textures(vec![texture_assignment(
+                            Some(ChannelAssignment::Texture(texture_assignment(
                                 t, parameters,
-                            )]))
+                            )))
                         } else {
                             None
                         }
@@ -587,12 +558,9 @@ fn output_assignment(
                     w: None,
                     weight: match &l.ratio {
                         // TODO: Handle other dependency variants.
-                        Some(Dependency::Texture(t)) => {
-                            Some(ChannelAssignment::Textures(vec![texture_assignment(
-                                t,
-                                &parameters,
-                            )]))
-                        }
+                        Some(Dependency::Texture(t)) => Some(ChannelAssignment::Texture(
+                            texture_assignment(t, &parameters),
+                        )),
                         Some(Dependency::Buffer(b)) => Some(ChannelAssignment::Value(
                             parameters.get_dependency(b).unwrap_or_default(),
                         )),
@@ -682,7 +650,14 @@ fn channel_assignment(
                 });
             }
 
-            (!sorted_textures.is_empty()).then_some(ChannelAssignment::Textures(sorted_textures))
+            // Some textures like normal maps may use multiple input channels.
+            // First check if the current channel is used.
+            sorted_textures
+                .iter()
+                .find(|t| t.channels.contains(channel))
+                .or_else(|| sorted_textures.first())
+                .cloned()
+                .map(ChannelAssignment::Texture)
         })
 }
 

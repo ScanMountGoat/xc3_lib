@@ -9,8 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 * Added shader database and rendering support for layered normal map weights and texture masks.
 
+### Changed
+* Changed `xc3_model::ChannelAssignment::Textures` to `xc3_model::ChannelAssignment::Texture` to simplify working with texture assignments. Access additional layers from the `layers` field on `xc3_model::OutputAssignment`.
+
 ### Fixed
 * Fixed an issue where some Xenoblade 1 DE models would not render due to inaccurate shader database texture assignments.
+
+### Removed
+* Removed `xc3_model::texture_layer_assignment` as it is no longer needed.
 
 ## 0.12.0 - 2024-08-16
 ### Added

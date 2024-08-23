@@ -5,8 +5,8 @@ use indexmap::IndexMap;
 use log::{error, warn};
 use smol_str::SmolStr;
 use xc3_model::{
-    texture_layer_assignment, ChannelAssignment, ImageTexture, IndexMapExt, OutputAssignment,
-    OutputAssignments, OutputLayerAssignment, TextureAssignment,
+    ChannelAssignment, ImageTexture, IndexMapExt, OutputAssignment, OutputAssignments,
+    OutputLayerAssignment, TextureAssignment,
 };
 
 use crate::{
@@ -235,10 +235,10 @@ fn normal_layers(
 ) -> crate::shader::model::NormalLayers {
     let layers = &assignments.assignments[2].layers;
 
-    let (s0, c0, w0) = normal_layer_indices(&layers, name_to_index, 0);
-    let (s1, c1, w1) = normal_layer_indices(&layers, name_to_index, 1);
-    let (s2, c2, w2) = normal_layer_indices(&layers, name_to_index, 2);
-    let (s3, c3, w3) = normal_layer_indices(&layers, name_to_index, 3);
+    let (s0, c0, w0) = normal_layer_indices(layers, name_to_index, 0);
+    let (s1, c1, w1) = normal_layer_indices(layers, name_to_index, 1);
+    let (s2, c2, w2) = normal_layer_indices(layers, name_to_index, 2);
+    let (s3, c3, w3) = normal_layer_indices(layers, name_to_index, 3);
 
     crate::shader::model::NormalLayers {
         sampler_indices: ivec4(s0, s1, s2, s3),
@@ -253,21 +253,17 @@ fn normal_layer_indices(
     layer: usize,
 ) -> (i32, u32, f32) {
     let (s, c) = layers
-        .iter()
-        .nth(layer)
+        .get(layer)
         .and_then(|l| {
             match &l.weight {
                 // TODO: Handle other dependency variants.
-                Some(ChannelAssignment::Textures(textures)) => {
-                    let t = textures.first()?;
-                    Some((
-                        name_to_index.get(&t.name).map(|i| *i as i32).unwrap_or(-1),
-                        "xyzw"
-                            .chars()
-                            .position(|c| t.channels.contains(c))
-                            .unwrap_or_default() as u32,
-                    ))
-                }
+                Some(ChannelAssignment::Texture(t)) => Some((
+                    name_to_index.get(&t.name).map(|i| *i as i32).unwrap_or(-1),
+                    "xyzw"
+                        .chars()
+                        .position(|c| t.channels.contains(c))
+                        .unwrap_or_default() as u32,
+                )),
                 _ => None,
             }
         })
@@ -275,8 +271,7 @@ fn normal_layer_indices(
 
     // TODO: Handle other dependency variants.
     let w = layers
-        .iter()
-        .nth(layer)
+        .get(layer)
         .and_then(|l| match &l.weight {
             Some(ChannelAssignment::Value(f)) => Some(*f),
             _ => None,
@@ -312,41 +307,19 @@ fn sampler_assignment(
     name_to_transforms: &mut IndexMap<SmolStr, (Vec4, Vec4)>,
     layer_index: usize,
 ) -> crate::shader::model::SamplerAssignment {
-    let (s0, c0) = texture_channel(
-        a.x.as_ref(),
-        name_to_index,
-        name_to_transforms,
-        'x',
-        layer_index,
-    )
-    .unwrap_or((-1, 0));
+    let (x, y, z, w) = if layer_index == 0 {
+        (a.x.as_ref(), a.y.as_ref(), a.z.as_ref(), a.w.as_ref())
+    } else {
+        a.layers
+            .get(layer_index - 1)
+            .map(|l| (l.x.as_ref(), l.y.as_ref(), l.z.as_ref(), l.w.as_ref()))
+            .unwrap_or_default()
+    };
 
-    let (s1, c1) = texture_channel(
-        a.y.as_ref(),
-        name_to_index,
-        name_to_transforms,
-        'y',
-        layer_index,
-    )
-    .unwrap_or((-1, 1));
-
-    let (s2, c2) = texture_channel(
-        a.z.as_ref(),
-        name_to_index,
-        name_to_transforms,
-        'z',
-        layer_index,
-    )
-    .unwrap_or((-1, 2));
-
-    let (s3, c3) = texture_channel(
-        a.w.as_ref(),
-        name_to_index,
-        name_to_transforms,
-        'w',
-        layer_index,
-    )
-    .unwrap_or((-1, 3));
+    let (s0, c0) = texture_channel(x, name_to_index, name_to_transforms, 'x').unwrap_or((-1, 0));
+    let (s1, c1) = texture_channel(y, name_to_index, name_to_transforms, 'y').unwrap_or((-1, 1));
+    let (s2, c2) = texture_channel(z, name_to_index, name_to_transforms, 'z').unwrap_or((-1, 2));
+    let (s3, c3) = texture_channel(w, name_to_index, name_to_transforms, 'w').unwrap_or((-1, 3));
 
     crate::shader::model::SamplerAssignment {
         sampler_indices: ivec4(s0, s1, s2, s3),
@@ -359,11 +332,8 @@ fn texture_channel(
     name_to_index: &mut IndexMap<SmolStr, usize>,
     name_to_transforms: &mut IndexMap<SmolStr, (Vec4, Vec4)>,
     channel: char,
-    layer_index: usize,
 ) -> Option<(i32, u32)> {
-    if let Some(ChannelAssignment::Textures(textures)) = assignment {
-        let texture = texture_layer_assignment(textures, channel, layer_index)?;
-
+    if let Some(ChannelAssignment::Texture(texture)) = assignment {
         let TextureAssignment {
             name,
             channels,

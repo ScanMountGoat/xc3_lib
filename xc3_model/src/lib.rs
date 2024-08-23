@@ -63,8 +63,8 @@ use xc3_lib::{
 pub use map::{load_map, LoadMapError};
 // TODO: just make the module public.
 pub use material::{
-    texture_layer_assignment, ChannelAssignment, Material, MaterialParameters, OutputAssignment,
-    OutputAssignments, Texture, TextureAlphaTest, TextureAssignment,OutputLayerAssignment
+    ChannelAssignment, Material, MaterialParameters, OutputAssignment, OutputAssignments,
+    OutputLayerAssignment, Texture, TextureAlphaTest, TextureAssignment,
 };
 pub use sampler::{AddressMode, FilterMode, Sampler};
 pub use skeleton::{Bone, Skeleton};
