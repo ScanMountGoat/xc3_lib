@@ -6,7 +6,7 @@ use log::{error, warn};
 use smol_str::SmolStr;
 use xc3_model::{
     texture_layer_assignment, ChannelAssignment, ImageTexture, IndexMapExt, OutputAssignment,
-    OutputAssignments, TextureAssignment, TextureLayer,
+    OutputAssignments, OutputLayerAssignment, TextureAssignment,
 };
 
 use crate::{
@@ -125,7 +125,7 @@ pub fn materials(
                 }
             }
 
-            let normal_layers = normal_layers(material, &name_to_index);
+            let normal_layers = normal_layers(&material_assignments, &name_to_index);
 
             // TODO: This is normally done using a depth prepass.
             // TODO: Is it ok to combine the prepass alpha in the main pass like this?
@@ -230,16 +230,15 @@ pub fn materials(
 }
 
 fn normal_layers(
-    material: &xc3_model::Material,
+    assignments: &OutputAssignments,
     name_to_index: &IndexMap<SmolStr, usize>,
 ) -> crate::shader::model::NormalLayers {
-    let layers = material.normal_layers();
+    let layers = &assignments.assignments[2].layers;
 
-    // Skip the base layer since it doesn't need blending.
-    let (s0, c0, w0) = normal_layer_indices(&layers, name_to_index, 1);
-    let (s1, c1, w1) = normal_layer_indices(&layers, name_to_index, 2);
-    let (s2, c2, w2) = normal_layer_indices(&layers, name_to_index, 3);
-    let (s3, c3, w3) = normal_layer_indices(&layers, name_to_index, 4);
+    let (s0, c0, w0) = normal_layer_indices(&layers, name_to_index, 0);
+    let (s1, c1, w1) = normal_layer_indices(&layers, name_to_index, 1);
+    let (s2, c2, w2) = normal_layer_indices(&layers, name_to_index, 2);
+    let (s3, c3, w3) = normal_layer_indices(&layers, name_to_index, 3);
 
     crate::shader::model::NormalLayers {
         sampler_indices: ivec4(s0, s1, s2, s3),
@@ -249,7 +248,7 @@ fn normal_layers(
 }
 
 fn normal_layer_indices(
-    layers: &[TextureLayer],
+    layers: &[OutputLayerAssignment],
     name_to_index: &IndexMap<SmolStr, usize>,
     layer: usize,
 ) -> (i32, u32, f32) {
@@ -257,18 +256,18 @@ fn normal_layer_indices(
         .iter()
         .nth(layer)
         .and_then(|l| {
-            match &l.ratio {
+            match &l.weight {
                 // TODO: Handle other dependency variants.
-                Some(ChannelAssignment::Textures(t)) => Some((
-                    name_to_index
-                        .get(&t.first()?.name)
-                        .map(|i| *i as i32)
-                        .unwrap_or(-1),
-                    "xyzw"
-                        .chars()
-                        .position(|c| Some(c) == l.channel)
-                        .unwrap_or_default() as u32,
-                )),
+                Some(ChannelAssignment::Textures(textures)) => {
+                    let t = textures.first()?;
+                    Some((
+                        name_to_index.get(&t.name).map(|i| *i as i32).unwrap_or(-1),
+                        "xyzw"
+                            .chars()
+                            .position(|c| t.channels.contains(c))
+                            .unwrap_or_default() as u32,
+                    ))
+                }
                 _ => None,
             }
         })
@@ -278,7 +277,7 @@ fn normal_layer_indices(
     let w = layers
         .iter()
         .nth(layer)
-        .and_then(|l| match &l.ratio {
+        .and_then(|l| match &l.weight {
             Some(ChannelAssignment::Value(f)) => Some(*f),
             _ => None,
         })

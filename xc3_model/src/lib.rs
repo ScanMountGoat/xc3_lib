@@ -64,7 +64,7 @@ pub use map::{load_map, LoadMapError};
 // TODO: just make the module public.
 pub use material::{
     texture_layer_assignment, ChannelAssignment, Material, MaterialParameters, OutputAssignment,
-    OutputAssignments, Texture, TextureAlphaTest, TextureAssignment, TextureLayer,
+    OutputAssignments, Texture, TextureAlphaTest, TextureAssignment,OutputLayerAssignment
 };
 pub use sampler::{AddressMode, FilterMode, Sampler};
 pub use skeleton::{Bone, Skeleton};

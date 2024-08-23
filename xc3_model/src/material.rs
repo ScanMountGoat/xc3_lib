@@ -374,13 +374,26 @@ impl OutputAssignments {
     }
 }
 
-// TODO: Add some sort of default?
+// TODO: Should the base layer contain all textures?
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct OutputAssignment {
     pub x: Option<ChannelAssignment>,
     pub y: Option<ChannelAssignment>,
     pub z: Option<ChannelAssignment>,
     pub w: Option<ChannelAssignment>,
+    /// Additional layers to blend with the current values.
+    pub layers: Vec<OutputLayerAssignment>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct OutputLayerAssignment {
+    pub x: Option<ChannelAssignment>,
+    pub y: Option<ChannelAssignment>,
+    pub z: Option<ChannelAssignment>,
+    pub w: Option<ChannelAssignment>,
+    /// The factor or blend weight for this layer.
+    /// The blending operation depends on the usage like normal or color.
+    pub weight: Option<ChannelAssignment>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -399,13 +412,6 @@ pub struct TextureAssignment {
     pub channels: SmolStr,
     pub texcoord_name: Option<SmolStr>,
     pub texcoord_transforms: Option<(Vec4, Vec4)>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct TextureLayer {
-    pub name: String,
-    pub channel: Option<char>,
-    pub ratio: Option<ChannelAssignment>,
 }
 
 // TODO: Test cases for this?
@@ -479,6 +485,7 @@ impl Material {
                     y: assignment(color_index, 1),
                     z: assignment(color_index, 2),
                     w: assignment(color_index, 3),
+                    layers: Vec::new(),
                 },
                 OutputAssignment::default(),
                 OutputAssignment {
@@ -486,6 +493,7 @@ impl Material {
                     y: assignment(normal_index, 1),
                     z: None,
                     w: None,
+                    layers: Vec::new(),
                 },
                 OutputAssignment::default(),
                 OutputAssignment::default(),
@@ -494,37 +502,10 @@ impl Material {
                     y: assignment(spm_index, 1),
                     z: assignment(spm_index, 2),
                     w: None,
+                    layers: Vec::new(),
                 },
             ],
         }
-    }
-
-    /// Get information for layered normal map blending.
-    /// The first base layer will have no blending parameters.
-    /// Subsequent layers will typically use a texture or value for the blend weight.
-    pub fn normal_layers(&self) -> Vec<TextureLayer> {
-        self.shader
-            .as_ref()
-            .map(|s| {
-                s.normal_layers
-                    .iter()
-                    .map(|l| TextureLayer {
-                        name: l.name.clone(),
-                        channel: l.channel,
-                        ratio: match &l.ratio {
-                            // TODO: Handle other dependency variants.
-                            Some(Dependency::Texture(t)) => Some(ChannelAssignment::Textures(
-                                vec![texture_assignment(t, &self.parameters)],
-                            )),
-                            Some(Dependency::Buffer(b)) => Some(ChannelAssignment::Value(
-                                self.parameters.get_dependency(b).unwrap_or_default(),
-                            )),
-                            _ => None,
-                        },
-                    })
-                    .collect()
-            })
-            .unwrap_or_default()
     }
 }
 
@@ -574,6 +555,54 @@ fn output_assignment(
         y: channel_assignment(shader, parameters, output_index, 1),
         z: channel_assignment(shader, parameters, output_index, 2),
         w: channel_assignment(shader, parameters, output_index, 3),
+        layers: if output_index == 2 {
+            // Find normal layers in the existing texture dependencies.
+            // TODO: Is there a more reliable way to handle channels?
+            // Skip the base layer in the first element.
+            let textures = shader.textures(2, 'x');
+            shader
+                .normal_layers
+                .iter()
+                .skip(1)
+                .map(|l| OutputLayerAssignment {
+                    x: textures.iter().find_map(|t| {
+                        if t.name == l.name && t.channels.contains('x') {
+                            Some(ChannelAssignment::Textures(vec![texture_assignment(
+                                t, parameters,
+                            )]))
+                        } else {
+                            None
+                        }
+                    }),
+                    y: textures.iter().find_map(|t| {
+                        if t.name == l.name && t.channels.contains('y') {
+                            Some(ChannelAssignment::Textures(vec![texture_assignment(
+                                t, parameters,
+                            )]))
+                        } else {
+                            None
+                        }
+                    }),
+                    z: None,
+                    w: None,
+                    weight: match &l.ratio {
+                        // TODO: Handle other dependency variants.
+                        Some(Dependency::Texture(t)) => {
+                            Some(ChannelAssignment::Textures(vec![texture_assignment(
+                                t,
+                                &parameters,
+                            )]))
+                        }
+                        Some(Dependency::Buffer(b)) => Some(ChannelAssignment::Value(
+                            parameters.get_dependency(b).unwrap_or_default(),
+                        )),
+                        _ => None,
+                    },
+                })
+                .collect()
+        } else {
+            Vec::new()
+        },
     }
 }
 
