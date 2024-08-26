@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 * Changed `xc3_model::ChannelAssignment::Textures` to `xc3_model::ChannelAssignment::Texture` to simplify working with texture assignments. Access additional layers from the `layers` field on `xc3_model::OutputAssignment`.
+* Improved appearance of textures for models saved by `xc3_model::ModelRoot::to_mxmd_model` when high quality textures have not been streamed in yet.
 
 ### Fixed
 * Fixed an issue where some Xenoblade 1 DE models would not render due to inaccurate shader database texture assignments.

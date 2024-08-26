@@ -1,5 +1,3 @@
-use std::usize;
-
 use glam::{vec4, Vec4};
 use log::warn;
 use smol_str::SmolStr;
@@ -559,7 +557,7 @@ fn output_assignment(
                     weight: match &l.ratio {
                         // TODO: Handle other dependency variants.
                         Some(Dependency::Texture(t)) => Some(ChannelAssignment::Texture(
-                            texture_assignment(t, &parameters),
+                            texture_assignment(t, parameters),
                         )),
                         Some(Dependency::Buffer(b)) => Some(ChannelAssignment::Value(
                             parameters.get_dependency(b).unwrap_or_default(),

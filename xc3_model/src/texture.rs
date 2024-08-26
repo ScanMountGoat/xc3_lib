@@ -194,32 +194,9 @@ impl ImageTexture {
     }
 
     pub(crate) fn extracted_texture(image: &ImageTexture) -> ExtractedTexture<Mibl, TextureUsage> {
-        // Low textures typically use a smaller 4x4 version of the texture.
-        // Resizing and decoding and encoding the full texture is expensive.
-        // The low texture is only visible briefly before data is streamed in.
-        // We can cheat and just use the first GOB (512 bytes) of compressed image data.
-        let mut low_image_data = image
-            .image_data
-            .get(..512)
-            .unwrap_or(&image.image_data)
-            .to_vec();
-        low_image_data.resize(512, 0);
-        let low = xc3_lib::mibl::Mibl {
-            image_data: low_image_data,
-            footer: xc3_lib::mibl::MiblFooter {
-                image_size: 4096,
-                unk: 0x1000,
-                width: 4,
-                height: 4,
-                depth: 1,
-                view_dimension: xc3_lib::mibl::ViewDimension::D2,
-                image_format: image.image_format,
-                mipmap_count: 1,
-                version: 10001,
-            },
-        };
-
+        let low = low_texture(image);
         let (mid, base_mip) = image.to_mibl().unwrap().split_base_mip();
+
         ExtractedTexture {
             name: image.name.clone().unwrap(),
             usage: image.usage.unwrap(),
@@ -230,6 +207,63 @@ impl ImageTexture {
             }),
         }
     }
+}
+
+fn low_texture(image: &ImageTexture) -> Mibl {
+    // The low texture is only visible briefly before data is streamed in.
+    // Find a balance between blurry distance rendering and increased file sizes.
+    // 128x128 tends to produce good results in game.
+    create_desired_mip(image, 128)
+        .or_else(|| create_desired_mip(image, 64))
+        .or_else(|| create_desired_mip(image, 4))
+        .unwrap_or_else(|| {
+            // Resizing and decoding and encoding the full texture is expensive.
+            // We can cheat and just use the first GOB (512 bytes) of compressed image data.
+            let mut low_image_data = image
+                .image_data
+                .get(..512)
+                .unwrap_or(&image.image_data)
+                .to_vec();
+            low_image_data.resize(512, 0);
+
+            xc3_lib::mibl::Mibl {
+                image_data: low_image_data,
+                footer: xc3_lib::mibl::MiblFooter {
+                    image_size: 4096,
+                    unk: 0x1000,
+                    width: 4,
+                    height: 4,
+                    depth: 1,
+                    view_dimension: xc3_lib::mibl::ViewDimension::D2,
+                    image_format: image.image_format,
+                    mipmap_count: 1,
+                    version: 10001,
+                },
+            }
+        })
+}
+
+fn create_desired_mip(image: &ImageTexture, desired_dimension: u32) -> Option<Mibl> {
+    let surface = image.to_surface();
+    for mip in (0..surface.mipmaps).into_iter().rev() {
+        if let Some(data) = surface.get(0, 0, mip) {
+            let width = image_dds::mip_dimension(image.width, mip);
+            let height = image_dds::mip_dimension(image.height, mip);
+            if width >= desired_dimension || height >= desired_dimension {
+                return Mibl::from_surface(Surface {
+                    width,
+                    height,
+                    depth: 1,
+                    layers: 1,
+                    mipmaps: 1,
+                    image_format: image.image_format.into(),
+                    data,
+                })
+                .ok();
+            }
+        }
+    }
+    None
 }
 
 // TODO: Should the publicly exposed image format type just use image_dds?
