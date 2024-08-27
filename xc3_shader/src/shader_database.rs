@@ -60,7 +60,8 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
                 apply_attribute_names(vert, vert_attributes, frag_attributes, &mut dependencies);
             }
 
-            if i == 0 {
+            if i == 0 && c == 'x' {
+                // TODO: This will be different for each channel.
                 color_layers = find_color_layers(frag, "out_attr0", Some('x'), &dependencies)
                     .unwrap_or_default();
             } else if i == 1 && c == 'y' {
@@ -180,9 +181,13 @@ fn find_color_layers(
     // Shaders can blend multiple layers with getPixelCalcOver.
     // TODO: Store layering information.
     while let Some((mat_col, layer, ratio)) = mix_a_b_ratio(&frag.nodes, current_col) {
-        let layer = assign_x_recursive(&frag.nodes, layer);
+        let mut layer = layer;
+        if let Some(n) = node_expr(&frag.nodes, layer) {
+            layer = &assign_x_recursive(&frag.nodes, n).input;
+        }
 
-        if let Some((name, channel)) = texture_name_channel(&layer.input) {
+        // TODO: Some texture layers use parameters instead of texture color.
+        if let Some((name, channel)) = texture_name_channel(layer) {
             // TODO: Should this ever be not none?
             let ratio = ratio_dependency(ratio, &frag.nodes, dependencies);
             layers.push(TextureLayer {
@@ -214,6 +219,7 @@ fn calc_monochrome<'a>(nodes: &'a [Node], node: &'a Node) -> Option<([&'a Node; 
     // calcMonochrome in pcmdo fragment shaders fro XC1 and XC3.
     // TODO: Check weight values for XC1 (0.3, 0.59, 0.11) or XC3 (0.01, 0.01, 0.01)?
     let (_mat_col, monochrome, monochrome_ratio) = mix_a_b_ratio(nodes, node)?;
+    let monochrome = node_expr(nodes, monochrome)?;
     let (mat_col, _monochrome_weights) = dot3_a_b(nodes, monochrome)?;
     Some((mat_col, monochrome_ratio))
 }
@@ -1156,14 +1162,20 @@ mod tests {
         // Test multiple calls to getPixelCalcAddNormal.
         let fragment = TranslationUnit::parse(glsl).unwrap();
         let shader = shader_from_glsl(None, &fragment);
-
-        // TODO: This isn't correct?
+        // TODO: This is missing a non texture layer.
         assert_eq!(
-            vec![TextureLayer {
-                name: "gTResidentTex04".to_string(),
-                channel: Some('x'),
-                ratio: None
-            }],
+            vec![
+                TextureLayer {
+                    name: "s0".to_string(),
+                    channel: Some('x'),
+                    ratio: None
+                },
+                TextureLayer {
+                    name: "gTResidentTex04".to_string(),
+                    channel: Some('x'),
+                    ratio: None
+                }
+            ],
             shader.color_layers
         );
         assert_eq!(

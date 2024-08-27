@@ -101,7 +101,7 @@ pub fn sqrt_x<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
 pub fn mix_a_b_ratio<'a>(
     nodes: &'a [Node],
     node: &'a Node,
-) -> Option<(&'a Node, &'a Node, &'a Expr)> {
+) -> Option<(&'a Node, &'a Expr, &'a Expr)> {
     // mix(a, b, ratio) = fma(b - a, ratio, a)
     // = ratio * b - ratio * a + a
     // = ratio * b + (1.0 - ratio) * a
@@ -124,13 +124,10 @@ pub fn mix_a_b_ratio<'a>(
         _ => None,
     }?;
     let (b, neg_a) = match &b_minus_a.input {
-        Expr::Add(a, b) => match (a.deref(), b.deref()) {
-            (
-                Expr::Node {
-                    node_index: neg_b, ..
-                },
-                Expr::Node { node_index: a, .. },
-            ) => Some((nodes.get(*a)?, nodes.get(*neg_b)?)),
+        Expr::Add(a, b) => match a.deref() {
+            Expr::Node {
+                node_index: neg_b, ..
+            } => Some((b, nodes.get(*neg_b)?)),
             _ => None,
         },
         _ => None,
