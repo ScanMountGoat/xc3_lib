@@ -232,7 +232,7 @@ pub fn tex_matrix(graph: &Graph, node_index: usize) -> Option<[BufferDependency;
         }
         _ => None,
     }?;
-    let (v, y, node2) = match &node.input {
+    let (_v, y, node2) = match &node.input {
         Expr::Func { name, args, .. } => {
             if name == "fma" {
                 match &args[..] {
@@ -251,7 +251,7 @@ pub fn tex_matrix(graph: &Graph, node_index: usize) -> Option<[BufferDependency;
         }
         _ => None,
     }?;
-    let (u, x) = match &node2.input {
+    let (_u, x) = match &node2.input {
         Expr::Mul(a, b) => match (a.deref(), b.deref()) {
             (Expr::Node { node_index, .. }, e) => {
                 Some((graph.nodes.get(*node_index)?, buffer_dependency(e)?))

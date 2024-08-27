@@ -121,6 +121,7 @@ pub struct ShaderProgram {
     /// to determine how to construct node groups.
     pub output_dependencies: IndexMap<SmolStr, Vec<Dependency>>,
 
+    pub color_layers: Vec<TextureLayer>,
     pub normal_layers: Vec<TextureLayer>,
 }
 
@@ -327,6 +328,7 @@ mod tests {
     fn material_channel_assignment_empty() {
         let shader = ShaderProgram {
             output_dependencies: IndexMap::new(),
+            color_layers: Vec::new(),
             normal_layers: Vec::new(),
         };
         assert!(shader.textures(0, 'x').is_empty());
@@ -336,6 +338,8 @@ mod tests {
     fn material_channel_assignment_single_output_no_assignment() {
         let shader = ShaderProgram {
             output_dependencies: [("o0.x".into(), Vec::new())].into(),
+            color_layers: Vec::new(),
+
             normal_layers: Vec::new(),
         };
         assert!(shader.textures(0, 'x').is_empty());
@@ -378,6 +382,7 @@ mod tests {
                 ),
             ]
             .into(),
+            color_layers: Vec::new(),
             normal_layers: Vec::new(),
         };
         assert_eq!(
@@ -427,6 +432,7 @@ mod tests {
                 ("o1.z".into(), vec![Dependency::Constant(0.5.into())]),
             ]
             .into(),
+            color_layers: Vec::new(),
             normal_layers: Vec::new(),
         };
         assert_eq!(None, shader.float_constant(0, 'x'));
@@ -471,6 +477,7 @@ mod tests {
                 ),
             ]
             .into(),
+            color_layers: Vec::new(),
             normal_layers: Vec::new(),
         };
         assert_eq!(None, shader.buffer_parameter(0, 'x'));

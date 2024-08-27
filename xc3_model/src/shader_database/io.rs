@@ -38,8 +38,7 @@ struct ShaderProgramIndexed(
     // There are very few unique dependencies across all shaders in a game dump.
     // Normalize the data to greatly reduce the size of the JSON representation.
     IndexMap<usize, Vec<usize>>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    #[serde(default)]
+    Vec<TextureLayerIndexed>,
     Vec<TextureLayerIndexed>,
 );
 
@@ -268,6 +267,14 @@ fn model_indexed(
                             )
                         })
                         .collect(),
+                    p.color_layers
+                        .into_iter()
+                        .map(|l| TextureLayerIndexed {
+                            name: l.name,
+                            channel: l.channel,
+                            ratio: l.ratio.map(|r| dependency_to_index.entry_index(r)),
+                        })
+                        .collect(),
                     p.normal_layers
                         .into_iter()
                         .map(|l| TextureLayerIndexed {
@@ -311,8 +318,19 @@ fn model_from_indexed(
                         )
                     })
                     .collect(),
-                normal_layers: p
+                color_layers: p
                     .1
+                    .iter()
+                    .map(|l| TextureLayer {
+                        name: l.name.clone(),
+                        channel: l.channel,
+                        ratio: l.ratio.map(|i| {
+                            dependency_from_indexed(dependencies[i].clone(), buffer_dependencies)
+                        }),
+                    })
+                    .collect(),
+                normal_layers: p
+                    .2
                     .iter()
                     .map(|l| TextureLayer {
                         name: l.name.clone(),

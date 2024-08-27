@@ -101,36 +101,33 @@ pub fn albedo_generated_key(
     root_index: usize,
 ) -> GeneratedImageKey {
     // Assume the first texture is albedo if no assignments are possible.
-    let red_index =
-        image_index(material, assignments.assignments[0].x.as_ref()).or_else(|| {
-            material.textures.first().map(|t| ImageIndex::Image {
-                image_texture: t.image_texture_index,
-                sampler: 0,
-                channel: 0,
-                texcoord_name: String::new(),
-                texcoord_scale: None,
-            })
-        });
-    let green_index =
-        image_index(material, assignments.assignments[0].y.as_ref()).or_else(|| {
-            material.textures.first().map(|t| ImageIndex::Image {
-                image_texture: t.image_texture_index,
-                sampler: 0,
-                channel: 1,
-                texcoord_name: String::new(),
-                texcoord_scale: None,
-            })
-        });
-    let blue_index =
-        image_index(material, assignments.assignments[0].z.as_ref()).or_else(|| {
-            material.textures.first().map(|t| ImageIndex::Image {
-                image_texture: t.image_texture_index,
-                sampler: 0,
-                channel: 2,
-                texcoord_name: String::new(),
-                texcoord_scale: None,
-            })
-        });
+    let red_index = image_index(material, assignments.assignments[0].x.as_ref()).or_else(|| {
+        material.textures.first().map(|t| ImageIndex::Image {
+            image_texture: t.image_texture_index,
+            sampler: 0,
+            channel: 0,
+            texcoord_name: String::new(),
+            texcoord_scale: None,
+        })
+    });
+    let green_index = image_index(material, assignments.assignments[0].y.as_ref()).or_else(|| {
+        material.textures.first().map(|t| ImageIndex::Image {
+            image_texture: t.image_texture_index,
+            sampler: 0,
+            channel: 1,
+            texcoord_name: String::new(),
+            texcoord_scale: None,
+        })
+    });
+    let blue_index = image_index(material, assignments.assignments[0].z.as_ref()).or_else(|| {
+        material.textures.first().map(|t| ImageIndex::Image {
+            image_texture: t.image_texture_index,
+            sampler: 0,
+            channel: 2,
+            texcoord_name: String::new(),
+            texcoord_scale: None,
+        })
+    });
 
     // Some materials have alpha testing in a separate depth prepass.
     // glTF expects the alpha to be part of the main albedo texture.

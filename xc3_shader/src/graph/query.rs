@@ -29,6 +29,14 @@ pub fn assign_x<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
     }
 }
 
+pub fn assign_x_recursive<'a>(nodes: &'a [Node], n: &'a Node) -> &'a Node {
+    let mut node = n;
+    while let Some(new_node) = assign_x(nodes, node) {
+        node = new_node;
+    }
+    node
+}
+
 pub fn one_minus_x<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
     let node = one_plus_x(nodes, node)?;
     zero_minus_x(nodes, node)

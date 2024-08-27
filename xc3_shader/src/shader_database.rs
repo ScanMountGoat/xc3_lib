@@ -25,8 +25,8 @@ use crate::{
     },
     graph::{
         query::{
-            assign_x, clamp_x_zero_one, dot3_a_b, fma_half_half, mix_a_b_ratio, normalize,
-            one_minus_x, one_plus_x, sqrt_x, zero_minus_x,
+            assign_x, assign_x_recursive, clamp_x_zero_one, dot3_a_b, fma_half_half, mix_a_b_ratio,
+            normalize, one_minus_x, one_plus_x, sqrt_x, zero_minus_x,
         },
         Expr, Graph, Node,
     },
@@ -38,6 +38,7 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
 
     let vertex = &vertex.map(|v| (Graph::from_glsl(v), find_attribute_locations(v)));
 
+    let mut color_layers = Vec::new();
     let mut normal_layers = Vec::new();
 
     let mut output_dependencies = IndexMap::new();
@@ -60,7 +61,8 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
             }
 
             if i == 0 {
-                color_layers(frag);
+                color_layers = find_color_layers(frag, "out_attr0", Some('x'), &dependencies)
+                    .unwrap_or_default();
             } else if i == 1 && c == 'y' {
                 if let Some(param) = geometric_specular_aa(frag) {
                     dependencies = vec![Dependency::Buffer(param)];
@@ -81,6 +83,7 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
     ShaderProgram {
         // IndexMap gives consistent ordering for attribute names.
         output_dependencies,
+        color_layers,
         normal_layers,
     }
 }
@@ -144,16 +147,21 @@ fn shader_from_latte_asm(
     ShaderProgram {
         // IndexMap gives consistent ordering for attribute names.
         output_dependencies,
+        color_layers: Vec::new(),
         normal_layers: Vec::new(),
     }
 }
 
-fn color_layers(frag: &Graph) -> Option<&Node> {
-    // TODO: Select the appropriate channel.
+fn find_color_layers(
+    frag: &Graph,
+    output: &str,
+    channel: Option<char>,
+    dependencies: &[Dependency],
+) -> Option<Vec<TextureLayer>> {
     let node_index = frag
         .nodes
         .iter()
-        .rposition(|n| n.output.name == "out_attr0" && n.output.channel == Some('x'))?;
+        .rposition(|n| n.output.name == output && n.output.channel == channel)?;
     let last_node_index = *frag.node_dependencies_recursive(node_index, None).last()?;
     let last_node = frag.nodes.get(last_node_index)?;
 
@@ -162,25 +170,51 @@ fn color_layers(frag: &Graph) -> Option<&Node> {
 
     // This isn't always present for all materials in all games.
     // Xenoblade 1 DE and Xenoblade 3 both seem to do this for non map materials.
-    if let Some((mat_cols, monochrome_ratio)) = calc_monochrome(&frag.nodes, current_col) {
+    if let Some((mat_cols, _monochrome_ratio)) = calc_monochrome(&frag.nodes, current_col) {
         // TODO: Select the appropriate channel.
         current_col = mat_cols[0];
     }
 
+    let mut layers = Vec::new();
+
     // Shaders can blend multiple layers with getPixelCalcOver.
     // TODO: Store layering information.
     while let Some((mat_col, layer, ratio)) = mix_a_b_ratio(&frag.nodes, current_col) {
+        let layer = assign_x_recursive(&frag.nodes, layer);
+
+        if let Some((name, channel)) = texture_name_channel(&layer.input) {
+            // TODO: Should this ever be not none?
+            let ratio = ratio_dependency(ratio, &frag.nodes, dependencies);
+            layers.push(TextureLayer {
+                name,
+                channel,
+                ratio,
+            });
+        }
+
         current_col = mat_col;
     }
 
-    Some(current_col)
+    let base = assign_x_recursive(&frag.nodes, current_col);
+    if let Some((name, channel)) = texture_name_channel(&base.input) {
+        layers.push(TextureLayer {
+            name,
+            channel,
+            ratio: None,
+        });
+    }
+
+    // We start from the output, so these are in reverse order.
+    layers.reverse();
+
+    Some(layers)
 }
 
 fn calc_monochrome<'a>(nodes: &'a [Node], node: &'a Node) -> Option<([&'a Node; 3], &'a Expr)> {
     // calcMonochrome in pcmdo fragment shaders fro XC1 and XC3.
     // TODO: Check weight values for XC1 (0.3, 0.59, 0.11) or XC3 (0.01, 0.01, 0.01)?
-    let (mat_col, monochrome, monochrome_ratio) = mix_a_b_ratio(nodes, node)?;
-    let (mat_col, monochrome_weights) = dot3_a_b(nodes, monochrome)?;
+    let (_mat_col, monochrome, monochrome_ratio) = mix_a_b_ratio(nodes, node)?;
+    let (mat_col, _monochrome_weights) = dot3_a_b(nodes, monochrome)?;
     Some((mat_col, monochrome_ratio))
 }
 
@@ -201,11 +235,8 @@ fn find_normal_layers(
 
     // TODO: function for detecting fma?
     // setMrtNormal in pcmdo shaders.
-    let mut view_normal = fma_half_half(&frag.nodes, node)?;
-    while let Some(assignment) = assign_x(&frag.nodes, view_normal) {
-        view_normal = assignment;
-    }
-
+    let view_normal = fma_half_half(&frag.nodes, node)?;
+    let view_normal = assign_x_recursive(&frag.nodes, view_normal);
     let view_normal = normalize(&frag.nodes, view_normal)?;
 
     // TODO: front facing in calcNormalZAbs in pcmdo?
@@ -219,7 +250,7 @@ fn find_normal_layers(
     // Some shaders layer more than one additional normal map.
     while let Some((n2, layer_nom_work, ratio)) = pixel_calc_add_normal(&frag.nodes, nom_work) {
         if let Some((name, channel)) = texture_name_channel(&n2.input) {
-            let ratio = ratio_dependency(ratio, dependencies);
+            let ratio = ratio_dependency(ratio, &frag.nodes, dependencies);
             layers.push(TextureLayer {
                 name,
                 channel,
@@ -244,7 +275,19 @@ fn find_normal_layers(
     Some(layers)
 }
 
-fn ratio_dependency(ratio: &Expr, dependencies: &[Dependency]) -> Option<Dependency> {
+fn ratio_dependency(
+    ratio: &Expr,
+    nodes: &[Node],
+    dependencies: &[Dependency],
+) -> Option<Dependency> {
+    // Reduce any assignment chains for what's likely a parameter or texture assignment.
+    // TODO: Convert ratio to a dependency.
+    let mut ratio = ratio;
+    if let Some(n) = node_expr(nodes, ratio) {
+        let n = assign_x_recursive(nodes, n);
+        ratio = &n.input;
+    }
+
     buffer_dependency(ratio)
         .map(Dependency::Buffer)
         .or_else(|| match ratio {
@@ -323,20 +366,11 @@ fn pixel_calc_add_normal<'a>(
         _ => None,
     }?;
     // Detect ratio * r or r * ratio to handle both XC2 and XC3.
-    let (n2, mut ratio) = node_expr(nodes, a)
+    let (n2, ratio) = node_expr(nodes, a)
         .and_then(|r| Some((pixel_calc_add_normal_n2(nodes, r)?, b)))
         .or_else(|| {
             node_expr(nodes, b).and_then(|r| Some((pixel_calc_add_normal_n2(nodes, r)?, a)))
         })?;
-
-    // Reduce any assignment chains for what's likely a parameter or texture assignment.
-    // TODO: Convert ratio to a dependency.
-    if let Some(mut n) = node_expr(nodes, ratio) {
-        while let Some(new_n) = assign_x(nodes, n) {
-            n = new_n;
-        }
-        ratio = &n.input;
-    }
 
     Some((n2, nom_work, ratio))
 }
@@ -917,6 +951,10 @@ mod tests {
         let fragment = TranslationUnit::parse(glsl).unwrap();
 
         let shader = shader_from_glsl(Some(&vertex), &fragment);
+
+        assert!(shader.color_layers.is_empty());
+        assert!(shader.normal_layers.is_empty());
+
         assert_eq!(
             vec![Dependency::Texture(TextureDependency {
                 name: "s4".into(),
@@ -1062,6 +1100,43 @@ mod tests {
         // This also avoids considering normal maps as a dependency.
         let fragment = TranslationUnit::parse(glsl).unwrap();
         let shader = shader_from_glsl(None, &fragment);
+
+        assert_eq!(
+            vec![
+                TextureLayer {
+                    name: "s0".to_string(),
+                    channel: Some('x'),
+                    ratio: None
+                },
+                TextureLayer {
+                    name: "gTResidentTex04".to_string(),
+                    channel: Some('x'),
+                    ratio: None
+                }
+            ],
+            shader.color_layers
+        );
+        assert_eq!(
+            vec![
+                TextureLayer {
+                    name: "s2".to_string(),
+                    channel: Some('x'),
+                    ratio: None
+                },
+                TextureLayer {
+                    name: "gTResidentTex09".to_string(),
+                    channel: Some('x'),
+                    ratio: Some(Dependency::Buffer(BufferDependency {
+                        name: "U_Mate".into(),
+                        field: "gWrkFl4".into(),
+                        index: 1,
+                        channels: "z".into()
+                    }))
+                }
+            ],
+            shader.normal_layers
+        );
+
         assert_eq!(
             vec![Dependency::Buffer(BufferDependency {
                 name: "U_Mate".into(),
@@ -1081,6 +1156,47 @@ mod tests {
         // Test multiple calls to getPixelCalcAddNormal.
         let fragment = TranslationUnit::parse(glsl).unwrap();
         let shader = shader_from_glsl(None, &fragment);
+
+        // TODO: This isn't correct?
+        assert_eq!(
+            vec![TextureLayer {
+                name: "gTResidentTex04".to_string(),
+                channel: Some('x'),
+                ratio: None
+            }],
+            shader.color_layers
+        );
+        assert_eq!(
+            vec![
+                TextureLayer {
+                    name: "s2".to_string(),
+                    channel: Some('x'),
+                    ratio: None
+                },
+                TextureLayer {
+                    name: "gTResidentTex09".to_string(),
+                    channel: Some('x'),
+                    ratio: Some(Dependency::Buffer(BufferDependency {
+                        name: "U_Mate".into(),
+                        field: "gWrkFl4".into(),
+                        index: 2,
+                        channels: "y".into()
+                    }))
+                },
+                TextureLayer {
+                    name: "s3".to_string(),
+                    channel: Some('x'),
+                    ratio: Some(Dependency::Buffer(BufferDependency {
+                        name: "U_Mate".into(),
+                        field: "gWrkFl4".into(),
+                        index: 2,
+                        channels: "z".into()
+                    }))
+                },
+            ],
+            shader.normal_layers
+        );
+
         assert_eq!(
             vec![Dependency::Buffer(BufferDependency {
                 name: "U_Mate".into(),
@@ -1672,6 +1788,7 @@ mod tests {
                     )
                 ]
                 .into(),
+                color_layers: Vec::new(),
                 normal_layers: Vec::new()
             },
             shader

@@ -602,20 +602,33 @@ fn channel_assignment(
         .or_else(|| {
             let textures = shader.textures(output_index, channel);
 
-            let mut sorted_textures: Vec<_> = textures
+            let mut assignments: Vec<_> = textures
                 .iter()
                 .map(|texture| texture_assignment(texture, parameters))
                 .collect();
 
             // TODO: The correct approach is to detect layering and masks when generating the database.
             if output_index == 0 {
-                // Color maps typically assign s0 using RGB or a single channel.
-                sorted_textures
-                    .sort_by_cached_key(|t| sampler_index(t.name.as_str()).unwrap_or(usize::MAX));
+                if !shader.color_layers.is_empty() {
+                    // Match the correct layer order if present.
+                    assignments.sort_by_cached_key(|t| {
+                        shader
+                            .color_layers
+                            .iter()
+                            .position(|l| l.name == t.name)
+                            .unwrap_or(usize::MAX)
+                    });
+                } else {
+                    // Color maps typically assign s0 using RGB or a single channel.
+                    assignments.retain(|a| !shader.normal_layers.iter().any(|l| l.name == a.name));
+                    assignments.sort_by_cached_key(|t| {
+                        sampler_index(t.name.as_str()).unwrap_or(usize::MAX)
+                    });
+                }
             } else if output_index == 2 {
                 if !shader.normal_layers.is_empty() {
                     // Match the correct layer order if present.
-                    sorted_textures.sort_by_cached_key(|t| {
+                    assignments.sort_by_cached_key(|t| {
                         shader
                             .normal_layers
                             .iter()
@@ -625,7 +638,7 @@ fn channel_assignment(
                 } else {
                     // Normal maps are usually just XY BC5 textures.
                     // Sort so that these textures are accessed first.
-                    sorted_textures.sort_by_cached_key(|t| {
+                    assignments.sort_by_cached_key(|t| {
                         let count = textures.iter().filter(|t2| t2.name == t.name).count();
                         count != 2
                     });
@@ -634,7 +647,8 @@ fn channel_assignment(
                 // Color maps typically assign s0 using RGB or a single channel.
                 // Ignore single channel masks if an RGB input is present.
                 // Ignore XY BC5 normal maps by placing them at the end.
-                sorted_textures.sort_by_cached_key(|t| {
+                assignments.retain(|a| !shader.normal_layers.iter().any(|l| l.name == a.name));
+                assignments.sort_by_cached_key(|t| {
                     let count = textures.iter().filter(|t2| t2.name == t.name).count();
                     (
                         match count {
@@ -650,10 +664,10 @@ fn channel_assignment(
 
             // Some textures like normal maps may use multiple input channels.
             // First check if the current channel is used.
-            sorted_textures
+            assignments
                 .iter()
                 .find(|t| t.channels.contains(channel))
-                .or_else(|| sorted_textures.first())
+                .or_else(|| assignments.first())
                 .cloned()
                 .map(ChannelAssignment::Texture)
         })

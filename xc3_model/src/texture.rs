@@ -245,7 +245,7 @@ fn low_texture(image: &ImageTexture) -> Mibl {
 
 fn create_desired_mip(image: &ImageTexture, desired_dimension: u32) -> Option<Mibl> {
     let surface = image.to_surface();
-    for mip in (0..surface.mipmaps).into_iter().rev() {
+    for mip in (0..surface.mipmaps).rev() {
         if let Some(data) = surface.get(0, 0, mip) {
             let width = image_dds::mip_dimension(image.width, mip);
             let height = image_dds::mip_dimension(image.height, mip);

@@ -64,7 +64,7 @@ impl VisitorMut for Annotator {
                         // buffer[index].x
                         // TODO: How to handle this case?
                     }
-                    ExprData::Dot(e, c) => {
+                    ExprData::Dot(e, _c) => {
                         if let ExprData::Variable(id) = &e.content {
                             // buffer.field[index].x
                             if let Some(buffer_name) = self.replacements.get(id.as_str()) {

@@ -45,9 +45,9 @@ impl Graph {
                 match inst.as_rule() {
                     Rule::cf_inst => {
                         let mut inner = inst.into_inner();
-                        let inst_count: usize = inner.next().unwrap().as_str().parse().unwrap();
-                        let op_code = inner.next().unwrap().as_str();
-                        for property in inner {}
+                        let _inst_count: usize = inner.next().unwrap().as_str().parse().unwrap();
+                        let _op_code = inner.next().unwrap().as_str();
+                        for _property in inner {}
                     }
                     Rule::cf_exp_inst => add_exp_inst(inst, &mut nodes),
                     Rule::tex_clause => add_tex_clause(inst, &mut nodes),
@@ -64,7 +64,7 @@ impl Graph {
 fn add_exp_inst(inst: Pair<Rule>, nodes: &mut Nodes) {
     let mut inner = inst.into_inner();
     let inst_count: usize = inner.next().unwrap().as_str().parse().unwrap();
-    let op_code = inner.next().unwrap().as_str();
+    let _op_code = inner.next().unwrap().as_str();
 
     let target = inner.next().unwrap();
     let (target_name, target_index) = exp_target(target);
@@ -105,7 +105,7 @@ fn add_tex_clause(inst: Pair<Rule>, nodes: &mut Nodes) {
     let mut inner = inst.into_inner();
     let inst_count: usize = inner.next().unwrap().as_str().parse().unwrap();
     let _inst_type = inner.next().unwrap().as_str();
-    let properties = inner.next().unwrap().as_str();
+    let _properties = inner.next().unwrap().as_str();
     for tex_instruction in inner {
         let tex_nodes = tex_inst_node(tex_instruction, nodes).unwrap();
         for node in tex_nodes {
@@ -156,9 +156,9 @@ impl AluScalar {
 
 fn add_alu_clause(inst: Pair<Rule>, nodes: &mut Nodes) {
     let mut inner = inst.into_inner();
-    let inst_count: usize = inner.next().unwrap().as_str().parse().unwrap();
+    let _inst_count: usize = inner.next().unwrap().as_str().parse().unwrap();
     let _inst_type = inner.next().unwrap().as_str();
-    let properties = inner.next().unwrap().as_str();
+    let _properties = inner.next().unwrap().as_str();
     for group in inner {
         let mut inner = group.into_inner();
         let inst_count: usize = inner.next().unwrap().as_str().trim().parse().unwrap();
@@ -642,10 +642,10 @@ fn exp_target(target: Pair<Rule>) -> (&'static str, usize) {
 fn tex_inst_node(tex_instruction: Pair<Rule>, nodes: &Nodes) -> Option<Vec<Node>> {
     let mut inner = tex_instruction.into_inner();
     // TODO: why does this have trailing white space?
-    let inst_count = inner.next()?.as_str();
+    let _inst_count = inner.next()?.as_str();
 
     // TODO: Check that this is SAMPLE?
-    let op_code = inner.next()?.as_str();
+    let _op_code = inner.next()?.as_str();
 
     // TODO: Get the input names and channels.
     // TODO: register or mask?
@@ -656,7 +656,7 @@ fn tex_inst_node(tex_instruction: Pair<Rule>, nodes: &Nodes) -> Option<Vec<Node>
     let texcoords = texture_inst_src(src, nodes)?;
 
     let texture = inner.next()?.as_str();
-    let sampler = inner.next()?.as_str();
+    let _sampler = inner.next()?.as_str();
     // TODO: always ignore properties?
 
     let texture_name = Expr::Global {
