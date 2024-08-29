@@ -26,7 +26,7 @@ use crate::{
     graph::{
         query::{
             assign_x, assign_x_recursive, clamp_x_zero_one, dot3_a_b, fma_half_half, mix_a_b_ratio,
-            normalize, one_minus_x, one_plus_x, sqrt_x, zero_minus_x,
+            node_expr, normalize, one_minus_x, one_plus_x, sqrt_x, zero_minus_x,
         },
         Expr, Graph, Node,
     },
@@ -179,7 +179,6 @@ fn find_color_layers(
     let mut layers = Vec::new();
 
     // Shaders can blend multiple layers with getPixelCalcOver.
-    // TODO: Store layering information.
     while let Some((mat_col, layer, ratio)) = mix_a_b_ratio(&frag.nodes, current_col) {
         let mut layer = layer;
         if let Some(n) = node_expr(&frag.nodes, layer) {
@@ -199,6 +198,8 @@ fn find_color_layers(
 
         current_col = mat_col;
     }
+
+    // TODO: Also check for getPixelCalcRatio and getPixelCalcRatioBlend.
 
     let base = assign_x_recursive(&frag.nodes, current_col);
     if let Some((name, channel)) = texture_name_channel(&base.input) {
@@ -379,14 +380,6 @@ fn pixel_calc_add_normal<'a>(
         })?;
 
     Some((n2, nom_work, ratio))
-}
-
-fn node_expr<'a>(nodes: &'a [Node], e: &Expr) -> Option<&'a Node> {
-    if let Expr::Node { node_index, .. } = e {
-        nodes.get(*node_index)
-    } else {
-        None
-    }
 }
 
 fn pixel_calc_add_normal_n1<'a>(nodes: &'a [Node], nom_work: &'a Node) -> Option<&'a Node> {
