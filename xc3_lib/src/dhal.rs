@@ -52,7 +52,7 @@ pub struct Dhal {
     // TODO: Pass in offsets that come after this for buffer size estimation?
     // TODO: align 16 for xc3?
     #[br(parse_with = parse_opt_ptr32)]
-    #[br(args { inner: args! { offset: offsets[0], next_unk_offset: next_offset(&offsets, offsets[3]), version } })]
+    #[br(args { inner: args! { offset: offsets[0], version } })]
     #[xc3(offset(u32), align(2))]
     pub unk4: Option<Unk4>,
 
@@ -235,7 +235,7 @@ pub struct Unk3Unk1 {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
-#[br(import { version: u32, offset: u32, next_unk_offset: u32 })]
+#[br(import { version: u32, offset: u32 })]
 #[xc3(base_offset)]
 pub struct Unk4 {
     #[br(temp, try_calc = r.stream_position())]
@@ -250,9 +250,6 @@ pub struct Unk4 {
     #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(offset_count(u32, u32), align(2))]
     pub unk2: Vec<Unk4Unk2>,
-
-    #[br(temp, restore_position)]
-    unk4_offset: u32,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
@@ -280,15 +277,9 @@ pub struct Unk4 {
 
     pub unk6: u32, // 0 or 1?
 
-    #[br(temp, restore_position)]
-    unk7_offset: u32,
-
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(64))]
     pub unk7: Option<[[f32; 4]; 8]>,
-
-    #[br(temp, restore_position)]
-    extra_offset: u32,
 
     // TODO: Is this the right check?
     #[br(if(version > 10001))]
@@ -299,9 +290,9 @@ pub struct Unk4 {
     #[br(if(offset >= 112))]
     pub unk: Option<[u32; 3]>,
 
-    // TODO: Find a cleaner way of preserving the underlying data.
+    // TODO: Find a cleaner way of preserving data.
     #[br(seek_before = SeekFrom::Start(base_offset + unk2.len() as u64 * 64 + unk2_offset as u64))]
-    #[br(count = unk4_buffer_size(&[unk4_offset, unk5_offset, unk7_offset, extra_offset], next_unk_offset, unk2.len(), unk2_offset))]
+    #[br(count = unk4_buffer_size(&unk2, unk2.len() * 64 + unk2_offset as usize))]
     #[xc3(save_position(false))]
     pub buffer: Vec<u8>,
 }
@@ -750,24 +741,15 @@ fn unk2_buffer_size(unk1: &[Unk2Unk1], unk2: &[Unk2Unk2]) -> usize {
     unk1_size.max(unk2_size)
 }
 
-fn unk4_buffer_size(
-    field_offsets: &[u32],
-    next_unk_offset: u32,
-    unk2_len: usize,
-    unk2_offset: u32,
-) -> usize {
-    // Estimate the size based on the next largest offset.
-    // This is either one of the fields or the next struct.
-    let offset = next_offset(field_offsets, 0).max(next_unk_offset);
-    (offset as usize).saturating_sub(unk2_len * 64 - unk2_offset as usize)
-}
-
-pub(crate) fn next_offset(offsets: &[u32], start: u32) -> u32 {
-    // Find the next non null offset for size estimation.
-    offsets
+fn unk4_buffer_size(unk2: &[Unk4Unk2], base_offset: usize) -> usize {
+    // TODO: These items have offsets into the buffer?
+    // Assume data starts from 0.
+    let max_offset = unk2
         .iter()
-        .copied()
-        .filter(|o| *o > start)
-        .min()
-        .unwrap_or_default()
+        .flat_map(|u| [u.unk2, u.unk3, u.unk4, u.unk7, u.unk8])
+        .max()
+        .unwrap_or_default();
+    // Add what appears to be a count for bytes.
+    let offset = max_offset + unk2.last().map(|u| u.unk1).unwrap_or_default();
+    (offset as usize).saturating_sub(base_offset)
 }
