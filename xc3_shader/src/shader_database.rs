@@ -255,7 +255,7 @@ fn find_normal_layers(
     let mut layers = Vec::new();
 
     // Some shaders layer more than one additional normal map.
-    while let Some((n2, layer_nom_work, ratio)) = pixel_calc_add_normal(&frag.nodes, nom_work) {
+    while let Some((layer_nom_work, n2, ratio)) = pixel_calc_add_normal(&frag.nodes, nom_work) {
         if let Some((name, channel)) = texture_name_channel(&n2.input) {
             let ratio = ratio_dependency(ratio, &frag.nodes, dependencies);
             layers.push(TextureLayer {
@@ -264,7 +264,7 @@ fn find_normal_layers(
                 ratio,
             });
         }
-        if let Some(n1) = pixel_calc_add_normal_n1(&frag.nodes, layer_nom_work) {
+        if let Some(n1) = normal_map_fma(&frag.nodes, layer_nom_work) {
             if let Some((name, channel)) = texture_name_channel(&n1.input) {
                 layers.push(TextureLayer {
                     name,
@@ -273,6 +273,36 @@ fn find_normal_layers(
                 });
             }
         }
+        nom_work = layer_nom_work;
+    }
+
+    // TODO: alternate add normal and regular mix?
+    // TODO: Store the blend operation in the database?
+    while let Some((layer_nom_work, n2, ratio)) = mix_a_b_ratio(&frag.nodes, nom_work) {
+        if let Some(n2_node) = node_expr(&frag.nodes, n2) {
+            let ratio = ratio_dependency(ratio, &frag.nodes, dependencies);
+
+            if let Some(n2) = normal_map_fma(&frag.nodes, n2_node) {
+                if let Some((name, channel)) = texture_name_channel(&n2.input) {
+                    layers.push(TextureLayer {
+                        name,
+                        channel,
+                        ratio,
+                    });
+                }
+            }
+        }
+
+        if let Some(n1) = normal_map_fma(&frag.nodes, layer_nom_work) {
+            if let Some((name, channel)) = texture_name_channel(&n1.input) {
+                layers.push(TextureLayer {
+                    name,
+                    channel,
+                    ratio: None,
+                });
+            }
+        }
+
         nom_work = layer_nom_work;
     }
 
@@ -379,17 +409,18 @@ fn pixel_calc_add_normal<'a>(
             node_expr(nodes, b).and_then(|r| Some((pixel_calc_add_normal_n2(nodes, r)?, a)))
         })?;
 
-    Some((n2, nom_work, ratio))
+    Some((nom_work, n2, ratio))
 }
 
-fn pixel_calc_add_normal_n1<'a>(nodes: &'a [Node], nom_work: &'a Node) -> Option<&'a Node> {
+fn normal_map_fma<'a>(nodes: &'a [Node], nom_work: &'a Node) -> Option<&'a Node> {
     // Extract the texture for n1 if present.
-    // This will only work for the base layer.
+    // This will only work for base layers.
     let node = match &nom_work.input {
         Expr::Func { name, args, .. } => {
             if name == "fma" {
+                // This could be fma(x, 2.0, -1.0) or fma(x, 2.0, -1.0039216)
                 match &args[..] {
-                    [Expr::Node { node_index, .. }, _, _] => nodes.get(*node_index),
+                    [Expr::Node { node_index, .. }, Expr::Float(2.0), _] => nodes.get(*node_index),
                     _ => None,
                 }
             } else {
@@ -1099,7 +1130,6 @@ mod tests {
         // This also avoids considering normal maps as a dependency.
         let fragment = TranslationUnit::parse(glsl).unwrap();
         let shader = shader_from_glsl(None, &fragment);
-
         assert_eq!(
             vec![
                 TextureLayer {
@@ -1311,6 +1341,74 @@ mod tests {
                 }),
             ],
             shader.output_dependencies[&SmolStr::from("o2.x")]
+        );
+    }
+
+    #[test]
+    fn shader_from_fragment_wild_ride_body() {
+        // xeno3/chr/ch/ch02010110, "body_m", shd0028.frag
+        let glsl = include_str!("data/ch02010110.28.frag");
+
+        // Some shaders use a simple mix() for normal blending.
+        let fragment = TranslationUnit::parse(glsl).unwrap();
+        let shader = shader_from_glsl(None, &fragment);
+        assert_eq!(
+            vec![TextureLayer {
+                name: "s0".to_string(),
+                channel: Some('x'),
+                ratio: None
+            }],
+            shader.color_layers
+        );
+        assert_eq!(
+            vec![
+                TextureLayer {
+                    name: "s6".to_string(),
+                    channel: Some('x'),
+                    ratio: None
+                },
+                TextureLayer {
+                    name: "s7".to_string(),
+                    channel: Some('x'),
+                    ratio: Some(Dependency::Texture(TextureDependency {
+                        name: "s1".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr3".into(),
+                                channels: "x".into(),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3".into(),
+                                channels: "y".into(),
+                                params: None,
+                            },
+                        ],
+                    }))
+                }
+            ],
+            shader.normal_layers
+        );
+
+        assert_eq!(
+            vec![Dependency::Texture(TextureDependency {
+                name: "s8".into(),
+                channels: "x".into(),
+                texcoords: vec![
+                    TexCoord {
+                        name: "in_attr3".into(),
+                        channels: "x".into(),
+                        params: None,
+                    },
+                    TexCoord {
+                        name: "in_attr3".into(),
+                        channels: "y".into(),
+                        params: None,
+                    },
+                ],
+            })],
+            shader.output_dependencies[&SmolStr::from("o1.y")]
         );
     }
 
