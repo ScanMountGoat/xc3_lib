@@ -213,7 +213,7 @@ fn calculate_toon_color(uv: vec2<f32>) -> vec4<f32> {
     let diffuse_lighting = mix(diffuse_indirect, diffuse_direct, n_dot_v);
 
     // TODO: What is the default specular color?
-    var specular_color = vec3(1.0);
+    var specular_color = vec3(0.08);
     if b_specular_col {
         specular_color = g_specular_color.rgb;
     }
@@ -225,7 +225,7 @@ fn calculate_toon_color(uv: vec2<f32>) -> vec4<f32> {
     let specular_lighting = ggx;
 
     // TODO: fresnel?
-    let f0 = mix(vec3(0.08), albedo, metalness);
+    let f0 = mix(specular_color, albedo, metalness);
     // TODO: specular intensity when using specular map?
     let k_specular = f0;
     let k_diffuse = 1.0 - metalness;
@@ -233,7 +233,7 @@ fn calculate_toon_color(uv: vec2<f32>) -> vec4<f32> {
     // TODO: Correctly use both gradients to fix massive melee mythra hair.
     let toon_v = toon_grad_v(g_etc_buffer.z);
     let toon_diffuse = textureSample(g_toon_grad, shared_sampler, vec2(diffuse_lighting, toon_v)).rgb;
-    let toon_specular = specular_lighting * specular_color;
+    let toon_specular = specular_lighting;
 
     output = albedo * k_diffuse * toon_diffuse + toon_specular * k_specular * ambient_occlusion;
 

@@ -29,21 +29,6 @@ pub struct Material {
     pub texture_count: usize,
 }
 
-// TODO: Create a special ID for unrecognized materials?
-const MAT_ID_TOON: f32 = 2.0 / 255.0;
-
-// Choose defaults that have as close to no effect as possible.
-// TODO: Make a struct for this instead?
-// TODO: Move these defaults to xc3_model?
-const OUTPUT_DEFAULTS: [Vec4; 6] = [
-    Vec4::ONE,
-    Vec4::new(0.0, 0.0, 0.0, MAT_ID_TOON),
-    Vec4::new(0.5, 0.5, 1.0, 0.0),
-    Vec4::ZERO,
-    Vec4::new(1.0, 1.0, 1.0, 0.0),
-    Vec4::ZERO,
-];
-
 #[allow(clippy::too_many_arguments)]
 #[tracing::instrument(skip_all)]
 pub fn materials(
@@ -388,12 +373,43 @@ fn attribute_channel_assignment(assignment: Option<&ChannelAssignment>) -> Optio
     }
 }
 
+fn create_bit_info(
+    mat_id: u32,
+    mat_flag: bool,
+    hatching_flag: bool,
+    specular_col: bool,
+    ssr: bool,
+) -> f32 {
+    // Adapted from xeno3/chr/ch/ch11021013.pcsmt, shd00036, createBitInfo,
+    let n_val = mat_id
+        | ((ssr as u32) << 3)
+        | ((specular_col as u32) << 4)
+        | ((mat_flag as u32) << 5)
+        | ((hatching_flag as u32) << 6);
+    (n_val as f32 + 0.1) / 255.0
+}
+
 fn output_default(a: &OutputAssignment, i: usize) -> Vec4 {
+    // TODO: Create a special ID for unrecognized materials instead of toon?
+    let etc_flags = create_bit_info(2, false, false, true, false);
+
+    // Choose defaults that have as close to no effect as possible.
+    // TODO: Make a struct for this instead?
+    // TODO: Move these defaults to xc3_model?
+    let output_defaults: [Vec4; 6] = [
+        Vec4::ONE,
+        Vec4::new(0.0, 0.0, 0.0, etc_flags),
+        Vec4::new(0.5, 0.5, 1.0, 0.0),
+        Vec4::ZERO,
+        Vec4::new(1.0, 1.0, 1.0, 0.0),
+        Vec4::ZERO,
+    ];
+
     vec4(
-        value_channel_assignment(a.x.as_ref()).unwrap_or(OUTPUT_DEFAULTS[i][0]),
-        value_channel_assignment(a.y.as_ref()).unwrap_or(OUTPUT_DEFAULTS[i][1]),
-        value_channel_assignment(a.z.as_ref()).unwrap_or(OUTPUT_DEFAULTS[i][2]),
-        value_channel_assignment(a.w.as_ref()).unwrap_or(OUTPUT_DEFAULTS[i][3]),
+        value_channel_assignment(a.x.as_ref()).unwrap_or(output_defaults[i][0]),
+        value_channel_assignment(a.y.as_ref()).unwrap_or(output_defaults[i][1]),
+        value_channel_assignment(a.z.as_ref()).unwrap_or(output_defaults[i][2]),
+        value_channel_assignment(a.w.as_ref()).unwrap_or(output_defaults[i][3]),
     )
 }
 
