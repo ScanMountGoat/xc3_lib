@@ -15,47 +15,39 @@ use crate::{
 pub fn input_dependencies(
     graph: &Graph,
     attributes: &Attributes,
-    variable: &str,
-    channel: Option<char>,
+    assignments: &[usize],
+    dependent_lines: &[usize],
 ) -> Vec<Dependency> {
-    // Find the most recent assignment for the output variable.
-    let node_index = graph
-        .nodes
-        .iter()
-        .rposition(|n| n.output.name == variable && n.output.channel == channel);
-
     // TODO: Rework this to be cleaner and add more tests.
-    let mut dependencies = texture_dependencies(graph, attributes, variable, channel);
+    let mut dependencies = texture_dependencies(graph, attributes, dependent_lines);
 
     // Add anything assigned directly to the output.
-    if let Some(node_index) = node_index {
-        for i in graph.node_assignments_recursive(node_index, None) {
-            match &graph.nodes[i].input {
-                Expr::Float(f) => dependencies.push(Dependency::Constant((*f).into())),
-                Expr::Parameter {
-                    name,
-                    field,
-                    index,
-                    channel,
-                } => {
-                    if let Expr::Int(index) = index.deref() {
-                        dependencies.push(Dependency::Buffer(BufferDependency {
-                            name: name.into(),
-                            field: field.clone().unwrap_or_default().into(),
-                            index: (*index).try_into().unwrap(),
-                            channels: channel.map(|c| c.to_string().into()).unwrap_or_default(),
-                        }))
-                    }
+    for i in assignments {
+        match &graph.nodes[*i].input {
+            Expr::Float(f) => dependencies.push(Dependency::Constant((*f).into())),
+            Expr::Parameter {
+                name,
+                field,
+                index,
+                channel,
+            } => {
+                if let Expr::Int(index) = index.deref() {
+                    dependencies.push(Dependency::Buffer(BufferDependency {
+                        name: name.into(),
+                        field: field.clone().unwrap_or_default().into(),
+                        index: (*index).try_into().unwrap(),
+                        channels: channel.map(|c| c.to_string().into()).unwrap_or_default(),
+                    }))
                 }
-                _ => (),
             }
+            _ => (),
         }
     }
 
     // TODO: Depth not high enough for complex expressions involving attributes?
     // TODO: Query the graph for known functions instead of hard coding recursion depth.
     dependencies.extend(
-        attribute_dependencies(graph, variable, channel, attributes, Some(1))
+        attribute_dependencies(graph, dependent_lines, attributes, Some(1))
             .into_iter()
             .map(Dependency::Attribute),
     );
@@ -65,30 +57,41 @@ pub fn input_dependencies(
 
 pub fn attribute_dependencies(
     graph: &Graph,
-    variable: &str,
-    channel: Option<char>,
+    dependent_lines: &[usize],
     attributes: &Attributes,
     recursion_depth: Option<usize>,
 ) -> Vec<AttributeDependency> {
-    graph
-        .dependencies_recursive(variable, channel, recursion_depth)
+    // Limit the recursion depth.
+    let max_depth = recursion_depth.unwrap_or(dependent_lines.len());
+    let dependent_lines: Vec<_> = dependent_lines
+        .iter()
+        .rev()
+        .take(max_depth + 1)
+        .rev()
+        .collect();
+
+    dependent_lines
         .into_iter()
         .filter_map(|i| {
             // Check all exprs for binary ops, function args, etc.
-            graph.nodes[i].input.exprs_recursive().iter().find_map(|e| {
-                if let Expr::Global { name, channel } = e {
-                    if attributes.input_locations.contains_left(name.as_str()) {
-                        Some(AttributeDependency {
-                            name: name.into(),
-                            channels: channel.map(|c| c.to_string().into()).unwrap_or_default(),
-                        })
+            graph.nodes[*i]
+                .input
+                .exprs_recursive()
+                .iter()
+                .find_map(|e| {
+                    if let Expr::Global { name, channel } = e {
+                        if attributes.input_locations.contains_left(name.as_str()) {
+                            Some(AttributeDependency {
+                                name: name.into(),
+                                channels: channel.map(|c| c.to_string().into()).unwrap_or_default(),
+                            })
+                        } else {
+                            None
+                        }
                     } else {
                         None
                     }
-                } else {
-                    None
-                }
-            })
+                })
         })
         .collect()
 }
@@ -96,15 +99,13 @@ pub fn attribute_dependencies(
 fn texture_dependencies(
     graph: &Graph,
     attributes: &Attributes,
-    variable: &str,
-    channel: Option<char>,
+    dependent_lines: &[usize],
 ) -> Vec<Dependency> {
-    graph
-        .dependencies_recursive(variable, channel, None)
-        .into_iter()
+    dependent_lines
+        .iter()
         .filter_map(|i| {
             // Check all exprs for binary ops, function args, etc.
-            graph.nodes[i]
+            graph.nodes[*i]
                 .input
                 .exprs_recursive()
                 .iter()
@@ -150,6 +151,7 @@ fn texcoord_args(args: &[Expr], graph: &Graph, attributes: &Attributes) -> Vec<T
         .filter_map(|e| {
             if let Expr::Node { node_index, .. } = e {
                 // Find the attribute used for this input.
+                // TODO: Is this a subset of the dependencies for the output variable?
                 let node_assignments = graph.node_dependencies_recursive(*node_index, None);
                 let (name, channels) =
                     texcoord_name_channels(&node_assignments, graph, attributes)?;
@@ -468,6 +470,8 @@ mod tests {
         let tu = TranslationUnit::parse(glsl).unwrap();
         let graph = Graph::from_glsl(&tu);
         let attributes = find_attribute_locations(&tu);
+        let assignments = graph.assignments_recursive("b", None, None);
+        let dependent_lines = graph.dependencies_recursive("b", None, None);
 
         assert_eq!(
             vec![Dependency::Texture(TextureDependency {
@@ -486,7 +490,7 @@ mod tests {
                     }
                 ]
             })],
-            input_dependencies(&graph, &attributes, "b", None)
+            input_dependencies(&graph, &attributes, &assignments, &dependent_lines)
         );
     }
 
@@ -517,6 +521,8 @@ mod tests {
         let tu = TranslationUnit::parse(glsl).unwrap();
         let graph = Graph::from_glsl(&tu);
         let attributes = find_attribute_locations(&tu);
+        let assignments = graph.assignments_recursive("temp_163", None, None);
+        let dependent_lines = graph.dependencies_recursive("temp_163", None, None);
 
         assert_eq!(
             vec![Dependency::Texture(TextureDependency {
@@ -585,7 +591,7 @@ mod tests {
                     }
                 ]
             })],
-            input_dependencies(&graph, &attributes, "temp_163", None)
+            input_dependencies(&graph, &attributes, &assignments, &dependent_lines)
         );
     }
 
@@ -609,6 +615,8 @@ mod tests {
         let tu = TranslationUnit::parse(glsl).unwrap();
         let graph = Graph::from_glsl(&tu);
         let attributes = find_attribute_locations(&tu);
+        let assignments = graph.assignments_recursive("temp_170", None, None);
+        let dependent_lines = graph.dependencies_recursive("temp_170", None, None);
 
         assert_eq!(
             vec![Dependency::Texture(TextureDependency {
@@ -637,7 +645,7 @@ mod tests {
                     }
                 ]
             })],
-            input_dependencies(&graph, &attributes, "temp_170", None)
+            input_dependencies(&graph, &attributes, &assignments, &dependent_lines)
         );
     }
 
@@ -655,6 +663,8 @@ mod tests {
         let tu = TranslationUnit::parse(glsl).unwrap();
         let graph = Graph::from_glsl(&tu);
         let attributes = find_attribute_locations(&tu);
+        let assignments = graph.assignments_recursive("b", None, None);
+        let dependent_lines = graph.dependencies_recursive("b", None, None);
 
         assert_eq!(
             vec![Dependency::Texture(TextureDependency {
@@ -662,7 +672,7 @@ mod tests {
                 channels: "z".into(),
                 texcoords: Vec::new()
             })],
-            input_dependencies(&graph, &attributes, "b", None)
+            input_dependencies(&graph, &attributes, &assignments, &dependent_lines)
         );
     }
 
@@ -679,6 +689,8 @@ mod tests {
         let tu = TranslationUnit::parse(glsl).unwrap();
         let graph = Graph::from_glsl(&tu);
         let attributes = find_attribute_locations(&tu);
+        let assignments = graph.assignments_recursive("b", None, None);
+        let dependent_lines = graph.dependencies_recursive("b", None, None);
 
         assert_eq!(
             vec![
@@ -693,7 +705,7 @@ mod tests {
                     texcoords: Vec::new()
                 })
             ],
-            input_dependencies(&graph, &attributes, "b", None)
+            input_dependencies(&graph, &attributes, &assignments, &dependent_lines)
         );
     }
 
@@ -722,7 +734,12 @@ mod tests {
                 channels: "x".into(),
                 texcoords: Vec::new()
             })],
-            input_dependencies(&graph, &attributes, "out_attr1", Some('x'))
+            input_dependencies(
+                &graph,
+                &attributes,
+                &graph.assignments_recursive("out_attr1", Some('x'), None),
+                &graph.dependencies_recursive("out_attr1", Some('x'), None)
+            )
         );
         assert_eq!(
             vec![Dependency::Buffer(BufferDependency {
@@ -731,7 +748,12 @@ mod tests {
                 index: 1,
                 channels: "w".into()
             })],
-            input_dependencies(&graph, &attributes, "out_attr1", Some('y'))
+            input_dependencies(
+                &graph,
+                &attributes,
+                &graph.assignments_recursive("out_attr1", Some('y'), None),
+                &graph.dependencies_recursive("out_attr1", Some('y'), None)
+            )
         );
         assert_eq!(
             vec![Dependency::Buffer(BufferDependency {
@@ -740,11 +762,21 @@ mod tests {
                 index: 3,
                 channels: "y".into()
             })],
-            input_dependencies(&graph, &attributes, "out_attr1", Some('z'))
+            input_dependencies(
+                &graph,
+                &attributes,
+                &graph.assignments_recursive("out_attr1", Some('z'), None),
+                &graph.dependencies_recursive("out_attr1", Some('z'), None)
+            )
         );
         assert_eq!(
             vec![Dependency::Constant(1.5.into())],
-            input_dependencies(&graph, &attributes, "out_attr1", Some('w'))
+            input_dependencies(
+                &graph,
+                &attributes,
+                &graph.assignments_recursive("out_attr1", Some('w'), None),
+                &graph.dependencies_recursive("out_attr1", Some('w'), None)
+            )
         );
     }
 
@@ -768,12 +800,14 @@ mod tests {
         let tu = TranslationUnit::parse(glsl).unwrap();
         let graph = Graph::from_glsl(&tu);
         let attributes = find_attribute_locations(&tu);
+        let dependent_lines = graph.dependencies_recursive("out_attr1", Some('y'), None);
+
         assert_eq!(
             vec![AttributeDependency {
                 name: "in_attr2".into(),
                 channels: "x".into(),
             }],
-            attribute_dependencies(&graph, "out_attr1", Some('y'), &attributes, None)
+            attribute_dependencies(&graph, &dependent_lines, &attributes, None)
         );
     }
 
@@ -790,6 +824,8 @@ mod tests {
         let tu = TranslationUnit::parse(glsl).unwrap();
         let graph = Graph::from_glsl(&tu);
         let attributes = find_attribute_locations(&tu);
+        let assignments = graph.assignments_recursive("PIX2", Some('w'), None);
+        let dependent_lines = graph.dependencies_recursive("PIX2", Some('w'), None);
 
         assert_eq!(
             vec![Dependency::Texture(TextureDependency {
@@ -797,7 +833,7 @@ mod tests {
                 channels: "x".into(),
                 texcoords: Vec::new()
             })],
-            input_dependencies(&graph, &attributes, "PIX2", Some('w'))
+            input_dependencies(&graph, &attributes, &assignments, &dependent_lines)
         );
     }
 }

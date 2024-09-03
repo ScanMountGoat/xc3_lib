@@ -124,7 +124,7 @@ pub fn mix_a_b_ratio<'a>(
     Some((a, b, ratio))
 }
 
-fn b_plus_neg_a<'a>(nodes: &'a [Node], b_minus_a: &'a Node) -> Option<(&'a Box<Expr>, &'a Node)> {
+fn b_plus_neg_a<'a>(nodes: &'a [Node], b_minus_a: &'a Node) -> Option<(&'a Expr, &'a Node)> {
     let (b, neg_a) = match &b_minus_a.input {
         Expr::Add(a, b) => match a.deref() {
             Expr::Node {
@@ -168,7 +168,7 @@ pub fn dot3_a_b<'a>(nodes: &'a [Node], node: &'a Node) -> Option<([&'a Node; 3],
     Some(([a1, a2, a3], [b1, b2, b3]))
 }
 
-fn fma_a_b_c<'a>(node: &'a Node) -> Option<(&'a Expr, &'a Expr, &'a Expr)> {
+pub fn fma_a_b_c(node: &Node) -> Option<(&Expr, &Expr, &Expr)> {
     match &node.input {
         Expr::Func { name, args, .. } => {
             if name == "fma" {

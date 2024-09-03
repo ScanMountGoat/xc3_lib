@@ -96,6 +96,7 @@ impl Graph {
         channel: Option<char>,
         recursion_depth: Option<usize>,
     ) -> Vec<usize> {
+        // Find the most recent assignment for the output variable.
         if let Some(i) = self
             .nodes
             .iter()
@@ -139,6 +140,30 @@ impl Graph {
                     }
                 }
             }
+        }
+    }
+
+    /// Return the indices of dependent nodes for `node`
+    /// starting from the last assignment.
+    ///
+    /// Unlike [Self::dependencies_recursive],
+    /// this only considers direct assignment chains like
+    /// `a = b; c = a;` and does not recurse into operands or arguments.
+    pub fn assignments_recursive(
+        &self,
+        variable: &str,
+        channel: Option<char>,
+        recursion_depth: Option<usize>,
+    ) -> Vec<usize> {
+        // Find the most recent assignment for the output variable.
+        if let Some(i) = self
+            .nodes
+            .iter()
+            .rposition(|n| n.output.name == variable && n.output.channel == channel)
+        {
+            self.node_assignments_recursive(i, recursion_depth)
+        } else {
+            Vec::new()
         }
     }
 

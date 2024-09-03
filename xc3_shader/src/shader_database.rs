@@ -25,8 +25,8 @@ use crate::{
     },
     graph::{
         query::{
-            assign_x, assign_x_recursive, clamp_x_zero_one, dot3_a_b, fma_half_half, mix_a_b_ratio,
-            node_expr, normalize, one_minus_x, one_plus_x, sqrt_x, zero_minus_x,
+            assign_x, assign_x_recursive, clamp_x_zero_one, dot3_a_b, fma_a_b_c, fma_half_half,
+            mix_a_b_ratio, node_expr, normalize, one_minus_x, one_plus_x, sqrt_x, zero_minus_x,
         },
         Expr, Graph, Node,
     },
@@ -45,7 +45,11 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
     for i in 0..=5 {
         for c in "xyzw".chars() {
             let name = format!("out_attr{i}");
-            let mut dependencies = input_dependencies(frag, frag_attributes, &name, Some(c));
+            let assignments = frag.assignments_recursive(&name, Some(c), None);
+            let dependent_lines = frag.dependencies_recursive(&name, Some(c), None);
+
+            let mut dependencies =
+                input_dependencies(frag, frag_attributes, &assignments, &dependent_lines);
 
             if let Some((vert, vert_attributes)) = vertex {
                 // Add texture parameters used for the corresponding vertex output.
@@ -60,17 +64,18 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
                 apply_attribute_names(vert, vert_attributes, frag_attributes, &mut dependencies);
             }
 
+            // TODO: This is really slow?
             if i == 0 && c == 'x' {
                 // TODO: This will be different for each channel.
-                color_layers = find_color_layers(frag, "out_attr0", Some('x'), &dependencies)
-                    .unwrap_or_default();
+                color_layers =
+                    find_color_layers(frag, &dependent_lines, &dependencies).unwrap_or_default();
             } else if i == 1 && c == 'y' {
                 if let Some(param) = geometric_specular_aa(frag) {
                     dependencies = vec![Dependency::Buffer(param)];
                 }
             } else if i == 2 && c == 'x' {
-                normal_layers = find_normal_layers(frag, "out_attr2", Some('x'), &dependencies)
-                    .unwrap_or_default();
+                normal_layers =
+                    find_normal_layers(frag, &dependent_lines, &dependencies).unwrap_or_default();
             }
 
             if !dependencies.is_empty() {
@@ -107,7 +112,11 @@ fn shader_from_latte_asm(
             "xyzw".chars().map(move |c| {
                 let name = format!("PIX{i}");
 
-                let mut dependencies = input_dependencies(frag, frag_attributes, &name, Some(c));
+                let assignments = frag.assignments_recursive(&name, Some(c), None);
+                let dependent_lines = frag.dependencies_recursive(&name, Some(c), None);
+
+                let mut dependencies =
+                    input_dependencies(frag, frag_attributes, &assignments, &dependent_lines);
 
                 // Add texture parameters used for the corresponding vertex output.
                 // Most shaders apply UV transforms in the vertex shader.
@@ -155,15 +164,10 @@ fn shader_from_latte_asm(
 
 fn find_color_layers(
     frag: &Graph,
-    output: &str,
-    channel: Option<char>,
+    dependent_lines: &[usize],
     dependencies: &[Dependency],
 ) -> Option<Vec<TextureLayer>> {
-    let node_index = frag
-        .nodes
-        .iter()
-        .rposition(|n| n.output.name == output && n.output.channel == channel)?;
-    let last_node_index = *frag.node_dependencies_recursive(node_index, None).last()?;
+    let last_node_index = *dependent_lines.last()?;
     let last_node = frag.nodes.get(last_node_index)?;
 
     // matCol.xyz in pcmdo shaders.
@@ -178,7 +182,7 @@ fn find_color_layers(
 
     let mut layers = Vec::new();
 
-    // Shaders can blend multiple layers with getPixelCalcOver.
+    // Shaders can blend layers with getPixelCalcOver.
     while let Some((mat_col, layer, ratio)) = mix_a_b_ratio(&frag.nodes, current_col) {
         let mut layer = layer;
         if let Some(n) = node_expr(&frag.nodes, layer) {
@@ -199,7 +203,32 @@ fn find_color_layers(
         current_col = mat_col;
     }
 
-    // TODO: Also check for getPixelCalcRatio and getPixelCalcRatioBlend.
+    // TODO: Check for each blend operation at each layer.
+    // TODO: Store the blend operation in the database.
+    // TODO: Also check for getPixelCalcRatioBlend.
+
+    // Shaders can blend layers by adding getPixelCalcRatio.
+    while let Some((a, b, c)) = fma_a_b_c(current_col) {
+        if let Some(mat_col) = node_expr(&frag.nodes, c) {
+            // TODO: Function for recursively finding texture?
+            if let Some(a) = node_expr(&frag.nodes, a) {
+                let tex = assign_x_recursive(&frag.nodes, a);
+                if let Some((name, channel)) = texture_name_channel(&tex.input) {
+                    // TODO: Store that this is multiply instead of mix.
+                    let ratio = ratio_dependency(b, &frag.nodes, dependencies);
+                    layers.push(TextureLayer {
+                        name,
+                        channel,
+                        ratio,
+                    });
+                }
+            }
+
+            current_col = mat_col;
+        } else {
+            break;
+        }
+    }
 
     let base = assign_x_recursive(&frag.nodes, current_col);
     if let Some((name, channel)) = texture_name_channel(&base.input) {
@@ -227,15 +256,10 @@ fn calc_monochrome<'a>(nodes: &'a [Node], node: &'a Node) -> Option<([&'a Node; 
 
 fn find_normal_layers(
     frag: &Graph,
-    output: &str,
-    channel: Option<char>,
+    dependent_lines: &[usize],
     dependencies: &[Dependency],
 ) -> Option<Vec<TextureLayer>> {
-    let node_index = frag
-        .nodes
-        .iter()
-        .rposition(|n| n.output.name == output && n.output.channel == channel)?;
-    let last_node_index = *frag.node_dependencies_recursive(node_index, None).last()?;
+    let last_node_index = *dependent_lines.last()?;
     let last_node = frag.nodes.get(last_node_index)?;
 
     let node = assign_x(&frag.nodes, last_node)?;
@@ -276,8 +300,8 @@ fn find_normal_layers(
         nom_work = layer_nom_work;
     }
 
-    // TODO: alternate add normal and regular mix?
-    // TODO: Store the blend operation in the database?
+    // TODO: Check for each blend operation at each layer.
+    // TODO: Store the blend operation in the database.
     while let Some((layer_nom_work, n2, ratio)) = mix_a_b_ratio(&frag.nodes, nom_work) {
         if let Some(n2_node) = node_expr(&frag.nodes, n2) {
             let ratio = ratio_dependency(ratio, &frag.nodes, dependencies);
@@ -365,7 +389,7 @@ fn texture_name_channel(input: &Expr) -> Option<(String, Option<char>)> {
             args,
             channel,
         } => {
-            if name == "texture" {
+            if name.starts_with("texture") {
                 if let Some(Expr::Global { name, .. }) = args.first() {
                     Some((name.clone(), *channel))
                 } else {
@@ -619,10 +643,13 @@ fn apply_attribute_names(
                     .get_by_right(fragment_location)
                 {
                     for c in attribute.channels.chars() {
+                        // TODO: Avoid calculating this more than once.
+                        let dependent_lines =
+                            vertex.dependencies_recursive(vertex_output_name, Some(c), None);
+
                         if let Some(input_attribute) = attribute_dependencies(
                             vertex,
-                            vertex_output_name,
-                            Some(c),
+                            &dependent_lines,
                             vertex_attributes,
                             None,
                         )
@@ -646,7 +673,10 @@ fn find_texcoord_input_name_channels(
     // We only need to look up one output per texcoord.
     let c = texcoord.channels.chars().next();
 
-    attribute_dependencies(vertex, vertex_output_name, c, vertex_attributes, None)
+    // TODO: Avoid calculating this more than once.
+    let dependent_lines = vertex.dependencies_recursive(vertex_output_name, c, None);
+
+    attribute_dependencies(vertex, &dependent_lines, vertex_attributes, None)
         .first()
         .map(|a| (a.name.to_string(), a.channels.to_string()))
 }
@@ -1403,6 +1433,91 @@ mod tests {
                     },
                     TexCoord {
                         name: "in_attr3".into(),
+                        channels: "y".into(),
+                        params: None,
+                    },
+                ],
+            })],
+            shader.output_dependencies[&SmolStr::from("o1.y")]
+        );
+    }
+
+    #[test]
+    fn shader_from_fragment_sena_body() {
+        // xeno3/chr/ch/ch11061013, "bodydenim_toon", shd0009.frag
+        let glsl = include_str!("data/ch11061013.9.frag");
+
+        // Some shaders use multiple color blending modes.
+        let fragment = TranslationUnit::parse(glsl).unwrap();
+        let shader = shader_from_glsl(None, &fragment);
+        assert_eq!(
+            vec![
+                TextureLayer {
+                    name: "s0".to_string(),
+                    channel: Some('x'),
+                    ratio: None
+                },
+                TextureLayer {
+                    name: "gTResidentTex03".into(),
+                    channel: Some('x',),
+                    ratio: Some(Dependency::Texture(TextureDependency {
+                        name: "s1".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "x".into(),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "y".into(),
+                                params: None,
+                            },
+                        ],
+                    },),),
+                },
+                TextureLayer {
+                    name: "gTResidentTex04".into(),
+                    channel: Some('x',),
+                    ratio: None,
+                },
+            ],
+            shader.color_layers
+        );
+        assert_eq!(
+            vec![
+                TextureLayer {
+                    name: "s2".to_string(),
+                    channel: Some('x'),
+                    ratio: None
+                },
+                TextureLayer {
+                    name: "gTResidentTex09".to_string(),
+                    channel: Some('x'),
+                    ratio: Some(Dependency::Buffer(BufferDependency {
+                        name: "U_Mate".into(),
+                        field: "gWrkFl4".into(),
+                        index: 2,
+                        channels: "x".into()
+                    }))
+                }
+            ],
+            shader.normal_layers
+        );
+
+        assert_eq!(
+            vec![Dependency::Texture(TextureDependency {
+                name: "s3".into(),
+                channels: "x".into(),
+                texcoords: vec![
+                    TexCoord {
+                        name: "in_attr4".into(),
+                        channels: "x".into(),
+                        params: None,
+                    },
+                    TexCoord {
+                        name: "in_attr4".into(),
                         channels: "y".into(),
                         params: None,
                     },
