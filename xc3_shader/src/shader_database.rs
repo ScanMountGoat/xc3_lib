@@ -182,8 +182,13 @@ fn find_color_layers(
 
     let mut layers = Vec::new();
 
-    // Shaders can blend layers with getPixelCalcOver.
-    while let Some((mat_col, layer, ratio)) = mix_a_b_ratio(&frag.nodes, current_col) {
+    // TODO: Store the blend operation in the database.
+    // TODO: Also check for getPixelCalcRatioBlend.
+
+    // Shaders can blend layers with getPixelCalcOver or getPixelCalcRatio.
+    while let Some((mat_col, layer, ratio)) =
+        mix_a_b_ratio(&frag.nodes, current_col).or_else(|| pixel_calc_ratio(current_col))
+    {
         let mut layer = layer;
         if let Some(n) = node_expr(&frag.nodes, layer) {
             layer = &assign_x_recursive(&frag.nodes, n).input;
@@ -200,30 +205,8 @@ fn find_color_layers(
             });
         }
 
-        current_col = mat_col;
-    }
-
-    // TODO: Check for each blend operation at each layer.
-    // TODO: Store the blend operation in the database.
-    // TODO: Also check for getPixelCalcRatioBlend.
-
-    // Shaders can blend layers by adding getPixelCalcRatio.
-    while let Some((a, b, c)) = fma_a_b_c(current_col) {
-        if let Some(mat_col) = node_expr(&frag.nodes, c) {
-            // TODO: Function for recursively finding texture?
-            if let Some(a) = node_expr(&frag.nodes, a) {
-                let tex = assign_x_recursive(&frag.nodes, a);
-                if let Some((name, channel)) = texture_name_channel(&tex.input) {
-                    // TODO: Store that this is multiply instead of mix.
-                    let ratio = ratio_dependency(b, &frag.nodes, dependencies);
-                    layers.push(TextureLayer {
-                        name,
-                        channel,
-                        ratio,
-                    });
-                }
-            }
-
+        // TODO: This can sometimes be a parameter like gWrkCol.
+        if let Some(mat_col) = node_expr(&frag.nodes, mat_col) {
             current_col = mat_col;
         } else {
             break;
@@ -231,6 +214,7 @@ fn find_color_layers(
     }
 
     let base = assign_x_recursive(&frag.nodes, current_col);
+
     if let Some((name, channel)) = texture_name_channel(&base.input) {
         layers.push(TextureLayer {
             name,
@@ -245,8 +229,14 @@ fn find_color_layers(
     Some(layers)
 }
 
+fn pixel_calc_ratio(node: &Node) -> Option<(&Expr, &Expr, &Expr)> {
+    // getPixelCalcRatio in pcmdo fragment shaders for XC1 and XC3.
+    let (a, b, c) = fma_a_b_c(node)?;
+    Some((c, a, b))
+}
+
 fn calc_monochrome<'a>(nodes: &'a [Node], node: &'a Node) -> Option<([&'a Node; 3], &'a Expr)> {
-    // calcMonochrome in pcmdo fragment shaders fro XC1 and XC3.
+    // calcMonochrome in pcmdo fragment shaders for XC1 and XC3.
     // TODO: Check weight values for XC1 (0.3, 0.59, 0.11) or XC3 (0.01, 0.01, 0.01)?
     let (_mat_col, monochrome, monochrome_ratio) = mix_a_b_ratio(nodes, node)?;
     let monochrome = node_expr(nodes, monochrome)?;
@@ -317,17 +307,21 @@ fn find_normal_layers(
             }
         }
 
-        if let Some(n1) = normal_map_fma(&frag.nodes, layer_nom_work) {
-            if let Some((name, channel)) = texture_name_channel(&n1.input) {
-                layers.push(TextureLayer {
-                    name,
-                    channel,
-                    ratio: None,
-                });
+        if let Some(layer_nom_work) = node_expr(&frag.nodes, layer_nom_work) {
+            if let Some(n1) = normal_map_fma(&frag.nodes, layer_nom_work) {
+                if let Some((name, channel)) = texture_name_channel(&n1.input) {
+                    layers.push(TextureLayer {
+                        name,
+                        channel,
+                        ratio: None,
+                    });
+                }
             }
-        }
 
-        nom_work = layer_nom_work;
+            nom_work = layer_nom_work;
+        } else {
+            break;
+        }
     }
 
     // We start from the output, so these are in reverse order.
@@ -491,7 +485,7 @@ fn pixel_calc_add_normal_n2<'a>(nodes: &'a [Node], r: &'a Node) -> Option<&'a No
         }
         _ => None,
     }?;
-    let node = zero_minus_x(nodes, node)?;
+    let node = node_expr(nodes, zero_minus_x(node)?)?;
     let node = match &node.input {
         Expr::Mul(x, y) => match (x.deref(), y.deref()) {
             (Expr::Node { node_index: x, .. }, _) => nodes.get(*x),
@@ -538,7 +532,7 @@ fn geometric_specular_aa(frag: &Graph) -> Option<BufferDependency> {
     let last_node = frag.nodes.get(last_node_index)?;
 
     let node = assign_x(&frag.nodes, last_node)?;
-    let node = one_minus_x(&frag.nodes, node)?;
+    let node = node_expr(&frag.nodes, one_minus_x(&frag.nodes, node)?)?;
     let node = sqrt_x(&frag.nodes, node)?;
     let node = clamp_x_zero_one(&frag.nodes, node)?;
     let node = match &node.input {

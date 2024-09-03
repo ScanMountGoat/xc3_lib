@@ -37,15 +37,15 @@ pub fn assign_x_recursive<'a>(nodes: &'a [Node], n: &'a Node) -> &'a Node {
     node
 }
 
-pub fn one_minus_x<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
+pub fn one_minus_x<'a>(nodes: &'a [Node], node: &'a Node) -> Option<&'a Expr> {
     let node = one_plus_x(nodes, node)?;
-    zero_minus_x(nodes, node)
+    zero_minus_x(node)
 }
 
-pub fn zero_minus_x<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
+pub fn zero_minus_x(node: &Node) -> Option<&Expr> {
     match &node.input {
         Expr::Sub(a, b) => match (a.deref(), b.deref()) {
-            (Expr::Float(0.0), Expr::Node { node_index, .. }) => nodes.get(*node_index),
+            (Expr::Float(0.0), x) => Some(x),
             _ => None,
         },
         _ => None,
@@ -101,7 +101,7 @@ pub fn sqrt_x<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
 pub fn mix_a_b_ratio<'a>(
     nodes: &'a [Node],
     node: &'a Node,
-) -> Option<(&'a Node, &'a Expr, &'a Expr)> {
+) -> Option<(&'a Expr, &'a Expr, &'a Expr)> {
     // mix(a, b, ratio) = fma(b - a, ratio, a)
     // = ratio * b - ratio * a + a
     // = ratio * b + (1.0 - ratio) * a
@@ -110,7 +110,6 @@ pub fn mix_a_b_ratio<'a>(
     // TODO: Should these functions take a callback to handle branching paths?
     // TODO: Some sort of query macro or function that takes code as input?
     let (x, y, a1) = fma_a_b_c(node)?;
-    let a1 = node_expr(nodes, a1)?;
 
     let (ratio, (b, a)) = node_expr(nodes, x)
         .and_then(|b_minus_a| Some((y, b_plus_neg_a(nodes, b_minus_a)?)))
@@ -121,21 +120,20 @@ pub fn mix_a_b_ratio<'a>(
     if a != a1 {
         return None;
     }
+
     Some((a, b, ratio))
 }
 
-fn b_plus_neg_a<'a>(nodes: &'a [Node], b_minus_a: &'a Node) -> Option<(&'a Expr, &'a Node)> {
-    let (b, neg_a) = match &b_minus_a.input {
-        Expr::Add(a, b) => match a.deref() {
-            Expr::Node {
-                node_index: neg_b, ..
-            } => Some((b, nodes.get(*neg_b)?)),
-            _ => None,
-        },
+fn b_plus_neg_a<'a>(nodes: &'a [Node], b_minus_a: &'a Node) -> Option<(&'a Expr, &'a Expr)> {
+    let (x, y) = match &b_minus_a.input {
+        Expr::Add(x, y) => Some((x.deref(), y.deref())),
         _ => None,
     }?;
-    let a = zero_minus_x(nodes, neg_a)?;
-    Some((b, a))
+
+    // Addition is commutative.
+    node_expr(nodes, x)
+        .and_then(|neg_a| Some((y, zero_minus_x(neg_a)?)))
+        .or_else(|| node_expr(nodes, y).and_then(|neg_a| Some((x, zero_minus_x(neg_a)?))))
 }
 
 pub fn node_expr<'a>(nodes: &'a [Node], e: &Expr) -> Option<&'a Node> {
