@@ -19,6 +19,8 @@
 //! with [assignments_recursive](super::Graph::assignments_recursive)
 //! avoids needing to handle added or removed lines found in type-3 clones.
 
+use crate::graph::UnaryOp;
+
 use super::{BinaryOp, Expr, Graph, Node};
 use indoc::indoc;
 use std::{collections::BTreeMap, ops::Deref};
@@ -77,8 +79,28 @@ fn check_exprs<'a>(
 ) -> bool {
     let mut check = |a, b| check_exprs(a, b, query_nodes, input_nodes, vars);
 
-    // TODO: 0.0 - x and -x should be the same.
     match (query, input) {
+        (Expr::Binary(BinaryOp::Sub, a1, b1), Expr::Binary(BinaryOp::Add, a2, b2)) => {
+            // a - b == a + (-b) == a + (0.0 - b)
+            // TODO: Find a way to avoid repetition.
+            match b2.deref() {
+                Expr::Unary(UnaryOp::Negate, b2) => check(a1, a2) && check(b1, b2),
+                Expr::Binary(BinaryOp::Sub, z, b2) => {
+                    **z == Expr::Float(0.0) && check(a1, a2) && check(b1, b2)
+                }
+                _ => false,
+            }
+        }
+        (Expr::Binary(BinaryOp::Add, a1, b1), Expr::Binary(BinaryOp::Sub, a2, b2)) => {
+            // a + (-b) == a + (0.0 - b) == a - b
+            match b1.deref() {
+                Expr::Unary(UnaryOp::Negate, b1) => check(a1, a2) && check(b1, b2),
+                Expr::Binary(BinaryOp::Sub, z, b1) => {
+                    **z == Expr::Float(0.0) && check(a1, a2) && check(b1, b2)
+                }
+                _ => false,
+            }
+        }
         (Expr::Unary(op1, a1), Expr::Unary(op2, a2)) => op1 == op2 && check(a1, a2),
         (Expr::Binary(op1, a1, b1), Expr::Binary(op2, a2, b2)) => {
             op1 == op2
@@ -104,25 +126,42 @@ fn check_exprs<'a>(
                 channel: channel2,
             },
         ) => {
-            // TODO: commutativity for fma
             name1 == name2
                 && channel1 == channel2
                 && args1.len() == args2.len()
-                && args1.iter().zip(args2).all(|(a1, a2)| check(a1, a2))
+                && if name1 == "fma" {
+                    // commutativity of the mul part of fma
+                    check(&args1[0], &args2[0])
+                        && check(&args1[1], &args2[1])
+                        && check(&args1[2], &args2[2])
+                        || check(&args1[1], &args2[0])
+                            && check(&args1[0], &args2[1])
+                            && check(&args1[2], &args2[2])
+                } else {
+                    args1.iter().zip(args2).all(|(a1, a2)| check(a1, a2))
+                }
         }
         (
             Expr::Node {
-                node_index: n1,
-                channel: c1,
+                node_index,
+                channel: _,
             },
+            b,
+        ) => {
+            // Recursively eliminate assignments from query.
+            // TODO: How to handle channels?
+            check(&query_nodes[*node_index].input, b)
+        }
+        (
+            a,
             Expr::Node {
-                node_index: n2,
-                channel: c2,
+                node_index,
+                channel: _,
             },
         ) => {
-            // TODO: is this the correct way to handle variables?
-            // TODO: handle (node, _) and (_, node) by just following assignments first?
-            c1 == c2 && check(&query_nodes[*n1].input, &input_nodes[*n2].input)
+            // Recursively eliminate assignments from input.
+            // TODO: How to handle channels?
+            check(a, &input_nodes[*node_index].input)
         }
         (Expr::Global { name, channel: _ }, i) => {
             // TODO: What happens if the var is already in the map?
@@ -130,6 +169,14 @@ fn check_exprs<'a>(
             vars.insert(name.clone(), i);
             // TODO: Does this need to check that name usage is consistent for query and input?
             true
+        }
+        (Expr::Unary(UnaryOp::Negate, a1), Expr::Binary(BinaryOp::Sub, a2, b2)) => {
+            // 0.0 - x == -x
+            **a2 == Expr::Float(0.0) && check(a1, b2)
+        }
+        (Expr::Binary(BinaryOp::Sub, a1, b1), Expr::Unary(UnaryOp::Negate, a2)) => {
+            // 0.0 - x == -x
+            **a1 == Expr::Float(0.0) && check(b1, a2)
         }
         _ => query == input,
     }
@@ -277,20 +324,44 @@ mod tests {
     }
 
     #[test]
-    fn query_single_binary_expr() {
-        // TODO: commutativity?
+    fn query_single_binary_expr_mul() {
         assert!(query_glsl("c = 1.0 * 2.0;", "d = 1.0 * 2.0;").is_some());
+        assert!(query_glsl("c = 1.0 * 2.0;", "d = 2.0 * 1.0;").is_some());
+    }
+
+    #[test]
+    fn query_single_binary_expr_add() {
+        assert!(query_glsl("c = 1.0 + 2.0;", "d = 1.0 + 2.0;").is_some());
+        assert!(query_glsl("c = 1.0 + 2.0;", "d = 2.0 + 1.0;").is_some());
+    }
+
+    #[test]
+    fn query_negate() {
+        assert!(query_glsl("c = 0.0 - x;", "d = -x;").is_some());
+        assert!(query_glsl("c = -x;", "d = 0.0 - x;").is_some());
+    }
+
+    #[test]
+    fn query_subtract() {
+        assert!(query_glsl("c = a - b;", "d = a + (-b);").is_some());
+        assert!(query_glsl("c = a + (-b);", "d = a - b;").is_some());
+        assert!(query_glsl("c = a - b;", "d = a + (0.0 -b);").is_some());
+        assert!(query_glsl("c = a + (0.0 -b);", "d = a - b;").is_some());
     }
 
     #[test]
     fn query_single_binary_variable_expr() {
-        // TODO: commutativity?
         assert!(query_glsl("c = a * b;", "d = b * c;").is_some());
     }
 
     #[test]
     fn query_single_binary_variable_expr_invalid_operand() {
         assert!(query_glsl("c = a / 3.0;", "d = b / 2.0;").is_none());
+    }
+
+    #[test]
+    fn query_negation() {
+        assert!(query_glsl("c = 1.0 * 2.0;", "d = 1.0 * 2.0;").is_some());
     }
 
     #[test]
@@ -330,5 +401,26 @@ mod tests {
         .is_none());
     }
 
-    // TODO: Test case for reducing assignments for specular AA code
+    #[test]
+    fn query_simplification() {
+        assert!(query_glsl(
+            indoc! {"
+                result = 0.0 - glossiness;
+                result = 1.0 + result;
+                result = fma(result, result, temp);
+                result = clamp(result, 0.0, 1.0);
+                result = sqrt(result);
+                result = 0.0 - result;
+                result = result + 1.0;
+                result = result;
+            "},
+            indoc! {"
+                result = 1.0 - glossiness;
+                result = fma(result, result, temp);
+                result = clamp(result, 0.0, 1.0);
+                result = 1.0 - sqrt(result);
+            "}
+        )
+        .is_some());
+    }
 }
