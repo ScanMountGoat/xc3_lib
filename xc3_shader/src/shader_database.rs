@@ -172,13 +172,13 @@ fn find_color_layers(
     let last_node = frag.nodes.get(last_node_index)?;
 
     // matCol.xyz in pcmdo shaders.
-    let mut current_col = assign_x(&frag.nodes, last_node)?;
+    let mut current_col = assign_x(&frag.nodes, &last_node.input)?;
 
     // This isn't always present for all materials in all games.
     // Xenoblade 1 DE and Xenoblade 3 both seem to do this for non map materials.
     if let Some((mat_cols, _monochrome_ratio)) = calc_monochrome(&frag.nodes, current_col) {
         // TODO: Select the appropriate channel.
-        current_col = mat_cols[0];
+        current_col = node_expr(&frag.nodes, mat_cols[0])?;
     }
 
     let mut layers = Vec::new();
@@ -192,7 +192,7 @@ fn find_color_layers(
     {
         let mut layer = layer;
         if let Some(n) = node_expr(&frag.nodes, layer) {
-            layer = &assign_x_recursive(&frag.nodes, n).input;
+            layer = assign_x_recursive(&frag.nodes, n);
         }
 
         // TODO: Some texture layers use parameters instead of texture color.
@@ -216,7 +216,7 @@ fn find_color_layers(
 
     let base = assign_x_recursive(&frag.nodes, current_col);
 
-    if let Some((name, channel)) = texture_name_channel(&base.input) {
+    if let Some((name, channel)) = texture_name_channel(base) {
         layers.push(TextureLayer {
             name,
             channel,
@@ -230,16 +230,16 @@ fn find_color_layers(
     Some(layers)
 }
 
-fn pixel_calc_ratio(node: &Node) -> Option<(&Expr, &Expr, &Expr)> {
+fn pixel_calc_ratio(expr: &Expr) -> Option<(&Expr, &Expr, &Expr)> {
     // getPixelCalcRatio in pcmdo fragment shaders for XC1 and XC3.
-    let (a, b, c) = fma_a_b_c(node)?;
+    let (a, b, c) = fma_a_b_c(expr)?;
     Some((c, a, b))
 }
 
-fn calc_monochrome<'a>(nodes: &'a [Node], node: &'a Node) -> Option<([&'a Node; 3], &'a Expr)> {
+fn calc_monochrome<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<([&'a Expr; 3], &'a Expr)> {
     // calcMonochrome in pcmdo fragment shaders for XC1 and XC3.
     // TODO: Check weight values for XC1 (0.3, 0.59, 0.11) or XC3 (0.01, 0.01, 0.01)?
-    let (_mat_col, monochrome, monochrome_ratio) = mix_a_b_ratio(nodes, node)?;
+    let (_mat_col, monochrome, monochrome_ratio) = mix_a_b_ratio(nodes, expr)?;
     let monochrome = node_expr(nodes, monochrome)?;
     let (mat_col, _monochrome_weights) = dot3_a_b(nodes, monochrome)?;
     Some((mat_col, monochrome_ratio))
@@ -253,9 +253,8 @@ fn find_normal_layers(
     let last_node_index = *dependent_lines.last()?;
     let last_node = frag.nodes.get(last_node_index)?;
 
-    let node = assign_x(&frag.nodes, last_node)?;
+    let node = assign_x(&frag.nodes, &last_node.input)?;
 
-    // TODO: function for detecting fma?
     // setMrtNormal in pcmdo shaders.
     let view_normal = fma_half_half(&frag.nodes, node)?;
     let view_normal = assign_x_recursive(&frag.nodes, view_normal);
@@ -264,14 +263,14 @@ fn find_normal_layers(
     // TODO: front facing in calcNormalZAbs in pcmdo?
 
     // nomWork input for getCalcNormalMap in pcmdo shaders.
-    let nom_work = calc_normal_map(frag, view_normal)?;
-    let mut nom_work = nom_work[0];
+    let nom_work = calc_normal_map(frag, &view_normal.input)?;
+    let mut nom_work = node_expr(&frag.nodes, nom_work[0])?;
 
     let mut layers = Vec::new();
 
     // Some shaders layer more than one additional normal map.
     while let Some((layer_nom_work, n2, ratio)) = pixel_calc_add_normal(&frag.nodes, nom_work) {
-        if let Some((name, channel)) = texture_name_channel(&n2.input) {
+        if let Some((name, channel)) = texture_name_channel(n2) {
             let ratio = ratio_dependency(ratio, &frag.nodes, dependencies);
             layers.push(TextureLayer {
                 name,
@@ -280,7 +279,7 @@ fn find_normal_layers(
             });
         }
         if let Some(n1) = normal_map_fma(&frag.nodes, layer_nom_work) {
-            if let Some((name, channel)) = texture_name_channel(&n1.input) {
+            if let Some((name, channel)) = texture_name_channel(n1) {
                 layers.push(TextureLayer {
                     name,
                     channel,
@@ -298,7 +297,7 @@ fn find_normal_layers(
             let ratio = ratio_dependency(ratio, &frag.nodes, dependencies);
 
             if let Some(n2) = normal_map_fma(&frag.nodes, n2_node) {
-                if let Some((name, channel)) = texture_name_channel(&n2.input) {
+                if let Some((name, channel)) = texture_name_channel(n2) {
                     layers.push(TextureLayer {
                         name,
                         channel,
@@ -310,7 +309,7 @@ fn find_normal_layers(
 
         if let Some(layer_nom_work) = node_expr(&frag.nodes, layer_nom_work) {
             if let Some(n1) = normal_map_fma(&frag.nodes, layer_nom_work) {
-                if let Some((name, channel)) = texture_name_channel(&n1.input) {
+                if let Some((name, channel)) = texture_name_channel(n1) {
                     layers.push(TextureLayer {
                         name,
                         channel,
@@ -341,7 +340,7 @@ fn ratio_dependency(
     let mut ratio = ratio;
     if let Some(n) = node_expr(nodes, ratio) {
         let n = assign_x_recursive(nodes, n);
-        ratio = &n.input;
+        ratio = n;
     }
 
     buffer_dependency(ratio)
@@ -400,8 +399,8 @@ fn texture_name_channel(input: &Expr) -> Option<(String, Option<char>)> {
 
 fn pixel_calc_add_normal<'a>(
     nodes: &'a [Node],
-    nom_work: &'a Node,
-) -> Option<(&'a Node, &'a Node, &'a Expr)> {
+    nom_work: &'a Expr,
+) -> Option<(&'a Expr, &'a Expr, &'a Expr)> {
     // getPixelCalcAddNormal in pcmdo shaders.
     // normalize(mix(nomWork, normalize(r), ratio))
     // XC2: ratio * (normalize(r) - nomWork) + nomWork
@@ -428,13 +427,13 @@ fn pixel_calc_add_normal<'a>(
             node_expr(nodes, b).and_then(|r| Some((pixel_calc_add_normal_n2(nodes, r)?, a)))
         })?;
 
-    Some((nom_work, n2, ratio))
+    Some((&nom_work.input, n2, ratio))
 }
 
-fn normal_map_fma<'a>(nodes: &'a [Node], nom_work: &'a Node) -> Option<&'a Node> {
+fn normal_map_fma<'a>(nodes: &'a [Node], nom_work: &'a Expr) -> Option<&'a Expr> {
     // Extract the texture for n1 if present.
     // This will only work for base layers.
-    let node = match &nom_work.input {
+    let node = match nom_work {
         Expr::Func { name, args, .. } => {
             if name == "fma" {
                 // This could be fma(x, 2.0, -1.0) or fma(x, 2.0, -1.0039216)
@@ -448,11 +447,11 @@ fn normal_map_fma<'a>(nodes: &'a [Node], nom_work: &'a Node) -> Option<&'a Node>
         }
         _ => None,
     }?;
-    let node = assign_x(nodes, node)?;
-    Some(node)
+    let expr = assign_x(nodes, &node.input)?;
+    Some(expr)
 }
 
-fn pixel_calc_add_normal_n2<'a>(nodes: &'a [Node], r: &'a Node) -> Option<&'a Node> {
+fn pixel_calc_add_normal_n2<'a>(nodes: &'a [Node], r: &'a Expr) -> Option<&'a Expr> {
     // Extract n2 from the expression for r.
     // TODO: Reduce assignments to allow combining lines?
     // TODO: Allow 0.0 - x or -x
@@ -470,7 +469,7 @@ fn pixel_calc_add_normal_n2<'a>(nodes: &'a [Node], r: &'a Node) -> Option<&'a No
     node_expr(nodes, result.get("n2")?)
 }
 
-fn calc_normal_map<'a>(frag: &'a Graph, view_normal: &'a Node) -> Option<[&'a Node; 3]> {
+fn calc_normal_map<'a>(frag: &'a Graph, view_normal: &'a Expr) -> Option<[&'a Expr; 3]> {
     // getCalcNormalMap in pcmdo shaders.
     // result = normalize(nomWork).x, normalize(tangent).x
     // result = fma(normalize(nomWork).y, normalize(bitangent).x, result)
@@ -500,7 +499,7 @@ fn geometric_specular_aa(frag: &Graph) -> Option<BufferDependency> {
         result = result + 1.0;
         result = result;
     "};
-    let result = query_nodes_glsl(last_node, &frag.nodes, query)?;
+    let result = query_nodes_glsl(&last_node.input, &frag.nodes, query)?;
 
     // TODO: Will this final node ever not be a parameter?
     // TODO: is specular AA ever used with textures as input?
