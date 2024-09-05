@@ -256,7 +256,8 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
         "RECIP_IEEE" => {
             let node = Node {
                 output,
-                input: Expr::Div(
+                input: Expr::Binary(
+                    BinaryOp::Div,
                     Box::new(Expr::Float(1.0)),
                     Box::new(scalar.sources[0].clone()),
                 ),
@@ -270,7 +271,8 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
         "ADD" => {
             let node = Node {
                 output,
-                input: Expr::Add(
+                input: Expr::Binary(
+                    BinaryOp::Add,
                     Box::new(scalar.sources[0].clone()),
                     Box::new(scalar.sources[1].clone()),
                 ),
@@ -282,7 +284,8 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
         "MUL" | "MUL_IEEE" => {
             let node = Node {
                 output,
-                input: Expr::Mul(
+                input: Expr::Binary(
+                    BinaryOp::Mul,
                     Box::new(scalar.sources[0].clone()),
                     Box::new(scalar.sources[1].clone()),
                 ),
@@ -313,7 +316,8 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
 
             let node = Node {
                 output,
-                input: Expr::Div(
+                input: Expr::Binary(
+                    BinaryOp::Div,
                     Box::new(Expr::Node {
                         node_index,
                         channel: scalar.output.channel,
@@ -399,7 +403,8 @@ fn alu_output_modifier(modifier: &str, output: Output, node_index: usize) -> Nod
     match modifier {
         "/2" => Node {
             output,
-            input: Expr::Div(
+            input: Expr::Binary(
+                BinaryOp::Div,
                 Box::new(Expr::Node {
                     node_index,
                     channel,
@@ -409,7 +414,8 @@ fn alu_output_modifier(modifier: &str, output: Output, node_index: usize) -> Nod
         },
         "/4" => Node {
             output,
-            input: Expr::Div(
+            input: Expr::Binary(
+                BinaryOp::Div,
                 Box::new(Expr::Node {
                     node_index,
                     channel,
@@ -419,7 +425,8 @@ fn alu_output_modifier(modifier: &str, output: Output, node_index: usize) -> Nod
         },
         "*2" => Node {
             output,
-            input: Expr::Mul(
+            input: Expr::Binary(
+                BinaryOp::Mul,
                 Box::new(Expr::Node {
                     node_index,
                     channel,
@@ -429,7 +436,8 @@ fn alu_output_modifier(modifier: &str, output: Output, node_index: usize) -> Nod
         },
         "*4" => Node {
             output,
-            input: Expr::Mul(
+            input: Expr::Binary(
+                BinaryOp::Mul,
                 Box::new(Expr::Node {
                     node_index,
                     channel,
@@ -509,7 +517,7 @@ fn alu_src_expr(source: Pair<Rule>, nodes: &Nodes) -> Expr {
     };
 
     if negate {
-        Expr::Negate(Box::new(expr))
+        Expr::Unary(UnaryOp::Negate, Box::new(expr))
     } else {
         expr
     }

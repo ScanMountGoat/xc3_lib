@@ -46,32 +46,42 @@ pub enum Expr {
         name: String,
         channel: Option<char>,
     },
-    Add(Box<Expr>, Box<Expr>),
-    Sub(Box<Expr>, Box<Expr>),
-    Mul(Box<Expr>, Box<Expr>),
-    Div(Box<Expr>, Box<Expr>),
-    LeftShift(Box<Expr>, Box<Expr>),
-    RightShift(Box<Expr>, Box<Expr>),
-    BitOr(Box<Expr>, Box<Expr>),
-    BitXor(Box<Expr>, Box<Expr>),
-    BitAnd(Box<Expr>, Box<Expr>),
-    Equal(Box<Expr>, Box<Expr>),
-    NotEqual(Box<Expr>, Box<Expr>),
-    Less(Box<Expr>, Box<Expr>),
-    Greater(Box<Expr>, Box<Expr>),
-    LessEqual(Box<Expr>, Box<Expr>),
-    GreaterEqual(Box<Expr>, Box<Expr>),
-    Or(Box<Expr>, Box<Expr>),
-    And(Box<Expr>, Box<Expr>),
-    Negate(Box<Expr>),
-    Not(Box<Expr>),
-    Complement(Box<Expr>),
+    Unary(UnaryOp, Box<Expr>),
+    Binary(BinaryOp, Box<Expr>, Box<Expr>),
     Ternary(Box<Expr>, Box<Expr>, Box<Expr>),
     Func {
         name: String,
         args: Vec<Expr>,
         channel: Option<char>,
     },
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum UnaryOp {
+    Negate,
+    Not,
+    Complement,
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum BinaryOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    LeftShift,
+    RightShift,
+    BitOr,
+    BitXor,
+    BitAnd,
+    Equal,
+    NotEqual,
+    Less,
+    Greater,
+    LessEqual,
+    GreaterEqual,
+    Or,
+    And,
 }
 
 #[derive(Debug, PartialEq, Clone, Eq, PartialOrd, Ord)]
@@ -246,71 +256,10 @@ fn add_exprs<'a>(exprs: &mut Vec<&'a Expr>, input: &'a Expr) {
             add_exprs(exprs, index);
         }
         Expr::Global { .. } => (),
-        Expr::Add(lh, rh) => {
-            add_exprs(exprs, lh);
-            add_exprs(exprs, rh);
+        Expr::Unary(_, a) => {
+            add_exprs(exprs, a);
         }
-        Expr::Sub(lh, rh) => {
-            add_exprs(exprs, lh);
-            add_exprs(exprs, rh);
-        }
-        Expr::Mul(lh, rh) => {
-            add_exprs(exprs, lh);
-            add_exprs(exprs, rh);
-        }
-        Expr::Div(lh, rh) => {
-            add_exprs(exprs, lh);
-            add_exprs(exprs, rh);
-        }
-        Expr::LeftShift(lh, rh) => {
-            add_exprs(exprs, lh);
-            add_exprs(exprs, rh);
-        }
-        Expr::RightShift(lh, rh) => {
-            add_exprs(exprs, lh);
-            add_exprs(exprs, rh);
-        }
-        Expr::BitOr(lh, rh) => {
-            add_exprs(exprs, lh);
-            add_exprs(exprs, rh);
-        }
-        Expr::BitXor(lh, rh) => {
-            add_exprs(exprs, lh);
-            add_exprs(exprs, rh);
-        }
-        Expr::BitAnd(lh, rh) => {
-            add_exprs(exprs, lh);
-            add_exprs(exprs, rh);
-        }
-        Expr::Equal(lh, rh) => {
-            add_exprs(exprs, lh);
-            add_exprs(exprs, rh);
-        }
-        Expr::NotEqual(lh, rh) => {
-            add_exprs(exprs, lh);
-            add_exprs(exprs, rh);
-        }
-        Expr::Less(lh, rh) => {
-            add_exprs(exprs, lh);
-            add_exprs(exprs, rh);
-        }
-        Expr::Greater(lh, rh) => {
-            add_exprs(exprs, lh);
-            add_exprs(exprs, rh);
-        }
-        Expr::LessEqual(lh, rh) => {
-            add_exprs(exprs, lh);
-            add_exprs(exprs, rh);
-        }
-        Expr::GreaterEqual(lh, rh) => {
-            add_exprs(exprs, lh);
-            add_exprs(exprs, rh);
-        }
-        Expr::Or(lh, rh) => {
-            add_exprs(exprs, lh);
-            add_exprs(exprs, rh);
-        }
-        Expr::And(lh, rh) => {
+        Expr::Binary(_, lh, rh) => {
             add_exprs(exprs, lh);
             add_exprs(exprs, rh);
         }
@@ -318,15 +267,6 @@ fn add_exprs<'a>(exprs: &mut Vec<&'a Expr>, input: &'a Expr) {
             add_exprs(exprs, a);
             add_exprs(exprs, b);
             add_exprs(exprs, c);
-        }
-        Expr::Negate(a) => {
-            add_exprs(exprs, a);
-        }
-        Expr::Not(a) => {
-            add_exprs(exprs, a);
-        }
-        Expr::Complement(a) => {
-            add_exprs(exprs, a);
         }
         Expr::Func { args, .. } => {
             for arg in args {

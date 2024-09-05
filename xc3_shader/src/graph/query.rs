@@ -19,7 +19,7 @@
 //! with [assignments_recursive](super::Graph::assignments_recursive)
 //! avoids needing to handle added or removed lines found in type-3 clones.
 
-use super::{Expr, Node};
+use super::{BinaryOp, Expr, Node};
 use std::ops::Deref;
 
 pub fn assign_x<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
@@ -44,7 +44,7 @@ pub fn one_minus_x<'a>(nodes: &'a [Node], node: &'a Node) -> Option<&'a Expr> {
 
 pub fn zero_minus_x(node: &Node) -> Option<&Expr> {
     match &node.input {
-        Expr::Sub(a, b) => match (a.deref(), b.deref()) {
+        Expr::Binary(BinaryOp::Sub, a, b) => match (a.deref(), b.deref()) {
             (Expr::Float(0.0), x) => Some(x),
             _ => None,
         },
@@ -55,7 +55,7 @@ pub fn zero_minus_x(node: &Node) -> Option<&Expr> {
 pub fn one_plus_x<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
     // Addition is commutative.
     match &node.input {
-        Expr::Add(a, b) => match (a.deref(), b.deref()) {
+        Expr::Binary(BinaryOp::Add, a, b) => match (a.deref(), b.deref()) {
             (Expr::Node { node_index, .. }, Expr::Float(1.0)) => nodes.get(*node_index),
             (Expr::Float(1.0), Expr::Node { node_index, .. }) => nodes.get(*node_index),
             _ => None,
@@ -126,7 +126,7 @@ pub fn mix_a_b_ratio<'a>(
 
 fn b_plus_neg_a<'a>(nodes: &'a [Node], b_minus_a: &'a Node) -> Option<(&'a Expr, &'a Expr)> {
     let (x, y) = match &b_minus_a.input {
-        Expr::Add(x, y) => Some((x.deref(), y.deref())),
+        Expr::Binary(BinaryOp::Add, x, y) => Some((x.deref(), y.deref())),
         _ => None,
     }?;
 
@@ -157,7 +157,7 @@ pub fn dot3_a_b<'a>(nodes: &'a [Node], node: &'a Node) -> Option<([&'a Node; 3],
     let a2 = node_expr(nodes, a2)?;
 
     let (a1, b1) = match &x.input {
-        Expr::Mul(x, y) => match (x.deref(), y.deref()) {
+        Expr::Binary(BinaryOp::Mul, x, y) => match (x.deref(), y.deref()) {
             (Expr::Node { node_index: x, .. }, y) => Some((nodes.get(*x)?, y)),
             _ => None,
         },
@@ -206,7 +206,7 @@ pub fn fma_half_half<'a>(nodes: &'a [Node], node: &'a Node) -> Option<&'a Node> 
 
 pub fn normalize<'a>(nodes: &'a [Node], node: &'a Node) -> Option<&'a Node> {
     let (x, length) = match &node.input {
-        Expr::Mul(a, b) => match (a.deref(), b.deref()) {
+        Expr::Binary(BinaryOp::Mul, a, b) => match (a.deref(), b.deref()) {
             (Expr::Node { node_index: a, .. }, Expr::Node { node_index: b, .. }) => {
                 Some((nodes.get(*a)?, nodes.get(*b)?))
             }

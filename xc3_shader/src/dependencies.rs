@@ -8,7 +8,7 @@ use xc3_model::shader_database::{
 
 use crate::{
     annotation::shader_source_no_extensions,
-    graph::{Expr, Graph},
+    graph::{BinaryOp, Expr, Graph},
     shader_database::Attributes,
 };
 
@@ -186,7 +186,7 @@ pub fn scale_parameter(graph: &Graph, node_index: usize) -> Option<BufferDepende
     // temp_2 = temp_1
     let node = graph.nodes.get(node_index)?;
     match &node.input {
-        Expr::Mul(a, b) => match (a.deref(), b.deref()) {
+        Expr::Binary(BinaryOp::Mul, a, b) => match (a.deref(), b.deref()) {
             (Expr::Node { .. }, e) => buffer_dependency(e),
             (e, Expr::Node { .. }) => buffer_dependency(e),
             _ => None,
@@ -208,7 +208,7 @@ pub fn tex_matrix(graph: &Graph, node_index: usize) -> Option<[BufferDependency;
     let node = graph.nodes.get(node_index)?;
     // TODO: Add query functions for matching like this?
     let (node, w) = match &node.input {
-        Expr::Add(a, b) => match (a.deref(), b.deref()) {
+        Expr::Binary(BinaryOp::Add, a, b) => match (a.deref(), b.deref()) {
             (Expr::Node { node_index, .. }, e) => {
                 Some((graph.nodes.get(*node_index)?, buffer_dependency(e)?))
             }
@@ -254,7 +254,7 @@ pub fn tex_matrix(graph: &Graph, node_index: usize) -> Option<[BufferDependency;
         _ => None,
     }?;
     let (_u, x) = match &node2.input {
-        Expr::Mul(a, b) => match (a.deref(), b.deref()) {
+        Expr::Binary(BinaryOp::Mul, a, b) => match (a.deref(), b.deref()) {
             (Expr::Node { node_index, .. }, e) => {
                 Some((graph.nodes.get(*node_index)?, buffer_dependency(e)?))
             }

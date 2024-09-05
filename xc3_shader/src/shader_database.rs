@@ -28,7 +28,7 @@ use crate::{
             assign_x, assign_x_recursive, clamp_x_zero_one, dot3_a_b, fma_a_b_c, fma_half_half,
             mix_a_b_ratio, node_expr, normalize, one_minus_x, one_plus_x, sqrt_x, zero_minus_x,
         },
-        Expr, Graph, Node,
+        BinaryOp, Expr, Graph, Node,
     },
 };
 
@@ -487,7 +487,7 @@ fn pixel_calc_add_normal_n2<'a>(nodes: &'a [Node], r: &'a Node) -> Option<&'a No
     }?;
     let node = node_expr(nodes, zero_minus_x(node)?)?;
     let node = match &node.input {
-        Expr::Mul(x, y) => match (x.deref(), y.deref()) {
+        Expr::Binary(BinaryOp::Mul, x, y) => match (x.deref(), y.deref()) {
             (Expr::Node { node_index: x, .. }, _) => nodes.get(*x),
             _ => None,
         },
@@ -558,7 +558,7 @@ fn geometric_specular_aa(frag: &Graph) -> Option<BufferDependency> {
     // TODO: Will this final node ever not be a parameter?
     // TODO: Add an option to get the expr itself?
     match &node.input {
-        Expr::Sub(a, b) => match (a.deref(), b.deref()) {
+        Expr::Binary(BinaryOp::Sub, a, b) => match (a.deref(), b.deref()) {
             (Expr::Float(0.0), e) => buffer_dependency(e),
             _ => None,
         },

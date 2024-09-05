@@ -190,26 +190,8 @@ impl Graph {
                 ),
             },
             Expr::Global { name, channel } => format!("{name}{}", channel_swizzle(*channel)),
-            Expr::Add(a, b) => self.binary_to_glsl(a, "+", b),
-            Expr::Sub(a, b) => self.binary_to_glsl(a, "-", b),
-            Expr::Mul(a, b) => self.binary_to_glsl(a, "*", b),
-            Expr::Div(a, b) => self.binary_to_glsl(a, "/", b),
-            Expr::LeftShift(a, b) => self.binary_to_glsl(a, "<<", b),
-            Expr::RightShift(a, b) => self.binary_to_glsl(a, ">>", b),
-            Expr::BitOr(a, b) => self.binary_to_glsl(a, "|", b),
-            Expr::BitXor(a, b) => self.binary_to_glsl(a, "^", b),
-            Expr::BitAnd(a, b) => self.binary_to_glsl(a, "&", b),
-            Expr::Equal(a, b) => self.binary_to_glsl(a, "==", b),
-            Expr::NotEqual(a, b) => self.binary_to_glsl(a, "!=", b),
-            Expr::Less(a, b) => self.binary_to_glsl(a, "<", b),
-            Expr::Greater(a, b) => self.binary_to_glsl(a, ">", b),
-            Expr::LessEqual(a, b) => self.binary_to_glsl(a, "<=", b),
-            Expr::GreaterEqual(a, b) => self.binary_to_glsl(a, ">=", b),
-            Expr::Or(a, b) => self.binary_to_glsl(a, "||", b),
-            Expr::And(a, b) => self.binary_to_glsl(a, "&&", b),
-            Expr::Negate(a) => self.unary_to_glsl("-", a),
-            Expr::Not(a) => self.unary_to_glsl("!", a),
-            Expr::Complement(a) => self.unary_to_glsl("~", a),
+            Expr::Unary(op, a) => self.unary_to_glsl(*op, a),
+            Expr::Binary(op, a, b) => self.binary_to_glsl(*op, a, b),
             Expr::Ternary(a, b, c) => format!(
                 "{} ? {} : {}",
                 self.expr_to_glsl(a),
@@ -231,11 +213,35 @@ impl Graph {
         }
     }
 
-    fn unary_to_glsl(&self, op: &str, a: &Expr) -> String {
+    fn unary_to_glsl(&self, op: UnaryOp, a: &Expr) -> String {
+        let op = match op {
+            UnaryOp::Negate => "-",
+            UnaryOp::Not => "!",
+            UnaryOp::Complement => "~",
+        };
         format!("{op}{}", self.expr_to_glsl(a))
     }
 
-    fn binary_to_glsl(&self, a: &Expr, op: &str, b: &Expr) -> String {
+    fn binary_to_glsl(&self, op: BinaryOp, a: &Expr, b: &Expr) -> String {
+        let op = match op {
+            BinaryOp::Add => "+",
+            BinaryOp::Sub => "-",
+            BinaryOp::Mul => "*",
+            BinaryOp::Div => "/",
+            BinaryOp::LeftShift => "<<",
+            BinaryOp::RightShift => ">>",
+            BinaryOp::BitOr => "|",
+            BinaryOp::BitXor => "^",
+            BinaryOp::BitAnd => "&",
+            BinaryOp::Equal => "==",
+            BinaryOp::NotEqual => "!=",
+            BinaryOp::Less => "<",
+            BinaryOp::Greater => ">",
+            BinaryOp::LessEqual => "<=",
+            BinaryOp::GreaterEqual => ">=",
+            BinaryOp::Or => "||",
+            BinaryOp::And => "&&",
+        };
         format!("{} {op} {}", self.expr_to_glsl(a), self.expr_to_glsl(b))
     }
 }
@@ -302,40 +308,42 @@ fn input_expr_inner(
         ExprData::DoubleConst(_) => todo!(),
         ExprData::Unary(op, e) => {
             let a = Box::new(input_expr_inner(e, last_assignment_index, channel));
-            match op.content {
+            let op = match op.content {
                 glsl_lang::ast::UnaryOpData::Inc => todo!(),
                 glsl_lang::ast::UnaryOpData::Dec => todo!(),
                 glsl_lang::ast::UnaryOpData::Add => todo!(),
-                glsl_lang::ast::UnaryOpData::Minus => Expr::Negate(a),
-                glsl_lang::ast::UnaryOpData::Not => Expr::Not(a),
-                glsl_lang::ast::UnaryOpData::Complement => Expr::Complement(a),
-            }
+                glsl_lang::ast::UnaryOpData::Minus => UnaryOp::Negate,
+                glsl_lang::ast::UnaryOpData::Not => UnaryOp::Not,
+                glsl_lang::ast::UnaryOpData::Complement => UnaryOp::Complement,
+            };
+            Expr::Unary(op, a)
         }
         ExprData::Binary(op, lh, rh) => {
             let a = Box::new(input_expr_inner(lh, last_assignment_index, None));
             let b = Box::new(input_expr_inner(rh, last_assignment_index, None));
-            match &op.content {
+            let op = match &op.content {
                 // TODO: Fill in remaining ops.
-                glsl_lang::ast::BinaryOpData::Or => Expr::Or(a, b),
+                glsl_lang::ast::BinaryOpData::Or => BinaryOp::Or,
                 glsl_lang::ast::BinaryOpData::Xor => todo!(),
-                glsl_lang::ast::BinaryOpData::And => Expr::And(a, b),
-                glsl_lang::ast::BinaryOpData::BitOr => Expr::BitOr(a, b),
-                glsl_lang::ast::BinaryOpData::BitXor => Expr::BitXor(a, b),
-                glsl_lang::ast::BinaryOpData::BitAnd => Expr::BitAnd(a, b),
-                glsl_lang::ast::BinaryOpData::Equal => Expr::Equal(a, b),
-                glsl_lang::ast::BinaryOpData::NonEqual => Expr::NotEqual(a, b),
-                glsl_lang::ast::BinaryOpData::Lt => Expr::Less(a, b),
-                glsl_lang::ast::BinaryOpData::Gt => Expr::Greater(a, b),
-                glsl_lang::ast::BinaryOpData::Lte => Expr::LessEqual(a, b),
-                glsl_lang::ast::BinaryOpData::Gte => Expr::GreaterEqual(a, b),
-                glsl_lang::ast::BinaryOpData::LShift => Expr::LeftShift(a, b),
-                glsl_lang::ast::BinaryOpData::RShift => Expr::RightShift(a, b),
-                glsl_lang::ast::BinaryOpData::Add => Expr::Add(a, b),
-                glsl_lang::ast::BinaryOpData::Sub => Expr::Sub(a, b),
-                glsl_lang::ast::BinaryOpData::Mult => Expr::Mul(a, b),
-                glsl_lang::ast::BinaryOpData::Div => Expr::Div(a, b),
+                glsl_lang::ast::BinaryOpData::And => BinaryOp::And,
+                glsl_lang::ast::BinaryOpData::BitOr => BinaryOp::BitOr,
+                glsl_lang::ast::BinaryOpData::BitXor => BinaryOp::BitXor,
+                glsl_lang::ast::BinaryOpData::BitAnd => BinaryOp::BitAnd,
+                glsl_lang::ast::BinaryOpData::Equal => BinaryOp::Equal,
+                glsl_lang::ast::BinaryOpData::NonEqual => BinaryOp::NotEqual,
+                glsl_lang::ast::BinaryOpData::Lt => BinaryOp::Less,
+                glsl_lang::ast::BinaryOpData::Gt => BinaryOp::Greater,
+                glsl_lang::ast::BinaryOpData::Lte => BinaryOp::LessEqual,
+                glsl_lang::ast::BinaryOpData::Gte => BinaryOp::GreaterEqual,
+                glsl_lang::ast::BinaryOpData::LShift => BinaryOp::LeftShift,
+                glsl_lang::ast::BinaryOpData::RShift => BinaryOp::RightShift,
+                glsl_lang::ast::BinaryOpData::Add => BinaryOp::Add,
+                glsl_lang::ast::BinaryOpData::Sub => BinaryOp::Sub,
+                glsl_lang::ast::BinaryOpData::Mult => BinaryOp::Mul,
+                glsl_lang::ast::BinaryOpData::Div => BinaryOp::Div,
                 glsl_lang::ast::BinaryOpData::Mod => todo!(),
-            }
+            };
+            Expr::Binary(op, a, b)
         }
         ExprData::Ternary(a, b, c) => {
             let a = Box::new(input_expr_inner(a, last_assignment_index, None));
@@ -488,7 +496,8 @@ mod tests {
                             name: "c".to_string(),
                             channel: None,
                         },
-                        input: Expr::Mul(
+                        input: Expr::Binary(
+                            BinaryOp::Mul,
                             Box::new(Expr::Node {
                                 node_index: 0,
                                 channel: None,
@@ -528,7 +537,8 @@ mod tests {
                             name: "d".to_string(),
                             channel: None,
                         },
-                        input: Expr::Add(
+                        input: Expr::Binary(
+                            BinaryOp::Add,
                             Box::new(Expr::Node {
                                 node_index: 3,
                                 channel: None,
@@ -541,7 +551,8 @@ mod tests {
                             name: "OUT_Color".to_string(),
                             channel: Some('x'),
                         },
-                        input: Expr::Sub(
+                        input: Expr::Binary(
+                            BinaryOp::Sub,
                             Box::new(Expr::Node {
                                 node_index: 2,
                                 channel: None,
@@ -589,7 +600,8 @@ mod tests {
                         name: "c".to_string(),
                         channel: None,
                     },
-                    input: Expr::Mul(
+                    input: Expr::Binary(
+                        BinaryOp::Mul,
                         Box::new(Expr::Node {
                             node_index: 0,
                             channel: None,
@@ -629,7 +641,8 @@ mod tests {
                         name: "d".to_string(),
                         channel: None,
                     },
-                    input: Expr::Add(
+                    input: Expr::Binary(
+                        BinaryOp::Add,
                         Box::new(Expr::Node {
                             node_index: 3,
                             channel: None,
@@ -642,7 +655,8 @@ mod tests {
                         name: "OUT_Color".to_string(),
                         channel: Some('x'),
                     },
-                    input: Expr::Sub(
+                    input: Expr::Binary(
+                        BinaryOp::Sub,
                         Box::new(Expr::Node {
                             node_index: 2,
                             channel: None,
@@ -685,7 +699,8 @@ mod tests {
                         name: "a2".to_string(),
                         channel: None,
                     },
-                    input: Expr::Mul(
+                    input: Expr::Binary(
+                        BinaryOp::Mul,
                         Box::new(Expr::Node {
                             node_index: 0,
                             channel: None,
@@ -708,7 +723,8 @@ mod tests {
                             Expr::Func {
                                 name: "vec2".to_string(),
                                 args: vec![
-                                    Expr::Add(
+                                    Expr::Binary(
+                                        BinaryOp::Add,
                                         Box::new(Expr::Node {
                                             node_index: 1,
                                             channel: None,
@@ -783,7 +799,8 @@ mod tests {
                             name: "a2".to_string(),
                             channel: None,
                         },
-                        input: Expr::Mul(
+                        input: Expr::Binary(
+                            BinaryOp::Mul,
                             Box::new(Expr::Node {
                                 node_index: 0,
                                 channel: None,
@@ -806,7 +823,8 @@ mod tests {
                                 Expr::Func {
                                     name: "vec2".to_string(),
                                     args: vec![
-                                        Expr::Add(
+                                        Expr::Binary(
+                                            BinaryOp::Add,
                                             Box::new(Expr::Node {
                                                 node_index: 1,
                                                 channel: None,
