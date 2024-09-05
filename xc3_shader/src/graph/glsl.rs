@@ -4,7 +4,10 @@ use glsl_lang::{
     ast::{
         DeclarationData, ExprData, FunIdentifierData, InitializerData, Statement, StatementData,
         TranslationUnit,
-    }, parse::DefaultParse, transpiler::glsl::{show_expr, show_type_specifier, FormattingState}, visitor::{Host, Visit, Visitor}
+    },
+    parse::DefaultParse,
+    transpiler::glsl::{show_expr, show_type_specifier, FormattingState},
+    visitor::{Host, Visit, Visitor},
 };
 
 use super::*;

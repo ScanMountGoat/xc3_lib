@@ -18,7 +18,7 @@ pest = "2.7.11"
 pest_derive = "2.7.11"
 smol_str = "0.2.2"
 indexmap = "2.1.0"
+indoc = "2"
 
 [dev-dependencies]
-indoc = "2"
 pretty_assertions = "1.4.0"

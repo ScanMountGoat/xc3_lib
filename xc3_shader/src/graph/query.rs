@@ -20,48 +20,75 @@
 //! avoids needing to handle added or removed lines found in type-3 clones.
 
 use super::{BinaryOp, Expr, Graph, Node};
-use std::ops::Deref;
+use indoc::indoc;
+use std::{collections::BTreeMap, ops::Deref};
 
 impl Graph {
-    /// Returns `true` if the `query` graph is contained in this graph.
+    /// Find the corresponding [Expr] in the graph for each [Expr::Global] in `query`
+    /// or `None` if the graphs do not match.
+    ///
+    /// Variables in `query` function as placeholder variables and will match any input expression.
+    /// This allows for extracting variable values from specific parts of the code.
     ///
     /// This uses a structural match that allows for differences in variable names
     /// and implements basic algebraic identities like `a*b == b*a`.
-    pub fn query(&self, query: &Graph) -> bool {
-        query_nodes(&self.nodes, &query.nodes)
+    pub fn query(&self, query: &Graph) -> Option<BTreeMap<String, &Expr>> {
+        // TODO: Should this always be the last node?
+        query_nodes(self.nodes.last()?, &self.nodes, &query.nodes)
     }
 }
 
-fn query_nodes(input: &[Node], query: &[Node]) -> bool {
-    if input.len() != query.len() {
-        return false;
-    }
+fn query_nodes_glsl<'a>(
+    input_node: &'a Node,
+    input: &'a [Node],
+    query: &str,
+) -> Option<BTreeMap<String, &'a Expr>> {
+    let query = Graph::parse_glsl(&format!("void main() {{ {query} }}")).unwrap();
+    query_nodes(input_node, input, &query.nodes)
+}
 
-    // TODO: Also keep track of corresponding input exprs for globals in query?
+fn query_nodes<'a>(
+    input_node: &'a Node,
+    input: &'a [Node],
+    query: &[Node],
+) -> Option<BTreeMap<String, &'a Expr>> {
+    // Keep track of corresponding input exprs for global vars in query.
+    let mut vars = BTreeMap::new();
 
     // TODO: Is this the right way to handle multiple nodes?
-    query
-        .iter()
-        .zip(input.iter())
-        .all(|(q, i)| check_exprs(&q.input, &i.input, query, input))
+
+    let is_match = check_exprs(
+        &query.last()?.input,
+        &input_node.input,
+        query,
+        input,
+        &mut vars,
+    );
+
+    is_match.then_some(vars)
 }
 
-fn check_exprs(query: &Expr, input: &Expr, query_nodes: &[Node], input_nodes: &[Node]) -> bool {
-    dbg!(query, input);
+fn check_exprs<'a>(
+    query: &Expr,
+    input: &'a Expr,
+    query_nodes: &[Node],
+    input_nodes: &'a [Node],
+    vars: &mut BTreeMap<String, &'a Expr>,
+) -> bool {
     match (query, input) {
         (Expr::Unary(op1, a1), Expr::Unary(op2, a2)) => {
-            op1 == op2 && check_exprs(a1, a2, query_nodes, input_nodes)
+            op1 == op2 && check_exprs(a1, a2, query_nodes, input_nodes, vars)
         }
         (Expr::Binary(op1, a1, b1), Expr::Binary(op2, a2, b2)) => {
             // TODO: commutativity for add, mul
             op1 == op2
-                && check_exprs(a1, a2, query_nodes, input_nodes)
-                && check_exprs(b1, b2, query_nodes, input_nodes)
+                && check_exprs(a1, a2, query_nodes, input_nodes, vars)
+                && check_exprs(b1, b2, query_nodes, input_nodes, vars)
         }
         (Expr::Ternary(a1, b1, c1), Expr::Ternary(a2, b2, c2)) => {
-            check_exprs(a1, a2, query_nodes, input_nodes)
-                && check_exprs(b1, b2, query_nodes, input_nodes)
-                && check_exprs(c1, c2, query_nodes, input_nodes)
+            check_exprs(a1, a2, query_nodes, input_nodes, vars)
+                && check_exprs(b1, b2, query_nodes, input_nodes, vars)
+                && check_exprs(c1, c2, query_nodes, input_nodes, vars)
         }
         (
             Expr::Func {
@@ -81,7 +108,7 @@ fn check_exprs(query: &Expr, input: &Expr, query_nodes: &[Node], input_nodes: &[
                 && args1
                     .iter()
                     .zip(args2)
-                    .all(|(a1, a2)| check_exprs(a1, a2, query_nodes, input_nodes))
+                    .all(|(a1, a2)| check_exprs(a1, a2, query_nodes, input_nodes, vars))
         }
         (
             Expr::Node {
@@ -100,10 +127,16 @@ fn check_exprs(query: &Expr, input: &Expr, query_nodes: &[Node], input_nodes: &[
                     &input_nodes[*n2].input,
                     query_nodes,
                     input_nodes,
+                    vars,
                 )
         }
-        // TODO: Does this need to check that name usage is consistent for query and input?
-        (Expr::Global { name, channel }, _) => true,
+        (Expr::Global { name, channel }, i) => {
+            // TODO: What happens if the var is already in the map?
+            // TODO: Also track channels?
+            vars.insert(name.clone(), i);
+            // TODO: Does this need to check that name usage is consistent for query and input?
+            true
+        }
         _ => query == input,
     }
 }
@@ -231,25 +264,21 @@ pub fn node_expr<'a>(nodes: &'a [Node], e: &Expr) -> Option<&'a Node> {
 }
 
 pub fn dot3_a_b<'a>(nodes: &'a [Node], node: &'a Node) -> Option<([&'a Node; 3], [&'a Expr; 3])> {
-    // result = a1 * b1;
-    // result = fma(a2, b2, result);
-    // result = fma(a3, b3, result);
-    let (a3, b3, x) = fma_a_b_c(node)?;
-    let x = node_expr(nodes, x)?;
-    let a3 = node_expr(nodes, a3)?;
+    let query = indoc! {"
+        float result = a1 * b1;
+        float result = fma(a2, b2, result);
+        float result = fma(a3, b3, result);
+    "};
+    let result = query_nodes_glsl(node, nodes, query)?;
 
-    let (a2, b2, x) = fma_a_b_c(x)?;
-    let x = node_expr(nodes, x)?;
-    let a2 = node_expr(nodes, a2)?;
-
-    let (a1, b1) = match &x.input {
-        Expr::Binary(BinaryOp::Mul, x, y) => match (x.deref(), y.deref()) {
-            (Expr::Node { node_index: x, .. }, y) => Some((nodes.get(*x)?, y)),
-            _ => None,
-        },
-        _ => None,
-    }?;
-    Some(([a1, a2, a3], [b1, b2, b3]))
+    Some((
+        [
+            node_expr(nodes, result.get("a1")?)?,
+            node_expr(nodes, result.get("a2")?)?,
+            node_expr(nodes, result.get("a3")?)?,
+        ],
+        [result.get("b1")?, result.get("b2")?, result.get("b3")?],
+    ))
 }
 
 pub fn fma_a_b_c(node: &Node) -> Option<(&Expr, &Expr, &Expr)> {
@@ -269,25 +298,8 @@ pub fn fma_a_b_c(node: &Node) -> Option<(&Expr, &Expr, &Expr)> {
 }
 
 pub fn fma_half_half<'a>(nodes: &'a [Node], node: &'a Node) -> Option<&'a Node> {
-    match &node.input {
-        Expr::Func { name, args, .. } => {
-            if name == "fma" {
-                match &args[..] {
-                    [Expr::Node { node_index, .. }, Expr::Float(f1), Expr::Float(f2)] => {
-                        if *f1 == 0.5 && *f2 == 0.5 {
-                            nodes.get(*node_index)
-                        } else {
-                            None
-                        }
-                    }
-                    _ => None,
-                }
-            } else {
-                None
-            }
-        }
-        _ => None,
-    }
+    let result = query_nodes_glsl(node, nodes, "float result = fma(x, 0.5, 0.5);")?;
+    node_expr(nodes, result.get("x")?)
 }
 
 pub fn normalize<'a>(nodes: &'a [Node], node: &'a Node) -> Option<&'a Node> {
@@ -312,27 +324,30 @@ mod tests {
     use super::*;
     use indoc::indoc;
 
-    fn query_glsl(graph_glsl: &str, query_glsl: &str) -> bool {
+    fn query_glsl(graph_glsl: &str, query_glsl: &str) -> Option<BTreeMap<String, Expr>> {
         let graph = Graph::parse_glsl(&format!("void main() {{ {graph_glsl} }}")).unwrap();
         let query = Graph::parse_glsl(&format!("void main() {{ {query_glsl} }}")).unwrap();
-        graph.query(&query)
+        // TODO: Check vars?
+        graph
+            .query(&query)
+            .map(|v| v.into_iter().map(|(k, v)| (k, v.clone())).collect())
     }
 
     #[test]
     fn query_single_binary_expr() {
         // TODO: commutativity?
-        assert!(query_glsl("float c = 1.0 * 2.0;", "float d = 1.0 * 2.0;"));
+        assert!(query_glsl("float c = 1.0 * 2.0;", "float d = 1.0 * 2.0;").is_some());
     }
 
     #[test]
     fn query_single_binary_variable_expr() {
         // TODO: commutativity?
-        assert!(query_glsl("float c = a * b;", "float d = b * c;"));
+        assert!(query_glsl("float c = a * b;", "float d = b * c;").is_some());
     }
 
     #[test]
     fn query_single_binary_variable_expr_invalid_operand() {
-        assert!(!query_glsl("float c = a / 3.0;", "float d = b / 2.0;"));
+        assert!(query_glsl("float c = a / 3.0;", "float d = b / 2.0;").is_none());
     }
 
     #[test]
@@ -350,12 +365,13 @@ mod tests {
                 float temp_6 = texture(texture1, vec2(temp_5 + 2.0, 1.0)).x;
                 float temp_7 = data[int(temp_6)];
             "}
-        ));
+        )
+        .is_some());
     }
 
     #[test]
     fn query_multiple_statements_missing_assignment() {
-        assert!(!query_glsl(
+        assert!(query_glsl(
             indoc! {"
                 float a = 1.0;
                 float a2 = a * 5.0;
@@ -367,6 +383,7 @@ mod tests {
                 float temp_6 = texture(texture1, vec2(temp_5 + 2.0, 1.0)).x;
                 float temp_7 = data[int(temp_6)];
             "}
-        ));
+        )
+        .is_none());
     }
 }
