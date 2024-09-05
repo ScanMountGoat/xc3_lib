@@ -19,8 +19,94 @@
 //! with [assignments_recursive](super::Graph::assignments_recursive)
 //! avoids needing to handle added or removed lines found in type-3 clones.
 
-use super::{BinaryOp, Expr, Node};
+use super::{BinaryOp, Expr, Graph, Node};
 use std::ops::Deref;
+
+impl Graph {
+    /// Returns `true` if the `query` graph is contained in this graph.
+    ///
+    /// This uses a structural match that allows for differences in variable names
+    /// and implements basic algebraic identities like `a*b == b*a`.
+    pub fn query(&self, query: &Graph) -> bool {
+        query_nodes(&self.nodes, &query.nodes)
+    }
+}
+
+fn query_nodes(input: &[Node], query: &[Node]) -> bool {
+    if input.len() != query.len() {
+        return false;
+    }
+
+    // TODO: Also keep track of corresponding input exprs for globals in query?
+
+    // TODO: Is this the right way to handle multiple nodes?
+    query
+        .iter()
+        .zip(input.iter())
+        .all(|(q, i)| check_exprs(&q.input, &i.input, query, input))
+}
+
+fn check_exprs(query: &Expr, input: &Expr, query_nodes: &[Node], input_nodes: &[Node]) -> bool {
+    dbg!(query, input);
+    match (query, input) {
+        (Expr::Unary(op1, a1), Expr::Unary(op2, a2)) => {
+            op1 == op2 && check_exprs(a1, a2, query_nodes, input_nodes)
+        }
+        (Expr::Binary(op1, a1, b1), Expr::Binary(op2, a2, b2)) => {
+            // TODO: commutativity for add, mul
+            op1 == op2
+                && check_exprs(a1, a2, query_nodes, input_nodes)
+                && check_exprs(b1, b2, query_nodes, input_nodes)
+        }
+        (Expr::Ternary(a1, b1, c1), Expr::Ternary(a2, b2, c2)) => {
+            check_exprs(a1, a2, query_nodes, input_nodes)
+                && check_exprs(b1, b2, query_nodes, input_nodes)
+                && check_exprs(c1, c2, query_nodes, input_nodes)
+        }
+        (
+            Expr::Func {
+                name: name1,
+                args: args1,
+                channel: channel1,
+            },
+            Expr::Func {
+                name: name2,
+                args: args2,
+                channel: channel2,
+            },
+        ) => {
+            name1 == name2
+                && channel1 == channel2
+                && args1.len() == args2.len()
+                && args1
+                    .iter()
+                    .zip(args2)
+                    .all(|(a1, a2)| check_exprs(a1, a2, query_nodes, input_nodes))
+        }
+        (
+            Expr::Node {
+                node_index: n1,
+                channel: c1,
+            },
+            Expr::Node {
+                node_index: n2,
+                channel: c2,
+            },
+        ) => {
+            // TODO: is this the correct way to handle variables?
+            c1 == c2
+                && check_exprs(
+                    &query_nodes[*n1].input,
+                    &input_nodes[*n2].input,
+                    query_nodes,
+                    input_nodes,
+                )
+        }
+        // TODO: Does this need to check that name usage is consistent for query and input?
+        (Expr::Global { name, channel }, _) => true,
+        _ => query == input,
+    }
+}
 
 pub fn assign_x<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
     match &node.input {
@@ -219,4 +305,68 @@ pub fn normalize<'a>(nodes: &'a [Node], node: &'a Node) -> Option<&'a Node> {
     }
 
     Some(x)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use indoc::indoc;
+
+    fn query_glsl(graph_glsl: &str, query_glsl: &str) -> bool {
+        let graph = Graph::parse_glsl(&format!("void main() {{ {graph_glsl} }}")).unwrap();
+        let query = Graph::parse_glsl(&format!("void main() {{ {query_glsl} }}")).unwrap();
+        graph.query(&query)
+    }
+
+    #[test]
+    fn query_single_binary_expr() {
+        // TODO: commutativity?
+        assert!(query_glsl("float c = 1.0 * 2.0;", "float d = 1.0 * 2.0;"));
+    }
+
+    #[test]
+    fn query_single_binary_variable_expr() {
+        // TODO: commutativity?
+        assert!(query_glsl("float c = a * b;", "float d = b * c;"));
+    }
+
+    #[test]
+    fn query_single_binary_variable_expr_invalid_operand() {
+        assert!(!query_glsl("float c = a / 3.0;", "float d = b / 2.0;"));
+    }
+
+    #[test]
+    fn query_multiple_statements() {
+        assert!(query_glsl(
+            indoc! {"
+                float a = 1.0;
+                float a2 = a * 5.0;
+                float b = texture(texture1, vec2(a2 + 2.0, 1.0)).x;
+                float c = data[int(b)];
+            "},
+            indoc! {"
+                float temp_4 = 1.0;
+                float temp_5 = temp_4 * 5.0;
+                float temp_6 = texture(texture1, vec2(temp_5 + 2.0, 1.0)).x;
+                float temp_7 = data[int(temp_6)];
+            "}
+        ));
+    }
+
+    #[test]
+    fn query_multiple_statements_missing_assignment() {
+        assert!(!query_glsl(
+            indoc! {"
+                float a = 1.0;
+                float a2 = a * 5.0;
+                float b = texture(texture1, vec2(a2 + 2.0, 1.0)).x;
+                float c = data[int(b)];
+            "},
+            indoc! {"
+                float temp_5 = 1.0 * 5.0;
+                float temp_6 = texture(texture1, vec2(temp_5 + 2.0, 1.0)).x;
+                float temp_7 = data[int(temp_6)];
+            "}
+        ));
+    }
 }

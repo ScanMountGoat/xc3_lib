@@ -4,9 +4,7 @@ use glsl_lang::{
     ast::{
         DeclarationData, ExprData, FunIdentifierData, InitializerData, Statement, StatementData,
         TranslationUnit,
-    },
-    transpiler::glsl::{show_expr, show_type_specifier, FormattingState},
-    visitor::{Host, Visit, Visitor},
+    }, parse::DefaultParse, transpiler::glsl::{show_expr, show_type_specifier, FormattingState}, visitor::{Host, Visit, Visitor}
 };
 
 use super::*;
@@ -140,6 +138,12 @@ impl Graph {
             .collect();
 
         Self { nodes }
+    }
+
+    /// Convert  GLSL into a graph representation.
+    pub fn parse_glsl(glsl: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        let tu = TranslationUnit::parse(glsl)?;
+        Ok(Graph::from_glsl(&tu))
     }
 
     /// Pretty print the graph as GLSL code with an assignment line for each node.

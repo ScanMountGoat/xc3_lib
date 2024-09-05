@@ -523,7 +523,7 @@ fn geometric_specular_aa(frag: &Graph) -> Option<BufferDependency> {
     // TODO: is specular AA ever used with textures as input?
     // calcGeometricSpecularAA in pcmdo shaders.
     // Extract the glossiness input from the following expression:
-    // glossiness = 1.0 - sqrt(clamp((1.0 - glossiness)^2 + kernelRoughness2 0.0, 1.0))
+    // glossiness = 1.0 - sqrt(clamp((1.0 - glossiness)^2 + kernelRoughness2, 0.0, 1.0))
     let node_index = frag
         .nodes
         .iter()
