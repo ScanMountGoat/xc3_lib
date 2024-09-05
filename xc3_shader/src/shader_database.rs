@@ -1,4 +1,4 @@
-use std::{ops::Deref, path::Path};
+use std::path::Path;
 
 use bimap::BiBTreeMap;
 use glsl_lang::{
@@ -10,6 +10,7 @@ use glsl_lang::{
     visitor::{Host, Visit, Visitor},
 };
 use indexmap::IndexMap;
+use indoc::indoc;
 use log::error;
 use rayon::prelude::*;
 use xc3_lib::mths::{FragmentShader, Mths};
@@ -25,10 +26,10 @@ use crate::{
     },
     graph::{
         query::{
-            assign_x, assign_x_recursive, clamp_x_zero_one, dot3_a_b, fma_a_b_c, fma_half_half,
-            mix_a_b_ratio, node_expr, normalize, one_minus_x, one_plus_x, sqrt_x, zero_minus_x,
+            assign_x, assign_x_recursive, dot3_a_b, fma_a_b_c, fma_half_half, mix_a_b_ratio,
+            node_expr, normalize, query_nodes_glsl,
         },
-        BinaryOp, Expr, Graph, Node,
+        Expr, Graph, Node,
     },
 };
 
@@ -453,61 +454,20 @@ fn normal_map_fma<'a>(nodes: &'a [Node], nom_work: &'a Node) -> Option<&'a Node>
 
 fn pixel_calc_add_normal_n2<'a>(nodes: &'a [Node], r: &'a Node) -> Option<&'a Node> {
     // Extract n2 from the expression for r.
-    // n2 = nor.x
-    // n = fma(n2, 2.0, -1.0)
-    // n = n * ???
-    // n = 0.0 - n
-    // n = ??? * ??? - n
-    // n * inversesqrt(???) - n1.x
-    let node = match &r.input {
-        Expr::Func { name, args, .. } => {
-            if name == "fma" {
-                match &args[..] {
-                    [Expr::Node { node_index, .. }, _, _] => nodes.get(*node_index),
-                    _ => None,
-                }
-            } else {
-                None
-            }
-        }
-        _ => None,
-    }?;
-    let node = match &node.input {
-        Expr::Func { name, args, .. } => {
-            if name == "fma" {
-                match &args[..] {
-                    [_, _, Expr::Node { node_index, .. }] => nodes.get(*node_index),
-                    _ => None,
-                }
-            } else {
-                None
-            }
-        }
-        _ => None,
-    }?;
-    let node = node_expr(nodes, zero_minus_x(node)?)?;
-    let node = match &node.input {
-        Expr::Binary(BinaryOp::Mul, x, y) => match (x.deref(), y.deref()) {
-            (Expr::Node { node_index: x, .. }, _) => nodes.get(*x),
-            _ => None,
-        },
-        _ => None,
-    }?;
-    let n2 = match &node.input {
-        Expr::Func { name, args, .. } => {
-            if name == "fma" {
-                match &args[..] {
-                    [Expr::Node { node_index, .. }, _, _] => nodes.get(*node_index),
-                    _ => None,
-                }
-            } else {
-                None
-            }
-        }
-        _ => None,
-    }?;
-    let n2 = assign_x(nodes, n2)?;
-    Some(n2)
+    // TODO: Reduce assignments to allow combining lines?
+    // TODO: Allow 0.0 - x or -x
+    let query = indoc! {"
+        n = n2.x;
+        n = fma(n, 2.0, neg_one);
+        n = n * temp;
+        neg_n = 0.0 - n;
+        n = fma(temp, temp, neg_n);
+        n_inv_sqrt = inversesqrt(temp);
+        neg_n1 = 0.0 - n1;
+        r = fma(n, n_inv_sqrt, neg_n1);
+    "};
+    let result = query_nodes_glsl(r, nodes, query)?;
+    node_expr(nodes, result.get("n2")?)
 }
 
 fn calc_normal_map<'a>(frag: &'a Graph, view_normal: &'a Node) -> Option<[&'a Node; 3]> {
@@ -520,10 +480,6 @@ fn calc_normal_map<'a>(frag: &'a Graph, view_normal: &'a Node) -> Option<[&'a No
 }
 
 fn geometric_specular_aa(frag: &Graph) -> Option<BufferDependency> {
-    // TODO: is specular AA ever used with textures as input?
-    // calcGeometricSpecularAA in pcmdo shaders.
-    // Extract the glossiness input from the following expression:
-    // glossiness = 1.0 - sqrt(clamp((1.0 - glossiness)^2 + kernelRoughness2, 0.0, 1.0))
     let node_index = frag
         .nodes
         .iter()
@@ -531,39 +487,27 @@ fn geometric_specular_aa(frag: &Graph) -> Option<BufferDependency> {
     let last_node_index = *frag.node_dependencies_recursive(node_index, None).last()?;
     let last_node = frag.nodes.get(last_node_index)?;
 
-    let node = assign_x(&frag.nodes, last_node)?;
-    let node = node_expr(&frag.nodes, one_minus_x(&frag.nodes, node)?)?;
-    let node = sqrt_x(&frag.nodes, node)?;
-    let node = clamp_x_zero_one(&frag.nodes, node)?;
-    let node = match &node.input {
-        Expr::Func { name, args, .. } => {
-            if name == "fma" {
-                match &args[..] {
-                    [Expr::Node { node_index: i1, .. }, Expr::Node { node_index: i2, .. }, Expr::Node { .. }] => {
-                        if i1 == i2 {
-                            frag.nodes.get(*i1)
-                        } else {
-                            None
-                        }
-                    }
-                    _ => None,
-                }
-            } else {
-                None
-            }
-        }
-        _ => None,
-    }?;
-    let node = one_plus_x(&frag.nodes, node)?;
+    // calcGeometricSpecularAA in pcmdo shaders.
+    // glossiness = 1.0 - sqrt(clamp((1.0 - glossiness)^2 + kernelRoughness2, 0.0, 1.0))
+    // TODO: reduce assignments to allow combining lines
+    let query = indoc! {"
+        result = 0.0 - glossiness;
+        result = 1.0 + result;
+        result = fma(result, result, temp);
+        result = clamp(result, 0.0, 1.0);
+        result = sqrt(result);
+        result = 0.0 - result;
+        result = result + 1.0;
+        result = result;
+    "};
+    let result = query_nodes_glsl(last_node, &frag.nodes, query)?;
+
     // TODO: Will this final node ever not be a parameter?
-    // TODO: Add an option to get the expr itself?
-    match &node.input {
-        Expr::Binary(BinaryOp::Sub, a, b) => match (a.deref(), b.deref()) {
-            (Expr::Float(0.0), e) => buffer_dependency(e),
-            _ => None,
-        },
-        _ => None,
-    }
+    // TODO: is specular AA ever used with textures as input?
+    result
+        .get("glossiness")
+        .copied()
+        .and_then(buffer_dependency)
 }
 
 fn apply_vertex_texcoord_params(

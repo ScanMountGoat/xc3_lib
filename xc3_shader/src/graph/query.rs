@@ -38,7 +38,7 @@ impl Graph {
     }
 }
 
-fn query_nodes_glsl<'a>(
+pub fn query_nodes_glsl<'a>(
     input_node: &'a Node,
     input: &'a [Node],
     query: &str,
@@ -75,20 +75,22 @@ fn check_exprs<'a>(
     input_nodes: &'a [Node],
     vars: &mut BTreeMap<String, &'a Expr>,
 ) -> bool {
+    let mut check = |a, b| check_exprs(a, b, query_nodes, input_nodes, vars);
+
+    // TODO: 0.0 - x and -x should be the same.
     match (query, input) {
-        (Expr::Unary(op1, a1), Expr::Unary(op2, a2)) => {
-            op1 == op2 && check_exprs(a1, a2, query_nodes, input_nodes, vars)
-        }
+        (Expr::Unary(op1, a1), Expr::Unary(op2, a2)) => op1 == op2 && check(a1, a2),
         (Expr::Binary(op1, a1, b1), Expr::Binary(op2, a2, b2)) => {
-            // TODO: commutativity for add, mul
             op1 == op2
-                && check_exprs(a1, a2, query_nodes, input_nodes, vars)
-                && check_exprs(b1, b2, query_nodes, input_nodes, vars)
+                && if matches!(op1, BinaryOp::Add | BinaryOp::Mul) {
+                    // commutativity
+                    check(a1, a2) && check(b1, b2) || check(a1, b2) && check(b1, a2)
+                } else {
+                    check(a1, a2) && check(b1, b2)
+                }
         }
         (Expr::Ternary(a1, b1, c1), Expr::Ternary(a2, b2, c2)) => {
-            check_exprs(a1, a2, query_nodes, input_nodes, vars)
-                && check_exprs(b1, b2, query_nodes, input_nodes, vars)
-                && check_exprs(c1, c2, query_nodes, input_nodes, vars)
+            check(a1, a2) && check(b1, b2) && check(c1, c2)
         }
         (
             Expr::Func {
@@ -102,13 +104,11 @@ fn check_exprs<'a>(
                 channel: channel2,
             },
         ) => {
+            // TODO: commutativity for fma
             name1 == name2
                 && channel1 == channel2
                 && args1.len() == args2.len()
-                && args1
-                    .iter()
-                    .zip(args2)
-                    .all(|(a1, a2)| check_exprs(a1, a2, query_nodes, input_nodes, vars))
+                && args1.iter().zip(args2).all(|(a1, a2)| check(a1, a2))
         }
         (
             Expr::Node {
@@ -121,16 +121,10 @@ fn check_exprs<'a>(
             },
         ) => {
             // TODO: is this the correct way to handle variables?
-            c1 == c2
-                && check_exprs(
-                    &query_nodes[*n1].input,
-                    &input_nodes[*n2].input,
-                    query_nodes,
-                    input_nodes,
-                    vars,
-                )
+            // TODO: handle (node, _) and (_, node) by just following assignments first?
+            c1 == c2 && check(&query_nodes[*n1].input, &input_nodes[*n2].input)
         }
-        (Expr::Global { name, channel }, i) => {
+        (Expr::Global { name, channel: _ }, i) => {
             // TODO: What happens if the var is already in the map?
             // TODO: Also track channels?
             vars.insert(name.clone(), i);
@@ -156,63 +150,12 @@ pub fn assign_x_recursive<'a>(nodes: &'a [Node], n: &'a Node) -> &'a Node {
     node
 }
 
-pub fn one_minus_x<'a>(nodes: &'a [Node], node: &'a Node) -> Option<&'a Expr> {
-    let node = one_plus_x(nodes, node)?;
-    zero_minus_x(node)
-}
-
 pub fn zero_minus_x(node: &Node) -> Option<&Expr> {
     match &node.input {
         Expr::Binary(BinaryOp::Sub, a, b) => match (a.deref(), b.deref()) {
             (Expr::Float(0.0), x) => Some(x),
             _ => None,
         },
-        _ => None,
-    }
-}
-
-pub fn one_plus_x<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
-    // Addition is commutative.
-    match &node.input {
-        Expr::Binary(BinaryOp::Add, a, b) => match (a.deref(), b.deref()) {
-            (Expr::Node { node_index, .. }, Expr::Float(1.0)) => nodes.get(*node_index),
-            (Expr::Float(1.0), Expr::Node { node_index, .. }) => nodes.get(*node_index),
-            _ => None,
-        },
-        _ => None,
-    }
-}
-
-pub fn clamp_x_zero_one<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
-    match &node.input {
-        Expr::Func { name, args, .. } => {
-            if name == "clamp" {
-                match &args[..] {
-                    [Expr::Node { node_index, .. }, Expr::Float(0.0), Expr::Float(1.0)] => {
-                        nodes.get(*node_index)
-                    }
-                    _ => None,
-                }
-            } else {
-                None
-            }
-        }
-        _ => None,
-    }
-}
-
-pub fn sqrt_x<'a>(nodes: &'a [Node], node: &Node) -> Option<&'a Node> {
-    match &node.input {
-        Expr::Func { name, args, .. } => {
-            if name == "sqrt" {
-                match &args[..] {
-                    [Expr::Node { node_index, .. }] => nodes.get(*node_index),
-                    _ => None,
-                }
-            } else {
-                None
-            }
-        }
         _ => None,
     }
 }
@@ -265,9 +208,9 @@ pub fn node_expr<'a>(nodes: &'a [Node], e: &Expr) -> Option<&'a Node> {
 
 pub fn dot3_a_b<'a>(nodes: &'a [Node], node: &'a Node) -> Option<([&'a Node; 3], [&'a Expr; 3])> {
     let query = indoc! {"
-        float result = a1 * b1;
-        float result = fma(a2, b2, result);
-        float result = fma(a3, b3, result);
+        result = a1 * b1;
+        result = fma(a2, b2, result);
+        result = fma(a3, b3, result);
     "};
     let result = query_nodes_glsl(node, nodes, query)?;
 
@@ -298,7 +241,7 @@ pub fn fma_a_b_c(node: &Node) -> Option<(&Expr, &Expr, &Expr)> {
 }
 
 pub fn fma_half_half<'a>(nodes: &'a [Node], node: &'a Node) -> Option<&'a Node> {
-    let result = query_nodes_glsl(node, nodes, "float result = fma(x, 0.5, 0.5);")?;
+    let result = query_nodes_glsl(node, nodes, "result = fma(x, 0.5, 0.5);")?;
     node_expr(nodes, result.get("x")?)
 }
 
@@ -336,34 +279,34 @@ mod tests {
     #[test]
     fn query_single_binary_expr() {
         // TODO: commutativity?
-        assert!(query_glsl("float c = 1.0 * 2.0;", "float d = 1.0 * 2.0;").is_some());
+        assert!(query_glsl("c = 1.0 * 2.0;", "d = 1.0 * 2.0;").is_some());
     }
 
     #[test]
     fn query_single_binary_variable_expr() {
         // TODO: commutativity?
-        assert!(query_glsl("float c = a * b;", "float d = b * c;").is_some());
+        assert!(query_glsl("c = a * b;", "d = b * c;").is_some());
     }
 
     #[test]
     fn query_single_binary_variable_expr_invalid_operand() {
-        assert!(query_glsl("float c = a / 3.0;", "float d = b / 2.0;").is_none());
+        assert!(query_glsl("c = a / 3.0;", "d = b / 2.0;").is_none());
     }
 
     #[test]
     fn query_multiple_statements() {
         assert!(query_glsl(
             indoc! {"
-                float a = 1.0;
-                float a2 = a * 5.0;
-                float b = texture(texture1, vec2(a2 + 2.0, 1.0)).x;
-                float c = data[int(b)];
+                a = 1.0;
+                a2 = a * 5.0;
+                b = texture(texture1, vec2(a2 + 2.0, 1.0)).x;
+                c = data[int(b)];
             "},
             indoc! {"
-                float temp_4 = 1.0;
-                float temp_5 = temp_4 * 5.0;
-                float temp_6 = texture(texture1, vec2(temp_5 + 2.0, 1.0)).x;
-                float temp_7 = data[int(temp_6)];
+                temp_4 = 1.0;
+                temp_5 = temp_4 * 5.0;
+                temp_6 = texture(texture1, vec2(temp_5 + 2.0, 1.0)).x;
+                temp_7 = data[int(temp_6)];
             "}
         )
         .is_some());
@@ -373,17 +316,19 @@ mod tests {
     fn query_multiple_statements_missing_assignment() {
         assert!(query_glsl(
             indoc! {"
-                float a = 1.0;
-                float a2 = a * 5.0;
-                float b = texture(texture1, vec2(a2 + 2.0, 1.0)).x;
-                float c = data[int(b)];
+                a = 1.0;
+                a2 = a * 5.0;
+                b = texture(texture1, vec2(a2 + 2.0, 1.0)).x;
+                c = data[int(b)];
             "},
             indoc! {"
-                float temp_5 = 1.0 * 5.0;
-                float temp_6 = texture(texture1, vec2(temp_5 + 2.0, 1.0)).x;
-                float temp_7 = data[int(temp_6)];
+                temp_5 = 1.0 * 5.0;
+                temp_6 = texture(texture1, vec2(temp_5 + 2.0, 1.0)).x;
+                temp_7 = data[int(temp_6)];
             "}
         )
         .is_none());
     }
+
+    // TODO: Test case for reducing assignments for specular AA code
 }
