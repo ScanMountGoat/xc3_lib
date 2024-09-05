@@ -272,7 +272,6 @@ pub fn dot3_a_b<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<([&'a Expr; 3],
         result = fma(a3, b3, result);
     "};
     let result = query_nodes_glsl(expr, nodes, query)?;
-    dbg!(&result);
 
     Some((
         [result.get("a1")?, result.get("a2")?, result.get("a3")?],
