@@ -58,15 +58,15 @@ pub fn extract_shaders<P: AsRef<Path>>(
 
                 // Metadata doesn't need to be parsed from strings later.
                 // Just use the debug output for now.
-                let txt_file = output_folder.join(&format!("{name}.txt"));
+                let txt_file = output_folder.join(format!("{name}.txt"));
                 let text = format!("{:#?}", &nvsd);
                 std::fs::write(txt_file, text).unwrap();
 
                 // TODO: Why are these binaries sometimes empty?
                 if let Some(vertex) = vertex {
                     process_shader(
-                        output_folder.join(&format!("{name}.vert.bin")),
-                        output_folder.join(&format!("{name}.vert")),
+                        output_folder.join(format!("{name}.vert.bin")),
+                        output_folder.join(format!("{name}.vert")),
                         vertex,
                         ryujinx_shader_tools,
                         nvsd,
@@ -77,8 +77,8 @@ pub fn extract_shaders<P: AsRef<Path>>(
 
                 if let Some(fragment) = fragment {
                     process_shader(
-                        output_folder.join(&format!("{name}.frag.bin")),
-                        output_folder.join(&format!("{name}.frag")),
+                        output_folder.join(format!("{name}.frag.bin")),
+                        output_folder.join(format!("{name}.frag")),
                         fragment,
                         ryujinx_shader_tools,
                         nvsd,
