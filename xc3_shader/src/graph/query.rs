@@ -40,6 +40,14 @@ impl Graph {
     }
 }
 
+/// Find the corresponding [Expr] in the graph for each [Expr::Global] in `query`
+/// or `None` if the graphs do not match.
+///
+/// Variables in `query` function as placeholder variables and will match any input expression.
+/// This allows for extracting variable values from specific parts of the code.
+///
+/// This uses a structural match that allows for differences in variable names
+/// and implements basic algebraic identities like `a*b == b*a`.
 pub fn query_nodes_glsl<'a>(
     input: &'a Expr,
     input_nodes: &'a [Node],
@@ -185,52 +193,20 @@ pub fn assign_x_recursive<'a>(nodes: &'a [Node], expr: &'a Expr) -> &'a Expr {
     node
 }
 
-pub fn zero_minus_x(expr: &Expr) -> Option<&Expr> {
-    match expr {
-        Expr::Binary(BinaryOp::Sub, a, b) => match (a.deref(), b.deref()) {
-            (Expr::Float(0.0), x) => Some(x),
-            _ => None,
-        },
-        _ => None,
-    }
-}
-
 pub fn mix_a_b_ratio<'a>(
     nodes: &'a [Node],
     expr: &'a Expr,
 ) -> Option<(&'a Expr, &'a Expr, &'a Expr)> {
-    // mix(a, b, ratio) = fma(b - a, ratio, a)
-    // = ratio * b - ratio * a + a
-    // = ratio * b + (1.0 - ratio) * a
-
-    // TODO: Find a better way of handling both fma(a,b,c) and fma(b,a,c).
-    // TODO: Should these functions take a callback to handle branching paths?
-    // TODO: Some sort of query macro or function that takes code as input?
-    let (x, y, a1) = fma_a_b_c(expr)?;
-
-    let (ratio, (b, a)) = node_expr(nodes, x)
-        .and_then(|b_minus_a| Some((y, b_plus_neg_a(nodes, b_minus_a)?)))
-        .or_else(|| {
-            node_expr(nodes, y).and_then(|b_minus_a| Some((x, b_plus_neg_a(nodes, b_minus_a)?)))
-        })?;
-
-    if a != a1 {
-        return None;
-    }
-
+    let query = indoc! {"
+        neg_a = 0.0 - a;
+        b_minus_a = neg_a + b;
+        result = fma(b_minus_a, ratio, a);
+    "};
+    let result = query_nodes_glsl(expr, nodes, query)?;
+    let a = result.get("a")?;
+    let b = result.get("b")?;
+    let ratio = result.get("ratio")?;
     Some((a, b, ratio))
-}
-
-fn b_plus_neg_a<'a>(nodes: &'a [Node], b_minus_a: &'a Expr) -> Option<(&'a Expr, &'a Expr)> {
-    let (x, y) = match b_minus_a {
-        Expr::Binary(BinaryOp::Add, x, y) => Some((x.deref(), y.deref())),
-        _ => None,
-    }?;
-
-    // Addition is commutative.
-    node_expr(nodes, x)
-        .and_then(|neg_a| Some((y, zero_minus_x(neg_a)?)))
-        .or_else(|| node_expr(nodes, y).and_then(|neg_a| Some((x, zero_minus_x(neg_a)?))))
 }
 
 pub fn node_expr<'a>(nodes: &'a [Node], e: &Expr) -> Option<&'a Expr> {
