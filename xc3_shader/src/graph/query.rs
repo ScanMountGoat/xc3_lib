@@ -151,30 +151,6 @@ fn check_exprs<'a>(
                 channel: c2,
             },
         ) => c1 == c2 && check(&query_nodes[*n1].input, &input_nodes[*n2].input),
-        // TODO: Should this always be fully recursive?
-        // ex: fma(x, 0.5, 0.5) == fma(y, 0.5, 0.5) doesn't need to keep following x or y
-        // (
-        //     Expr::Node {
-        //         node_index,
-        //         channel: _,
-        //     },
-        //     b,
-        // ) => {
-        //     // Recursively eliminate assignments from query.
-        //     // TODO: How to handle channels?
-        //     check(&query_nodes[*node_index].input, b)
-        // }
-        // (
-        //     a,
-        //     Expr::Node {
-        //         node_index,
-        //         channel: _,
-        //     },
-        // ) => {
-        //     // Recursively eliminate assignments from input.
-        //     // TODO: How to handle channels?
-        //     check(a, &input_nodes[*node_index].input)
-        // }
         (Expr::Global { name, channel: _ }, i) => {
             // TODO: What happens if the var is already in the map?
             // TODO: Also track channels?
@@ -325,6 +301,7 @@ mod tests {
     fn query_glsl(graph_glsl: &str, query_glsl: &str) -> Option<BTreeMap<String, Expr>> {
         let graph = Graph::parse_glsl(&format!("void main() {{ {graph_glsl} }}")).unwrap();
         let query = Graph::parse_glsl(&format!("void main() {{ {query_glsl} }}")).unwrap();
+
         // TODO: Check vars?
         graph
             .query(&query)

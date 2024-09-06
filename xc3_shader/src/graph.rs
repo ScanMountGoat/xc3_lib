@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 mod glsl;
 mod latte;
@@ -231,6 +231,64 @@ impl Graph {
         }
         output
     }
+
+    pub fn simplify_assignments(&self) -> Self {
+        let mut simplified = BTreeMap::new();
+
+        // TODO: How should this handle multiple nodes?
+        let nodes = self
+            .nodes
+            .last()
+            .map(|n| {
+                vec![Node {
+                    output: n.output.clone(),
+                    input: simplify(&n.input, &self.nodes, &mut simplified),
+                }]
+            })
+            .unwrap_or_default();
+
+        Self { nodes }
+    }
+}
+
+fn simplify(input: &Expr, nodes: &[Node], simplified: &mut BTreeMap<usize, Expr>) -> Expr {
+    // TODO: perform other simplifications?
+    match input {
+        Expr::Node { node_index, .. } => {
+            // Simplify assignments using variable substitution.
+            if let Some(expr) = simplified.get(node_index) {
+                expr.clone()
+            } else {
+                let expr = simplify(&nodes[*node_index].input, nodes, simplified);
+                simplified.insert(*node_index, expr.clone());
+                expr
+            }
+        }
+        Expr::Unary(op, e) => Expr::Unary(*op, Box::new(simplify(&e, nodes, simplified))),
+        Expr::Binary(op, a, b) => Expr::Binary(
+            *op,
+            Box::new(simplify(&a, nodes, simplified)),
+            Box::new(simplify(&b, nodes, simplified)),
+        ),
+        Expr::Ternary(a, b, c) => Expr::Ternary(
+            Box::new(simplify(&a, nodes, simplified)),
+            Box::new(simplify(&b, nodes, simplified)),
+            Box::new(simplify(&c, nodes, simplified)),
+        ),
+        Expr::Func {
+            name,
+            args,
+            channel,
+        } => Expr::Func {
+            name: name.clone(),
+            args: args
+                .iter()
+                .map(|a| simplify(a, nodes, simplified))
+                .collect(),
+            channel: *channel,
+        },
+        i => i.clone(),
+    }
 }
 
 // TODO: Turn this into an iterator or visitor that doesn't allocate?
@@ -273,5 +331,35 @@ fn add_exprs<'a>(exprs: &mut Vec<&'a Expr>, input: &'a Expr) {
                 add_exprs(exprs, arg);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use indoc::indoc;
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn simplify_statements() {
+        let glsl = indoc! {"
+            void main() {
+                result = 0.0 - glossiness;
+                result = 1.0 + result;
+                result = fma(result, result, temp);
+                result = clamp(result, 0.0, 1.0);
+                result = sqrt(result);
+                result = 0.0 - result;
+                result = result + 1.0;
+                result = result;
+            }
+        "};
+        let graph = Graph::parse_glsl(glsl).unwrap();
+
+        // TODO: Also simplify subtraction.
+        let expected =
+            "result = -sqrt(clamp(fma(1.0 - glossiness, 1.0 - glossiness, temp), 0.0, 1.0)) + 1.0";
+        assert_eq!(expected, graph.simplify_assignments().to_glsl());
     }
 }
