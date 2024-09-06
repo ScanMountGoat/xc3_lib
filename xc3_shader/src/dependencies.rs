@@ -1,14 +1,14 @@
-// TODO: make dependencies and annotation into a library?
 use std::ops::Deref;
 
 use glsl_lang::{ast::TranslationUnit, parse::DefaultParse};
+use indoc::indoc;
 use xc3_model::shader_database::{
     AttributeDependency, BufferDependency, Dependency, TexCoord, TexCoordParams, TextureDependency,
 };
 
 use crate::{
     annotation::shader_source_no_extensions,
-    graph::{BinaryOp, Expr, Graph},
+    graph::{query::query_nodes_glsl, BinaryOp, Expr, Graph},
     shader_database::Attributes,
 };
 
@@ -199,73 +199,20 @@ pub fn tex_matrix(graph: &Graph, node_index: usize) -> Option<[BufferDependency;
     // TODO: Also check that the attribute name matches?
     // Detect matrix multiplication for the mat4x2 "gTexMat * vec4(u, v, 0.0, 1.0)".
     // U and V have the same pattern but use a different row of the matrix.
-    // temp_0 = in_attr4.x;
-    // temp_1 = in_attr4.y;
-    // temp_147 = temp_0 * U_Mate.gTexMat[1].x;
-    // temp_151 = fma(temp_1, U_Mate.gTexMat[1].y, temp_147);
-    // temp_152 = fma(0., U_Mate.gTexMat[1].z, temp_151);
-    // temp_155 = temp_152 + U_Mate.gTexMat[1].w;
     let node = graph.nodes.get(node_index)?;
-    // TODO: Add query functions for matching like this?
-    let (node, w) = match &node.input {
-        Expr::Binary(BinaryOp::Add, a, b) => match (a.deref(), b.deref()) {
-            (Expr::Node { node_index, .. }, e) => {
-                Some((graph.nodes.get(*node_index)?, buffer_dependency(e)?))
-            }
-            (e, Expr::Node { node_index, .. }) => {
-                Some((graph.nodes.get(*node_index)?, buffer_dependency(e)?))
-            }
-            _ => None,
-        },
-        _ => None,
-    }?;
-    let (node, z) = match &node.input {
-        Expr::Func { name, args, .. } => {
-            if name == "fma" {
-                match &args[..] {
-                    [Expr::Float(0.0), e, Expr::Node { node_index, .. }] => {
-                        Some((graph.nodes.get(*node_index)?, buffer_dependency(e)?))
-                    }
-                    _ => None,
-                }
-            } else {
-                None
-            }
-        }
-        _ => None,
-    }?;
-    let (_v, y, node2) = match &node.input {
-        Expr::Func { name, args, .. } => {
-            if name == "fma" {
-                match &args[..] {
-                    [Expr::Node { node_index: n1, .. }, e, Expr::Node { node_index: n2, .. }] => {
-                        Some((
-                            graph.nodes.get(*n1)?,
-                            buffer_dependency(e)?,
-                            graph.nodes.get(*n2)?,
-                        ))
-                    }
-                    _ => None,
-                }
-            } else {
-                None
-            }
-        }
-        _ => None,
-    }?;
-    let (_u, x) = match &node2.input {
-        Expr::Binary(BinaryOp::Mul, a, b) => match (a.deref(), b.deref()) {
-            (Expr::Node { node_index, .. }, e) => {
-                Some((graph.nodes.get(*node_index)?, buffer_dependency(e)?))
-            }
-            (e, Expr::Node { node_index, .. }) => {
-                Some((graph.nodes.get(*node_index)?, buffer_dependency(e)?))
-            }
-            _ => None,
-        },
-        _ => None,
-    }?;
-
+    let query = indoc! {"
+        u = tex_coord.x;
+        v = tex_coord.y;
+        result = u * param_x;
+        result = fma(v, param_y, result);
+        result = fma(0.0, param_z, result);
+        result = result + param_w;
+    "};
+    let result = query_nodes_glsl(&node.input, &graph.nodes, query)?;
+    let x = result.get("param_x").copied().and_then(buffer_dependency)?;
+    let y = result.get("param_y").copied().and_then(buffer_dependency)?;
+    let z = result.get("param_z").copied().and_then(buffer_dependency)?;
+    let w = result.get("param_w").copied().and_then(buffer_dependency)?;
     // TODO: Also detect UV texcoord names?
     Some([x, y, z, w])
 }
