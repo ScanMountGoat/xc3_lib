@@ -406,57 +406,12 @@ fn pixel_calc_add_normal<'a>(
     // XC2: ratio * (normalize(r) - nomWork) + nomWork
     // XC3: (normalize(r) - nomWork) * ratio + nomWork
     // TODO: Is it worth detecting the textures used for r?
-    let result = normalize(nodes, nom_work)?;
-    let (a, b, nom_work) = match &result.input {
-        Expr::Func { name, args, .. } => {
-            if name == "fma" {
-                match &args[..] {
-                    [a, b, Expr::Node { node_index, .. }] => Some((a, b, nodes.get(*node_index)?)),
-                    _ => None,
-                }
-            } else {
-                None
-            }
-        }
-        _ => None,
-    }?;
-    // Detect ratio * r or r * ratio to handle both XC2 and XC3.
-    let (n2, ratio) = node_expr(nodes, a)
-        .and_then(|r| Some((pixel_calc_add_normal_n2(nodes, r)?, b)))
-        .or_else(|| {
-            node_expr(nodes, b).and_then(|r| Some((pixel_calc_add_normal_n2(nodes, r)?, a)))
-        })?;
-
-    Some((&nom_work.input, n2, ratio))
-}
-
-fn normal_map_fma<'a>(nodes: &'a [Node], nom_work: &'a Expr) -> Option<&'a Expr> {
-    // Extract the texture for n1 if present.
-    // This will only work for base layers.
-    let node = match nom_work {
-        Expr::Func { name, args, .. } => {
-            if name == "fma" {
-                // This could be fma(x, 2.0, -1.0) or fma(x, 2.0, -1.0039216)
-                match &args[..] {
-                    [Expr::Node { node_index, .. }, Expr::Float(2.0), _] => nodes.get(*node_index),
-                    _ => None,
-                }
-            } else {
-                None
-            }
-        }
-        _ => None,
-    }?;
-    let expr = assign_x(nodes, &node.input)?;
-    Some(expr)
-}
-
-fn pixel_calc_add_normal_n2<'a>(nodes: &'a [Node], r: &'a Expr) -> Option<&'a Expr> {
-    // Extract n2 from the expression for r.
+    // TODO: nom_work and n1 are the same?
     // TODO: Reduce assignments to allow combining lines?
     // TODO: Allow 0.0 - x or -x
     let query = indoc! {"
-        n = n2.x;
+        n = n2;
+        n = n.x;
         n = fma(n, 2.0, neg_one);
         n = n * temp;
         neg_n = 0.0 - n;
@@ -464,9 +419,30 @@ fn pixel_calc_add_normal_n2<'a>(nodes: &'a [Node], r: &'a Expr) -> Option<&'a Ex
         n_inv_sqrt = inversesqrt(temp);
         neg_n1 = 0.0 - n1;
         r = fma(n, n_inv_sqrt, neg_n1);
+
+        nom_work = nom_work;
+        nom_work = fma(r, ratio, nom_work);
+        inv_sqrt = inversesqrt(temp);
+        nom_work = nom_work * inv_sqrt;
     "};
-    let result = query_nodes_glsl(r, nodes, query)?;
-    node_expr(nodes, result.get("n2")?)
+    let result = query_nodes_glsl(nom_work, nodes, query)?;
+    let nom_work = result.get("nom_work")?;
+    let ratio = result.get("ratio")?;
+    let n2 = result.get("n2")?;
+    Some((nom_work, n2, ratio))
+}
+
+fn normal_map_fma<'a>(nodes: &'a [Node], nom_work: &'a Expr) -> Option<&'a Expr> {
+    // Extract the texture for n1 if present.
+    // This could be fma(x, 2.0, -1.0) or fma(x, 2.0, -1.0039216)
+    // This will only work for base layers.
+    let query = indoc! {"
+        result = result;
+        result = result.x;
+        result = fma(result, 2.0, temp);
+    "};
+    let result = query_nodes_glsl(nom_work, nodes, query)?;
+    result.get("result").copied()
 }
 
 fn calc_normal_map<'a>(frag: &'a Graph, view_normal: &'a Expr) -> Option<[&'a Expr; 3]> {
@@ -489,6 +465,7 @@ fn geometric_specular_aa(frag: &Graph) -> Option<BufferDependency> {
     // calcGeometricSpecularAA in pcmdo shaders.
     // glossiness = 1.0 - sqrt(clamp((1.0 - glossiness)^2 + kernelRoughness2, 0.0, 1.0))
     // TODO: reduce assignments to allow combining lines
+    // TODO: Allow 0.0 - x or -x
     let query = indoc! {"
         result = 0.0 - glossiness;
         result = 1.0 + result;

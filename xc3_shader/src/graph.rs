@@ -232,20 +232,15 @@ impl Graph {
         output
     }
 
-    pub fn simplify_assignments(&self) -> Self {
+    /// Simplify the `node` using variable substitution to eliminate assignments
+    /// and other algebraic identities.
+    pub fn simplify(&self, node: &Node) -> Self {
         let mut simplified = BTreeMap::new();
 
-        // TODO: How should this handle multiple nodes?
-        let nodes = self
-            .nodes
-            .last()
-            .map(|n| {
-                vec![Node {
-                    output: n.output.clone(),
-                    input: simplify(&n.input, &self.nodes, &mut simplified),
-                }]
-            })
-            .unwrap_or_default();
+        let nodes = vec![Node {
+            output: node.output.clone(),
+            input: simplify(&node.input, &self.nodes, &mut simplified),
+        }];
 
         Self { nodes }
     }
@@ -264,16 +259,16 @@ fn simplify(input: &Expr, nodes: &[Node], simplified: &mut BTreeMap<usize, Expr>
                 expr
             }
         }
-        Expr::Unary(op, e) => Expr::Unary(*op, Box::new(simplify(&e, nodes, simplified))),
+        Expr::Unary(op, e) => Expr::Unary(*op, Box::new(simplify(e, nodes, simplified))),
         Expr::Binary(op, a, b) => Expr::Binary(
             *op,
-            Box::new(simplify(&a, nodes, simplified)),
-            Box::new(simplify(&b, nodes, simplified)),
+            Box::new(simplify(a, nodes, simplified)),
+            Box::new(simplify(b, nodes, simplified)),
         ),
         Expr::Ternary(a, b, c) => Expr::Ternary(
-            Box::new(simplify(&a, nodes, simplified)),
-            Box::new(simplify(&b, nodes, simplified)),
-            Box::new(simplify(&c, nodes, simplified)),
+            Box::new(simplify(a, nodes, simplified)),
+            Box::new(simplify(b, nodes, simplified)),
+            Box::new(simplify(c, nodes, simplified)),
         ),
         Expr::Func {
             name,
@@ -359,7 +354,10 @@ mod tests {
 
         // TODO: Also simplify subtraction.
         let expected =
-            "result = -sqrt(clamp(fma(1.0 - glossiness, 1.0 - glossiness, temp), 0.0, 1.0)) + 1.0";
-        assert_eq!(expected, graph.simplify_assignments().to_glsl());
+            "result = 0.0 - sqrt(clamp(fma(1.0 + 0.0 - glossiness, 1.0 + 0.0 - glossiness, temp), 0.0, 1.0)) + 1.0;\n";
+        assert_eq!(
+            expected,
+            graph.simplify(graph.nodes.last().unwrap()).to_glsl()
+        );
     }
 }

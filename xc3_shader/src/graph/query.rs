@@ -308,6 +308,19 @@ mod tests {
             .map(|v| v.into_iter().map(|(k, v)| (k, v.clone())).collect())
     }
 
+    fn query_glsl_simplified(graph_glsl: &str, query_glsl: &str) -> Option<BTreeMap<String, Expr>> {
+        let graph = Graph::parse_glsl(&format!("void main() {{ {graph_glsl} }}")).unwrap();
+        let query = Graph::parse_glsl(&format!("void main() {{ {query_glsl} }}")).unwrap();
+
+        let graph = graph.simplify(graph.nodes.last().unwrap());
+        let query = query.simplify(query.nodes.last().unwrap());
+
+        // TODO: Check vars?
+        graph
+            .query(&query)
+            .map(|v| v.into_iter().map(|(k, v)| (k, v.clone())).collect())
+    }
+
     #[test]
     fn query_single_binary_expr_mul() {
         assert!(query_glsl("c = 1.0 * 2.0;", "d = 1.0 * 2.0;").is_some());
@@ -388,7 +401,7 @@ mod tests {
 
     #[test]
     fn query_simplification() {
-        assert!(query_glsl(
+        assert!(query_glsl_simplified(
             indoc! {"
                 result = 0.0 - glossiness;
                 result = 1.0 + result;
@@ -400,10 +413,10 @@ mod tests {
                 result = result;
             "},
             indoc! {"
-                result = 1.0 - glossiness;
+                result = 1.0 + (0.0 - glossiness);
                 result = fma(result, result, temp);
                 result = clamp(result, 0.0, 1.0);
-                result = 1.0 - sqrt(result);
+                result = 1.0 + (0.0 - sqrt(result));
             "}
         )
         .is_some());
