@@ -306,8 +306,12 @@ impl Models {
                     }),
                     alpha_test_ref: [0; 4],
                     shader: get_shader_legacy(m, model_programs),
-                    technique_index: 0,
-                    pass_type: match m.techniques.first().map(|t| t.unk1) {
+                    technique_index: m
+                        .techniques
+                        .last()
+                        .map(|t| t.technique_index as usize)
+                        .unwrap_or_default(),
+                    pass_type: match m.techniques.last().map(|t| t.unk1) {
                         Some(xc3_lib::mxmd::legacy::UnkPassType::Unk0) => RenderPassType::Unk0,
                         Some(xc3_lib::mxmd::legacy::UnkPassType::Unk1) => RenderPassType::Unk1,
                         // TODO: How to handle these variants?
