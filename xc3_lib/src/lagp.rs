@@ -94,15 +94,19 @@ pub struct Unk13 {
     #[xc3(offset_count(u32, u32), align(1))]
     pub unk1: Vec<Unk13Unk1>,
 
-    // TODO: type?
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset(u32), align(1))]
-    pub unk2: Option<[i32; 48]>,
+    #[br(temp, restore_position)]
+    offsets: [u32; 2],
 
-    // TODO: type?
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    // TODO: type and count?
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: (offsets[1] - offsets[0]) as usize / 4 }})]
     #[xc3(offset(u32), align(1))]
-    pub unk3: Option<[u16; 5]>,
+    pub unk2: Option<Vec<i32>>,
+
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: unk1.len() }})]
+    #[xc3(offset(u32), align(1))]
+    pub unk3: Option<Vec<u16>>,
 
     // TODO: padding?
     pub unk: [u32; 4],
