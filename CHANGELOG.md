@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 * Fixed an issue where some Xenoblade 1 DE models would not render due to inaccurate shader database texture assignments.
+* Fixed an issue where some Xenoblade X shader database entries incorrectly assigned color map channels.
 
 ### Removed
 * Removed `xc3_model::texture_layer_assignment` as it is no longer needed.

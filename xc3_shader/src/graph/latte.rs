@@ -686,19 +686,28 @@ fn tex_inst_node(tex_instruction: Pair<Rule>, nodes: &Nodes) -> Option<Vec<Node>
         }])
     } else {
         // Convert vector swizzles to scalar operations to simplify analysis code.
+        // The output and input channels aren't always the same.
+        // For example, ___x should assign src.x to dst.w.
         Some(
             output_channels
                 .chars()
-                .map(|c| Node {
-                    output: Output {
-                        name: output_name.clone(),
-                        channel: Some(c),
-                    },
-                    input: Expr::Func {
-                        name: "texture".to_string(),
-                        args: vec![texture_name.clone(), texcoords.clone()],
-                        channel: Some(c),
-                    },
+                .zip("xyzw".chars())
+                .filter_map(|(c_in, c_out)| {
+                    if c_in != '_' {
+                        Some(Node {
+                            output: Output {
+                                name: output_name.clone(),
+                                channel: Some(c_out),
+                            },
+                            input: Expr::Func {
+                                name: "texture".to_string(),
+                                args: vec![texture_name.clone(), texcoords.clone()],
+                                channel: Some(c_in),
+                            },
+                        })
+                    } else {
+                        None
+                    }
                 })
                 .collect(),
         )
@@ -713,8 +722,7 @@ fn texture_inst_dest(dest: Pair<Rule>) -> Option<(String, String)> {
         inner.next().unwrap();
     }
     let channels = four_comp_swizzle(inner);
-
-    Some((gpr.to_string(), channels.trim_matches('_').to_string()))
+    Some((gpr.to_string(), channels.to_string()))
 }
 
 fn texture_inst_src(dest: Pair<Rule>, nodes: &Nodes) -> Option<Expr> {
@@ -724,6 +732,7 @@ fn texture_inst_src(dest: Pair<Rule>, nodes: &Nodes) -> Option<Expr> {
     if inner.peek().map(|p| p.as_rule()) == Some(Rule::tex_rel) {
         inner.next().unwrap();
     }
+    // TODO: Handle write masks.
     let mut channels = four_comp_swizzle(inner).chars();
 
     // TODO: Also handle cube maps.
@@ -757,6 +766,16 @@ mod tests {
 
         // TODO: Figure out the expected nodes to test previous node references.
         // TODO: Test expected nodes on a handwritten example?
+        let graph = Graph::from_latte_asm(asm);
+        assert_eq!(expected, graph.to_glsl());
+    }
+
+    #[test]
+    fn graph_from_asm_en020601_frag_0() {
+        // Tree enemy.
+        let asm = include_str!("../data/en020601.0.frag.txt");
+        let expected = include_str!("../data/en020601.0.frag");
+
         let graph = Graph::from_latte_asm(asm);
         assert_eq!(expected, graph.to_glsl());
     }

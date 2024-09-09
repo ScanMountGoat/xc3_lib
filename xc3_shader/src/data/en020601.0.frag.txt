@@ -1,0 +1,168 @@
+00 TEX: ADDR(160) CNT(4)
+
+  0      SAMPLE          R2.xy__, R5.xy0x, t2, s2
+
+  1      SAMPLE          R6.xyz_, R5.xy0x, t1, s1
+
+  2      SAMPLE          R6.___x, R5.xy0x, t4, s4
+
+  3      SAMPLE          R5.xyz_, R5.xy0x, t3, s3
+
+01 ALU: ADDR(32) CNT(104) KCACHE0(CB1:0-15)
+  4   x: MULADD          R125.x, R2.x, (0x40000000, 2), -1.0f
+      y: MULADD          R125.y, R2.y, (0x40000000, 2), -1.0f
+      z: MOV             ____, 0.0f
+      w: MUL             R126.w, R2.z, (0x41000000, 8)
+      t: SQRT_IEEE       ____, R4.w SCL_210
+
+  5   x: DOT4            ____, PV4.x, PV4.x
+      y: DOT4            ____, PV4.y, PV4.y
+      z: DOT4            ____, PV4.z, PV4.y
+      w: DOT4            ____, (0x80000000, -0), 0.0f
+      t: ADD             R124.w, -PS4, 1.0f CLAMP
+
+  6   x: DOT4_IEEE       ____, R4.x, R4.x
+      y: DOT4_IEEE       ____, R4.y, R4.y
+      z: DOT4_IEEE       ____, R4.z, R4.z
+      w: DOT4_IEEE       ____, (0x80000000, -0), 0.0f
+      t: ADD             R127.y, -PV5.x, 1.0f
+
+  7   x: DOT4_IEEE       ____, R3.x, R3.x
+      y: DOT4_IEEE       ____, R3.y, R3.y
+      z: DOT4_IEEE       ____, R3.z, R3.z
+      w: DOT4_IEEE       R127.w, (0x80000000, -0), 0.0f
+      t: RECIPSQRT_IEEE  ____, PV6.x SCL_210
+
+  8   x: MUL             R126.x, R4.y, PS7
+      y: MUL             R127.y, R4.x, PS7
+      z: MUL             R127.z, R4.z, PS7
+      w: FLOOR           R125.w, R126.w
+      t: SQRT_IEEE       R127.x, R127.y SCL_210
+
+  9   x: DOT4_IEEE       ____, R0.x, R0.x
+      y: DOT4_IEEE       ____, R0.y, R0.y
+      z: DOT4_IEEE       ____, R0.z, R0.z
+      w: DOT4_IEEE       ____, (0x80000000, -0), 0.0f
+      t: RECIPSQRT_IEEE  ____, R127.w SCL_210
+
+  10  x: MUL             R127.x, R3.x, PS9
+      y: MUL             R126.y, R3.z, PS9
+      z: MUL             R126.z, R3.y, PS9
+      w: MAX             ____, R127.x, 0.0f VEC_120
+      t: RECIPSQRT_IEEE  R124.x, PV9.x SCL_210
+
+  11  x: MUL             R126.x, R0.x, PS10
+      y: MUL             ____, R127.z, PV10.w
+      z: MUL             ____, R126.x, PV10.w VEC_120
+      w: MUL             ____, R127.y, PV10.w
+      t: MUL             R127.w, R0.y, PS10
+
+  12  x: MULADD          R123.x, R127.x, R125.x, PV11.w
+      y: MULADD          R123.y, R126.y, R125.x, PV11.y
+      z: MUL             ____, R0.z, R124.x VEC_021
+      w: MULADD          R123.w, R126.z, R125.x, PV11.z VEC_210
+      t: MUL             R126.y, R125.w, (0x3B808081, 0.003921569)
+
+  13  x: MULADD          R126.x, R126.x, R125.y, PV12.x
+      y: MULADD          R125.y, R127.w, R125.y, PV12.w
+      z: MULADD          R126.z, PV12.z, R125.y, PV12.y
+      w: FLOOR           R127.w, PS12
+      t: MOV             R5.w, 0.0f
+
+  14  x: DOT4_IEEE       ____, R1.x, R1.x
+      y: DOT4_IEEE       ____, R1.y, R1.y
+      z: DOT4_IEEE       ____, R1.z, R1.z
+      w: DOT4_IEEE       ____, (0x80000000, -0), 0.0f
+      t: ADD             R0.x, R126.w, -R125.w
+
+  15  x: DOT4_IEEE       ____, R126.x, R126.x
+      y: DOT4_IEEE       ____, R125.y, R125.y
+      z: DOT4_IEEE       ____, R126.z, R126.z
+      w: DOT4_IEEE       ____, (0x80000000, -0), 0.0f
+      t: RECIPSQRT_IEEE  ____, PV14.x SCL_210
+
+  16  x: MUL             R127.x, R1.x, PS15
+      y: MUL             R127.y, R1.y, PS15
+      z: MUL             R127.z, R1.z, PS15
+      w: MOV             R0.w, KC0[1].w
+      t: RECIPSQRT_IEEE  ____, PV15.x SCL_210
+
+  17  x: MUL             R126.x, R126.x, PS16
+      y: MUL             R126.y, R125.y, PS16
+      z: MUL             R126.z, R126.z, PS16
+      t: ADD             R0.y, R126.y, -R127.w
+
+  18  x: DOT4            ____, R127.x, PV17.x
+      y: DOT4            ____, R127.y, PV17.y
+      z: DOT4            ____, R127.z, PV17.z
+      w: DOT4            ____, (0x80000000, -0), 0.0f
+      t: MUL             R0.z, R127.w, (0x3B808081, 0.003921569)
+
+  19  w: MUL             ____, PV18.x, R124.w
+
+  20  x: MULADD          R127.x, -R127.x, PV19.w, R126.x
+      y: MULADD          R127.y, -R127.y, PV19.w, R126.y
+      z: MULADD          R123.z, -R127.z, PV19.w, R126.z
+
+  21  x: DOT4_IEEE       ____, PV20.x, PV20.x
+      y: DOT4_IEEE       ____, PV20.y, PV20.y
+      z: DOT4_IEEE       ____, PV20.z, PV20.z
+      w: DOT4_IEEE       ____, (0x80000000, -0), 0.0f
+
+  22  t: RECIPSQRT_IEEE  ____, PV21.x SCL_210
+
+  23  x: MUL             ____, R127.x, PS22
+      w: MUL             ____, R127.y, PS22
+
+  24  x: MOV             R3.x, PV23.x
+      y: ADD/2           ____, PV23.w, 1.0f
+      z: ADD/2           ____, PV23.x, 1.0f
+      w: MOV             R3.w, PV23.w
+
+  25  x: ADD             ____, -PV24.y, 1.0f
+      w: MAX             ____, PV24.z, 0.0f
+
+  26  x: MIN             R1.x, PV25.w, 1.0f
+      z: MAX             ____, PV25.x, 0.0f
+
+  27  y: MIN             R1.y, PV26.z, 1.0f
+
+02 TEX: ADDR(168) CNT(1) VALID_PIX
+
+  28     SAMPLE          R1.xyzw, R1.xy0x, t0, s0
+
+03 ALU: ADDR(136) CNT(24) KCACHE0(CB1:0-15)
+  29  x: MULADD_D2       R1.x, KC0[0].x, R1.x, 0.0f
+      y: MULADD_D2       R1.y, KC0[0].y, R1.y, 0.0f
+      z: MULADD_D2       R1.z, KC0[0].z, R1.z, 0.0f
+      w: MULADD_D2       R1.w, KC0[0].w, R1.w, 0.0f
+
+  30  x: MOV             R11.x, R0.x
+      y: MOV             R11.y, R0.y
+      z: MOV             R11.z, R0.z
+      w: MOV             R11.w, R0.w
+
+  31  x: MOV             R10.x, R5.x
+      y: MOV             R10.y, R5.y
+      z: MOV             R10.z, R5.z
+      w: MOV             R10.w, R5.w
+
+  32  x: MOV             R8.x, R6.x
+      y: MOV             R8.y, R6.y
+      z: MOV             R8.z, R6.z
+      w: MOV             R8.w, R6.w
+
+  33  x: MOV             R7.x, R1.x
+      y: MOV             R7.y, R1.y
+      z: MOV             R7.z, R1.z
+      w: MOV             R7.w, R1.w
+
+  34  x: MOV             R9.x, R3.x
+      y: MOV             R9.y, R3.w
+      z: MOV             R9.z, R3.z
+      w: MOV             R9.w, R3.z
+
+04 EXP_DONE: PIX0, R7.xyzw BURSTCNT(4)
+
+END_OF_PROGRAM
+
