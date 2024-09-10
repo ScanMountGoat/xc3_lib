@@ -625,7 +625,7 @@ fn channel_assignment(
                         sampler_index(t.name.as_str()).unwrap_or(usize::MAX)
                     });
                 }
-            } else if output_index == 2 {
+            } else if output_index == 2 && matches!(channel, 'x' | 'y') {
                 if !shader.normal_layers.is_empty() {
                     // Match the correct layer order if present.
                     assignments.sort_by_cached_key(|t| {
