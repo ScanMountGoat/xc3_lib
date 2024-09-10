@@ -246,10 +246,13 @@ fn texcoord_name_channels(
 }
 
 pub fn glsl_dependencies(source: &str, variable: &str, channel: Option<char>) -> String {
-    // TODO: Correctly handle if statements?
     let source = shader_source_no_extensions(source);
     let translation_unit = TranslationUnit::parse(source).unwrap();
     Graph::from_glsl(&translation_unit).glsl_dependencies(variable, channel, None)
+}
+
+pub fn latte_dependencies(source: &str, variable: &str, channel: Option<char>) -> String {
+    Graph::from_latte_asm(source).glsl_dependencies(variable, channel, None)
 }
 
 pub fn buffer_dependency(e: &Expr) -> Option<BufferDependency> {

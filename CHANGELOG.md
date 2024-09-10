@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## unreleased
 ### Added
 * Added shader database and rendering support for layered normal map weights and texture masks.
+* Added `latte-dependencies` command to xc3_shader for finding dependent lines from Wii U shaders as GLSL.
 
 ### Changed
 * Changed `xc3_model::ChannelAssignment::Textures` to `xc3_model::ChannelAssignment::Texture` to simplify working with texture assignments. Access additional layers from the `layers` field on `xc3_model::OutputAssignment`.
