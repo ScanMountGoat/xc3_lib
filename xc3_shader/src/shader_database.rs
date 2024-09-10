@@ -187,8 +187,9 @@ fn find_color_layers(
     // TODO: Also check for getPixelCalcRatioBlend.
 
     // Shaders can blend layers with getPixelCalcOver or getPixelCalcRatio.
-    while let Some((mat_col, layer, ratio)) =
-        mix_a_b_ratio(&frag.nodes, current_col).or_else(|| pixel_calc_ratio(current_col))
+    while let Some((mat_col, layer, ratio)) = mix_a_b_ratio(&frag.nodes, current_col)
+        .or_else(|| pixel_calc_ratio(current_col))
+        .or_else(|| pixel_calc_add(&frag.nodes, current_col))
     {
         let mut layer = layer;
         if let Some(n) = node_expr(&frag.nodes, layer) {
@@ -234,6 +235,21 @@ fn pixel_calc_ratio(expr: &Expr) -> Option<(&Expr, &Expr, &Expr)> {
     // getPixelCalcRatio in pcmdo fragment shaders for XC1 and XC3.
     let (a, b, c) = fma_a_b_c(expr)?;
     Some((c, a, b))
+}
+
+fn pixel_calc_add<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(&'a Expr, &'a Expr, &'a Expr)> {
+    // Some layers are simply added together like for xeno3/chr/chr/ch05042101.wimdo "hat_toon".
+    let result = query_nodes_glsl(expr, nodes, "result = a + b;")?;
+    let a = result.get("a")?;
+    let b = result.get("b")?;
+    // The ordering is ambiguous since a+b == b+a.
+    // Assume the base layer is not a global texture.
+    if let Some((n1, _)) = texture_name_channel(assign_x_recursive(nodes, a)) {
+        if n1.starts_with("gT") {
+            return Some((b, a, &Expr::Float(1.0)));
+        }
+    }
+    Some((a, b, &Expr::Float(1.0)))
 }
 
 fn calc_monochrome<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<([&'a Expr; 3], &'a Expr)> {
