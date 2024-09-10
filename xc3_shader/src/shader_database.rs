@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{path::Path, usize};
 
 use bimap::BiBTreeMap;
 use glsl_lang::{
@@ -244,12 +244,20 @@ fn pixel_calc_add<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(&'a Expr, &'
     let b = result.get("b")?;
     // The ordering is ambiguous since a+b == b+a.
     // Assume the base layer is not a global texture.
-    if let Some((n1, _)) = texture_name_channel(assign_x_recursive(nodes, a)) {
-        if n1.starts_with("gT") {
+    if let (Some((n1, _)), Some((n2, _))) = (
+        texture_name_channel(assign_x_recursive(nodes, a)),
+        texture_name_channel(assign_x_recursive(nodes, b)),
+    ) {
+        if sampler_index(&n1).unwrap_or(usize::MAX) > sampler_index(&n2).unwrap_or(usize::MAX) {
             return Some((b, a, &Expr::Float(1.0)));
         }
     }
     Some((a, b, &Expr::Float(1.0)))
+}
+
+fn sampler_index(sampler_name: &str) -> Option<usize> {
+    // Convert names like "s3" to index 3.
+    sampler_name.strip_prefix('s')?.parse().ok()
 }
 
 fn calc_monochrome<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<([&'a Expr; 3], &'a Expr)> {
