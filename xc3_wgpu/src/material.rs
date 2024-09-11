@@ -110,7 +110,8 @@ pub fn materials(
                 }
             }
 
-            let normal_layers = normal_layers(&material_assignments, &name_to_index);
+            let color_layers = texture_layers(&material_assignments, &name_to_index, 0);
+            let normal_layers = texture_layers(&material_assignments, &name_to_index, 2);
 
             // TODO: This is normally done using a depth prepass.
             // TODO: Is it ok to combine the prepass alpha in the main pass like this?
@@ -119,6 +120,7 @@ pub fn materials(
                 &[crate::shader::model::PerMaterial {
                     mat_color: material.color.into(),
                     assignments,
+                    color_layers,
                     normal_layers,
                     texture_transforms,
                     alpha_test_texture: {
@@ -214,31 +216,34 @@ pub fn materials(
     materials
 }
 
-fn normal_layers(
+fn texture_layers(
     assignments: &OutputAssignments,
     name_to_index: &IndexMap<SmolStr, usize>,
-) -> crate::shader::model::NormalLayers {
-    let layers = &assignments.assignments[2].layers;
+    index: usize,
+) -> crate::shader::model::TextureLayers {
+    let layers = &assignments.assignments[index].layers;
 
-    let (s0, c0, w0) = normal_layer_indices(layers, name_to_index, 0);
-    let (s1, c1, w1) = normal_layer_indices(layers, name_to_index, 1);
-    let (s2, c2, w2) = normal_layer_indices(layers, name_to_index, 2);
-    let (s3, c3, w3) = normal_layer_indices(layers, name_to_index, 3);
+    let (s0, c0, w0, b0) = texture_layer_indices(layers, name_to_index, 0);
+    let (s1, c1, w1, b1) = texture_layer_indices(layers, name_to_index, 1);
+    let (s2, c2, w2, b2) = texture_layer_indices(layers, name_to_index, 2);
+    let (s3, c3, w3, b3) = texture_layer_indices(layers, name_to_index, 3);
 
-    crate::shader::model::NormalLayers {
+    crate::shader::model::TextureLayers {
         sampler_indices: ivec4(s0, s1, s2, s3),
         channel_indices: uvec4(c0, c1, c2, c3),
         default_weights: vec4(w0, w1, w2, w3),
+        blend_mode: ivec4(b0, b1, b2, b3),
     }
 }
 
-fn normal_layer_indices(
+fn texture_layer_indices(
     layers: &[OutputLayerAssignment],
     name_to_index: &IndexMap<SmolStr, usize>,
     layer: usize,
-) -> (i32, u32, f32) {
-    let (s, c) = layers
-        .get(layer)
+) -> (i32, u32, f32, i32) {
+    let layer = layers.get(layer);
+
+    let (s, c) = layer
         .and_then(|l| {
             match &l.weight {
                 // TODO: Handle other dependency variants.
@@ -255,15 +260,23 @@ fn normal_layer_indices(
         .unwrap_or((-1, 0));
 
     // TODO: Handle other dependency variants.
-    let w = layers
-        .get(layer)
+    let w = layer
         .and_then(|l| match &l.weight {
             Some(ChannelAssignment::Value(f)) => Some(*f),
             _ => None,
         })
         .unwrap_or_default();
 
-    (s, c, w)
+    let blend = layer
+        .map(|l| match l.blend_mode {
+            xc3_model::shader_database::LayerBlendMode::Mix => 0,
+            xc3_model::shader_database::LayerBlendMode::Add => 1,
+            xc3_model::shader_database::LayerBlendMode::MixFresnel => 2,
+            xc3_model::shader_database::LayerBlendMode::AddNormal => 3,
+        })
+        .unwrap_or(-1);
+
+    (s, c, w, blend)
 }
 
 fn output_assignments(

@@ -113,11 +113,12 @@ struct OutputAssignment {
     default_value: vec4<f32>
 }
 
-struct NormalLayers {
+struct TextureLayers {
     // wimdo and wismhd models use up to 4 additional layers.
     sampler_indices: vec4<i32>,
     channel_indices: vec4<u32>,
-    default_weights: vec4<f32>
+    default_weights: vec4<f32>,
+    blend_mode: vec4<i32>
 }
 
 struct PerMaterial {
@@ -125,12 +126,15 @@ struct PerMaterial {
 
     // Shader database information.
     assignments: array<OutputAssignment, 6>,
-    normal_layers: NormalLayers,
-    texture_transforms: array<array<vec4<f32>, 2>, 10>,
+    color_layers: TextureLayers,
+    normal_layers: TextureLayers,
 
     // texture index, channel, index, 0, 0
     alpha_test_texture: vec4<i32>,
     alpha_test_ref: vec4<f32>,
+
+    texture_transforms: array<array<vec4<f32>, 2>, 10>,
+
     // Workaround for BC4 swizzle mask.
     is_single_channel: array<vec4<u32>, 10>,
 }
@@ -282,7 +286,26 @@ fn assign_texture(a: OutputAssignment, s_colors: array<vec4<f32>, 10>, vcolor: v
     return vec4(x, y, z, w);
 }
 
-fn assign_texture_layer(a: OutputAssignment, s: SamplerAssignment, s_colors: array<vec4<f32>, 10>) -> vec4<f32> {
+fn assign_texture_layer(a: OutputAssignment, layer_index: u32, s_colors: array<vec4<f32>, 10>) -> vec4<f32> {
+    var s = a.samplers1;
+    switch (layer_index) {
+        case 0u: {
+            s = a.samplers2;
+        }
+        case 1u: {
+            s = a.samplers3;
+        }
+        case 2u: {
+            s = a.samplers4;
+        }
+        case 3u: {
+            s = a.samplers5;
+        }
+        default: {
+            s = a.samplers1;
+        }
+    }
+
     let x = assign_channel(s.sampler_indices.x, s.channel_indices.x, -1, s_colors, a.default_value, a.default_value.x);
     let y = assign_channel(s.sampler_indices.y, s.channel_indices.y, -1, s_colors, a.default_value, a.default_value.y);
     let z = assign_channel(s.sampler_indices.z, s.channel_indices.z, -1, s_colors, a.default_value, a.default_value.z);
@@ -431,6 +454,44 @@ fn overlay_blend(a: vec3<f32>, b: vec3<f32>) -> vec3<f32> {
     return screen * is_a_gt_half + multiply * (1.0 - is_a_gt_half);
 }
 
+fn blend_layer(a: vec3<f32>, b: vec3<f32>, ratio: f32, mode: i32) -> vec3<f32> {
+    switch (mode) {
+        case 0: {
+            return mix(a, b, ratio);
+        }
+        case 1: {
+            return a + b * ratio;
+        }
+        case 2: {
+            // TODO: Fresnel
+            return mix(a, b, ratio);
+        }
+        case 3: {
+            let b_normal = create_normal_map(b.xy);
+            return add_normal_maps(a, b_normal, ratio);
+        }
+        default: {
+            return a;
+        }
+    }
+}
+
+fn blend_texture_layer(current: vec3<f32>, assignments: OutputAssignment, layers: TextureLayers, s_colors: array<vec4<f32>, 10>, layer_index: u32) -> vec3<f32> {
+    let blend_mode = layers.blend_mode[layer_index];
+    let sampler_index = layers.sampler_indices[layer_index];
+    let channel_index = layers.channel_indices[layer_index];
+    let default_weight = layers.default_weights[layer_index];
+
+    // TODO: Should this be vec3 or vec4?
+    if blend_mode != -1 {
+        let weight = assign_channel(sampler_index, channel_index, -1, s_colors, vec4(0.0), default_weight);
+        let b = assign_texture_layer(assignments, layer_index, s_colors);
+        return blend_layer(current, b.xyz, weight, blend_mode);
+    } else {
+        return current;
+    }
+}
+
 fn fragment_output(in: VertexOutput) -> FragmentOutput {
     let tangent = normalize(in.tangent);
     let vertex_normal = normalize(in.normal.xyz);
@@ -484,46 +545,20 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     let g_depth = assign_texture(assignments[4], s_colors, in.vertex_color);
     let g_lgt_color = assign_texture(assignments[5], s_colors, in.vertex_color);
 
+    // TODO: color layers
+
     // Not all materials and shaders use normal mapping.
     // TODO: Is this a good way to check for this?
     var normal = vertex_normal;
     if assignments[2].samplers1.sampler_indices.x != -1 && assignments[2].samplers1.sampler_indices.y != -1 {
-        // Layer 1
-        var normal_map = create_normal_map(g_normal.xy);
 
         let layers = per_material.normal_layers;
 
-        // Layer 2
-        if assignments[2].samplers2.sampler_indices.x != -1 && assignments[2].samplers2.sampler_indices.y != -1 {
-            let weight = assign_channel(layers.sampler_indices.x, layers.channel_indices.x, -1, s_colors, vec4(0.0), layers.default_weights.x);
-            let g_normal2 = assign_texture_layer(assignments[2], assignments[2].samplers2, s_colors);
-            let normal_map2 = create_normal_map(g_normal2.xy);
-            normal_map = add_normal_maps(normal_map, normal_map2, weight);
-        }
-
-        // Layer 3
-        if assignments[2].samplers3.sampler_indices.x != -1 && assignments[2].samplers3.sampler_indices.y != -1 {
-            let weight = assign_channel(layers.sampler_indices.y, layers.channel_indices.y, -1, s_colors, vec4(0.0), layers.default_weights.y);
-            let g_normal3 = assign_texture_layer(assignments[2], assignments[2].samplers3, s_colors);
-            let normal_map3 = create_normal_map(g_normal3.xy);
-            normal_map = add_normal_maps(normal_map, normal_map3, weight);
-        }
-
-        // Layer 4
-        if assignments[2].samplers4.sampler_indices.x != -1 && assignments[2].samplers4.sampler_indices.y != -1 {
-            let weight = assign_channel(layers.sampler_indices.z, layers.channel_indices.z, -1, s_colors, vec4(0.0), layers.default_weights.z);
-            let g_normal4 = assign_texture_layer(assignments[2], assignments[2].samplers4, s_colors);
-            let normal_map4 = create_normal_map(g_normal4.xy);
-            normal_map = add_normal_maps(normal_map, normal_map4, weight);
-        }
-
-        // Layer 5
-        if assignments[2].samplers5.sampler_indices.x != -1 && assignments[2].samplers5.sampler_indices.y != -1 {
-            let weight = assign_channel(layers.sampler_indices.w, layers.channel_indices.w, -1, s_colors, vec4(0.0), layers.default_weights.w);
-            let g_normal5 = assign_texture_layer(assignments[2], assignments[2].samplers5, s_colors);
-            let normal_map5 = create_normal_map(g_normal5.xy);
-            normal_map = add_normal_maps(normal_map, normal_map5, weight);
-        }
+        var normal_map = create_normal_map(g_normal.xy);
+        normal_map = blend_texture_layer(normal_map, assignments[2], layers, s_colors, 0u);
+        normal_map = blend_texture_layer(normal_map, assignments[2], layers, s_colors, 1u);
+        normal_map = blend_texture_layer(normal_map, assignments[2], layers, s_colors, 2u);
+        normal_map = blend_texture_layer(normal_map, assignments[2], layers, s_colors, 3u);
 
         normal = apply_normal_map(normal_map, tangent, bitangent, vertex_normal);
     }

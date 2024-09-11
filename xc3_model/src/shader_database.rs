@@ -194,6 +194,12 @@ pub enum LayerBlendMode {
     AddNormal,
 }
 
+impl Default for LayerBlendMode {
+    fn default() -> Self {
+        Self::Mix
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct TextureLayer {
     pub name: String,

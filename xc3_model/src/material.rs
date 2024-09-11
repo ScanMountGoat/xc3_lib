@@ -8,7 +8,8 @@ use xc3_lib::mxmd::{
 
 use crate::{
     shader_database::{
-        BufferDependency, Dependency, ModelPrograms, ShaderProgram, TextureDependency,
+        BufferDependency, Dependency, LayerBlendMode, ModelPrograms, ShaderProgram,
+        TextureDependency,
     },
     ImageTexture,
 };
@@ -391,6 +392,7 @@ pub struct OutputLayerAssignment {
     /// The factor or blend weight for this layer.
     /// The blending operation depends on the usage like normal or color.
     pub weight: Option<ChannelAssignment>,
+    pub blend_mode: LayerBlendMode,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -565,6 +567,7 @@ fn output_assignment(
                         // TODO: Handle other dependency variants.
                         _ => todo!(),
                     }),
+                    blend_mode: l.blend_mode,
                 })
                 .collect()
         } else {
