@@ -2,6 +2,7 @@ use std::io::BufReader;
 use std::path::Path;
 
 use clap::{Parser, Subcommand};
+use dependencies::latte_dependencies;
 use extract::{extract_legacy_shaders, extract_shaders};
 use rayon::prelude::*;
 use shader_database::{create_shader_database, create_shader_database_legacy};
@@ -78,6 +79,15 @@ enum Commands {
         /// The name of the variable to analyze.
         var: String,
     },
+    /// Find all lines of GLSL code influencing the final assignment of a variable.
+    LatteDependencies {
+        /// The input Latte ASM file.
+        input: String,
+        /// The output GLSL file.
+        output: String,
+        /// The name of the variable to analyze.
+        var: String,
+    },
 }
 
 fn main() {
@@ -121,6 +131,12 @@ fn main() {
             let source = std::fs::read_to_string(input).unwrap();
             let (var, channels) = var.split_once('.').unwrap();
             let source_out = glsl_dependencies(&source, var, channels.chars().next());
+            std::fs::write(output, source_out).unwrap();
+        }
+        Commands::LatteDependencies { input, output, var } => {
+            let source = std::fs::read_to_string(input).unwrap();
+            let (var, channels) = var.split_once('.').unwrap();
+            let source_out = latte_dependencies(&source, var, channels.chars().next());
             std::fs::write(output, source_out).unwrap();
         }
     }
