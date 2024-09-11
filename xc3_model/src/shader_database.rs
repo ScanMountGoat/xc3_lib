@@ -182,11 +182,24 @@ pub struct AttributeDependency {
     pub channels: SmolStr,
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
+pub enum LayerBlendMode {
+    /// `mix(a, b, ratio)`
+    Mix,
+    /// `a + b * ratio`
+    Add,
+    /// `mix(a, b, fresnel(ratio))`
+    MixFresnel,
+    /// Normal blend mode similar to "Reoriented Normal Mapping" (RNM).
+    AddNormal,
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct TextureLayer {
     pub name: String,
     pub channel: Option<char>,
     pub ratio: Option<Dependency>,
+    pub blend_mode: LayerBlendMode,
 }
 
 impl ShaderProgram {

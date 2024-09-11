@@ -15,8 +15,8 @@ use log::error;
 use rayon::prelude::*;
 use xc3_lib::mths::{FragmentShader, Mths};
 use xc3_model::shader_database::{
-    BufferDependency, Dependency, MapPrograms, ModelPrograms, ShaderDatabase, ShaderProgram,
-    TextureLayer,
+    BufferDependency, Dependency, LayerBlendMode, MapPrograms, ModelPrograms, ShaderDatabase,
+    ShaderProgram, TextureLayer,
 };
 
 use crate::{
@@ -183,13 +183,13 @@ fn find_color_layers(
 
     let mut layers = Vec::new();
 
-    // TODO: Store the blend operation in the database.
     // TODO: Also check for getPixelCalcRatioBlend.
 
     // Shaders can blend layers with getPixelCalcOver or getPixelCalcRatio.
-    while let Some((mat_col, layer, ratio)) = mix_a_b_ratio(&frag.nodes, current_col)
-        .or_else(|| pixel_calc_ratio(current_col))
-        .or_else(|| pixel_calc_add(&frag.nodes, current_col))
+    while let Some(((mat_col, layer, ratio), blend_mode)) = mix_a_b_ratio(&frag.nodes, current_col)
+        .map(|n| (n, LayerBlendMode::Mix))
+        .or_else(|| pixel_calc_ratio(current_col).map(|n| (n, LayerBlendMode::Add)))
+        .or_else(|| pixel_calc_add(&frag.nodes, current_col).map(|n| (n, LayerBlendMode::Add)))
     {
         let mut layer = layer;
         if let Some(n) = node_expr(&frag.nodes, layer) {
@@ -204,6 +204,7 @@ fn find_color_layers(
                 name,
                 channel,
                 ratio,
+                blend_mode,
             });
         }
 
@@ -222,6 +223,7 @@ fn find_color_layers(
             name,
             channel,
             ratio: None,
+            blend_mode: LayerBlendMode::Mix,
         });
     }
 
@@ -300,6 +302,7 @@ fn find_normal_layers(
                 name,
                 channel,
                 ratio,
+                blend_mode: LayerBlendMode::AddNormal,
             });
         }
         if let Some(n1) = normal_map_fma(&frag.nodes, layer_nom_work) {
@@ -308,6 +311,7 @@ fn find_normal_layers(
                     name,
                     channel,
                     ratio: None,
+                    blend_mode: LayerBlendMode::AddNormal,
                 });
             }
         }
@@ -315,7 +319,6 @@ fn find_normal_layers(
     }
 
     // TODO: Check for each blend operation at each layer.
-    // TODO: Store the blend operation in the database.
     while let Some((layer_nom_work, n2, ratio)) = mix_a_b_ratio(&frag.nodes, nom_work) {
         if let Some(n2_node) = node_expr(&frag.nodes, n2) {
             let ratio = ratio_dependency(ratio, &frag.nodes, dependencies);
@@ -326,6 +329,7 @@ fn find_normal_layers(
                         name,
                         channel,
                         ratio,
+                        blend_mode: LayerBlendMode::Mix,
                     });
                 }
             }
@@ -338,6 +342,7 @@ fn find_normal_layers(
                         name,
                         channel,
                         ratio: None,
+                        blend_mode: LayerBlendMode::Mix,
                     });
                 }
             }
@@ -884,7 +889,7 @@ mod tests {
     use pretty_assertions::assert_eq;
     use smol_str::SmolStr;
     use xc3_model::shader_database::{
-        BufferDependency, TexCoord, TexCoordParams, TextureDependency,
+        BufferDependency, LayerBlendMode, TexCoord, TexCoordParams, TextureDependency,
     };
 
     #[test]
@@ -1103,12 +1108,14 @@ mod tests {
                 TextureLayer {
                     name: "s0".to_string(),
                     channel: Some('x'),
-                    ratio: None
+                    ratio: None,
+                    blend_mode: LayerBlendMode::Mix,
                 },
                 TextureLayer {
                     name: "gTResidentTex04".to_string(),
                     channel: Some('x'),
-                    ratio: None
+                    ratio: None,
+                    blend_mode: LayerBlendMode::Mix,
                 }
             ],
             shader.color_layers
@@ -1118,7 +1125,8 @@ mod tests {
                 TextureLayer {
                     name: "s2".to_string(),
                     channel: Some('x'),
-                    ratio: None
+                    ratio: None,
+                    blend_mode: LayerBlendMode::AddNormal,
                 },
                 TextureLayer {
                     name: "gTResidentTex09".to_string(),
@@ -1128,7 +1136,8 @@ mod tests {
                         field: "gWrkFl4".into(),
                         index: 1,
                         channels: "z".into()
-                    }))
+                    })),
+                    blend_mode: LayerBlendMode::AddNormal,
                 }
             ],
             shader.normal_layers
@@ -1159,12 +1168,14 @@ mod tests {
                 TextureLayer {
                     name: "s0".to_string(),
                     channel: Some('x'),
-                    ratio: None
+                    ratio: None,
+                    blend_mode: LayerBlendMode::Mix,
                 },
                 TextureLayer {
                     name: "gTResidentTex04".to_string(),
                     channel: Some('x'),
-                    ratio: None
+                    ratio: None,
+                    blend_mode: LayerBlendMode::Mix,
                 }
             ],
             shader.color_layers
@@ -1174,7 +1185,8 @@ mod tests {
                 TextureLayer {
                     name: "s2".to_string(),
                     channel: Some('x'),
-                    ratio: None
+                    ratio: None,
+                    blend_mode: LayerBlendMode::AddNormal,
                 },
                 TextureLayer {
                     name: "gTResidentTex09".to_string(),
@@ -1184,7 +1196,8 @@ mod tests {
                         field: "gWrkFl4".into(),
                         index: 2,
                         channels: "y".into()
-                    }))
+                    })),
+                    blend_mode: LayerBlendMode::AddNormal,
                 },
                 TextureLayer {
                     name: "s3".to_string(),
@@ -1194,7 +1207,8 @@ mod tests {
                         field: "gWrkFl4".into(),
                         index: 2,
                         channels: "z".into()
-                    }))
+                    })),
+                    blend_mode: LayerBlendMode::AddNormal,
                 },
             ],
             shader.normal_layers
@@ -1324,7 +1338,8 @@ mod tests {
             vec![TextureLayer {
                 name: "s0".to_string(),
                 channel: Some('x'),
-                ratio: None
+                ratio: None,
+                blend_mode: LayerBlendMode::Mix,
             }],
             shader.color_layers
         );
@@ -1333,7 +1348,8 @@ mod tests {
                 TextureLayer {
                     name: "s6".to_string(),
                     channel: Some('x'),
-                    ratio: None
+                    ratio: None,
+                    blend_mode: LayerBlendMode::Mix,
                 },
                 TextureLayer {
                     name: "s7".to_string(),
@@ -1353,7 +1369,8 @@ mod tests {
                                 params: None,
                             },
                         ],
-                    }))
+                    })),
+                    blend_mode: LayerBlendMode::Mix,
                 }
             ],
             shader.normal_layers
@@ -1393,7 +1410,8 @@ mod tests {
                 TextureLayer {
                     name: "s0".to_string(),
                     channel: Some('x'),
-                    ratio: None
+                    ratio: None,
+                    blend_mode: LayerBlendMode::Mix,
                 },
                 TextureLayer {
                     name: "gTResidentTex03".into(),
@@ -1413,12 +1431,14 @@ mod tests {
                                 params: None,
                             },
                         ],
-                    },),),
+                    })),
+                    blend_mode: LayerBlendMode::Add,
                 },
                 TextureLayer {
                     name: "gTResidentTex04".into(),
                     channel: Some('x',),
                     ratio: None,
+                    blend_mode: LayerBlendMode::Mix,
                 },
             ],
             shader.color_layers
@@ -1428,7 +1448,8 @@ mod tests {
                 TextureLayer {
                     name: "s2".to_string(),
                     channel: Some('x'),
-                    ratio: None
+                    ratio: None,
+                    blend_mode: LayerBlendMode::AddNormal,
                 },
                 TextureLayer {
                     name: "gTResidentTex09".to_string(),
@@ -1438,7 +1459,8 @@ mod tests {
                         field: "gWrkFl4".into(),
                         index: 2,
                         channels: "x".into()
-                    }))
+                    })),
+                    blend_mode: LayerBlendMode::AddNormal,
                 }
             ],
             shader.normal_layers

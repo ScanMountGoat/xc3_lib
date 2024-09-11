@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 
 use super::{
-    AttributeDependency, BufferDependency, Dependency, MapPrograms, ModelPrograms, ShaderProgram,
-    TexCoord, TexCoordParams, TextureDependency, TextureLayer,
+    AttributeDependency, BufferDependency, Dependency, LayerBlendMode, MapPrograms, ModelPrograms,
+    ShaderProgram, TexCoord, TexCoordParams, TextureDependency, TextureLayer,
 };
 
 // Create a separate smaller representation for on disk.
@@ -65,6 +65,7 @@ struct TextureLayerIndexed {
     name: String,
     channel: Option<char>,
     ratio: Option<usize>,
+    blend_mode: LayerBlendMode,
 }
 
 impl ShaderDatabaseIndexed {
@@ -273,6 +274,7 @@ fn model_indexed(
                             name: l.name,
                             channel: l.channel,
                             ratio: l.ratio.map(|r| dependency_to_index.entry_index(r)),
+                            blend_mode: l.blend_mode,
                         })
                         .collect(),
                     p.normal_layers
@@ -281,6 +283,7 @@ fn model_indexed(
                             name: l.name,
                             channel: l.channel,
                             ratio: l.ratio.map(|r| dependency_to_index.entry_index(r)),
+                            blend_mode: l.blend_mode,
                         })
                         .collect(),
                 )
@@ -327,6 +330,7 @@ fn model_from_indexed(
                         ratio: l.ratio.map(|i| {
                             dependency_from_indexed(dependencies[i].clone(), buffer_dependencies)
                         }),
+                        blend_mode: l.blend_mode,
                     })
                     .collect(),
                 normal_layers: p
@@ -338,6 +342,7 @@ fn model_from_indexed(
                         ratio: l.ratio.map(|i| {
                             dependency_from_indexed(dependencies[i].clone(), buffer_dependencies)
                         }),
+                        blend_mode: l.blend_mode,
                     })
                     .collect(),
             })

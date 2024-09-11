@@ -554,16 +554,17 @@ fn output_assignment(
                     }),
                     z: None,
                     w: None,
-                    weight: match &l.ratio {
-                        // TODO: Handle other dependency variants.
-                        Some(Dependency::Texture(t)) => Some(ChannelAssignment::Texture(
-                            texture_assignment(t, parameters),
-                        )),
-                        Some(Dependency::Buffer(b)) => Some(ChannelAssignment::Value(
+                    weight: l.ratio.as_ref().map(|r| match r {
+                        Dependency::Texture(t) => {
+                            ChannelAssignment::Texture(texture_assignment(t, parameters))
+                        }
+                        Dependency::Buffer(b) => ChannelAssignment::Value(
                             parameters.get_dependency(b).unwrap_or_default(),
-                        )),
-                        _ => None,
-                    },
+                        ),
+                        Dependency::Constant(f) => ChannelAssignment::Value(f.0),
+                        // TODO: Handle other dependency variants.
+                        _ => todo!(),
+                    }),
                 })
                 .collect()
         } else {
