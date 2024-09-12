@@ -1,4 +1,4 @@
-use std::{path::Path, usize};
+use std::path::Path;
 
 use bimap::BiBTreeMap;
 use glsl_lang::{

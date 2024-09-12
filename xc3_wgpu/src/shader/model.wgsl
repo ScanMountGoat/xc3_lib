@@ -118,7 +118,8 @@ struct TextureLayers {
     sampler_indices: vec4<i32>,
     channel_indices: vec4<u32>,
     default_weights: vec4<f32>,
-    blend_mode: vec4<i32>
+    values: array<vec4<f32>, 4>,
+    blend_modes: vec4<i32>
 }
 
 struct PerMaterial {
@@ -286,30 +287,36 @@ fn assign_texture(a: OutputAssignment, s_colors: array<vec4<f32>, 10>, vcolor: v
     return vec4(x, y, z, w);
 }
 
-fn assign_texture_layer(a: OutputAssignment, layer_index: u32, s_colors: array<vec4<f32>, 10>) -> vec4<f32> {
+fn assign_texture_layer(a: OutputAssignment, layer_index: u32, s_colors: array<vec4<f32>, 10>, values: array<vec4<f32>, 4>) -> vec4<f32> {
     var s = a.samplers1;
+    var default_value = vec4(0.0);
     switch (layer_index) {
         case 0u: {
             s = a.samplers2;
+            default_value = values[0];
         }
         case 1u: {
             s = a.samplers3;
+            default_value = values[1];
         }
         case 2u: {
             s = a.samplers4;
+            default_value = values[2];
         }
         case 3u: {
             s = a.samplers5;
+            default_value = values[3];
         }
         default: {
             s = a.samplers1;
+            default_value = vec4(0.0);
         }
     }
 
-    let x = assign_channel(s.sampler_indices.x, s.channel_indices.x, -1, s_colors, a.default_value, a.default_value.x);
-    let y = assign_channel(s.sampler_indices.y, s.channel_indices.y, -1, s_colors, a.default_value, a.default_value.y);
-    let z = assign_channel(s.sampler_indices.z, s.channel_indices.z, -1, s_colors, a.default_value, a.default_value.z);
-    let w = assign_channel(s.sampler_indices.w, s.channel_indices.w, -1, s_colors, a.default_value, a.default_value.w);
+    let x = assign_channel(s.sampler_indices.x, s.channel_indices.x, -1, s_colors, default_value, default_value.x);
+    let y = assign_channel(s.sampler_indices.y, s.channel_indices.y, -1, s_colors, default_value, default_value.y);
+    let z = assign_channel(s.sampler_indices.z, s.channel_indices.z, -1, s_colors, default_value, default_value.z);
+    let w = assign_channel(s.sampler_indices.w, s.channel_indices.w, -1, s_colors, default_value, default_value.w);
     return vec4(x, y, z, w);
 }
 
@@ -386,7 +393,7 @@ fn create_normal_map(col: vec2<f32>) -> vec3<f32> {
     return vec3(x, y, z);
 }
 
-// Adapted from xeno3/chr/ch/ch11021013.pcsmt, shd00028, getPixelCalcAddNormal,
+// Adapted from xeno3/chr/ch/ch11021013.pcsmt, shd00028, getPixelCalcAddNormal.
 // This appears to match "Reoriented Normal Mapping (RNM)" described here:
 // https://blog.selfshadow.com/publications/blending-in-detail/
 fn add_normal_maps(n1: vec3<f32>, n2: vec3<f32>, ratio: f32) -> vec3<f32> {
@@ -396,7 +403,7 @@ fn add_normal_maps(n1: vec3<f32>, n2: vec3<f32>, ratio: f32) -> vec3<f32> {
     return normalize(mix(n1, normalize(r), ratio));
 }
 
-// Adapted from xeno3/chr/ch/ch11021013.pcsmt, shd00036, calcGeometricSpecularAA,
+// Adapted from xeno3/chr/ch/ch11021013.pcsmt, shd00036, calcGeometricSpecularAA.
 fn geometric_specular_aa(shininess: f32, normal: vec3<f32>) -> f32 {
     let sigma2 = 0.25;
     let kappa = 0.18;
@@ -454,7 +461,7 @@ fn overlay_blend(a: vec3<f32>, b: vec3<f32>) -> vec3<f32> {
     return screen * is_a_gt_half + multiply * (1.0 - is_a_gt_half);
 }
 
-fn blend_layer(a: vec3<f32>, b: vec3<f32>, ratio: f32, mode: i32) -> vec3<f32> {
+fn blend_layer(a: vec3<f32>, b: vec3<f32>, ratio: f32, n_dot_v: f32, mode: i32) -> vec3<f32> {
     switch (mode) {
         case 0: {
             return mix(a, b, ratio);
@@ -463,8 +470,9 @@ fn blend_layer(a: vec3<f32>, b: vec3<f32>, ratio: f32, mode: i32) -> vec3<f32> {
             return a + b * ratio;
         }
         case 2: {
-            // TODO: Fresnel
-            return mix(a, b, ratio);
+            // Adapted from xeno3/chr/ch/ch11021013.pcsmt, shd00016, getPixelCalcFresnel.
+            let fresnel_ratio = pow(1.0 - n_dot_v, ratio * 5.0);
+            return mix(a, b, fresnel_ratio);
         }
         case 3: {
             let b_normal = create_normal_map(b.xy);
@@ -476,8 +484,8 @@ fn blend_layer(a: vec3<f32>, b: vec3<f32>, ratio: f32, mode: i32) -> vec3<f32> {
     }
 }
 
-fn blend_texture_layer(current: vec3<f32>, assignments: OutputAssignment, layers: TextureLayers, s_colors: array<vec4<f32>, 10>, layer_index: u32) -> vec3<f32> {
-    let blend_mode = layers.blend_mode[layer_index];
+fn blend_texture_layer(current: vec3<f32>, assignments: OutputAssignment, layers: TextureLayers, s_colors: array<vec4<f32>, 10>, layer_index: u32, n_dot_v: f32) -> vec3<f32> {
+    let blend_mode = layers.blend_modes[layer_index];
     let sampler_index = layers.sampler_indices[layer_index];
     let channel_index = layers.channel_indices[layer_index];
     let default_weight = layers.default_weights[layer_index];
@@ -485,8 +493,8 @@ fn blend_texture_layer(current: vec3<f32>, assignments: OutputAssignment, layers
     // TODO: Should this be vec3 or vec4?
     if blend_mode != -1 {
         let weight = assign_channel(sampler_index, channel_index, -1, s_colors, vec4(0.0), default_weight);
-        let b = assign_texture_layer(assignments, layer_index, s_colors);
-        return blend_layer(current, b.xyz, weight, blend_mode);
+        let b = assign_texture_layer(assignments, layer_index, s_colors, layers.values);
+        return blend_layer(current, b.xyz, weight, n_dot_v, blend_mode);
     } else {
         return current;
     }
@@ -545,7 +553,6 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     let g_depth = assign_texture(assignments[4], s_colors, in.vertex_color);
     let g_lgt_color = assign_texture(assignments[5], s_colors, in.vertex_color);
 
-    // TODO: color layers
 
     // Not all materials and shaders use normal mapping.
     // TODO: Is this a good way to check for this?
@@ -554,11 +561,12 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
 
         let layers = per_material.normal_layers;
 
+        // These layers don't use fresnel blending, so just use a default for dot(N, V).
         var normal_map = create_normal_map(g_normal.xy);
-        normal_map = blend_texture_layer(normal_map, assignments[2], layers, s_colors, 0u);
-        normal_map = blend_texture_layer(normal_map, assignments[2], layers, s_colors, 1u);
-        normal_map = blend_texture_layer(normal_map, assignments[2], layers, s_colors, 2u);
-        normal_map = blend_texture_layer(normal_map, assignments[2], layers, s_colors, 3u);
+        normal_map = blend_texture_layer(normal_map, assignments[2], layers, s_colors, 0u, 1.0);
+        normal_map = blend_texture_layer(normal_map, assignments[2], layers, s_colors, 1u, 1.0);
+        normal_map = blend_texture_layer(normal_map, assignments[2], layers, s_colors, 2u, 1.0);
+        normal_map = blend_texture_layer(normal_map, assignments[2], layers, s_colors, 3u, 1.0);
 
         normal = apply_normal_map(normal_map, tangent, bitangent, vertex_normal);
     }
@@ -566,8 +574,19 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     // In game normals in view space.
     let view_normal = normalize((camera.view * vec4(normal.xyz, 0.0)).xyz);
 
+    // Normals are in view space, so the view vector is simple.
+    let view = vec3(0.0, 0.0, 1.0);
+    let n_dot_v = max(dot(view, view_normal), 0.0);
+
+    // Blend color layers.
+    let layers = per_material.color_layers;
+    var color = g_color.xyz;
+    color = blend_texture_layer(color, assignments[0], layers, s_colors, 0u, n_dot_v);
+    color = blend_texture_layer(color, assignments[0], layers, s_colors, 1u, n_dot_v);
+    color = blend_texture_layer(color, assignments[0], layers, s_colors, 2u, n_dot_v);
+    color = blend_texture_layer(color, assignments[0], layers, s_colors, 3u, n_dot_v);
+
     // TODO: How to detect if vertex color is actually color?
-    // TODO: Some outlines aren't using vertex color?
 
     // The ordering here is the order of per material fragment shader outputs.
     // The input order for the deferred lighting pass is slightly different.
@@ -576,9 +595,8 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     // TODO: Is it ok to always apply gMatCol like this?
     // TODO: Detect multiply by vertex color and gMatCol.
     // TODO: Just detect if gMatCol is part of the technique parameters?
-    // TODO: Create a separate entry point fs_outline that always uses vertex color?
     var out: FragmentOutput;
-    out.g_color = g_color * per_material.mat_color;
+    out.g_color = vec4(color, g_color.a) * per_material.mat_color;
     out.g_etc_buffer = mrt_etc_buffer(g_etc_buffer, view_normal);
     out.g_normal = mrt_normal(view_normal, g_normal.z);
     out.g_velocity = g_velocity;

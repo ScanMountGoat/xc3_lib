@@ -64,7 +64,6 @@ pub fn materials(
                 .collect();
 
             let mut name_to_transforms = IndexMap::new();
-
             let material_assignments = material.output_assignments(image_textures);
             let assignments = output_assignments(
                 &material_assignments,
@@ -223,16 +222,17 @@ fn texture_layers(
 ) -> crate::shader::model::TextureLayers {
     let layers = &assignments.assignments[index].layers;
 
-    let (s0, c0, w0, b0) = texture_layer_indices(layers, name_to_index, 0);
-    let (s1, c1, w1, b1) = texture_layer_indices(layers, name_to_index, 1);
-    let (s2, c2, w2, b2) = texture_layer_indices(layers, name_to_index, 2);
-    let (s3, c3, w3, b3) = texture_layer_indices(layers, name_to_index, 3);
+    let (s0, c0, w0, b0, value0) = texture_layer_indices(layers, name_to_index, 0);
+    let (s1, c1, w1, b1, value1) = texture_layer_indices(layers, name_to_index, 1);
+    let (s2, c2, w2, b2, value2) = texture_layer_indices(layers, name_to_index, 2);
+    let (s3, c3, w3, b3, value3) = texture_layer_indices(layers, name_to_index, 3);
 
     crate::shader::model::TextureLayers {
         sampler_indices: ivec4(s0, s1, s2, s3),
         channel_indices: uvec4(c0, c1, c2, c3),
         default_weights: vec4(w0, w1, w2, w3),
-        blend_mode: ivec4(b0, b1, b2, b3),
+        values: [value0, value1, value2, value3],
+        blend_modes: ivec4(b0, b1, b2, b3),
     }
 }
 
@@ -240,7 +240,7 @@ fn texture_layer_indices(
     layers: &[OutputLayerAssignment],
     name_to_index: &IndexMap<SmolStr, usize>,
     layer: usize,
-) -> (i32, u32, f32, i32) {
+) -> (i32, u32, f32, i32, Vec4) {
     let layer = layers.get(layer);
 
     let (s, c) = layer
@@ -276,7 +276,18 @@ fn texture_layer_indices(
         })
         .unwrap_or(-1);
 
-    (s, c, w, blend)
+    let value = layer
+        .map(|l| {
+            vec4(
+                value_channel_assignment(l.x.as_ref()).unwrap_or_default(),
+                value_channel_assignment(l.y.as_ref()).unwrap_or_default(),
+                value_channel_assignment(l.z.as_ref()).unwrap_or_default(),
+                value_channel_assignment(l.w.as_ref()).unwrap_or_default(),
+            )
+        })
+        .unwrap_or(Vec4::ZERO);
+
+    (s, c, w, blend, value)
 }
 
 fn output_assignments(

@@ -7,7 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## unreleased
 ### Added
-* Added shader database and rendering support for layered normal map weights and texture masks.
+* Added shader database and rendering support for layered color maps and blending.
+* Added shader database and rendering support for layered normal maps and blending.
 * Added `latte-dependencies` command to xc3_shader for finding dependent lines from Wii U shaders as GLSL.
 
 ### Changed

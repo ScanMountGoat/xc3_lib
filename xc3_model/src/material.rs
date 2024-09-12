@@ -526,53 +526,81 @@ fn output_assignment(
         y: channel_assignment(shader, parameters, output_index, 1),
         z: channel_assignment(shader, parameters, output_index, 2),
         w: channel_assignment(shader, parameters, output_index, 3),
-        layers: if output_index == 2 {
-            // Find normal layers in the existing texture dependencies.
+        layers: if output_index == 0 {
             // TODO: Is there a more reliable way to handle channels?
             // Skip the base layer in the first element.
-            let textures = shader.textures(2, 'x');
+            shader
+                .color_layers
+                .iter()
+                .skip(1)
+                .map(|l| OutputLayerAssignment {
+                    x: layer_channel_assignment(l, shader, parameters, 0, 'x'),
+                    y: layer_channel_assignment(l, shader, parameters, 0, 'y'),
+                    z: layer_channel_assignment(l, shader, parameters, 0, 'z'),
+                    w: layer_channel_assignment(l, shader, parameters, 0, 'w'),
+                    weight: layer_weight(l, parameters),
+                    blend_mode: l.blend_mode,
+                })
+                .collect()
+        } else if output_index == 2 {
+            // TODO: Is there a more reliable way to handle channels?
+            // Skip the base layer in the first element.
             shader
                 .normal_layers
                 .iter()
                 .skip(1)
                 .map(|l| OutputLayerAssignment {
-                    x: textures.iter().find_map(|t| {
-                        if Some(&t.name) == layer_name(l) && t.channels.contains('x') {
-                            Some(ChannelAssignment::Texture(texture_assignment(
-                                t, parameters,
-                            )))
-                        } else {
-                            None
-                        }
-                    }),
-                    y: textures.iter().find_map(|t| {
-                        if Some(&t.name) == layer_name(l) && t.channels.contains('y') {
-                            Some(ChannelAssignment::Texture(texture_assignment(
-                                t, parameters,
-                            )))
-                        } else {
-                            None
-                        }
-                    }),
+                    x: layer_channel_assignment(l, shader, parameters, 2, 'x'),
+                    y: layer_channel_assignment(l, shader, parameters, 2, 'y'),
                     z: None,
                     w: None,
-                    weight: l.ratio.as_ref().map(|r| match r {
-                        Dependency::Texture(t) => {
-                            ChannelAssignment::Texture(texture_assignment(t, parameters))
-                        }
-                        Dependency::Buffer(b) => ChannelAssignment::Value(
-                            parameters.get_dependency(b).unwrap_or_default(),
-                        ),
-                        Dependency::Constant(f) => ChannelAssignment::Value(f.0),
-                        // TODO: Handle other dependency variants.
-                        _ => todo!(),
-                    }),
+                    weight: layer_weight(l, parameters),
                     blend_mode: l.blend_mode,
                 })
                 .collect()
         } else {
             Vec::new()
         },
+    }
+}
+
+fn layer_weight(l: &TextureLayer, parameters: &MaterialParameters) -> Option<ChannelAssignment> {
+    l.ratio.as_ref().map(|r| match r {
+        Dependency::Texture(t) => ChannelAssignment::Texture(texture_assignment(t, parameters)),
+        Dependency::Buffer(b) => {
+            ChannelAssignment::Value(parameters.get_dependency(b).unwrap_or_default())
+        }
+        Dependency::Constant(f) => ChannelAssignment::Value(f.0),
+        // TODO: Handle other dependency variants.
+        _ => todo!(),
+    })
+}
+
+fn layer_channel_assignment(
+    l: &TextureLayer,
+    shader: &ShaderProgram,
+    parameters: &MaterialParameters,
+    output_index: usize,
+    channel: char,
+) -> Option<ChannelAssignment> {
+    // TODO: ChannelAssignment::from_dependency to share code?
+    match &l.value {
+        Dependency::Constant(f) => Some(ChannelAssignment::Value(f.0)),
+        Dependency::Buffer(b) => parameters.get_dependency(b).map(ChannelAssignment::Value),
+        Dependency::Texture(texture) => {
+            // TODO: Store proper texture channels for each layer?
+            let textures = shader.textures(output_index, channel);
+            textures.iter().find_map(|t| {
+                if t.name == texture.name && t.channels.contains('x') {
+                    Some(ChannelAssignment::Texture(texture_assignment(
+                        t, parameters,
+                    )))
+                } else {
+                    None
+                }
+            })
+        }
+        Dependency::Attribute(_) => todo!(),
     }
 }
 
