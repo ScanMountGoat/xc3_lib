@@ -205,8 +205,13 @@ fn find_color_layers(
         }
 
         if let Some(value) = layer_value(layer, frag, attributes) {
-            // TODO: Should this ever be not none?
-            let ratio = ratio_dependency(ratio, &frag.nodes, dependencies);
+            let (is_fresnel, ratio) = ratio_dependency(ratio, &frag.nodes, dependencies);
+            let blend_mode = if is_fresnel {
+                LayerBlendMode::MixFresnel
+            } else {
+                blend_mode
+            };
+
             layers.push(TextureLayer {
                 value,
                 ratio,
@@ -310,11 +315,17 @@ fn find_normal_layers(
     // Some shaders layer more than one additional normal map.
     while let Some((layer_nom_work, n2, ratio)) = pixel_calc_add_normal(&frag.nodes, nom_work) {
         if let Some(value) = layer_value(n2, frag, attributes) {
-            let ratio = ratio_dependency(ratio, &frag.nodes, dependencies);
+            let (is_fresnel, ratio) = ratio_dependency(ratio, &frag.nodes, dependencies);
+            let blend_mode = if is_fresnel {
+                LayerBlendMode::MixFresnel
+            } else {
+                LayerBlendMode::AddNormal
+            };
+
             layers.push(TextureLayer {
                 value,
                 ratio,
-                blend_mode: LayerBlendMode::AddNormal,
+                blend_mode,
             });
         }
         if let Some(n1) = normal_map_fma(&frag.nodes, layer_nom_work) {
@@ -332,14 +343,19 @@ fn find_normal_layers(
     // TODO: Check for each blend operation at each layer.
     while let Some((layer_nom_work, n2, ratio)) = mix_a_b_ratio(&frag.nodes, nom_work) {
         if let Some(n2_node) = node_expr(&frag.nodes, n2) {
-            let ratio = ratio_dependency(ratio, &frag.nodes, dependencies);
+            let (is_fresnel, ratio) = ratio_dependency(ratio, &frag.nodes, dependencies);
+            let blend_mode = if is_fresnel {
+                LayerBlendMode::MixFresnel
+            } else {
+                LayerBlendMode::Mix
+            };
 
             if let Some(n2) = normal_map_fma(&frag.nodes, n2_node) {
                 if let Some(value) = layer_value(n2, frag, attributes) {
                     layers.push(TextureLayer {
                         value,
                         ratio,
-                        blend_mode: LayerBlendMode::Mix,
+                        blend_mode,
                     });
                 }
             }
@@ -372,7 +388,7 @@ fn ratio_dependency(
     ratio: &Expr,
     nodes: &[Node],
     dependencies: &[Dependency],
-) -> Option<Dependency> {
+) -> (bool, Option<Dependency>) {
     // Reduce any assignment chains for what's likely a parameter or texture assignment.
     // TODO: Convert ratio to a dependency.
     let mut ratio = ratio;
@@ -381,37 +397,55 @@ fn ratio_dependency(
         ratio = n;
     }
 
-    buffer_dependency(ratio)
-        .map(Dependency::Buffer)
-        .or_else(|| match ratio {
-            Expr::Func {
-                name,
-                args,
-                channel,
-            } => {
-                if name == "texture" {
-                    if let Some(Expr::Global { name, .. }) = args.first() {
-                        dependencies
-                            .iter()
-                            .find(|d| {
-                                if let Dependency::Texture(t) = d {
-                                    t.name == name && t.channels.contains(channel.unwrap())
-                                } else {
-                                    false
-                                }
-                            })
-                            .cloned()
+    // TODO: Store this separately from the blend mode?
+    let mut is_fresnel = false;
+
+    // Extract the ratio from getPixelCalcFresnel in pcmdo shaders if present.
+    let query = indoc! {"
+        a = ratio * 5.0;
+        result = a * b;
+        result = exp2(result);
+    "};
+    let result = query_nodes_glsl(ratio, nodes, query);
+    if let Some(new_ratio) = result.as_ref().and_then(|r| r.get("ratio")) {
+        ratio = new_ratio;
+        is_fresnel = true;
+    }
+
+    (
+        is_fresnel,
+        buffer_dependency(ratio)
+            .map(Dependency::Buffer)
+            .or_else(|| match ratio {
+                Expr::Func {
+                    name,
+                    args,
+                    channel,
+                } => {
+                    if name == "texture" {
+                        if let Some(Expr::Global { name, .. }) = args.first() {
+                            dependencies
+                                .iter()
+                                .find(|d| {
+                                    if let Dependency::Texture(t) = d {
+                                        t.name == name && t.channels.contains(channel.unwrap())
+                                    } else {
+                                        false
+                                    }
+                                })
+                                .cloned()
+                        } else {
+                            // TODO: How to handle this case?
+                            None
+                        }
                     } else {
-                        // TODO: How to handle this case?
                         None
                     }
-                } else {
-                    None
                 }
-            }
-            // TODO: Find dependencies recursively?
-            _ => None,
-        })
+                // TODO: Find dependencies recursively?
+                _ => None,
+            }),
+    )
 }
 
 fn layer_value(input: &Expr, graph: &Graph, attributes: &Attributes) -> Option<Dependency> {
@@ -1241,8 +1275,13 @@ mod tests {
                         index: 1,
                         channels: "x".into(),
                     }),
-                    ratio: None,
-                    blend_mode: LayerBlendMode::Mix,
+                    ratio: Some(Dependency::Buffer(BufferDependency {
+                        name: "U_Mate".into(),
+                        field: "gWrkFl4".into(),
+                        index: 1,
+                        channels: "z".into(),
+                    })),
+                    blend_mode: LayerBlendMode::MixFresnel,
                 },
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
@@ -1492,8 +1531,13 @@ mod tests {
                         index: 1,
                         channels: "x".into(),
                     }),
-                    ratio: None,
-                    blend_mode: LayerBlendMode::Mix,
+                    ratio: Some(Dependency::Buffer(BufferDependency {
+                        name: "U_Mate".into(),
+                        field: "gWrkFl4".into(),
+                        index: 0,
+                        channels: "z".into(),
+                    })),
+                    blend_mode: LayerBlendMode::MixFresnel,
                 },
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
