@@ -119,7 +119,8 @@ struct TextureLayers {
     channel_indices: vec4<u32>,
     default_weights: vec4<f32>,
     values: array<vec4<f32>, 4>,
-    blend_modes: vec4<i32>
+    blend_modes: vec4<i32>,
+    is_fresnel: vec4<u32>
 }
 
 struct PerMaterial {
@@ -442,10 +443,6 @@ fn mrt_etc_buffer(g_etc_buffer: vec4<f32>, view_normal: vec3<f32>) -> vec4<f32> 
     return out;
 }
 
-// TODO: schlick fresnel approximation for shading some toon meshes?
-// TODO: Is it reliable to detect this as U_Mate.gWrkFl4[i].c * 5?
-// TODO: what color is used for blending?
-
 // Adapted from xeno3/chr/ch/ch11021013.pcsmt, shd00028, getTextureMatrix.
 // Scale parameters are converted to "matrices" for consistency.
 fn transform_uv(uv: vec2<f32>, matrix: array<vec4<f32>, 2>) -> vec2<f32> {
@@ -461,22 +458,26 @@ fn overlay_blend(a: vec3<f32>, b: vec3<f32>) -> vec3<f32> {
     return screen * is_a_gt_half + multiply * (1.0 - is_a_gt_half);
 }
 
-fn blend_layer(a: vec3<f32>, b: vec3<f32>, ratio: f32, n_dot_v: f32, mode: i32) -> vec3<f32> {
+fn blend_layer(a: vec3<f32>, b: vec3<f32>, ratio: f32, n_dot_v: f32, mode: i32, is_fresnel: bool) -> vec3<f32> {
+    // Adapted from xeno3/chr/ch/ch11021013.pcsmt, shd00016, getPixelCalcFresnel.
+    var final_ratio = ratio;
+    if is_fresnel {
+        final_ratio = pow(1.0 - n_dot_v, ratio * 5.0);
+    }
+
     switch (mode) {
         case 0: {
-            return mix(a, b, ratio);
+            return mix(a, b, final_ratio);
         }
         case 1: {
-            return a + b * ratio;
+            return mix(a, a * b, final_ratio);
         }
         case 2: {
-            // Adapted from xeno3/chr/ch/ch11021013.pcsmt, shd00016, getPixelCalcFresnel.
-            let fresnel_ratio = pow(1.0 - n_dot_v, ratio * 5.0);
-            return mix(a, b, fresnel_ratio);
+            return a + b * final_ratio;
         }
         case 3: {
             let b_normal = create_normal_map(b.xy);
-            return add_normal_maps(a, b_normal, ratio);
+            return add_normal_maps(a, b_normal, final_ratio);
         }
         default: {
             return a;
@@ -489,12 +490,13 @@ fn blend_texture_layer(current: vec3<f32>, assignments: OutputAssignment, layers
     let sampler_index = layers.sampler_indices[layer_index];
     let channel_index = layers.channel_indices[layer_index];
     let default_weight = layers.default_weights[layer_index];
+    let is_fresnel = layers.is_fresnel[layer_index] != 0u;
 
     // TODO: Should this be vec3 or vec4?
     if blend_mode != -1 {
         let weight = assign_channel(sampler_index, channel_index, -1, s_colors, vec4(0.0), default_weight);
         let b = assign_texture_layer(assignments, layer_index, s_colors, layers.values);
-        return blend_layer(current, b.xyz, weight, n_dot_v, blend_mode);
+        return blend_layer(current, b.xyz, weight, n_dot_v, blend_mode, is_fresnel);
     } else {
         return current;
     }

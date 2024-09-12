@@ -65,6 +65,7 @@ struct TextureLayerIndexed {
     value: usize,
     ratio: Option<usize>,
     blend_mode: LayerBlendMode,
+    is_fresnel: bool,
 }
 
 impl ShaderDatabaseIndexed {
@@ -273,6 +274,7 @@ fn model_indexed(
                             value: dependency_to_index.entry_index(l.value),
                             ratio: l.ratio.map(|r| dependency_to_index.entry_index(r)),
                             blend_mode: l.blend_mode,
+                            is_fresnel: l.is_fresnel,
                         })
                         .collect(),
                     p.normal_layers
@@ -281,6 +283,7 @@ fn model_indexed(
                             value: dependency_to_index.entry_index(l.value),
                             ratio: l.ratio.map(|r| dependency_to_index.entry_index(r)),
                             blend_mode: l.blend_mode,
+                            is_fresnel: l.is_fresnel,
                         })
                         .collect(),
                 )
@@ -330,6 +333,7 @@ fn model_from_indexed(
                             dependency_from_indexed(dependencies[i].clone(), buffer_dependencies)
                         }),
                         blend_mode: l.blend_mode,
+                        is_fresnel: l.is_fresnel,
                     })
                     .collect(),
                 normal_layers: p
@@ -344,6 +348,7 @@ fn model_from_indexed(
                             dependency_from_indexed(dependencies[i].clone(), buffer_dependencies)
                         }),
                         blend_mode: l.blend_mode,
+                        is_fresnel: l.is_fresnel,
                     })
                     .collect(),
             })

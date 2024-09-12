@@ -188,16 +188,11 @@ fn find_color_layers(
 
     let mut layers = Vec::new();
 
-    // TODO: Also check for getPixelCalcRatioBlend.
-
-    // Shaders can blend layers with getPixelCalcOver or getPixelCalcRatio.
-    while let Some(((mat_col, layer, ratio), blend_mode)) = mix_a_b_ratio(&frag.nodes, current_col)
-        .map(|n| (n, LayerBlendMode::Mix))
-        .or_else(|| pixel_calc_ratio(current_col).map(|n| (n, LayerBlendMode::Add)))
-        .or_else(|| {
-            pixel_calc_add(&frag.nodes, current_col, frag, attributes)
-                .map(|n| (n, LayerBlendMode::Add))
-        })
+    // Detect common functions or operations used for layer blending.
+    while let Some((mat_col, layer, ratio, blend_mode)) = pixel_calc_over(&frag.nodes, current_col)
+        .or_else(|| pixel_calc_ratio_blend(&frag.nodes, current_col))
+        .or_else(|| pixel_calc_add(&frag.nodes, current_col, frag, attributes))
+        .or_else(|| add_pixel_calc_ratio(current_col))
     {
         let mut layer = layer;
         if let Some(n) = node_expr(&frag.nodes, layer) {
@@ -205,21 +200,15 @@ fn find_color_layers(
         }
 
         if let Some(value) = layer_value(layer, frag, attributes) {
-            let (is_fresnel, ratio) = ratio_dependency(ratio, &frag.nodes, dependencies);
-            let blend_mode = if is_fresnel {
-                LayerBlendMode::MixFresnel
-            } else {
-                blend_mode
-            };
-
+            let (fresnel_ratio, ratio) = ratio_dependency(ratio, &frag.nodes, dependencies);
             layers.push(TextureLayer {
                 value,
                 ratio,
                 blend_mode,
+                is_fresnel: fresnel_ratio,
             });
         }
 
-        // TODO: This can sometimes be a parameter like gWrkCol.
         if let Some(mat_col) = node_expr(&frag.nodes, mat_col) {
             current_col = mat_col;
         } else {
@@ -234,6 +223,7 @@ fn find_color_layers(
             value,
             ratio: None,
             blend_mode: LayerBlendMode::Mix,
+            is_fresnel: false,
         });
     }
 
@@ -243,10 +233,44 @@ fn find_color_layers(
     Some(layers)
 }
 
-fn pixel_calc_ratio(expr: &Expr) -> Option<(&Expr, &Expr, &Expr)> {
-    // getPixelCalcRatio in pcmdo fragment shaders for XC1 and XC3.
+fn pixel_calc_over<'a>(
+    nodes: &'a [Node],
+    expr: &'a Expr,
+) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
+    // getPixelCalcOver in pcmdo fragment shaders for XC1 and XC3.
+    let query = indoc! {"
+        neg_a = 0.0 - a;
+        b_minus_a = neg_a + b;
+        result = fma(b_minus_a, ratio, a);
+    "};
+    let result = query_nodes_glsl(expr, nodes, query)?;
+    let a = result.get("a")?;
+    let b = result.get("b")?;
+    let ratio = result.get("ratio")?;
+    Some((a, b, ratio, LayerBlendMode::Mix))
+}
+
+fn pixel_calc_ratio_blend<'a>(
+    nodes: &'a [Node],
+    expr: &'a Expr,
+) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
+    // getPixelCalcRatioBlend in pcmdo fragment shaders for XC1 and XC3.
+    let query = indoc! {"
+        neg_a = 0.0 - a;
+        ab_minus_a = fma(a, b, neg_a);
+        result = fma(ab_minus_a, ratio, a);
+    "};
+    let result = query_nodes_glsl(expr, nodes, query)?;
+    let a = result.get("a")?;
+    let b = result.get("b")?;
+    let ratio = result.get("ratio")?;
+    Some((a, b, ratio, LayerBlendMode::MixRatio))
+}
+
+fn add_pixel_calc_ratio(expr: &Expr) -> Option<(&Expr, &Expr, &Expr, LayerBlendMode)> {
+    // += getPixelCalcRatio in pcmdo fragment shaders for XC1 and XC3.
     let (a, b, c) = fma_a_b_c(expr)?;
-    Some((c, a, b))
+    Some((c, a, b, LayerBlendMode::Add))
 }
 
 fn pixel_calc_add<'a>(
@@ -254,7 +278,7 @@ fn pixel_calc_add<'a>(
     expr: &'a Expr,
     graph: &Graph,
     attributes: &Attributes,
-) -> Option<(&'a Expr, &'a Expr, &'a Expr)> {
+) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
     // Some layers are simply added together like for xeno3/chr/chr/ch05042101.wimdo "hat_toon".
     let result = query_nodes_glsl(expr, nodes, "result = a + b;")?;
     let a = result.get("a")?;
@@ -268,10 +292,10 @@ fn pixel_calc_add<'a>(
         if sampler_index(&t1.name).unwrap_or(usize::MAX)
             > sampler_index(&t2.name).unwrap_or(usize::MAX)
         {
-            return Some((b, a, &Expr::Float(1.0)));
+            return Some((b, a, &Expr::Float(1.0), LayerBlendMode::Add));
         }
     }
-    Some((a, b, &Expr::Float(1.0)))
+    Some((a, b, &Expr::Float(1.0), LayerBlendMode::Add))
 }
 
 fn sampler_index(sampler_name: &str) -> Option<usize> {
@@ -315,17 +339,13 @@ fn find_normal_layers(
     // Some shaders layer more than one additional normal map.
     while let Some((layer_nom_work, n2, ratio)) = pixel_calc_add_normal(&frag.nodes, nom_work) {
         if let Some(value) = layer_value(n2, frag, attributes) {
-            let (is_fresnel, ratio) = ratio_dependency(ratio, &frag.nodes, dependencies);
-            let blend_mode = if is_fresnel {
-                LayerBlendMode::MixFresnel
-            } else {
-                LayerBlendMode::AddNormal
-            };
+            let (fresnel_ratio, ratio) = ratio_dependency(ratio, &frag.nodes, dependencies);
 
             layers.push(TextureLayer {
                 value,
                 ratio,
-                blend_mode,
+                blend_mode: LayerBlendMode::AddNormal,
+                is_fresnel: fresnel_ratio,
             });
         }
         if let Some(n1) = normal_map_fma(&frag.nodes, layer_nom_work) {
@@ -334,6 +354,7 @@ fn find_normal_layers(
                     value,
                     ratio: None,
                     blend_mode: LayerBlendMode::AddNormal,
+                    is_fresnel: false,
                 });
             }
         }
@@ -343,19 +364,15 @@ fn find_normal_layers(
     // TODO: Check for each blend operation at each layer.
     while let Some((layer_nom_work, n2, ratio)) = mix_a_b_ratio(&frag.nodes, nom_work) {
         if let Some(n2_node) = node_expr(&frag.nodes, n2) {
-            let (is_fresnel, ratio) = ratio_dependency(ratio, &frag.nodes, dependencies);
-            let blend_mode = if is_fresnel {
-                LayerBlendMode::MixFresnel
-            } else {
-                LayerBlendMode::Mix
-            };
+            let (fresnel_ratio, ratio) = ratio_dependency(ratio, &frag.nodes, dependencies);
 
             if let Some(n2) = normal_map_fma(&frag.nodes, n2_node) {
                 if let Some(value) = layer_value(n2, frag, attributes) {
                     layers.push(TextureLayer {
                         value,
                         ratio,
-                        blend_mode,
+                        blend_mode: LayerBlendMode::Mix,
+                        is_fresnel: fresnel_ratio,
                     });
                 }
             }
@@ -368,6 +385,7 @@ fn find_normal_layers(
                         value,
                         ratio: None,
                         blend_mode: LayerBlendMode::Mix,
+                        is_fresnel: false,
                     });
                 }
             }
@@ -390,15 +408,9 @@ fn ratio_dependency(
     dependencies: &[Dependency],
 ) -> (bool, Option<Dependency>) {
     // Reduce any assignment chains for what's likely a parameter or texture assignment.
-    // TODO: Convert ratio to a dependency.
-    let mut ratio = ratio;
-    if let Some(n) = node_expr(nodes, ratio) {
-        let n = assign_x_recursive(nodes, n);
-        ratio = n;
-    }
+    let mut ratio = assign_x_recursive(nodes, ratio);
 
-    // TODO: Store this separately from the blend mode?
-    let mut is_fresnel = false;
+    let mut fresnel_ratio = false;
 
     // Extract the ratio from getPixelCalcFresnel in pcmdo shaders if present.
     let query = indoc! {"
@@ -409,11 +421,11 @@ fn ratio_dependency(
     let result = query_nodes_glsl(ratio, nodes, query);
     if let Some(new_ratio) = result.as_ref().and_then(|r| r.get("ratio")) {
         ratio = new_ratio;
-        is_fresnel = true;
+        fresnel_ratio = true;
     }
 
     (
-        is_fresnel,
+        fresnel_ratio,
         buffer_dependency(ratio)
             .map(Dependency::Buffer)
             .or_else(|| match ratio {
@@ -1151,6 +1163,7 @@ mod tests {
                     }),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: false
                 },
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
@@ -1171,6 +1184,7 @@ mod tests {
                     }),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: false
                 }
             ],
             shader.color_layers
@@ -1196,6 +1210,7 @@ mod tests {
                     }),
                     ratio: None,
                     blend_mode: LayerBlendMode::AddNormal,
+                    is_fresnel: false
                 },
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
@@ -1221,6 +1236,7 @@ mod tests {
                         channels: "z".into()
                     })),
                     blend_mode: LayerBlendMode::AddNormal,
+                    is_fresnel: false
                 }
             ],
             shader.normal_layers
@@ -1267,6 +1283,7 @@ mod tests {
                     }),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: false
                 },
                 TextureLayer {
                     value: Dependency::Buffer(BufferDependency {
@@ -1281,7 +1298,8 @@ mod tests {
                         index: 1,
                         channels: "z".into(),
                     })),
-                    blend_mode: LayerBlendMode::MixFresnel,
+                    blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: true
                 },
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
@@ -1302,6 +1320,7 @@ mod tests {
                     }),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: false
                 }
             ],
             shader.color_layers
@@ -1327,6 +1346,7 @@ mod tests {
                     }),
                     ratio: None,
                     blend_mode: LayerBlendMode::AddNormal,
+                    is_fresnel: false
                 },
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
@@ -1352,6 +1372,7 @@ mod tests {
                         channels: "y".into()
                     })),
                     blend_mode: LayerBlendMode::AddNormal,
+                    is_fresnel: false
                 },
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
@@ -1377,6 +1398,7 @@ mod tests {
                         channels: "z".into()
                     })),
                     blend_mode: LayerBlendMode::AddNormal,
+                    is_fresnel: false
                 },
             ],
             shader.normal_layers
@@ -1523,6 +1545,7 @@ mod tests {
                     }),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: false
                 },
                 TextureLayer {
                     value: Dependency::Buffer(BufferDependency {
@@ -1537,7 +1560,8 @@ mod tests {
                         index: 0,
                         channels: "z".into(),
                     })),
-                    blend_mode: LayerBlendMode::MixFresnel,
+                    blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: true
                 },
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
@@ -1558,6 +1582,7 @@ mod tests {
                     }),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: false
                 }
             ],
             shader.color_layers
@@ -1603,6 +1628,7 @@ mod tests {
                 }),
                 ratio: None,
                 blend_mode: LayerBlendMode::Mix,
+                is_fresnel: false
             }],
             shader.color_layers
         );
@@ -1627,6 +1653,7 @@ mod tests {
                     }),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: false
                 },
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
@@ -1662,6 +1689,7 @@ mod tests {
                         ],
                     })),
                     blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: false
                 }
             ],
             shader.normal_layers
@@ -1717,6 +1745,7 @@ mod tests {
                     }),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: false
                 },
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
@@ -1752,6 +1781,7 @@ mod tests {
                         ],
                     })),
                     blend_mode: LayerBlendMode::Add,
+                    is_fresnel: false
                 },
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
@@ -1772,6 +1802,7 @@ mod tests {
                     }),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: false
                 },
             ],
             shader.color_layers
@@ -1797,6 +1828,7 @@ mod tests {
                     }),
                     ratio: None,
                     blend_mode: LayerBlendMode::AddNormal,
+                    is_fresnel: false
                 },
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
@@ -1822,6 +1854,7 @@ mod tests {
                         channels: "x".into()
                     })),
                     blend_mode: LayerBlendMode::AddNormal,
+                    is_fresnel: false
                 }
             ],
             shader.normal_layers

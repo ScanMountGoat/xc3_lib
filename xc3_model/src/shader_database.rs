@@ -186,10 +186,10 @@ pub struct AttributeDependency {
 pub enum LayerBlendMode {
     /// `mix(a, b, ratio)`
     Mix,
+    /// `mix(a, a * b, ratio)`
+    MixRatio,
     /// `a + b * ratio`
     Add,
-    /// `mix(a, b, fresnel(ratio))`
-    MixFresnel,
     /// Normal blend mode similar to "Reoriented Normal Mapping" (RNM).
     AddNormal,
 }
@@ -205,6 +205,7 @@ pub struct TextureLayer {
     pub value: Dependency,
     pub ratio: Option<Dependency>,
     pub blend_mode: LayerBlendMode,
+    pub is_fresnel: bool,
 }
 
 impl ShaderProgram {

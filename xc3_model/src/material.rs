@@ -393,6 +393,7 @@ pub struct OutputLayerAssignment {
     /// The blending operation depends on the usage like normal or color.
     pub weight: Option<ChannelAssignment>,
     pub blend_mode: LayerBlendMode,
+    pub is_fresnel: bool
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -540,6 +541,7 @@ fn output_assignment(
                     w: layer_channel_assignment(l, shader, parameters, 0, 'w'),
                     weight: layer_weight(l, parameters),
                     blend_mode: l.blend_mode,
+                    is_fresnel: l.is_fresnel
                 })
                 .collect()
         } else if output_index == 2 {
@@ -556,6 +558,7 @@ fn output_assignment(
                     w: None,
                     weight: layer_weight(l, parameters),
                     blend_mode: l.blend_mode,
+                    is_fresnel: l.is_fresnel
                 })
                 .collect()
         } else {

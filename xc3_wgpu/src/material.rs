@@ -222,10 +222,10 @@ fn texture_layers(
 ) -> crate::shader::model::TextureLayers {
     let layers = &assignments.assignments[index].layers;
 
-    let (s0, c0, w0, b0, value0) = texture_layer_indices(layers, name_to_index, 0);
-    let (s1, c1, w1, b1, value1) = texture_layer_indices(layers, name_to_index, 1);
-    let (s2, c2, w2, b2, value2) = texture_layer_indices(layers, name_to_index, 2);
-    let (s3, c3, w3, b3, value3) = texture_layer_indices(layers, name_to_index, 3);
+    let (s0, c0, w0, b0, value0, f0) = texture_layer_indices(layers, name_to_index, 0);
+    let (s1, c1, w1, b1, value1, f1) = texture_layer_indices(layers, name_to_index, 1);
+    let (s2, c2, w2, b2, value2, f2) = texture_layer_indices(layers, name_to_index, 2);
+    let (s3, c3, w3, b3, value3, f3) = texture_layer_indices(layers, name_to_index, 3);
 
     crate::shader::model::TextureLayers {
         sampler_indices: ivec4(s0, s1, s2, s3),
@@ -233,6 +233,7 @@ fn texture_layers(
         default_weights: vec4(w0, w1, w2, w3),
         values: [value0, value1, value2, value3],
         blend_modes: ivec4(b0, b1, b2, b3),
+        is_fresnel: uvec4(f0, f1, f2, f3),
     }
 }
 
@@ -240,7 +241,7 @@ fn texture_layer_indices(
     layers: &[OutputLayerAssignment],
     name_to_index: &IndexMap<SmolStr, usize>,
     layer: usize,
-) -> (i32, u32, f32, i32, Vec4) {
+) -> (i32, u32, f32, i32, Vec4, u32) {
     let layer = layers.get(layer);
 
     let (s, c) = layer
@@ -270,8 +271,8 @@ fn texture_layer_indices(
     let blend = layer
         .map(|l| match l.blend_mode {
             xc3_model::shader_database::LayerBlendMode::Mix => 0,
-            xc3_model::shader_database::LayerBlendMode::Add => 1,
-            xc3_model::shader_database::LayerBlendMode::MixFresnel => 2,
+            xc3_model::shader_database::LayerBlendMode::MixRatio => 1,
+            xc3_model::shader_database::LayerBlendMode::Add => 2,
             xc3_model::shader_database::LayerBlendMode::AddNormal => 3,
         })
         .unwrap_or(-1);
@@ -287,7 +288,9 @@ fn texture_layer_indices(
         })
         .unwrap_or(Vec4::ZERO);
 
-    (s, c, w, blend, value)
+    let is_fresnel = layer.map(|l| l.is_fresnel as u32).unwrap_or_default();
+
+    (s, c, w, blend, value, is_fresnel)
 }
 
 fn output_assignments(
