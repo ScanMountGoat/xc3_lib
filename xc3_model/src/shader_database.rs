@@ -202,8 +202,7 @@ impl Default for LayerBlendMode {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct TextureLayer {
-    pub name: String,
-    pub channel: Option<char>,
+    pub value: Dependency,
     pub ratio: Option<Dependency>,
     pub blend_mode: LayerBlendMode,
 }

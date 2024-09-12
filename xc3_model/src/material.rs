@@ -9,7 +9,7 @@ use xc3_lib::mxmd::{
 use crate::{
     shader_database::{
         BufferDependency, Dependency, LayerBlendMode, ModelPrograms, ShaderProgram,
-        TextureDependency,
+        TextureDependency, TextureLayer,
     },
     ImageTexture,
 };
@@ -537,7 +537,7 @@ fn output_assignment(
                 .skip(1)
                 .map(|l| OutputLayerAssignment {
                     x: textures.iter().find_map(|t| {
-                        if t.name == l.name && t.channels.contains('x') {
+                        if Some(&t.name) == layer_name(l) && t.channels.contains('x') {
                             Some(ChannelAssignment::Texture(texture_assignment(
                                 t, parameters,
                             )))
@@ -546,7 +546,7 @@ fn output_assignment(
                         }
                     }),
                     y: textures.iter().find_map(|t| {
-                        if t.name == l.name && t.channels.contains('y') {
+                        if Some(&t.name) == layer_name(l) && t.channels.contains('y') {
                             Some(ChannelAssignment::Texture(texture_assignment(
                                 t, parameters,
                             )))
@@ -573,6 +573,13 @@ fn output_assignment(
         } else {
             Vec::new()
         },
+    }
+}
+
+fn layer_name(l: &TextureLayer) -> Option<&SmolStr> {
+    match &l.value {
+        Dependency::Texture(t) => Some(&t.name),
+        _ => None,
     }
 }
 
@@ -619,12 +626,17 @@ fn channel_assignment(
                         shader
                             .color_layers
                             .iter()
-                            .position(|l| l.name == t.name)
+                            .position(|l| layer_name(l) == Some(&t.name))
                             .unwrap_or(usize::MAX)
                     });
                 } else {
                     // Color maps typically assign s0 using RGB or a single channel.
-                    assignments.retain(|a| !shader.normal_layers.iter().any(|l| l.name == a.name));
+                    assignments.retain(|a| {
+                        !shader
+                            .normal_layers
+                            .iter()
+                            .any(|l| layer_name(l) == Some(&a.name))
+                    });
                     assignments.sort_by_cached_key(|t| {
                         sampler_index(t.name.as_str()).unwrap_or(usize::MAX)
                     });
@@ -636,7 +648,7 @@ fn channel_assignment(
                         shader
                             .normal_layers
                             .iter()
-                            .position(|l| l.name == t.name)
+                            .position(|l| layer_name(l) == Some(&t.name))
                             .unwrap_or(usize::MAX)
                     });
                 } else {
@@ -651,7 +663,12 @@ fn channel_assignment(
                 // Color maps typically assign s0 using RGB or a single channel.
                 // Ignore single channel masks if an RGB input is present.
                 // Ignore XY BC5 normal maps by placing them at the end.
-                assignments.retain(|a| !shader.normal_layers.iter().any(|l| l.name == a.name));
+                assignments.retain(|a| {
+                    !shader
+                        .normal_layers
+                        .iter()
+                        .any(|l| layer_name(l) == Some(&a.name))
+                });
                 assignments.sort_by_cached_key(|t| {
                     let count = textures.iter().filter(|t2| t2.name == t.name).count();
                     (

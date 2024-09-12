@@ -23,6 +23,7 @@ use crate::{
     annotation::shader_source_no_extensions,
     dependencies::{
         attribute_dependencies, buffer_dependency, input_dependencies, texcoord_params,
+        texture_dependency,
     },
     graph::{
         query::{
@@ -62,6 +63,7 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
                     &mut dependencies,
                 );
 
+                // TODO: This should also apply to layer dependency values.
                 apply_attribute_names(vert, vert_attributes, frag_attributes, &mut dependencies);
             }
 
@@ -69,14 +71,16 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
             if i == 0 && c == 'x' {
                 // TODO: This will be different for each channel.
                 color_layers =
-                    find_color_layers(frag, &dependent_lines, &dependencies).unwrap_or_default();
+                    find_color_layers(frag, &dependent_lines, &dependencies, frag_attributes)
+                        .unwrap_or_default();
             } else if i == 1 && c == 'y' {
                 if let Some(param) = geometric_specular_aa(frag) {
                     dependencies = vec![Dependency::Buffer(param)];
                 }
             } else if i == 2 && c == 'x' {
                 normal_layers =
-                    find_normal_layers(frag, &dependent_lines, &dependencies).unwrap_or_default();
+                    find_normal_layers(frag, &dependent_lines, &dependencies, frag_attributes)
+                        .unwrap_or_default();
             }
 
             if !dependencies.is_empty() {
@@ -167,6 +171,7 @@ fn find_color_layers(
     frag: &Graph,
     dependent_lines: &[usize],
     dependencies: &[Dependency],
+    attributes: &Attributes,
 ) -> Option<Vec<TextureLayer>> {
     let last_node_index = *dependent_lines.last()?;
     let last_node = frag.nodes.get(last_node_index)?;
@@ -189,20 +194,21 @@ fn find_color_layers(
     while let Some(((mat_col, layer, ratio), blend_mode)) = mix_a_b_ratio(&frag.nodes, current_col)
         .map(|n| (n, LayerBlendMode::Mix))
         .or_else(|| pixel_calc_ratio(current_col).map(|n| (n, LayerBlendMode::Add)))
-        .or_else(|| pixel_calc_add(&frag.nodes, current_col).map(|n| (n, LayerBlendMode::Add)))
+        .or_else(|| {
+            pixel_calc_add(&frag.nodes, current_col, frag, attributes)
+                .map(|n| (n, LayerBlendMode::Add))
+        })
     {
         let mut layer = layer;
         if let Some(n) = node_expr(&frag.nodes, layer) {
             layer = assign_x_recursive(&frag.nodes, n);
         }
 
-        // TODO: Some texture layers use parameters instead of texture color.
-        if let Some((name, channel)) = texture_name_channel(layer) {
+        if let Some(value) = layer_value(layer, frag, attributes) {
             // TODO: Should this ever be not none?
             let ratio = ratio_dependency(ratio, &frag.nodes, dependencies);
             layers.push(TextureLayer {
-                name,
-                channel,
+                value,
                 ratio,
                 blend_mode,
             });
@@ -218,10 +224,9 @@ fn find_color_layers(
 
     let base = assign_x_recursive(&frag.nodes, current_col);
 
-    if let Some((name, channel)) = texture_name_channel(base) {
+    if let Some(value) = layer_value(base, frag, attributes) {
         layers.push(TextureLayer {
-            name,
-            channel,
+            value,
             ratio: None,
             blend_mode: LayerBlendMode::Mix,
         });
@@ -239,18 +244,25 @@ fn pixel_calc_ratio(expr: &Expr) -> Option<(&Expr, &Expr, &Expr)> {
     Some((c, a, b))
 }
 
-fn pixel_calc_add<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(&'a Expr, &'a Expr, &'a Expr)> {
+fn pixel_calc_add<'a>(
+    nodes: &'a [Node],
+    expr: &'a Expr,
+    graph: &Graph,
+    attributes: &Attributes,
+) -> Option<(&'a Expr, &'a Expr, &'a Expr)> {
     // Some layers are simply added together like for xeno3/chr/chr/ch05042101.wimdo "hat_toon".
     let result = query_nodes_glsl(expr, nodes, "result = a + b;")?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     // The ordering is ambiguous since a+b == b+a.
     // Assume the base layer is not a global texture.
-    if let (Some((n1, _)), Some((n2, _))) = (
-        texture_name_channel(assign_x_recursive(nodes, a)),
-        texture_name_channel(assign_x_recursive(nodes, b)),
+    if let (Some(Dependency::Texture(t1)), Some(Dependency::Texture(t2))) = (
+        layer_value(assign_x_recursive(nodes, a), graph, attributes),
+        layer_value(assign_x_recursive(nodes, b), graph, attributes),
     ) {
-        if sampler_index(&n1).unwrap_or(usize::MAX) > sampler_index(&n2).unwrap_or(usize::MAX) {
+        if sampler_index(&t1.name).unwrap_or(usize::MAX)
+            > sampler_index(&t2.name).unwrap_or(usize::MAX)
+        {
             return Some((b, a, &Expr::Float(1.0)));
         }
     }
@@ -275,6 +287,7 @@ fn find_normal_layers(
     frag: &Graph,
     dependent_lines: &[usize],
     dependencies: &[Dependency],
+    attributes: &Attributes,
 ) -> Option<Vec<TextureLayer>> {
     let last_node_index = *dependent_lines.last()?;
     let last_node = frag.nodes.get(last_node_index)?;
@@ -296,20 +309,18 @@ fn find_normal_layers(
 
     // Some shaders layer more than one additional normal map.
     while let Some((layer_nom_work, n2, ratio)) = pixel_calc_add_normal(&frag.nodes, nom_work) {
-        if let Some((name, channel)) = texture_name_channel(n2) {
+        if let Some(value) = layer_value(n2, frag, attributes) {
             let ratio = ratio_dependency(ratio, &frag.nodes, dependencies);
             layers.push(TextureLayer {
-                name,
-                channel,
+                value,
                 ratio,
                 blend_mode: LayerBlendMode::AddNormal,
             });
         }
         if let Some(n1) = normal_map_fma(&frag.nodes, layer_nom_work) {
-            if let Some((name, channel)) = texture_name_channel(n1) {
+            if let Some(value) = layer_value(n1, frag, attributes) {
                 layers.push(TextureLayer {
-                    name,
-                    channel,
+                    value,
                     ratio: None,
                     blend_mode: LayerBlendMode::AddNormal,
                 });
@@ -324,10 +335,9 @@ fn find_normal_layers(
             let ratio = ratio_dependency(ratio, &frag.nodes, dependencies);
 
             if let Some(n2) = normal_map_fma(&frag.nodes, n2_node) {
-                if let Some((name, channel)) = texture_name_channel(n2) {
+                if let Some(value) = layer_value(n2, frag, attributes) {
                     layers.push(TextureLayer {
-                        name,
-                        channel,
+                        value,
                         ratio,
                         blend_mode: LayerBlendMode::Mix,
                     });
@@ -337,10 +347,9 @@ fn find_normal_layers(
 
         if let Some(layer_nom_work) = node_expr(&frag.nodes, layer_nom_work) {
             if let Some(n1) = normal_map_fma(&frag.nodes, layer_nom_work) {
-                if let Some((name, channel)) = texture_name_channel(n1) {
+                if let Some(value) = layer_value(n1, frag, attributes) {
                     layers.push(TextureLayer {
-                        name,
-                        channel,
+                        value,
                         ratio: None,
                         blend_mode: LayerBlendMode::Mix,
                     });
@@ -405,25 +414,9 @@ fn ratio_dependency(
         })
 }
 
-fn texture_name_channel(input: &Expr) -> Option<(String, Option<char>)> {
-    match input {
-        Expr::Func {
-            name,
-            args,
-            channel,
-        } => {
-            if name.starts_with("texture") {
-                if let Some(Expr::Global { name, .. }) = args.first() {
-                    Some((name.clone(), *channel))
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        }
-        _ => None,
-    }
+fn layer_value(input: &Expr, graph: &Graph, attributes: &Attributes) -> Option<Dependency> {
+    texture_dependency(input, graph, attributes)
+        .or_else(|| buffer_dependency(input).map(Dependency::Buffer))
 }
 
 fn pixel_calc_add_normal<'a>(
@@ -1106,14 +1099,42 @@ mod tests {
         assert_eq!(
             vec![
                 TextureLayer {
-                    name: "s0".to_string(),
-                    channel: Some('x'),
+                    value: Dependency::Texture(TextureDependency {
+                        name: "s0".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr3".into(),
+                                channels: "x".into(),
+                                params: None
+                            },
+                            TexCoord {
+                                name: "in_attr3".into(),
+                                channels: "y".into(),
+                                params: None
+                            }
+                        ]
+                    }),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
                 },
                 TextureLayer {
-                    name: "gTResidentTex04".to_string(),
-                    channel: Some('x'),
+                    value: Dependency::Texture(TextureDependency {
+                        name: "gTResidentTex04".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "x".into(),
+                                params: None
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "y".into(),
+                                params: None
+                            }
+                        ]
+                    }),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
                 }
@@ -1123,14 +1144,42 @@ mod tests {
         assert_eq!(
             vec![
                 TextureLayer {
-                    name: "s2".to_string(),
-                    channel: Some('x'),
+                    value: Dependency::Texture(TextureDependency {
+                        name: "s2".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr3".into(),
+                                channels: "x".into(),
+                                params: None
+                            },
+                            TexCoord {
+                                name: "in_attr3".into(),
+                                channels: "y".into(),
+                                params: None
+                            }
+                        ]
+                    }),
                     ratio: None,
                     blend_mode: LayerBlendMode::AddNormal,
                 },
                 TextureLayer {
-                    name: "gTResidentTex09".to_string(),
-                    channel: Some('x'),
+                    value: Dependency::Texture(TextureDependency {
+                        name: "gTResidentTex09".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr3".into(),
+                                channels: "z".into(),
+                                params: None
+                            },
+                            TexCoord {
+                                name: "in_attr3".into(),
+                                channels: "w".into(),
+                                params: None
+                            }
+                        ]
+                    }),
                     ratio: Some(Dependency::Buffer(BufferDependency {
                         name: "U_Mate".into(),
                         field: "gWrkFl4".into(),
@@ -1166,14 +1215,52 @@ mod tests {
         assert_eq!(
             vec![
                 TextureLayer {
-                    name: "s0".to_string(),
-                    channel: Some('x'),
+                    value: Dependency::Texture(TextureDependency {
+                        name: "s0".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "x".into(),
+                                params: None
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "y".into(),
+                                params: None
+                            }
+                        ]
+                    }),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
                 },
                 TextureLayer {
-                    name: "gTResidentTex04".to_string(),
-                    channel: Some('x'),
+                    value: Dependency::Buffer(BufferDependency {
+                        name: "U_Mate".into(),
+                        field: "gWrkCol".into(),
+                        index: 1,
+                        channels: "x".into(),
+                    }),
+                    ratio: None,
+                    blend_mode: LayerBlendMode::Mix,
+                },
+                TextureLayer {
+                    value: Dependency::Texture(TextureDependency {
+                        name: "gTResidentTex04".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr5".into(),
+                                channels: "z".into(),
+                                params: None
+                            },
+                            TexCoord {
+                                name: "in_attr5".into(),
+                                channels: "w".into(),
+                                params: None
+                            }
+                        ]
+                    }),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
                 }
@@ -1183,14 +1270,42 @@ mod tests {
         assert_eq!(
             vec![
                 TextureLayer {
-                    name: "s2".to_string(),
-                    channel: Some('x'),
+                    value: Dependency::Texture(TextureDependency {
+                        name: "s2".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "x".into(),
+                                params: None
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "y".into(),
+                                params: None
+                            }
+                        ]
+                    }),
                     ratio: None,
                     blend_mode: LayerBlendMode::AddNormal,
                 },
                 TextureLayer {
-                    name: "gTResidentTex09".to_string(),
-                    channel: Some('x'),
+                    value: Dependency::Texture(TextureDependency {
+                        name: "gTResidentTex09".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "z".into(),
+                                params: None
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "w".into(),
+                                params: None
+                            }
+                        ]
+                    }),
                     ratio: Some(Dependency::Buffer(BufferDependency {
                         name: "U_Mate".into(),
                         field: "gWrkFl4".into(),
@@ -1200,8 +1315,22 @@ mod tests {
                     blend_mode: LayerBlendMode::AddNormal,
                 },
                 TextureLayer {
-                    name: "s3".to_string(),
-                    channel: Some('x'),
+                    value: Dependency::Texture(TextureDependency {
+                        name: "s3".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr5".into(),
+                                channels: "x".into(),
+                                params: None
+                            },
+                            TexCoord {
+                                name: "in_attr5".into(),
+                                channels: "y".into(),
+                                params: None
+                            }
+                        ]
+                    }),
                     ratio: Some(Dependency::Buffer(BufferDependency {
                         name: "U_Mate".into(),
                         field: "gWrkFl4".into(),
@@ -1327,6 +1456,82 @@ mod tests {
     }
 
     #[test]
+    fn shader_from_fragment_mio_legs() {
+        // xeno3/chr/ch/ch11021013, "body_stking1", shd0016.frag
+        let glsl = include_str!("data/ch11021013.16.frag");
+
+        // Test that color layers use the appropriate fresnel blending mode.
+        let fragment = TranslationUnit::parse(glsl).unwrap();
+        let shader = shader_from_glsl(None, &fragment);
+        assert_eq!(
+            vec![
+                TextureLayer {
+                    value: Dependency::Texture(TextureDependency {
+                        name: "s0".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "x".into(),
+                                params: None
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "y".into(),
+                                params: None
+                            }
+                        ]
+                    }),
+                    ratio: None,
+                    blend_mode: LayerBlendMode::Mix,
+                },
+                TextureLayer {
+                    value: Dependency::Buffer(BufferDependency {
+                        name: "U_Mate".into(),
+                        field: "gWrkCol".into(),
+                        index: 1,
+                        channels: "x".into(),
+                    }),
+                    ratio: None,
+                    blend_mode: LayerBlendMode::Mix,
+                },
+                TextureLayer {
+                    value: Dependency::Texture(TextureDependency {
+                        name: "gTResidentTex04".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "z".into(),
+                                params: None
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "w".into(),
+                                params: None
+                            }
+                        ]
+                    }),
+                    ratio: None,
+                    blend_mode: LayerBlendMode::Mix,
+                }
+            ],
+            shader.color_layers
+        );
+        assert!(shader.normal_layers.is_empty());
+
+        assert_eq!(
+            vec![Dependency::Buffer(BufferDependency {
+                name: "U_Mate".into(),
+                field: "gWrkFl4".into(),
+                index: 1,
+                channels: "w".into()
+            })],
+            shader.output_dependencies[&SmolStr::from("o1.y")]
+        );
+    }
+
+    #[test]
     fn shader_from_fragment_wild_ride_body() {
         // xeno3/chr/ch/ch02010110, "body_m", shd0028.frag
         let glsl = include_str!("data/ch02010110.28.frag");
@@ -1336,8 +1541,22 @@ mod tests {
         let shader = shader_from_glsl(None, &fragment);
         assert_eq!(
             vec![TextureLayer {
-                name: "s0".to_string(),
-                channel: Some('x'),
+                value: Dependency::Texture(TextureDependency {
+                    name: "s0".into(),
+                    channels: "x".into(),
+                    texcoords: vec![
+                        TexCoord {
+                            name: "in_attr3".into(),
+                            channels: "x".into(),
+                            params: None
+                        },
+                        TexCoord {
+                            name: "in_attr3".into(),
+                            channels: "x".into(),
+                            params: None
+                        }
+                    ]
+                }),
                 ratio: None,
                 blend_mode: LayerBlendMode::Mix,
             }],
@@ -1346,14 +1565,42 @@ mod tests {
         assert_eq!(
             vec![
                 TextureLayer {
-                    name: "s6".to_string(),
-                    channel: Some('x'),
+                    value: Dependency::Texture(TextureDependency {
+                        name: "s6".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr3".into(),
+                                channels: "x".into(),
+                                params: None
+                            },
+                            TexCoord {
+                                name: "in_attr3".into(),
+                                channels: "y".into(),
+                                params: None
+                            }
+                        ]
+                    }),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
                 },
                 TextureLayer {
-                    name: "s7".to_string(),
-                    channel: Some('x'),
+                    value: Dependency::Texture(TextureDependency {
+                        name: "s7".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr3".into(),
+                                channels: "z".into(),
+                                params: None
+                            },
+                            TexCoord {
+                                name: "in_attr3".into(),
+                                channels: "w".into(),
+                                params: None
+                            }
+                        ]
+                    }),
                     ratio: Some(Dependency::Texture(TextureDependency {
                         name: "s1".into(),
                         channels: "x".into(),
@@ -1408,14 +1655,42 @@ mod tests {
         assert_eq!(
             vec![
                 TextureLayer {
-                    name: "s0".to_string(),
-                    channel: Some('x'),
+                    value: Dependency::Texture(TextureDependency {
+                        name: "s0".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "x".into(),
+                                params: None
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "y".into(),
+                                params: None
+                            }
+                        ]
+                    }),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
                 },
                 TextureLayer {
-                    name: "gTResidentTex03".into(),
-                    channel: Some('x',),
+                    value: Dependency::Texture(TextureDependency {
+                        name: "gTResidentTex03".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "x".into(),
+                                params: None
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "x".into(),
+                                params: None
+                            }
+                        ]
+                    }),
                     ratio: Some(Dependency::Texture(TextureDependency {
                         name: "s1".into(),
                         channels: "x".into(),
@@ -1435,8 +1710,22 @@ mod tests {
                     blend_mode: LayerBlendMode::Add,
                 },
                 TextureLayer {
-                    name: "gTResidentTex04".into(),
-                    channel: Some('x',),
+                    value: Dependency::Texture(TextureDependency {
+                        name: "gTResidentTex04".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr5".into(),
+                                channels: "x".into(),
+                                params: None
+                            },
+                            TexCoord {
+                                name: "in_attr5".into(),
+                                channels: "y".into(),
+                                params: None
+                            }
+                        ]
+                    }),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
                 },
@@ -1446,14 +1735,42 @@ mod tests {
         assert_eq!(
             vec![
                 TextureLayer {
-                    name: "s2".to_string(),
-                    channel: Some('x'),
+                    value: Dependency::Texture(TextureDependency {
+                        name: "s2".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "x".into(),
+                                params: None
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "y".into(),
+                                params: None
+                            }
+                        ]
+                    }),
                     ratio: None,
                     blend_mode: LayerBlendMode::AddNormal,
                 },
                 TextureLayer {
-                    name: "gTResidentTex09".to_string(),
-                    channel: Some('x'),
+                    value: Dependency::Texture(TextureDependency {
+                        name: "gTResidentTex09".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "z".into(),
+                                params: None
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "w".into(),
+                                params: None
+                            }
+                        ]
+                    }),
                     ratio: Some(Dependency::Buffer(BufferDependency {
                         name: "U_Mate".into(),
                         field: "gWrkFl4".into(),

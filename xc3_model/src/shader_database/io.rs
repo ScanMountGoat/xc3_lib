@@ -62,8 +62,7 @@ pub enum TexCoordParamsIndexed {
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 struct TextureLayerIndexed {
-    name: String,
-    channel: Option<char>,
+    value: usize,
     ratio: Option<usize>,
     blend_mode: LayerBlendMode,
 }
@@ -271,8 +270,7 @@ fn model_indexed(
                     p.color_layers
                         .into_iter()
                         .map(|l| TextureLayerIndexed {
-                            name: l.name,
-                            channel: l.channel,
+                            value: dependency_to_index.entry_index(l.value),
                             ratio: l.ratio.map(|r| dependency_to_index.entry_index(r)),
                             blend_mode: l.blend_mode,
                         })
@@ -280,8 +278,7 @@ fn model_indexed(
                     p.normal_layers
                         .into_iter()
                         .map(|l| TextureLayerIndexed {
-                            name: l.name,
-                            channel: l.channel,
+                            value: dependency_to_index.entry_index(l.value),
                             ratio: l.ratio.map(|r| dependency_to_index.entry_index(r)),
                             blend_mode: l.blend_mode,
                         })
@@ -325,8 +322,10 @@ fn model_from_indexed(
                     .1
                     .iter()
                     .map(|l| TextureLayer {
-                        name: l.name.clone(),
-                        channel: l.channel,
+                        value: dependency_from_indexed(
+                            dependencies[l.value].clone(),
+                            buffer_dependencies,
+                        ),
                         ratio: l.ratio.map(|i| {
                             dependency_from_indexed(dependencies[i].clone(), buffer_dependencies)
                         }),
@@ -337,8 +336,10 @@ fn model_from_indexed(
                     .2
                     .iter()
                     .map(|l| TextureLayer {
-                        name: l.name.clone(),
-                        channel: l.channel,
+                        value: dependency_from_indexed(
+                            dependencies[l.value].clone(),
+                            buffer_dependencies,
+                        ),
                         ratio: l.ratio.map(|i| {
                             dependency_from_indexed(dependencies[i].clone(), buffer_dependencies)
                         }),
