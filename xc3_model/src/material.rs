@@ -393,7 +393,7 @@ pub struct OutputLayerAssignment {
     /// The blending operation depends on the usage like normal or color.
     pub weight: Option<ChannelAssignment>,
     pub blend_mode: LayerBlendMode,
-    pub is_fresnel: bool
+    pub is_fresnel: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -412,6 +412,37 @@ pub struct TextureAssignment {
     pub channels: SmolStr,
     pub texcoord_name: Option<SmolStr>,
     pub texcoord_transforms: Option<(Vec4, Vec4)>,
+}
+
+impl ChannelAssignment {
+    pub fn from_dependency(
+        d: &Dependency,
+        parameters: &MaterialParameters,
+        channel: char,
+    ) -> Option<Self> {
+        match d {
+            Dependency::Constant(f) => Some(Self::Value(f.0)),
+            Dependency::Buffer(b) => parameters.get_dependency(b).map(Self::Value),
+            Dependency::Texture(texture) => {
+                Some(Self::Texture(texture_assignment(texture, parameters)))
+            }
+            Dependency::Attribute(a) => {
+                // Attributes may have multiple accessed channels.
+                // First check if the current channel is used.
+                // TODO: Does this always work as intended?
+                let c = if a.channels.contains(channel) {
+                    channel
+                } else {
+                    a.channels.chars().next().unwrap()
+                };
+
+                Some(Self::Attribute {
+                    name: a.name.clone(),
+                    channel_index: "xyzw".find(c).unwrap(),
+                })
+            }
+        }
+    }
 }
 
 // TODO: Test cases for this?
@@ -528,90 +559,37 @@ fn output_assignment(
         z: channel_assignment(shader, parameters, output_index, 2),
         w: channel_assignment(shader, parameters, output_index, 3),
         layers: if output_index == 0 {
-            // TODO: Is there a more reliable way to handle channels?
-            // Skip the base layer in the first element.
-            shader
-                .color_layers
-                .iter()
-                .skip(1)
-                .map(|l| OutputLayerAssignment {
-                    x: layer_channel_assignment(l, shader, parameters, 0, 'x'),
-                    y: layer_channel_assignment(l, shader, parameters, 0, 'y'),
-                    z: layer_channel_assignment(l, shader, parameters, 0, 'z'),
-                    w: layer_channel_assignment(l, shader, parameters, 0, 'w'),
-                    weight: layer_weight(l, parameters),
-                    blend_mode: l.blend_mode,
-                    is_fresnel: l.is_fresnel
-                })
-                .collect()
+            texture_layers(&shader.color_layers, parameters)
         } else if output_index == 2 {
-            // TODO: Is there a more reliable way to handle channels?
-            // Skip the base layer in the first element.
-            shader
-                .normal_layers
-                .iter()
-                .skip(1)
-                .map(|l| OutputLayerAssignment {
-                    x: layer_channel_assignment(l, shader, parameters, 2, 'x'),
-                    y: layer_channel_assignment(l, shader, parameters, 2, 'y'),
-                    z: None,
-                    w: None,
-                    weight: layer_weight(l, parameters),
-                    blend_mode: l.blend_mode,
-                    is_fresnel: l.is_fresnel
-                })
-                .collect()
+            texture_layers(&shader.normal_layers, parameters)
         } else {
             Vec::new()
         },
     }
 }
 
-fn layer_weight(l: &TextureLayer, parameters: &MaterialParameters) -> Option<ChannelAssignment> {
-    l.ratio.as_ref().map(|r| match r {
-        Dependency::Texture(t) => ChannelAssignment::Texture(texture_assignment(t, parameters)),
-        Dependency::Buffer(b) => {
-            ChannelAssignment::Value(parameters.get_dependency(b).unwrap_or_default())
-        }
-        Dependency::Constant(f) => ChannelAssignment::Value(f.0),
-        // TODO: Handle other dependency variants.
-        _ => todo!(),
-    })
-}
-
-fn layer_channel_assignment(
-    l: &TextureLayer,
-    shader: &ShaderProgram,
+fn texture_layers(
+    layers: &[TextureLayer],
     parameters: &MaterialParameters,
-    output_index: usize,
-    channel: char,
-) -> Option<ChannelAssignment> {
-    // TODO: ChannelAssignment::from_dependency to share code?
-    match &l.value {
-        Dependency::Constant(f) => Some(ChannelAssignment::Value(f.0)),
-        Dependency::Buffer(b) => parameters.get_dependency(b).map(ChannelAssignment::Value),
-        Dependency::Texture(texture) => {
-            // TODO: Store proper texture channels for each layer?
-            let textures = shader.textures(output_index, channel);
-            textures.iter().find_map(|t| {
-                if t.name == texture.name && t.channels.contains('x') {
-                    Some(ChannelAssignment::Texture(texture_assignment(
-                        t, parameters,
-                    )))
-                } else {
-                    None
-                }
-            })
-        }
-        Dependency::Attribute(_) => todo!(),
-    }
-}
-
-fn layer_name(l: &TextureLayer) -> Option<&SmolStr> {
-    match &l.value {
-        Dependency::Texture(t) => Some(&t.name),
-        _ => None,
-    }
+) -> Vec<OutputLayerAssignment> {
+    // TODO: Is there a more reliable way to handle channels?
+    // Skip the base layer in the first element.
+    layers
+        .iter()
+        .skip(1)
+        .map(|l| OutputLayerAssignment {
+            x: ChannelAssignment::from_dependency(&l.value, parameters, 'x'),
+            y: ChannelAssignment::from_dependency(&l.value, parameters, 'y'),
+            z: ChannelAssignment::from_dependency(&l.value, parameters, 'z'),
+            w: ChannelAssignment::from_dependency(&l.value, parameters, 'w'),
+            weight: l
+                .ratio
+                .as_ref()
+                .and_then(|r| ChannelAssignment::from_dependency(r, parameters, 'x')),
+            blend_mode: l.blend_mode,
+            is_fresnel: l.is_fresnel,
+        })
+        .collect()
 }
 
 fn channel_assignment(
@@ -620,109 +598,93 @@ fn channel_assignment(
     output_index: usize,
     channel_index: usize,
 ) -> Option<ChannelAssignment> {
-    // Prioritize direct assignments like parameters or constants.
     let channel = ['x', 'y', 'z', 'w'][channel_index];
-    param_or_const(shader, parameters, output_index, channel_index)
-        .map(ChannelAssignment::Value)
-        .or_else(|| {
-            shader.attribute(output_index, channel).map(|attribute| {
-                // Attributes may have multiple accessed channels like normal maps.
-                // First check if the current channel is used.
-                // TODO: Does this always work as intended?
-                let c = if attribute.channels.contains(channel) {
-                    channel
-                } else {
-                    attribute.channels.chars().next().unwrap()
-                };
+    let output = format!("o{output_index}.{channel}");
 
-                ChannelAssignment::Attribute {
-                    name: attribute.name.clone(),
-                    channel_index: "xyzw".find(c).unwrap(),
-                }
-            })
-        })
-        .or_else(|| {
-            let textures = shader.textures(output_index, channel);
+    let original_dependencies = shader.output_dependencies.get(&SmolStr::from(output))?;
+    let mut dependencies = original_dependencies.clone();
 
-            let mut assignments: Vec<_> = textures
+    if output_index == 0 {
+        if !shader.color_layers.is_empty() {
+            // Match the correct layer order if present.
+            dependencies.sort_by_cached_key(|d| {
+                shader
+                    .color_layers
+                    .iter()
+                    .position(|l| layer_name(l) == sampler_name(d))
+                    .unwrap_or(usize::MAX)
+            });
+        } else {
+            // Color maps typically assign s0 using RGB or a single channel.
+            dependencies.retain(|d| {
+                !shader
+                    .normal_layers
+                    .iter()
+                    .any(|l| layer_name(l) == sampler_name(d))
+            });
+            dependencies.sort_by_cached_key(|d| sampler_index(d).unwrap_or(usize::MAX));
+        }
+    } else if output_index == 2 && matches!(channel, 'x' | 'y') {
+        if !shader.normal_layers.is_empty() {
+            // Match the correct layer order if present.
+            dependencies.sort_by_cached_key(|d| {
+                shader
+                    .normal_layers
+                    .iter()
+                    .position(|l| layer_name(l) == sampler_name(d))
+                    .unwrap_or(usize::MAX)
+            });
+        } else {
+            // Normal maps are usually just XY BC5 textures.
+            // Sort so that these textures are accessed first.
+            dependencies.sort_by_cached_key(|d| {
+                let count = original_dependencies
+                    .iter()
+                    .filter(|d2| sampler_name(d2) == sampler_name(d))
+                    .count();
+                count != 2
+            });
+        }
+    } else {
+        // Color maps typically assign s0 using RGB or a single channel.
+        // Ignore single channel masks if an RGB input is present.
+        // Ignore XY BC5 normal maps by placing them at the end.
+        dependencies.retain(|d| {
+            !shader
+                .normal_layers
                 .iter()
-                .map(|texture| texture_assignment(texture, parameters))
-                .collect();
-
-            // TODO: The correct approach is to detect layering and masks when generating the database.
-            if output_index == 0 {
-                if !shader.color_layers.is_empty() {
-                    // Match the correct layer order if present.
-                    assignments.sort_by_cached_key(|t| {
-                        shader
-                            .color_layers
-                            .iter()
-                            .position(|l| layer_name(l) == Some(&t.name))
-                            .unwrap_or(usize::MAX)
-                    });
-                } else {
-                    // Color maps typically assign s0 using RGB or a single channel.
-                    assignments.retain(|a| {
-                        !shader
-                            .normal_layers
-                            .iter()
-                            .any(|l| layer_name(l) == Some(&a.name))
-                    });
-                    assignments.sort_by_cached_key(|t| {
-                        sampler_index(t.name.as_str()).unwrap_or(usize::MAX)
-                    });
-                }
-            } else if output_index == 2 && matches!(channel, 'x' | 'y') {
-                if !shader.normal_layers.is_empty() {
-                    // Match the correct layer order if present.
-                    assignments.sort_by_cached_key(|t| {
-                        shader
-                            .normal_layers
-                            .iter()
-                            .position(|l| layer_name(l) == Some(&t.name))
-                            .unwrap_or(usize::MAX)
-                    });
-                } else {
-                    // Normal maps are usually just XY BC5 textures.
-                    // Sort so that these textures are accessed first.
-                    assignments.sort_by_cached_key(|t| {
-                        let count = textures.iter().filter(|t2| t2.name == t.name).count();
-                        count != 2
-                    });
-                }
-            } else {
-                // Color maps typically assign s0 using RGB or a single channel.
-                // Ignore single channel masks if an RGB input is present.
-                // Ignore XY BC5 normal maps by placing them at the end.
-                assignments.retain(|a| {
-                    !shader
-                        .normal_layers
-                        .iter()
-                        .any(|l| layer_name(l) == Some(&a.name))
-                });
-                assignments.sort_by_cached_key(|t| {
-                    let count = textures.iter().filter(|t2| t2.name == t.name).count();
-                    (
-                        match count {
-                            3 => 0,
-                            1 => 1,
-                            2 => u8::MAX,
-                            _ => 2,
-                        },
-                        sampler_index(t.name.as_str()).unwrap_or(usize::MAX),
-                    )
-                });
-            }
-
-            // Some textures like normal maps may use multiple input channels.
-            // First check if the current channel is used.
-            assignments
+                .any(|l| layer_name(l) == sampler_name(d))
+        });
+        dependencies.sort_by_cached_key(|d| {
+            let count = original_dependencies
                 .iter()
-                .find(|t| t.channels.contains(channel))
-                .or_else(|| assignments.first())
-                .cloned()
-                .map(ChannelAssignment::Texture)
+                .filter(|d2| sampler_name(d2) == sampler_name(d))
+                .count();
+            (
+                match count {
+                    3 => 0,
+                    1 => 1,
+                    2 => u8::MAX,
+                    _ => 2,
+                },
+                sampler_index(d).unwrap_or(usize::MAX),
+            )
+        });
+    }
+
+    // Some textures like normal maps may use multiple input channels.
+    // First check if the current channel is used.
+    let dependency = dependencies
+        .iter()
+        .find(|d| {
+            channels(d)
+                .map(|channels| channels.contains(channel))
+                .unwrap_or_default()
         })
+        .or_else(|| dependencies.first())?;
+
+    // If a parameter or attribute is assigned, it will likely be the only dependency.
+    ChannelAssignment::from_dependency(dependency, parameters, channel)
 }
 
 fn texture_assignment(
@@ -740,10 +702,36 @@ fn texture_assignment(
     }
 }
 
-fn sampler_index(sampler_name: &str) -> Option<usize> {
+// TODO: make these methods.
+fn channels(d: &Dependency) -> Option<&SmolStr> {
+    match d {
+        Dependency::Constant(_) => None,
+        Dependency::Buffer(b) => Some(&b.channels),
+        Dependency::Texture(t) => Some(&t.channels),
+        Dependency::Attribute(a) => Some(&a.channels),
+    }
+}
+
+fn sampler_index(d: &Dependency) -> Option<usize> {
     // Convert names like "s3" to index 3.
     // Material textures always use this naming convention in the shader.
-    sampler_name.strip_prefix('s')?.parse().ok()
+    sampler_name(d).and_then(|n| n.strip_prefix('s')?.parse().ok())
+}
+
+fn sampler_name(d: &Dependency) -> Option<&SmolStr> {
+    // Convert names like "s3" to index 3.
+    // Material textures always use this naming convention in the shader.
+    match d {
+        Dependency::Texture(t) => Some(&t.name),
+        _ => None,
+    }
+}
+
+fn layer_name(l: &TextureLayer) -> Option<&SmolStr> {
+    match &l.value {
+        Dependency::Texture(t) => Some(&t.name),
+        _ => None,
+    }
 }
 
 fn texcoord_transforms(
@@ -781,20 +769,6 @@ fn texcoord_transform(
             parameters.get_dependency(w)?,
         )),
     }
-}
-
-// TODO: Tests for this?
-fn param_or_const(
-    shader: &ShaderProgram,
-    parameters: &MaterialParameters,
-    i: usize,
-    c: usize,
-) -> Option<f32> {
-    let channel = ['x', 'y', 'z', 'w'][c];
-    shader
-        .buffer_parameter(i, channel)
-        .and_then(|b| parameters.get_dependency(b))
-        .or_else(|| shader.float_constant(i, channel))
 }
 
 #[cfg(test)]

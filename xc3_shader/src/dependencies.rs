@@ -114,7 +114,7 @@ fn texture_dependencies(
         .collect()
 }
 
-pub fn texture_dependency(e: &Expr, graph: &Graph, attributes: &Attributes) -> Option<Dependency> {
+fn texture_dependency(e: &Expr, graph: &Graph, attributes: &Attributes) -> Option<Dependency> {
     if let Expr::Func {
         name,
         args,

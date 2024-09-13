@@ -23,7 +23,6 @@ use crate::{
     annotation::shader_source_no_extensions,
     dependencies::{
         attribute_dependencies, buffer_dependency, input_dependencies, texcoord_params,
-        texture_dependency,
     },
     graph::{
         query::{
@@ -56,6 +55,7 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
             if let Some((vert, vert_attributes)) = vertex {
                 // Add texture parameters used for the corresponding vertex output.
                 // Most shaders apply UV transforms in the vertex shader.
+                // This will be used later for texture layers.
                 apply_vertex_texcoord_params(
                     vert,
                     vert_attributes,
@@ -63,7 +63,6 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
                     &mut dependencies,
                 );
 
-                // TODO: This should also apply to layer dependency values.
                 apply_attribute_names(vert, vert_attributes, frag_attributes, &mut dependencies);
             }
 
@@ -71,16 +70,14 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
             if i == 0 && c == 'x' {
                 // TODO: This will be different for each channel.
                 color_layers =
-                    find_color_layers(frag, &dependent_lines, &dependencies, frag_attributes)
-                        .unwrap_or_default();
+                    find_color_layers(frag, &dependent_lines, &dependencies).unwrap_or_default();
             } else if i == 1 && c == 'y' {
                 if let Some(param) = geometric_specular_aa(frag) {
                     dependencies = vec![Dependency::Buffer(param)];
                 }
             } else if i == 2 && c == 'x' {
                 normal_layers =
-                    find_normal_layers(frag, &dependent_lines, &dependencies, frag_attributes)
-                        .unwrap_or_default();
+                    find_normal_layers(frag, &dependent_lines, &dependencies).unwrap_or_default();
             }
 
             if !dependencies.is_empty() {
@@ -171,7 +168,6 @@ fn find_color_layers(
     frag: &Graph,
     dependent_lines: &[usize],
     dependencies: &[Dependency],
-    attributes: &Attributes,
 ) -> Option<Vec<TextureLayer>> {
     let last_node_index = *dependent_lines.last()?;
     let last_node = frag.nodes.get(last_node_index)?;
@@ -191,7 +187,7 @@ fn find_color_layers(
     // Detect common functions or operations used for layer blending.
     while let Some((mat_col, layer, ratio, blend_mode)) = pixel_calc_over(&frag.nodes, current_col)
         .or_else(|| pixel_calc_ratio_blend(&frag.nodes, current_col))
-        .or_else(|| pixel_calc_add(&frag.nodes, current_col, frag, attributes))
+        .or_else(|| pixel_calc_add(&frag.nodes, current_col, dependencies))
         .or_else(|| add_pixel_calc_ratio(current_col))
     {
         let mut layer = layer;
@@ -199,7 +195,7 @@ fn find_color_layers(
             layer = assign_x_recursive(&frag.nodes, n);
         }
 
-        if let Some(value) = layer_value(layer, frag, attributes) {
+        if let Some(value) = layer_value(layer, dependencies) {
             let (fresnel_ratio, ratio) = ratio_dependency(ratio, &frag.nodes, dependencies);
             layers.push(TextureLayer {
                 value,
@@ -218,7 +214,7 @@ fn find_color_layers(
 
     let base = assign_x_recursive(&frag.nodes, current_col);
 
-    if let Some(value) = layer_value(base, frag, attributes) {
+    if let Some(value) = layer_value(base, dependencies) {
         layers.push(TextureLayer {
             value,
             ratio: None,
@@ -276,8 +272,7 @@ fn add_pixel_calc_ratio(expr: &Expr) -> Option<(&Expr, &Expr, &Expr, LayerBlendM
 fn pixel_calc_add<'a>(
     nodes: &'a [Node],
     expr: &'a Expr,
-    graph: &Graph,
-    attributes: &Attributes,
+    dependencies: &[Dependency],
 ) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
     // Some layers are simply added together like for xeno3/chr/chr/ch05042101.wimdo "hat_toon".
     let result = query_nodes_glsl(expr, nodes, "result = a + b;")?;
@@ -286,8 +281,8 @@ fn pixel_calc_add<'a>(
     // The ordering is ambiguous since a+b == b+a.
     // Assume the base layer is not a global texture.
     if let (Some(Dependency::Texture(t1)), Some(Dependency::Texture(t2))) = (
-        layer_value(assign_x_recursive(nodes, a), graph, attributes),
-        layer_value(assign_x_recursive(nodes, b), graph, attributes),
+        layer_value(assign_x_recursive(nodes, a), dependencies),
+        layer_value(assign_x_recursive(nodes, b), dependencies),
     ) {
         if sampler_index(&t1.name).unwrap_or(usize::MAX)
             > sampler_index(&t2.name).unwrap_or(usize::MAX)
@@ -316,7 +311,6 @@ fn find_normal_layers(
     frag: &Graph,
     dependent_lines: &[usize],
     dependencies: &[Dependency],
-    attributes: &Attributes,
 ) -> Option<Vec<TextureLayer>> {
     let last_node_index = *dependent_lines.last()?;
     let last_node = frag.nodes.get(last_node_index)?;
@@ -338,7 +332,7 @@ fn find_normal_layers(
 
     // Some shaders layer more than one additional normal map.
     while let Some((layer_nom_work, n2, ratio)) = pixel_calc_add_normal(&frag.nodes, nom_work) {
-        if let Some(value) = layer_value(n2, frag, attributes) {
+        if let Some(value) = layer_value(n2, dependencies) {
             let (fresnel_ratio, ratio) = ratio_dependency(ratio, &frag.nodes, dependencies);
 
             layers.push(TextureLayer {
@@ -349,7 +343,7 @@ fn find_normal_layers(
             });
         }
         if let Some(n1) = normal_map_fma(&frag.nodes, layer_nom_work) {
-            if let Some(value) = layer_value(n1, frag, attributes) {
+            if let Some(value) = layer_value(n1, dependencies) {
                 layers.push(TextureLayer {
                     value,
                     ratio: None,
@@ -367,7 +361,7 @@ fn find_normal_layers(
             let (fresnel_ratio, ratio) = ratio_dependency(ratio, &frag.nodes, dependencies);
 
             if let Some(n2) = normal_map_fma(&frag.nodes, n2_node) {
-                if let Some(value) = layer_value(n2, frag, attributes) {
+                if let Some(value) = layer_value(n2, dependencies) {
                     layers.push(TextureLayer {
                         value,
                         ratio,
@@ -380,7 +374,7 @@ fn find_normal_layers(
 
         if let Some(layer_nom_work) = node_expr(&frag.nodes, layer_nom_work) {
             if let Some(n1) = normal_map_fma(&frag.nodes, layer_nom_work) {
-                if let Some(value) = layer_value(n1, frag, attributes) {
+                if let Some(value) = layer_value(n1, dependencies) {
                     layers.push(TextureLayer {
                         value,
                         ratio: None,
@@ -410,7 +404,7 @@ fn ratio_dependency(
     // Reduce any assignment chains for what's likely a parameter or texture assignment.
     let mut ratio = assign_x_recursive(nodes, ratio);
 
-    let mut fresnel_ratio = false;
+    let mut is_fresnel = false;
 
     // Extract the ratio from getPixelCalcFresnel in pcmdo shaders if present.
     let query = indoc! {"
@@ -421,47 +415,51 @@ fn ratio_dependency(
     let result = query_nodes_glsl(ratio, nodes, query);
     if let Some(new_ratio) = result.as_ref().and_then(|r| r.get("ratio")) {
         ratio = new_ratio;
-        fresnel_ratio = true;
+        is_fresnel = true;
     }
 
-    (
-        fresnel_ratio,
-        buffer_dependency(ratio)
-            .map(Dependency::Buffer)
-            .or_else(|| match ratio {
-                Expr::Func {
-                    name,
-                    args,
-                    channel,
-                } => {
-                    if name == "texture" {
-                        if let Some(Expr::Global { name, .. }) = args.first() {
-                            dependencies
-                                .iter()
-                                .find(|d| {
-                                    if let Dependency::Texture(t) = d {
-                                        t.name == name && t.channels.contains(channel.unwrap())
-                                    } else {
-                                        false
-                                    }
-                                })
-                                .cloned()
-                        } else {
-                            // TODO: How to handle this case?
-                            None
-                        }
-                    } else {
-                        None
-                    }
-                }
-                // TODO: Find dependencies recursively?
-                _ => None,
-            }),
-    )
+    (is_fresnel, dependency_cached_texture(ratio, dependencies))
 }
 
-fn layer_value(input: &Expr, graph: &Graph, attributes: &Attributes) -> Option<Dependency> {
-    texture_dependency(input, graph, attributes)
+fn dependency_cached_texture(ratio: &Expr, dependencies: &[Dependency]) -> Option<Dependency> {
+    buffer_dependency(ratio)
+        .map(Dependency::Buffer)
+        .or_else(|| match ratio {
+            Expr::Func {
+                name,
+                args,
+                channel,
+            } => {
+                if name.starts_with("texture") {
+                    if let Some(Expr::Global { name, .. }) = args.first() {
+                        // Texture dependencies have already been found recursively.
+                        // Use existing dependencies to include texcoord params.
+                        dependencies
+                            .iter()
+                            .find(|d| {
+                                if let Dependency::Texture(t) = d {
+                                    t.name == name
+                                        && channel.map(|c| t.channels.contains(c)).unwrap_or(true)
+                                } else {
+                                    false
+                                }
+                            })
+                            .cloned()
+                    } else {
+                        // TODO: How to handle this case?
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            // TODO: Find dependencies recursively?
+            _ => None,
+        })
+}
+
+fn layer_value(input: &Expr, dependencies: &[Dependency]) -> Option<Dependency> {
+    dependency_cached_texture(input, dependencies)
         .or_else(|| buffer_dependency(input).map(Dependency::Buffer))
 }
 
