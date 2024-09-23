@@ -25,7 +25,7 @@ pub struct ShaderTextures {
 }
 
 impl ShaderTextures {
-    pub fn from_file<P: AsRef<Path>>(path: P) -> Self {
+    pub fn from_folder<P: AsRef<Path>>(path: P) -> Self {
         // TODO: Are the mappings the same for all 3 games?
         let toon_grad = load_mibl(path.as_ref(), "toon_grad.witex");
         let eyepatch_col = load_mibl(path.as_ref(), "eyepatch_col.witex");
