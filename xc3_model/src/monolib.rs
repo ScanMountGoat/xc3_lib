@@ -4,6 +4,7 @@ use std::path::Path;
 use xc3_lib::mibl::Mibl;
 
 /// Textures and resources from the `monolib/shader` folder.
+#[derive(Debug, PartialEq, Clone)]
 pub struct ShaderTextures {
     /// `monolib/shader/toon_grad.witex`
     pub toon_grad: Option<ImageTexture>,
