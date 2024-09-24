@@ -146,6 +146,15 @@ impl ModelRoot {
             unks: [0; 4],
         });
 
+        if new_vertex.vertex_morphs.is_none() {
+            // Remove morph controllers if not needed to prevent crashes.
+            // TODO: Why does setting this to None not work?
+            if let Some(morph_controllers) = &mut new_mxmd.models.morph_controllers {
+                // TODO: remove unused morphs and items from model_unk1?
+                morph_controllers.controllers = Vec::new();
+            }
+        }
+
         self.apply_materials(&mut new_mxmd);
 
         new_mxmd.models.min_xyz = new_mxmd
