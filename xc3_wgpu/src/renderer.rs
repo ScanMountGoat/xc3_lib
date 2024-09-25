@@ -332,9 +332,11 @@ impl Renderer {
         self.unbranch_to_depth_pass(encoder);
         if self.render_mode == RenderMode::Shaded {
             self.deferred_pass(encoder);
-            self.alpha3_pass(encoder, models);
+            self.alpha3_pass(encoder, models, &self.textures.deferred_output);
             self.snn_filter_pass(encoder);
         } else {
+            // Move forward passes earlier to show all meshes in debug modes.
+            self.alpha3_pass(encoder, models, &self.textures.gbuffer.color);
             self.deferred_debug_pass(encoder);
         }
         self.final_pass(encoder, output_view, models, draw_bounds, draw_bones);
@@ -635,14 +637,19 @@ impl Renderer {
         })
     }
 
-    fn alpha3_pass(&self, encoder: &mut wgpu::CommandEncoder, models: &[ModelGroup]) {
+    fn alpha3_pass(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        models: &[ModelGroup],
+        output_view: &wgpu::TextureView,
+    ) {
         // Deferred rendering requires a second forward pass for transparent meshes.
         // The transparent pass only writes to the color output.
         // TODO: Research more about how this is implemented in game.
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Alpha Pass 3"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &self.textures.deferred_output,
+                view: output_view,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     // TODO: Does in game actually use load?

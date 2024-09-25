@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## unreleased
 ### Fixed
 * Fixed an issue where texture layers would only assign the first channel.
+* Fixed an issue where not all meshes would render in the color debug shading mode.
 
 ## 0.13.0 - 2024-09-18
 ### Added
