@@ -1,6 +1,6 @@
 use glam::{vec4, Vec4};
 use log::warn;
-use smol_str::SmolStr;
+use smol_str::{SmolStr, ToSmolStr};
 use xc3_lib::mxmd::{
     MaterialFlags, MaterialRenderFlags, Materials, RenderPassType, StateFlags, Technique,
     TextureUsage,
@@ -572,24 +572,48 @@ fn texture_layers(
     layers: &[TextureLayer],
     parameters: &MaterialParameters,
 ) -> Vec<OutputLayerAssignment> {
-    // TODO: Is there a more reliable way to handle channels?
     // Skip the base layer in the first element.
     layers
         .iter()
         .skip(1)
-        .map(|l| OutputLayerAssignment {
-            x: ChannelAssignment::from_dependency(&l.value, parameters, 'x'),
-            y: ChannelAssignment::from_dependency(&l.value, parameters, 'y'),
-            z: ChannelAssignment::from_dependency(&l.value, parameters, 'z'),
-            w: ChannelAssignment::from_dependency(&l.value, parameters, 'w'),
-            weight: l
-                .ratio
-                .as_ref()
-                .and_then(|r| ChannelAssignment::from_dependency(r, parameters, 'x')),
-            blend_mode: l.blend_mode,
-            is_fresnel: l.is_fresnel,
+        .map(|l| {
+            // TODO: Is it worth detecting layers for each channel individually?
+            // TODO: Is it safe to assume assigned channels are always xyzw?
+            let x = ChannelAssignment::from_dependency(&l.value, parameters, 'x');
+            let y = x.clone().map(|d| dependency_with_channel(d, 'y'));
+            let z = x.clone().map(|d| dependency_with_channel(d, 'z'));
+            let w = x.clone().map(|d| dependency_with_channel(d, 'w'));
+
+            OutputLayerAssignment {
+                x,
+                y,
+                z,
+                w,
+                weight: l
+                    .ratio
+                    .as_ref()
+                    .and_then(|r| ChannelAssignment::from_dependency(r, parameters, 'x')),
+                blend_mode: l.blend_mode,
+                is_fresnel: l.is_fresnel,
+            }
         })
         .collect()
+}
+
+fn dependency_with_channel(d: ChannelAssignment, channel: char) -> ChannelAssignment {
+    match d {
+        ChannelAssignment::Texture(texture_assignment) => {
+            ChannelAssignment::Texture(TextureAssignment {
+                channels: channel.to_smolstr(),
+                ..texture_assignment
+            })
+        }
+        ChannelAssignment::Attribute { name, .. } => ChannelAssignment::Attribute {
+            name,
+            channel_index: "xyzw".find(channel).unwrap(),
+        },
+        ChannelAssignment::Value(f) => ChannelAssignment::Value(f),
+    }
 }
 
 fn channel_assignment(
