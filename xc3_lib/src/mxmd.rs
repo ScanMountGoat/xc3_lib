@@ -139,11 +139,10 @@ pub struct Materials {
     #[xc3(offset(u32))]
     pub material_unk2: Option<MaterialUnk2>,
 
-    // TODO: fur stuff?
     #[br(parse_with = parse_opt_ptr32)]
-    #[br(args { offset: base_offset, inner: base_offset })]
+    #[br(args { offset: base_offset, inner: args! { base_offset, count: materials.len() } })]
     #[xc3(offset(u32))]
-    pub material_unk3: Option<MaterialUnk3>,
+    pub fur_shells: Option<FurShells>,
 
     pub unks3_1: [u32; 2],
 
@@ -281,21 +280,20 @@ pub struct MaterialUnk2 {
     pub unk: [u32; 4],
 }
 
-// TODO: fur shell rendering?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
-#[br(import_raw(base_offset: u64))]
-pub struct MaterialUnk3 {
-    // TODO: length depends on unk2?
-    #[br(parse_with = parse_ptr32, offset = base_offset)]
+#[br(import { base_offset: u64, count: usize })]
+pub struct FurShells {
+    /// Index into [params](#structfield.params) for each of the elements in
+    /// [materials](struct.Materials.html#structfield.materials).
+    #[br(parse_with = parse_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count }})]
     #[xc3(offset(u32))]
-    pub unk1: [u32; 14],
+    pub material_param_indices: Vec<u16>,
 
-    // TODO: element for each material with fur flag enabled?
-    // TODO: how to know which material goes with each element?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub unk2: Vec<MaterialUnk3Unk2>,
+    pub params: Vec<FurShellParams>,
 
     // TODO: padding?
     pub unk: [u32; 4],
@@ -303,7 +301,7 @@ pub struct MaterialUnk3 {
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct MaterialUnk3Unk2 {
+pub struct FurShellParams {
     // TODO: offset using instance ID in vertex shader?
     pub instance_count: u32,
     pub unk2: f32,
@@ -452,7 +450,8 @@ pub struct MaterialFlags {
     pub unk7: bool,
     pub unk8: bool,
     pub unk9: bool,
-    pub fur: bool, // TODO: fur shading temp tex for xc2?
+    /// Enables fur shell rendering in [FurShells].
+    pub fur: bool,
     pub unk: u22,
 }
 
@@ -2078,7 +2077,7 @@ impl<'a> Xc3WriteOffsets for MaterialsOffsets<'a> {
             .write_full(writer, base_offset, data_ptr, endian)?;
         self.material_unk2
             .write_full(writer, base_offset, data_ptr, endian)?;
-        self.material_unk3
+        self.fur_shells
             .write_full(writer, base_offset, data_ptr, endian)?;
         self.samplers
             .write_full(writer, base_offset, data_ptr, endian)?;
@@ -2176,7 +2175,7 @@ impl<'a> Xc3WriteOffsets for ModelUnk3ItemOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for MaterialUnk3Offsets<'a> {
+impl<'a> Xc3WriteOffsets for FurShellsOffsets<'a> {
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
         &self,
         writer: &mut W,
@@ -2185,9 +2184,9 @@ impl<'a> Xc3WriteOffsets for MaterialUnk3Offsets<'a> {
         endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
-        self.unk2
+        self.params
             .write_full(writer, base_offset, data_ptr, endian)?;
-        self.unk1
+        self.material_param_indices
             .write_full(writer, base_offset, data_ptr, endian)?;
         Ok(())
     }
