@@ -27,6 +27,8 @@ pub struct Material {
     pub pipeline_key: PipelineKey,
 
     pub texture_count: usize,
+
+    pub fur_shell_instance_count: Option<u32>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -112,6 +114,13 @@ pub fn materials(
             let color_layers = texture_layers(&material_assignments, &name_to_index, 0);
             let normal_layers = texture_layers(&material_assignments, &name_to_index, 2);
 
+            // TODO: How to set fur params properly?
+            let fur_params = material
+                .fur_params
+                .as_ref()
+                .map(|p| crate::shader::model::FurShellParams { width: 0.1 })
+                .unwrap_or(crate::shader::model::FurShellParams { width: 0.0 });
+
             // TODO: This is normally done using a depth prepass.
             // TODO: Is it ok to combine the prepass alpha in the main pass like this?
             let per_material = device.create_uniform_buffer(
@@ -138,6 +147,7 @@ pub fn materials(
                         material.alpha_test.as_ref().map(|_| 0.5).unwrap_or(1.0),
                     ),
                     is_single_channel,
+                    fur_params,
                 }],
             );
 
@@ -208,6 +218,7 @@ pub fn materials(
                 bind_group2,
                 pipeline_key,
                 texture_count: material.textures.len(),
+                fur_shell_instance_count: material.fur_params.as_ref().map(|p| p.instance_count),
             }
         })
         .collect();

@@ -139,6 +139,12 @@ struct PerMaterial {
 
     // Workaround for BC4 swizzle mask.
     is_single_channel: array<vec4<u32>, 10>,
+
+    fur_params: FurShellParams
+}
+
+struct FurShellParams {
+    width: f32
 }
 
 @group(2) @binding(20)
@@ -153,11 +159,15 @@ struct PerMesh {
 @group(3) @binding(2)
 var<uniform> per_mesh: PerMesh;
 
+// TODO: Avoid storing skin weights per mesh?
 @group(3) @binding(3)
 var<storage> bone_indices: array<vec4<u32>>;
 
 @group(3) @binding(4)
 var<storage> skin_weights: array<vec4<f32>>;
+
+@group(3) @binding(5)
+var<uniform> instance_transform: mat4x4<f32>;
 
 // Define all possible attributes even if unused.
 // This avoids needing separate shaders.
@@ -172,13 +182,6 @@ struct VertexInput1 {
     @location(3) vertex_color: vec4<f32>,
     @location(4) tex0: vec3<f32>,
     @location(5) weight_index: u32,
-}
-
-struct InstanceInput {
-    @location(7) model_matrix_0: vec4<f32>,
-    @location(8) model_matrix_1: vec4<f32>,
-    @location(9) model_matrix_2: vec4<f32>,
-    @location(10) model_matrix_3: vec4<f32>,
 }
 
 // wgpu recommends @invariant for position with depth func equals.
@@ -201,7 +204,7 @@ struct FragmentOutput {
     @location(5) g_lgt_color: vec4<f32>,
 }
 
-fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance: InstanceInput, outline: bool) -> VertexOutput {
+fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance_index: u32, outline: bool) -> VertexOutput {
     var out: VertexOutput;
 
     // Linear blend skinning.
@@ -232,17 +235,20 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance: InstanceInput, 
         }
     }
 
-    let model_matrix = mat4x4<f32>(
-        instance.model_matrix_0,
-        instance.model_matrix_1,
-        instance.model_matrix_2,
-        instance.model_matrix_3,
-    );
+    let model_matrix = instance_transform;
 
     if outline {
         // TODO: What to use for the param here?
         let outline_width = outline_width(in1.vertex_color, 0.007351, position.z, normal_xyz);
         position += normal_xyz * outline_width;
+    }
+
+    if per_material.fur_params.width > 0.0 {
+        // TODO: Do Xenoblade 2 and Xenoblade 3 always use the same width param?
+        // TODO: Is this value controlled by a material parameter?
+        // TODO: shaders have 2 width parameters?
+        let fur_shell_width = (f32(instance_index) + 1.0) * 0.00167;
+        position += normal_xyz * fur_shell_width;
     }
 
     out.clip_position = camera.view_projection * model_matrix * vec4(position, 1.0);
@@ -271,13 +277,13 @@ fn outline_width(vertex_color: vec4<f32>, param: f32, view_z: f32, normal: vec3<
 }
 
 @vertex
-fn vs_main(in0: VertexInput0, in1: VertexInput1, instance: InstanceInput) -> VertexOutput {
-    return vertex_output(in0, in1, instance, false);
+fn vs_main(in0: VertexInput0, in1: VertexInput1, @builtin(instance_index) instance_index: u32) -> VertexOutput {
+    return vertex_output(in0, in1, instance_index, false);
 }
 
 @vertex
-fn vs_outline_main(in0: VertexInput0, in1: VertexInput1, instance: InstanceInput) -> VertexOutput {
-    return vertex_output(in0, in1, instance, true);
+fn vs_outline_main(in0: VertexInput0, in1: VertexInput1, @builtin(instance_index) instance_index: u32) -> VertexOutput {
+    return vertex_output(in0, in1, instance_index, true);
 }
 
 fn assign_texture(a: OutputAssignment, s_colors: array<vec4<f32>, 10>, vcolor: vec4<f32>) -> vec4<f32> {

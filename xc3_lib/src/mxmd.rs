@@ -450,9 +450,12 @@ pub struct MaterialFlags {
     pub unk7: bool,
     pub unk8: bool,
     pub unk9: bool,
-    /// Enables fur shell rendering in [FurShells].
+    // TODO: Extra draw calls for fur rendering?
     pub fur: bool,
-    pub unk: u22,
+    pub unk11: u17,
+    // TODO: Actually draw the instanced shells?
+    pub fur_shells: bool,
+    pub unk: u4,
 }
 
 #[bitsize(32)]

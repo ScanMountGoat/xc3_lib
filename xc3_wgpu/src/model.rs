@@ -140,8 +140,6 @@ impl Models {
 pub struct Model {
     pub meshes: Vec<Mesh>,
     model_buffers_index: usize,
-    instance_buffer: wgpu::Buffer,
-    pub instance_count: usize,
 }
 
 pub struct Mesh {
@@ -269,7 +267,9 @@ impl ModelGroup {
 
                         material.bind_group2.set(render_pass);
 
-                        self.draw_mesh(model, mesh, render_pass, is_outline);
+                        let instance_count = material.fur_shell_instance_count.unwrap_or(1);
+
+                        self.draw_mesh(model, mesh, render_pass, is_outline, instance_count);
                     }
                 }
             }
@@ -301,6 +301,7 @@ impl ModelGroup {
         mesh: &Mesh,
         render_pass: &mut wgpu::RenderPass<'a>,
         is_outline: bool,
+        instance_count: u32,
     ) {
         let vertex_buffers =
             &self.buffers[model.model_buffers_index].vertex_buffers[mesh.vertex_buffer_index];
@@ -319,8 +320,6 @@ impl ModelGroup {
             render_pass.set_vertex_buffer(1, vertex_buffers.vertex_buffer1.slice(..));
         }
 
-        render_pass.set_vertex_buffer(2, model.instance_buffer.slice(..));
-
         // TODO: Are all indices u16?
         let index_buffer =
             &self.buffers[model.model_buffers_index].index_buffers[mesh.index_buffer_index];
@@ -329,11 +328,7 @@ impl ModelGroup {
             wgpu::IndexFormat::Uint16,
         );
 
-        render_pass.draw_indexed(
-            0..index_buffer.vertex_index_count,
-            0,
-            0..model.instance_count as u32,
-        );
+        render_pass.draw_indexed(0..index_buffer.vertex_index_count, 0, 0..instance_count);
     }
 
     pub fn reset_morphs(&self, encoder: &mut wgpu::CommandEncoder) {
@@ -627,33 +622,28 @@ fn create_model(
     let meshes = model
         .meshes
         .iter()
-        .map(|mesh| Mesh {
-            vertex_buffer_index: mesh.vertex_buffer_index,
-            index_buffer_index: mesh.index_buffer_index,
-            material_index: mesh.material_index,
-            lod: mesh.lod_item_index,
-            flags2: mesh.flags2,
-            per_mesh: per_mesh_bind_group(
-                device,
-                model_buffers,
-                mesh,
-                &materials[mesh.material_index],
-                weights,
-                bone_names,
-            ),
+        .flat_map(|mesh| {
+            model.instances.iter().map(|i| Mesh {
+                vertex_buffer_index: mesh.vertex_buffer_index,
+                index_buffer_index: mesh.index_buffer_index,
+                material_index: mesh.material_index,
+                lod: mesh.lod_item_index,
+                flags2: mesh.flags2,
+                per_mesh: per_mesh_bind_group(
+                    device,
+                    model_buffers,
+                    mesh,
+                    &materials[mesh.material_index],
+                    weights,
+                    bone_names,
+                    i,
+                ),
+            })
         })
         .collect();
 
-    let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("instance buffer"),
-        contents: bytemuck::cast_slice(&model.instances),
-        usage: wgpu::BufferUsages::VERTEX,
-    });
-
     Model {
         meshes,
-        instance_buffer,
-        instance_count: model.instances.len(),
         model_buffers_index: model.model_buffers_index,
     }
 }
@@ -974,6 +964,7 @@ fn per_mesh_bind_group(
     material: &Material,
     weights: Option<&xc3_model::skinning::Weights>,
     bone_names: Option<&[String]>,
+    transform: &Mat4,
 ) -> shader::model::bind_groups::BindGroup3 {
     // TODO: Fix weight indexing calculations.
     let start = buffers
@@ -1053,6 +1044,8 @@ fn per_mesh_bind_group(
         usage: wgpu::BufferUsages::STORAGE,
     });
 
+    let instance_transform = device.create_uniform_buffer("instance transform", transform);
+
     // Bone indices and skin weights are technically part of the model buffers.
     // Each mesh selects a range of values based on weight lods.
     // Define skinning per mesh to avoid alignment requirements on buffer bindings.
@@ -1063,6 +1056,7 @@ fn per_mesh_bind_group(
             // TODO: Is it worth caching skinning buffers based on flags and parameters?
             bone_indices: bone_indices.as_entire_buffer_binding(),
             skin_weights: skin_weights.as_entire_buffer_binding(),
+            instance_transform: instance_transform.as_entire_buffer_binding(),
         },
     )
 }

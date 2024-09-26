@@ -688,6 +688,7 @@ fn foliage_materials(materials: &FoliageMaterials) -> Vec<Material> {
                 m_unks1_4: 0,
                 m_unks2_2: 0,
                 m_unks3_1: 0,
+                fur_params: None,
             }
         })
         .collect();

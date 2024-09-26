@@ -63,8 +63,8 @@ use xc3_lib::{
 pub use map::{load_map, LoadMapError};
 // TODO: just make the module public.
 pub use material::{
-    ChannelAssignment, Material, MaterialParameters, OutputAssignment, OutputAssignments,
-    OutputLayerAssignment, Texture, TextureAlphaTest, TextureAssignment,
+    ChannelAssignment, FurShellParams, Material, MaterialParameters, OutputAssignment,
+    OutputAssignments, OutputLayerAssignment, Texture, TextureAlphaTest, TextureAssignment,
 };
 pub use sampler::{AddressMode, FilterMode, Sampler};
 pub use skeleton::{Bone, Skeleton};
@@ -336,6 +336,7 @@ impl Models {
                     m_unks1_4: 0,
                     m_unks2_2: 0,
                     m_unks3_1: 0,
+                    fur_params: None,
                 })
                 .collect(),
             samplers: Vec::new(),

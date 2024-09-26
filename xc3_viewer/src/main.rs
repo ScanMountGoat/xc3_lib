@@ -202,12 +202,7 @@ impl<'a> State<'a> {
             .map(|m| {
                 m.models
                     .iter()
-                    .flat_map(|models| {
-                        models
-                            .models
-                            .iter()
-                            .map(|model| model.meshes.len() * model.instance_count)
-                    })
+                    .flat_map(|models| models.models.iter().map(|model| model.meshes.len()))
                     .sum::<usize>()
             })
             .sum();

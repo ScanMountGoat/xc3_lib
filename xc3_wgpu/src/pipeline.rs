@@ -73,13 +73,11 @@ pub fn model_pipeline(
         crate::shader::model::vs_outline_main_entry(
             wgpu::VertexStepMode::Vertex,
             wgpu::VertexStepMode::Vertex,
-            wgpu::VertexStepMode::Instance,
         )
     } else {
         crate::shader::model::vs_main_entry(
             wgpu::VertexStepMode::Vertex,
             wgpu::VertexStepMode::Vertex,
-            wgpu::VertexStepMode::Instance,
         )
     };
 
@@ -124,7 +122,7 @@ pub fn model_pipeline(
 fn model_pipeline_inner<const N: usize>(
     device: &wgpu::Device,
     data: &ModelPipelineData,
-    vertex_entry: crate::shader::model::VertexEntry<3>,
+    vertex_entry: crate::shader::model::VertexEntry<2>,
     fragment_entry: crate::shader::model::FragmentEntry<N>,
     key: &PipelineKey,
 ) -> wgpu::RenderPipeline {

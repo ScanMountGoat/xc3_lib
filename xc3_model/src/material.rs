@@ -6,6 +6,8 @@ use xc3_lib::mxmd::{
     TextureUsage,
 };
 
+pub use xc3_lib::mxmd::FurShellParams;
+
 use crate::{
     shader_database::{
         BufferDependency, Dependency, LayerBlendMode, ModelPrograms, ShaderProgram,
@@ -56,6 +58,8 @@ pub struct Material {
 
     pub m_unks2_2: u16,
     pub m_unks3_1: u16,
+
+    pub fur_params: Option<FurShellParams>,
 }
 
 /// Information for alpha testing based on sampled texture values.
@@ -169,6 +173,13 @@ pub fn create_materials(
             let parameters =
                 assign_parameters(materials, material, &work_values).unwrap_or_default();
 
+            // TODO: It's redundant to make this optional and store the fur flag.
+            let fur_params = materials.fur_shells.as_ref().and_then(|fur| {
+                let param_index = *fur.material_param_indices.get(i)? as usize;
+                let params = fur.params.get(param_index).cloned()?;
+                material.flags.fur_shells().then_some(params)
+            });
+
             Material {
                 name: material.name.clone(),
                 flags: material.flags,
@@ -208,6 +219,7 @@ pub fn create_materials(
                 m_unks1_4: material.m_unks1_4,
                 m_unks2_2: material.m_unks2[2],
                 m_unks3_1: material.m_unks3[1],
+                fur_params,
             }
         })
         .collect()

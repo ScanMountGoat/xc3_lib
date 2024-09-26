@@ -259,6 +259,8 @@ impl ModelRoot {
                 .work_callbacks
                 .extend_from_slice(&m.work_callbacks);
         }
+
+        // TODO: set fur shell params.
     }
 
     fn match_technique_attributes(&self, buffers: &mut ModelBuffers, mxmd: &Mxmd) {
