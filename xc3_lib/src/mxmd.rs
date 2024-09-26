@@ -139,6 +139,7 @@ pub struct Materials {
     #[xc3(offset(u32))]
     pub material_unk2: Option<MaterialUnk2>,
 
+    // TODO: fur stuff?
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(offset(u32))]
@@ -280,20 +281,35 @@ pub struct MaterialUnk2 {
     pub unk: [u32; 4],
 }
 
+// TODO: fur shell rendering?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct MaterialUnk3 {
+    // TODO: length depends on unk2?
     #[br(parse_with = parse_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    pub unk1: [u32; 8],
+    pub unk1: [u32; 14],
 
+    // TODO: element for each material with fur flag enabled?
+    // TODO: how to know which material goes with each element?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub unk2: Vec<[f32; 5]>,
+    pub unk2: Vec<MaterialUnk3Unk2>,
 
     // TODO: padding?
     pub unk: [u32; 4],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct MaterialUnk3Unk2 {
+    // TODO: offset using instance ID in vertex shader?
+    pub instance_count: u32,
+    pub unk2: f32,
+    pub unk3: f32,
+    pub unk4: f32,
+    pub unk5: f32,
 }
 
 /// A collection of [Sampler].
@@ -459,11 +475,12 @@ pub struct MaterialRenderFlags {
     pub unk9: bool,
     pub unk10: bool, // TODO: fur shading temp tex for xc2?
     pub unk11: bool,
+    // TODO: Is this an enum?
     pub specular: bool, // TODO: specular for out_attr5?
     pub unk13: bool,    // TODO: true for core crystals?
     pub unk14: bool,    // TODO: true for core crystals?
     pub unk15: bool,
-    pub unk16: bool,
+    pub unk16: bool, // false for characters
     pub unk17: bool,
     pub unk18: bool,
     pub unk19: bool,
