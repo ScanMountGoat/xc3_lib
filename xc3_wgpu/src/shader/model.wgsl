@@ -243,12 +243,18 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance_index: u32, outl
         position += normal_xyz * outline_width;
     }
 
+    var vertex_color = in1.vertex_color;
+
     if per_material.fur_params.width > 0.0 {
-        // TODO: Do Xenoblade 2 and Xenoblade 3 always use the same width param?
-        // TODO: Is this value controlled by a material parameter?
+        // TODO: Do Xenoblade 2 and Xenoblade 3 always use the same params?
+        // TODO: Are these values controlled by a material parameter?
         // TODO: shaders have 2 width parameters?
         let fur_shell_width = (f32(instance_index) + 1.0) * 0.00167;
         position += normal_xyz * fur_shell_width;
+
+        // Outer shells are more transparent than inner shells.
+        let alpha_factor = clamp(f32(instance_index) * 0.3, 0.0, 1.0);
+        vertex_color.a = mix(vertex_color.a, 0.0, alpha_factor);
     }
 
     out.clip_position = camera.view_projection * model_matrix * vec4(position, 1.0);
@@ -257,7 +263,7 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance_index: u32, outl
     // Some shaders have gTexA, gTexB, gTexC for up to 5 scaled versions of tex0.
     // This is handled in the fragment shader, so just return a single attribute.
     out.tex0 = in1.tex0.xy;
-    out.vertex_color = in1.vertex_color;
+    out.vertex_color = vertex_color;
 
     // Transform any direction vectors by the instance transform.
     // TODO: This assumes no scaling?
@@ -604,7 +610,7 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     // TODO: Detect multiply by vertex color and gMatCol.
     // TODO: Just detect if gMatCol is part of the technique parameters?
     var out: FragmentOutput;
-    out.g_color = vec4(color, g_color.a) * per_material.mat_color;
+    out.g_color = vec4(color, g_color.a * in.vertex_color.a) * per_material.mat_color;
     out.g_etc_buffer = mrt_etc_buffer(g_etc_buffer, view_normal);
     out.g_normal = mrt_normal(view_normal, g_normal.z);
     out.g_velocity = g_velocity;
