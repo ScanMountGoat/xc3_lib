@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## unreleased
+### Added
+* Added rendering support for layered fur shell rendering to xc3_wgpu.
+
 ### Fixed
 * Fixed an issue where texture layers would only assign the first channel.
 * Fixed an issue where not all meshes would render in the color debug shading mode.
