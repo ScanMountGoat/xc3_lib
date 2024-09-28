@@ -2,24 +2,18 @@ use std::io::BufReader;
 use std::path::Path;
 
 use clap::{Parser, Subcommand};
-use dependencies::latte_dependencies;
-use extract::{extract_legacy_shaders, extract_shaders};
 use rayon::prelude::*;
-use shader_database::{create_shader_database, create_shader_database_legacy};
 use xc3_lib::msmd::Msmd;
 use xc3_lib::msrd::Msrd;
 use xc3_lib::mths::Mths;
 use xc3_lib::mxmd::legacy::MxmdLegacy;
 use xc3_lib::mxmd::Mxmd;
 use xc3_lib::spch::Spch;
+use xc3_shader::dependencies::latte_dependencies;
+use xc3_shader::extract::{extract_legacy_shaders, extract_shaders};
+use xc3_shader::shader_database::{create_shader_database, create_shader_database_legacy};
 
-use crate::dependencies::glsl_dependencies;
-
-mod annotation;
-mod dependencies;
-mod extract;
-mod graph;
-mod shader_database;
+use xc3_shader::dependencies::glsl_dependencies;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
