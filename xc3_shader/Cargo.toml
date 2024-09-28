@@ -9,7 +9,7 @@ xc3_model = { path = "../xc3_model", optional = true }
 rayon = "1.8.1"
 globwalk = "0.9.1"
 clap = { version = "4.2.7", features = ["derive"] }
-glsl-lang = { version = "0.5.1", features = ["lexer-v2-full"] }
+glsl-lang = { version = "0.6.0", features = ["lexer-v2-full"] }
 serde_json = "1.0"
 log = "0.4.19"
 simple_logger = "4.2.0"
