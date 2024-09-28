@@ -1,7 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-mod glsl;
-mod latte;
+pub mod glsl;
+#[cfg(feature = "xc3")]
+pub mod latte;
 pub mod query;
 
 /// A directed graph of shader assignments and input expressions to simplify analysis.

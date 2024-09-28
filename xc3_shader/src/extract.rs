@@ -1,5 +1,6 @@
 use std::{
     error::Error,
+    io::BufReader,
     path::{Path, PathBuf},
 };
 
@@ -7,12 +8,181 @@ use crate::annotation::{annotate_fragment, annotate_vertex};
 use log::error;
 use rayon::prelude::*;
 use xc3_lib::{
+    msmd::Msmd,
+    msrd::Msrd,
     mths::Mths,
+    mxmd::{legacy::MxmdLegacy, Mxmd},
     spch::{vertex_fragment_binaries, Nvsd, ShaderBinary, Spch},
 };
 
+pub fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Option<&str>) {
+    globwalk::GlobWalkerBuilder::from_patterns(input, &["*.wimdo"])
+        .build()
+        .unwrap()
+        .for_each(|entry| {
+            let path = entry.as_ref().unwrap().path();
+
+            // Assume that file names are unique even across different folders.
+            // This simplifies the output directory structure.
+            // TODO: Preserve the original folder structure instead?
+            let output_folder = shader_output_folder(output, path);
+            std::fs::create_dir_all(&output_folder).unwrap();
+            println!("{output_folder:?}");
+
+            // Shaders can be embedded in the wimdo or wismt file.
+            match Mxmd::from_file(path) {
+                Ok(mxmd) => {
+                    if let Some(spch) = mxmd.spch {
+                        extract_shaders(&spch, &output_folder, shader_tools, false);
+                    }
+                }
+                Err(e) => println!("Error reading {path:?}: {e}"),
+            }
+
+            match Msrd::from_file(path.with_extension("wismt")) {
+                Ok(msrd) => {
+                    let (_, spch, _) = msrd.extract_files(None).unwrap();
+                    extract_shaders(&spch, &output_folder, shader_tools, false);
+                }
+                Err(e) => println!("Error reading {path:?}: {e}"),
+            }
+        });
+
+    globwalk::GlobWalkerBuilder::from_patterns(input, &["*.wismhd"])
+        .build()
+        .unwrap()
+        .for_each(|entry| {
+            let path = entry.as_ref().unwrap().path();
+            match Msmd::from_file(path) {
+                Ok(msmd) => {
+                    // Get the embedded shaders from the map files.
+                    let output_folder = shader_output_folder(output, path);
+                    std::fs::create_dir_all(&output_folder).unwrap();
+                    println!("{output_folder:?}");
+
+                    extract_and_decompile_msmd_shaders(path, msmd, output_folder, shader_tools);
+                }
+                Err(e) => println!("Error reading {path:?}: {e}"),
+            }
+        });
+
+    globwalk::GlobWalkerBuilder::from_patterns(input, &["*.wishp"])
+        .build()
+        .unwrap()
+        .for_each(|entry| {
+            let path = entry.as_ref().unwrap().path();
+            match Spch::from_file(path) {
+                Ok(spch) => {
+                    // Get the embedded shaders from the map files.
+                    let output_folder = shader_output_folder(output, path);
+                    std::fs::create_dir_all(&output_folder).unwrap();
+                    println!("{output_folder:?}");
+
+                    extract_shaders(&spch, &output_folder, shader_tools, false);
+                }
+                Err(e) => println!("Error reading {path:?}: {e}"),
+            }
+        });
+}
+
+fn extract_and_decompile_msmd_shaders(
+    path: &Path,
+    msmd: Msmd,
+    output_folder: std::path::PathBuf,
+    shader_tools: Option<&str>,
+) {
+    let mut wismda = BufReader::new(std::fs::File::open(path.with_extension("wismda")).unwrap());
+    let compressed = msmd.wismda_info.compressed_length != msmd.wismda_info.decompressed_length;
+
+    for (i, model) in msmd.map_models.iter().enumerate() {
+        let data = model.entry.extract(&mut wismda, compressed).unwrap();
+
+        let model_folder = output_folder.join("map").join(i.to_string());
+        std::fs::create_dir_all(&model_folder).unwrap();
+
+        extract_shaders(&data.spch, &model_folder, shader_tools, false);
+    }
+
+    for (i, model) in msmd.prop_models.iter().enumerate() {
+        let data = model.entry.extract(&mut wismda, compressed).unwrap();
+
+        let model_folder = output_folder.join("prop").join(i.to_string());
+        std::fs::create_dir_all(&model_folder).unwrap();
+
+        extract_shaders(&data.spch, &model_folder, shader_tools, false);
+    }
+
+    for (i, model) in msmd.env_models.iter().enumerate() {
+        let data = model.entry.extract(&mut wismda, compressed).unwrap();
+
+        let model_folder = output_folder.join("env").join(i.to_string());
+        std::fs::create_dir_all(&model_folder).unwrap();
+
+        extract_shaders(&data.spch, &model_folder, shader_tools, false);
+    }
+
+    // TODO: Foliage shaders?
+}
+
+pub fn extract_and_disassemble_shaders(input: &str, output: &str, gfd_tool: &str) {
+    globwalk::GlobWalkerBuilder::from_patterns(input, &["*.camdo"])
+        .build()
+        .unwrap()
+        .par_bridge()
+        .for_each(|entry| {
+            let path = entry.as_ref().unwrap().path();
+
+            // Assume that file names are unique even across different folders.
+            // This simplifies the output directory structure.
+            // TODO: Preserve the original folder structure instead?
+            let output_folder = shader_output_folder(output, path);
+            std::fs::create_dir_all(&output_folder).unwrap();
+
+            // Shaders are embedded in the camdo file.
+            match MxmdLegacy::from_file(path) {
+                Ok(mxmd) => {
+                    mxmd.shaders
+                        .shaders
+                        .iter()
+                        .enumerate()
+                        .for_each(|(i, shader)| match Mths::from_bytes(&shader.mths_data) {
+                            Ok(mths) => extract_legacy_shaders(
+                                &mths,
+                                &shader.mths_data,
+                                &output_folder,
+                                gfd_tool,
+                                i,
+                            ),
+                            Err(e) => println!("Error extracting Mths from {path:?}: {e}"),
+                        });
+                }
+                Err(e) => println!("Error reading {path:?}: {e}"),
+            }
+        });
+
+    globwalk::GlobWalkerBuilder::from_patterns(input, &["*.cashd"])
+        .build()
+        .unwrap()
+        .par_bridge()
+        .for_each(|entry| {
+            let path = entry.as_ref().unwrap().path();
+
+            // Assume that file names are unique even across different folders.
+            // This simplifies the output directory structure.
+            // TODO: Preserve the original folder structure instead?
+            let output_folder = shader_output_folder(output, path);
+            std::fs::create_dir_all(&output_folder).unwrap();
+
+            let bytes = std::fs::read(path).unwrap();
+            match Mths::from_bytes(&bytes) {
+                Ok(mths) => extract_legacy_shaders(&mths, &bytes, &output_folder, gfd_tool, 0),
+                Err(e) => println!("Error reading {path:?}: {e}"),
+            }
+        });
+}
+
 // TODO: profile performance using a single thread and check threading with tracing?
-pub fn extract_shaders<P: AsRef<Path>>(
+fn extract_shaders<P: AsRef<Path>>(
     spch: &Spch,
     output_folder: P,
     ryujinx_shader_tools: Option<&str>,
@@ -156,7 +326,7 @@ fn extract_shader(shader_tools: &str, binary_file: &Path) -> std::process::Child
         .unwrap()
 }
 
-pub fn extract_legacy_shaders<P: AsRef<Path>>(
+fn extract_legacy_shaders<P: AsRef<Path>>(
     mths: &Mths,
     mths_bytes: &[u8],
     output_folder: P,
@@ -193,4 +363,11 @@ fn dissassemble_shader(binary_path: &Path, binary: &[u8], gfd_tool: &str) {
 
     // TODO: add an option to preserve binaries?
     std::fs::remove_file(binary_path).unwrap();
+}
+
+fn shader_output_folder(output_folder: &str, path: &Path) -> std::path::PathBuf {
+    // Use the name as a folder like "ch01011010.wismt" -> "ch01011010/".
+    let name = path.with_extension("");
+    let name = name.file_name().unwrap();
+    Path::new(output_folder).join(name)
 }

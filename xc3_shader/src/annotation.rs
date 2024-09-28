@@ -12,6 +12,8 @@ use glsl_lang::{
 };
 use xc3_lib::spch::Nvsd;
 
+use crate::graph::glsl::shader_source_no_extensions;
+
 // TODO: A more reliable way to do replacement is to visit each identifier.
 // Names should be replaced using a lookup table in a single pass.
 // String replacement won't handle the case where names overlap.
@@ -342,11 +344,6 @@ fn annotate_buffers(
             replacements.insert(format!("_{prefix}_s{handle}"), format!("_{}", buffer.name));
         }
     }
-}
-
-pub fn shader_source_no_extensions(glsl: &str) -> &str {
-    // TODO: Find a better way to skip unsupported extensions.
-    glsl.find("#pragma").map(|i| &glsl[i..]).unwrap_or(glsl)
 }
 
 #[cfg(test)]

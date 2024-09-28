@@ -20,11 +20,11 @@ use xc3_model::shader_database::{
 };
 
 use crate::{
-    annotation::shader_source_no_extensions,
     dependencies::{
         attribute_dependencies, buffer_dependency, input_dependencies, texcoord_params,
     },
     graph::{
+        glsl::shader_source_no_extensions,
         query::{
             assign_x, assign_x_recursive, dot3_a_b, fma_a_b_c, fma_half_half, mix_a_b_ratio,
             node_expr, normalize, query_nodes_glsl,

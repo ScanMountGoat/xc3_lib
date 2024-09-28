@@ -253,6 +253,17 @@ impl Graph {
     }
 }
 
+pub fn glsl_dependencies(source: &str, variable: &str, channel: Option<char>) -> String {
+    let source = shader_source_no_extensions(source);
+    let translation_unit = TranslationUnit::parse(source).unwrap();
+    Graph::from_glsl(&translation_unit).glsl_dependencies(variable, channel, None)
+}
+
+pub fn shader_source_no_extensions(glsl: &str) -> &str {
+    // TODO: Find a better way to skip unsupported extensions.
+    glsl.find("#pragma").map(|i| &glsl[i..]).unwrap_or(glsl)
+}
+
 fn channel_swizzle(channel: Option<char>) -> String {
     channel.map(|c| format!(".{c}")).unwrap_or_default()
 }
@@ -906,6 +917,120 @@ mod tests {
                 ],
             },
             Graph::from_glsl(&tu)
+        );
+    }
+
+    #[test]
+    fn line_dependencies_final_assignment() {
+        let glsl = indoc! {"
+            layout (binding = 9, std140) uniform fp_c9
+            {
+                vec4 fp_c9_data[0x1000];
+            };
+
+            layout(location = 0) in vec4 in_attr0;
+
+            void main() 
+            {
+                float a = fp_c9_data[0].x;
+                float b = 2.0;
+                float c = a * b;
+                float d = fma(a, b, c);
+                d = d + 1.0;
+                OUT_Color.x = c + d;
+            }
+        "};
+
+        assert_eq!(
+            indoc! {"
+                a = fp_c9_data[0].x;
+                b = 2.0;
+                c = a * b;
+                d = fma(a, b, c);
+                d = d + 1.0;
+                OUT_Color.x = c + d;
+            "},
+            glsl_dependencies(glsl, "OUT_Color", Some('x'))
+        );
+    }
+
+    #[test]
+    fn line_dependencies_intermediate_assignment() {
+        let glsl = indoc! {"
+            void main() 
+            {
+                float a = 1.0;
+                float b = 2.0;
+                float d = fma(a, b, -1.0);
+                float c = 2 * b;
+                d = d + 1.0;
+                OUT_Color.x = c + d;
+            }
+        "};
+
+        assert_eq!(
+            indoc! {"
+                b = 2.0;
+                c = 2 * b;
+            "},
+            glsl_dependencies(glsl, "c", None)
+        );
+    }
+
+    #[test]
+    fn line_dependencies_type_casts() {
+        let glsl = indoc! {"
+            void main() 
+            {
+                float a = 0.0;
+                uint b = uint(a) >> 2;
+                float d = 3.0 + a;
+                float c = data[int(b)];
+            }
+        "};
+
+        assert_eq!(
+            indoc! {"
+                a = 0.0;
+                b = uint(a) >> 2;
+                c = data[int(b)];
+            "},
+            glsl_dependencies(glsl, "c", None)
+        );
+    }
+
+    #[test]
+    fn line_dependencies_missing() {
+        let glsl = indoc! {"
+            void main() 
+            {
+                float a = 0.0;
+            }
+        "};
+
+        assert_eq!("", glsl_dependencies(glsl, "d", None));
+    }
+
+    #[test]
+    fn line_dependencies_textures() {
+        let glsl = indoc! {"
+            void main() 
+            {
+                float a = 1.0;
+                float a2 = a * 5.0;
+                float b = texture(texture1, vec2(a2 + 2.0, 1.0)).x;
+                float c = data[int(b)];
+            }
+        "};
+
+        assert_eq!(
+            indoc! {"
+                a = 1.0;
+                a2 = a * 5.0;
+                b = texture(texture1, vec2(a2 + 2.0, 1.0)).x;
+                c = data[int(b)];
+            "},
+            glsl_dependencies(glsl, "c", None)
         );
     }
 }
