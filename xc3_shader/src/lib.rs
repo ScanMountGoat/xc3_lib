@@ -1,4 +1,3 @@
-#[cfg(feature = "xc3")]
 pub mod annotation;
 #[cfg(feature = "xc3")]
 pub mod dependencies;

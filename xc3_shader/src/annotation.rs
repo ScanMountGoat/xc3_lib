@@ -10,15 +10,56 @@ use glsl_lang::{
     transpiler::glsl::{show_translation_unit, FormattingState},
     visitor::{HostMut, Visit, VisitorMut},
 };
+#[cfg(feature = "xc3")]
 use xc3_lib::spch::Nvsd;
 
 use crate::graph::glsl::shader_source_no_extensions;
 
-// TODO: A more reliable way to do replacement is to visit each identifier.
-// Names should be replaced using a lookup table in a single pass.
-// String replacement won't handle the case where names overlap.
 // TODO: What is the performance cost of annotation?
 const VEC4_SIZE: u32 = 16;
+
+/// Metadata and debug information for a single Tegra X1 shader stage.
+///
+/// This is typically stored with the precompiled shader binaries.
+/// The exact binary format will vary depending on the game.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ShaderMetadata {
+    pub uniform_buffers: Vec<Buffer>,
+    pub storage_buffers: Vec<Buffer>,
+    pub samplers: Vec<Sampler>,
+    /// Input attributes.
+    pub attributes: Vec<Attribute>,
+    // TODO: Store this as flattened floats?
+    pub constants: Option<[[f32; 4]; 16]>,
+}
+
+// TODO: is it worth creating a handle type?
+#[derive(Debug, Clone, PartialEq)]
+pub struct Buffer {
+    pub name: String,
+    pub handle: u32,
+    pub uniforms: Vec<Uniform>,
+    // TODO: Is this always equivalent to just adding all uniform sizes?
+    pub size_in_bytes: u32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Uniform {
+    pub name: String,
+    pub buffer_offset: u32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Sampler {
+    pub name: String,
+    pub handle: u32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Attribute {
+    pub name: String,
+    pub location: u32,
+}
 
 struct Annotator {
     replacements: HashMap<String, String>,
@@ -32,6 +73,119 @@ struct Field {
     vec4_index: u32,
     ty: TypeSpecifierNonArrayData,
     array_length: Option<u32>,
+}
+
+impl ShaderMetadata {
+    #[cfg(feature = "xc3")]
+    pub fn from_nvsd(nvsd: &Nvsd, constants: Option<&[[f32; 4]; 16]>) -> Self {
+        Self {
+            uniform_buffers: nvsd
+                .uniform_buffers
+                .as_ref()
+                .map(|buffers| {
+                    buffers
+                        .iter()
+                        .map(|b| buffer_from_nvsd_buffer(b, nvsd))
+                        .collect()
+                })
+                .unwrap_or_default(),
+            storage_buffers: nvsd
+                .storage_buffers
+                .as_ref()
+                .map(|buffers| {
+                    buffers
+                        .iter()
+                        .map(|b| buffer_from_nvsd_buffer(b, nvsd))
+                        .collect()
+                })
+                .unwrap_or_default(),
+            samplers: nvsd
+                .samplers
+                .as_ref()
+                .map(|samplers| {
+                    samplers
+                        .iter()
+                        .map(|s| Sampler {
+                            name: s.name.clone(),
+                            handle: s.handle.handle as u32,
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+            attributes: nvsd
+                .attributes
+                .iter()
+                .map(|a| Attribute {
+                    name: a.name.clone(),
+                    location: a.location,
+                })
+                .collect(),
+            constants: constants.cloned(),
+        }
+    }
+
+    /// Annotate the GLSL output of the Ryujinx.ShaderTools decompiler.
+    ///
+    /// Other decompilers or handwritten GLSL files may not work as reliably due to naming differences.
+    pub fn annotate_glsl(&self, glsl: &str, buffer_prefix: &str) -> Result<String, Box<dyn Error>> {
+        let mut replacements = HashMap::new();
+        let mut struct_fields = HashMap::new();
+        let mut constant_values = HashMap::new();
+
+        for attribute in &self.attributes {
+            let attribute_name = format!("in_attr{}", attribute.location);
+            replacements.insert(attribute_name, attribute.name.clone());
+        }
+
+        annotate_samplers(&mut replacements, self);
+        annotate_buffers(&mut replacements, &mut struct_fields, buffer_prefix, self);
+
+        // Annotate constants from fp_c1 with tests.
+        // Assume the constant buffer is 256 bytes of float32x4.
+        if let Some(constants) = &self.constants {
+            for (i, value) in constants.iter().enumerate() {
+                constant_values.insert((i, 'x'), value[0]);
+                constant_values.insert((i, 'y'), value[1]);
+                constant_values.insert((i, 'z'), value[2]);
+                constant_values.insert((i, 'w'), value[3]);
+            }
+        }
+
+        // TODO: This should also take a prefix?
+        let mut visitor = Annotator {
+            replacements,
+            struct_fields,
+            constant_values,
+        };
+
+        let modified_source = shader_source_no_extensions(glsl);
+        let mut translation_unit = TranslationUnit::parse(modified_source)?;
+        translation_unit.visit_mut(&mut visitor);
+
+        let mut text = String::new();
+        show_translation_unit(&mut text, &translation_unit, FormattingState::default())?;
+
+        Ok(text)
+    }
+}
+
+#[cfg(feature = "xc3")]
+fn buffer_from_nvsd_buffer(b: &xc3_lib::spch::UniformBuffer, nvsd: &Nvsd) -> Buffer {
+    Buffer {
+        name: b.name.clone(),
+        handle: b.handle.handle as u32,
+        uniforms: nvsd
+            .uniforms
+            .iter()
+            .skip(b.uniform_start_index as usize)
+            .take(b.uniform_count as usize)
+            .map(|u| Uniform {
+                name: u.name.clone(),
+                buffer_offset: u.buffer_offset,
+            })
+            .collect(),
+        size_in_bytes: b.size_in_bytes as u32,
+    }
 }
 
 // TODO: Clean up usage of AST.
@@ -193,156 +347,95 @@ fn field(field: &Field) -> Node<StructFieldSpecifierData> {
     )
 }
 
+#[cfg(feature = "xc3")]
 pub fn annotate_fragment(
     glsl: &str,
-    metadata: &Nvsd,
+    nvsd: &Nvsd,
     constants: Option<&[[f32; 4]; 16]>,
 ) -> Result<String, Box<dyn Error>> {
-    let mut replacements = HashMap::new();
-    let mut struct_fields = HashMap::new();
-    let mut constant_values = HashMap::new();
-
-    annotate_samplers(&mut replacements, metadata);
-    annotate_buffers(&mut replacements, &mut struct_fields, "fp", metadata);
-
-    // Annotate constants from fp_c1 with tests.
-    // Assume the constant buffer is 256 bytes of float32x4.
-    if let Some(constants) = constants {
-        for (i, value) in constants.iter().enumerate() {
-            constant_values.insert((i, 'x'), value[0]);
-            constant_values.insert((i, 'y'), value[1]);
-            constant_values.insert((i, 'z'), value[2]);
-            constant_values.insert((i, 'w'), value[3]);
-        }
-    }
-
-    let mut visitor = Annotator {
-        replacements,
-        struct_fields,
-        constant_values,
-    };
-
-    let modified_source = shader_source_no_extensions(glsl);
-    let mut translation_unit = TranslationUnit::parse(modified_source)?;
-    translation_unit.visit_mut(&mut visitor);
-
-    let mut text = String::new();
-    show_translation_unit(&mut text, &translation_unit, FormattingState::default())?;
-
-    Ok(text)
+    let metadata = ShaderMetadata::from_nvsd(nvsd, constants);
+    metadata.annotate_glsl(glsl, "fp")
 }
 
-fn annotate_samplers(replacements: &mut HashMap<String, String>, metadata: &Nvsd) {
-    if let Some(samplers) = &metadata.samplers {
-        for sampler in samplers {
-            let handle = sampler.handle.handle * 2 + 8;
-            let texture_name = format!("fp_t_tcb_{handle:X}");
-            replacements.insert(texture_name, sampler.name.clone());
-        }
-    }
-}
-
+#[cfg(feature = "xc3")]
 pub fn annotate_vertex(
     glsl: &str,
-    metadata: &Nvsd,
-    _: Option<&[[f32; 4]; 16]>,
+    nvsd: &Nvsd,
+    constants: Option<&[[f32; 4]; 16]>,
 ) -> Result<String, Box<dyn Error>> {
-    let mut replacements = HashMap::new();
-    let mut struct_fields = HashMap::new();
+    let metadata = ShaderMetadata::from_nvsd(nvsd, constants);
+    metadata.annotate_glsl(glsl, "vp")
+}
 
-    for attribute in &metadata.attributes {
-        let attribute_name = format!("in_attr{}", attribute.location);
-        replacements.insert(attribute_name, attribute.name.clone());
+fn annotate_samplers(replacements: &mut HashMap<String, String>, metadata: &ShaderMetadata) {
+    for sampler in &metadata.samplers {
+        let handle = sampler.handle * 2 + 8;
+        let texture_name = format!("fp_t_tcb_{handle:X}");
+        replacements.insert(texture_name, sampler.name.clone());
     }
-    annotate_buffers(&mut replacements, &mut struct_fields, "vp", metadata);
-
-    let mut visitor = Annotator {
-        replacements,
-        struct_fields,
-        constant_values: HashMap::new(),
-    };
-
-    // TODO: Find a better way to skip unsupported extensions.
-    let modified_source = shader_source_no_extensions(glsl);
-    let mut translation_unit = TranslationUnit::parse(modified_source)?;
-    translation_unit.visit_mut(&mut visitor);
-
-    let mut text = String::new();
-    show_translation_unit(&mut text, &translation_unit, FormattingState::default())?;
-
-    Ok(text)
 }
 
 fn annotate_buffers(
     replacements: &mut HashMap<String, String>,
     struct_fields: &mut HashMap<String, Vec<Field>>,
     prefix: &str,
-    metadata: &Nvsd,
+    metadata: &ShaderMetadata,
 ) {
-    // TODO: annotate constants from fp_v1 or vp_c1.
-    // TODO: How to determine which constant elements are actually used?
-    if let Some(uniform_buffers) = &metadata.uniform_buffers {
-        for buffer in uniform_buffers {
-            // TODO: why is this always off by 3?
-            // TODO: Is there an fp_c2?
-            let handle = buffer.handle.handle + 3;
+    for buffer in &metadata.uniform_buffers {
+        // TODO: why is this always off by 3?
+        // TODO: Is there an fp_c2?
+        let handle = buffer.handle + 3;
 
-            let buffer_name = format!("{prefix}_c{handle}");
-            let buffer_name_prefixed = format!("_{prefix}_c{handle}");
+        let buffer_name = format!("{prefix}_c{handle}");
+        let buffer_name_prefixed = format!("_{prefix}_c{handle}");
 
-            replacements.insert(buffer_name.clone(), buffer.name.clone());
-            replacements.insert(buffer_name_prefixed.clone(), format!("_{}", buffer.name));
+        replacements.insert(buffer_name.clone(), buffer.name.clone());
+        replacements.insert(buffer_name_prefixed.clone(), format!("_{}", buffer.name));
 
-            let start = buffer.uniform_start_index as usize;
-            let count = buffer.uniform_count as usize;
+        // Sort to make it easier to convert offsets to sizes.
+        let mut uniforms = buffer.uniforms.clone();
+        uniforms.sort_by_key(|u| u.buffer_offset);
 
-            // Sort to make it easier to convert offsets to sizes.
-            let mut uniforms = metadata.uniforms[start..start + count].to_vec();
-            uniforms.sort_by_key(|u| u.buffer_offset);
+        for (uniform_index, uniform) in uniforms.iter().enumerate() {
+            let vec4_index = uniform.buffer_offset / VEC4_SIZE;
 
-            for (uniform_index, uniform) in uniforms.iter().enumerate() {
-                let vec4_index = uniform.buffer_offset / VEC4_SIZE;
+            // TODO: Handle struct fields like "pointLights[0].col" for shd_lgt.
+            // "array[0]" -> "array"
+            let uniform_name = uniform
+                .name
+                .find('[')
+                .map(|bracket_index| uniform.name[..bracket_index].to_string())
+                .unwrap_or_else(|| uniform.name.to_string());
 
-                // TODO: Handle struct fields like "pointLights[0].col" for shd_lgt.
-                // "array[0]" -> "array"
-                let uniform_name = uniform
-                    .name
-                    .find('[')
-                    .map(|bracket_index| uniform.name[..bracket_index].to_string())
-                    .unwrap_or_else(|| uniform.name.to_string());
+            // The array has elements until the next uniform.
+            // All uniforms are vec4, so we don't need to worry about std140 alignment.
+            // Treat matrix types as vec4 arrays for now to match the decompiled code.
+            // Assume the final uniform extends to the end of the buffer.
+            let next_offset = uniforms
+                .get(uniform_index + 1)
+                .map(|u| u.buffer_offset)
+                .unwrap_or(buffer.size_in_bytes);
+            let length = (next_offset - uniform.buffer_offset) / VEC4_SIZE;
+            let array_length = if length > 1 { Some(length) } else { None };
 
-                // The array has elements until the next uniform.
-                // All uniforms are vec4, so we don't need to worry about std140 alignment.
-                // Treat matrix types as vec4 arrays for now to match the decompiled code.
-                // Assume the final uniform extends to the end of the buffer.
-                let next_offset = uniforms
-                    .get(uniform_index + 1)
-                    .map(|u| u.buffer_offset)
-                    .unwrap_or(buffer.size_in_bytes as u32);
-                let length = (next_offset - uniform.buffer_offset) / VEC4_SIZE;
-                let array_length = if length > 1 { Some(length) } else { None };
-
-                // Add a single field to the uniform buffer.
-                // All uniforms are vec4, so we don't need to worry about std140 alignment.
-                struct_fields
-                    .entry(buffer_name.clone())
-                    .or_default()
-                    .push(Field {
-                        name: uniform_name.clone(),
-                        vec4_index,
-                        ty: TypeSpecifierNonArrayData::Vec4,
-                        array_length,
-                    });
-            }
+            // Add a single field to the uniform buffer.
+            // All uniforms are vec4, so we don't need to worry about std140 alignment.
+            struct_fields
+                .entry(buffer_name.clone())
+                .or_default()
+                .push(Field {
+                    name: uniform_name.clone(),
+                    vec4_index,
+                    ty: TypeSpecifierNonArrayData::Vec4,
+                    array_length,
+                });
         }
     }
 
-    if let Some(storage_buffers) = &metadata.storage_buffers {
-        for buffer in storage_buffers {
-            let handle = buffer.handle.handle;
-            replacements.insert(format!("{prefix}_s{handle}"), buffer.name.clone());
-            replacements.insert(format!("_{prefix}_s{handle}"), format!("_{}", buffer.name));
-        }
+    for buffer in &metadata.storage_buffers {
+        let handle = buffer.handle;
+        replacements.insert(format!("{prefix}_s{handle}"), buffer.name.clone());
+        replacements.insert(format!("_{prefix}_s{handle}"), format!("_{}", buffer.name));
     }
 }
 
