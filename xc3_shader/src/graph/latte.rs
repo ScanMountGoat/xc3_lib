@@ -495,7 +495,7 @@ fn alu_src_expr(source: Pair<Rule>, nodes: &Nodes) -> Expr {
             Expr::Parameter {
                 name: "KC0".to_string(),
                 field: None,
-                index: Box::new(Expr::Int(number)),
+                index: Some(Box::new(Expr::Int(number))),
                 channel,
             }
         }
@@ -505,7 +505,7 @@ fn alu_src_expr(source: Pair<Rule>, nodes: &Nodes) -> Expr {
             Expr::Parameter {
                 name: "KC1".to_string(),
                 field: None,
-                index: Box::new(Expr::Int(number)),
+                index: Some(Box::new(Expr::Int(number))),
                 channel,
             }
         }

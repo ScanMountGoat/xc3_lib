@@ -184,18 +184,17 @@ impl Graph {
                 field,
                 index,
                 channel,
-            } => match field {
-                Some(field) => format!(
-                    "{name}.{field}[{}]{}",
-                    self.expr_to_glsl(index),
+            } => {
+                format!(
+                    "{name}{}{}{}",
+                    field.as_ref().map(|f| format!(".{f}")).unwrap_or_default(),
+                    index
+                        .as_ref()
+                        .map(|i| format!("[{}]", self.expr_to_glsl(i)))
+                        .unwrap_or_default(),
                     channel_swizzle(*channel)
-                ),
-                None => format!(
-                    "{name}[{}]{}",
-                    self.expr_to_glsl(index),
-                    channel_swizzle(*channel)
-                ),
-            },
+                )
+            }
             Expr::Global { name, channel } => format!("{name}{}", channel_swizzle(*channel)),
             Expr::Unary(op, a) => self.unary_to_glsl(*op, a),
             Expr::Binary(op, a, b) => self.binary_to_glsl(*op, a, b),
@@ -392,12 +391,12 @@ fn input_expr_inner(
                 }
             };
 
-            let index = Box::new(input_expr_inner(specifier, last_assignment_index, None));
+            let index = input_expr_inner(specifier, last_assignment_index, None);
 
             Expr::Parameter {
                 name,
                 field,
-                index,
+                index: Some(Box::new(index)),
                 channel,
             }
         }
@@ -431,23 +430,29 @@ fn input_expr_inner(
                 channel,
             }
         }
-        ExprData::Dot(e, channel) => {
+        ExprData::Dot(e, rh) => {
             // Track the channels accessed by expressions like "value.rgb".
-            if channel.as_str().len() == 1 {
-                input_expr_inner(e, last_assignment_index, channel.as_str().chars().next())
-            } else if !channel.as_str().chars().all(|c| "xyzw".contains(c)) {
-                // TODO: Is there a better way to handle float params like U_Mate.gAlInf?
-                let mut text = String::new();
-                show_expr(&mut text, e, &mut FormattingState::default()).unwrap();
-                Expr::Global {
-                    name: text,
-                    channel: None,
+            if rh.as_str().len() == 1 {
+                input_expr_inner(e, last_assignment_index, rh.as_str().chars().next())
+            } else if !rh.as_str().chars().all(|c| "xyzw".contains(c)) {
+                let name = match &e.as_ref().content {
+                    ExprData::Variable(id) => id.content.to_string(),
+                    _ => todo!(),
+                };
+
+                // Handle params like U_Mate.gAlInf.w.
+                Expr::Parameter {
+                    name,
+                    field: Some(rh.to_string()),
+                    index: None,
+                    channel,
                 }
             } else {
                 // TODO: how to handle values with multiple channels like a.xyz * b.wzy?
+                // TODO: These should already be split up into multiple scalar operations?
                 let mut text = String::new();
                 show_expr(&mut text, e, &mut FormattingState::default()).unwrap();
-                panic!("{}.{}\n", text, channel)
+                panic!("{}.{}\n", text, rh)
             }
         }
         ExprData::PostInc(e) => input_expr_inner(e, last_assignment_index, channel),
@@ -495,7 +500,7 @@ mod tests {
                         input: Expr::Parameter {
                             name: "fp_c9_data".to_string(),
                             field: None,
-                            index: Box::new(Expr::Int(0)),
+                            index: Some(Box::new(Expr::Int(0))),
                             channel: Some('x'),
                         },
                     },
@@ -599,7 +604,7 @@ mod tests {
                     input: Expr::Parameter {
                         name: "fp_c9_data".to_string(),
                         field: None,
-                        index: Box::new(Expr::Int(0)),
+                        index: Some(Box::new(Expr::Int(0))),
                         channel: Some('x'),
                     },
                 },
@@ -765,14 +770,14 @@ mod tests {
                     input: Expr::Parameter {
                         name: "data".to_string(),
                         field: None,
-                        index: Box::new(Expr::Func {
+                        index: Some(Box::new(Expr::Func {
                             name: "int".to_string(),
                             args: vec![Expr::Node {
                                 node_index: 2,
                                 channel: None,
                             }],
                             channel: None,
-                        }),
+                        })),
                         channel: None,
                     },
                 },
@@ -865,14 +870,14 @@ mod tests {
                         input: Expr::Parameter {
                             name: "data".to_string(),
                             field: None,
-                            index: Box::new(Expr::Func {
+                            index: Some(Box::new(Expr::Func {
                                 name: "int".to_string(),
                                 args: vec![Expr::Node {
                                     node_index: 2,
                                     channel: None,
                                 }],
                                 channel: None,
-                            }),
+                            })),
                             channel: None,
                         },
                     },
@@ -1031,6 +1036,68 @@ mod tests {
                 c = data[int(b)];
             "},
             glsl_dependencies(glsl, "c", None)
+        );
+    }
+
+    #[test]
+    fn line_dependencies_parameters() {
+        let glsl = indoc! {"
+            void main() {
+                temp_0 = U_Static.gDitVal.w * U_Mate.gAlInf.z;
+                temp_1 = floor(temp_0);
+                temp_2 = temp_1 * U_Static.gDitVal.z;
+                temp_3 = in_attr4.w;
+                temp_4 = in_attr4.x;
+                temp_5 = in_attr4.y;
+                temp_6 = 1. / temp_3;
+                temp_7 = temp_4 * temp_6;
+                temp_8 = temp_5 * temp_6;
+                temp_9 = fma(temp_7, 0.5, 0.5);
+                temp_10 = fma(temp_8, -0.5, 0.5);
+                temp_11 = temp_9 * U_Static.gDitVal.x;
+                temp_12 = temp_10 * U_Static.gDitVal.y;
+                temp_13 = floor(temp_11);
+                temp_14 = floor(temp_12);
+                temp_15 = 0. - temp_13;
+                temp_16 = temp_11 + temp_15;
+                temp_17 = 0. - temp_14;
+                temp_18 = temp_12 + temp_17;
+                temp_19 = fma(temp_16, U_Static.gDitVal.z, temp_2);
+                temp_20 = texture(texDither, vec2(temp_19, temp_18)).x;
+                temp_21 = in_attr2.x;
+                temp_22 = in_attr2.y;
+                temp_23 = temp_20 <= U_Mate.gAlInf.y;
+                if (temp_23) {
+                    discard;
+                }
+            }
+        "};
+
+        assert_eq!(
+            indoc! {"
+                temp_0 = U_Static.gDitVal.w * U_Mate.gAlInf.z;
+                temp_1 = floor(temp_0);
+                temp_2 = temp_1 * U_Static.gDitVal.z;
+                temp_3 = in_attr4.w;
+                temp_4 = in_attr4.x;
+                temp_5 = in_attr4.y;
+                temp_6 = 1.0 / temp_3;
+                temp_7 = temp_4 * temp_6;
+                temp_8 = temp_5 * temp_6;
+                temp_9 = fma(temp_7, 0.5, 0.5);
+                temp_10 = fma(temp_8, -0.5, 0.5);
+                temp_11 = temp_9 * U_Static.gDitVal.x;
+                temp_12 = temp_10 * U_Static.gDitVal.y;
+                temp_13 = floor(temp_11);
+                temp_14 = floor(temp_12);
+                temp_15 = 0.0 - temp_13;
+                temp_16 = temp_11 + temp_15;
+                temp_17 = 0.0 - temp_14;
+                temp_18 = temp_12 + temp_17;
+                temp_19 = fma(temp_16, U_Static.gDitVal.z, temp_2);
+                temp_20 = texture(texDither, vec2(temp_19, temp_18)).x;
+            "},
+            glsl_dependencies(glsl, "temp_20", None)
         );
     }
 }

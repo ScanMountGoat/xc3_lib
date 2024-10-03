@@ -35,11 +35,11 @@ pub enum Expr {
     Uint(u32),
     /// An boolean constant like `true`.
     Bool(bool),
-    /// A buffer access like `name.field[index].x` or `name[index].x`.
+    /// A parameter access like `name.field[index].x`, `name[index].x`, or `name.field.x`.
     Parameter {
         name: String,
         field: Option<String>,
-        index: Box<Expr>,
+        index: Option<Box<Expr>>,
         channel: Option<char>,
     },
     /// A global identifier like `in_attr0.x`.
@@ -227,6 +227,7 @@ impl Graph {
         for i in self.dependencies_recursive(variable, channel, recursion_depth) {
             // Some nodes may be repeated with different tracked channels.
             if visited.insert(i) {
+                dbg!(&self.nodes[i]);
                 output += &self.node_to_glsl(&self.nodes[i]);
             }
         }
@@ -307,7 +308,9 @@ fn add_exprs<'a>(exprs: &mut Vec<&'a Expr>, input: &'a Expr) {
         Expr::Uint(_) => (),
         Expr::Bool(_) => (),
         Expr::Parameter { index, .. } => {
-            add_exprs(exprs, index);
+            if let Some(index) = index {
+                add_exprs(exprs, index);
+            }
         }
         Expr::Global { .. } => (),
         Expr::Unary(_, a) => {

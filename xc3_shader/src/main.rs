@@ -114,13 +114,13 @@ fn main() {
         }
         Commands::GlslDependencies { input, output, var } => {
             let source = std::fs::read_to_string(input).unwrap();
-            let (var, channels) = var.split_once('.').unwrap();
+            let (var, channels) = var.split_once('.').unwrap_or((&var, ""));
             let source_out = glsl_dependencies(&source, var, channels.chars().next());
             std::fs::write(output, source_out).unwrap();
         }
         Commands::LatteDependencies { input, output, var } => {
             let source = std::fs::read_to_string(input).unwrap();
-            let (var, channels) = var.split_once('.').unwrap();
+            let (var, channels) = var.split_once('.').unwrap_or((&var, ""));
             let source_out = latte_dependencies(&source, var, channels.chars().next());
             std::fs::write(output, source_out).unwrap();
         }

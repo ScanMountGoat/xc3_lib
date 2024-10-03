@@ -29,7 +29,7 @@ pub fn input_dependencies(
                 index,
                 channel,
             } => {
-                if let Expr::Int(index) = index.deref() {
+                if let Some(Expr::Int(index)) = index.as_deref() {
                     dependencies.push(Dependency::Buffer(BufferDependency {
                         name: name.into(),
                         field: field.clone().unwrap_or_default().into(),
@@ -255,7 +255,7 @@ pub fn buffer_dependency(e: &Expr) -> Option<BufferDependency> {
         channel,
     } = e
     {
-        if let Expr::Int(index) = index.deref() {
+        if let Some(Expr::Int(index)) = index.as_deref() {
             Some(BufferDependency {
                 name: name.into(),
                 field: field.clone().unwrap_or_default().into(),
