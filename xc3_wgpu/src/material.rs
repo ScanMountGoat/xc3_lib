@@ -65,28 +65,38 @@ pub fn materials(
                 .map(|i| (format!("s{i}").into(), i))
                 .collect();
 
-            let mut name_to_transforms = IndexMap::new();
+            let mut name_to_info = IndexMap::new();
             let material_assignments = material.output_assignments(image_textures);
-            let assignments = output_assignments(
-                &material_assignments,
-                &mut name_to_index,
-                &mut name_to_transforms,
-            );
+            let assignments =
+                output_assignments(&material_assignments, &mut name_to_index, &mut name_to_info);
 
             // Alpha textures might not be used in normal shaders.
             if let Some(a) = &material.alpha_test {
                 name_to_index.entry_index(format!("s{}", a.texture_index).into());
             }
 
+            let color_layers = texture_layers(
+                &material_assignments,
+                &mut name_to_index,
+                &mut name_to_info,
+                0,
+            );
+            let normal_layers = texture_layers(
+                &material_assignments,
+                &mut name_to_index,
+                &mut name_to_info,
+                2,
+            );
+
             let mut texture_views: [Option<_>; 10] = std::array::from_fn(|_| None);
-            let mut is_single_channel = [UVec4::ZERO; 10];
+            let mut texture_info = [UVec4::ZERO; 10];
             for (name, i) in &name_to_index {
                 if let Some(texture) = assign_texture(material, textures, monolib_shader, name) {
                     if *i < texture_views.len() {
                         texture_views[*i] = Some(texture.create_view(&Default::default()));
                         // TODO: Better way of doing this?
                         if texture.format() == wgpu::TextureFormat::Bc4RUnorm {
-                            is_single_channel[*i] = uvec4(1, 0, 0, 0);
+                            texture_info[*i].y = 1;
                         }
                     }
                 } else {
@@ -103,22 +113,22 @@ pub fn materials(
             // TODO: Don't assume these are all scaled from a single vTex0 input attribute.
             // TODO: Is there a more efficient way of doing this?
             // TODO: xc1 needs more than 10 textures?
-            for (name, (u, v)) in &name_to_transforms {
+            for (name, i) in &name_to_info {
                 if let Some(index) = name_to_index.get(name.as_str()) {
                     if let Some(transform) = texture_transforms.get_mut(*index) {
-                        *transform = [*u, *v];
+                        *transform = i.transforms.into();
+                    }
+                    if let Some(info) = texture_info.get_mut(*index) {
+                        info.x = i.texcoord_index as u32;
                     }
                 }
             }
-
-            let color_layers = texture_layers(&material_assignments, &name_to_index, 0);
-            let normal_layers = texture_layers(&material_assignments, &name_to_index, 2);
 
             // TODO: How to set fur params properly?
             let fur_params = material
                 .fur_params
                 .as_ref()
-                .map(|p| crate::shader::model::FurShellParams { width: 0.1 })
+                .map(|_p| crate::shader::model::FurShellParams { width: 0.1 })
                 .unwrap_or(crate::shader::model::FurShellParams { width: 0.0 });
 
             // TODO: This is normally done using a depth prepass.
@@ -131,6 +141,7 @@ pub fn materials(
                     color_layers,
                     normal_layers,
                     texture_transforms,
+                    texture_info,
                     alpha_test_texture: {
                         let (texture_index, channel_index) = material
                             .alpha_test
@@ -146,7 +157,6 @@ pub fn materials(
                     alpha_test_ref: Vec4::splat(
                         material.alpha_test.as_ref().map(|_| 0.5).unwrap_or(1.0),
                     ),
-                    is_single_channel,
                     fur_params,
                 }],
             );
@@ -228,15 +238,20 @@ pub fn materials(
 
 fn texture_layers(
     assignments: &OutputAssignments,
-    name_to_index: &IndexMap<SmolStr, usize>,
+    name_to_index: &mut IndexMap<SmolStr, usize>,
+    name_to_info: &mut IndexMap<SmolStr, TextureInfo>,
     index: usize,
 ) -> crate::shader::model::TextureLayers {
     let layers = &assignments.assignments[index].layers;
 
-    let (s0, c0, w0, b0, value0, f0) = texture_layer_indices(layers, name_to_index, 0);
-    let (s1, c1, w1, b1, value1, f1) = texture_layer_indices(layers, name_to_index, 1);
-    let (s2, c2, w2, b2, value2, f2) = texture_layer_indices(layers, name_to_index, 2);
-    let (s3, c3, w3, b3, value3, f3) = texture_layer_indices(layers, name_to_index, 3);
+    let (s0, c0, w0, b0, value0, f0) =
+        texture_layer_indices(layers, name_to_index, name_to_info, 0);
+    let (s1, c1, w1, b1, value1, f1) =
+        texture_layer_indices(layers, name_to_index, name_to_info, 1);
+    let (s2, c2, w2, b2, value2, f2) =
+        texture_layer_indices(layers, name_to_index, name_to_info, 2);
+    let (s3, c3, w3, b3, value3, f3) =
+        texture_layer_indices(layers, name_to_index, name_to_info, 3);
 
     crate::shader::model::TextureLayers {
         sampler_indices: ivec4(s0, s1, s2, s3),
@@ -250,25 +265,14 @@ fn texture_layers(
 
 fn texture_layer_indices(
     layers: &[OutputLayerAssignment],
-    name_to_index: &IndexMap<SmolStr, usize>,
+    name_to_index: &mut IndexMap<SmolStr, usize>,
+    name_to_info: &mut IndexMap<SmolStr, TextureInfo>,
     layer: usize,
 ) -> (i32, u32, f32, i32, Vec4, u32) {
     let layer = layers.get(layer);
 
     let (s, c) = layer
-        .and_then(|l| {
-            match &l.weight {
-                // TODO: Handle other dependency variants.
-                Some(ChannelAssignment::Texture(t)) => Some((
-                    name_to_index.get(&t.name).map(|i| *i as i32).unwrap_or(-1),
-                    "xyzw"
-                        .chars()
-                        .position(|c| t.channels.contains(c))
-                        .unwrap_or_default() as u32,
-                )),
-                _ => None,
-            }
-        })
+        .and_then(|l| texture_channel(l.weight.as_ref(), name_to_index, name_to_info, 'x'))
         .unwrap_or((-1, 0));
 
     // TODO: Handle other dependency variants.
@@ -304,20 +308,25 @@ fn texture_layer_indices(
     (s, c, w, blend, value, is_fresnel)
 }
 
+struct TextureInfo {
+    transforms: (Vec4, Vec4),
+    texcoord_index: usize,
+}
+
 fn output_assignments(
     assignments: &OutputAssignments,
     name_to_index: &mut IndexMap<SmolStr, usize>,
-    name_to_transforms: &mut IndexMap<SmolStr, (Vec4, Vec4)>,
+    name_to_info: &mut IndexMap<SmolStr, TextureInfo>,
 ) -> [crate::shader::model::OutputAssignment; 6] {
     // Each output channel may have a different input sampler and channel.
     [0, 1, 2, 3, 4, 5].map(|i| {
         let assignment = &assignments.assignments[i];
         crate::shader::model::OutputAssignment {
-            samplers1: sampler_assignment(assignment, name_to_index, name_to_transforms, 0),
-            samplers2: sampler_assignment(assignment, name_to_index, name_to_transforms, 1),
-            samplers3: sampler_assignment(assignment, name_to_index, name_to_transforms, 2),
-            samplers4: sampler_assignment(assignment, name_to_index, name_to_transforms, 3),
-            samplers5: sampler_assignment(assignment, name_to_index, name_to_transforms, 4),
+            samplers1: sampler_assignment(assignment, name_to_index, name_to_info, 0),
+            samplers2: sampler_assignment(assignment, name_to_index, name_to_info, 1),
+            samplers3: sampler_assignment(assignment, name_to_index, name_to_info, 2),
+            samplers4: sampler_assignment(assignment, name_to_index, name_to_info, 3),
+            samplers5: sampler_assignment(assignment, name_to_index, name_to_info, 4),
             attributes: attribute_assignment(assignment),
             default_value: output_default(assignment, i),
         }
@@ -327,7 +336,7 @@ fn output_assignments(
 fn sampler_assignment(
     a: &OutputAssignment,
     name_to_index: &mut IndexMap<SmolStr, usize>,
-    name_to_transforms: &mut IndexMap<SmolStr, (Vec4, Vec4)>,
+    name_to_info: &mut IndexMap<SmolStr, TextureInfo>,
     layer_index: usize,
 ) -> crate::shader::model::SamplerAssignment {
     let (x, y, z, w) = if layer_index == 0 {
@@ -339,10 +348,10 @@ fn sampler_assignment(
             .unwrap_or_default()
     };
 
-    let (s0, c0) = texture_channel(x, name_to_index, name_to_transforms, 'x').unwrap_or((-1, 0));
-    let (s1, c1) = texture_channel(y, name_to_index, name_to_transforms, 'y').unwrap_or((-1, 1));
-    let (s2, c2) = texture_channel(z, name_to_index, name_to_transforms, 'z').unwrap_or((-1, 2));
-    let (s3, c3) = texture_channel(w, name_to_index, name_to_transforms, 'w').unwrap_or((-1, 3));
+    let (s0, c0) = texture_channel(x, name_to_index, name_to_info, 'x').unwrap_or((-1, 0));
+    let (s1, c1) = texture_channel(y, name_to_index, name_to_info, 'y').unwrap_or((-1, 1));
+    let (s2, c2) = texture_channel(z, name_to_index, name_to_info, 'z').unwrap_or((-1, 2));
+    let (s3, c3) = texture_channel(w, name_to_index, name_to_info, 'w').unwrap_or((-1, 3));
 
     crate::shader::model::SamplerAssignment {
         sampler_indices: ivec4(s0, s1, s2, s3),
@@ -353,21 +362,27 @@ fn sampler_assignment(
 fn texture_channel(
     assignment: Option<&ChannelAssignment>,
     name_to_index: &mut IndexMap<SmolStr, usize>,
-    name_to_transforms: &mut IndexMap<SmolStr, (Vec4, Vec4)>,
+    name_to_info: &mut IndexMap<SmolStr, TextureInfo>,
     channel: char,
 ) -> Option<(i32, u32)> {
     if let Some(ChannelAssignment::Texture(texture)) = assignment {
         let TextureAssignment {
             name,
             channels,
+            texcoord_name,
             texcoord_transforms,
-            ..
         } = texture;
 
-        // TODO: Also store the texcoord name?
-        if let Some(transforms) = texcoord_transforms {
-            name_to_transforms.insert(name.clone(), *transforms);
-        }
+        name_to_info.insert(
+            name.clone(),
+            TextureInfo {
+                transforms: texcoord_transforms.unwrap_or((Vec4::X, Vec4::Y)),
+                texcoord_index: texcoord_name
+                    .as_ref()
+                    .and_then(|s| texcoord_index(s))
+                    .unwrap_or_default(),
+            },
+        );
 
         // TODO: how to handle empty input channels?
         let channel_index = if channels.contains(channel) || channels.is_empty() {
@@ -381,6 +396,11 @@ fn texture_channel(
     } else {
         None
     }
+}
+
+fn texcoord_index(name: &str) -> Option<usize> {
+    // vTex1 -> 1
+    name.strip_prefix("vTex")?.parse().ok()
 }
 
 fn attribute_assignment(a: &OutputAssignment) -> crate::shader::model::AttributeAssignment {

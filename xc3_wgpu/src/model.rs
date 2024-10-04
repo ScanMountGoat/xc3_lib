@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use glam::{uvec4, vec4, Mat4, Vec3, Vec4};
+use glam::{uvec4, vec4, Mat4, UVec4, Vec3, Vec4};
 use log::{error, info};
 use rayon::prelude::*;
 use wgpu::util::DeviceExt;
@@ -718,8 +718,8 @@ fn model_vertex_buffers(
             let mut buffer1_vertices = vec![
                 shader::model::VertexInput1 {
                     vertex_color: Vec4::ZERO,
-                    tex0: Vec3::ZERO,
-                    weight_index: 0
+                    tex01: Vec4::ZERO,
+                    weight_index: UVec4::ZERO
                 };
                 vertex_count
             ];
@@ -893,15 +893,23 @@ fn set_buffer0_attributes(verts: &mut [shader::model::VertexInput0], attributes:
 fn set_buffer1_attributes(verts: &mut [shader::model::VertexInput1], attributes: &[AttributeData]) {
     for attribute in attributes {
         match attribute {
-            AttributeData::TexCoord0(vals) => {
-                set_attribute1(verts, vals, |v, t| v.tex0 = t.extend(0.0))
-            }
+            AttributeData::TexCoord0(vals) => set_attribute1(verts, vals, |v, t| {
+                v.tex01.x = t.x;
+                v.tex01.y = t.y;
+            }),
+            AttributeData::TexCoord1(vals) => set_attribute1(verts, vals, |v, t| {
+                v.tex01.z = t.x;
+                v.tex01.w = t.y;
+            }),
             AttributeData::VertexColor(vals) => {
                 set_attribute1(verts, vals, |v, t| v.vertex_color = t)
             }
             AttributeData::WeightIndex(vals) => {
                 // TODO: What does the second index component do?
-                set_attribute1(verts, vals, |v, t| v.weight_index = t[0] as u32)
+                set_attribute1(verts, vals, |v, t| {
+                    v.weight_index.x = t[0] as u32;
+                    v.weight_index.y = t[1] as u32;
+                })
             }
             _ => (),
         }
