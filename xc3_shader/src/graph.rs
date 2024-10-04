@@ -95,9 +95,6 @@ pub struct Output {
     pub channel: Option<char>,
 }
 
-// TODO: more strongly typed channel swizzles?
-// TODO: use this instead of line dependencies
-
 impl Graph {
     /// Return the indices of dependent nodes for `variable` and `channels`
     /// starting from the last assignment.
@@ -131,7 +128,6 @@ impl Graph {
         // Follow data dependencies backwards to find all relevant lines.
         self.add_dependencies(node_index, &mut dependent_lines);
 
-        // TODO: return type for accumulated channels.
         let max_depth = recursion_depth.unwrap_or(dependent_lines.len());
         dependent_lines
             .into_iter()
@@ -194,7 +190,6 @@ impl Graph {
         // Follow data dependencies backwards to find all relevant lines.
         self.add_assignments(node_index, &mut dependent_lines);
 
-        // TODO: return type for accumulated channels.
         let max_depth = recursion_depth.unwrap_or(dependent_lines.len());
         dependent_lines
             .into_iter()
@@ -227,7 +222,6 @@ impl Graph {
         for i in self.dependencies_recursive(variable, channel, recursion_depth) {
             // Some nodes may be repeated with different tracked channels.
             if visited.insert(i) {
-                dbg!(&self.nodes[i]);
                 output += &self.node_to_glsl(&self.nodes[i]);
             }
         }

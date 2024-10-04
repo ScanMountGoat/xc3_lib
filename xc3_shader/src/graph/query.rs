@@ -53,6 +53,7 @@ pub fn query_nodes_glsl<'a>(
     input_nodes: &'a [Node],
     query: &str,
 ) -> Option<BTreeMap<String, &'a Expr>> {
+    // TODO: simplify both query and graph to a single expr?
     let query = Graph::parse_glsl(&format!("void main() {{ {query} }}")).unwrap();
     query_nodes(input, input_nodes, &query.nodes)
 }
