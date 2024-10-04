@@ -143,8 +143,8 @@ fn model_pipeline_inner<const N: usize>(
         },
         depth_stencil: Some(wgpu::DepthStencilState {
             format: DEPTH_STENCIL_FORMAT,
-            // TODO: this depends on the mesh render pass?
-            depth_write_enabled: true,
+            // TODO: affected by alpha test depth prepass?
+            depth_write_enabled: key.flags.depth_write_mode != 1,
             depth_compare: match key.flags.depth_func {
                 xc3_model::DepthFunc::Disabled => wgpu::CompareFunction::Always,
                 xc3_model::DepthFunc::LessEqual => wgpu::CompareFunction::LessEqual,

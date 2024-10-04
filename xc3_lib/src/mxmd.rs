@@ -497,7 +497,7 @@ pub struct MaterialRenderFlags {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct StateFlags {
-    pub depth_write_mode: u8, // 0, 1, 2, 7
+    pub depth_write_mode: u8, // TODO: 0, 1, 2, 7
     pub blend_mode: BlendMode,
     pub cull_mode: CullMode,
     pub unk4: u8, // unused?
