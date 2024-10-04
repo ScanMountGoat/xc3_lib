@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Fixed an issue where not all meshes would render in the color debug shading mode.
 * Fixed an issue where `xc3_shader::graph::Graph` did not properly handle GLSL parameter syntax.
 * Fixed an issue where the `glsl-dependencies` command for xc3_shader did not work for variables without channels.
+* Fixed an issue where some Xenoblade 2 shader database entries did not contain the expected color layers.
 
 ## 0.13.0 - 2024-09-18
 ### Added

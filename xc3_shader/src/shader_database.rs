@@ -173,7 +173,22 @@ fn find_color_layers(
     let last_node = frag.nodes.get(last_node_index)?;
 
     // matCol.xyz in pcmdo shaders.
-    let mut current_col = assign_x(&frag.nodes, &last_node.input)?;
+    let mut current_col = &last_node.input;
+
+    // Remove some redundant conversions found in some shaders.
+    if let Expr::Func { name, args, .. } = current_col {
+        if name == "intBitsToFloat" {
+            current_col = assign_x_recursive(&frag.nodes, &args[0]);
+
+            if let Expr::Func { name, args, .. } = current_col {
+                if name == "floatBitsToInt" {
+                    current_col = &args[0];
+                }
+            }
+        }
+    }
+
+    current_col = assign_x_recursive(&frag.nodes, current_col);
 
     // This isn't always present for all materials in all games.
     // Xenoblade 1 DE and Xenoblade 3 both seem to do this for non map materials.
@@ -2019,6 +2034,99 @@ mod tests {
                 }),
             ],
             shader.output_dependencies[&SmolStr::from("o2.x")]
+        );
+    }
+
+    #[test]
+    fn shader_from_fragment_pneuma_chest() {
+        // xeno2/model/bl/bl000301, "tights_TS", shd0021.frag
+        let glsl = include_str!("data/bl000301.21.frag");
+
+        // Test detecting the "PNEUMA" color layer.
+        let fragment = TranslationUnit::parse(glsl).unwrap();
+        let shader = shader_from_glsl(None, &fragment);
+        assert_eq!(
+            vec![
+                TextureLayer {
+                    value: Dependency::Texture(TextureDependency {
+                        name: "s0".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "x".into(),
+                                params: None
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "y".into(),
+                                params: None
+                            }
+                        ]
+                    }),
+                    ratio: None,
+                    blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: false
+                },
+                TextureLayer {
+                    value: Dependency::Texture(TextureDependency {
+                        name: "s1".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "x".into(),
+                                params: None
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "y".into(),
+                                params: None
+                            }
+                        ]
+                    }),
+                    ratio: None,
+                    blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: false
+                },
+                TextureLayer {
+                    value: Dependency::Texture(TextureDependency {
+                        name: "s3".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "z".into(),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "w".into(),
+                                params: None,
+                            },
+                        ],
+                    },),
+                    ratio: Some(Dependency::Texture(TextureDependency {
+                        name: "s4".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "z".into(),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "w".into(),
+                                params: None,
+                            },
+                        ],
+                    },),),
+                    blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: false,
+                },
+            ],
+            shader.color_layers
         );
     }
 
