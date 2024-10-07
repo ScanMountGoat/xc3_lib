@@ -182,6 +182,10 @@ struct VertexInput1 {
     @location(3) vertex_color: vec4<f32>,
     @location(4) weight_index: vec4<u32>,
     @location(5) tex01: vec4<f32>,
+    @location(6) tex23: vec4<f32>,
+    @location(7) tex45: vec4<f32>,
+    @location(8) tex67: vec4<f32>,
+    @location(9) tex8: vec4<f32>,
 }
 
 // wgpu recommends @invariant for position with depth func equals.
@@ -192,6 +196,10 @@ struct VertexOutput {
     @location(2) tangent: vec4<f32>,
     @location(3) vertex_color: vec4<f32>,
     @location(4) tex01: vec4<f32>,
+    @location(5) tex23: vec4<f32>,
+    @location(6) tex45: vec4<f32>,
+    @location(7) tex67: vec4<f32>,
+    @location(8) tex8: vec4<f32>,
 }
 
 struct FragmentOutput {
@@ -260,8 +268,13 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance_index: u32, outl
     out.position = out.clip_position.xyz;
 
     // Some shaders have gTexA, gTexB, gTexC for up to 5 scaled versions of tex0.
-    // This is handled in the fragment shader, so just return a single attribute.
+    // This is handled in the fragment shader, so just return the attributes.
     out.tex01 = in1.tex01;
+    out.tex23 = in1.tex23;
+    out.tex45 = in1.tex45;
+    out.tex67 = in1.tex67;
+    out.tex8 = in1.tex8;
+
     out.vertex_color = vertex_color;
 
     // Transform any direction vectors by the instance transform.
@@ -460,18 +473,40 @@ fn transform_uv(uv: vec2<f32>, matrix: array<vec4<f32>, 2>) -> vec2<f32> {
     return vec2(dot(v, matrix[0]), dot(v, matrix[1]));
 }
 
-fn select_uv(uv01: vec4<f32>, index: u32) -> vec2<f32> {
+fn select_uv(vert: VertexOutput, index: u32) -> vec2<f32> {
+    var uvs = vert.tex01.xy;
     switch (per_material.texture_info[index].x) {
         case 0u: {
-            return transform_uv(uv01.xy, per_material.texture_transforms[index]);
+            uvs = vert.tex01.xy;
         }
         case 1u: {
-            return transform_uv(uv01.zw, per_material.texture_transforms[index]);
+            uvs = vert.tex01.zw;
+        }
+        case 2u: {
+            uvs = vert.tex23.xy;
+        }
+        case 3u: {
+            uvs = vert.tex23.zw;
+        }
+        case 4u: {
+            uvs = vert.tex45.xy;
+        }
+        case 5u: {
+            uvs = vert.tex45.zw;
+        }
+        case 6u: {
+            uvs = vert.tex67.xy;
+        }
+        case 7u: {
+            uvs = vert.tex67.zw;
+        }
+        case 8u: {
+            uvs = vert.tex8.xy;
         }
         default: {
-            return transform_uv(uv01.xy, per_material.texture_transforms[index]);
         }
     }
+    return transform_uv(uvs, per_material.texture_transforms[index]);
 }
 
 fn overlay_blend(a: vec3<f32>, b: vec3<f32>) -> vec3<f32> {
@@ -532,16 +567,16 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
 
     let bitangent = cross(vertex_normal, tangent) * in.tangent.w;
 
-    let s0_color = textureSample(s0, s0_sampler, select_uv(in.tex01, 0u));
-    let s1_color = textureSample(s1, s1_sampler, select_uv(in.tex01, 1u));
-    let s2_color = textureSample(s2, s2_sampler, select_uv(in.tex01, 2u));
-    let s3_color = textureSample(s3, s3_sampler, select_uv(in.tex01, 3u));
-    let s4_color = textureSample(s4, s4_sampler, select_uv(in.tex01, 4u));
-    let s5_color = textureSample(s5, s5_sampler, select_uv(in.tex01, 5u));
-    let s6_color = textureSample(s6, s6_sampler, select_uv(in.tex01, 6u));
-    let s7_color = textureSample(s7, s7_sampler, select_uv(in.tex01, 7u));
-    let s8_color = textureSample(s8, s8_sampler, select_uv(in.tex01, 8u));
-    let s9_color = textureSample(s9, s9_sampler, select_uv(in.tex01, 9u));
+    let s0_color = textureSample(s0, s0_sampler, select_uv(in, 0u));
+    let s1_color = textureSample(s1, s1_sampler, select_uv(in, 1u));
+    let s2_color = textureSample(s2, s2_sampler, select_uv(in, 2u));
+    let s3_color = textureSample(s3, s3_sampler, select_uv(in, 3u));
+    let s4_color = textureSample(s4, s4_sampler, select_uv(in, 4u));
+    let s5_color = textureSample(s5, s5_sampler, select_uv(in, 5u));
+    let s6_color = textureSample(s6, s6_sampler, select_uv(in, 6u));
+    let s7_color = textureSample(s7, s7_sampler, select_uv(in, 7u));
+    let s8_color = textureSample(s8, s8_sampler, select_uv(in, 8u));
+    let s9_color = textureSample(s9, s9_sampler, select_uv(in, 9u));
 
     let s_colors = array<vec4<f32>, 10>(
         s0_color,

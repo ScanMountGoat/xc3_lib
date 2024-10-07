@@ -718,8 +718,12 @@ fn model_vertex_buffers(
             let mut buffer1_vertices = vec![
                 shader::model::VertexInput1 {
                     vertex_color: Vec4::ZERO,
+                    weight_index: UVec4::ZERO,
                     tex01: Vec4::ZERO,
-                    weight_index: UVec4::ZERO
+                    tex23: Vec4::ZERO,
+                    tex45: Vec4::ZERO,
+                    tex67: Vec4::ZERO,
+                    tex8: Vec4::ZERO,
                 };
                 vertex_count
             ];
@@ -900,6 +904,34 @@ fn set_buffer1_attributes(verts: &mut [shader::model::VertexInput1], attributes:
             AttributeData::TexCoord1(vals) => set_attribute1(verts, vals, |v, t| {
                 v.tex01.z = t.x;
                 v.tex01.w = t.y;
+            }),
+            AttributeData::TexCoord2(vals) => set_attribute1(verts, vals, |v, t| {
+                v.tex23.z = t.x;
+                v.tex23.w = t.y;
+            }),
+            AttributeData::TexCoord3(vals) => set_attribute1(verts, vals, |v, t| {
+                v.tex23.z = t.x;
+                v.tex23.w = t.y;
+            }),
+            AttributeData::TexCoord4(vals) => set_attribute1(verts, vals, |v, t| {
+                v.tex45.x = t.x;
+                v.tex45.y = t.y;
+            }),
+            AttributeData::TexCoord5(vals) => set_attribute1(verts, vals, |v, t| {
+                v.tex45.z = t.x;
+                v.tex45.w = t.y;
+            }),
+            AttributeData::TexCoord6(vals) => set_attribute1(verts, vals, |v, t| {
+                v.tex67.x = t.x;
+                v.tex67.y = t.y;
+            }),
+            AttributeData::TexCoord7(vals) => set_attribute1(verts, vals, |v, t| {
+                v.tex67.z = t.x;
+                v.tex67.w = t.y;
+            }),
+            AttributeData::TexCoord8(vals) => set_attribute1(verts, vals, |v, t| {
+                v.tex8.z = t.x;
+                v.tex8.w = t.y;
             }),
             AttributeData::VertexColor(vals) => {
                 set_attribute1(verts, vals, |v, t| v.vertex_color = t)
