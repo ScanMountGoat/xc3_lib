@@ -177,22 +177,15 @@ impl GltfFile {
         };
 
         for (root_index, root) in roots.iter().enumerate() {
-            let root_node_index = data.add_node(gltf::json::Node {
-                children: Some(vec![gltf::json::Index::new(data.nodes.len() as u32 + 1)]), // TODO: more accurate way to set this?
-                name: Some(format!("{model_name}.root{root_index}")),
-                ..default_node()
-            });
-            data.scene_nodes
-                .push(gltf::json::Index::new(root_node_index));
-
             // TODO: Also include models skinning?
-            let skin_index = create_skin(
+            let (root_bone_index, skin_index) = create_skin(
                 root.skeleton.as_ref(),
                 &mut data.nodes,
-                root_node_index,
                 &mut data.skins,
                 &mut data.buffers,
-            );
+                model_name,
+            )
+            .unzip();
 
             // TODO: Avoid clone?
             let group_buffers = &[root.buffers.clone()];
@@ -200,7 +193,7 @@ impl GltfFile {
             data.material_cache
                 .insert_samplers(&root.models, root_index, 0, 0);
 
-            add_models(
+            let models_node_index = add_models(
                 &root.models,
                 group_buffers,
                 &mut data,
@@ -212,6 +205,22 @@ impl GltfFile {
                 root.skeleton.as_ref(),
                 flip_images_uvs,
             )?;
+
+            let root_children = match root_bone_index {
+                Some(i) => vec![
+                    gltf::json::Index::new(i),
+                    gltf::json::Index::new(models_node_index),
+                ],
+                None => vec![gltf::json::Index::new(models_node_index)],
+            };
+
+            let root_node_index = data.add_node(gltf::json::Node {
+                children: Some(root_children),
+                name: Some(format!("{model_name}.root{root_index}")),
+                ..default_node()
+            });
+            data.scene_nodes
+                .push(gltf::json::Index::new(root_node_index));
         }
 
         // TODO: proper sampler support for camdo?
@@ -332,7 +341,7 @@ fn add_models(
     root_index: usize,
     group_index: usize,
     models_index: usize,
-    skin_index: Option<usize>,
+    skin_index: Option<u32>,
     skeleton: Option<&crate::skeleton::Skeleton>,
     flip_uvs: bool,
 ) -> Result<u32, CreateGltfError> {
@@ -459,7 +468,7 @@ fn add_models(
                             Some(instance.to_cols_array())
                         },
                         mesh: Some(gltf::json::Index::new(mesh_index)),
-                        skin: skin_index.map(|i| gltf::json::Index::new(i as u32)),
+                        skin: skin_index.map(gltf::json::Index::new),
                         ..default_node()
                     });
 
@@ -468,26 +477,20 @@ fn add_models(
             }
         }
 
-        if skin_index.is_none() {
-            let model_node_index = data.add_node(gltf::json::Node {
-                children: Some(children.clone()),
-                name: Some(format!("model{model_index}")),
-                ..default_node()
-            });
-            models_children.push(gltf::json::Index::new(model_node_index));
-        }
-    }
-    // TODO: Find a better way to organize character roots?
-    if skin_index.is_some() {
-        Ok(0)
-    } else {
-        let models_node_index = data.add_node(gltf::json::Node {
-            children: Some(models_children),
-            name: Some(format!("models{models_index}")),
+        let model_node_index = data.add_node(gltf::json::Node {
+            children: Some(children.clone()),
+            name: Some(format!("model{model_index}")),
             ..default_node()
         });
-        Ok(models_node_index)
+        models_children.push(gltf::json::Index::new(model_node_index));
     }
+    // TODO: Find a better way to organize character roots?
+    let models_node_index = data.add_node(gltf::json::Node {
+        children: Some(models_children),
+        name: Some(format!("models{models_index}")),
+        ..default_node()
+    });
+    Ok(models_node_index)
 }
 
 fn default_node() -> gltf::json::Node {
@@ -530,10 +533,10 @@ fn morph_targets(
 fn create_skin(
     skeleton: Option<&crate::skeleton::Skeleton>,
     nodes: &mut Vec<gltf::json::Node>,
-    root_node_index: u32,
     skins: &mut Vec<gltf::json::Skin>,
     buffers: &mut Buffers,
-) -> Option<usize> {
+    model_name: &str,
+) -> Option<(u32, u32)> {
     skeleton.as_ref().map(|skeleton| {
         let bone_start_index = nodes.len() as u32;
         for (i, bone) in skeleton.bones.iter().enumerate() {
@@ -582,12 +585,13 @@ fn create_skin(
             joints: (bone_start_index..bone_start_index + skeleton.bones.len() as u32)
                 .map(gltf::json::Index::new)
                 .collect(),
-            name: None,
-            skeleton: Some(gltf::json::Index::new(root_node_index)),
+            name: Some(model_name.to_string()),
+            skeleton: None,
         };
-        let skin_index = skins.len();
+        let skin_index = skins.len() as u32;
         skins.push(skin);
-        skin_index
+
+        (bone_start_index, skin_index)
     })
 }
 
