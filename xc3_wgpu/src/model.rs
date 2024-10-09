@@ -717,7 +717,7 @@ fn model_vertex_buffers(
 
             let mut buffer1_vertices = vec![
                 shader::model::VertexInput1 {
-                    vertex_color: Vec4::ZERO,
+                    vertex_color: Vec4::ONE,
                     weight_index: UVec4::ZERO,
                     tex01: Vec4::ZERO,
                     tex23: Vec4::ZERO,
