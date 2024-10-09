@@ -331,8 +331,12 @@ fn apply_callbacks(work_values: &[f32], callbacks: &[(u16, u16)]) -> Vec<f32> {
     for callback in callbacks {
         // (26, i) for dividing work value i value by 255?
         if callback.0 == 26 {
-            if let Some(value) = work_values.get_mut(callback.1 as usize) {
-                *value /= 255.0;
+            // TODO: do these values always come in pairs?
+            let start = callback.1 as usize;
+            if start + 1 < work_values.len() {
+                // Shader parameters reference the first value in the pair.
+                // Only editing the second value in the pair seems to matter in game.
+                work_values[start] = work_values[start + 1] / 255.0;
             }
         }
     }
@@ -813,7 +817,7 @@ mod tests {
 
     #[test]
     fn apply_material_callbacks() {
-        // xeno3/chr/ch/ch01011013.wimdo, "body"
+        // xeno3/chr/ch/ch01011013.wimdo, "body" callbacks
         let work_values: Vec<_> = (0..24).map(|i| i as f32).collect();
         assert_eq!(
             vec![
@@ -828,7 +832,7 @@ mod tests {
                 8.0,
                 9.0,
                 10.0,
-                11.0 / 255.0,
+                12.0 / 255.0,
                 12.0,
                 13.0,
                 14.0,

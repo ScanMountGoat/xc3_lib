@@ -117,8 +117,8 @@ fn unpack_normal(g_normal: vec2<f32>) -> vec3<f32> {
     return vec3(normal_x, normal_y, normal_z);
 }
 
+// Adapted from "unbranch_to_depth" in xeno3/monolib/shader/shd_post.
 fn unpack_etc_flags(etc_a: f32) -> u32 {
-    // Adapted from "unbranch_to_depth" in xeno3/monolib/shader/shd_post.
     // This is also the same logic used in the deferred shaders.
     return u32(etc_a * 255.0 + 0.1);
 }
@@ -231,6 +231,7 @@ fn calculate_toon_color(uv: vec2<f32>) -> vec4<f32> {
     let k_diffuse = 1.0 - metalness;
 
     // TODO: Correctly use both gradients to fix massive melee mythra hair.
+    // TODO: Are these the right gradients?
     let toon_v = toon_grad_v(g_etc_buffer.z);
     let toon_diffuse = textureSample(g_toon_grad, shared_sampler, vec2(diffuse_lighting, toon_v)).rgb;
     let toon_specular = specular_lighting;
@@ -248,10 +249,13 @@ fn calculate_toon_color(uv: vec2<f32>) -> vec4<f32> {
 // 4, core crystal and levialord fins?
 // 5, HAIR (xc3 only)
 
+// Adapted from slct 0 nvsd 8 in xeno3/monolib/shader/shd_lgt.wishp.
 fn toon_grad_v(etc_z: f32) -> f32 {
-    // Adapted from slct 0 nvsd 8 in xeno3/monolib/shader/shd_lgt.wishp.
-    // Selects one of the gradient rows from the 256x256 toon grad texture.
-    return (f32(i32(etc_z * 255.0 + 0.5)) + 0.5) / 256.0;
+    // etc.z is often stored as row / 255.0 in the material work values.
+    // Recover the row using round(etc.z * 255.0).
+    let row_index = floor(etc_z * 255.0 + 0.5);
+    // Select the center of a row from the 256x256 toon gradients texture.
+    return (row_index + 0.5) / 256.0;
 }
 
 // Each material type is "masked" using depth function equals.
