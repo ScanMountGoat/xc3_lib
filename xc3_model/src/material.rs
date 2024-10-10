@@ -1,12 +1,11 @@
 use glam::{vec4, Vec4};
 use log::warn;
 use smol_str::{SmolStr, ToSmolStr};
-use xc3_lib::mxmd::{
-    MaterialFlags, MaterialRenderFlags, Materials, RenderPassType, StateFlags, Technique,
-    TextureUsage,
-};
 
-pub use xc3_lib::mxmd::FurShellParams;
+pub use xc3_lib::mxmd::{
+    BlendMode, ColorWriteMode, CullMode, DepthFunc, FurShellParams, MaterialFlags,
+    MaterialRenderFlags, RenderPassType, StateFlags, StencilMode, StencilValue, TextureUsage,
+};
 
 use crate::{
     shader_database::{
@@ -117,8 +116,8 @@ pub struct Texture {
     pub sampler_index: usize,
 }
 
-pub fn create_materials(
-    materials: &Materials,
+pub(crate) fn create_materials(
+    materials: &xc3_lib::mxmd::Materials,
     texture_indices: Option<&[u16]>,
     model_programs: Option<&ModelPrograms>,
 ) -> Vec<Material> {
@@ -225,6 +224,81 @@ pub fn create_materials(
         .collect()
 }
 
+pub(crate) fn create_materials_legacy(
+    materials: &xc3_lib::mxmd::legacy::Materials,
+    texture_indices: &[u16],
+    model_programs: Option<&ModelPrograms>,
+) -> Vec<Material> {
+    materials
+        .materials
+        .iter()
+        .map(|m| Material {
+            name: m.name.clone(),
+            flags: MaterialFlags::from(0u32),
+            render_flags: MaterialRenderFlags::from(0u32),
+            state_flags: m.state_flags,
+            color: m.color,
+            textures: m
+                .textures
+                .iter()
+                .map(|t| {
+                    // Texture indices are remapped by some models like chr_np/np025301.camdo.
+                    Texture {
+                        image_texture_index: texture_indices
+                            .iter()
+                            .position(|i| *i == t.texture_index)
+                            .unwrap_or_default(),
+                        sampler_index: 0,
+                    }
+                })
+                .collect(),
+            alpha_test: materials.alpha_test_textures.first().and_then(|a| {
+                // TODO: alpha test texture index in material?
+                m.textures
+                    .iter()
+                    .position(|t| t.texture_index == a.texture_index)
+                    .map(|texture_index| TextureAlphaTest {
+                        texture_index,
+                        channel_index: 3,
+                    })
+            }),
+            alpha_test_ref: [0; 4],
+            shader: get_shader_legacy(m, model_programs),
+            technique_index: m
+                .techniques
+                .last()
+                .map(|t| t.technique_index as usize)
+                .unwrap_or_default(),
+            pass_type: match m.techniques.last().map(|t| t.unk1) {
+                Some(xc3_lib::mxmd::legacy::UnkPassType::Unk0) => RenderPassType::Unk0,
+                Some(xc3_lib::mxmd::legacy::UnkPassType::Unk1) => RenderPassType::Unk1,
+                // TODO: How to handle these variants?
+                Some(xc3_lib::mxmd::legacy::UnkPassType::Unk2) => RenderPassType::Unk0,
+                Some(xc3_lib::mxmd::legacy::UnkPassType::Unk3) => RenderPassType::Unk0,
+                Some(xc3_lib::mxmd::legacy::UnkPassType::Unk5) => RenderPassType::Unk0,
+                Some(xc3_lib::mxmd::legacy::UnkPassType::Unk8) => RenderPassType::Unk0,
+                None => RenderPassType::Unk0,
+            },
+            parameters: MaterialParameters {
+                alpha_test_ref: 0.0,
+                tex_matrix: None,
+                work_float4: None,
+                work_color: None,
+            },
+            work_values: Vec::new(),
+            shader_vars: Vec::new(),
+            work_callbacks: Vec::new(),
+            m_unks1_1: 0,
+            m_unks1_2: 0,
+            m_unks1_3: 0,
+            m_unks1_4: 0,
+            m_unks2_2: 0,
+            m_unks3_1: 0,
+            fur_params: None,
+        })
+        .collect()
+}
+
 fn get_shader(
     material: &xc3_lib::mxmd::Material,
     model_programs: Option<&ModelPrograms>,
@@ -233,17 +307,69 @@ fn get_shader(
     model_programs?.programs.get(program_index).cloned()
 }
 
+fn get_shader_legacy(
+    material: &xc3_lib::mxmd::legacy::Material,
+    model_programs: Option<&ModelPrograms>,
+) -> Option<ShaderProgram> {
+    // TODO: Some alpha materials have two techniques?
+    let program_index = material.techniques.last()?.technique_index as usize;
+    let program = model_programs?.programs.get(program_index)?;
+
+    // The texture outputs are different in Xenoblade X compared to Switch.
+    // We handle this here to avoid needing to regenerate the database for updates.
+    // G-Buffer Textures:
+    // 0: lighting (ao * ???, alpha is specular brdf?)
+    // 1: color (alpha is emission?)
+    // 2: normal (only xy)
+    // 3: specular (alpha is spec?)
+    // 4: depth (alpha is glossiness)
+    let output_dependencies = if program.output_dependencies.len() > 4 {
+        program
+            .output_dependencies
+            .iter()
+            .filter_map(|(k, v)| match k.as_str() {
+                "o0.x" => Some(("o2.z".into(), v.clone())),
+                "o1.x" => Some(("o0.x".into(), v.clone())),
+                "o1.y" => Some(("o0.y".into(), v.clone())),
+                "o1.z" => Some(("o0.z".into(), v.clone())),
+                "o1.w" => Some(("o0.w".into(), v.clone())),
+                // The normal output has only RG channels.
+                "o2.x" => Some(("o2.x".into(), v.clone())),
+                "o2.y" => Some(("o2.y".into(), v.clone())),
+                "o3.x" => Some(("o5.x".into(), v.clone())),
+                "o3.y" => Some(("o5.y".into(), v.clone())),
+                "o3.z" => Some(("o5.z".into(), v.clone())),
+                "o3.w" => Some(("o5.w".into(), v.clone())),
+                "o4.x" => Some(("o4.x".into(), v.clone())),
+                "o4.y" => Some(("o4.y".into(), v.clone())),
+                "o4.z" => Some(("o4.z".into(), v.clone())),
+                "o4.w" => Some(("o1.y".into(), v.clone())),
+                _ => None,
+            })
+            .collect()
+    } else {
+        // Some shaders only write to color and shouldn't be remapped.
+        program.output_dependencies.clone()
+    };
+
+    Some(ShaderProgram {
+        output_dependencies,
+        color_layers: Vec::new(),
+        normal_layers: Vec::new(),
+    })
+}
+
 fn get_technique<'a>(
     material: &xc3_lib::mxmd::Material,
-    techniques: &'a [Technique],
-) -> Option<&'a Technique> {
+    techniques: &'a [xc3_lib::mxmd::Technique],
+) -> Option<&'a xc3_lib::mxmd::Technique> {
     // TODO: Don't assume a single technique?
     let index = material.techniques.first()?.technique_index as usize;
     techniques.get(index)
 }
 
 fn find_alpha_test_texture(
-    materials: &Materials,
+    materials: &xc3_lib::mxmd::Materials,
     material: &xc3_lib::mxmd::Material,
 ) -> Option<TextureAlphaTest> {
     // Find the texture used for alpha testing in the shader.
@@ -273,7 +399,7 @@ fn find_alpha_test_texture(
 // TODO: Some elements get set by values not in the floats array?
 // TODO: How to test this?
 fn assign_parameters(
-    materials: &Materials,
+    materials: &xc3_lib::mxmd::Materials,
     material: &xc3_lib::mxmd::Material,
     work_values: &[f32],
 ) -> Option<MaterialParameters> {

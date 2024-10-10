@@ -5,8 +5,11 @@ use indexmap::IndexMap;
 use log::{error, warn};
 use smol_str::SmolStr;
 use xc3_model::{
-    ChannelAssignment, ImageTexture, IndexMapExt, OutputAssignment, OutputAssignments,
-    OutputLayerAssignment, TextureAssignment,
+    material::{
+        ChannelAssignment, OutputAssignment, OutputAssignments, OutputLayerAssignment,
+        TextureAssignment,
+    },
+    ImageTexture, IndexMapExt,
 };
 
 use crate::{
@@ -38,7 +41,7 @@ pub fn materials(
     queue: &wgpu::Queue,
     pipelines: &mut HashMap<PipelineKey, wgpu::RenderPipeline>,
     pipeline_data: &ModelPipelineData,
-    materials: &[xc3_model::Material],
+    materials: &[xc3_model::material::Material],
     textures: &[wgpu::Texture],
     samplers: &[wgpu::Sampler],
     image_textures: &[ImageTexture],
@@ -480,7 +483,7 @@ fn value_channel_assignment(assignment: Option<&ChannelAssignment>) -> Option<f3
 }
 
 fn assign_texture<'a>(
-    material: &xc3_model::Material,
+    material: &xc3_model::material::Material,
     textures: &'a [wgpu::Texture],
     monolib_shader: &'a MonolibShaderTextures,
     name: &str,
@@ -519,7 +522,7 @@ fn material_texture_index(sampler_name: &str) -> Option<usize> {
 }
 
 fn material_sampler<'a>(
-    material: &xc3_model::Material,
+    material: &xc3_model::material::Material,
     samplers: &'a [wgpu::Sampler],
     index: usize,
 ) -> Option<&'a wgpu::Sampler> {

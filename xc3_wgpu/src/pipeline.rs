@@ -1,4 +1,4 @@
-use xc3_model::{BlendMode, ColorWriteMode, CullMode, RenderPassType, StateFlags};
+use xc3_model::material::{BlendMode, ColorWriteMode, CullMode, RenderPassType, StateFlags};
 
 use crate::{DEPTH_STENCIL_FORMAT, GBUFFER_COLOR_FORMAT, GBUFFER_NORMAL_FORMAT};
 
@@ -44,21 +44,21 @@ impl PipelineKey {
         // TODO: move this to xc3_lib?
         // TODO: Test remaining values.
         match self.flags.stencil_value {
-            xc3_model::StencilValue::Unk0 => 10,
-            xc3_model::StencilValue::Unk1 => 0,
-            xc3_model::StencilValue::Unk4 => 14,
-            xc3_model::StencilValue::Unk5 => 0,
-            xc3_model::StencilValue::Unk8 => 0,
-            xc3_model::StencilValue::Unk9 => 0,
-            xc3_model::StencilValue::Unk12 => 0,
-            xc3_model::StencilValue::Unk16 => 74,
-            xc3_model::StencilValue::Unk20 => 0,
-            xc3_model::StencilValue::Unk33 => 0,
-            xc3_model::StencilValue::Unk37 => 0,
-            xc3_model::StencilValue::Unk41 => 0,
-            xc3_model::StencilValue::Unk49 => 0,
-            xc3_model::StencilValue::Unk97 => 0,
-            xc3_model::StencilValue::Unk105 => 0,
+            xc3_model::material::StencilValue::Unk0 => 10,
+            xc3_model::material::StencilValue::Unk1 => 0,
+            xc3_model::material::StencilValue::Unk4 => 14,
+            xc3_model::material::StencilValue::Unk5 => 0,
+            xc3_model::material::StencilValue::Unk8 => 0,
+            xc3_model::material::StencilValue::Unk9 => 0,
+            xc3_model::material::StencilValue::Unk12 => 0,
+            xc3_model::material::StencilValue::Unk16 => 74,
+            xc3_model::material::StencilValue::Unk20 => 0,
+            xc3_model::material::StencilValue::Unk33 => 0,
+            xc3_model::material::StencilValue::Unk37 => 0,
+            xc3_model::material::StencilValue::Unk41 => 0,
+            xc3_model::material::StencilValue::Unk49 => 0,
+            xc3_model::material::StencilValue::Unk97 => 0,
+            xc3_model::material::StencilValue::Unk105 => 0,
         }
     }
 }
@@ -146,9 +146,9 @@ fn model_pipeline_inner<const N: usize>(
             // TODO: affected by alpha test depth prepass?
             depth_write_enabled: key.flags.depth_write_mode != 1,
             depth_compare: match key.flags.depth_func {
-                xc3_model::DepthFunc::Disabled => wgpu::CompareFunction::Always,
-                xc3_model::DepthFunc::LessEqual => wgpu::CompareFunction::LessEqual,
-                xc3_model::DepthFunc::Equal => wgpu::CompareFunction::Equal,
+                xc3_model::material::DepthFunc::Disabled => wgpu::CompareFunction::Always,
+                xc3_model::material::DepthFunc::LessEqual => wgpu::CompareFunction::LessEqual,
+                xc3_model::material::DepthFunc::Equal => wgpu::CompareFunction::Equal,
             },
             stencil: stencil_state(key.flags.stencil_mode),
             bias: wgpu::DepthBiasState::default(),
@@ -159,7 +159,7 @@ fn model_pipeline_inner<const N: usize>(
     })
 }
 
-fn stencil_state(mode: xc3_model::StencilMode) -> wgpu::StencilState {
+fn stencil_state(mode: xc3_model::material::StencilMode) -> wgpu::StencilState {
     wgpu::StencilState {
         front: wgpu::StencilFaceState {
             compare: stencil_compare(mode),
@@ -175,32 +175,32 @@ fn stencil_state(mode: xc3_model::StencilMode) -> wgpu::StencilState {
         },
         // TODO: Should these depend on stencil value?
         read_mask: match mode {
-            xc3_model::StencilMode::Unk0 => 0xff,
-            xc3_model::StencilMode::Unk1 => 0xff,
-            xc3_model::StencilMode::Unk2 => 0xff,
-            xc3_model::StencilMode::Unk6 => 0x4,
-            xc3_model::StencilMode::Unk7 => 0xff,
-            xc3_model::StencilMode::Unk8 => 0xff,
+            xc3_model::material::StencilMode::Unk0 => 0xff,
+            xc3_model::material::StencilMode::Unk1 => 0xff,
+            xc3_model::material::StencilMode::Unk2 => 0xff,
+            xc3_model::material::StencilMode::Unk6 => 0x4,
+            xc3_model::material::StencilMode::Unk7 => 0xff,
+            xc3_model::material::StencilMode::Unk8 => 0xff,
         },
         write_mask: match mode {
-            xc3_model::StencilMode::Unk0 => 0xff,
-            xc3_model::StencilMode::Unk1 => 0xff,
-            xc3_model::StencilMode::Unk2 => 0xff,
-            xc3_model::StencilMode::Unk6 => 0x4b,
-            xc3_model::StencilMode::Unk7 => 0xff,
-            xc3_model::StencilMode::Unk8 => 0xff,
+            xc3_model::material::StencilMode::Unk0 => 0xff,
+            xc3_model::material::StencilMode::Unk1 => 0xff,
+            xc3_model::material::StencilMode::Unk2 => 0xff,
+            xc3_model::material::StencilMode::Unk6 => 0x4b,
+            xc3_model::material::StencilMode::Unk7 => 0xff,
+            xc3_model::material::StencilMode::Unk8 => 0xff,
         },
     }
 }
 
-fn stencil_compare(mode: xc3_model::StencilMode) -> wgpu::CompareFunction {
+fn stencil_compare(mode: xc3_model::material::StencilMode) -> wgpu::CompareFunction {
     match mode {
-        xc3_model::StencilMode::Unk0 => wgpu::CompareFunction::Always,
-        xc3_model::StencilMode::Unk1 => wgpu::CompareFunction::Always,
-        xc3_model::StencilMode::Unk2 => wgpu::CompareFunction::Always,
-        xc3_model::StencilMode::Unk6 => wgpu::CompareFunction::Equal,
-        xc3_model::StencilMode::Unk7 => wgpu::CompareFunction::Always,
-        xc3_model::StencilMode::Unk8 => wgpu::CompareFunction::Always,
+        xc3_model::material::StencilMode::Unk0 => wgpu::CompareFunction::Always,
+        xc3_model::material::StencilMode::Unk1 => wgpu::CompareFunction::Always,
+        xc3_model::material::StencilMode::Unk2 => wgpu::CompareFunction::Always,
+        xc3_model::material::StencilMode::Unk6 => wgpu::CompareFunction::Equal,
+        xc3_model::material::StencilMode::Unk7 => wgpu::CompareFunction::Always,
+        xc3_model::material::StencilMode::Unk8 => wgpu::CompareFunction::Always,
     }
 }
 
