@@ -245,7 +245,7 @@ fn calculate_toon_color(uv: vec2<f32>) -> vec4<f32> {
 // 0, ouroboros core?
 // 1, PBR
 // 2, TOON
-// 3, vegetation and colony 9 tents (sss?)
+// 3, vegetation and colony 9 tents (sss?) also bathtub from xc2?
 // 4, core crystal and levialord fins?
 // 5, HAIR (xc3 only)
 

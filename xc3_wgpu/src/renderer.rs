@@ -286,7 +286,7 @@ impl Renderer {
             },
         );
 
-        let bone_renderer = BoneRenderer::new(device, &camera_buffer);
+        let bone_renderer = BoneRenderer::new(device, &camera_buffer, surface_format);
 
         Self {
             camera_buffer,

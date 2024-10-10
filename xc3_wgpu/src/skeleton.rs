@@ -1,7 +1,7 @@
 use glam::vec4;
 use wgpu::util::DeviceExt;
 
-use crate::{COLOR_FORMAT, DEPTH_STENCIL_FORMAT};
+use crate::DEPTH_STENCIL_FORMAT;
 
 pub struct BoneRenderer {
     vertex_buffer: wgpu::Buffer,
@@ -10,7 +10,11 @@ pub struct BoneRenderer {
 }
 
 impl BoneRenderer {
-    pub fn new(device: &wgpu::Device, camera_buffer: &wgpu::Buffer) -> Self {
+    pub fn new(
+        device: &wgpu::Device,
+        camera_buffer: &wgpu::Buffer,
+        format: wgpu::TextureFormat,
+    ) -> Self {
         let vertex_buffer = axes_vertex_buffer(device);
 
         let module = crate::shader::bone::create_shader_module(device);
@@ -28,7 +32,7 @@ impl BoneRenderer {
             ),
             fragment: Some(crate::shader::bone::fragment_state(
                 &module,
-                &crate::shader::bone::fs_main_entry([Some(COLOR_FORMAT.into())]),
+                &crate::shader::bone::fs_main_entry([Some(format.into())]),
             )),
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::LineList,
