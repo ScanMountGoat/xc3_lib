@@ -54,6 +54,7 @@ impl ShaderTextures {
             "gTResidentTex44" => self.eyepatch_col.as_ref(),
             "gTResidentTex45" => self.eyepatch_mask.as_ref(),
             "gTResidentTex46" => self.eyepatch_nrm.as_ref(),
+            "gTToonGrad" => self.toon_grad.as_ref(),
             _ => None,
         }
     }
