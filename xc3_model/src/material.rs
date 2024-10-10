@@ -5,6 +5,7 @@ use smol_str::{SmolStr, ToSmolStr};
 pub use xc3_lib::mxmd::{
     BlendMode, ColorWriteMode, CullMode, DepthFunc, FurShellParams, MaterialFlags,
     MaterialRenderFlags, RenderPassType, StateFlags, StencilMode, StencilValue, TextureUsage,
+    WorkCallback,
 };
 
 use crate::{
@@ -31,7 +32,7 @@ pub struct Material {
 
     pub work_values: Vec<f32>,
     pub shader_vars: Vec<(u16, u16)>,
-    pub work_callbacks: Vec<(u16, u16)>,
+    pub work_callbacks: Vec<WorkCallback>,
 
     // TODO: final byte controls reference?
     pub alpha_test_ref: [u8; 4],
@@ -449,16 +450,16 @@ fn assign_parameters(
     Some(parameters)
 }
 
-fn apply_callbacks(work_values: &[f32], callbacks: &[(u16, u16)]) -> Vec<f32> {
+fn apply_callbacks(work_values: &[f32], callbacks: &[WorkCallback]) -> Vec<f32> {
     let mut work_values = work_values.to_vec();
 
     // Callbacks are applied directly to the work values.
     // TODO: What do the remaining callback types do?
     for callback in callbacks {
         // (26, i) for dividing work value i value by 255?
-        if callback.0 == 26 {
+        if callback.unk1 == 26 {
             // TODO: do these values always come in pairs?
-            let start = callback.1 as usize;
+            let start = callback.unk2 as usize;
             if start + 1 < work_values.len() {
                 // Shader parameters reference the first value in the pair.
                 // Only editing the second value in the pair seems to matter in game.
@@ -972,7 +973,13 @@ mod tests {
                 22.0,
                 23.0
             ],
-            apply_callbacks(&work_values, &[(26, 11), (36, 15)])
+            apply_callbacks(
+                &work_values,
+                &[
+                    WorkCallback { unk1: 26, unk2: 11 },
+                    WorkCallback { unk1: 36, unk2: 15 }
+                ]
+            )
         );
     }
 }

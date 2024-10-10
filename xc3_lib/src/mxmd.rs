@@ -257,7 +257,7 @@ pub struct MaterialCallbacks {
     // TODO: affects material parameter assignment?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub work_callbacks: Vec<(u16, u16)>,
+    pub work_callbacks: Vec<WorkCallback>,
 
     // 0 ... material_count - 1
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
@@ -266,6 +266,15 @@ pub struct MaterialCallbacks {
 
     // TODO: padding?
     pub unk: [u32; 8],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct WorkCallback {
+    // 0, 12, 22, 25, 26, 27, 28, 35, 36, 38, 40, 41, 42, 43, 45, 46, 47, 58, 50
+    pub unk1: u16,
+    // TODO: index?
+    pub unk2: u16,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
