@@ -25,7 +25,7 @@
 //! # Ok(())
 //! # }
 //! ```
-use std::path::Path;
+use std::{collections::BTreeMap, path::Path};
 
 use crate::{MapRoot, ModelRoot};
 use glam::Mat4;
@@ -435,6 +435,18 @@ fn add_models(
                 // The first target is baked into vertices, so don't set weights.
                 let weights = targets.as_ref().map(|targets| vec![0.0; targets.len()]);
 
+                // TODO: is there a cleaner way of doing this?
+                let mesh_extras = targets.as_ref().map(|_| {
+                    Box::new(serde_json::value::RawValue::from_string(
+                        serde_json::to_string(&BTreeMap::from([(
+                            "targetNames",
+                            &models.morph_controller_names,
+                        )]))
+                        .unwrap(),
+                    ))
+                    .unwrap()
+                });
+
                 let primitive = gltf::json::mesh::Primitive {
                     attributes,
                     extensions: Default::default(),
@@ -449,7 +461,7 @@ fn add_models(
                 // In game meshes aren't named, so just use the material name.
                 let mesh = gltf::json::Mesh {
                     extensions: Default::default(),
-                    extras: Default::default(),
+                    extras: mesh_extras,
                     name: Some(material.name.clone()),
                     primitives: vec![primitive],
                     weights,

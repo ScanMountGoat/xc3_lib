@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 * Added rendering support for layered fur shell rendering to xc3_wgpu.
 * Added rendering support for selecting texture coordinate attributes to xc3_wgpu.
+* Added support for morph target names to glTF export.
 
 ### Fixed
 * Fixed an issue where texture layers would only assign the first channel.
