@@ -61,7 +61,7 @@ use xc3_lib::{
 };
 
 pub use map::{load_map, LoadMapError};
-use material::{ChannelAssignment, Material, OutputAssignments, Texture};
+use material::{Material, Texture};
 pub use sampler::{AddressMode, FilterMode, Sampler};
 pub use skeleton::{Bone, Skeleton};
 pub use texture::{ExtractedTextures, ImageFormat, ImageTexture, ViewDimension};

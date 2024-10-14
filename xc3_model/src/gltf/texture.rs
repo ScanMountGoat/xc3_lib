@@ -1,5 +1,6 @@
 use crate::{
-    material::TextureAssignment, ChannelAssignment, ImageTexture, IndexMapExt, OutputAssignments,
+    material::{ChannelAssignment, OutputAssignments, TextureAssignment},
+    ImageTexture, IndexMapExt,
 };
 use image_dds::image::{codecs::png::PngEncoder, RgbaImage};
 use indexmap::IndexMap;
@@ -398,7 +399,7 @@ fn image_index(
 ) -> Option<ImageIndex> {
     // TODO: scale?
     match assignment? {
-        crate::ChannelAssignment::Texture(texture) => {
+        ChannelAssignment::Texture(texture) => {
             let TextureAssignment {
                 name,
                 channels,
@@ -430,8 +431,8 @@ fn image_index(
                     texcoord_scale,
                 })
         }
-        crate::ChannelAssignment::Attribute { .. } => None,
-        crate::ChannelAssignment::Value(v) => Some(ImageIndex::Value((*v).into())),
+        ChannelAssignment::Attribute { .. } => None,
+        ChannelAssignment::Value(v) => Some(ImageIndex::Value((*v).into())),
     }
 }
 

@@ -248,7 +248,7 @@ pub struct Material {
 
     pub unk1: u32,
     pub color: [f32; 4],
-    pub unk2: [u32; 6],
+    pub unk2: [f32; 6],
     pub unk3: [f32; 3],
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
@@ -258,7 +258,15 @@ pub struct Material {
     // TODO: same as xc2?
     pub state_flags: StateFlags,
 
-    pub unks1: [u32; 7], // TODO: offset at index 3?
+    pub m_unks1_1: u32,
+    pub m_unks1_2: u32,
+    pub m_unks1_3: u32,
+    pub m_unks1_4: u32,
+
+    pub work_value_start_index: u32,
+
+    pub shader_var_start_index: u32,
+    pub shader_var_count: u32,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]

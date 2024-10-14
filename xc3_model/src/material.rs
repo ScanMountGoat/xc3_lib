@@ -233,69 +233,92 @@ pub(crate) fn create_materials_legacy(
     materials
         .materials
         .iter()
-        .map(|m| Material {
-            name: m.name.clone(),
-            flags: MaterialFlags::from(0u32),
-            render_flags: MaterialRenderFlags::from(0u32),
-            state_flags: m.state_flags,
-            color: m.color,
-            textures: m
-                .textures
-                .iter()
-                .map(|t| {
-                    // Texture indices are remapped by some models like chr_np/np025301.camdo.
-                    Texture {
-                        image_texture_index: texture_indices
-                            .iter()
-                            .position(|i| *i == t.texture_index)
-                            .unwrap_or_default(),
-                        sampler_index: 0,
-                    }
-                })
-                .collect(),
-            alpha_test: materials.alpha_test_textures.first().and_then(|a| {
-                // TODO: alpha test texture index in material?
-                m.textures
+        .enumerate()
+        .map(|(i, m)| {
+            // Assume the work value start indices are in ascending order.
+            let work_value_start = m.work_value_start_index as usize;
+            let work_value_end = materials
+                .materials
+                .get(i + 1)
+                .map(|m| m.work_value_start_index as usize)
+                .unwrap_or(materials.work_values.len());
+            let work_values = materials
+                .work_values
+                .get(work_value_start..work_value_end)
+                .unwrap_or_default()
+                .to_vec();
+
+            let shader_var_start = m.shader_var_start_index as usize;
+            let shader_var_end = shader_var_start + m.shader_var_count as usize;
+
+            Material {
+                name: m.name.clone(),
+                flags: MaterialFlags::from(0u32),
+                render_flags: MaterialRenderFlags::from(0u32),
+                state_flags: m.state_flags,
+                color: m.color,
+                textures: m
+                    .textures
                     .iter()
-                    .position(|t| t.texture_index == a.texture_index)
-                    .map(|texture_index| TextureAlphaTest {
-                        texture_index,
-                        channel_index: 3,
+                    .map(|t| {
+                        // Texture indices are remapped by some models like chr_np/np025301.camdo.
+                        Texture {
+                            image_texture_index: texture_indices
+                                .iter()
+                                .position(|i| *i == t.texture_index)
+                                .unwrap_or_default(),
+                            sampler_index: 0,
+                        }
                     })
-            }),
-            alpha_test_ref: [0; 4],
-            shader: get_shader_legacy(m, model_programs),
-            technique_index: m
-                .techniques
-                .last()
-                .map(|t| t.technique_index as usize)
-                .unwrap_or_default(),
-            pass_type: match m.techniques.last().map(|t| t.unk1) {
-                Some(xc3_lib::mxmd::legacy::UnkPassType::Unk0) => RenderPassType::Unk0,
-                Some(xc3_lib::mxmd::legacy::UnkPassType::Unk1) => RenderPassType::Unk1,
-                // TODO: How to handle these variants?
-                Some(xc3_lib::mxmd::legacy::UnkPassType::Unk2) => RenderPassType::Unk0,
-                Some(xc3_lib::mxmd::legacy::UnkPassType::Unk3) => RenderPassType::Unk0,
-                Some(xc3_lib::mxmd::legacy::UnkPassType::Unk5) => RenderPassType::Unk0,
-                Some(xc3_lib::mxmd::legacy::UnkPassType::Unk8) => RenderPassType::Unk0,
-                None => RenderPassType::Unk0,
-            },
-            parameters: MaterialParameters {
-                alpha_test_ref: 0.0,
-                tex_matrix: None,
-                work_float4: None,
-                work_color: None,
-            },
-            work_values: Vec::new(),
-            shader_vars: Vec::new(),
-            work_callbacks: Vec::new(),
-            m_unks1_1: 0,
-            m_unks1_2: 0,
-            m_unks1_3: 0,
-            m_unks1_4: 0,
-            m_unks2_2: 0,
-            m_unks3_1: 0,
-            fur_params: None,
+                    .collect(),
+                alpha_test: materials.alpha_test_textures.first().and_then(|a| {
+                    // TODO: alpha test texture index in material?
+                    m.textures
+                        .iter()
+                        .position(|t| t.texture_index == a.texture_index)
+                        .map(|texture_index| TextureAlphaTest {
+                            texture_index,
+                            channel_index: 3,
+                        })
+                }),
+                alpha_test_ref: [0; 4],
+                shader: get_shader_legacy(m, model_programs),
+                technique_index: m
+                    .techniques
+                    .last()
+                    .map(|t| t.technique_index as usize)
+                    .unwrap_or_default(),
+                pass_type: match m.techniques.last().map(|t| t.unk1) {
+                    Some(xc3_lib::mxmd::legacy::UnkPassType::Unk0) => RenderPassType::Unk0,
+                    Some(xc3_lib::mxmd::legacy::UnkPassType::Unk1) => RenderPassType::Unk1,
+                    // TODO: How to handle these variants?
+                    Some(xc3_lib::mxmd::legacy::UnkPassType::Unk2) => RenderPassType::Unk0,
+                    Some(xc3_lib::mxmd::legacy::UnkPassType::Unk3) => RenderPassType::Unk0,
+                    Some(xc3_lib::mxmd::legacy::UnkPassType::Unk5) => RenderPassType::Unk0,
+                    Some(xc3_lib::mxmd::legacy::UnkPassType::Unk8) => RenderPassType::Unk0,
+                    None => RenderPassType::Unk0,
+                },
+                parameters: MaterialParameters {
+                    alpha_test_ref: 0.0,
+                    tex_matrix: None,
+                    work_float4: None,
+                    work_color: None,
+                },
+                work_values,
+                shader_vars: materials
+                    .shader_vars
+                    .get(shader_var_start..shader_var_end)
+                    .unwrap_or_default()
+                    .to_vec(),
+                work_callbacks: Vec::new(),
+                m_unks1_1: 0,
+                m_unks1_2: 0,
+                m_unks1_3: 0,
+                m_unks1_4: 0,
+                m_unks2_2: 0,
+                m_unks3_1: 0,
+                fur_params: None,
+            }
         })
         .collect()
 }
