@@ -6,7 +6,7 @@ use smol_str::SmolStr;
 
 use super::{
     AttributeDependency, BufferDependency, Dependency, LayerBlendMode, MapPrograms, ModelPrograms,
-    ShaderProgram, TexCoord, TexCoordParams, TextureDependency, TextureLayer,
+    OutputDependencies, ShaderProgram, TexCoord, TexCoordParams, TextureDependency, TextureLayer,
 };
 
 // Create a separate smaller representation for on disk.
@@ -37,9 +37,13 @@ struct ModelIndexed {
 struct ShaderProgramIndexed(
     // There are very few unique dependencies across all shaders in a game dump.
     // Normalize the data to greatly reduce the size of the JSON representation.
-    IndexMap<usize, Vec<usize>>,
-    Vec<TextureLayerIndexed>,
-    Vec<TextureLayerIndexed>,
+    IndexMap<usize, OutputDependenciesIndexed>,
+);
+
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+struct OutputDependenciesIndexed(
+    Vec<usize>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")] Vec<TextureLayerIndexed>,
 );
 
 // TODO: Also index texture and texcoord names?
@@ -261,29 +265,26 @@ fn model_indexed(
                             let output_index = output_to_index.entry_index(output);
                             (
                                 output_index,
-                                dependencies
-                                    .into_iter()
-                                    .map(|d| dependency_to_index.entry_index(d))
-                                    .collect(),
+                                OutputDependenciesIndexed(
+                                    dependencies
+                                        .dependencies
+                                        .into_iter()
+                                        .map(|d| dependency_to_index.entry_index(d))
+                                        .collect(),
+                                    dependencies
+                                        .layers
+                                        .into_iter()
+                                        .map(|l| TextureLayerIndexed {
+                                            value: dependency_to_index.entry_index(l.value),
+                                            ratio: l
+                                                .ratio
+                                                .map(|r| dependency_to_index.entry_index(r)),
+                                            blend_mode: l.blend_mode,
+                                            is_fresnel: l.is_fresnel,
+                                        })
+                                        .collect(),
+                                ),
                             )
-                        })
-                        .collect(),
-                    p.color_layers
-                        .into_iter()
-                        .map(|l| TextureLayerIndexed {
-                            value: dependency_to_index.entry_index(l.value),
-                            ratio: l.ratio.map(|r| dependency_to_index.entry_index(r)),
-                            blend_mode: l.blend_mode,
-                            is_fresnel: l.is_fresnel,
-                        })
-                        .collect(),
-                    p.normal_layers
-                        .into_iter()
-                        .map(|l| TextureLayerIndexed {
-                            value: dependency_to_index.entry_index(l.value),
-                            ratio: l.ratio.map(|r| dependency_to_index.entry_index(r)),
-                            blend_mode: l.blend_mode,
-                            is_fresnel: l.is_fresnel,
                         })
                         .collect(),
                 )
@@ -309,46 +310,37 @@ fn model_from_indexed(
                     .map(|(output, output_dependencies)| {
                         (
                             outputs[*output].clone(),
-                            output_dependencies
-                                .iter()
-                                .map(|d| {
-                                    dependency_from_indexed(
-                                        dependencies[*d].clone(),
-                                        buffer_dependencies,
-                                    )
-                                })
-                                .collect(),
+                            OutputDependencies {
+                                dependencies: output_dependencies
+                                    .0
+                                    .iter()
+                                    .map(|d| {
+                                        dependency_from_indexed(
+                                            dependencies[*d].clone(),
+                                            buffer_dependencies,
+                                        )
+                                    })
+                                    .collect(),
+                                layers: output_dependencies
+                                    .1
+                                    .iter()
+                                    .map(|l| TextureLayer {
+                                        value: dependency_from_indexed(
+                                            dependencies[l.value].clone(),
+                                            buffer_dependencies,
+                                        ),
+                                        ratio: l.ratio.map(|i| {
+                                            dependency_from_indexed(
+                                                dependencies[i].clone(),
+                                                buffer_dependencies,
+                                            )
+                                        }),
+                                        blend_mode: l.blend_mode,
+                                        is_fresnel: l.is_fresnel,
+                                    })
+                                    .collect(),
+                            },
                         )
-                    })
-                    .collect(),
-                color_layers: p
-                    .1
-                    .iter()
-                    .map(|l| TextureLayer {
-                        value: dependency_from_indexed(
-                            dependencies[l.value].clone(),
-                            buffer_dependencies,
-                        ),
-                        ratio: l.ratio.map(|i| {
-                            dependency_from_indexed(dependencies[i].clone(), buffer_dependencies)
-                        }),
-                        blend_mode: l.blend_mode,
-                        is_fresnel: l.is_fresnel,
-                    })
-                    .collect(),
-                normal_layers: p
-                    .2
-                    .iter()
-                    .map(|l| TextureLayer {
-                        value: dependency_from_indexed(
-                            dependencies[l.value].clone(),
-                            buffer_dependencies,
-                        ),
-                        ratio: l.ratio.map(|i| {
-                            dependency_from_indexed(dependencies[i].clone(), buffer_dependencies)
-                        }),
-                        blend_mode: l.blend_mode,
-                        is_fresnel: l.is_fresnel,
                     })
                     .collect(),
             })

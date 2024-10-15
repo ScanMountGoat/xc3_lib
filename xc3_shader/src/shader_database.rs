@@ -15,8 +15,8 @@ use log::error;
 use rayon::prelude::*;
 use xc3_lib::mths::{FragmentShader, Mths};
 use xc3_model::shader_database::{
-    BufferDependency, Dependency, LayerBlendMode, MapPrograms, ModelPrograms, ShaderDatabase,
-    ShaderProgram, TextureLayer,
+    BufferDependency, Dependency, LayerBlendMode, MapPrograms, ModelPrograms, OutputDependencies,
+    ShaderDatabase, ShaderProgram, TextureLayer,
 };
 
 use crate::{
@@ -38,9 +38,6 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
     let frag_attributes = &find_attribute_locations(fragment);
 
     let vertex = &vertex.map(|v| (Graph::from_glsl(v), find_attribute_locations(v)));
-
-    let mut color_layers = Vec::new();
-    let mut normal_layers = Vec::new();
 
     let mut output_dependencies = IndexMap::new();
     for i in 0..=5 {
@@ -66,24 +63,37 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
                 apply_attribute_names(vert, vert_attributes, frag_attributes, &mut dependencies);
             }
 
+            let mut layers = Vec::new();
+
             // TODO: This is really slow?
-            if i == 0 && c == 'x' {
-                // TODO: This will be different for each channel.
-                color_layers =
+            // TODO: This needs to be done be done for each channel.
+            if i == 0 {
+                layers =
                     find_color_layers(frag, &dependent_lines, &dependencies).unwrap_or_default();
-            } else if i == 1 && c == 'y' {
+            } else if i == 1 {
+                // TODO: layers for etc params.
+            } else if i == 2 {
+                // TODO: Will this simplify consuming code if the channels are set properly?
+                layers =
+                    find_normal_layers(frag, &dependent_lines, &dependencies).unwrap_or_default();
+            }
+
+            if i == 1 && c == 'y' {
                 if let Some(param) = geometric_specular_aa(frag) {
                     dependencies = vec![Dependency::Buffer(param)];
                 }
-            } else if i == 2 && c == 'x' {
-                normal_layers =
-                    find_normal_layers(frag, &dependent_lines, &dependencies).unwrap_or_default();
             }
 
             if !dependencies.is_empty() {
                 // Simplify the output name to save space.
                 let output_name = format!("o{i}.{c}");
-                output_dependencies.insert(output_name.into(), dependencies);
+                output_dependencies.insert(
+                    output_name.into(),
+                    OutputDependencies {
+                        dependencies,
+                        layers,
+                    },
+                );
             }
         }
     }
@@ -91,8 +101,6 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
     ShaderProgram {
         // IndexMap gives consistent ordering for attribute names.
         output_dependencies,
-        color_layers,
-        normal_layers,
     }
 }
 
@@ -150,17 +158,21 @@ fn shader_from_latte_asm(
 
                 // Simplify the output name to save space.
                 let output_name = format!("o{i}.{c}");
-                (output_name.into(), dependencies)
+                (
+                    output_name.into(),
+                    OutputDependencies {
+                        dependencies,
+                        layers: Vec::new(),
+                    },
+                )
             })
         })
-        .filter(|(_, dependencies)| !dependencies.is_empty())
+        .filter(|(_, dependencies)| !dependencies.dependencies.is_empty())
         .collect();
 
     ShaderProgram {
         // IndexMap gives consistent ordering for attribute names.
         output_dependencies,
-        color_layers: Vec::new(),
-        normal_layers: Vec::new(),
     }
 }
 
@@ -1007,139 +1019,160 @@ mod tests {
 
         let shader = shader_from_glsl(Some(&vertex), &fragment);
 
-        assert!(shader.color_layers.is_empty());
-        assert!(shader.normal_layers.is_empty());
-
         assert_eq!(
-            vec![Dependency::Texture(TextureDependency {
-                name: "s4".into(),
-                channels: "y".into(),
-                texcoords: vec![
-                    TexCoord {
-                        name: "vTex0".into(),
-                        channels: "x".into(),
-                        params: None,
-                    },
-                    TexCoord {
-                        name: "vTex0".into(),
-                        channels: "y".into(),
-                        params: None,
-                    },
-                ]
-            })],
+            OutputDependencies {
+                dependencies: vec![Dependency::Texture(TextureDependency {
+                    name: "s4".into(),
+                    channels: "y".into(),
+                    texcoords: vec![
+                        TexCoord {
+                            name: "vTex0".into(),
+                            channels: "x".into(),
+                            params: None,
+                        },
+                        TexCoord {
+                            name: "vTex0".into(),
+                            channels: "y".into(),
+                            params: None,
+                        },
+                    ]
+                })],
+                layers: Vec::new()
+            },
             shader.output_dependencies[&SmolStr::from("o1.x")]
         );
         assert_eq!(
-            vec![Dependency::Buffer(BufferDependency {
-                name: "U_Mate".into(),
-                field: "gWrkFl4".into(),
-                index: 2,
-                channels: "x".into(),
-            })],
+            OutputDependencies {
+                dependencies: vec![Dependency::Buffer(BufferDependency {
+                    name: "U_Mate".into(),
+                    field: "gWrkFl4".into(),
+                    index: 2,
+                    channels: "x".into(),
+                })],
+                layers: Vec::new()
+            },
             shader.output_dependencies[&SmolStr::from("o1.y")]
         );
         assert_eq!(
-            vec![Dependency::Buffer(BufferDependency {
-                name: "U_Mate".into(),
-                field: "gWrkFl4".into(),
-                index: 1,
-                channels: "y".into(),
-            })],
+            OutputDependencies {
+                dependencies: vec![Dependency::Buffer(BufferDependency {
+                    name: "U_Mate".into(),
+                    field: "gWrkFl4".into(),
+                    index: 1,
+                    channels: "y".into(),
+                })],
+                layers: Vec::new()
+            },
             shader.output_dependencies[&SmolStr::from("o1.z")]
         );
         assert_eq!(
-            vec![Dependency::Constant(0.07098039.into())],
+            OutputDependencies {
+                dependencies: vec![Dependency::Constant(0.07098039.into())],
+                layers: Vec::new()
+            },
             shader.output_dependencies[&SmolStr::from("o1.w")]
         );
         assert_eq!(
-            vec![Dependency::Texture(TextureDependency {
-                name: "s5".into(),
-                channels: "x".into(),
-                texcoords: vec![
-                    TexCoord {
-                        name: "vTex0".into(),
-                        channels: "x".into(),
-                        params: Some(TexCoordParams::Scale(BufferDependency {
-                            name: "U_Mate".into(),
-                            field: "gWrkFl4".into(),
-                            index: 0,
+            OutputDependencies {
+                dependencies: vec![Dependency::Texture(TextureDependency {
+                    name: "s5".into(),
+                    channels: "x".into(),
+                    texcoords: vec![
+                        TexCoord {
+                            name: "vTex0".into(),
                             channels: "x".into(),
-                        }))
-                    },
-                    TexCoord {
-                        name: "vTex0".into(),
-                        channels: "y".into(),
-                        params: Some(TexCoordParams::Scale(BufferDependency {
-                            name: "U_Mate".into(),
-                            field: "gWrkFl4".into(),
-                            index: 0,
+                            params: Some(TexCoordParams::Scale(BufferDependency {
+                                name: "U_Mate".into(),
+                                field: "gWrkFl4".into(),
+                                index: 0,
+                                channels: "x".into(),
+                            }))
+                        },
+                        TexCoord {
+                            name: "vTex0".into(),
                             channels: "y".into(),
-                        }))
-                    },
-                ],
-            })],
+                            params: Some(TexCoordParams::Scale(BufferDependency {
+                                name: "U_Mate".into(),
+                                field: "gWrkFl4".into(),
+                                index: 0,
+                                channels: "y".into(),
+                            }))
+                        },
+                    ],
+                })],
+                layers: Vec::new()
+            },
             shader.output_dependencies[&SmolStr::from("o5.x")]
         );
         assert_eq!(
-            vec![Dependency::Texture(TextureDependency {
-                name: "s5".into(),
-                channels: "y".into(),
-                texcoords: vec![
-                    TexCoord {
-                        name: "vTex0".into(),
-                        channels: "x".into(),
-                        params: Some(TexCoordParams::Scale(BufferDependency {
-                            name: "U_Mate".into(),
-                            field: "gWrkFl4".into(),
-                            index: 0,
+            OutputDependencies {
+                dependencies: vec![Dependency::Texture(TextureDependency {
+                    name: "s5".into(),
+                    channels: "y".into(),
+                    texcoords: vec![
+                        TexCoord {
+                            name: "vTex0".into(),
                             channels: "x".into(),
-                        }))
-                    },
-                    TexCoord {
-                        name: "vTex0".into(),
-                        channels: "y".into(),
-                        params: Some(TexCoordParams::Scale(BufferDependency {
-                            name: "U_Mate".into(),
-                            field: "gWrkFl4".into(),
-                            index: 0,
+                            params: Some(TexCoordParams::Scale(BufferDependency {
+                                name: "U_Mate".into(),
+                                field: "gWrkFl4".into(),
+                                index: 0,
+                                channels: "x".into(),
+                            }))
+                        },
+                        TexCoord {
+                            name: "vTex0".into(),
                             channels: "y".into(),
-                        }))
-                    },
-                ],
-            })],
+                            params: Some(TexCoordParams::Scale(BufferDependency {
+                                name: "U_Mate".into(),
+                                field: "gWrkFl4".into(),
+                                index: 0,
+                                channels: "y".into(),
+                            }))
+                        },
+                    ],
+                })],
+                layers: Vec::new()
+            },
             shader.output_dependencies[&SmolStr::from("o5.y")]
         );
         assert_eq!(
-            vec![Dependency::Texture(TextureDependency {
-                name: "s5".into(),
-                channels: "z".into(),
-                texcoords: vec![
-                    TexCoord {
-                        name: "vTex0".into(),
-                        channels: "x".into(),
-                        params: Some(TexCoordParams::Scale(BufferDependency {
-                            name: "U_Mate".into(),
-                            field: "gWrkFl4".into(),
-                            index: 0,
+            OutputDependencies {
+                dependencies: vec![Dependency::Texture(TextureDependency {
+                    name: "s5".into(),
+                    channels: "z".into(),
+                    texcoords: vec![
+                        TexCoord {
+                            name: "vTex0".into(),
                             channels: "x".into(),
-                        }))
-                    },
-                    TexCoord {
-                        name: "vTex0".into(),
-                        channels: "y".into(),
-                        params: Some(TexCoordParams::Scale(BufferDependency {
-                            name: "U_Mate".into(),
-                            field: "gWrkFl4".into(),
-                            index: 0,
+                            params: Some(TexCoordParams::Scale(BufferDependency {
+                                name: "U_Mate".into(),
+                                field: "gWrkFl4".into(),
+                                index: 0,
+                                channels: "x".into(),
+                            }))
+                        },
+                        TexCoord {
+                            name: "vTex0".into(),
                             channels: "y".into(),
-                        }))
-                    },
-                ],
-            })],
+                            params: Some(TexCoordParams::Scale(BufferDependency {
+                                name: "U_Mate".into(),
+                                field: "gWrkFl4".into(),
+                                index: 0,
+                                channels: "y".into(),
+                            }))
+                        },
+                    ],
+                })],
+                layers: Vec::new()
+            },
             shader.output_dependencies[&SmolStr::from("o5.z")]
         );
         assert_eq!(
-            vec![Dependency::Constant(0.0.into())],
+            OutputDependencies {
+                dependencies: vec![Dependency::Constant(0.0.into())],
+                layers: Vec::new()
+            },
             shader.output_dependencies[&SmolStr::from("o5.w")]
         );
     }
@@ -1200,7 +1233,7 @@ mod tests {
                     is_fresnel: false
                 }
             ],
-            shader.color_layers
+            shader.output_dependencies[&SmolStr::from("o0.x")].layers
         );
         assert_eq!(
             vec![
@@ -1252,16 +1285,19 @@ mod tests {
                     is_fresnel: false
                 }
             ],
-            shader.normal_layers
+            shader.output_dependencies[&SmolStr::from("o2.x")].layers
         );
 
         assert_eq!(
-            vec![Dependency::Buffer(BufferDependency {
-                name: "U_Mate".into(),
-                field: "gWrkFl4".into(),
-                index: 2,
-                channels: "y".into()
-            })],
+            OutputDependencies {
+                dependencies: vec![Dependency::Buffer(BufferDependency {
+                    name: "U_Mate".into(),
+                    field: "gWrkFl4".into(),
+                    index: 2,
+                    channels: "y".into()
+                })],
+                layers: Vec::new()
+            },
             shader.output_dependencies[&SmolStr::from("o1.y")]
         );
     }
@@ -1274,7 +1310,6 @@ mod tests {
         // Test multiple calls to getPixelCalcAddNormal.
         let fragment = TranslationUnit::parse(glsl).unwrap();
         let shader = shader_from_glsl(None, &fragment);
-        // TODO: This is missing a non texture layer.
         assert_eq!(
             vec![
                 TextureLayer {
@@ -1336,195 +1371,196 @@ mod tests {
                     is_fresnel: false
                 }
             ],
-            shader.color_layers
+            shader.output_dependencies[&SmolStr::from("o0.y")].layers
         );
         assert_eq!(
-            vec![
-                TextureLayer {
-                    value: Dependency::Texture(TextureDependency {
-                        name: "s2".into(),
-                        channels: "x".into(),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channels: "x".into(),
-                                params: None
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channels: "y".into(),
-                                params: None
-                            }
-                        ]
-                    }),
-                    ratio: None,
-                    blend_mode: LayerBlendMode::AddNormal,
-                    is_fresnel: false
-                },
-                TextureLayer {
-                    value: Dependency::Texture(TextureDependency {
+            OutputDependencies {
+                dependencies: vec![Dependency::Buffer(BufferDependency {
+                    name: "U_Mate".into(),
+                    field: "gWrkFl4".into(),
+                    index: 3,
+                    channels: "y".into()
+                })],
+                layers: Vec::new()
+            },
+            shader.output_dependencies[&SmolStr::from("o1.y")]
+        );
+        assert_eq!(
+            OutputDependencies {
+                dependencies: vec![
+                    Dependency::Texture(TextureDependency {
                         name: "gTResidentTex09".into(),
                         channels: "x".into(),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
                                 channels: "z".into(),
-                                params: None
+                                params: None,
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
                                 channels: "w".into(),
-                                params: None
-                            }
-                        ]
+                                params: None,
+                            },
+                        ],
                     }),
-                    ratio: Some(Dependency::Buffer(BufferDependency {
-                        name: "U_Mate".into(),
-                        field: "gWrkFl4".into(),
-                        index: 2,
-                        channels: "y".into()
-                    })),
-                    blend_mode: LayerBlendMode::AddNormal,
-                    is_fresnel: false
-                },
-                TextureLayer {
-                    value: Dependency::Texture(TextureDependency {
+                    Dependency::Texture(TextureDependency {
+                        name: "gTResidentTex09".into(),
+                        channels: "y".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "z".into(),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "w".into(),
+                                params: None,
+                            },
+                        ],
+                    }),
+                    Dependency::Texture(TextureDependency {
+                        name: "s2".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "x".into(),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "y".into(),
+                                params: None,
+                            },
+                        ],
+                    }),
+                    Dependency::Texture(TextureDependency {
+                        name: "s2".into(),
+                        channels: "y".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "x".into(),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "y".into(),
+                                params: None,
+                            },
+                        ],
+                    }),
+                    Dependency::Texture(TextureDependency {
                         name: "s3".into(),
                         channels: "x".into(),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr5".into(),
                                 channels: "x".into(),
-                                params: None
+                                params: None,
                             },
                             TexCoord {
                                 name: "in_attr5".into(),
                                 channels: "y".into(),
-                                params: None
-                            }
-                        ]
+                                params: None,
+                            },
+                        ],
                     }),
-                    ratio: Some(Dependency::Buffer(BufferDependency {
-                        name: "U_Mate".into(),
-                        field: "gWrkFl4".into(),
-                        index: 2,
-                        channels: "z".into()
-                    })),
-                    blend_mode: LayerBlendMode::AddNormal,
-                    is_fresnel: false
-                },
-            ],
-            shader.normal_layers
-        );
-
-        assert_eq!(
-            vec![Dependency::Buffer(BufferDependency {
-                name: "U_Mate".into(),
-                field: "gWrkFl4".into(),
-                index: 3,
-                channels: "y".into()
-            })],
-            shader.output_dependencies[&SmolStr::from("o1.y")]
-        );
-        assert_eq!(
-            vec![
-                Dependency::Texture(TextureDependency {
-                    name: "gTResidentTex09".into(),
-                    channels: "x".into(),
-                    texcoords: vec![
-                        TexCoord {
-                            name: "in_attr4".into(),
-                            channels: "z".into(),
-                            params: None,
-                        },
-                        TexCoord {
-                            name: "in_attr4".into(),
-                            channels: "w".into(),
-                            params: None,
-                        },
-                    ],
-                }),
-                Dependency::Texture(TextureDependency {
-                    name: "gTResidentTex09".into(),
-                    channels: "y".into(),
-                    texcoords: vec![
-                        TexCoord {
-                            name: "in_attr4".into(),
-                            channels: "z".into(),
-                            params: None,
-                        },
-                        TexCoord {
-                            name: "in_attr4".into(),
-                            channels: "w".into(),
-                            params: None,
-                        },
-                    ],
-                }),
-                Dependency::Texture(TextureDependency {
-                    name: "s2".into(),
-                    channels: "x".into(),
-                    texcoords: vec![
-                        TexCoord {
-                            name: "in_attr4".into(),
+                    Dependency::Texture(TextureDependency {
+                        name: "s3".into(),
+                        channels: "y".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr5".into(),
+                                channels: "x".into(),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr5".into(),
+                                channels: "y".into(),
+                                params: None,
+                            },
+                        ],
+                    }),
+                ],
+                layers: vec![
+                    TextureLayer {
+                        value: Dependency::Texture(TextureDependency {
+                            name: "s2".into(),
                             channels: "x".into(),
-                            params: None,
-                        },
-                        TexCoord {
-                            name: "in_attr4".into(),
-                            channels: "y".into(),
-                            params: None,
-                        },
-                    ],
-                }),
-                Dependency::Texture(TextureDependency {
-                    name: "s2".into(),
-                    channels: "y".into(),
-                    texcoords: vec![
-                        TexCoord {
-                            name: "in_attr4".into(),
+                            texcoords: vec![
+                                TexCoord {
+                                    name: "in_attr4".into(),
+                                    channels: "x".into(),
+                                    params: None
+                                },
+                                TexCoord {
+                                    name: "in_attr4".into(),
+                                    channels: "y".into(),
+                                    params: None
+                                }
+                            ]
+                        }),
+                        ratio: None,
+                        blend_mode: LayerBlendMode::AddNormal,
+                        is_fresnel: false
+                    },
+                    TextureLayer {
+                        value: Dependency::Texture(TextureDependency {
+                            name: "gTResidentTex09".into(),
                             channels: "x".into(),
-                            params: None,
-                        },
-                        TexCoord {
-                            name: "in_attr4".into(),
-                            channels: "y".into(),
-                            params: None,
-                        },
-                    ],
-                }),
-                Dependency::Texture(TextureDependency {
-                    name: "s3".into(),
-                    channels: "x".into(),
-                    texcoords: vec![
-                        TexCoord {
-                            name: "in_attr5".into(),
+                            texcoords: vec![
+                                TexCoord {
+                                    name: "in_attr4".into(),
+                                    channels: "z".into(),
+                                    params: None
+                                },
+                                TexCoord {
+                                    name: "in_attr4".into(),
+                                    channels: "w".into(),
+                                    params: None
+                                }
+                            ]
+                        }),
+                        ratio: Some(Dependency::Buffer(BufferDependency {
+                            name: "U_Mate".into(),
+                            field: "gWrkFl4".into(),
+                            index: 2,
+                            channels: "y".into()
+                        })),
+                        blend_mode: LayerBlendMode::AddNormal,
+                        is_fresnel: false
+                    },
+                    TextureLayer {
+                        value: Dependency::Texture(TextureDependency {
+                            name: "s3".into(),
                             channels: "x".into(),
-                            params: None,
-                        },
-                        TexCoord {
-                            name: "in_attr5".into(),
-                            channels: "y".into(),
-                            params: None,
-                        },
-                    ],
-                }),
-                Dependency::Texture(TextureDependency {
-                    name: "s3".into(),
-                    channels: "y".into(),
-                    texcoords: vec![
-                        TexCoord {
-                            name: "in_attr5".into(),
-                            channels: "x".into(),
-                            params: None,
-                        },
-                        TexCoord {
-                            name: "in_attr5".into(),
-                            channels: "y".into(),
-                            params: None,
-                        },
-                    ],
-                }),
-            ],
+                            texcoords: vec![
+                                TexCoord {
+                                    name: "in_attr5".into(),
+                                    channels: "x".into(),
+                                    params: None
+                                },
+                                TexCoord {
+                                    name: "in_attr5".into(),
+                                    channels: "y".into(),
+                                    params: None
+                                }
+                            ]
+                        }),
+                        ratio: Some(Dependency::Buffer(BufferDependency {
+                            name: "U_Mate".into(),
+                            field: "gWrkFl4".into(),
+                            index: 2,
+                            channels: "z".into()
+                        })),
+                        blend_mode: LayerBlendMode::AddNormal,
+                        is_fresnel: false
+                    },
+                ],
+            },
             shader.output_dependencies[&SmolStr::from("o2.x")]
         );
     }
@@ -1598,18 +1634,59 @@ mod tests {
                     is_fresnel: false
                 }
             ],
-            shader.color_layers
+            shader.output_dependencies[&SmolStr::from("o0.x")].layers
         );
-        assert!(shader.normal_layers.is_empty());
-
         assert_eq!(
-            vec![Dependency::Buffer(BufferDependency {
-                name: "U_Mate".into(),
-                field: "gWrkFl4".into(),
-                index: 1,
-                channels: "w".into()
-            })],
+            OutputDependencies {
+                dependencies: vec![Dependency::Buffer(BufferDependency {
+                    name: "U_Mate".into(),
+                    field: "gWrkFl4".into(),
+                    index: 1,
+                    channels: "w".into()
+                })],
+                layers: Vec::new()
+            },
             shader.output_dependencies[&SmolStr::from("o1.y")]
+        );
+        assert_eq!(
+            OutputDependencies {
+                dependencies: vec![
+                    Dependency::Texture(TextureDependency {
+                        name: "s2".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "x".into(),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "y".into(),
+                                params: None,
+                            },
+                        ],
+                    }),
+                    Dependency::Texture(TextureDependency {
+                        name: "s2".into(),
+                        channels: "y".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "x".into(),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "y".into(),
+                                params: None,
+                            },
+                        ],
+                    }),
+                ],
+                layers: Vec::new()
+            },
+            shader.output_dependencies[&SmolStr::from("o2.x")]
         );
     }
 
@@ -1643,7 +1720,29 @@ mod tests {
                 blend_mode: LayerBlendMode::Mix,
                 is_fresnel: false
             }],
-            shader.color_layers
+            shader.output_dependencies[&SmolStr::from("o0.x")].layers
+        );
+        assert_eq!(
+            OutputDependencies {
+                dependencies: vec![Dependency::Texture(TextureDependency {
+                    name: "s8".into(),
+                    channels: "x".into(),
+                    texcoords: vec![
+                        TexCoord {
+                            name: "in_attr3".into(),
+                            channels: "x".into(),
+                            params: None,
+                        },
+                        TexCoord {
+                            name: "in_attr3".into(),
+                            channels: "y".into(),
+                            params: None,
+                        },
+                    ],
+                })],
+                layers: Vec::new()
+            },
+            shader.output_dependencies[&SmolStr::from("o1.y")]
         );
         assert_eq!(
             vec![
@@ -1705,27 +1804,7 @@ mod tests {
                     is_fresnel: false
                 }
             ],
-            shader.normal_layers
-        );
-
-        assert_eq!(
-            vec![Dependency::Texture(TextureDependency {
-                name: "s8".into(),
-                channels: "x".into(),
-                texcoords: vec![
-                    TexCoord {
-                        name: "in_attr3".into(),
-                        channels: "x".into(),
-                        params: None,
-                    },
-                    TexCoord {
-                        name: "in_attr3".into(),
-                        channels: "y".into(),
-                        params: None,
-                    },
-                ],
-            })],
-            shader.output_dependencies[&SmolStr::from("o1.y")]
+            shader.output_dependencies[&SmolStr::from("o2.x")].layers
         );
     }
 
@@ -1818,7 +1897,30 @@ mod tests {
                     is_fresnel: false
                 },
             ],
-            shader.color_layers
+            shader.output_dependencies[&SmolStr::from("o0.x")].layers
+        );
+
+        assert_eq!(
+            OutputDependencies {
+                dependencies: vec![Dependency::Texture(TextureDependency {
+                    name: "s3".into(),
+                    channels: "x".into(),
+                    texcoords: vec![
+                        TexCoord {
+                            name: "in_attr4".into(),
+                            channels: "x".into(),
+                            params: None,
+                        },
+                        TexCoord {
+                            name: "in_attr4".into(),
+                            channels: "y".into(),
+                            params: None,
+                        },
+                    ],
+                })],
+                layers: Vec::new()
+            },
+            shader.output_dependencies[&SmolStr::from("o1.y")]
         );
         assert_eq!(
             vec![
@@ -1870,27 +1972,7 @@ mod tests {
                     is_fresnel: false
                 }
             ],
-            shader.normal_layers
-        );
-
-        assert_eq!(
-            vec![Dependency::Texture(TextureDependency {
-                name: "s3".into(),
-                channels: "x".into(),
-                texcoords: vec![
-                    TexCoord {
-                        name: "in_attr4".into(),
-                        channels: "x".into(),
-                        params: None,
-                    },
-                    TexCoord {
-                        name: "in_attr4".into(),
-                        channels: "y".into(),
-                        params: None,
-                    },
-                ],
-            })],
-            shader.output_dependencies[&SmolStr::from("o1.y")]
+            shader.output_dependencies[&SmolStr::from("o2.x")].layers
         );
     }
 
@@ -1903,136 +1985,233 @@ mod tests {
         let fragment = TranslationUnit::parse(glsl).unwrap();
         let shader = shader_from_glsl(None, &fragment);
         assert_eq!(
-            vec![
-                Dependency::Texture(TextureDependency {
-                    name: "s2".into(),
-                    channels: "x".into(),
-                    texcoords: vec![
-                        TexCoord {
-                            name: "in_attr4".into(),
+            OutputDependencies {
+                dependencies: vec![
+                    Dependency::Texture(TextureDependency {
+                        name: "s2".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "x".into(),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "y".into(),
+                                params: None,
+                            },
+                        ],
+                    }),
+                    Dependency::Texture(TextureDependency {
+                        name: "s2".into(),
+                        channels: "y".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "x".into(),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "y".into(),
+                                params: None,
+                            },
+                        ],
+                    }),
+                    Dependency::Texture(TextureDependency {
+                        name: "s3".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "z".into(),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "w".into(),
+                                params: None,
+                            },
+                        ],
+                    }),
+                    Dependency::Texture(TextureDependency {
+                        name: "s3".into(),
+                        channels: "y".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "z".into(),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "w".into(),
+                                params: None,
+                            },
+                        ],
+                    }),
+                    Dependency::Texture(TextureDependency {
+                        name: "s4".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "x".into(),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "y".into(),
+                                params: None,
+                            },
+                        ],
+                    }),
+                    Dependency::Texture(TextureDependency {
+                        name: "s5".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr5".into(),
+                                channels: "x".into(),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr5".into(),
+                                channels: "y".into(),
+                                params: None,
+                            },
+                        ],
+                    }),
+                    Dependency::Texture(TextureDependency {
+                        name: "s5".into(),
+                        channels: "y".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr5".into(),
+                                channels: "x".into(),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr5".into(),
+                                channels: "y".into(),
+                                params: None,
+                            },
+                        ],
+                    }),
+                    Dependency::Texture(TextureDependency {
+                        name: "s6".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "x".into(),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "y".into(),
+                                params: None,
+                            },
+                        ],
+                    }),
+                ],
+                layers: vec![
+                    TextureLayer {
+                        value: Dependency::Texture(TextureDependency {
+                            name: "s2".into(),
                             channels: "x".into(),
-                            params: None,
-                        },
-                        TexCoord {
-                            name: "in_attr4".into(),
-                            channels: "y".into(),
-                            params: None,
-                        },
-                    ],
-                }),
-                Dependency::Texture(TextureDependency {
-                    name: "s2".into(),
-                    channels: "y".into(),
-                    texcoords: vec![
-                        TexCoord {
-                            name: "in_attr4".into(),
+                            texcoords: vec![
+                                TexCoord {
+                                    name: "in_attr4".into(),
+                                    channels: "x".into(),
+                                    params: None,
+                                },
+                                TexCoord {
+                                    name: "in_attr4".into(),
+                                    channels: "y".into(),
+                                    params: None,
+                                },
+                            ],
+                        }),
+                        ratio: None,
+                        blend_mode: LayerBlendMode::AddNormal,
+                        is_fresnel: false,
+                    },
+                    TextureLayer {
+                        value: Dependency::Texture(TextureDependency {
+                            name: "s3".into(),
                             channels: "x".into(),
-                            params: None,
-                        },
-                        TexCoord {
-                            name: "in_attr4".into(),
-                            channels: "y".into(),
-                            params: None,
-                        },
-                    ],
-                }),
-                Dependency::Texture(TextureDependency {
-                    name: "s3".into(),
-                    channels: "x".into(),
-                    texcoords: vec![
-                        TexCoord {
-                            name: "in_attr4".into(),
-                            channels: "z".into(),
-                            params: None,
-                        },
-                        TexCoord {
-                            name: "in_attr4".into(),
-                            channels: "w".into(),
-                            params: None,
-                        },
-                    ],
-                }),
-                Dependency::Texture(TextureDependency {
-                    name: "s3".into(),
-                    channels: "y".into(),
-                    texcoords: vec![
-                        TexCoord {
-                            name: "in_attr4".into(),
-                            channels: "z".into(),
-                            params: None,
-                        },
-                        TexCoord {
-                            name: "in_attr4".into(),
-                            channels: "w".into(),
-                            params: None,
-                        },
-                    ],
-                }),
-                Dependency::Texture(TextureDependency {
-                    name: "s4".into(),
-                    channels: "x".into(),
-                    texcoords: vec![
-                        TexCoord {
-                            name: "in_attr4".into(),
+                            texcoords: vec![
+                                TexCoord {
+                                    name: "in_attr4".into(),
+                                    channels: "z".into(),
+                                    params: None,
+                                },
+                                TexCoord {
+                                    name: "in_attr4".into(),
+                                    channels: "w".into(),
+                                    params: None,
+                                },
+                            ],
+                        }),
+                        ratio: Some(Dependency::Texture(TextureDependency {
+                            name: "s4".into(),
                             channels: "x".into(),
-                            params: None,
-                        },
-                        TexCoord {
-                            name: "in_attr4".into(),
-                            channels: "y".into(),
-                            params: None,
-                        },
-                    ],
-                }),
-                Dependency::Texture(TextureDependency {
-                    name: "s5".into(),
-                    channels: "x".into(),
-                    texcoords: vec![
-                        TexCoord {
-                            name: "in_attr5".into(),
+                            texcoords: vec![
+                                TexCoord {
+                                    name: "in_attr4".into(),
+                                    channels: "x".into(),
+                                    params: None,
+                                },
+                                TexCoord {
+                                    name: "in_attr4".into(),
+                                    channels: "y".into(),
+                                    params: None,
+                                },
+                            ],
+                        }),),
+                        blend_mode: LayerBlendMode::AddNormal,
+                        is_fresnel: false,
+                    },
+                    TextureLayer {
+                        value: Dependency::Texture(TextureDependency {
+                            name: "s5".into(),
                             channels: "x".into(),
-                            params: None,
-                        },
-                        TexCoord {
-                            name: "in_attr5".into(),
-                            channels: "y".into(),
-                            params: None,
-                        },
-                    ],
-                }),
-                Dependency::Texture(TextureDependency {
-                    name: "s5".into(),
-                    channels: "y".into(),
-                    texcoords: vec![
-                        TexCoord {
-                            name: "in_attr5".into(),
+                            texcoords: vec![
+                                TexCoord {
+                                    name: "in_attr5".into(),
+                                    channels: "x".into(),
+                                    params: None,
+                                },
+                                TexCoord {
+                                    name: "in_attr5".into(),
+                                    channels: "y".into(),
+                                    params: None,
+                                },
+                            ],
+                        }),
+                        ratio: Some(Dependency::Texture(TextureDependency {
+                            name: "s6".into(),
                             channels: "x".into(),
-                            params: None,
-                        },
-                        TexCoord {
-                            name: "in_attr5".into(),
-                            channels: "y".into(),
-                            params: None,
-                        },
-                    ],
-                }),
-                Dependency::Texture(TextureDependency {
-                    name: "s6".into(),
-                    channels: "x".into(),
-                    texcoords: vec![
-                        TexCoord {
-                            name: "in_attr4".into(),
-                            channels: "x".into(),
-                            params: None,
-                        },
-                        TexCoord {
-                            name: "in_attr4".into(),
-                            channels: "y".into(),
-                            params: None,
-                        },
-                    ],
-                }),
-            ],
+                            texcoords: vec![
+                                TexCoord {
+                                    name: "in_attr4".into(),
+                                    channels: "x".into(),
+                                    params: None,
+                                },
+                                TexCoord {
+                                    name: "in_attr4".into(),
+                                    channels: "y".into(),
+                                    params: None,
+                                },
+                            ],
+                        }),),
+                        blend_mode: LayerBlendMode::AddNormal,
+                        is_fresnel: false,
+                    },
+                ],
+            },
             shader.output_dependencies[&SmolStr::from("o2.x")]
         );
     }
@@ -2105,7 +2284,7 @@ mod tests {
                                 params: None,
                             },
                         ],
-                    },),
+                    }),
                     ratio: Some(Dependency::Texture(TextureDependency {
                         name: "s4".into(),
                         channels: "x".into(),
@@ -2121,12 +2300,12 @@ mod tests {
                                 params: None,
                             },
                         ],
-                    },),),
+                    }),),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false,
                 },
             ],
-            shader.color_layers
+            shader.output_dependencies[&SmolStr::from("o0.x")].layers
         );
     }
 
@@ -2209,265 +2388,311 @@ mod tests {
                 output_dependencies: [
                     (
                         "o0.x".into(),
-                        vec![
-                            Dependency::Texture(TextureDependency {
-                                name: "s2".into(),
-                                channels: "x".into(),
-                                texcoords: Vec::new(),
-                            }),
-                            Dependency::Texture(TextureDependency {
-                                name: "s2".into(),
-                                channels: "y".into(),
-                                texcoords: Vec::new(),
-                            }),
-                            Dependency::Texture(TextureDependency {
-                                name: "s1".into(),
-                                channels: "y".into(),
-                                texcoords: Vec::new(),
-                            }),
-                            Dependency::Texture(TextureDependency {
-                                name: "gIBL".into(),
-                                channels: "x".into(),
-                                texcoords: Vec::new(),
-                            }),
-                        ]
+                        OutputDependencies {
+                            dependencies: vec![
+                                Dependency::Texture(TextureDependency {
+                                    name: "s2".into(),
+                                    channels: "x".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                                Dependency::Texture(TextureDependency {
+                                    name: "s2".into(),
+                                    channels: "y".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                                Dependency::Texture(TextureDependency {
+                                    name: "s1".into(),
+                                    channels: "y".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                                Dependency::Texture(TextureDependency {
+                                    name: "gIBL".into(),
+                                    channels: "x".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                            ],
+                            layers: Vec::new()
+                        },
                     ),
                     (
                         "o0.y".into(),
-                        vec![
-                            Dependency::Texture(TextureDependency {
-                                name: "s2".into(),
-                                channels: "x".into(),
-                                texcoords: Vec::new(),
-                            }),
-                            Dependency::Texture(TextureDependency {
-                                name: "s2".into(),
-                                channels: "y".into(),
-                                texcoords: Vec::new(),
-                            }),
-                            Dependency::Texture(TextureDependency {
-                                name: "s1".into(),
-                                channels: "y".into(),
-                                texcoords: Vec::new(),
-                            }),
-                            Dependency::Texture(TextureDependency {
-                                name: "gIBL".into(),
-                                channels: "y".into(),
-                                texcoords: Vec::new(),
-                            }),
-                        ]
+                        OutputDependencies {
+                            dependencies: vec![
+                                Dependency::Texture(TextureDependency {
+                                    name: "s2".into(),
+                                    channels: "x".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                                Dependency::Texture(TextureDependency {
+                                    name: "s2".into(),
+                                    channels: "y".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                                Dependency::Texture(TextureDependency {
+                                    name: "s1".into(),
+                                    channels: "y".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                                Dependency::Texture(TextureDependency {
+                                    name: "gIBL".into(),
+                                    channels: "y".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                            ],
+                            layers: Vec::new()
+                        },
                     ),
                     (
                         "o0.z".into(),
-                        vec![
-                            Dependency::Texture(TextureDependency {
-                                name: "s2".into(),
-                                channels: "x".into(),
-                                texcoords: Vec::new(),
-                            }),
-                            Dependency::Texture(TextureDependency {
-                                name: "s2".into(),
-                                channels: "y".into(),
-                                texcoords: Vec::new(),
-                            }),
-                            Dependency::Texture(TextureDependency {
-                                name: "s1".into(),
-                                channels: "y".into(),
-                                texcoords: Vec::new(),
-                            }),
-                            Dependency::Texture(TextureDependency {
-                                name: "gIBL".into(),
-                                channels: "z".into(),
-                                texcoords: Vec::new(),
-                            }),
-                        ]
+                        OutputDependencies {
+                            dependencies: vec![
+                                Dependency::Texture(TextureDependency {
+                                    name: "s2".into(),
+                                    channels: "x".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                                Dependency::Texture(TextureDependency {
+                                    name: "s2".into(),
+                                    channels: "y".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                                Dependency::Texture(TextureDependency {
+                                    name: "s1".into(),
+                                    channels: "y".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                                Dependency::Texture(TextureDependency {
+                                    name: "gIBL".into(),
+                                    channels: "z".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                            ],
+                            layers: Vec::new()
+                        },
                     ),
                     (
                         "o0.w".into(),
-                        vec![
-                            Dependency::Texture(TextureDependency {
-                                name: "s2".into(),
-                                channels: "x".into(),
-                                texcoords: Vec::new(),
-                            }),
-                            Dependency::Texture(TextureDependency {
-                                name: "s2".into(),
-                                channels: "y".into(),
-                                texcoords: Vec::new(),
-                            }),
-                            Dependency::Texture(TextureDependency {
-                                name: "gIBL".into(),
-                                channels: "w".into(),
-                                texcoords: Vec::new(),
-                            }),
-                        ]
+                        OutputDependencies {
+                            dependencies: vec![
+                                Dependency::Texture(TextureDependency {
+                                    name: "s2".into(),
+                                    channels: "x".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                                Dependency::Texture(TextureDependency {
+                                    name: "s2".into(),
+                                    channels: "y".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                                Dependency::Texture(TextureDependency {
+                                    name: "gIBL".into(),
+                                    channels: "w".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                            ],
+                            layers: Vec::new()
+                        },
                     ),
                     (
                         "o1.x".into(),
-                        vec![
-                            Dependency::Texture(TextureDependency {
-                                name: "s2".into(),
-                                channels: "x".into(),
-                                texcoords: Vec::new(),
-                            }),
-                            Dependency::Texture(TextureDependency {
-                                name: "s2".into(),
-                                channels: "y".into(),
-                                texcoords: Vec::new(),
-                            }),
-                            Dependency::Texture(TextureDependency {
-                                name: "s1".into(),
-                                channels: "x".into(),
-                                texcoords: Vec::new(),
-                            }),
-                            Dependency::Texture(TextureDependency {
-                                name: "s0".into(),
-                                channels: "x".into(),
-                                texcoords: Vec::new(),
-                            }),
-                            Dependency::Texture(TextureDependency {
-                                name: "texRef".into(),
-                                channels: "x".into(),
-                                texcoords: Vec::new(),
-                            }),
-                        ]
+                        OutputDependencies {
+                            dependencies: vec![
+                                Dependency::Texture(TextureDependency {
+                                    name: "s2".into(),
+                                    channels: "x".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                                Dependency::Texture(TextureDependency {
+                                    name: "s2".into(),
+                                    channels: "y".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                                Dependency::Texture(TextureDependency {
+                                    name: "s1".into(),
+                                    channels: "x".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                                Dependency::Texture(TextureDependency {
+                                    name: "s0".into(),
+                                    channels: "x".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                                Dependency::Texture(TextureDependency {
+                                    name: "texRef".into(),
+                                    channels: "x".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                            ],
+                            layers: Vec::new()
+                        },
                     ),
                     (
                         "o1.y".into(),
-                        vec![
-                            Dependency::Texture(TextureDependency {
-                                name: "s2".into(),
-                                channels: "x".into(),
-                                texcoords: Vec::new(),
-                            }),
-                            Dependency::Texture(TextureDependency {
-                                name: "s2".into(),
-                                channels: "y".into(),
-                                texcoords: Vec::new(),
-                            }),
-                            Dependency::Texture(TextureDependency {
-                                name: "s1".into(),
-                                channels: "x".into(),
-                                texcoords: Vec::new(),
-                            }),
-                            Dependency::Texture(TextureDependency {
-                                name: "s0".into(),
-                                channels: "y".into(),
-                                texcoords: Vec::new(),
-                            }),
-                            Dependency::Texture(TextureDependency {
-                                name: "texRef".into(),
-                                channels: "y".into(),
-                                texcoords: Vec::new(),
-                            }),
-                        ]
+                        OutputDependencies {
+                            dependencies: vec![
+                                Dependency::Texture(TextureDependency {
+                                    name: "s2".into(),
+                                    channels: "x".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                                Dependency::Texture(TextureDependency {
+                                    name: "s2".into(),
+                                    channels: "y".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                                Dependency::Texture(TextureDependency {
+                                    name: "s1".into(),
+                                    channels: "x".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                                Dependency::Texture(TextureDependency {
+                                    name: "s0".into(),
+                                    channels: "y".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                                Dependency::Texture(TextureDependency {
+                                    name: "texRef".into(),
+                                    channels: "y".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                            ],
+                            layers: Vec::new()
+                        },
                     ),
                     (
                         "o1.z".into(),
-                        vec![
-                            Dependency::Texture(TextureDependency {
-                                name: "s2".into(),
-                                channels: "x".into(),
-                                texcoords: Vec::new(),
-                            }),
-                            Dependency::Texture(TextureDependency {
-                                name: "s2".into(),
-                                channels: "y".into(),
-                                texcoords: Vec::new(),
-                            }),
-                            Dependency::Texture(TextureDependency {
-                                name: "s1".into(),
-                                channels: "x".into(),
-                                texcoords: Vec::new(),
-                            }),
-                            Dependency::Texture(TextureDependency {
-                                name: "s0".into(),
-                                channels: "z".into(),
-                                texcoords: Vec::new(),
-                            }),
-                            Dependency::Texture(TextureDependency {
-                                name: "texRef".into(),
-                                channels: "z".into(),
-                                texcoords: Vec::new(),
-                            }),
-                        ]
+                        OutputDependencies {
+                            dependencies: vec![
+                                Dependency::Texture(TextureDependency {
+                                    name: "s2".into(),
+                                    channels: "x".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                                Dependency::Texture(TextureDependency {
+                                    name: "s2".into(),
+                                    channels: "y".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                                Dependency::Texture(TextureDependency {
+                                    name: "s1".into(),
+                                    channels: "x".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                                Dependency::Texture(TextureDependency {
+                                    name: "s0".into(),
+                                    channels: "z".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                                Dependency::Texture(TextureDependency {
+                                    name: "texRef".into(),
+                                    channels: "z".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                            ],
+                            layers: Vec::new()
+                        },
                     ),
-                    ("o1.w".into(), vec![Dependency::Constant(0.0.into())]),
+                    (
+                        "o1.w".into(),
+                        OutputDependencies {
+                            dependencies: vec![Dependency::Constant(0.0.into())],
+                            layers: Vec::new()
+                        },
+                    ),
                     (
                         "o2.x".into(),
-                        vec![
-                            Dependency::Texture(TextureDependency {
-                                name: "s2".into(),
-                                channels: "x".into(),
-                                texcoords: Vec::new(),
-                            }),
-                            Dependency::Texture(TextureDependency {
-                                name: "s2".into(),
-                                channels: "y".into(),
-                                texcoords: Vec::new(),
-                            }),
-                        ]
+                        OutputDependencies {
+                            dependencies: vec![
+                                Dependency::Texture(TextureDependency {
+                                    name: "s2".into(),
+                                    channels: "x".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                                Dependency::Texture(TextureDependency {
+                                    name: "s2".into(),
+                                    channels: "y".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                            ],
+                            layers: Vec::new()
+                        },
                     ),
                     (
                         "o2.y".into(),
-                        vec![
-                            Dependency::Texture(TextureDependency {
-                                name: "s2".into(),
-                                channels: "x".into(),
-                                texcoords: Vec::new(),
-                            }),
-                            Dependency::Texture(TextureDependency {
-                                name: "s2".into(),
-                                channels: "y".into(),
-                                texcoords: Vec::new(),
-                            }),
-                        ]
+                        OutputDependencies {
+                            dependencies: vec![
+                                Dependency::Texture(TextureDependency {
+                                    name: "s2".into(),
+                                    channels: "x".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                                Dependency::Texture(TextureDependency {
+                                    name: "s2".into(),
+                                    channels: "y".into(),
+                                    texcoords: Vec::new(),
+                                }),
+                            ],
+                            layers: Vec::new()
+                        },
                     ),
                     (
                         "o3.x".into(),
-                        vec![Dependency::Texture(TextureDependency {
-                            name: "s3".into(),
-                            channels: "x".into(),
-                            texcoords: Vec::new(),
-                        })]
+                        OutputDependencies {
+                            dependencies: vec![Dependency::Texture(TextureDependency {
+                                name: "s3".into(),
+                                channels: "x".into(),
+                                texcoords: Vec::new(),
+                            })],
+                            layers: Vec::new()
+                        },
                     ),
                     (
                         "o3.y".into(),
-                        vec![Dependency::Texture(TextureDependency {
-                            name: "s3".into(),
-                            channels: "y".into(),
-                            texcoords: Vec::new(),
-                        })]
+                        OutputDependencies {
+                            dependencies: vec![Dependency::Texture(TextureDependency {
+                                name: "s3".into(),
+                                channels: "y".into(),
+                                texcoords: Vec::new(),
+                            })],
+                            layers: Vec::new()
+                        },
                     ),
                     (
                         "o3.z".into(),
-                        vec![Dependency::Texture(TextureDependency {
-                            name: "s3".into(),
-                            channels: "z".into(),
-                            texcoords: Vec::new(),
-                        })],
+                        OutputDependencies {
+                            dependencies: vec![Dependency::Texture(TextureDependency {
+                                name: "s3".into(),
+                                channels: "z".into(),
+                                texcoords: Vec::new(),
+                            })],
+                            layers: Vec::new()
+                        },
                     ),
                     (
                         "o3.w".into(),
-                        vec![Dependency::Buffer(BufferDependency {
-                            name: "KC0".into(),
-                            field: "".into(),
-                            index: 1,
-                            channels: "x".into(),
-                        })],
+                        OutputDependencies {
+                            dependencies: vec![Dependency::Buffer(BufferDependency {
+                                name: "KC0".into(),
+                                field: "".into(),
+                                index: 1,
+                                channels: "x".into(),
+                            })],
+                            layers: Vec::new()
+                        },
                     ),
                     (
                         "o4.w".into(),
-                        vec![Dependency::Texture(TextureDependency {
-                            name: "s1".into(),
-                            channels: "z".into(),
-                            texcoords: Vec::new(),
-                        })],
+                        OutputDependencies {
+                            dependencies: vec![Dependency::Texture(TextureDependency {
+                                name: "s1".into(),
+                                channels: "z".into(),
+                                texcoords: Vec::new(),
+                            })],
+                            layers: Vec::new()
+                        },
                     )
                 ]
                 .into(),
-                color_layers: Vec::new(),
-                normal_layers: Vec::new()
             },
             shader
         );

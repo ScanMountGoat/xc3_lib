@@ -119,10 +119,15 @@ pub struct ShaderProgram {
     /// or select inputs in a shared shader at render time like xc3_wgpu.
     /// Node based editors like Blender's shader editor should use these values
     /// to determine how to construct node groups.
-    pub output_dependencies: IndexMap<SmolStr, Vec<Dependency>>,
+    pub output_dependencies: IndexMap<SmolStr, OutputDependencies>,
+}
 
-    pub color_layers: Vec<TextureLayer>,
-    pub normal_layers: Vec<TextureLayer>,
+#[derive(Debug, PartialEq, Clone)]
+pub struct OutputDependencies {
+    /// All of the possible dependencies that may affect the output.
+    pub dependencies: Vec<Dependency>,
+    /// Layering information if this output blends multiple texture dependencies.
+    pub layers: Vec<TextureLayer>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -215,7 +220,7 @@ impl ShaderProgram {
 
         self.output_dependencies
             .get(&SmolStr::from(output))
-            .map(|d| d.as_slice())
+            .map(|d| d.dependencies.as_slice())
             .unwrap_or_default()
             .iter()
             .filter_map(|d| match d {
@@ -234,6 +239,7 @@ impl ShaderProgram {
         match self
             .output_dependencies
             .get(&SmolStr::from(output))?
+            .dependencies
             .first()?
         {
             Dependency::Constant(f) => Some(f.0),
@@ -254,6 +260,7 @@ impl ShaderProgram {
         match self
             .output_dependencies
             .get(&SmolStr::from(output))?
+            .dependencies
             .first()?
         {
             Dependency::Buffer(b) => Some(b),
@@ -270,6 +277,7 @@ impl ShaderProgram {
         match self
             .output_dependencies
             .get(&SmolStr::from(output))?
+            .dependencies
             .first()?
         {
             Dependency::Attribute(b) => Some(b),
@@ -347,8 +355,6 @@ mod tests {
     fn material_channel_assignment_empty() {
         let shader = ShaderProgram {
             output_dependencies: IndexMap::new(),
-            color_layers: Vec::new(),
-            normal_layers: Vec::new(),
         };
         assert!(shader.textures(0, 'x').is_empty());
     }
@@ -356,10 +362,14 @@ mod tests {
     #[test]
     fn material_channel_assignment_single_output_no_assignment() {
         let shader = ShaderProgram {
-            output_dependencies: [("o0.x".into(), Vec::new())].into(),
-            color_layers: Vec::new(),
-
-            normal_layers: Vec::new(),
+            output_dependencies: [(
+                "o0.x".into(),
+                OutputDependencies {
+                    dependencies: Vec::new(),
+                    layers: Vec::new(),
+                },
+            )]
+            .into(),
         };
         assert!(shader.textures(0, 'x').is_empty());
     }
@@ -370,39 +380,46 @@ mod tests {
             output_dependencies: [
                 (
                     "o0.x".into(),
-                    vec![Dependency::Texture(TextureDependency {
-                        name: "s0".into(),
-                        channels: "y".into(),
-                        texcoords: Vec::new(),
-                    })],
+                    OutputDependencies {
+                        dependencies: vec![Dependency::Texture(TextureDependency {
+                            name: "s0".into(),
+                            channels: "y".into(),
+                            texcoords: Vec::new(),
+                        })],
+                        layers: Vec::new(),
+                    },
                 ),
                 (
                     "o0.y".into(),
-                    vec![
-                        Dependency::Texture(TextureDependency {
-                            name: "tex".into(),
-                            channels: "xyz".into(),
-                            texcoords: Vec::new(),
-                        }),
-                        Dependency::Texture(TextureDependency {
-                            name: "s2".into(),
-                            channels: "z".into(),
-                            texcoords: Vec::new(),
-                        }),
-                    ],
+                    OutputDependencies {
+                        dependencies: vec![
+                            Dependency::Texture(TextureDependency {
+                                name: "tex".into(),
+                                channels: "xyz".into(),
+                                texcoords: Vec::new(),
+                            }),
+                            Dependency::Texture(TextureDependency {
+                                name: "s2".into(),
+                                channels: "z".into(),
+                                texcoords: Vec::new(),
+                            }),
+                        ],
+                        layers: Vec::new(),
+                    },
                 ),
                 (
                     "o1.x".into(),
-                    vec![Dependency::Texture(TextureDependency {
-                        name: "s3".into(),
-                        channels: "xyz".into(),
-                        texcoords: Vec::new(),
-                    })],
+                    OutputDependencies {
+                        dependencies: vec![Dependency::Texture(TextureDependency {
+                            name: "s3".into(),
+                            channels: "xyz".into(),
+                            texcoords: Vec::new(),
+                        })],
+                        layers: Vec::new(),
+                    },
                 ),
             ]
             .into(),
-            color_layers: Vec::new(),
-            normal_layers: Vec::new(),
         };
         assert_eq!(
             vec![
@@ -427,32 +444,42 @@ mod tests {
             output_dependencies: [
                 (
                     "o0.x".into(),
-                    vec![Dependency::Texture(TextureDependency {
-                        name: "s0".into(),
-                        channels: "y".into(),
-                        texcoords: Vec::new(),
-                    })],
+                    OutputDependencies {
+                        dependencies: vec![Dependency::Texture(TextureDependency {
+                            name: "s0".into(),
+                            channels: "y".into(),
+                            texcoords: Vec::new(),
+                        })],
+                        layers: Vec::new(),
+                    },
                 ),
                 (
                     "o0.y".into(),
-                    vec![
-                        Dependency::Texture(TextureDependency {
-                            name: "tex".into(),
-                            channels: "xyz".into(),
-                            texcoords: Vec::new(),
-                        }),
-                        Dependency::Texture(TextureDependency {
-                            name: "s2".into(),
-                            channels: "z".into(),
-                            texcoords: Vec::new(),
-                        }),
-                    ],
+                    OutputDependencies {
+                        dependencies: vec![
+                            Dependency::Texture(TextureDependency {
+                                name: "tex".into(),
+                                channels: "xyz".into(),
+                                texcoords: Vec::new(),
+                            }),
+                            Dependency::Texture(TextureDependency {
+                                name: "s2".into(),
+                                channels: "z".into(),
+                                texcoords: Vec::new(),
+                            }),
+                        ],
+                        layers: Vec::new(),
+                    },
                 ),
-                ("o1.z".into(), vec![Dependency::Constant(0.5.into())]),
+                (
+                    "o1.z".into(),
+                    OutputDependencies {
+                        dependencies: vec![Dependency::Constant(0.5.into())],
+                        layers: Vec::new(),
+                    },
+                ),
             ]
             .into(),
-            color_layers: Vec::new(),
-            normal_layers: Vec::new(),
         };
         assert_eq!(None, shader.float_constant(0, 'x'));
         assert_eq!(Some(0.5), shader.float_constant(1, 'z'));
@@ -464,40 +491,47 @@ mod tests {
             output_dependencies: [
                 (
                     "o0.x".into(),
-                    vec![Dependency::Texture(TextureDependency {
-                        name: "s0".into(),
-                        channels: "y".into(),
-                        texcoords: Vec::new(),
-                    })],
+                    OutputDependencies {
+                        dependencies: vec![Dependency::Texture(TextureDependency {
+                            name: "s0".into(),
+                            channels: "y".into(),
+                            texcoords: Vec::new(),
+                        })],
+                        layers: Vec::new(),
+                    },
                 ),
                 (
                     "o0.y".into(),
-                    vec![
-                        Dependency::Texture(TextureDependency {
-                            name: "tex".into(),
-                            channels: "xyz".into(),
-                            texcoords: Vec::new(),
-                        }),
-                        Dependency::Texture(TextureDependency {
-                            name: "s2".into(),
-                            channels: "z".into(),
-                            texcoords: Vec::new(),
-                        }),
-                    ],
+                    OutputDependencies {
+                        dependencies: vec![
+                            Dependency::Texture(TextureDependency {
+                                name: "tex".into(),
+                                channels: "xyz".into(),
+                                texcoords: Vec::new(),
+                            }),
+                            Dependency::Texture(TextureDependency {
+                                name: "s2".into(),
+                                channels: "z".into(),
+                                texcoords: Vec::new(),
+                            }),
+                        ],
+                        layers: Vec::new(),
+                    },
                 ),
                 (
                     "o1.z".into(),
-                    vec![Dependency::Buffer(BufferDependency {
-                        name: "U_Mate".into(),
-                        field: "param".into(),
-                        index: 31,
-                        channels: "w".into(),
-                    })],
+                    OutputDependencies {
+                        dependencies: vec![Dependency::Buffer(BufferDependency {
+                            name: "U_Mate".into(),
+                            field: "param".into(),
+                            index: 31,
+                            channels: "w".into(),
+                        })],
+                        layers: Vec::new(),
+                    },
                 ),
             ]
             .into(),
-            color_layers: Vec::new(),
-            normal_layers: Vec::new(),
         };
         assert_eq!(None, shader.buffer_parameter(0, 'x'));
         assert_eq!(

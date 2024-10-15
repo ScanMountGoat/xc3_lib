@@ -378,8 +378,6 @@ fn get_shader_legacy(
 
     Some(ShaderProgram {
         output_dependencies,
-        color_layers: Vec::new(),
-        normal_layers: Vec::new(),
     })
 }
 
@@ -719,18 +717,20 @@ fn output_assignment(
     parameters: &MaterialParameters,
     output_index: usize,
 ) -> OutputAssignment {
+    // TODO: Add layers to each of the components.
+    let output = format!("o{output_index}.x");
+    let dependencies = shader.output_dependencies.get(&SmolStr::from(output));
+
     OutputAssignment {
+        // TODO: Should these each be a vec instead of option?
+        // TODO: Store layers separately from the base layer?
         x: channel_assignment(shader, parameters, output_index, 0),
         y: channel_assignment(shader, parameters, output_index, 1),
         z: channel_assignment(shader, parameters, output_index, 2),
         w: channel_assignment(shader, parameters, output_index, 3),
-        layers: if output_index == 0 {
-            texture_layers(&shader.color_layers, parameters)
-        } else if output_index == 2 {
-            texture_layers(&shader.normal_layers, parameters)
-        } else {
-            Vec::new()
-        },
+        layers: dependencies
+            .map(|d| texture_layers(&d.layers, parameters))
+            .unwrap_or_default(),
     }
 }
 
@@ -794,59 +794,50 @@ fn channel_assignment(
     let original_dependencies = shader.output_dependencies.get(&SmolStr::from(output))?;
     let mut dependencies = original_dependencies.clone();
 
-    if output_index == 0 {
-        if !shader.color_layers.is_empty() {
-            // Match the correct layer order if present.
-            dependencies.sort_by_cached_key(|d| {
-                shader
-                    .color_layers
-                    .iter()
-                    .position(|l| layer_name(l) == sampler_name(d))
-                    .unwrap_or(usize::MAX)
-            });
-        } else {
-            // Color maps typically assign s0 using RGB or a single channel.
-            dependencies.retain(|d| {
-                !shader
-                    .normal_layers
-                    .iter()
-                    .any(|l| layer_name(l) == sampler_name(d))
-            });
-            dependencies.sort_by_cached_key(|d| sampler_index(d).unwrap_or(usize::MAX));
-        }
+    if !dependencies.layers.is_empty() {
+        // Match the correct layer order if present.
+        dependencies.dependencies.sort_by_cached_key(|d| {
+            dependencies
+                .layers
+                .iter()
+                .position(|l| layer_name(l) == sampler_name(d))
+                .unwrap_or(usize::MAX)
+        });
+    } else if output_index == 0 {
+        // Color maps typically assign s0 using RGB or a single channel.
+        // dependencies.dependencies.retain(|d| {
+        //     !shader
+        //         .normal_layers
+        //         .iter()
+        //         .any(|l| layer_name(l) == sampler_name(d))
+        // });
+        dependencies
+            .dependencies
+            .sort_by_cached_key(|d| sampler_index(d).unwrap_or(usize::MAX));
     } else if output_index == 2 && matches!(channel, 'x' | 'y') {
-        if !shader.normal_layers.is_empty() {
-            // Match the correct layer order if present.
-            dependencies.sort_by_cached_key(|d| {
-                shader
-                    .normal_layers
-                    .iter()
-                    .position(|l| layer_name(l) == sampler_name(d))
-                    .unwrap_or(usize::MAX)
-            });
-        } else {
-            // Normal maps are usually just XY BC5 textures.
-            // Sort so that these textures are accessed first.
-            dependencies.sort_by_cached_key(|d| {
-                let count = original_dependencies
-                    .iter()
-                    .filter(|d2| sampler_name(d2) == sampler_name(d))
-                    .count();
-                count != 2
-            });
-        }
+        // Normal maps are usually just XY BC5 textures.
+        // Sort so that these textures are accessed first.
+        dependencies.dependencies.sort_by_cached_key(|d| {
+            let count = original_dependencies
+                .dependencies
+                .iter()
+                .filter(|d2| sampler_name(d2) == sampler_name(d))
+                .count();
+            count != 2
+        });
     } else {
         // Color maps typically assign s0 using RGB or a single channel.
         // Ignore single channel masks if an RGB input is present.
         // Ignore XY BC5 normal maps by placing them at the end.
-        dependencies.retain(|d| {
-            !shader
-                .normal_layers
-                .iter()
-                .any(|l| layer_name(l) == sampler_name(d))
-        });
-        dependencies.sort_by_cached_key(|d| {
+        // dependencies.dependencies.retain(|d| {
+        //     !shader
+        //         .normal_layers
+        //         .iter()
+        //         .any(|l| layer_name(l) == sampler_name(d))
+        // });
+        dependencies.dependencies.sort_by_cached_key(|d| {
             let count = original_dependencies
+                .dependencies
                 .iter()
                 .filter(|d2| sampler_name(d2) == sampler_name(d))
                 .count();
@@ -865,13 +856,14 @@ fn channel_assignment(
     // Some textures like normal maps may use multiple input channels.
     // First check if the current channel is used.
     let dependency = dependencies
+        .dependencies
         .iter()
         .find(|d| {
             channels(d)
                 .map(|channels| channels.contains(channel))
                 .unwrap_or_default()
         })
-        .or_else(|| dependencies.first())?;
+        .or_else(|| dependencies.dependencies.first())?;
 
     // If a parameter or attribute is assigned, it will likely be the only dependency.
     ChannelAssignment::from_dependency(dependency, parameters, channel)
