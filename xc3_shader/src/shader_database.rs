@@ -71,12 +71,17 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
                 layers =
                     find_color_layers(frag, &dependent_lines, &dependencies).unwrap_or_default();
             } else if i == 1 {
-                // TODO: layers for etc params.
+                layers = find_etc_layers(frag, &dependent_lines, &dependencies).unwrap_or_default();
             } else if i == 2 && "xy".contains(c) {
                 // TODO: Will this simplify consuming code if the channels are set properly?
                 // TODO: Modify queries to find the appropriate channel.
                 layers =
                     find_normal_layers(frag, &dependent_lines, &dependencies).unwrap_or_default();
+            }
+
+            // Avoid storing redundant information with dependencies.
+            if layers.len() == 1 {
+                layers = Vec::new();
             }
 
             if i == 1 && c == 'y' {
@@ -260,6 +265,22 @@ fn find_normal_layers(
     Some(layers)
 }
 
+fn find_etc_layers(
+    frag: &Graph,
+    dependent_lines: &[usize],
+    dependencies: &[Dependency],
+) -> Option<Vec<TextureLayer>> {
+    let last_node_index = *dependent_lines.last()?;
+    let last_node = frag.nodes.get(last_node_index)?;
+
+    let current = assign_x_recursive(&frag.nodes, &last_node.input);
+
+    // TODO: There's some other form of blending happening?
+    let layers = find_layers(&frag.nodes, current, dependencies);
+
+    Some(layers)
+}
+
 fn find_layers(nodes: &[Node], current: &Expr, dependencies: &[Dependency]) -> Vec<TextureLayer> {
     let mut layers = Vec::new();
 
@@ -272,12 +293,14 @@ fn find_layers(nodes: &[Node], current: &Expr, dependencies: &[Dependency]) -> V
         .or_else(|| pixel_calc_add(nodes, current, dependencies))
         .or_else(|| add_pixel_calc_ratio(current))
     {
-        let mut layer = assign_x_recursive(nodes, layer_b);
-        if let Some(new_layer) = normal_map_fma(nodes, layer) {
-            layer = new_layer;
+        let mut layer_b = assign_x_recursive(nodes, layer_b);
+        if let Some(new_layer_b) = normal_map_fma(nodes, layer_b) {
+            layer_b = new_layer_b;
         }
 
-        if let Some(value) = layer_value(layer, dependencies) {
+        dbg!(layer_a, layer_b);
+
+        if let Some(value) = layer_value(layer_b, dependencies) {
             let (fresnel_ratio, ratio) = ratio_dependency(ratio, nodes, dependencies);
 
             layers.push(TextureLayer {
@@ -1635,27 +1658,7 @@ mod tests {
                         ],
                     }),
                 ],
-                layers: vec![TextureLayer {
-                    value: Dependency::Texture(TextureDependency {
-                        name: "s2".into(),
-                        channels: "x".into(),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channels: "x".into(),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channels: "y".into(),
-                                params: None,
-                            },
-                        ],
-                    }),
-                    ratio: None,
-                    blend_mode: LayerBlendMode::Add,
-                    is_fresnel: false,
-                }],
+                layers: Vec::new()
             },
             shader.output_dependencies[&SmolStr::from("o2.x")]
         );
@@ -1669,30 +1672,9 @@ mod tests {
         // Some shaders use a simple mix() for normal blending.
         let fragment = TranslationUnit::parse(glsl).unwrap();
         let shader = shader_from_glsl(None, &fragment);
-        assert_eq!(
-            vec![TextureLayer {
-                value: Dependency::Texture(TextureDependency {
-                    name: "s0".into(),
-                    channels: "x".into(),
-                    texcoords: vec![
-                        TexCoord {
-                            name: "in_attr3".into(),
-                            channels: "x".into(),
-                            params: None
-                        },
-                        TexCoord {
-                            name: "in_attr3".into(),
-                            channels: "x".into(),
-                            params: None
-                        }
-                    ]
-                }),
-                ratio: None,
-                blend_mode: LayerBlendMode::Mix,
-                is_fresnel: false
-            }],
-            shader.output_dependencies[&SmolStr::from("o0.x")].layers
-        );
+        assert!(shader.output_dependencies[&SmolStr::from("o0.x")]
+            .layers
+            .is_empty());
         assert_eq!(
             OutputDependencies {
                 dependencies: vec![Dependency::Texture(TextureDependency {
@@ -2141,7 +2123,7 @@ mod tests {
                                     params: None,
                                 },
                             ],
-                        }),),
+                        })),
                         blend_mode: LayerBlendMode::AddNormal,
                         is_fresnel: false,
                     },
@@ -2177,7 +2159,7 @@ mod tests {
                                     params: None,
                                 },
                             ],
-                        }),),
+                        })),
                         blend_mode: LayerBlendMode::AddNormal,
                         is_fresnel: false,
                     },
@@ -2271,12 +2253,84 @@ mod tests {
                                 params: None,
                             },
                         ],
-                    }),),
+                    })),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false,
                 },
             ],
             shader.output_dependencies[&SmolStr::from("o0.x")].layers
+        );
+    }
+
+    #[test]
+    fn shader_from_fragment_tirkin_weapon() {
+        // xeno2/model/we/we010402, "body_MT", shd0000.frag
+        let glsl = include_str!("data/we010402.0.frag");
+
+        // Test detecting layers for metalness.
+        let fragment = TranslationUnit::parse(glsl).unwrap();
+        let shader = shader_from_glsl(None, &fragment);
+        assert_eq!(
+            vec![
+                TextureLayer {
+                    value: Dependency::Texture(TextureDependency {
+                        name: "s2".into(),
+                        channels: "y".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "x".into(),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "y".into(),
+                                params: None,
+                            },
+                        ],
+                    }),
+                    ratio: None,
+                    blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: false,
+                },
+                TextureLayer {
+                    value: Dependency::Texture(TextureDependency {
+                        name: "s4".into(),
+                        channels: "y".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "z".into(),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "w".into(),
+                                params: None,
+                            },
+                        ],
+                    }),
+                    ratio: Some(Dependency::Texture(TextureDependency {
+                        name: "s5".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "x".into(),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "y".into(),
+                                params: None,
+                            },
+                        ],
+                    })),
+                    blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: false,
+                },
+            ],
+            shader.output_dependencies[&SmolStr::from("o1.x")].layers
         );
     }
 
