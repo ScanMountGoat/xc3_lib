@@ -72,8 +72,9 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
                     find_color_layers(frag, &dependent_lines, &dependencies).unwrap_or_default();
             } else if i == 1 {
                 // TODO: layers for etc params.
-            } else if i == 2 {
+            } else if i == 2 && "xy".contains(c) {
                 // TODO: Will this simplify consuming code if the channels are set properly?
+                // TODO: Modify queries to find the appropriate channel.
                 layers =
                     find_normal_layers(frag, &dependent_lines, &dependencies).unwrap_or_default();
             }
@@ -205,25 +206,80 @@ fn find_color_layers(
     // This isn't always present for all materials in all games.
     // Xenoblade 1 DE and Xenoblade 3 both seem to do this for non map materials.
     if let Some((mat_cols, _monochrome_ratio)) = calc_monochrome(&frag.nodes, current_col) {
-        // TODO: Select the appropriate channel.
-        current_col = node_expr(&frag.nodes, mat_cols[0])?;
+        let mat_col = match last_node.output.channel {
+            Some('x') => &mat_cols[0],
+            Some('y') => &mat_cols[0],
+            Some('z') => &mat_cols[0],
+            _ => &mat_cols[0],
+        };
+        current_col = node_expr(&frag.nodes, mat_col)?;
     }
 
+    let layers = find_layers(&frag.nodes, current_col, dependencies);
+
+    Some(layers)
+}
+
+fn sampler_index(sampler_name: &str) -> Option<usize> {
+    // Convert names like "s3" to index 3.
+    sampler_name.strip_prefix('s')?.parse().ok()
+}
+
+fn calc_monochrome<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<([&'a Expr; 3], &'a Expr)> {
+    // calcMonochrome in pcmdo fragment shaders for XC1 and XC3.
+    // TODO: Check weight values for XC1 (0.3, 0.59, 0.11) or XC3 (0.01, 0.01, 0.01)?
+    let (_mat_col, monochrome, monochrome_ratio) = mix_a_b_ratio(nodes, expr)?;
+    let monochrome = node_expr(nodes, monochrome)?;
+    let (mat_col, _monochrome_weights) = dot3_a_b(nodes, monochrome)?;
+    Some((mat_col, monochrome_ratio))
+}
+
+fn find_normal_layers(
+    frag: &Graph,
+    dependent_lines: &[usize],
+    dependencies: &[Dependency],
+) -> Option<Vec<TextureLayer>> {
+    let last_node_index = *dependent_lines.last()?;
+    let last_node = frag.nodes.get(last_node_index)?;
+
+    let node = assign_x(&frag.nodes, &last_node.input)?;
+
+    // setMrtNormal in pcmdo shaders.
+    let view_normal = fma_half_half(&frag.nodes, node)?;
+    let view_normal = assign_x_recursive(&frag.nodes, view_normal);
+    let view_normal = normalize(&frag.nodes, view_normal)?;
+
+    // TODO: front facing in calcNormalZAbs in pcmdo?
+
+    // nomWork input for getCalcNormalMap in pcmdo shaders.
+    let nom_work = calc_normal_map(frag, &view_normal.input)?;
+    let nom_work = node_expr(&frag.nodes, nom_work[0])?;
+
+    let layers = find_layers(&frag.nodes, nom_work, dependencies);
+
+    Some(layers)
+}
+
+fn find_layers(nodes: &[Node], current: &Expr, dependencies: &[Dependency]) -> Vec<TextureLayer> {
     let mut layers = Vec::new();
 
-    // Detect common functions or operations used for layer blending.
-    while let Some((mat_col, layer, ratio, blend_mode)) = pixel_calc_over(&frag.nodes, current_col)
-        .or_else(|| pixel_calc_ratio_blend(&frag.nodes, current_col))
-        .or_else(|| pixel_calc_add(&frag.nodes, current_col, dependencies))
-        .or_else(|| add_pixel_calc_ratio(current_col))
+    let mut current = current;
+
+    // Detect the layers and blend mode.
+    while let Some((layer_a, layer_b, ratio, blend_mode)) = pixel_calc_add_normal(nodes, current)
+        .or_else(|| pixel_calc_over(nodes, current))
+        .or_else(|| pixel_calc_ratio_blend(nodes, current))
+        .or_else(|| pixel_calc_add(nodes, current, dependencies))
+        .or_else(|| add_pixel_calc_ratio(current))
     {
-        let mut layer = layer;
-        if let Some(n) = node_expr(&frag.nodes, layer) {
-            layer = assign_x_recursive(&frag.nodes, n);
+        let mut layer = assign_x_recursive(nodes, layer_b);
+        if let Some(new_layer) = normal_map_fma(nodes, layer) {
+            layer = new_layer;
         }
 
         if let Some(value) = layer_value(layer, dependencies) {
-            let (fresnel_ratio, ratio) = ratio_dependency(ratio, &frag.nodes, dependencies);
+            let (fresnel_ratio, ratio) = ratio_dependency(ratio, nodes, dependencies);
+
             layers.push(TextureLayer {
                 value,
                 ratio,
@@ -232,15 +288,14 @@ fn find_color_layers(
             });
         }
 
-        if let Some(mat_col) = node_expr(&frag.nodes, mat_col) {
-            current_col = mat_col;
-        } else {
-            break;
-        }
+        current = assign_x_recursive(nodes, layer_a);
     }
 
-    let base = assign_x_recursive(&frag.nodes, current_col);
-
+    // Detect the base layer.
+    let mut base = assign_x_recursive(nodes, current);
+    if let Some(new_base) = normal_map_fma(nodes, current) {
+        base = new_base;
+    }
     if let Some(value) = layer_value(base, dependencies) {
         layers.push(TextureLayer {
             value,
@@ -252,8 +307,7 @@ fn find_color_layers(
 
     // We start from the output, so these are in reverse order.
     layers.reverse();
-
-    Some(layers)
+    layers
 }
 
 fn pixel_calc_over<'a>(
@@ -318,109 +372,6 @@ fn pixel_calc_add<'a>(
         }
     }
     Some((a, b, &Expr::Float(1.0), LayerBlendMode::Add))
-}
-
-fn sampler_index(sampler_name: &str) -> Option<usize> {
-    // Convert names like "s3" to index 3.
-    sampler_name.strip_prefix('s')?.parse().ok()
-}
-
-fn calc_monochrome<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<([&'a Expr; 3], &'a Expr)> {
-    // calcMonochrome in pcmdo fragment shaders for XC1 and XC3.
-    // TODO: Check weight values for XC1 (0.3, 0.59, 0.11) or XC3 (0.01, 0.01, 0.01)?
-    let (_mat_col, monochrome, monochrome_ratio) = mix_a_b_ratio(nodes, expr)?;
-    let monochrome = node_expr(nodes, monochrome)?;
-    let (mat_col, _monochrome_weights) = dot3_a_b(nodes, monochrome)?;
-    Some((mat_col, monochrome_ratio))
-}
-
-fn find_normal_layers(
-    frag: &Graph,
-    dependent_lines: &[usize],
-    dependencies: &[Dependency],
-) -> Option<Vec<TextureLayer>> {
-    let last_node_index = *dependent_lines.last()?;
-    let last_node = frag.nodes.get(last_node_index)?;
-
-    let node = assign_x(&frag.nodes, &last_node.input)?;
-
-    // setMrtNormal in pcmdo shaders.
-    let view_normal = fma_half_half(&frag.nodes, node)?;
-    let view_normal = assign_x_recursive(&frag.nodes, view_normal);
-    let view_normal = normalize(&frag.nodes, view_normal)?;
-
-    // TODO: front facing in calcNormalZAbs in pcmdo?
-
-    // nomWork input for getCalcNormalMap in pcmdo shaders.
-    let nom_work = calc_normal_map(frag, &view_normal.input)?;
-    let mut nom_work = node_expr(&frag.nodes, nom_work[0])?;
-
-    let mut layers = Vec::new();
-
-    // Some shaders layer more than one additional normal map.
-    while let Some((layer_nom_work, n2, ratio)) = pixel_calc_add_normal(&frag.nodes, nom_work) {
-        if let Some(value) = layer_value(n2, dependencies) {
-            let (fresnel_ratio, ratio) = ratio_dependency(ratio, &frag.nodes, dependencies);
-
-            layers.push(TextureLayer {
-                value,
-                ratio,
-                blend_mode: LayerBlendMode::AddNormal,
-                is_fresnel: fresnel_ratio,
-            });
-        }
-        if let Some(n1) = normal_map_fma(&frag.nodes, layer_nom_work) {
-            if let Some(value) = layer_value(n1, dependencies) {
-                layers.push(TextureLayer {
-                    value,
-                    ratio: None,
-                    blend_mode: LayerBlendMode::AddNormal,
-                    is_fresnel: false,
-                });
-            }
-        }
-        nom_work = layer_nom_work;
-    }
-
-    // TODO: Check for each blend operation at each layer.
-    while let Some((layer_nom_work, n2, ratio)) = mix_a_b_ratio(&frag.nodes, nom_work) {
-        if let Some(n2_node) = node_expr(&frag.nodes, n2) {
-            let (fresnel_ratio, ratio) = ratio_dependency(ratio, &frag.nodes, dependencies);
-
-            if let Some(n2) = normal_map_fma(&frag.nodes, n2_node) {
-                if let Some(value) = layer_value(n2, dependencies) {
-                    layers.push(TextureLayer {
-                        value,
-                        ratio,
-                        blend_mode: LayerBlendMode::Mix,
-                        is_fresnel: fresnel_ratio,
-                    });
-                }
-            }
-        }
-
-        if let Some(layer_nom_work) = node_expr(&frag.nodes, layer_nom_work) {
-            if let Some(n1) = normal_map_fma(&frag.nodes, layer_nom_work) {
-                if let Some(value) = layer_value(n1, dependencies) {
-                    layers.push(TextureLayer {
-                        value,
-                        ratio: None,
-                        blend_mode: LayerBlendMode::Mix,
-                        is_fresnel: false,
-                    });
-                }
-            }
-
-            nom_work = layer_nom_work;
-        } else {
-            break;
-        }
-    }
-
-    // We start from the output, so these are in reverse order.
-    layers.reverse();
-
-    Some(layers)
 }
 
 fn ratio_dependency(
@@ -493,7 +444,7 @@ fn layer_value(input: &Expr, dependencies: &[Dependency]) -> Option<Dependency> 
 fn pixel_calc_add_normal<'a>(
     nodes: &'a [Node],
     nom_work: &'a Expr,
-) -> Option<(&'a Expr, &'a Expr, &'a Expr)> {
+) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
     // getPixelCalcAddNormal in pcmdo shaders.
     // normalize(mix(nomWork, normalize(r), ratio))
     // XC2: ratio * (normalize(r) - nomWork) + nomWork
@@ -522,7 +473,7 @@ fn pixel_calc_add_normal<'a>(
     let nom_work = result.get("nom_work")?;
     let ratio = result.get("ratio")?;
     let n2 = result.get("n2")?;
-    Some((nom_work, n2, ratio))
+    Some((nom_work, n2, ratio, LayerBlendMode::AddNormal))
 }
 
 fn normal_map_fma<'a>(nodes: &'a [Node], nom_work: &'a Expr) -> Option<&'a Expr> {
@@ -1255,7 +1206,7 @@ mod tests {
                         ]
                     }),
                     ratio: None,
-                    blend_mode: LayerBlendMode::AddNormal,
+                    blend_mode: LayerBlendMode::Add,
                     is_fresnel: false
                 },
                 TextureLayer {
@@ -1504,7 +1455,7 @@ mod tests {
                             ]
                         }),
                         ratio: None,
-                        blend_mode: LayerBlendMode::AddNormal,
+                        blend_mode: LayerBlendMode::Add,
                         is_fresnel: false
                     },
                     TextureLayer {
@@ -1684,7 +1635,27 @@ mod tests {
                         ],
                     }),
                 ],
-                layers: Vec::new()
+                layers: vec![TextureLayer {
+                    value: Dependency::Texture(TextureDependency {
+                        name: "s2".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "x".into(),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "y".into(),
+                                params: None,
+                            },
+                        ],
+                    }),
+                    ratio: None,
+                    blend_mode: LayerBlendMode::Add,
+                    is_fresnel: false,
+                }],
             },
             shader.output_dependencies[&SmolStr::from("o2.x")]
         );
@@ -1764,7 +1735,7 @@ mod tests {
                         ]
                     }),
                     ratio: None,
-                    blend_mode: LayerBlendMode::Mix,
+                    blend_mode: LayerBlendMode::Add,
                     is_fresnel: false
                 },
                 TextureLayer {
@@ -1942,7 +1913,7 @@ mod tests {
                         ]
                     }),
                     ratio: None,
-                    blend_mode: LayerBlendMode::AddNormal,
+                    blend_mode: LayerBlendMode::Add,
                     is_fresnel: false
                 },
                 TextureLayer {
@@ -2135,7 +2106,7 @@ mod tests {
                             ],
                         }),
                         ratio: None,
-                        blend_mode: LayerBlendMode::AddNormal,
+                        blend_mode: LayerBlendMode::Add,
                         is_fresnel: false,
                     },
                     TextureLayer {
