@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added rendering support for selecting texture coordinate attributes to xc3_wgpu.
 * Added support for morph target names to glTF export.
 
+### Changed
+* Changed shader database to store texture layering information for each output and channel.
+
 ### Fixed
 * Fixed an issue where texture layers would only assign the first channel.
 * Fixed an issue where not all meshes would render in the color debug shading mode.
