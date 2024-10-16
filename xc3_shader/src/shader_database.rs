@@ -13,6 +13,7 @@ use indexmap::IndexMap;
 use indoc::indoc;
 use log::error;
 use rayon::prelude::*;
+use smol_str::ToSmolStr;
 use xc3_lib::mths::{FragmentShader, Mths};
 use xc3_model::shader_database::{
     BufferDependency, Dependency, LayerBlendMode, MapPrograms, ModelPrograms, OutputDependencies,
@@ -66,7 +67,6 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
             let mut layers = Vec::new();
 
             // TODO: This is really slow?
-            // TODO: This needs to be done be done for each channel.
             if i == 0 {
                 layers =
                     find_color_layers(frag, &dependent_lines, &dependencies).unwrap_or_default();
@@ -74,7 +74,6 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
                 layers = find_etc_layers(frag, &dependent_lines, &dependencies).unwrap_or_default();
             } else if i == 2 && "xy".contains(c) {
                 // TODO: Will this simplify consuming code if the channels are set properly?
-                // TODO: Modify queries to find the appropriate channel.
                 layers =
                     find_normal_layers(frag, &dependent_lines, &dependencies).unwrap_or_default();
             }
@@ -260,7 +259,24 @@ fn find_normal_layers(
     let nom_work = calc_normal_map(frag, &view_normal.input)?;
     let nom_work = node_expr(&frag.nodes, nom_work[0])?;
 
-    let layers = find_layers(&frag.nodes, nom_work, dependencies);
+    let mut layers = find_layers(&frag.nodes, nom_work, dependencies);
+
+    // TODO: Modify the query instead to find the appropriate channel?
+    // Assume that normal inputs are always XY for now.
+    let channel = last_node
+        .output
+        .channel
+        .map(|c| c.to_smolstr())
+        .unwrap_or_default();
+
+    for layer in &mut layers {
+        match &mut layer.value {
+            Dependency::Constant(_) => (),
+            Dependency::Buffer(b) => b.channels = channel.clone(),
+            Dependency::Texture(t) => t.channels = channel.clone(),
+            Dependency::Attribute(a) => a.channels = channel.clone(),
+        }
+    }
 
     Some(layers)
 }

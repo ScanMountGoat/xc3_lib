@@ -1,6 +1,6 @@
 use glam::{vec4, Vec4};
 use log::warn;
-use smol_str::{SmolStr, ToSmolStr};
+use smol_str::SmolStr;
 
 pub use xc3_lib::mxmd::{
     BlendMode, ColorWriteMode, CullMode, DepthFunc, FurShellParams, MaterialFlags,
@@ -539,24 +539,31 @@ impl OutputAssignments {
 // TODO: Should the base layer contain all textures?
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct OutputAssignment {
+    /// The base x value.
     pub x: Option<ChannelAssignment>,
+    /// The base y value.
     pub y: Option<ChannelAssignment>,
+    /// The base z value.
     pub z: Option<ChannelAssignment>,
+    /// The base w value.
     pub w: Option<ChannelAssignment>,
-    /// Additional layers to blend with the current values.
-    pub layers: Vec<OutputLayerAssignment>,
+    /// Additional layers to blend with the current x value.
+    pub x_layers: Vec<LayerChannelAssignment>,
+    /// Additional layers to blend with the current y value.
+    pub y_layers: Vec<LayerChannelAssignment>,
+    /// Additional layers to blend with the current z value.
+    pub z_layers: Vec<LayerChannelAssignment>,
+    /// Additional layers to blend with the current w value.
+    pub w_layers: Vec<LayerChannelAssignment>,
 }
 
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct OutputLayerAssignment {
-    pub x: Option<ChannelAssignment>,
-    pub y: Option<ChannelAssignment>,
-    pub z: Option<ChannelAssignment>,
-    pub w: Option<ChannelAssignment>,
-    // TODO: This should be set per channel.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LayerChannelAssignment {
+    /// The layer value to blend with the previous layer.
+    pub value: Option<ChannelAssignment>,
     /// The factor or blend weight for this layer.
-    /// The blending operation depends on the usage like normal or color.
     pub weight: Option<ChannelAssignment>,
+    /// The blending operation for this layer.
     pub blend_mode: LayerBlendMode,
     pub is_fresnel: bool,
 }
@@ -680,15 +687,13 @@ impl Material {
                     y: assignment(color_index, 1),
                     z: assignment(color_index, 2),
                     w: assignment(color_index, 3),
-                    layers: Vec::new(),
+                    ..Default::default()
                 },
                 OutputAssignment::default(),
                 OutputAssignment {
                     x: assignment(normal_index, 0),
                     y: assignment(normal_index, 1),
-                    z: None,
-                    w: None,
-                    layers: Vec::new(),
+                    ..Default::default()
                 },
                 OutputAssignment::default(),
                 OutputAssignment::default(),
@@ -696,8 +701,7 @@ impl Material {
                     x: assignment(spm_index, 0),
                     y: assignment(spm_index, 1),
                     z: assignment(spm_index, 2),
-                    w: None,
-                    layers: Vec::new(),
+                    ..Default::default()
                 },
             ],
         }
@@ -718,27 +722,33 @@ fn output_assignment(
     parameters: &MaterialParameters,
     output_index: usize,
 ) -> OutputAssignment {
-    // TODO: Add layers to each of the components.
-    let output = format!("o{output_index}.x");
-    let dependencies = shader.output_dependencies.get(&SmolStr::from(output));
-
     OutputAssignment {
-        // TODO: Should these each be a vec instead of option?
-        // TODO: Store layers separately from the base layer?
+        // TODO: Combine all layers as a single vec?
         x: channel_assignment(shader, parameters, output_index, 0),
         y: channel_assignment(shader, parameters, output_index, 1),
         z: channel_assignment(shader, parameters, output_index, 2),
         w: channel_assignment(shader, parameters, output_index, 3),
-        layers: dependencies
-            .map(|d| texture_layers(&d.layers, parameters))
-            .unwrap_or_default(),
+        x_layers: texture_layers(shader, parameters, output_index, 0),
+        y_layers: texture_layers(shader, parameters, output_index, 1),
+        z_layers: texture_layers(shader, parameters, output_index, 2),
+        w_layers: texture_layers(shader, parameters, output_index, 3),
     }
 }
 
 fn texture_layers(
-    layers: &[TextureLayer],
+    shader: &ShaderProgram,
     parameters: &MaterialParameters,
-) -> Vec<OutputLayerAssignment> {
+    output_index: usize,
+    channel_index: usize,
+) -> Vec<LayerChannelAssignment> {
+    let channel = ['x', 'y', 'z', 'w'][channel_index];
+    let output = format!("o{output_index}.{channel}");
+    let layers = shader
+        .output_dependencies
+        .get(&SmolStr::from(output))
+        .map(|d| d.layers.as_slice())
+        .unwrap_or_default();
+
     // Skip the base layer in the first element.
     layers
         .iter()
@@ -746,16 +756,10 @@ fn texture_layers(
         .map(|l| {
             // TODO: Is it worth detecting layers for each channel individually?
             // TODO: Is it safe to assume assigned channels are always xyzw?
-            let x = ChannelAssignment::from_dependency(&l.value, parameters, 'x');
-            let y = x.clone().map(|d| dependency_with_channel(d, 'y'));
-            let z = x.clone().map(|d| dependency_with_channel(d, 'z'));
-            let w = x.clone().map(|d| dependency_with_channel(d, 'w'));
+            let value = ChannelAssignment::from_dependency(&l.value, parameters, channel);
 
-            OutputLayerAssignment {
-                x,
-                y,
-                z,
-                w,
+            LayerChannelAssignment {
+                value,
                 weight: l
                     .ratio
                     .as_ref()
@@ -765,22 +769,6 @@ fn texture_layers(
             }
         })
         .collect()
-}
-
-fn dependency_with_channel(d: ChannelAssignment, channel: char) -> ChannelAssignment {
-    match d {
-        ChannelAssignment::Texture(texture_assignment) => {
-            ChannelAssignment::Texture(TextureAssignment {
-                channels: channel.to_smolstr(),
-                ..texture_assignment
-            })
-        }
-        ChannelAssignment::Attribute { name, .. } => ChannelAssignment::Attribute {
-            name,
-            channel_index: "xyzw".find(channel).unwrap(),
-        },
-        ChannelAssignment::Value(f) => ChannelAssignment::Value(f),
-    }
 }
 
 fn channel_assignment(
@@ -806,12 +794,6 @@ fn channel_assignment(
         });
     } else if output_index == 0 {
         // Color maps typically assign s0 using RGB or a single channel.
-        // dependencies.dependencies.retain(|d| {
-        //     !shader
-        //         .normal_layers
-        //         .iter()
-        //         .any(|l| layer_name(l) == sampler_name(d))
-        // });
         dependencies
             .dependencies
             .sort_by_cached_key(|d| sampler_index(d).unwrap_or(usize::MAX));
@@ -830,12 +812,6 @@ fn channel_assignment(
         // Color maps typically assign s0 using RGB or a single channel.
         // Ignore single channel masks if an RGB input is present.
         // Ignore XY BC5 normal maps by placing them at the end.
-        // dependencies.dependencies.retain(|d| {
-        //     !shader
-        //         .normal_layers
-        //         .iter()
-        //         .any(|l| layer_name(l) == sampler_name(d))
-        // });
         dependencies.dependencies.sort_by_cached_key(|d| {
             let count = original_dependencies
                 .dependencies
@@ -854,17 +830,21 @@ fn channel_assignment(
         });
     }
 
-    // Some textures like normal maps may use multiple input channels.
-    // First check if the current channel is used.
-    let dependency = dependencies
-        .dependencies
-        .iter()
-        .find(|d| {
-            channels(d)
-                .map(|channels| channels.contains(channel))
-                .unwrap_or_default()
-        })
-        .or_else(|| dependencies.dependencies.first())?;
+    let dependency = if dependencies.layers.is_empty() {
+        // Some textures like normal maps may use multiple input channels.
+        // First check if the current channel is used.
+        dependencies
+            .dependencies
+            .iter()
+            .find(|d| {
+                channels(d)
+                    .map(|channels| channels.contains(channel))
+                    .unwrap_or_default()
+            })
+            .or_else(|| dependencies.dependencies.first())
+    } else {
+        dependencies.dependencies.first()
+    }?;
 
     // If a parameter or attribute is assigned, it will likely be the only dependency.
     ChannelAssignment::from_dependency(dependency, parameters, channel)
