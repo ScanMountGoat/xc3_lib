@@ -225,29 +225,24 @@ pub fn materials(
 }
 
 fn texture_layers(
-    assignments: &OutputAssignments,
+    assignment: &OutputAssignment,
     name_to_index: &mut IndexMap<SmolStr, usize>,
     name_to_info: &mut IndexMap<SmolStr, TextureInfo>,
-    index: usize,
+    layer_index: usize,
 ) -> crate::shader::model::TextureLayers {
-    let layers = &assignments.assignments[index].layers;
+    let layers = &assignment.layers;
 
+    // TODO: Calculate this for each channel.
     let (s0, c0, w0, b0, value0, f0) =
-        texture_layer_indices(layers, name_to_index, name_to_info, 0);
-    let (s1, c1, w1, b1, value1, f1) =
-        texture_layer_indices(layers, name_to_index, name_to_info, 1);
-    let (s2, c2, w2, b2, value2, f2) =
-        texture_layer_indices(layers, name_to_index, name_to_info, 2);
-    let (s3, c3, w3, b3, value3, f3) =
-        texture_layer_indices(layers, name_to_index, name_to_info, 3);
+        texture_layer_indices(layers, name_to_index, name_to_info, layer_index);
 
     crate::shader::model::TextureLayers {
-        sampler_indices: ivec4(s0, s1, s2, s3),
-        channel_indices: uvec4(c0, c1, c2, c3),
-        default_weights: vec4(w0, w1, w2, w3),
-        values: [value0, value1, value2, value3],
-        blend_modes: ivec4(b0, b1, b2, b3),
-        is_fresnel: uvec4(f0, f1, f2, f3),
+        sampler_indices: ivec4(s0, s0, s0, s0),
+        channel_indices: uvec4(c0, c0, c0, c0),
+        default_weights: vec4(w0, w0, w0, w0),
+        value: value0,
+        blend_mode: ivec4(b0, b0, b0, b0),
+        is_fresnel: uvec4(f0, f0, f0, f0),
     }
 }
 
@@ -311,15 +306,22 @@ fn output_assignments(
     [0, 1, 2, 3, 4, 5].map(|i| {
         let assignment = &assignments.assignments[i];
 
-        let layers = texture_layers(assignments, name_to_index, name_to_info, i);
+        let layer2 = texture_layers(assignment, name_to_index, name_to_info, 0);
+        let layer3 = texture_layers(assignment, name_to_index, name_to_info, 1);
+        let layer4 = texture_layers(assignment, name_to_index, name_to_info, 2);
+        let layer5 = texture_layers(assignment, name_to_index, name_to_info, 3);
 
+        // TODO: per channel layers by just setting the appropriate channels as none?
         crate::shader::model::OutputAssignment {
             samplers1: sampler_assignment(assignment, name_to_index, name_to_info, 0),
             samplers2: sampler_assignment(assignment, name_to_index, name_to_info, 1),
             samplers3: sampler_assignment(assignment, name_to_index, name_to_info, 2),
             samplers4: sampler_assignment(assignment, name_to_index, name_to_info, 3),
             samplers5: sampler_assignment(assignment, name_to_index, name_to_info, 4),
-            layers,
+            layer2,
+            layer3,
+            layer4,
+            layer5,
             attributes: attribute_assignment(assignment),
             default_value: output_default(assignment, i),
         }

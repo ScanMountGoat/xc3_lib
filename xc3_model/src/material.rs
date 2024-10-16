@@ -553,6 +553,7 @@ pub struct OutputLayerAssignment {
     pub y: Option<ChannelAssignment>,
     pub z: Option<ChannelAssignment>,
     pub w: Option<ChannelAssignment>,
+    // TODO: This should be set per channel.
     /// The factor or blend weight for this layer.
     /// The blending operation depends on the usage like normal or color.
     pub weight: Option<ChannelAssignment>,

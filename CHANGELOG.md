@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## unreleased
 ### Added
+* Added shader database and rendering support for layered temp maps and blending.
 * Added rendering support for layered fur shell rendering to xc3_wgpu.
 * Added rendering support for selecting texture coordinate attributes to xc3_wgpu.
 * Added support for morph target names to glTF export.
