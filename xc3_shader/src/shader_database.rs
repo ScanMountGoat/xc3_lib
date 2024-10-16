@@ -288,6 +288,7 @@ fn find_layers(nodes: &[Node], current: &Expr, dependencies: &[Dependency]) -> V
 
     // Detect the layers and blend mode.
     while let Some((layer_a, layer_b, ratio, blend_mode)) = pixel_calc_add_normal(nodes, current)
+        .or_else(|| pixel_calc_overlay(nodes, current))
         .or_else(|| pixel_calc_over(nodes, current))
         .or_else(|| pixel_calc_ratio_blend(nodes, current))
         .or_else(|| pixel_calc_add(nodes, current, dependencies))
@@ -297,8 +298,6 @@ fn find_layers(nodes: &[Node], current: &Expr, dependencies: &[Dependency]) -> V
         if let Some(new_layer_b) = normal_map_fma(nodes, layer_b) {
             layer_b = new_layer_b;
         }
-
-        dbg!(layer_a, layer_b);
 
         if let Some(value) = layer_value(layer_b, dependencies) {
             let (fresnel_ratio, ratio) = ratio_dependency(ratio, nodes, dependencies);
@@ -395,6 +394,34 @@ fn pixel_calc_add<'a>(
         }
     }
     Some((a, b, &Expr::Float(1.0), LayerBlendMode::Add))
+}
+
+fn pixel_calc_overlay<'a>(
+    nodes: &'a [Node],
+    expr: &'a Expr,
+) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
+    // Some XC2 models use overlay blending for metalness.
+    // Overlay combines multiply and screen blend modes.
+    let query = indoc! {"
+        two_a = 2.0 * a;
+        a_b_multiply = two_a * b;
+        neg_a_b_multiply = 0.0 - a_b_multiply;
+        a_b_multiply = fma(a_gt_half, neg_a_b_multiply, a_b_multiply);
+
+        a_b_screen = fma(b, neg_temp, temp);
+        neg_a_gt_half = 0.0 - a_gt_half;
+        a_b_screen = fma(a_b_screen, neg_a_gt_half, a_gt_half);
+
+        a_b_overlay = a_b_screen + a_b_multiply;
+        neg_ratio = 0.0 - ratio;
+        result = fma(a, neg_ratio, a);
+        result = fma(a_b_overlay, ratio, result);
+    "};
+    let result = query_nodes_glsl(expr, nodes, query)?;
+    let a = result.get("a")?;
+    let b = result.get("b")?;
+    let ratio = result.get("ratio")?;
+    Some((a, b, ratio, LayerBlendMode::Overlay))
 }
 
 fn ratio_dependency(
@@ -2326,7 +2353,7 @@ mod tests {
                             },
                         ],
                     })),
-                    blend_mode: LayerBlendMode::Mix,
+                    blend_mode: LayerBlendMode::Overlay,
                     is_fresnel: false,
                 },
             ],

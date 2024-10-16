@@ -78,19 +78,6 @@ pub fn materials(
                 name_to_index.entry_index(format!("s{}", a.texture_index).into());
             }
 
-            let color_layers = texture_layers(
-                &material_assignments,
-                &mut name_to_index,
-                &mut name_to_info,
-                0,
-            );
-            let normal_layers = texture_layers(
-                &material_assignments,
-                &mut name_to_index,
-                &mut name_to_info,
-                2,
-            );
-
             let mut texture_views: [Option<_>; 10] = std::array::from_fn(|_| None);
             let mut texture_info = [UVec4::ZERO; 10];
             for (name, i) in &name_to_index {
@@ -141,8 +128,6 @@ pub fn materials(
                 &[crate::shader::model::PerMaterial {
                     mat_color: material.color.into(),
                     assignments,
-                    color_layers,
-                    normal_layers,
                     texture_transforms,
                     texture_info,
                     alpha_test_texture: {
@@ -292,6 +277,7 @@ fn texture_layer_indices(
             xc3_model::shader_database::LayerBlendMode::MixRatio => 1,
             xc3_model::shader_database::LayerBlendMode::Add => 2,
             xc3_model::shader_database::LayerBlendMode::AddNormal => 3,
+            xc3_model::shader_database::LayerBlendMode::Overlay => 4,
         })
         .unwrap_or(-1);
 
@@ -324,12 +310,16 @@ fn output_assignments(
     // Each output channel may have a different input sampler and channel.
     [0, 1, 2, 3, 4, 5].map(|i| {
         let assignment = &assignments.assignments[i];
+
+        let layers = texture_layers(assignments, name_to_index, name_to_info, i);
+
         crate::shader::model::OutputAssignment {
             samplers1: sampler_assignment(assignment, name_to_index, name_to_info, 0),
             samplers2: sampler_assignment(assignment, name_to_index, name_to_info, 1),
             samplers3: sampler_assignment(assignment, name_to_index, name_to_info, 2),
             samplers4: sampler_assignment(assignment, name_to_index, name_to_info, 3),
             samplers5: sampler_assignment(assignment, name_to_index, name_to_info, 4),
+            layers,
             attributes: attribute_assignment(assignment),
             default_value: output_default(assignment, i),
         }

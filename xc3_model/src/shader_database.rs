@@ -197,6 +197,8 @@ pub enum LayerBlendMode {
     Add,
     /// Normal blend mode similar to "Reoriented Normal Mapping" (RNM).
     AddNormal,
+    /// `mix(a, overlay(a, b), ratio)`.
+    Overlay,
 }
 
 impl Default for LayerBlendMode {

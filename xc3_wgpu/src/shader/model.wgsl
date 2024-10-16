@@ -109,6 +109,7 @@ struct OutputAssignment {
     samplers3: SamplerAssignment,
     samplers4: SamplerAssignment,
     samplers5: SamplerAssignment,
+    layers: TextureLayers,
     attributes: AttributeAssignment,
     default_value: vec4<f32>
 }
@@ -128,8 +129,6 @@ struct PerMaterial {
 
     // Shader database information.
     assignments: array<OutputAssignment, 6>,
-    color_layers: TextureLayers,
-    normal_layers: TextureLayers,
 
     // texture index, channel, index, 0, 0
     alpha_test_texture: vec4<i32>,
@@ -538,23 +537,26 @@ fn blend_layer(a: vec3<f32>, b: vec3<f32>, ratio: f32, n_dot_v: f32, mode: i32, 
             let b_normal = create_normal_map(b.xy);
             return add_normal_maps(a, b_normal, final_ratio);
         }
+        case 4: {
+            return mix(a, overlay_blend(a, b), final_ratio);
+        }
         default: {
             return a;
         }
     }
 }
 
-fn blend_texture_layer(current: vec3<f32>, assignments: OutputAssignment, layers: TextureLayers, s_colors: array<vec4<f32>, 10>, layer_index: u32, n_dot_v: f32) -> vec3<f32> {
-    let blend_mode = layers.blend_modes[layer_index];
-    let sampler_index = layers.sampler_indices[layer_index];
-    let channel_index = layers.channel_indices[layer_index];
-    let default_weight = layers.default_weights[layer_index];
-    let is_fresnel = layers.is_fresnel[layer_index] != 0u;
+fn blend_texture_layer(current: vec3<f32>, assignments: OutputAssignment, s_colors: array<vec4<f32>, 10>, layer_index: u32, n_dot_v: f32) -> vec3<f32> {
+    let blend_mode = assignments.layers.blend_modes[layer_index];
+    let sampler_index = assignments.layers.sampler_indices[layer_index];
+    let channel_index = assignments.layers.channel_indices[layer_index];
+    let default_weight = assignments.layers.default_weights[layer_index];
+    let is_fresnel = assignments.layers.is_fresnel[layer_index] != 0u;
 
     // TODO: Should this be vec3 or vec4?
     if blend_mode != -1 {
         let weight = assign_channel(sampler_index, channel_index, -1, s_colors, vec4(0.0), default_weight);
-        let b = assign_texture_layer(assignments, layer_index, s_colors, layers.values);
+        let b = assign_texture_layer(assignments, layer_index, s_colors, assignments.layers.values);
         return blend_layer(current, b.xyz, weight, n_dot_v, blend_mode, is_fresnel);
     } else {
         return current;
@@ -621,14 +623,12 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     var normal = vertex_normal;
     if assignments[2].samplers1.sampler_indices.x != -1 && assignments[2].samplers1.sampler_indices.y != -1 {
 
-        let layers = per_material.normal_layers;
-
         // These layers don't use fresnel blending, so just use a default for dot(N, V).
         var normal_map = create_normal_map(g_normal.xy);
-        normal_map = blend_texture_layer(normal_map, assignments[2], layers, s_colors, 0u, 1.0);
-        normal_map = blend_texture_layer(normal_map, assignments[2], layers, s_colors, 1u, 1.0);
-        normal_map = blend_texture_layer(normal_map, assignments[2], layers, s_colors, 2u, 1.0);
-        normal_map = blend_texture_layer(normal_map, assignments[2], layers, s_colors, 3u, 1.0);
+        normal_map = blend_texture_layer(normal_map, assignments[2], s_colors, 0u, 1.0);
+        normal_map = blend_texture_layer(normal_map, assignments[2], s_colors, 1u, 1.0);
+        normal_map = blend_texture_layer(normal_map, assignments[2], s_colors, 2u, 1.0);
+        normal_map = blend_texture_layer(normal_map, assignments[2], s_colors, 3u, 1.0);
 
         normal = apply_normal_map(normal_map, tangent, bitangent, vertex_normal);
     }
@@ -641,12 +641,11 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     let n_dot_v = max(dot(view, view_normal), 0.0);
 
     // Blend color layers.
-    let layers = per_material.color_layers;
     var color = g_color.xyz;
-    color = blend_texture_layer(color, assignments[0], layers, s_colors, 0u, n_dot_v);
-    color = blend_texture_layer(color, assignments[0], layers, s_colors, 1u, n_dot_v);
-    color = blend_texture_layer(color, assignments[0], layers, s_colors, 2u, n_dot_v);
-    color = blend_texture_layer(color, assignments[0], layers, s_colors, 3u, n_dot_v);
+    color = blend_texture_layer(color, assignments[0], s_colors, 0u, n_dot_v);
+    color = blend_texture_layer(color, assignments[0], s_colors, 1u, n_dot_v);
+    color = blend_texture_layer(color, assignments[0], s_colors, 2u, n_dot_v);
+    color = blend_texture_layer(color, assignments[0], s_colors, 3u, n_dot_v);
 
     // TODO: How to detect if vertex color is actually color?
 
