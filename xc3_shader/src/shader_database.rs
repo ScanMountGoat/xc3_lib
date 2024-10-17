@@ -212,8 +212,8 @@ fn find_color_layers(
     if let Some((mat_cols, _monochrome_ratio)) = calc_monochrome(&frag.nodes, current_col) {
         let mat_col = match last_node.output.channel {
             Some('x') => &mat_cols[0],
-            Some('y') => &mat_cols[0],
-            Some('z') => &mat_cols[0],
+            Some('y') => &mat_cols[1],
+            Some('z') => &mat_cols[2],
             _ => &mat_cols[0],
         };
         current_col = node_expr(&frag.nodes, mat_col)?;
@@ -1256,6 +1256,100 @@ mod tests {
             vec![
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
+                        name: "s0".into(),
+                        channels: "y".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr3".into(),
+                                channels: "x".into(),
+                                params: None
+                            },
+                            TexCoord {
+                                name: "in_attr3".into(),
+                                channels: "y".into(),
+                                params: None
+                            }
+                        ]
+                    }),
+                    ratio: None,
+                    blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: false
+                },
+                TextureLayer {
+                    value: Dependency::Texture(TextureDependency {
+                        name: "gTResidentTex04".into(),
+                        channels: "y".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "x".into(),
+                                params: None
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "y".into(),
+                                params: None
+                            }
+                        ]
+                    }),
+                    ratio: None,
+                    blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: false
+                }
+            ],
+            shader.output_dependencies[&SmolStr::from("o0.y")].layers
+        );
+        assert_eq!(
+            vec![
+                TextureLayer {
+                    value: Dependency::Texture(TextureDependency {
+                        name: "s0".into(),
+                        channels: "z".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr3".into(),
+                                channels: "x".into(),
+                                params: None
+                            },
+                            TexCoord {
+                                name: "in_attr3".into(),
+                                channels: "y".into(),
+                                params: None
+                            }
+                        ]
+                    }),
+                    ratio: None,
+                    blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: false
+                },
+                TextureLayer {
+                    value: Dependency::Texture(TextureDependency {
+                        name: "gTResidentTex04".into(),
+                        channels: "z".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "x".into(),
+                                params: None
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "y".into(),
+                                params: None
+                            }
+                        ]
+                    }),
+                    ratio: None,
+                    blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: false
+                }
+            ],
+            shader.output_dependencies[&SmolStr::from("o0.z")].layers
+        );
+        assert_eq!(
+            vec![
+                TextureLayer {
+                    value: Dependency::Texture(TextureDependency {
                         name: "s2".into(),
                         channels: "x".into(),
                         texcoords: vec![
@@ -1388,7 +1482,7 @@ mod tests {
                     is_fresnel: false
                 }
             ],
-            shader.output_dependencies[&SmolStr::from("o0.y")].layers
+            shader.output_dependencies[&SmolStr::from("o0.x")].layers
         );
         assert_eq!(
             OutputDependencies {
@@ -1801,6 +1895,68 @@ mod tests {
                 }
             ],
             shader.output_dependencies[&SmolStr::from("o2.x")].layers
+        );
+        assert_eq!(
+            vec![
+                TextureLayer {
+                    value: Dependency::Texture(TextureDependency {
+                        name: "s6".into(),
+                        channels: "y".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr3".into(),
+                                channels: "x".into(),
+                                params: None
+                            },
+                            TexCoord {
+                                name: "in_attr3".into(),
+                                channels: "y".into(),
+                                params: None
+                            }
+                        ]
+                    }),
+                    ratio: None,
+                    blend_mode: LayerBlendMode::Add,
+                    is_fresnel: false
+                },
+                TextureLayer {
+                    value: Dependency::Texture(TextureDependency {
+                        name: "s7".into(),
+                        channels: "y".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr3".into(),
+                                channels: "z".into(),
+                                params: None
+                            },
+                            TexCoord {
+                                name: "in_attr3".into(),
+                                channels: "w".into(),
+                                params: None
+                            }
+                        ]
+                    }),
+                    ratio: Some(Dependency::Texture(TextureDependency {
+                        name: "s1".into(),
+                        channels: "x".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr3".into(),
+                                channels: "x".into(),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3".into(),
+                                channels: "y".into(),
+                                params: None,
+                            },
+                        ],
+                    })),
+                    blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: false
+                }
+            ],
+            shader.output_dependencies[&SmolStr::from("o2.y")].layers
         );
     }
 

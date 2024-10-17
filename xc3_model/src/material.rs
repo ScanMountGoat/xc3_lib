@@ -830,8 +830,8 @@ fn channel_assignment(
         });
     }
 
-    let dependency = if dependencies.layers.is_empty() {
-        // Some textures like normal maps may use multiple input channels.
+    let dependency = if output_index != 1 {
+        // Some textures like color or normal maps may use multiple input channels.
         // First check if the current channel is used.
         dependencies
             .dependencies
