@@ -17,3 +17,8 @@ xc3_shader shader-database "Shader Dump" shader_database.json
 xc3_shader glsl-dependencies shader.glsl out.glsl out_attr0.x
 xc3_shader latte-dependencies shader.txt out.glsl PIX0.x
 ```
+
+### Analyzing Shaders
+1. Identify the shader in the decompiled shader dump using the model name and the slct index. The slct index is displayed as a custom property on the material in [xenoblade_blender](https://github.com/ScanMountGoat/xenoblade_blender) for convenience.
+2. Extract the code for the desired output using the `xc3_shader glsl-dependencies` command.
+3. Analyze the relevant lines of code. There are many ways of doing this. Applying basic substitution until recognizable patterns emerge is one approach. Common GLSL functions like `mix(a, b, ratio)` may compile into multiple instructions and may not always be compiled the same way. Keep in mind relevant hardware details like the Switch using scalar operations and the Wii U using mostly vector operations.
