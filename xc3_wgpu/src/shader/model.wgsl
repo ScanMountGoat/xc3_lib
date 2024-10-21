@@ -507,37 +507,43 @@ fn select_uv(vert: VertexOutput, index: u32) -> vec2<f32> {
     return transform_uv(uvs, per_material.texture_transforms[index]);
 }
 
-fn overlay_blend(a: vec4<f32>, b: vec4<f32>) -> vec4<f32> {
+fn overlay_blend(a: f32, b: f32) -> f32 {
     // Trick to avoid a conditional branch from xenox/chr_fc/fc281011.camdo.
-    let is_a_gt_half = clamp((a - vec4(0.5)) * 1000.0, vec4(0.0), vec4(1.0));
+    let is_a_gt_half = clamp((a - 0.5) * 1000.0, 0.0, 1.0);
     let screen = 1.0 - 2.0 * (1.0 - a) * (1.0 - b);
     let multiply = 2.0 * a * b;
     return screen * is_a_gt_half + multiply * (1.0 - is_a_gt_half);
 }
 
 fn blend_layer(a: vec4<f32>, b: vec4<f32>, ratio: vec4<f32>, n_dot_v: f32, mode: vec4<i32>) -> vec4<f32> {
-    // TODO: properly handle per channel blend modes
-    switch (mode.x) {
-        case 0: {
-            return mix(a, b, ratio);
-        }
-        case 1: {
-            return mix(a, a * b, ratio);
-        }
-        case 2: {
-            return a + b * ratio;
-        }
-        case 3: {
-            let b_normal = create_normal_map(b.xy);
-            return vec4(add_normal_maps(a.xyz, b_normal, ratio.x), a.w);
-        }
-        case 4: {
-            return mix(a, overlay_blend(a, b), ratio);
-        }
-        default: {
-            return a;
+    // Color layers typically have the same blend mode for all channels.
+    // Blend each channel individually to properly blend params.
+    var result = a;
+    for (var i = 0u; i < 4; i++) {
+        switch (mode[i]) {
+            case 0: {
+                result[i] = mix(a[i], b[i], ratio[i]);
+            }
+            case 1: {
+                result[i] = mix(a[i], a[i] * b[i], ratio[i]);
+            }
+            case 2: {
+                result[i] = a[i] + b[i] * ratio[i];
+            }
+            case 3: {
+                // Assume this mode applies to all relevant channels.
+                let b_normal = create_normal_map(b.xy);
+                result = vec4(add_normal_maps(a.xyz, b_normal, ratio[i]), result.w);
+            }
+            case 4: {
+                result[i] = mix(a[i], overlay_blend(a[i], b[i]), ratio[i]);
+            }
+            default: {
+                result[i] = a[i];
+            }
         }
     }
+    return result;
 }
 
 fn blend_texture_layer(current: vec4<f32>, assignments: OutputAssignment, s_colors: array<vec4<f32>, 10>, layer_index: u32, n_dot_v: f32) -> vec4<f32> {
@@ -559,9 +565,6 @@ fn blend_texture_layer(current: vec4<f32>, assignments: OutputAssignment, s_colo
         }
     }
 
-    // TODO: Perform this for each channel individually.
-    // TODO: rework blend_layer to operate on vec4?
-    var result = current;
     var ratio = vec4(0.0);
     for (var i = 0; i < 4; i++) {
         let blend_mode = layers.blend_mode[i];
@@ -570,8 +573,6 @@ fn blend_texture_layer(current: vec4<f32>, assignments: OutputAssignment, s_colo
         let default_weight = layers.default_weights[i];
         let is_fresnel = layers.is_fresnel[i] != 0u;
 
-        // TODO: Should this be vec3 or vec4?
-        // TODO: How to also handle normal map blending?
         if blend_mode != -1 {
             ratio[i] = assign_channel(sampler_index, channel_index, -1, s_colors, vec4(0.0), default_weight);
             if is_fresnel {
@@ -679,7 +680,6 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     // The ordering here is the order of per material fragment shader outputs.
     // The input order for the deferred lighting pass is slightly different.
     // TODO: alpha?
-    // TODO: How much shading is done in this pass?
     // TODO: Is it ok to always apply gMatCol like this?
     // TODO: Detect multiply by vertex color and gMatCol.
     // TODO: Just detect if gMatCol is part of the technique parameters?
