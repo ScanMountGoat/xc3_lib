@@ -13,7 +13,7 @@ use crate::{
         BufferDependency, Dependency, LayerBlendMode, ModelPrograms, ShaderProgram,
         TextureDependency, TextureLayer,
     },
-    ImageTexture,
+    ImageTexture, Sampler,
 };
 
 /// See [Material](xc3_lib::mxmd::Material) and [FoliageMaterial](xc3_lib::map::FoliageMaterial).
@@ -225,12 +225,14 @@ pub(crate) fn create_materials(
         .collect()
 }
 
-pub(crate) fn create_materials_legacy(
+pub(crate) fn create_materials_samplers_legacy(
     materials: &xc3_lib::mxmd::legacy::Materials,
     texture_indices: &[u16],
     model_programs: Option<&ModelPrograms>,
-) -> Vec<Material> {
-    materials
+) -> (Vec<Material>, Vec<Sampler>) {
+    let mut samplers = Vec::new();
+
+    let materials = materials
         .materials
         .iter()
         .enumerate()
@@ -262,12 +264,21 @@ pub(crate) fn create_materials_legacy(
                     .iter()
                     .map(|t| {
                         // Texture indices are remapped by some models like chr_np/np025301.camdo.
+                        // Legacy samplers aren't indexed, so create indices here.
+                        let sampler = Sampler::from(t.sampler);
                         Texture {
                             image_texture_index: texture_indices
                                 .iter()
                                 .position(|i| *i == t.texture_index)
                                 .unwrap_or_default(),
-                            sampler_index: 0,
+                            sampler_index: samplers
+                                .iter()
+                                .position(|s| s == &sampler)
+                                .unwrap_or_else(|| {
+                                    let index = samplers.len();
+                                    samplers.push(sampler);
+                                    index
+                                }),
                         }
                     })
                     .collect(),
@@ -320,7 +331,9 @@ pub(crate) fn create_materials_legacy(
                 fur_params: None,
             }
         })
-        .collect()
+        .collect();
+
+    (materials, samplers)
 }
 
 fn get_shader(

@@ -223,13 +223,6 @@ impl GltfFile {
                 .push(gltf::json::Index::new(root_node_index));
         }
 
-        // TODO: proper sampler support for camdo?
-        if data.material_cache.samplers.is_empty() {
-            data.material_cache
-                .samplers
-                .push(gltf_json::texture::Sampler::default());
-        }
-
         data.into_gltf(model_name, flip_images_uvs)
     }
 

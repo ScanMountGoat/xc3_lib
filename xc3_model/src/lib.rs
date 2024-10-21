@@ -39,7 +39,7 @@ use binrw::{BinRead, BinReaderExt};
 use glam::{Mat4, Vec3};
 use indexmap::IndexMap;
 use log::error;
-use material::{create_materials, create_materials_legacy};
+use material::{create_materials, create_materials_samplers_legacy};
 use shader_database::ShaderDatabase;
 use texture::{load_textures, load_textures_legacy};
 use thiserror::Error;
@@ -260,10 +260,12 @@ impl Models {
         model_programs: Option<&shader_database::ModelPrograms>,
         texture_indices: &[u16],
     ) -> Self {
+        let (materials, samplers) =
+            create_materials_samplers_legacy(materials, texture_indices, model_programs);
         Self {
             models: models.models.iter().map(Model::from_model_legacy).collect(),
-            materials: create_materials_legacy(materials, texture_indices, model_programs),
-            samplers: Vec::new(),
+            materials,
+            samplers,
             lod_data: None,
             morph_controller_names: Vec::new(),
             animation_morph_names: Vec::new(),

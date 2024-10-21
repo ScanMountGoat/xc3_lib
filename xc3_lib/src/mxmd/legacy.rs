@@ -8,7 +8,7 @@ use crate::{
 use binrw::{binread, BinRead, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
-use super::StateFlags;
+use super::{SamplerFlags, StateFlags};
 
 // TODO: How much code can be shared with non legacy types?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -226,7 +226,6 @@ pub struct Materials {
     pub unks1_2_1: u32,
     pub unks1_2_2: u32,
 
-    // TODO: where are the samplers?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub unks1_2_3: Option<[u32; 8]>,
@@ -337,12 +336,11 @@ pub enum UnkPassType {
     Unk8 = 8,
 }
 
-// TODO: Same as wimdo?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Texture {
     pub texture_index: u16,
-    pub unk_index: u16, // TODO: where are the samplers?
+    pub sampler: SamplerFlags,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -372,17 +370,28 @@ pub struct MaterialsUnk2 {
 pub struct MaterialsUnk3 {
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
-    pub unk1: Vec<u32>,
+    pub unk1: Vec<(u16, u16)>,
 
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
-    pub unk2: Vec<u32>,
+    pub unk2: Vec<(u16, u16)>,
 
+    // TODO: one for each material?
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
-    pub unk3: Vec<[u32; 3]>,
+    pub unk3: Vec<MaterialsUnk3Unk3>,
 
     pub unk: [u32; 4],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct MaterialsUnk3Unk3 {
+    pub unk1: u16,
+    pub unk2: u16,
+    pub unk3: u16,
+    pub index: u16, // TODO: material index?
+    pub unk5: u32,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -423,8 +432,8 @@ pub struct Technique {
     #[xc3(offset_count(u32, u32))]
     pub unk7: Vec<[u16; 4]>,
 
-    pub unk8: u32,
-    pub unk9: u32,
+    pub unk8: (u16, u16),
+    pub unk9: (u16, u16),
 
     // TODO: padding?
     pub padding: [u32; 5],

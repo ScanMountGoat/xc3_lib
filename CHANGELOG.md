@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added support for morph target names to glTF export.
 * Added support for isolating color channels in xc3_viewer with the RGBA or XYZW keys.
 * Added support to xc3_tex for exporting cube maps with the `--cube` flag and 3D textures with the `--depth` flags.
+* Added sampler support for camdo models.
 
 ### Changed
 * Changed shader database to store texture layering information for each output and channel.

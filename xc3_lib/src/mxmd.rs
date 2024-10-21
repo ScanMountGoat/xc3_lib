@@ -342,17 +342,18 @@ pub struct Samplers {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Sampler {
     pub flags: SamplerFlags,
+    pub unk2: u16,
 
     // Is this actually a float?
-    pub unk2: f32,
+    pub unk3: f32,
 }
 
 /// Texture sampler settings for addressing and filtering.
-#[bitsize(32)]
+#[bitsize(16)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(DebugBits, FromBits, BinRead, BinWrite, PartialEq, Clone, Copy)]
-#[br(map = u32::into)]
-#[bw(map = |&x| u32::from(x))]
+#[br(map = u16::into)]
+#[bw(map = |&x| u16::from(x))]
 pub struct SamplerFlags {
     /// Sets wrap U to repeat when `true`.
     pub repeat_u: bool,
@@ -374,7 +375,7 @@ pub struct SamplerFlags {
     pub disable_mipmap_filter: bool,
     pub unk1: bool,
     pub unk3: bool,
-    pub unk: u23,
+    pub unk: u7,
 }
 
 /// A single material assignable to a [Mesh].
