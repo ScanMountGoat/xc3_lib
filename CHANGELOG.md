@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added rendering support for layered fur shell rendering to xc3_wgpu.
 * Added rendering support for selecting texture coordinate attributes to xc3_wgpu.
 * Added support for morph target names to glTF export.
+* Added support for isolating color channels in xc3_viewer with the RGBA or XYZW keys.
 
 ### Changed
 * Changed shader database to store texture layering information for each output and channel.

@@ -688,7 +688,7 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     out.g_etc_buffer = mrt_etc_buffer(etc_buffer, view_normal);
     out.g_normal = mrt_normal(view_normal, g_normal.z);
     out.g_velocity = g_velocity;
-    out.g_depth = mrt_depth(in.position.z, 0.0);
+    out.g_depth = mrt_depth(in.position.z, g_depth.w);
     out.g_lgt_color = g_lgt_color;
     return out;
 }

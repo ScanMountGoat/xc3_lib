@@ -1,13 +1,14 @@
 // PerPass resources.
 struct DebugSettings {
-    render_mode: u32
+    render_mode: u32,
+    channel: i32
 }
 
 @group(0) @binding(0)
 var<uniform> debug_settings: DebugSettings;
 
 struct RenderSettings {
-    mat_id: u32,
+    mat_id: u32
 }
 
 // PerPass resources that may change when resized.
@@ -230,10 +231,14 @@ fn calculate_toon_color(uv: vec2<f32>) -> vec4<f32> {
     let k_specular = f0;
     let k_diffuse = 1.0 - metalness;
 
+    // TODO: Adding the toon shift only applies to xc3?
+    let toon_shift_u = g_depth.w * 2.0 - 1.0;
+    let toon_u = diffuse_lighting;
+    let toon_v = toon_grad_v(g_etc_buffer.z);
+
     // TODO: Correctly use both gradients to fix massive melee mythra hair.
     // TODO: Are these the right gradients?
-    let toon_v = toon_grad_v(g_etc_buffer.z);
-    let toon_diffuse = textureSample(g_toon_grad, shared_sampler, vec2(diffuse_lighting, toon_v)).rgb;
+    let toon_diffuse = textureSample(g_toon_grad, shared_sampler, vec2(toon_u, toon_v)).rgb;
     let toon_specular = specular_lighting;
 
     output = albedo * k_diffuse * toon_diffuse + toon_specular * k_specular * ambient_occlusion;
@@ -286,31 +291,50 @@ fn fs_debug(in: VertexOutput) -> FragmentOutput {
     let g_lgt_color = textureSample(g_lgt_color, shared_sampler, in.uv);
     let g_specular_color = textureSample(g_specular_color, shared_sampler, in.uv);
 
-    var out: FragmentOutput;
+    var color = vec4(0.0);
     switch (debug_settings.render_mode) {
         case 1u: {
-            out.color = g_color;
+            color = g_color;
         }
         case 2u: {
-            out.color = g_etc_buffer;
+            color = g_etc_buffer;
         }
         case 3u: {
-            out.color = g_normal;
+            color = g_normal;
         }
         case 4u: {
-            out.color = g_velocity;
+            color = g_velocity;
         }
         case 5u: {
-            out.color = g_depth;
+            color = g_depth;
         }
         case 6u: {
-            out.color = g_lgt_color;
+            color = g_lgt_color;
         }
         case 7u: {
-            out.color = g_specular_color;
+            color = g_specular_color;
         }
         default: {
-            out.color = vec4(0.0);
+            color = vec4(0.0);
+        }
+    }
+
+    var out: FragmentOutput;
+    switch (debug_settings.channel) {
+        case 0: {
+            out.color = vec4(color.rrr, 1.0);
+        }
+        case 1: {
+            out.color = vec4(color.ggg, 1.0);
+        }
+        case 2: {
+            out.color = vec4(color.bbb, 1.0);
+        }
+        case 3: {
+            out.color = vec4(color.aaa, 1.0);
+        }
+        default: {
+            out.color = color;
         }
     }
 

@@ -37,6 +37,7 @@ struct State<'a> {
     rotation_xyz: Vec3,
 
     renderer: Renderer,
+    render_mode: RenderMode,
 
     model_names: String,
     groups: Vec<ModelGroup>,
@@ -252,6 +253,7 @@ impl<'a> State<'a> {
             previous_frame_start: Instant::now(),
             draw_bones: cli.bones,
             draw_bounds: cli.bounds,
+            render_mode: RenderMode::Shaded,
         })
     }
 
@@ -260,9 +262,10 @@ impl<'a> State<'a> {
         self.renderer.update_camera(&self.queue, &camera_data);
     }
 
-    fn update_debug_settings(&mut self, render_mode: RenderMode) {
+    fn update_debug_settings(&mut self, render_mode: RenderMode, channel: i32) {
+        self.render_mode = render_mode;
         self.renderer
-            .update_debug_settings(&self.queue, render_mode);
+            .update_debug_settings(&self.queue, render_mode, channel);
     }
 
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
@@ -341,14 +344,20 @@ impl<'a> State<'a> {
                     winit::keyboard::Key::Character(c) => {
                         match c.as_str() {
                             // Debug a selected G-Buffer texture.
-                            "0" => self.update_debug_settings(RenderMode::Shaded),
-                            "1" => self.update_debug_settings(RenderMode::GBuffer0),
-                            "2" => self.update_debug_settings(RenderMode::GBuffer1),
-                            "3" => self.update_debug_settings(RenderMode::GBuffer2),
-                            "4" => self.update_debug_settings(RenderMode::GBuffer3),
-                            "5" => self.update_debug_settings(RenderMode::GBuffer4),
-                            "6" => self.update_debug_settings(RenderMode::GBuffer5),
-                            "7" => self.update_debug_settings(RenderMode::GBuffer6),
+                            // This also resets the color channel to all channels.
+                            "0" => self.update_debug_settings(RenderMode::Shaded, -1),
+                            "1" => self.update_debug_settings(RenderMode::GBuffer0, -1),
+                            "2" => self.update_debug_settings(RenderMode::GBuffer1, -1),
+                            "3" => self.update_debug_settings(RenderMode::GBuffer2, -1),
+                            "4" => self.update_debug_settings(RenderMode::GBuffer3, -1),
+                            "5" => self.update_debug_settings(RenderMode::GBuffer4, -1),
+                            "6" => self.update_debug_settings(RenderMode::GBuffer5, -1),
+                            "7" => self.update_debug_settings(RenderMode::GBuffer6, -1),
+                            // Debug selected color channel.
+                            "r" | "x" => self.update_debug_settings(self.render_mode, 0),
+                            "g" | "y" => self.update_debug_settings(self.render_mode, 1),
+                            "b" | "z" => self.update_debug_settings(self.render_mode, 2),
+                            "a" | "w" => self.update_debug_settings(self.render_mode, 3),
                             // Animation playback.
                             "." => {
                                 if event.state == ElementState::Released {

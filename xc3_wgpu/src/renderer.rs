@@ -182,6 +182,7 @@ impl Renderer {
             "Debug Settings",
             &crate::shader::deferred::DebugSettings {
                 render_mode: render_mode as u32,
+                channel: -1,
             },
         );
 
@@ -359,12 +360,18 @@ impl Renderer {
         self.textures = Textures::new(device, width, height);
     }
 
-    pub fn update_debug_settings(&mut self, queue: &wgpu::Queue, render_mode: RenderMode) {
+    pub fn update_debug_settings(
+        &mut self,
+        queue: &wgpu::Queue,
+        render_mode: RenderMode,
+        channel: i32,
+    ) {
         self.render_mode = render_mode;
         queue.write_uniform_data(
             &self.debug_settings_buffer,
             &crate::shader::deferred::DebugSettings {
                 render_mode: render_mode as u32,
+                channel,
             },
         );
     }
