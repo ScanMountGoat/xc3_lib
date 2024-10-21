@@ -238,7 +238,7 @@ impl Renderer {
             deferred_pipeline(device, crate::shader::deferred::ENTRY_FS_TOON),
             deferred_pipeline(device, crate::shader::deferred::ENTRY_FS_MAIN),
             deferred_pipeline(device, crate::shader::deferred::ENTRY_FS_MAIN),
-            deferred_pipeline(device, crate::shader::deferred::ENTRY_FS_MAIN),
+            deferred_pipeline(device, crate::shader::deferred::ENTRY_FS_TOON),
         ];
 
         let deferred_debug_pipeline = deferred_debug_pipeline(device);

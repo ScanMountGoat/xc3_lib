@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 * Changed shader database to store texture layering information for each output and channel.
 * Improved detection of texture layer blending for shader database.
+* Improved rendering accuracy for hair shading.
 
 ### Fixed
 * Fixed an issue where texture layers would only assign the first channel.
