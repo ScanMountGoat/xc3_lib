@@ -54,6 +54,14 @@ struct ConvertArgs {
     /// Don't include any mipmaps when saving as a file like dds or witex
     #[arg(long)]
     no_mipmaps: bool,
+    /// Convert a width x (height * 6) image into a square cube map.
+    /// DDS inputs should instead use the appropriate flags.
+    #[arg(long)]
+    cube: bool,
+    /// Convert a width x (height * depth) image into a square 3D texture. Does not apply to DDS.
+    /// DDS inputs should instead use the appropriate flags.
+    #[arg(long)]
+    depth: bool,
 }
 
 #[derive(Subcommand)]
@@ -197,11 +205,13 @@ fn main() -> anyhow::Result<()> {
             let format = args.format.map(|f| ImageFormat::from_str(&f)).transpose()?;
             let quality = args.quality.map(|f| Quality::from_str(&f)).transpose()?;
             let mipmaps = !args.no_mipmaps;
+            let cube = args.cube;
+            let depth = args.depth;
 
             match output.extension().unwrap().to_str().unwrap() {
                 "dds" => {
                     input_file
-                        .to_dds(format, quality, mipmaps)?
+                        .to_dds(format, quality, mipmaps, cube, depth)?
                         .save(&output)
                         .with_context(|| format!("failed to save DDS to {output:?}"))?;
                 }

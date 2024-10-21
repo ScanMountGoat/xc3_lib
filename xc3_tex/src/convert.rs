@@ -49,6 +49,8 @@ impl File {
         format: Option<ImageFormat>,
         quality: Option<Quality>,
         mipmaps: bool,
+        cube: bool,
+        depth: bool,
     ) -> anyhow::Result<Dds> {
         match self {
             File::Mibl(mibl) => mibl
@@ -88,17 +90,38 @@ impl File {
                     }),
                 }
             }
-            File::Image(image) => image_dds::dds_from_image(
-                image,
-                format.ok_or(anyhow::anyhow!("missing required image output format"))?,
-                quality.unwrap_or(Quality::Normal),
-                if mipmaps {
+            File::Image(image) => {
+                let format =
+                    format.ok_or(anyhow::anyhow!("missing required image output format"))?;
+                let quality = quality.unwrap_or(Quality::Normal);
+                let mipmaps = if mipmaps {
                     Mipmaps::GeneratedAutomatic
                 } else {
                     Mipmaps::Disabled
-                },
-            )
-            .with_context(|| "failed to encode image to DDS"),
+                };
+
+                if cube {
+                    // Assume a square image.
+                    image_dds::SurfaceRgba8::from_image_layers(
+                        image,
+                        image.height() / image.width(),
+                    )
+                    .encode(format, quality, mipmaps)
+                    .with_context(|| "failed to encode image to DDS")?
+                    .to_dds()
+                    .with_context(|| "failed to create DDS")
+                } else if depth {
+                    // Assume a square image.
+                    image_dds::SurfaceRgba8::from_image_depth(image, image.height() / image.width())
+                        .encode(format, quality, mipmaps)
+                        .with_context(|| "failed to encode image to DDS")?
+                        .to_dds()
+                        .with_context(|| "failed to create DDS")
+                } else {
+                    image_dds::dds_from_image(image, format, quality, mipmaps)
+                        .with_context(|| "failed to encode image to DDS")
+                }
+            }
             File::Wilay(_) => Err(anyhow::anyhow!(
                 "wilay textures must be saved to an output folder instead of a single image"
             )),
