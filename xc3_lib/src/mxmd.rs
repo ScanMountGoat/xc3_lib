@@ -311,12 +311,17 @@ pub struct FurShells {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct FurShellParams {
-    // TODO: offset using instance ID in vertex shader?
+    /// The number of fur shells to render.
     pub instance_count: u32,
-    pub unk2: f32,
-    pub unk3: f32,
-    pub unk4: f32,
-    pub unk5: f32,
+    /// The distance at which shell count starts to lower.
+    pub view_distance: f32,
+    /// The width applied increasingly to each fur shell.
+    pub shell_width: f32,
+    /// The vertical offset applied increasingly to each fur shell.
+    pub y_offset: f32,
+    /// The alpha transparency applied increasingly to each fur shell.
+    // TODO: alpha of 0.0 is not fully transparent?
+    pub alpha: f32,
 }
 
 /// A collection of [Sampler].

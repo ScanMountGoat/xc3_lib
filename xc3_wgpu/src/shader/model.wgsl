@@ -148,7 +148,10 @@ struct PerMaterial {
 }
 
 struct FurShellParams {
-    width: f32
+    xyz_offset: vec3<f32>,
+    instance_count: f32,
+    shell_width: f32,
+    alpha: f32
 }
 
 @group(2) @binding(20)
@@ -256,16 +259,20 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance_index: u32, outl
 
     var vertex_color = in1.vertex_color;
 
-    if per_material.fur_params.width > 0.0 {
-        // TODO: Do Xenoblade 2 and Xenoblade 3 always use the same params?
-        // TODO: Are these values controlled by a material parameter?
-        // TODO: shaders have 2 width parameters?
-        let fur_shell_width = (f32(instance_index) + 1.0) * 0.00167;
+    if per_material.fur_params.instance_count > 0.0 {
+        let instance = f32(instance_index) + 1.0;
+        let fur_shell_width = instance * per_material.fur_params.shell_width;
         position += normal_xyz * fur_shell_width;
 
+        // This is only a vertical offset in practice.
+        let param = instance * (1.0 / per_material.fur_params.instance_count);
+        let xyz_offset = (param * param * param) * per_material.fur_params.xyz_offset;
+
+        position += xyz_offset;
+
         // Outer shells are more transparent than inner shells.
-        let alpha_factor = clamp(f32(instance_index) * 0.3, 0.0, 1.0);
-        vertex_color.a = mix(vertex_color.a, 0.0, alpha_factor);
+        let alpha_factor = f32(instance_index) * per_material.fur_params.alpha;
+        vertex_color.a = 1.0 - clamp(alpha_factor, 0.0, 1.0);
     }
 
     out.clip_position = camera.view_projection * model_matrix * vec4(position, 1.0);
@@ -519,7 +526,7 @@ fn blend_layer(a: vec4<f32>, b: vec4<f32>, ratio: vec4<f32>, n_dot_v: f32, mode:
     // Color layers typically have the same blend mode for all channels.
     // Blend each channel individually to properly blend params.
     var result = a;
-    for (var i = 0u; i < 4; i++) {
+    for (var i = 0u; i < 4u; i++) {
         switch (mode[i]) {
             case 0: {
                 result[i] = mix(a[i], b[i], ratio[i]);

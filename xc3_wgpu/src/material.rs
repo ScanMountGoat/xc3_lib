@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use glam::{ivec4, uvec4, vec4, IVec4, UVec4, Vec4};
+use glam::{ivec4, uvec4, vec3, vec4, IVec4, UVec4, Vec3, Vec4};
 use indexmap::IndexMap;
 use log::{error, warn};
 use smol_str::SmolStr;
@@ -114,12 +114,22 @@ pub fn materials(
                 }
             }
 
-            // TODO: How to set fur params properly?
+            // Use similar calculated parameter values as in game vertex shaders.
             let fur_params = material
                 .fur_params
                 .as_ref()
-                .map(|_p| crate::shader::model::FurShellParams { width: 0.1 })
-                .unwrap_or(crate::shader::model::FurShellParams { width: 0.0 });
+                .map(|p| crate::shader::model::FurShellParams {
+                    xyz_offset: vec3(0.0, p.y_offset * p.shell_width, 0.0),
+                    instance_count: p.instance_count as f32,
+                    shell_width: 1.0 / (p.instance_count as f32) * p.shell_width,
+                    alpha: (1.0 - p.alpha) / p.instance_count as f32,
+                })
+                .unwrap_or(crate::shader::model::FurShellParams {
+                    xyz_offset: Vec3::ZERO,
+                    instance_count: 0.0,
+                    shell_width: 0.0,
+                    alpha: 0.0,
+                });
 
             // TODO: This is normally done using a depth prepass.
             // TODO: Is it ok to combine the prepass alpha in the main pass like this?
