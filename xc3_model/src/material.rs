@@ -76,7 +76,6 @@ pub struct TextureAlphaTest {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct MaterialParameters {
-    pub alpha_test_ref: f32,
     // Assume each param type is used at most once.
     pub tex_matrix: Option<Vec<[f32; 8]>>, // TODO: mat2x4?
     pub work_float4: Option<Vec<[f32; 4]>>,
@@ -99,7 +98,6 @@ impl MaterialParameters {
 impl Default for MaterialParameters {
     fn default() -> Self {
         Self {
-            alpha_test_ref: 1.0,
             tex_matrix: None,
             work_float4: None,
             work_color: None,
@@ -310,7 +308,6 @@ pub(crate) fn create_materials_samplers_legacy(
                     None => RenderPassType::Unk0,
                 },
                 parameters: MaterialParameters {
-                    alpha_test_ref: 0.0,
                     tex_matrix: None,
                     work_float4: None,
                     work_color: None,
@@ -448,9 +445,7 @@ fn assign_parameters(
 
     let work_values = apply_callbacks(work_values, callbacks);
 
-    // TODO: alpha test ref?
     let mut parameters = MaterialParameters {
-        alpha_test_ref: 0.5,
         tex_matrix: None,
         work_float4: None,
         work_color: None,
