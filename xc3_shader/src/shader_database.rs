@@ -16,8 +16,8 @@ use rayon::prelude::*;
 use smol_str::ToSmolStr;
 use xc3_lib::mths::{FragmentShader, Mths};
 use xc3_model::shader_database::{
-    BufferDependency, Dependency, LayerBlendMode, MapPrograms, ModelPrograms, OutputDependencies,
-    ShaderDatabase, ShaderProgram, TextureLayer,
+    AttributeDependency, BufferDependency, Dependency, LayerBlendMode, MapPrograms, ModelPrograms,
+    OutputDependencies, ShaderDatabase, ShaderProgram, TextureLayer,
 };
 
 use crate::{
@@ -71,11 +71,14 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
                 layers =
                     find_color_layers(frag, &dependent_lines, &dependencies).unwrap_or_default();
             } else if i == 1 {
-                layers = find_etc_layers(frag, &dependent_lines, &dependencies).unwrap_or_default();
+                layers =
+                    find_param_layers(frag, &dependent_lines, &dependencies).unwrap_or_default();
             } else if i == 2 && "xy".contains(c) {
-                // TODO: Will this simplify consuming code if the channels are set properly?
                 layers =
                     find_normal_layers(frag, &dependent_lines, &dependencies).unwrap_or_default();
+            } else if i == 2 && c == 'z' {
+                layers =
+                    find_param_layers(frag, &dependent_lines, &dependencies).unwrap_or_default();
             }
 
             // Avoid storing redundant information with dependencies.
@@ -281,7 +284,7 @@ fn find_normal_layers(
     Some(layers)
 }
 
-fn find_etc_layers(
+fn find_param_layers(
     frag: &Graph,
     dependent_lines: &[usize],
     dependencies: &[Dependency],
@@ -291,7 +294,6 @@ fn find_etc_layers(
 
     let current = assign_x_recursive(&frag.nodes, &last_node.input);
 
-    // TODO: There's some other form of blending happening?
     let layers = find_layers(&frag.nodes, current, dependencies);
 
     Some(layers)
@@ -308,16 +310,13 @@ fn find_layers(nodes: &[Node], current: &Expr, dependencies: &[Dependency]) -> V
         .or_else(|| pixel_calc_over(nodes, current))
         .or_else(|| pixel_calc_ratio_blend(nodes, current))
         .or_else(|| pixel_calc_add(nodes, current, dependencies))
+        .or_else(|| pixel_calc_mul(nodes, current))
         .or_else(|| add_pixel_calc_ratio(current))
     {
-        let mut layer_b = assign_x_recursive(nodes, layer_b);
-        if let Some(new_layer_b) = normal_map_fma(nodes, layer_b) {
-            layer_b = new_layer_b;
-        }
+        let layer_b = extract_layer_value(nodes, layer_b, dependencies);
 
-        if let Some(value) = layer_value(layer_b, dependencies) {
+        if let Some(value) = layer_b {
             let (fresnel_ratio, ratio) = ratio_dependency(ratio, nodes, dependencies);
-
             layers.push(TextureLayer {
                 value,
                 ratio,
@@ -330,11 +329,7 @@ fn find_layers(nodes: &[Node], current: &Expr, dependencies: &[Dependency]) -> V
     }
 
     // Detect the base layer.
-    let mut base = assign_x_recursive(nodes, current);
-    if let Some(new_base) = normal_map_fma(nodes, current) {
-        base = new_base;
-    }
-    if let Some(value) = layer_value(base, dependencies) {
+    if let Some(value) = extract_layer_value(nodes, current, dependencies) {
         layers.push(TextureLayer {
             value,
             ratio: None,
@@ -346,6 +341,24 @@ fn find_layers(nodes: &[Node], current: &Expr, dependencies: &[Dependency]) -> V
     // We start from the output, so these are in reverse order.
     layers.reverse();
     layers
+}
+
+fn extract_layer_value(
+    nodes: &[Node],
+    layer: &Expr,
+    dependencies: &[Dependency],
+) -> Option<Dependency> {
+    let mut layer = assign_x_recursive(nodes, layer);
+    if let Some(new_layer) = normal_map_fma(nodes, layer) {
+        layer = new_layer;
+    }
+
+    // TODO: Is it worth storing information about component max?
+    if let Some(new_layer) = component_max_xyz(nodes, layer) {
+        layer = new_layer;
+    }
+
+    layer_value(layer, dependencies)
 }
 
 fn pixel_calc_over<'a>(
@@ -410,6 +423,18 @@ fn pixel_calc_add<'a>(
         }
     }
     Some((a, b, &Expr::Float(1.0), LayerBlendMode::Add))
+}
+
+fn pixel_calc_mul<'a>(
+    nodes: &'a [Node],
+    expr: &'a Expr,
+) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
+    // Some layers are simply multiplied together.
+    let result = query_nodes_glsl(expr, nodes, "result = a * b;")?;
+    let a = result.get("a")?;
+    let b = result.get("b")?;
+    // TODO: The ordering is ambiguous since a*b == b*a.
+    Some((a, b, &Expr::Float(1.0), LayerBlendMode::MixRatio))
 }
 
 fn pixel_calc_overlay<'a>(
@@ -497,6 +522,8 @@ fn dependency_cached_texture(ratio: &Expr, dependencies: &[Dependency]) -> Optio
                     None
                 }
             }
+            // TODO: Why does handling other constants break base layer detection?
+            Expr::Float(1.0) => Some(Dependency::Constant(1.0.into())),
             // TODO: Find dependencies recursively?
             _ => None,
         })
@@ -505,6 +532,17 @@ fn dependency_cached_texture(ratio: &Expr, dependencies: &[Dependency]) -> Optio
 fn layer_value(input: &Expr, dependencies: &[Dependency]) -> Option<Dependency> {
     dependency_cached_texture(input, dependencies)
         .or_else(|| buffer_dependency(input).map(Dependency::Buffer))
+        .or_else(|| {
+            // TODO: Also check if this matches a vertex input name?
+            if let Expr::Global { name, channel } = input {
+                Some(Dependency::Attribute(AttributeDependency {
+                    name: name.into(),
+                    channels: channel.map(|c| c.to_string().into()).unwrap_or_default(),
+                }))
+            } else {
+                None
+            }
+        })
 }
 
 fn pixel_calc_add_normal<'a>(
@@ -553,6 +591,18 @@ fn normal_map_fma<'a>(nodes: &'a [Node], nom_work: &'a Expr) -> Option<&'a Expr>
     "};
     let result = query_nodes_glsl(nom_work, nodes, query)?;
     result.get("result").copied()
+}
+
+fn component_max_xyz<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> {
+    let query = indoc! {"
+        y = value.y;
+        z = value.z;
+        x = value.x;
+        result = max(x, y);
+        result = max(z, result);
+    "};
+    let result = query_nodes_glsl(expr, nodes, query)?;
+    result.get("value").copied()
 }
 
 fn calc_normal_map<'a>(frag: &'a Graph, view_normal: &'a Expr) -> Option<[&'a Expr; 3]> {
@@ -970,7 +1020,8 @@ mod tests {
     use pretty_assertions::assert_eq;
     use smol_str::SmolStr;
     use xc3_model::shader_database::{
-        BufferDependency, LayerBlendMode, TexCoord, TexCoordParams, TextureDependency,
+        AttributeDependency, BufferDependency, LayerBlendMode, TexCoord, TexCoordParams,
+        TextureDependency,
     };
 
     #[test]
@@ -1027,11 +1078,11 @@ mod tests {
     fn shader_from_vertex_fragment_pyra_body() {
         // Test shaders from Pyra's metallic chest material.
         // xeno2/bl/bl000101, "ho_BL_TS2", shd0022.vert
-        let glsl = include_str!("data/bl000101.22.vert");
+        let glsl = include_str!("data/xc2/bl000101.22.vert");
         let vertex = TranslationUnit::parse(glsl).unwrap();
 
         // xeno2/bl/bl000101, "ho_BL_TS2", shd0022.frag
-        let glsl = include_str!("data/bl000101.22.frag");
+        let glsl = include_str!("data/xc2/bl000101.22.frag");
         let fragment = TranslationUnit::parse(glsl).unwrap();
 
         let shader = shader_from_glsl(Some(&vertex), &fragment);
@@ -1197,7 +1248,7 @@ mod tests {
     #[test]
     fn shader_from_fragment_mio_skirt() {
         // xeno3/chr/ch/ch11021013, "body_skert2", shd0028.frag
-        let glsl = include_str!("data/ch11021013.28.frag");
+        let glsl = include_str!("data/xc3/ch11021013.28.frag");
 
         // The pcmdo calcGeometricSpecularAA function compiles to the expression
         // glossiness = 1.0 - sqrt(clamp((1.0 - glossiness)^2 + kernelRoughness2 0.0, 1.0))
@@ -1416,7 +1467,7 @@ mod tests {
     #[test]
     fn shader_from_fragment_mio_metal() {
         // xeno3/chr/ch/ch11021013, "tlent_mio_metal1", shd0031.frag
-        let glsl = include_str!("data/ch11021013.31.frag");
+        let glsl = include_str!("data/xc3/ch11021013.31.frag");
 
         // Test multiple calls to getPixelCalcAddNormal.
         let fragment = TranslationUnit::parse(glsl).unwrap();
@@ -1679,7 +1730,7 @@ mod tests {
     #[test]
     fn shader_from_fragment_mio_legs() {
         // xeno3/chr/ch/ch11021013, "body_stking1", shd0016.frag
-        let glsl = include_str!("data/ch11021013.16.frag");
+        let glsl = include_str!("data/xc3/ch11021013.16.frag");
 
         // Test that color layers use the appropriate fresnel blending mode.
         let fragment = TranslationUnit::parse(glsl).unwrap();
@@ -1804,7 +1855,7 @@ mod tests {
     #[test]
     fn shader_from_fragment_wild_ride_body() {
         // xeno3/chr/ch/ch02010110, "body_m", shd0028.frag
-        let glsl = include_str!("data/ch02010110.28.frag");
+        let glsl = include_str!("data/xc3/ch02010110.28.frag");
 
         // Some shaders use a simple mix() for normal blending.
         let fragment = TranslationUnit::parse(glsl).unwrap();
@@ -1963,7 +2014,7 @@ mod tests {
     #[test]
     fn shader_from_fragment_sena_body() {
         // xeno3/chr/ch/ch11061013, "bodydenim_toon", shd0009.frag
-        let glsl = include_str!("data/ch11061013.9.frag");
+        let glsl = include_str!("data/xc3/ch11061013.9.frag");
 
         // Some shaders use multiple color blending modes.
         let fragment = TranslationUnit::parse(glsl).unwrap();
@@ -2131,7 +2182,7 @@ mod tests {
     #[test]
     fn shader_from_fragment_haze_body() {
         // xeno2/model/np/np001101, "body", shd0013.frag
-        let glsl = include_str!("data/np001101.13.frag");
+        let glsl = include_str!("data/xc2/np001101.13.frag");
 
         // Test multiple normal layers with texture masks.
         let fragment = TranslationUnit::parse(glsl).unwrap();
@@ -2371,7 +2422,7 @@ mod tests {
     #[test]
     fn shader_from_fragment_pneuma_chest() {
         // xeno2/model/bl/bl000301, "tights_TS", shd0021.frag
-        let glsl = include_str!("data/bl000301.21.frag");
+        let glsl = include_str!("data/xc2/bl000301.21.frag");
 
         // Test detecting the "PNEUMA" color layer.
         let fragment = TranslationUnit::parse(glsl).unwrap();
@@ -2464,7 +2515,7 @@ mod tests {
     #[test]
     fn shader_from_fragment_tirkin_weapon() {
         // xeno2/model/we/we010402, "body_MT", shd0000.frag
-        let glsl = include_str!("data/we010402.0.frag");
+        let glsl = include_str!("data/xc2/we010402.0.frag");
 
         // Test detecting layers for metalness.
         let fragment = TranslationUnit::parse(glsl).unwrap();
@@ -2534,9 +2585,70 @@ mod tests {
     }
 
     #[test]
+    fn shader_from_fragment_behemoth_fins() {
+        // xeno2/model/en/en020601, "hire_a", shd0000.frag
+        let glsl = include_str!("data/xc2/en020601.0.frag");
+
+        // Test detecting layers for ambient occlusion.
+        let fragment = TranslationUnit::parse(glsl).unwrap();
+        let shader = shader_from_glsl(None, &fragment);
+        assert_eq!(
+            vec![
+                TextureLayer {
+                    value: Dependency::Texture(TextureDependency {
+                        name: "s2".into(),
+                        channels: "z".into(),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "x".into(),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channels: "y".into(),
+                                params: None,
+                            },
+                        ],
+                    }),
+                    ratio: None,
+                    blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: false,
+                },
+                TextureLayer {
+                    value: Dependency::Buffer(BufferDependency {
+                        name: "U_Mate".into(),
+                        field: "gWrkFl4".into(),
+                        index: 0,
+                        channels: "z".into(),
+                    }),
+                    ratio: Some(Dependency::Buffer(BufferDependency {
+                        name: "U_Mate".into(),
+                        field: "gWrkFl4".into(),
+                        index: 1,
+                        channels: "z".into(),
+                    })),
+                    blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: false,
+                },
+                TextureLayer {
+                    value: Dependency::Attribute(AttributeDependency {
+                        name: "in_attr5".into(),
+                        channels: "y".into(),
+                    }),
+                    ratio: Some(Dependency::Constant(1.0.into())),
+                    blend_mode: LayerBlendMode::MixRatio,
+                    is_fresnel: false,
+                },
+            ],
+            shader.output_dependencies[&SmolStr::from("o2.z")].layers
+        );
+    }
+
+    #[test]
     fn shader_from_latte_asm_pc221115_frag_0() {
         // Elma's legs (visible on title screen).
-        let asm = include_str!("data/pc221115.0.frag.txt");
+        let asm = include_str!("data/xcx/pc221115.0.frag.txt");
 
         // TODO: Make this easier to test by taking metadata directly?
         let fragment_shader = xc3_lib::mths::FragmentShader {

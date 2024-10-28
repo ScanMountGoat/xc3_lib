@@ -761,8 +761,8 @@ mod tests {
     #[test]
     fn graph_from_asm_pc221115_frag_0() {
         // Elma's legs (visible on title screen).
-        let asm = include_str!("../data/pc221115.0.frag.txt");
-        let expected = include_str!("../data/pc221115.0.frag");
+        let asm = include_str!("../data/xcx/pc221115.0.frag.txt");
+        let expected = include_str!("../data/xcx/pc221115.0.frag");
 
         // TODO: Figure out the expected nodes to test previous node references.
         // TODO: Test expected nodes on a handwritten example?
@@ -773,8 +773,8 @@ mod tests {
     #[test]
     fn graph_from_asm_en020601_frag_0() {
         // Tree enemy.
-        let asm = include_str!("../data/en020601.0.frag.txt");
-        let expected = include_str!("../data/en020601.0.frag");
+        let asm = include_str!("../data/xcx/en020601.0.frag.txt");
+        let expected = include_str!("../data/xcx/en020601.0.frag");
 
         let graph = Graph::from_latte_asm(asm);
         assert_eq!(expected, graph.to_glsl());
