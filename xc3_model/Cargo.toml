@@ -14,7 +14,7 @@ glam = { version = "0.28.0", features = ["bytemuck"] }
 gltf = { version = "=1.4.1", features = ["extras", "KHR_texture_transform"], optional = true }
 gltf-json = { version = "=1.4.1", optional = true }
 binrw = "0.14.0"
-image_dds = "0.6.0"
+image_dds = "0.6.1"
 rayon = "1.8.1"
 log = "0.4.19"
 ordered-float = { version = "4.1.1", features = ["serde"] }
