@@ -196,6 +196,9 @@ impl ModelRoot {
         callbacks.work_callbacks.clear();
         callbacks.material_indices = (0..self.models.materials.len() as u16).collect();
 
+        let mut fur_params = Vec::new();
+        let mut fur_param_indices = Vec::new();
+
         // Recreate materials to avoid restrictions with referencing existing ones.
         for (i, m) in self.models.materials.iter().enumerate() {
             // TODO: Is it ok to potentially add a new buffer index here?
@@ -258,9 +261,25 @@ impl ModelRoot {
             callbacks
                 .work_callbacks
                 .extend_from_slice(&m.work_callbacks);
+
+            if let Some(params) = &m.fur_params {
+                // Each material uses its own params in practice.
+                fur_param_indices.push(fur_params.len() as u16);
+                fur_params.push(params.clone());
+            } else {
+                fur_param_indices.push(0);
+            }
         }
 
-        // TODO: set fur shell params.
+        mxmd.materials.fur_shells = if !fur_params.is_empty() {
+            Some(xc3_lib::mxmd::FurShells {
+                material_param_indices: fur_param_indices,
+                params: fur_params,
+                unk: [0; 4],
+            })
+        } else {
+            None
+        };
     }
 
     fn match_technique_attributes(&self, buffers: &mut ModelBuffers, mxmd: &Mxmd) {

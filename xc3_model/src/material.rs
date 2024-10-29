@@ -74,7 +74,7 @@ pub struct TextureAlphaTest {
 
 /// Values assigned to known shader uniforms or `None` if not present.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Default)]
 pub struct MaterialParameters {
     // Assume each param type is used at most once.
     pub tex_matrix: Option<Vec<[f32; 8]>>, // TODO: mat2x4?
@@ -91,16 +91,6 @@ impl MaterialParameters {
             ("U_Mate", "gWrkFl4") => Some(self.work_float4.as_ref()?.get(p.index)?[c]),
             ("U_Mate", "gWrkCol") => Some(self.work_color.as_ref()?.get(p.index)?[c]),
             _ => None,
-        }
-    }
-}
-
-impl Default for MaterialParameters {
-    fn default() -> Self {
-        Self {
-            tex_matrix: None,
-            work_float4: None,
-            work_color: None,
         }
     }
 }
