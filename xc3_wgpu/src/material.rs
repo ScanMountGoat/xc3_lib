@@ -338,7 +338,11 @@ fn output_assignments(
             layer3: texture_layers(assignment, name_to_index, name_to_info, 1),
             layer4: texture_layers(assignment, name_to_index, name_to_info, 2),
             layer5: texture_layers(assignment, name_to_index, name_to_info, 3),
-            attributes: attribute_assignment(assignment),
+            attributes1: attribute_assignment(assignment, 0),
+            attributes2: attribute_assignment(assignment, 1),
+            attributes3: attribute_assignment(assignment, 2),
+            attributes4: attribute_assignment(assignment, 3),
+            attributes5: attribute_assignment(assignment, 4),
             default_value: output_default(assignment, i),
         }
     })
@@ -350,6 +354,28 @@ fn sampler_assignment(
     name_to_info: &mut IndexMap<SmolStr, TextureInfo>,
     layer_index: usize,
 ) -> crate::shader::model::SamplerAssignment {
+    let (x, y, z, w) = layer_channel_assignments(a, layer_index);
+
+    let (s0, c0) = texture_channel(x, name_to_index, name_to_info, 'x').unwrap_or((-1, 0));
+    let (s1, c1) = texture_channel(y, name_to_index, name_to_info, 'y').unwrap_or((-1, 1));
+    let (s2, c2) = texture_channel(z, name_to_index, name_to_info, 'z').unwrap_or((-1, 2));
+    let (s3, c3) = texture_channel(w, name_to_index, name_to_info, 'w').unwrap_or((-1, 3));
+
+    crate::shader::model::SamplerAssignment {
+        sampler_indices: ivec4(s0, s1, s2, s3),
+        channel_indices: uvec4(c0, c1, c2, c3),
+    }
+}
+
+fn layer_channel_assignments(
+    a: &OutputAssignment,
+    layer_index: usize,
+) -> (
+    Option<&ChannelAssignment>,
+    Option<&ChannelAssignment>,
+    Option<&ChannelAssignment>,
+    Option<&ChannelAssignment>,
+) {
     let (x, y, z, w) = if layer_index == 0 {
         (a.x.as_ref(), a.y.as_ref(), a.z.as_ref(), a.w.as_ref())
     } else {
@@ -368,16 +394,7 @@ fn sampler_assignment(
                 .and_then(|l| l.value.as_ref()),
         )
     };
-
-    let (s0, c0) = texture_channel(x, name_to_index, name_to_info, 'x').unwrap_or((-1, 0));
-    let (s1, c1) = texture_channel(y, name_to_index, name_to_info, 'y').unwrap_or((-1, 1));
-    let (s2, c2) = texture_channel(z, name_to_index, name_to_info, 'z').unwrap_or((-1, 2));
-    let (s3, c3) = texture_channel(w, name_to_index, name_to_info, 'w').unwrap_or((-1, 3));
-
-    crate::shader::model::SamplerAssignment {
-        sampler_indices: ivec4(s0, s1, s2, s3),
-        channel_indices: uvec4(c0, c1, c2, c3),
-    }
+    (x, y, z, w)
 }
 
 fn texture_channel(
@@ -424,11 +441,16 @@ fn texcoord_index(name: &str) -> Option<usize> {
     name.strip_prefix("vTex")?.parse().ok()
 }
 
-fn attribute_assignment(a: &OutputAssignment) -> crate::shader::model::AttributeAssignment {
-    let c0 = attribute_channel_assignment(a.x.as_ref()).unwrap_or(-1);
-    let c1 = attribute_channel_assignment(a.y.as_ref()).unwrap_or(-1);
-    let c2 = attribute_channel_assignment(a.z.as_ref()).unwrap_or(-1);
-    let c3 = attribute_channel_assignment(a.w.as_ref()).unwrap_or(-1);
+fn attribute_assignment(
+    a: &OutputAssignment,
+    layer_index: usize,
+) -> crate::shader::model::AttributeAssignment {
+    let (x, y, z, w) = layer_channel_assignments(a, layer_index);
+
+    let c0 = attribute_channel_assignment(x).unwrap_or(-1);
+    let c1 = attribute_channel_assignment(y).unwrap_or(-1);
+    let c2 = attribute_channel_assignment(z).unwrap_or(-1);
+    let c3 = attribute_channel_assignment(w).unwrap_or(-1);
 
     crate::shader::model::AttributeAssignment {
         channel_indices: ivec4(c0, c1, c2, c3),

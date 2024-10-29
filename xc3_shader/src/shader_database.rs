@@ -38,7 +38,8 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
     let frag = &Graph::from_glsl(fragment);
     let frag_attributes = &find_attribute_locations(fragment);
 
-    let vertex = &vertex.map(|v| (Graph::from_glsl(v), find_attribute_locations(v)));
+    let vertex = vertex.map(|v| (Graph::from_glsl(v), find_attribute_locations(v)));
+    let (vert, vert_attributes) = vertex.unzip();
 
     let mut output_dependencies = IndexMap::new();
     for i in 0..=5 {
@@ -50,7 +51,7 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
             let mut dependencies =
                 input_dependencies(frag, frag_attributes, &assignments, &dependent_lines);
 
-            if let Some((vert, vert_attributes)) = vertex {
+            if let (Some(vert), Some(vert_attributes)) = (&vert, &vert_attributes) {
                 // Add texture parameters used for the corresponding vertex output.
                 // Most shaders apply UV transforms in the vertex shader.
                 // This will be used later for texture layers.
@@ -61,7 +62,9 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
                     &mut dependencies,
                 );
 
-                apply_attribute_names(vert, vert_attributes, frag_attributes, &mut dependencies);
+                for d in &mut dependencies {
+                    apply_attribute_names(vert, vert_attributes, frag_attributes, d);
+                }
             }
 
             let mut layers = Vec::new();
@@ -89,6 +92,16 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
             if i == 1 && c == 'y' {
                 if let Some(param) = geometric_specular_aa(frag) {
                     dependencies = vec![Dependency::Buffer(param)];
+                }
+            }
+
+            // TODO: Is there a better way of doing this?
+            if let (Some(vert), Some(vert_attributes)) = (&vert, &vert_attributes) {
+                for layer in &mut layers {
+                    apply_attribute_names(vert, vert_attributes, frag_attributes, &mut layer.value);
+                    if let Some(r) = &mut layer.ratio {
+                        apply_attribute_names(vert, vert_attributes, frag_attributes, r);
+                    }
                 }
             }
 
@@ -703,34 +716,28 @@ fn apply_attribute_names(
     vertex: &Graph,
     vertex_attributes: &Attributes,
     fragment_attributes: &Attributes,
-    dependencies: &mut [Dependency],
+    dependency: &mut Dependency,
 ) {
-    for dependency in dependencies {
-        if let Dependency::Attribute(attribute) = dependency {
-            // Convert a fragment input like "in_attr4" to its vertex output like "vTex0".
-            if let Some(fragment_location) = fragment_attributes
-                .input_locations
-                .get_by_left(attribute.name.as_str())
+    if let Dependency::Attribute(attribute) = dependency {
+        // Convert a fragment input like "in_attr4" to its vertex output like "vTex0".
+        if let Some(fragment_location) = fragment_attributes
+            .input_locations
+            .get_by_left(attribute.name.as_str())
+        {
+            if let Some(vertex_output_name) = vertex_attributes
+                .output_locations
+                .get_by_right(fragment_location)
             {
-                if let Some(vertex_output_name) = vertex_attributes
-                    .output_locations
-                    .get_by_right(fragment_location)
-                {
-                    for c in attribute.channels.chars() {
-                        // TODO: Avoid calculating this more than once.
-                        let dependent_lines =
-                            vertex.dependencies_recursive(vertex_output_name, Some(c), None);
+                for c in attribute.channels.chars() {
+                    // TODO: Avoid calculating this more than once.
+                    let dependent_lines =
+                        vertex.dependencies_recursive(vertex_output_name, Some(c), None);
 
-                        if let Some(input_attribute) = attribute_dependencies(
-                            vertex,
-                            &dependent_lines,
-                            vertex_attributes,
-                            None,
-                        )
-                        .first()
-                        {
-                            attribute.name.clone_from(&input_attribute.name);
-                        }
+                    if let Some(input_attribute) =
+                        attribute_dependencies(vertex, &dependent_lines, vertex_attributes, None)
+                            .first()
+                    {
+                        attribute.name.clone_from(&input_attribute.name);
                     }
                 }
             }
