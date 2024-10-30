@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Fixed an issue where the `glsl-dependencies` command for xc3_shader did not work for variables without channels.
 * Fixed an issue where some Xenoblade 2 shader database entries did not contain the expected color layers.
 * Fixed an issue where glTF model exports would not import correctly in some applications due to invalid node hierarchies.
+* Fixed an issue where camdo materials would not always use the correct texture for alpha testing.
 
 ## 0.13.0 - 2024-09-18
 ### Added

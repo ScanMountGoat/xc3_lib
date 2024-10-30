@@ -8,7 +8,7 @@ use crate::{
 use binrw::{binread, BinRead, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
-use super::{SamplerFlags, StateFlags};
+use super::{MaterialFlags, SamplerFlags, StateFlags};
 
 // TODO: How much code can be shared with non legacy types?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -285,7 +285,7 @@ pub struct Material {
     #[xc3(offset(u32))]
     pub name: String,
 
-    pub unk1: u32,
+    pub flags: MaterialFlags,
     pub color: [f32; 4],
     pub unk2: [f32; 6],
     pub unk3: [f32; 3],
@@ -294,7 +294,6 @@ pub struct Material {
     #[xc3(offset_count(u32, u32))]
     pub textures: Vec<Texture>,
 
-    // TODO: same as xc2?
     pub state_flags: StateFlags,
 
     pub m_unks1_1: u32,
@@ -311,7 +310,14 @@ pub struct Material {
     #[xc3(offset_count(u32, u32))]
     pub techniques: Vec<MaterialTechnique>,
 
-    pub unk: [u32; 6],
+    pub unk4: [u32; 4],
+
+    pub unk5: u16,
+
+    /// Index into [alpha_test_textures](struct.Materials.html#structfield.alpha_test_textures).
+    pub alpha_test_texture_index: u16,
+
+    pub unk7: u32,
 }
 
 // TODO: same as xc2?

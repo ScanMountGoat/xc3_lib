@@ -241,6 +241,8 @@ pub(crate) fn create_materials_samplers_legacy(
             let shader_var_start = m.shader_var_start_index as usize;
             let shader_var_end = shader_var_start + m.shader_var_count as usize;
 
+            let alpha_test = find_alpha_test_texture_legacy(materials, m);
+
             Material {
                 name: m.name.clone(),
                 flags: MaterialFlags::from(0u32),
@@ -270,16 +272,7 @@ pub(crate) fn create_materials_samplers_legacy(
                         }
                     })
                     .collect(),
-                alpha_test: materials.alpha_test_textures.first().and_then(|a| {
-                    // TODO: alpha test texture index in material?
-                    m.textures
-                        .iter()
-                        .position(|t| t.texture_index == a.texture_index)
-                        .map(|texture_index| TextureAlphaTest {
-                            texture_index,
-                            channel_index: 3,
-                        })
-                }),
+                alpha_test,
                 alpha_test_ref: [0; 4],
                 shader: get_shader_legacy(m, model_programs),
                 technique_index: m
@@ -393,6 +386,35 @@ fn get_technique<'a>(
 fn find_alpha_test_texture(
     materials: &xc3_lib::mxmd::Materials,
     material: &xc3_lib::mxmd::Material,
+) -> Option<TextureAlphaTest> {
+    // Find the texture used for alpha testing in the shader.
+    // TODO: investigate how this works in game.
+    let alpha_texture = materials
+        .alpha_test_textures
+        .get(material.alpha_test_texture_index as usize)?;
+    if material.flags.alpha_mask() {
+        // TODO: Do some materials require separate textures in a separate pass?
+        let texture_index = material
+            .textures
+            .iter()
+            .position(|t| t.texture_index == alpha_texture.texture_index)?;
+
+        // Some materials use the red channel of a dedicated mask instead of alpha.
+        let channel_index = if material.flags.separate_mask() { 0 } else { 3 };
+
+        Some(TextureAlphaTest {
+            texture_index,
+            channel_index,
+        })
+    } else {
+        None
+    }
+}
+
+// TODO: Share code with above?
+fn find_alpha_test_texture_legacy(
+    materials: &xc3_lib::mxmd::legacy::Materials,
+    material: &xc3_lib::mxmd::legacy::Material,
 ) -> Option<TextureAlphaTest> {
     // Find the texture used for alpha testing in the shader.
     // TODO: investigate how this works in game.
