@@ -245,7 +245,7 @@ fn main() {
 
     if cli.efb0 || cli.all {
         println!("Checking Efb0 files ...");
-        check_all(root, &["*.weifb"], check_efb0, Endian::Little, cli.rw);
+        check_all(root, &["*.wiefb"], check_efb0, Endian::Little, cli.rw);
     }
 
     if cli.fnt || cli.all {
