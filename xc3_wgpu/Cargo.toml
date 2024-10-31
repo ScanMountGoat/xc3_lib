@@ -22,4 +22,4 @@ indexmap = "2.1.0"
 smol_str = "0.2.2"
 
 [build-dependencies]
-wgsl_to_wgpu = { git = "https://github.com/ScanMountGoat/wgsl_to_wgpu", rev = "9dbcb10" }
+wgsl_to_wgpu = "0.10.1"
