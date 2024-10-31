@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## unreleased
+## 0.14.0 - 202-10-31
 ### Added
 * Added shader database and rendering support for layered temp maps and blending.
 * Added shader database and rendering support for layered ambient occlusion maps and blending.
