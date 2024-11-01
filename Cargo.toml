@@ -1,3 +1,16 @@
 [workspace]
 members = ["xc3_lib", "xc3_tex", "xc3_test", "xc3_shader", "xc3_write", "xc3_write_derive", "xc3_wgpu", "xc3_viewer", "xc3_model", "xc3_wgpu_batch", "xc3_gltf"]
 resolver = "2"
+
+[workspace.dependencies]
+glam = "0.28"
+wgpu = "22.0.0"
+log = "0.4.22"
+image_dds = { version = "0.6.1", default-features = false }
+indexmap = "2.1.0"
+rayon = "1.8.1"
+globwalk = "0.9.1"
+binrw = "0.14.0"
+smol_str = "0.2.2"
+simple_logger = "4.2.0"
+clap = "4.2.7"

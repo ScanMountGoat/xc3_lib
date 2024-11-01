@@ -7,7 +7,7 @@ edition = "2021"
 xc3_lib = { path = "../xc3_lib", features = ["image"] }
 xc3_write = { path = "../xc3_write" }
 xc3_model = { path = "../xc3_model", features = ["gltf"] }
-clap = { version = "4.2.7", features = ["derive"] }
-rayon = "1.8.1"
-globwalk = "0.9.1"
-binrw = "0.14.0"
+clap = { workspace = true, features = ["derive"] }
+rayon.workspace = true
+globwalk.workspace = true
+binrw.workspace = true

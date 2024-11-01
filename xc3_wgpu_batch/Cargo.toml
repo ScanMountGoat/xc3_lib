@@ -6,12 +6,12 @@ edition = "2021"
 [dependencies]
 xc3_wgpu = { path = "../xc3_wgpu" }
 xc3_model = { path = "../xc3_model" }
-wgpu = "22.0.0"
+wgpu.workspace = true
 futures = "0.3.27"
 futures-intrusive = "0.4.0"
-globwalk = "0.9.1"
-log = "0.4.19"
-simple_logger = "4.2.0"
+globwalk.workspace = true
+log.workspace = true
+simple_logger.workspace = true
 image = "0.25.2"
-glam = "0.28.0"
-clap = { version = "4.2.7", features = ["derive"] }
+glam.workspace = true
+clap = { workspace = true, features = ["derive"] }

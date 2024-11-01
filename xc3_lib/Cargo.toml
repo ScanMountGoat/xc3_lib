@@ -11,9 +11,9 @@ edition = "2021"
 
 [dependencies]
 xc3_write = { version = "0.14.0", path = "../xc3_write" }
-image_dds = { version = "0.6.1", default-features = false, features = ["ddsfile"] }
+image_dds = { workspace = true, default-features = false, features = ["ddsfile"] }
 image = { version = "0.25.2", optional = true }
-binrw = "0.14.0"
+binrw.workspace = true
 flate2 = "1.0"
 zune-inflate = "0.2.0"
 zstd = "0.13.1"
@@ -21,12 +21,12 @@ thiserror = "1.0"
 tegra_swizzle = "0.4.0"
 wiiu_swizzle = "0.3.0"
 bilge = "0.2.0"
-log = "0.4.19"
+log.workspace = true
 murmur3 = "0.5.2"
 lzf = "1.0.0"
 arbitrary = { version = "1.0", features = ["derive"], optional = true }
-indexmap = "2.1.0"
-rayon = "1.8.1"
+indexmap.workspace = true
+rayon.workspace = true
 
 [dev-dependencies]
 hexlit = "0.5.5"
