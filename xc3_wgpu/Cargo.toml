@@ -22,4 +22,4 @@ indexmap.workspace = true
 smol_str.workspace = true
 
 [build-dependencies]
-wgsl_to_wgpu = "0.11.0"
+wgsl_to_wgpu = "0.10.1"
