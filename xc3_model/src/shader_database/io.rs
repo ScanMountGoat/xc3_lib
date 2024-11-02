@@ -10,6 +10,7 @@ use super::{
 };
 
 // Create a separate smaller representation for on disk.
+// TODO: binary using binrw?
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct ShaderDatabaseIndexed {
     files: IndexMap<SmolStr, ModelIndexed>,
@@ -26,7 +27,6 @@ struct MapIndexed {
     env_models: Vec<ModelIndexed>,
 }
 
-// TODO: rename to ShaderPrograms.
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
 struct ModelIndexed {
@@ -65,12 +65,7 @@ pub enum TexCoordParamsIndexed {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-struct TextureLayerIndexed {
-    value: usize,
-    ratio: Option<usize>,
-    blend_mode: LayerBlendMode,
-    is_fresnel: bool,
-}
+struct TextureLayerIndexed(usize, Option<usize>, LayerBlendMode, bool);
 
 impl ShaderDatabaseIndexed {
     pub fn model(&self, name: &str) -> Option<ModelPrograms> {
@@ -274,13 +269,13 @@ fn model_indexed(
                                     dependencies
                                         .layers
                                         .into_iter()
-                                        .map(|l| TextureLayerIndexed {
-                                            value: dependency_to_index.entry_index(l.value),
-                                            ratio: l
-                                                .ratio
-                                                .map(|r| dependency_to_index.entry_index(r)),
-                                            blend_mode: l.blend_mode,
-                                            is_fresnel: l.is_fresnel,
+                                        .map(|l| {
+                                            TextureLayerIndexed(
+                                                dependency_to_index.entry_index(l.value),
+                                                l.ratio.map(|r| dependency_to_index.entry_index(r)),
+                                                l.blend_mode,
+                                                l.is_fresnel,
+                                            )
                                         })
                                         .collect(),
                                 ),
@@ -326,17 +321,17 @@ fn model_from_indexed(
                                     .iter()
                                     .map(|l| TextureLayer {
                                         value: dependency_from_indexed(
-                                            dependencies[l.value].clone(),
+                                            dependencies[l.0].clone(),
                                             buffer_dependencies,
                                         ),
-                                        ratio: l.ratio.map(|i| {
+                                        ratio: l.1.map(|i| {
                                             dependency_from_indexed(
                                                 dependencies[i].clone(),
                                                 buffer_dependencies,
                                             )
                                         }),
-                                        blend_mode: l.blend_mode,
-                                        is_fresnel: l.is_fresnel,
+                                        blend_mode: l.2,
+                                        is_fresnel: l.3,
                                     })
                                     .collect(),
                             },
