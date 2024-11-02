@@ -1062,7 +1062,7 @@ fn deferred_pipeline(device: &wgpu::Device, entry_point: &str) -> wgpu::RenderPi
         ),
         fragment: Some(wgpu::FragmentState {
             module: &module,
-            entry_point,
+            entry_point: Some(entry_point),
             targets: &[Some(wgpu::ColorTargetState {
                 format: COLOR_FORMAT,
                 blend: None,
