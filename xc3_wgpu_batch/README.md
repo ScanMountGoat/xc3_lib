@@ -10,7 +10,7 @@ The PNG outputs can to be inspected manually to check for rendering errors.
 The shader database parameter is optional but highly recommended since the fallback texture assignments do not handle channel assignments.
 
 `xc3_wgpu_batch --help`  
-`xc3_wgpu_batch "Xeno X Dump" camdo xcx.json`  
-`xc3_wgpu_batch "Xeno 1 Dump" wismhd xc1.json`  
-`xc3_wgpu_batch "Xeno 2 Dump" wimdo xc2.json`  
-`xc3_wgpu_batch "Xeno 3 Dump\chr\ch\ch" wimdo xc3.json --anim`  
+`xc3_wgpu_batch "Xeno X Dump" camdo xcx.bin`  
+`xc3_wgpu_batch "Xeno 1 Dump" wismhd xc1.bin`  
+`xc3_wgpu_batch "Xeno 2 Dump" wimdo xc2.bin`  
+`xc3_wgpu_batch "Xeno 3 Dump\chr\ch\ch" wimdo xc3.bin --anim`  

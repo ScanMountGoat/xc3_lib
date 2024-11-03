@@ -47,13 +47,13 @@ pub enum LoadMapError {
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use xc3_model::{load_map, shader_database::ShaderDatabase};
 ///
-/// let database = ShaderDatabase::from_file("xc1.json")?;
+/// let database = ShaderDatabase::from_file("xc1.bin")?;
 /// let roots = load_map("xeno1/map/ma000.wismhd", Some(&database))?;
 ///
-/// let database = ShaderDatabase::from_file("xc2.json")?;
+/// let database = ShaderDatabase::from_file("xc2.bin")?;
 /// let roots = load_map("xeno2/map/ma01a.wismhd", Some(&database))?;
 ///
-/// let database = ShaderDatabase::from_file("xc3.json")?;
+/// let database = ShaderDatabase::from_file("xc3.bin")?;
 /// let roots = load_map("xeno3/map/ma01a.wismhd", Some(&database))?;
 /// # Ok(())
 /// # }

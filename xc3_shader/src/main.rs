@@ -35,25 +35,19 @@ enum Commands {
         /// The path to the gfd-tool executable
         gfd_tool: String,
     },
-    /// Create a JSON file containing textures used for fragment output attributes.
+    /// Create a database of decompiled shader data.
     ShaderDatabase {
         /// The output folder from decompiling shaders.
         input_folder: String,
-        /// The output JSON file.
+        /// The output database file.
         output_file: String,
-        /// Pretty print the JSON file
-        #[arg(long)]
-        pretty: bool,
     },
-    /// Create a JSON file containing textures used for fragment output attributes for Xenoblade X.
+    /// Create a database of decompiled shader data for Xenoblade X.
     ShaderDatabaseLegacy {
         /// The output folder from decompiling shaders.
         input_folder: String,
-        /// The output JSON file.
+        /// The output database file.
         output_file: String,
-        /// Pretty print the JSON file
-        #[arg(long)]
-        pretty: bool,
     },
     /// Find all lines of GLSL code influencing the final assignment of a variable.
     GlslDependencies {
@@ -99,18 +93,16 @@ fn main() {
         Commands::ShaderDatabase {
             input_folder,
             output_file,
-            pretty,
         } => {
             let database = create_shader_database(&input_folder);
-            database.save(output_file, pretty).unwrap();
+            database.save(output_file).unwrap();
         }
         Commands::ShaderDatabaseLegacy {
             input_folder,
             output_file,
-            pretty,
         } => {
             let database = create_shader_database_legacy(&input_folder);
-            database.save(output_file, pretty).unwrap();
+            database.save(output_file).unwrap();
         }
         Commands::GlslDependencies { input, output, var } => {
             let source = std::fs::read_to_string(input).unwrap();

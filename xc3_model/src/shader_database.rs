@@ -5,15 +5,14 @@
 //! This is necessary for determining the usage of a texture like albedo or normal map
 //! since the assignments are compiled into the shader code itself.
 //!
-//! Shader database JSON files should be generated using the xc3_shader CLI tool.
-//! Applications can deserialize the JSON with [ShaderDatabase::from_file]
+//! Shader database files should be generated using the xc3_shader CLI tool.
+//! Applications can parse the data with [ShaderDatabase::from_file]
 //! to avoid needing to generate this data at runtime.
 
 use std::path::Path;
 
 use indexmap::IndexMap;
 use ordered_float::OrderedFloat;
-use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 use thiserror::Error;
 
@@ -21,20 +20,14 @@ mod io;
 
 #[derive(Debug, Error)]
 pub enum LoadShaderDatabaseError {
-    #[error("error reading shader JSON file")]
-    Io(#[from] std::io::Error),
-
-    #[error("error deserializing shader JSON")]
-    Json(#[from] serde_json::Error),
+    #[error("error reading shader file")]
+    Io(#[from] binrw::Error),
 }
 
 #[derive(Debug, Error)]
 pub enum SaveShaderDatabaseError {
-    #[error("error writing shader JSON file")]
-    Io(#[from] std::io::Error),
-
-    #[error("error serializing shader JSON")]
-    Json(#[from] serde_json::Error),
+    #[error("error writing shader file")]
+    Io(#[from] binrw::Error),
 }
 
 /// Metadata for the assigned shaders for all models and maps in a game dump.
@@ -42,31 +35,17 @@ pub enum SaveShaderDatabaseError {
 pub struct ShaderDatabase(io::ShaderDatabaseIndexed);
 
 impl ShaderDatabase {
-    /// Loads and deserializes the JSON data from `path`.
-    ///
-    /// This uses a modified JSON representation internally to reduce file size.
+    /// Load the database data from `path`.
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, LoadShaderDatabaseError> {
         // Avoid converting the indexed database to improve load times.
         // Most uses cases will only need data for a single model or map.
-        let json = std::fs::read_to_string(path)?;
-        let indexed = serde_json::from_str(&json)?;
+        let indexed = io::ShaderDatabaseIndexed::from_file(path)?;
         Ok(Self(indexed))
     }
 
-    /// Serialize and save the JSON data from `path`.
-    ///
-    /// This uses a modified JSON representation internally to reduce file size.
-    pub fn save<P: AsRef<Path>>(
-        &self,
-        path: P,
-        pretty_print: bool,
-    ) -> Result<(), SaveShaderDatabaseError> {
-        let json = if pretty_print {
-            serde_json::to_string_pretty(&self.0)?
-        } else {
-            serde_json::to_string(&self.0)?
-        };
-        std::fs::write(path, json)?;
+    /// Serialize and save the database data to `path`.
+    pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), SaveShaderDatabaseError> {
+        self.0.save(path)?;
         Ok(())
     }
 
@@ -140,7 +119,7 @@ pub enum Dependency {
 }
 
 /// A single buffer access like `UniformBuffer.field[0].y` in GLSL.
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 pub struct BufferDependency {
     pub name: SmolStr,
     pub field: SmolStr,
@@ -187,7 +166,7 @@ pub struct AttributeDependency {
     pub channels: SmolStr,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum LayerBlendMode {
     /// `mix(a, b, ratio)`
     Mix,

@@ -25,9 +25,9 @@ Most of the file processing and conversion code is tested by running the xc3_tes
 `cargo run -p xc3_test --release <path to game dump> --all`  
 `cargo run -p xc3_test --release <path to game dump> --mxmd --mibl`
 
-The rendering can be tested by batch rendering files to PNG. This tests xc3_lib, xc3_wgpu, and xc3_model. Specifying the shader JSON database from xc3_shader will allow xc3_wgpu to assign textures to the appropriate outputs.  
-`cargo run -p xc3_wgpu_batch --release "root/model/bl" wimdo xc2.json`  
-`cargo run -p xc3_wgpu_batch --release "root/map" wismhd xc3.json`  
+The rendering can be tested by batch rendering files to PNG. This tests xc3_lib, xc3_wgpu, and xc3_model. Specifying the shader database from xc3_shader will allow xc3_wgpu to assign textures to the appropriate outputs.  
+`cargo run -p xc3_wgpu_batch --release "root/model/bl" wimdo xc2.bin`  
+`cargo run -p xc3_wgpu_batch --release "root/map" wismhd xc3.bin`  
 
 ## CPU Profiling
 For Linux and MacOS, an easy way to identify performance bottlenecks is by using [cargo-flamegraph](https://github.com/flamegraph-rs/flamegraph) or [samply](https://github.com/mstange/samply). Windows users can install the latest version of Visual Studio and use its builtin performance profiler. Visual Studio can profile the generated Rust executable and even view the data as a flamegraph. Make sure to profile in release mode with debug info enabled by temporarily adding the following lines to the `Cargo.toml` in the root directory.  
@@ -72,11 +72,11 @@ The easiest way to test files is using an emulator like Ryujinx and the [xc3-fil
 ## Code Generation
 For seeing the generated code from procedural macros, use [cargo expand](https://github.com/dtolnay/cargo-expand). For example, call `cargo expand -p xc3_lib mxmd > expanded.rs` to output the expanded contents of `mxmd.rs`.
 
-## Shader JSON Database
-Multiple projects rely on a generated JSON databases of shader metadata to properly assign textures and material parameters. This database is specific to a particular game version like Xenoblade 3 or Xenoblade 1 DE. The first step is to decompile and annotate the shaders. This requires `Ryujinx.ShaderTools`, which can be compiled from source from [Ryujinx](https://github.com/Ryujinx/Ryujinx). Note that this may took up to 30 minutes depending on your system and the number of shaders to decompile. The final step is to convert the decompiled shaders into a JSON database. Example commands for Xenoblade 3 are listed below.  
+## Shader Database
+Multiple projects rely on a generated databases of shader metadata to properly assign textures and material parameters. This database is specific to a particular game version like Xenoblade 3 or Xenoblade 1 DE. The first step is to decompile and annotate the shaders. This requires `Ryujinx.ShaderTools`, which can be compiled from source from [Ryujinx](https://github.com/Ryujinx/Ryujinx). Note that this may took up to 30 minutes depending on your system and the number of shaders to decompile. The final step is to convert the decompiled shaders into a database. Example commands for Xenoblade 3 are listed below.  
 
 `cargo run --release -p xc3_shader -- decompile-shaders "Xeno3 Dump" "xc3_shader_dump" Ryujinx.ShaderTools.exe`  
-`cargo run --release -p xc3_shader -- shader-database "xc3_shader_dump" xc3.json`
+`cargo run --release -p xc3_shader -- shader-database "xc3_shader_dump" xc3.bin`
 
 ## Debugging File Parsing
 The easiest way to test file parsing is by running xc3_test on an extracted game dump and noting any errors printed to the console. The `binrw` library used to generate parsing code also supports debugging the location and values of specific fields by adding the `#[br(dbg)]` attribute like in the example below. This makes it easy to identify the offset to use when hex editing for in game tests.

@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## unreleased
+### Changed
+* Changed shader database to use a custom binary format for greatly reduced file sizes and loading times.
+
+### Removed
+* Removed the `pretty` option for xc3_shader database creation since it no longer applies to binary output.
+
 ## 0.14.0 - 2024-10-31
 ### Added
 * Added shader database and rendering support for layered temp maps and blending.

@@ -13,7 +13,7 @@ Some example commands are provided below.
 xc3_shader --help
 xc3_shader decompile-shaders "Switch Game Dump" "Shader Dump" Ryujinx.ShaderTools.exe
 xc3_shader disassemble-legacy-shaders "Wii U Dump" "Shader Dump" gfd-tool.exe
-xc3_shader shader-database "Shader Dump" shader_database.json
+xc3_shader shader-database "Shader Dump" shader_database.bin
 xc3_shader glsl-dependencies shader.glsl out.glsl out_attr0.x
 xc3_shader latte-dependencies shader.txt out.glsl PIX0.x
 ```

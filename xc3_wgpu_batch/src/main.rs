@@ -22,7 +22,7 @@ struct Cli {
     /// The file extension to load.
     extension: FileExtension,
 
-    /// The shader JSON database for texture assignments.
+    /// The shader database for texture assignments.
     /// If not specified, texture usage is inferred from the texture usage type.
     shader_database: Option<String>,
 

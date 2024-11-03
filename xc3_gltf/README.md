@@ -7,8 +7,8 @@ glTF is an open interchange format designed for efficiently transmitting and loa
 Convert `.wimdo`, `.wismhd`, or `.camdo` files to `.gltf`. The shader database parameter is optional but highly recommended since the fallback texture assignments do not support channel packing of temp textures. Texture file names will start with the name chosen for the output glTF file.
 
 `xc3_gltf --help`  
-`xc3_gltf "Xeno 2 Dump\map\ma02a.wismhd" export\map.gltf xc2.json`  
-`xc3_gltf "Xeno 3 Dump\chr\ch\ch01027000.wimdo" export\model.gltf xc3.json`    
+`xc3_gltf "Xeno 2 Dump\map\ma02a.wismhd" export\map.gltf xc2.bin`  
+`xc3_gltf "Xeno 3 Dump\chr\ch\ch01027000.wimdo" export\model.gltf xc3.bin`    
 
 ## Features
 * position, normal, tangent, texture coordinate, and vertex color attributes

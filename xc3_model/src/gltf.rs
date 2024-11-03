@@ -6,7 +6,7 @@
 //! use xc3_model::gltf::GltfFile;
 //! use xc3_model::shader_database::ShaderDatabase;
 //!
-//! let database = ShaderDatabase::from_file("xc3.json")?;
+//! let database = ShaderDatabase::from_file("xc3.bin")?;
 //!
 //! // Models have only one root.
 //! let root = xc3_model::load_model("xeno3/chr/ch/ch01027000.wimdo", Some(&database))?;

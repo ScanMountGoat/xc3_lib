@@ -25,7 +25,7 @@
 //! let monolib_shader = MonolibShaderTextures::from_file(&device, &queue, "monolib/shader");
 //! let renderer = Renderer::new(&device, &queue, 1920, 1080, wgpu::TextureFormat::Bgra8Unorm, &monolib_shader);
 //!
-//! let database = ShaderDatabase::from_file("xc3.json")?;
+//! let database = ShaderDatabase::from_file("xc3.bin")?;
 //!
 //! let root = xc3_model::load_model("ch01011013.wimdo", Some(&database))?;
 //! let groups = xc3_wgpu::load_model(&device, &queue, &[root], &monolib_shader);
