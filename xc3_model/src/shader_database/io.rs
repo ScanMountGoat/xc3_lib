@@ -10,145 +10,64 @@ use super::{
     OutputDependencies, ShaderProgram, TexCoord, TexCoordParams, TextureDependency, TextureLayer,
 };
 
-// TODO: Shared generic type?
-#[derive(Debug, PartialEq, Clone, BinRead, BinWrite)]
-struct StringIndex(u8);
+const MAJOR_VERSION: u16 = 1;
+const MINOR_VERSION: u16 = 0;
 
-impl TryFrom<usize> for StringIndex {
-    type Error = <u8 as TryFrom<usize>>::Error;
+type StringIndex = Index<u8>;
+type DependencyIndex = Index<u16>;
 
-    fn try_from(value: usize) -> Result<Self, Self::Error> {
-        u8::try_from(value).map(Self)
-    }
-}
-
-#[derive(Debug, PartialEq, Clone, BinRead, BinWrite)]
-struct DependencyIndex(u16);
-
-impl TryFrom<usize> for DependencyIndex {
-    type Error = <u16 as TryFrom<usize>>::Error;
-
-    fn try_from(value: usize) -> Result<Self, Self::Error> {
-        u16::try_from(value).map(Self)
-    }
-}
-
-#[derive(Debug, PartialEq, Clone)]
-struct Index<T>(T);
-
-impl<T> BinRead for Index<T>
-where
-    for<'a> T: BinRead<Args<'a> = ()>,
-{
-    type Args<'a> = ();
-
-    fn read_options<R: std::io::Read + std::io::Seek>(
-        reader: &mut R,
-        endian: binrw::Endian,
-        args: Self::Args<'_>,
-    ) -> BinResult<Self> {
-        T::read_options(reader, endian, args).map(Self)
-    }
-}
-
-impl<T> BinWrite for Index<T>
-where
-    T: BinWrite,
-{
-    type Args<'a> = T::Args<'a>;
-
-    fn write_options<W: std::io::Write + std::io::Seek>(
-        &self,
-        writer: &mut W,
-        endian: binrw::Endian,
-        args: Self::Args<'_>,
-    ) -> BinResult<()> {
-        self.0.write_options(writer, endian, args)
-    }
-}
-
-impl<T> TryFrom<usize> for Index<T>
-where
-    T: TryFrom<usize>,
-{
-    type Error = <T as TryFrom<usize>>::Error;
-
-    fn try_from(value: usize) -> Result<Self, Self::Error> {
-        T::try_from(value).map(Self)
-    }
-}
-
-// Create a separate smaller representation for on disk.
+// Create a separate optimized representation for on disk.
 #[binrw]
 #[derive(Debug, PartialEq, Clone)]
 #[brw(magic(b"SHDB"))]
 pub struct ShaderDatabaseIndexed {
-    // TODO: store and check version based on crate version
+    #[br(assert(major_version == MAJOR_VERSION))]
+    major_version: u16,
+    minor_version: u16,
 
-    // TODO: store file names in a separate list
+    #[br(parse_with = parse_map32)]
+    #[bw(write_with = write_map32)]
+    files: IndexMap<SmolStr, ModelIndexed>,
 
-    // TODO: parse/write with to clean this up
-    #[br(temp)]
-    #[bw(try_calc = u32::try_from(files.len()))]
-    file_count: u32,
-    #[br(count = file_count)]
-    files: Vec<(NullString, ModelIndexed)>,
+    #[br(parse_with = parse_map32)]
+    #[bw(write_with = write_map32)]
+    map_files: IndexMap<SmolStr, MapIndexed>,
 
-    #[br(temp)]
-    #[bw(try_calc = u32::try_from(map_files.len()))]
-    map_file_count: u32,
-    #[br(count = map_file_count)]
-    map_files: Vec<(NullString, MapIndexed)>,
-
-    #[br(temp)]
-    #[bw(try_calc = u16::try_from(dependencies.len()))]
-    dependency_count: u16,
-    #[br(count = dependency_count)]
+    #[br(parse_with = parse_count16)]
+    #[bw(write_with = write_count16)]
     dependencies: Vec<DependencyIndexed>,
 
-    // TODO: struct to make accessing values easier?
-    #[br(temp)]
-    #[bw(try_calc = u8::try_from(strings.len()))]
-    string_count: u8,
-    #[br(count = string_count)]
+    #[br(parse_with = parse_count8)]
+    #[bw(write_with = write_count8)]
     strings: Vec<NullString>,
 
-    #[br(temp)]
-    #[bw(try_calc = u8::try_from(outputs.len()))]
-    output_count: u8,
-    #[br(count = output_count)]
+    // Storing outputs separately enables 8-bit instead of 16-bit indices.
+    #[br(parse_with = parse_count8)]
+    #[bw(write_with = write_count8)]
     outputs: Vec<NullString>,
 }
 
 #[binrw]
 #[derive(Debug, PartialEq, Clone)]
 struct MapIndexed {
-    #[br(temp)]
-    #[bw(try_calc = u16::try_from(map_models.len()))]
-    map_model_count: u16,
-    #[br(count = map_model_count)]
+    #[br(parse_with = parse_count16)]
+    #[bw(write_with = write_count16)]
     map_models: Vec<ModelIndexed>,
 
-    #[br(temp)]
-    #[bw(try_calc = u16::try_from(prop_models.len()))]
-    prop_model_count: u16,
-    #[br(count = prop_model_count)]
+    #[br(parse_with = parse_count16)]
+    #[bw(write_with = write_count16)]
     prop_models: Vec<ModelIndexed>,
 
-    #[br(temp)]
-    #[bw(try_calc = u16::try_from(env_models.len()))]
-    env_model_count: u16,
-    #[br(count = env_model_count)]
+    #[br(parse_with = parse_count16)]
+    #[bw(write_with = write_count16)]
     env_models: Vec<ModelIndexed>,
 }
 
 #[binrw]
 #[derive(Debug, PartialEq, Clone)]
 struct ModelIndexed {
-    #[br(temp)]
-    #[bw(try_calc = u16::try_from(programs.len()))]
-    program_count: u16,
-    #[br(count = program_count)]
+    #[br(parse_with = parse_count16)]
+    #[bw(write_with = write_count16)]
     programs: Vec<ShaderProgramIndexed>,
 }
 
@@ -157,26 +76,20 @@ struct ModelIndexed {
 struct ShaderProgramIndexed {
     // There are very few unique dependencies across all shaders in a game dump.
     // Normalize the data to greatly reduce the size file size.
-    #[br(temp)]
-    #[bw(try_calc = u8::try_from(output_dependencies.len()))]
-    output_dependency_count: u8,
-    #[br(count = output_dependency_count)]
+    #[br(parse_with = parse_count8)]
+    #[bw(write_with = write_count8)]
     output_dependencies: Vec<(StringIndex, OutputDependenciesIndexed)>,
 }
 
 #[binrw]
 #[derive(Debug, PartialEq, Clone)]
 struct OutputDependenciesIndexed {
-    #[br(temp)]
-    #[bw(try_calc = u16::try_from(dependencies.len()))]
-    dependency_count: u16,
-    #[br(count = dependency_count)]
+    #[br(parse_with = parse_count16)]
+    #[bw(write_with = write_count16)]
     dependencies: Vec<DependencyIndex>,
 
-    #[br(temp)]
-    #[bw(try_calc = u8::try_from(layers.len()))]
-    layer_count: u8,
-    #[br(count = layer_count)]
+    #[br(parse_with = parse_count8)]
+    #[bw(write_with = write_count8)]
     layers: Vec<TextureLayerIndexed>,
 }
 
@@ -298,34 +211,15 @@ impl ShaderDatabaseIndexed {
     }
 
     pub fn model(&self, name: &str) -> Option<ModelPrograms> {
-        // TODO: Faster searches.
-        self.files.iter().find_map(|(n, f)| {
-            if n.to_string() == name {
-                Some(model_from_indexed(
-                    f,
-                    &self.dependencies,
-                    &self.strings,
-                    &self.outputs,
-                ))
-            } else {
-                None
-            }
-        })
+        self.files
+            .get(name)
+            .map(|f| model_from_indexed(f, &self.dependencies, &self.strings, &self.outputs))
     }
 
     pub fn map(&self, name: &str) -> Option<MapPrograms> {
-        self.map_files.iter().find_map(|(n, f)| {
-            if n.to_string() == name {
-                Some(map_from_indexed(
-                    f,
-                    &self.dependencies,
-                    &self.strings,
-                    &self.outputs,
-                ))
-            } else {
-                None
-            }
-        })
+        self.map_files
+            .get(name)
+            .map(|f| map_from_indexed(f, &self.dependencies, &self.strings, &self.outputs))
     }
 
     pub fn from_models_maps(
@@ -337,6 +231,8 @@ impl ShaderDatabaseIndexed {
         let mut output_to_index = IndexMap::new();
 
         Self {
+            major_version: MAJOR_VERSION,
+            minor_version: MINOR_VERSION,
             files: models
                 .into_iter()
                 .map(|(n, s)| {
@@ -627,4 +523,136 @@ fn map_from_indexed(
             .map(|s| model_from_indexed(s, dependencies, strings, outputs))
             .collect(),
     }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+struct Index<T>(T);
+
+impl<T> BinRead for Index<T>
+where
+    for<'a> T: BinRead<Args<'a> = ()>,
+{
+    type Args<'a> = ();
+
+    fn read_options<R: std::io::Read + std::io::Seek>(
+        reader: &mut R,
+        endian: binrw::Endian,
+        args: Self::Args<'_>,
+    ) -> BinResult<Self> {
+        T::read_options(reader, endian, args).map(Self)
+    }
+}
+
+impl<T> BinWrite for Index<T>
+where
+    T: BinWrite,
+{
+    type Args<'a> = T::Args<'a>;
+
+    fn write_options<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        endian: binrw::Endian,
+        args: Self::Args<'_>,
+    ) -> BinResult<()> {
+        self.0.write_options(writer, endian, args)
+    }
+}
+
+impl<T> TryFrom<usize> for Index<T>
+where
+    T: TryFrom<usize>,
+{
+    type Error = <T as TryFrom<usize>>::Error;
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        T::try_from(value).map(Self)
+    }
+}
+
+fn parse_count<T, R, N>(reader: &mut R, endian: binrw::Endian) -> BinResult<Vec<T>>
+where
+    for<'a> T: BinRead<Args<'a> = ()> + 'static,
+    for<'a> N: BinRead<Args<'a> = ()> + TryInto<usize>,
+    <N as TryInto<usize>>::Error: std::fmt::Debug,
+    R: std::io::Read + std::io::Seek,
+{
+    let count = N::read_options(reader, endian, ())?;
+
+    <Vec<T>>::read_options(
+        reader,
+        endian,
+        binrw::VecArgs {
+            count: count.try_into().unwrap(),
+            inner: (),
+        },
+    )
+}
+
+fn parse_count16<T, R>(reader: &mut R, endian: binrw::Endian, _args: ()) -> BinResult<Vec<T>>
+where
+    for<'a> T: BinRead<Args<'a> = ()> + 'static,
+    R: std::io::Read + std::io::Seek,
+{
+    parse_count::<T, R, u16>(reader, endian)
+}
+
+#[binrw::writer(writer, endian)]
+fn write_count16<T>(value: &Vec<T>) -> BinResult<()>
+where
+    for<'a> T: BinWrite<Args<'a> = ()> + 'static,
+{
+    (value.len() as u16).write_options(writer, endian, ())?;
+    value.write_options(writer, endian, ())?;
+    Ok(())
+}
+
+fn parse_count8<T, R>(reader: &mut R, endian: binrw::Endian, _args: ()) -> BinResult<Vec<T>>
+where
+    for<'a> T: BinRead<Args<'a> = ()> + 'static,
+    R: std::io::Read + std::io::Seek,
+{
+    parse_count::<T, R, u8>(reader, endian)
+}
+
+#[binrw::writer(writer, endian)]
+fn write_count8<T>(map: &Vec<T>) -> BinResult<()>
+where
+    for<'a> T: BinWrite<Args<'a> = ()> + 'static,
+{
+    (map.len() as u8).write_options(writer, endian, ())?;
+    map.write_options(writer, endian, ())?;
+    Ok(())
+}
+
+fn parse_map32<T, R>(
+    reader: &mut R,
+    endian: binrw::Endian,
+    _args: (),
+) -> BinResult<IndexMap<SmolStr, T>>
+where
+    for<'a> T: BinRead<Args<'a> = ()> + 'static,
+    R: std::io::Read + std::io::Seek,
+{
+    let count = u32::read_options(reader, endian, ())?;
+
+    let mut map = IndexMap::new();
+    for _ in 0..count {
+        let (key, value) = <(NullString, T)>::read_options(reader, endian, ())?;
+        map.insert(key.to_smolstr(), value);
+    }
+    Ok(map)
+}
+
+#[binrw::writer(writer, endian)]
+fn write_map32<T>(map: &IndexMap<SmolStr, T>) -> BinResult<()>
+where
+    for<'a> T: BinWrite<Args<'a> = ()> + 'static,
+{
+    (map.len() as u32).write_options(writer, endian, ())?;
+    for (k, v) in map.iter() {
+        (NullString::from(k.to_string())).write_options(writer, endian, ())?;
+        v.write_options(writer, endian, ())?;
+    }
+    Ok(())
 }
