@@ -3,7 +3,8 @@ struct Camera {
     view: mat4x4<f32>,
     projection: mat4x4<f32>,
     view_projection: mat4x4<f32>,
-    position: vec4<f32>
+    position: vec4<f32>,
+    resolution: vec2<f32>
 }
 
 @group(0) @binding(0)
@@ -182,9 +183,6 @@ var<storage> bone_indices: array<vec4<u32>>;
 @group(3) @binding(4)
 var<storage> skin_weights: array<vec4<f32>>;
 
-@group(3) @binding(5)
-var<uniform> instance_transform: mat4x4<f32>;
-
 // Define all possible attributes even if unused.
 // This avoids needing separate shaders.
 struct VertexInput0 {
@@ -202,6 +200,13 @@ struct VertexInput1 {
     @location(7) tex45: vec4<f32>,
     @location(8) tex67: vec4<f32>,
     @location(9) tex8: vec4<f32>,
+}
+
+struct InstanceInput {
+    @location(10) model_matrix_0: vec4<f32>,
+    @location(11) model_matrix_1: vec4<f32>,
+    @location(12) model_matrix_2: vec4<f32>,
+    @location(13) model_matrix_3: vec4<f32>,
 }
 
 // wgpu recommends @invariant for position with depth func equals.
@@ -258,16 +263,24 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance_index: u32, outl
         }
     }
 
-    let model_view_matrix = camera.view * instance_transform;
-    position = (model_view_matrix * vec4(position, 1.0)).xyz;
-
-    if outline {
-        let outline_width = outline_width(in1.vertex_color, per_material.outline_width, position.z, normal_xyz);
-        position += normal_xyz * outline_width;
-        // TODO: set vertex alpha to line width?
-    }
+    // Transform any direction vectors by the camera transforms.
+    // TODO: This assumes no scaling?
+    position = (camera.view * vec4(position, 1.0)).xyz;
+    normal_xyz = (camera.view * vec4(normal_xyz, 0.0)).xyz;
+    tangent_xyz = (camera.view * vec4(tangent_xyz, 0.0)).xyz;
 
     var vertex_color = in1.vertex_color;
+
+    if outline {
+        // TODO: This is applied to work values in game?
+        // TODO: Multiply by some other constant?
+        let param = 2.0 * per_material.outline_width / camera.resolution.y;
+
+        let outline_width = outline_width(in1.vertex_color, param, position.z, normal_xyz);
+        position += normal_xyz * outline_width * 8.0;
+        // TODO: set vertex alpha to line width?
+        // vertex_color.a = outline_width;
+    }
 
     if per_material.fur_params.instance_count > 0.0 {
         let instance = f32(instance_index) + 1.0;
@@ -298,12 +311,8 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance_index: u32, outl
 
     out.vertex_color = vertex_color;
 
-    // TODO: Should these be in view space to match in game?
-    // Transform any direction vectors by the instance transform.
-    // TODO: This assumes no scaling?
-    let model_matrix = instance_transform;
-    out.normal = (model_matrix * vec4(normal_xyz, 0.0)).xyz;
-    out.tangent = vec4((model_matrix * vec4(tangent_xyz, 0.0)).xyz, in0.tangent.w);
+    out.normal = normal_xyz;
+    out.tangent = vec4(tangent_xyz, in0.tangent.w);
     return out;
 }
 
@@ -314,6 +323,7 @@ fn outline_width(vertex_color: vec4<f32>, param: f32, view_z: f32, normal: vec3<
     return f_line_width;
 }
 
+// TODO: separate shader for instancing stage models?
 @vertex
 fn vs_main(in0: VertexInput0, in1: VertexInput1, @builtin(instance_index) instance_index: u32) -> VertexOutput {
     return vertex_output(in0, in1, instance_index, false);
@@ -322,6 +332,41 @@ fn vs_main(in0: VertexInput0, in1: VertexInput1, @builtin(instance_index) instan
 @vertex
 fn vs_outline_main(in0: VertexInput0, in1: VertexInput1, @builtin(instance_index) instance_index: u32) -> VertexOutput {
     return vertex_output(in0, in1, instance_index, true);
+}
+
+@vertex
+fn vs_main_instanced_static(in0: VertexInput0, in1: VertexInput1, instance: InstanceInput) -> VertexOutput {
+    // Simplified vertex shader for static stage meshes
+    var out: VertexOutput;
+
+    let instance_transform = mat4x4<f32>(
+        instance.model_matrix_0,
+        instance.model_matrix_1,
+        instance.model_matrix_2,
+        instance.model_matrix_3,
+    );
+
+    // Transform any direction vectors by the instance and camera transforms.
+    // TODO: This assumes no scaling?
+    let model_view_matrix = camera.view * instance_transform;
+    let position = (model_view_matrix * vec4(in0.position.xyz, 1.0)).xyz;
+    let normal_xyz = (model_view_matrix * vec4(in0.normal.xyz, 0.0)).xyz;
+    let tangent_xyz = (model_view_matrix * vec4(in0.tangent.xyz, 0.0)).xyz;
+
+    out.clip_position = camera.projection * vec4(position, 1.0);
+    out.position = out.clip_position.xyz;
+
+    // Some shaders have gTexA, gTexB, gTexC for up to 5 scaled versions of tex0.
+    // This is handled in the fragment shader, so just return the attributes.
+    out.tex01 = in1.tex01;
+    out.tex23 = in1.tex23;
+    out.tex45 = in1.tex45;
+    out.tex67 = in1.tex67;
+    out.tex8 = in1.tex8;
+    out.vertex_color = in1.vertex_color;
+    out.normal = normal_xyz;
+    out.tangent = vec4(tangent_xyz, in0.tangent.w);
+    return out;
 }
 
 fn assign_texture(a: OutputAssignment, s_colors: array<vec4<f32>, 10>, vcolor: vec4<f32>) -> vec4<f32> {
@@ -692,12 +737,9 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
         normal = apply_normal_map(normal_map, tangent, bitangent, vertex_normal);
     }
 
-    // In game normals are in view space.
-    let view_normal = normalize((camera.view * vec4(normal.xyz, 0.0)).xyz);
-
     // Normals are in view space, so the view vector is simple.
     let view = vec3(0.0, 0.0, 1.0);
-    let n_dot_v = max(dot(view, view_normal), 0.0);
+    let n_dot_v = max(dot(view, normal), 0.0);
 
     // Blend color layers.
     var color = g_color.rgb;
@@ -721,8 +763,8 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     // TODO: Just detect if gMatCol is part of the technique parameters?
     var out: FragmentOutput;
     out.g_color = vec4(color, g_color.a * in.vertex_color.a) * per_material.mat_color;
-    out.g_etc_buffer = mrt_etc_buffer(etc_buffer, view_normal);
-    out.g_normal = mrt_normal(view_normal, ao);
+    out.g_etc_buffer = mrt_etc_buffer(etc_buffer, normal);
+    out.g_normal = mrt_normal(normal, ao);
     out.g_velocity = g_velocity;
     out.g_depth = mrt_depth(in.position.z, g_depth.w);
     out.g_lgt_color = g_lgt_color;

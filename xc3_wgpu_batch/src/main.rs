@@ -341,5 +341,7 @@ fn calculate_camera_data(width: u32, height: u32, translation: Vec3, rotation: V
         projection,
         view_projection,
         position,
+        width,
+        height,
     }
 }

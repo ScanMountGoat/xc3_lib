@@ -24,6 +24,7 @@ pub struct PipelineKey {
     pub flags: StateFlags,
     pub is_outline: bool,
     pub output5_type: Output5Type,
+    pub is_instanced_static: bool,
 }
 
 #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq)]
@@ -69,60 +70,94 @@ pub fn model_pipeline(
     data: &ModelPipelineData,
     key: &PipelineKey,
 ) -> wgpu::RenderPipeline {
-    let vertex_entry = if key.is_outline {
-        crate::shader::model::vs_outline_main_entry(
+    // TODO: Should this be an enum instead of separate booleans?
+    // TODO: Find a nicer way of writing this.
+    if key.is_instanced_static {
+        let vertex_entry = crate::shader::model::vs_main_instanced_static_entry(
             wgpu::VertexStepMode::Vertex,
             wgpu::VertexStepMode::Vertex,
-        )
-    } else {
-        crate::shader::model::vs_main_entry(
-            wgpu::VertexStepMode::Vertex,
-            wgpu::VertexStepMode::Vertex,
-        )
-    };
-
-    // Some shaders only write to the albedo output.
-    // TODO: Is there a better way of handling this than modifying the render pass?
-    if key.is_outline {
-        let entry = crate::shader::model::fs_outline_entry([
-            Some(GBUFFER_COLOR_FORMAT.into()),
-            Some(GBUFFER_COLOR_FORMAT.into()),
-            Some(GBUFFER_NORMAL_FORMAT.into()),
-            Some(GBUFFER_COLOR_FORMAT.into()),
-            Some(GBUFFER_COLOR_FORMAT.into()),
-            Some(GBUFFER_COLOR_FORMAT.into()),
-        ]);
-        model_pipeline_inner(device, data, vertex_entry, entry, key)
-    } else if key.write_to_all_outputs() {
-        // TODO: Do outputs other than color ever use blending?
-        // Create a target for each of the G-Buffer textures.
-        let entry = crate::shader::model::fs_main_entry([
-            Some(wgpu::ColorTargetState {
+            wgpu::VertexStepMode::Instance,
+        );
+        if key.write_to_all_outputs() {
+            // TODO: Do outputs other than color ever use blending?
+            // Create a target for each of the G-Buffer textures.
+            let entry = crate::shader::model::fs_main_entry([
+                Some(wgpu::ColorTargetState {
+                    format: GBUFFER_COLOR_FORMAT,
+                    blend: blend_state(key.flags.blend_mode),
+                    write_mask: wgpu::ColorWrites::all(),
+                }),
+                Some(GBUFFER_COLOR_FORMAT.into()),
+                Some(GBUFFER_NORMAL_FORMAT.into()),
+                Some(GBUFFER_COLOR_FORMAT.into()),
+                Some(GBUFFER_COLOR_FORMAT.into()),
+                Some(GBUFFER_COLOR_FORMAT.into()),
+            ]);
+            model_pipeline_inner(device, data, vertex_entry, entry, key)
+        } else {
+            let entry = crate::shader::model::fs_alpha_entry([Some(wgpu::ColorTargetState {
                 format: GBUFFER_COLOR_FORMAT,
                 blend: blend_state(key.flags.blend_mode),
                 write_mask: wgpu::ColorWrites::all(),
-            }),
-            Some(GBUFFER_COLOR_FORMAT.into()),
-            Some(GBUFFER_NORMAL_FORMAT.into()),
-            Some(GBUFFER_COLOR_FORMAT.into()),
-            Some(GBUFFER_COLOR_FORMAT.into()),
-            Some(GBUFFER_COLOR_FORMAT.into()),
-        ]);
-        model_pipeline_inner(device, data, vertex_entry, entry, key)
+            })]);
+            model_pipeline_inner(device, data, vertex_entry, entry, key)
+        }
     } else {
-        let entry = crate::shader::model::fs_alpha_entry([Some(wgpu::ColorTargetState {
-            format: GBUFFER_COLOR_FORMAT,
-            blend: blend_state(key.flags.blend_mode),
-            write_mask: wgpu::ColorWrites::all(),
-        })]);
-        model_pipeline_inner(device, data, vertex_entry, entry, key)
+        let vertex_entry = if key.is_outline {
+            crate::shader::model::vs_outline_main_entry(
+                wgpu::VertexStepMode::Vertex,
+                wgpu::VertexStepMode::Vertex,
+            )
+        } else {
+            crate::shader::model::vs_main_entry(
+                wgpu::VertexStepMode::Vertex,
+                wgpu::VertexStepMode::Vertex,
+            )
+        };
+
+        // Some shaders only write to the albedo output.
+        // TODO: Is there a better way of handling this than modifying the render pass?
+        if key.is_outline {
+            let entry = crate::shader::model::fs_outline_entry([
+                Some(GBUFFER_COLOR_FORMAT.into()),
+                Some(GBUFFER_COLOR_FORMAT.into()),
+                Some(GBUFFER_NORMAL_FORMAT.into()),
+                Some(GBUFFER_COLOR_FORMAT.into()),
+                Some(GBUFFER_COLOR_FORMAT.into()),
+                Some(GBUFFER_COLOR_FORMAT.into()),
+            ]);
+            model_pipeline_inner(device, data, vertex_entry, entry, key)
+        } else if key.write_to_all_outputs() {
+            // TODO: Do outputs other than color ever use blending?
+            // Create a target for each of the G-Buffer textures.
+            let entry = crate::shader::model::fs_main_entry([
+                Some(wgpu::ColorTargetState {
+                    format: GBUFFER_COLOR_FORMAT,
+                    blend: blend_state(key.flags.blend_mode),
+                    write_mask: wgpu::ColorWrites::all(),
+                }),
+                Some(GBUFFER_COLOR_FORMAT.into()),
+                Some(GBUFFER_NORMAL_FORMAT.into()),
+                Some(GBUFFER_COLOR_FORMAT.into()),
+                Some(GBUFFER_COLOR_FORMAT.into()),
+                Some(GBUFFER_COLOR_FORMAT.into()),
+            ]);
+            model_pipeline_inner(device, data, vertex_entry, entry, key)
+        } else {
+            let entry = crate::shader::model::fs_alpha_entry([Some(wgpu::ColorTargetState {
+                format: GBUFFER_COLOR_FORMAT,
+                blend: blend_state(key.flags.blend_mode),
+                write_mask: wgpu::ColorWrites::all(),
+            })]);
+            model_pipeline_inner(device, data, vertex_entry, entry, key)
+        }
     }
 }
 
-fn model_pipeline_inner<const N: usize>(
+fn model_pipeline_inner<const M: usize, const N: usize>(
     device: &wgpu::Device,
     data: &ModelPipelineData,
-    vertex_entry: crate::shader::model::VertexEntry<2>,
+    vertex_entry: crate::shader::model::VertexEntry<M>,
     fragment_entry: crate::shader::model::FragmentEntry<N>,
     key: &PipelineKey,
 ) -> wgpu::RenderPipeline {

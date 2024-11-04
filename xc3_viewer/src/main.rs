@@ -490,6 +490,8 @@ fn calculate_camera_data(
         projection,
         view_projection,
         position,
+        width: size.width,
+        height: size.height,
     }
 }
 

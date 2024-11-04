@@ -1,4 +1,4 @@
-use glam::{vec4, Mat4, Vec4};
+use glam::{vec2, vec4, Mat4, Vec2, Vec4};
 use wgpu::util::DeviceExt;
 use xc3_model::MeshRenderPass;
 
@@ -130,6 +130,8 @@ pub struct CameraData {
     pub projection: Mat4,
     pub view_projection: Mat4,
     pub position: Vec4,
+    pub width: u32,
+    pub height: u32,
 }
 
 // Fragment outputs for all 3 games to use in the deferred pass.
@@ -160,6 +162,8 @@ impl Renderer {
             projection: Mat4::IDENTITY,
             view_projection: Mat4::IDENTITY,
             position: Vec4::ZERO,
+            width,
+            height
         };
         let camera_buffer = device.create_uniform_buffer(
             "camera buffer",
@@ -168,6 +172,7 @@ impl Renderer {
                 projection: Mat4::IDENTITY,
                 view_projection: Mat4::IDENTITY,
                 position: Vec4::ZERO,
+                resolution: Vec2::ONE,
             },
         );
 
@@ -352,6 +357,7 @@ impl Renderer {
                 projection: camera_data.projection,
                 view_projection: camera_data.view_projection,
                 position: camera_data.position,
+                resolution: vec2(camera_data.width as f32, camera_data.height as f32),
             },
         );
         self.camera = *camera_data;

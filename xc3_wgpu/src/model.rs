@@ -97,6 +97,9 @@ impl Models {
             .map(|s| create_sampler(device, s))
             .collect();
 
+        // TODO: Should instances be empty for character models instead of length 1?
+        let is_instanced_static = models.models.iter().any(|m| m.instances.len() > 1);
+
         let materials = materials(
             device,
             queue,
@@ -107,6 +110,7 @@ impl Models {
             &samplers,
             image_textures,
             monolib_shader,
+            is_instanced_static,
         );
 
         // TODO: Avoid clone?
@@ -140,6 +144,7 @@ impl Models {
 pub struct Model {
     pub meshes: Vec<Mesh>,
     model_buffers_index: usize,
+    instances: Instances,
 }
 
 pub struct Mesh {
@@ -149,6 +154,11 @@ pub struct Mesh {
     flags2: MeshRenderFlags2,
     lod: Option<usize>,
     per_mesh: crate::shader::model::bind_groups::BindGroup3,
+}
+
+struct Instances {
+    transforms: wgpu::Buffer,
+    count: u32,
 }
 
 struct Bounds {
@@ -267,9 +277,21 @@ impl ModelGroup {
 
                         material.bind_group2.set(render_pass);
 
-                        let instance_count = material.fur_shell_instance_count.unwrap_or(1);
+                        // Assume meshes have either instance transforms or fur shells.
+                        let instance_count = material
+                            .fur_shell_instance_count
+                            .unwrap_or(model.instances.count);
 
-                        self.draw_mesh(model, mesh, render_pass, is_outline, instance_count);
+                        let is_instanced_static = material.pipeline_key.is_instanced_static;
+
+                        self.draw_mesh(
+                            model,
+                            mesh,
+                            render_pass,
+                            is_outline,
+                            is_instanced_static,
+                            instance_count,
+                        );
                     }
                 }
             }
@@ -301,6 +323,7 @@ impl ModelGroup {
         mesh: &Mesh,
         render_pass: &mut wgpu::RenderPass<'a>,
         is_outline: bool,
+        is_instanced_static: bool,
         instance_count: u32,
     ) {
         let vertex_buffers =
@@ -318,6 +341,10 @@ impl ModelGroup {
             render_pass.set_vertex_buffer(1, vertex_buffers.outline_vertex_buffer1.slice(..));
         } else {
             render_pass.set_vertex_buffer(1, vertex_buffers.vertex_buffer1.slice(..));
+        }
+
+        if is_instanced_static {
+            render_pass.set_vertex_buffer(2, model.instances.transforms.slice(..));
         }
 
         // TODO: Are all indices u16?
@@ -622,29 +649,37 @@ fn create_model(
     let meshes = model
         .meshes
         .iter()
-        .flat_map(|mesh| {
-            model.instances.iter().map(|i| Mesh {
-                vertex_buffer_index: mesh.vertex_buffer_index,
-                index_buffer_index: mesh.index_buffer_index,
-                material_index: mesh.material_index,
-                lod: mesh.lod_item_index,
-                flags2: mesh.flags2,
-                per_mesh: per_mesh_bind_group(
-                    device,
-                    model_buffers,
-                    mesh,
-                    &materials[mesh.material_index],
-                    weights,
-                    bone_names,
-                    i,
-                ),
-            })
+        .map(|mesh| Mesh {
+            vertex_buffer_index: mesh.vertex_buffer_index,
+            index_buffer_index: mesh.index_buffer_index,
+            material_index: mesh.material_index,
+            lod: mesh.lod_item_index,
+            flags2: mesh.flags2,
+            per_mesh: per_mesh_bind_group(
+                device,
+                model_buffers,
+                mesh,
+                &materials[mesh.material_index],
+                weights,
+                bone_names,
+            ),
         })
         .collect();
+
+    let transforms = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("instance transforms"),
+        contents: bytemuck::cast_slice(&model.instances),
+        usage: wgpu::BufferUsages::VERTEX,
+    });
+    let instances = Instances {
+        transforms,
+        count: model.instances.len() as u32,
+    };
 
     Model {
         meshes,
         model_buffers_index: model.model_buffers_index,
+        instances,
     }
 }
 
@@ -1004,7 +1039,6 @@ fn per_mesh_bind_group(
     material: &Material,
     weights: Option<&xc3_model::skinning::Weights>,
     bone_names: Option<&[String]>,
-    transform: &Mat4,
 ) -> shader::model::bind_groups::BindGroup3 {
     // TODO: Fix weight indexing calculations.
     let start = buffers
@@ -1084,8 +1118,6 @@ fn per_mesh_bind_group(
         usage: wgpu::BufferUsages::STORAGE,
     });
 
-    let instance_transform = device.create_uniform_buffer("instance transform", transform);
-
     // Bone indices and skin weights are technically part of the model buffers.
     // Each mesh selects a range of values based on weight lods.
     // Define skinning per mesh to avoid alignment requirements on buffer bindings.
@@ -1096,7 +1128,6 @@ fn per_mesh_bind_group(
             // TODO: Is it worth caching skinning buffers based on flags and parameters?
             bone_indices: bone_indices.as_entire_buffer_binding(),
             skin_weights: skin_weights.as_entire_buffer_binding(),
-            instance_transform: instance_transform.as_entire_buffer_binding(),
         },
     )
 }
