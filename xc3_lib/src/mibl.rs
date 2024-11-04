@@ -150,11 +150,13 @@ impl BinRead for Mibl {
         endian: binrw::Endian,
         args: Self::Args<'_>,
     ) -> binrw::BinResult<Self> {
-        // Assume the MIBL is the only item in the reader.
+        let saved_pos = reader.stream_position()?;
+
+        // Assume the MIBL is the last item in the reader.
         reader.seek(SeekFrom::End(-(MIBL_FOOTER_SIZE as i64)))?;
         let footer = MiblFooter::read_options(reader, endian, args)?;
 
-        reader.seek(SeekFrom::Start(0))?;
+        reader.seek(SeekFrom::Start(saved_pos))?;
 
         // Avoid potentially storing the footer in the image data.
         // Alignment will be applied when writing.

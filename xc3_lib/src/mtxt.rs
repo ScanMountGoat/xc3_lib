@@ -135,12 +135,14 @@ impl BinRead for Mtxt {
         endian: binrw::Endian,
         args: Self::Args<'_>,
     ) -> binrw::BinResult<Self> {
-        // Assume the Mtxt is the only item in the reader.
+        let saved_pos = reader.stream_position()?;
+
+        // Assume the Mtxt is the last item in the reader.
         reader.seek(SeekFrom::End(-(FOOTER_SIZE as i64)))?;
-        let image_size = reader.stream_position()?;
+        let image_size = reader.stream_position()?.saturating_sub(saved_pos);
         let footer = MtxtFooter::read_options(reader, endian, args)?;
 
-        reader.seek(SeekFrom::Start(0))?;
+        reader.seek(SeekFrom::Start(saved_pos))?;
 
         // TODO: How much of this is just alignment padding?
         let mut image_data = vec![0u8; image_size as usize];

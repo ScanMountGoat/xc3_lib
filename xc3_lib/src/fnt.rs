@@ -5,11 +5,8 @@
 //! | Game | Versions | File Patterns |
 //! | --- | --- | --- |
 //! | Xenoblade Chronicles X | | `menu/font/**/*.fnt` |
-
-use std::io::{Cursor, SeekFrom};
-
 use crate::{mtxt::Mtxt, parse_ptr32};
-use binrw::{BinRead, BinResult};
+use binrw::BinRead;
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 const VERSION: u32 = 2;
@@ -26,9 +23,8 @@ pub struct Fnt {
     #[xc3(offset(u32))]
     pub font: XcxFont,
 
-    // No problem with sub-cursors here, XCX expects the MTXT footer to end the file
-    // (i.e. mtxt size = file_size - textures_offset)
-    #[br(parse_with = parse_ptr32_mtxt)]
+    // Assume the texture is the last item in the file.
+    #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32), align(4096))]
     pub textures: Mtxt,
 }
@@ -128,27 +124,9 @@ impl<'a> Xc3WriteOffsets for FntOffsets<'a> {
             .write_full(writer, base_offset, data_ptr, endian)?;
         self.textures
             .write_full(writer, base_offset, data_ptr, endian)?;
-        // Update file size field with current position after writing the entire file structure
-        self.file_size
-            .write_full(writer, base_offset, data_ptr, endian)?;
+
+        let file_size = writer.stream_position()?;
+        self.file_size.set_offset(writer, file_size, endian)?;
         Ok(())
     }
-}
-
-fn parse_ptr32_mtxt<T, R, Args>(reader: &mut R, endian: binrw::Endian, args: Args) -> BinResult<T>
-where
-    for<'a> T: BinRead<Args<'a> = Args> + 'static,
-    R: std::io::Read + std::io::Seek,
-    Args: Clone,
-{
-    // Mtxt uses SeekFrom::Start(0), we need to create a sub-cursor
-    let offset = u32::read_options(reader, endian, ())?;
-    let pos = reader.stream_position()?;
-    let mut buf = Vec::new();
-
-    reader.seek(SeekFrom::Start(offset.into()))?;
-    reader.read_to_end(&mut buf)?;
-    reader.seek(SeekFrom::Start(pos))?;
-
-    T::read_options(&mut Cursor::new(buf), endian, args)
 }
