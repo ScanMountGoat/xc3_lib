@@ -165,6 +165,7 @@ impl Renderer {
             "camera buffer",
             &crate::shader::model::Camera {
                 view: Mat4::IDENTITY,
+                projection: Mat4::IDENTITY,
                 view_projection: Mat4::IDENTITY,
                 position: Vec4::ZERO,
             },
@@ -348,6 +349,7 @@ impl Renderer {
             &self.camera_buffer,
             &crate::shader::model::Camera {
                 view: camera_data.view,
+                projection: camera_data.projection,
                 view_projection: camera_data.view_projection,
                 position: camera_data.position,
             },

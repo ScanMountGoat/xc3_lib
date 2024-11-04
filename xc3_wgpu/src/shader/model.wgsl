@@ -1,6 +1,7 @@
 // PerScene values.
 struct Camera {
     view: mat4x4<f32>,
+    projection: mat4x4<f32>,
     view_projection: mat4x4<f32>,
     position: vec4<f32>
 }
@@ -139,16 +140,20 @@ struct PerMaterial {
     // Shader database information.
     assignments: array<OutputAssignment, 6>,
 
+    // TODO: Split into separate fields since this uses encase.
     // texture index, channel, index, 0, 0
     alpha_test_texture: vec4<i32>,
-    alpha_test_ref: vec4<f32>,
 
-    // This assumes textures are accessed in the shader at most once.
+    // Store one transform per texture.
+    // Assume shaders access textures at most once.
     texture_transforms: array<array<vec4<f32>, 2>, 10>,
     // texcoord index, single channel (BC4 swizzle mask), 0, 0
     texture_info: array<vec4<u32>, 10>,
 
-    fur_params: FurShellParams
+    fur_params: FurShellParams,
+
+    // Assume outline width is always set via a parameter or constant.
+    outline_width: f32
 }
 
 struct FurShellParams {
@@ -253,12 +258,13 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance_index: u32, outl
         }
     }
 
-    let model_matrix = instance_transform;
+    let model_view_matrix = camera.view * instance_transform;
+    position = (model_view_matrix * vec4(position, 1.0)).xyz;
 
     if outline {
-        // TODO: What to use for the param here?
-        let outline_width = outline_width(in1.vertex_color, 0.007351, position.z, normal_xyz);
+        let outline_width = outline_width(in1.vertex_color, per_material.outline_width, position.z, normal_xyz);
         position += normal_xyz * outline_width;
+        // TODO: set vertex alpha to line width?
     }
 
     var vertex_color = in1.vertex_color;
@@ -279,7 +285,7 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance_index: u32, outl
         vertex_color.a = 1.0 - clamp(alpha_factor, 0.0, 1.0);
     }
 
-    out.clip_position = camera.view_projection * model_matrix * vec4(position, 1.0);
+    out.clip_position = camera.projection * vec4(position, 1.0);
     out.position = out.clip_position.xyz;
 
     // Some shaders have gTexA, gTexB, gTexC for up to 5 scaled versions of tex0.
@@ -292,8 +298,10 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance_index: u32, outl
 
     out.vertex_color = vertex_color;
 
+    // TODO: Should these be in view space to match in game?
     // Transform any direction vectors by the instance transform.
     // TODO: This assumes no scaling?
+    let model_matrix = instance_transform;
     out.normal = (model_matrix * vec4(normal_xyz, 0.0)).xyz;
     out.tangent = vec4((model_matrix * vec4(tangent_xyz, 0.0)).xyz, in0.tangent.w);
     return out;
@@ -301,10 +309,8 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance_index: u32, outl
 
 // Adapted from shd0001 GLSL from ch11021013.pcsmt (xc3). 
 fn outline_width(vertex_color: vec4<f32>, param: f32, view_z: f32, normal: vec3<f32>) -> f32 {
-    // TODO: Is this scaled to have a fixed width in screen space?
-    // TODO: is the param always gWrkFl4[0].w?
+    let f_line_width = vertex_color.w * param * -view_z / camera.projection[1][1];
     // TODO: Scaled by toon lighting using toon params?
-    let f_line_width = vertex_color.w * param;
     return f_line_width;
 }
 
@@ -646,7 +652,7 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     let alpha_texture = per_material.alpha_test_texture.x;
     let alpha_texture_channel = u32(per_material.alpha_test_texture.y);
     // Workaround for not being able to use a non constant index.
-    if assign_channel(alpha_texture, alpha_texture_channel, -1, s_colors, vec4(1.0), 1.0) < per_material.alpha_test_ref.x {
+    if assign_channel(alpha_texture, alpha_texture_channel, -1, s_colors, vec4(1.0), 1.0) < 0.5 {
         // TODO: incorrect reference alpha for comparison?
         discard;
     }

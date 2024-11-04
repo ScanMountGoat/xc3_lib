@@ -41,6 +41,11 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
     let vertex = vertex.map(|v| (Graph::from_glsl(v), find_attribute_locations(v)));
     let (vert, vert_attributes) = vertex.unzip();
 
+    let outline_width = vert
+        .as_ref()
+        .map(outline_width_parameter)
+        .unwrap_or_default();
+
     let mut output_dependencies = IndexMap::new();
     for i in 0..=5 {
         for c in "xyzw".chars() {
@@ -122,7 +127,30 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
     ShaderProgram {
         // IndexMap gives consistent ordering for attribute names.
         output_dependencies,
+        outline_width,
     }
+}
+
+fn outline_width_parameter(vert: &Graph) -> Option<Dependency> {
+    vert.nodes.iter().find_map(|n| {
+        // TODO: Add a way to match identifiers like "vColor" exactly.
+        let query = indoc! {"
+            alpha = vColor.w;
+            result = param * alpha;
+            result = 0.0 - result;
+            result = temp * result;
+        "};
+        let result = query_nodes_glsl(&n.input, &vert.nodes, query)?;
+        let param = result.get("param")?;
+        let vcolor = result.get("vColor")?;
+
+        if matches!(vcolor, Expr::Global { name, channel } if name == "vColor" && *channel == Some('w')) {
+            // TODO: Handle other dependency types?
+            buffer_dependency(param).map(Dependency::Buffer)
+        } else {
+            None
+        }
+    })
 }
 
 fn shader_from_latte_asm(
@@ -194,6 +222,7 @@ fn shader_from_latte_asm(
     ShaderProgram {
         // IndexMap gives consistent ordering for attribute names.
         output_dependencies,
+        outline_width: None,
     }
 }
 
@@ -2653,6 +2682,27 @@ mod tests {
     }
 
     #[test]
+    fn shader_from_vertex_fragment_noah_body_outline() {
+        // xeno3/chr/ch/ch01011013, "body_outline", shd0000.frag
+        let vert_glsl = include_str!("data/xc3/ch01011013.0.vert");
+        let frag_glsl = include_str!("data/xc3/ch01011013.0.frag");
+
+        // Check for outline data.
+        let vertex = TranslationUnit::parse(vert_glsl).unwrap();
+        let fragment = TranslationUnit::parse(frag_glsl).unwrap();
+        let shader = shader_from_glsl(Some(&vertex), &fragment);
+        assert_eq!(
+            Some(Dependency::Buffer(BufferDependency {
+                name: "U_Mate".into(),
+                field: "gWrkFl4".into(),
+                index: 0,
+                channels: "z".into(),
+            })),
+            shader.outline_width
+        );
+    }
+
+    #[test]
     fn shader_from_latte_asm_pc221115_frag_0() {
         // Elma's legs (visible on title screen).
         let asm = include_str!("data/xcx/pc221115.0.frag.txt");
@@ -3036,6 +3086,7 @@ mod tests {
                     )
                 ]
                 .into(),
+                outline_width: None
             },
             shader
         );

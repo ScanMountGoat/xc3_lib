@@ -99,6 +99,9 @@ pub struct ShaderProgram {
     /// Node based editors like Blender's shader editor should use these values
     /// to determine how to construct node groups.
     pub output_dependencies: IndexMap<SmolStr, OutputDependencies>,
+
+    /// The parameter multiplied by vertex alpha to determine outline width.
+    pub outline_width: Option<Dependency>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -336,6 +339,7 @@ mod tests {
     fn material_channel_assignment_empty() {
         let shader = ShaderProgram {
             output_dependencies: IndexMap::new(),
+            outline_width: None,
         };
         assert!(shader.textures(0, 'x').is_empty());
     }
@@ -351,6 +355,7 @@ mod tests {
                 },
             )]
             .into(),
+            outline_width: None,
         };
         assert!(shader.textures(0, 'x').is_empty());
     }
@@ -401,6 +406,7 @@ mod tests {
                 ),
             ]
             .into(),
+            outline_width: None,
         };
         assert_eq!(
             vec![
@@ -461,6 +467,7 @@ mod tests {
                 ),
             ]
             .into(),
+            outline_width: None,
         };
         assert_eq!(None, shader.float_constant(0, 'x'));
         assert_eq!(Some(0.5), shader.float_constant(1, 'z'));
@@ -513,6 +520,7 @@ mod tests {
                 ),
             ]
             .into(),
+            outline_width: None,
         };
         assert_eq!(None, shader.buffer_parameter(0, 'x'));
         assert_eq!(

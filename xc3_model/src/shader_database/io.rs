@@ -79,6 +79,9 @@ struct ShaderProgramIndexed {
     #[br(parse_with = parse_count8)]
     #[bw(write_with = write_count8)]
     output_dependencies: Vec<(StringIndex, OutputDependenciesIndexed)>,
+
+    // TODO: Add optional dependency type.
+    outline_width: i16,
 }
 
 #[binrw]
@@ -429,7 +432,12 @@ fn model_indexed(
                                                 .unwrap(),
                                             ratio: l
                                                 .ratio
-                                                .map(|r| dependency_to_index.entry_index(r) as i16)
+                                                .map(|r| {
+                                                    dependency_to_index
+                                                        .entry_index(r)
+                                                        .try_into()
+                                                        .unwrap()
+                                                })
                                                 .unwrap_or(-1),
                                             blend_mode: l.blend_mode.into(),
                                             is_fresnel: l.is_fresnel.into(),
@@ -439,6 +447,10 @@ fn model_indexed(
                             )
                         })
                         .collect(),
+                    outline_width: p
+                        .outline_width
+                        .map(|d| dependency_to_index.entry_index(d).try_into().unwrap())
+                        .unwrap_or(-1),
                 }
             })
             .collect(),
@@ -495,6 +507,9 @@ fn model_from_indexed(
                         )
                     })
                     .collect(),
+                outline_width: usize::try_from(p.outline_width)
+                    .ok()
+                    .map(|i| dependency_from_indexed(dependencies[i].clone(), strings)),
             })
             .collect(),
     }

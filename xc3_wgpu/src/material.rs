@@ -131,6 +131,11 @@ pub fn materials(
                     alpha: 0.0,
                 });
 
+            // TODO: What is a good default outline width?
+            let outline_width =
+                value_channel_assignment(material_assignments.outline_width.as_ref())
+                    .unwrap_or(0.005);
+
             // TODO: This is normally done using a depth prepass.
             // TODO: Is it ok to combine the prepass alpha in the main pass like this?
             let per_material = device.create_uniform_buffer(
@@ -151,10 +156,7 @@ pub fn materials(
                             .unwrap_or((-1, 3));
                         IVec4::new(texture_index, channel_index, 0, 0)
                     },
-                    // TODO: what is this ref value?
-                    alpha_test_ref: Vec4::splat(
-                        material.alpha_test.as_ref().map(|_| 0.5).unwrap_or(1.0),
-                    ),
+                    outline_width,
                     fur_params,
                 }],
             );

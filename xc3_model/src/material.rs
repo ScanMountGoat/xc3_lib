@@ -371,6 +371,7 @@ fn get_shader_legacy(
 
     Some(ShaderProgram {
         output_dependencies,
+        outline_width: None,
     })
 }
 
@@ -542,6 +543,8 @@ fn read_param<const N: usize>(
 #[derive(Debug, Clone, PartialEq)]
 pub struct OutputAssignments {
     pub assignments: [OutputAssignment; 6],
+    /// The parameter multiplied by vertex alpha to determine outline width.
+    pub outline_width: Option<ChannelAssignment>,
 }
 
 impl OutputAssignments {
@@ -724,6 +727,7 @@ impl Material {
                     ..Default::default()
                 },
             ],
+            outline_width: None,
         }
     }
 }
@@ -734,6 +738,10 @@ fn output_assignments(
 ) -> OutputAssignments {
     OutputAssignments {
         assignments: [0, 1, 2, 3, 4, 5].map(|i| output_assignment(shader, parameters, i)),
+        outline_width: shader
+            .outline_width
+            .as_ref()
+            .and_then(|d| ChannelAssignment::from_dependency(d, parameters, 'x')),
     }
 }
 
