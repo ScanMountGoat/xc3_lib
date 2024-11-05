@@ -277,7 +277,7 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance_index: u32, outl
         let param = 2.0 * per_material.outline_width / camera.resolution.y;
 
         let outline_width = outline_width(in1.vertex_color, param, position.z, normal_xyz);
-        position += normal_xyz * outline_width * 8.0;
+        position += normal_xyz * outline_width * 2.0;
         // TODO: set vertex alpha to line width?
         // vertex_color.a = outline_width;
     }
