@@ -37,11 +37,15 @@ pub struct ShaderDatabaseIndexed {
     #[bw(write_with = write_count16)]
     dependencies: Vec<DependencyIndexed>,
 
+    // Storing multiple string tables enables 8-bit instead of 16-bit indices.
     #[br(parse_with = parse_count8)]
     #[bw(write_with = write_count8)]
     strings: Vec<NullString>,
 
-    // Storing outputs separately enables 8-bit instead of 16-bit indices.
+    #[br(parse_with = parse_count8)]
+    #[bw(write_with = write_count8)]
+    texture_names: Vec<NullString>,
+
     #[br(parse_with = parse_count8)]
     #[bw(write_with = write_count8)]
     outputs: Vec<NullString>,
@@ -214,15 +218,27 @@ impl ShaderDatabaseIndexed {
     }
 
     pub fn model(&self, name: &str) -> Option<ModelPrograms> {
-        self.files
-            .get(name)
-            .map(|f| model_from_indexed(f, &self.dependencies, &self.strings, &self.outputs))
+        self.files.get(name).map(|f| {
+            model_from_indexed(
+                f,
+                &self.dependencies,
+                &self.strings,
+                &self.texture_names,
+                &self.outputs,
+            )
+        })
     }
 
     pub fn map(&self, name: &str) -> Option<MapPrograms> {
-        self.map_files
-            .get(name)
-            .map(|f| map_from_indexed(f, &self.dependencies, &self.strings, &self.outputs))
+        self.map_files.get(name).map(|f| {
+            map_from_indexed(
+                f,
+                &self.dependencies,
+                &self.strings,
+                &self.texture_names,
+                &self.outputs,
+            )
+        })
     }
 
     pub fn from_models_maps(
@@ -231,6 +247,7 @@ impl ShaderDatabaseIndexed {
     ) -> Self {
         let mut dependency_to_index = IndexMap::new();
         let mut string_to_index = IndexMap::new();
+        let mut texture_to_index = IndexMap::new();
         let mut output_to_index = IndexMap::new();
 
         Self {
@@ -286,7 +303,7 @@ impl ShaderDatabaseIndexed {
                     )),
                     Dependency::Texture(t) => {
                         DependencyIndexed::Texture(TextureDependencyIndexed {
-                            name: string_to_index.entry_index(t.name).try_into().unwrap(),
+                            name: texture_to_index.entry_index(t.name).try_into().unwrap(),
                             channels: string_to_index.entry_index(t.channels).try_into().unwrap(),
                             texcoords: t
                                 .texcoords
@@ -334,6 +351,10 @@ impl ShaderDatabaseIndexed {
                 .into_keys()
                 .map(|k| k.to_string().into())
                 .collect(),
+            texture_names: texture_to_index
+                .into_keys()
+                .map(|k| k.to_string().into())
+                .collect(),
             outputs: output_to_index
                 .into_keys()
                 .map(|k| k.to_string().into())
@@ -354,12 +375,16 @@ fn buffer_dependency_indexed(
     }
 }
 
-fn dependency_from_indexed(d: DependencyIndexed, strings: &[NullString]) -> Dependency {
+fn dependency_from_indexed(
+    d: DependencyIndexed,
+    texture_names: &[NullString],
+    strings: &[NullString],
+) -> Dependency {
     match d {
         DependencyIndexed::Constant(f) => Dependency::Constant(f.into()),
         DependencyIndexed::Buffer(b) => Dependency::Buffer(buffer_dependency(b, strings)),
         DependencyIndexed::Texture(t) => Dependency::Texture(TextureDependency {
-            name: strings[t.name.0 as usize].to_smolstr(),
+            name: texture_names[t.name.0 as usize].to_smolstr(),
             channels: strings[t.channels.0 as usize].to_smolstr(),
             texcoords: t
                 .texcoords
@@ -461,6 +486,7 @@ fn model_from_indexed(
     model: &ModelIndexed,
     dependencies: &[DependencyIndexed],
     strings: &[NullString],
+    texture_names: &[NullString],
     outputs: &[NullString],
 ) -> ModelPrograms {
     ModelPrograms {
@@ -481,6 +507,7 @@ fn model_from_indexed(
                                     .map(|d| {
                                         dependency_from_indexed(
                                             dependencies[d.0 as usize].clone(),
+                                            texture_names,
                                             strings,
                                         )
                                     })
@@ -491,11 +518,13 @@ fn model_from_indexed(
                                     .map(|l| TextureLayer {
                                         value: dependency_from_indexed(
                                             dependencies[l.value.0 as usize].clone(),
+                                            texture_names,
                                             strings,
                                         ),
                                         ratio: usize::try_from(l.ratio).ok().map(|i| {
                                             dependency_from_indexed(
                                                 dependencies[i].clone(),
+                                                texture_names,
                                                 strings,
                                             )
                                         }),
@@ -507,9 +536,9 @@ fn model_from_indexed(
                         )
                     })
                     .collect(),
-                outline_width: usize::try_from(p.outline_width)
-                    .ok()
-                    .map(|i| dependency_from_indexed(dependencies[i].clone(), strings)),
+                outline_width: usize::try_from(p.outline_width).ok().map(|i| {
+                    dependency_from_indexed(dependencies[i].clone(), texture_names, strings)
+                }),
             })
             .collect(),
     }
@@ -519,23 +548,24 @@ fn map_from_indexed(
     map: &MapIndexed,
     dependencies: &[DependencyIndexed],
     strings: &[NullString],
+    texture_names: &[NullString],
     outputs: &[NullString],
 ) -> MapPrograms {
     MapPrograms {
         map_models: map
             .map_models
             .iter()
-            .map(|s| model_from_indexed(s, dependencies, strings, outputs))
+            .map(|s| model_from_indexed(s, dependencies, strings, texture_names, outputs))
             .collect(),
         prop_models: map
             .prop_models
             .iter()
-            .map(|s| model_from_indexed(s, dependencies, strings, outputs))
+            .map(|s| model_from_indexed(s, dependencies, strings, texture_names, outputs))
             .collect(),
         env_models: map
             .env_models
             .iter()
-            .map(|s| model_from_indexed(s, dependencies, strings, outputs))
+            .map(|s| model_from_indexed(s, dependencies, strings, texture_names, outputs))
             .collect(),
     }
 }
@@ -617,7 +647,7 @@ fn write_count16<T>(value: &Vec<T>) -> BinResult<()>
 where
     for<'a> T: BinWrite<Args<'a> = ()> + 'static,
 {
-    (value.len() as u16).write_options(writer, endian, ())?;
+    (u16::try_from(value.len()).unwrap()).write_options(writer, endian, ())?;
     value.write_options(writer, endian, ())?;
     Ok(())
 }
@@ -635,7 +665,7 @@ fn write_count8<T>(map: &Vec<T>) -> BinResult<()>
 where
     for<'a> T: BinWrite<Args<'a> = ()> + 'static,
 {
-    (map.len() as u8).write_options(writer, endian, ())?;
+    (u8::try_from(map.len()).unwrap()).write_options(writer, endian, ())?;
     map.write_options(writer, endian, ())?;
     Ok(())
 }
@@ -664,7 +694,7 @@ fn write_map32<T>(map: &IndexMap<SmolStr, T>) -> BinResult<()>
 where
     for<'a> T: BinWrite<Args<'a> = ()> + 'static,
 {
-    (map.len() as u32).write_options(writer, endian, ())?;
+    (u32::try_from(map.len()).unwrap()).write_options(writer, endian, ())?;
     for (k, v) in map.iter() {
         (NullString::from(k.to_string())).write_options(writer, endian, ())?;
         v.write_options(writer, endian, ())?;
