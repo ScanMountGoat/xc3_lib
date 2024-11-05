@@ -33,7 +33,7 @@ pub fn input_dependencies(
                     dependencies.push(Dependency::Buffer(BufferDependency {
                         name: name.into(),
                         field: field.clone().unwrap_or_default().into(),
-                        index: (*index).try_into().unwrap(),
+                        index: Some((*index).try_into().unwrap()),
                         channels: channel.map(|c| c.to_string().into()).unwrap_or_default(),
                     }))
                 }
@@ -259,11 +259,16 @@ pub fn buffer_dependency(e: &Expr) -> Option<BufferDependency> {
             Some(BufferDependency {
                 name: name.into(),
                 field: field.clone().unwrap_or_default().into(),
-                index: (*index).try_into().unwrap(),
+                index: Some((*index).try_into().unwrap()),
                 channels: channel.map(|c| c.to_string().into()).unwrap_or_default(),
             })
         } else {
-            None
+            Some(BufferDependency {
+                name: name.into(),
+                field: field.clone().unwrap_or_default().into(),
+                index: None,
+                channels: channel.map(|c| c.to_string().into()).unwrap_or_default(),
+            })
         }
     } else {
         None
@@ -365,25 +370,25 @@ mod tests {
                             BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gTexMat".into(),
-                                index: 0,
+                                index: Some(0),
                                 channels: "x".into(),
                             },
                             BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gTexMat".into(),
-                                index: 0,
+                                index: Some(0),
                                 channels: "y".into(),
                             },
                             BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gTexMat".into(),
-                                index: 0,
+                                index: Some(0),
                                 channels: "z".into(),
                             },
                             BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gTexMat".into(),
-                                index: 0,
+                                index: Some(0),
                                 channels: "w".into(),
                             }
                         ]))
@@ -395,25 +400,25 @@ mod tests {
                             BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gTexMat".into(),
-                                index: 1,
+                                index: Some(1),
                                 channels: "x".into(),
                             },
                             BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gTexMat".into(),
-                                index: 1,
+                                index: Some(1),
                                 channels: "y".into(),
                             },
                             BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gTexMat".into(),
-                                index: 1,
+                                index: Some(1),
                                 channels: "z".into(),
                             },
                             BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gTexMat".into(),
-                                index: 1,
+                                index: Some(1),
                                 channels: "w".into(),
                             }
                         ]))
@@ -458,7 +463,7 @@ mod tests {
                         params: Some(TexCoordParams::Scale(BufferDependency {
                             name: "U_Mate".into(),
                             field: "gWrkFl4".into(),
-                            index: 0,
+                            index: Some(0),
                             channels: "z".into()
                         }))
                     },
@@ -468,7 +473,7 @@ mod tests {
                         params: Some(TexCoordParams::Scale(BufferDependency {
                             name: "U_Mate".into(),
                             field: "gWrkFl4".into(),
-                            index: 0,
+                            index: Some(0),
                             channels: "w".into()
                         }))
                     }
@@ -574,7 +579,7 @@ mod tests {
             vec![Dependency::Buffer(BufferDependency {
                 name: "U_Mate".into(),
                 field: "data".into(),
-                index: 1,
+                index: Some(1),
                 channels: "w".into()
             })],
             input_dependencies(
@@ -588,7 +593,7 @@ mod tests {
             vec![Dependency::Buffer(BufferDependency {
                 name: "uniform_data".into(),
                 field: Default::default(),
-                index: 3,
+                index: Some(3),
                 channels: "y".into()
             })],
             input_dependencies(

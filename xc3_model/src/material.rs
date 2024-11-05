@@ -87,9 +87,10 @@ impl MaterialParameters {
         // TODO: Handle multiple channels?
         // TODO: How to handle the case where the input has no channels?
         let c = "xyzw".find(p.channels.chars().next()?).unwrap();
+        let index = p.index.unwrap_or_default();
         match (p.name.as_str(), p.field.as_str()) {
-            ("U_Mate", "gWrkFl4") => Some(self.work_float4.as_ref()?.get(p.index)?[c]),
-            ("U_Mate", "gWrkCol") => Some(self.work_color.as_ref()?.get(p.index)?[c]),
+            ("U_Mate", "gWrkFl4") => Some(self.work_float4.as_ref()?.get(index)?[c]),
+            ("U_Mate", "gWrkCol") => Some(self.work_color.as_ref()?.get(index)?[c]),
             _ => None,
         }
     }
@@ -498,15 +499,21 @@ fn apply_callbacks(work_values: &[f32], callbacks: &[WorkCallback]) -> Vec<f32> 
     // Callbacks are applied directly to the work values.
     // TODO: What do the remaining callback types do?
     for callback in callbacks {
-        // (26, i) for dividing work value i value by 255?
-        if callback.unk1 == 26 {
-            // TODO: do these values always come in pairs?
-            let start = callback.unk2 as usize;
-            if start + 1 < work_values.len() {
-                // Shader parameters reference the first value in the pair.
-                // Only editing the second value in the pair seems to matter in game.
-                work_values[start] = work_values[start + 1] / 255.0;
+        match callback.unk1 {
+            25 => {
+                // TODO: outline width?
             }
+            26 => {
+                // (26, i) for dividing work value i value by 255?
+                // TODO: do these values always come in pairs?
+                let start = callback.unk2 as usize;
+                if start + 1 < work_values.len() {
+                    // Shader parameters reference the first value in the pair.
+                    // Only editing the second value in the pair seems to matter in game.
+                    work_values[start] = work_values[start + 1] / 255.0;
+                }
+            }
+            _ => (),
         }
     }
     work_values

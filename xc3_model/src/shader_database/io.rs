@@ -157,7 +157,7 @@ enum DependencyIndexed {
 struct BufferDependencyIndexed {
     name: StringIndex,
     field: StringIndex,
-    index: u8,
+    index: i8, // TODO: optional index type
     channels: StringIndex,
 }
 
@@ -349,7 +349,7 @@ fn buffer_dependency_indexed(
     BufferDependencyIndexed {
         name: string_to_index.entry_index(b.name).try_into().unwrap(),
         field: string_to_index.entry_index(b.field).try_into().unwrap(),
-        index: b.index.try_into().unwrap(),
+        index: b.index.map(|i| i.try_into().unwrap()).unwrap_or(-1),
         channels: string_to_index.entry_index(b.channels).try_into().unwrap(),
     }
 }
@@ -390,7 +390,7 @@ fn buffer_dependency(b: BufferDependencyIndexed, strings: &[NullString]) -> Buff
     BufferDependency {
         name: strings[b.name.0 as usize].to_smolstr(),
         field: strings[b.field.0 as usize].to_smolstr(),
-        index: b.index as usize,
+        index: usize::try_from(b.index).ok(),
         channels: strings[b.channels.0 as usize].to_smolstr(),
     }
 }

@@ -121,12 +121,12 @@ pub enum Dependency {
     Attribute(AttributeDependency),
 }
 
-/// A single buffer access like `UniformBuffer.field[0].y` in GLSL.
+/// A single buffer access like `UniformBuffer.field[0].y` or `UniformBuffer.field.y` in GLSL.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 pub struct BufferDependency {
     pub name: SmolStr,
     pub field: SmolStr,
-    pub index: usize,
+    pub index: Option<usize>,
     pub channels: SmolStr,
 }
 
@@ -512,7 +512,7 @@ mod tests {
                         dependencies: vec![Dependency::Buffer(BufferDependency {
                             name: "U_Mate".into(),
                             field: "param".into(),
-                            index: 31,
+                            index: Some(31),
                             channels: "w".into(),
                         })],
                         layers: Vec::new(),
@@ -527,7 +527,7 @@ mod tests {
             Some(&BufferDependency {
                 name: "U_Mate".into(),
                 field: "param".into(),
-                index: 31,
+                index: Some(31),
                 channels: "w".into()
             }),
             shader.buffer_parameter(1, 'z')

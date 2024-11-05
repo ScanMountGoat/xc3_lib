@@ -347,13 +347,13 @@ fn find_layers(nodes: &[Node], current: &Expr, dependencies: &[Dependency]) -> V
     let mut current = current;
 
     // Detect the layers and blend mode.
-    while let Some((layer_a, layer_b, ratio, blend_mode)) = pixel_calc_add_normal(nodes, current)
-        .or_else(|| pixel_calc_overlay(nodes, current))
-        .or_else(|| pixel_calc_over(nodes, current))
-        .or_else(|| pixel_calc_ratio_blend(nodes, current))
-        .or_else(|| pixel_calc_add(nodes, current, dependencies))
-        .or_else(|| pixel_calc_mul(nodes, current))
-        .or_else(|| add_pixel_calc_ratio(current))
+    while let Some((layer_a, layer_b, ratio, blend_mode)) = blend_add_normal(nodes, current)
+        .or_else(|| blend_overlay(nodes, current))
+        .or_else(|| blend_over(nodes, current))
+        .or_else(|| blend_ratio(nodes, current))
+        .or_else(|| blend_add(nodes, current, dependencies))
+        .or_else(|| blend_mul(nodes, current))
+        .or_else(|| blend_add_ratio(current))
     {
         let layer_b = extract_layer_value(nodes, layer_b, dependencies);
 
@@ -365,9 +365,10 @@ fn find_layers(nodes: &[Node], current: &Expr, dependencies: &[Dependency]) -> V
                 blend_mode,
                 is_fresnel: fresnel_ratio,
             });
+            current = assign_x_recursive(nodes, layer_a);
+        } else {
+            break;
         }
-
-        current = assign_x_recursive(nodes, layer_a);
     }
 
     // Detect the base layer.
@@ -403,7 +404,7 @@ fn extract_layer_value(
     layer_value(layer, dependencies)
 }
 
-fn pixel_calc_over<'a>(
+fn blend_over<'a>(
     nodes: &'a [Node],
     expr: &'a Expr,
 ) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
@@ -420,7 +421,7 @@ fn pixel_calc_over<'a>(
     Some((a, b, ratio, LayerBlendMode::Mix))
 }
 
-fn pixel_calc_ratio_blend<'a>(
+fn blend_ratio<'a>(
     nodes: &'a [Node],
     expr: &'a Expr,
 ) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
@@ -437,13 +438,13 @@ fn pixel_calc_ratio_blend<'a>(
     Some((a, b, ratio, LayerBlendMode::MixRatio))
 }
 
-fn add_pixel_calc_ratio(expr: &Expr) -> Option<(&Expr, &Expr, &Expr, LayerBlendMode)> {
+fn blend_add_ratio(expr: &Expr) -> Option<(&Expr, &Expr, &Expr, LayerBlendMode)> {
     // += getPixelCalcRatio in pcmdo fragment shaders for XC1 and XC3.
     let (a, b, c) = fma_a_b_c(expr)?;
     Some((c, a, b, LayerBlendMode::Add))
 }
 
-fn pixel_calc_add<'a>(
+fn blend_add<'a>(
     nodes: &'a [Node],
     expr: &'a Expr,
     dependencies: &[Dependency],
@@ -467,7 +468,7 @@ fn pixel_calc_add<'a>(
     Some((a, b, &Expr::Float(1.0), LayerBlendMode::Add))
 }
 
-fn pixel_calc_mul<'a>(
+fn blend_mul<'a>(
     nodes: &'a [Node],
     expr: &'a Expr,
 ) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
@@ -479,7 +480,7 @@ fn pixel_calc_mul<'a>(
     Some((a, b, &Expr::Float(1.0), LayerBlendMode::MixRatio))
 }
 
-fn pixel_calc_overlay<'a>(
+fn blend_overlay<'a>(
     nodes: &'a [Node],
     expr: &'a Expr,
 ) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
@@ -587,7 +588,7 @@ fn layer_value(input: &Expr, dependencies: &[Dependency]) -> Option<Dependency> 
         })
 }
 
-fn pixel_calc_add_normal<'a>(
+fn blend_add_normal<'a>(
     nodes: &'a [Node],
     nom_work: &'a Expr,
 ) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
@@ -1150,7 +1151,7 @@ mod tests {
                 dependencies: vec![Dependency::Buffer(BufferDependency {
                     name: "U_Mate".into(),
                     field: "gWrkFl4".into(),
-                    index: 2,
+                    index: Some(2),
                     channels: "x".into(),
                 })],
                 layers: Vec::new()
@@ -1162,7 +1163,7 @@ mod tests {
                 dependencies: vec![Dependency::Buffer(BufferDependency {
                     name: "U_Mate".into(),
                     field: "gWrkFl4".into(),
-                    index: 1,
+                    index: Some(1),
                     channels: "y".into(),
                 })],
                 layers: Vec::new()
@@ -1188,7 +1189,7 @@ mod tests {
                             params: Some(TexCoordParams::Scale(BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gWrkFl4".into(),
-                                index: 0,
+                                index: Some(0),
                                 channels: "x".into(),
                             }))
                         },
@@ -1198,7 +1199,7 @@ mod tests {
                             params: Some(TexCoordParams::Scale(BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gWrkFl4".into(),
-                                index: 0,
+                                index: Some(0),
                                 channels: "y".into(),
                             }))
                         },
@@ -1220,7 +1221,7 @@ mod tests {
                             params: Some(TexCoordParams::Scale(BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gWrkFl4".into(),
-                                index: 0,
+                                index: Some(0),
                                 channels: "x".into(),
                             }))
                         },
@@ -1230,7 +1231,7 @@ mod tests {
                             params: Some(TexCoordParams::Scale(BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gWrkFl4".into(),
-                                index: 0,
+                                index: Some(0),
                                 channels: "y".into(),
                             }))
                         },
@@ -1252,7 +1253,7 @@ mod tests {
                             params: Some(TexCoordParams::Scale(BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gWrkFl4".into(),
-                                index: 0,
+                                index: Some(0),
                                 channels: "x".into(),
                             }))
                         },
@@ -1262,7 +1263,7 @@ mod tests {
                             params: Some(TexCoordParams::Scale(BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gWrkFl4".into(),
-                                index: 0,
+                                index: Some(0),
                                 channels: "y".into(),
                             }))
                         },
@@ -1476,7 +1477,7 @@ mod tests {
                     ratio: Some(Dependency::Buffer(BufferDependency {
                         name: "U_Mate".into(),
                         field: "gWrkFl4".into(),
-                        index: 1,
+                        index: Some(1),
                         channels: "z".into()
                     })),
                     blend_mode: LayerBlendMode::AddNormal,
@@ -1491,7 +1492,7 @@ mod tests {
                 dependencies: vec![Dependency::Buffer(BufferDependency {
                     name: "U_Mate".into(),
                     field: "gWrkFl4".into(),
-                    index: 2,
+                    index: Some(2),
                     channels: "y".into()
                 })],
                 layers: Vec::new()
@@ -1535,13 +1536,13 @@ mod tests {
                     value: Dependency::Buffer(BufferDependency {
                         name: "U_Mate".into(),
                         field: "gWrkCol".into(),
-                        index: 1,
+                        index: Some(1),
                         channels: "x".into(),
                     }),
                     ratio: Some(Dependency::Buffer(BufferDependency {
                         name: "U_Mate".into(),
                         field: "gWrkFl4".into(),
-                        index: 1,
+                        index: Some(1),
                         channels: "z".into(),
                     })),
                     blend_mode: LayerBlendMode::Mix,
@@ -1576,7 +1577,7 @@ mod tests {
                 dependencies: vec![Dependency::Buffer(BufferDependency {
                     name: "U_Mate".into(),
                     field: "gWrkFl4".into(),
-                    index: 3,
+                    index: Some(3),
                     channels: "y".into()
                 })],
                 layers: Vec::new()
@@ -1725,7 +1726,7 @@ mod tests {
                         ratio: Some(Dependency::Buffer(BufferDependency {
                             name: "U_Mate".into(),
                             field: "gWrkFl4".into(),
-                            index: 2,
+                            index: Some(2),
                             channels: "y".into()
                         })),
                         blend_mode: LayerBlendMode::AddNormal,
@@ -1751,7 +1752,7 @@ mod tests {
                         ratio: Some(Dependency::Buffer(BufferDependency {
                             name: "U_Mate".into(),
                             field: "gWrkFl4".into(),
-                            index: 2,
+                            index: Some(2),
                             channels: "z".into()
                         })),
                         blend_mode: LayerBlendMode::AddNormal,
@@ -1798,13 +1799,13 @@ mod tests {
                     value: Dependency::Buffer(BufferDependency {
                         name: "U_Mate".into(),
                         field: "gWrkCol".into(),
-                        index: 1,
+                        index: Some(1),
                         channels: "x".into(),
                     }),
                     ratio: Some(Dependency::Buffer(BufferDependency {
                         name: "U_Mate".into(),
                         field: "gWrkFl4".into(),
-                        index: 0,
+                        index: Some(0),
                         channels: "z".into(),
                     })),
                     blend_mode: LayerBlendMode::Mix,
@@ -1839,7 +1840,7 @@ mod tests {
                 dependencies: vec![Dependency::Buffer(BufferDependency {
                     name: "U_Mate".into(),
                     field: "gWrkFl4".into(),
-                    index: 1,
+                    index: Some(1),
                     channels: "w".into()
                 })],
                 layers: Vec::new()
@@ -2204,7 +2205,7 @@ mod tests {
                     ratio: Some(Dependency::Buffer(BufferDependency {
                         name: "U_Mate".into(),
                         field: "gWrkFl4".into(),
-                        index: 2,
+                        index: Some(2),
                         channels: "x".into()
                     })),
                     blend_mode: LayerBlendMode::AddNormal,
@@ -2543,6 +2544,22 @@ mod tests {
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false,
                 },
+                TextureLayer {
+                    value: Dependency::Buffer(BufferDependency {
+                        name: "U_Mate".into(),
+                        field: "gWrkCol".into(),
+                        index: None,
+                        channels: "x".into(),
+                    }),
+                    ratio: Some(Dependency::Buffer(BufferDependency {
+                        name: "U_Mate".into(),
+                        field: "gWrkFl4".into(),
+                        index: Some(0),
+                        channels: "y".into(),
+                    }),),
+                    blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: true,
+                },
             ],
             shader.output_dependencies[&SmolStr::from("o0.x")].layers
         );
@@ -2655,13 +2672,13 @@ mod tests {
                     value: Dependency::Buffer(BufferDependency {
                         name: "U_Mate".into(),
                         field: "gWrkFl4".into(),
-                        index: 0,
+                        index: Some(0),
                         channels: "z".into(),
                     }),
                     ratio: Some(Dependency::Buffer(BufferDependency {
                         name: "U_Mate".into(),
                         field: "gWrkFl4".into(),
-                        index: 1,
+                        index: Some(1),
                         channels: "z".into(),
                     })),
                     blend_mode: LayerBlendMode::Mix,
@@ -2682,6 +2699,19 @@ mod tests {
     }
 
     #[test]
+    fn shader_from_fragment_gramps_fur() {
+        // xeno2/model/np/np000101, "_body_far_Fur", shd0009.frag
+        let glsl = include_str!("data/xc2/np000101.9.frag");
+
+        // TODO: Is it worth detecting fur layering code?
+        let fragment = TranslationUnit::parse(glsl).unwrap();
+        let shader = shader_from_glsl(None, &fragment);
+        assert!(shader.output_dependencies[&SmolStr::from("o0.x")]
+            .layers
+            .is_empty());
+    }
+
+    #[test]
     fn shader_from_vertex_fragment_noah_body_outline() {
         // xeno3/chr/ch/ch01011013, "body_outline", shd0000.frag
         let vert_glsl = include_str!("data/xc3/ch01011013.0.vert");
@@ -2695,7 +2725,7 @@ mod tests {
             Some(Dependency::Buffer(BufferDependency {
                 name: "U_Mate".into(),
                 field: "gWrkFl4".into(),
-                index: 0,
+                index: Some(0),
                 channels: "z".into(),
             })),
             shader.outline_width
@@ -3067,7 +3097,7 @@ mod tests {
                             dependencies: vec![Dependency::Buffer(BufferDependency {
                                 name: "KC0".into(),
                                 field: "".into(),
-                                index: 1,
+                                index: Some(1),
                                 channels: "x".into(),
                             })],
                             layers: Vec::new()

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## unreleased
 ### Changed
 * Changed shader database to use a custom binary format for greatly reduced file sizes and loading times.
+* Improved detection of texture layer blending for shader database.
 
 ### Removed
 * Removed the `pretty` option for xc3_shader database creation since it no longer applies to binary output.
