@@ -104,6 +104,7 @@ pub struct ShaderProgram {
     pub outline_width: Option<Dependency>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct OutputDependencies {
     /// All of the possible dependencies that may affect the output.
@@ -169,6 +170,7 @@ pub struct AttributeDependency {
     pub channels: SmolStr,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum LayerBlendMode {
     /// `mix(a, b, ratio)`
@@ -189,6 +191,7 @@ impl Default for LayerBlendMode {
     }
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct TextureLayer {
     pub value: Dependency,
@@ -321,12 +324,13 @@ impl<'a> arbitrary::Arbitrary<'a> for TexCoord {
 #[cfg(feature = "arbitrary")]
 impl<'a> arbitrary::Arbitrary<'a> for ShaderProgram {
     fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
-        let output_dependencies: Vec<(String, Vec<Dependency>)> = u.arbitrary()?;
+        let output_dependencies: Vec<(String, OutputDependencies)> = u.arbitrary()?;
         Ok(Self {
             output_dependencies: output_dependencies
                 .into_iter()
                 .map(|(k, v)| (k.into(), v))
                 .collect(),
+            outline_width: u.arbitrary()?,
         })
     }
 }
