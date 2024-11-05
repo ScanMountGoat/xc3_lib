@@ -315,8 +315,10 @@ fn save_screenshot(
         block_on(rx.receive()).unwrap().unwrap();
 
         let data = buffer_slice.get_mapped_range();
-        let buffer =
+        let mut buffer =
             ImageBuffer::<image::Rgba<u8>, _>::from_raw(WIDTH, HEIGHT, data.to_owned()).unwrap();
+        // Force opaque.
+        buffer.pixels_mut().for_each(|p| p[3] = 255u8);
         buffer.save(output_path).unwrap();
     }
     output_buffer.unmap();
