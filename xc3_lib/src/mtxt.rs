@@ -171,6 +171,7 @@ impl Mtxt {
             usage: 0,
             image_data: &self.image_data,
             mipmap_data: if self.footer.mipmap_count > 1 {
+                // TODO: Fix potential panic.
                 &self.image_data[self.footer.size as usize..]
             } else {
                 &[]

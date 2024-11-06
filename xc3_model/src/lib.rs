@@ -957,3 +957,31 @@ where
         *self.entry(key).or_insert(new_value)
     }
 }
+
+fn get_bytes(bytes: &[u8], offset: u32, size: Option<u32>) -> std::io::Result<&[u8]> {
+    let start = offset as usize;
+
+    match size {
+        Some(size) => {
+            let end = start + size as usize;
+            bytes.get(start..end).ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::UnexpectedEof,
+                    format!(
+                        "byte range {start}..{end} out of range for length {}",
+                        bytes.len()
+                    ),
+                )
+            })
+        }
+        None => bytes.get(start..).ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                format!(
+                    "byte offset {start} out of range for length {}",
+                    bytes.len()
+                ),
+            )
+        }),
+    }
+}

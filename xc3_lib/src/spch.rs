@@ -9,7 +9,7 @@
 use std::io::{Cursor, Read, Seek, SeekFrom};
 
 use crate::{
-    parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_string_ptr32,
+    get_bytes, parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_string_ptr32,
     StringOffset32,
 };
 use binrw::{args, binread, BinRead, BinReaderExt, BinResult};
@@ -357,7 +357,7 @@ pub struct Nvsp {
 impl SlctOffset {
     pub fn read_slct(&self, slct_section: &[u8]) -> BinResult<Slct> {
         // Select the bytes first to avoid needing base offsets.
-        let bytes = &slct_section[self.offset as usize..];
+        let bytes = get_bytes(slct_section, self.offset, None)?;
         let mut reader = Cursor::new(bytes);
         reader.read_le()
     }
@@ -365,7 +365,7 @@ impl SlctOffset {
 
 impl Slct {
     pub fn read_unk_item(&self, unk_section: &[u8]) -> BinResult<UnkItem> {
-        let bytes = &unk_section[self.unk_item_offset as usize..];
+        let bytes = get_bytes(unk_section, self.unk_item_offset, None)?;
         let mut reader = Cursor::new(bytes);
         reader.read_le()
     }

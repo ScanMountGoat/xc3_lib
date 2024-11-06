@@ -11,6 +11,7 @@ use xc3_write::Xc3Result;
 use crate::{
     align,
     error::DecompressStreamError,
+    get_bytes,
     mibl::Mibl,
     mtxt::Mtxt,
     mxmd::TextureUsage,
@@ -303,12 +304,12 @@ impl StreamingData {
         data: &[u8],
     ) -> Result<Vec<u8>, DecompressStreamError> {
         let stream = self.decompress_stream(stream_index, data)?;
-        Ok(self.entry_bytes(entry_index, &stream).to_vec())
+        Ok(self.entry_bytes(entry_index, &stream)?.to_vec())
     }
 
-    fn entry_bytes<'a>(&self, entry_index: u32, bytes: &'a [u8]) -> &'a [u8] {
+    fn entry_bytes<'a>(&self, entry_index: u32, bytes: &'a [u8]) -> std::io::Result<&'a [u8]> {
         let entry = &self.stream_entries[entry_index as usize];
-        &bytes[entry.offset as usize..entry.offset as usize + entry.size as usize]
+        get_bytes(bytes, entry.offset, Some(entry.size))
     }
 
     fn extract_files<T: Texture>(
@@ -325,14 +326,20 @@ impl StreamingData {
             .map_err(DecompressStreamError::from)?
             .decompress()?;
 
-        let vertex_bytes = self.entry_bytes(self.vertex_data_entry_index, &stream0);
+        let vertex_bytes = self
+            .entry_bytes(self.vertex_data_entry_index, &stream0)
+            .map_err(DecompressStreamError::Io)?;
         let vertex = VertexData::from_bytes(vertex_bytes).map_err(DecompressStreamError::from)?;
 
-        let spch_bytes = self.entry_bytes(self.shader_entry_index, &stream0);
+        let spch_bytes = self
+            .entry_bytes(self.shader_entry_index, &stream0)
+            .map_err(DecompressStreamError::Io)?;
         let spch = Spch::from_bytes(spch_bytes).map_err(DecompressStreamError::from)?;
 
         // TODO: is this always in the first stream?
-        let low_texture_bytes = self.entry_bytes(self.low_textures_entry_index, &stream0);
+        let low_texture_bytes = self
+            .entry_bytes(self.low_textures_entry_index, &stream0)
+            .map_err(DecompressStreamError::Io)?;
         let textures = self.extract_textures(data, low_texture_bytes, chr_tex_nx)?;
 
         Ok((vertex, spch, textures))
@@ -347,8 +354,7 @@ impl StreamingData {
                 .textures
                 .iter()
                 .map(|t| {
-                    let mibl_bytes =
-                        &low_texture_data[t.offset as usize..t.offset as usize + t.length as usize];
+                    let mibl_bytes = get_bytes(low_texture_data, t.offset, Some(t.length))?;
                     Ok(ExtractedTexture {
                         name: t.name.clone(),
                         usage: t.usage,
@@ -387,8 +393,8 @@ impl StreamingData {
                 .iter()
                 .zip(&self.stream_entries[start..start + count])
             {
-                let bytes =
-                    &stream[entry.offset as usize..entry.offset as usize + entry.size as usize];
+                let bytes = get_bytes(stream, entry.offset, Some(entry.size))
+                    .map_err(DecompressStreamError::Io)?;
                 let mid = T::from_bytes(bytes).map_err(DecompressStreamError::from)?;
 
                 // Indices start from 1 for the base mip level.
@@ -745,9 +751,10 @@ impl StreamingDataLegacy {
 
     fn low_texture_data<'a>(&self, data: &'a [u8]) -> Result<Cow<'a, [u8]>, DecompressStreamError> {
         match self.flags {
-            StreamingFlagsLegacy::Uncompressed => Ok(Cow::Borrowed(
-                &data[self.low_texture_data_offset as usize..],
-            )),
+            StreamingFlagsLegacy::Uncompressed => {
+                let bytes = get_bytes(data, self.low_texture_data_offset, None)?;
+                Ok(Cow::Borrowed(bytes))
+            }
             StreamingFlagsLegacy::Xbc1 => {
                 let xbc1 = Xbc1::from_bytes(data)?;
                 Ok(Cow::Owned(xbc1.decompress()?))
@@ -761,12 +768,13 @@ impl StreamingDataLegacy {
     ) -> Result<Cow<'a, [u8]>, DecompressStreamError> {
         match self.flags {
             StreamingFlagsLegacy::Uncompressed => {
-                Ok(Cow::Borrowed(&data[self.texture_data_offset as usize..]))
+                let bytes = get_bytes(data, self.texture_data_offset, None)?;
+                Ok(Cow::Borrowed(bytes))
             }
             StreamingFlagsLegacy::Xbc1 => {
                 // Read the second xbc1 file.
-                let xbc1 =
-                    Xbc1::from_bytes(&data[self.low_texture_data_compressed_size as usize..])?;
+                let bytes = get_bytes(data, self.low_texture_data_compressed_size, None)?;
+                let xbc1 = Xbc1::from_bytes(bytes)?;
                 Ok(Cow::Owned(xbc1.decompress()?))
             }
         }
@@ -794,8 +802,8 @@ where
             .textures
             .iter()
             .map(|t| {
-                let low =
-                    read_t(&low_data[t.offset as usize..t.offset as usize + t.length as usize])?;
+                let bytes = get_bytes(low_data, t.offset, Some(t.length))?;
+                let low = read_t(bytes)?;
                 Ok(ExtractedTexture {
                     name: t.name.clone(),
                     usage: t.usage,
@@ -810,7 +818,7 @@ where
             (&self.texture_indices, &self.textures)
         {
             for (i, t) in texture_indices.iter().zip(high_textures.textures.iter()) {
-                let bytes = &high_data[t.offset as usize..t.offset as usize + t.length as usize];
+                let bytes = get_bytes(high_data, t.offset, Some(t.length))?;
                 let mid = read_t(bytes)?;
                 textures[*i as usize].high = Some(HighTexture {
                     mid,

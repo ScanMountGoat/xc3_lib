@@ -35,6 +35,7 @@ use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 
 use crate::{
     dds::DdsExt,
+    get_bytes,
     mxmd::{PackedExternalTexture, PackedExternalTextures, TextureUsage},
     parse_count32_offset32, parse_opt_ptr32, parse_ptr32,
     xbc1::Xbc1,
@@ -356,8 +357,9 @@ impl Stream {
     /// This requires the [xbc1_offset](struct.Stream.html.structfield#xbc1_offset)
     /// from the first stream to correctly calculate the offset in the data section.
     pub fn read_xbc1(&self, data: &[u8], first_xbc1_offset: u32) -> binrw::BinResult<Xbc1> {
-        let start = self.xbc1_offset - first_xbc1_offset;
-        Xbc1::from_bytes(&data[start as usize..start as usize + self.compressed_size as usize])
+        let start = self.xbc1_offset.saturating_sub(first_xbc1_offset);
+        let bytes = get_bytes(data, start, Some(self.compressed_size))?;
+        Xbc1::from_bytes(bytes)
     }
 }
 

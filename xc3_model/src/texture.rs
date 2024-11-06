@@ -11,6 +11,8 @@ use xc3_lib::{
 pub use xc3_lib::mibl::{ImageFormat, ViewDimension};
 pub use xc3_lib::mxmd::TextureUsage;
 
+use crate::get_bytes;
+
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug)]
 pub enum ExtractedTextures {
@@ -354,8 +356,10 @@ pub fn load_textures_legacy(
     if let Some(streaming) = &mxmd.streaming {
         if let Some(casmt) = casmt {
             // TODO: Why are the sizes sometimes 0?
-            let low_data = &casmt[streaming.low_texture_data_offset as usize..];
-            let high_data = &casmt[streaming.texture_data_offset as usize..];
+            let low_data = get_bytes(&casmt, streaming.low_texture_data_offset, None)
+                .map_err(binrw::Error::Io)?;
+            let high_data =
+                get_bytes(&casmt, streaming.texture_data_offset, None).map_err(binrw::Error::Io)?;
 
             let (indices, textures) =
                 streaming

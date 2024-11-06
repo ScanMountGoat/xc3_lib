@@ -163,7 +163,7 @@ impl Renderer {
             view_projection: Mat4::IDENTITY,
             position: Vec4::ZERO,
             width,
-            height
+            height,
         };
         let camera_buffer = device.create_uniform_buffer(
             "camera buffer",

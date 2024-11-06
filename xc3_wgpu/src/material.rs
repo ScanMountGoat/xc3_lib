@@ -46,7 +46,7 @@ pub fn materials(
     samplers: &[wgpu::Sampler],
     image_textures: &[ImageTexture],
     monolib_shader: &MonolibShaderTextures,
-    is_instanced_static: bool
+    is_instanced_static: bool,
 ) -> Vec<Material> {
     // TODO: Is there a better way to handle missing textures?
     let default_black = create_default_black_texture(device, queue)
@@ -219,7 +219,7 @@ pub fn materials(
                 flags: material.state_flags,
                 is_outline: material.name.ends_with("_outline"),
                 output5_type,
-                is_instanced_static
+                is_instanced_static,
             };
             pipelines
                 .entry(pipeline_key)
