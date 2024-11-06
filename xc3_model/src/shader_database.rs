@@ -276,7 +276,6 @@ impl ShaderProgram {
 #[cfg(feature = "arbitrary")]
 impl<'a> arbitrary::Arbitrary<'a> for AttributeDependency {
     fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
-        let output_dependencies: Vec<(String, Vec<Dependency>)> = u.arbitrary()?;
         Ok(Self {
             name: crate::arbitrary_smolstr(u)?,
             channels: crate::arbitrary_smolstr(u)?,
@@ -287,7 +286,6 @@ impl<'a> arbitrary::Arbitrary<'a> for AttributeDependency {
 #[cfg(feature = "arbitrary")]
 impl<'a> arbitrary::Arbitrary<'a> for BufferDependency {
     fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
-        let output_dependencies: Vec<(String, Vec<Dependency>)> = u.arbitrary()?;
         Ok(Self {
             name: crate::arbitrary_smolstr(u)?,
             field: crate::arbitrary_smolstr(u)?,
@@ -300,7 +298,6 @@ impl<'a> arbitrary::Arbitrary<'a> for BufferDependency {
 #[cfg(feature = "arbitrary")]
 impl<'a> arbitrary::Arbitrary<'a> for TextureDependency {
     fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
-        let output_dependencies: Vec<(String, Vec<Dependency>)> = u.arbitrary()?;
         Ok(Self {
             name: crate::arbitrary_smolstr(u)?,
             channels: crate::arbitrary_smolstr(u)?,
@@ -312,7 +309,6 @@ impl<'a> arbitrary::Arbitrary<'a> for TextureDependency {
 #[cfg(feature = "arbitrary")]
 impl<'a> arbitrary::Arbitrary<'a> for TexCoord {
     fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
-        let output_dependencies: Vec<(String, Vec<Dependency>)> = u.arbitrary()?;
         Ok(Self {
             name: crate::arbitrary_smolstr(u)?,
             channels: crate::arbitrary_smolstr(u)?,

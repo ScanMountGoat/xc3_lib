@@ -303,8 +303,7 @@ impl StreamingData {
         data: &[u8],
     ) -> Result<Vec<u8>, DecompressStreamError> {
         let stream = self.decompress_stream(stream_index, data)?;
-        let entry = &self.stream_entries[entry_index as usize];
-        Ok(stream[entry.offset as usize..entry.offset as usize + entry.size as usize].to_vec())
+        Ok(self.entry_bytes(entry_index, &stream).to_vec())
     }
 
     fn entry_bytes<'a>(&self, entry_index: u32, bytes: &'a [u8]) -> &'a [u8] {
