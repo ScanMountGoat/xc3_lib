@@ -14,6 +14,7 @@ const MAJOR_VERSION: u16 = 1;
 const MINOR_VERSION: u16 = 0;
 
 type StringIndex = Index<u8>;
+type BufferDependencyIndex = Index<u16>;
 type DependencyIndex = Index<u16>;
 
 // Create a separate optimized representation for on disk.
@@ -36,6 +37,10 @@ pub struct ShaderDatabaseIndexed {
     #[br(parse_with = parse_count16)]
     #[bw(write_with = write_count16)]
     dependencies: Vec<DependencyIndexed>,
+
+    #[br(parse_with = parse_count16)]
+    #[bw(write_with = write_count16)]
+    buffer_dependencies: Vec<BufferDependencyIndexed>,
 
     // Storing multiple string tables enables 8-bit instead of 16-bit indices.
     #[br(parse_with = parse_count8)]
@@ -142,13 +147,14 @@ impl From<LayerBlendModeIndexed> for LayerBlendMode {
     }
 }
 
+// TODO: How to handle recursion?
 #[derive(Debug, PartialEq, Clone, BinRead, BinWrite)]
 enum DependencyIndexed {
     #[brw(magic(0u8))]
     Constant(f32),
 
     #[brw(magic(1u8))]
-    Buffer(BufferDependencyIndexed),
+    Buffer(BufferDependencyIndex),
 
     #[brw(magic(2u8))]
     Texture(TextureDependencyIndexed),
@@ -192,16 +198,32 @@ enum TexCoordParamsIndexed {
     None,
 
     #[brw(magic(1u8))]
-    Scale(BufferDependencyIndexed),
+    Scale(BufferDependencyIndex),
 
     #[brw(magic(2u8))]
-    Matrix([BufferDependencyIndexed; 4]),
+    Matrix([BufferDependencyIndex; 4]),
 }
 
 #[derive(Debug, PartialEq, Clone, BinRead, BinWrite)]
 struct AttributeDependencyIndexed {
     name: StringIndex,
     channels: StringIndex,
+}
+
+impl Default for ShaderDatabaseIndexed {
+    fn default() -> Self {
+        Self {
+            major_version: MAJOR_VERSION,
+            minor_version: MINOR_VERSION,
+            files: Default::default(),
+            map_files: Default::default(),
+            dependencies: Default::default(),
+            buffer_dependencies: Default::default(),
+            strings: Default::default(),
+            texture_names: Default::default(),
+            outputs: Default::default(),
+        }
+    }
 }
 
 impl ShaderDatabaseIndexed {
@@ -218,27 +240,11 @@ impl ShaderDatabaseIndexed {
     }
 
     pub fn model(&self, name: &str) -> Option<ModelPrograms> {
-        self.files.get(name).map(|f| {
-            model_from_indexed(
-                f,
-                &self.dependencies,
-                &self.strings,
-                &self.texture_names,
-                &self.outputs,
-            )
-        })
+        self.files.get(name).map(|f| self.model_from_indexed(f))
     }
 
     pub fn map(&self, name: &str) -> Option<MapPrograms> {
-        self.map_files.get(name).map(|f| {
-            map_from_indexed(
-                f,
-                &self.dependencies,
-                &self.strings,
-                &self.texture_names,
-                &self.outputs,
-            )
-        })
+        self.map_files.get(name).map(|f| self.map_from_indexed(f))
     }
 
     pub fn from_models_maps(
@@ -246,197 +252,104 @@ impl ShaderDatabaseIndexed {
         maps: IndexMap<String, MapPrograms>,
     ) -> Self {
         let mut dependency_to_index = IndexMap::new();
-        let mut string_to_index = IndexMap::new();
-        let mut texture_to_index = IndexMap::new();
-        let mut output_to_index = IndexMap::new();
+        let mut buffer_dependency_to_index = IndexMap::new();
 
-        Self {
-            major_version: MAJOR_VERSION,
-            minor_version: MINOR_VERSION,
-            files: models
-                .into_iter()
-                .map(|(n, s)| {
-                    (
-                        n.into(),
-                        model_indexed(s, &mut dependency_to_index, &mut output_to_index),
-                    )
-                })
-                .collect(),
-            map_files: maps
-                .into_iter()
-                .map(|(n, m)| {
-                    (
-                        n.into(),
-                        MapIndexed {
-                            map_models: m
-                                .map_models
-                                .into_iter()
-                                .map(|s| {
-                                    model_indexed(s, &mut dependency_to_index, &mut output_to_index)
-                                })
-                                .collect(),
-                            prop_models: m
-                                .prop_models
-                                .into_iter()
-                                .map(|s| {
-                                    model_indexed(s, &mut dependency_to_index, &mut output_to_index)
-                                })
-                                .collect(),
-                            env_models: m
-                                .env_models
-                                .into_iter()
-                                .map(|s| {
-                                    model_indexed(s, &mut dependency_to_index, &mut output_to_index)
-                                })
-                                .collect(),
-                        },
-                    )
-                })
-                .collect(),
-            dependencies: dependency_to_index
-                .into_keys()
-                .map(|d| match d {
-                    Dependency::Constant(c) => DependencyIndexed::Constant(c.0),
-                    Dependency::Buffer(b) => DependencyIndexed::Buffer(buffer_dependency_indexed(
-                        b,
-                        &mut string_to_index,
-                    )),
-                    Dependency::Texture(t) => {
-                        DependencyIndexed::Texture(TextureDependencyIndexed {
-                            name: texture_to_index.entry_index(t.name).try_into().unwrap(),
-                            channels: string_to_index.entry_index(t.channels).try_into().unwrap(),
-                            texcoords: t
-                                .texcoords
-                                .into_iter()
-                                .map(|t| TexCoordIndexed {
-                                    name: string_to_index.entry_index(t.name).try_into().unwrap(),
-                                    channels: string_to_index
-                                        .entry_index(t.channels)
-                                        .try_into()
-                                        .unwrap(),
-                                    params: t
-                                        .params
-                                        .map(|params| match params {
-                                            TexCoordParams::Scale(s) => {
-                                                TexCoordParamsIndexed::Scale(
-                                                    buffer_dependency_indexed(
-                                                        s,
-                                                        &mut string_to_index,
-                                                    ),
-                                                )
-                                            }
-                                            TexCoordParams::Matrix(m) => {
-                                                TexCoordParamsIndexed::Matrix(m.map(|s| {
-                                                    buffer_dependency_indexed(
-                                                        s,
-                                                        &mut string_to_index,
-                                                    )
-                                                }))
-                                            }
-                                        })
-                                        .unwrap_or(TexCoordParamsIndexed::None),
-                                })
-                                .collect(),
-                        })
-                    }
-                    Dependency::Attribute(a) => {
-                        DependencyIndexed::Attribute(AttributeDependencyIndexed {
-                            name: string_to_index.entry_index(a.name).try_into().unwrap(),
-                            channels: string_to_index.entry_index(a.channels).try_into().unwrap(),
-                        })
-                    }
-                })
-                .collect(),
-            strings: string_to_index
-                .into_keys()
-                .map(|k| k.to_string().into())
-                .collect(),
-            texture_names: texture_to_index
-                .into_keys()
-                .map(|k| k.to_string().into())
-                .collect(),
-            outputs: output_to_index
-                .into_keys()
-                .map(|k| k.to_string().into())
-                .collect(),
+        let mut database = Self::default();
+
+        for (name, model) in models {
+            let model = database.model_indexed(
+                model,
+                &mut dependency_to_index,
+                &mut buffer_dependency_to_index,
+            );
+            database.files.insert(name.into(), model);
         }
-    }
-}
 
-fn buffer_dependency_indexed(
-    b: BufferDependency,
-    string_to_index: &mut IndexMap<SmolStr, usize>,
-) -> BufferDependencyIndexed {
-    BufferDependencyIndexed {
-        name: string_to_index.entry_index(b.name).try_into().unwrap(),
-        field: string_to_index.entry_index(b.field).try_into().unwrap(),
-        index: b.index.map(|i| i.try_into().unwrap()).unwrap_or(-1),
-        channels: string_to_index.entry_index(b.channels).try_into().unwrap(),
-    }
-}
+        for (name, map) in maps {
+            let map = database.map_indexed(
+                map,
+                &mut dependency_to_index,
+                &mut buffer_dependency_to_index,
+            );
+            database.map_files.insert(name.into(), map);
+        }
 
-fn dependency_from_indexed(
-    d: DependencyIndexed,
-    texture_names: &[NullString],
-    strings: &[NullString],
-) -> Dependency {
-    match d {
-        DependencyIndexed::Constant(f) => Dependency::Constant(f.into()),
-        DependencyIndexed::Buffer(b) => Dependency::Buffer(buffer_dependency(b, strings)),
-        DependencyIndexed::Texture(t) => Dependency::Texture(TextureDependency {
-            name: texture_names[t.name.0 as usize].to_smolstr(),
-            channels: strings[t.channels.0 as usize].to_smolstr(),
-            texcoords: t
-                .texcoords
+        database
+    }
+
+    fn add_dependency(
+        &mut self,
+        d: Dependency,
+        dependency_to_index: &mut IndexMap<Dependency, usize>,
+        buffer_dependency_to_index: &mut IndexMap<BufferDependency, usize>,
+    ) -> DependencyIndex {
+        let index = match dependency_to_index.get(&d) {
+            Some(index) => *index,
+            None => {
+                let dependency = self.dependency_indexed(d.clone(), buffer_dependency_to_index);
+
+                let index = self.dependencies.len();
+
+                self.dependencies.push(dependency);
+                dependency_to_index.insert(d, index);
+
+                index
+            }
+        };
+
+        index.try_into().unwrap()
+    }
+
+    fn add_buffer_dependency(
+        &mut self,
+        b: BufferDependency,
+        buffer_dependency_to_index: &mut IndexMap<BufferDependency, usize>,
+    ) -> DependencyIndex {
+        let index = match buffer_dependency_to_index.get(&b) {
+            Some(index) => *index,
+            None => {
+                let dependency = self.buffer_dependency_indexed(b.clone());
+
+                let index = self.buffer_dependencies.len();
+
+                self.buffer_dependencies.push(dependency);
+                buffer_dependency_to_index.insert(b, index);
+
+                index
+            }
+        };
+
+        index.try_into().unwrap()
+    }
+
+    fn add_output(&mut self, output: &str) -> StringIndex {
+        add_string(&mut self.outputs, output)
+    }
+
+    fn add_string(&mut self, str: &str) -> StringIndex {
+        add_string(&mut self.strings, str)
+    }
+
+    fn add_texture(&mut self, texture: &str) -> StringIndex {
+        add_string(&mut self.texture_names, texture)
+    }
+
+    fn model_indexed(
+        &mut self,
+        model: ModelPrograms,
+        dependency_to_index: &mut IndexMap<Dependency, usize>,
+        buffer_dependency_to_index: &mut IndexMap<BufferDependency, usize>,
+    ) -> ModelIndexed {
+        ModelIndexed {
+            programs: model
+                .programs
                 .into_iter()
-                .map(|coord| TexCoord {
-                    name: strings[coord.name.0 as usize].to_smolstr(),
-                    channels: strings[coord.channels.0 as usize].to_smolstr(),
-                    params: match coord.params {
-                        TexCoordParamsIndexed::None => None,
-                        TexCoordParamsIndexed::Scale(s) => {
-                            Some(TexCoordParams::Scale(buffer_dependency(s, strings)))
-                        }
-                        TexCoordParamsIndexed::Matrix(m) => Some(TexCoordParams::Matrix(
-                            m.map(|s| buffer_dependency(s, strings)),
-                        )),
-                    },
-                })
-                .collect(),
-        }),
-        DependencyIndexed::Attribute(a) => Dependency::Attribute(AttributeDependency {
-            name: strings[a.name.0 as usize].to_smolstr(),
-            channels: strings[a.channels.0 as usize].to_smolstr(),
-        }),
-    }
-}
-
-fn buffer_dependency(b: BufferDependencyIndexed, strings: &[NullString]) -> BufferDependency {
-    BufferDependency {
-        name: strings[b.name.0 as usize].to_smolstr(),
-        field: strings[b.field.0 as usize].to_smolstr(),
-        index: usize::try_from(b.index).ok(),
-        channels: strings[b.channels.0 as usize].to_smolstr(),
-    }
-}
-
-fn model_indexed(
-    model: ModelPrograms,
-    dependency_to_index: &mut IndexMap<Dependency, usize>,
-    output_to_index: &mut IndexMap<SmolStr, usize>,
-) -> ModelIndexed {
-    ModelIndexed {
-        programs: model
-            .programs
-            .into_iter()
-            .map(|p| {
-                ShaderProgramIndexed {
+                .map(|p| ShaderProgramIndexed {
                     output_dependencies: p
                         .output_dependencies
                         .into_iter()
                         .map(|(output, dependencies)| {
-                            // This works since the map preserves insertion order.
-                            let output_index = output_to_index.entry_index(output);
+                            let output_index = self.add_output(&output);
                             (
                                 output_index.try_into().unwrap(),
                                 OutputDependenciesIndexed {
@@ -444,24 +357,33 @@ fn model_indexed(
                                         .dependencies
                                         .into_iter()
                                         .map(|d| {
-                                            dependency_to_index.entry_index(d).try_into().unwrap()
+                                            self.add_dependency(
+                                                d,
+                                                dependency_to_index,
+                                                buffer_dependency_to_index,
+                                            )
                                         })
                                         .collect(),
                                     layers: dependencies
                                         .layers
                                         .into_iter()
                                         .map(|l| TextureLayerIndexed {
-                                            value: dependency_to_index
-                                                .entry_index(l.value)
-                                                .try_into()
-                                                .unwrap(),
+                                            value: self.add_dependency(
+                                                l.value,
+                                                dependency_to_index,
+                                                buffer_dependency_to_index,
+                                            ),
                                             ratio: l
                                                 .ratio
                                                 .map(|r| {
-                                                    dependency_to_index
-                                                        .entry_index(r)
-                                                        .try_into()
-                                                        .unwrap()
+                                                    self.add_dependency(
+                                                        r,
+                                                        dependency_to_index,
+                                                        buffer_dependency_to_index,
+                                                    )
+                                                    .0
+                                                    .try_into()
+                                                    .unwrap()
                                                 })
                                                 .unwrap_or(-1),
                                             blend_mode: l.blend_mode.into(),
@@ -476,101 +398,231 @@ fn model_indexed(
                         .outline_width
                         .map(|d| dependency_to_index.entry_index(d).try_into().unwrap())
                         .unwrap_or(-1),
-                }
-            })
-            .collect(),
+                })
+                .collect(),
+        }
     }
-}
 
-fn model_from_indexed(
-    model: &ModelIndexed,
-    dependencies: &[DependencyIndexed],
-    strings: &[NullString],
-    texture_names: &[NullString],
-    outputs: &[NullString],
-) -> ModelPrograms {
-    ModelPrograms {
-        programs: model
-            .programs
-            .iter()
-            .map(|p| ShaderProgram {
-                output_dependencies: p
-                    .output_dependencies
-                    .iter()
-                    .map(|(output, output_dependencies)| {
-                        (
-                            outputs[output.0 as usize].to_smolstr(),
-                            OutputDependencies {
-                                dependencies: output_dependencies
-                                    .dependencies
-                                    .iter()
-                                    .map(|d| {
-                                        dependency_from_indexed(
-                                            dependencies[d.0 as usize].clone(),
-                                            texture_names,
-                                            strings,
-                                        )
-                                    })
-                                    .collect(),
-                                layers: output_dependencies
-                                    .layers
-                                    .iter()
-                                    .map(|l| TextureLayer {
-                                        value: dependency_from_indexed(
-                                            dependencies[l.value.0 as usize].clone(),
-                                            texture_names,
-                                            strings,
-                                        ),
-                                        ratio: usize::try_from(l.ratio).ok().map(|i| {
-                                            dependency_from_indexed(
-                                                dependencies[i].clone(),
-                                                texture_names,
-                                                strings,
-                                            )
-                                        }),
-                                        blend_mode: l.blend_mode.into(),
-                                        is_fresnel: l.is_fresnel != 0,
-                                    })
-                                    .collect(),
-                            },
-                        )
+    fn map_indexed(
+        &mut self,
+        map: MapPrograms,
+        dependency_to_index: &mut IndexMap<Dependency, usize>,
+        buffer_dependency_to_index: &mut IndexMap<BufferDependency, usize>,
+    ) -> MapIndexed {
+        MapIndexed {
+            map_models: map
+                .map_models
+                .into_iter()
+                .map(|m| self.model_indexed(m, dependency_to_index, buffer_dependency_to_index))
+                .collect(),
+            prop_models: map
+                .prop_models
+                .into_iter()
+                .map(|m| self.model_indexed(m, dependency_to_index, buffer_dependency_to_index))
+                .collect(),
+            env_models: map
+                .env_models
+                .into_iter()
+                .map(|m| self.model_indexed(m, dependency_to_index, buffer_dependency_to_index))
+                .collect(),
+        }
+    }
+
+    fn map_from_indexed(&self, map: &MapIndexed) -> MapPrograms {
+        MapPrograms {
+            map_models: map
+                .map_models
+                .iter()
+                .map(|s| self.model_from_indexed(s))
+                .collect(),
+            prop_models: map
+                .prop_models
+                .iter()
+                .map(|s| self.model_from_indexed(s))
+                .collect(),
+            env_models: map
+                .env_models
+                .iter()
+                .map(|s| self.model_from_indexed(s))
+                .collect(),
+        }
+    }
+
+    fn model_from_indexed(&self, model: &ModelIndexed) -> ModelPrograms {
+        ModelPrograms {
+            programs: model
+                .programs
+                .iter()
+                .map(|p| ShaderProgram {
+                    output_dependencies: p
+                        .output_dependencies
+                        .iter()
+                        .map(|(output, output_dependencies)| {
+                            (
+                                self.outputs[output.0 as usize].to_smolstr(),
+                                OutputDependencies {
+                                    dependencies: output_dependencies
+                                        .dependencies
+                                        .iter()
+                                        .map(|d| self.dependency_from_indexed(*d))
+                                        .collect(),
+                                    layers: output_dependencies
+                                        .layers
+                                        .iter()
+                                        .map(|l| TextureLayer {
+                                            value: self.dependency_from_indexed(l.value),
+                                            ratio: usize::try_from(l.ratio).ok().map(|i| {
+                                                self.dependency_from_indexed(i.try_into().unwrap())
+                                            }),
+                                            blend_mode: l.blend_mode.into(),
+                                            is_fresnel: l.is_fresnel != 0,
+                                        })
+                                        .collect(),
+                                },
+                            )
+                        })
+                        .collect(),
+                    outline_width: usize::try_from(p.outline_width)
+                        .ok()
+                        .map(|i| self.dependency_from_indexed(i.try_into().unwrap())),
+                })
+                .collect(),
+        }
+    }
+
+    fn dependency_from_indexed(&self, d: DependencyIndex) -> Dependency {
+        match self.dependencies[d.0 as usize].clone() {
+            DependencyIndexed::Constant(f) => Dependency::Constant(f.into()),
+            DependencyIndexed::Buffer(b) => Dependency::Buffer(buffer_dependency(
+                self.buffer_dependencies[b.0 as usize].clone(),
+                &self.strings,
+            )),
+            DependencyIndexed::Texture(t) => Dependency::Texture(TextureDependency {
+                name: self.texture_names[t.name.0 as usize].to_smolstr(),
+                channels: self.strings[t.channels.0 as usize].to_smolstr(),
+                texcoords: t
+                    .texcoords
+                    .into_iter()
+                    .map(|coord| TexCoord {
+                        name: self.strings[coord.name.0 as usize].to_smolstr(),
+                        channels: self.strings[coord.channels.0 as usize].to_smolstr(),
+                        params: match coord.params {
+                            TexCoordParamsIndexed::None => None,
+                            TexCoordParamsIndexed::Scale(s) => {
+                                Some(TexCoordParams::Scale(buffer_dependency(
+                                    self.buffer_dependencies[s.0 as usize].clone(),
+                                    &self.strings,
+                                )))
+                            }
+                            TexCoordParamsIndexed::Matrix(m) => {
+                                Some(TexCoordParams::Matrix(m.map(|s| {
+                                    buffer_dependency(
+                                        self.buffer_dependencies[s.0 as usize].clone(),
+                                        &self.strings,
+                                    )
+                                })))
+                            } // TexCoordParamsIndexed::Parallax {
+                              //     mask,
+                              //     param,
+                              //     param_ratio,
+                              // } => Some(TexCoordParams::Parallax {
+                              //     mask: self.dependency_from_indexed(mask),
+                              //     param: buffer_dependency(
+                              //         self.buffer_dependencies[param.0 as usize].clone(),
+                              //         &self.strings,
+                              //     ),
+                              //     param_ratio: buffer_dependency(
+                              //         self.buffer_dependencies[param_ratio.0 as usize].clone(),
+                              //         &self.strings,
+                              //     ),
+                              // }),
+                        },
                     })
                     .collect(),
-                outline_width: usize::try_from(p.outline_width).ok().map(|i| {
-                    dependency_from_indexed(dependencies[i].clone(), texture_names, strings)
-                }),
-            })
-            .collect(),
+            }),
+            DependencyIndexed::Attribute(a) => Dependency::Attribute(AttributeDependency {
+                name: self.strings[a.name.0 as usize].to_smolstr(),
+                channels: self.strings[a.channels.0 as usize].to_smolstr(),
+            }),
+        }
+    }
+
+    fn dependency_indexed(
+        &mut self,
+        d: Dependency,
+        buffer_dependency_to_index: &mut IndexMap<BufferDependency, usize>,
+    ) -> DependencyIndexed {
+        match d {
+            Dependency::Constant(c) => DependencyIndexed::Constant(c.0),
+            Dependency::Buffer(b) => {
+                DependencyIndexed::Buffer(self.add_buffer_dependency(b, buffer_dependency_to_index))
+            }
+            Dependency::Texture(t) => DependencyIndexed::Texture(TextureDependencyIndexed {
+                name: self.add_texture(&t.name),
+                channels: self.add_string(&t.channels),
+                texcoords: t
+                    .texcoords
+                    .into_iter()
+                    .map(|t| TexCoordIndexed {
+                        name: self.add_string(&t.name),
+                        channels: self.add_string(&t.channels),
+                        params: t
+                            .params
+                            .map(|params| match params {
+                                TexCoordParams::Scale(s) => TexCoordParamsIndexed::Scale(
+                                    self.add_buffer_dependency(s, buffer_dependency_to_index),
+                                ),
+                                TexCoordParams::Matrix(m) => {
+                                    TexCoordParamsIndexed::Matrix(m.map(|s| {
+                                        self.add_buffer_dependency(s, buffer_dependency_to_index)
+                                    }))
+                                }
+                            })
+                            .unwrap_or(TexCoordParamsIndexed::None),
+                    })
+                    .collect(),
+            }),
+            Dependency::Attribute(a) => DependencyIndexed::Attribute(AttributeDependencyIndexed {
+                name: self.add_string(&a.name),
+                channels: self.add_string(&a.channels),
+            }),
+        }
+    }
+
+    fn buffer_dependency_indexed(&mut self, b: BufferDependency) -> BufferDependencyIndexed {
+        BufferDependencyIndexed {
+            name: self.add_string(&b.name),
+            field: self.add_string(&b.field),
+            index: b.index.map(|i| i.try_into().unwrap()).unwrap_or(-1),
+            channels: self.add_string(&b.channels),
+        }
     }
 }
 
-fn map_from_indexed(
-    map: &MapIndexed,
-    dependencies: &[DependencyIndexed],
-    strings: &[NullString],
-    texture_names: &[NullString],
-    outputs: &[NullString],
-) -> MapPrograms {
-    MapPrograms {
-        map_models: map
-            .map_models
-            .iter()
-            .map(|s| model_from_indexed(s, dependencies, strings, texture_names, outputs))
-            .collect(),
-        prop_models: map
-            .prop_models
-            .iter()
-            .map(|s| model_from_indexed(s, dependencies, strings, texture_names, outputs))
-            .collect(),
-        env_models: map
-            .env_models
-            .iter()
-            .map(|s| model_from_indexed(s, dependencies, strings, texture_names, outputs))
-            .collect(),
+fn add_string(strings: &mut Vec<NullString>, str: &str) -> StringIndex {
+    // TODO: Store as regular strings.
+    strings
+        .iter()
+        .position(|s| s.to_string() == str)
+        .unwrap_or_else(|| {
+            let index = strings.len();
+            strings.push(str.into());
+            index
+        })
+        .try_into()
+        .unwrap()
+}
+
+fn buffer_dependency(b: BufferDependencyIndexed, strings: &[NullString]) -> BufferDependency {
+    BufferDependency {
+        name: strings[b.name.0 as usize].to_smolstr(),
+        field: strings[b.field.0 as usize].to_smolstr(),
+        index: usize::try_from(b.index).ok(),
+        channels: strings[b.channels.0 as usize].to_smolstr(),
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 struct Index<T>(T);
 
 impl<T> BinRead for Index<T>
