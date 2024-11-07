@@ -1893,6 +1893,93 @@ mod tests {
     }
 
     #[test]
+    fn shader_from_fragment_mio_eyes() {
+        // xeno3/chr/ch/ch01021011, "eye4", shd0063.frag
+        let glsl = include_str!("data/xc3/ch01021011.63.frag");
+
+        // Detect parallax mapping for texture coordinates.
+        let fragment = TranslationUnit::parse(glsl).unwrap();
+        let shader = shader_from_glsl(None, &fragment);
+        assert_eq!(
+            Dependency::Texture(TextureDependency {
+                name: "s0".into(),
+                channels: "x".into(),
+                texcoords: vec![
+                    TexCoord {
+                        name: "in_attr3".into(),
+                        channels: "x".into(),
+                        params: Some(TexCoordParams::Parallax {
+                            mask: Dependency::Texture(TextureDependency {
+                                name: "s2".into(),
+                                channels: "z".into(),
+                                texcoords: vec![
+                                    TexCoord {
+                                        name: "in_attr3".into(),
+                                        channels: "x".into(),
+                                        params: None,
+                                    },
+                                    TexCoord {
+                                        name: "in_attr3".into(),
+                                        channels: "y".into(),
+                                        params: None,
+                                    },
+                                ],
+                            }),
+                            param: BufferDependency {
+                                name: "U_Mate".into(),
+                                field: "gWrkFl4".into(),
+                                index: Some(0),
+                                channels: "x".into(),
+                            },
+                            param_ratio: BufferDependency {
+                                name: "U_Mate".into(),
+                                field: "gWrkFl4".into(),
+                                index: Some(0),
+                                channels: "z".into(),
+                            },
+                        }),
+                    },
+                    TexCoord {
+                        name: "in_attr3".into(),
+                        channels: "y".into(),
+                        params: Some(TexCoordParams::Parallax {
+                            mask: Dependency::Texture(TextureDependency {
+                                name: "s2".into(),
+                                channels: "z".into(),
+                                texcoords: vec![
+                                    TexCoord {
+                                        name: "in_attr3".into(),
+                                        channels: "x".into(),
+                                        params: None,
+                                    },
+                                    TexCoord {
+                                        name: "in_attr3".into(),
+                                        channels: "y".into(),
+                                        params: None,
+                                    },
+                                ],
+                            }),
+                            param: BufferDependency {
+                                name: "U_Mate".into(),
+                                field: "gWrkFl4".into(),
+                                index: Some(0),
+                                channels: "x".into(),
+                            },
+                            param_ratio: BufferDependency {
+                                name: "U_Mate".into(),
+                                field: "gWrkFl4".into(),
+                                index: Some(0),
+                                channels: "z".into(),
+                            },
+                        }),
+                    },
+                ],
+            }),
+            shader.output_dependencies[&SmolStr::from("o0.x")].dependencies[0]
+        );
+    }
+
+    #[test]
     fn shader_from_fragment_wild_ride_body() {
         // xeno3/chr/ch/ch02010110, "body_m", shd0028.frag
         let glsl = include_str!("data/xc3/ch02010110.28.frag");
@@ -2730,7 +2817,7 @@ mod tests {
                     texcoords: vec![
                         TexCoord {
                             name: "in_attr4".into(),
-                            channels: "y".into(),
+                            channels: "x".into(),
                             params: Some(TexCoordParams::Parallax {
                                 mask: Dependency::Texture(TextureDependency {
                                     name: "s1".into(),

@@ -10,7 +10,7 @@ pub use xc3_lib::mxmd::{
 
 use crate::{
     shader_database::{
-        BufferDependency, Dependency, LayerBlendMode, ModelPrograms, ShaderProgram,
+        BufferDependency, Dependency, LayerBlendMode, ModelPrograms, ShaderProgram, TexCoordParams,
         TextureDependency, TextureLayer,
     },
     ImageTexture, Sampler,
@@ -614,6 +614,14 @@ pub struct TextureAssignment {
     pub channels: SmolStr,
     pub texcoord_name: Option<SmolStr>,
     pub texcoord_transforms: Option<(Vec4, Vec4)>,
+    pub parallax: Option<TexCoordParallax>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TexCoordParallax {
+    pub mask: Box<ChannelAssignment>,
+    pub param: f32,
+    pub param_ratio: f32,
 }
 
 impl ChannelAssignment {
@@ -678,6 +686,7 @@ impl Material {
                     channels: ["x", "y", "z", "w"][c].into(),
                     texcoord_name: None,
                     texcoord_transforms: None,
+                    parallax: None,
                 })
             })
         };
@@ -897,6 +906,18 @@ fn texture_assignment(
         channels: texture.channels.clone(),
         texcoord_name: texture.texcoords.first().map(|t| t.name.clone()),
         texcoord_transforms,
+        parallax: match texture.texcoords.first().and_then(|t| t.params.as_ref()) {
+            Some(TexCoordParams::Parallax {
+                mask,
+                param,
+                param_ratio,
+            }) => Some(TexCoordParallax {
+                mask: Box::new(ChannelAssignment::from_dependency(mask, parameters, 'x').unwrap()),
+                param: parameters.get_dependency(param).unwrap_or_default(),
+                param_ratio: parameters.get_dependency(param_ratio).unwrap_or_default(),
+            }),
+            _ => None,
+        },
     }
 }
 
@@ -966,12 +987,7 @@ fn texcoord_transform(
             parameters.get_dependency(z)?,
             parameters.get_dependency(w)?,
         )),
-        // TODO: Figure out how to render this properly.
-        crate::shader_database::TexCoordParams::Parallax {
-            mask,
-            param,
-            param_ratio,
-        } => None,
+        crate::shader_database::TexCoordParams::Parallax { .. } => None,
     }
 }
 

@@ -1,6 +1,6 @@
 use std::ops::Deref;
 
-use indoc::indoc;
+use indoc::{formatdoc, indoc};
 use xc3_model::shader_database::{
     AttributeDependency, BufferDependency, Dependency, TexCoord, TexCoordParams, TextureDependency,
 };
@@ -154,6 +154,7 @@ fn texcoord_args(args: &[Expr], graph: &Graph, attributes: &Attributes) -> Vec<T
                     texcoord_name_channels(&node_assignments, graph, attributes)?;
 
                 // Detect common cases for transforming UV coordinates.
+                // TODO: This should also potentially modify the channels.
                 let params = texcoord_params(graph, *node_index, attributes);
 
                 Some(TexCoord {
@@ -231,16 +232,35 @@ pub fn tex_parallax(
     attributes: &Attributes,
 ) -> Option<(Dependency, BufferDependency, BufferDependency)> {
     // Some eye shaders use some form of parallax mapping.
-    // tex0 = mix(mask, param, param_ratio) * 0.7 * (nrm.x * tan.xy - norm.y * bitan.xy) + vTex0.xy
-    let query = indoc! {"
+    // uv = mix(mask, param, param_ratio) * 0.7 * (nrm.x * tan.xy - norm.y * bitan.xy) + vTex0.xy
+    let query_xc2 = indoc! {"
         mask = mask;
         nrm_result = fma(temp, 0.7, temp);
         neg_mask = 0.0 - mask;
-        mask_minus_param = neg_mask + param;
-        ratio = fma(mask_minus_param, param_ratio, mask);
+        param_minus_mask = neg_mask + param;
+        ratio = fma(param_minus_mask, param_ratio, mask);
         result = fma(ratio, nrm_result, coord);
     "};
-    let result = query_nodes_glsl(expr, &graph.nodes, query)?;
+
+    // uv = mix(param, mask, param_ratio) * 0.7 * (nrm.x * tan.xy - norm.y * bitan.xy) + vTex0.xy
+    // TODO: how to indicate the swapping of the param and mask in the mix function?
+    // TODO: Also return the uv attribute and channel?
+    let query_xc3 = indoc! {"
+        mask = mask;
+        nrm_result = fma(temp, 0.7, temp);
+        neg_param = 0.0 - param;
+        mask_minus_param = mask + neg_param;
+        ratio = fma(mask_minus_param, param_ratio, param);
+        result = fma(ratio, nrm_result, coord);
+    "};
+    let query_xc3_2 = formatdoc! {"
+        {query_xc3}
+        result = abs(result);
+        result = result + -0.0;
+    "};
+    let result = query_nodes_glsl(expr, &graph.nodes, query_xc2)
+        .or_else(|| query_nodes_glsl(expr, &graph.nodes, &query_xc3))
+        .or_else(|| query_nodes_glsl(expr, &graph.nodes, &query_xc3_2))?;
 
     let mask = result
         .get("mask")

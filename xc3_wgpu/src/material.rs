@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use glam::{ivec4, uvec4, vec3, vec4, IVec4, UVec4, Vec3, Vec4};
+use glam::{ivec4, uvec4, vec3, vec4, IVec4, Vec3, Vec4};
 use indexmap::IndexMap;
 use log::{error, warn};
 use smol_str::SmolStr;
@@ -80,14 +80,27 @@ pub fn materials(
             }
 
             let mut texture_views: [Option<_>; 10] = std::array::from_fn(|_| None);
-            let mut texture_info = [UVec4::ZERO; 10];
+
+            // TODO: Is it ok to switch on the texcoord for each channel lookup?
+            // TODO: can a texture be used with more than one scale?
+            // TODO: Include this logic with xc3_model?
+            let mut texture_info = [crate::shader::model::TextureInfo {
+                texcoord_index: 0,
+                is_bc4_single_channel: 0,
+                parallax_sampler_index: -1,
+                parallax_channel_index: 0,
+                parallax_param: 0.0,
+                parallax_param_ratio: 0.0,
+                transform: [Vec4::X, Vec4::Y],
+            }; 10];
+
             for (name, i) in &name_to_index {
                 if let Some(texture) = assign_texture(material, textures, monolib_shader, name) {
                     if *i < texture_views.len() {
                         texture_views[*i] = Some(texture.create_view(&Default::default()));
                         // TODO: Better way of doing this?
                         if texture.format() == wgpu::TextureFormat::Bc4RUnorm {
-                            texture_info[*i].y = 1;
+                            texture_info[*i].is_bc4_single_channel = 1;
                         }
                     }
                 } else {
@@ -95,22 +108,19 @@ pub fn materials(
                 }
             }
 
-            // TODO: Is it ok to switch on the texcoord for each channel lookup?
-            // TODO: can a texture be used with more than one scale?
-            // TODO: Include this logic with xc3_model?
-            let mut texture_transforms = [[Vec4::X, Vec4::Y]; 10];
-
             // Find the scale parameters for any textures assigned above.
-            // TODO: Don't assume these are all scaled from a single vTex0 input attribute.
             // TODO: Is there a more efficient way of doing this?
             // TODO: xc1 needs more than 10 textures?
             for (name, i) in &name_to_info {
                 if let Some(index) = name_to_index.get(name.as_str()) {
-                    if let Some(transform) = texture_transforms.get_mut(*index) {
-                        *transform = i.transforms.into();
-                    }
                     if let Some(info) = texture_info.get_mut(*index) {
-                        info.x = i.texcoord_index as u32;
+                        // TODO: is this redundant with the shader type?
+                        info.texcoord_index = i.texcoord_index as u32;
+                        info.transform = i.transforms.into();
+                        info.parallax_sampler_index = i.parallax_sampler_index;
+                        info.parallax_channel_index = i.parallax_channel_index;
+                        info.parallax_param = i.parallax_param;
+                        info.parallax_param_ratio = i.parallax_param_ratio;
                     }
                 }
             }
@@ -144,7 +154,6 @@ pub fn materials(
                 &[crate::shader::model::PerMaterial {
                     mat_color: material.color.into(),
                     assignments,
-                    texture_transforms,
                     texture_info,
                     alpha_test_texture: {
                         let (texture_index, channel_index) = material
@@ -318,9 +327,16 @@ fn layer_indices(
     (s, c, w, blend, value, is_fresnel)
 }
 
+// TODO: is this redundant with the shader type?
 struct TextureInfo {
-    transforms: (Vec4, Vec4),
     texcoord_index: usize,
+
+    parallax_sampler_index: i32,
+    parallax_channel_index: u32,
+    parallax_param: f32,
+    parallax_param_ratio: f32,
+
+    transforms: (Vec4, Vec4),
 }
 
 fn output_assignments(
@@ -413,7 +429,23 @@ fn texture_channel(
             channels,
             texcoord_name,
             texcoord_transforms,
+            parallax,
         } = texture;
+
+        let (parallax_sampler_index, parallax_channel_index, parallax_param, parallax_param_ratio) =
+            if let Some(parallax) = parallax {
+                let (s, c) =
+                    texture_channel(Some(&parallax.mask), name_to_index, name_to_info, 'x').unzip();
+
+                (
+                    s.unwrap_or(-1),
+                    c.unwrap_or_default(),
+                    parallax.param,
+                    parallax.param_ratio,
+                )
+            } else {
+                (-1, 0, 0.0, 0.0)
+            };
 
         name_to_info.insert(
             name.clone(),
@@ -423,6 +455,10 @@ fn texture_channel(
                     .as_ref()
                     .and_then(|s| texcoord_index(s))
                     .unwrap_or_default(),
+                parallax_sampler_index,
+                parallax_channel_index,
+                parallax_param,
+                parallax_param_ratio,
             },
         );
 
