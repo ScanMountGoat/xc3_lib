@@ -966,6 +966,12 @@ fn texcoord_transform(
             parameters.get_dependency(z)?,
             parameters.get_dependency(w)?,
         )),
+        // TODO: Figure out how to render this properly.
+        crate::shader_database::TexCoordParams::Parallax {
+            mask,
+            param,
+            param_ratio,
+        } => None,
     }
 }
 

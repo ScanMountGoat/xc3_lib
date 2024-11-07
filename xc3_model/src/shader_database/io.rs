@@ -202,6 +202,13 @@ enum TexCoordParamsIndexed {
 
     #[brw(magic(2u8))]
     Matrix([BufferDependencyIndex; 4]),
+
+    #[brw(magic(3u8))]
+    Parallax {
+        mask: DependencyIndex,
+        param: BufferDependencyIndex,
+        param_ratio: BufferDependencyIndex,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone, BinRead, BinWrite)]
@@ -286,7 +293,11 @@ impl ShaderDatabaseIndexed {
         let index = match dependency_to_index.get(&d) {
             Some(index) => *index,
             None => {
-                let dependency = self.dependency_indexed(d.clone(), buffer_dependency_to_index);
+                let dependency = self.dependency_indexed(
+                    d.clone(),
+                    dependency_to_index,
+                    buffer_dependency_to_index,
+                );
 
                 let index = self.dependencies.len();
 
@@ -521,21 +532,22 @@ impl ShaderDatabaseIndexed {
                                         &self.strings,
                                     )
                                 })))
-                            } // TexCoordParamsIndexed::Parallax {
-                              //     mask,
-                              //     param,
-                              //     param_ratio,
-                              // } => Some(TexCoordParams::Parallax {
-                              //     mask: self.dependency_from_indexed(mask),
-                              //     param: buffer_dependency(
-                              //         self.buffer_dependencies[param.0 as usize].clone(),
-                              //         &self.strings,
-                              //     ),
-                              //     param_ratio: buffer_dependency(
-                              //         self.buffer_dependencies[param_ratio.0 as usize].clone(),
-                              //         &self.strings,
-                              //     ),
-                              // }),
+                            }
+                            TexCoordParamsIndexed::Parallax {
+                                mask,
+                                param,
+                                param_ratio,
+                            } => Some(TexCoordParams::Parallax {
+                                mask: self.dependency_from_indexed(mask),
+                                param: buffer_dependency(
+                                    self.buffer_dependencies[param.0 as usize].clone(),
+                                    &self.strings,
+                                ),
+                                param_ratio: buffer_dependency(
+                                    self.buffer_dependencies[param_ratio.0 as usize].clone(),
+                                    &self.strings,
+                                ),
+                            }),
                         },
                     })
                     .collect(),
@@ -550,6 +562,7 @@ impl ShaderDatabaseIndexed {
     fn dependency_indexed(
         &mut self,
         d: Dependency,
+        dependency_to_index: &mut IndexMap<Dependency, usize>,
         buffer_dependency_to_index: &mut IndexMap<BufferDependency, usize>,
     ) -> DependencyIndexed {
         match d {
@@ -577,6 +590,23 @@ impl ShaderDatabaseIndexed {
                                         self.add_buffer_dependency(s, buffer_dependency_to_index)
                                     }))
                                 }
+                                TexCoordParams::Parallax {
+                                    mask,
+                                    param,
+                                    param_ratio,
+                                } => TexCoordParamsIndexed::Parallax {
+                                    mask: self.add_dependency(
+                                        mask,
+                                        dependency_to_index,
+                                        buffer_dependency_to_index,
+                                    ),
+                                    param: self
+                                        .add_buffer_dependency(param, buffer_dependency_to_index),
+                                    param_ratio: self.add_buffer_dependency(
+                                        param_ratio,
+                                        buffer_dependency_to_index,
+                                    ),
+                                },
                             })
                             .unwrap_or(TexCoordParamsIndexed::None),
                     })

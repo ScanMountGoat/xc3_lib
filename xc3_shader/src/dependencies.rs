@@ -142,8 +142,7 @@ fn texture_dependency(e: &Expr, graph: &Graph, attributes: &Attributes) -> Optio
 fn texcoord_args(args: &[Expr], graph: &Graph, attributes: &Attributes) -> Vec<TexCoord> {
     // Search recursively to find texcoord variables.
     // The first arg is always the texture name.
-    let texcoords: Vec<_> = args
-        .iter()
+    args.iter()
         .skip(1)
         .flat_map(|a| a.exprs_recursive())
         .filter_map(|e| {
@@ -155,7 +154,7 @@ fn texcoord_args(args: &[Expr], graph: &Graph, attributes: &Attributes) -> Vec<T
                     texcoord_name_channels(&node_assignments, graph, attributes)?;
 
                 // Detect common cases for transforming UV coordinates.
-                let params = texcoord_params(graph, *node_index);
+                let params = texcoord_params(graph, *node_index, attributes);
 
                 Some(TexCoord {
                     name: name.into(),
@@ -166,24 +165,36 @@ fn texcoord_args(args: &[Expr], graph: &Graph, attributes: &Attributes) -> Vec<T
                 None
             }
         })
-        .collect();
-    texcoords
+        .collect()
 }
 
-pub fn texcoord_params(graph: &Graph, node_index: usize) -> Option<TexCoordParams> {
-    scale_parameter(graph, node_index)
+pub fn texcoord_params(
+    graph: &Graph,
+    node_index: usize,
+    attributes: &Attributes,
+) -> Option<TexCoordParams> {
+    let node = graph.nodes.get(node_index)?;
+    scale_parameter(&node.input)
         .map(TexCoordParams::Scale)
-        .or_else(|| tex_matrix(graph, node_index).map(TexCoordParams::Matrix))
+        .or_else(|| tex_matrix(graph, &node.input).map(TexCoordParams::Matrix))
+        .or_else(|| {
+            tex_parallax(graph, &node.input, attributes).map(|(mask, param, param_ratio)| {
+                TexCoordParams::Parallax {
+                    mask,
+                    param,
+                    param_ratio,
+                }
+            })
+        })
 }
 
-pub fn scale_parameter(graph: &Graph, node_index: usize) -> Option<BufferDependency> {
+pub fn scale_parameter(expr: &Expr) -> Option<BufferDependency> {
     // Detect simple multiplication by scale parameters.
     // TODO: Also check that the attribute name matches?
     // temp_0 = vTex0.x
     // temp_1 = temp_0 * scale_param
     // temp_2 = temp_1
-    let node = graph.nodes.get(node_index)?;
-    match &node.input {
+    match expr {
         Expr::Binary(BinaryOp::Mul, a, b) => match (a.deref(), b.deref()) {
             (Expr::Node { .. }, e) => buffer_dependency(e),
             (e, Expr::Node { .. }) => buffer_dependency(e),
@@ -193,11 +204,10 @@ pub fn scale_parameter(graph: &Graph, node_index: usize) -> Option<BufferDepende
     }
 }
 
-pub fn tex_matrix(graph: &Graph, node_index: usize) -> Option<[BufferDependency; 4]> {
+pub fn tex_matrix(graph: &Graph, expr: &Expr) -> Option<[BufferDependency; 4]> {
     // TODO: Also check that the attribute name matches?
     // Detect matrix multiplication for the mat4x2 "gTexMat * vec4(u, v, 0.0, 1.0)".
     // U and V have the same pattern but use a different row of the matrix.
-    let node = graph.nodes.get(node_index)?;
     let query = indoc! {"
         u = tex_coord.x;
         v = tex_coord.y;
@@ -206,13 +216,43 @@ pub fn tex_matrix(graph: &Graph, node_index: usize) -> Option<[BufferDependency;
         result = fma(0.0, param_z, result);
         result = result + param_w;
     "};
-    let result = query_nodes_glsl(&node.input, &graph.nodes, query)?;
+    let result = query_nodes_glsl(expr, &graph.nodes, query)?;
     let x = result.get("param_x").copied().and_then(buffer_dependency)?;
     let y = result.get("param_y").copied().and_then(buffer_dependency)?;
     let z = result.get("param_z").copied().and_then(buffer_dependency)?;
     let w = result.get("param_w").copied().and_then(buffer_dependency)?;
     // TODO: Also detect UV texcoord names?
     Some([x, y, z, w])
+}
+
+pub fn tex_parallax(
+    graph: &Graph,
+    expr: &Expr,
+    attributes: &Attributes,
+) -> Option<(Dependency, BufferDependency, BufferDependency)> {
+    // Some eye shaders use some form of parallax mapping.
+    // tex0 = mix(mask, param, param_ratio) * 0.7 * (nrm.x * tan.xy - norm.y * bitan.xy) + vTex0.xy
+    let query = indoc! {"
+        mask = mask;
+        nrm_result = fma(temp, 0.7, temp);
+        neg_mask = 0.0 - mask;
+        mask_minus_param = neg_mask + param;
+        ratio = fma(mask_minus_param, param_ratio, mask);
+        result = fma(ratio, nrm_result, coord);
+    "};
+    let result = query_nodes_glsl(expr, &graph.nodes, query)?;
+
+    let mask = result
+        .get("mask")
+        .copied()
+        .and_then(|e| texture_dependency(e, graph, attributes))?;
+    let param = result.get("param").copied().and_then(buffer_dependency)?;
+    let param_ratio = result
+        .get("param_ratio")
+        .copied()
+        .and_then(buffer_dependency)?;
+
+    Some((mask, param, param_ratio))
 }
 
 fn texcoord_name_channels(

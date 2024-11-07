@@ -90,7 +90,8 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
             }
 
             // Avoid storing redundant information with dependencies.
-            if layers.len() == 1 {
+            if let [layer0] = &layers[..] {
+                dependencies.sort_by_key(|d| d != &layer0.value);
                 layers = Vec::new();
             }
 
@@ -715,7 +716,9 @@ fn apply_vertex_texcoord_params(
                             }) {
                                 if let Expr::Node { node_index, .. } = &node.input {
                                     // Detect common cases for transforming UV coordinates.
-                                    if let Some(params) = texcoord_params(vertex, *node_index) {
+                                    if let Some(params) =
+                                        texcoord_params(vertex, *node_index, vertex_attributes)
+                                    {
                                         texcoord.params = Some(params);
                                     }
                                 }
@@ -2709,6 +2712,111 @@ mod tests {
         assert!(shader.output_dependencies[&SmolStr::from("o0.x")]
             .layers
             .is_empty());
+    }
+
+    #[test]
+    fn shader_from_fragment_lysaat_eyes() {
+        // xeno2/model/en/en030601, "phong3", shd0009.frag
+        let glsl = include_str!("data/xc2/en030601.2.frag");
+
+        // Detect parallax mapping for texture coordinates.
+        let fragment = TranslationUnit::parse(glsl).unwrap();
+        let shader = shader_from_glsl(None, &fragment);
+        assert_eq!(
+            vec![
+                Dependency::Texture(TextureDependency {
+                    name: "s0".into(),
+                    channels: "x".into(),
+                    texcoords: vec![
+                        TexCoord {
+                            name: "in_attr4".into(),
+                            channels: "y".into(),
+                            params: Some(TexCoordParams::Parallax {
+                                mask: Dependency::Texture(TextureDependency {
+                                    name: "s1".into(),
+                                    channels: "x".into(),
+                                    texcoords: vec![
+                                        TexCoord {
+                                            name: "in_attr4".into(),
+                                            channels: "x".into(),
+                                            params: None,
+                                        },
+                                        TexCoord {
+                                            name: "in_attr4".into(),
+                                            channels: "y".into(),
+                                            params: None,
+                                        },
+                                    ],
+                                }),
+                                param: BufferDependency {
+                                    name: "U_Mate".into(),
+                                    field: "gWrkFl4".into(),
+                                    index: Some(0),
+                                    channels: "y".into(),
+                                },
+                                param_ratio: BufferDependency {
+                                    name: "U_Mate".into(),
+                                    field: "gWrkFl4".into(),
+                                    index: Some(0),
+                                    channels: "w".into(),
+                                },
+                            }),
+                        },
+                        TexCoord {
+                            name: "in_attr4".into(),
+                            channels: "y".into(),
+                            params: Some(TexCoordParams::Parallax {
+                                mask: Dependency::Texture(TextureDependency {
+                                    name: "s1".into(),
+                                    channels: "x".into(),
+                                    texcoords: vec![
+                                        TexCoord {
+                                            name: "in_attr4".into(),
+                                            channels: "x".into(),
+                                            params: None,
+                                        },
+                                        TexCoord {
+                                            name: "in_attr4".into(),
+                                            channels: "y".into(),
+                                            params: None,
+                                        },
+                                    ],
+                                }),
+                                param: BufferDependency {
+                                    name: "U_Mate".into(),
+                                    field: "gWrkFl4".into(),
+                                    index: Some(0),
+                                    channels: "y".into(),
+                                },
+                                param_ratio: BufferDependency {
+                                    name: "U_Mate".into(),
+                                    field: "gWrkFl4".into(),
+                                    index: Some(0),
+                                    channels: "w".into(),
+                                },
+                            }),
+                        },
+                    ],
+                }),
+                Dependency::Texture(TextureDependency {
+                    name: "s1".into(),
+                    channels: "x".into(),
+                    texcoords: vec![
+                        TexCoord {
+                            name: "in_attr4".into(),
+                            channels: "x".into(),
+                            params: None,
+                        },
+                        TexCoord {
+                            name: "in_attr4".into(),
+                            channels: "y".into(),
+                            params: None,
+                        },
+                    ],
+                }),
+            ],
+            shader.output_dependencies[&SmolStr::from("o0.x")].dependencies
+        );
     }
 
     #[test]

@@ -155,12 +155,20 @@ pub struct TexCoord {
 pub enum TexCoordParams {
     // A single scale parameter.
     Scale(BufferDependency),
+
     /// A float2x4 texture matrix.
     /// ```text
     /// u = dot(vec4(u, v, 0.0, 1.0), gTexMat[0].xyzw);
     /// v = dot(vec4(u, v, 0.0, 1.0), gTexMat[1].xyzw);
     /// ```
     Matrix([BufferDependency; 4]),
+
+    /// Masked parallax mapping with `mix(mask, param, param_ratio` as the intensity.
+    Parallax {
+        mask: Dependency,
+        param: BufferDependency,
+        param_ratio: BufferDependency,
+    },
 }
 
 /// A single input attribute like `in_attr0.x` in GLSL.
