@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Changed shader database to use a custom binary format for greatly reduced file sizes and loading times.
 * Improved detection of texture layer blending for shader database.
 * Adjusted PNG output for xc3_wgpu_batch to not export alpha for consistency with xc3_viewer.
+* Improved error messages when loading camdo models with missing files.
 
 ### Removed
 * Removed the `pretty` option for xc3_shader database creation since it no longer applies to binary output.

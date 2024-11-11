@@ -417,11 +417,26 @@ pub enum LoadModelError {
     #[error("error extracting stream data")]
     ExtractFiles(#[from] xc3_lib::msrd::streaming::ExtractFilesError),
 
-    #[error("error reading legacy wismt streaming")]
+    #[error("error reading legacy wismt streaming file")]
     WismtLegacy(#[source] ReadFileError),
 
-    #[error("error reading wismt streaming data")]
+    #[error("error reading wismt streaming file")]
     Wismt(#[source] ReadFileError),
+}
+
+#[derive(Debug, Error)]
+pub enum LoadModelLegacyError {
+    #[error("error reading camdo file")]
+    Camdo(#[source] ReadFileError),
+
+    #[error("error reading vertex data")]
+    VertexData(binrw::Error),
+
+    #[error("error loading image texture")]
+    Image(#[from] texture::CreateImageTextureError),
+
+    #[error("error reading casmt streaming file")]
+    Casmt(#[source] std::io::Error),
 }
 
 // TODO: Take an iterator for wimdo paths and merge to support xc1?
@@ -539,14 +554,17 @@ fn load_chr(wimdo_path: &Path, model_name: String) -> Option<Sar1> {
 pub fn load_model_legacy<P: AsRef<Path>>(
     camdo_path: P,
     shader_database: Option<&ShaderDatabase>,
-) -> Result<ModelRoot, LoadModelError> {
-    // TODO: avoid unwrap.
+) -> Result<ModelRoot, LoadModelLegacyError> {
     let camdo_path = camdo_path.as_ref();
-    let mxmd: MxmdLegacy = MxmdLegacy::from_file(camdo_path).unwrap();
+    let mxmd = MxmdLegacy::from_file(camdo_path).map_err(LoadModelLegacyError::Camdo)?;
+
     let casmt = mxmd
         .streaming
         .as_ref()
-        .map(|_| std::fs::read(camdo_path.with_extension("casmt")).unwrap());
+        .map(|_| {
+            std::fs::read(camdo_path.with_extension("casmt")).map_err(LoadModelLegacyError::Casmt)
+        })
+        .transpose()?;
 
     let model_name = model_name(camdo_path);
     let hkt_path = camdo_path
@@ -596,18 +614,17 @@ impl ModelRoot {
         })
     }
 
-    // TODO: fuzz test this?
     /// Load models from legacy parsed file data for Xenoblade X.
     pub fn from_mxmd_model_legacy(
         mxmd: &MxmdLegacy,
         casmt: Option<Vec<u8>>,
         hkt: Option<&Hkt>,
         model_programs: Option<&shader_database::ModelPrograms>,
-    ) -> Result<Self, LoadModelError> {
+    ) -> Result<Self, LoadModelLegacyError> {
         let skeleton = hkt.map(Skeleton::from_legacy_skeleton);
 
         let buffers = ModelBuffers::from_vertex_data_legacy(&mxmd.vertex, &mxmd.models)
-            .map_err(LoadModelError::VertexData)?;
+            .map_err(LoadModelLegacyError::VertexData)?;
 
         let (texture_indices, image_textures) = load_textures_legacy(mxmd, casmt)?;
 
@@ -862,7 +879,7 @@ fn model_name(model_path: &Path) -> String {
     model_path
         .with_extension("")
         .file_name()
-        .unwrap()
+        .unwrap_or_default()
         .to_string_lossy()
         .to_string()
 }
