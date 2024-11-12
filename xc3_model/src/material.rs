@@ -1,6 +1,6 @@
 use glam::{vec4, Vec4};
 use log::warn;
-use smol_str::SmolStr;
+use smol_str::{SmolStr, ToSmolStr};
 
 pub use xc3_lib::mxmd::{
     BlendMode, ColorWriteMode, CullMode, DepthFunc, FurShellParams, MaterialFlags,
@@ -84,9 +84,8 @@ pub struct MaterialParameters {
 
 impl MaterialParameters {
     pub fn get_dependency(&self, p: &BufferDependency) -> Option<f32> {
-        // TODO: Handle multiple channels?
         // TODO: How to handle the case where the input has no channels?
-        let c = "xyzw".find(p.channels.chars().next()?).unwrap();
+        let c = "xyzw".find(p.channel?).unwrap();
         let index = p.index.unwrap_or_default();
         match (p.name.as_str(), p.field.as_str()) {
             ("U_Mate", "gWrkFl4") => Some(self.work_float4.as_ref()?.get(index)?[c]),
@@ -640,10 +639,11 @@ impl ChannelAssignment {
                 // Attributes may have multiple accessed channels.
                 // First check if the current channel is used.
                 // TODO: Does this always work as intended?
-                let c = if a.channels.contains(channel) {
+                let c = if a.channel == Some(channel) {
                     channel
                 } else {
-                    a.channels.chars().next().unwrap()
+                    // TODO: avoid unwrap.
+                    a.channel.unwrap()
                 };
 
                 Some(Self::Attribute {
@@ -903,7 +903,7 @@ fn texture_assignment(
     // TODO: different attribute for U and V?
     TextureAssignment {
         name: texture.name.clone(),
-        channels: texture.channels.clone(),
+        channels: texture.channel.map(|c| c.to_smolstr()).unwrap_or_default(),
         texcoord_name: texture.texcoords.first().map(|t| t.name.clone()),
         texcoord_transforms,
         parallax: match texture.texcoords.first().and_then(|t| t.params.as_ref()) {
@@ -922,12 +922,12 @@ fn texture_assignment(
 }
 
 // TODO: make these methods.
-fn channels(d: &Dependency) -> Option<&SmolStr> {
+fn channels(d: &Dependency) -> Option<SmolStr> {
     match d {
         Dependency::Constant(_) => None,
-        Dependency::Buffer(b) => Some(&b.channels),
-        Dependency::Texture(t) => Some(&t.channels),
-        Dependency::Attribute(a) => Some(&a.channels),
+        Dependency::Buffer(b) => Some(b.channel.map(|c| c.to_smolstr()).unwrap_or_default()),
+        Dependency::Texture(t) => Some(t.channel.map(|c| c.to_smolstr()).unwrap_or_default()),
+        Dependency::Attribute(a) => Some(a.channel.map(|c| c.to_smolstr()).unwrap_or_default()),
     }
 }
 

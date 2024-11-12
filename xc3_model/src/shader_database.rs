@@ -128,14 +128,14 @@ pub struct BufferDependency {
     pub name: SmolStr,
     pub field: SmolStr,
     pub index: Option<usize>,
-    pub channels: SmolStr,
+    pub channel: Option<char>,
 }
 
 /// A single texture access like `texture(s0, tex0.xy).rgb` in GLSL.
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct TextureDependency {
     pub name: SmolStr,
-    pub channels: SmolStr,
+    pub channel: Option<char>,
     /// Texture coordinate values used for the texture function call.
     pub texcoords: Vec<TexCoord>,
 }
@@ -146,7 +146,7 @@ pub struct TexCoord {
     /// The name of the attribute like "in_attr4".
     pub name: SmolStr,
     /// The accessed channels like "x" or "y".
-    pub channels: SmolStr,
+    pub channel: Option<char>,
     pub params: Option<TexCoordParams>,
 }
 
@@ -175,7 +175,7 @@ pub enum TexCoordParams {
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct AttributeDependency {
     pub name: SmolStr,
-    pub channels: SmolStr,
+    pub channel: Option<char>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -377,7 +377,7 @@ mod tests {
                     OutputDependencies {
                         dependencies: vec![Dependency::Texture(TextureDependency {
                             name: "s0".into(),
-                            channels: "y".into(),
+                            channel: Some('y'),
                             texcoords: Vec::new(),
                         })],
                         layers: Vec::new(),
@@ -389,12 +389,12 @@ mod tests {
                         dependencies: vec![
                             Dependency::Texture(TextureDependency {
                                 name: "tex".into(),
-                                channels: "xyz".into(),
+                                channel: Some('y'),
                                 texcoords: Vec::new(),
                             }),
                             Dependency::Texture(TextureDependency {
                                 name: "s2".into(),
-                                channels: "z".into(),
+                                channel: Some('z'),
                                 texcoords: Vec::new(),
                             }),
                         ],
@@ -406,7 +406,7 @@ mod tests {
                     OutputDependencies {
                         dependencies: vec![Dependency::Texture(TextureDependency {
                             name: "s3".into(),
-                            channels: "xyz".into(),
+                            channel: Some('y'),
                             texcoords: Vec::new(),
                         })],
                         layers: Vec::new(),
@@ -420,12 +420,12 @@ mod tests {
             vec![
                 &TextureDependency {
                     name: "tex".into(),
-                    channels: "xyz".into(),
+                    channel: Some('y'),
                     texcoords: Vec::new()
                 },
                 &TextureDependency {
                     name: "s2".into(),
-                    channels: "z".into(),
+                    channel: Some('z'),
                     texcoords: Vec::new()
                 },
             ],
@@ -442,7 +442,7 @@ mod tests {
                     OutputDependencies {
                         dependencies: vec![Dependency::Texture(TextureDependency {
                             name: "s0".into(),
-                            channels: "y".into(),
+                            channel: Some('y'),
                             texcoords: Vec::new(),
                         })],
                         layers: Vec::new(),
@@ -454,12 +454,12 @@ mod tests {
                         dependencies: vec![
                             Dependency::Texture(TextureDependency {
                                 name: "tex".into(),
-                                channels: "xyz".into(),
+                                channel: Some('y'),
                                 texcoords: Vec::new(),
                             }),
                             Dependency::Texture(TextureDependency {
                                 name: "s2".into(),
-                                channels: "z".into(),
+                                channel: Some('z'),
                                 texcoords: Vec::new(),
                             }),
                         ],
@@ -490,7 +490,7 @@ mod tests {
                     OutputDependencies {
                         dependencies: vec![Dependency::Texture(TextureDependency {
                             name: "s0".into(),
-                            channels: "y".into(),
+                            channel: Some('y'),
                             texcoords: Vec::new(),
                         })],
                         layers: Vec::new(),
@@ -502,12 +502,12 @@ mod tests {
                         dependencies: vec![
                             Dependency::Texture(TextureDependency {
                                 name: "tex".into(),
-                                channels: "xyz".into(),
+                                channel: Some('y'),
                                 texcoords: Vec::new(),
                             }),
                             Dependency::Texture(TextureDependency {
                                 name: "s2".into(),
-                                channels: "z".into(),
+                                channel: Some('z'),
                                 texcoords: Vec::new(),
                             }),
                         ],
@@ -521,7 +521,7 @@ mod tests {
                             name: "U_Mate".into(),
                             field: "param".into(),
                             index: Some(31),
-                            channels: "w".into(),
+                            channel: Some('w'),
                         })],
                         layers: Vec::new(),
                     },
@@ -536,7 +536,7 @@ mod tests {
                 name: "U_Mate".into(),
                 field: "param".into(),
                 index: Some(31),
-                channels: "w".into()
+                channel: Some('w')
             }),
             shader.buffer_parameter(1, 'z')
         );

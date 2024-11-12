@@ -13,7 +13,6 @@ use indexmap::IndexMap;
 use indoc::indoc;
 use log::error;
 use rayon::prelude::*;
-use smol_str::ToSmolStr;
 use xc3_lib::mths::{FragmentShader, Mths};
 use xc3_model::shader_database::{
     AttributeDependency, BufferDependency, Dependency, LayerBlendMode, MapPrograms, ModelPrograms,
@@ -309,18 +308,14 @@ fn find_normal_layers(
 
     // TODO: Modify the query instead to find the appropriate channel?
     // Assume that normal inputs are always XY for now.
-    let channel = last_node
-        .output
-        .channel
-        .map(|c| c.to_smolstr())
-        .unwrap_or_default();
+    let channel = last_node.output.channel;
 
     for layer in &mut layers {
         match &mut layer.value {
             Dependency::Constant(_) => (),
-            Dependency::Buffer(b) => b.channels = channel.clone(),
-            Dependency::Texture(t) => t.channels = channel.clone(),
-            Dependency::Attribute(a) => a.channels = channel.clone(),
+            Dependency::Buffer(b) => b.channel = channel,
+            Dependency::Texture(t) => t.channel = channel,
+            Dependency::Attribute(a) => a.channel = channel,
         }
     }
 
@@ -551,8 +546,7 @@ fn dependency_cached_texture(ratio: &Expr, dependencies: &[Dependency]) -> Optio
                             .iter()
                             .find(|d| {
                                 if let Dependency::Texture(t) = d {
-                                    t.name == name
-                                        && channel.map(|c| t.channels.contains(c)).unwrap_or(true)
+                                    t.name == name && (channel.is_none() || *channel == t.channel)
                                 } else {
                                     false
                                 }
@@ -581,7 +575,7 @@ fn layer_value(input: &Expr, dependencies: &[Dependency]) -> Option<Dependency> 
             if let Expr::Global { name, channel } = input {
                 Some(Dependency::Attribute(AttributeDependency {
                     name: name.into(),
-                    channels: channel.map(|c| c.to_string().into()).unwrap_or_default(),
+                    channel: *channel,
                 }))
             } else {
                 None
@@ -710,17 +704,15 @@ fn apply_vertex_tex_coord_params(
                     {
                         // Preserve the channel ordering here.
                         // Find any additional scale parameters.
-                        // TODO: make this Option<char> to enforce single channel.
-                        if let Some(c) = texcoord.channels.chars().next() {
-                            if let Some(node) = vertex.nodes.iter().rfind(|n| {
-                                &n.output.name == vertex_output_name && n.output.channel == Some(c)
-                            }) {
-                                // Detect common cases for transforming UV coordinates.
-                                if let Some(new_texcoord) =
-                                    texcoord_params(vertex, &node.input, vertex_attributes)
-                                {
-                                    *texcoord = new_texcoord;
-                                }
+                        if let Some(node) = vertex.nodes.iter().rfind(|n| {
+                            &n.output.name == vertex_output_name
+                                && n.output.channel == texcoord.channel
+                        }) {
+                            // Detect common cases for transforming UV coordinates.
+                            if let Some(new_texcoord) =
+                                texcoord_params(vertex, &node.input, vertex_attributes)
+                            {
+                                *texcoord = new_texcoord;
                             }
                         }
 
@@ -734,7 +726,7 @@ fn apply_vertex_tex_coord_params(
                             )
                         {
                             texcoord.name = actual_name.into();
-                            texcoord.channels = actual_channels.into();
+                            texcoord.channel = actual_channels.into();
                         }
                     }
                 }
@@ -760,17 +752,15 @@ fn apply_attribute_names(
                 .output_locations
                 .get_by_right(fragment_location)
             {
-                for c in attribute.channels.chars() {
-                    // TODO: Avoid calculating this more than once.
-                    let dependent_lines =
-                        vertex.dependencies_recursive(vertex_output_name, Some(c), None);
+                // TODO: Avoid calculating this more than once.
+                let dependent_lines =
+                    vertex.dependencies_recursive(vertex_output_name, attribute.channel, None);
 
-                    if let Some(input_attribute) =
-                        attribute_dependencies(vertex, &dependent_lines, vertex_attributes, None)
-                            .first()
-                    {
-                        attribute.name.clone_from(&input_attribute.name);
-                    }
+                if let Some(input_attribute) =
+                    attribute_dependencies(vertex, &dependent_lines, vertex_attributes, None)
+                        .first()
+                {
+                    attribute.name.clone_from(&input_attribute.name);
                 }
             }
         }
@@ -782,16 +772,16 @@ fn find_texcoord_input_name_channels(
     texcoord: &xc3_model::shader_database::TexCoord,
     vertex_output_name: &str,
     vertex_attributes: &Attributes,
-) -> Option<(String, String)> {
+) -> Option<(String, Option<char>)> {
     // We only need to look up one output per texcoord.
-    let c = texcoord.channels.chars().next();
+    let c = texcoord.channel;
 
     // TODO: Avoid calculating this more than once.
     let dependent_lines = vertex.dependencies_recursive(vertex_output_name, c, None);
 
     attribute_dependencies(vertex, &dependent_lines, vertex_attributes, None)
         .first()
-        .map(|a| (a.name.to_string(), a.channels.to_string()))
+        .map(|a| (a.name.to_string(), a.channel))
 }
 
 pub fn create_shader_database(input: &str) -> ShaderDatabase {
@@ -1130,16 +1120,16 @@ mod tests {
             OutputDependencies {
                 dependencies: vec![Dependency::Texture(TextureDependency {
                     name: "s4".into(),
-                    channels: "y".into(),
+                    channel: Some('y'),
                     texcoords: vec![
                         TexCoord {
                             name: "vTex0".into(),
-                            channels: "x".into(),
+                            channel: Some('x'),
                             params: None,
                         },
                         TexCoord {
                             name: "vTex0".into(),
-                            channels: "y".into(),
+                            channel: Some('y'),
                             params: None,
                         },
                     ]
@@ -1154,7 +1144,7 @@ mod tests {
                     name: "U_Mate".into(),
                     field: "gWrkFl4".into(),
                     index: Some(2),
-                    channels: "x".into(),
+                    channel: Some('x'),
                 })],
                 layers: Vec::new()
             },
@@ -1166,7 +1156,7 @@ mod tests {
                     name: "U_Mate".into(),
                     field: "gWrkFl4".into(),
                     index: Some(1),
-                    channels: "y".into(),
+                    channel: Some('y'),
                 })],
                 layers: Vec::new()
             },
@@ -1183,26 +1173,26 @@ mod tests {
             OutputDependencies {
                 dependencies: vec![Dependency::Texture(TextureDependency {
                     name: "s5".into(),
-                    channels: "x".into(),
+                    channel: Some('x'),
                     texcoords: vec![
                         TexCoord {
                             name: "vTex0".into(),
-                            channels: "x".into(),
+                            channel: Some('x'),
                             params: Some(TexCoordParams::Scale(BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gWrkFl4".into(),
                                 index: Some(0),
-                                channels: "x".into(),
+                                channel: Some('x'),
                             }))
                         },
                         TexCoord {
                             name: "vTex0".into(),
-                            channels: "y".into(),
+                            channel: Some('y'),
                             params: Some(TexCoordParams::Scale(BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gWrkFl4".into(),
                                 index: Some(0),
-                                channels: "y".into(),
+                                channel: Some('y'),
                             }))
                         },
                     ],
@@ -1215,26 +1205,26 @@ mod tests {
             OutputDependencies {
                 dependencies: vec![Dependency::Texture(TextureDependency {
                     name: "s5".into(),
-                    channels: "y".into(),
+                    channel: Some('y'),
                     texcoords: vec![
                         TexCoord {
                             name: "vTex0".into(),
-                            channels: "x".into(),
+                            channel: Some('x'),
                             params: Some(TexCoordParams::Scale(BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gWrkFl4".into(),
                                 index: Some(0),
-                                channels: "x".into(),
+                                channel: Some('x'),
                             }))
                         },
                         TexCoord {
                             name: "vTex0".into(),
-                            channels: "y".into(),
+                            channel: Some('y'),
                             params: Some(TexCoordParams::Scale(BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gWrkFl4".into(),
                                 index: Some(0),
-                                channels: "y".into(),
+                                channel: Some('y'),
                             }))
                         },
                     ],
@@ -1247,26 +1237,26 @@ mod tests {
             OutputDependencies {
                 dependencies: vec![Dependency::Texture(TextureDependency {
                     name: "s5".into(),
-                    channels: "z".into(),
+                    channel: Some('z'),
                     texcoords: vec![
                         TexCoord {
                             name: "vTex0".into(),
-                            channels: "x".into(),
+                            channel: Some('x'),
                             params: Some(TexCoordParams::Scale(BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gWrkFl4".into(),
                                 index: Some(0),
-                                channels: "x".into(),
+                                channel: Some('x'),
                             }))
                         },
                         TexCoord {
                             name: "vTex0".into(),
-                            channels: "y".into(),
+                            channel: Some('y'),
                             params: Some(TexCoordParams::Scale(BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gWrkFl4".into(),
                                 index: Some(0),
-                                channels: "y".into(),
+                                channel: Some('y'),
                             }))
                         },
                     ],
@@ -1300,16 +1290,16 @@ mod tests {
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
                         name: "s0".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr3".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None
                             },
                             TexCoord {
                                 name: "in_attr3".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None
                             }
                         ]
@@ -1321,16 +1311,16 @@ mod tests {
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
                         name: "gTResidentTex04".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None
                             }
                         ]
@@ -1347,16 +1337,16 @@ mod tests {
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
                         name: "s0".into(),
-                        channels: "y".into(),
+                        channel: Some('y'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr3".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None
                             },
                             TexCoord {
                                 name: "in_attr3".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None
                             }
                         ]
@@ -1368,16 +1358,16 @@ mod tests {
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
                         name: "gTResidentTex04".into(),
-                        channels: "y".into(),
+                        channel: Some('y'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None
                             }
                         ]
@@ -1394,16 +1384,16 @@ mod tests {
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
                         name: "s0".into(),
-                        channels: "z".into(),
+                        channel: Some('z'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr3".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None
                             },
                             TexCoord {
                                 name: "in_attr3".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None
                             }
                         ]
@@ -1415,16 +1405,16 @@ mod tests {
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
                         name: "gTResidentTex04".into(),
-                        channels: "z".into(),
+                        channel: Some('z'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None
                             }
                         ]
@@ -1441,16 +1431,16 @@ mod tests {
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
                         name: "s2".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr3".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None
                             },
                             TexCoord {
                                 name: "in_attr3".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None
                             }
                         ]
@@ -1462,16 +1452,16 @@ mod tests {
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
                         name: "gTResidentTex09".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr3".into(),
-                                channels: "z".into(),
+                                channel: Some('z'),
                                 params: None
                             },
                             TexCoord {
                                 name: "in_attr3".into(),
-                                channels: "w".into(),
+                                channel: Some('w'),
                                 params: None
                             }
                         ]
@@ -1480,7 +1470,7 @@ mod tests {
                         name: "U_Mate".into(),
                         field: "gWrkFl4".into(),
                         index: Some(1),
-                        channels: "z".into()
+                        channel: Some('z')
                     })),
                     blend_mode: LayerBlendMode::AddNormal,
                     is_fresnel: false
@@ -1495,7 +1485,7 @@ mod tests {
                     name: "U_Mate".into(),
                     field: "gWrkFl4".into(),
                     index: Some(2),
-                    channels: "y".into()
+                    channel: Some('y')
                 })],
                 layers: Vec::new()
             },
@@ -1516,16 +1506,16 @@ mod tests {
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
                         name: "s0".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None
                             }
                         ]
@@ -1539,13 +1529,13 @@ mod tests {
                         name: "U_Mate".into(),
                         field: "gWrkCol".into(),
                         index: Some(1),
-                        channels: "x".into(),
+                        channel: Some('x'),
                     }),
                     ratio: Some(Dependency::Buffer(BufferDependency {
                         name: "U_Mate".into(),
                         field: "gWrkFl4".into(),
                         index: Some(1),
-                        channels: "z".into(),
+                        channel: Some('z'),
                     })),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: true
@@ -1553,16 +1543,16 @@ mod tests {
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
                         name: "gTResidentTex04".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr5".into(),
-                                channels: "z".into(),
+                                channel: Some('z'),
                                 params: None
                             },
                             TexCoord {
                                 name: "in_attr5".into(),
-                                channels: "w".into(),
+                                channel: Some('w'),
                                 params: None
                             }
                         ]
@@ -1580,7 +1570,7 @@ mod tests {
                     name: "U_Mate".into(),
                     field: "gWrkFl4".into(),
                     index: Some(3),
-                    channels: "y".into()
+                    channel: Some('y')
                 })],
                 layers: Vec::new()
             },
@@ -1591,96 +1581,96 @@ mod tests {
                 dependencies: vec![
                     Dependency::Texture(TextureDependency {
                         name: "gTResidentTex09".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "z".into(),
+                                channel: Some('z'),
                                 params: None,
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "w".into(),
+                                channel: Some('w'),
                                 params: None,
                             },
                         ],
                     }),
                     Dependency::Texture(TextureDependency {
                         name: "gTResidentTex09".into(),
-                        channels: "y".into(),
+                        channel: Some('y'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "z".into(),
+                                channel: Some('z'),
                                 params: None,
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "w".into(),
+                                channel: Some('w'),
                                 params: None,
                             },
                         ],
                     }),
                     Dependency::Texture(TextureDependency {
                         name: "s2".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None,
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None,
                             },
                         ],
                     }),
                     Dependency::Texture(TextureDependency {
                         name: "s2".into(),
-                        channels: "y".into(),
+                        channel: Some('y'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None,
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None,
                             },
                         ],
                     }),
                     Dependency::Texture(TextureDependency {
                         name: "s3".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr5".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None,
                             },
                             TexCoord {
                                 name: "in_attr5".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None,
                             },
                         ],
                     }),
                     Dependency::Texture(TextureDependency {
                         name: "s3".into(),
-                        channels: "y".into(),
+                        channel: Some('y'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr5".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None,
                             },
                             TexCoord {
                                 name: "in_attr5".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None,
                             },
                         ],
@@ -1690,16 +1680,16 @@ mod tests {
                     TextureLayer {
                         value: Dependency::Texture(TextureDependency {
                             name: "s2".into(),
-                            channels: "x".into(),
+                            channel: Some('x'),
                             texcoords: vec![
                                 TexCoord {
                                     name: "in_attr4".into(),
-                                    channels: "x".into(),
+                                    channel: Some('x'),
                                     params: None
                                 },
                                 TexCoord {
                                     name: "in_attr4".into(),
-                                    channels: "y".into(),
+                                    channel: Some('y'),
                                     params: None
                                 }
                             ]
@@ -1711,16 +1701,16 @@ mod tests {
                     TextureLayer {
                         value: Dependency::Texture(TextureDependency {
                             name: "gTResidentTex09".into(),
-                            channels: "x".into(),
+                            channel: Some('x'),
                             texcoords: vec![
                                 TexCoord {
                                     name: "in_attr4".into(),
-                                    channels: "z".into(),
+                                    channel: Some('z'),
                                     params: None
                                 },
                                 TexCoord {
                                     name: "in_attr4".into(),
-                                    channels: "w".into(),
+                                    channel: Some('w'),
                                     params: None
                                 }
                             ]
@@ -1729,7 +1719,7 @@ mod tests {
                             name: "U_Mate".into(),
                             field: "gWrkFl4".into(),
                             index: Some(2),
-                            channels: "y".into()
+                            channel: Some('y')
                         })),
                         blend_mode: LayerBlendMode::AddNormal,
                         is_fresnel: false
@@ -1737,16 +1727,16 @@ mod tests {
                     TextureLayer {
                         value: Dependency::Texture(TextureDependency {
                             name: "s3".into(),
-                            channels: "x".into(),
+                            channel: Some('x'),
                             texcoords: vec![
                                 TexCoord {
                                     name: "in_attr5".into(),
-                                    channels: "x".into(),
+                                    channel: Some('x'),
                                     params: None
                                 },
                                 TexCoord {
                                     name: "in_attr5".into(),
-                                    channels: "y".into(),
+                                    channel: Some('y'),
                                     params: None
                                 }
                             ]
@@ -1755,7 +1745,7 @@ mod tests {
                             name: "U_Mate".into(),
                             field: "gWrkFl4".into(),
                             index: Some(2),
-                            channels: "z".into()
+                            channel: Some('z')
                         })),
                         blend_mode: LayerBlendMode::AddNormal,
                         is_fresnel: false
@@ -1779,16 +1769,16 @@ mod tests {
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
                         name: "s0".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None
                             }
                         ]
@@ -1802,13 +1792,13 @@ mod tests {
                         name: "U_Mate".into(),
                         field: "gWrkCol".into(),
                         index: Some(1),
-                        channels: "x".into(),
+                        channel: Some('x'),
                     }),
                     ratio: Some(Dependency::Buffer(BufferDependency {
                         name: "U_Mate".into(),
                         field: "gWrkFl4".into(),
                         index: Some(0),
-                        channels: "z".into(),
+                        channel: Some('z'),
                     })),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: true
@@ -1816,16 +1806,16 @@ mod tests {
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
                         name: "gTResidentTex04".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "z".into(),
+                                channel: Some('z'),
                                 params: None
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "w".into(),
+                                channel: Some('w'),
                                 params: None
                             }
                         ]
@@ -1843,7 +1833,7 @@ mod tests {
                     name: "U_Mate".into(),
                     field: "gWrkFl4".into(),
                     index: Some(1),
-                    channels: "w".into()
+                    channel: Some('w')
                 })],
                 layers: Vec::new()
             },
@@ -1854,32 +1844,32 @@ mod tests {
                 dependencies: vec![
                     Dependency::Texture(TextureDependency {
                         name: "s2".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None,
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None,
                             },
                         ],
                     }),
                     Dependency::Texture(TextureDependency {
                         name: "s2".into(),
-                        channels: "y".into(),
+                        channel: Some('y'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None,
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None,
                             },
                         ],
@@ -1902,24 +1892,24 @@ mod tests {
         assert_eq!(
             Dependency::Texture(TextureDependency {
                 name: "s0".into(),
-                channels: "x".into(),
+                channel: Some('x'),
                 texcoords: vec![
                     TexCoord {
                         name: "in_attr3".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         params: Some(TexCoordParams::Parallax {
                             mask: Dependency::Texture(TextureDependency {
                                 name: "s2".into(),
-                                channels: "z".into(),
+                                channel: Some('z'),
                                 texcoords: vec![
                                     TexCoord {
                                         name: "in_attr3".into(),
-                                        channels: "x".into(),
+                                        channel: Some('x'),
                                         params: None,
                                     },
                                     TexCoord {
                                         name: "in_attr3".into(),
-                                        channels: "y".into(),
+                                        channel: Some('y'),
                                         params: None,
                                     },
                                 ],
@@ -1928,32 +1918,32 @@ mod tests {
                                 name: "U_Mate".into(),
                                 field: "gWrkFl4".into(),
                                 index: Some(0),
-                                channels: "x".into(),
+                                channel: Some('x'),
                             },
                             param_ratio: BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gWrkFl4".into(),
                                 index: Some(0),
-                                channels: "z".into(),
+                                channel: Some('z'),
                             },
                         }),
                     },
                     TexCoord {
                         name: "in_attr3".into(),
-                        channels: "y".into(),
+                        channel: Some('y'),
                         params: Some(TexCoordParams::Parallax {
                             mask: Dependency::Texture(TextureDependency {
                                 name: "s2".into(),
-                                channels: "z".into(),
+                                channel: Some('z'),
                                 texcoords: vec![
                                     TexCoord {
                                         name: "in_attr3".into(),
-                                        channels: "x".into(),
+                                        channel: Some('x'),
                                         params: None,
                                     },
                                     TexCoord {
                                         name: "in_attr3".into(),
-                                        channels: "y".into(),
+                                        channel: Some('y'),
                                         params: None,
                                     },
                                 ],
@@ -1962,13 +1952,13 @@ mod tests {
                                 name: "U_Mate".into(),
                                 field: "gWrkFl4".into(),
                                 index: Some(0),
-                                channels: "x".into(),
+                                channel: Some('x'),
                             },
                             param_ratio: BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gWrkFl4".into(),
                                 index: Some(0),
-                                channels: "z".into(),
+                                channel: Some('z'),
                             },
                         }),
                     },
@@ -1993,16 +1983,16 @@ mod tests {
             OutputDependencies {
                 dependencies: vec![Dependency::Texture(TextureDependency {
                     name: "s8".into(),
-                    channels: "x".into(),
+                    channel: Some('x'),
                     texcoords: vec![
                         TexCoord {
                             name: "in_attr3".into(),
-                            channels: "x".into(),
+                            channel: Some('x'),
                             params: None,
                         },
                         TexCoord {
                             name: "in_attr3".into(),
-                            channels: "y".into(),
+                            channel: Some('y'),
                             params: None,
                         },
                     ],
@@ -2016,16 +2006,16 @@ mod tests {
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
                         name: "s6".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr3".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None
                             },
                             TexCoord {
                                 name: "in_attr3".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None
                             }
                         ]
@@ -2037,32 +2027,32 @@ mod tests {
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
                         name: "s7".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr3".into(),
-                                channels: "z".into(),
+                                channel: Some('z'),
                                 params: None
                             },
                             TexCoord {
                                 name: "in_attr3".into(),
-                                channels: "w".into(),
+                                channel: Some('w'),
                                 params: None
                             }
                         ]
                     }),
                     ratio: Some(Dependency::Texture(TextureDependency {
                         name: "s1".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr3".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None,
                             },
                             TexCoord {
                                 name: "in_attr3".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None,
                             },
                         ],
@@ -2078,16 +2068,16 @@ mod tests {
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
                         name: "s6".into(),
-                        channels: "y".into(),
+                        channel: Some('y'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr3".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None
                             },
                             TexCoord {
                                 name: "in_attr3".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None
                             }
                         ]
@@ -2099,32 +2089,32 @@ mod tests {
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
                         name: "s7".into(),
-                        channels: "y".into(),
+                        channel: Some('y'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr3".into(),
-                                channels: "z".into(),
+                                channel: Some('z'),
                                 params: None
                             },
                             TexCoord {
                                 name: "in_attr3".into(),
-                                channels: "w".into(),
+                                channel: Some('w'),
                                 params: None
                             }
                         ]
                     }),
                     ratio: Some(Dependency::Texture(TextureDependency {
                         name: "s1".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr3".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None,
                             },
                             TexCoord {
                                 name: "in_attr3".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None,
                             },
                         ],
@@ -2150,16 +2140,16 @@ mod tests {
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
                         name: "s0".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None
                             }
                         ]
@@ -2171,32 +2161,32 @@ mod tests {
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
                         name: "gTResidentTex03".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None
                             }
                         ]
                     }),
                     ratio: Some(Dependency::Texture(TextureDependency {
                         name: "s1".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None,
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None,
                             },
                         ],
@@ -2207,16 +2197,16 @@ mod tests {
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
                         name: "gTResidentTex04".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr5".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None
                             },
                             TexCoord {
                                 name: "in_attr5".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None
                             }
                         ]
@@ -2233,16 +2223,16 @@ mod tests {
             OutputDependencies {
                 dependencies: vec![Dependency::Texture(TextureDependency {
                     name: "s3".into(),
-                    channels: "x".into(),
+                    channel: Some('x'),
                     texcoords: vec![
                         TexCoord {
                             name: "in_attr4".into(),
-                            channels: "x".into(),
+                            channel: Some('x'),
                             params: None,
                         },
                         TexCoord {
                             name: "in_attr4".into(),
-                            channels: "y".into(),
+                            channel: Some('y'),
                             params: None,
                         },
                     ],
@@ -2256,16 +2246,16 @@ mod tests {
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
                         name: "s2".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None
                             }
                         ]
@@ -2277,16 +2267,16 @@ mod tests {
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
                         name: "gTResidentTex09".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "z".into(),
+                                channel: Some('z'),
                                 params: None
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "w".into(),
+                                channel: Some('w'),
                                 params: None
                             }
                         ]
@@ -2295,7 +2285,7 @@ mod tests {
                         name: "U_Mate".into(),
                         field: "gWrkFl4".into(),
                         index: Some(2),
-                        channels: "x".into()
+                        channel: Some('x')
                     })),
                     blend_mode: LayerBlendMode::AddNormal,
                     is_fresnel: false
@@ -2318,128 +2308,128 @@ mod tests {
                 dependencies: vec![
                     Dependency::Texture(TextureDependency {
                         name: "s2".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None,
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None,
                             },
                         ],
                     }),
                     Dependency::Texture(TextureDependency {
                         name: "s2".into(),
-                        channels: "y".into(),
+                        channel: Some('y'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None,
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None,
                             },
                         ],
                     }),
                     Dependency::Texture(TextureDependency {
                         name: "s3".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "z".into(),
+                                channel: Some('z'),
                                 params: None,
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "w".into(),
+                                channel: Some('w'),
                                 params: None,
                             },
                         ],
                     }),
                     Dependency::Texture(TextureDependency {
                         name: "s3".into(),
-                        channels: "y".into(),
+                        channel: Some('y'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "z".into(),
+                                channel: Some('z'),
                                 params: None,
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "w".into(),
+                                channel: Some('w'),
                                 params: None,
                             },
                         ],
                     }),
                     Dependency::Texture(TextureDependency {
                         name: "s4".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None,
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None,
                             },
                         ],
                     }),
                     Dependency::Texture(TextureDependency {
                         name: "s5".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr5".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None,
                             },
                             TexCoord {
                                 name: "in_attr5".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None,
                             },
                         ],
                     }),
                     Dependency::Texture(TextureDependency {
                         name: "s5".into(),
-                        channels: "y".into(),
+                        channel: Some('y'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr5".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None,
                             },
                             TexCoord {
                                 name: "in_attr5".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None,
                             },
                         ],
                     }),
                     Dependency::Texture(TextureDependency {
                         name: "s6".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None,
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None,
                             },
                         ],
@@ -2449,16 +2439,16 @@ mod tests {
                     TextureLayer {
                         value: Dependency::Texture(TextureDependency {
                             name: "s2".into(),
-                            channels: "x".into(),
+                            channel: Some('x'),
                             texcoords: vec![
                                 TexCoord {
                                     name: "in_attr4".into(),
-                                    channels: "x".into(),
+                                    channel: Some('x'),
                                     params: None,
                                 },
                                 TexCoord {
                                     name: "in_attr4".into(),
-                                    channels: "y".into(),
+                                    channel: Some('y'),
                                     params: None,
                                 },
                             ],
@@ -2470,32 +2460,32 @@ mod tests {
                     TextureLayer {
                         value: Dependency::Texture(TextureDependency {
                             name: "s3".into(),
-                            channels: "x".into(),
+                            channel: Some('x'),
                             texcoords: vec![
                                 TexCoord {
                                     name: "in_attr4".into(),
-                                    channels: "z".into(),
+                                    channel: Some('z'),
                                     params: None,
                                 },
                                 TexCoord {
                                     name: "in_attr4".into(),
-                                    channels: "w".into(),
+                                    channel: Some('w'),
                                     params: None,
                                 },
                             ],
                         }),
                         ratio: Some(Dependency::Texture(TextureDependency {
                             name: "s4".into(),
-                            channels: "x".into(),
+                            channel: Some('x'),
                             texcoords: vec![
                                 TexCoord {
                                     name: "in_attr4".into(),
-                                    channels: "x".into(),
+                                    channel: Some('x'),
                                     params: None,
                                 },
                                 TexCoord {
                                     name: "in_attr4".into(),
-                                    channels: "y".into(),
+                                    channel: Some('y'),
                                     params: None,
                                 },
                             ],
@@ -2506,32 +2496,32 @@ mod tests {
                     TextureLayer {
                         value: Dependency::Texture(TextureDependency {
                             name: "s5".into(),
-                            channels: "x".into(),
+                            channel: Some('x'),
                             texcoords: vec![
                                 TexCoord {
                                     name: "in_attr5".into(),
-                                    channels: "x".into(),
+                                    channel: Some('x'),
                                     params: None,
                                 },
                                 TexCoord {
                                     name: "in_attr5".into(),
-                                    channels: "y".into(),
+                                    channel: Some('y'),
                                     params: None,
                                 },
                             ],
                         }),
                         ratio: Some(Dependency::Texture(TextureDependency {
                             name: "s6".into(),
-                            channels: "x".into(),
+                            channel: Some('x'),
                             texcoords: vec![
                                 TexCoord {
                                     name: "in_attr4".into(),
-                                    channels: "x".into(),
+                                    channel: Some('x'),
                                     params: None,
                                 },
                                 TexCoord {
                                     name: "in_attr4".into(),
-                                    channels: "y".into(),
+                                    channel: Some('y'),
                                     params: None,
                                 },
                             ],
@@ -2558,16 +2548,16 @@ mod tests {
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
                         name: "s0".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None
                             }
                         ]
@@ -2579,16 +2569,16 @@ mod tests {
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
                         name: "s1".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None
                             }
                         ]
@@ -2600,32 +2590,32 @@ mod tests {
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
                         name: "s3".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "z".into(),
+                                channel: Some('z'),
                                 params: None,
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "w".into(),
+                                channel: Some('w'),
                                 params: None,
                             },
                         ],
                     }),
                     ratio: Some(Dependency::Texture(TextureDependency {
                         name: "s4".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "z".into(),
+                                channel: Some('z'),
                                 params: None,
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "w".into(),
+                                channel: Some('w'),
                                 params: None,
                             },
                         ],
@@ -2638,13 +2628,13 @@ mod tests {
                         name: "U_Mate".into(),
                         field: "gWrkCol".into(),
                         index: None,
-                        channels: "x".into(),
+                        channel: Some('x'),
                     }),
                     ratio: Some(Dependency::Buffer(BufferDependency {
                         name: "U_Mate".into(),
                         field: "gWrkFl4".into(),
                         index: Some(0),
-                        channels: "y".into(),
+                        channel: Some('y'),
                     }),),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: true,
@@ -2667,16 +2657,16 @@ mod tests {
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
                         name: "s2".into(),
-                        channels: "y".into(),
+                        channel: Some('y'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None,
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None,
                             },
                         ],
@@ -2688,32 +2678,32 @@ mod tests {
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
                         name: "s4".into(),
-                        channels: "y".into(),
+                        channel: Some('y'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "z".into(),
+                                channel: Some('z'),
                                 params: None,
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "w".into(),
+                                channel: Some('w'),
                                 params: None,
                             },
                         ],
                     }),
                     ratio: Some(Dependency::Texture(TextureDependency {
                         name: "s5".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None,
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None,
                             },
                         ],
@@ -2739,16 +2729,16 @@ mod tests {
                 TextureLayer {
                     value: Dependency::Texture(TextureDependency {
                         name: "s2".into(),
-                        channels: "z".into(),
+                        channel: Some('z'),
                         texcoords: vec![
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 params: None,
                             },
                             TexCoord {
                                 name: "in_attr4".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 params: None,
                             },
                         ],
@@ -2762,13 +2752,13 @@ mod tests {
                         name: "U_Mate".into(),
                         field: "gWrkFl4".into(),
                         index: Some(0),
-                        channels: "z".into(),
+                        channel: Some('z'),
                     }),
                     ratio: Some(Dependency::Buffer(BufferDependency {
                         name: "U_Mate".into(),
                         field: "gWrkFl4".into(),
                         index: Some(1),
-                        channels: "z".into(),
+                        channel: Some('z'),
                     })),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false,
@@ -2776,7 +2766,7 @@ mod tests {
                 TextureLayer {
                     value: Dependency::Attribute(AttributeDependency {
                         name: "in_attr5".into(),
-                        channels: "y".into(),
+                        channel: Some('y'),
                     }),
                     ratio: Some(Dependency::Constant(1.0.into())),
                     blend_mode: LayerBlendMode::MixRatio,
@@ -2812,24 +2802,24 @@ mod tests {
             vec![
                 Dependency::Texture(TextureDependency {
                     name: "s0".into(),
-                    channels: "x".into(),
+                    channel: Some('x'),
                     texcoords: vec![
                         TexCoord {
                             name: "in_attr4".into(),
-                            channels: "x".into(),
+                            channel: Some('x'),
                             params: Some(TexCoordParams::Parallax {
                                 mask: Dependency::Texture(TextureDependency {
                                     name: "s1".into(),
-                                    channels: "x".into(),
+                                    channel: Some('x'),
                                     texcoords: vec![
                                         TexCoord {
                                             name: "in_attr4".into(),
-                                            channels: "x".into(),
+                                            channel: Some('x'),
                                             params: None,
                                         },
                                         TexCoord {
                                             name: "in_attr4".into(),
-                                            channels: "y".into(),
+                                            channel: Some('y'),
                                             params: None,
                                         },
                                     ],
@@ -2838,32 +2828,32 @@ mod tests {
                                     name: "U_Mate".into(),
                                     field: "gWrkFl4".into(),
                                     index: Some(0),
-                                    channels: "y".into(),
+                                    channel: Some('y'),
                                 },
                                 param_ratio: BufferDependency {
                                     name: "U_Mate".into(),
                                     field: "gWrkFl4".into(),
                                     index: Some(0),
-                                    channels: "w".into(),
+                                    channel: Some('w'),
                                 },
                             }),
                         },
                         TexCoord {
                             name: "in_attr4".into(),
-                            channels: "y".into(),
+                            channel: Some('y'),
                             params: Some(TexCoordParams::Parallax {
                                 mask: Dependency::Texture(TextureDependency {
                                     name: "s1".into(),
-                                    channels: "x".into(),
+                                    channel: Some('x'),
                                     texcoords: vec![
                                         TexCoord {
                                             name: "in_attr4".into(),
-                                            channels: "x".into(),
+                                            channel: Some('x'),
                                             params: None,
                                         },
                                         TexCoord {
                                             name: "in_attr4".into(),
-                                            channels: "y".into(),
+                                            channel: Some('y'),
                                             params: None,
                                         },
                                     ],
@@ -2872,13 +2862,13 @@ mod tests {
                                     name: "U_Mate".into(),
                                     field: "gWrkFl4".into(),
                                     index: Some(0),
-                                    channels: "y".into(),
+                                    channel: Some('y'),
                                 },
                                 param_ratio: BufferDependency {
                                     name: "U_Mate".into(),
                                     field: "gWrkFl4".into(),
                                     index: Some(0),
-                                    channels: "w".into(),
+                                    channel: Some('w'),
                                 },
                             }),
                         },
@@ -2886,16 +2876,16 @@ mod tests {
                 }),
                 Dependency::Texture(TextureDependency {
                     name: "s1".into(),
-                    channels: "x".into(),
+                    channel: Some('x'),
                     texcoords: vec![
                         TexCoord {
                             name: "in_attr4".into(),
-                            channels: "x".into(),
+                            channel: Some('x'),
                             params: None,
                         },
                         TexCoord {
                             name: "in_attr4".into(),
-                            channels: "y".into(),
+                            channel: Some('y'),
                             params: None,
                         },
                     ],
@@ -2920,7 +2910,7 @@ mod tests {
                 name: "U_Mate".into(),
                 field: "gWrkFl4".into(),
                 index: Some(0),
-                channels: "z".into(),
+                channel: Some('z'),
             })),
             shader.outline_width
         );
@@ -3009,22 +2999,22 @@ mod tests {
                             dependencies: vec![
                                 Dependency::Texture(TextureDependency {
                                     name: "s2".into(),
-                                    channels: "x".into(),
+                                    channel: Some('x'),
                                     texcoords: Vec::new(),
                                 }),
                                 Dependency::Texture(TextureDependency {
                                     name: "s2".into(),
-                                    channels: "y".into(),
+                                    channel: Some('y'),
                                     texcoords: Vec::new(),
                                 }),
                                 Dependency::Texture(TextureDependency {
                                     name: "s1".into(),
-                                    channels: "y".into(),
+                                    channel: Some('y'),
                                     texcoords: Vec::new(),
                                 }),
                                 Dependency::Texture(TextureDependency {
                                     name: "gIBL".into(),
-                                    channels: "x".into(),
+                                    channel: Some('x'),
                                     texcoords: Vec::new(),
                                 }),
                             ],
@@ -3037,22 +3027,22 @@ mod tests {
                             dependencies: vec![
                                 Dependency::Texture(TextureDependency {
                                     name: "s2".into(),
-                                    channels: "x".into(),
+                                    channel: Some('x'),
                                     texcoords: Vec::new(),
                                 }),
                                 Dependency::Texture(TextureDependency {
                                     name: "s2".into(),
-                                    channels: "y".into(),
+                                    channel: Some('y'),
                                     texcoords: Vec::new(),
                                 }),
                                 Dependency::Texture(TextureDependency {
                                     name: "s1".into(),
-                                    channels: "y".into(),
+                                    channel: Some('y'),
                                     texcoords: Vec::new(),
                                 }),
                                 Dependency::Texture(TextureDependency {
                                     name: "gIBL".into(),
-                                    channels: "y".into(),
+                                    channel: Some('y'),
                                     texcoords: Vec::new(),
                                 }),
                             ],
@@ -3065,22 +3055,22 @@ mod tests {
                             dependencies: vec![
                                 Dependency::Texture(TextureDependency {
                                     name: "s2".into(),
-                                    channels: "x".into(),
+                                    channel: Some('x'),
                                     texcoords: Vec::new(),
                                 }),
                                 Dependency::Texture(TextureDependency {
                                     name: "s2".into(),
-                                    channels: "y".into(),
+                                    channel: Some('y'),
                                     texcoords: Vec::new(),
                                 }),
                                 Dependency::Texture(TextureDependency {
                                     name: "s1".into(),
-                                    channels: "y".into(),
+                                    channel: Some('y'),
                                     texcoords: Vec::new(),
                                 }),
                                 Dependency::Texture(TextureDependency {
                                     name: "gIBL".into(),
-                                    channels: "z".into(),
+                                    channel: Some('z'),
                                     texcoords: Vec::new(),
                                 }),
                             ],
@@ -3093,17 +3083,17 @@ mod tests {
                             dependencies: vec![
                                 Dependency::Texture(TextureDependency {
                                     name: "s2".into(),
-                                    channels: "x".into(),
+                                    channel: Some('x'),
                                     texcoords: Vec::new(),
                                 }),
                                 Dependency::Texture(TextureDependency {
                                     name: "s2".into(),
-                                    channels: "y".into(),
+                                    channel: Some('y'),
                                     texcoords: Vec::new(),
                                 }),
                                 Dependency::Texture(TextureDependency {
                                     name: "gIBL".into(),
-                                    channels: "w".into(),
+                                    channel: Some('w'),
                                     texcoords: Vec::new(),
                                 }),
                             ],
@@ -3116,27 +3106,27 @@ mod tests {
                             dependencies: vec![
                                 Dependency::Texture(TextureDependency {
                                     name: "s2".into(),
-                                    channels: "x".into(),
+                                    channel: Some('x'),
                                     texcoords: Vec::new(),
                                 }),
                                 Dependency::Texture(TextureDependency {
                                     name: "s2".into(),
-                                    channels: "y".into(),
+                                    channel: Some('y'),
                                     texcoords: Vec::new(),
                                 }),
                                 Dependency::Texture(TextureDependency {
                                     name: "s1".into(),
-                                    channels: "x".into(),
+                                    channel: Some('x'),
                                     texcoords: Vec::new(),
                                 }),
                                 Dependency::Texture(TextureDependency {
                                     name: "s0".into(),
-                                    channels: "x".into(),
+                                    channel: Some('x'),
                                     texcoords: Vec::new(),
                                 }),
                                 Dependency::Texture(TextureDependency {
                                     name: "texRef".into(),
-                                    channels: "x".into(),
+                                    channel: Some('x'),
                                     texcoords: Vec::new(),
                                 }),
                             ],
@@ -3149,27 +3139,27 @@ mod tests {
                             dependencies: vec![
                                 Dependency::Texture(TextureDependency {
                                     name: "s2".into(),
-                                    channels: "x".into(),
+                                    channel: Some('x'),
                                     texcoords: Vec::new(),
                                 }),
                                 Dependency::Texture(TextureDependency {
                                     name: "s2".into(),
-                                    channels: "y".into(),
+                                    channel: Some('y'),
                                     texcoords: Vec::new(),
                                 }),
                                 Dependency::Texture(TextureDependency {
                                     name: "s1".into(),
-                                    channels: "x".into(),
+                                    channel: Some('x'),
                                     texcoords: Vec::new(),
                                 }),
                                 Dependency::Texture(TextureDependency {
                                     name: "s0".into(),
-                                    channels: "y".into(),
+                                    channel: Some('y'),
                                     texcoords: Vec::new(),
                                 }),
                                 Dependency::Texture(TextureDependency {
                                     name: "texRef".into(),
-                                    channels: "y".into(),
+                                    channel: Some('y'),
                                     texcoords: Vec::new(),
                                 }),
                             ],
@@ -3182,27 +3172,27 @@ mod tests {
                             dependencies: vec![
                                 Dependency::Texture(TextureDependency {
                                     name: "s2".into(),
-                                    channels: "x".into(),
+                                    channel: Some('x'),
                                     texcoords: Vec::new(),
                                 }),
                                 Dependency::Texture(TextureDependency {
                                     name: "s2".into(),
-                                    channels: "y".into(),
+                                    channel: Some('y'),
                                     texcoords: Vec::new(),
                                 }),
                                 Dependency::Texture(TextureDependency {
                                     name: "s1".into(),
-                                    channels: "x".into(),
+                                    channel: Some('x'),
                                     texcoords: Vec::new(),
                                 }),
                                 Dependency::Texture(TextureDependency {
                                     name: "s0".into(),
-                                    channels: "z".into(),
+                                    channel: Some('z'),
                                     texcoords: Vec::new(),
                                 }),
                                 Dependency::Texture(TextureDependency {
                                     name: "texRef".into(),
-                                    channels: "z".into(),
+                                    channel: Some('z'),
                                     texcoords: Vec::new(),
                                 }),
                             ],
@@ -3222,12 +3212,12 @@ mod tests {
                             dependencies: vec![
                                 Dependency::Texture(TextureDependency {
                                     name: "s2".into(),
-                                    channels: "x".into(),
+                                    channel: Some('x'),
                                     texcoords: Vec::new(),
                                 }),
                                 Dependency::Texture(TextureDependency {
                                     name: "s2".into(),
-                                    channels: "y".into(),
+                                    channel: Some('y'),
                                     texcoords: Vec::new(),
                                 }),
                             ],
@@ -3240,12 +3230,12 @@ mod tests {
                             dependencies: vec![
                                 Dependency::Texture(TextureDependency {
                                     name: "s2".into(),
-                                    channels: "x".into(),
+                                    channel: Some('x'),
                                     texcoords: Vec::new(),
                                 }),
                                 Dependency::Texture(TextureDependency {
                                     name: "s2".into(),
-                                    channels: "y".into(),
+                                    channel: Some('y'),
                                     texcoords: Vec::new(),
                                 }),
                             ],
@@ -3257,7 +3247,7 @@ mod tests {
                         OutputDependencies {
                             dependencies: vec![Dependency::Texture(TextureDependency {
                                 name: "s3".into(),
-                                channels: "x".into(),
+                                channel: Some('x'),
                                 texcoords: Vec::new(),
                             })],
                             layers: Vec::new()
@@ -3268,7 +3258,7 @@ mod tests {
                         OutputDependencies {
                             dependencies: vec![Dependency::Texture(TextureDependency {
                                 name: "s3".into(),
-                                channels: "y".into(),
+                                channel: Some('y'),
                                 texcoords: Vec::new(),
                             })],
                             layers: Vec::new()
@@ -3279,7 +3269,7 @@ mod tests {
                         OutputDependencies {
                             dependencies: vec![Dependency::Texture(TextureDependency {
                                 name: "s3".into(),
-                                channels: "z".into(),
+                                channel: Some('z'),
                                 texcoords: Vec::new(),
                             })],
                             layers: Vec::new()
@@ -3292,7 +3282,7 @@ mod tests {
                                 name: "KC0".into(),
                                 field: "".into(),
                                 index: Some(1),
-                                channels: "x".into(),
+                                channel: Some('x'),
                             })],
                             layers: Vec::new()
                         },
@@ -3302,7 +3292,7 @@ mod tests {
                         OutputDependencies {
                             dependencies: vec![Dependency::Texture(TextureDependency {
                                 name: "s1".into(),
-                                channels: "z".into(),
+                                channel: Some('z'),
                                 texcoords: Vec::new(),
                             })],
                             layers: Vec::new()

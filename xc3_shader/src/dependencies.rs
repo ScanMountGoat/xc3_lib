@@ -1,5 +1,4 @@
 use indoc::{formatdoc, indoc};
-use smol_str::ToSmolStr;
 use xc3_model::shader_database::{
     AttributeDependency, BufferDependency, Dependency, TexCoord, TexCoordParams, TextureDependency,
 };
@@ -36,7 +35,7 @@ pub fn input_dependencies(
                         name: name.into(),
                         field: field.clone().unwrap_or_default().into(),
                         index: Some((*index).try_into().unwrap()),
-                        channels: channel.map(|c| c.to_string().into()).unwrap_or_default(),
+                        channel: *channel,
                     }))
                 }
             }
@@ -83,7 +82,7 @@ pub fn attribute_dependencies(
                         if attributes.input_locations.contains_left(name.as_str()) {
                             Some(AttributeDependency {
                                 name: name.into(),
-                                channels: channel.map(|c| c.to_string().into()).unwrap_or_default(),
+                                channel: *channel,
                             })
                         } else {
                             None
@@ -127,7 +126,7 @@ fn texture_dependency(e: &Expr, graph: &Graph, attributes: &Attributes) -> Optio
 
                 Some(Dependency::Texture(TextureDependency {
                     name: name.into(),
-                    channels: channel.map(|c| c.to_string().into()).unwrap_or_default(),
+                    channel: *channel,
                     texcoords,
                 }))
             } else {
@@ -160,7 +159,7 @@ fn texcoord_args(args: &[Expr], graph: &Graph, attributes: &Attributes) -> Vec<T
 
                     Some(TexCoord {
                         name: name.into(),
-                        channels: channels.into(),
+                        channel: channels.into(),
                         params: None,
                     })
                 } else {
@@ -178,7 +177,7 @@ pub fn texcoord_params(graph: &Graph, input: &Expr, attributes: &Attributes) -> 
 
     Some(TexCoord {
         name: name.into(),
-        channels: channel.map(|c| c.to_smolstr()).unwrap_or_default(),
+        channel,
         params: Some(params),
     })
 }
@@ -300,7 +299,7 @@ fn texcoord_name_channels(
     node_assignments: &[usize],
     graph: &Graph,
     attributes: &Attributes,
-) -> Option<(String, String)> {
+) -> Option<(String, Option<char>)> {
     node_assignments.iter().find_map(|i| {
         // Check all exprs for binary ops, function args, etc.
         graph.nodes[*i]
@@ -310,10 +309,7 @@ fn texcoord_name_channels(
             .find_map(|e| {
                 if let Expr::Global { name, channel } = e {
                     if attributes.input_locations.contains_left(name.as_str()) {
-                        Some((
-                            name.to_string(),
-                            channel.map(|c| c.to_string()).unwrap_or_default(),
-                        ))
+                        Some((name.to_string(), *channel))
                     } else {
                         None
                     }
@@ -341,14 +337,14 @@ pub fn buffer_dependency(e: &Expr) -> Option<BufferDependency> {
                 name: name.into(),
                 field: field.clone().unwrap_or_default().into(),
                 index: Some((*index).try_into().unwrap()),
-                channels: channel.map(|c| c.to_string().into()).unwrap_or_default(),
+                channel: *channel,
             })
         } else {
             Some(BufferDependency {
                 name: name.into(),
                 field: field.clone().unwrap_or_default().into(),
                 index: None,
-                channels: channel.map(|c| c.to_string().into()).unwrap_or_default(),
+                channel: *channel,
             })
         }
     } else {
@@ -391,16 +387,16 @@ mod tests {
         assert_eq!(
             vec![Dependency::Texture(TextureDependency {
                 name: "texture1".into(),
-                channels: "w".into(),
+                channel: Some('w'),
                 texcoords: vec![
                     TexCoord {
                         name: "in_attr0".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         params: None
                     },
                     TexCoord {
                         name: "in_attr0".into(),
-                        channels: "w".into(),
+                        channel: Some('w'),
                         params: None
                     }
                 ]
@@ -442,65 +438,65 @@ mod tests {
         assert_eq!(
             vec![Dependency::Texture(TextureDependency {
                 name: "gTResidentTex05".into(),
-                channels: "x".into(),
+                channel: Some('x'),
                 texcoords: vec![
                     TexCoord {
                         name: "in_attr4".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         params: Some(TexCoordParams::Matrix([
                             BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gTexMat".into(),
                                 index: Some(0),
-                                channels: "x".into(),
+                                channel: Some('x'),
                             },
                             BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gTexMat".into(),
                                 index: Some(0),
-                                channels: "y".into(),
+                                channel: Some('y'),
                             },
                             BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gTexMat".into(),
                                 index: Some(0),
-                                channels: "z".into(),
+                                channel: Some('z'),
                             },
                             BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gTexMat".into(),
                                 index: Some(0),
-                                channels: "w".into(),
+                                channel: Some('w'),
                             }
                         ]))
                     },
                     TexCoord {
                         name: "in_attr4".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         params: Some(TexCoordParams::Matrix([
                             BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gTexMat".into(),
                                 index: Some(1),
-                                channels: "x".into(),
+                                channel: Some('x'),
                             },
                             BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gTexMat".into(),
                                 index: Some(1),
-                                channels: "y".into(),
+                                channel: Some('y'),
                             },
                             BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gTexMat".into(),
                                 index: Some(1),
-                                channels: "z".into(),
+                                channel: Some('z'),
                             },
                             BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gTexMat".into(),
                                 index: Some(1),
-                                channels: "w".into(),
+                                channel: Some('w'),
                             }
                         ]))
                     }
@@ -536,26 +532,26 @@ mod tests {
         assert_eq!(
             vec![Dependency::Texture(TextureDependency {
                 name: "gTResidentTex04".into(),
-                channels: "x".into(),
+                channel: Some('x'),
                 texcoords: vec![
                     TexCoord {
                         name: "in_attr4".into(),
-                        channels: "x".into(),
+                        channel: Some('x'),
                         params: Some(TexCoordParams::Scale(BufferDependency {
                             name: "U_Mate".into(),
                             field: "gWrkFl4".into(),
                             index: Some(0),
-                            channels: "z".into()
+                            channel: Some('z')
                         }))
                     },
                     TexCoord {
                         name: "in_attr4".into(),
-                        channels: "y".into(),
+                        channel: Some('y'),
                         params: Some(TexCoordParams::Scale(BufferDependency {
                             name: "U_Mate".into(),
                             field: "gWrkFl4".into(),
                             index: Some(0),
-                            channels: "w".into()
+                            channel: Some('w')
                         }))
                     }
                 ]
@@ -584,7 +580,7 @@ mod tests {
         assert_eq!(
             vec![Dependency::Texture(TextureDependency {
                 name: "texture1".into(),
-                channels: "z".into(),
+                channel: Some('z'),
                 texcoords: Vec::new()
             })],
             input_dependencies(&graph, &attributes, &assignments, &dependent_lines)
@@ -611,12 +607,12 @@ mod tests {
             vec![
                 Dependency::Texture(TextureDependency {
                     name: "texture1".into(),
-                    channels: "z".into(),
+                    channel: Some('z'),
                     texcoords: Vec::new()
                 }),
                 Dependency::Texture(TextureDependency {
                     name: "texture1".into(),
-                    channels: "w".into(),
+                    channel: Some('w'),
                     texcoords: Vec::new()
                 })
             ],
@@ -646,7 +642,7 @@ mod tests {
         assert_eq!(
             vec![Dependency::Texture(TextureDependency {
                 name: "texture1".into(),
-                channels: "x".into(),
+                channel: Some('x'),
                 texcoords: Vec::new()
             })],
             input_dependencies(
@@ -661,7 +657,7 @@ mod tests {
                 name: "U_Mate".into(),
                 field: "data".into(),
                 index: Some(1),
-                channels: "w".into()
+                channel: Some('w')
             })],
             input_dependencies(
                 &graph,
@@ -675,7 +671,7 @@ mod tests {
                 name: "uniform_data".into(),
                 field: Default::default(),
                 index: Some(3),
-                channels: "y".into()
+                channel: Some('y')
             })],
             input_dependencies(
                 &graph,
@@ -720,7 +716,7 @@ mod tests {
         assert_eq!(
             vec![AttributeDependency {
                 name: "in_attr2".into(),
-                channels: "x".into(),
+                channel: Some('x'),
             }],
             attribute_dependencies(&graph, &dependent_lines, &attributes, None)
         );
@@ -745,7 +741,7 @@ mod tests {
         assert_eq!(
             vec![Dependency::Texture(TextureDependency {
                 name: "tex".into(),
-                channels: "x".into(),
+                channel: Some('x'),
                 texcoords: Vec::new()
             })],
             input_dependencies(&graph, &attributes, &assignments, &dependent_lines)

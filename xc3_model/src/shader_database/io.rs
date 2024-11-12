@@ -147,6 +147,41 @@ impl From<LayerBlendModeIndexed> for LayerBlendMode {
     }
 }
 
+#[derive(Debug, PartialEq, Clone, Copy, BinRead, BinWrite)]
+#[brw(repr(u8))]
+pub enum Channel {
+    None = 0,
+    X = 1,
+    Y = 2,
+    Z = 3,
+    W = 4,
+}
+
+impl From<Channel> for Option<char> {
+    fn from(value: Channel) -> Self {
+        match value {
+            Channel::None => None,
+            Channel::X => Some('x'),
+            Channel::Y => Some('y'),
+            Channel::Z => Some('z'),
+            Channel::W => Some('w'),
+        }
+    }
+}
+
+impl From<Option<char>> for Channel {
+    fn from(value: Option<char>) -> Self {
+        match value {
+            Some('x') => Self::X,
+            Some('y') => Self::Y,
+            Some('z') => Self::Z,
+            Some('w') => Self::W,
+            None => Self::None,
+            _ => panic!("unable to convert {value:?} to channel"),
+        }
+    }
+}
+
 // TODO: How to handle recursion?
 #[derive(Debug, PartialEq, Clone, BinRead, BinWrite)]
 enum DependencyIndexed {
@@ -168,14 +203,14 @@ struct BufferDependencyIndexed {
     name: StringIndex,
     field: StringIndex,
     index: i8, // TODO: optional index type
-    channels: StringIndex,
+    channel: Channel,
 }
 
 #[binrw]
 #[derive(Debug, PartialEq, Clone)]
 struct TextureDependencyIndexed {
     name: StringIndex,
-    channels: StringIndex,
+    channel: Channel,
 
     #[br(temp)]
     #[bw(try_calc = u8::try_from(texcoords.len()))]
@@ -188,7 +223,7 @@ struct TextureDependencyIndexed {
 #[derive(Debug, PartialEq, Clone)]
 struct TexCoordIndexed {
     name: StringIndex,
-    channels: StringIndex,
+    channel: Channel,
     params: TexCoordParamsIndexed,
 }
 
@@ -214,7 +249,7 @@ enum TexCoordParamsIndexed {
 #[derive(Debug, PartialEq, Clone, BinRead, BinWrite)]
 struct AttributeDependencyIndexed {
     name: StringIndex,
-    channels: StringIndex,
+    channel: Channel,
 }
 
 impl Default for ShaderDatabaseIndexed {
@@ -362,7 +397,7 @@ impl ShaderDatabaseIndexed {
                         .map(|(output, dependencies)| {
                             let output_index = self.add_output(&output);
                             (
-                                output_index.try_into().unwrap(),
+                                output_index,
                                 OutputDependenciesIndexed {
                                     dependencies: dependencies
                                         .dependencies
@@ -510,13 +545,13 @@ impl ShaderDatabaseIndexed {
             )),
             DependencyIndexed::Texture(t) => Dependency::Texture(TextureDependency {
                 name: self.texture_names[t.name.0 as usize].to_smolstr(),
-                channels: self.strings[t.channels.0 as usize].to_smolstr(),
+                channel: t.channel.into(),
                 texcoords: t
                     .texcoords
                     .into_iter()
                     .map(|coord| TexCoord {
                         name: self.strings[coord.name.0 as usize].to_smolstr(),
-                        channels: self.strings[coord.channels.0 as usize].to_smolstr(),
+                        channel: coord.channel.into(),
                         params: match coord.params {
                             TexCoordParamsIndexed::None => None,
                             TexCoordParamsIndexed::Scale(s) => {
@@ -554,7 +589,7 @@ impl ShaderDatabaseIndexed {
             }),
             DependencyIndexed::Attribute(a) => Dependency::Attribute(AttributeDependency {
                 name: self.strings[a.name.0 as usize].to_smolstr(),
-                channels: self.strings[a.channels.0 as usize].to_smolstr(),
+                channel: a.channel.into(),
             }),
         }
     }
@@ -572,13 +607,13 @@ impl ShaderDatabaseIndexed {
             }
             Dependency::Texture(t) => DependencyIndexed::Texture(TextureDependencyIndexed {
                 name: self.add_texture(&t.name),
-                channels: self.add_string(&t.channels),
+                channel: t.channel.into(),
                 texcoords: t
                     .texcoords
                     .into_iter()
                     .map(|t| TexCoordIndexed {
                         name: self.add_string(&t.name),
-                        channels: self.add_string(&t.channels),
+                        channel: t.channel.into(),
                         params: t
                             .params
                             .map(|params| match params {
@@ -614,7 +649,7 @@ impl ShaderDatabaseIndexed {
             }),
             Dependency::Attribute(a) => DependencyIndexed::Attribute(AttributeDependencyIndexed {
                 name: self.add_string(&a.name),
-                channels: self.add_string(&a.channels),
+                channel: a.channel.into(),
             }),
         }
     }
@@ -624,7 +659,7 @@ impl ShaderDatabaseIndexed {
             name: self.add_string(&b.name),
             field: self.add_string(&b.field),
             index: b.index.map(|i| i.try_into().unwrap()).unwrap_or(-1),
-            channels: self.add_string(&b.channels),
+            channel: b.channel.into(),
         }
     }
 }
@@ -648,7 +683,7 @@ fn buffer_dependency(b: BufferDependencyIndexed, strings: &[NullString]) -> Buff
         name: strings[b.name.0 as usize].to_smolstr(),
         field: strings[b.field.0 as usize].to_smolstr(),
         index: usize::try_from(b.index).ok(),
-        channels: strings[b.channels.0 as usize].to_smolstr(),
+        channel: b.channel.into(),
     }
 }
 
