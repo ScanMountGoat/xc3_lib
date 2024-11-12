@@ -60,7 +60,7 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
                 // Add texture parameters used for the corresponding vertex output.
                 // Most shaders apply UV transforms in the vertex shader.
                 // This will be used later for texture layers.
-                apply_vertex_texcoord_params(
+                apply_vertex_tex_coord_params(
                     vert,
                     vert_attributes,
                     frag_attributes,
@@ -690,7 +690,7 @@ fn geometric_specular_aa(frag: &Graph) -> Option<BufferDependency> {
         .and_then(buffer_dependency)
 }
 
-fn apply_vertex_texcoord_params(
+fn apply_vertex_tex_coord_params(
     vertex: &Graph,
     vertex_attributes: &Attributes,
     fragment_attributes: &Attributes,
@@ -710,17 +710,16 @@ fn apply_vertex_texcoord_params(
                     {
                         // Preserve the channel ordering here.
                         // Find any additional scale parameters.
-                        for c in texcoord.channels.chars() {
+                        // TODO: make this Option<char> to enforce single channel.
+                        if let Some(c) = texcoord.channels.chars().next() {
                             if let Some(node) = vertex.nodes.iter().rfind(|n| {
                                 &n.output.name == vertex_output_name && n.output.channel == Some(c)
                             }) {
-                                if let Expr::Node { node_index, .. } = &node.input {
-                                    // Detect common cases for transforming UV coordinates.
-                                    if let Some(params) =
-                                        texcoord_params(vertex, *node_index, vertex_attributes)
-                                    {
-                                        texcoord.params = Some(params);
-                                    }
+                                // Detect common cases for transforming UV coordinates.
+                                if let Some(new_texcoord) =
+                                    texcoord_params(vertex, &node.input, vertex_attributes)
+                                {
+                                    *texcoord = new_texcoord;
                                 }
                             }
                         }
