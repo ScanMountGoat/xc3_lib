@@ -249,7 +249,6 @@ pub fn tex_parallax(
     "};
 
     // uv = mix(param, mask, param_ratio) * 0.7 * (nrm.x * tan.xy - norm.y * bitan.xy) + vTex0.xy
-    // TODO: how to indicate the swapping of the param and mask in the mix function?
     // TODO: Also return the uv attribute and channel?
     let query_xc3 = indoc! {"
         coord = coord;
@@ -265,15 +264,25 @@ pub fn tex_parallax(
         result = abs(result);
         result = result + -0.0;
     "};
-    let result = query_nodes_glsl(expr, &graph.nodes, query_xc2)
-        .or_else(|| query_nodes_glsl(expr, &graph.nodes, query_xc3))
-        .or_else(|| query_nodes_glsl(expr, &graph.nodes, &query_xc3_2))?;
+    let (result, is_swapped) = query_nodes_glsl(expr, &graph.nodes, query_xc2)
+        .map(|r| (r, false))
+        .or_else(|| query_nodes_glsl(expr, &graph.nodes, query_xc3).map(|r| (r, true)))
+        .or_else(|| query_nodes_glsl(expr, &graph.nodes, &query_xc3_2).map(|r| (r, true)))?;
 
-    let mask = result
-        .get("mask")
-        .copied()
-        .and_then(|e| texture_dependency(e, graph, attributes))?;
-    let param = result.get("param").copied().and_then(buffer_dependency)?;
+    let mut mask_a = result.get("mask").copied().and_then(|e| {
+        texture_dependency(e, graph, attributes)
+            .or_else(|| buffer_dependency(e).map(Dependency::Buffer))
+    })?;
+
+    let mut mask_b = result.get("param").copied().and_then(|e| {
+        texture_dependency(e, graph, attributes)
+            .or_else(|| buffer_dependency(e).map(Dependency::Buffer))
+    })?;
+
+    if is_swapped {
+        std::mem::swap(&mut mask_a, &mut mask_b);
+    }
+
     let param_ratio = result
         .get("param_ratio")
         .copied()
@@ -286,9 +295,9 @@ pub fn tex_parallax(
 
     Some((
         TexCoordParams::Parallax {
-            mask,
-            param,
-            param_ratio,
+            mask_a,
+            mask_b,
+            ratio: param_ratio,
         },
         coord,
         channel,

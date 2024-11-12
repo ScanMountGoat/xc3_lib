@@ -618,9 +618,9 @@ pub struct TextureAssignment {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TexCoordParallax {
-    pub mask: Box<ChannelAssignment>,
-    pub param: f32,
-    pub param_ratio: f32,
+    pub mask_a: Box<ChannelAssignment>,
+    pub mask_b: Box<ChannelAssignment>,
+    pub ratio: f32,
 }
 
 impl ChannelAssignment {
@@ -908,13 +908,17 @@ fn texture_assignment(
         texcoord_transforms,
         parallax: match texture.texcoords.first().and_then(|t| t.params.as_ref()) {
             Some(TexCoordParams::Parallax {
-                mask,
-                param,
-                param_ratio,
+                mask_a,
+                mask_b,
+                ratio,
             }) => Some(TexCoordParallax {
-                mask: Box::new(ChannelAssignment::from_dependency(mask, parameters, 'x').unwrap()),
-                param: parameters.get_dependency(param).unwrap_or_default(),
-                param_ratio: parameters.get_dependency(param_ratio).unwrap_or_default(),
+                mask_a: Box::new(
+                    ChannelAssignment::from_dependency(mask_a, parameters, 'x').unwrap(),
+                ),
+                mask_b: Box::new(
+                    ChannelAssignment::from_dependency(mask_b, parameters, 'x').unwrap(),
+                ),
+                ratio: parameters.get_dependency(ratio).unwrap_or_default(),
             }),
             _ => None,
         },

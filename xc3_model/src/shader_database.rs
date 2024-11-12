@@ -163,11 +163,11 @@ pub enum TexCoordParams {
     /// ```
     Matrix([BufferDependency; 4]),
 
-    /// Masked parallax mapping with `mix(mask, param, param_ratio` as the intensity.
+    /// Masked parallax mapping with `mix(mask_a, mask_b, ratio)` as the intensity.
     Parallax {
-        mask: Dependency,
-        param: BufferDependency,
-        param_ratio: BufferDependency,
+        mask_a: Dependency,
+        mask_b: Dependency,
+        ratio: BufferDependency,
     },
 }
 

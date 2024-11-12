@@ -157,10 +157,10 @@ struct PerMaterial {
 struct TextureInfo {
     texcoord_index: u32,
     is_bc4_single_channel: u32,
-    parallax_sampler_index: i32,
-    parallax_channel_index: u32,
-    parallax_param: f32,
-    parallax_param_ratio: f32,
+    parallax_sampler_indices: vec2<i32>,
+    parallax_channel_indices: vec2<u32>,
+    parallax_default_values: vec2<f32>,
+    parallax_ratio: f32,
     transform: array<vec4<f32>, 2>,
 }
 
@@ -565,17 +565,23 @@ fn select_uv(vert: VertexOutput, index: i32) -> vec2<f32> {
 
     uvs = transform_uv(uvs, info.transform);
 
-    if info.parallax_sampler_index != -1 {
+    let parallax_s_x = info.parallax_sampler_indices.x;
+    let parallax_s_y = info.parallax_sampler_indices.y;
+    // Assume at least one value is a texture mask.
+    if parallax_s_x != -1 || parallax_s_y != -1 {
         // TODO: How similar is this to traditional parallax mapping with a height map?
         // Use inner functions since recursion is not allowed.
         // This assumes the mask texture itself has only basic UVs.
-        let mask_uvs = select_uv_inner(vert, info.parallax_sampler_index);
-        let mask = assign_channel_inner(info.parallax_sampler_index, info.parallax_channel_index, mask_uvs, 0.0);
+        let mask_a_uvs = select_uv_inner(vert, parallax_s_x);
+        let mask_a = assign_channel_inner(parallax_s_x, info.parallax_channel_indices.x, mask_a_uvs, info.parallax_default_values.x);
+
+        let mask_b_uvs = select_uv_inner(vert, parallax_s_y);
+        let mask_b = assign_channel_inner(parallax_s_y, info.parallax_channel_indices.y, mask_b_uvs, info.parallax_default_values.y);
 
         let bitangent = cross(vert.normal.xyz, vert.tangent.xyz) * vert.tangent.w;
         let offset = vert.normal.x * vert.tangent.xy - vert.normal.x * bitangent.xy;
 
-        uvs += mix(mask, info.parallax_param, info.parallax_param_ratio) * 0.7 * offset;
+        uvs += mix(mask_a, mask_b, info.parallax_ratio) * 0.7 * offset;
     }
 
     return uvs;

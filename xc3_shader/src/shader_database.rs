@@ -1898,7 +1898,13 @@ mod tests {
                         name: "in_attr3".into(),
                         channel: Some('x'),
                         params: Some(TexCoordParams::Parallax {
-                            mask: Dependency::Texture(TextureDependency {
+                            mask_a: Dependency::Buffer(BufferDependency {
+                                name: "U_Mate".into(),
+                                field: "gWrkFl4".into(),
+                                index: Some(0),
+                                channel: Some('x'),
+                            }),
+                            mask_b: Dependency::Texture(TextureDependency {
                                 name: "s2".into(),
                                 channel: Some('z'),
                                 texcoords: vec![
@@ -1914,13 +1920,7 @@ mod tests {
                                     },
                                 ],
                             }),
-                            param: BufferDependency {
-                                name: "U_Mate".into(),
-                                field: "gWrkFl4".into(),
-                                index: Some(0),
-                                channel: Some('x'),
-                            },
-                            param_ratio: BufferDependency {
+                            ratio: BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gWrkFl4".into(),
                                 index: Some(0),
@@ -1932,7 +1932,13 @@ mod tests {
                         name: "in_attr3".into(),
                         channel: Some('y'),
                         params: Some(TexCoordParams::Parallax {
-                            mask: Dependency::Texture(TextureDependency {
+                            mask_a: Dependency::Buffer(BufferDependency {
+                                name: "U_Mate".into(),
+                                field: "gWrkFl4".into(),
+                                index: Some(0),
+                                channel: Some('x'),
+                            }),
+                            mask_b: Dependency::Texture(TextureDependency {
                                 name: "s2".into(),
                                 channel: Some('z'),
                                 texcoords: vec![
@@ -1948,13 +1954,7 @@ mod tests {
                                     },
                                 ],
                             }),
-                            param: BufferDependency {
-                                name: "U_Mate".into(),
-                                field: "gWrkFl4".into(),
-                                index: Some(0),
-                                channel: Some('x'),
-                            },
-                            param_ratio: BufferDependency {
+                            ratio: BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gWrkFl4".into(),
                                 index: Some(0),
@@ -2808,7 +2808,7 @@ mod tests {
                             name: "in_attr4".into(),
                             channel: Some('x'),
                             params: Some(TexCoordParams::Parallax {
-                                mask: Dependency::Texture(TextureDependency {
+                                mask_a: Dependency::Texture(TextureDependency {
                                     name: "s1".into(),
                                     channel: Some('x'),
                                     texcoords: vec![
@@ -2824,13 +2824,13 @@ mod tests {
                                         },
                                     ],
                                 }),
-                                param: BufferDependency {
+                                mask_b: Dependency::Buffer(BufferDependency {
                                     name: "U_Mate".into(),
                                     field: "gWrkFl4".into(),
                                     index: Some(0),
                                     channel: Some('y'),
-                                },
-                                param_ratio: BufferDependency {
+                                }),
+                                ratio: BufferDependency {
                                     name: "U_Mate".into(),
                                     field: "gWrkFl4".into(),
                                     index: Some(0),
@@ -2842,7 +2842,7 @@ mod tests {
                             name: "in_attr4".into(),
                             channel: Some('y'),
                             params: Some(TexCoordParams::Parallax {
-                                mask: Dependency::Texture(TextureDependency {
+                                mask_a: Dependency::Texture(TextureDependency {
                                     name: "s1".into(),
                                     channel: Some('x'),
                                     texcoords: vec![
@@ -2858,13 +2858,13 @@ mod tests {
                                         },
                                     ],
                                 }),
-                                param: BufferDependency {
+                                mask_b: Dependency::Buffer(BufferDependency {
                                     name: "U_Mate".into(),
                                     field: "gWrkFl4".into(),
                                     index: Some(0),
                                     channel: Some('y'),
-                                },
-                                param_ratio: BufferDependency {
+                                }),
+                                ratio: BufferDependency {
                                     name: "U_Mate".into(),
                                     field: "gWrkFl4".into(),
                                     index: Some(0),

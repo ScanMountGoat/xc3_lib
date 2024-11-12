@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use glam::{ivec4, uvec4, vec3, vec4, IVec4, Vec3, Vec4};
+use glam::{ivec2, ivec4, uvec2, uvec4, vec2, vec3, vec4, IVec2, IVec4, UVec2, Vec2, Vec3, Vec4};
 use indexmap::IndexMap;
 use log::{error, warn};
 use smol_str::SmolStr;
@@ -87,10 +87,10 @@ pub fn materials(
             let mut texture_info = [crate::shader::model::TextureInfo {
                 texcoord_index: 0,
                 is_bc4_single_channel: 0,
-                parallax_sampler_index: -1,
-                parallax_channel_index: 0,
-                parallax_param: 0.0,
-                parallax_param_ratio: 0.0,
+                parallax_sampler_indices: ivec2(-1, -1),
+                parallax_channel_indices: UVec2::ZERO,
+                parallax_default_values: Vec2::ZERO,
+                parallax_ratio: 0.0,
                 transform: [Vec4::X, Vec4::Y],
             }; 10];
 
@@ -117,10 +117,10 @@ pub fn materials(
                         // TODO: is this redundant with the shader type?
                         info.texcoord_index = i.texcoord_index as u32;
                         info.transform = i.transforms.into();
-                        info.parallax_sampler_index = i.parallax_sampler_index;
-                        info.parallax_channel_index = i.parallax_channel_index;
-                        info.parallax_param = i.parallax_param;
-                        info.parallax_param_ratio = i.parallax_param_ratio;
+                        info.parallax_sampler_indices = i.parallax_sampler_indices;
+                        info.parallax_channel_indices = i.parallax_channel_indices;
+                        info.parallax_default_values = i.parallax_default_values;
+                        info.parallax_ratio = i.parallax_ratio;
                     }
                 }
             }
@@ -331,10 +331,10 @@ fn layer_indices(
 struct TextureInfo {
     texcoord_index: usize,
 
-    parallax_sampler_index: i32,
-    parallax_channel_index: u32,
-    parallax_param: f32,
-    parallax_param_ratio: f32,
+    parallax_sampler_indices: IVec2,
+    parallax_channel_indices: UVec2,
+    parallax_default_values: Vec2,
+    parallax_ratio: f32,
 
     transforms: (Vec4, Vec4),
 }
@@ -432,19 +432,32 @@ fn texture_channel(
             parallax,
         } = texture;
 
-        let (parallax_sampler_index, parallax_channel_index, parallax_param, parallax_param_ratio) =
+        let (ps_x, ps_y, pc_x, pc_y, p_default_x, p_default_y, parallax_ratio) =
             if let Some(parallax) = parallax {
-                let (s, c) =
-                    texture_channel(Some(&parallax.mask), name_to_index, name_to_info, 'x').unzip();
+                let (s_x, c_x) =
+                    texture_channel(Some(&parallax.mask_a), name_to_index, name_to_info, 'x')
+                        .unzip();
+
+                let (s_y, c_y) =
+                    texture_channel(Some(&parallax.mask_b), name_to_index, name_to_info, 'x')
+                        .unzip();
+
+                let default_x =
+                    value_channel_assignment(Some(&parallax.mask_a)).unwrap_or_default();
+                let default_y =
+                    value_channel_assignment(Some(&parallax.mask_b)).unwrap_or_default();
 
                 (
-                    s.unwrap_or(-1),
-                    c.unwrap_or_default(),
-                    parallax.param,
-                    parallax.param_ratio,
+                    s_x.unwrap_or(-1),
+                    s_y.unwrap_or(-1),
+                    c_x.unwrap_or_default(),
+                    c_y.unwrap_or_default(),
+                    default_x,
+                    default_y,
+                    parallax.ratio,
                 )
             } else {
-                (-1, 0, 0.0, 0.0)
+                (-1, -1, 0, 0, 0.0, 0.0, 0.0)
             };
 
         name_to_info.insert(
@@ -455,10 +468,10 @@ fn texture_channel(
                     .as_ref()
                     .and_then(|s| texcoord_index(s))
                     .unwrap_or_default(),
-                parallax_sampler_index,
-                parallax_channel_index,
-                parallax_param,
-                parallax_param_ratio,
+                parallax_sampler_indices: ivec2(ps_x, ps_y),
+                parallax_channel_indices: uvec2(pc_x, pc_y),
+                parallax_default_values: vec2(p_default_x, p_default_y),
+                parallax_ratio,
             },
         );
 
