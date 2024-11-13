@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Improved framerates for model and map rendering.
 * Optimized shader database creation.
 
+### Fixed
+* Fixed an issue where some eyes would not render correctly due to incorrect handling of metalness.
+* Fixed an issue where some shader database entries did not correctly multiply color by vertex color.
+
 ### Removed
 * Removed the `pretty` option for xc3_shader database creation since it no longer applies to binary output.
 

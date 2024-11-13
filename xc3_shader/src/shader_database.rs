@@ -353,7 +353,7 @@ fn find_layers(nodes: &[Node], current: &Expr, dependencies: &[Dependency]) -> V
         .or_else(|| blend_over(nodes, current))
         .or_else(|| blend_ratio(nodes, current))
         .or_else(|| blend_add(nodes, current, dependencies))
-        .or_else(|| blend_mul(nodes, current))
+        .or_else(|| blend_mul(nodes, current, dependencies))
         .or_else(|| blend_add_ratio(current))
     {
         let layer_b = extract_layer_value(nodes, layer_b, dependencies);
@@ -490,13 +490,22 @@ static BLEND_MUL: LazyLock<Graph> =
 fn blend_mul<'a>(
     nodes: &'a [Node],
     expr: &'a Expr,
+    dependencies: &[Dependency],
 ) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
     // Some layers are simply multiplied together.
     let result = query_nodes(expr, nodes, &BLEND_MUL.nodes)?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     // TODO: The ordering is ambiguous since a*b == b*a.
-    Some((a, b, &Expr::Float(1.0), LayerBlendMode::MixRatio))
+    let a_value = layer_value(assign_x_recursive(nodes, a), dependencies);
+    let b_value = layer_value(assign_x_recursive(nodes, b), dependencies);
+    if !matches!(a_value, Some(Dependency::Texture(_)))
+        && matches!(b_value, Some(Dependency::Texture(_)))
+    {
+        Some((b, a, &Expr::Float(1.0), LayerBlendMode::MixRatio))
+    } else {
+        Some((a, b, &Expr::Float(1.0), LayerBlendMode::MixRatio))
+    }
 }
 
 static BLEND_OVERLAY: LazyLock<Graph> = LazyLock::new(|| {
@@ -1165,11 +1174,11 @@ mod tests {
     #[test]
     fn shader_from_vertex_fragment_pyra_body() {
         // Test shaders from Pyra's metallic chest material.
-        // xeno2/bl/bl000101, "ho_BL_TS2", shd0022.vert
+        // xeno2/model/bl/bl000101, "ho_BL_TS2", shd0022.vert
         let glsl = include_str!("data/xc2/bl000101.22.vert");
         let vertex = TranslationUnit::parse(glsl).unwrap();
 
-        // xeno2/bl/bl000101, "ho_BL_TS2", shd0022.frag
+        // xeno2/model/bl/bl000101, "ho_BL_TS2", shd0022.frag
         let glsl = include_str!("data/xc2/bl000101.22.frag");
         let fragment = TranslationUnit::parse(glsl).unwrap();
 
@@ -1330,6 +1339,70 @@ mod tests {
                 layers: Vec::new()
             },
             shader.output_dependencies[&SmolStr::from("o5.w")]
+        );
+    }
+
+    #[test]
+    fn shader_from_fragment_pyra_hair() {
+        // xeno2/model/bl/bl000101, "_ho_hair_new", shd0008.vert
+        let glsl = include_str!("data/xc2/bl000101.8.frag");
+        let fragment = TranslationUnit::parse(glsl).unwrap();
+
+        let shader = shader_from_glsl(None, &fragment);
+
+        // Check that the color texture is multiplied by vertex color.
+        assert_eq!(
+            OutputDependencies {
+                dependencies: vec![Dependency::Texture(TextureDependency {
+                    name: "s0".into(),
+                    channel: Some('x'),
+                    texcoords: vec![
+                        TexCoord {
+                            name: "in_attr2".into(),
+                            channel: Some('x'),
+                            params: None,
+                        },
+                        TexCoord {
+                            name: "in_attr2".into(),
+                            channel: Some('y'),
+                            params: None,
+                        },
+                    ]
+                })],
+                layers: vec![
+                    TextureLayer {
+                        value: Dependency::Texture(TextureDependency {
+                            name: "s0".into(),
+                            channel: Some('x',),
+                            texcoords: vec![
+                                TexCoord {
+                                    name: "in_attr2".into(),
+                                    channel: Some('x',),
+                                    params: None,
+                                },
+                                TexCoord {
+                                    name: "in_attr2".into(),
+                                    channel: Some('y',),
+                                    params: None,
+                                },
+                            ],
+                        }),
+                        ratio: None,
+                        blend_mode: LayerBlendMode::Mix,
+                        is_fresnel: false,
+                    },
+                    TextureLayer {
+                        value: Dependency::Attribute(AttributeDependency {
+                            name: "in_attr3".into(),
+                            channel: Some('x',),
+                        }),
+                        ratio: Some(Dependency::Constant(1.0.into())),
+                        blend_mode: LayerBlendMode::MixRatio,
+                        is_fresnel: false,
+                    },
+                ],
+            },
+            shader.output_dependencies[&SmolStr::from("o0.x")]
         );
     }
 
