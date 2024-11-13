@@ -1,14 +1,14 @@
-use indoc::{formatdoc, indoc};
-use xc3_model::shader_database::{
-    AttributeDependency, BufferDependency, Dependency, TexCoord, TexCoordParams, TextureDependency,
-};
-
 use crate::{
     graph::{
-        query::{assign_x_recursive, query_nodes_glsl},
+        query::{assign_x_recursive, query_nodes},
         Expr, Graph,
     },
     shader_database::Attributes,
+};
+use indoc::indoc;
+use std::sync::LazyLock;
+use xc3_model::shader_database::{
+    AttributeDependency, BufferDependency, Dependency, TexCoord, TexCoordParams, TextureDependency,
 };
 
 pub fn input_dependencies(
@@ -21,7 +21,8 @@ pub fn input_dependencies(
     let mut dependencies = texture_dependencies(graph, attributes, dependent_lines);
 
     // Add anything assigned directly to the output.
-    for i in assignments {
+    // Assignments are in reverse order, so take only the first element.
+    if let Some(i) = assignments.first() {
         match &graph.nodes[*i].input {
             Expr::Float(f) => dependencies.push(Dependency::Constant((*f).into())),
             Expr::Parameter {
@@ -182,14 +183,20 @@ pub fn texcoord_params(graph: &Graph, input: &Expr, attributes: &Attributes) -> 
     })
 }
 
+static SCALE_PARAMETER: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            coord = coord;
+            result = coord * scale;
+            result = result;
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
 fn scale_parameter(graph: &Graph, expr: &Expr) -> Option<(TexCoordParams, String, Option<char>)> {
     // Detect simple multiplication by scale parameters.
-    let query = indoc! {"
-        coord = coord;
-        result = coord * scale;
-        result = result;
-    "};
-    let result = query_nodes_glsl(expr, &graph.nodes, query)?;
+    let result = query_nodes(expr, &graph.nodes, &SCALE_PARAMETER.nodes)?;
 
     let param = buffer_dependency(result.get("scale")?)?;
 
@@ -201,20 +208,26 @@ fn scale_parameter(graph: &Graph, expr: &Expr) -> Option<(TexCoordParams, String
     Some((TexCoordParams::Scale(param), coord, channel))
 }
 
-pub fn tex_matrix(graph: &Graph, expr: &Expr) -> Option<(TexCoordParams, String, Option<char>)> {
+static TEX_MATRIX: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            u = coord.x;
+            v = coord.y;
+            result = u * param_x;
+            result = fma(v, param_y, result);
+            result = fma(0.0, param_z, result);
+            result = result + param_w;
+            result = result;
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+fn tex_matrix(graph: &Graph, expr: &Expr) -> Option<(TexCoordParams, String, Option<char>)> {
     // TODO: Also check that the attribute name matches?
     // Detect matrix multiplication for the mat4x2 "gTexMat * vec4(u, v, 0.0, 1.0)".
     // U and V have the same pattern but use a different row of the matrix.
-    let query = indoc! {"
-        u = coord.x;
-        v = coord.y;
-        result = u * param_x;
-        result = fma(v, param_y, result);
-        result = fma(0.0, param_z, result);
-        result = result + param_w;
-        result = result;
-    "};
-    let result = query_nodes_glsl(expr, &graph.nodes, query)?;
+    let result = query_nodes(expr, &graph.nodes, &TEX_MATRIX.nodes)?;
     let x = result.get("param_x").copied().and_then(buffer_dependency)?;
     let y = result.get("param_y").copied().and_then(buffer_dependency)?;
     let z = result.get("param_z").copied().and_then(buffer_dependency)?;
@@ -229,7 +242,58 @@ pub fn tex_matrix(graph: &Graph, expr: &Expr) -> Option<(TexCoordParams, String,
     Some((TexCoordParams::Matrix([x, y, z, w]), coord, channel))
 }
 
-pub fn tex_parallax(
+static TEX_PARALLAX_XC2: LazyLock<Graph> = LazyLock::new(|| {
+    // uv = mix(mask, param, param_ratio) * 0.7 * (nrm.x * tan.xy - norm.y * bitan.xy) + vTex0.xy
+    let query = indoc! {"
+        void main() {
+            coord = coord;
+            mask = mask;
+            nrm_result = fma(temp, 0.7, temp);
+            neg_mask = 0.0 - mask;
+            param_minus_mask = neg_mask + param;
+            ratio = fma(param_minus_mask, param_ratio, mask);
+            result = fma(ratio, nrm_result, coord);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+static TEX_PARALLAX_XC3: LazyLock<Graph> = LazyLock::new(|| {
+    // uv = mix(param, mask, param_ratio) * 0.7 * (nrm.x * tan.xy - norm.y * bitan.xy) + vTex0.xy
+    let query = indoc! {"
+        void main() {
+            coord = coord;
+            mask = mask;
+            nrm_result = fma(temp, 0.7, temp);
+            neg_param = 0.0 - param;
+            mask_minus_param = mask + neg_param;
+            ratio = fma(mask_minus_param, param_ratio, param);
+            result = fma(ratio, nrm_result, coord);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+static TEX_PARALLAX_XC3_2: LazyLock<Graph> = LazyLock::new(|| {
+    // uv = mix(param, mask, param_ratio) * 0.7 * (nrm.x * tan.xy - norm.y * bitan.xy) + vTex0.xy
+    let query = indoc! {"
+        void main() {
+            coord = coord;
+            mask = mask;
+            nrm_result = fma(temp, 0.7, temp);
+            neg_param = 0.0 - param;
+            mask_minus_param = mask + neg_param;
+            ratio = fma(mask_minus_param, param_ratio, param);
+            result = fma(ratio, nrm_result, coord);
+            // Generated for some shaders.
+            result = abs(result);
+            result = result + -0.0;
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+fn tex_parallax(
     graph: &Graph,
     expr: &Expr,
     attributes: &Attributes,
@@ -237,37 +301,12 @@ pub fn tex_parallax(
     let expr = assign_x_recursive(&graph.nodes, expr);
 
     // Some eye shaders use some form of parallax mapping.
-    // uv = mix(mask, param, param_ratio) * 0.7 * (nrm.x * tan.xy - norm.y * bitan.xy) + vTex0.xy
-    let query_xc2 = indoc! {"
-        coord = coord;
-        mask = mask;
-        nrm_result = fma(temp, 0.7, temp);
-        neg_mask = 0.0 - mask;
-        param_minus_mask = neg_mask + param;
-        ratio = fma(param_minus_mask, param_ratio, mask);
-        result = fma(ratio, nrm_result, coord);
-    "};
-
-    // uv = mix(param, mask, param_ratio) * 0.7 * (nrm.x * tan.xy - norm.y * bitan.xy) + vTex0.xy
-    // TODO: Also return the uv attribute and channel?
-    let query_xc3 = indoc! {"
-        coord = coord;
-        mask = mask;
-        nrm_result = fma(temp, 0.7, temp);
-        neg_param = 0.0 - param;
-        mask_minus_param = mask + neg_param;
-        ratio = fma(mask_minus_param, param_ratio, param);
-        result = fma(ratio, nrm_result, coord);
-    "};
-    let query_xc3_2 = formatdoc! {"
-        {query_xc3}
-        result = abs(result);
-        result = result + -0.0;
-    "};
-    let (result, is_swapped) = query_nodes_glsl(expr, &graph.nodes, query_xc2)
+    let (result, is_swapped) = query_nodes(expr, &graph.nodes, &TEX_PARALLAX_XC2.nodes)
         .map(|r| (r, false))
-        .or_else(|| query_nodes_glsl(expr, &graph.nodes, query_xc3).map(|r| (r, true)))
-        .or_else(|| query_nodes_glsl(expr, &graph.nodes, &query_xc3_2).map(|r| (r, true)))?;
+        .or_else(|| query_nodes(expr, &graph.nodes, &TEX_PARALLAX_XC3.nodes).map(|r| (r, true)))
+        .or_else(|| {
+            query_nodes(expr, &graph.nodes, &TEX_PARALLAX_XC3_2.nodes).map(|r| (r, true))
+        })?;
 
     let mut mask_a = result.get("mask").copied().and_then(|e| {
         texture_dependency(e, graph, attributes)

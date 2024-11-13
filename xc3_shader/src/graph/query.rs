@@ -23,7 +23,7 @@ use crate::graph::UnaryOp;
 
 use super::{BinaryOp, Expr, Graph, Node};
 use indoc::indoc;
-use std::{collections::BTreeMap, ops::Deref};
+use std::{collections::BTreeMap, ops::Deref, sync::LazyLock};
 
 impl Graph {
     /// Find the corresponding [Expr] in the graph for each [Expr::Global] in `query`
@@ -40,14 +40,10 @@ impl Graph {
     }
 }
 
-/// Find the corresponding [Expr] in the graph for each [Expr::Global] in `query`
-/// or `None` if the graphs do not match.
+/// A convenience method for [query_nodes] when the query is GLSL code.
 ///
-/// Variables in `query` function as placeholder variables and will match any input expression.
-/// This allows for extracting variable values from specific parts of the code.
-///
-/// This uses a structural match that allows for differences in variable names
-/// and implements basic algebraic identities like `a*b == b*a`.
+/// Consider using [query_nodes] and initializing the query graph
+/// ahead of time with [Graph::parse_glsl] if the query is used many times.
 pub fn query_nodes_glsl<'a>(
     input: &'a Expr,
     input_nodes: &'a [Node],
@@ -58,7 +54,16 @@ pub fn query_nodes_glsl<'a>(
     query_nodes(input, input_nodes, &query.nodes)
 }
 
-fn query_nodes<'a>(
+/// Find the corresponding [Expr] in the graph for each [Expr::Global] in `query_nodes`
+/// or `None` if the graphs do not match.
+///
+/// Variables in `query_nodes` function as placeholder variables and will match any input expression.
+/// This allows for extracting variable values from specific parts of the code.
+/// Unrelated nodes in the input will be ignored.
+///
+/// This uses a structural match that effectively checks if the query is a subgraph of the input
+/// while allowing for differences in variable names basic algebraic identities like `a*b == b*a`.
+pub fn query_nodes<'a>(
     input: &'a Expr,
     input_nodes: &'a [Node],
     query_nodes: &[Node],
@@ -67,7 +72,6 @@ fn query_nodes<'a>(
     let mut vars = BTreeMap::new();
 
     // TODO: Is this the right way to handle multiple nodes?
-
     let is_match = check_exprs(
         &query_nodes.last()?.input,
         input,
@@ -194,16 +198,22 @@ pub fn assign_x_recursive<'a>(nodes: &'a [Node], expr: &'a Expr) -> &'a Expr {
     node
 }
 
+static MIX_A_B_RATIO: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            neg_a = 0.0 - a;
+            b_minus_a = neg_a + b;
+            result = fma(b_minus_a, ratio, a);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
 pub fn mix_a_b_ratio<'a>(
     nodes: &'a [Node],
     expr: &'a Expr,
 ) -> Option<(&'a Expr, &'a Expr, &'a Expr)> {
-    let query = indoc! {"
-        neg_a = 0.0 - a;
-        b_minus_a = neg_a + b;
-        result = fma(b_minus_a, ratio, a);
-    "};
-    let result = query_nodes_glsl(expr, nodes, query)?;
+    let result = query_nodes(expr, nodes, &MIX_A_B_RATIO.nodes)?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     let ratio = result.get("ratio")?;
@@ -218,14 +228,19 @@ pub fn node_expr<'a>(nodes: &'a [Node], e: &Expr) -> Option<&'a Expr> {
     }
 }
 
-pub fn dot3_a_b<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<([&'a Expr; 3], [&'a Expr; 3])> {
+static DOT3_A_B: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        result = a1 * b1;
-        result = fma(a2, b2, result);
-        result = fma(a3, b3, result);
+        void main() {
+            result = a1 * b1;
+            result = fma(a2, b2, result);
+            result = fma(a3, b3, result);
+        }
     "};
-    let result = query_nodes_glsl(expr, nodes, query)?;
+    Graph::parse_glsl(query).unwrap()
+});
 
+pub fn dot3_a_b<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<([&'a Expr; 3], [&'a Expr; 3])> {
+    let result = query_nodes(expr, nodes, &DOT3_A_B.nodes)?;
     Some((
         [result.get("a1")?, result.get("a2")?, result.get("a3")?],
         [result.get("b1")?, result.get("b2")?, result.get("b3")?],
@@ -248,8 +263,11 @@ pub fn fma_a_b_c(expr: &Expr) -> Option<(&Expr, &Expr, &Expr)> {
     }
 }
 
+static FMA_HALF_HALF: LazyLock<Graph> =
+    LazyLock::new(|| Graph::parse_glsl("void main() { result = fma(x, 0.5, 0.5); }").unwrap());
+
 pub fn fma_half_half<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> {
-    let result = query_nodes_glsl(expr, nodes, "result = fma(x, 0.5, 0.5);")?;
+    let result = query_nodes(expr, nodes, &FMA_HALF_HALF.nodes)?;
     node_expr(nodes, result.get("x")?)
 }
 

@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{path::Path, sync::LazyLock};
 
 use bimap::BiBTreeMap;
 use glsl_lang::{
@@ -27,7 +27,7 @@ use crate::{
         glsl::shader_source_no_extensions,
         query::{
             assign_x, assign_x_recursive, dot3_a_b, fma_a_b_c, fma_half_half, mix_a_b_ratio,
-            node_expr, normalize, query_nodes_glsl,
+            node_expr, normalize, query_nodes,
         },
         Expr, Graph, Node,
     },
@@ -73,7 +73,6 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
 
             let mut layers = Vec::new();
 
-            // TODO: This is really slow?
             if i == 0 {
                 layers =
                     find_color_layers(frag, &dependent_lines, &dependencies).unwrap_or_default();
@@ -131,16 +130,22 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
     }
 }
 
-fn outline_width_parameter(vert: &Graph) -> Option<Dependency> {
-    vert.nodes.iter().find_map(|n| {
-        // TODO: Add a way to match identifiers like "vColor" exactly.
-        let query = indoc! {"
+static OUTLINE_WIDTH_PARAMETER: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
             alpha = vColor.w;
             result = param * alpha;
             result = 0.0 - result;
             result = temp * result;
-        "};
-        let result = query_nodes_glsl(&n.input, &vert.nodes, query)?;
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+fn outline_width_parameter(vert: &Graph) -> Option<Dependency> {
+    vert.nodes.iter().find_map(|n| {
+        // TODO: Add a way to match identifiers like "vColor" exactly.
+        let result = query_nodes(&n.input, &vert.nodes, &OUTLINE_WIDTH_PARAMETER.nodes)?;
         let param = result.get("param")?;
         let vcolor = result.get("vColor")?;
 
@@ -400,34 +405,46 @@ fn extract_layer_value(
     layer_value(layer, dependencies)
 }
 
+static BLEND_OVER: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            neg_a = 0.0 - a;
+            b_minus_a = neg_a + b;
+            result = fma(b_minus_a, ratio, a);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
 fn blend_over<'a>(
     nodes: &'a [Node],
     expr: &'a Expr,
 ) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
     // getPixelCalcOver in pcmdo fragment shaders for XC1 and XC3.
-    let query = indoc! {"
-        neg_a = 0.0 - a;
-        b_minus_a = neg_a + b;
-        result = fma(b_minus_a, ratio, a);
-    "};
-    let result = query_nodes_glsl(expr, nodes, query)?;
+    let result = query_nodes(expr, nodes, &BLEND_OVER.nodes)?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     let ratio = result.get("ratio")?;
     Some((a, b, ratio, LayerBlendMode::Mix))
 }
 
+static BLEND_RATIO: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            neg_a = 0.0 - a;
+            ab_minus_a = fma(a, b, neg_a);
+            result = fma(ab_minus_a, ratio, a);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
 fn blend_ratio<'a>(
     nodes: &'a [Node],
     expr: &'a Expr,
 ) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
     // getPixelCalcRatioBlend in pcmdo fragment shaders for XC1 and XC3.
-    let query = indoc! {"
-        neg_a = 0.0 - a;
-        ab_minus_a = fma(a, b, neg_a);
-        result = fma(ab_minus_a, ratio, a);
-    "};
-    let result = query_nodes_glsl(expr, nodes, query)?;
+    let result = query_nodes(expr, nodes, &BLEND_RATIO.nodes)?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     let ratio = result.get("ratio")?;
@@ -440,13 +457,16 @@ fn blend_add_ratio(expr: &Expr) -> Option<(&Expr, &Expr, &Expr, LayerBlendMode)>
     Some((c, a, b, LayerBlendMode::Add))
 }
 
+static BLEND_ADD: LazyLock<Graph> =
+    LazyLock::new(|| Graph::parse_glsl("void main() { result = a + b; }").unwrap());
+
 fn blend_add<'a>(
     nodes: &'a [Node],
     expr: &'a Expr,
     dependencies: &[Dependency],
 ) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
     // Some layers are simply added together like for xeno3/chr/chr/ch05042101.wimdo "hat_toon".
-    let result = query_nodes_glsl(expr, nodes, "result = a + b;")?;
+    let result = query_nodes(expr, nodes, &BLEND_ADD.nodes)?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     // The ordering is ambiguous since a+b == b+a.
@@ -464,17 +484,41 @@ fn blend_add<'a>(
     Some((a, b, &Expr::Float(1.0), LayerBlendMode::Add))
 }
 
+static BLEND_MUL: LazyLock<Graph> =
+    LazyLock::new(|| Graph::parse_glsl("void main() { result = a * b; }").unwrap());
+
 fn blend_mul<'a>(
     nodes: &'a [Node],
     expr: &'a Expr,
 ) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
     // Some layers are simply multiplied together.
-    let result = query_nodes_glsl(expr, nodes, "result = a * b;")?;
+    let result = query_nodes(expr, nodes, &BLEND_MUL.nodes)?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     // TODO: The ordering is ambiguous since a*b == b*a.
     Some((a, b, &Expr::Float(1.0), LayerBlendMode::MixRatio))
 }
+
+static BLEND_OVERLAY: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            two_a = 2.0 * a;
+            a_b_multiply = two_a * b;
+            neg_a_b_multiply = 0.0 - a_b_multiply;
+            a_b_multiply = fma(a_gt_half, neg_a_b_multiply, a_b_multiply);
+
+            a_b_screen = fma(b, neg_temp, temp);
+            neg_a_gt_half = 0.0 - a_gt_half;
+            a_b_screen = fma(a_b_screen, neg_a_gt_half, a_gt_half);
+
+            a_b_overlay = a_b_screen + a_b_multiply;
+            neg_ratio = 0.0 - ratio;
+            result = fma(a, neg_ratio, a);
+            result = fma(a_b_overlay, ratio, result);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
 
 fn blend_overlay<'a>(
     nodes: &'a [Node],
@@ -482,27 +526,23 @@ fn blend_overlay<'a>(
 ) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
     // Some XC2 models use overlay blending for metalness.
     // Overlay combines multiply and screen blend modes.
-    let query = indoc! {"
-        two_a = 2.0 * a;
-        a_b_multiply = two_a * b;
-        neg_a_b_multiply = 0.0 - a_b_multiply;
-        a_b_multiply = fma(a_gt_half, neg_a_b_multiply, a_b_multiply);
-
-        a_b_screen = fma(b, neg_temp, temp);
-        neg_a_gt_half = 0.0 - a_gt_half;
-        a_b_screen = fma(a_b_screen, neg_a_gt_half, a_gt_half);
-
-        a_b_overlay = a_b_screen + a_b_multiply;
-        neg_ratio = 0.0 - ratio;
-        result = fma(a, neg_ratio, a);
-        result = fma(a_b_overlay, ratio, result);
-    "};
-    let result = query_nodes_glsl(expr, nodes, query)?;
+    let result = query_nodes(expr, nodes, &BLEND_OVERLAY.nodes)?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     let ratio = result.get("ratio")?;
     Some((a, b, ratio, LayerBlendMode::Overlay))
 }
+
+static RATIO_DEPENDENCY: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            a = ratio * 5.0;
+            result = a * b;
+            result = exp2(result);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
 
 fn ratio_dependency(
     ratio: &Expr,
@@ -515,12 +555,7 @@ fn ratio_dependency(
     let mut is_fresnel = false;
 
     // Extract the ratio from getPixelCalcFresnel in pcmdo shaders if present.
-    let query = indoc! {"
-        a = ratio * 5.0;
-        result = a * b;
-        result = exp2(result);
-    "};
-    let result = query_nodes_glsl(ratio, nodes, query);
+    let result = query_nodes(ratio, nodes, &RATIO_DEPENDENCY.nodes);
     if let Some(new_ratio) = result.as_ref().and_then(|r| r.get("ratio")) {
         ratio = new_ratio;
         is_fresnel = true;
@@ -583,6 +618,28 @@ fn layer_value(input: &Expr, dependencies: &[Dependency]) -> Option<Dependency> 
         })
 }
 
+static BLEND_ADD_NORMAL: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            n = n2;
+            n = n.x;
+            n = fma(n, 2.0, neg_one);
+            n = n * temp;
+            neg_n = 0.0 - n;
+            n = fma(temp, temp, neg_n);
+            n_inv_sqrt = inversesqrt(temp);
+            neg_n1 = 0.0 - n1;
+            r = fma(n, n_inv_sqrt, neg_n1);
+
+            nom_work = nom_work;
+            nom_work = fma(r, ratio, nom_work);
+            inv_sqrt = inversesqrt(temp);
+            nom_work = nom_work * inv_sqrt;
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
 fn blend_add_normal<'a>(
     nodes: &'a [Node],
     nom_work: &'a Expr,
@@ -595,51 +652,47 @@ fn blend_add_normal<'a>(
     // TODO: nom_work and n1 are the same?
     // TODO: Reduce assignments to allow combining lines?
     // TODO: Allow 0.0 - x or -x
-    let query = indoc! {"
-        n = n2;
-        n = n.x;
-        n = fma(n, 2.0, neg_one);
-        n = n * temp;
-        neg_n = 0.0 - n;
-        n = fma(temp, temp, neg_n);
-        n_inv_sqrt = inversesqrt(temp);
-        neg_n1 = 0.0 - n1;
-        r = fma(n, n_inv_sqrt, neg_n1);
-
-        nom_work = nom_work;
-        nom_work = fma(r, ratio, nom_work);
-        inv_sqrt = inversesqrt(temp);
-        nom_work = nom_work * inv_sqrt;
-    "};
-    let result = query_nodes_glsl(nom_work, nodes, query)?;
+    let result = query_nodes(nom_work, nodes, &BLEND_ADD_NORMAL.nodes)?;
     let nom_work = result.get("nom_work")?;
     let ratio = result.get("ratio")?;
     let n2 = result.get("n2")?;
     Some((nom_work, n2, ratio, LayerBlendMode::AddNormal))
 }
 
+static NORMAL_MAP_FMA: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            result = result;
+            result = result.x;
+            result = fma(result, 2.0, temp);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
 fn normal_map_fma<'a>(nodes: &'a [Node], nom_work: &'a Expr) -> Option<&'a Expr> {
     // Extract the texture for n1 if present.
     // This could be fma(x, 2.0, -1.0) or fma(x, 2.0, -1.0039216)
     // This will only work for base layers.
-    let query = indoc! {"
-        result = result;
-        result = result.x;
-        result = fma(result, 2.0, temp);
-    "};
-    let result = query_nodes_glsl(nom_work, nodes, query)?;
+    let result = query_nodes(nom_work, nodes, &NORMAL_MAP_FMA.nodes)?;
     result.get("result").copied()
 }
 
-fn component_max_xyz<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> {
+static COMPONENT_MAX_XYZ: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        y = value.y;
-        z = value.z;
-        x = value.x;
-        result = max(x, y);
-        result = max(z, result);
+        void main() {
+            y = value.y;
+            z = value.z;
+            x = value.x;
+            result = max(x, y);
+            result = max(z, result);
+        }
     "};
-    let result = query_nodes_glsl(expr, nodes, query)?;
+    Graph::parse_glsl(query).unwrap()
+});
+
+fn component_max_xyz<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> {
+    let result = query_nodes(expr, nodes, &COMPONENT_MAX_XYZ.nodes)?;
     result.get("value").copied()
 }
 
@@ -651,6 +704,22 @@ fn calc_normal_map<'a>(frag: &'a Graph, view_normal: &'a Expr) -> Option<[&'a Ex
     let (nrm, _tangent_normal_bitangent) = dot3_a_b(&frag.nodes, view_normal)?;
     Some(nrm)
 }
+
+static GEOMETRIC_SPECULAR_AA: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            result = 0.0 - glossiness;
+            result = 1.0 + result;
+            result = fma(result, result, temp);
+            result = clamp(result, 0.0, 1.0);
+            result = sqrt(result);
+            result = 0.0 - result;
+            result = result + 1.0;
+            result = result;
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
 
 fn geometric_specular_aa(frag: &Graph) -> Option<BufferDependency> {
     let node_index = frag
@@ -664,17 +733,7 @@ fn geometric_specular_aa(frag: &Graph) -> Option<BufferDependency> {
     // glossiness = 1.0 - sqrt(clamp((1.0 - glossiness)^2 + kernelRoughness2, 0.0, 1.0))
     // TODO: reduce assignments to allow combining lines
     // TODO: Allow 0.0 - x or -x
-    let query = indoc! {"
-        result = 0.0 - glossiness;
-        result = 1.0 + result;
-        result = fma(result, result, temp);
-        result = clamp(result, 0.0, 1.0);
-        result = sqrt(result);
-        result = 0.0 - result;
-        result = result + 1.0;
-        result = result;
-    "};
-    let result = query_nodes_glsl(&last_node.input, &frag.nodes, query)?;
+    let result = query_nodes(&last_node.input, &frag.nodes, &GEOMETRIC_SPECULAR_AA.nodes)?;
 
     // TODO: Will this final node ever not be a parameter?
     // TODO: is specular AA ever used with textures as input?
