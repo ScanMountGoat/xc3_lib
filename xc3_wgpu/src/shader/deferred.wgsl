@@ -197,8 +197,6 @@ fn calculate_toon_color(uv: vec2<f32>) -> vec4<f32> {
     let normal = unpack_normal(g_normal.xy);
     let ambient_occlusion = g_normal.z;
 
-    var output = vec3(0.0);
-
     // Normals are in view space, so the view vector is simple.
     let view = vec3(0.0, 0.0, 1.0);
     let reflection = reflect(view, normal);
@@ -213,24 +211,6 @@ fn calculate_toon_color(uv: vec2<f32>) -> vec4<f32> {
     let diffuse_direct = 1.0;
     let diffuse_lighting = mix(diffuse_indirect, diffuse_direct, n_dot_v);
 
-    // TODO: What is the default specular color?
-    var specular_color = vec3(0.08);
-    if b_specular_col {
-        specular_color = g_specular_color.rgb;
-    }
-
-    // TODO: Does toon shading use ggx?
-    let ggx = ggx_brdf(roughness, n_dot_h);
-
-    // TODO: ambient specular using BRDF map?
-    let specular_lighting = ggx;
-
-    // TODO: fresnel?
-    let f0 = mix(specular_color, albedo, metalness);
-    // TODO: specular intensity when using specular map?
-    let k_specular = f0;
-    let k_diffuse = 1.0 - metalness;
-
     // TODO: Adding the toon shift only applies to xc3?
     let toon_shift_u = g_depth.w * 2.0 - 1.0;
     let toon_u = diffuse_lighting;
@@ -239,9 +219,28 @@ fn calculate_toon_color(uv: vec2<f32>) -> vec4<f32> {
     // TODO: Correctly use both gradients to fix massive melee mythra hair.
     // TODO: Are these the right gradients?
     let toon_diffuse = textureSample(g_toon_grad, shared_sampler, vec2(toon_u, toon_v)).rgb;
-    let toon_specular = specular_lighting;
 
-    output = albedo * k_diffuse * toon_diffuse + toon_specular * k_specular * ambient_occlusion;
+    var output = albedo * toon_diffuse;
+
+    // TODO: is this the correct check for xc2 and xc3?
+    if b_specular_col {
+        // TODO: Does toon shading use ggx?
+        // TODO: ambient specular using BRDF map?
+        let ggx = ggx_brdf(roughness, n_dot_h);
+        let toon_specular = ggx;
+
+        // TODO: What is the default specular color?
+        let specular_color = g_specular_color.rgb;
+
+        // TODO: fresnel?
+        let f0 = mix(specular_color, albedo, metalness);
+        // TODO: specular intensity when using specular map?
+        let k_specular = f0;
+
+        let k_diffuse = 1.0 - metalness;
+
+        output = output * k_diffuse + toon_specular * k_specular * ambient_occlusion;
+    }
 
     return vec4(output, 1.0);
 }
