@@ -1579,8 +1579,8 @@ pub struct Skinning {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    pub count1: u32,
-    pub count2: u32,
+    pub render_bone_count: u32,
+    pub bone_count: u32,
 
     // Estimate the struct size based on its first offset.
     #[br(temp, restore_position)]
@@ -1593,14 +1593,14 @@ pub struct Skinning {
     #[br(parse_with = parse_ptr32)]
     #[br(args {
         offset: base_offset,
-        inner: args! { count: count1 as usize, inner: base_offset }
+        inner: args! { count: bone_count as usize, inner: base_offset }
     })]
     #[xc3(offset(u32))]
     pub bones: Vec<Bone>,
 
     /// Column-major inverse of the world transform for each bone in [bones](#structfield.bones).
     #[br(parse_with = parse_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: count1 as usize } })]
+    #[br(args { offset: base_offset, inner: args! { count: bone_count as usize } })]
     #[xc3(offset(u32), align(16))]
     pub inverse_bind_transforms: Vec<[[f32; 4]; 4]>,
 
@@ -1608,6 +1608,7 @@ pub struct Skinning {
     #[br(temp, restore_position)]
     offsets: [u32; 2],
 
+    // TODO: contraints?
     // TODO: Count related to bone unk_type?
     // TODO: Count is 0, 2, or 4?
     #[br(parse_with = parse_opt_ptr32)]
@@ -1620,6 +1621,7 @@ pub struct Skinning {
     #[xc3(offset(u32))]
     pub transforms2: Option<Vec<[f32; 4]>>,
 
+    // TODO: Bounds?
     // TODO: related to max unk index on bone?
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args {
@@ -1692,7 +1694,7 @@ pub struct Bone {
     #[xc3(offset(u32))]
     pub name: String,
     pub unk1: f32,
-    pub unk_type: (u16, u16),
+    pub unk_type: (u16, u16), // transform type?
     /// Index into [transforms3](struct.Skinning.html#structfield.transforms3).
     pub unk_index: u32,
     // TODO: padding?
