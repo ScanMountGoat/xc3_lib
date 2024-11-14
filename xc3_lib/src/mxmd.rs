@@ -194,15 +194,25 @@ pub struct Technique {
     // ssbos and then uniform buffers ordered by handle?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub uniform_blocks: Vec<(u16, u16)>, // uniform blocks?
+    pub uniform_blocks: Vec<UniformBlock>, // uniform blocks?
 
     pub material_texture_count: u32,
 
+    // first texture param index?
     pub unk12: u16, // counts up from 0?
+    // first global param index?
     pub unk13: u16, // unk11 + unk12?
 
     // TODO: padding?
     pub padding: [u32; 5],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct UniformBlock {
+    pub unk1: u16,
+    pub unk2: u8,
+    pub unk3: u8,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -271,7 +281,9 @@ pub struct MaterialCallbacks {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct WorkCallback {
-    // 0, 12, 22, 25, 26, 27, 28, 35, 36, 38, 40, 41, 42, 43, 45, 46, 47, 58, 50
+    // TODO: enum 0, 12, 22, 25, 26, 27, 28, 35, 36, 38, 40, 41, 42, 43, 45, 46, 47, 58, 50
+    // 25 outline width
+    // 26 next value / 255.0
     pub unk1: u16,
     // TODO: index?
     pub unk2: u16,
@@ -527,14 +539,14 @@ pub struct StateFlags {
 #[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
 #[brw(repr(u8))]
 pub enum ColorWriteMode {
-    Unk0 = 0,
-    Unk1 = 1,
-    Unk2 = 2, // TODO: xcx only?
-    Unk3 = 3, // TODO: xcx only?
-    Unk6 = 6, // TODO: xcx only?
-    Unk9 = 9, // TODO: xcx only?
-    Unk10 = 10,
-    Unk11 = 11,
+    Unk0 = 0,   // TODO: all outputs?
+    Unk1 = 1,   // TODO: single output?
+    Unk2 = 2,   // TODO: xcx only?
+    Unk3 = 3,   // TODO: xcx only?
+    Unk6 = 6,   // TODO: xcx only?
+    Unk9 = 9,   // TODO: xcx only?
+    Unk10 = 10, // TODO: all outputs but blends with previous color output texture?
+    Unk11 = 11, // TODO: single output?
     Unk12 = 12, // TODO: xcx only?
 }
 
@@ -1747,13 +1759,21 @@ pub struct SkeletonUnk5Unk1 {
     // TODO: all unk3 and then all unk4?
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
-    pub unk3: Vec<[f32; 2]>,
+    pub unk3: Vec<SkeletonUnk5Unk1Unk3>,
 
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
     pub unk4: Vec<u32>,
 
     pub unk7: [f32; 15],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct SkeletonUnk5Unk1Unk3 {
+    pub unk1: f32,
+    pub unk2: u16, // bone index?
+    pub unk3: u16, // bone index?
 }
 
 // TODO: Data for AS_ bones?
@@ -1767,12 +1787,12 @@ pub struct AsBoneData {
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub unk1: Vec<AsBoneValue>,
+    pub values: Vec<AsBoneValue>,
 
     #[br(parse_with = parse_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: bones.len() * 3 }})]
+    #[br(args { offset: base_offset, inner: args! { count: bones.len() }})]
     #[xc3(offset(u32))]
-    pub unk2: Vec<[[f32; 4]; 4]>,
+    pub transforms: Vec<AsBoneTransform>,
 
     pub unk3: u32,
 
@@ -1783,11 +1803,21 @@ pub struct AsBoneData {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct AsBone {
-    /// The index in [bones](struct.Skeleton.html#structfield.bones).
+    /// The index in [bones](struct.Skeleton.html#structfield.bones) for this bone.
     pub bone_index: u16,
     /// The index in [bones](struct.Skeleton.html#structfield.bones) of the parent bone.
     pub parent_index: u16,
-    pub unk: [u32; 19],
+    pub unk_end_index: u16,   // bones?
+    pub unk_start_index: u16, // bones?
+    pub unk1: u16,
+    pub unk2: u16,
+    pub value_count: u16,
+    /// Index into [values](struct.AsBoneData.html#structfield.values).
+    pub value_start_index: u16,
+    pub unk4: [f32; 3], // position?
+    pub unk5: [f32; 6], // ???
+    pub rotation_quaternion: [f32; 4],
+    pub unk6: [f32; 3],
 }
 
 // TODO: Some of these aren't floats?
@@ -1798,6 +1828,14 @@ pub struct AsBoneValue {
     unk2: [f32; 4],
     unk3: [f32; 4],
     unk4: [f32; 2],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct AsBoneTransform {
+    pub unk1: [[f32; 4]; 4],
+    pub unk2: [[f32; 4]; 4],
+    pub unk3: [[f32; 4]; 4],
 }
 
 // TODO: pointer to decl_gbl_cac in ch001011011.wimdo?
