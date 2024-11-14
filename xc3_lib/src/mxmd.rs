@@ -1586,8 +1586,7 @@ pub struct Skinning {
     #[br(temp, restore_position)]
     bones_offset: u32,
 
-    /// Defines the name and ordering of the bones
-    /// for the [BoneIndices](crate::vertex::DataType::BoneIndices) in the weights buffer.
+    /// The bone list for the [BoneIndices](crate::vertex::DataType::BoneIndices) in the weights buffer.
     // TODO: Find a simpler way of writing this?
     // TODO: helper for separate count.
     #[br(parse_with = parse_ptr32)]
@@ -1604,32 +1603,16 @@ pub struct Skinning {
     #[xc3(offset(u32), align(16))]
     pub inverse_bind_transforms: Vec<[[f32; 4]; 4]>,
 
-    // TODO: Possible to calculate count directly?
-    #[br(temp, restore_position)]
-    offsets: [u32; 2],
-
-    // TODO: contraints?
-    // TODO: Count related to bone unk_type?
-    // TODO: Count is 0, 2, or 4?
+    // TODO: do these contain data for both types of constraints?
     #[br(parse_with = parse_opt_ptr32)]
-    #[br(args {
-        offset: base_offset,
-        inner: args! {
-            count: if offsets[1] > 0 { (offsets[1] - offsets[0]) as usize / 16 } else { 0 }
-        }
-    })]
+    #[br(args { offset: base_offset, inner: args! { count: count_constraints(&bones) } })]
     #[xc3(offset(u32))]
-    pub transforms2: Option<Vec<[f32; 4]>>,
+    pub constraints: Option<Vec<BoneConstraint>>,
 
-    // TODO: Bounds?
-    // TODO: related to max unk index on bone?
     #[br(parse_with = parse_opt_ptr32)]
-    #[br(args {
-        offset: base_offset,
-        inner: args! { count: bones.iter().map(|b| b.unk_index as usize + 1).max().unwrap_or_default() }
-    })]
+    #[br(args { offset: base_offset, inner: args! { count: count_bounds(&bones) } })]
     #[xc3(offset(u32))]
-    pub transforms3: Option<Vec<[[f32; 4]; 2]>>,
+    pub bounds: Option<Vec<BoneBounds>>,
 
     // TODO: 0..count-1?
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
@@ -1638,11 +1621,11 @@ pub struct Skinning {
 
     // offset 32
     // Use nested options to skip fields entirely if not present.
-    #[br(if(transforms2.is_some()))]
+    #[br(if(constraints.is_some()))]
     #[br(args_raw(base_offset))]
     pub unk_offset4: Option<SkinningUnkBones>,
 
-    #[br(if(transforms3.is_some()))]
+    #[br(if(bounds.is_some()))]
     #[br(args_raw(base_offset))]
     pub unk_offset5: Option<SkinningUnk5>,
 
@@ -1688,17 +1671,51 @@ pub struct SkinningAsBoneData {
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct BoneConstraint {
+    pub fixed_offset: [f32; 3],
+    pub max_distance: f32,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct BoneBounds {
+    pub center: [f32; 4],
+    pub size: [f32; 4],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Bone {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub name: String,
     pub unk1: f32,
-    pub unk_type: (u16, u16), // transform type?
-    /// Index into [transforms3](struct.Skinning.html#structfield.transforms3).
-    pub unk_index: u32,
+    pub flags: BoneFlags,
+    /// Index into [constraints](struct.Skinning.html#structfield.constraints)
+    /// if [flags](#structfield.flags) enables any constraints and 0 otherwise.
+    pub constraint_index: u8,
+    /// Index into [bones](struct.Skinning.html#structfield.bones) of the parent bone
+    /// if [flags](#structfield.flags) enables any constraints and 0 otherwise.
+    pub parent_index: u8,
+    /// Index into [bounds](struct.Skinning.html#structfield.bounds)
+    /// if [flags](#structfield.flags) enables bounds and 0 otherwise.
+    pub bounds_index: u32,
     // TODO: padding?
     pub unk: [u32; 2],
+}
+
+#[bitsize(16)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(DebugBits, FromBits, BinRead, BinWrite, PartialEq, Clone, Copy)]
+#[br(map = u16::into)]
+#[bw(map = |&x| u16::from(x))]
+pub struct BoneFlags {
+    pub fixed_offset_constraint: bool,
+    pub bounds_offset: bool,
+    pub distance_constraint: bool,
+    pub no_camera_overlap: bool,
+    pub unk: u12,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -1720,9 +1737,9 @@ pub struct UnkBones {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct UnkBone {
     pub unk1: u32,
-    /// The index in [bones](struct.Skeleton.html#structfield.bones).
+    /// Index in [bones](struct.Skeleton.html#structfield.bones).
     pub bone_index: u16,
-    /// The index in [bones](struct.Skeleton.html#structfield.bones) of the parent bone.
+    /// Index in [bones](struct.Skeleton.html#structfield.bones) of the parent bone.
     pub parent_index: u16,
     // TODO: padding?
     pub unks: [u32; 7],
@@ -1805,9 +1822,9 @@ pub struct AsBoneData {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct AsBone {
-    /// The index in [bones](struct.Skeleton.html#structfield.bones) for this bone.
+    /// Index into [bones](struct.Skeleton.html#structfield.bones) for this bone.
     pub bone_index: u16,
-    /// The index in [bones](struct.Skeleton.html#structfield.bones) of the parent bone.
+    /// Index into [bones](struct.Skeleton.html#structfield.bones) of the parent bone.
     pub parent_index: u16,
     pub unk_end_index: u16,   // bones?
     pub unk_start_index: u16, // bones?
@@ -1919,7 +1936,8 @@ xc3_write_binwrite_impl!(
     ExtMeshFlags,
     MeshRenderFlags2,
     MaterialFlags,
-    MaterialRenderFlags
+    MaterialRenderFlags,
+    BoneFlags
 );
 
 impl<'a> Xc3WriteOffsets for SkinningOffsets<'a> {
@@ -1942,9 +1960,9 @@ impl<'a> Xc3WriteOffsets for SkinningOffsets<'a> {
         self.inverse_bind_transforms
             .write_full(writer, base_offset, data_ptr, endian)?;
 
-        self.transforms2
+        self.constraints
             .write_full(writer, base_offset, data_ptr, endian)?;
-        self.transforms3
+        self.bounds
             .write_full(writer, base_offset, data_ptr, endian)?;
 
         self.unk_offset4
@@ -2330,4 +2348,34 @@ impl<'a> Xc3WriteOffsets for SkeletonUnk5Offsets<'a> {
 
         Ok(())
     }
+}
+
+fn count_constraints(bones: &[Bone]) -> usize {
+    // Assume all constraints are used.
+    bones
+        .iter()
+        .map(|b| {
+            if b.flags.distance_constraint() || b.flags.fixed_offset_constraint() {
+                b.constraint_index as usize + 1
+            } else {
+                0
+            }
+        })
+        .max()
+        .unwrap_or_default()
+}
+
+fn count_bounds(bones: &[Bone]) -> usize {
+    // Assume all bounds are used.
+    bones
+        .iter()
+        .map(|b| {
+            if b.flags.bounds_offset() {
+                b.bounds_index as usize + 1
+            } else {
+                0
+            }
+        })
+        .max()
+        .unwrap_or_default()
 }
