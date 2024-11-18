@@ -7,6 +7,7 @@ use xc3_lib::{
 };
 
 use crate::{
+    skinning::BoneConstraintType,
     vertex::{AttributeData, ModelBuffers},
     ImageTexture, IndexMapExt, ModelRoot,
 };
@@ -343,6 +344,7 @@ fn apply_skinning(
     new_skinning.bone_count = skinning.bones.len() as u32;
 
     let mut bounds = Vec::new();
+    let mut constraints = Vec::new();
 
     new_skinning.bones = skinning
         .bones
@@ -360,18 +362,30 @@ fn apply_skinning(
                 0
             };
 
+            let constraint_index = if let Some(c) = &bone.constraint {
+                // Assume each bone has a unique index.
+                let index = constraints.len() as u8;
+                constraints.push(xc3_lib::mxmd::BoneConstraint {
+                    fixed_offset: c.fixed_offset.to_array(),
+                    max_distance: c.max_distance,
+                });
+                index
+            } else {
+                0
+            };
+
             xc3_lib::mxmd::Bone {
                 name: bone.name.clone(),
-                bounds_radius: bone.bounds.as_ref().map(|b| b.radius).unwrap_or_default(),
+                bounds_radius: bone.bounds.as_ref().map(|b| b.radius).unwrap_or_default(), // TODO: not always 0.0 if none?
                 flags: xc3_lib::mxmd::BoneFlags::new(
-                    false,
+                    matches!(&bone.constraint, Some(c) if c.constraint_type == BoneConstraintType::FixedOffset),
                     bone.bounds.is_some(),
-                    false,
-                    false,
+                    matches!(&bone.constraint, Some(c) if c.constraint_type == BoneConstraintType::Distance),
+                    bone.no_camera_overlap,
                     0u8.into(),
                 ),
-                constraint_index: 0,
-                parent_index: 0,
+                constraint_index,
+                parent_index: bone.constraint.as_ref().and_then(|c| c.parent_index).unwrap_or_default() as u8,
                 bounds_index,
                 unk: [0; 2],
             }
@@ -379,6 +393,7 @@ fn apply_skinning(
         .collect();
 
     new_skinning.bounds = (!bounds.is_empty()).then_some(bounds);
+    new_skinning.constraints = (!constraints.is_empty()).then_some(constraints);
 }
 
 // TODO: validate this in xc3_model on load?

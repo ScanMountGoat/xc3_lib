@@ -6,28 +6,49 @@ use xc3_lib::{mxmd::RenderPassType, vertex::WeightLod};
 #[cfg(feature = "arbitrary")]
 use crate::arbitrary_vec4s;
 
-/// See [LodGroup](xc3_lib::mxmd::Skinning).
+/// See [Skinning](xc3_lib::mxmd::Skinning).
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct Skinning {
     pub bones: Vec<Bone>,
 }
 
-/// See [LodGroup](xc3_lib::mxmd::Skinning).
+/// See [Bone](xc3_lib::mxmd::Skinning).
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct Bone {
     pub name: String,
     pub bounds: Option<BoneBounds>,
+    pub constraint: Option<BoneConstraint>,
+    pub no_camera_overlap: bool,
 }
 
-/// See [LodGroup](xc3_lib::mxmd::BoneBounds).
+/// See [BoneBounds](xc3_lib::mxmd::BoneBounds).
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct BoneBounds {
     pub center: Vec3,
     pub size: Vec3,
     pub radius: f32,
+}
+
+/// See [BoneConstraint](xc3_lib::mxmd::BoneConstraint).
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, PartialEq, Clone)]
+pub struct BoneConstraint {
+    pub fixed_offset: Vec3,
+    pub max_distance: f32,
+    pub constraint_type: BoneConstraintType,
+    /// The index of the parent [Bone] in [bones](struct.Skinning.html#structfield.bones)
+    /// or `None` if this is a root bone.
+    pub parent_index: Option<usize>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, PartialEq, Clone)]
+pub enum BoneConstraintType {
+    FixedOffset,
+    Distance,
 }
 
 // TODO: come up with a better name?
@@ -431,6 +452,25 @@ pub(crate) fn create_skinning(skinning: &xc3_lib::mxmd::Skinning) -> Skinning {
                         }
                     })
                 }),
+                constraint: skinning.constraints.as_ref().and_then(|constraints| {
+                    (b.flags.fixed_offset_constraint() || b.flags.distance_constraint()).then(
+                        || {
+                            let constraint = &constraints[b.constraint_index as usize];
+                            BoneConstraint {
+                                fixed_offset: constraint.fixed_offset.into(),
+                                max_distance: constraint.max_distance,
+                                constraint_type: if b.flags.distance_constraint() {
+                                    BoneConstraintType::Distance
+                                } else {
+                                    BoneConstraintType::FixedOffset
+                                },
+                                // TODO: how to detect root bones?
+                                parent_index: Some(b.parent_index as usize),
+                            }
+                        },
+                    )
+                }),
+                no_camera_overlap: b.flags.no_camera_overlap(),
             })
             .collect(),
     }
