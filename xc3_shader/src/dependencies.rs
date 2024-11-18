@@ -155,12 +155,12 @@ fn texcoord_args(args: &[Expr], graph: &Graph, attributes: &Attributes) -> Vec<T
                     // TODO: Is this a subset of the dependencies for the output variable?
                     let node_assignments = graph.node_dependencies_recursive(*node_index, None);
 
-                    let (name, channels) =
-                        texcoord_name_channels(&node_assignments, graph, attributes)?;
+                    let (name, channel) =
+                        texcoord_name_channel(&node_assignments, graph, attributes)?;
 
                     Some(TexCoord {
                         name: name.into(),
-                        channel: channels.into(),
+                        channel,
                         params: None,
                     })
                 } else {
@@ -343,7 +343,7 @@ fn tex_parallax(
     ))
 }
 
-fn texcoord_name_channels(
+fn texcoord_name_channel(
     node_assignments: &[usize],
     graph: &Graph,
     attributes: &Attributes,

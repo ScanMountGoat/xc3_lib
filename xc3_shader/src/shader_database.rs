@@ -785,8 +785,8 @@ fn apply_vertex_tex_coord_params(
                         }
 
                         // Also fix channels since the zw output may just be scaled vTex0.xy.
-                        if let Some((actual_name, actual_channels)) =
-                            find_texcoord_input_name_channels(
+                        if let Some((actual_name, actual_channel)) =
+                            find_texcoord_input_name_channel(
                                 vertex,
                                 texcoord,
                                 vertex_output_name,
@@ -794,7 +794,7 @@ fn apply_vertex_tex_coord_params(
                             )
                         {
                             texcoord.name = actual_name.into();
-                            texcoord.channel = actual_channels.into();
+                            texcoord.channel = actual_channel;
                         }
                     }
                 }
@@ -835,7 +835,7 @@ fn apply_attribute_names(
     }
 }
 
-fn find_texcoord_input_name_channels(
+fn find_texcoord_input_name_channel(
     vertex: &Graph,
     texcoord: &xc3_model::shader_database::TexCoord,
     vertex_output_name: &str,
