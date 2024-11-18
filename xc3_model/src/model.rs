@@ -155,6 +155,26 @@ impl ModelRoot {
             }
         }
 
+        if let Some(skinning) = &self.models.skinning {
+            if let Some(new_skinning) = &mut new_mxmd.models.skinning {
+                apply_skinning(new_skinning, skinning);
+            }
+        }
+
+        if let Some(skeleton) = &self.skeleton {
+            if let Some(skinning) = &mut new_mxmd.models.skinning {
+                let transforms = skeleton.model_space_transforms();
+                for (bone, transform) in skeleton.bones.iter().zip(transforms) {
+                    if let Some(index) = skinning.bones.iter_mut().position(|b| b.name == bone.name)
+                    {
+                        // TODO: Is it possible to do this without a skeleton?
+                        skinning.inverse_bind_transforms[index] =
+                            transform.inverse().to_cols_array_2d();
+                    }
+                }
+            }
+        }
+
         self.apply_materials(&mut new_mxmd);
 
         new_mxmd.models.min_xyz = new_mxmd
@@ -312,6 +332,53 @@ impl ModelRoot {
             }
         }
     }
+}
+
+fn apply_skinning(
+    new_skinning: &mut xc3_lib::mxmd::Skinning,
+    skinning: &crate::skinning::Skinning,
+) {
+    // TODO: How to preserve the case where render count < count?
+    new_skinning.render_bone_count = skinning.bones.len() as u32;
+    new_skinning.bone_count = skinning.bones.len() as u32;
+
+    let mut bounds = Vec::new();
+
+    new_skinning.bones = skinning
+        .bones
+        .iter()
+        .map(|bone| {
+            let bounds_index = if let Some(b) = &bone.bounds {
+                // Assume each bone has a unique index.
+                let index = bounds.len() as u32;
+                bounds.push(xc3_lib::mxmd::BoneBounds {
+                    center: b.center.extend(0.0).to_array(),
+                    size: b.size.extend(0.0).to_array(),
+                });
+                index
+            } else {
+                0
+            };
+
+            xc3_lib::mxmd::Bone {
+                name: bone.name.clone(),
+                bounds_radius: bone.bounds.as_ref().map(|b| b.radius).unwrap_or_default(),
+                flags: xc3_lib::mxmd::BoneFlags::new(
+                    false,
+                    bone.bounds.is_some(),
+                    false,
+                    false,
+                    0u8.into(),
+                ),
+                constraint_index: 0,
+                parent_index: 0,
+                bounds_index,
+                unk: [0; 2],
+            }
+        })
+        .collect();
+
+    new_skinning.bounds = (!bounds.is_empty()).then_some(bounds);
 }
 
 // TODO: validate this in xc3_model on load?

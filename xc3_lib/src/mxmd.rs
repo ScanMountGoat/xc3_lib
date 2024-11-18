@@ -1690,7 +1690,7 @@ pub struct Bone {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub name: String,
-    pub unk1: f32,
+    pub bounds_radius: f32,
     pub flags: BoneFlags,
     /// Index into [constraints](struct.Skinning.html#structfield.constraints)
     /// if [flags](#structfield.flags) enables any constraints and 0 otherwise.

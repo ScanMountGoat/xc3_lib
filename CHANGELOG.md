@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Improved error messages when loading camdo models with missing files.
 * Improved framerates for model and map rendering.
 * Optimized shader database creation.
+* Adjusted wimdo model export for xc3_model to rebuild skinning information.
 
 ### Fixed
 * Fixed an issue where some eyes would not render correctly due to incorrect handling of metalness.

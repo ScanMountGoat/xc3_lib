@@ -41,6 +41,7 @@ use indexmap::IndexMap;
 use log::error;
 use material::{create_materials, create_materials_samplers_legacy};
 use shader_database::ShaderDatabase;
+use skinning::{create_skinning, Skinning};
 use texture::{load_textures, load_textures_legacy};
 use thiserror::Error;
 use vertex::ModelBuffers;
@@ -129,7 +130,8 @@ pub struct Models {
     pub materials: Vec<Material>,
     pub samplers: Vec<Sampler>,
 
-    // TODO: Worth storing skinning here?
+    // TODO: should skinning information be combined with the skeleton?
+    pub skinning: Option<Skinning>,
 
     // TODO: when is this None?
     pub lod_data: Option<LodData>,
@@ -238,6 +240,7 @@ impl Models {
                 .collect(),
             materials: create_materials(materials, texture_indices, model_programs),
             samplers: create_samplers(materials),
+            skinning: models.skinning.as_ref().map(create_skinning),
             lod_data: models.lod_data.as_ref().map(lod_data),
             morph_controller_names: models
                 .morph_controllers
@@ -267,6 +270,7 @@ impl Models {
             materials,
             samplers,
             lod_data: None,
+            skinning: None, // TODO: how to set this?
             morph_controller_names: Vec::new(),
             animation_morph_names: Vec::new(),
             max_xyz: models.max_xyz.into(),

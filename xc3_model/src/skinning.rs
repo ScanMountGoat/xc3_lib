@@ -1,10 +1,34 @@
 //! Utilities for working with vertex skinning.
-use glam::Vec4;
+use glam::{Vec3, Vec4};
 use log::error;
 use xc3_lib::{mxmd::RenderPassType, vertex::WeightLod};
 
 #[cfg(feature = "arbitrary")]
 use crate::arbitrary_vec4s;
+
+/// See [LodGroup](xc3_lib::mxmd::Skinning).
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, PartialEq, Clone)]
+pub struct Skinning {
+    pub bones: Vec<Bone>,
+}
+
+/// See [LodGroup](xc3_lib::mxmd::Skinning).
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, PartialEq, Clone)]
+pub struct Bone {
+    pub name: String,
+    pub bounds: Option<BoneBounds>,
+}
+
+/// See [LodGroup](xc3_lib::mxmd::BoneBounds).
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, PartialEq, Clone)]
+pub struct BoneBounds {
+    pub center: Vec3,
+    pub size: Vec3,
+    pub radius: f32,
+}
 
 // TODO: come up with a better name?
 /// See [Weights](xc3_lib::vertex::Weights).
@@ -197,6 +221,7 @@ pub struct SkinWeights {
     pub bone_indices: Vec<[u8; 4]>,
     #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))]
     pub weights: Vec<Vec4>,
+    // TODO: This should be stored with skinning instead?
     /// The name list for the indices in [bone_indices](#structfield.bone_indices).
     pub bone_names: Vec<String>,
 }
@@ -386,6 +411,28 @@ impl SkinWeights {
                 }
             })
             .collect()
+    }
+}
+
+pub(crate) fn create_skinning(skinning: &xc3_lib::mxmd::Skinning) -> Skinning {
+    Skinning {
+        bones: skinning
+            .bones
+            .iter()
+            .map(|b| Bone {
+                name: b.name.clone(),
+                bounds: skinning.bounds.as_ref().and_then(|bounds| {
+                    b.flags.bounds_offset().then(|| {
+                        let bounds = &bounds[b.bounds_index as usize];
+                        BoneBounds {
+                            center: [bounds.center[0], bounds.center[1], bounds.center[2]].into(),
+                            size: [bounds.size[0], bounds.size[1], bounds.size[2]].into(),
+                            radius: b.bounds_radius,
+                        }
+                    })
+                }),
+            })
+            .collect(),
     }
 }
 
