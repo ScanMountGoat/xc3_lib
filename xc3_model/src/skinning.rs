@@ -45,7 +45,7 @@ pub struct BoneConstraint {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum BoneConstraintType {
     FixedOffset,
     Distance,
