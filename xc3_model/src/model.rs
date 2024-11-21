@@ -1,5 +1,6 @@
-use glam::{Vec2, Vec3, Vec4};
+use glam::{Mat4, Vec2, Vec3, Vec4};
 use indexmap::IndexMap;
+use log::warn;
 use xc3_lib::{
     msrd::Msrd,
     mxmd::{AlphaTable, LodData, LodGroup, LodItem, Mxmd, VertexAttribute},
@@ -162,17 +163,26 @@ impl ModelRoot {
             }
         }
 
+        // TODO: Is it possible to calculate transforms without a skeleton?
         if let Some(skeleton) = &self.skeleton {
             if let Some(skinning) = &mut new_mxmd.models.skinning {
                 let transforms = skeleton.model_space_transforms();
-                for (bone, transform) in skeleton.bones.iter().zip(transforms) {
-                    if let Some(index) = skinning.bones.iter_mut().position(|b| b.name == bone.name)
-                    {
-                        // TODO: Is it possible to do this without a skeleton?
-                        skinning.inverse_bind_transforms[index] =
-                            transform.inverse().to_cols_array_2d();
-                    }
-                }
+
+                // Rebuild all transforms to support adding new bones.
+                // TODO: is it safe to assume all bones are part of the skeleton?
+                skinning.inverse_bind_transforms = skinning
+                    .bones
+                    .iter()
+                    .map(|bone| {
+                        if let Some(index) = skeleton.bones.iter().position(|b| b.name == bone.name)
+                        {
+                            transforms[index].inverse().to_cols_array_2d()
+                        } else {
+                            warn!("Setting identity inverse bind transform for skinning bone {:?} not in skeleton.", &bone.name);
+                            Mat4::IDENTITY.to_cols_array_2d()
+                        }
+                    })
+                    .collect();
             }
         }
 
