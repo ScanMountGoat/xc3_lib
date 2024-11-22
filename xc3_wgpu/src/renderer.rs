@@ -200,8 +200,7 @@ impl Renderer {
             crate::shader::deferred::bind_groups::BindGroupLayout0 {
                 debug_settings: debug_settings_buffer.as_entire_buffer_binding(),
                 g_toon_grad: &monolib_shader
-                    .toon_grad
-                    .as_ref()
+                    .global_texture("gTToonGrad")
                     .map(|t| {
                         t.create_view(&wgpu::TextureViewDescriptor {
                             mip_level_count: Some(1),
