@@ -11,6 +11,8 @@ use gltf::{
     json::validation::Checked::{self, Valid},
 };
 
+use super::align_bytes;
+
 type GltfAttributes = BTreeMap<
     gltf::json::validation::Checked<gltf::Semantic>,
     gltf::json::Index<gltf::json::Accessor>,
@@ -40,7 +42,7 @@ pub struct WeightGroupKey {
 }
 
 // Combined vertex data for a gltf buffer.
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Buffers {
     pub buffer_bytes: Vec<u8>,
     pub buffer_views: Vec<gltf::json::buffer::View>,
@@ -400,11 +402,7 @@ impl Buffers {
             let index_bytes = write_bytes(&index_buffer.indices)?;
 
             // The offset must be a multiple of the component data type.
-            let aligned = self
-                .buffer_bytes
-                .len()
-                .next_multiple_of(std::mem::size_of::<u16>());
-            self.buffer_bytes.resize(aligned, 0u8);
+            align_bytes(&mut self.buffer_bytes, std::mem::size_of::<u16>());
 
             // Assume everything uses the same buffer for now.
             let view = gltf::json::buffer::View {
@@ -581,11 +579,7 @@ impl Buffers {
         let attribute_bytes = write_bytes(values)?;
 
         // The offset must be a multiple of the component data type.
-        let aligned = self
-            .buffer_bytes
-            .len()
-            .next_multiple_of(std::mem::size_of::<T>());
-        self.buffer_bytes.resize(aligned, 0u8);
+        align_bytes(&mut self.buffer_bytes, std::mem::size_of::<T>());
 
         // Assume everything uses the same buffer for now.
         // Each attribute is in its own section and thus has its own view.

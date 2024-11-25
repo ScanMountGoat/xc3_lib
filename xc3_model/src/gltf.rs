@@ -25,7 +25,7 @@
 //! # Ok(())
 //! # }
 //! ```
-use std::{collections::BTreeMap, path::Path};
+use std::{borrow::Cow, collections::BTreeMap, io::BufWriter, path::Path};
 
 use crate::{MapRoot, ModelRoot};
 use glam::Mat4;
@@ -74,6 +74,15 @@ pub struct GltfFile {
     pub png_images: Vec<(String, Vec<u8>)>,
 }
 
+/// glb data for a model or map.
+#[derive(Debug)]
+pub struct GlbFile {
+    /// The glTF file JSON object.
+    pub root: gltf::json::Root,
+    /// The data for the bin file with vertex and image data for all models.
+    pub buffer: Vec<u8>,
+}
+
 struct GltfData {
     texture_cache: TextureCache,
     material_cache: MaterialCache,
@@ -102,7 +111,7 @@ impl GltfData {
         for key in self.texture_cache.generated_texture_indices.keys() {
             images.push(gltf::json::Image {
                 buffer_view: None,
-                mime_type: None,
+                mime_type: Some(gltf_json::image::MimeType("image/png".to_string())),
                 name: None,
                 uri: Some(image_name(key, model_name)),
                 extensions: None,
@@ -151,17 +160,78 @@ impl GltfData {
             png_images,
         })
     }
-}
 
-impl GltfFile {
-    /// Convert the Xenoblade model `roots` to glTF data.
-    /// See [load_model](crate::load_model) or [load_model_legacy](crate::load_model_legacy) for loading files.
-    ///
-    /// The `model_name` is used to create resource file names and should
-    /// usually match the file name for [save](GltfFile::save) without the `.gltf` extension.
-    ///
-    /// `flip_image_uvs` should only be set to `true` for Xenoblade X models.
-    pub fn from_model(
+    fn into_glb(self, model_name: &str, flip_images_uvs: bool) -> Result<GlbFile, CreateGltfError> {
+        let png_images = self
+            .texture_cache
+            .generate_png_images(model_name, flip_images_uvs);
+
+        // TODO: Avoid clone?
+        let mut buffers = self.buffers.clone();
+        align_bytes(&mut buffers.buffer_bytes, 4);
+
+        let mut images = Vec::new();
+        for (name, png_bytes) in png_images {
+            // Embed images in the same buffer as vertex data.
+            let view = gltf::json::buffer::View {
+                buffer: gltf::json::Index::new(0),
+                byte_length: png_bytes.len().into(),
+                byte_offset: Some(buffers.buffer_bytes.len().into()),
+                byte_stride: None,
+                extensions: Default::default(),
+                extras: Default::default(),
+                name: Some(name),
+                target: None,
+            };
+            let index = gltf::json::Index::new(buffers.buffer_views.len() as u32);
+            buffers.buffer_views.push(view);
+
+            buffers.buffer_bytes.extend_from_slice(&png_bytes);
+            align_bytes(&mut buffers.buffer_bytes, 4);
+
+            images.push(gltf::json::Image {
+                buffer_view: Some(index),
+                mime_type: Some(gltf_json::image::MimeType("image/png".to_string())),
+                name: None,
+                uri: None,
+                extensions: None,
+                extras: Default::default(),
+            });
+        }
+
+        let root = gltf::json::Root {
+            accessors: buffers.accessors,
+            buffers: vec![gltf::json::Buffer {
+                byte_length: buffers.buffer_bytes.len().into(),
+                extensions: Default::default(),
+                extras: Default::default(),
+                name: None,
+                uri: None,
+            }],
+            buffer_views: buffers.buffer_views,
+            meshes: self.meshes,
+            nodes: self.nodes,
+            scenes: vec![gltf::json::Scene {
+                extensions: Default::default(),
+                extras: Default::default(),
+                name: None,
+                nodes: self.scene_nodes,
+            }],
+            materials: self.material_cache.materials,
+            textures: self.material_cache.textures,
+            images,
+            skins: self.skins,
+            samplers: self.material_cache.samplers,
+            ..Default::default()
+        };
+
+        Ok(GlbFile {
+            root,
+            buffer: buffers.buffer_bytes,
+        })
+    }
+
+    fn from_model(
         model_name: &str,
         roots: &[ModelRoot],
         flip_images_uvs: bool,
@@ -223,17 +293,10 @@ impl GltfFile {
                 .push(gltf::json::Index::new(root_node_index));
         }
 
-        data.into_gltf(model_name, flip_images_uvs)
+        Ok(data)
     }
 
-    /// Convert the Xenoblade map `roots` to glTF data.
-    /// See [load_map](crate::load_map) for loading files.
-    ///
-    /// The `model_name` is used to create resource file names and should
-    /// usually match the file name for [save](GltfFile::save) without the `.gltf` extension.
-    ///
-    /// `flip_images_uvs` should only be set to `true` for Xenoblade X maps.
-    pub fn from_map(
+    fn from_map(
         model_name: &str,
         roots: &[MapRoot],
         flip_images_uvs: bool,
@@ -292,7 +355,41 @@ impl GltfFile {
                 .push(gltf::json::Index::new(root_node_index));
         }
 
-        data.into_gltf(model_name, flip_images_uvs)
+        Ok(data)
+    }
+}
+
+impl GltfFile {
+    /// Convert the Xenoblade model `roots` to glTF data.
+    /// See [load_model](crate::load_model) or [load_model_legacy](crate::load_model_legacy) for loading files.
+    ///
+    /// The `model_name` is used to create resource file names and should
+    /// usually match the file name for [save](GltfFile::save) without the `.gltf` extension.
+    ///
+    /// `flip_image_uvs` should only be set to `true` for Xenoblade X models.
+    pub fn from_model(
+        model_name: &str,
+        roots: &[ModelRoot],
+        flip_images_uvs: bool,
+    ) -> Result<Self, CreateGltfError> {
+        GltfData::from_model(model_name, roots, flip_images_uvs)?
+            .into_gltf(model_name, flip_images_uvs)
+    }
+
+    /// Convert the Xenoblade map `roots` to glTF data.
+    /// See [load_map](crate::load_map) for loading files.
+    ///
+    /// The `model_name` is used to create resource file names and should
+    /// usually match the file name for [save](GltfFile::save) without the `.gltf` extension.
+    ///
+    /// `flip_images_uvs` should only be set to `true` for Xenoblade X maps.
+    pub fn from_map(
+        model_name: &str,
+        roots: &[MapRoot],
+        flip_images_uvs: bool,
+    ) -> Result<Self, CreateGltfError> {
+        GltfData::from_map(model_name, roots, flip_images_uvs)?
+            .into_gltf(model_name, flip_images_uvs)
     }
 
     /// Save the glTF data to the specified `path` with images and buffers stored in the same directory.
@@ -321,6 +418,77 @@ impl GltfFile {
             let output = path.with_file_name(name);
             std::fs::write(output, image)
         })?;
+        Ok(())
+    }
+}
+
+impl GlbFile {
+    /// Convert the Xenoblade model `roots` to glb data.
+    /// See [load_model](crate::load_model) or [load_model_legacy](crate::load_model_legacy) for loading files.
+    ///
+    /// The `model_name` is used to create resource names and should
+    /// usually match the file name for [save](GlbFile::save) without the `.glb` extension.
+    ///
+    /// `flip_image_uvs` should only be set to `true` for Xenoblade X models.
+    pub fn from_model(
+        model_name: &str,
+        roots: &[ModelRoot],
+        flip_images_uvs: bool,
+    ) -> Result<Self, CreateGltfError> {
+        // TODO: Does this need a model name?
+        GltfData::from_model(model_name, roots, flip_images_uvs)?
+            .into_glb(model_name, flip_images_uvs)
+    }
+
+    /// Convert the Xenoblade map `roots` to glTF data.
+    /// See [load_map](crate::load_map) for loading files.
+    ///
+    /// The `model_name` is used to create resource names and should
+    /// usually match the file name for [save](GlbFile::save) without the `.glb` extension.
+    ///
+    /// `flip_images_uvs` should only be set to `true` for Xenoblade X maps.
+    pub fn from_map(
+        model_name: &str,
+        roots: &[MapRoot],
+        flip_images_uvs: bool,
+    ) -> Result<Self, CreateGltfError> {
+        // TODO: Does this need a model name?
+        GltfData::from_map(model_name, roots, flip_images_uvs)?
+            .into_glb(model_name, flip_images_uvs)
+    }
+
+    /// Save the glb data to the specified `path`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust no_run
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # use xc3_model::gltf::GlbFile;
+    /// # let roots = Vec::new();
+    /// let glb_file = GlbFile::from_model("model", &roots, false)?;
+    /// glb_file.save("model.glb")?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), SaveGltfError> {
+        let json = serde_json::to_string(&self.root)?;
+        let glb = gltf::binary::Glb {
+            header: gltf::binary::Header {
+                magic: *b"glTF",
+                version: 2,
+                length: (json.len().next_multiple_of(4) + self.buffer.len().next_multiple_of(4))
+                    .try_into()
+                    .expect("file size exceeds binary glTF limit"),
+            },
+            bin: Some(Cow::Borrowed(&self.buffer)),
+            json: Cow::Owned(json.into_bytes()),
+        };
+
+        // TODO: is fully buffered faster?
+        let writer = BufWriter::new(std::fs::File::create(path)?);
+        // Assume to_writer handles aligning chunk sizes to 4 bytes.
+        glb.to_writer(writer).expect("glTF binary output error");
+
         Ok(())
     }
 }
@@ -618,4 +786,9 @@ fn find_children(
             }
         })
         .collect()
+}
+
+fn align_bytes(bytes: &mut Vec<u8>, align: usize) {
+    let aligned = bytes.len().next_multiple_of(align);
+    bytes.resize(aligned, 0u8);
 }

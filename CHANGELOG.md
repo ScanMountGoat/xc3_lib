@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## unreleased
+### Added
+* Added support for exporting models and maps as a single `.glb` file with xc3_gltf.
+
 ### Changed
 * Changed shader database to use a custom binary format for greatly reduced file sizes and loading times.
 * Improved detection of texture layer blending for shader database.
