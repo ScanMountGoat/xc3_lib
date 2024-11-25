@@ -347,14 +347,15 @@ fn find_layers(nodes: &[Node], current: &Expr, dependencies: &[Dependency]) -> V
 
     let mut current = current;
 
-    // Detect the layers and blend mode.
+    // Detect the layers and blend mode from most to least specific.
     while let Some((layer_a, layer_b, ratio, blend_mode)) = blend_add_normal(nodes, current)
         .or_else(|| blend_overlay(nodes, current))
         .or_else(|| blend_over(nodes, current))
         .or_else(|| blend_ratio(nodes, current))
-        .or_else(|| blend_add(nodes, current, dependencies))
         .or_else(|| blend_mul(nodes, current, dependencies))
         .or_else(|| blend_add_ratio(current))
+        .or_else(|| blend_sub(nodes, current))
+        .or_else(|| blend_add(nodes, current, dependencies))
     {
         let layer_b = extract_layer_value(nodes, layer_b, dependencies);
 
@@ -483,6 +484,26 @@ fn blend_add<'a>(
     }
     Some((a, b, &Expr::Float(1.0), LayerBlendMode::Add))
 }
+static BLEND_SUB: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            neg_b = 0.0 - b;
+            result = a + neg_b;
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+fn blend_sub<'a>(
+    nodes: &'a [Node],
+    expr: &'a Expr,
+) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
+    // Some layers are simply subtracted like for xeno3/chr/chr/ch44000210.wimdo "ch45133501_body".
+    let result = query_nodes(expr, nodes, &BLEND_SUB.nodes)?;
+    let a = result.get("a")?;
+    let b = result.get("b")?;
+    Some((a, b, &Expr::Float(-1.0), LayerBlendMode::Add))
+}
 
 static BLEND_MUL: LazyLock<Graph> =
     LazyLock::new(|| Graph::parse_glsl("void main() { result = a * b; }").unwrap());
@@ -606,6 +627,7 @@ fn dependency_cached_texture(ratio: &Expr, dependencies: &[Dependency]) -> Optio
             }
             // TODO: Why does handling other constants break base layer detection?
             Expr::Float(1.0) => Some(Dependency::Constant(1.0.into())),
+            Expr::Float(-1.0) => Some(Dependency::Constant((-1.0).into())),
             // TODO: Find dependencies recursively?
             _ => None,
         })
@@ -1373,16 +1395,16 @@ mod tests {
                     TextureLayer {
                         value: Dependency::Texture(TextureDependency {
                             name: "s0".into(),
-                            channel: Some('x',),
+                            channel: Some('x'),
                             texcoords: vec![
                                 TexCoord {
                                     name: "in_attr2".into(),
-                                    channel: Some('x',),
+                                    channel: Some('x'),
                                     params: None,
                                 },
                                 TexCoord {
                                     name: "in_attr2".into(),
-                                    channel: Some('y',),
+                                    channel: Some('y'),
                                     params: None,
                                 },
                             ],
@@ -1394,7 +1416,7 @@ mod tests {
                     TextureLayer {
                         value: Dependency::Attribute(AttributeDependency {
                             name: "in_attr3".into(),
-                            channel: Some('x',),
+                            channel: Some('x'),
                         }),
                         ratio: Some(Dependency::Constant(1.0.into())),
                         blend_mode: LayerBlendMode::MixRatio,
@@ -2767,7 +2789,7 @@ mod tests {
                         field: "gWrkFl4".into(),
                         index: Some(0),
                         channel: Some('y'),
-                    }),),
+                    })),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: true,
                 },
@@ -3045,6 +3067,110 @@ mod tests {
                 channel: Some('z'),
             })),
             shader.outline_width
+        );
+    }
+
+    #[test]
+    fn shader_from_fragment_panacea_body() {
+        // xeno3/chr/ch/ch44000210, "ch45133501_body", shd0029.frag
+        let glsl = include_str!("data/xc3/ch44000210.29.frag");
+
+        // Check for correct color layers
+        let fragment = TranslationUnit::parse(glsl).unwrap();
+        let shader = shader_from_glsl(None, &fragment);
+        assert_eq!(
+            vec![
+                TextureLayer {
+                    value: Dependency::Texture(TextureDependency {
+                        name: "s0".into(),
+                        channel: Some('x'),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channel: Some('x'),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channel: Some('y'),
+                                params: None,
+                            },
+                        ],
+                    }),
+                    ratio: None,
+                    blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: false,
+                },
+                TextureLayer {
+                    value: Dependency::Buffer(BufferDependency {
+                        name: "U_Mate".into(),
+                        field: "gWrkCol".into(),
+                        index: Some(1),
+                        channel: Some('x'),
+                    }),
+                    ratio: Some(Dependency::Constant((-1.0).into())),
+                    blend_mode: LayerBlendMode::Add,
+                    is_fresnel: false,
+                },
+                TextureLayer {
+                    value: Dependency::Texture(TextureDependency {
+                        name: "gTResidentTex11".into(),
+                        channel: Some('x'),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channel: Some('x'),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channel: Some('x'),
+                                params: None,
+                            },
+                        ],
+                    }),
+                    ratio: Some(Dependency::Texture(TextureDependency {
+                        name: "s1".into(),
+                        channel: Some('x'),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channel: Some('x'),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channel: Some('y'),
+                                params: None,
+                            },
+                        ],
+                    })),
+                    blend_mode: LayerBlendMode::Add,
+                    is_fresnel: false,
+                },
+                TextureLayer {
+                    value: Dependency::Texture(TextureDependency {
+                        name: "gTResidentTex04".into(),
+                        channel: Some('x'),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channel: Some('z'),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr4".into(),
+                                channel: Some('w'),
+                                params: None,
+                            },
+                        ],
+                    }),
+                    ratio: None,
+                    blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: false,
+                }
+            ],
+            shader.output_dependencies[&SmolStr::from("o0.x")].layers
         );
     }
 
