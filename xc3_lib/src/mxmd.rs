@@ -1138,16 +1138,16 @@ pub struct Unk8 {
     base_offset: u64,
 
     pub unk1: u32,
-    pub unk2: u32,
+
+    #[br(parse_with = parse_count32_offset32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(count_offset(u32, u32))]
+    pub unk2: Vec<Unk8Item>,
 
     #[br(parse_with = parse_ptr32)]
-    #[br(args { offset: base_offset, inner: base_offset })]
-    #[xc3(offset(u32))]
-    pub unk3: Unk8Item,
-
-    #[br(parse_with = parse_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
-    pub unk4: [[f32; 4]; 4],
+    #[br(args { offset: base_offset, inner: args! { count: unk2.len() } })]
+    #[xc3(offset(u32), align(16))]
+    pub unk3: Vec<[[f32; 4]; 4]>,
 
     // TODO: padding?
     pub unk: [u32; 4],
@@ -1161,7 +1161,8 @@ pub struct Unk8Item {
     #[xc3(offset(u32))]
     pub name: String,
     pub unk1: u32,
-    pub unk2: [f32; 18],
+    pub unk2: [[f32; 4]; 4],
+    pub unk3: u32,
 }
 
 /// A table for mapping [ExtMesh] to [LodItem].
@@ -2404,12 +2405,13 @@ impl<'a> Xc3WriteOffsets for Unk8Offsets<'a> {
         endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
-        let unk3 = self.unk3.write(writer, base_offset, data_ptr, endian)?;
-        self.unk4
+        let unk2 = self.unk2.write(writer, base_offset, data_ptr, endian)?;
+        self.unk3
             .write_full(writer, base_offset, data_ptr, endian)?;
         // Strings go at the end.
-        unk3.name
-            .write_full(writer, base_offset, data_ptr, endian)?;
+        for u in unk2.0 {
+            u.name.write_full(writer, base_offset, data_ptr, endian)?;
+        }
         Ok(())
     }
 }
