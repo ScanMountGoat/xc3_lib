@@ -293,11 +293,12 @@ impl GltfData {
             });
             data.scene_nodes
                 .push(gltf::json::Index::new(root_node_index));
-        }
 
-        // TODO: Apply these to each root in case bones are different?
-        // TODO: do bones need to use TRS to suport animation?
-        add_animations(&mut data, animations)?;
+            // TODO: Should animations always apply to all roots?
+            if let Some(root_bone_index) = root_bone_index {
+                add_animations(&mut data, animations, root_bone_index)?;
+            }
+        }
 
         Ok(data)
     }
@@ -718,17 +719,27 @@ fn create_skin(
         for (i, bone) in skeleton.bones.iter().enumerate() {
             let children = find_children(skeleton, i, bone_start_index);
 
+            // Use TRS in case the bone node is the target of animation channels.
+            let (translation, rotation, scale) = if bone.transform != Mat4::IDENTITY {
+                let (t, r, s) = bone.transform.to_scale_rotation_translation();
+                (
+                    Some(t.to_array()),
+                    Some(gltf::json::scene::UnitQuaternion(r.to_array())),
+                    Some(s.to_array()),
+                )
+            } else {
+                (None, None, None)
+            };
+
             let joint_node = gltf::json::Node {
                 children: if !children.is_empty() {
                     Some(children)
                 } else {
                     None
                 },
-                matrix: if bone.transform != Mat4::IDENTITY {
-                    Some(bone.transform.to_cols_array())
-                } else {
-                    None
-                },
+                translation,
+                rotation,
+                scale,
                 name: Some(bone.name.clone()),
                 ..default_node()
             };

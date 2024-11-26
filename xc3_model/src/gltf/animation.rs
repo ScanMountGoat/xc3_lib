@@ -1,10 +1,12 @@
 use super::{buffer::WriteBytes, CreateGltfError, GltfData};
-use crate::animation::Animation;
+use crate::animation::{Animation, BoneIndex};
 use gltf::json::validation::Checked::Valid;
+use xc3_lib::hash::murmur3;
 
 pub fn add_animations(
     data: &mut GltfData,
     animations: &[Animation],
+    root_bone_node_index: u32,
 ) -> Result<(), CreateGltfError> {
     for animation in animations {
         let mut samplers = Vec::new();
@@ -17,11 +19,17 @@ pub fn add_animations(
             gltf::json::accessor::Type::Scalar,
             gltf::json::accessor::ComponentType::F32,
             None,
-            (None, None),
+            (
+                Some(serde_json::json!([0.0])),
+                Some(serde_json::json!([
+                    animation.frame_count.saturating_sub(1) as f32
+                ])),
+            ),
             false,
         )?;
 
         for track in &animation.tracks {
+            // TODO: These transforms aren't correct.
             // TODO: avoid unwrap
             let translations: Vec<_> = keyframe_times
                 .iter()
@@ -36,8 +44,23 @@ pub fn add_animations(
                 .map(|i| track.sample_scale(*i, animation.frame_count).unwrap())
                 .collect();
 
-            // TODO: How to reliably find bone node indices.
-            let node = gltf::json::Index::new(0);
+            // TODO: Is there a more reliable way to find bone nodes?
+            let bone_index = match &track.bone_index {
+                BoneIndex::Index(i) => *i as u32,
+                BoneIndex::Hash(hash) => data
+                    .nodes
+                    .iter()
+                    .skip(root_bone_node_index as usize)
+                    .position(|n| n.name.as_ref().map(|n| murmur3(n.as_bytes())) == Some(*hash))
+                    .unwrap_or_default() as u32,
+                BoneIndex::Name(name) => data
+                    .nodes
+                    .iter()
+                    .skip(root_bone_node_index as usize)
+                    .position(|n| n.name.as_ref() == Some(name))
+                    .unwrap_or_default() as u32,
+            };
+            let node = gltf::json::Index::new(root_bone_node_index + bone_index);
 
             add_channel(
                 data,
