@@ -5,7 +5,7 @@ use std::{
 
 use crate::vertex::AttributeData;
 use binrw::{BinResult, BinWrite};
-use glam::{Mat4, Vec2, Vec3, Vec4, Vec4Swizzles};
+use glam::{Mat4, Quat, Vec2, Vec3, Vec4, Vec4Swizzles};
 use gltf::{
     buffer::Target,
     json::validation::Checked::{self, Valid},
@@ -573,7 +573,7 @@ impl Buffers {
         components: gltf::json::accessor::Type,
         component_type: gltf::json::accessor::ComponentType,
         target: Option<Checked<Target>>,
-        min_max: (Option<gltf_json::Value>, Option<gltf_json::Value>),
+        min_max: (Option<gltf::json::Value>, Option<gltf::json::Value>),
         byte_stride: bool,
     ) -> BinResult<gltf::json::Index<gltf::json::Accessor>> {
         let attribute_bytes = write_bytes(values)?;
@@ -622,7 +622,7 @@ impl Buffers {
     }
 }
 
-fn positions_min_max(values: &[Vec3]) -> (Option<gltf_json::Value>, Option<gltf_json::Value>) {
+fn positions_min_max(values: &[Vec3]) -> (Option<gltf::json::Value>, Option<gltf::json::Value>) {
     let min = values.iter().copied().reduce(Vec3::min);
     let max = values.iter().copied().reduce(Vec3::max);
 
@@ -640,6 +640,12 @@ fn positions_min_max(values: &[Vec3]) -> (Option<gltf_json::Value>, Option<gltf_
 // Create a trait instead of using bytemuck.
 pub trait WriteBytes {
     fn write<W: Write + Seek>(&self, writer: &mut W) -> BinResult<()>;
+}
+
+impl WriteBytes for f32 {
+    fn write<W: Write + Seek>(&self, writer: &mut W) -> BinResult<()> {
+        self.write_le(writer)
+    }
 }
 
 impl WriteBytes for u16 {
@@ -667,6 +673,12 @@ impl WriteBytes for Vec3 {
 }
 
 impl WriteBytes for Vec4 {
+    fn write<W: Write + Seek>(&self, writer: &mut W) -> BinResult<()> {
+        self.to_array().write_le(writer)
+    }
+}
+
+impl WriteBytes for Quat {
     fn write<W: Write + Seek>(&self, writer: &mut W) -> BinResult<()> {
         self.to_array().write_le(writer)
     }

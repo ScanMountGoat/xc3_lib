@@ -27,7 +27,8 @@
 //! ```
 use std::{borrow::Cow, collections::BTreeMap, io::BufWriter, path::Path};
 
-use crate::{MapRoot, ModelRoot};
+use crate::{animation::Animation, MapRoot, ModelRoot};
+use animation::add_animations;
 use glam::Mat4;
 use gltf::json::validation::Checked::Valid;
 use rayon::prelude::*;
@@ -39,6 +40,7 @@ use self::{
     texture::{image_name, TextureCache},
 };
 
+mod animation;
 mod buffer;
 mod material;
 mod texture;
@@ -83,6 +85,7 @@ pub struct GlbFile {
     pub buffer: Vec<u8>,
 }
 
+#[derive(Default)]
 struct GltfData {
     texture_cache: TextureCache,
     material_cache: MaterialCache,
@@ -91,6 +94,7 @@ struct GltfData {
     nodes: Vec<gltf::json::Node>,
     scene_nodes: Vec<gltf::json::Index<gltf::json::Node>>,
     skins: Vec<gltf::json::Skin>,
+    animations: Vec<gltf::json::animation::Animation>,
 }
 
 impl GltfData {
@@ -111,7 +115,7 @@ impl GltfData {
         for key in self.texture_cache.generated_texture_indices.keys() {
             images.push(gltf::json::Image {
                 buffer_view: None,
-                mime_type: Some(gltf_json::image::MimeType("image/png".to_string())),
+                mime_type: Some(gltf::json::image::MimeType("image/png".to_string())),
                 name: None,
                 uri: Some(image_name(key, model_name)),
                 extensions: None,
@@ -146,6 +150,7 @@ impl GltfData {
             images,
             skins: self.skins,
             samplers: self.material_cache.samplers,
+            animations: self.animations,
             ..Default::default()
         };
 
@@ -162,13 +167,13 @@ impl GltfData {
     }
 
     fn into_glb(self, model_name: &str, flip_images_uvs: bool) -> Result<GlbFile, CreateGltfError> {
-        let png_images = self
-            .texture_cache
-            .generate_png_images(model_name, flip_images_uvs);
-
         // TODO: Avoid clone?
         let mut buffers = self.buffers.clone();
         align_bytes(&mut buffers.buffer_bytes, 4);
+
+        let png_images = self
+            .texture_cache
+            .generate_png_images(model_name, flip_images_uvs);
 
         let mut images = Vec::new();
         for (name, png_bytes) in png_images {
@@ -191,7 +196,7 @@ impl GltfData {
 
             images.push(gltf::json::Image {
                 buffer_view: Some(index),
-                mime_type: Some(gltf_json::image::MimeType("image/png".to_string())),
+                mime_type: Some(gltf::json::image::MimeType("image/png".to_string())),
                 name: None,
                 uri: None,
                 extensions: None,
@@ -222,6 +227,7 @@ impl GltfData {
             images,
             skins: self.skins,
             samplers: self.material_cache.samplers,
+            animations: self.animations,
             ..Default::default()
         };
 
@@ -234,16 +240,12 @@ impl GltfData {
     fn from_model(
         model_name: &str,
         roots: &[ModelRoot],
+        animations: &[Animation],
         flip_images_uvs: bool,
     ) -> Result<Self, CreateGltfError> {
         let mut data = GltfData {
             texture_cache: TextureCache::new(roots.iter().map(|r| &r.image_textures)),
-            material_cache: Default::default(),
-            buffers: Default::default(),
-            meshes: Default::default(),
-            nodes: Default::default(),
-            scene_nodes: Default::default(),
-            skins: Default::default(),
+            ..Default::default()
         };
 
         for (root_index, root) in roots.iter().enumerate() {
@@ -293,6 +295,10 @@ impl GltfData {
                 .push(gltf::json::Index::new(root_node_index));
         }
 
+        // TODO: Apply these to each root in case bones are different?
+        // TODO: do bones need to use TRS to suport animation?
+        add_animations(&mut data, animations)?;
+
         Ok(data)
     }
 
@@ -303,12 +309,7 @@ impl GltfData {
     ) -> Result<Self, CreateGltfError> {
         let mut data = GltfData {
             texture_cache: TextureCache::new(roots.iter().map(|r| &r.image_textures)),
-            material_cache: Default::default(),
-            buffers: Default::default(),
-            meshes: Default::default(),
-            nodes: Default::default(),
-            scene_nodes: Default::default(),
-            skins: Default::default(),
+            ..Default::default()
         };
 
         for (root_index, root) in roots.iter().enumerate() {
@@ -370,9 +371,10 @@ impl GltfFile {
     pub fn from_model(
         model_name: &str,
         roots: &[ModelRoot],
+        animations: &[Animation],
         flip_images_uvs: bool,
     ) -> Result<Self, CreateGltfError> {
-        GltfData::from_model(model_name, roots, flip_images_uvs)?
+        GltfData::from_model(model_name, roots, animations, flip_images_uvs)?
             .into_gltf(model_name, flip_images_uvs)
     }
 
@@ -433,10 +435,11 @@ impl GlbFile {
     pub fn from_model(
         model_name: &str,
         roots: &[ModelRoot],
+        animations: &[Animation],
         flip_images_uvs: bool,
     ) -> Result<Self, CreateGltfError> {
         // TODO: Does this need a model name?
-        GltfData::from_model(model_name, roots, flip_images_uvs)?
+        GltfData::from_model(model_name, roots, animations, flip_images_uvs)?
             .into_glb(model_name, flip_images_uvs)
     }
 

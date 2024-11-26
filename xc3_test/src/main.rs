@@ -987,7 +987,9 @@ fn check_all_gltf<P: AsRef<Path>>(root: P) {
             let path = entry.as_ref().unwrap().path();
             match xc3_model::load_model(path, None) {
                 Ok(root) => {
-                    if let Err(e) = xc3_model::gltf::GltfFile::from_model("model", &[root], false) {
+                    if let Err(e) =
+                        xc3_model::gltf::GltfFile::from_model("model", &[root], &[], false)
+                    {
                         println!("Error converting {path:?}: {e}");
                     }
                 }
@@ -1003,7 +1005,9 @@ fn check_all_gltf<P: AsRef<Path>>(root: P) {
             let path = entry.as_ref().unwrap().path();
             match xc3_model::load_model_legacy(path, None) {
                 Ok(root) => {
-                    if let Err(e) = xc3_model::gltf::GltfFile::from_model("model", &[root], true) {
+                    if let Err(e) =
+                        xc3_model::gltf::GltfFile::from_model("model", &[root], &[], true)
+                    {
                         println!("Error converting {path:?}: {e}");
                     }
                 }

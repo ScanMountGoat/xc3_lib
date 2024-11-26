@@ -197,7 +197,7 @@ fn create_material(
     }
 }
 
-fn texture_info(texture_index: u32, key: &GeneratedImageKey) -> gltf_json::texture::Info {
+fn texture_info(texture_index: u32, key: &GeneratedImageKey) -> gltf::json::texture::Info {
     let tex_coord = tex_coord(key);
     let scale = texture_scale(key);
 
@@ -240,7 +240,7 @@ fn tex_coord(key: &GeneratedImageKey) -> u32 {
 fn texture_transform_ext(
     scale: Option<[ordered_float::OrderedFloat<f32>; 2]>,
     tex_coord: u32,
-) -> Option<gltf_json::extensions::texture::Info> {
+) -> Option<gltf::json::extensions::texture::Info> {
     // TODO: Don't assume the first UV map?
     scale.map(|[u, v]| gltf::json::extensions::texture::Info {
         texture_transform: Some(gltf::json::extensions::texture::TextureTransform {
