@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 * Fixed an issue where some eyes would not render correctly due to incorrect handling of metalness.
 * Fixed an issue where some shader database entries did not correctly multiply color by vertex color.
+* Fixed an issue where some wimdo files would not rebuild correctly due to missing data.
 
 ### Removed
 * Removed the `pretty` option for xc3_shader database creation since it no longer applies to binary output.

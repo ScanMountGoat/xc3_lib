@@ -71,8 +71,15 @@ pub struct Mxmd {
     #[xc3(offset(u32))]
     pub streaming: Option<Streaming>,
 
+    pub unk6: u32,
+    pub unk7: u32,
+
+    #[br(parse_with = parse_opt_ptr32)]
+    #[xc3(offset(u32), align(16))]
+    pub unk8: Option<Unk8>,
+
     // TODO: padding?
-    pub unk: [u32; 9],
+    pub unk: [u32; 6],
 }
 
 // TODO: more strict alignment for xc3?
@@ -1119,6 +1126,42 @@ pub struct ModelUnk3Item {
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
     pub unk3: Vec<u16>,
+}
+
+#[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, Xc3Write, PartialEq, Clone)]
+#[br(stream = r)]
+#[xc3(base_offset)]
+pub struct Unk8 {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    pub unk1: u32,
+    pub unk2: u32,
+
+    #[br(parse_with = parse_ptr32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset(u32))]
+    pub unk3: Unk8Item,
+
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub unk4: [[f32; 4]; 4],
+
+    // TODO: padding?
+    pub unk: [u32; 4],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct Unk8Item {
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub name: String,
+    pub unk1: u32,
+    pub unk2: [f32; 18],
 }
 
 /// A table for mapping [ExtMesh] to [LodItem].
@@ -2181,6 +2224,8 @@ impl<'a> Xc3WriteOffsets for MxmdOffsets<'a> {
     ) -> xc3_write::Xc3Result<()> {
         self.models
             .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk8
+            .write_full(writer, base_offset, data_ptr, endian)?;
         self.materials
             .write_full(writer, base_offset, data_ptr, endian)?;
 
@@ -2346,6 +2391,25 @@ impl<'a> Xc3WriteOffsets for SkeletonUnk5Offsets<'a> {
         self.unk_offset
             .write_full(writer, base_offset, data_ptr, endian)?;
 
+        Ok(())
+    }
+}
+
+impl<'a> Xc3WriteOffsets for Unk8Offsets<'a> {
+    fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
+        &self,
+        writer: &mut W,
+        _base_offset: u64,
+        data_ptr: &mut u64,
+        endian: xc3_write::Endian,
+    ) -> xc3_write::Xc3Result<()> {
+        let base_offset = self.base_offset;
+        let unk3 = self.unk3.write(writer, base_offset, data_ptr, endian)?;
+        self.unk4
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        // Strings go at the end.
+        unk3.name
+            .write_full(writer, base_offset, data_ptr, endian)?;
         Ok(())
     }
 }
