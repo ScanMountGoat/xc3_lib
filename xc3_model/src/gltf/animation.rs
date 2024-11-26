@@ -1,66 +1,79 @@
 use super::{buffer::WriteBytes, CreateGltfError, GltfData};
-use crate::animation::{Animation, BoneIndex};
+use crate::{animation::Animation, Skeleton};
 use gltf::json::validation::Checked::Valid;
 use xc3_lib::hash::murmur3;
 
 pub fn add_animations(
     data: &mut GltfData,
     animations: &[Animation],
+    skeleton: &Skeleton,
     root_bone_node_index: u32,
 ) -> Result<(), CreateGltfError> {
     for animation in animations {
         let mut samplers = Vec::new();
         let mut channels = Vec::new();
 
-        // Baked tracks can share keyframe times.
-        let keyframe_times: Vec<_> = (0..animation.frame_count).map(|i| i as f32).collect();
+        // Baked tracks can share keyframe times in seconds.
+        let keyframe_times: Vec<_> = (0..animation.frame_count)
+            .map(|i| i as f32 / animation.frames_per_second)
+            .collect();
         let input = data.buffers.add_values(
             &keyframe_times,
             gltf::json::accessor::Type::Scalar,
             gltf::json::accessor::ComponentType::F32,
             None,
             (
-                Some(serde_json::json!([0.0])),
-                Some(serde_json::json!([
-                    animation.frame_count.saturating_sub(1) as f32
-                ])),
+                keyframe_times
+                    .iter()
+                    .copied()
+                    .reduce(f32::min)
+                    .map(|v| serde_json::json!([v])),
+                keyframe_times
+                    .iter()
+                    .copied()
+                    .reduce(f32::max)
+                    .map(|v| serde_json::json!([v])),
             ),
             false,
         )?;
 
-        for track in &animation.tracks {
-            // TODO: These transforms aren't correct.
-            // TODO: avoid unwrap
-            let translations: Vec<_> = keyframe_times
-                .iter()
-                .map(|i| track.sample_translation(*i, animation.frame_count).unwrap())
-                .collect();
-            let rotations: Vec<_> = keyframe_times
-                .iter()
-                .map(|i| track.sample_rotation(*i, animation.frame_count).unwrap())
-                .collect();
-            let scales: Vec<_> = keyframe_times
-                .iter()
-                .map(|i| track.sample_scale(*i, animation.frame_count).unwrap())
-                .collect();
+        // Calculate transforms to handle animation spaces and blending.
+        // TODO: Is there a more efficient way to calculate this?
+        let transforms: Vec<_> = (0..animation.frame_count)
+            .map(|i| animation.local_space_transforms(skeleton, i as f32))
+            .collect();
 
-            // TODO: Is there a more reliable way to find bone nodes?
-            let bone_index = match &track.bone_index {
-                BoneIndex::Index(i) => *i as u32,
-                BoneIndex::Hash(hash) => data
-                    .nodes
+        // Assume each bone has at most one track.
+        // TODO: how to handle missing bones?
+        let animated_bone_indices: Vec<_> = animation
+            .tracks
+            .iter()
+            .filter_map(|t| match &t.bone_index {
+                crate::animation::BoneIndex::Index(i) => Some(*i),
+                crate::animation::BoneIndex::Hash(hash) => skeleton
+                    .bones
                     .iter()
-                    .skip(root_bone_node_index as usize)
-                    .position(|n| n.name.as_ref().map(|n| murmur3(n.as_bytes())) == Some(*hash))
-                    .unwrap_or_default() as u32,
-                BoneIndex::Name(name) => data
-                    .nodes
-                    .iter()
-                    .skip(root_bone_node_index as usize)
-                    .position(|n| n.name.as_ref() == Some(name))
-                    .unwrap_or_default() as u32,
-            };
-            let node = gltf::json::Index::new(root_bone_node_index + bone_index);
+                    .position(|b| murmur3(&b.name.as_bytes()) == *hash),
+                crate::animation::BoneIndex::Name(name) => {
+                    skeleton.bones.iter().position(|b| &b.name == name)
+                }
+            })
+            .collect();
+
+        for bone in animated_bone_indices {
+            let mut translations = Vec::new();
+            let mut rotations = Vec::new();
+            let mut scales = Vec::new();
+
+            for frame in 0..animation.frame_count as usize {
+                let (s, r, t) = transforms[frame][bone].to_scale_rotation_translation();
+                translations.push(t);
+                rotations.push(r);
+                scales.push(s);
+            }
+
+            // Assume bone nodes match the skeleton bone ordering.
+            let node = gltf::json::Index::new(root_bone_node_index + bone as u32);
 
             add_channel(
                 data,
@@ -93,6 +106,7 @@ pub fn add_animations(
                 gltf::json::accessor::Type::Vec3,
             )?;
         }
+
         data.animations.push(gltf::json::Animation {
             extensions: None,
             extras: None,

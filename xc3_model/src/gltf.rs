@@ -296,7 +296,9 @@ impl GltfData {
 
             // TODO: Should animations always apply to all roots?
             if let Some(root_bone_index) = root_bone_index {
-                add_animations(&mut data, animations, root_bone_index)?;
+                if let Some(skeleton) = &root.skeleton {
+                    add_animations(&mut data, animations, skeleton, root_bone_index)?;
+                }
             }
         }
 
@@ -721,7 +723,7 @@ fn create_skin(
 
             // Use TRS in case the bone node is the target of animation channels.
             let (translation, rotation, scale) = if bone.transform != Mat4::IDENTITY {
-                let (t, r, s) = bone.transform.to_scale_rotation_translation();
+                let (s, r, t) = bone.transform.to_scale_rotation_translation();
                 (
                     Some(t.to_array()),
                     Some(gltf::json::scene::UnitQuaternion(r.to_array())),
