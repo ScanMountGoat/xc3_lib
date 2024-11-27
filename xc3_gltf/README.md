@@ -7,10 +7,11 @@ glTF is an open interchange format designed for efficiently transmitting and loa
 Convert `.wimdo`, `.wismhd`, or `.camdo` files to `.gltf` or `.glb`. Exporting as `.gltf` will create a `.gltf`, `.bin`, and multiple `.png` files. File names will start with the name chosen for the output glTF file. Exporting as `.glb` will embed all data into a single `.glb` file. The shader database parameter is optional but highly recommended since the fallback texture assignments do not support channel packing of temp textures. 
 
 `xc3_gltf --help`  
-`xc3_gltf "Xeno 2 Dump\map\ma02a.wismhd" map.gltf xc2.bin`  
-`xc3_gltf "Xeno 3 Dump\chr\ch\ch01027000.wimdo" mio.gltf xc3.bin`  
-`xc3_gltf "Xeno 3 Dump\chr\ch\ch01027000.wimdo" mio.glb xc3.bin`  
-`xc3_gltf "Xeno X Dump\chr_np\np\np009001.camdo" tatsu.gltf xcx.bin`    
+`xc3_gltf "Xeno 2 Dump\map\ma02a.wismhd" map.gltf --database xc2.bin`  
+`xc3_gltf "Xeno 2 Dump\model\np\np000301.wimdo" bana.gltf --database xc2.bin --anim "Xeno 2 Dump\model\np\np000301.mot"`    
+`xc3_gltf "Xeno 3 Dump\chr\ch\ch01027000.wimdo" mio.gltf --database xc3.bin`  
+`xc3_gltf "Xeno 3 Dump\chr\ch\ch01027000.wimdo" mio.glb --database xc3.bin`  
+`xc3_gltf "Xeno X Dump\chr_np\np\np009001.camdo" tatsu.gltf --database xcx.bin`    
 
 ## Features
 * position, normal, tangent, texture coordinate, and vertex color attributes
@@ -23,6 +24,7 @@ Convert `.wimdo`, `.wismhd`, or `.camdo` files to `.gltf` or `.glb`. Exporting a
 * channel packed textures based on shader data
 * alpha textures for transparency
 * texcoord scale via the `KHR_texture_transform` extension
+* animations from `.mot` files
 
 ## Limitations
 glTF is designed for compatibility, so the imported files will never perfectly recreate the Xenoblade specific data like materials and shaders. Dedicated importing plugins for a specific application or game engine will always be able to outperform formats like glTF in terms of speed and accuracy. Exported files have the following limitations:
