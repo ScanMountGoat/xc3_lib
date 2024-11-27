@@ -5,9 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## unreleased
+## 0.15.0 - 2024-11-27
 ### Added
 * Added support for exporting models and maps as a single `.glb` file with xc3_gltf.
+* Added support for exporting animations from a `.mot` file with xc3_gltf.
 
 ### Changed
 * Changed shader database to use a custom binary format for greatly reduced file sizes and loading times.
@@ -19,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Adjusted wimdo model export for xc3_model to rebuild skinning information.
 * Changed `xc3_model::monolib::ShaderTextures` to use a map of sampler names to textures instead of a field for each texture.
 * Improved the number of textures supported by `xc3_model::monolib::ShaderTextures`.
+* Changed arguments for xc3_gltf to require `--database` before the database path.
 
 ### Fixed
 * Fixed an issue where some eyes would not render correctly due to incorrect handling of metalness.
