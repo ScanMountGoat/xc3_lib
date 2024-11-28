@@ -4,27 +4,25 @@ use crate::IndexMapExt;
 use binrw::{binrw, BinRead, BinReaderExt, BinResult, BinWrite, BinWriterExt, NullString};
 use indexmap::IndexMap;
 use smol_str::{SmolStr, ToSmolStr};
+use varint_rs::{VarintReader, VarintWriter};
 
 use super::{
     AttributeDependency, BufferDependency, Dependency, LayerBlendMode, MapPrograms, ModelPrograms,
     OutputDependencies, ShaderProgram, TexCoord, TexCoordParams, TextureDependency, TextureLayer,
 };
 
-const MAJOR_VERSION: u16 = 1;
-const MINOR_VERSION: u16 = 0;
-
-type StringIndex = Index<u8>;
-type BufferDependencyIndex = Index<u16>;
-type DependencyIndex = Index<u16>;
-
 // Create a separate optimized representation for on disk.
 #[binrw]
 #[derive(Debug, PartialEq, Clone)]
 #[brw(magic(b"SHDB"))]
 pub struct ShaderDatabaseIndexed {
-    #[br(assert(major_version == MAJOR_VERSION))]
+    // File version numbers should be updated with each release.
+    // This improves the error when parsing an incompatible version.
+    #[br(assert(major_version == 2))]
+    #[bw(calc = 2)]
     major_version: u16,
-    minor_version: u16,
+    #[bw(calc = 0)]
+    _minor_version: u16,
 
     #[br(parse_with = parse_map32)]
     #[bw(write_with = write_map32)]
@@ -34,49 +32,49 @@ pub struct ShaderDatabaseIndexed {
     #[bw(write_with = write_map32)]
     map_files: IndexMap<SmolStr, MapIndexed>,
 
-    #[br(parse_with = parse_count16)]
-    #[bw(write_with = write_count16)]
+    #[br(parse_with = parse_count)]
+    #[bw(write_with = write_count)]
     dependencies: Vec<DependencyIndexed>,
 
-    #[br(parse_with = parse_count16)]
-    #[bw(write_with = write_count16)]
+    #[br(parse_with = parse_count)]
+    #[bw(write_with = write_count)]
     buffer_dependencies: Vec<BufferDependencyIndexed>,
 
     // Storing multiple string tables enables 8-bit instead of 16-bit indices.
-    #[br(parse_with = parse_count8)]
-    #[bw(write_with = write_count8)]
+    #[br(parse_with = parse_count)]
+    #[bw(write_with = write_count)]
     strings: Vec<NullString>,
 
-    #[br(parse_with = parse_count8)]
-    #[bw(write_with = write_count8)]
+    #[br(parse_with = parse_count)]
+    #[bw(write_with = write_count)]
     texture_names: Vec<NullString>,
 
-    #[br(parse_with = parse_count8)]
-    #[bw(write_with = write_count8)]
+    #[br(parse_with = parse_count)]
+    #[bw(write_with = write_count)]
     outputs: Vec<NullString>,
 }
 
 #[binrw]
 #[derive(Debug, PartialEq, Clone)]
 struct MapIndexed {
-    #[br(parse_with = parse_count16)]
-    #[bw(write_with = write_count16)]
+    #[br(parse_with = parse_count)]
+    #[bw(write_with = write_count)]
     map_models: Vec<ModelIndexed>,
 
-    #[br(parse_with = parse_count16)]
-    #[bw(write_with = write_count16)]
+    #[br(parse_with = parse_count)]
+    #[bw(write_with = write_count)]
     prop_models: Vec<ModelIndexed>,
 
-    #[br(parse_with = parse_count16)]
-    #[bw(write_with = write_count16)]
+    #[br(parse_with = parse_count)]
+    #[bw(write_with = write_count)]
     env_models: Vec<ModelIndexed>,
 }
 
 #[binrw]
 #[derive(Debug, PartialEq, Clone)]
 struct ModelIndexed {
-    #[br(parse_with = parse_count16)]
-    #[bw(write_with = write_count16)]
+    #[br(parse_with = parse_count)]
+    #[bw(write_with = write_count)]
     programs: Vec<ShaderProgramIndexed>,
 }
 
@@ -85,30 +83,29 @@ struct ModelIndexed {
 struct ShaderProgramIndexed {
     // There are very few unique dependencies across all shaders in a game dump.
     // Normalize the data to greatly reduce the size file size.
-    #[br(parse_with = parse_count8)]
-    #[bw(write_with = write_count8)]
-    output_dependencies: Vec<(StringIndex, OutputDependenciesIndexed)>,
+    #[br(parse_with = parse_count)]
+    #[bw(write_with = write_count)]
+    output_dependencies: Vec<(VarInt, OutputDependenciesIndexed)>,
 
-    // TODO: Add optional dependency type.
-    outline_width: i16,
+    outline_width: OptVarInt,
 }
 
 #[binrw]
 #[derive(Debug, PartialEq, Clone)]
 struct OutputDependenciesIndexed {
-    #[br(parse_with = parse_count16)]
-    #[bw(write_with = write_count16)]
-    dependencies: Vec<DependencyIndex>,
+    #[br(parse_with = parse_count)]
+    #[bw(write_with = write_count)]
+    dependencies: Vec<VarInt>,
 
-    #[br(parse_with = parse_count8)]
-    #[bw(write_with = write_count8)]
+    #[br(parse_with = parse_count)]
+    #[bw(write_with = write_count)]
     layers: Vec<TextureLayerIndexed>,
 }
 
 #[derive(Debug, PartialEq, Clone, BinRead, BinWrite)]
 struct TextureLayerIndexed {
-    value: DependencyIndex,
-    ratio: i16, // TODO: make dependency indexed optional?
+    value: VarInt,
+    ratio: OptVarInt,
     blend_mode: LayerBlendModeIndexed,
     is_fresnel: u8,
 }
@@ -182,14 +179,13 @@ impl From<Option<char>> for Channel {
     }
 }
 
-// TODO: How to handle recursion?
 #[derive(Debug, PartialEq, Clone, BinRead, BinWrite)]
 enum DependencyIndexed {
     #[brw(magic(0u8))]
     Constant(f32),
 
     #[brw(magic(1u8))]
-    Buffer(BufferDependencyIndex),
+    Buffer(VarInt),
 
     #[brw(magic(2u8))]
     Texture(TextureDependencyIndexed),
@@ -200,29 +196,27 @@ enum DependencyIndexed {
 
 #[derive(Debug, PartialEq, Clone, BinRead, BinWrite)]
 struct BufferDependencyIndexed {
-    name: StringIndex,
-    field: StringIndex,
-    index: i8, // TODO: optional index type
+    name: VarInt,
+    field: VarInt,
+    index: OptVarInt,
     channel: Channel,
 }
 
 #[binrw]
 #[derive(Debug, PartialEq, Clone)]
 struct TextureDependencyIndexed {
-    name: StringIndex,
+    name: VarInt,
     channel: Channel,
 
-    #[br(temp)]
-    #[bw(try_calc = u8::try_from(texcoords.len()))]
-    texcoord_count: u8,
-    #[br(count = texcoord_count)]
+    #[br(parse_with = parse_count)]
+    #[bw(write_with = write_count)]
     texcoords: Vec<TexCoordIndexed>,
 }
 
 #[binrw]
 #[derive(Debug, PartialEq, Clone)]
 struct TexCoordIndexed {
-    name: StringIndex,
+    name: VarInt,
     channel: Channel,
     params: TexCoordParamsIndexed,
 }
@@ -233,30 +227,28 @@ enum TexCoordParamsIndexed {
     None,
 
     #[brw(magic(1u8))]
-    Scale(BufferDependencyIndex),
+    Scale(VarInt),
 
     #[brw(magic(2u8))]
-    Matrix([BufferDependencyIndex; 4]),
+    Matrix([VarInt; 4]),
 
     #[brw(magic(3u8))]
     Parallax {
-        mask_a: DependencyIndex,
-        mask_b: DependencyIndex,
-        ratio: BufferDependencyIndex,
+        mask_a: VarInt,
+        mask_b: VarInt,
+        ratio: VarInt,
     },
 }
 
 #[derive(Debug, PartialEq, Clone, BinRead, BinWrite)]
 struct AttributeDependencyIndexed {
-    name: StringIndex,
+    name: VarInt,
     channel: Channel,
 }
 
 impl Default for ShaderDatabaseIndexed {
     fn default() -> Self {
         Self {
-            major_version: MAJOR_VERSION,
-            minor_version: MINOR_VERSION,
             files: Default::default(),
             map_files: Default::default(),
             dependencies: Default::default(),
@@ -324,7 +316,7 @@ impl ShaderDatabaseIndexed {
         d: Dependency,
         dependency_to_index: &mut IndexMap<Dependency, usize>,
         buffer_dependency_to_index: &mut IndexMap<BufferDependency, usize>,
-    ) -> DependencyIndex {
+    ) -> VarInt {
         let index = match dependency_to_index.get(&d) {
             Some(index) => *index,
             None => {
@@ -343,14 +335,14 @@ impl ShaderDatabaseIndexed {
             }
         };
 
-        index.try_into().unwrap()
+        VarInt(index)
     }
 
     fn add_buffer_dependency(
         &mut self,
         b: BufferDependency,
         buffer_dependency_to_index: &mut IndexMap<BufferDependency, usize>,
-    ) -> DependencyIndex {
+    ) -> VarInt {
         let index = match buffer_dependency_to_index.get(&b) {
             Some(index) => *index,
             None => {
@@ -365,18 +357,18 @@ impl ShaderDatabaseIndexed {
             }
         };
 
-        index.try_into().unwrap()
+        VarInt(index)
     }
 
-    fn add_output(&mut self, output: &str) -> StringIndex {
+    fn add_output(&mut self, output: &str) -> VarInt {
         add_string(&mut self.outputs, output)
     }
 
-    fn add_string(&mut self, str: &str) -> StringIndex {
+    fn add_string(&mut self, str: &str) -> VarInt {
         add_string(&mut self.strings, str)
     }
 
-    fn add_texture(&mut self, texture: &str) -> StringIndex {
+    fn add_texture(&mut self, texture: &str) -> VarInt {
         add_string(&mut self.texture_names, texture)
     }
 
@@ -419,19 +411,14 @@ impl ShaderDatabaseIndexed {
                                                 dependency_to_index,
                                                 buffer_dependency_to_index,
                                             ),
-                                            ratio: l
-                                                .ratio
-                                                .map(|r| {
-                                                    self.add_dependency(
-                                                        r,
-                                                        dependency_to_index,
-                                                        buffer_dependency_to_index,
-                                                    )
-                                                    .0
-                                                    .try_into()
-                                                    .unwrap()
-                                                })
-                                                .unwrap_or(-1),
+                                            ratio: OptVarInt(l.ratio.map(|r| {
+                                                self.add_dependency(
+                                                    r,
+                                                    dependency_to_index,
+                                                    buffer_dependency_to_index,
+                                                )
+                                                .0
+                                            })),
                                             blend_mode: l.blend_mode.into(),
                                             is_fresnel: l.is_fresnel.into(),
                                         })
@@ -440,10 +427,9 @@ impl ShaderDatabaseIndexed {
                             )
                         })
                         .collect(),
-                    outline_width: p
-                        .outline_width
-                        .map(|d| dependency_to_index.entry_index(d).try_into().unwrap())
-                        .unwrap_or(-1),
+                    outline_width: OptVarInt(
+                        p.outline_width.map(|d| dependency_to_index.entry_index(d)),
+                    ),
                 })
                 .collect(),
         }
@@ -517,9 +503,10 @@ impl ShaderDatabaseIndexed {
                                         .iter()
                                         .map(|l| TextureLayer {
                                             value: self.dependency_from_indexed(l.value),
-                                            ratio: usize::try_from(l.ratio).ok().map(|i| {
-                                                self.dependency_from_indexed(i.try_into().unwrap())
-                                            }),
+                                            ratio: l
+                                                .ratio
+                                                .0
+                                                .map(|i| self.dependency_from_indexed(VarInt(i))),
                                             blend_mode: l.blend_mode.into(),
                                             is_fresnel: l.is_fresnel != 0,
                                         })
@@ -528,15 +515,16 @@ impl ShaderDatabaseIndexed {
                             )
                         })
                         .collect(),
-                    outline_width: usize::try_from(p.outline_width)
-                        .ok()
-                        .map(|i| self.dependency_from_indexed(i.try_into().unwrap())),
+                    outline_width: p
+                        .outline_width
+                        .0
+                        .map(|i| self.dependency_from_indexed(VarInt(i))),
                 })
                 .collect(),
         }
     }
 
-    fn dependency_from_indexed(&self, d: DependencyIndex) -> Dependency {
+    fn dependency_from_indexed(&self, d: VarInt) -> Dependency {
         match self.dependencies[d.0 as usize].clone() {
             DependencyIndexed::Constant(f) => Dependency::Constant(f.into()),
             DependencyIndexed::Buffer(b) => Dependency::Buffer(buffer_dependency(
@@ -656,132 +644,113 @@ impl ShaderDatabaseIndexed {
         BufferDependencyIndexed {
             name: self.add_string(&b.name),
             field: self.add_string(&b.field),
-            index: b.index.map(|i| i.try_into().unwrap()).unwrap_or(-1),
+            index: OptVarInt(b.index),
             channel: b.channel.into(),
         }
     }
 }
 
-fn add_string(strings: &mut Vec<NullString>, str: &str) -> StringIndex {
-    // TODO: Store as regular strings.
-    strings
-        .iter()
-        .position(|s| s.to_string() == str)
-        .unwrap_or_else(|| {
-            let index = strings.len();
-            strings.push(str.into());
-            index
-        })
-        .try_into()
-        .unwrap()
+fn add_string(strings: &mut Vec<NullString>, str: &str) -> VarInt {
+    VarInt(
+        strings
+            .iter()
+            .position(|s| s.to_string() == str)
+            .unwrap_or_else(|| {
+                let index = strings.len();
+                strings.push(str.into());
+                index
+            }),
+    )
 }
 
 fn buffer_dependency(b: BufferDependencyIndexed, strings: &[NullString]) -> BufferDependency {
     BufferDependency {
         name: strings[b.name.0 as usize].to_smolstr(),
         field: strings[b.field.0 as usize].to_smolstr(),
-        index: usize::try_from(b.index).ok(),
+        index: b.index.0,
         channel: b.channel.into(),
     }
 }
 
+// Variable length ints are slightly slower to parse but take up much less space.
 #[derive(Debug, PartialEq, Clone, Copy)]
-struct Index<T>(T);
+struct VarInt(usize);
 
-impl<T> BinRead for Index<T>
-where
-    for<'a> T: BinRead<Args<'a> = ()>,
-{
+impl BinRead for VarInt {
     type Args<'a> = ();
 
     fn read_options<R: std::io::Read + std::io::Seek>(
         reader: &mut R,
-        endian: binrw::Endian,
-        args: Self::Args<'_>,
+        _endian: binrw::Endian,
+        _args: Self::Args<'_>,
     ) -> BinResult<Self> {
-        T::read_options(reader, endian, args).map(Self)
+        reader.read_usize_varint().map(Self).map_err(Into::into)
     }
 }
 
-impl<T> BinWrite for Index<T>
-where
-    T: BinWrite,
-{
-    type Args<'a> = T::Args<'a>;
+impl BinWrite for VarInt {
+    type Args<'a> = ();
 
     fn write_options<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
-        endian: binrw::Endian,
-        args: Self::Args<'_>,
+        _endian: binrw::Endian,
+        _args: Self::Args<'_>,
     ) -> BinResult<()> {
-        self.0.write_options(writer, endian, args)
+        writer.write_usize_varint(self.0).map_err(Into::into)
     }
 }
 
-impl<T> TryFrom<usize> for Index<T>
-where
-    T: TryFrom<usize>,
-{
-    type Error = <T as TryFrom<usize>>::Error;
+#[derive(Debug, PartialEq, Clone, Copy)]
+struct OptVarInt(Option<usize>);
 
-    fn try_from(value: usize) -> Result<Self, Self::Error> {
-        T::try_from(value).map(Self)
+impl BinRead for OptVarInt {
+    type Args<'a> = ();
+
+    fn read_options<R: std::io::Read + std::io::Seek>(
+        reader: &mut R,
+        _endian: binrw::Endian,
+        _args: Self::Args<'_>,
+    ) -> BinResult<Self> {
+        let value = reader.read_usize_varint()?;
+        let index = value.checked_sub(1);
+        Ok(Self(index))
     }
 }
 
-fn parse_count<T, R, N>(reader: &mut R, endian: binrw::Endian) -> BinResult<Vec<T>>
-where
-    for<'a> T: BinRead<Args<'a> = ()> + 'static,
-    for<'a> N: BinRead<Args<'a> = ()> + TryInto<usize>,
-    <N as TryInto<usize>>::Error: std::fmt::Debug,
-    R: std::io::Read + std::io::Seek,
-{
-    let count = N::read_options(reader, endian, ())?;
+impl BinWrite for OptVarInt {
+    type Args<'a> = ();
 
-    <Vec<T>>::read_options(
-        reader,
-        endian,
-        binrw::VecArgs {
-            count: count.try_into().unwrap(),
-            inner: (),
-        },
-    )
+    fn write_options<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        _endian: binrw::Endian,
+        _args: Self::Args<'_>,
+    ) -> BinResult<()> {
+        match self.0 {
+            Some(index) => writer.write_usize_varint(index + 1)?,
+            None => writer.write_usize_varint(0)?,
+        }
+        Ok(())
+    }
 }
 
-fn parse_count16<T, R>(reader: &mut R, endian: binrw::Endian, _args: ()) -> BinResult<Vec<T>>
+#[binrw::parser(reader, endian)]
+fn parse_count<T>() -> BinResult<Vec<T>>
 where
     for<'a> T: BinRead<Args<'a> = ()> + 'static,
-    R: std::io::Read + std::io::Seek,
 {
-    parse_count::<T, R, u16>(reader, endian)
+    let count = VarInt::read_options(reader, endian, ())?.0;
+    <Vec<T>>::read_options(reader, endian, binrw::VecArgs { count, inner: () })
 }
 
 #[binrw::writer(writer, endian)]
-fn write_count16<T>(value: &Vec<T>) -> BinResult<()>
+fn write_count<T>(value: &Vec<T>) -> BinResult<()>
 where
     for<'a> T: BinWrite<Args<'a> = ()> + 'static,
 {
-    (u16::try_from(value.len()).unwrap()).write_options(writer, endian, ())?;
+    VarInt(value.len()).write_options(writer, endian, ())?;
     value.write_options(writer, endian, ())?;
-    Ok(())
-}
-
-fn parse_count8<T, R>(reader: &mut R, endian: binrw::Endian, _args: ()) -> BinResult<Vec<T>>
-where
-    for<'a> T: BinRead<Args<'a> = ()> + 'static,
-    R: std::io::Read + std::io::Seek,
-{
-    parse_count::<T, R, u8>(reader, endian)
-}
-
-#[binrw::writer(writer, endian)]
-fn write_count8<T>(map: &Vec<T>) -> BinResult<()>
-where
-    for<'a> T: BinWrite<Args<'a> = ()> + 'static,
-{
-    (u8::try_from(map.len()).unwrap()).write_options(writer, endian, ())?;
-    map.write_options(writer, endian, ())?;
     Ok(())
 }
 

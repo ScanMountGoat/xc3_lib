@@ -23,6 +23,7 @@ indexmap = { workspace = true, features = ["rayon"] }
 thiserror = "1.0"
 arbitrary = { version = "1.0", features = ["derive"], optional = true }
 smol_str.workspace = true
+varint-rs = "=2.2.0"
 
 [dev-dependencies]
 hexlit = "0.5.5"
