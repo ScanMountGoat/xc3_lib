@@ -259,10 +259,9 @@ pub struct AnimationLocomotion {
     pub seconds_per_frame: f32,
     pub unk2: i32,
 
-    // TODO: type?
     #[br(parse_with = parse_offset64_count32)]
     #[xc3(offset_count(u64, u32), align(16, 0xff))]
-    pub unk3: Vec<[u32; 4]>,
+    pub unk3: Vec<[f32; 4]>,
 }
 
 // TODO: is this only for XC3?
@@ -329,7 +328,7 @@ pub struct CubicExtraData {
     pub unk2: i32, // -1
 
     // TODO: root motion?
-    pub unk4: u64,
+    pub unk4: u64, // TODO: always 0?
 
     #[br(parse_with = parse_ptr64)]
     #[xc3(offset(u64), align(8, 0xff))]
@@ -379,7 +378,9 @@ pub struct PackedCubicExtraData {
     #[xc3(offset(u64), align(8, 0xff))]
     pub hashes: TrackHashes,
 
-    pub unk_offset1: u64,
+    #[br(parse_with = parse_opt_ptr64)]
+    #[xc3(offset(u64), align(8, 0xff))]
+    pub unk_offset1: Option<PackedCubicExtraDataUnk1>,
 
     #[br(parse_with = parse_opt_ptr64)]
     #[xc3(offset(u64), align(8, 0xff))]
@@ -388,6 +389,16 @@ pub struct PackedCubicExtraData {
     #[br(parse_with = parse_opt_ptr64)]
     #[xc3(offset(u64), align(8, 0xff))]
     pub unk_offset3: Option<PackedCubicExtraDataUnk3>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct PackedCubicExtraDataUnk1 {
+    pub unk1: BcList<u8>,
+    pub unk2: BcList<u16>,
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32))]
+    pub unk3: Vec<u32>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -747,6 +758,8 @@ impl<'a> Xc3WriteOffsets for PackedCubicExtraDataOffsets<'a> {
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
         self.hashes
+            .write_full(writer, base_offset, data_ptr, endian)?;
+        self.unk_offset1
             .write_full(writer, base_offset, data_ptr, endian)?;
         self.unk_offset2
             .write_full(writer, base_offset, data_ptr, endian)?;
