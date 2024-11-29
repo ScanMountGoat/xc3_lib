@@ -10,12 +10,13 @@
 //!
 //! // Models have only one root.
 //! let root = xc3_model::load_model("xeno3/chr/ch/ch01027000.wimdo", Some(&database))?;
-//! let gltf = GltfFile::from_model("mio_military", &[root], false)?;
+//! let animations = xc3_model::load_animations("xeno3/chr/ch/ch01027000_event.mot")?;
+//! let gltf = GltfFile::from_model("mio_military", &[root], &animations, false)?;
 //! gltf.save("mio_military.gltf")?;
 //!
 //! // Xenoblade X models need to have images and UVs flipped.
 //! let root = xc3_model::load_model("xenox/chr_np/np009001.camdo", Some(&database))?;
-//! let gltf = GltfFile::from_model("tatsu", &[root], true)?;
+//! let gltf = GltfFile::from_model("tatsu", &[root], &animations, true)?;
 //! gltf.save("tatsu.gltf")?;
 //!
 //! // Maps have multiple roots.
@@ -405,7 +406,7 @@ impl GltfFile {
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # use xc3_model::gltf::GltfFile;
     /// # let roots = Vec::new();
-    /// let gltf_file = GltfFile::from_model("model", &roots, false)?;
+    /// let gltf_file = GltfFile::from_model("model", &roots, &[], false)?;
     /// gltf_file.save("model.gltf")?;
     /// # Ok(())
     /// # }
@@ -471,7 +472,7 @@ impl GlbFile {
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # use xc3_model::gltf::GlbFile;
     /// # let roots = Vec::new();
-    /// let glb_file = GlbFile::from_model("model", &roots, false)?;
+    /// let glb_file = GlbFile::from_model("model", &roots, &[], false)?;
     /// glb_file.save("model.glb")?;
     /// # Ok(())
     /// # }

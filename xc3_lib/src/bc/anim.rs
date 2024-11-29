@@ -252,6 +252,7 @@ pub struct AnimationNotify {
     pub unk4: String,
 }
 
+/// Animation for the root bone.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct AnimationLocomotion {
@@ -261,7 +262,7 @@ pub struct AnimationLocomotion {
 
     #[br(parse_with = parse_offset64_count32)]
     #[xc3(offset_count(u64, u32), align(16, 0xff))]
-    pub unk3: Vec<[f32; 4]>,
+    pub translation: Vec<[f32; 4]>,
 }
 
 // TODO: is this only for XC3?

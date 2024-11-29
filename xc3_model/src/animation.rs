@@ -2,7 +2,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::ops::Bound::*;
 
-use glam::{vec4, Mat4, Quat, Vec3, Vec4, Vec4Swizzles};
+use glam::{vec3, vec4, Mat4, Quat, Vec3, Vec4, Vec4Swizzles};
 use log::error;
 use ordered_float::OrderedFloat;
 pub use xc3_lib::bc::anim::{BlendMode, PlayMode, SpaceMode};
@@ -22,6 +22,8 @@ pub struct Animation {
     pub tracks: Vec<Track>,
     // TODO: make this a vec instead?
     pub morph_tracks: Option<MorphTracks>,
+    /// Translation at each frame for the skeleton root.
+    pub root_translation: Option<Vec<Vec3>>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -75,6 +77,7 @@ impl Animation {
             frame_count: anim.binding.animation.frame_count,
             tracks: anim_tracks(anim),
             morph_tracks: morph_tracks(anim),
+            root_translation: root_translation(anim),
         }
     }
 
@@ -92,6 +95,8 @@ impl Animation {
     // TODO: Tests for this.
     /// Compute the matrix for each bone in `skeleton`
     /// that transforms a vertex in model space to its animated position in model space.
+    ///
+    /// This also applies any extra translations to the root bone if present.
     ///
     /// This can be used in a vertex shader to apply linear blend skinning
     /// by transforming the vertex by up to 4 skinning matrices
@@ -113,6 +118,8 @@ impl Animation {
     }
 
     /// Compute the the animated transform in model space for each bone in `skeleton`.
+    ///
+    /// This also applies any extra translations to the root bone if present.
     ///
     /// See [Skeleton::model_space_transforms] for the transforms without animations applied.
     pub fn model_space_transforms(&self, skeleton: &Skeleton, frame: f32) -> Vec<Mat4> {
@@ -153,6 +160,8 @@ impl Animation {
                 error!("No matching bone for {:?}", track.bone_index);
             }
         }
+
+        self.apply_root_motion(&mut animated_transforms, frame);
 
         let rest_pose_model_space = skeleton.model_space_transforms();
 
@@ -202,6 +211,23 @@ impl Animation {
         anim_model_space
     }
 
+    fn apply_root_motion(&self, animated_transforms: &mut Vec<Option<Mat4>>, frame: f32) {
+        if let Some(translations) = &self.root_translation {
+            let (current, next, factor) = frame_next_frame_factor(frame, self.frame_count);
+            let current_translation = translations.get(current).copied().unwrap_or(Vec3::ZERO);
+            let next_translation = translations.get(next).copied().unwrap_or(Vec3::ZERO);
+
+            let translation = current_translation.lerp(next_translation, factor);
+
+            if let Some(root) = animated_transforms.first_mut() {
+                match root {
+                    Some(transform) => *transform *= Mat4::from_translation(translation),
+                    None => *root = Some(Mat4::from_translation(translation)),
+                }
+            }
+        }
+    }
+
     /// Identical to [Self::model_space_transforms] but each transform is relative to the parent bone's transform.
     pub fn local_space_transforms(&self, skeleton: &Skeleton, frame: f32) -> Vec<Mat4> {
         let transforms = self.model_space_transforms(skeleton, frame);
@@ -224,10 +250,8 @@ impl Animation {
         morph_target_controller_indices: &[usize],
         frame: f32,
     ) -> Vec<f32> {
-        let frame_index = frame as usize;
-        let factor = frame.fract();
-        let next_frame_index = frame.ceil() as usize;
-        let final_frame_index = self.frame_count.saturating_sub(1) as usize;
+        let (frame_index, next_frame_index, factor) =
+            frame_next_frame_factor(frame, self.frame_count);
 
         // Default to the basis values if no morph animation is present.
         let mut weights = vec![0.0f32; morph_controller_names.len()];
@@ -248,13 +272,10 @@ impl Animation {
                     if let Some(weight) = weights.get_mut(target_index % len) {
                         if let Ok(track_index) = usize::try_from(*track_index) {
                             // TODO: Is this how to handle multiple frames?
-                            let frame_value = morphs
-                                .track_values
-                                .get(track_index * frame_index.min(final_frame_index));
+                            let frame_value = morphs.track_values.get(track_index * frame_index);
 
-                            let next_frame_value = morphs
-                                .track_values
-                                .get(track_index * next_frame_index.min(final_frame_index));
+                            let next_frame_value =
+                                morphs.track_values.get(track_index * next_frame_index);
                             if let Some(value) = frame_value {
                                 *weight = match next_frame_value {
                                     Some(next_value) => {
@@ -270,6 +291,18 @@ impl Animation {
         }
         weights
     }
+}
+
+fn frame_next_frame_factor(frame: f32, frame_count: u32) -> (usize, usize, f32) {
+    let frame_index = frame as usize;
+    let factor = frame.fract();
+    let next_frame_index = frame.ceil() as usize;
+    let final_frame_index = frame_count.saturating_sub(1) as usize;
+    (
+        frame_index.min(final_frame_index),
+        next_frame_index.min(final_frame_index),
+        factor,
+    )
 }
 
 fn anim_tracks(anim: &xc3_lib::bc::anim::Anim) -> Vec<Track> {
@@ -489,6 +522,15 @@ fn names_hashes(
             extra_track_hashes(&inner.extra_track_data),
         ),
     }
+}
+
+fn root_translation(anim: &xc3_lib::bc::anim::Anim) -> Option<Vec<Vec3>> {
+    anim.binding.animation.locomotion.as_ref().map(|l| {
+        l.translation
+            .iter()
+            .map(|v| vec3(v[0], v[1], v[2]))
+            .collect()
+    })
 }
 
 fn track_bone_index(
@@ -785,6 +827,26 @@ mod tests {
             frame_count: 1,
             tracks: Vec::new(),
             morph_tracks: None,
+            root_translation: None,
+        };
+
+        assert!(animation
+            .model_space_transforms(&Skeleton { bones: Vec::new() }, 0.0)
+            .is_empty());
+    }
+
+    #[test]
+    fn model_space_transforms_root_motion_empty() {
+        let animation = Animation {
+            name: String::new(),
+            space_mode: SpaceMode::Local,
+            play_mode: PlayMode::Single,
+            blend_mode: BlendMode::Blend,
+            frames_per_second: 30.0,
+            frame_count: 1,
+            tracks: Vec::new(),
+            morph_tracks: None,
+            root_translation: Some(vec![Vec3::ONE]),
         };
 
         assert!(animation
@@ -830,6 +892,7 @@ mod tests {
                 },
             ],
             morph_tracks: None,
+            root_translation: None,
         };
 
         let skeleton = Skeleton {
@@ -907,6 +970,7 @@ mod tests {
                 },
             ],
             morph_tracks: None,
+            root_translation: None,
         };
 
         let skeleton = Skeleton {
@@ -932,6 +996,84 @@ mod tests {
                 [0.0, 1.0, 0.0, 0.0],
                 [0.0, 0.0, 1.0, 0.0],
                 [1.0, 2.0, 3.0, 1.0],
+            ]),
+            transforms[0]
+        );
+        assert_matrix_relative_eq!(
+            Mat4::from_cols_array_2d(&[
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [10.0, 20.0, 30.0, 1.0],
+            ]),
+            transforms[1]
+        );
+    }
+
+    #[test]
+    fn model_space_transforms_model_root_motion_blend() {
+        // Crate a keyframe with a constant value.
+        let keyframe = |x, y, z, w| {
+            (
+                0.0.into(),
+                Keyframe {
+                    x_coeffs: vec4(0.0, 0.0, 0.0, x),
+                    y_coeffs: vec4(0.0, 0.0, 0.0, y),
+                    z_coeffs: vec4(0.0, 0.0, 0.0, z),
+                    w_coeffs: vec4(0.0, 0.0, 0.0, w),
+                },
+            )
+        };
+
+        // Model space animations update the model space transforms directly.
+        let animation = Animation {
+            name: String::new(),
+            space_mode: SpaceMode::Model,
+            play_mode: PlayMode::Single,
+            blend_mode: BlendMode::Blend,
+            frames_per_second: 30.0,
+            frame_count: 1,
+            tracks: vec![
+                Track {
+                    translation_keyframes: [keyframe(1.0, 2.0, 3.0, 0.0)].into(),
+                    rotation_keyframes: [keyframe(0.0, 0.0, 0.0, 1.0)].into(),
+                    scale_keyframes: [keyframe(1.0, 1.0, 1.0, 0.0)].into(),
+                    bone_index: BoneIndex::Name("a".to_string()),
+                },
+                Track {
+                    translation_keyframes: [keyframe(10.0, 20.0, 30.0, 0.0)].into(),
+                    rotation_keyframes: [keyframe(0.0, 0.0, 0.0, 1.0)].into(),
+                    scale_keyframes: [keyframe(1.0, 1.0, 1.0, 0.0)].into(),
+                    bone_index: BoneIndex::Index(1),
+                },
+            ],
+            morph_tracks: None,
+            root_translation: Some(vec![vec3(0.25, 0.5, 0.75)]),
+        };
+
+        let skeleton = Skeleton {
+            bones: vec![
+                Bone {
+                    name: "a".to_string(),
+                    transform: Mat4::IDENTITY,
+                    parent_index: None,
+                },
+                Bone {
+                    name: "b".to_string(),
+                    transform: Mat4::IDENTITY,
+                    parent_index: Some(0),
+                },
+            ],
+        };
+
+        let transforms = animation.model_space_transforms(&skeleton, 0.0);
+        assert_eq!(2, transforms.len());
+        assert_matrix_relative_eq!(
+            Mat4::from_cols_array_2d(&[
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [1.25, 2.5, 3.75, 1.0],
             ]),
             transforms[0]
         );
@@ -984,6 +1126,7 @@ mod tests {
                 },
             ],
             morph_tracks: None,
+            root_translation: None,
         };
 
         let skeleton = Skeleton {
