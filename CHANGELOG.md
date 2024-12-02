@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## unreleased
 ### Added
 * Added support for loading and previewing root motion translation for animations.
+* Added `merge-databases` command to xc3_shader for creating combined databases.
 
 ### Changed
 * Optimized shader database size.

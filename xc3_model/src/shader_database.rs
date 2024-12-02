@@ -58,6 +58,11 @@ impl ShaderDatabase {
     pub fn from_programs(programs: BTreeMap<ProgramHash, ShaderProgram>) -> Self {
         Self(io::ShaderDatabaseIndexed::from_programs(programs))
     }
+
+    /// Create a new database with combined entries from `other`.
+    pub fn merge(&self, other: &Self) -> Self {
+        Self(self.0.merge(&other.0))
+    }
 }
 
 /// Unique identifier for compiled shader program data.

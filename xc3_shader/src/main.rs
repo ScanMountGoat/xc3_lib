@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand};
 
+use xc3_model::shader_database::ShaderDatabase;
 use xc3_shader::dependencies::latte_dependencies;
 use xc3_shader::extract::{extract_and_decompile_shaders, extract_and_disassemble_shaders};
 use xc3_shader::shader_database::{create_shader_database, create_shader_database_legacy};
@@ -48,6 +49,13 @@ enum Commands {
         input_folder: String,
         /// The output database file.
         output_file: String,
+    },
+    /// Create a combined database of decompiled shader data.
+    MergeDatabases {
+        /// The output database file.
+        output_file: String,
+        /// The input database files.
+        input_files: Vec<String>,
     },
     /// Find all lines of GLSL code influencing the final assignment of a variable.
     GlslDependencies {
@@ -115,6 +123,18 @@ fn main() {
             let (var, channels) = var.split_once('.').unwrap_or((&var, ""));
             let source_out = latte_dependencies(&source, var, channels.chars().next());
             std::fs::write(output, source_out).unwrap();
+        }
+        Commands::MergeDatabases {
+            input_files,
+            output_file,
+        } => {
+            if let Some(merged) = input_files
+                .iter()
+                .map(|path| ShaderDatabase::from_file(path).unwrap())
+                .reduce(|a, b| ShaderDatabase::merge(&a, &b))
+            {
+                merged.save(output_file).unwrap();
+            }
         }
     }
 

@@ -283,6 +283,36 @@ impl ShaderDatabaseIndexed {
         database
     }
 
+    pub fn merge(&self, other: &Self) -> Self {
+        let mut dependency_to_index = IndexMap::new();
+        let mut buffer_dependency_to_index = IndexMap::new();
+
+        let mut merged = Self::default();
+
+        // Reindex all programs.
+        for (hash, program) in &self.programs {
+            let program = self.program_from_indexed(program);
+            let indexed = merged.program_indexed(
+                program,
+                &mut dependency_to_index,
+                &mut buffer_dependency_to_index,
+            );
+            merged.programs.insert(*hash, indexed);
+        }
+
+        for (hash, program) in &other.programs {
+            let program = other.program_from_indexed(program);
+            let indexed = merged.program_indexed(
+                program,
+                &mut dependency_to_index,
+                &mut buffer_dependency_to_index,
+            );
+            merged.programs.insert(*hash, indexed);
+        }
+
+        merged
+    }
+
     fn program_indexed(
         &mut self,
         p: ShaderProgram,
