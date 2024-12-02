@@ -190,6 +190,9 @@ fn extract_shaders<P: AsRef<Path>>(
 ) {
     let output_folder = output_folder.as_ref();
 
+    // Save the binary for creating the database later.
+    spch.save(output_folder.join("shaders.wishp")).unwrap();
+
     spch.slct_offsets
         .par_iter()
         .enumerate()
@@ -213,18 +216,7 @@ fn extract_shaders<P: AsRef<Path>>(
                 // Each NVSD has separate metadata since the shaders are different.
                 let nvsd = &nvsds[nvsd_index];
 
-                // Not all programs have associated names.
-                // Generate the name to avoid any ambiguity.
-                let name = match spch
-                    .string_section
-                    .as_ref()
-                    .and_then(|s| s.program_names.get(slct_index).map(|n| &n.name))
-                {
-                    Some(program_name) => {
-                        format!("slct{slct_index}_nvsd{nvsd_index}_{program_name}")
-                    }
-                    None => format!("slct{slct_index}_nvsd{nvsd_index}"),
-                };
+                let name = nvsd_glsl_name(spch, slct_index, nvsd_index);
 
                 // Metadata doesn't need to be parsed from strings later.
                 // Just use the debug output for now.
@@ -258,6 +250,22 @@ fn extract_shaders<P: AsRef<Path>>(
                 }
             }
         });
+}
+
+pub fn nvsd_glsl_name(spch: &Spch, slct_index: usize, nvsd_index: usize) -> String {
+    // Not all programs have associated names.
+    // Generate the name to avoid any ambiguity.
+    let name = match spch
+        .string_section
+        .as_ref()
+        .and_then(|s| s.program_names.get(slct_index).map(|n| &n.name))
+    {
+        Some(program_name) => {
+            format!("slct{slct_index}_nvsd{nvsd_index}_{program_name}")
+        }
+        None => format!("slct{slct_index}_nvsd{nvsd_index}"),
+    };
+    name
 }
 
 fn process_shader<F>(
@@ -335,6 +343,7 @@ fn extract_legacy_shaders<P: AsRef<Path>>(
 ) {
     let output_folder = output_folder.as_ref();
 
+    // Save the binary for creating the database later.
     std::fs::write(output_folder.join(format!("{index}.cashd")), mths_bytes).unwrap();
 
     if let Ok(vert) = mths.vertex_shader() {

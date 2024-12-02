@@ -1,19 +1,19 @@
-use std::{io::Cursor, path::Path};
+use std::{collections::BTreeMap, io::Cursor, path::Path};
 
 use crate::IndexMapExt;
 use binrw::{binrw, BinRead, BinReaderExt, BinResult, BinWrite, BinWriterExt, NullString};
 use indexmap::IndexMap;
-use smol_str::{SmolStr, ToSmolStr};
+use smol_str::ToSmolStr;
 use varint_rs::{VarintReader, VarintWriter};
 
 use super::{
-    AttributeDependency, BufferDependency, Dependency, LayerBlendMode, MapPrograms, ModelPrograms,
-    OutputDependencies, ShaderProgram, TexCoord, TexCoordParams, TextureDependency, TextureLayer,
+    AttributeDependency, BufferDependency, Dependency, LayerBlendMode, OutputDependencies,
+    ProgramHash, ShaderProgram, TexCoord, TexCoordParams, TextureDependency, TextureLayer,
 };
 
 // Create a separate optimized representation for on disk.
 #[binrw]
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Default)]
 #[brw(magic(b"SHDB"))]
 pub struct ShaderDatabaseIndexed {
     // File version numbers should be updated with each release.
@@ -24,13 +24,13 @@ pub struct ShaderDatabaseIndexed {
     #[bw(calc = 0)]
     _minor_version: u16,
 
+    // Store unique shader programs across all models and maps.
+    // This results in significantly fewer unique entries,
+    // supports moving entries between files,
+    // and allows for combining databases from different games.
     #[br(parse_with = parse_map32)]
     #[bw(write_with = write_map32)]
-    files: IndexMap<SmolStr, ModelIndexed>,
-
-    #[br(parse_with = parse_map32)]
-    #[bw(write_with = write_map32)]
-    map_files: IndexMap<SmolStr, MapIndexed>,
+    programs: BTreeMap<u32, ShaderProgramIndexed>,
 
     #[br(parse_with = parse_count)]
     #[bw(write_with = write_count)]
@@ -246,20 +246,6 @@ struct AttributeDependencyIndexed {
     channel: Channel,
 }
 
-impl Default for ShaderDatabaseIndexed {
-    fn default() -> Self {
-        Self {
-            files: Default::default(),
-            map_files: Default::default(),
-            dependencies: Default::default(),
-            buffer_dependencies: Default::default(),
-            strings: Default::default(),
-            texture_names: Default::default(),
-            outputs: Default::default(),
-        }
-    }
-}
-
 impl ShaderDatabaseIndexed {
     pub fn from_file<P: AsRef<Path>>(path: P) -> BinResult<Self> {
         let mut reader = Cursor::new(std::fs::read(path)?);
@@ -273,42 +259,83 @@ impl ShaderDatabaseIndexed {
         Ok(())
     }
 
-    pub fn model(&self, name: &str) -> Option<ModelPrograms> {
-        self.files.get(name).map(|f| self.model_from_indexed(f))
+    pub fn shader_program(&self, hash: ProgramHash) -> Option<ShaderProgram> {
+        self.programs
+            .get(&hash.0)
+            .map(|p| self.program_from_indexed(p))
     }
 
-    pub fn map(&self, name: &str) -> Option<MapPrograms> {
-        self.map_files.get(name).map(|f| self.map_from_indexed(f))
-    }
-
-    pub fn from_models_maps(
-        models: IndexMap<String, ModelPrograms>,
-        maps: IndexMap<String, MapPrograms>,
-    ) -> Self {
+    pub fn from_programs(programs: BTreeMap<ProgramHash, ShaderProgram>) -> Self {
         let mut dependency_to_index = IndexMap::new();
         let mut buffer_dependency_to_index = IndexMap::new();
 
         let mut database = Self::default();
 
-        for (name, model) in models {
-            let model = database.model_indexed(
-                model,
+        for (hash, p) in programs.into_iter() {
+            let program = database.program_indexed(
+                p,
                 &mut dependency_to_index,
                 &mut buffer_dependency_to_index,
             );
-            database.files.insert(name.into(), model);
-        }
-
-        for (name, map) in maps {
-            let map = database.map_indexed(
-                map,
-                &mut dependency_to_index,
-                &mut buffer_dependency_to_index,
-            );
-            database.map_files.insert(name.into(), map);
+            database.programs.insert(hash.0, program);
         }
 
         database
+    }
+
+    fn program_indexed(
+        &mut self,
+        p: ShaderProgram,
+        dependency_to_index: &mut IndexMap<Dependency, usize>,
+        buffer_dependency_to_index: &mut IndexMap<BufferDependency, usize>,
+    ) -> ShaderProgramIndexed {
+        ShaderProgramIndexed {
+            output_dependencies: p
+                .output_dependencies
+                .into_iter()
+                .map(|(output, dependencies)| {
+                    let output_index = self.add_output(&output);
+                    (
+                        output_index,
+                        OutputDependenciesIndexed {
+                            dependencies: dependencies
+                                .dependencies
+                                .into_iter()
+                                .map(|d| {
+                                    self.add_dependency(
+                                        d,
+                                        dependency_to_index,
+                                        buffer_dependency_to_index,
+                                    )
+                                })
+                                .collect(),
+                            layers: dependencies
+                                .layers
+                                .into_iter()
+                                .map(|l| TextureLayerIndexed {
+                                    value: self.add_dependency(
+                                        l.value,
+                                        dependency_to_index,
+                                        buffer_dependency_to_index,
+                                    ),
+                                    ratio: OptVarInt(l.ratio.map(|r| {
+                                        self.add_dependency(
+                                            r,
+                                            dependency_to_index,
+                                            buffer_dependency_to_index,
+                                        )
+                                        .0
+                                    })),
+                                    blend_mode: l.blend_mode.into(),
+                                    is_fresnel: l.is_fresnel.into(),
+                                })
+                                .collect(),
+                        },
+                    )
+                })
+                .collect(),
+            outline_width: OptVarInt(p.outline_width.map(|d| dependency_to_index.entry_index(d))),
+        }
     }
 
     fn add_dependency(
@@ -372,155 +399,41 @@ impl ShaderDatabaseIndexed {
         add_string(&mut self.texture_names, texture)
     }
 
-    fn model_indexed(
-        &mut self,
-        model: ModelPrograms,
-        dependency_to_index: &mut IndexMap<Dependency, usize>,
-        buffer_dependency_to_index: &mut IndexMap<BufferDependency, usize>,
-    ) -> ModelIndexed {
-        ModelIndexed {
-            programs: model
-                .programs
-                .into_iter()
-                .map(|p| ShaderProgramIndexed {
-                    output_dependencies: p
-                        .output_dependencies
-                        .into_iter()
-                        .map(|(output, dependencies)| {
-                            let output_index = self.add_output(&output);
-                            (
-                                output_index,
-                                OutputDependenciesIndexed {
-                                    dependencies: dependencies
-                                        .dependencies
-                                        .into_iter()
-                                        .map(|d| {
-                                            self.add_dependency(
-                                                d,
-                                                dependency_to_index,
-                                                buffer_dependency_to_index,
-                                            )
-                                        })
-                                        .collect(),
-                                    layers: dependencies
-                                        .layers
-                                        .into_iter()
-                                        .map(|l| TextureLayerIndexed {
-                                            value: self.add_dependency(
-                                                l.value,
-                                                dependency_to_index,
-                                                buffer_dependency_to_index,
-                                            ),
-                                            ratio: OptVarInt(l.ratio.map(|r| {
-                                                self.add_dependency(
-                                                    r,
-                                                    dependency_to_index,
-                                                    buffer_dependency_to_index,
-                                                )
-                                                .0
-                                            })),
-                                            blend_mode: l.blend_mode.into(),
-                                            is_fresnel: l.is_fresnel.into(),
-                                        })
-                                        .collect(),
-                                },
-                            )
-                        })
-                        .collect(),
-                    outline_width: OptVarInt(
-                        p.outline_width.map(|d| dependency_to_index.entry_index(d)),
-                    ),
+    fn program_from_indexed(&self, p: &ShaderProgramIndexed) -> ShaderProgram {
+        ShaderProgram {
+            output_dependencies: p
+                .output_dependencies
+                .iter()
+                .map(|(output, output_dependencies)| {
+                    (
+                        self.outputs[output.0 as usize].to_smolstr(),
+                        OutputDependencies {
+                            dependencies: output_dependencies
+                                .dependencies
+                                .iter()
+                                .map(|d| self.dependency_from_indexed(*d))
+                                .collect(),
+                            layers: output_dependencies
+                                .layers
+                                .iter()
+                                .map(|l| TextureLayer {
+                                    value: self.dependency_from_indexed(l.value),
+                                    ratio: l
+                                        .ratio
+                                        .0
+                                        .map(|i| self.dependency_from_indexed(VarInt(i))),
+                                    blend_mode: l.blend_mode.into(),
+                                    is_fresnel: l.is_fresnel != 0,
+                                })
+                                .collect(),
+                        },
+                    )
                 })
                 .collect(),
-        }
-    }
-
-    fn map_indexed(
-        &mut self,
-        map: MapPrograms,
-        dependency_to_index: &mut IndexMap<Dependency, usize>,
-        buffer_dependency_to_index: &mut IndexMap<BufferDependency, usize>,
-    ) -> MapIndexed {
-        MapIndexed {
-            map_models: map
-                .map_models
-                .into_iter()
-                .map(|m| self.model_indexed(m, dependency_to_index, buffer_dependency_to_index))
-                .collect(),
-            prop_models: map
-                .prop_models
-                .into_iter()
-                .map(|m| self.model_indexed(m, dependency_to_index, buffer_dependency_to_index))
-                .collect(),
-            env_models: map
-                .env_models
-                .into_iter()
-                .map(|m| self.model_indexed(m, dependency_to_index, buffer_dependency_to_index))
-                .collect(),
-        }
-    }
-
-    fn map_from_indexed(&self, map: &MapIndexed) -> MapPrograms {
-        MapPrograms {
-            map_models: map
-                .map_models
-                .iter()
-                .map(|s| self.model_from_indexed(s))
-                .collect(),
-            prop_models: map
-                .prop_models
-                .iter()
-                .map(|s| self.model_from_indexed(s))
-                .collect(),
-            env_models: map
-                .env_models
-                .iter()
-                .map(|s| self.model_from_indexed(s))
-                .collect(),
-        }
-    }
-
-    fn model_from_indexed(&self, model: &ModelIndexed) -> ModelPrograms {
-        ModelPrograms {
-            programs: model
-                .programs
-                .iter()
-                .map(|p| ShaderProgram {
-                    output_dependencies: p
-                        .output_dependencies
-                        .iter()
-                        .map(|(output, output_dependencies)| {
-                            (
-                                self.outputs[output.0 as usize].to_smolstr(),
-                                OutputDependencies {
-                                    dependencies: output_dependencies
-                                        .dependencies
-                                        .iter()
-                                        .map(|d| self.dependency_from_indexed(*d))
-                                        .collect(),
-                                    layers: output_dependencies
-                                        .layers
-                                        .iter()
-                                        .map(|l| TextureLayer {
-                                            value: self.dependency_from_indexed(l.value),
-                                            ratio: l
-                                                .ratio
-                                                .0
-                                                .map(|i| self.dependency_from_indexed(VarInt(i))),
-                                            blend_mode: l.blend_mode.into(),
-                                            is_fresnel: l.is_fresnel != 0,
-                                        })
-                                        .collect(),
-                                },
-                            )
-                        })
-                        .collect(),
-                    outline_width: p
-                        .outline_width
-                        .0
-                        .map(|i| self.dependency_from_indexed(VarInt(i))),
-                })
-                .collect(),
+            outline_width: p
+                .outline_width
+                .0
+                .map(|i| self.dependency_from_indexed(VarInt(i))),
         }
     }
 
@@ -758,29 +671,29 @@ fn parse_map32<T, R>(
     reader: &mut R,
     endian: binrw::Endian,
     _args: (),
-) -> BinResult<IndexMap<SmolStr, T>>
+) -> BinResult<BTreeMap<u32, T>>
 where
     for<'a> T: BinRead<Args<'a> = ()> + 'static,
     R: std::io::Read + std::io::Seek,
 {
     let count = u32::read_options(reader, endian, ())?;
 
-    let mut map = IndexMap::new();
+    let mut map = BTreeMap::new();
     for _ in 0..count {
-        let (key, value) = <(NullString, T)>::read_options(reader, endian, ())?;
-        map.insert(key.to_smolstr(), value);
+        let (key, value) = <(u32, T)>::read_options(reader, endian, ())?;
+        map.insert(key, value);
     }
     Ok(map)
 }
 
 #[binrw::writer(writer, endian)]
-fn write_map32<T>(map: &IndexMap<SmolStr, T>) -> BinResult<()>
+fn write_map32<T>(map: &BTreeMap<u32, T>) -> BinResult<()>
 where
     for<'a> T: BinWrite<Args<'a> = ()> + 'static,
 {
     (u32::try_from(map.len()).unwrap()).write_options(writer, endian, ())?;
     for (k, v) in map.iter() {
-        (NullString::from(k.to_string())).write_options(writer, endian, ())?;
+        k.write_options(writer, endian, ())?;
         v.write_options(writer, endian, ())?;
     }
     Ok(())

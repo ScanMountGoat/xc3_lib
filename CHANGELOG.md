@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 * Optimized shader database size.
+* Changed shader database to store unique shader programs instead of all shaders for a model or map for reduced size and better flexibility.
 
 ## 0.15.0 - 2024-11-27
 ### Added

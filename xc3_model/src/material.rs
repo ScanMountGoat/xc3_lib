@@ -316,6 +316,7 @@ pub(crate) fn create_materials_samplers_legacy(
     (materials, samplers)
 }
 
+// TODO: pass in shader data and database.
 fn get_shader(
     material: &xc3_lib::mxmd::Material,
     model_programs: Option<&ModelPrograms>,

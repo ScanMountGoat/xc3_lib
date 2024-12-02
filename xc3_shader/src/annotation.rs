@@ -22,7 +22,7 @@ const VEC4_SIZE: u32 = 16;
 ///
 /// This is typically stored with the precompiled shader binaries.
 /// The exact binary format will vary depending on the game.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct ShaderMetadata {
     pub uniform_buffers: Vec<Buffer>,
     pub storage_buffers: Vec<Buffer>,

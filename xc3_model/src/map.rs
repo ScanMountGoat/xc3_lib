@@ -64,8 +64,10 @@ pub fn load_map<P: AsRef<Path>>(
     shader_database: Option<&ShaderDatabase>,
 ) -> Result<Vec<MapRoot>, LoadMapError> {
     let model_folder = model_name(wismhd_path.as_ref());
-    let map_programs = shader_database.and_then(|database| database.map(&model_folder));
-
+    // TODO: Load each material program individually?
+    // let map_programs = shader_database.and_then(|database| database.map(&model_folder));
+    let map_programs = None;
+    
     let msmd = Msmd::from_file(wismhd_path.as_ref()).map_err(LoadMapError::Wismhd)?;
     let wismda = std::fs::read(wismhd_path.as_ref().with_extension("wismda"))?;
 

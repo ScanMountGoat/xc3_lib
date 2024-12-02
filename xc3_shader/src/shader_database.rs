@@ -1,4 +1,4 @@
-use std::{path::Path, sync::LazyLock};
+use std::{collections::BTreeMap, path::Path, sync::LazyLock};
 
 use bimap::BiBTreeMap;
 use glsl_lang::{
@@ -12,17 +12,20 @@ use glsl_lang::{
 use indexmap::IndexMap;
 use indoc::indoc;
 use log::error;
-use rayon::prelude::*;
-use xc3_lib::mths::{FragmentShader, Mths};
+use xc3_lib::{
+    mths::{FragmentShader, Mths},
+    spch::{vertex_fragment_binaries, Spch},
+};
 use xc3_model::shader_database::{
-    AttributeDependency, BufferDependency, Dependency, LayerBlendMode, MapPrograms, ModelPrograms,
-    OutputDependencies, ShaderDatabase, ShaderProgram, TextureLayer,
+    AttributeDependency, BufferDependency, Dependency, LayerBlendMode, OutputDependencies,
+    ProgramHash, ShaderDatabase, ShaderProgram, TextureLayer,
 };
 
 use crate::{
     dependencies::{
         attribute_dependencies, buffer_dependency, input_dependencies, texcoord_params,
     },
+    extract::nvsd_glsl_name,
     graph::{
         glsl::shader_source_no_extensions,
         query::{
@@ -875,188 +878,129 @@ fn find_texcoord_input_name_channel(
 }
 
 pub fn create_shader_database(input: &str) -> ShaderDatabase {
-    // Sort to make the output consistent.
-    let mut folders: Vec<_> = std::fs::read_dir(input)
-        .unwrap()
-        .map(|e| e.unwrap().path())
-        .collect();
-    folders.sort();
+    let mut programs = BTreeMap::new();
 
-    let files = folders
-        .par_iter()
-        .filter_map(|folder| {
-            // TODO: Find a better way to detect maps.
-            if !folder.join("map").exists() {
-                let programs = create_shader_programs(folder);
+    // TODO: parallelize parsing?
+    for folder in std::fs::read_dir(input).unwrap().map(|e| e.unwrap().path()) {
+        // TODO: Find a better way to detect maps.
+        if !folder.join("map").exists()
+            && !folder.join("prop").exists()
+            && !folder.join("env").exists()
+        {
+            add_programs(&mut programs, &folder);
+        } else {
+            add_map_programs(&mut programs, &folder.join("map"));
+            add_map_programs(&mut programs, &folder.join("prop"));
+            add_map_programs(&mut programs, &folder.join("env"));
+        }
+    }
 
-                let file = folder.file_name().unwrap().to_string_lossy().to_string();
-                Some((file, ModelPrograms { programs }))
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    let map_files = folders
-        .par_iter()
-        .filter_map(|folder| {
-            // TODO: Find a better way to detect maps.
-            if folder.join("map").exists() {
-                let map_models = create_map_spchs(&folder.join("map"));
-                let prop_models = create_map_spchs(&folder.join("prop"));
-                let env_models = create_map_spchs(&folder.join("env"));
-
-                let file = folder.file_name().unwrap().to_string_lossy().to_string();
-                Some((
-                    file,
-                    MapPrograms {
-                        map_models,
-                        prop_models,
-                        env_models,
-                    },
-                ))
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    ShaderDatabase::from_models_maps(files, map_files)
+    ShaderDatabase::from_programs(programs)
 }
 
 pub fn create_shader_database_legacy(input: &str) -> ShaderDatabase {
-    // Sort to make the output consistent.
-    let mut folders: Vec<_> = std::fs::read_dir(input)
-        .unwrap()
-        .map(|e| e.unwrap().path())
-        .collect();
-    folders.sort();
+    let mut programs = BTreeMap::new();
+    for folder in std::fs::read_dir(input).unwrap().map(|e| e.unwrap().path()) {
+        add_programs_legacy(&mut programs, &folder);
+    }
 
-    // TODO: Should both the inner and outer loops use par_iter?
-    let files = folders
-        .par_iter()
-        .map(|folder| {
-            let programs = create_shader_programs_legacy(folder);
-            let file = folder.file_name().unwrap().to_string_lossy().to_string();
-            (file, ModelPrograms { programs })
-        })
-        .collect();
-
-    ShaderDatabase::from_models_maps(files, Default::default())
+    ShaderDatabase::from_programs(programs)
 }
 
-fn create_map_spchs(folder: &Path) -> Vec<ModelPrograms> {
+fn add_map_programs(programs: &mut BTreeMap<ProgramHash, ShaderProgram>, folder: &Path) {
     // TODO: Not all maps have env or prop models?
     if let Ok(dir) = std::fs::read_dir(folder) {
         // Folders are generated like "ma01a/prop/4".
-        // Sort by index to process files in the right order.
-        let mut paths: Vec<_> = dir.into_iter().map(|e| e.unwrap().path()).collect();
-        paths.sort_by_cached_key(|p| extract_folder_index(p));
-
-        paths
-            .into_iter()
-            .map(|path| ModelPrograms {
-                programs: create_shader_programs(&path),
-            })
-            .collect()
-    } else {
-        Vec::new()
+        for path in dir.into_iter().map(|e| e.unwrap().path()) {
+            add_programs(programs, &path);
+        }
     }
 }
 
-fn create_shader_programs(folder: &Path) -> Vec<ShaderProgram> {
-    // Only check the first shader for now.
-    // TODO: What do additional nvsd shader entries do?
-    let mut paths: Vec<_> = globwalk::GlobWalkerBuilder::from_patterns(folder, &["*nvsd0*.frag"])
-        .build()
-        .unwrap()
-        .filter_map(|e| e.map(|e| e.path().to_owned()).ok())
-        .collect();
+fn add_programs(programs: &mut BTreeMap<ProgramHash, ShaderProgram>, folder: &Path) {
+    if let Ok(spch) = Spch::from_file(folder.join("shaders.wishp")) {
+        for (i, slct_offset) in spch.slct_offsets.iter().enumerate() {
+            let slct = slct_offset.read_slct(&spch.slct_section).unwrap();
+            let nvsds: Vec<_> = slct
+                .programs
+                .iter()
+                .map(|p| p.read_nvsd().unwrap())
+                .collect();
 
-    // Shaders are generated as "slct{program_index}_nvsd{i}_{name}.glsl".
-    // Sort by {program_index} to process files in the right order.
-    paths.sort_by_cached_key(|p| extract_program_index(p));
+            // Only check the first shader for now.
+            // TODO: What do additional nvsd shader entries do?
+            for (nvsd_index, ((vert, frag), p)) in vertex_fragment_binaries(
+                &nvsds,
+                &spch.xv4_section,
+                slct.xv4_offset,
+                &spch.unk_section,
+                slct.unk_item_offset,
+            )
+            .iter()
+            .zip(slct.programs)
+            .enumerate()
+            .take(1)
+            {
+                let hash = ProgramHash::from_spch_program(&p, vert, frag);
 
-    paths
-        .par_iter()
-        .filter_map(|path| {
-            // TODO: Should the vertex shader be mandatory?
-            let vertex_source = std::fs::read_to_string(path.with_extension("vert")).ok();
-            let vertex = vertex_source.and_then(|s| {
-                let source = shader_source_no_extensions(&s);
-                match TranslationUnit::parse(source) {
-                    Ok(vertex) => Some(vertex),
-                    Err(e) => {
-                        error!("Error parsing {path:?}: {e}");
-                        None
-                    }
-                }
-            });
+                // Avoid processing the same program more than once.
+                programs.entry(hash).or_insert_with(|| {
+                    let path = &folder
+                        .join(nvsd_glsl_name(&spch, i, nvsd_index))
+                        .with_extension("frag");
 
-            let frag_source = std::fs::read_to_string(path).unwrap();
-            let frag_source = shader_source_no_extensions(&frag_source);
-            match TranslationUnit::parse(frag_source) {
-                Ok(fragment) => Some(shader_from_glsl(vertex.as_ref(), &fragment)),
-                Err(e) => {
-                    error!("Error parsing {path:?}: {e}");
-                    None
-                }
+                    // TODO: Should the vertex shader be mandatory?
+                    let vertex_source = std::fs::read_to_string(path.with_extension("vert")).ok();
+                    let vertex = vertex_source.and_then(|s| {
+                        let source = shader_source_no_extensions(&s);
+                        match TranslationUnit::parse(source) {
+                            Ok(vertex) => Some(vertex),
+                            Err(e) => {
+                                error!("Error parsing {path:?}: {e}");
+                                None
+                            }
+                        }
+                    });
+
+                    let frag_source = std::fs::read_to_string(path).ok();
+                    frag_source
+                        .map(|s| {
+                            let source = shader_source_no_extensions(&s);
+                            match TranslationUnit::parse(source) {
+                                Ok(fragment) => shader_from_glsl(vertex.as_ref(), &fragment),
+                                Err(e) => {
+                                    error!("Error parsing {path:?}: {e}");
+                                    ShaderProgram::default()
+                                }
+                            }
+                        })
+                        .unwrap_or_default()
+                });
             }
-        })
-        .collect()
+        }
+    }
 }
 
-fn extract_program_index(p: &Path) -> usize {
-    let name = p.file_name().unwrap().to_string_lossy();
-    let start = "slct".len();
-    let end = name.find('_').unwrap();
-    name[start..end].parse::<usize>().unwrap()
-}
-
-fn extract_folder_index(p: &Path) -> usize {
-    let name = p.file_name().unwrap().to_string_lossy();
-    name.parse::<usize>().unwrap()
-}
-
-fn create_shader_programs_legacy(folder: &Path) -> Vec<ShaderProgram> {
+fn add_programs_legacy(programs: &mut BTreeMap<ProgramHash, ShaderProgram>, folder: &Path) {
     // Only check the first shader for now.
     // TODO: What do additional nvsd shader entries do?
-    let mut paths: Vec<_> = globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.frag.txt"])
+    for path in globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.cashd"])
         .build()
         .unwrap()
         .filter_map(|e| e.map(|e| e.path().to_owned()).ok())
-        .collect();
+    {
+        let mths = Mths::from_file(&path).unwrap();
 
-    // Shaders are generated as "{program_index}.frag.txt".
-    // Sort by {program_index} to process files in the right order.
-    paths.sort_by_cached_key(|p| extract_program_index_legacy(p));
-
-    paths
-        .iter()
-        .map(|path| {
-            // f/i.frag.txt -> f/i
-            let path = path.with_extension("").with_extension("");
-
-            let mths = Mths::from_file(path.with_extension("cashd")).unwrap();
-
+        let hash = ProgramHash::from_mths(&mths);
+        // Avoid processing the same program more than once.
+        programs.entry(hash).or_insert_with(|| {
             // TODO: Should both shaders be mandatory?
             let vertex_source = std::fs::read_to_string(path.with_extension("vert.txt")).unwrap();
             let frag_source = std::fs::read_to_string(path.with_extension("frag.txt")).unwrap();
             let fragment_shader = mths.fragment_shader().unwrap();
             shader_from_latte_asm(&vertex_source, &frag_source, &fragment_shader)
-        })
-        .collect()
-}
-
-fn extract_program_index_legacy(p: &Path) -> usize {
-    p.file_name()
-        .unwrap()
-        .to_string_lossy()
-        .split_once('.')
-        .unwrap()
-        .0
-        .parse::<usize>()
-        .unwrap()
+        });
+    }
 }
 
 // TODO: module for this?
@@ -1142,20 +1086,6 @@ mod tests {
         AttributeDependency, BufferDependency, LayerBlendMode, TexCoord, TexCoordParams,
         TextureDependency,
     };
-
-    #[test]
-    fn extract_program_index_multiple_digits() {
-        assert_eq!(
-            89,
-            extract_program_index(Path::new(
-                "xc3_shader_dump/ch01027000/slct89_nvsd0_shd0089.frag"
-            ))
-        );
-        assert_eq!(
-            89,
-            extract_program_index(Path::new("xc3_shader_dump/ch01027000/slct89_nvsd1.frag"))
-        );
-    }
 
     #[test]
     fn find_attribute_locations_outputs() {

@@ -9,7 +9,7 @@
 //! Applications can parse the data with [ShaderDatabase::from_file]
 //! to avoid needing to generate this data at runtime.
 
-use std::path::Path;
+use std::{collections::BTreeMap, path::Path};
 
 use indexmap::IndexMap;
 use ordered_float::OrderedFloat;
@@ -49,22 +49,49 @@ impl ShaderDatabase {
         Ok(())
     }
 
-    /// The shader information for the `.wimdo` file name without the extension.
-    pub fn model(&self, name: &str) -> Option<ModelPrograms> {
-        self.0.model(name)
-    }
-
-    /// The shader information for the `.wismhd` file name without the extension.
-    pub fn map(&self, name: &str) -> Option<MapPrograms> {
-        self.0.map(name)
+    /// The shader information for the specified shader program.
+    pub fn shader_program(&self, hash: ProgramHash) -> Option<ShaderProgram> {
+        self.0.shader_program(hash)
     }
 
     /// Create the internal database representation from non indexed data.
-    pub fn from_models_maps(
-        models: IndexMap<String, ModelPrograms>,
-        maps: IndexMap<String, MapPrograms>,
+    pub fn from_programs(programs: BTreeMap<ProgramHash, ShaderProgram>) -> Self {
+        Self(io::ShaderDatabaseIndexed::from_programs(programs))
+    }
+}
+
+/// Unique identifier for compiled shader program data.
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
+pub struct ProgramHash(u32);
+
+impl ProgramHash {
+    /// Hash a legacy shader program.
+    pub fn from_mths(mths: &xc3_lib::mths::Mths) -> Self {
+        let mut hasher = crc32fast::Hasher::new();
+        // TODO: Update metadata separately instead of entire buffer?
+        hasher.update(&mths.data);
+        Self(hasher.finalize())
+    }
+
+    /// Hash a shader program.
+    pub fn from_spch_program(
+        program: &xc3_lib::spch::ShaderProgram,
+        vertex: &Option<xc3_lib::spch::ShaderBinary>,
+        fragment: &Option<xc3_lib::spch::ShaderBinary>,
     ) -> Self {
-        Self(io::ShaderDatabaseIndexed::from_models_maps(models, maps))
+        // Hash both code and metadata since programs with the same code
+        // can have slightly different uniforms, buffers, etc.
+        let mut hasher = crc32fast::Hasher::new();
+        hasher.update(&program.program_data);
+
+        if let Some(fragment) = fragment {
+            hasher.update(&fragment.program_binary);
+        }
+        if let Some(vertex) = vertex {
+            hasher.update(&vertex.program_binary);
+        }
+
+        Self(hasher.finalize())
     }
 }
 
@@ -86,7 +113,7 @@ pub struct ModelPrograms {
 
 // TODO: Document how to try sampler, constant, parameter in order.
 /// A single shader program with a vertex and fragment shader.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Default)]
 pub struct ShaderProgram {
     /// The input values used to initialize each fragment output.
     ///

@@ -512,7 +512,9 @@ pub fn load_model<P: AsRef<Path>>(
     let streaming_data = StreamingData::new(&mxmd, &wismt_path, is_pc, chr_tex_folder.as_deref())?;
 
     let model_name = model_name(wimdo_path);
-    let model_programs = shader_database.and_then(|database| database.model(&model_name));
+    // TODO: Load each material program individually?
+    // let model_programs = shader_database.and_then(|database| database.model(&model_name));
+    let model_programs = None;
 
     let chr = load_chr(wimdo_path, model_name);
 
@@ -576,7 +578,9 @@ pub fn load_model_legacy<P: AsRef<Path>>(
         .with_extension("hkt");
     let hkt = Hkt::from_file(hkt_path).ok();
 
-    let model_programs = shader_database.and_then(|database| database.model(&model_name));
+    // TODO: Load each material program individually?
+    // let model_programs = shader_database.and_then(|database| database.model(&model_name));
+    let model_programs = None;
 
     ModelRoot::from_mxmd_model_legacy(&mxmd, casmt, hkt.as_ref(), model_programs.as_ref())
 }

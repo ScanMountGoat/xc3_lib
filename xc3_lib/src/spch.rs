@@ -10,9 +10,9 @@ use std::io::{Cursor, Read, Seek, SeekFrom};
 
 use crate::{
     get_bytes, parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_string_ptr32,
-    StringOffset32,
+    xc3_write_binwrite_impl, StringOffset32,
 };
-use binrw::{args, binread, BinRead, BinReaderExt, BinResult};
+use binrw::{args, binread, BinRead, BinReaderExt, BinResult, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 // TODO: Add example code for extracting shaders.
@@ -137,7 +137,7 @@ pub struct Slct {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead)]
 pub struct UnkString {
     pub unk1: u32,
     pub unk2: u32,
@@ -146,7 +146,7 @@ pub struct UnkString {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead)]
 pub struct ShaderProgram {
     /// Raw data for [Nvsd] for Switch files and [Nvsp] for PC files.
     #[br(parse_with = parse_offset32_count32)]
@@ -259,7 +259,7 @@ pub struct UnkItem {
 
 // TODO: Does anything actually point to the nvsd magic?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead)]
 pub struct NvsdShaders {
     pub unk6: u32, // 1
     /// The size of the vertex shader pointed to by the [Slct].
@@ -274,7 +274,7 @@ pub struct NvsdShaders {
 
 // TODO: CBuffer?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead)]
 pub struct UniformBuffer {
     #[br(parse_with = parse_string_ptr32)]
     pub name: String,
@@ -288,23 +288,24 @@ pub struct UniformBuffer {
 
 // TODO: is this used for all handle fields?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
 pub struct Handle {
     pub handle: u8,
     pub visibility: Visibility,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(BinRead, Debug)]
-#[br(repr(u8))]
+#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
+#[brw(repr(u8))]
 pub enum Visibility {
     // TODO: this doesn't work for storage buffers?
+    Vertex = 0,
     Fragment = 1,
     VertexFragment = 2,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead)]
 pub struct Sampler {
     #[br(parse_with = parse_string_ptr32)]
     pub name: String,
@@ -316,7 +317,7 @@ pub struct Sampler {
 
 /// A `vec4` parameter in a [UniformBuffer].
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(BinRead, Debug, PartialEq, Clone)]
+#[derive(Debug, BinRead, PartialEq, Clone)]
 pub struct Uniform {
     /// The name used to refer to the uniform like `gMatCol`.
     #[br(parse_with = parse_string_ptr32)]
@@ -328,7 +329,7 @@ pub struct Uniform {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(BinRead, Debug)]
+#[derive(Debug, BinRead)]
 pub struct InputAttribute {
     #[br(parse_with = parse_string_ptr32)]
     pub name: String,
@@ -461,6 +462,7 @@ pub struct ShaderBinary {
     pub constant_buffer: Option<[[f32; 4]; 16]>,
 }
 
+// TODO: make this a method of spch?
 /// Extract the vertex and fragment binary for each of the [Nvsd] in `nvsds`.
 pub fn vertex_fragment_binaries(
     nvsds: &[Nvsd],
@@ -537,3 +539,5 @@ impl<'a> Xc3WriteOffsets for SpchOffsets<'a> {
         Ok(())
     }
 }
+
+xc3_write_binwrite_impl!(Handle);
