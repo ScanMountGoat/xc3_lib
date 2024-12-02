@@ -221,7 +221,7 @@ impl Animation {
 
             if let Some(root) = animated_transforms.first_mut() {
                 match root {
-                    Some(transform) => *transform *= Mat4::from_translation(translation),
+                    Some(transform) => *transform = Mat4::from_translation(translation) * *transform,
                     None => *root = Some(Mat4::from_translation(translation)),
                 }
             }
