@@ -462,7 +462,64 @@ pub struct ShaderBinary {
     pub constant_buffer: Option<[[f32; 4]; 16]>,
 }
 
-// TODO: make this a method of spch?
+impl Spch {
+    /// Extract the [Nvsd], vertex binary, and fragment binary for each of the programs in `slct`.
+    pub fn nvsd_vertex_fragment_binaries(
+        &self,
+        slct: &Slct,
+    ) -> Vec<(Nvsd, Option<ShaderBinary>, Option<ShaderBinary>)> {
+        let nvsds: Vec<_> = slct
+            .programs
+            .iter()
+            .map(|p| p.read_nvsd().unwrap())
+            .collect();
+
+        let binaries = vertex_fragment_binaries(
+            &nvsds,
+            &self.xv4_section,
+            slct.xv4_offset,
+            &self.unk_section,
+            slct.unk_item_offset,
+        );
+
+        nvsds
+            .into_iter()
+            .zip(binaries)
+            .map(|(n, (v, f))| (n, v, f))
+            .collect()
+    }
+
+    /// Extract the [ShaderProgram], vertex binary, and fragment binary for each of the programs in `slct`.
+    pub fn program_data_vertex_fragment_binaries<'a>(
+        &self,
+        slct: &'a Slct,
+    ) -> Vec<(
+        &'a ShaderProgram,
+        Option<ShaderBinary>,
+        Option<ShaderBinary>,
+    )> {
+        let nvsds: Vec<_> = slct
+            .programs
+            .iter()
+            .map(|p| p.read_nvsd().unwrap())
+            .collect();
+
+        let binaries = vertex_fragment_binaries(
+            &nvsds,
+            &self.xv4_section,
+            slct.xv4_offset,
+            &self.unk_section,
+            slct.unk_item_offset,
+        );
+
+        slct.programs
+            .iter()
+            .zip(binaries)
+            .map(|(p, (v, f))| (p, v, f))
+            .collect()
+    }
+}
+
 /// Extract the vertex and fragment binary for each of the [Nvsd] in `nvsds`.
 pub fn vertex_fragment_binaries(
     nvsds: &[Nvsd],

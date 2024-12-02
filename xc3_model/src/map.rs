@@ -15,8 +15,8 @@ use xc3_lib::{
 };
 
 use crate::{
-    create_materials, create_samplers, lod_data, model_name,
-    shader_database::{MapPrograms, ShaderDatabase},
+    create_materials, create_samplers, lod_data,
+    shader_database::ShaderDatabase,
     skinning::create_skinning,
     texture::{self, CreateImageTextureError, ImageTexture},
     IndexMapExt, MapRoot, Material, Model, ModelBuffers, ModelGroup, Models, Texture,
@@ -63,22 +63,17 @@ pub fn load_map<P: AsRef<Path>>(
     wismhd_path: P,
     shader_database: Option<&ShaderDatabase>,
 ) -> Result<Vec<MapRoot>, LoadMapError> {
-    let model_folder = model_name(wismhd_path.as_ref());
-    // TODO: Load each material program individually?
-    // let map_programs = shader_database.and_then(|database| database.map(&model_folder));
-    let map_programs = None;
-    
     let msmd = Msmd::from_file(wismhd_path.as_ref()).map_err(LoadMapError::Wismhd)?;
     let wismda = std::fs::read(wismhd_path.as_ref().with_extension("wismda"))?;
 
-    MapRoot::from_msmd(&msmd, &wismda, map_programs.as_ref())
+    MapRoot::from_msmd(&msmd, &wismda, shader_database)
 }
 
 impl MapRoot {
     pub fn from_msmd(
         msmd: &Msmd,
         wismda: &[u8],
-        map_programs: Option<&MapPrograms>,
+        shader_database: Option<&ShaderDatabase>,
     ) -> Result<Vec<Self>, LoadMapError> {
         // Loading is CPU intensive due to decompression and decoding.
         // The .wismda is loaded into memory as &[u8].
@@ -90,8 +85,8 @@ impl MapRoot {
         // TODO: Better way to combine models?
         let mut roots = Vec::new();
 
-        for (i, model) in msmd.env_models.iter().enumerate() {
-            let root = load_env_model(wismda, compressed, model, i, map_programs)?;
+        for model in &msmd.env_models {
+            let root = load_env_model(wismda, compressed, model, shader_database)?;
             roots.push(root);
         }
 
@@ -104,11 +99,21 @@ impl MapRoot {
         // TODO: Is there enough reuse for it to be worth caching these?
         let mut texture_cache = TextureCache::new(msmd, wismda, compressed)?;
 
-        let map_model_group =
-            map_models_group(msmd, wismda, compressed, &mut texture_cache, map_programs)?;
+        let map_model_group = map_models_group(
+            msmd,
+            wismda,
+            compressed,
+            &mut texture_cache,
+            shader_database,
+        )?;
 
-        let prop_model_group =
-            props_group(msmd, wismda, compressed, &mut texture_cache, map_programs)?;
+        let prop_model_group = props_group(
+            msmd,
+            wismda,
+            compressed,
+            &mut texture_cache,
+            shader_database,
+        )?;
 
         roots.push(MapRoot {
             groups: vec![map_model_group, prop_model_group],
@@ -216,7 +221,7 @@ fn map_models_group(
     wismda: &[u8],
     compressed: bool,
     texture_cache: &mut TextureCache,
-    map_programs: Option<&MapPrograms>,
+    shader_database: Option<&ShaderDatabase>,
 ) -> Result<ModelGroup, LoadMapError> {
     let buffers = create_buffers(&msmd.map_vertex_data, wismda, compressed)?;
 
@@ -228,7 +233,7 @@ fn map_models_group(
         .collect::<Result<Vec<_>, _>>()?;
 
     let mut models = Vec::new();
-    models.extend(map_model_data.iter().enumerate().map(|(i, model_data)| {
+    models.extend(map_model_data.iter().map(|model_data| {
         // Remove one layer of indirection from texture lookups.
         let material_root_texture_indices: Vec<_> = model_data
             .textures
@@ -236,7 +241,12 @@ fn map_models_group(
             .map(|t| texture_cache.insert(t))
             .collect();
 
-        load_map_model_group(model_data, i, &material_root_texture_indices, map_programs)
+        load_map_model_group(
+            model_data,
+            &material_root_texture_indices,
+            &model_data.spch,
+            shader_database,
+        )
     }));
 
     Ok(ModelGroup { models, buffers })
@@ -247,7 +257,7 @@ fn props_group(
     wismda: &[u8],
     compressed: bool,
     texture_cache: &mut TextureCache,
-    map_programs: Option<&MapPrograms>,
+    shader_database: Option<&ShaderDatabase>,
 ) -> Result<ModelGroup, LoadMapError> {
     let buffers = create_buffers(&msmd.prop_vertex_data, wismda, compressed)?;
 
@@ -266,8 +276,7 @@ fn props_group(
 
     let models = prop_model_data
         .iter()
-        .enumerate()
-        .map(|(i, model_data)| {
+        .map(|model_data| {
             // Remove one layer of indirection from texture lookups.
             let material_root_texture_indices: Vec<_> = model_data
                 .textures
@@ -277,11 +286,10 @@ fn props_group(
 
             load_prop_model_group(
                 model_data,
-                i,
                 msmd.parts.as_ref(),
                 &prop_positions,
                 &material_root_texture_indices,
-                map_programs,
+                shader_database,
             )
         })
         .collect();
@@ -308,14 +316,11 @@ fn create_buffers(
 
 fn load_prop_model_group(
     model_data: &xc3_lib::map::PropModelData,
-    model_index: usize,
     parts: Option<&MapParts>,
     prop_positions: &[PropPositions],
     material_root_texture_indices: &[usize],
-    map_programs: Option<&MapPrograms>,
+    shader_database: Option<&ShaderDatabase>,
 ) -> Models {
-    let model_programs = map_programs.and_then(|map| map.prop_models.get(model_index));
-
     // Calculate instances separately from models.
     // This allows us to avoid loading unused models later.
     let mut model_instances = vec![Vec::new(); model_data.models.models.len()];
@@ -356,7 +361,12 @@ fn load_prop_model_group(
     // TODO: Group by vertex data index?
     // TODO: empty groups?
 
-    let mut materials = create_materials(&model_data.materials, None, model_programs);
+    let mut materials = create_materials(
+        &model_data.materials,
+        None,
+        &model_data.spch,
+        shader_database,
+    );
     apply_material_texture_indices(&mut materials, material_root_texture_indices);
 
     let samplers = create_samplers(&model_data.materials);
@@ -502,13 +512,11 @@ fn add_animated_part_instances(
 
 fn load_map_model_group(
     model_data: &xc3_lib::map::MapModelData,
-    model_index: usize,
     material_root_texture_indices: &[usize],
-    map_programs: Option<&MapPrograms>,
+    spch: &xc3_lib::spch::Spch,
+    shader_database: Option<&ShaderDatabase>,
 ) -> Models {
-    let model_programs = map_programs.and_then(|map| map.map_models.get(model_index));
-
-    let mut materials = create_materials(&model_data.materials, None, model_programs);
+    let mut materials = create_materials(&model_data.materials, None, spch, shader_database);
     apply_material_texture_indices(&mut materials, material_root_texture_indices);
 
     let samplers = create_samplers(&model_data.materials);
@@ -556,8 +564,7 @@ fn load_env_model(
     wismda: &[u8],
     compressed: bool,
     model: &xc3_lib::msmd::EnvModel,
-    model_index: usize,
-    map_programs: Option<&MapPrograms>,
+    shader_database: Option<&ShaderDatabase>,
 ) -> Result<MapRoot, LoadMapError> {
     let mut wismda = Cursor::new(&wismda);
 
@@ -571,8 +578,6 @@ fn load_env_model(
         .map(ImageTexture::from_packed_texture)
         .collect::<Result<Vec<_>, _>>()?;
 
-    let model_programs = map_programs.and_then(|map| map.env_models.get(model_index));
-
     let buffers = ModelBuffers::from_vertex_data(&model_data.vertex_data, None)?;
 
     Ok(MapRoot {
@@ -581,7 +586,8 @@ fn load_env_model(
                 &model_data.models,
                 &model_data.materials,
                 None,
-                model_programs,
+                &model_data.spch,
+                shader_database,
             )],
             buffers: vec![buffers],
         }],

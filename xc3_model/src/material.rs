@@ -10,8 +10,8 @@ pub use xc3_lib::mxmd::{
 
 use crate::{
     shader_database::{
-        BufferDependency, Dependency, LayerBlendMode, ModelPrograms, ShaderProgram, TexCoordParams,
-        TextureDependency, TextureLayer,
+        BufferDependency, Dependency, LayerBlendMode, ProgramHash, ShaderDatabase, ShaderProgram,
+        TexCoordParams, TextureDependency, TextureLayer,
     },
     ImageTexture, Sampler,
 };
@@ -108,14 +108,15 @@ pub struct Texture {
 pub(crate) fn create_materials(
     materials: &xc3_lib::mxmd::Materials,
     texture_indices: Option<&[u16]>,
-    model_programs: Option<&ModelPrograms>,
+    spch: &xc3_lib::spch::Spch,
+    shader_database: Option<&ShaderDatabase>,
 ) -> Vec<Material> {
     materials
         .materials
         .iter()
         .enumerate()
         .map(|(i, material)| {
-            let shader = get_shader(material, model_programs);
+            let shader = get_shader(material, spch, shader_database);
 
             let textures = material
                 .textures
@@ -216,7 +217,8 @@ pub(crate) fn create_materials(
 pub(crate) fn create_materials_samplers_legacy(
     materials: &xc3_lib::mxmd::legacy::Materials,
     texture_indices: &[u16],
-    model_programs: Option<&ModelPrograms>,
+    shaders: &xc3_lib::mxmd::legacy::Shaders,
+    shader_database: Option<&ShaderDatabase>,
 ) -> (Vec<Material>, Vec<Sampler>) {
     let mut samplers = Vec::new();
 
@@ -274,7 +276,7 @@ pub(crate) fn create_materials_samplers_legacy(
                     .collect(),
                 alpha_test,
                 alpha_test_ref: [0; 4],
-                shader: get_shader_legacy(m, model_programs),
+                shader: get_shader_legacy(m, shaders, shader_database),
                 technique_index: m
                     .techniques
                     .last()
@@ -319,19 +321,35 @@ pub(crate) fn create_materials_samplers_legacy(
 // TODO: pass in shader data and database.
 fn get_shader(
     material: &xc3_lib::mxmd::Material,
-    model_programs: Option<&ModelPrograms>,
+    spch: &xc3_lib::spch::Spch,
+    shader_database: Option<&ShaderDatabase>,
 ) -> Option<ShaderProgram> {
     let program_index = material.techniques.first()?.technique_index as usize;
-    model_programs?.programs.get(program_index).cloned()
+
+    let slct = spch
+        .slct_offsets
+        .get(program_index)?
+        .read_slct(&spch.slct_section)
+        .ok()?;
+    let binaries = spch.program_data_vertex_fragment_binaries(&slct);
+
+    let (p, v, f) = binaries.first()?;
+    let hash = ProgramHash::from_spch_program(p, v, f);
+
+    shader_database?.shader_program(hash)
 }
 
 fn get_shader_legacy(
     material: &xc3_lib::mxmd::legacy::Material,
-    model_programs: Option<&ModelPrograms>,
+    shaders: &xc3_lib::mxmd::legacy::Shaders,
+    shader_database: Option<&ShaderDatabase>,
 ) -> Option<ShaderProgram> {
     // TODO: Some alpha materials have two techniques?
     let program_index = material.techniques.last()?.technique_index as usize;
-    let program = model_programs?.programs.get(program_index)?;
+    let shader = shaders.shaders.get(program_index)?;
+    let mths = xc3_lib::mths::Mths::from_bytes(&shader.mths_data).ok()?;
+    let hash = ProgramHash::from_mths(&mths);
+    let program = shader_database?.shader_program(hash)?;
 
     // The texture outputs are different in Xenoblade X compared to Switch.
     // We handle this here to avoid needing to regenerate the database for updates.

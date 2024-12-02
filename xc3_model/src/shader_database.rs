@@ -95,23 +95,6 @@ impl ProgramHash {
     }
 }
 
-/// Shaders for the different map model types.
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, PartialEq, Clone)]
-pub struct MapPrograms {
-    pub map_models: Vec<ModelPrograms>,
-    pub prop_models: Vec<ModelPrograms>,
-    pub env_models: Vec<ModelPrograms>,
-}
-
-/// The decompiled shader data for a single shader container file.
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, PartialEq, Clone)]
-pub struct ModelPrograms {
-    pub programs: Vec<ShaderProgram>,
-}
-
-// TODO: Document how to try sampler, constant, parameter in order.
 /// A single shader program with a vertex and fragment shader.
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct ShaderProgram {

@@ -14,7 +14,7 @@ use indoc::indoc;
 use log::error;
 use xc3_lib::{
     mths::{FragmentShader, Mths},
-    spch::{vertex_fragment_binaries, Spch},
+    spch::Spch,
 };
 use xc3_model::shader_database::{
     AttributeDependency, BufferDependency, Dependency, LayerBlendMode, OutputDependencies,
@@ -921,32 +921,17 @@ fn add_programs(programs: &mut BTreeMap<ProgramHash, ShaderProgram>, folder: &Pa
     if let Ok(spch) = Spch::from_file(folder.join("shaders.wishp")) {
         for (i, slct_offset) in spch.slct_offsets.iter().enumerate() {
             let slct = slct_offset.read_slct(&spch.slct_section).unwrap();
-            let nvsds: Vec<_> = slct
-                .programs
-                .iter()
-                .map(|p| p.read_nvsd().unwrap())
-                .collect();
 
             // Only check the first shader for now.
             // TODO: What do additional nvsd shader entries do?
-            for (nvsd_index, ((vert, frag), p)) in vertex_fragment_binaries(
-                &nvsds,
-                &spch.xv4_section,
-                slct.xv4_offset,
-                &spch.unk_section,
-                slct.unk_item_offset,
-            )
-            .iter()
-            .zip(slct.programs)
-            .enumerate()
-            .take(1)
+            if let Some((p, vert, frag)) = spch.program_data_vertex_fragment_binaries(&slct).first()
             {
-                let hash = ProgramHash::from_spch_program(&p, vert, frag);
+                let hash = ProgramHash::from_spch_program(p, vert, frag);
 
                 // Avoid processing the same program more than once.
                 programs.entry(hash).or_insert_with(|| {
                     let path = &folder
-                        .join(nvsd_glsl_name(&spch, i, nvsd_index))
+                        .join(nvsd_glsl_name(&spch, i, 0))
                         .with_extension("frag");
 
                     // TODO: Should the vertex shader be mandatory?

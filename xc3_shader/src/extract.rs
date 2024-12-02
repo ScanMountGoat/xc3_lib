@@ -12,7 +12,7 @@ use xc3_lib::{
     msrd::Msrd,
     mths::Mths,
     mxmd::{legacy::MxmdLegacy, Mxmd},
-    spch::{vertex_fragment_binaries, Nvsd, ShaderBinary, Spch},
+    spch::{Nvsd, ShaderBinary, Spch},
 };
 
 pub fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Option<&str>) {
@@ -198,24 +198,11 @@ fn extract_shaders<P: AsRef<Path>>(
         .enumerate()
         .for_each(|(slct_index, slct_offset)| {
             let slct = slct_offset.read_slct(&spch.slct_section).unwrap();
-            let nvsds: Vec<_> = slct
-                .programs
-                .iter()
-                .map(|p| p.read_nvsd().unwrap())
-                .collect();
 
-            let binaries = vertex_fragment_binaries(
-                &nvsds,
-                &spch.xv4_section,
-                slct.xv4_offset,
-                &spch.unk_section,
-                slct.unk_item_offset,
-            );
+            let binaries = spch.nvsd_vertex_fragment_binaries(&slct);
 
-            for (nvsd_index, (vertex, fragment)) in binaries.into_iter().enumerate() {
+            for (nvsd_index, (nvsd, vertex, fragment)) in binaries.into_iter().enumerate() {
                 // Each NVSD has separate metadata since the shaders are different.
-                let nvsd = &nvsds[nvsd_index];
-
                 let name = nvsd_glsl_name(spch, slct_index, nvsd_index);
 
                 // Metadata doesn't need to be parsed from strings later.
@@ -231,7 +218,7 @@ fn extract_shaders<P: AsRef<Path>>(
                         output_folder.join(format!("{name}.vert")),
                         vertex,
                         ryujinx_shader_tools,
-                        nvsd,
+                        &nvsd,
                         save_binaries,
                         annotate_vertex,
                     );
@@ -243,7 +230,7 @@ fn extract_shaders<P: AsRef<Path>>(
                         output_folder.join(format!("{name}.frag")),
                         fragment,
                         ryujinx_shader_tools,
-                        nvsd,
+                        &nvsd,
                         save_binaries,
                         annotate_fragment,
                     );
