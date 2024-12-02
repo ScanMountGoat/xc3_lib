@@ -39,7 +39,7 @@ pub fn add_animations(
 
         // Calculate transforms to handle animation spaces and blending.
         // TODO: Is there a more efficient way to calculate this?
-        let transforms: Vec<_> = (0..animation.frame_count)
+        let frame_bone_transforms: Vec<_> = (0..animation.frame_count)
             .map(|i| animation.local_space_transforms(skeleton, i as f32))
             .collect();
 
@@ -53,7 +53,7 @@ pub fn add_animations(
                 crate::animation::BoneIndex::Hash(hash) => skeleton
                     .bones
                     .iter()
-                    .position(|b| murmur3(&b.name.as_bytes()) == *hash),
+                    .position(|b| murmur3(b.name.as_bytes()) == *hash),
                 crate::animation::BoneIndex::Name(name) => {
                     skeleton.bones.iter().position(|b| &b.name == name)
                 }
@@ -65,8 +65,8 @@ pub fn add_animations(
             let mut rotations = Vec::new();
             let mut scales = Vec::new();
 
-            for frame in 0..animation.frame_count as usize {
-                let (s, r, t) = transforms[frame][bone].to_scale_rotation_translation();
+            for bone_transforms in &frame_bone_transforms {
+                let (s, r, t) = bone_transforms[bone].to_scale_rotation_translation();
                 translations.push(t);
                 rotations.push(r);
                 scales.push(s);

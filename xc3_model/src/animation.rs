@@ -211,7 +211,7 @@ impl Animation {
         anim_model_space
     }
 
-    fn apply_root_motion(&self, animated_transforms: &mut Vec<Option<Mat4>>, frame: f32) {
+    fn apply_root_motion(&self, animated_transforms: &mut [Option<Mat4>], frame: f32) {
         if let Some(translations) = &self.root_translation {
             let (current, next, factor) = frame_next_frame_factor(frame, self.frame_count);
             let current_translation = translations.get(current).copied().unwrap_or(Vec3::ZERO);
@@ -221,7 +221,9 @@ impl Animation {
 
             if let Some(root) = animated_transforms.first_mut() {
                 match root {
-                    Some(transform) => *transform = Mat4::from_translation(translation) * *transform,
+                    Some(transform) => {
+                        *transform = Mat4::from_translation(translation) * *transform
+                    }
                     None => *root = Some(Mat4::from_translation(translation)),
                 }
             }

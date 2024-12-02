@@ -406,7 +406,7 @@ impl ShaderDatabaseIndexed {
                 .iter()
                 .map(|(output, output_dependencies)| {
                     (
-                        self.outputs[output.0 as usize].to_smolstr(),
+                        self.outputs[output.0].to_smolstr(),
                         OutputDependencies {
                             dependencies: output_dependencies
                                 .dependencies
@@ -438,33 +438,33 @@ impl ShaderDatabaseIndexed {
     }
 
     fn dependency_from_indexed(&self, d: VarInt) -> Dependency {
-        match self.dependencies[d.0 as usize].clone() {
+        match self.dependencies[d.0].clone() {
             DependencyIndexed::Constant(f) => Dependency::Constant(f.into()),
             DependencyIndexed::Buffer(b) => Dependency::Buffer(buffer_dependency(
-                self.buffer_dependencies[b.0 as usize].clone(),
+                self.buffer_dependencies[b.0].clone(),
                 &self.strings,
             )),
             DependencyIndexed::Texture(t) => Dependency::Texture(TextureDependency {
-                name: self.texture_names[t.name.0 as usize].to_smolstr(),
+                name: self.texture_names[t.name.0].to_smolstr(),
                 channel: t.channel.into(),
                 texcoords: t
                     .texcoords
                     .into_iter()
                     .map(|coord| TexCoord {
-                        name: self.strings[coord.name.0 as usize].to_smolstr(),
+                        name: self.strings[coord.name.0].to_smolstr(),
                         channel: coord.channel.into(),
                         params: match coord.params {
                             TexCoordParamsIndexed::None => None,
                             TexCoordParamsIndexed::Scale(s) => {
                                 Some(TexCoordParams::Scale(buffer_dependency(
-                                    self.buffer_dependencies[s.0 as usize].clone(),
+                                    self.buffer_dependencies[s.0].clone(),
                                     &self.strings,
                                 )))
                             }
                             TexCoordParamsIndexed::Matrix(m) => {
                                 Some(TexCoordParams::Matrix(m.map(|s| {
                                     buffer_dependency(
-                                        self.buffer_dependencies[s.0 as usize].clone(),
+                                        self.buffer_dependencies[s.0].clone(),
                                         &self.strings,
                                     )
                                 })))
@@ -477,7 +477,7 @@ impl ShaderDatabaseIndexed {
                                 mask_a: self.dependency_from_indexed(mask_a),
                                 mask_b: self.dependency_from_indexed(mask_b),
                                 ratio: buffer_dependency(
-                                    self.buffer_dependencies[ratio.0 as usize].clone(),
+                                    self.buffer_dependencies[ratio.0].clone(),
                                     &self.strings,
                                 ),
                             }),
@@ -486,7 +486,7 @@ impl ShaderDatabaseIndexed {
                     .collect(),
             }),
             DependencyIndexed::Attribute(a) => Dependency::Attribute(AttributeDependency {
-                name: self.strings[a.name.0 as usize].to_smolstr(),
+                name: self.strings[a.name.0].to_smolstr(),
                 channel: a.channel.into(),
             }),
         }
@@ -578,8 +578,8 @@ fn add_string(strings: &mut Vec<NullString>, str: &str) -> VarInt {
 
 fn buffer_dependency(b: BufferDependencyIndexed, strings: &[NullString]) -> BufferDependency {
     BufferDependency {
-        name: strings[b.name.0 as usize].to_smolstr(),
-        field: strings[b.field.0 as usize].to_smolstr(),
+        name: strings[b.name.0].to_smolstr(),
+        field: strings[b.field.0].to_smolstr(),
         index: b.index.0,
         channel: b.channel.into(),
     }
