@@ -30,6 +30,9 @@ pub enum ExtractFilesError {
 
     #[error("error reading chr/tex texture")]
     ChrTexTexture(#[from] ReadFileError),
+
+    #[error("legacy streams do not contain all necessary data")]
+    LegacyStream,
 }
 
 // TODO: Add a function to create an extractedtexture from a surface?
@@ -155,26 +158,6 @@ pub fn pack_chr_textures(
 }
 
 impl Msrd {
-    pub fn decompress_stream(&self, stream_index: u32) -> Result<Vec<u8>, DecompressStreamError> {
-        match &self.streaming.inner {
-            StreamingInner::StreamingLegacy(_) => todo!(),
-            StreamingInner::Streaming(data) => data.decompress_stream(stream_index, &self.data),
-        }
-    }
-
-    pub fn decompress_stream_entry(
-        &self,
-        stream_index: u32,
-        entry_index: u32,
-    ) -> Result<Vec<u8>, DecompressStreamError> {
-        match &self.streaming.inner {
-            StreamingInner::StreamingLegacy(_) => todo!(),
-            StreamingInner::Streaming(data) => {
-                data.decompress_stream_entry(stream_index, entry_index, &self.data)
-            }
-        }
-    }
-
     /// Extract all embedded files for a `wismt` file.
     ///
     /// For Xenoblade 3 models, specify the path for the `chr/tex/nx` folder
@@ -187,7 +170,7 @@ impl Msrd {
     {
         // TODO: Return just textures for legacy data?
         match &self.streaming.inner {
-            StreamingInner::StreamingLegacy(_) => todo!(),
+            StreamingInner::StreamingLegacy(_) => Err(ExtractFilesError::LegacyStream),
             StreamingInner::Streaming(data) => data.extract_files(&self.data, chr_tex_nx),
         }
     }
@@ -198,7 +181,7 @@ impl Msrd {
     ) -> Result<(VertexData, Spch, Vec<ExtractedTexture<Dds, TextureUsage>>), ExtractFilesError>
     {
         match &self.streaming.inner {
-            StreamingInner::StreamingLegacy(_) => todo!(),
+            StreamingInner::StreamingLegacy(_) => Err(ExtractFilesError::LegacyStream),
             StreamingInner::Streaming(data) => data.extract_files(&self.data, None),
         }
     }

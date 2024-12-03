@@ -10,5 +10,5 @@ struct Input {
 }
 
 fuzz_target!(|input: Input| {
-    let (_mxmd, _msrd) = input.root.to_mxmd_model(&input.mxmd, &input.msrd);
+    let _ = input.root.to_mxmd_model(&input.mxmd, &input.msrd);
 });

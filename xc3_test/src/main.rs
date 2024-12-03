@@ -389,13 +389,13 @@ fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: 
         xc3_lib::msrd::StreamingInner::StreamingLegacy(_) => todo!(),
         xc3_lib::msrd::StreamingInner::Streaming(data) => {
             // Check embedded data.
-            let vertex_bytes = msrd
-                .decompress_stream_entry(0, data.vertex_data_entry_index)
+            let vertex_bytes = data
+                .decompress_stream_entry(0, data.vertex_data_entry_index, &msrd.data)
                 .unwrap();
             check_vertex_data(vertex, path, &vertex_bytes, check_read_write);
 
-            let spch_bytes = msrd
-                .decompress_stream_entry(0, data.shader_entry_index)
+            let spch_bytes = data
+                .decompress_stream_entry(0, data.shader_entry_index, &msrd.data)
                 .unwrap();
             check_spch(spch, path, &spch_bytes, check_read_write);
         }
@@ -1064,7 +1064,8 @@ fn check_all_wimdo_model<P: AsRef<Path>>(root: P, check_read_write: bool) {
                             if check_read_write {
                                 // TODO: Should to_mxmd_model make the msrd optional?
                                 if let Some(msrd) = msrd {
-                                    let (new_mxmd, new_msrd) = root.to_mxmd_model(&mxmd, &msrd);
+                                    let (new_mxmd, new_msrd) =
+                                        root.to_mxmd_model(&mxmd, &msrd).unwrap();
                                     match new_msrd.extract_files(None) {
                                         Ok((new_vertex, _, _)) => {
                                             if new_vertex.buffer != streaming_data.vertex.buffer {

@@ -10,7 +10,7 @@ use xc3_lib::{
 use crate::{
     skinning::BoneConstraintType,
     vertex::{AttributeData, ModelBuffers},
-    ImageTexture, IndexMapExt, ModelRoot,
+    CreateModelError, ImageTexture, IndexMapExt, ModelRoot,
 };
 
 // TODO: Not possible to make files compatible with all game versions?
@@ -26,9 +26,13 @@ use crate::{
 /// to recreate the originals used to initialize this model as closely as possible.
 
 impl ModelRoot {
-    pub fn to_mxmd_model(&self, mxmd: &Mxmd, msrd: &Msrd) -> (Mxmd, Msrd) {
+    pub fn to_mxmd_model(
+        &self,
+        mxmd: &Mxmd,
+        msrd: &Msrd,
+    ) -> Result<(Mxmd, Msrd), CreateModelError> {
         // TODO: Does this need to even extract vertex/textures?
-        let (_, spch, _) = msrd.extract_files(None).unwrap();
+        let (_, spch, _) = msrd.extract_files(None)?;
 
         let textures: Vec<_> = self
             .image_textures
@@ -213,7 +217,7 @@ impl ModelRoot {
             Msrd::from_extracted_files(&new_vertex, &spch, &textures, use_chr_textures).unwrap();
         new_mxmd.streaming = Some(new_msrd.streaming.clone());
 
-        (new_mxmd, new_msrd)
+        Ok((new_mxmd, new_msrd))
     }
 
     fn apply_materials(&self, mxmd: &mut Mxmd) {

@@ -448,6 +448,12 @@ pub enum LoadModelLegacyError {
     Casmt(#[source] std::io::Error),
 }
 
+#[derive(Debug, Error)]
+pub enum CreateModelError {
+    #[error("error extracting stream data")]
+    ExtractFiles(#[from] xc3_lib::msrd::streaming::ExtractFilesError),
+}
+
 // TODO: Take an iterator for wimdo paths and merge to support xc1?
 /// Load a model from a `.wimdo` or `.pcmdo` file.
 /// The corresponding `.wismt` or `.pcsmt` and `.chr` or `.arc` should be in the same directory.
