@@ -285,16 +285,24 @@ impl Texture for Dds {
 }
 
 impl StreamingData {
+    fn get_stream(&self, index: usize) -> Result<&Stream, DecompressStreamError> {
+        self.streams
+            .get(index)
+            .ok_or(DecompressStreamError::MissingStream {
+                index,
+                count: self.streams.len(),
+            })
+    }
+
     pub fn decompress_stream(
         &self,
         stream_index: u32,
         data: &[u8],
     ) -> Result<Vec<u8>, DecompressStreamError> {
-        let first_xbc1_offset = self.streams[0].xbc1_offset;
-        let stream = &self.streams[stream_index as usize]
+        let first_xbc1_offset = self.get_stream(0)?.xbc1_offset;
+        self.get_stream(stream_index as usize)?
             .read_xbc1(data, first_xbc1_offset)?
-            .decompress()?;
-        Ok(stream.to_vec())
+            .decompress()
     }
 
     pub fn decompress_stream_entry(
@@ -317,11 +325,12 @@ impl StreamingData {
         data: &[u8],
         chr_tex_nx: Option<&Path>,
     ) -> Result<(VertexData, Spch, Vec<ExtractedTexture<T, TextureUsage>>), ExtractFilesError> {
-        let first_xbc1_offset = self.streams[0].xbc1_offset;
+        let stream0 = self.get_stream(0)?;
+        let first_xbc1_offset = stream0.xbc1_offset;
 
         // Extract all at once to avoid costly redundant decompression operations.
         // TODO: is this always in the first stream?
-        let stream0 = self.streams[0]
+        let stream0 = stream0
             .read_xbc1(data, first_xbc1_offset)
             .map_err(DecompressStreamError::from)?
             .decompress()?;
@@ -378,8 +387,9 @@ impl StreamingData {
 
         if self.textures_stream_entry_count > 0 {
             // The high resolution textures are packed into a single stream.
-            let first_xbc1_offset = self.streams[0].xbc1_offset;
-            let stream = &self.streams[self.textures_stream_index as usize]
+            let first_xbc1_offset = self.get_stream(0)?.xbc1_offset;
+            let stream = self
+                .get_stream(self.textures_stream_index as usize)?
                 .read_xbc1(data, first_xbc1_offset)
                 .map_err(DecompressStreamError::from)?
                 .decompress()?;
@@ -393,7 +403,7 @@ impl StreamingData {
                 .iter()
                 .zip(&self.stream_entries[start..start + count])
             {
-                let bytes = get_bytes(stream, entry.offset, Some(entry.size))
+                let bytes = get_bytes(&stream, entry.offset, Some(entry.size))
                     .map_err(DecompressStreamError::Io)?;
                 let mid = T::from_bytes(bytes).map_err(DecompressStreamError::from)?;
 
@@ -402,7 +412,7 @@ impl StreamingData {
                 let base_mip_stream_index = entry.texture_base_mip_stream_index.saturating_sub(1);
                 let base_mip = if base_mip_stream_index != 0 {
                     Some(
-                        self.streams[base_mip_stream_index as usize]
+                        self.get_stream(base_mip_stream_index as usize)?
                             .read_xbc1(data, first_xbc1_offset)
                             .map_err(DecompressStreamError::from)?
                             .decompress()?,

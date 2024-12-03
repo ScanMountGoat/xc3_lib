@@ -15,4 +15,7 @@ pub enum DecompressStreamError {
 
     #[error("checksum verification failed")]
     Checksum(Vec<u8>),
+
+    #[error("stream index {index} out of range for length {count}")]
+    MissingStream { index: usize, count: usize },
 }
