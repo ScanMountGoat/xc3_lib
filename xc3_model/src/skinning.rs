@@ -446,32 +446,39 @@ pub(crate) fn create_skinning(skinning: &xc3_lib::mxmd::Skinning) -> Skinning {
             .map(|b| Bone {
                 name: b.name.clone(),
                 bounds: skinning.bounds.as_ref().and_then(|bounds| {
-                    b.flags.bounds_offset().then(|| {
-                        let bounds = &bounds[b.bounds_index as usize];
-                        BoneBounds {
-                            center: [bounds.center[0], bounds.center[1], bounds.center[2]].into(),
-                            size: [bounds.size[0], bounds.size[1], bounds.size[2]].into(),
-                            radius: b.bounds_radius,
-                        }
-                    })
+                    if b.flags.bounds_offset() {
+                        bounds
+                            .get(b.bounds_index as usize)
+                            .map(|bounds| BoneBounds {
+                                center: [bounds.center[0], bounds.center[1], bounds.center[2]]
+                                    .into(),
+                                size: [bounds.size[0], bounds.size[1], bounds.size[2]].into(),
+                                radius: b.bounds_radius,
+                            })
+                    } else {
+                        None
+                    }
                 }),
                 constraint: skinning.constraints.as_ref().and_then(|constraints| {
-                    (b.flags.fixed_offset_constraint() || b.flags.distance_constraint()).then(
-                        || {
-                            let constraint = &constraints[b.constraint_index as usize];
-                            BoneConstraint {
-                                fixed_offset: constraint.fixed_offset.into(),
-                                max_distance: constraint.max_distance,
-                                constraint_type: if b.flags.distance_constraint() {
-                                    BoneConstraintType::Distance
-                                } else {
-                                    BoneConstraintType::FixedOffset
-                                },
-                                // TODO: how to detect root bones?
-                                parent_index: Some(b.parent_index as usize),
-                            }
-                        },
-                    )
+                    if b.flags.fixed_offset_constraint() || b.flags.distance_constraint() {
+                        constraints
+                            .get(b.constraint_index as usize)
+                            .map(|constraint| {
+                                BoneConstraint {
+                                    fixed_offset: constraint.fixed_offset.into(),
+                                    max_distance: constraint.max_distance,
+                                    constraint_type: if b.flags.distance_constraint() {
+                                        BoneConstraintType::Distance
+                                    } else {
+                                        BoneConstraintType::FixedOffset
+                                    },
+                                    // TODO: how to detect root bones?
+                                    parent_index: Some(b.parent_index as usize),
+                                }
+                            })
+                    } else {
+                        None
+                    }
                 }),
                 no_camera_overlap: b.flags.no_camera_overlap(),
             })

@@ -67,6 +67,8 @@ pub struct MorphTracks {
 }
 
 impl Animation {
+    // TODO: Error type instead of ignoring invalid data?
+    // TODO: better logging for invalid data
     pub fn from_anim(anim: &xc3_lib::bc::anim::Anim) -> Self {
         Self {
             name: anim.binding.animation.name.clone(),
@@ -150,7 +152,7 @@ impl Animation {
                     } else {
                         // TODO: Why does this happen?
                         error!(
-                            "Bone index {bone_index} out of range for {} bones",
+                            "Bone index {bone_index} out of range for length {}",
                             skeleton.bones.len()
                         );
                     }
@@ -326,8 +328,6 @@ fn anim_tracks(anim: &xc3_lib::bc::anim::Anim) -> Vec<Track> {
 
             let transforms = &uncompressed.transforms;
 
-            // TODO: Apply the root motion at each frame?
-
             anim.binding
                 .bone_track_indices
                 .elements
@@ -342,28 +342,36 @@ fn anim_tracks(anim: &xc3_lib::bc::anim::Anim) -> Vec<Track> {
                         let index = frame as usize * track_count + *i as usize;
                         let next_index = (frame as usize + 1) * track_count + *i as usize;
 
-                        // Convert to cubic instead of having separate interpolation types.
-                        let translation = transforms[index].translation;
-                        let next_translation = transforms.get(next_index).map(|t| t.translation);
-                        translation_keyframes.insert(
-                            (frame as f32).into(),
-                            linear_to_cubic_keyframe(translation, next_translation),
-                        );
+                        if let Some(transform) = transforms.get(index) {
+                            // Convert to cubic instead of having separate interpolation types.
+                            let translation = transform.translation;
+                            let next_translation =
+                                transforms.get(next_index).map(|t| t.translation);
+                            translation_keyframes.insert(
+                                (frame as f32).into(),
+                                linear_to_cubic_keyframe(translation, next_translation),
+                            );
 
-                        let rotation = transforms[index].rotation_quaternion;
-                        let next_rotation =
-                            transforms.get(next_index).map(|t| t.rotation_quaternion);
-                        rotation_keyframes.insert(
-                            (frame as f32).into(),
-                            linear_to_cubic_keyframe(rotation, next_rotation),
-                        );
+                            let rotation = transform.rotation_quaternion;
+                            let next_rotation =
+                                transforms.get(next_index).map(|t| t.rotation_quaternion);
+                            rotation_keyframes.insert(
+                                (frame as f32).into(),
+                                linear_to_cubic_keyframe(rotation, next_rotation),
+                            );
 
-                        let scale = transforms[index].scale;
-                        let next_scale = transforms.get(next_index).map(|t| t.scale);
-                        scale_keyframes.insert(
-                            (frame as f32).into(),
-                            linear_to_cubic_keyframe(scale, next_scale),
-                        );
+                            let scale = transform.scale;
+                            let next_scale = transforms.get(next_index).map(|t| t.scale);
+                            scale_keyframes.insert(
+                                (frame as f32).into(),
+                                linear_to_cubic_keyframe(scale, next_scale),
+                            );
+                        } else {
+                            error!(
+                                "Uncompressed transform index {index} out of range for length {}",
+                                transforms.len()
+                            );
+                        }
                     }
 
                     let bone_index = track_bone_index(*i as usize, bone_names, hashes);
@@ -391,55 +399,60 @@ fn anim_tracks(anim: &xc3_lib::bc::anim::Anim) -> Vec<Track> {
                     let mut scale_keyframes = BTreeMap::new();
 
                     // TODO: How to handle index values of -1?
-                    if *index >= 0 {
-                        let track = &cubic.tracks.elements[*index as usize];
+                    usize::try_from(*index).ok().and_then(|index| {
+                        // TODO: How to handle invalid indices?
+                        if let Some(track) = cubic.tracks.elements.get(index) {
+                            // TODO: Functions for these?
+                            for keyframe in &track.translation.elements {
+                                translation_keyframes.insert(
+                                    keyframe.frame.into(),
+                                    Keyframe {
+                                        x_coeffs: keyframe.x.into(),
+                                        y_coeffs: keyframe.y.into(),
+                                        z_coeffs: keyframe.z.into(),
+                                        w_coeffs: Vec4::ZERO,
+                                    },
+                                );
+                            }
+                            for keyframe in &track.rotation.elements {
+                                rotation_keyframes.insert(
+                                    keyframe.frame.into(),
+                                    Keyframe {
+                                        x_coeffs: keyframe.x.into(),
+                                        y_coeffs: keyframe.y.into(),
+                                        z_coeffs: keyframe.z.into(),
+                                        w_coeffs: keyframe.w.into(),
+                                    },
+                                );
+                            }
+                            for keyframe in &track.scale.elements {
+                                scale_keyframes.insert(
+                                    keyframe.frame.into(),
+                                    Keyframe {
+                                        x_coeffs: keyframe.x.into(),
+                                        y_coeffs: keyframe.y.into(),
+                                        z_coeffs: keyframe.z.into(),
+                                        w_coeffs: Vec4::ZERO,
+                                    },
+                                );
+                            }
 
-                        // TODO: Functions for these?
-                        for keyframe in &track.translation.elements {
-                            translation_keyframes.insert(
-                                keyframe.frame.into(),
-                                Keyframe {
-                                    x_coeffs: keyframe.x.into(),
-                                    y_coeffs: keyframe.y.into(),
-                                    z_coeffs: keyframe.z.into(),
-                                    w_coeffs: Vec4::ZERO,
-                                },
-                            );
-                        }
-                        for keyframe in &track.rotation.elements {
-                            rotation_keyframes.insert(
-                                keyframe.frame.into(),
-                                Keyframe {
-                                    x_coeffs: keyframe.x.into(),
-                                    y_coeffs: keyframe.y.into(),
-                                    z_coeffs: keyframe.z.into(),
-                                    w_coeffs: keyframe.w.into(),
-                                },
-                            );
-                        }
-                        for keyframe in &track.scale.elements {
-                            scale_keyframes.insert(
-                                keyframe.frame.into(),
-                                Keyframe {
-                                    x_coeffs: keyframe.x.into(),
-                                    y_coeffs: keyframe.y.into(),
-                                    z_coeffs: keyframe.z.into(),
-                                    w_coeffs: Vec4::ZERO,
-                                },
-                            );
-                        }
+                            let bone_index = track_bone_index(i, bone_names, hashes);
 
-                        let bone_index = track_bone_index(i, bone_names, hashes);
-
-                        Some(Track {
-                            translation_keyframes,
-                            rotation_keyframes,
-                            scale_keyframes,
-                            bone_index,
-                        })
-                    } else {
-                        None
-                    }
+                            Some(Track {
+                                translation_keyframes,
+                                rotation_keyframes,
+                                scale_keyframes,
+                                bone_index,
+                            })
+                        } else {
+                            error!(
+                                "Cubic track index {index} out of range for length {}",
+                                cubic.tracks.elements.len()
+                            );
+                            None
+                        }
+                    })
                 })
                 .collect()
         }
