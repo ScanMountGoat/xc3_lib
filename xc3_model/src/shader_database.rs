@@ -301,7 +301,7 @@ impl<'a> arbitrary::Arbitrary<'a> for AttributeDependency {
     fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
         Ok(Self {
             name: crate::arbitrary_smolstr(u)?,
-            channels: crate::arbitrary_smolstr(u)?,
+            channel: u.arbitrary()?,
         })
     }
 }
@@ -313,7 +313,7 @@ impl<'a> arbitrary::Arbitrary<'a> for BufferDependency {
             name: crate::arbitrary_smolstr(u)?,
             field: crate::arbitrary_smolstr(u)?,
             index: u.arbitrary()?,
-            channels: crate::arbitrary_smolstr(u)?,
+            channel: u.arbitrary()?,
         })
     }
 }
@@ -323,7 +323,7 @@ impl<'a> arbitrary::Arbitrary<'a> for TextureDependency {
     fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
         Ok(Self {
             name: crate::arbitrary_smolstr(u)?,
-            channels: crate::arbitrary_smolstr(u)?,
+            channel: u.arbitrary()?,
             texcoords: u.arbitrary()?,
         })
     }
@@ -334,7 +334,7 @@ impl<'a> arbitrary::Arbitrary<'a> for TexCoord {
     fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
         Ok(Self {
             name: crate::arbitrary_smolstr(u)?,
-            channels: crate::arbitrary_smolstr(u)?,
+            channel: u.arbitrary()?,
             params: u.arbitrary()?,
         })
     }

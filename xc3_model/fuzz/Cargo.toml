@@ -46,3 +46,10 @@ path = "fuzz_targets/from_msmd.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "to_mxmd_model"
+path = "fuzz_targets/to_mxmd_model.rs"
+test = false
+doc = false
+bench = false

@@ -4,7 +4,7 @@ use log::error;
 use xc3_lib::{mxmd::RenderPassType, vertex::WeightLod};
 
 #[cfg(feature = "arbitrary")]
-use crate::arbitrary_vec4s;
+use crate::{arbitrary_vec3, arbitrary_vec4s};
 
 /// See [Skinning](xc3_lib::mxmd::Skinning).
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -27,7 +27,9 @@ pub struct Bone {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct BoneBounds {
+    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3))]
     pub center: Vec3,
+    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3))]
     pub size: Vec3,
     pub radius: f32,
 }
@@ -36,6 +38,7 @@ pub struct BoneBounds {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct BoneConstraint {
+    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3))]
     pub fixed_offset: Vec3,
     pub max_distance: f32,
     pub constraint_type: BoneConstraintType,
