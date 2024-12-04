@@ -271,6 +271,7 @@ impl ShaderDatabaseIndexed {
 
         let mut database = Self::default();
 
+        // Use an ordered map for consistent ordering.
         for (hash, p) in programs.into_iter() {
             let program = database.program_indexed(
                 p,

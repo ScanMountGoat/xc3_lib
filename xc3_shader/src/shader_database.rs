@@ -12,6 +12,7 @@ use glsl_lang::{
 use indexmap::IndexMap;
 use indoc::indoc;
 use log::error;
+use rayon::prelude::*;
 use xc3_lib::{
     mths::{FragmentShader, Mths},
     spch::Spch,
@@ -880,7 +881,6 @@ fn find_texcoord_input_name_channel(
 pub fn create_shader_database(input: &str) -> ShaderDatabase {
     let mut programs = BTreeMap::new();
 
-    // TODO: parallelize parsing?
     for folder in std::fs::read_dir(input).unwrap().map(|e| e.unwrap().path()) {
         // TODO: Find a better way to detect maps.
         if !folder.join("map").exists()
@@ -900,6 +900,7 @@ pub fn create_shader_database(input: &str) -> ShaderDatabase {
 
 pub fn create_shader_database_legacy(input: &str) -> ShaderDatabase {
     let mut programs = BTreeMap::new();
+
     for folder in std::fs::read_dir(input).unwrap().map(|e| e.unwrap().path()) {
         add_programs_legacy(&mut programs, &folder);
     }
@@ -919,6 +920,9 @@ fn add_map_programs(programs: &mut BTreeMap<ProgramHash, ShaderProgram>, folder:
 
 fn add_programs(programs: &mut BTreeMap<ProgramHash, ShaderProgram>, folder: &Path) {
     if let Ok(spch) = Spch::from_file(folder.join("shaders.wishp")) {
+        // Avoid processing the same program more than once.
+        let mut unique_hash_slct_index = BTreeMap::new();
+
         for (i, slct_offset) in spch.slct_offsets.iter().enumerate() {
             let slct = slct_offset.read_slct(&spch.slct_section).unwrap();
 
@@ -928,41 +932,46 @@ fn add_programs(programs: &mut BTreeMap<ProgramHash, ShaderProgram>, folder: &Pa
             {
                 let hash = ProgramHash::from_spch_program(p, vert, frag);
 
-                // Avoid processing the same program more than once.
-                programs.entry(hash).or_insert_with(|| {
-                    let path = &folder
-                        .join(nvsd_glsl_name(&spch, i, 0))
-                        .with_extension("frag");
-
-                    // TODO: Should the vertex shader be mandatory?
-                    let vertex_source = std::fs::read_to_string(path.with_extension("vert")).ok();
-                    let vertex = vertex_source.and_then(|s| {
-                        let source = shader_source_no_extensions(&s);
-                        match TranslationUnit::parse(source) {
-                            Ok(vertex) => Some(vertex),
-                            Err(e) => {
-                                error!("Error parsing {path:?}: {e}");
-                                None
-                            }
-                        }
-                    });
-
-                    let frag_source = std::fs::read_to_string(path).ok();
-                    frag_source
-                        .map(|s| {
-                            let source = shader_source_no_extensions(&s);
-                            match TranslationUnit::parse(source) {
-                                Ok(fragment) => shader_from_glsl(vertex.as_ref(), &fragment),
-                                Err(e) => {
-                                    error!("Error parsing {path:?}: {e}");
-                                    ShaderProgram::default()
-                                }
-                            }
-                        })
-                        .unwrap_or_default()
-                });
+                if !programs.contains_key(&hash) {
+                    unique_hash_slct_index.insert(hash, i);
+                }
             }
         }
+
+        // Shader processing is CPU intensive and benefits from parallelism.
+        programs.par_extend(unique_hash_slct_index.into_par_iter().map(|(hash, i)| {
+            let path = &folder
+                .join(nvsd_glsl_name(&spch, i, 0))
+                .with_extension("frag");
+
+            // TODO: Should the vertex shader be mandatory?
+            let vertex_source = std::fs::read_to_string(path.with_extension("vert")).ok();
+            let vertex = vertex_source.and_then(|s| {
+                let source = shader_source_no_extensions(&s);
+                match TranslationUnit::parse(source) {
+                    Ok(vertex) => Some(vertex),
+                    Err(e) => {
+                        error!("Error parsing {path:?}: {e}");
+                        None
+                    }
+                }
+            });
+
+            let frag_source = std::fs::read_to_string(path).ok();
+            let shader_program = frag_source
+                .map(|s| {
+                    let source = shader_source_no_extensions(&s);
+                    match TranslationUnit::parse(source) {
+                        Ok(fragment) => shader_from_glsl(vertex.as_ref(), &fragment),
+                        Err(e) => {
+                            error!("Error parsing {path:?}: {e}");
+                            ShaderProgram::default()
+                        }
+                    }
+                })
+                .unwrap_or_default();
+            (hash, shader_program)
+        }));
     }
 }
 
