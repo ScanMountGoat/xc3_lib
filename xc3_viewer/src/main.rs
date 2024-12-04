@@ -136,14 +136,13 @@ impl<'a> State<'a> {
 
         let start = std::time::Instant::now();
 
-        let database = cli
-            .database
-            .as_ref()
-            .map(|p| {
+        let database = match &cli.database {
+            Some(p) => Some(
                 ShaderDatabase::from_file(p)
-                    .with_context(|| format!("{p:?} is not a valid shader database file"))
-            })
-            .transpose()?;
+                    .with_context(|| format!("{p:?} is not a valid shader database file"))?,
+            ),
+            None => ShaderDatabase::from_file(database_path()?).ok(),
+        };
 
         info!("Load shader database: {:?}", start.elapsed());
 
@@ -504,6 +503,13 @@ pub fn current_time_seconds(
     // This relies on interpolation or frame skipping.
     let delta_t = time_since_last_frame.as_secs_f64() as f32;
     current_time_seconds + delta_t * playback_speed
+}
+
+fn database_path() -> std::io::Result<std::path::PathBuf> {
+    Ok(std::env::current_exe()?
+        .parent()
+        .unwrap_or(Path::new(""))
+        .join("xc_combined.bin"))
 }
 
 #[derive(Parser)]
