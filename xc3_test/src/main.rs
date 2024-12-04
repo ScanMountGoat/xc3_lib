@@ -32,6 +32,7 @@ use xc3_lib::{
     spch::Spch,
     xbc1::{MaybeXbc1, Xbc1},
 };
+use xc3_model::monolib::ShaderTextures;
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 // TODO: Avoid redundant loads for wimdo and wismhd
@@ -979,6 +980,9 @@ fn check_all<P, T, F>(
 }
 
 fn check_all_gltf<P: AsRef<Path>>(root: P) {
+    // Assume root is the dump root path.
+    let shader_textures = ShaderTextures::from_folder(root.as_ref().join("monolib/shader"));
+
     globwalk::GlobWalkerBuilder::from_patterns(root.as_ref(), &["*.{wimdo}"])
         .build()
         .unwrap()
@@ -987,9 +991,13 @@ fn check_all_gltf<P: AsRef<Path>>(root: P) {
             let path = entry.as_ref().unwrap().path();
             match xc3_model::load_model(path, None) {
                 Ok(root) => {
-                    if let Err(e) =
-                        xc3_model::gltf::GltfFile::from_model("model", &[root], &[], false)
-                    {
+                    if let Err(e) = xc3_model::gltf::GltfFile::from_model(
+                        "model",
+                        &[root],
+                        &[],
+                        &shader_textures,
+                        false,
+                    ) {
                         println!("Error converting {path:?}: {e}");
                     }
                 }
@@ -1005,9 +1013,13 @@ fn check_all_gltf<P: AsRef<Path>>(root: P) {
             let path = entry.as_ref().unwrap().path();
             match xc3_model::load_model_legacy(path, None) {
                 Ok(root) => {
-                    if let Err(e) =
-                        xc3_model::gltf::GltfFile::from_model("model", &[root], &[], true)
-                    {
+                    if let Err(e) = xc3_model::gltf::GltfFile::from_model(
+                        "model",
+                        &[root],
+                        &[],
+                        &shader_textures,
+                        true,
+                    ) {
                         println!("Error converting {path:?}: {e}");
                     }
                 }
@@ -1023,7 +1035,12 @@ fn check_all_gltf<P: AsRef<Path>>(root: P) {
             let path = entry.as_ref().unwrap().path();
             match xc3_model::load_map(path, None) {
                 Ok(roots) => {
-                    if let Err(e) = xc3_model::gltf::GltfFile::from_map("model", &roots, false) {
+                    if let Err(e) = xc3_model::gltf::GltfFile::from_map(
+                        "model",
+                        &roots,
+                        &shader_textures,
+                        false,
+                    ) {
                         println!("Error converting {path:?}: {e}");
                     }
                 }

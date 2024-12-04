@@ -1,11 +1,13 @@
 use crate::{
     material::{ChannelAssignment, OutputAssignments, TextureAssignment},
+    monolib::ShaderTextures,
     ImageTexture, IndexMapExt,
 };
 use image_dds::image::{codecs::png::PngEncoder, RgbaImage};
 use indexmap::IndexMap;
 use ordered_float::OrderedFloat;
 use rayon::prelude::*;
+use smol_str::SmolStr;
 
 // TODO: This will eventually need to account for parameters and constants.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -26,7 +28,13 @@ pub enum ImageIndex {
         // TODO: This shouldn't be keyed as part of the generated images.
         sampler: usize,
         channel: usize,
-        texcoord_name: String,
+        texcoord_name: SmolStr,
+        texcoord_scale: Option<[OrderedFloat<f32>; 2]>,
+    },
+    GlobalImage {
+        name: SmolStr,
+        channel: usize,
+        texcoord_name: SmolStr,
         texcoord_scale: Option<[OrderedFloat<f32>; 2]>,
     },
     Value(OrderedFloat<f32>),
@@ -44,16 +52,33 @@ pub struct TextureCache {
     original_images: IndexMap<ImageKey, RgbaImage>,
     // Use a map that preserves insertion order to get consistent ordering.
     pub generated_texture_indices: IndexMap<GeneratedImageKey, usize>,
+
+    shader_images: IndexMap<String, RgbaImage>,
 }
 
 impl TextureCache {
-    pub fn new<'a>(root_textures: impl Iterator<Item = &'a Vec<ImageTexture>>) -> Self {
+    pub fn new<'a>(
+        root_textures: impl Iterator<Item = &'a Vec<ImageTexture>>,
+        shader_textures: &ShaderTextures,
+    ) -> Self {
         // Get the base images used for channel reconstruction.
         let original_images = create_images(root_textures);
+
+        let shader_images = shader_textures
+            .textures
+            .par_iter()
+            .filter_map(|(name, texture)| {
+                Some((
+                    name.to_string(),
+                    texture.as_ref().map(|t| t.to_image().unwrap())?,
+                ))
+            })
+            .collect();
 
         Self {
             generated_texture_indices: IndexMap::new(),
             original_images,
+            shader_images,
         }
     }
 
@@ -80,7 +105,12 @@ impl TextureCache {
         self.generated_texture_indices
             .par_iter()
             .map(|(key, _)| {
-                let image = generate_image(key.clone(), &self.original_images, flip_vertical);
+                let image = generate_image(
+                    key.clone(),
+                    &self.original_images,
+                    &self.shader_images,
+                    flip_vertical,
+                );
 
                 // Compress ahead of time to reduce memory usage.
                 // The final results will need to be saved as PNG anyway.
@@ -107,7 +137,7 @@ pub fn albedo_generated_key(
             image_texture: t.image_texture_index,
             sampler: 0,
             channel: 0,
-            texcoord_name: String::new(),
+            texcoord_name: SmolStr::default(),
             texcoord_scale: None,
         })
     });
@@ -116,7 +146,7 @@ pub fn albedo_generated_key(
             image_texture: t.image_texture_index,
             sampler: 0,
             channel: 1,
-            texcoord_name: String::new(),
+            texcoord_name: SmolStr::default(),
             texcoord_scale: None,
         })
     });
@@ -125,7 +155,7 @@ pub fn albedo_generated_key(
             image_texture: t.image_texture_index,
             sampler: 0,
             channel: 2,
-            texcoord_name: String::new(),
+            texcoord_name: SmolStr::default(),
             texcoord_scale: None,
         })
     });
@@ -141,7 +171,7 @@ pub fn albedo_generated_key(
             image_texture: texture.image_texture_index,
             sampler: texture.sampler_index,
             channel: a.channel_index,
-            texcoord_name: String::new(),
+            texcoord_name: SmolStr::default(),
             texcoord_scale: None,
         }
     });
@@ -237,12 +267,33 @@ pub fn emissive_generated_key(
 fn generate_image(
     key: GeneratedImageKey,
     original_images: &IndexMap<ImageKey, RgbaImage>,
+    shader_images: &IndexMap<String, RgbaImage>,
     flip_vertical: bool,
 ) -> RgbaImage {
-    let red_image = find_image_channel(original_images, &key.red_index, key.root_index);
-    let green_image = find_image_channel(original_images, &key.green_index, key.root_index);
-    let blue_image = find_image_channel(original_images, &key.blue_index, key.root_index);
-    let alpha_image = find_image_channel(original_images, &key.alpha_index, key.root_index);
+    let red_image = find_image_channel(
+        original_images,
+        shader_images,
+        &key.red_index,
+        key.root_index,
+    );
+    let green_image = find_image_channel(
+        original_images,
+        shader_images,
+        &key.green_index,
+        key.root_index,
+    );
+    let blue_image = find_image_channel(
+        original_images,
+        shader_images,
+        &key.blue_index,
+        key.root_index,
+    );
+    let alpha_image = find_image_channel(
+        original_images,
+        shader_images,
+        &key.alpha_index,
+        key.root_index,
+    );
 
     // Use the dimensions of the largest image to avoid quality loss.
     // Choose a small default size to avoid crashes on images with only constants.
@@ -297,6 +348,7 @@ fn generate_image(
 
 fn find_image_channel<'a>(
     original_images: &'a IndexMap<ImageKey, RgbaImage>,
+    shader_images: &'a IndexMap<String, RgbaImage>,
     index: &Option<ImageIndex>,
     root_index: usize,
 ) -> Option<(&'a RgbaImage, usize)> {
@@ -311,6 +363,9 @@ fn find_image_channel<'a>(
                 image_index: *image_texture,
             })
             .map(|i| (i, *channel)),
+        ImageIndex::GlobalImage { name, channel, .. } => {
+            shader_images.get(name.as_str()).map(|i| (i, *channel))
+        }
         ImageIndex::Value(_) => None,
     })
 }
@@ -388,6 +443,7 @@ fn channel_name(index: &Option<ImageIndex>) -> Option<String> {
             channel,
             ..
         }) => Some(format!("{image_texture}[{channel}]")),
+        Some(ImageIndex::GlobalImage { name, channel, .. }) => Some(format!("{name}[{channel}]")),
         Some(ImageIndex::Value(v)) => Some(v.to_string()),
         None => None,
     }
@@ -413,24 +469,30 @@ fn image_index(
             // TODO: proper mat2x4 support?
             let texcoord_scale = texcoord_transforms.map(|(u, v)| [u.x.into(), v.y.into()]);
 
-            let texcoord_name = texcoord_name
-                .as_ref()
-                .map(|n| n.to_string())
-                .unwrap_or_default();
+            let texcoord_name = texcoord_name.clone().unwrap_or_default();
 
-            let sampler_index = material_texture_index(name)?;
             // Find the sampler from the material.
             // Find the texture referenced by this sampler.
-            material
-                .textures
-                .get(sampler_index)
-                .map(|t| ImageIndex::Image {
-                    image_texture: t.image_texture_index,
-                    sampler: t.sampler_index,
-                    channel: channel_index,
-                    texcoord_name,
-                    texcoord_scale,
-                })
+            let material_image = material_texture_index(name).and_then(|sampler_index| {
+                material
+                    .textures
+                    .get(sampler_index)
+                    .map(|t| ImageIndex::Image {
+                        image_texture: t.image_texture_index,
+                        sampler: t.sampler_index,
+                        channel: channel_index,
+                        texcoord_name: texcoord_name.clone(),
+                        texcoord_scale,
+                    })
+            });
+
+            // Assume any unrecognized textures reference monolib/shader textures.
+            Some(material_image.unwrap_or(ImageIndex::GlobalImage {
+                name: name.clone(),
+                channel: channel_index,
+                texcoord_name,
+                texcoord_scale,
+            }))
         }
         ChannelAssignment::Attribute { .. } => None,
         ChannelAssignment::Value(v) => Some(ImageIndex::Value((*v).into())),
@@ -438,20 +500,10 @@ fn image_index(
 }
 
 fn material_texture_index(sampler: &str) -> Option<usize> {
-    match sampler {
-        "s0" => Some(0),
-        "s1" => Some(1),
-        "s2" => Some(2),
-        "s3" => Some(3),
-        "s4" => Some(4),
-        "s5" => Some(5),
-        "s6" => Some(6),
-        "s7" => Some(7),
-        "s8" => Some(8),
-        "s9" => Some(9),
-        // TODO: How to handle this case?
-        _ => None,
-    }
+    // Convert names like "s3" to index 3.
+    // Materials always use this naming convention in the shader.
+    // Xenoblade 1 DE uses up to 14 material samplers.
+    sampler.strip_prefix('s')?.parse().ok()
 }
 
 pub fn create_images<'a>(

@@ -263,7 +263,7 @@ fn add_texture(
     // The samplers are unlikely to differ in practice, so just pick one.
     let sampler_index = image_key.red_index.as_ref().and_then(|i| match i {
         ImageIndex::Image { sampler, .. } => Some(sampler),
-        ImageIndex::Value(_) => None,
+        _ => None,
     });
 
     let texture_index = textures.len() as u32;

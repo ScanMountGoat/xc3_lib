@@ -6,6 +6,7 @@ use xc3_model::{
     animation::Animation,
     gltf::{GlbFile, GltfFile},
     load_animations, load_model, load_model_legacy,
+    monolib::ShaderTextures,
     shader_database::ShaderDatabase,
     MapRoot, ModelRoot,
 };
@@ -78,41 +79,52 @@ fn main() -> anyhow::Result<()> {
             .with_context(|| format!("failed to create output directory {parent:?}"))?;
     }
 
+    // Assume paths are somewhere in a full game dump.
+    let mut root_folder = input;
+    while let Some(parent) = root_folder.parent() {
+        if root_folder.join("monolib/shader").exists() {
+            break;
+        } else {
+            root_folder = parent;
+        }
+    }
+    let shader_textures = ShaderTextures::from_folder(root_folder.join("monolib/shader"));
+
     match input.extension().unwrap().to_str().unwrap() {
         "wimdo" => {
             let root = load_model(&cli.input, database.as_ref())
                 .with_context(|| format!("failed to load .wimdo model {:?}", cli.input))?;
             if is_glb {
-                export_model_glb(root, animations, &name, &output, false)
+                export_model_glb(root, animations, &name, &output, &shader_textures, false)
             } else {
-                export_model_gltf(root, animations, &name, &output, false)
+                export_model_gltf(root, animations, &name, &output, &shader_textures, false)
             }
         }
         "pcmdo" => {
             let root = load_model(&cli.input, database.as_ref())
                 .with_context(|| format!("failed to load .pcmdo model {:?}", cli.input))?;
             if is_glb {
-                export_model_glb(root, animations, &name, &output, false)
+                export_model_glb(root, animations, &name, &output, &shader_textures, false)
             } else {
-                export_model_gltf(root, animations, &name, &output, false)
+                export_model_gltf(root, animations, &name, &output, &shader_textures, false)
             }
         }
         "camdo" => {
             let root = load_model_legacy(&cli.input, database.as_ref())
                 .with_context(|| format!("failed to load .camdo model {:?}", cli.input))?;
             if is_glb {
-                export_model_glb(root, animations, &name, &output, true)
+                export_model_glb(root, animations, &name, &output, &shader_textures, true)
             } else {
-                export_model_gltf(root, animations, &name, &output, true)
+                export_model_gltf(root, animations, &name, &output, &shader_textures, true)
             }
         }
         "wismhd" => {
             let roots = xc3_model::load_map(&cli.input, database.as_ref())
                 .with_context(|| format!("failed to load .wismhd map {:?}", cli.input))?;
             if is_glb {
-                export_map_glb(roots, &name, &output, false)
+                export_map_glb(roots, &name, &output, &shader_textures, false)
             } else {
-                export_map_gltf(roots, &name, &output, false)
+                export_map_gltf(roots, &name, &output, &shader_textures, false)
             }
         }
         e => Err(anyhow::anyhow!("unsupported extension {e}")),
@@ -126,9 +138,10 @@ fn export_map_gltf(
     roots: Vec<MapRoot>,
     name: &str,
     output: &Path,
+    shader_textures: &ShaderTextures,
     flip_images_uvs: bool,
 ) -> anyhow::Result<()> {
-    GltfFile::from_map(name, &roots, flip_images_uvs)
+    GltfFile::from_map(name, &roots, shader_textures, flip_images_uvs)
         .with_context(|| "failed to create glTF file")?
         .save(output)
         .with_context(|| format!("failed to save glTF file to {:?}", output))
@@ -138,9 +151,10 @@ fn export_map_glb(
     roots: Vec<MapRoot>,
     name: &str,
     output: &Path,
+    shader_textures: &ShaderTextures,
     flip_images_uvs: bool,
 ) -> anyhow::Result<()> {
-    GlbFile::from_map(name, &roots, flip_images_uvs)
+    GlbFile::from_map(name, &roots, shader_textures, flip_images_uvs)
         .with_context(|| "failed to create glb file")?
         .save(output)
         .with_context(|| format!("failed to save glb file to {:?}", output))
@@ -151,9 +165,10 @@ fn export_model_gltf(
     animations: Vec<Animation>,
     name: &str,
     output: &Path,
+    shader_textures: &ShaderTextures,
     flip_images_uvs: bool,
 ) -> anyhow::Result<()> {
-    GltfFile::from_model(name, &[root], &animations, flip_images_uvs)
+    GltfFile::from_model(name, &[root], &animations, shader_textures, flip_images_uvs)
         .with_context(|| "failed to create glTF file")?
         .save(output)
         .with_context(|| format!("failed to save glTF file to {:?}", output))
@@ -164,9 +179,11 @@ fn export_model_glb(
     animations: Vec<Animation>,
     name: &str,
     output: &Path,
+    shader_textures: &ShaderTextures,
+
     flip_images_uvs: bool,
 ) -> anyhow::Result<()> {
-    GlbFile::from_model(name, &[root], &animations, flip_images_uvs)
+    GlbFile::from_model(name, &[root], &animations, shader_textures, flip_images_uvs)
         .with_context(|| "failed to create glb file")?
         .save(output)
         .with_context(|| format!("failed to save glb file to {:?}", output))

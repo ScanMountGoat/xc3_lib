@@ -5,30 +5,33 @@
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use xc3_model::gltf::GltfFile;
 //! use xc3_model::shader_database::ShaderDatabase;
+//! use xc3_model::monolib::ShaderTextures;
 //!
 //! let database = ShaderDatabase::from_file("xc3.bin")?;
 //!
 //! // Models have only one root.
 //! let root = xc3_model::load_model("xeno3/chr/ch/ch01027000.wimdo", Some(&database))?;
+//! let shader_textures = ShaderTextures::from_folder("xeno3/monolib/shader");
 //! let animations = xc3_model::load_animations("xeno3/chr/ch/ch01027000_event.mot")?;
-//! let gltf = GltfFile::from_model("mio_military", &[root], &animations, false)?;
+//! let gltf = GltfFile::from_model("mio_military", &[root], &animations, &shader_textures, false)?;
 //! gltf.save("mio_military.gltf")?;
 //!
 //! // Xenoblade X models need to have images and UVs flipped.
 //! let root = xc3_model::load_model("xenox/chr_np/np009001.camdo", Some(&database))?;
-//! let gltf = GltfFile::from_model("tatsu", &[root], &animations, true)?;
+//! let gltf = GltfFile::from_model("tatsu", &[root], &animations, &ShaderTextures::default(), true)?;
 //! gltf.save("tatsu.gltf")?;
 //!
 //! // Maps have multiple roots.
 //! let roots = xc3_model::load_map("xeno3/map/ma59a.wismhd", Some(&database))?;
-//! let gltf = GltfFile::from_map("map", &roots, false)?;
+//! let shader_textures = ShaderTextures::from_folder("xeno3/monolib/shader");
+//! let gltf = GltfFile::from_map("map", &roots, &shader_textures, false)?;
 //! gltf.save("map.gltf")?;
 //! # Ok(())
 //! # }
 //! ```
 use std::{borrow::Cow, collections::BTreeMap, io::BufWriter, path::Path};
 
-use crate::{animation::Animation, MapRoot, ModelRoot};
+use crate::{animation::Animation, monolib::ShaderTextures, MapRoot, ModelRoot};
 use animation::add_animations;
 use glam::Mat4;
 use gltf::json::validation::Checked::Valid;
@@ -242,10 +245,14 @@ impl GltfData {
         model_name: &str,
         roots: &[ModelRoot],
         animations: &[Animation],
+        shader_textures: &ShaderTextures,
         flip_images_uvs: bool,
     ) -> Result<Self, CreateGltfError> {
         let mut data = GltfData {
-            texture_cache: TextureCache::new(roots.iter().map(|r| &r.image_textures)),
+            texture_cache: TextureCache::new(
+                roots.iter().map(|r| &r.image_textures),
+                shader_textures,
+            ),
             ..Default::default()
         };
 
@@ -309,10 +316,14 @@ impl GltfData {
     fn from_map(
         model_name: &str,
         roots: &[MapRoot],
+        shader_textures: &ShaderTextures,
         flip_images_uvs: bool,
     ) -> Result<Self, CreateGltfError> {
         let mut data = GltfData {
-            texture_cache: TextureCache::new(roots.iter().map(|r| &r.image_textures)),
+            texture_cache: TextureCache::new(
+                roots.iter().map(|r| &r.image_textures),
+                shader_textures,
+            ),
             ..Default::default()
         };
 
@@ -376,10 +387,17 @@ impl GltfFile {
         model_name: &str,
         roots: &[ModelRoot],
         animations: &[Animation],
+        shader_textures: &ShaderTextures,
         flip_images_uvs: bool,
     ) -> Result<Self, CreateGltfError> {
-        GltfData::from_model(model_name, roots, animations, flip_images_uvs)?
-            .into_gltf(model_name, flip_images_uvs)
+        GltfData::from_model(
+            model_name,
+            roots,
+            animations,
+            shader_textures,
+            flip_images_uvs,
+        )?
+        .into_gltf(model_name, flip_images_uvs)
     }
 
     /// Convert the Xenoblade map `roots` to glTF data.
@@ -392,9 +410,10 @@ impl GltfFile {
     pub fn from_map(
         model_name: &str,
         roots: &[MapRoot],
+        shader_textures: &ShaderTextures,
         flip_images_uvs: bool,
     ) -> Result<Self, CreateGltfError> {
-        GltfData::from_map(model_name, roots, flip_images_uvs)?
+        GltfData::from_map(model_name, roots, shader_textures, flip_images_uvs)?
             .into_gltf(model_name, flip_images_uvs)
     }
 
@@ -406,7 +425,7 @@ impl GltfFile {
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # use xc3_model::gltf::GltfFile;
     /// # let roots = Vec::new();
-    /// let gltf_file = GltfFile::from_model("model", &roots, &[], false)?;
+    /// let gltf_file = GltfFile::from_model("model", &roots, &[], &Default::default(), false)?;
     /// gltf_file.save("model.gltf")?;
     /// # Ok(())
     /// # }
@@ -440,11 +459,18 @@ impl GlbFile {
         model_name: &str,
         roots: &[ModelRoot],
         animations: &[Animation],
+        shader_textures: &ShaderTextures,
         flip_images_uvs: bool,
     ) -> Result<Self, CreateGltfError> {
         // TODO: Does this need a model name?
-        GltfData::from_model(model_name, roots, animations, flip_images_uvs)?
-            .into_glb(model_name, flip_images_uvs)
+        GltfData::from_model(
+            model_name,
+            roots,
+            animations,
+            shader_textures,
+            flip_images_uvs,
+        )?
+        .into_glb(model_name, flip_images_uvs)
     }
 
     /// Convert the Xenoblade map `roots` to glTF data.
@@ -457,10 +483,11 @@ impl GlbFile {
     pub fn from_map(
         model_name: &str,
         roots: &[MapRoot],
+        shader_textures: &ShaderTextures,
         flip_images_uvs: bool,
     ) -> Result<Self, CreateGltfError> {
         // TODO: Does this need a model name?
-        GltfData::from_map(model_name, roots, flip_images_uvs)?
+        GltfData::from_map(model_name, roots, shader_textures, flip_images_uvs)?
             .into_glb(model_name, flip_images_uvs)
     }
 
@@ -472,7 +499,7 @@ impl GlbFile {
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # use xc3_model::gltf::GlbFile;
     /// # let roots = Vec::new();
-    /// let glb_file = GlbFile::from_model("model", &roots, &[], false)?;
+    /// let glb_file = GlbFile::from_model("model", &roots, &[], &Default::default(), false)?;
     /// glb_file.save("model.glb")?;
     /// # Ok(())
     /// # }

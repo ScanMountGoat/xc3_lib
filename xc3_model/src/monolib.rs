@@ -44,7 +44,7 @@ use std::{collections::BTreeMap, path::Path};
 use xc3_lib::mibl::Mibl;
 
 /// Textures and resources from the `monolib/shader` folder.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Default)]
 pub struct ShaderTextures {
     /// The texture like `toon_grad.witex` for supported sampler names like `gTToonGrad`.
     /// Missing files will be set to `None`.
