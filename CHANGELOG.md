@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 * Optimized shader database size.
 * Changed shader database to store unique shader programs instead of all shaders for a model or map for reduced size and better flexibility.
+* Changed arguments for xc3_gltf to support drag and drop conversions to `.glb` on Windows. The output defaults to the input path with `.glb` extension if not specified. The database defaults to `xc_combined.bin` in the executable directory if not specified.
 
 ## 0.15.0 - 2024-11-27
 ### Added
