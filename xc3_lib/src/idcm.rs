@@ -65,7 +65,6 @@ pub struct Idcm {
 
     pub unk10: u64,
 
-    // TODO: wrong offset?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
     pub unk11: Vec<u32>, // TODO: type?

@@ -11,10 +11,10 @@
 use std::io::Cursor;
 
 use crate::{
-    hash::hash_str_crc, idcm::Idcm, parse_count32_offset32, parse_offset32_count32, parse_ptr32,
-    parse_string_ptr32,
+    hash::hash_str_crc, idcm::Idcm, parse_count32_offset32, parse_offset32_count32,
+    parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
 };
-use binrw::{BinRead, BinReaderExt, BinResult, NullString};
+use binrw::{binread, BinRead, BinReaderExt, BinResult, NullString};
 use xc3_write::{write_full, Xc3Write, Xc3WriteOffsets};
 
 /// A simple archive containing named entries.
@@ -108,8 +108,9 @@ pub struct ChCl {
     pub unks: [u32; 10],
 }
 
+#[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, PartialEq, Clone)]
 pub struct ChClInner {
     #[br(parse_with = parse_offset32_count32)]
     #[xc3(offset_count(u32, u32))]
@@ -135,9 +136,18 @@ pub struct ChClInner {
     #[xc3(offset_count(u32, u32), align(2))]
     pub unk6: Vec<u16>,
 
-    #[br(parse_with = parse_offset32_count32)]
-    #[xc3(offset_count(u32, u32))]
-    pub unk7: Vec<ChClUnk7>,
+    // TODO: Find a nicer way to express this.
+    #[br(temp, restore_position)]
+    unk7_count_offset: [u32; 2],
+
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { inner: unk7_count_offset[1] as usize })]
+    #[xc3(offset(u32))]
+    pub unk7: Option<ChClUnk7>,
+
+    // TODO: add offset_inner_count to xc3?
+    #[xc3(shared_offset)]
+    pub unk7_count: u32,
 
     // TODO: padding?
     pub unks: [u32; 4],
@@ -156,16 +166,24 @@ pub struct ChClUnk2 {
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(count: usize))]
 pub struct ChClUnk7 {
-    pub unk1: [[f32; 4]; 3],
-    pub unk2: f32,
+    #[br(count = count)]
+    pub unk1: Vec<[[f32; 4]; 3]>,
+    #[br(count = count)]
+    pub unk2: Vec<ChClUnk7Item>,
+}
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct ChClUnk7Item {
+    pub unk1: f32,
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]
     pub idcm: Idcm,
 
     // TODO: padding?
-    pub unk: [u32; 5],
+    pub unk: [u32; 3],
 }
 
 // TODO: Is the padding always aligned?
@@ -237,9 +255,19 @@ impl<'a> Xc3WriteOffsets for ChClInnerOffsets<'a> {
                 .write_full(writer, base_offset, data_ptr, endian)?;
         }
 
-        for u in unk7.0 {
-            u.write_offsets(writer, base_offset, data_ptr, endian)?;
-        }
+        unk7.write_offsets(writer, base_offset, data_ptr, endian)?;
+
+        // Assume both lists have the same length.
+        // TODO: Find a nicer way of expressing this.
+        self.unk7_count.set_offset(
+            writer,
+            self.unk7
+                .data
+                .as_ref()
+                .map(|d| d.unk1.len())
+                .unwrap_or_default() as u64,
+            endian,
+        )?;
 
         Ok(())
     }
