@@ -457,6 +457,7 @@ impl Nvsp {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct ShaderBinary {
     pub program_binary: Vec<u8>,
     pub constant_buffer: Option<[[f32; 4]; 16]>,

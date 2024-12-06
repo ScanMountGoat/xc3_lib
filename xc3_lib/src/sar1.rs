@@ -11,7 +11,7 @@
 use std::io::Cursor;
 
 use crate::{
-    hash::hash_str_crc, parse_count32_offset32, parse_offset32_count32, parse_ptr32,
+    hash::hash_str_crc, idcm::Idcm, parse_count32_offset32, parse_offset32_count32, parse_ptr32,
     parse_string_ptr32,
 };
 use binrw::{BinRead, BinReaderExt, BinResult, NullString};
@@ -158,7 +158,14 @@ pub struct ChClUnk2 {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct ChClUnk7 {
     pub unk1: [[f32; 4]; 3],
-    // TODO: Pointer to Idcm?
+    pub unk2: f32,
+
+    #[br(parse_with = parse_ptr32)]
+    #[xc3(offset(u32))]
+    pub idcm: Idcm,
+
+    // TODO: padding?
+    pub unk: [u32; 5],
 }
 
 // TODO: Is the padding always aligned?
@@ -211,10 +218,7 @@ impl<'a> Xc3WriteOffsets for ChClInnerOffsets<'a> {
         self.unk1
             .write_full(writer, base_offset, data_ptr, endian)?;
         let unk2 = self.unk2.write(writer, base_offset, data_ptr, endian)?;
-        if !self.unk7.data.is_empty() {
-            self.unk7
-                .write_full(writer, base_offset, data_ptr, endian)?;
-        }
+        let unk7 = self.unk7.write(writer, base_offset, data_ptr, endian)?;
         self.unk3
             .write_full(writer, base_offset, data_ptr, endian)?;
         if !self.unk4.data.is_empty() {
@@ -231,6 +235,10 @@ impl<'a> Xc3WriteOffsets for ChClInnerOffsets<'a> {
         for item in unk2.0 {
             item.name
                 .write_full(writer, base_offset, data_ptr, endian)?;
+        }
+
+        for u in unk7.0 {
+            u.write_offsets(writer, base_offset, data_ptr, endian)?;
         }
 
         Ok(())

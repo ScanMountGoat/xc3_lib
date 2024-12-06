@@ -6,13 +6,15 @@
 //! | Xenoblade Chronicles 1 DE | 10003 | `map/*.wiidcm` |
 //! | Xenoblade Chronicles 2 | 10003 | `map/*.wiidcm` |
 //! | Xenoblade Chronicles 3 | 10003 | `map/*.idcm` |
-use crate::{parse_offset32_count16, parse_offset32_count32, parse_ptr32};
+use crate::{
+    parse_offset32_count16, parse_offset32_count32, parse_ptr32, parse_string_ptr32, StringOffset32,
+};
 use binrw::{binread, BinRead};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write)]
+#[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
 #[br(magic(b"IDCM"))]
 #[xc3(base_offset)]
@@ -59,10 +61,11 @@ pub struct Idcm {
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub unk9: Vec<[f32; 4]>,
+    pub unk9: Vec<Unk9>,
 
     pub unk10: u64,
 
+    // TODO: wrong offset?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
     pub unk11: Vec<u32>, // TODO: type?
@@ -82,10 +85,16 @@ pub struct Idcm {
     #[xc3(offset_count(u32, u32))]
     pub unk18: Vec<[u32; 10]>,
 
-    // TODO: strings?
-    pub unks1_3: [u32; 4],
+    pub unks1_3: [u32; 2],
 
     #[br(parse_with = parse_ptr32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset(u32))]
+    pub unk20: StringOffset32,
+
+    pub unk21: u32,
+
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub unk15: [f32; 10],
 
@@ -94,9 +103,10 @@ pub struct Idcm {
     pub unks1_2: Vec<u32>, // TODO: type?
 
     // TODO: string pointers?
-    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[br(parse_with = parse_offset32_count32)]
+    #[br(args{ offset: base_offset, inner: base_offset})]
     #[xc3(offset_count(u32, u32))]
-    pub unk16: Vec<[u32; 5]>,
+    pub unk16: Vec<Unk16>,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
@@ -114,12 +124,35 @@ pub struct Idcm {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Unk2 {
+    // TODO: These offsets aren't in any particular order?
     #[br(parse_with = parse_offset32_count16, offset = base_offset)]
     #[xc3(offset_count(u32, u16))]
     pub unk1: Vec<[u16; 3]>,
 
     pub unk2: u16,
     pub unk3: u32,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct Unk9 {
+    // TODO: half float?
+    pub unk1: u16,
+    pub unk2: u16,
+    pub unk3: u16,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct Unk16 {
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub unk1: String,
+    pub unk2: u32,
+    pub unk3: u32,
+    pub unk4: u32,
+    pub unk5: u32,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -156,8 +189,7 @@ impl<'a> Xc3WriteOffsets for IdcmOffsets<'a> {
             .write_full(writer, base_offset, data_ptr, endian)?;
         self.unk18
             .write_full(writer, base_offset, data_ptr, endian)?;
-        self.unk16
-            .write_full(writer, base_offset, data_ptr, endian)?;
+        let unk16 = self.unk16.write(writer, base_offset, data_ptr, endian)?;
         self.unk5
             .write_full(writer, base_offset, data_ptr, endian)?;
         self.unk6
@@ -170,6 +202,8 @@ impl<'a> Xc3WriteOffsets for IdcmOffsets<'a> {
             .write_full(writer, base_offset, data_ptr, endian)?;
 
         // TODO: A lot of empty lists go here?
+        *data_ptr += 12;
+
         self.unk11
             .write_full(writer, base_offset, data_ptr, endian)?;
         self.unks1_2
@@ -186,6 +220,13 @@ impl<'a> Xc3WriteOffsets for IdcmOffsets<'a> {
         }
 
         for u in unk19.0 {
+            u.write_offsets(writer, base_offset, data_ptr, endian)?;
+        }
+
+        self.unk20
+            .write_full(writer, base_offset, data_ptr, endian)?;
+
+        for u in unk16.0 {
             u.write_offsets(writer, base_offset, data_ptr, endian)?;
         }
 
