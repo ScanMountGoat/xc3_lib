@@ -107,8 +107,112 @@ where
     pub elements: Vec<T>,
 
     // TODO: Does this field do anything?
-    // #[br(assert(unk1 == -1))]
+    // TODO: Don't actually store this field?
+    #[br(assert(unk1 == -1))]
     pub unk1: i32,
+}
+
+// TODO: Use this for all instances of BcList?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, PartialEq, Clone)]
+pub enum BcList2<T> {
+    List(Vec<T>),
+    /// An empty list that still specifies a count.
+    NullOffsetCount(u32),
+}
+
+impl<T> BinRead for BcList2<T>
+where
+    T: 'static,
+    for<'a> T: BinRead<Args<'a> = ()>,
+{
+    type Args<'a> = ();
+
+    // TODO: Derive this somehow?
+    fn read_options<R: std::io::Read + std::io::Seek>(
+        reader: &mut R,
+        endian: binrw::Endian,
+        _args: Self::Args<'_>,
+    ) -> binrw::BinResult<Self> {
+        let offset = u64::read_options(reader, endian, ())?;
+        let count = u32::read_options(reader, endian, ())?;
+
+        let pos = reader.stream_position()?;
+        let unk = i32::read_options(reader, endian, ())?;
+        if unk != -1 {
+            return Err(binrw::Error::AssertFail {
+                pos,
+                message: format!("expected -1 but found {unk}"),
+            });
+        }
+
+        if offset == 0 {
+            Ok(Self::NullOffsetCount(count))
+        } else {
+            crate::parse_vec(reader, endian, Default::default(), offset, count as usize)
+                .map(Self::List)
+        }
+    }
+}
+
+pub enum BcList2Offsets<'a, T> {
+    List(xc3_write::Offset<'a, u64, Vec<T>>),
+    NullOffsetCount,
+}
+
+impl<T> Xc3Write for BcList2<T>
+where
+    T: Xc3Write + 'static,
+{
+    type Offsets<'a> = BcList2Offsets<'a, T> where T: 'a;
+
+    fn xc3_write<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        endian: xc3_write::Endian,
+    ) -> xc3_write::Xc3Result<Self::Offsets<'_>> {
+        let offsets = match self {
+            BcList2::List(elements) => {
+                let offset = xc3_write::Offset::new(writer.stream_position()?, elements, None, 0);
+                0u64.xc3_write(writer, endian)?;
+                (elements.len() as u32).xc3_write(writer, endian)?;
+                BcList2Offsets::List(offset)
+            }
+            BcList2::NullOffsetCount(count) => {
+                0u64.xc3_write(writer, endian)?;
+                count.xc3_write(writer, endian)?;
+                BcList2Offsets::NullOffsetCount
+            }
+        };
+        (-1i32).xc3_write(writer, endian)?;
+
+        Ok(offsets)
+    }
+}
+
+impl<'a, T> Xc3WriteOffsets for BcList2Offsets<'a, T>
+where
+    T: Xc3Write + 'static,
+    T::Offsets<'a>: Xc3WriteOffsets,
+{
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+        endian: xc3_write::Endian,
+    ) -> xc3_write::Xc3Result<()> {
+        match self {
+            BcList2Offsets::List(offset) => {
+                if !offset.data.is_empty() {
+                    offset.write_full(writer, base_offset, data_ptr, endian)
+                } else {
+                    Ok(())
+                }
+            }
+            BcList2Offsets::NullOffsetCount => Ok(()),
+        }
+    }
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]

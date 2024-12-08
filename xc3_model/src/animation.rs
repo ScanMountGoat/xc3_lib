@@ -506,7 +506,10 @@ fn morph_tracks(anim: &xc3_lib::bc::anim::Anim) -> Option<MorphTracks> {
             let extra = unk1.extra_track_bindings.first()?;
 
             Some(MorphTracks {
-                track_indices: extra.track_indices.clone(),
+                track_indices: match &extra.track_indices {
+                    xc3_lib::bc::BcList2::List(list) => list.clone(),
+                    xc3_lib::bc::BcList2::NullOffsetCount(_) => Vec::new(),
+                },
                 track_values: extra
                     .extra_track_animation
                     .as_ref()?

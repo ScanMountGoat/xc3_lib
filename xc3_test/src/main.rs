@@ -730,7 +730,10 @@ fn check_sar1(sar1: Sar1, path: &Path, original_bytes: &[u8], check_read_write: 
         match reader.read_le() {
             Ok(data) => match data {
                 Sar1EntryData::Bc(bc) => {
-                    check_bc(*bc, path, &entry.entry_data, check_read_write);
+                    if check_read_write && !write_le_bytes_equals(&bc, &entry.entry_data) {
+                        println!("Bc read/write not 1:1 for {:?} in {path:?}", entry.name);
+                    }
+                    check_bc(*bc, path, &[], false);
                 }
                 Sar1EntryData::ChCl(chcl) => {
                     if check_read_write && !write_le_bytes_equals(&chcl, original_bytes) {

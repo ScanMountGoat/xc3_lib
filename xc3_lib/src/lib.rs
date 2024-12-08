@@ -245,7 +245,11 @@ where
     let offset = u32::read_options(reader, endian, ())?;
     let count = u32::read_options(reader, endian, ())?;
 
-    crate::parse_vec(reader, endian, args, offset as u64, count as usize)
+    if offset == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::parse_vec(reader, endian, args, offset as u64, count as usize)
+    }
 }
 
 fn parse_count32_offset32_unchecked<T, R, Args>(
@@ -261,7 +265,11 @@ where
     let count = u32::read_options(reader, endian, ())?;
     let offset = u32::read_options(reader, endian, ())?;
 
-    crate::parse_vec(reader, endian, args, offset as u64, count as usize)
+    if offset == 0 {
+        Ok(Vec::new())
+    } else {
+        crate::parse_vec(reader, endian, args, offset as u64, count as usize)
+    }
 }
 
 fn parse_offset64_count32<T, R, Args>(

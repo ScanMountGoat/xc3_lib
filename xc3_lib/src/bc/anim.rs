@@ -5,7 +5,7 @@ use crate::{
 use binrw::{binread, BinRead, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
-use super::{BcList, StringOffset, StringSection, Transform};
+use super::{BcList, BcList2, StringOffset, StringSection, Transform};
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
@@ -90,13 +90,8 @@ pub struct ExtraTrackAnimationBinding {
     // TODO: Same count as ModelUnk1 items?
     // TODO: Assigns values in extra_track_animation to ModelUnk1Items?
 
-    // TODO: This can have 0 offset but nonzero count?
-    // TODO: Is it worth preserving the count if the offset is 0?
     // TODO: Should this be ignored if extra_track_animation is None?
-    #[br(parse_with = parse_offset64_count32_unchecked)]
-    #[xc3(offset_count(u64, u32), align(8, 0xff))]
-    pub track_indices: Vec<i16>,
-    pub unk1: i32, // -1
+    pub track_indices: BcList2<i16>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -557,22 +552,6 @@ pub struct SubTrack {
     pub keyframe_end_index: u32,
 }
 
-fn parse_offset64_count32_unchecked<T, R, Args>(
-    reader: &mut R,
-    endian: binrw::Endian,
-    args: binrw::file_ptr::FilePtrArgs<Args>,
-) -> binrw::BinResult<Vec<T>>
-where
-    for<'a> T: BinRead<Args<'a> = Args> + 'static,
-    R: std::io::Read + std::io::Seek,
-    Args: Clone,
-{
-    let offset = u64::read_options(reader, endian, ())?;
-    let count = u32::read_options(reader, endian, ())?;
-
-    crate::parse_vec(reader, endian, args, offset, count as usize)
-}
-
 xc3_write_binwrite_impl!(AnimationType, BlendMode, PlayMode, SpaceMode);
 
 impl<'a> Xc3WriteOffsets for AnimOffsets<'a> {
@@ -651,7 +630,7 @@ impl<'a> Xc3WriteOffsets for AnimOffsets<'a> {
                         }
 
                         item.track_indices
-                            .write_full(writer, base_offset, data_ptr, endian)?;
+                            .write_offsets(writer, base_offset, data_ptr, endian)?;
                     }
                 }
             }
@@ -733,12 +712,11 @@ impl<'a> Xc3WriteOffsets for ExtraTrackAnimationBindingOffsets<'a> {
                 .write_offsets(writer, base_offset, data_ptr, endian)?;
         }
 
-        if !self.track_indices.data.is_empty() {
-            self.track_indices
-                .write_full(writer, base_offset, data_ptr, endian)?;
-        }
+        self.track_indices
+            .write_offsets(writer, base_offset, data_ptr, endian)?;
 
         // The name needs to be written at the end.
+        // TODO: String section shared with animation name?
         if let Some(animation) = &animation {
             animation
                 .name
