@@ -512,10 +512,14 @@ fn morph_tracks(anim: &xc3_lib::bc::anim::Anim) -> Option<MorphTracks> {
                 },
                 track_values: extra
                     .extra_track_animation
-                    .as_ref()?
-                    .values
-                    .elements
-                    .clone(),
+                    .as_ref()
+                    .map(|extra| match &extra.data {
+                        xc3_lib::bc::anim::ExtraAnimationData::Uncompressed(values) => {
+                            values.elements.clone()
+                        }
+                        xc3_lib::bc::anim::ExtraAnimationData::Cubic(_cubic) => Vec::new(),
+                    })
+                    .unwrap_or_default(),
             })
         }
         // TODO: Does these also contain morph animations?

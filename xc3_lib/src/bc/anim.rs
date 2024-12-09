@@ -112,8 +112,19 @@ pub struct ExtraTrackAnimation {
 
     pub unk4: i32,
 
-    // TODO: depends on type?
-    pub values: BcList<f32>,
+    #[br(args_raw(animation_type))]
+    pub data: ExtraAnimationData,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(animation_type: AnimationType))]
+pub enum ExtraAnimationData {
+    #[br(pre_assert(animation_type == AnimationType::Uncompressed))]
+    Uncompressed(BcList<f32>),
+
+    #[br(pre_assert(animation_type == AnimationType::Cubic))]
+    Cubic(BcList<BcList<[f32; 5]>>),
 }
 
 // 76 total bytes for xc1 or xc3
@@ -364,8 +375,9 @@ pub struct CubicExtraDataInner2 {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct PackedCubicExtraData {
+    // TODO: bc list with align and padding byte
     #[br(parse_with = parse_offset64_count32)]
-    #[xc3(offset_count(u64, u32), align(8))]
+    #[xc3(offset_count(u64, u32), align(8, 0xff))]
     pub extra_track_bindings: Vec<ExtraTrackAnimationBinding>,
     pub unk2: i32, // -1
 
@@ -752,7 +764,7 @@ impl<'a> Xc3WriteOffsets for AnimationBindingInner2Offsets<'a> {
                         .write(writer, base_offset, data_ptr, endian)?;
                 if let Some(extra) = extra {
                     extra
-                        .values
+                        .data
                         .write_offsets(writer, base_offset, data_ptr, endian, ())?;
                     args.borrow_mut().insert_offset(&extra.name);
                 }
@@ -834,7 +846,7 @@ impl<'a> Xc3WriteOffsets for ExtraTrackAnimationBindingOffsets<'a> {
 
         if let Some(animation) = &animation {
             animation
-                .values
+                .data
                 .write_offsets(writer, base_offset, data_ptr, endian, ())?;
 
             args.borrow_mut().insert_offset(&animation.name);
