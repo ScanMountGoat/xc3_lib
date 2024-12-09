@@ -392,10 +392,21 @@ pub struct PackedCubicExtraData {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PackedCubicExtraDataUnk1 {
-    pub unk1: BcList<u8>,
-    pub unk2: BcList<u16>,
+    // TODO: make bclist generic over align and padding.
     #[br(parse_with = parse_offset64_count32)]
-    #[xc3(offset_count(u64, u32))]
+    #[xc3(offset_count(u64, u32), align(4, 0xff))]
+    pub unk1: Vec<u8>,
+    #[br(assert(unk1_1 == -1))]
+    pub unk1_1: i32,
+
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32), align(8, 0xff))]
+    pub unk2: Vec<u16>,
+    #[br(assert(unk2_1 == -1))]
+    pub unk2_1: i32,
+
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32), align(8, 0xff))]
     pub unk3: Vec<u32>,
 }
 
