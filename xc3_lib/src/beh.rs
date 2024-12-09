@@ -68,7 +68,7 @@ impl<'a> Xc3WriteOffsets for BehOffsets<'a> {
         base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
-        args: Self::Args,
+        _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
         *data_ptr = data_ptr.next_multiple_of(16);

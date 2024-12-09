@@ -317,7 +317,7 @@ impl<'a> Xc3WriteOffsets for SkeletonOffsets<'a> {
         base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
-        args: Self::Args,
+        _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         // The names are stored in a single section.
         let mut string_section = StringSection::default();
@@ -445,7 +445,7 @@ impl<'a> Xc3WriteOffsets for SkeletonExtraUnk3Offsets<'a> {
         base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
-        args: Self::Args,
+        _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
         self.unk6

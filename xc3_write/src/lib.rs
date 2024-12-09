@@ -399,11 +399,12 @@ where
     }
 }
 
-impl<T> Xc3WriteOffsets for VecOffsets<T>
+impl<T, A> Xc3WriteOffsets for VecOffsets<T>
 where
-    T: Xc3WriteOffsets<Args = ()>,
+    T: Xc3WriteOffsets<Args = A>,
+    A: Clone,
 {
-    type Args = ();
+    type Args = A;
 
     fn write_offsets<W: Write + Seek>(
         &self,
@@ -415,7 +416,7 @@ where
     ) -> Xc3Result<()> {
         // TODO: How to support non clone args?
         for item in &self.0 {
-            item.write_offsets(writer, base_offset, data_ptr, endian, args)?;
+            item.write_offsets(writer, base_offset, data_ptr, endian, args.clone())?;
         }
         Ok(())
     }

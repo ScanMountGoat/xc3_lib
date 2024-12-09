@@ -203,7 +203,7 @@ where
         base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
-        args: Self::Args,
+        _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         match self {
             BcList2Offsets::List(offset) => {
@@ -220,7 +220,7 @@ where
 
 #[doc(hidden)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct StringSection {
     // Unique strings are stored in alphabetical order.
     name_to_offsets: BTreeMap<String, Vec<u64>>,

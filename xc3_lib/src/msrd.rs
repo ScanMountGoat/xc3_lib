@@ -411,7 +411,7 @@ impl<'a> Xc3WriteOffsets for MsrdOffsets<'a> {
         base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
-        args: Self::Args,
+        _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
         self.streaming
@@ -431,7 +431,7 @@ impl<'a> Xc3WriteOffsets for TextureResourcesOffsets<'a> {
         base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
-        args: Self::Args,
+        _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
         self.chr_textures

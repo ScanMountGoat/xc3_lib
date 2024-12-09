@@ -581,7 +581,7 @@ impl<'a> Xc3WriteOffsets for SpchOffsets<'a> {
         _base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
-        args: Self::Args,
+        _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         // The ordering is slightly different than the field order.
         let base_offset = self.base_offset;

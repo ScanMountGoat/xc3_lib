@@ -81,7 +81,7 @@ impl<'a> Xc3WriteOffsets for LapsOffsets<'a> {
         base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
-        args: Self::Args,
+        _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         // Strings at the end of the file.
         let unk2 = self.unk2.write(writer, base_offset, data_ptr, endian)?;

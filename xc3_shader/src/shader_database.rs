@@ -3171,7 +3171,7 @@ mod tests {
                 },
             ],
         };
-        let shader = shader_from_latte_asm("".into(), &asm, &fragment_shader);
+        let shader = shader_from_latte_asm("", asm, &fragment_shader);
         assert_eq!(
             ShaderProgram {
                 output_dependencies: [

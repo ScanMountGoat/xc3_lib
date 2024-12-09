@@ -1993,7 +1993,7 @@ impl<'a> Xc3WriteOffsets for SkinningOffsets<'a> {
         _base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
-        args: Self::Args,
+        _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
 
@@ -2036,7 +2036,7 @@ impl<'a> Xc3WriteOffsets for ModelUnk1Offsets<'a> {
         _base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
-        args: Self::Args,
+        _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
 
@@ -2077,7 +2077,7 @@ impl<'a> Xc3WriteOffsets for LodDataOffsets<'a> {
         _base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
-        args: Self::Args,
+        _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
         // Different order than field order.
@@ -2099,7 +2099,7 @@ impl<'a> Xc3WriteOffsets for ModelsOffsets<'a> {
         _base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
-        args: Self::Args,
+        _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
 
@@ -2148,7 +2148,7 @@ impl<'a> Xc3WriteOffsets for TechniqueOffsets<'a> {
         base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
-        args: Self::Args,
+        _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
         self.attributes
@@ -2180,7 +2180,7 @@ impl<'a> Xc3WriteOffsets for MaterialsOffsets<'a> {
         _base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
-        args: Self::Args,
+        _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
 
@@ -2242,7 +2242,7 @@ impl<'a> Xc3WriteOffsets for MxmdOffsets<'a> {
         base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
-        args: Self::Args,
+        _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         self.models
             .write_full(writer, base_offset, data_ptr, endian, ())?;
@@ -2287,7 +2287,7 @@ impl<'a> Xc3WriteOffsets for Unk1Offsets<'a> {
         _base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
-        args: Self::Args,
+        _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
         self.unk1
@@ -2313,7 +2313,7 @@ impl<'a> Xc3WriteOffsets for ModelUnk3ItemOffsets<'a> {
         base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
-        args: Self::Args,
+        _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
         self.unk3
@@ -2333,7 +2333,7 @@ impl<'a> Xc3WriteOffsets for FurShellsOffsets<'a> {
         base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
-        args: Self::Args,
+        _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
         self.params
@@ -2353,7 +2353,7 @@ impl<'a> Xc3WriteOffsets for PackedTexturesOffsets<'a> {
         _base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
-        args: Self::Args,
+        _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
 
@@ -2390,7 +2390,7 @@ where
         _base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
-        args: Self::Args,
+        _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
 
@@ -2417,7 +2417,7 @@ impl<'a> Xc3WriteOffsets for SkeletonUnk5Offsets<'a> {
         _base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
-        args: Self::Args,
+        _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
 
@@ -2445,7 +2445,7 @@ impl<'a> Xc3WriteOffsets for Unk8Offsets<'a> {
         _base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
-        args: Self::Args,
+        _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
         let unk2 = self.unk2.write(writer, base_offset, data_ptr, endian)?;
