@@ -127,7 +127,7 @@ pub struct StreamingDataLegacyInner<U>
 where
     U: Xc3Write + 'static,
     for<'a> U: BinRead<Args<'a> = ()>,
-    for<'a> U::Offsets<'a>: Xc3WriteOffsets,
+    for<'a> U::Offsets<'a>: Xc3WriteOffsets<Args = ()>,
 {
     #[br(parse_with = parse_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
@@ -403,37 +403,43 @@ where
 xc3_write_binwrite_impl!(StreamEntry, StreamFlags, StreamingFlagsLegacy);
 
 impl<'a> Xc3WriteOffsets for MsrdOffsets<'a> {
+    type Args = ();
+
     fn write_offsets<W: Write + Seek>(
         &self,
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
+        args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
         self.streaming
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.data
-            .write_full(writer, base_offset + 16, data_ptr, endian)?;
+            .write_full(writer, base_offset + 16, data_ptr, endian, ())?;
         Ok(())
     }
 }
 
 impl<'a> Xc3WriteOffsets for TextureResourcesOffsets<'a> {
+    type Args = ();
+
     fn write_offsets<W: Write + Seek>(
         &self,
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
+        args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
         self.chr_textures
-            .write_offsets(writer, base_offset, data_ptr, endian)?;
+            .write_offsets(writer, base_offset, data_ptr, endian, ())?;
         self.texture_indices
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.low_textures
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         Ok(())
     }

@@ -79,10 +79,10 @@ impl Xbc1 {
     ) -> Result<Self, CreateXbc1Error>
     where
         T: Xc3Write + 'static,
-        T::Offsets<'a>: Xc3WriteOffsets,
+        T::Offsets<'a>: Xc3WriteOffsets<Args = ()>,
     {
         let mut writer = Cursor::new(Vec::new());
-        write_full(data, &mut writer, 0, &mut 0, xc3_write::Endian::Little)?;
+        write_full(data, &mut writer, 0, &mut 0, xc3_write::Endian::Little, ())?;
         let decompressed = writer.into_inner();
 
         Self::from_decompressed(name, &decompressed, compression_type)

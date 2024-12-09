@@ -35,7 +35,7 @@ fn write_offset_count_full() {
 
     let mut writer = Cursor::new(Vec::new());
     let mut data_ptr = 0;
-    write_full(&value, &mut writer, 0, &mut data_ptr, Endian::Little).unwrap();
+    write_full(&value, &mut writer, 0, &mut data_ptr, Endian::Little, ()).unwrap();
 
     assert_hex_eq!(hex!(08000000 04000000 01020304), writer.into_inner());
     assert_eq!(12, data_ptr);
@@ -55,7 +55,7 @@ fn write_offset_count_full_align_0x0() {
 
     let mut writer = Cursor::new(Vec::new());
     let mut data_ptr = 0;
-    write_full(&value, &mut writer, 0, &mut data_ptr, Endian::Little).unwrap();
+    write_full(&value, &mut writer, 0, &mut data_ptr, Endian::Little, ()).unwrap();
 
     assert_hex_eq!(
         hex!(10000000 04000000 00000000 00000000 01020304),
@@ -78,7 +78,7 @@ fn write_offset_count_full_align_0xff() {
 
     let mut writer = Cursor::new(Vec::new());
     let mut data_ptr = 0;
-    write_full(&value, &mut writer, 0, &mut data_ptr, Endian::Little).unwrap();
+    write_full(&value, &mut writer, 0, &mut data_ptr, Endian::Little, ()).unwrap();
 
     assert_hex_eq!(
         hex!(10000000 04000000 ffffffff ffffffff 01020304),

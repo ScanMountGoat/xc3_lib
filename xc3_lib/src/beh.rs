@@ -60,19 +60,22 @@ pub struct Unk4Item {
 }
 
 impl<'a> Xc3WriteOffsets for BehOffsets<'a> {
+    type Args = ();
+
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
         &self,
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
+        args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
         *data_ptr = data_ptr.next_multiple_of(16);
         self.offsets
-            .write_offsets(writer, base_offset, data_ptr, endian)?;
+            .write_offsets(writer, base_offset, data_ptr, endian, ())?;
         self.data_sheet
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         Ok(())
     }
 }

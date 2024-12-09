@@ -245,24 +245,27 @@ where
 }
 
 impl<'a> Xc3WriteOffsets for LaftOffsets<'a> {
+    type Args = ();
+
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
+        _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
         self.mappings
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.offsets
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.font_info
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.settings
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.texture
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         Ok(())
     }
 }

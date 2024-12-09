@@ -493,7 +493,7 @@ macro_rules! file_write_full_impl {
         $(
             impl $type_name {
                 pub fn write<W: Write + Seek>(&self, writer: &mut W) -> xc3_write::Xc3Result<()> {
-                    write_full(self, writer, 0, &mut 0, $endian).map_err(Into::into)
+                    write_full(self, writer, 0, &mut 0, $endian, ()).map_err(Into::into)
                 }
 
                 /// Write to `path` using a buffered writer for better performance.
@@ -658,7 +658,7 @@ fn align<W: Write>(writer: &mut W, size: u64, align: u64, pad: u8) -> Result<(),
 pub struct Offset32<T>
 where
     T: Xc3Write + 'static,
-    for<'a> <T as xc3_write::Xc3Write>::Offsets<'a>: Xc3WriteOffsets,
+    for<'a> <T as xc3_write::Xc3Write>::Offsets<'a>: Xc3WriteOffsets<Args = ()>,
     for<'a> T: BinRead<Args<'a> = ()>,
 {
     #[br(parse_with = parse_ptr32, offset = base_offset)]

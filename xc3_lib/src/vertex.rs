@@ -583,12 +583,15 @@ fn buffer_info_count(vertex_buffers: &[VertexBufferDescriptor]) -> usize {
 }
 
 impl<'a> Xc3WriteOffsets for VertexDataOffsets<'a> {
+    type Args = ();
+
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
         _base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
+        args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
 
@@ -616,7 +619,7 @@ impl<'a> Xc3WriteOffsets for VertexDataOffsets<'a> {
         }
 
         self.weights
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         self.unk_data.write(writer, base_offset, data_ptr, endian)?;
 
@@ -640,7 +643,7 @@ impl<'a> Xc3WriteOffsets for VertexDataOffsets<'a> {
         }
 
         self.unk7
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         self.buffer.write(writer, base_offset, data_ptr, endian)?;
 

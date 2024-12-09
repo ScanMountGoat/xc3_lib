@@ -113,17 +113,20 @@ impl XcxFont {
 }
 
 impl<'a> Xc3WriteOffsets for FntOffsets<'a> {
+    type Args = ();
+
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
+        _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         self.font
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.textures
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         let file_size = writer.stream_position()?;
         self.file_size.set_offset(writer, file_size, endian)?;

@@ -73,23 +73,26 @@ pub struct Unk3 {
 }
 
 impl<'a> Xc3WriteOffsets for LapsOffsets<'a> {
+    type Args = ();
+
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
         &self,
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
+        args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         // Strings at the end of the file.
         let unk2 = self.unk2.write(writer, base_offset, data_ptr, endian)?;
         let unk3 = self.unk3.write(writer, base_offset, data_ptr, endian)?;
 
         for u in unk2.0 {
-            u.write_offsets(writer, base_offset, data_ptr, endian)?;
+            u.write_offsets(writer, base_offset, data_ptr, endian, ())?;
         }
 
         for u in unk3.0 {
-            u.write_offsets(writer, base_offset, data_ptr, endian)?;
+            u.write_offsets(writer, base_offset, data_ptr, endian, ())?;
         }
 
         // Align the file size to 16.

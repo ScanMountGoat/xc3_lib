@@ -166,67 +166,70 @@ pub struct Unk19 {
 }
 
 impl<'a> Xc3WriteOffsets for IdcmOffsets<'a> {
+    type Args = ();
+
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
         &self,
         writer: &mut W,
         _base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
+        _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
         // Different order than field order.
         self.unk15
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk1
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk17
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         let unk2 = self.unk2.write(writer, base_offset, data_ptr, endian)?;
         self.unk3
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk4
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk18
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         let unk16 = self.unk16.write(writer, base_offset, data_ptr, endian)?;
         self.unk5
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk6
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk7
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk8
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk9
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         // TODO: A lot of empty lists go here?
         *data_ptr += 12;
 
         self.unk11
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unks1_2
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unks1_4
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         self.unk13
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         let unk19 = self.unk19.write(writer, base_offset, data_ptr, endian)?;
 
         for u in unk2.0 {
-            u.write_offsets(writer, base_offset, data_ptr, endian)?;
+            u.write_offsets(writer, base_offset, data_ptr, endian, ())?;
         }
 
         for u in unk19.0 {
-            u.write_offsets(writer, base_offset, data_ptr, endian)?;
+            u.write_offsets(writer, base_offset, data_ptr, endian, ())?;
         }
 
         self.unk20
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         for u in unk16.0 {
-            u.write_offsets(writer, base_offset, data_ptr, endian)?;
+            u.write_offsets(writer, base_offset, data_ptr, endian, ())?;
         }
 
         Ok(())

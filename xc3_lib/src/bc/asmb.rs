@@ -213,12 +213,15 @@ pub struct StateTransitionV2 {
 
 // TODO: Is there a cleaner way to defer and sort strings?
 impl<'a> Xc3WriteOffsets for AsmbInnerV1Offsets<'a> {
+    type Args = ();
+
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
         &self,
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
+        _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         let mut string_section = StringSection::default();
 

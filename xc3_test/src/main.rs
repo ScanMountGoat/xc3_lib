@@ -1142,19 +1142,19 @@ fn check_all_animations<P: AsRef<Path>>(root: P, _check_read_write: bool) {
 fn write_le_bytes_equals<T>(value: &T, original_bytes: &[u8]) -> bool
 where
     T: Xc3Write + 'static,
-    for<'a> T::Offsets<'a>: Xc3WriteOffsets,
+    for<'a> T::Offsets<'a>: Xc3WriteOffsets<Args = ()>,
 {
     let mut writer = Cursor::new(Vec::new());
-    xc3_write::write_full(value, &mut writer, 0, &mut 0, xc3_write::Endian::Little).unwrap();
+    xc3_write::write_full(value, &mut writer, 0, &mut 0, xc3_write::Endian::Little, ()).unwrap();
     writer.into_inner() == original_bytes
 }
 
 fn write_be_bytes_equals<T>(value: &T, original_bytes: &[u8]) -> bool
 where
     T: Xc3Write + 'static,
-    for<'a> T::Offsets<'a>: Xc3WriteOffsets,
+    for<'a> T::Offsets<'a>: Xc3WriteOffsets<Args = ()>,
 {
     let mut writer = Cursor::new(Vec::new());
-    xc3_write::write_full(value, &mut writer, 0, &mut 0, xc3_write::Endian::Big).unwrap();
+    xc3_write::write_full(value, &mut writer, 0, &mut 0, xc3_write::Endian::Big, ()).unwrap();
     writer.into_inner() == original_bytes
 }

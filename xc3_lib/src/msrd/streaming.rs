@@ -232,6 +232,7 @@ impl Msrd {
             0,
             &mut data_ptr,
             xc3_write::Endian::Little,
+            (),
         )?;
         // Add the streaming tag and msrd header size.
         let first_xbc1_offset = (data_ptr + 4).next_multiple_of(16) as u32 + 16;
@@ -677,10 +678,10 @@ fn write_stream_data<'a, T>(
 ) -> Xc3Result<StreamEntry>
 where
     T: Xc3Write + 'static,
-    T::Offsets<'a>: Xc3WriteOffsets,
+    T::Offsets<'a>: Xc3WriteOffsets<Args = ()>,
 {
     let offset = writer.stream_position()?;
-    write_full(data, writer, 0, &mut 0, xc3_write::Endian::Little)?;
+    write_full(data, writer, 0, &mut 0, xc3_write::Endian::Little, ())?;
 
     // Stream data is aligned to 4096 bytes.
     align(writer, writer.position(), 4096, 0)?;
@@ -778,7 +779,7 @@ impl<U> StreamingDataLegacyInner<U>
 where
     U: Xc3Write + Copy + 'static,
     for<'a> U: BinRead<Args<'a> = ()>,
-    for<'a> U::Offsets<'a>: Xc3WriteOffsets,
+    for<'a> U::Offsets<'a>: Xc3WriteOffsets<Args = ()>,
 {
     pub fn extract_textures<T, F>(
         &self,

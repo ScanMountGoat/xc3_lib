@@ -16,7 +16,7 @@ fn write_offset_full_some() {
 
     let mut writer = Cursor::new(Vec::new());
     let mut data_ptr = 0;
-    write_full(&value, &mut writer, 0, &mut data_ptr, Endian::Little).unwrap();
+    write_full(&value, &mut writer, 0, &mut data_ptr, Endian::Little, ()).unwrap();
 
     assert_hex_eq!(hex!(08000000 02000000 01000000), writer.into_inner());
     assert_eq!(12, data_ptr);
@@ -36,7 +36,7 @@ fn write_offset_full_none() {
 
     let mut writer = Cursor::new(Vec::new());
     let mut data_ptr = 0;
-    write_full(&value, &mut writer, 0, &mut data_ptr, Endian::Little).unwrap();
+    write_full(&value, &mut writer, 0, &mut data_ptr, Endian::Little, ()).unwrap();
 
     assert_hex_eq!(hex!(04000000 01000000), writer.into_inner());
     assert_eq!(8, data_ptr);

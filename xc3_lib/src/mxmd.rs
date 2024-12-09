@@ -1523,7 +1523,7 @@ pub struct PackedExternalTextures<U>
 where
     U: Xc3Write + 'static,
     for<'a> U: BinRead<Args<'a> = ()>,
-    for<'a> U::Offsets<'a>: Xc3WriteOffsets,
+    for<'a> U::Offsets<'a>: Xc3WriteOffsets<Args = ()>,
 {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
@@ -1546,7 +1546,7 @@ pub struct PackedExternalTexture<U>
 where
     U: Xc3Write + 'static,
     for<'a> U: BinRead<Args<'a> = ()>,
-    for<'a> U::Offsets<'a>: Xc3WriteOffsets,
+    for<'a> U::Offsets<'a>: Xc3WriteOffsets<Args = ()>,
 {
     pub usage: U,
 
@@ -1985,12 +1985,15 @@ xc3_write_binwrite_impl!(
 );
 
 impl<'a> Xc3WriteOffsets for SkinningOffsets<'a> {
+    type Args = ();
+
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
         _base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
+        args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
 
@@ -1998,157 +2001,169 @@ impl<'a> Xc3WriteOffsets for SkinningOffsets<'a> {
 
         if !self.bone_indices.data.is_empty() {
             self.bone_indices
-                .write_full(writer, base_offset, data_ptr, endian)?;
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
         }
 
         self.inverse_bind_transforms
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         self.constraints
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.bounds
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         self.unk_offset4
-            .write_offsets(writer, base_offset, data_ptr, endian)?;
+            .write_offsets(writer, base_offset, data_ptr, endian, ())?;
         self.as_bone_data
-            .write_offsets(writer, base_offset, data_ptr, endian)?;
+            .write_offsets(writer, base_offset, data_ptr, endian, ())?;
         self.unk_offset5
-            .write_offsets(writer, base_offset, data_ptr, endian)?;
+            .write_offsets(writer, base_offset, data_ptr, endian, ())?;
 
         for bone in bones.0 {
             bone.name
-                .write_full(writer, base_offset, data_ptr, endian)?;
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
         }
         Ok(())
     }
 }
 
 impl<'a> Xc3WriteOffsets for ModelUnk1Offsets<'a> {
+    type Args = ();
+
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
         _base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
+        args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
 
         let items1 = self.items1.write(writer, base_offset, data_ptr, endian)?;
 
         self.items3
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         if !self.items2.data.is_empty() {
             self.items2
-                .write_full(writer, base_offset, data_ptr, endian)?;
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
         }
 
         // TODO: Set alignment at type level for Xc3Write?
         if !self.items4.data.is_empty() {
             self.items4
-                .write_full(writer, base_offset, data_ptr, endian)?;
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
         }
 
         for item in items1.0 {
             item.name
-                .write_full(writer, base_offset, data_ptr, endian)?;
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
         }
 
         self.extra
-            .write_offsets(writer, base_offset, data_ptr, endian)?;
+            .write_offsets(writer, base_offset, data_ptr, endian, ())?;
 
         Ok(())
     }
 }
 
 impl<'a> Xc3WriteOffsets for LodDataOffsets<'a> {
+    type Args = ();
+
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
         _base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
+        args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
         // Different order than field order.
         self.groups
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.items
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         Ok(())
     }
 }
 
 // TODO: Add derive attribute for skipping empty vecs?
 impl<'a> Xc3WriteOffsets for ModelsOffsets<'a> {
+    type Args = ();
+
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
         _base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
+        args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
 
         self.models
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.skinning
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         if !self.ext_meshes.data.is_empty() {
             self.ext_meshes
-                .write_full(writer, base_offset, data_ptr, endian)?;
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
         }
 
         self.model_unk8
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         // TODO: Padding before this?
         self.morph_controllers
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         // Different order than field order.
         self.lod_data
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.model_unk7
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.model_unk11
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.model_unk1
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.alpha_table
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.model_unk3
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.extra
-            .write_offsets(writer, base_offset, data_ptr, endian)?;
+            .write_offsets(writer, base_offset, data_ptr, endian, ())?;
 
         Ok(())
     }
 }
 
 impl<'a> Xc3WriteOffsets for TechniqueOffsets<'a> {
+    type Args = ();
+
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
+        args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
         self.attributes
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         if !self.textures.data.is_empty() {
             // TODO: Always skip offset for empty vec?
             self.textures
-                .write_full(writer, base_offset, data_ptr, endian)?;
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
         }
         self.uniform_blocks
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         // TODO: Why is there a variable amount of padding?
         self.parameters
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         *data_ptr += self.parameters.data.len() as u64 * 16;
 
         Ok(())
@@ -2157,12 +2172,15 @@ impl<'a> Xc3WriteOffsets for TechniqueOffsets<'a> {
 
 // TODO: Add derive attribute for skipping empty vecs?
 impl<'a> Xc3WriteOffsets for MaterialsOffsets<'a> {
+    type Args = ();
+
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
         _base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
+        args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
 
@@ -2172,43 +2190,43 @@ impl<'a> Xc3WriteOffsets for MaterialsOffsets<'a> {
             .write(writer, base_offset, data_ptr, endian)?;
 
         self.work_values
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.shader_vars
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         for material in &materials.0 {
             material
                 .techniques
-                .write_full(writer, base_offset, data_ptr, endian)?;
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
         }
 
         for material in &materials.0 {
             material
                 .textures
-                .write_full(writer, base_offset, data_ptr, endian)?;
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
         }
 
         // Different order than field order.
         if !self.alpha_test_textures.data.is_empty() {
             self.alpha_test_textures
-                .write_full(writer, base_offset, data_ptr, endian)?;
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
         }
         self.callbacks
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.material_unk2
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.fur_shells
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.samplers
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.techniques
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         // TODO: Offset not large enough?
         for material in &materials.0 {
             material
                 .name
-                .write_full(writer, base_offset, data_ptr, endian)?;
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
         }
 
         Ok(())
@@ -2216,23 +2234,26 @@ impl<'a> Xc3WriteOffsets for MaterialsOffsets<'a> {
 }
 
 impl<'a> Xc3WriteOffsets for MxmdOffsets<'a> {
+    type Args = ();
+
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
+        args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         self.models
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk8
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.materials
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         // Different order than field order.
         self.streaming
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         // Apply padding even if this is the end of the file.
         vec![0u8; (data_ptr.next_multiple_of(16) - *data_ptr) as usize]
@@ -2241,14 +2262,14 @@ impl<'a> Xc3WriteOffsets for MxmdOffsets<'a> {
 
         // TODO: Some files have 16 more bytes of padding?
         self.unk1
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         self.vertex_data
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.spch
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.packed_textures
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         // TODO: Align the file size itself for xc1?
 
@@ -2258,69 +2279,81 @@ impl<'a> Xc3WriteOffsets for MxmdOffsets<'a> {
 
 // TODO: Add derive attribute for skipping empty vecs?
 impl<'a> Xc3WriteOffsets for Unk1Offsets<'a> {
+    type Args = ();
+
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
         _base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
+        args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
         self.unk1
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk2
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk3
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         if !self.unk4.data.is_empty() {
             self.unk4
-                .write_full(writer, base_offset, data_ptr, endian)?;
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
         }
         Ok(())
     }
 }
 
 impl<'a> Xc3WriteOffsets for ModelUnk3ItemOffsets<'a> {
+    type Args = ();
+
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
         &self,
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
+        args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
         self.unk3
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.name
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         Ok(())
     }
 }
 
 impl<'a> Xc3WriteOffsets for FurShellsOffsets<'a> {
+    type Args = ();
+
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
         &self,
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
+        args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
         self.params
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.material_param_indices
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         Ok(())
     }
 }
 
 impl<'a> Xc3WriteOffsets for PackedTexturesOffsets<'a> {
+    type Args = ();
+
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
         &self,
         writer: &mut W,
         _base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
+        args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
 
@@ -2328,16 +2361,16 @@ impl<'a> Xc3WriteOffsets for PackedTexturesOffsets<'a> {
         let textures = self.textures.write(writer, base_offset, data_ptr, endian)?;
 
         self.strings_offset
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         for texture in &textures.0 {
             texture
                 .name
-                .write_full(writer, base_offset, data_ptr, endian)?;
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
         }
         for texture in &textures.0 {
             texture
                 .mibl_data
-                .write_full(writer, base_offset, data_ptr, endian)?;
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
         }
         Ok(())
     }
@@ -2347,14 +2380,17 @@ impl<'a, U> Xc3WriteOffsets for PackedExternalTexturesOffsets<'a, U>
 where
     U: Xc3Write + 'static,
     for<'b> U: BinRead<Args<'b> = ()>,
-    for<'b> U::Offsets<'b>: Xc3WriteOffsets,
+    for<'b> U::Offsets<'b>: Xc3WriteOffsets<Args = ()>,
 {
+    type Args = ();
+
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
         &self,
         writer: &mut W,
         _base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
+        args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
 
@@ -2362,55 +2398,63 @@ where
         let textures = self.textures.write(writer, base_offset, data_ptr, endian)?;
 
         self.strings_offset
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         for texture in &textures.0 {
             texture
                 .name
-                .write_full(writer, base_offset, data_ptr, endian)?;
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
         }
         Ok(())
     }
 }
 
 impl<'a> Xc3WriteOffsets for SkeletonUnk5Offsets<'a> {
+    type Args = ();
+
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
         _base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
+        args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
 
         let unk1 = self.unk1.write(writer, base_offset, data_ptr, endian)?;
         for u in &unk1.0 {
-            u.unk3.write_full(writer, base_offset, data_ptr, endian)?;
+            u.unk3
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
         }
         for u in &unk1.0 {
-            u.unk4.write_full(writer, base_offset, data_ptr, endian)?;
+            u.unk4
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
         }
         self.unk_offset
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         Ok(())
     }
 }
 
 impl<'a> Xc3WriteOffsets for Unk8Offsets<'a> {
+    type Args = ();
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
         &self,
         writer: &mut W,
         _base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
+        args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
         let unk2 = self.unk2.write(writer, base_offset, data_ptr, endian)?;
         self.unk3
-            .write_full(writer, base_offset, data_ptr, endian)?;
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         // Strings go at the end.
         for u in unk2.0 {
-            u.name.write_full(writer, base_offset, data_ptr, endian)?;
+            u.name
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
         }
         Ok(())
     }

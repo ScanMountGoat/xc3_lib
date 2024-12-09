@@ -85,7 +85,7 @@ pub struct BcOffset<T>
 where
     T: Xc3Write + 'static,
     for<'a> T: BinRead<Args<'a> = ()>,
-    for<'a> T::Offsets<'a>: Xc3WriteOffsets,
+    for<'a> T::Offsets<'a>: Xc3WriteOffsets<Args = ()>,
 {
     #[br(parse_with = parse_ptr64)]
     #[xc3(offset(u64))]
@@ -100,7 +100,7 @@ pub struct BcList<T>
 where
     T: Xc3Write + 'static,
     for<'a> T: BinRead<Args<'a> = ()>,
-    for<'a> VecOffsets<<T as Xc3Write>::Offsets<'a>>: Xc3WriteOffsets,
+    for<'a> VecOffsets<<T as Xc3Write>::Offsets<'a>>: Xc3WriteOffsets<Args = ()>,
 {
     #[br(parse_with = parse_offset64_count32)]
     #[xc3(offset_count(u64, u32))]
@@ -193,19 +193,22 @@ where
 impl<'a, T> Xc3WriteOffsets for BcList2Offsets<'a, T>
 where
     T: Xc3Write + 'static,
-    T::Offsets<'a>: Xc3WriteOffsets,
+    T::Offsets<'a>: Xc3WriteOffsets<Args = ()>,
 {
+    type Args = ();
+
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
         writer: &mut W,
         base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
+        args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         match self {
             BcList2Offsets::List(offset) => {
                 if !offset.data.is_empty() {
-                    offset.write_full(writer, base_offset, data_ptr, endian)
+                    offset.write_full(writer, base_offset, data_ptr, endian, ())
                 } else {
                     Ok(())
                 }
@@ -215,9 +218,10 @@ where
     }
 }
 
+#[doc(hidden)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Default)]
-struct StringSection {
+pub struct StringSection {
     // Unique strings are stored in alphabetical order.
     name_to_offsets: BTreeMap<String, Vec<u64>>,
 }
