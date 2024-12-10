@@ -406,8 +406,14 @@ fn apply_skinning(
         })
         .collect();
 
-    new_skinning.bounds = (!bounds.is_empty()).then_some(bounds);
-    new_skinning.constraints = (!constraints.is_empty()).then_some(constraints);
+    // Preserve the case where data is empty but not None.
+    // TODO: Investigate why setting these to None can cause extra bone data to not be read in game.
+    if !bounds.is_empty() {
+        new_skinning.bounds = Some(bounds);
+    }
+    if !constraints.is_empty() {
+        new_skinning.constraints = Some(constraints);
+    }
 }
 
 // TODO: validate this in xc3_model on load?

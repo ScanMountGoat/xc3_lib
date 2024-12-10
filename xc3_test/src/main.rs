@@ -1108,10 +1108,18 @@ fn check_all_wimdo_model<P: AsRef<Path>>(root: P, check_read_write: bool) {
                                         println!("Model list not 1:1 for {path:?}");
                                     }
                                     // TODO: threshold to test transforms?
-                                    if new_mxmd.models.skinning.map(|s| s.bones)
-                                        != mxmd.models.skinning.map(|s| s.bones)
-                                    {
-                                        println!("Skinning bones not 1:1 for {path:?}");
+                                    if let Some(skinning) = &mxmd.models.skinning {
+                                        if let Some(new_skinning) = &new_mxmd.models.skinning {
+                                            if new_skinning.bones != skinning.bones {
+                                                println!("Skinning bones not 1:1 for {path:?}");
+                                            }
+                                            if new_skinning.constraints != skinning.constraints {
+                                                println!("Skinning constraints not 1:1 for {path:?}");
+                                            }
+                                            if new_skinning.bounds != skinning.bounds {
+                                                println!("Skinning bounds not 1:1 for {path:?}");
+                                            }
+                                        }
                                     }
                                 }
                             }

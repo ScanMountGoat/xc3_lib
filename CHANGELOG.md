@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Changed arguments for xc3_viewer to support drag and drop on Windows. The database defaults to `xc_combined.bin` in the executable directory if not specified.
 * Improved accuracy of file rebuilding.
 
+### Fixed
+* Fixed an issue where wimdo skinning rebuilding for xc3_model would occasionally delete bone parenting information.
+
 ## 0.15.0 - 2024-11-27
 ### Added
 * Added support for exporting models and maps as a single `.glb` file with xc3_gltf.
