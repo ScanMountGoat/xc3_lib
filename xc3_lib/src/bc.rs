@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 
 use crate::{align, parse_offset64_count32, parse_ptr64, parse_string_ptr64};
 use binrw::{args, binread, BinRead};
-use xc3_write::{VecOffsets, Xc3Write, Xc3WriteOffsets};
+use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 use anim::Anim;
 use asmb::Asmb;
@@ -92,18 +92,15 @@ where
     pub value: T,
 }
 
-// TODO: Make this generic over the alignment and padding byte?
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct BcList<T>
+#[derive(Debug, PartialEq, Clone)]
+pub struct BcListN<T, const N: u64>
 where
-    T: Xc3Write + 'static,
+    T: 'static,
     for<'a> T: BinRead<Args<'a> = ()>,
-    for<'a> VecOffsets<<T as Xc3Write>::Offsets<'a>>: Xc3WriteOffsets<Args = ()>,
 {
     #[br(parse_with = parse_offset64_count32)]
-    #[xc3(offset_count(u64, u32))]
     pub elements: Vec<T>,
 
     // TODO: Does this field do anything?
@@ -112,26 +109,31 @@ where
     pub unk1: i32,
 }
 
+pub struct BcListNOffsets<'a, T, const N: u64>(xc3_write::Offset<'a, u64, Vec<T>>);
 
-#[binread]
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write, PartialEq, Clone)]
-pub struct BcList2<T>
+impl<T, const N: u64> Xc3Write for BcListN<T, N>
 where
     T: Xc3Write + 'static,
     for<'a> T: BinRead<Args<'a> = ()>,
 {
-    #[br(parse_with = parse_offset64_count32)]
-    #[xc3(offset_count(u64, u32), align(2, 0xff))]
-    pub elements: Vec<T>,
+    type Offsets<'a> = BcListNOffsets<'a, T, N> where T: 'a;
 
-    // TODO: Does this field do anything?
-    // TODO: Don't actually store this field?
-    #[br(assert(unk1 == -1))]
-    pub unk1: i32,
+    fn xc3_write<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        endian: xc3_write::Endian,
+    ) -> xc3_write::Xc3Result<Self::Offsets<'_>> {
+        let offset =
+            xc3_write::Offset::new(writer.stream_position()?, &self.elements, Some(N), 0xff);
+        0u64.xc3_write(writer, endian)?;
+        (self.elements.len() as u32).xc3_write(writer, endian)?;
+        (-1i32).xc3_write(writer, endian)?;
+
+        Ok(BcListNOffsets(offset))
+    }
 }
 
-impl<'a, T> Xc3WriteOffsets for BcList2Offsets<'a, T>
+impl<'a, T, const N: u64> Xc3WriteOffsets for BcListNOffsets<'a, T, N>
 where
     T: Xc3Write + 'static,
     for<'b> T: BinRead<Args<'b> = ()>,
@@ -148,50 +150,14 @@ where
         endian: xc3_write::Endian,
         args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
-        self.elements
+        self.0
             .write_full(writer, base_offset, data_ptr, endian, args)
     }
 }
 
-#[binread]
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write, PartialEq, Clone)]
-pub struct BcList8<T>
-where
-    T: Xc3Write + 'static,
-    for<'a> T: BinRead<Args<'a> = ()>,
-{
-    #[br(parse_with = parse_offset64_count32)]
-    #[xc3(offset_count(u64, u32), align(8, 0xff))]
-    pub elements: Vec<T>,
-
-    // TODO: Does this field do anything?
-    // TODO: Don't actually store this field?
-    #[br(assert(unk1 == -1))]
-    pub unk1: i32,
-}
-
-impl<'a, T> Xc3WriteOffsets for BcList8Offsets<'a, T>
-where
-    T: Xc3Write + 'static,
-    for<'b> T: BinRead<Args<'b> = ()>,
-    <T as Xc3Write>::Offsets<'a>: Xc3WriteOffsets,
-    <<T as Xc3Write>::Offsets<'a> as Xc3WriteOffsets>::Args: Clone,
-{
-    type Args = <<T as Xc3Write>::Offsets<'a> as Xc3WriteOffsets>::Args;
-
-    fn write_offsets<W: std::io::Write + std::io::Seek>(
-        &self,
-        writer: &mut W,
-        base_offset: u64,
-        data_ptr: &mut u64,
-        endian: xc3_write::Endian,
-        args: Self::Args,
-    ) -> xc3_write::Xc3Result<()> {
-        self.elements
-            .write_full(writer, base_offset, data_ptr, endian, args)
-    }
-}
+pub type BcList<T> = BcListN<T, 4>;
+pub type BcList2<T> = BcListN<T, 2>;
+pub type BcList8<T> = BcListN<T, 8>;
 
 // TODO: Use this for all instances of BcList?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -254,7 +220,8 @@ where
     ) -> xc3_write::Xc3Result<Self::Offsets<'_>> {
         let offsets = match self {
             BcListCount::List(elements) => {
-                let offset = xc3_write::Offset::new(writer.stream_position()?, elements, Some(8), 0xff);
+                let offset =
+                    xc3_write::Offset::new(writer.stream_position()?, elements, Some(8), 0xff);
                 0u64.xc3_write(writer, endian)?;
                 (elements.len() as u32).xc3_write(writer, endian)?;
                 BcListCountOffsets::List(offset)

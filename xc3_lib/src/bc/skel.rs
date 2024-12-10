@@ -324,17 +324,14 @@ impl<'a> Xc3WriteOffsets for SkeletonOffsets<'a> {
         string_section.insert_offset(&self.root_bone_name);
 
         // Different order than field order.
-        if !self.unk1.elements.data.is_empty() {
+        if !self.unk1.0.data.is_empty() {
             self.unk1
                 .write_offsets(writer, base_offset, data_ptr, endian, ())?;
         }
         self.transforms
             .write_full(writer, base_offset, data_ptr, endian, ())?;
 
-        let names = self
-            .names
-            .elements
-            .write(writer, base_offset, data_ptr, endian)?;
+        let names = self.names.0.write(writer, base_offset, data_ptr, endian)?;
         for name in names.0 {
             string_section.insert_offset(&name.name);
         }
@@ -349,17 +346,14 @@ impl<'a> Xc3WriteOffsets for SkeletonOffsets<'a> {
             for slot in slots.0 {
                 string_section.insert_offset(&slot.unk1);
 
-                if !slot.unk2.elements.data.is_empty() {
-                    let names = slot
-                        .unk2
-                        .elements
-                        .write(writer, base_offset, data_ptr, endian)?;
+                if !slot.unk2.0.data.is_empty() {
+                    let names = slot.unk2.0.write(writer, base_offset, data_ptr, endian)?;
                     for name in names.0 {
                         string_section.insert_offset(&name.name);
                     }
                 }
 
-                if !slot.unk3.elements.data.is_empty() {
+                if !slot.unk3.0.data.is_empty() {
                     slot.unk3
                         .write_offsets(writer, base_offset, data_ptr, endian, ())?;
                 }
@@ -390,7 +384,7 @@ impl<'a> Xc3WriteOffsets for SkeletonOffsets<'a> {
             weird_skel_alignment(writer, data_ptr, endian)?;
         }
 
-        if !self.labels.elements.data.is_empty() {
+        if !self.labels.0.data.is_empty() {
             self.labels
                 .write_offsets(writer, base_offset, data_ptr, endian, ())?;
         }

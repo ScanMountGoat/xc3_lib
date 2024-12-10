@@ -403,7 +403,6 @@ pub struct CubicExtraDataInner2 {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct PackedCubicExtraData {
-    // TODO: bc list with align and padding byte
     pub extra_track_bindings: BcList8<ExtraTrackAnimationBinding>,
 
     #[br(parse_with = parse_opt_ptr64)]
@@ -430,7 +429,6 @@ pub struct PackedCubicExtraData {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PackedCubicExtraDataUnk1 {
-    // TODO: make bclist generic over align and padding.
     #[br(parse_with = parse_offset64_count32)]
     #[xc3(offset_count(u64, u32), align(4, 0xff))]
     pub unk1: Vec<u8>,
@@ -629,11 +627,11 @@ impl<'a> Xc3WriteOffsets for AnimOffsets<'a> {
             .write_offsets(writer, base_offset, data_ptr, endian, ())?;
 
         // TODO: Nicer way of writing this?
-        let notifies = if !animation.notifies.elements.data.is_empty() {
+        let notifies = if !animation.notifies.0.data.is_empty() {
             Some(
                 animation
                     .notifies
-                    .elements
+                    .0
                     .write(writer, base_offset, data_ptr, endian)?,
             )
         } else {
@@ -779,7 +777,7 @@ impl<'a> Xc3WriteOffsets for AnimationBindingInner2Offsets<'a> {
     ) -> xc3_write::Xc3Result<()> {
         let bone_names = self
             .bone_names
-            .elements
+            .0
             .write(writer, base_offset, data_ptr, endian)?;
         for bone_name in &bone_names.0 {
             args.borrow_mut().insert_offset(&bone_name.name);
@@ -820,11 +818,11 @@ impl<'a> Xc3WriteOffsets for AnimationBindingInner3Offsets<'a> {
         endian: xc3_write::Endian,
         args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
-        if !self.bone_names.elements.data.is_empty() {
-            let bone_names =
-                self.bone_names
-                    .elements
-                    .write(writer, base_offset, data_ptr, endian)?;
+        if !self.bone_names.0.data.is_empty() {
+            let bone_names = self
+                .bone_names
+                .0
+                .write(writer, base_offset, data_ptr, endian)?;
             for bone_name in &bone_names.0 {
                 args.borrow_mut().insert_offset(&bone_name.name);
             }
@@ -847,11 +845,11 @@ impl<'a> Xc3WriteOffsets for AnimationBindingInner4Offsets<'a> {
         endian: xc3_write::Endian,
         args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
-        if !self.bone_names.elements.data.is_empty() {
-            let bone_names =
-                self.bone_names
-                    .elements
-                    .write(writer, base_offset, data_ptr, endian)?;
+        if !self.bone_names.0.data.is_empty() {
+            let bone_names = self
+                .bone_names
+                .0
+                .write(writer, base_offset, data_ptr, endian)?;
             for bone_name in &bone_names.0 {
                 args.borrow_mut().insert_offset(&bone_name.name);
             }

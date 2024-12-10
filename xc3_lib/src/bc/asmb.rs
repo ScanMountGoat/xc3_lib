@@ -228,51 +228,36 @@ impl<'a> Xc3WriteOffsets for AsmbInnerV1Offsets<'a> {
         // Different order than field order.
         let folders = self
             .folders
-            .elements
+            .0
             .write(writer, base_offset, data_ptr, endian)?;
         for f in folders.0 {
             string_section.insert_offset(&f.name);
         }
 
-        let unk5 = self
-            .unk5
-            .elements
-            .write(writer, base_offset, data_ptr, endian)?;
+        let unk5 = self.unk5.0.write(writer, base_offset, data_ptr, endian)?;
         for u in unk5.0 {
             string_section.insert_offset(&u.name);
         }
 
-        let unk6 = self
-            .unk6
-            .elements
-            .write(writer, base_offset, data_ptr, endian)?;
+        let unk6 = self.unk6.0.write(writer, base_offset, data_ptr, endian)?;
         for u in unk6.0 {
             string_section.insert_offset(&u.file_name);
         }
 
         // TODO: find a better way to handle nested data.
-        let unk4 = self
-            .unk4
-            .elements
-            .write(writer, base_offset, data_ptr, endian)?;
+        let unk4 = self.unk4.0.write(writer, base_offset, data_ptr, endian)?;
         for u in unk4.0 {
             let u = u.value.write(writer, base_offset, data_ptr, endian)?;
             string_section.insert_offset(&u.name);
 
-            let children = u
-                .children
-                .elements
-                .write(writer, base_offset, data_ptr, endian)?;
+            let children = u.children.0.write(writer, base_offset, data_ptr, endian)?;
             for c in children.0 {
                 let c = c.value.write(writer, base_offset, data_ptr, endian)?;
                 string_section.insert_offset(&c.name);
             }
         }
 
-        let unk8 = self
-            .unk8
-            .elements
-            .write(writer, base_offset, data_ptr, endian)?;
+        let unk8 = self.unk8.0.write(writer, base_offset, data_ptr, endian)?;
         for u in unk8.0 {
             string_section.insert_offset(&u.key);
             string_section.insert_offset(&u.value);
