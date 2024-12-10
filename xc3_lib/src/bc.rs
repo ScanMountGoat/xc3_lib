@@ -112,6 +112,46 @@ where
     pub unk1: i32,
 }
 
+#[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, Xc3Write, PartialEq, Clone)]
+pub struct BcList8<T>
+where
+    T: Xc3Write + 'static,
+    for<'a> T: BinRead<Args<'a> = ()>,
+{
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32), align(8, 0xff))]
+    pub elements: Vec<T>,
+
+    // TODO: Does this field do anything?
+    // TODO: Don't actually store this field?
+    #[br(assert(unk1 == -1))]
+    pub unk1: i32,
+}
+
+impl<'a, T> Xc3WriteOffsets for BcList8Offsets<'a, T>
+where
+    T: Xc3Write + 'static,
+    for<'b> T: BinRead<Args<'b> = ()>,
+    <T as Xc3Write>::Offsets<'a>: Xc3WriteOffsets,
+    <<T as Xc3Write>::Offsets<'a> as Xc3WriteOffsets>::Args: Clone,
+{
+    type Args = <<T as Xc3Write>::Offsets<'a> as Xc3WriteOffsets>::Args;
+
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+        endian: xc3_write::Endian,
+        args: Self::Args,
+    ) -> xc3_write::Xc3Result<()> {
+        self.elements
+            .write_full(writer, base_offset, data_ptr, endian, args)
+    }
+}
+
 // TODO: Use this for all instances of BcList?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]

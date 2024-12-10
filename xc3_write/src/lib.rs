@@ -471,11 +471,11 @@ where
     const ALIGNMENT: u64 = T::ALIGNMENT;
 }
 
-impl<T> Xc3WriteOffsets for Option<T>
+impl<T, A> Xc3WriteOffsets for Option<T>
 where
-    T: Xc3WriteOffsets<Args = ()>,
+    T: Xc3WriteOffsets<Args = A>,
 {
-    type Args = ();
+    type Args = A;
 
     fn write_offsets<W: Write + Seek>(
         &self,

@@ -534,13 +534,15 @@ fn names_hashes(
 ) -> (Option<&Vec<xc3_lib::bc::StringOffset>>, Option<&Vec<u32>>) {
     match &anim.binding.inner {
         xc3_lib::bc::anim::AnimationBindingInner::Unk1(_) => (None, None),
-        xc3_lib::bc::anim::AnimationBindingInner::Unk2(inner) => (Some(&inner.bone_names), None),
+        xc3_lib::bc::anim::AnimationBindingInner::Unk2(inner) => {
+            (Some(&inner.bone_names.elements), None)
+        }
         xc3_lib::bc::anim::AnimationBindingInner::Unk3(inner) => (
-            Some(&inner.bone_names),
+            Some(&inner.bone_names.elements),
             extra_track_hashes(&inner.extra_track_data),
         ),
         xc3_lib::bc::anim::AnimationBindingInner::Unk4(inner) => (
-            Some(&inner.bone_names),
+            Some(&inner.bone_names.elements),
             extra_track_hashes(&inner.extra_track_data),
         ),
     }
