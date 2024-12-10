@@ -112,6 +112,47 @@ where
     pub unk1: i32,
 }
 
+
+#[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, Xc3Write, PartialEq, Clone)]
+pub struct BcList2<T>
+where
+    T: Xc3Write + 'static,
+    for<'a> T: BinRead<Args<'a> = ()>,
+{
+    #[br(parse_with = parse_offset64_count32)]
+    #[xc3(offset_count(u64, u32), align(2, 0xff))]
+    pub elements: Vec<T>,
+
+    // TODO: Does this field do anything?
+    // TODO: Don't actually store this field?
+    #[br(assert(unk1 == -1))]
+    pub unk1: i32,
+}
+
+impl<'a, T> Xc3WriteOffsets for BcList2Offsets<'a, T>
+where
+    T: Xc3Write + 'static,
+    for<'b> T: BinRead<Args<'b> = ()>,
+    <T as Xc3Write>::Offsets<'a>: Xc3WriteOffsets,
+    <<T as Xc3Write>::Offsets<'a> as Xc3WriteOffsets>::Args: Clone,
+{
+    type Args = <<T as Xc3Write>::Offsets<'a> as Xc3WriteOffsets>::Args;
+
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+        endian: xc3_write::Endian,
+        args: Self::Args,
+    ) -> xc3_write::Xc3Result<()> {
+        self.elements
+            .write_full(writer, base_offset, data_ptr, endian, args)
+    }
+}
+
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
@@ -155,13 +196,13 @@ where
 // TODO: Use this for all instances of BcList?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
-pub enum BcList2<T> {
+pub enum BcListCount<T> {
     List(Vec<T>),
     /// An empty list that still specifies a count.
     NullOffsetCount(u32),
 }
 
-impl<T> BinRead for BcList2<T>
+impl<T> BinRead for BcListCount<T>
 where
     T: 'static,
     for<'a> T: BinRead<Args<'a> = ()>,
@@ -195,16 +236,16 @@ where
     }
 }
 
-pub enum BcList2Offsets<'a, T> {
+pub enum BcListCountOffsets<'a, T> {
     List(xc3_write::Offset<'a, u64, Vec<T>>),
     NullOffsetCount,
 }
 
-impl<T> Xc3Write for BcList2<T>
+impl<T> Xc3Write for BcListCount<T>
 where
     T: Xc3Write + 'static,
 {
-    type Offsets<'a> = BcList2Offsets<'a, T> where T: 'a;
+    type Offsets<'a> = BcListCountOffsets<'a, T> where T: 'a;
 
     fn xc3_write<W: std::io::Write + std::io::Seek>(
         &self,
@@ -212,16 +253,16 @@ where
         endian: xc3_write::Endian,
     ) -> xc3_write::Xc3Result<Self::Offsets<'_>> {
         let offsets = match self {
-            BcList2::List(elements) => {
-                let offset = xc3_write::Offset::new(writer.stream_position()?, elements, None, 0);
+            BcListCount::List(elements) => {
+                let offset = xc3_write::Offset::new(writer.stream_position()?, elements, Some(8), 0xff);
                 0u64.xc3_write(writer, endian)?;
                 (elements.len() as u32).xc3_write(writer, endian)?;
-                BcList2Offsets::List(offset)
+                BcListCountOffsets::List(offset)
             }
-            BcList2::NullOffsetCount(count) => {
+            BcListCount::NullOffsetCount(count) => {
                 0u64.xc3_write(writer, endian)?;
                 count.xc3_write(writer, endian)?;
-                BcList2Offsets::NullOffsetCount
+                BcListCountOffsets::NullOffsetCount
             }
         };
         (-1i32).xc3_write(writer, endian)?;
@@ -230,7 +271,7 @@ where
     }
 }
 
-impl<'a, T> Xc3WriteOffsets for BcList2Offsets<'a, T>
+impl<'a, T> Xc3WriteOffsets for BcListCountOffsets<'a, T>
 where
     T: Xc3Write + 'static,
     T::Offsets<'a>: Xc3WriteOffsets<Args = ()>,
@@ -246,14 +287,14 @@ where
         _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         match self {
-            BcList2Offsets::List(offset) => {
+            BcListCountOffsets::List(offset) => {
                 if !offset.data.is_empty() {
                     offset.write_full(writer, base_offset, data_ptr, endian, ())
                 } else {
                     Ok(())
                 }
             }
-            BcList2Offsets::NullOffsetCount => Ok(()),
+            BcListCountOffsets::NullOffsetCount => Ok(()),
         }
     }
 }

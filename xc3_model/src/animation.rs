@@ -507,8 +507,8 @@ fn morph_tracks(anim: &xc3_lib::bc::anim::Anim) -> Option<MorphTracks> {
 
             Some(MorphTracks {
                 track_indices: match &extra.track_indices {
-                    xc3_lib::bc::BcList2::List(list) => list.clone(),
-                    xc3_lib::bc::BcList2::NullOffsetCount(_) => Vec::new(),
+                    xc3_lib::bc::BcListCount::List(list) => list.clone(),
+                    xc3_lib::bc::BcListCount::NullOffsetCount(_) => Vec::new(),
                 },
                 track_values: extra
                     .extra_track_animation

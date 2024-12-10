@@ -7,7 +7,7 @@ use crate::{
 use binrw::{binread, BinRead, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
-use super::{BcList, BcList2, BcList8, StringOffset, StringSection, Transform};
+use super::{BcList, BcList2, BcList8, BcListCount, StringOffset, StringSection, Transform};
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
@@ -93,7 +93,7 @@ pub struct ExtraTrackAnimationBinding {
     // TODO: Assigns values in extra_track_animation to ModelUnk1Items?
 
     // TODO: Should this be ignored if extra_track_animation is None?
-    pub track_indices: BcList2<i16>,
+    pub track_indices: BcListCount<i16>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -406,8 +406,9 @@ pub struct PackedCubicExtraData {
     // TODO: bc list with align and padding byte
     pub extra_track_bindings: BcList8<ExtraTrackAnimationBinding>,
 
-    pub unk6: u32,
-    pub unk7: u32,
+    #[br(parse_with = parse_opt_ptr64)]
+    #[xc3(offset(u64), align(8, 0xff))]
+    pub unk4: Option<PackedCubicExtraDataUnk4>,
 
     #[br(parse_with = parse_ptr64)]
     #[xc3(offset(u64), align(8, 0xff))]
@@ -462,6 +463,18 @@ pub struct PackedCubicExtraDataUnk3 {
     #[br(parse_with = parse_offset64_count32)]
     #[xc3(offset_count(u64, u32))]
     pub items2: Vec<i16>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct PackedCubicExtraDataUnk4 {
+    pub translation: BcList8<[f32; 4]>,
+    pub rotation_quaternion: BcList8<[f32; 4]>,
+    pub scale: BcList8<[f32; 4]>,
+    // TODO: Indices for the above values?
+    pub unk4: BcList2<u16>,
+    pub unk5: BcList2<u16>,
+    pub unk6: BcList2<u16>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -904,6 +917,8 @@ impl<'a> Xc3WriteOffsets for PackedCubicExtraDataOffsets<'a> {
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
         self.hashes
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.unk4
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk_offset1
             .write_full(writer, base_offset, data_ptr, endian, ())?;
