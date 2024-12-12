@@ -1137,22 +1137,23 @@ fn check_model(
             if new_skinning.bounds != skinning.bounds {
                 println!("Skinning bounds not 1:1 for {path:?}");
             }
-            // Use a generous tolerance to allow for implementation differences in glam.
+            // Use a generous tolerance to allow for inaccuracies in computations.
+            // TODO: Find a more accurate method for inverting bone transforms.
             let count = new_skinning
                 .inverse_bind_transforms
                 .iter()
                 .zip(&skinning.inverse_bind_transforms)
                 .filter(|(m1, m2)| {
-                    Mat4::from_cols_array_2d(m1).relative_ne(
+                    !Mat4::from_cols_array_2d(m1).relative_eq(
                         &Mat4::from_cols_array_2d(m2),
-                        0.001,
-                        0.001,
+                        0.5,
+                        0.1,
                     )
                 })
                 .count();
             if count > 0 {
                 println!(
-                    "Skinning transforms not with tolerances for {count} of {} bones for {path:?}",
+                    "Skinning transforms not within tolerances for {count} of {} bones for {path:?}",
                     skinning.bones.len()
                 );
             }

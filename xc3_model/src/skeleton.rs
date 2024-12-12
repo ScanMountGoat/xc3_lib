@@ -20,6 +20,7 @@ pub struct Skeleton {
 pub struct Bone {
     /// The name used by some animations to identify this bone.
     pub name: String,
+    // TODO: leave this as TRS?
     /// The local transform of the bone relative to its parent.
     #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_mat4))]
     pub transform: Mat4,
@@ -52,11 +53,18 @@ impl Skeleton {
             .collect();
 
         // Add defaults for any missing bones.
-        for bone in &skinning.bones {
+        for (i, bone) in skinning.bones.iter().enumerate() {
             if !bones.iter().any(|b| b.name == bone.name) {
+                // Some bones have no parents but still need transforms.
+                let transform = skinning
+                    .inverse_bind_transforms
+                    .get(i)
+                    .map(|transform| Mat4::from_cols_array_2d(transform).inverse())
+                    .unwrap_or(Mat4::IDENTITY);
+
                 bones.push(Bone {
                     name: bone.name.clone(),
-                    transform: Mat4::IDENTITY,
+                    transform,
                     parent_index: None,
                 });
             }
@@ -69,9 +77,13 @@ impl Skeleton {
             .and_then(|d| d.as_bone_data.as_ref())
         {
             for as_bone in &as_bone_data.bones {
-                // TODO: How to use the additional translation?
-                let transform = Mat4::from_translation(as_bone.translation.into())
-                    * Mat4::from_quat(Quat::from_array(as_bone.rotation_quaternion));
+                // TODO: Why is using the translation and rotation not always accurate?
+                // TODO: Is there a flag or value that affects the rotation?
+                let transform = infer_transform(
+                    skinning,
+                    as_bone.bone_index as usize,
+                    as_bone.parent_index as usize,
+                );
                 update_bone(
                     &mut bones,
                     skinning,
@@ -88,12 +100,18 @@ impl Skeleton {
             .and_then(|u| u.unk_offset4.as_ref())
         {
             for unk_bone in &unk4.bones {
+                let transform = infer_transform(
+                    skinning,
+                    unk_bone.bone_index as usize,
+                    unk_bone.parent_index as usize,
+                );
+
                 update_bone(
                     &mut bones,
                     skinning,
                     unk_bone.bone_index,
                     unk_bone.parent_index,
-                    Mat4::IDENTITY,
+                    transform,
                 );
             }
         }
@@ -153,6 +171,29 @@ impl Skeleton {
         }
 
         final_transforms
+    }
+}
+
+fn infer_transform(
+    skinning: &xc3_lib::mxmd::Skinning,
+    bone_index: usize,
+    parent_index: usize,
+) -> Mat4 {
+    // The transform can be inferred from accumulated transforms.
+    let transform = skinning
+        .inverse_bind_transforms
+        .get(bone_index)
+        .map(|transform| Mat4::from_cols_array_2d(transform).inverse())
+        .unwrap_or(Mat4::IDENTITY);
+
+    if let Some(parent_inverse) = skinning
+        .inverse_bind_transforms
+        .get(parent_index)
+        .map(|transform| Mat4::from_cols_array_2d(transform))
+    {
+        parent_inverse * transform
+    } else {
+        transform
     }
 }
 
