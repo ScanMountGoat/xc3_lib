@@ -51,36 +51,33 @@ impl Skeleton {
             })
             .collect();
 
-        // Merge the mxmd skeleton in case there are any missing bones.
-        for (bone, transform) in skinning
-            .bones
-            .iter()
-            .zip(skinning.inverse_bind_transforms.iter())
-        {
+        // Add defaults for any missing bones.
+        for bone in &skinning.bones {
             if !bones.iter().any(|b| b.name == bone.name) {
-                // TODO: Parent index?
-                // TODO: What to use for the transform?
                 bones.push(Bone {
                     name: bone.name.clone(),
-                    transform: Mat4::from_cols_array_2d(transform).inverse(),
+                    transform: Mat4::IDENTITY,
                     parent_index: None,
                 });
             }
         }
 
         // Add parenting and transform information for additional bones.
-        // TODO: Does the mxmd have parenting information for all bones?
         if let Some(as_bone_data) = skinning
             .as_bone_data
             .as_ref()
             .and_then(|d| d.as_bone_data.as_ref())
         {
             for as_bone in &as_bone_data.bones {
+                // TODO: How to use the additional translation?
+                let transform = Mat4::from_translation(as_bone.translation.into())
+                    * Mat4::from_quat(Quat::from_array(as_bone.rotation_quaternion));
                 update_bone(
                     &mut bones,
                     skinning,
                     as_bone.bone_index,
                     as_bone.parent_index,
+                    transform,
                 );
             }
         }
@@ -96,6 +93,7 @@ impl Skeleton {
                     skinning,
                     unk_bone.bone_index,
                     unk_bone.parent_index,
+                    Mat4::IDENTITY,
                 );
             }
         }
@@ -163,6 +161,7 @@ fn update_bone(
     skinning: &xc3_lib::mxmd::Skinning,
     bone_index: u16,
     parent_index: u16,
+    transform: Mat4,
 ) {
     // TODO: Don't assume these bones are all parented?
     let bone_name = &skinning.bones[bone_index as usize].name;
@@ -170,11 +169,7 @@ fn update_bone(
     let parent_index = bones.iter().position(|b| &b.name == parent_name);
 
     if let Some(bone) = bones.iter_mut().find(|b| &b.name == bone_name) {
-        let bone_world =
-            Mat4::from_cols_array_2d(&skinning.inverse_bind_transforms[bone_index as usize])
-                .inverse();
-        // TODO: Is this the right transform?
-        bone.transform = bone_world;
+        bone.transform = transform;
         bone.parent_index = parent_index;
     }
 }

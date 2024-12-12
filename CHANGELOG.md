@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 * Fixed an issue where wimdo skinning rebuilding for xc3_model would occasionally delete bone parenting information.
+* Fixed an issue where model loading would load incorrect transforms for bones defined only in the wimdo skinning.
 
 ## 0.15.0 - 2024-11-27
 ### Added

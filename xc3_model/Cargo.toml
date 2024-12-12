@@ -28,9 +28,9 @@ crc32fast = "1.4.2"
 
 [dev-dependencies]
 hexlit = "0.5.5"
-pretty_assertions = "1.4.0"
+pretty_assertions.workspace = true
 hex = "0.4.3"
-approx = "0.5.1"
+approx.workspace = true
 
 [features]
 arbitrary = ["dep:arbitrary", "xc3_lib/arbitrary", "indexmap/arbitrary", "ordered-float/arbitrary"]

@@ -13,5 +13,5 @@ xc3_write_derive = { version = "0.15.0", path = "../xc3_write_derive" }
 
 [dev-dependencies]
 hexlit = "0.5.5"
-pretty_assertions = "1.4.0"
+pretty_assertions.workspace = true
 hex = "0.4.3"

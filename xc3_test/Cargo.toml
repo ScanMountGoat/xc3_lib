@@ -11,3 +11,5 @@ clap = { workspace = true, features = ["derive"] }
 rayon.workspace = true
 globwalk.workspace = true
 binrw.workspace = true
+glam = { workspace = true, features = ["approx"] }
+approx.workspace = true

@@ -1877,8 +1877,10 @@ pub struct AsBone {
     pub value_count: u16,
     /// Index into [values](struct.AsBoneData.html#structfield.values).
     pub value_start_index: u16,
-    pub unk4: [f32; 3], // position?
+    /// The translation of this bone relative to its parent.
+    pub translation: [f32; 3],
     pub unk5: [f32; 6], // ???
+    /// The rotation of this bone relative to its parent.
     pub rotation_quaternion: [f32; 4],
     pub unk6: [f32; 3],
 }

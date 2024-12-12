@@ -3,8 +3,10 @@ use std::{
     path::Path,
 };
 
+use approx::RelativeEq;
 use binrw::{BinRead, BinReaderExt, Endian};
 use clap::Parser;
+use glam::Mat4;
 use rayon::prelude::*;
 use xc3_lib::{
     apmd::Apmd,
@@ -1075,8 +1077,7 @@ fn check_all_wimdo_model<P: AsRef<Path>>(root: P, check_read_write: bool) {
                     )
                     .unwrap();
 
-                    match xc3_model::ModelRoot::from_mxmd_model(&mxmd, None, &streaming_data, None)
-                    {
+                    match xc3_model::load_model(path, None) {
                         Ok(root) => {
                             // TODO: Create a function that loads files from wimdo path?
                             // TODO: Should this take the msrd or streaming?
@@ -1084,43 +1085,7 @@ fn check_all_wimdo_model<P: AsRef<Path>>(root: P, check_read_write: bool) {
                             if check_read_write {
                                 // TODO: Should to_mxmd_model make the msrd optional?
                                 if let Some(msrd) = msrd {
-                                    let (new_mxmd, new_msrd) =
-                                        root.to_mxmd_model(&mxmd, &msrd).unwrap();
-                                    match new_msrd.extract_files(None) {
-                                        Ok((new_vertex, _, _)) => {
-                                            if new_vertex.buffer != streaming_data.vertex.buffer {
-                                                println!("VertexData buffer not 1:1 for {path:?}");
-                                            } else if &new_vertex != streaming_data.vertex.as_ref()
-                                            {
-                                                println!("VertexData not 1:1 for {path:?}");
-                                            }
-                                        }
-                                        Err(e) => {
-                                            println!("Error extracting new msrd for {path:?}: {e}")
-                                        }
-                                    }
-
-                                    // TODO: How many of these fields should be preserved?
-                                    if new_mxmd.models.alpha_table != mxmd.models.alpha_table {
-                                        println!("Alpha table not 1:1 for {path:?}");
-                                    }
-                                    if new_mxmd.models.models != mxmd.models.models {
-                                        println!("Model list not 1:1 for {path:?}");
-                                    }
-                                    // TODO: threshold to test transforms?
-                                    if let Some(skinning) = &mxmd.models.skinning {
-                                        if let Some(new_skinning) = &new_mxmd.models.skinning {
-                                            if new_skinning.bones != skinning.bones {
-                                                println!("Skinning bones not 1:1 for {path:?}");
-                                            }
-                                            if new_skinning.constraints != skinning.constraints {
-                                                println!("Skinning constraints not 1:1 for {path:?}");
-                                            }
-                                            if new_skinning.bounds != skinning.bounds {
-                                                println!("Skinning bounds not 1:1 for {path:?}");
-                                            }
-                                        }
-                                    }
+                                    check_model(root, &mxmd, &msrd, &streaming_data.vertex, path);
                                 }
                             }
                         }
@@ -1130,6 +1095,69 @@ fn check_all_wimdo_model<P: AsRef<Path>>(root: P, check_read_write: bool) {
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }
         });
+}
+
+fn check_model(
+    root: xc3_model::ModelRoot,
+    mxmd: &Mxmd,
+    msrd: &Msrd,
+    vertex: &xc3_lib::vertex::VertexData,
+    path: &Path,
+) {
+    let (new_mxmd, new_msrd) = root.to_mxmd_model(&mxmd, &msrd).unwrap();
+    match new_msrd.extract_files(None) {
+        Ok((new_vertex, _, _)) => {
+            if new_vertex.buffer != vertex.buffer {
+                println!("VertexData buffer not 1:1 for {path:?}");
+            } else if &new_vertex != vertex {
+                println!("VertexData not 1:1 for {path:?}");
+            }
+        }
+        Err(e) => {
+            println!("Error extracting new msrd for {path:?}: {e}")
+        }
+    }
+
+    // TODO: How many of these fields should be preserved?
+    if new_mxmd.models.alpha_table != mxmd.models.alpha_table {
+        println!("Alpha table not 1:1 for {path:?}");
+    }
+    if new_mxmd.models.models != mxmd.models.models {
+        println!("Model list not 1:1 for {path:?}");
+    }
+    // TODO: threshold to test transforms?
+    if let Some(skinning) = &mxmd.models.skinning {
+        if let Some(new_skinning) = &new_mxmd.models.skinning {
+            if new_skinning.bones != skinning.bones {
+                println!("Skinning bones not 1:1 for {path:?}");
+            }
+            if new_skinning.constraints != skinning.constraints {
+                println!("Skinning constraints not 1:1 for {path:?}");
+            }
+            if new_skinning.bounds != skinning.bounds {
+                println!("Skinning bounds not 1:1 for {path:?}");
+            }
+            // Use a generous tolerance to allow for implementation differences in glam.
+            let count = new_skinning
+                .inverse_bind_transforms
+                .iter()
+                .zip(&skinning.inverse_bind_transforms)
+                .filter(|(m1, m2)| {
+                    Mat4::from_cols_array_2d(m1).relative_ne(
+                        &Mat4::from_cols_array_2d(m2),
+                        0.001,
+                        0.001,
+                    )
+                })
+                .count();
+            if count > 0 {
+                println!(
+                    "Skinning transforms not with tolerances for {count} of {} bones for {path:?}",
+                    skinning.bones.len()
+                );
+            }
+        }
+    }
 }
 
 fn check_all_animations<P: AsRef<Path>>(root: P, _check_read_write: bool) {

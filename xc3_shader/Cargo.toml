@@ -21,7 +21,7 @@ indexmap.workspace = true
 indoc = "2"
 
 [dev-dependencies]
-pretty_assertions = "1.4.0"
+pretty_assertions.workspace = true
 
 [features]
 default = ["xc3"]
