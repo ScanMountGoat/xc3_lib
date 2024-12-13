@@ -371,9 +371,9 @@ pub struct CubicExtraData {
     #[xc3(offset(u64), align(8, 0xff))]
     pub data1: CubicExtraDataInner1,
 
-    #[br(parse_with = parse_ptr64)]
+    #[br(parse_with = parse_opt_ptr64)]
     #[xc3(offset(u64), align(8, 0xff))]
-    pub data2: CubicExtraDataInner2,
+    pub data2: Option<CubicExtraDataInner2>,
 
     // TODO: padding?
     pub unk: [u32; 4],

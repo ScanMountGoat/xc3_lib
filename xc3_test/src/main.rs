@@ -11,7 +11,7 @@ use rayon::prelude::*;
 use xc3_lib::{
     apmd::Apmd,
     bc::Bc,
-    beb::Beb,
+    beb::{Beb, BebData},
     beh::Beh,
     bmn::Bmn,
     dhal::Dhal,
@@ -753,7 +753,7 @@ fn check_sar1(sar1: Sar1, path: &Path, original_bytes: &[u8], check_read_write: 
                     }
                 }
             },
-            Err(e) => println!("Error reading {:?} in {path:?}: {e}", entry.name,),
+            Err(e) => println!("Error reading {:?} in {path:?}: {e}", entry.name),
         }
     }
 
@@ -810,6 +810,31 @@ fn check_eva(eva: Eva, path: &Path, original_bytes: &[u8], check_read_write: boo
 fn check_beb(beb: Beb, path: &Path, original_bytes: &[u8], check_read_write: bool) {
     if check_read_write && !write_le_bytes_equals(&beb, original_bytes) {
         println!("Beb read/write not 1:1 for {path:?}");
+    }
+
+    for (i, offset) in beb.xbc1_offsets.iter().enumerate() {
+        match offset.value.decompress() {
+            Ok(bytes) => match BebData::read_le(&mut Cursor::new(&bytes)) {
+                Ok(data) => {
+                    for (offset, size) in data.offsets.iter().zip(&data.lengths) {
+                        // Skip the 4 floats at the start of each entry.
+                        let start = *offset as usize + 16;
+                        let entry_bytes = &bytes[start..start + *size as usize];
+                        // TODO: detect item type?
+                        if entry_bytes.get(..4) == Some(b"BC\x00\x00") {
+                            match Bc::from_bytes(entry_bytes) {
+                                Ok(bc) => check_bc(bc, path, entry_bytes, check_read_write),
+                                Err(e) => {
+                                    println!("Error reading BC in archive {i} in {path:?}: {e}")
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(e) => println!("Error reading data in archive {i} in {path:?}: {e}"),
+            },
+            Err(e) => println!("Error decompressing archive {i} in {path:?}: {e}"),
+        }
     }
 }
 

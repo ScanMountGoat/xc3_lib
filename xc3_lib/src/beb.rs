@@ -16,7 +16,7 @@ use xc3_write::{Xc3Write, Xc3WriteOffsets};
 pub struct Beb {
     pub xbc1_count: u32,
 
-    // TODO: Some sort of container for bc anims?
+    /// Compressed containers for [BebData].
     #[br(count = xbc1_count)]
     pub xbc1_offsets: Vec<Offset32<Xbc1>>,
 }
@@ -40,4 +40,22 @@ impl<'a> Xc3WriteOffsets for BebOffsets<'a> {
         }
         Ok(())
     }
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct BebData {
+    pub header_size: u32,
+    pub count: u32,
+
+    // TODO: hash?
+    #[br(count = count)]
+    pub unk1: Vec<u32>,
+
+    // TODO: item starts at offset + 16 after 4 floats?
+    #[br(count = count)]
+    pub offsets: Vec<u32>,
+
+    #[br(count = count)]
+    pub lengths: Vec<u32>,
 }

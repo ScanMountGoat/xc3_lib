@@ -142,9 +142,17 @@ pub fn pack_chr_textures(
         .map(|stream| ChrTexTexture {
             hash: stream.hash,
             decompressed_size: stream.mid.decompressed_size,
-            compressed_size: stream.mid.compressed_size.next_multiple_of(16) + 48,
+            compressed_size: stream
+                .mid
+                .compressed_size
+                .next_multiple_of(Xbc1::ALIGNMENT as u32)
+                + 48,
             base_mip_decompressed_size: stream.base_mip.decompressed_size,
-            base_mip_compressed_size: stream.base_mip.compressed_size.next_multiple_of(16) + 48,
+            base_mip_compressed_size: stream
+                .base_mip
+                .compressed_size
+                .next_multiple_of(Xbc1::ALIGNMENT as u32)
+                + 48,
         })
         .collect();
 
@@ -235,7 +243,7 @@ impl Msrd {
             (),
         )?;
         // Add the streaming tag and msrd header size.
-        let first_xbc1_offset = (data_ptr + 4).next_multiple_of(16) as u32 + 16;
+        let first_xbc1_offset = (data_ptr + 4).next_multiple_of(Xbc1::ALIGNMENT) as u32 + 16;
 
         for stream in &mut streaming.streams {
             stream.xbc1_offset += first_xbc1_offset;
@@ -594,7 +602,7 @@ fn create_streams(
         xbc1.write(&mut data)?;
 
         let pos = data.position();
-        align(&mut data, pos, 16, 0)?;
+        align(&mut data, pos, Xbc1::ALIGNMENT, 0)?;
 
         let xbc1_end = data.stream_position()? as u32;
 
