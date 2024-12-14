@@ -97,7 +97,7 @@ impl Entry {
 #[xc3(magic(b"CHCL"))]
 #[xc3(align_after(64))]
 pub struct ChCl {
-    pub version: u32,
+    pub version: u32, // 10002
     pub unk1: u32,
 
     #[br(parse_with = parse_ptr32)]
@@ -138,10 +138,10 @@ pub struct ChClInner {
 
     // TODO: Find a nicer way to express this.
     #[br(temp, restore_position)]
-    unk7_count_offset: [u32; 2],
+    unk7_offset_count: [u32; 2],
 
     #[br(parse_with = parse_opt_ptr32)]
-    #[br(args { inner: unk7_count_offset[1] as usize })]
+    #[br(args { inner: unk7_offset_count[1] as usize })]
     #[xc3(offset(u32))]
     pub unk7: Option<ChClUnk7>,
 

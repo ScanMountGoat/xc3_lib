@@ -186,10 +186,12 @@ pub fn xc3_write_offsets_derive(input: TokenStream) -> TokenStream {
     let align_after = options.align_after.map(|align| {
         quote! {
             // Round up the total size.
-            let size = writer.stream_position()?;
+            let size = *data_ptr;
             let desired_size = size.next_multiple_of(#align);
             let padding = desired_size - size;
+            writer.seek(std::io::SeekFrom::Start(*data_ptr))?;
             writer.write_all(&vec![0u8; padding as usize])?;
+            *data_ptr = writer.stream_position()?;
         }
     });
 
