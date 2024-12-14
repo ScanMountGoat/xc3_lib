@@ -4,7 +4,7 @@ use crate::{parse_ptr64, parse_string_ptr64};
 use binrw::{binread, BinRead};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
-use super::{BcList, StringSection};
+use super::{BcList, BcList2, BcListN, StringSection};
 
 // TODO: skeleton dynamics?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -31,25 +31,50 @@ pub struct Dynamics {
     #[xc3(offset(u64))]
     pub unk3: DynamicsUnk1,
 
-    // TODO: not always present?
+    #[br(args_raw(offset))]
+    pub inner: DynamicsInner,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
+#[br(import_raw(size: u64))]
+pub enum DynamicsInner {
+    // XC1 and XC2 have 88 total bytes.
+    #[br(pre_assert(size == 88))]
+    Unk1(DynamicsInner1),
+
+    // XC3 has 96 total bytes.
+    #[br(pre_assert(size == 96))]
+    Unk2(DynamicsInner2),
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
+pub struct DynamicsInner1 {
     #[br(parse_with = parse_ptr64)]
-    #[br(if(offset >= 80))]
+    #[xc3(offset(u64), align(16, 0xff))]
+    pub unk1: Option<DynamicsUnk2Legacy>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
+pub struct DynamicsInner2 {
+    #[br(parse_with = parse_ptr64)]
     #[xc3(offset(u64))]
-    pub unk4: Option<DynamicsUnk2>,
+    pub unk1: Option<DynamicsUnk2>,
 
     #[br(parse_with = parse_ptr64)]
-    #[br(if(offset >= 88))]
     #[xc3(offset(u64))]
-    pub unk5: Option<DynamicsUnk3>,
+    pub unk2: Option<DynamicsUnk3>,
 }
 
 // TODO: Collisions?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct DynamicsUnk1 {
-    pub spheres: BcList<Sphere>,
-    pub capsules: BcList<Capsule>,
-    pub planes: BcList<Plane>,
+    pub spheres: BcListN<Sphere, 16>,
+    pub capsules: BcListN<Capsule, 16>,
+    pub planes: BcListN<Plane, 16>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -149,8 +174,6 @@ pub struct DynamicsUnk2ItemUnk1 {
     pub name1: String,
 
     // DJ_
-    // TODO: Why does this not always parse properly?
-    // TODO: is there a file revision that doesn't have this?
     #[br(parse_with = parse_string_ptr64)]
     #[xc3(offset(u64))]
     pub name2: String,
@@ -182,6 +205,61 @@ pub struct Spring {
     pub unk1: [f32; 5],
     // TODO: padding from alignment?
     pub unk5: i32,
+}
+
+// TODO: make this generic instead?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
+pub struct DynamicsUnk2Legacy {
+    pub unk1: BcList<DynamicsUnk2ItemLegacy>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
+pub struct DynamicsUnk2ItemLegacy {
+    // DS_
+    #[br(parse_with = parse_string_ptr64)]
+    #[xc3(offset(u64))]
+    pub name: String,
+
+    pub unk1: BcList<DynamicsUnk2ItemUnk1Legacy>,
+    pub unk2: BcList2<[f32; 4]>,
+    pub sticks: BcList<StickLegacy>,
+    pub springs: BcList<Spring>,
+    pub unk5: BcList<()>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
+pub struct DynamicsUnk2ItemUnk1Legacy {
+    // DN_
+    #[br(parse_with = parse_string_ptr64)]
+    #[xc3(offset(u64))]
+    pub name1: String,
+
+    // DJ_
+    #[br(parse_with = parse_string_ptr64)]
+    #[xc3(offset(u64))]
+    pub name2: String,
+
+    pub unk1: [f32; 5],
+    pub unk2: u16,
+    // TODO: Alignment padding for all but the last element?
+    pub unk3: i16,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
+pub struct StickLegacy {
+    // DC_STICK_
+    #[br(parse_with = parse_string_ptr64)]
+    #[xc3(offset(u64))]
+    pub name: String,
+
+    pub unk1: f32,
+    pub unk2: u32,
+    pub unk3: f32,
+    pub unk4: u32,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -239,14 +317,7 @@ impl<'a> Xc3WriteOffsets for DynamicsOffsets<'a> {
             endian,
             string_section.clone(),
         )?;
-        self.unk4.write_full(
-            writer,
-            base_offset,
-            data_ptr,
-            endian,
-            string_section.clone(),
-        )?;
-        self.unk5.write_full(
+        self.inner.write_offsets(
             writer,
             base_offset,
             data_ptr,
@@ -256,6 +327,64 @@ impl<'a> Xc3WriteOffsets for DynamicsOffsets<'a> {
 
         string_section.borrow().write(writer, data_ptr, 8, endian)?;
 
+        Ok(())
+    }
+}
+
+impl<'a> Xc3WriteOffsets for DynamicsInnerOffsets<'a> {
+    type Args = Rc<RefCell<StringSection>>;
+
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+        endian: xc3_write::Endian,
+        args: Self::Args,
+    ) -> xc3_write::Xc3Result<()> {
+        match self {
+            DynamicsInnerOffsets::Unk1(unk1) => {
+                unk1.write_offsets(writer, base_offset, data_ptr, endian, args)
+            }
+            DynamicsInnerOffsets::Unk2(unk2) => {
+                unk2.write_offsets(writer, base_offset, data_ptr, endian, args)
+            }
+        }
+    }
+}
+
+impl<'a> Xc3WriteOffsets for DynamicsInner1Offsets<'a> {
+    type Args = Rc<RefCell<StringSection>>;
+
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+        endian: xc3_write::Endian,
+        args: Self::Args,
+    ) -> xc3_write::Xc3Result<()> {
+        self.unk1
+            .write_full(writer, base_offset, data_ptr, endian, args)?;
+        Ok(())
+    }
+}
+
+impl<'a> Xc3WriteOffsets for DynamicsInner2Offsets<'a> {
+    type Args = Rc<RefCell<StringSection>>;
+
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+        endian: xc3_write::Endian,
+        args: Self::Args,
+    ) -> xc3_write::Xc3Result<()> {
+        self.unk1
+            .write_full(writer, base_offset, data_ptr, endian, args.clone())?;
+        self.unk2
+            .write_full(writer, base_offset, data_ptr, endian, args.clone())?;
         Ok(())
     }
 }
@@ -409,6 +538,82 @@ impl<'a> Xc3WriteOffsets for StickOffsets<'a> {
 }
 
 impl<'a> Xc3WriteOffsets for SpringOffsets<'a> {
+    type Args = Rc<RefCell<StringSection>>;
+
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
+        &self,
+        _writer: &mut W,
+        _base_offset: u64,
+        _data_ptr: &mut u64,
+        _endian: xc3_write::Endian,
+        args: Self::Args,
+    ) -> xc3_write::Xc3Result<()> {
+        args.borrow_mut().insert_offset(&self.name);
+        Ok(())
+    }
+}
+
+impl<'a> Xc3WriteOffsets for DynamicsUnk2LegacyOffsets<'a> {
+    type Args = Rc<RefCell<StringSection>>;
+
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+        endian: xc3_write::Endian,
+        args: Self::Args,
+    ) -> xc3_write::Xc3Result<()> {
+        self.unk1
+            .write_offsets(writer, base_offset, data_ptr, endian, args.clone())?;
+        Ok(())
+    }
+}
+
+impl<'a> Xc3WriteOffsets for DynamicsUnk2ItemLegacyOffsets<'a> {
+    type Args = Rc<RefCell<StringSection>>;
+
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+        endian: xc3_write::Endian,
+        args: Self::Args,
+    ) -> xc3_write::Xc3Result<()> {
+        args.borrow_mut().insert_offset(&self.name);
+        self.unk1
+            .write_offsets(writer, base_offset, data_ptr, endian, args.clone())?;
+        self.unk2
+            .write_offsets(writer, base_offset, data_ptr, endian, ())?;
+        self.sticks
+            .write_offsets(writer, base_offset, data_ptr, endian, args.clone())?;
+        self.springs
+            .write_offsets(writer, base_offset, data_ptr, endian, args.clone())?;
+        self.unk5
+            .write_offsets(writer, base_offset, data_ptr, endian, ())?;
+        Ok(())
+    }
+}
+
+impl<'a> Xc3WriteOffsets for DynamicsUnk2ItemUnk1LegacyOffsets<'a> {
+    type Args = Rc<RefCell<StringSection>>;
+
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
+        &self,
+        _writer: &mut W,
+        _base_offset: u64,
+        _data_ptr: &mut u64,
+        _endian: xc3_write::Endian,
+        args: Self::Args,
+    ) -> xc3_write::Xc3Result<()> {
+        args.borrow_mut().insert_offset(&self.name1);
+        args.borrow_mut().insert_offset(&self.name2);
+        Ok(())
+    }
+}
+
+impl<'a> Xc3WriteOffsets for StickLegacyOffsets<'a> {
     type Args = Rc<RefCell<StringSection>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
