@@ -1129,7 +1129,7 @@ fn check_model(
     vertex: &xc3_lib::vertex::VertexData,
     path: &Path,
 ) {
-    let (new_mxmd, new_msrd) = root.to_mxmd_model(&mxmd, &msrd).unwrap();
+    let (new_mxmd, new_msrd) = root.to_mxmd_model(mxmd, msrd).unwrap();
     match new_msrd.extract_files(None) {
         Ok((new_vertex, _, _)) => {
             if new_vertex.buffer != vertex.buffer {
