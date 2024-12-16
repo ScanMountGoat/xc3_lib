@@ -130,11 +130,19 @@ struct TextureCache {
     low_textures: Vec<Vec<(TextureUsage, Mibl)>>,
     high_textures: Vec<Mibl>,
     // Use a map that preserves insertion order to get consistent ordering.
-    texture_to_image_texture_index: IndexMap<(i16, i16, i16), usize>,
+    texture_to_image_texture_index: IndexMap<TextureKey, usize>,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+struct TextureKey {
+    low_textures_entry_index: Option<usize>,
+    low_texture_index: Option<usize>,
+    texture_index: Option<usize>,
 }
 
 impl TextureCache {
     fn new(msmd: &Msmd, wismda: &[u8], compressed: bool) -> Result<Self, LoadMapError> {
+        // Low textures are grouped into multiple collections.
         let low_textures = msmd
             .low_textures
             .par_iter()
@@ -172,46 +180,64 @@ impl TextureCache {
         })
     }
 
-    fn insert(&mut self, texture: &xc3_lib::map::Texture) -> usize {
-        let key = (
-            texture.low_texture_index,
-            texture.low_textures_entry_index,
-            texture.texture_index,
-        );
-        self.texture_to_image_texture_index.entry_index(key)
+    fn insert(
+        &mut self,
+        texture: &xc3_lib::map::Texture,
+        low_texture_entry_indices: &[u16],
+    ) -> usize {
+        let (low_textures_entry_index, low_texture_index) = if texture.flags.has_low_texture() {
+            // Entry indices have an additional layer of indirection.
+            let entry_index = usize::try_from(texture.low_textures_entry_index).ok();
+            let low_textures_entry_index = entry_index
+                .and_then(|i| low_texture_entry_indices.get(i).map(|i| *i as usize))
+                .or(entry_index);
+
+            let low_texture_index = usize::try_from(texture.low_texture_index).ok();
+
+            (low_textures_entry_index, low_texture_index)
+        } else {
+            (None, None)
+        };
+
+        let texture_index = if texture.flags.has_high_texture() {
+            usize::try_from(texture.texture_index).ok()
+        } else {
+            None
+        };
+
+        self.texture_to_image_texture_index.entry_index(TextureKey {
+            low_textures_entry_index,
+            low_texture_index,
+            texture_index,
+        })
     }
 
-    fn get_low_texture(&self, entry_index: i16, index: i16) -> Option<&(TextureUsage, Mibl)> {
-        let entry_index = usize::try_from(entry_index).ok()?;
-        let index = usize::try_from(index).ok()?;
+    fn get_low_texture(&self, key: &TextureKey) -> Option<&(TextureUsage, Mibl)> {
+        let entry_index = key.low_textures_entry_index?;
+        let index = key.low_texture_index?;
         self.low_textures.get(entry_index)?.get(index)
     }
 
-    fn get_high_texture(&self, index: i16) -> Option<&Mibl> {
-        let index = usize::try_from(index).ok()?;
+    fn get_high_texture(&self, key: &TextureKey) -> Option<&Mibl> {
+        let index = key.texture_index?;
         self.high_textures.get(index)
     }
 
     fn image_textures(&self) -> Result<Vec<ImageTexture>, CreateImageTextureError> {
         self.texture_to_image_texture_index
             .par_iter()
-            .map(
-                |((low_texture_index, low_textures_entry_index, texture_index), _)| {
-                    let low = self.get_low_texture(*low_textures_entry_index, *low_texture_index);
+            .map(|(texture, _)| {
+                let low = self.get_low_texture(texture);
 
-                    if let Some(mibl) = self
-                        .get_high_texture(*texture_index)
-                        .or(low.map(|low| &low.1))
-                    {
-                        ImageTexture::from_mibl(mibl, None, low.map(|l| l.0)).map_err(Into::into)
-                    } else {
-                        // TODO: What do do if both indices are negative?
-                        error!("No mibl for low: {low_texture_index}, low entry: {low_textures_entry_index}, high: {texture_index}");
-                        let (usage, mibl) = self.get_low_texture(0, 0).unwrap();
-                        ImageTexture::from_mibl(mibl, None, Some(*usage)).map_err(Into::into)
-                    }
-                },
-            )
+                if let Some(mibl) = self.get_high_texture(texture).or(low.map(|low| &low.1)) {
+                    ImageTexture::from_mibl(mibl, None, low.map(|l| l.0)).map_err(Into::into)
+                } else {
+                    // TODO: Create a default instead to avoid potential panic.
+                    error!("No mibl for {texture:?}");
+                    let (usage, mibl) = &self.low_textures[0][0];
+                    ImageTexture::from_mibl(mibl, None, Some(*usage)).map_err(Into::into)
+                }
+            })
             .collect()
     }
 }
@@ -238,7 +264,7 @@ fn map_models_group(
         let material_root_texture_indices: Vec<_> = model_data
             .textures
             .iter()
-            .map(|t| texture_cache.insert(t))
+            .map(|t| texture_cache.insert(t, &model_data.low_texture_entry_indices))
             .collect();
 
         load_map_model_group(
@@ -277,11 +303,11 @@ fn props_group(
     let models = prop_model_data
         .iter()
         .map(|model_data| {
-            // Remove one layer of indirection from texture lookups.
+            // Remove layers of indirection from texture lookups.
             let material_root_texture_indices: Vec<_> = model_data
                 .textures
                 .iter()
-                .map(|t| texture_cache.insert(t))
+                .map(|t| texture_cache.insert(t, &model_data.low_texture_entry_indices))
                 .collect();
 
             load_prop_model_group(

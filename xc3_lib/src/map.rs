@@ -75,9 +75,12 @@ pub struct PropModelData {
     #[xc3(offset(u32))]
     pub spch: Spch,
 
-    pub unk5: u32,
-    pub unk6: u32,
-    // 16 bytes of padding?
+    /// Indices into [low_textures](../msmd/struct.Msmd.html#structfield.low_textures)
+    /// for the entry indices in [textures](#structfield.textures).
+    #[br(parse_with = parse_offset32_count32)]
+    #[xc3(offset_count(u32, u32))]
+    pub low_texture_entry_indices: Vec<u16>,
+    // TODO: 16 bytes of padding?
 }
 
 // Similar to LOD data in mxmd?
@@ -219,9 +222,11 @@ pub struct MapModelData {
     #[xc3(offset(u32))]
     pub spch: Spch,
 
-    // TODO: What does this do?
-    pub low_res_offset: u32,
-    pub low_res_count: u32,
+    /// Indices into [low_textures](../msmd/struct.Msmd.html#structfield.low_textures)
+    /// for the entry indices in [textures](#structfield.textures).
+    #[br(parse_with = parse_offset32_count32)]
+    #[xc3(offset_count(u32, u32))]
+    pub low_texture_entry_indices: Vec<u16>,
 
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]
@@ -236,7 +241,8 @@ pub struct Texture {
     /// Index into [textures](../msmd/struct.LowTextures.html#structfield.textures)
     /// for the corresponding [LowTextures](crate::msmd::LowTextures).
     pub low_texture_index: i16,
-    /// Index into [low_textures](../msmd/struct.Msmd.html#structfield.low_textures).
+    /// Index into an additional index list in the model data
+    /// that indexes into [low_textures](../msmd/struct.Msmd.html#structfield.low_textures).
     pub low_textures_entry_index: i16,
     /// Index into [textures](../msmd/struct.Msmd.html#structfield.textures).
     pub texture_index: i16,
