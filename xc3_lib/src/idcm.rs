@@ -1,4 +1,4 @@
-//! Map collision geometry in `.idcm` files or embedded in other files.
+//! Collisions in `.idcm` files or embedded in other files.
 //!
 //! # File Paths
 //! | Game | Versions | File Patterns |
@@ -9,7 +9,7 @@
 use crate::{
     parse_offset32_count16, parse_offset32_count32, parse_ptr32, parse_string_ptr32, StringOffset32,
 };
-use binrw::{binread, BinRead};
+use binrw::{args, binread, BinRead};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 #[binread]
@@ -28,12 +28,12 @@ pub struct Idcm {
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub unk1: Vec<[u32; 15]>,
+    pub meshes: Vec<Mesh>,
 
     #[br(parse_with = parse_offset32_count32)]
     #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(offset_count(u32, u32))]
-    pub unk2: Vec<Unk2>,
+    pub face_groups: Vec<FaceGroups>,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
@@ -57,7 +57,7 @@ pub struct Idcm {
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub unk8: Vec<[f32; 4]>,
+    pub vertices: Vec<[f32; 4]>,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
@@ -86,10 +86,11 @@ pub struct Idcm {
 
     pub unks1_3: [u32; 2],
 
+    /// Names for each of the [Mesh] in [meshes](#structfield.meshes).
     #[br(parse_with = parse_ptr32)]
-    #[br(args { offset: base_offset, inner: base_offset })]
+    #[br(args { offset: base_offset, inner: args! { count: meshes.len(), inner: base_offset } })]
     #[xc3(offset(u32))]
-    pub unk20: StringOffset32,
+    pub mesh_names: Vec<StringOffset32>,
 
     pub unk21: u32,
 
@@ -101,7 +102,6 @@ pub struct Idcm {
     #[xc3(offset_count(u32, u32))]
     pub unks1_2: Vec<u32>, // TODO: type?
 
-    // TODO: string pointers?
     #[br(parse_with = parse_offset32_count32)]
     #[br(args{ offset: base_offset, inner: base_offset})]
     #[xc3(offset_count(u32, u32))]
@@ -118,16 +118,37 @@ pub struct Idcm {
     pub unks: [u32; 12], // TODO: padding?
 }
 
-// TODO: face data?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct Mesh {
+    pub unk1: u32,
+    /// Index into [face_groups](struct.Idcm.html#structfield.face_groups).
+    pub face_group_start_index: u32,
+    /// Index into [face_groups](struct.Idcm.html#structfield.face_groups).
+    pub face_group_start_index2: u32,
+    /// The number of groups in [face_groups](struct.Idcm.html#structfield.face_groups).
+    pub face_group_count: u32,
+    /// The number of groups in [face_groups](struct.Idcm.html#structfield.face_groups).
+    pub face_group_count2: u32,
+    pub unk6: u32,
+    pub unk7: u32,
+    pub unk8: u32,
+    pub unk9: u32,
+    pub unk: [u32; 6],
+}
+
+// TODO: triangle strips?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
-pub struct Unk2 {
+pub struct FaceGroups {
     // TODO: These offsets aren't in any particular order?
+    /// Indices into [vertices](struct.Idcm.html#structfield.vertices).
     #[br(parse_with = parse_offset32_count16, offset = base_offset)]
     #[xc3(offset_count(u32, u16))]
-    pub unk1: Vec<[u16; 3]>,
-
+    pub faces: Vec<[u16; 3]>,
+    // TODO: is count really only u8?
+    // TODO: group index for unk4?
     pub unk2: u16,
     pub unk3: u32,
 }
@@ -180,11 +201,13 @@ impl<'a> Xc3WriteOffsets for IdcmOffsets<'a> {
         // Different order than field order.
         self.unk15
             .write_full(writer, base_offset, data_ptr, endian, ())?;
-        self.unk1
+        self.meshes
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk17
             .write_full(writer, base_offset, data_ptr, endian, ())?;
-        let unk2 = self.unk2.write(writer, base_offset, data_ptr, endian)?;
+        let unk2 = self
+            .face_groups
+            .write(writer, base_offset, data_ptr, endian)?;
         self.unk3
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk4
@@ -198,7 +221,7 @@ impl<'a> Xc3WriteOffsets for IdcmOffsets<'a> {
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk7
             .write_full(writer, base_offset, data_ptr, endian, ())?;
-        self.unk8
+        self.vertices
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk9
             .write_full(writer, base_offset, data_ptr, endian, ())?;
@@ -225,7 +248,7 @@ impl<'a> Xc3WriteOffsets for IdcmOffsets<'a> {
             u.write_offsets(writer, base_offset, data_ptr, endian, ())?;
         }
 
-        self.unk20
+        self.mesh_names
             .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         for u in unk16.0 {
