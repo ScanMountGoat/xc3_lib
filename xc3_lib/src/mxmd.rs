@@ -550,6 +550,7 @@ pub enum ColorWriteMode {
     Unk1 = 1,   // TODO: single output?
     Unk2 = 2,   // TODO: xcx only?
     Unk3 = 3,   // TODO: xcx only?
+    Unk5 = 5,   // TODO: xc2 efb0 only?
     Unk6 = 6,   // TODO: xcx only?
     Unk9 = 9,   // TODO: xcx only?
     Unk10 = 10, // TODO: all outputs but blends with previous color output texture?
@@ -1581,6 +1582,7 @@ pub enum TextureUsage {
     Unk8 = 2162689,
     Alp = 2228224,
     Unk = 268435456,
+    Unk21 = 269615104,
     Alp2 = 269484032,
     Col2 = 270532608,
     Unk11 = 270663680,

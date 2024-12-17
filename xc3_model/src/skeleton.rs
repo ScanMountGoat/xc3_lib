@@ -189,7 +189,7 @@ fn infer_transform(
     if let Some(parent_inverse) = skinning
         .inverse_bind_transforms
         .get(parent_index)
-        .map(|transform| Mat4::from_cols_array_2d(transform))
+        .map(Mat4::from_cols_array_2d)
     {
         parent_inverse * transform
     } else {

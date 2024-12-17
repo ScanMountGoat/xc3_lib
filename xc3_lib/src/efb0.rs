@@ -5,13 +5,14 @@
 //! | Game | Versions | File Patterns |
 //! | --- | --- | --- |
 //! | Xenoblade Chronicles 1 DE | |  |
-//! | Xenoblade Chronicles 2 |  | `effect/**/*.wiefb` |
+//! | Xenoblade Chronicles 2 | | `effect/**/*.wiefb` |
 //! | Xenoblade Chronicles 3 |  |  |
 use crate::{parse_opt_ptr32, xc3_write_binwrite_impl};
 use binrw::{binread, BinRead, BinWrite, NullString};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 // TODO: .wieab also has data?
+/// `ptlib::ParticleManager::parse_efs` in the Xenoblade 2 binary.
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
@@ -24,7 +25,14 @@ pub struct Efb0 {
     #[br(temp, try_calc = r.stream_position().map(|p| p - 4))]
     base_offset: u64,
 
-    pub version: (u16, u16),
+    // TODO: not present for bl200101_12_deathblow_00?
+    // TODO: in game parser checks if type is 0x61 first?
+    pub version: (u16, u16), // 2, 1
+
+    // TODO: flags for data
+    // 0x61 for start
+    // 0x1 for data?
+    // 0x50 for ???
     pub unk1: u32,
 
     // TODO: Why is this a linked list?
@@ -32,10 +40,11 @@ pub struct Efb0 {
     #[xc3(offset(u32))]
     pub next_efb0: Option<Box<Efb0>>,
 
+    // TODO: Difference between unk2 and next unk2 is next efb0 offset?
     pub unk2: u32,
 
     pub text: EfbString,
-    // TODO: embedded mxmd, mibl, hcps?
+    // TODO: embedded data
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -46,5 +55,24 @@ pub struct EfbString(
     #[brw(pad_size_to = 60)]
     String,
 );
+
+// TODO: Only present for type 0x1
+/// `FxHeader` in Xenoblade 2 binary.
+#[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(stream = r)]
+#[xc3(base_offset)]
+pub struct FxHeader {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    // TODO: Offsets relative to data start?
+    // TODO: This repeats?
+    pub unk1: u32,
+    pub unk2: u32,
+    pub unk3: i32,
+    pub unk4: u32, // offset?
+}
 
 xc3_write_binwrite_impl!(EfbString);
