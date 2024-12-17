@@ -16,7 +16,7 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 use xc3_model::{animation::Animation, load_animations, shader_database::ShaderDatabase};
-use xc3_wgpu::{CameraData, ModelGroup, MonolibShaderTextures, RenderMode, Renderer};
+use xc3_wgpu::{CameraData, Collision, ModelGroup, MonolibShaderTextures, RenderMode, Renderer};
 
 #[cfg(feature = "tracing")]
 use tracing_subscriber::prelude::*;
@@ -47,6 +47,8 @@ struct State<'a> {
     animation_index: usize,
     current_time_seconds: f32,
     previous_frame_start: Instant,
+
+    collisions: Vec<Collision>,
 
     draw_bones: bool,
     draw_bounds: bool,
@@ -109,7 +111,7 @@ impl<'a> State<'a> {
 
         // TODO: Make the monolib/shader path optional?
         // Assume paths are somewhere in a full game dump.
-        let mut root_folder = Path::new(&cli.models[0]);
+        let mut root_folder = Path::new(&cli.files[0]);
         while let Some(parent) = root_folder.parent() {
             if root_folder.join("monolib/shader").exists() {
                 break;
@@ -149,7 +151,8 @@ impl<'a> State<'a> {
         let start = std::time::Instant::now();
 
         // Infer the type of model to load based on the extension.
-        let groups = match Path::new(&cli.models[0])
+        // TODO: Load each file individually and don't assume type.
+        let (groups, collisions) = match Path::new(&cli.files[0])
             .extension()
             .unwrap()
             .to_str()
@@ -158,46 +161,48 @@ impl<'a> State<'a> {
             "wimdo" | "pcmdo" => {
                 // TODO: merge roots or just merge skeletons?
                 let mut roots = Vec::new();
-                for path in &cli.models {
+                for path in &cli.files {
                     let root = xc3_model::load_model(path, database.as_ref())
                         .with_context(|| format!("failed to load .wimdo model from {path:?}"))?;
                     roots.push(root);
                 }
                 info!("Load {} roots: {:?}", roots.len(), start.elapsed());
 
-                Ok(xc3_wgpu::load_model(
-                    &device,
-                    &queue,
-                    &roots,
-                    &monolib_shader,
+                Ok((
+                    xc3_wgpu::load_model(&device, &queue, &roots, &monolib_shader),
+                    Vec::new(),
                 ))
             }
             "camdo" => {
                 let mut roots = Vec::new();
-                for path in &cli.models {
+                for path in &cli.files {
                     let root = xc3_model::load_model_legacy(path, database.as_ref())
                         .with_context(|| format!("failed to load .camdo model from {path:?}"))?;
                     roots.push(root);
                 }
                 info!("Load {} roots: {:?}", roots.len(), start.elapsed());
-
-                Ok(xc3_wgpu::load_model(
-                    &device,
-                    &queue,
-                    &roots,
-                    &monolib_shader,
+                Ok((
+                    xc3_wgpu::load_model(&device, &queue, &roots, &monolib_shader),
+                    Vec::new(),
                 ))
             }
             "wismhd" => {
-                let path = &cli.models[0];
+                let path = &cli.files[0];
                 let roots = xc3_model::load_map(path, database.as_ref())
                     .with_context(|| format!("failed to load .wismhd map from {path:?}"))?;
                 info!("Load {} roots: {:?}", roots.len(), start.elapsed());
-                Ok(xc3_wgpu::load_map(&device, &queue, &roots, &monolib_shader))
+                Ok((
+                    xc3_wgpu::load_map(&device, &queue, &roots, &monolib_shader),
+                    Vec::new(),
+                ))
+            }
+            "wiidcm" | "idcm" => {
+                let path = &cli.files[0];
+                Ok((Vec::new(), xc3_wgpu::load_collisions(&device, path)))
             }
             ext => Err(anyhow!(format!("unrecognized file extension {ext}"))),
         }
-        .with_context(|| format!("failed to load {:?}", cli.models))?;
+        .with_context(|| format!("failed to load {:?}", cli.files))?;
 
         let elapsed = start.elapsed();
 
@@ -217,8 +222,8 @@ impl<'a> State<'a> {
             elapsed
         );
 
-        let model_names = cli
-            .models
+        let file_names = cli
+            .files
             .iter()
             .map(|m| {
                 Path::new(m)
@@ -236,7 +241,7 @@ impl<'a> State<'a> {
             None => Vec::new(),
         };
         let animation_index = cli.anim_index.unwrap_or_default();
-        update_window_title(window, &model_names, &animations, animation_index);
+        update_window_title(window, &file_names, &animations, animation_index);
 
         Ok(Self {
             surface,
@@ -246,8 +251,9 @@ impl<'a> State<'a> {
             config,
             translation,
             rotation_xyz,
-            model_names,
+            model_names: file_names,
             groups,
+            collisions,
             renderer,
             animations,
             animation_index,
@@ -312,13 +318,19 @@ impl<'a> State<'a> {
                 label: Some("Render Encoder"),
             });
 
-        self.renderer.render_models(
-            &output_view,
-            &mut encoder,
-            &self.groups,
-            self.draw_bounds,
-            self.draw_bones,
-        );
+        // TODO: Support rendering both models and collision models.
+        if !self.collisions.is_empty() {
+            self.renderer
+                .render_collisions(&output_view, &mut encoder, &self.collisions);
+        } else {
+            self.renderer.render_models(
+                &output_view,
+                &mut encoder,
+                &self.groups,
+                self.draw_bounds,
+                self.draw_bones,
+            );
+        }
 
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
@@ -517,7 +529,7 @@ fn database_path() -> std::io::Result<std::path::PathBuf> {
 #[command(propagate_version = true)]
 struct Cli {
     /// The .wimdo or .wismhd or .camdo files.
-    models: Vec<String>,
+    files: Vec<String>,
     /// The shader database generated by xc3_shader.
     #[arg(long)]
     database: Option<String>,

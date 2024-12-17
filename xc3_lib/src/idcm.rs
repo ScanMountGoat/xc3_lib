@@ -137,12 +137,12 @@ pub struct Mesh {
     pub unk: [u32; 6],
 }
 
-// TODO: triangle strips?
+/// A collection of faces using triangle strips.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct FaceGroups {
-    // TODO: These offsets aren't in any particular order?
+    // TODO: Offsets into the buffer aren't in any particular order?
     /// Indices into [vertices](struct.Idcm.html#structfield.vertices).
     #[br(parse_with = parse_offset32_count16, offset = base_offset)]
     #[xc3(offset_count(u32, u16))]

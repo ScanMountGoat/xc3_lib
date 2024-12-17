@@ -3,7 +3,7 @@ use wgpu::util::DeviceExt;
 use xc3_model::MeshRenderPass;
 
 use crate::{
-    model::ModelGroup, pipeline::Output5Type, skeleton::BoneRenderer, DeviceBufferExt,
+    model::ModelGroup, pipeline::Output5Type, skeleton::BoneRenderer, Collision, DeviceBufferExt,
     MonolibShaderTextures, QueueBufferExt, COLOR_FORMAT, GBUFFER_COLOR_FORMAT,
     GBUFFER_NORMAL_FORMAT,
 };
@@ -39,10 +39,12 @@ pub struct Renderer {
 
     blit_hair_pipeline: wgpu::RenderPipeline,
 
-    solid_pipeline: wgpu::RenderPipeline,
+    bounds_pipeline: wgpu::RenderPipeline,
     solid_bind_group0: crate::shader::solid::bind_groups::BindGroup0,
     solid_bind_group1: crate::shader::solid::bind_groups::BindGroup1,
     solid_culled_bind_group1: crate::shader::solid::bind_groups::BindGroup1,
+
+    collisions_pipeline: wgpu::RenderPipeline,
 
     bone_renderer: BoneRenderer,
 }
@@ -255,7 +257,16 @@ impl Renderer {
 
         let textures = Textures::new(device, width, height);
 
-        let solid_pipeline = solid_pipeline(device, surface_format);
+        let bounds_pipeline = solid_pipeline(
+            device,
+            surface_format,
+            "Bounds Pipeline",
+            wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::LineList,
+                polygon_mode: wgpu::PolygonMode::Line,
+                ..Default::default()
+            },
+        );
         let solid_bind_group0 = crate::shader::solid::bind_groups::BindGroup0::from_bindings(
             device,
             crate::shader::solid::bind_groups::BindGroupLayout0 {
@@ -294,6 +305,17 @@ impl Renderer {
 
         let bone_renderer = BoneRenderer::new(device, &camera_buffer, surface_format);
 
+        let collisions_pipeline = solid_pipeline(
+            device,
+            surface_format,
+            "Collisions Pipeline",
+            wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleStrip,
+                polygon_mode: wgpu::PolygonMode::Line,
+                ..Default::default()
+            },
+        );
+
         Self {
             camera_buffer,
             camera,
@@ -310,11 +332,12 @@ impl Renderer {
             snn_filter_pipeline,
             blit_pipeline,
             blit_hair_pipeline,
-            solid_pipeline,
+            bounds_pipeline,
             solid_bind_group0,
             solid_bind_group1,
             solid_culled_bind_group1,
             bone_renderer,
+            collisions_pipeline,
         }
     }
 
@@ -346,6 +369,46 @@ impl Renderer {
             self.deferred_debug_pass(encoder);
         }
         self.final_pass(encoder, output_view, models, draw_bounds, draw_bones);
+    }
+
+    pub fn render_collisions(
+        &self,
+        output_view: &wgpu::TextureView,
+        encoder: &mut wgpu::CommandEncoder,
+        collisions: &[Collision],
+    ) {
+        // Draw collisions and models together?
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Final Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: output_view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.textures.depth_stencil,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(0),
+                    store: wgpu::StoreOp::Store,
+                }),
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+
+        render_pass.set_pipeline(&self.collisions_pipeline);
+        self.solid_bind_group0.set(&mut render_pass);
+
+        for collision in collisions {
+            collision.draw(&mut render_pass, &self.solid_bind_group1);
+        }
     }
 
     pub fn update_camera(&mut self, queue: &wgpu::Queue, camera_data: &CameraData) {
@@ -895,7 +958,7 @@ impl Renderer {
 
         // TODO: Create a BoundsRenderer to store this data?
         if draw_bounds {
-            render_pass.set_pipeline(&self.solid_pipeline);
+            render_pass.set_pipeline(&self.bounds_pipeline);
             self.solid_bind_group0.set(&mut render_pass);
 
             for group in groups {
@@ -1125,12 +1188,17 @@ fn deferred_debug_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
     })
 }
 
-fn solid_pipeline(device: &wgpu::Device, format: wgpu::TextureFormat) -> wgpu::RenderPipeline {
+fn solid_pipeline(
+    device: &wgpu::Device,
+    format: wgpu::TextureFormat,
+    label: &str,
+    primitive: wgpu::PrimitiveState,
+) -> wgpu::RenderPipeline {
     let module = crate::shader::solid::create_shader_module(device);
     let render_pipeline_layout = crate::shader::solid::create_pipeline_layout(device);
 
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("Unbranch to Depth Pipeline"),
+        label: Some(label),
         layout: Some(&render_pipeline_layout),
         vertex: crate::shader::solid::vertex_state(
             &module,
@@ -1140,11 +1208,7 @@ fn solid_pipeline(device: &wgpu::Device, format: wgpu::TextureFormat) -> wgpu::R
             &module,
             &crate::shader::solid::fs_main_entry([Some(format.into())]),
         )),
-        primitive: wgpu::PrimitiveState {
-            topology: wgpu::PrimitiveTopology::LineList,
-            polygon_mode: wgpu::PolygonMode::Line,
-            ..Default::default()
-        },
+        primitive,
         depth_stencil: Some(wgpu::DepthStencilState {
             format: DEPTH_STENCIL_FORMAT,
             depth_write_enabled: true,

@@ -41,6 +41,7 @@
 //! the [Animation](xc3_model::animation::Animation) type from [xc3_model].
 
 mod animation;
+mod collision;
 mod culling;
 mod material;
 mod model;
@@ -52,6 +53,7 @@ mod shader;
 mod skeleton;
 mod texture;
 
+pub use collision::{load_collisions, Collision};
 pub use material::Material;
 pub use model::{load_map, load_model, Mesh, Model, ModelBuffers, ModelGroup, Models};
 pub use monolib::MonolibShaderTextures;
