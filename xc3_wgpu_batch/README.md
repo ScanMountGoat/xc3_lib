@@ -13,4 +13,4 @@ The shader database parameter is optional but highly recommended since the fallb
 `xc3_wgpu_batch "Xeno X Dump" camdo xcx.bin`  
 `xc3_wgpu_batch "Xeno 1 Dump" wismhd xc1.bin`  
 `xc3_wgpu_batch "Xeno 2 Dump" wimdo xc2.bin`  
-`xc3_wgpu_batch "Xeno 3 Dump\chr\ch\ch" wimdo xc3.bin --anim`  
+`xc3_wgpu_batch "Xeno 3 Dump/chr/ch/ch" wimdo xc3.bin --anim`  

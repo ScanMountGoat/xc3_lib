@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Changed arguments for xc3_gltf to support drag and drop conversions to `.glb` on Windows. The output defaults to the input path with `.glb` extension if not specified. The database defaults to `xc_combined.bin` in the executable directory if not specified.
 * Changed arguments for xc3_viewer to support drag and drop on Windows. The database defaults to `xc_combined.bin` in the executable directory if not specified.
 * Improved accuracy of file rebuilding.
+* Changed xc3_viewer to support rendering mixed file types in the files list like `.wismhd` and `.idcm`.
 
 ### Fixed
 * Fixed an issue where wimdo skinning rebuilding for xc3_model would occasionally delete bone parenting information.

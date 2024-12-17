@@ -346,6 +346,7 @@ impl Renderer {
         output_view: &wgpu::TextureView,
         encoder: &mut wgpu::CommandEncoder,
         models: &[ModelGroup],
+        collisions: &[Collision],
         draw_bounds: bool,
         draw_bones: bool,
     ) {
@@ -368,47 +369,14 @@ impl Renderer {
             self.alpha3_pass(encoder, models, &self.textures.gbuffer.color);
             self.deferred_debug_pass(encoder);
         }
-        self.final_pass(encoder, output_view, models, draw_bounds, draw_bones);
-    }
-
-    pub fn render_collisions(
-        &self,
-        output_view: &wgpu::TextureView,
-        encoder: &mut wgpu::CommandEncoder,
-        collisions: &[Collision],
-    ) {
-        // Draw collisions and models together?
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Final Pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: output_view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.textures.depth_stencil,
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(1.0),
-                    store: wgpu::StoreOp::Store,
-                }),
-                stencil_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(0),
-                    store: wgpu::StoreOp::Store,
-                }),
-            }),
-            timestamp_writes: None,
-            occlusion_query_set: None,
-        });
-
-        render_pass.set_pipeline(&self.collisions_pipeline);
-        self.solid_bind_group0.set(&mut render_pass);
-
-        for collision in collisions {
-            collision.draw(&mut render_pass, &self.solid_bind_group1);
-        }
+        self.final_pass(
+            encoder,
+            output_view,
+            models,
+            collisions,
+            draw_bounds,
+            draw_bones,
+        );
     }
 
     pub fn update_camera(&mut self, queue: &wgpu::Queue, camera_data: &CameraData) {
@@ -921,6 +889,7 @@ impl Renderer {
         encoder: &mut wgpu::CommandEncoder,
         output_view: &wgpu::TextureView,
         groups: &[ModelGroup],
+        collisions: &[Collision],
         draw_bounds: bool,
         draw_bones: bool,
     ) {
@@ -979,6 +948,13 @@ impl Renderer {
                     group.bone_count as u32,
                 );
             }
+        }
+
+        render_pass.set_pipeline(&self.collisions_pipeline);
+        self.solid_bind_group0.set(&mut render_pass);
+
+        for collision in collisions {
+            collision.draw(&mut render_pass, &self.solid_bind_group1);
         }
     }
 

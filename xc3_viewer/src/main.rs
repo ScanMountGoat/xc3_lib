@@ -150,61 +150,65 @@ impl<'a> State<'a> {
 
         let start = std::time::Instant::now();
 
-        // Infer the type of model to load based on the extension.
-        // TODO: Load each file individually and don't assume type.
-        let (groups, collisions) = match Path::new(&cli.files[0])
-            .extension()
-            .unwrap()
-            .to_str()
-            .unwrap()
-        {
-            "wimdo" | "pcmdo" => {
-                // TODO: merge roots or just merge skeletons?
-                let mut roots = Vec::new();
-                for path in &cli.files {
-                    let root = xc3_model::load_model(path, database.as_ref())
-                        .with_context(|| format!("failed to load .wimdo model from {path:?}"))?;
-                    roots.push(root);
-                }
-                info!("Load {} roots: {:?}", roots.len(), start.elapsed());
+        let mut groups = Vec::new();
+        let mut collisions = Vec::new();
 
-                Ok((
-                    xc3_wgpu::load_model(&device, &queue, &roots, &monolib_shader),
-                    Vec::new(),
-                ))
-            }
-            "camdo" => {
-                let mut roots = Vec::new();
-                for path in &cli.files {
-                    let root = xc3_model::load_model_legacy(path, database.as_ref())
-                        .with_context(|| format!("failed to load .camdo model from {path:?}"))?;
-                    roots.push(root);
+        let mut model_roots = Vec::new();
+        let mut map_roots = Vec::new();
+
+        for file in &cli.files {
+            match Path::new(file).extension().unwrap().to_str().unwrap() {
+                "wimdo" | "pcmdo" => {
+                    // TODO: merge roots or just merge skeletons?
+                    let root = xc3_model::load_model(file, database.as_ref())
+                        .with_context(|| format!("failed to load .wimdo model from {file:?}"))?;
+                    model_roots.push(root);
                 }
-                info!("Load {} roots: {:?}", roots.len(), start.elapsed());
-                Ok((
-                    xc3_wgpu::load_model(&device, &queue, &roots, &monolib_shader),
-                    Vec::new(),
-                ))
+                "camdo" => {
+                    let root = xc3_model::load_model_legacy(file, database.as_ref())
+                        .with_context(|| format!("failed to load .camdo model from {file:?}"))?;
+                    model_roots.push(root);
+                }
+                "wismhd" => {
+                    let roots = xc3_model::load_map(file, database.as_ref())
+                        .with_context(|| format!("failed to load .wismhd map from {file:?}"))?;
+                    map_roots.extend(roots);
+                }
+                "wiidcm" | "idcm" => {
+                    collisions.extend(xc3_wgpu::load_collisions(&device, file));
+                }
+                ext => return Err(anyhow!(format!("unrecognized file extension {ext}"))),
             }
-            "wismhd" => {
-                let path = &cli.files[0];
-                let roots = xc3_model::load_map(path, database.as_ref())
-                    .with_context(|| format!("failed to load .wismhd map from {path:?}"))?;
-                info!("Load {} roots: {:?}", roots.len(), start.elapsed());
-                Ok((
-                    xc3_wgpu::load_map(&device, &queue, &roots, &monolib_shader),
-                    Vec::new(),
-                ))
-            }
-            "wiidcm" | "idcm" => {
-                let path = &cli.files[0];
-                Ok((Vec::new(), xc3_wgpu::load_collisions(&device, path)))
-            }
-            ext => Err(anyhow!(format!("unrecognized file extension {ext}"))),
         }
-        .with_context(|| format!("failed to load {:?}", cli.files))?;
+        if !model_roots.is_empty() || !map_roots.is_empty() {
+            info!(
+                "Load {} roots: {:?}",
+                model_roots.len() + map_roots.len(),
+                start.elapsed()
+            );
+        }
+        if !collisions.is_empty() {
+            info!(
+                "Load {} collisions: {:?}",
+                collisions.len(),
+                start.elapsed()
+            );
+        }
 
-        let elapsed = start.elapsed();
+        let start = std::time::Instant::now();
+
+        groups.extend(xc3_wgpu::load_model(
+            &device,
+            &queue,
+            &model_roots,
+            &monolib_shader,
+        ));
+        groups.extend(xc3_wgpu::load_map(
+            &device,
+            &queue,
+            &map_roots,
+            &monolib_shader,
+        ));
 
         let mesh_count: usize = groups
             .iter()
@@ -219,7 +223,7 @@ impl<'a> State<'a> {
             "Load {:?} groups and {:?} meshes: {:?}",
             groups.len(),
             mesh_count,
-            elapsed
+            start.elapsed()
         );
 
         let file_names = cli
@@ -318,19 +322,14 @@ impl<'a> State<'a> {
                 label: Some("Render Encoder"),
             });
 
-        // TODO: Support rendering both models and collision models.
-        if !self.collisions.is_empty() {
-            self.renderer
-                .render_collisions(&output_view, &mut encoder, &self.collisions);
-        } else {
-            self.renderer.render_models(
-                &output_view,
-                &mut encoder,
-                &self.groups,
-                self.draw_bounds,
-                self.draw_bones,
-            );
-        }
+        self.renderer.render_models(
+            &output_view,
+            &mut encoder,
+            &self.groups,
+            &self.collisions,
+            self.draw_bounds,
+            self.draw_bones,
+        );
 
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
@@ -528,7 +527,7 @@ fn database_path() -> std::io::Result<std::path::PathBuf> {
 #[command(author, version, about)]
 #[command(propagate_version = true)]
 struct Cli {
-    /// The .wimdo or .wismhd or .camdo files.
+    /// The wimdo, wismhd, camdo, wiidcm, or idcm files.
     files: Vec<String>,
     /// The shader database generated by xc3_shader.
     #[arg(long)]

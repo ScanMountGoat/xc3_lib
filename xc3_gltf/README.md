@@ -4,14 +4,16 @@ A command line tool for converting models and maps from Xenoblade X, Xenoblade 1
 glTF is an open interchange format designed for efficiently transmitting and loading 3D models. The goal of xc3_gltf is to be able to quickly export models and maps into a format that can be understood by many 3D modeling applications and game engines. Use [xenoblade_blender](https://github.com/ScanMountGoat/xenoblade_blender) for better results when only using the models within Blender.
 
 ## Usage
-Convert `.wimdo`, `.wismhd`, or `.camdo` files to `.gltf` or `.glb`. Exporting as `.gltf` will create a `.gltf`, `.bin`, and multiple `.png` files. File names will start with the name chosen for the output glTF file. Exporting as `.glb` will embed all data into a single `.glb` file. The shader database parameter is optional but highly recommended since the fallback texture assignments do not support channel packing of temp textures. 
+Convert `.wimdo`, `.wismhd`, or `.camdo` files to `.gltf` or `.glb`. Exporting as `.gltf` will create a `.gltf`, `.bin`, and multiple `.png` files. File names will start with the name chosen for the output glTF file. Exporting as `.glb` will embed all data into a single `.glb` file. 
+
+The shader database parameter is optional but highly recommended since the fallback texture assignments do not support channel packing of temp textures. The database parameter will default to `xc_combined.bin` in the executable directory if not specified.
 
 `xc3_gltf --help`  
-`xc3_gltf "Xeno 2 Dump\map\ma02a.wismhd" map.gltf --database xc2.bin`  
-`xc3_gltf "Xeno 2 Dump\model\np\np000301.wimdo" bana.gltf --database xc2.bin --anim "Xeno 2 Dump\model\np\np000301.mot"`    
-`xc3_gltf "Xeno 3 Dump\chr\ch\ch01027000.wimdo" mio.gltf --database xc3.bin`  
-`xc3_gltf "Xeno 3 Dump\chr\ch\ch01027000.wimdo" mio.glb --database xc3.bin`  
-`xc3_gltf "Xeno X Dump\chr_np\np\np009001.camdo" tatsu.gltf --database xcx.bin`    
+`xc3_gltf "Xeno 2 Dump/map/ma02a.wismhd" map.gltf --database xc2.bin`  
+`xc3_gltf "Xeno 2 Dump/model/np/np000301.wimdo" bana.gltf --database xc2.bin --anim "Xeno 2 Dump/model/np/np000301.mot"`    
+`xc3_gltf "Xeno 3 Dump/chr/ch/ch01027000.wimdo" mio.gltf --database xc3.bin`  
+`xc3_gltf "Xeno 3 Dump/chr/ch/ch01027000.wimdo" mio.glb --database xc3.bin`  
+`xc3_gltf "Xeno X Dump/chr_np/np/np009001.camdo" tatsu.gltf --database xcx.bin`    
 
 ## Features
 * position, normal, tangent, texture coordinate, and vertex color attributes

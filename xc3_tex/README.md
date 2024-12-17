@@ -7,7 +7,7 @@ xc3_tex supports converting proprietary in game texture formats to and from a va
 See the help text for a full list of commands and supported formats.
 
 `xc3_tex --help`  
-`xc3_tex "Xeno 3 Dump\chr\tex\nx\m\00a57332.wismt" out.dds`  
+`xc3_tex "Xeno 3 Dump/chr/tex/nx/m/00a57332.wismt" out.dds`  
 `xc3_tex in.dds out.wismt`  
 `xc3_tex in.dds out.witex`  
 `xc3_tex in.png out.witex --format BC7RgbaUnorm`
