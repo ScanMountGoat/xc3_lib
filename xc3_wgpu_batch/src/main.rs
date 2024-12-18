@@ -193,7 +193,7 @@ fn main() {
                 label: Some("Render Encoder"),
             });
 
-            renderer.render_models(&output_view, &mut encoder, &groups, false, cli.bones);
+            renderer.render_models(&output_view, &mut encoder, &groups, &[], false, cli.bones);
 
             let output_path = path.with_extension("png");
             save_screenshot(

@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use glam::{vec3, Mat4};
 use log::info;
 use wgpu::util::DeviceExt;
 use xc3_lib::idcm::Idcm;
@@ -11,21 +12,14 @@ pub struct Collision {
 }
 
 // TODO: take an xc3_model type instead.
+// TODO: convert to triangle list in xc3_model?
 pub fn load_collisions<P: AsRef<Path>>(device: &wgpu::Device, path: P) -> Vec<Collision> {
     let start = std::time::Instant::now();
 
-    let mut collisions = Vec::new();
-
     let idcm = Idcm::from_file(path).unwrap();
 
-    for mesh in idcm.meshes {
-        // TODO: Is the vertex buffer shared for all collisions?
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("collision vertex buffer"),
-            contents: bytemuck::cast_slice(&idcm.vertices),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-
+    let mut mesh_indices = Vec::new();
+    for mesh in &idcm.meshes {
         let mut indices = Vec::new();
         for group in idcm
             .face_groups
@@ -33,21 +27,77 @@ pub fn load_collisions<P: AsRef<Path>>(device: &wgpu::Device, path: P) -> Vec<Co
             .skip(mesh.face_group_start_index as usize)
             .take(mesh.face_group_count as usize)
         {
-            for faces in &group.faces {
+            for faces in &group.faces.triangle_strips {
                 indices.extend_from_slice(faces);
             }
         }
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("collision index buffer"),
-            contents: bytemuck::cast_slice(&indices),
-            usage: wgpu::BufferUsages::INDEX,
-        });
 
-        collisions.push(Collision {
-            vertex_buffer,
-            index_buffer,
-            index_count: indices.len() as u32,
-        });
+        mesh_indices.push(indices);
+    }
+
+    let mut instances = vec![Vec::new(); idcm.meshes.len()];
+    for ((index, _), transform) in idcm
+        .instances
+        .mesh_indices
+        .iter()
+        .zip(&idcm.instances.transforms)
+    {
+        // Transforms are row-major instead of the typical column-major.
+        instances[*index as usize].push(Mat4::from_cols_array_2d(&transform.transform).transpose());
+    }
+
+    let mut collisions = Vec::new();
+    for (indices, instances) in mesh_indices.iter().zip(&instances) {
+        if !instances.is_empty() {
+            for instance in instances {
+                // TODO: Separate shader with instanced rendering to share buffers
+                let vertices: Vec<_> = idcm
+                    .vertices
+                    .iter()
+                    .map(|v| {
+                        instance
+                            .transform_point3(vec3(v[0], v[1], v[2]))
+                            .extend(0.0)
+                    })
+                    .collect();
+                let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("collision vertex buffer"),
+                    contents: bytemuck::cast_slice(&vertices),
+                    usage: wgpu::BufferUsages::VERTEX,
+                });
+
+                let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("collision index buffer"),
+                    contents: bytemuck::cast_slice(indices),
+                    usage: wgpu::BufferUsages::INDEX,
+                });
+
+                collisions.push(Collision {
+                    vertex_buffer,
+                    index_buffer,
+                    index_count: indices.len() as u32,
+                });
+            }
+        } else {
+            // TODO: Not all collsion meshes are instanced?
+            let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("collision vertex buffer"),
+                contents: bytemuck::cast_slice(&idcm.vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+
+            let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("collision index buffer"),
+                contents: bytemuck::cast_slice(indices),
+                usage: wgpu::BufferUsages::INDEX,
+            });
+
+            collisions.push(Collision {
+                vertex_buffer,
+                index_buffer,
+                index_count: indices.len() as u32,
+            });
+        }
     }
 
     info!("Load {} collision: {:?}", collisions.len(), start.elapsed());

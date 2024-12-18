@@ -6,9 +6,7 @@
 //! | Xenoblade Chronicles 1 DE | 10003 | `map/*.wiidcm` |
 //! | Xenoblade Chronicles 2 | 10003 | `map/*.wiidcm` |
 //! | Xenoblade Chronicles 3 | 10003 | `map/*.idcm` |
-use crate::{
-    parse_offset32_count16, parse_offset32_count32, parse_ptr32, parse_string_ptr32, StringOffset32,
-};
+use crate::{parse_offset32_count32, parse_ptr32, parse_string_ptr32, StringOffset32};
 use binrw::{args, binread, BinRead};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
@@ -65,9 +63,16 @@ pub struct Idcm {
 
     pub unk10: u64,
 
-    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset_count(u32, u32))]
-    pub unk11: Vec<u32>, // TODO: type?
+    // TODO: offset_inner_count
+    #[br(temp, restore_position)]
+    instances_offset_count: [u32; 2],
+
+    #[br(parse_with = parse_ptr32)]
+    #[br(args { offset: base_offset, inner: instances_offset_count[1] })]
+    #[xc3(offset(u32))]
+    pub instances: MeshInstances,
+
+    pub instances_count: u32,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
@@ -138,19 +143,41 @@ pub struct Mesh {
 }
 
 /// A collection of faces using triangle strips.
+#[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct FaceGroups {
+    #[br(temp, restore_position)]
+    pub offset_count: (u32, u16),
+
+    // TODO: Find a nicer way to express this.
     // TODO: Offsets into the buffer aren't in any particular order?
     /// Indices into [vertices](struct.Idcm.html#structfield.vertices).
-    #[br(parse_with = parse_offset32_count16, offset = base_offset)]
-    #[xc3(offset_count(u32, u16))]
-    pub faces: Vec<[u16; 3]>,
+    #[br(parse_with = parse_ptr32)]
+    #[br(args { offset: base_offset, inner: offset_count.1 })]
+    #[xc3(offset(u32))]
+    pub faces: Faces,
+
+    // TODO: add offset_inner_count to xc3?
+    #[xc3(shared_offset)]
+    pub faces_count: u16,
+
     // TODO: is count really only u8?
     // TODO: group index for unk4?
     pub unk2: u16,
     pub unk3: u32,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(count: u16))]
+pub struct Faces {
+    #[br(count = count)]
+    pub unk1: Vec<u16>,
+
+    #[br(count = count + 2)]
+    pub triangle_strips: Vec<[u16; 2]>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -164,15 +191,37 @@ pub struct Unk9 {
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(count: u32))]
+pub struct MeshInstances {
+    #[br(count = count)]
+    pub transforms: Vec<InstanceTransform>,
+
+    // (mesh_index, ???)
+    #[br(count = count)]
+    pub mesh_indices: Vec<(u16, u16)>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct InstanceTransform {
+    /// Row-major global transform of the instance.
+    pub transform: [[f32; 4]; 4],
+    pub unk2: [[f32; 4]; 4],
+    pub unk3: [u32; 8],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Unk16 {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub unk1: String,
     pub unk2: u32,
-    pub unk3: u32,
-    pub unk4: u32,
-    pub unk5: u32,
+    // TODO: Why does this not always work?
+    // pub unk3: u32,
+    // pub unk4: u32,
+    // pub unk5: u32,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -229,7 +278,7 @@ impl<'a> Xc3WriteOffsets for IdcmOffsets<'a> {
         // TODO: A lot of empty lists go here?
         *data_ptr += 12;
 
-        self.unk11
+        self.instances
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unks1_2
             .write_full(writer, base_offset, data_ptr, endian, ())?;
