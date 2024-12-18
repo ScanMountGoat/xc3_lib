@@ -310,7 +310,7 @@ impl Renderer {
             surface_format,
             "Collisions Pipeline",
             wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleStrip,
+                topology: wgpu::PrimitiveTopology::TriangleList,
                 polygon_mode: wgpu::PolygonMode::Line,
                 ..Default::default()
             },
@@ -924,6 +924,8 @@ impl Renderer {
         }
 
         // TODO: Some eye meshes draw in this pass?
+
+        // TODO: MSAA for bones, bounds, and collision shapes in separate pass.
 
         // TODO: Create a BoundsRenderer to store this data?
         if draw_bounds {

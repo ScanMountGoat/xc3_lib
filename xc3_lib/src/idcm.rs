@@ -160,11 +160,11 @@ pub struct FaceGroups {
     pub faces: Faces,
 
     // TODO: add offset_inner_count to xc3?
+    // TODO: is count really only u8?
+    // TODO: group index for meshes?
     #[xc3(shared_offset)]
     pub faces_count: u16,
 
-    // TODO: is count really only u8?
-    // TODO: group index for unk4?
     pub unk2: u16,
     pub unk3: u32,
 }
@@ -176,8 +176,9 @@ pub struct Faces {
     #[br(count = count)]
     pub unk1: Vec<u16>,
 
-    #[br(count = count + 2)]
-    pub triangle_strips: Vec<[u16; 2]>,
+    #[br(count = count + 1)]
+    pub triangle_strips: Vec<u16>,
+    // TODO: additional index data?
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]

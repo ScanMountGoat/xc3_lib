@@ -21,16 +21,30 @@ pub fn load_collisions<P: AsRef<Path>>(device: &wgpu::Device, path: P) -> Vec<Co
     let mut mesh_indices = Vec::new();
     for mesh in &idcm.meshes {
         let mut indices = Vec::new();
+
+        // Collect triangle strips.
+        let mut strips = Vec::new();
         for group in idcm
             .face_groups
             .iter()
             .skip(mesh.face_group_start_index as usize)
             .take(mesh.face_group_count as usize)
         {
-            for faces in &group.faces.triangle_strips {
-                indices.extend_from_slice(faces);
+            for face in &group.faces.triangle_strips {
+                strips.push(*face);
             }
         }
+
+        // Convert to triangle lists with the correct winding order.
+        for i in 0..strips.len().saturating_sub(2) {
+            // 0 1 2 3 ... -> (0, 1, 2) (2, 1, 3) ...
+            if i % 2 == 0 {
+                indices.extend_from_slice(&[strips[i], strips[i + 1], strips[i + 2]]);
+            } else {
+                indices.extend_from_slice(&[strips[i + 1], strips[i], strips[i + 2]]);
+            }
+        }
+        indices.extend_from_slice(&strips);
 
         mesh_indices.push(indices);
     }
