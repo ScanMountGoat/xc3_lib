@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added `merge-databases` command to xc3_shader for creating combined databases.
 * Added support to xc3_gltf for loading `monolib/shader` images.
 * Added support for rendering `.wiidcm` and `.idcm` collision files to xc3_viewer.
+* Added `xc3_model::load_collisions` for loading data from `.wiidcm` and `.idcm` files.
 
 ### Changed
 * Optimized shader database size.

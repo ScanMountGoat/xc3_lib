@@ -61,6 +61,7 @@ use xc3_lib::{
     ReadFileError,
 };
 
+pub use collision::load_collisions;
 pub use map::{load_map, LoadMapError};
 use material::{Material, Texture};
 pub use sampler::{AddressMode, FilterMode, Sampler};
@@ -72,6 +73,7 @@ pub use xc3_lib::mxmd::{MeshRenderFlags2, MeshRenderPass};
 pub mod gltf;
 
 pub mod animation;
+pub mod collision;
 mod map;
 pub mod material;
 mod model;

@@ -175,7 +175,9 @@ impl<'a> State<'a> {
                     map_roots.extend(roots);
                 }
                 "wiidcm" | "idcm" => {
-                    collisions.extend(xc3_wgpu::load_collisions(&device, file));
+                    let collision_meshes = xc3_model::load_collisions(file)
+                        .with_context(|| format!("failed to load collisions from {file:?}"))?;
+                    collisions.extend(xc3_wgpu::load_collisions(&device, &collision_meshes));
                 }
                 ext => return Err(anyhow!(format!("unrecognized file extension {ext}"))),
             }
