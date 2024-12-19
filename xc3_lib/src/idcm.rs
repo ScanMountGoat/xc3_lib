@@ -6,7 +6,10 @@
 //! | Xenoblade Chronicles 1 DE | 10003 | `map/*.wiidcm` |
 //! | Xenoblade Chronicles 2 | 10003 | `map/*.wiidcm` |
 //! | Xenoblade Chronicles 3 | 10003 | `map/*.idcm` |
-use crate::{parse_offset32_count32, parse_ptr32, parse_string_ptr32, StringOffset32};
+use crate::{
+    parse_offset32_count32, parse_offset32_inner_count16, parse_offset32_inner_count32,
+    parse_ptr32, parse_string_ptr32, StringOffset32,
+};
 use binrw::{args, binread, BinRead};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
@@ -63,16 +66,9 @@ pub struct Idcm {
 
     pub unk10: u64,
 
-    // TODO: offset_inner_count
-    #[br(temp, restore_position)]
-    instances_offset_count: [u32; 2],
-
-    #[br(parse_with = parse_ptr32)]
-    #[br(args { offset: base_offset, inner: instances_offset_count[1] })]
-    #[xc3(offset(u32))]
+    #[br(parse_with = parse_offset32_inner_count32, offset = base_offset)]
+    #[xc3(offset_inner_count(u32, self.instances.mesh_indices.len() as u32))]
     pub instances: MeshInstances,
-
-    pub instances_count: u32,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
@@ -143,28 +139,18 @@ pub struct Mesh {
 }
 
 /// A collection of faces using triangle strips.
-#[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct FaceGroups {
-    #[br(temp, restore_position)]
-    pub offset_count: (u32, u16),
-
-    // TODO: Find a nicer way to express this.
     // TODO: Offsets into the buffer aren't in any particular order?
     /// Indices into [vertices](struct.Idcm.html#structfield.vertices).
-    #[br(parse_with = parse_ptr32)]
-    #[br(args { offset: base_offset, inner: offset_count.1 })]
-    #[xc3(offset(u32))]
+    #[br(parse_with = parse_offset32_inner_count16, offset = base_offset)]
+    #[xc3(offset_inner_count(u32, self.faces.unk1.len() as u16))]
     pub faces: Faces,
 
-    // TODO: add offset_inner_count to xc3?
     // TODO: is count really only u8?
     // TODO: group index for meshes?
-    #[xc3(shared_offset)]
-    pub faces_count: u16,
-
     pub unk2: u16,
     pub unk3: u32,
 }

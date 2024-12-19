@@ -432,6 +432,21 @@ fn parse_named_fields(fields: &FieldsNamed) -> Vec<FieldData> {
                     },
                 }
             }
+            Some(FieldType::OffsetInnerCount(offset_ty, count_expr)) => {
+                let write_offset = write_dummy_offset(name, options.align, &offset_ty);
+
+                FieldData {
+                    name: name.clone(),
+                    offset_field: offset_field(name, &offset_ty, ty),
+                    write_impl: quote! {
+                        #write_offset
+                        (#count_expr).xc3_write(writer, endian)?;
+                    },
+                    write_offset_impl: quote! {
+                        self.#name.write_full(writer, base_offset, data_ptr, endian, args)?;
+                    },
+                }
+            }
             None => {
                 // Also include fields not marked as offsets in the struct.
                 // The field type may have offsets that need to be written later.

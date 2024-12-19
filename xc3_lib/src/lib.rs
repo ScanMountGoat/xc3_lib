@@ -159,15 +159,14 @@ where
     parse_vec(reader, endian, args, offset as u64, count as usize)
 }
 
-fn parse_offset32_count16<T, R, Args>(
+fn parse_offset32_inner_count16<T, R>(
     reader: &mut R,
     endian: binrw::Endian,
-    args: FilePtrArgs<Args>,
-) -> BinResult<Vec<T>>
+    args: FilePtrArgs<u16>,
+) -> BinResult<T>
 where
-    for<'a> T: BinRead<Args<'a> = Args> + 'static,
+    for<'a> T: BinRead<Args<'a> = u16> + 'static,
     R: std::io::Read + std::io::Seek,
-    Args: Clone,
 {
     let pos = reader.stream_position()?;
     let offset = u32::read_options(reader, endian, ())?;
@@ -180,7 +179,58 @@ where
         });
     }
 
-    parse_vec(reader, endian, args, offset as u64, count as usize)
+    parse_ptr(offset as u64, reader, endian, args)
+}
+
+fn parse_offset32_inner_count32<T, R>(
+    reader: &mut R,
+    endian: binrw::Endian,
+    args: FilePtrArgs<u32>,
+) -> BinResult<T>
+where
+    for<'a> T: BinRead<Args<'a> = u32> + 'static,
+    R: std::io::Read + std::io::Seek,
+{
+    let pos = reader.stream_position()?;
+    let offset = u32::read_options(reader, endian, ())?;
+    let count = u32::read_options(reader, endian, ())?;
+
+    if offset == 0 && count != 0 {
+        return Err(binrw::Error::AssertFail {
+            pos,
+            message: format!("unexpected null offset for count {count}"),
+        });
+    }
+
+    parse_ptr(offset as u64, reader, endian, args)
+}
+
+fn parse_opt_offset32_inner_count32<T, R>(
+    reader: &mut R,
+    endian: binrw::Endian,
+    args: FilePtrArgs<u32>,
+) -> BinResult<Option<T>>
+where
+    for<'a> T: BinRead<Args<'a> = u32> + 'static,
+    R: std::io::Read + std::io::Seek,
+{
+    let pos = reader.stream_position()?;
+    let offset = u32::read_options(reader, endian, ())?;
+    let count = u32::read_options(reader, endian, ())?;
+
+    if offset == 0 && count != 0 {
+        return Err(binrw::Error::AssertFail {
+            pos,
+            message: format!("unexpected null offset for count {count}"),
+        });
+    }
+
+    if offset == 0 {
+        Ok(None)
+    } else {
+        let value = parse_ptr(offset as u64, reader, endian, args)?;
+        Ok(Some(value))
+    }
 }
 
 fn parse_count16_offset32<T, R, Args>(

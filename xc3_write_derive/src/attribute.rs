@@ -18,7 +18,9 @@ pub enum FieldType {
     SavePosition(bool),
     SharedOffset,
     Offset(Ident),
+    // TODO: use a single attribute that takes an ident or a tokenstream?
     OffsetCount(Ident, Ident),
+    OffsetInnerCount(Ident, TokenStream),
     CountOffset(Ident, Ident),
     OffsetSize(Ident, Ident),
 }
@@ -64,6 +66,10 @@ impl FieldOptions {
                         // #[xc3(offset_size(u32, u32))]
                         let (offset, size) = parse_two_idents(&meta)?;
                         field_type = Some(FieldType::OffsetSize(offset, size));
+                    } else if meta.path.is_ident("offset_inner_count") {
+                        // #[xc3(offset_inner_count(u32, self.field.list1.len() as u32))]
+                        let (offset, count) = parse_ident_tokens(&meta)?;
+                        field_type = Some(FieldType::OffsetInnerCount(offset, count));
                     }
                     Ok(())
                 });
@@ -124,6 +130,17 @@ fn parse_two_idents(meta: &syn::meta::ParseNestedMeta<'_>) -> Result<(Ident, Ide
     let ty1: Ident = content.parse()?;
 
     Ok((ty0, ty1))
+}
+
+fn parse_ident_tokens(meta: &syn::meta::ParseNestedMeta<'_>) -> Result<(Ident, TokenStream), syn::Error> {
+    let content;
+    parenthesized!(content in meta.input);
+
+    let ty: Ident = content.parse()?;
+    let _: Token![,] = content.parse()?;
+    let tokens: TokenStream = content.parse()?;
+
+    Ok((ty, tokens))
 }
 
 pub struct TypeOptions {
