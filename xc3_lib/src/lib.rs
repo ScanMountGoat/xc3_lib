@@ -162,7 +162,7 @@ where
 fn parse_offset32_inner_count16<T, R>(
     reader: &mut R,
     endian: binrw::Endian,
-    args: FilePtrArgs<u16>,
+    args: FilePtrArgs<()>,
 ) -> BinResult<T>
 where
     for<'a> T: BinRead<Args<'a> = u16> + 'static,
@@ -179,13 +179,21 @@ where
         });
     }
 
-    parse_ptr(offset as u64, reader, endian, args)
+    parse_ptr(
+        offset as u64,
+        reader,
+        endian,
+        FilePtrArgs {
+            offset: args.offset,
+            inner: count,
+        },
+    )
 }
 
 fn parse_offset32_inner_count32<T, R>(
     reader: &mut R,
     endian: binrw::Endian,
-    args: FilePtrArgs<u32>,
+    args: FilePtrArgs<()>,
 ) -> BinResult<T>
 where
     for<'a> T: BinRead<Args<'a> = u32> + 'static,
@@ -202,7 +210,15 @@ where
         });
     }
 
-    parse_ptr(offset as u64, reader, endian, args)
+    parse_ptr(
+        offset as u64,
+        reader,
+        endian,
+        FilePtrArgs {
+            offset: args.offset,
+            inner: count,
+        },
+    )
 }
 
 fn parse_opt_offset32_inner_count32<T, R>(
