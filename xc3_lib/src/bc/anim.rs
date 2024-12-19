@@ -364,8 +364,9 @@ pub struct CubicExtraData {
     // TODO: type?
     pub unk1: BcList8<u8>,
 
-    // TODO: root motion?
-    pub unk4: u64, // TODO: always 0?
+    // TODO: not always 0 for beb animations?
+    #[br(assert(unk4 == 0))]
+    pub unk4: u64,
 
     #[br(parse_with = parse_ptr64)]
     #[xc3(offset(u64), align(8, 0xff))]

@@ -65,7 +65,7 @@ pub struct EfbString(
 #[xc3(base_offset)]
 pub struct FxHeader {
     #[br(temp, try_calc = r.stream_position())]
-    base_offset: u64,
+    _base_offset: u64,
 
     // TODO: Offsets relative to data start?
     // TODO: This repeats?
