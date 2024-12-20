@@ -145,6 +145,10 @@ struct Cli {
     #[arg(long)]
     animation: bool,
 
+    /// Load collisions from .wiidcm and .idcm files.
+    #[arg(long)]
+    collision: bool,
+
     /// Check that read/write is 1:1 for all files and embedded files.
     #[arg(long)]
     rw: bool,
@@ -316,6 +320,11 @@ fn main() {
     if cli.animation || cli.all {
         println!("Checking animations ...");
         check_all_animations(root, cli.rw);
+    }
+
+    if cli.collision || cli.all {
+        println!("Checking collisions ...");
+        check_all_collisions(root, cli.rw);
     }
 
     println!("Finished in {:?}", start.elapsed());
@@ -1195,6 +1204,21 @@ fn check_all_animations<P: AsRef<Path>>(root: P, _check_read_write: bool) {
             let path = entry.as_ref().unwrap().path();
 
             match xc3_model::load_animations(path) {
+                Ok(_) => (),
+                Err(e) => println!("Error loading {path:?}: {e:?}"),
+            }
+        });
+}
+
+fn check_all_collisions<P: AsRef<Path>>(root: P, _check_read_write: bool) {
+    globwalk::GlobWalkerBuilder::from_patterns(root.as_ref(), &["*.{wiidcm, idcm}"])
+        .build()
+        .unwrap()
+        .par_bridge()
+        .for_each(|entry| {
+            let path = entry.as_ref().unwrap().path();
+
+            match xc3_model::load_collisions(path) {
                 Ok(_) => (),
                 Err(e) => println!("Error loading {path:?}: {e:?}"),
             }

@@ -27,9 +27,17 @@ pub struct Idcm {
 
     pub version: u32,
 
-    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    // TODO: find a nicer way to detect wiidcm vs idcm.
+    #[br(temp, restore_position)]
+    offset_count_offset: [u32; 3],
+
+    #[br(temp, restore_position, seek_before = std::io::SeekFrom::Start(base_offset + 160))]
+    next_offset: u32,
+
+    #[br(parse_with = parse_offset32_count32)]
+    #[br(args { offset: base_offset, inner: estimate_mesh_size(offset_count_offset, next_offset) })]
     #[xc3(offset_count(u32, u32))]
-    pub meshes: Vec<Mesh>,
+    pub meshes: Vec<MeshVersioned>,
 
     /// Independent groups of faces.
     #[br(parse_with = parse_offset32_count32)]
@@ -120,7 +128,19 @@ pub struct Idcm {
     pub unks: [u32; 12], // TODO: padding?
 }
 
-// TODO: This is different for wiidcm?
+// TODO: Create an entire separate type for wiidcm?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(size: u32))]
+pub enum MeshVersioned {
+    #[br(pre_assert(size == 20))]
+    MeshLegacy(MeshLegacy),
+
+    #[br(pre_assert(size == 60))]
+    Mesh(Mesh),
+}
+
+/// .idcm mesh
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Mesh {
@@ -138,6 +158,19 @@ pub struct Mesh {
     pub unk8: u32,
     pub unk9: u32,
     pub unk: [u32; 6],
+}
+
+/// .wiidcm mesh
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct MeshLegacy {
+    pub unk1: u32,
+    /// Index into [face_groups](struct.Idcm.html#structfield.face_groups).
+    pub face_group_start_index: u32,
+    /// The number of groups in [face_groups](struct.Idcm.html#structfield.face_groups).
+    pub face_group_count: u32,
+    pub unk2: u32,
+    pub unk3: u32,
 }
 
 /// A single triangle fan.
@@ -303,4 +336,13 @@ impl<'a> Xc3WriteOffsets for IdcmOffsets<'a> {
 
         Ok(())
     }
+}
+
+fn estimate_mesh_size(offset_count_offset: [u32; 3], next_offset: u32) -> u32 {
+    let next_offset = if next_offset == 0 {
+        offset_count_offset[2]
+    } else {
+        next_offset
+    };
+    (next_offset - offset_count_offset[0]) / offset_count_offset[1]
 }

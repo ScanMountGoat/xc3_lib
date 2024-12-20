@@ -51,12 +51,21 @@ pub fn load_collisions<P: AsRef<Path>>(
         .map(|(mesh, name)| {
             let mut indices = Vec::new();
 
+            let (start, count) = match mesh {
+                xc3_lib::idcm::MeshVersioned::MeshLegacy(m) => {
+                    (m.face_group_start_index, m.face_group_count)
+                }
+                xc3_lib::idcm::MeshVersioned::Mesh(m) => {
+                    (m.face_group_start_index, m.face_group_count)
+                }
+            };
+
             // Each fan needs to be handled individually.
             for group in idcm
                 .face_groups
                 .iter()
-                .skip(mesh.face_group_start_index as usize)
-                .take(mesh.face_group_count as usize)
+                .skip(start as usize)
+                .take(count as usize)
             {
                 let start = idcm.groups[group.group_index as usize].start_index as u32;
 

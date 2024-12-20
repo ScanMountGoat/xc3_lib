@@ -132,7 +132,9 @@ fn parse_two_idents(meta: &syn::meta::ParseNestedMeta<'_>) -> Result<(Ident, Ide
     Ok((ty0, ty1))
 }
 
-fn parse_ident_tokens(meta: &syn::meta::ParseNestedMeta<'_>) -> Result<(Ident, TokenStream), syn::Error> {
+fn parse_ident_tokens(
+    meta: &syn::meta::ParseNestedMeta<'_>,
+) -> Result<(Ident, TokenStream), syn::Error> {
     let content;
     parenthesized!(content in meta.input);
 
