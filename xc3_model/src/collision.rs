@@ -51,28 +51,23 @@ pub fn load_collisions<P: AsRef<Path>>(
         .map(|(mesh, name)| {
             let mut indices = Vec::new();
 
-            // Collect triangle strips.
-            let mut strips = Vec::new();
+            // Handle groups independently to avoid triangles between groups.
             for group in idcm
                 .face_groups
                 .iter()
                 .skip(mesh.face_group_start_index as usize)
                 .take(mesh.face_group_count as usize)
             {
-                for face in &group.faces.triangle_strips {
-                    strips.push(*face);
+                // Convert to triangle lists with the correct winding order.
+                for i in 0..group.faces.triangle_strips.len().saturating_sub(2) {
+                    // 0 1 2 3 ... -> (0, 1, 2) (2, 1, 3) ...
+                    // https://registry.khronos.org/VulkanSC/specs/1.0-extensions/html/vkspec.html#drawing-triangle-strips
+                    indices.extend_from_slice(&[
+                        group.faces.triangle_strips[i],
+                        group.faces.triangle_strips[i + 1 + i % 2],
+                        group.faces.triangle_strips[i + 2 - i % 2],
+                    ]);
                 }
-            }
-
-            // Convert to triangle lists with the correct winding order.
-            for i in 0..strips.len().saturating_sub(2) {
-                // 0 1 2 3 ... -> (0, 1, 2) (2, 1, 3) ...
-                // https://registry.khronos.org/VulkanSC/specs/1.0-extensions/html/vkspec.html#drawing-triangle-strips
-                indices.extend_from_slice(&[
-                    strips[i],
-                    strips[i + 1 + i % 2],
-                    strips[i + 2 - i % 2],
-                ]);
             }
 
             CollisionMesh {
