@@ -31,10 +31,11 @@ pub struct Idcm {
     #[xc3(offset_count(u32, u32))]
     pub meshes: Vec<Mesh>,
 
+    /// Independent groups of faces.
     #[br(parse_with = parse_offset32_count32)]
     #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(offset_count(u32, u32))]
-    pub face_groups: Vec<FaceGroups>,
+    pub face_groups: Vec<FaceGroup>,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
@@ -138,11 +139,11 @@ pub struct Mesh {
     pub unk: [u32; 6],
 }
 
-/// A collection of independent groups of triangle fans.
+/// A single triangle fan.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
-pub struct FaceGroups {
+pub struct FaceGroup {
     // TODO: Offsets into the buffer aren't in any particular order?
     /// Indices into [vertices](struct.Idcm.html#structfield.vertices).
     #[br(parse_with = parse_offset32_inner_count16, offset = base_offset)]
