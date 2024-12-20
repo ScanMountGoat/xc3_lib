@@ -221,12 +221,14 @@ impl<'a> State<'a> {
                     .sum::<usize>()
             })
             .sum();
-        info!(
-            "Load {:?} groups and {:?} meshes: {:?}",
-            groups.len(),
-            mesh_count,
-            start.elapsed()
-        );
+        if !groups.is_empty() || mesh_count > 0 {
+            info!(
+                "Load {:?} groups and {:?} meshes: {:?}",
+                groups.len(),
+                mesh_count,
+                start.elapsed()
+            );
+        }
 
         let file_names = cli
             .files

@@ -9,6 +9,10 @@ pub mod bone {
     include!(concat!(env!("OUT_DIR"), "/bone.rs"));
 }
 #[allow(dead_code)]
+pub mod collision {
+    include!(concat!(env!("OUT_DIR"), "/collision.rs"));
+}
+#[allow(dead_code)]
 pub mod deferred {
     include!(concat!(env!("OUT_DIR"), "/deferred.rs"));
 }

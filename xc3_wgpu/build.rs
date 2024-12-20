@@ -13,6 +13,11 @@ fn main() {
         format!("{out_dir}/bone.rs"),
     );
     write_shader(
+        include_str!("src/shader/collision.wgsl"),
+        "src/shader/collision.wgsl",
+        format!("{out_dir}/collision.rs"),
+    );
+    write_shader(
         include_str!("src/shader/deferred.wgsl"),
         "src/shader/deferred.wgsl",
         format!("{out_dir}/deferred.rs"),

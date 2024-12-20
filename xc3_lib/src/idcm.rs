@@ -7,8 +7,8 @@
 //! | Xenoblade Chronicles 2 | 10003 | `map/*.wiidcm` |
 //! | Xenoblade Chronicles 3 | 10003 | `map/*.idcm` |
 use crate::{
-    parse_offset32_count32, parse_offset32_inner_count16, parse_offset32_inner_count32,
-    parse_ptr32, parse_string_ptr32, StringOffset32,
+    parse_offset32_count32, parse_offset32_inner_count32, parse_offset32_inner_count8, parse_ptr32,
+    parse_string_ptr32, StringOffset32,
 };
 use binrw::{args, binread, BinRead};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
@@ -39,7 +39,7 @@ pub struct Idcm {
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub unk3: Vec<u64>,
+    pub groups: Vec<Group>,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
@@ -120,6 +120,7 @@ pub struct Idcm {
     pub unks: [u32; 12], // TODO: padding?
 }
 
+// TODO: This is different for wiidcm?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Mesh {
@@ -146,19 +147,20 @@ pub struct Mesh {
 pub struct FaceGroup {
     // TODO: Offsets into the buffer aren't in any particular order?
     /// Indices into [vertices](struct.Idcm.html#structfield.vertices).
-    #[br(parse_with = parse_offset32_inner_count16, offset = base_offset)]
-    #[xc3(offset_inner_count(u32, self.faces.unk1.len() as u16))]
+    #[br(parse_with = parse_offset32_inner_count8, offset = base_offset)]
+    #[xc3(offset_inner_count(u32, self.faces.unk1.len() as u8))]
     pub faces: Faces,
 
-    // TODO: is count really only u8?
-    // TODO: group index for meshes?
+    /// Index into [groups](struct.Idcm.html#structfield.groups).
+    pub group_index: u8,
+
     pub unk2: u16,
     pub unk3: u32,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-#[br(import_raw(count: u16))]
+#[br(import_raw(count: u8))]
 pub struct Faces {
     #[br(count = count)]
     pub unk1: Vec<u16>,
@@ -166,6 +168,13 @@ pub struct Faces {
     #[br(count = count + 2)]
     pub vertex_indices: Vec<u16>,
     // TODO: additional index data?
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct Group {
+    pub count: u32,
+    pub start_index: u32,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -245,7 +254,7 @@ impl<'a> Xc3WriteOffsets for IdcmOffsets<'a> {
         let unk2 = self
             .face_groups
             .write(writer, base_offset, data_ptr, endian)?;
-        self.unk3
+        self.groups
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk4
             .write_full(writer, base_offset, data_ptr, endian, ())?;

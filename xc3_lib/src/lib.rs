@@ -159,18 +159,18 @@ where
     parse_vec(reader, endian, args, offset as u64, count as usize)
 }
 
-fn parse_offset32_inner_count16<T, R>(
+fn parse_offset32_inner_count8<T, R>(
     reader: &mut R,
     endian: binrw::Endian,
     args: FilePtrArgs<()>,
 ) -> BinResult<T>
 where
-    for<'a> T: BinRead<Args<'a> = u16> + 'static,
+    for<'a> T: BinRead<Args<'a> = u8> + 'static,
     R: std::io::Read + std::io::Seek,
 {
     let pos = reader.stream_position()?;
     let offset = u32::read_options(reader, endian, ())?;
-    let count = u16::read_options(reader, endian, ())?;
+    let count = u8::read_options(reader, endian, ())?;
 
     if offset == 0 && count != 0 {
         return Err(binrw::Error::AssertFail {

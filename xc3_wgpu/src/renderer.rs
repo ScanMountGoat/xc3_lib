@@ -257,16 +257,7 @@ impl Renderer {
 
         let textures = Textures::new(device, width, height);
 
-        let bounds_pipeline = solid_pipeline(
-            device,
-            surface_format,
-            "Bounds Pipeline",
-            wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::LineList,
-                polygon_mode: wgpu::PolygonMode::Line,
-                ..Default::default()
-            },
-        );
+        let bounds_pipeline = solid_pipeline(device, surface_format, "Bounds Pipeline");
         let solid_bind_group0 = crate::shader::solid::bind_groups::BindGroup0::from_bindings(
             device,
             crate::shader::solid::bind_groups::BindGroupLayout0 {
@@ -305,16 +296,7 @@ impl Renderer {
 
         let bone_renderer = BoneRenderer::new(device, &camera_buffer, surface_format);
 
-        let collisions_pipeline = solid_pipeline(
-            device,
-            surface_format,
-            "Collisions Pipeline",
-            wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                polygon_mode: wgpu::PolygonMode::Line,
-                ..Default::default()
-            },
-        );
+        let collisions_pipeline = collision_pipeline(device, surface_format, "Collisions Pipeline");
 
         Self {
             camera_buffer,
@@ -956,7 +938,7 @@ impl Renderer {
         self.solid_bind_group0.set(&mut render_pass);
 
         for collision in collisions {
-            collision.draw(&mut render_pass, &self.solid_bind_group1);
+            collision.draw(&mut render_pass);
         }
     }
 
@@ -1170,7 +1152,6 @@ fn solid_pipeline(
     device: &wgpu::Device,
     format: wgpu::TextureFormat,
     label: &str,
-    primitive: wgpu::PrimitiveState,
 ) -> wgpu::RenderPipeline {
     let module = crate::shader::solid::create_shader_module(device);
     let render_pipeline_layout = crate::shader::solid::create_pipeline_layout(device);
@@ -1186,7 +1167,51 @@ fn solid_pipeline(
             &module,
             &crate::shader::solid::fs_main_entry([Some(format.into())]),
         )),
-        primitive,
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::LineList,
+            polygon_mode: wgpu::PolygonMode::Line,
+            ..Default::default()
+        },
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: DEPTH_STENCIL_FORMAT,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::LessEqual,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState::default(),
+        multiview: None,
+        cache: None,
+    })
+}
+
+fn collision_pipeline(
+    device: &wgpu::Device,
+    format: wgpu::TextureFormat,
+    label: &str,
+) -> wgpu::RenderPipeline {
+    let module = crate::shader::collision::create_shader_module(device);
+    let render_pipeline_layout = crate::shader::collision::create_pipeline_layout(device);
+
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some(label),
+        layout: Some(&render_pipeline_layout),
+        vertex: crate::shader::collision::vertex_state(
+            &module,
+            &crate::shader::collision::vs_main_entry(
+                wgpu::VertexStepMode::Vertex,
+                wgpu::VertexStepMode::Instance,
+            ),
+        ),
+        fragment: Some(crate::shader::collision::fragment_state(
+            &module,
+            &crate::shader::collision::fs_main_entry([Some(format.into())]),
+        )),
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            polygon_mode: wgpu::PolygonMode::Line,
+            ..Default::default()
+        },
         depth_stencil: Some(wgpu::DepthStencilState {
             format: DEPTH_STENCIL_FORMAT,
             depth_write_enabled: true,
