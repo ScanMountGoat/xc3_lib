@@ -138,7 +138,7 @@ pub struct Mesh {
     pub unk: [u32; 6],
 }
 
-/// A collection of independent groups of triangle strips.
+/// A collection of independent groups of triangle fans.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
@@ -163,7 +163,7 @@ pub struct Faces {
     pub unk1: Vec<u16>,
 
     #[br(count = count + 2)]
-    pub triangle_strips: Vec<u16>,
+    pub vertex_indices: Vec<u16>,
     // TODO: additional index data?
 }
 

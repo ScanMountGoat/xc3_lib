@@ -51,7 +51,7 @@ pub fn load_collisions<P: AsRef<Path>>(
         .map(|(mesh, name)| {
             let mut indices = Vec::new();
 
-            // Handle groups independently to avoid triangles between groups.
+            // Each fan needs to be handled individually.
             for group in idcm
                 .face_groups
                 .iter()
@@ -59,13 +59,13 @@ pub fn load_collisions<P: AsRef<Path>>(
                 .take(mesh.face_group_count as usize)
             {
                 // Convert to triangle lists with the correct winding order.
-                for i in 0..group.faces.triangle_strips.len().saturating_sub(2) {
+                for i in 0..group.faces.vertex_indices.len().saturating_sub(2) {
                     // 0 1 2 3 ... -> (0, 1, 2) (2, 1, 3) ...
-                    // https://registry.khronos.org/VulkanSC/specs/1.0-extensions/html/vkspec.html#drawing-triangle-strips
+                    // https://registry.khronos.org/VulkanSC/specs/1.0-extensions/html/vkspec.html#drawing-triangle-fans
                     indices.extend_from_slice(&[
-                        group.faces.triangle_strips[i],
-                        group.faces.triangle_strips[i + 1 + i % 2],
-                        group.faces.triangle_strips[i + 2 - i % 2],
+                        group.faces.vertex_indices[i + 1],
+                        group.faces.vertex_indices[i + 2],
+                        group.faces.vertex_indices[0],
                     ]);
                 }
             }
