@@ -907,8 +907,6 @@ impl Renderer {
 
         // TODO: Some eye meshes draw in this pass?
 
-        // TODO: MSAA for bones, bounds, and collision shapes in separate pass.
-
         // TODO: Create a BoundsRenderer to store this data?
         if draw_bounds {
             render_pass.set_pipeline(&self.bounds_pipeline);
