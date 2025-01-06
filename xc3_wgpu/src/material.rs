@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use glam::{ivec2, ivec4, uvec2, uvec4, vec2, vec3, vec4, IVec2, IVec4, UVec2, Vec2, Vec3, Vec4};
+use glam::{ivec2, ivec4, uvec2, uvec4, vec2, vec3, vec4, IVec4, UVec2, Vec2, Vec3, Vec4};
 use indexmap::IndexMap;
 use log::{error, warn};
 use smol_str::SmolStr;
@@ -18,8 +18,6 @@ use crate::{
     DeviceBufferExt, MonolibShaderTextures,
 };
 
-// TODO: Don't make this public outside the crate?
-// TODO: Store material parameter values.
 #[derive(Debug)]
 pub(crate) struct Material {
     pub name: String,
@@ -92,6 +90,17 @@ pub fn materials(
                 transform: [Vec4::X, Vec4::Y],
             }; 10];
 
+            // Find the scale parameters for any textures assigned above.
+            // TODO: Is there a more efficient way of doing this?
+            // TODO: xc1 needs more than 10 textures?
+            for (name, i) in &name_to_info {
+                if let Some(index) = name_to_index.get(name.as_str()) {
+                    if let Some(info) = texture_info.get_mut(*index) {
+                        *info = *i;
+                    }
+                }
+            }
+
             for (name, i) in &name_to_index {
                 if let Some(texture) = assign_texture(material, textures, monolib_shader, name) {
                     if *i < texture_views.len() {
@@ -103,23 +112,6 @@ pub fn materials(
                     }
                 } else {
                     warn!("Missing texture for {name:?}. Assigning default black texture.");
-                }
-            }
-
-            // Find the scale parameters for any textures assigned above.
-            // TODO: Is there a more efficient way of doing this?
-            // TODO: xc1 needs more than 10 textures?
-            for (name, i) in &name_to_info {
-                if let Some(index) = name_to_index.get(name.as_str()) {
-                    if let Some(info) = texture_info.get_mut(*index) {
-                        // TODO: is this redundant with the shader type?
-                        info.texcoord_index = i.texcoord_index as u32;
-                        info.transform = i.transforms.into();
-                        info.parallax_sampler_indices = i.parallax_sampler_indices;
-                        info.parallax_channel_indices = i.parallax_channel_indices;
-                        info.parallax_default_values = i.parallax_default_values;
-                        info.parallax_ratio = i.parallax_ratio;
-                    }
                 }
             }
 
@@ -247,7 +239,7 @@ pub fn materials(
 fn texture_layers(
     assignment: &OutputAssignment,
     name_to_index: &mut IndexMap<SmolStr, usize>,
-    name_to_info: &mut IndexMap<SmolStr, TextureInfo>,
+    name_to_info: &mut IndexMap<SmolStr, crate::shader::model::TextureInfo>,
     layer_index: usize,
 ) -> crate::shader::model::TextureLayers {
     let (s0, c0, w0, b0, value0, f0) = layer_indices(
@@ -288,7 +280,7 @@ fn texture_layers(
 fn layer_indices(
     layers: &[LayerChannelAssignment],
     name_to_index: &mut IndexMap<SmolStr, usize>,
-    name_to_info: &mut IndexMap<SmolStr, TextureInfo>,
+    name_to_info: &mut IndexMap<SmolStr, crate::shader::model::TextureInfo>,
     layer: usize,
 ) -> (i32, u32, f32, i32, f32, u32) {
     let layer = layers.get(layer);
@@ -324,22 +316,10 @@ fn layer_indices(
     (s, c, w, blend, value, is_fresnel)
 }
 
-// TODO: is this redundant with the shader type?
-struct TextureInfo {
-    texcoord_index: usize,
-
-    parallax_sampler_indices: IVec2,
-    parallax_channel_indices: UVec2,
-    parallax_default_values: Vec2,
-    parallax_ratio: f32,
-
-    transforms: (Vec4, Vec4),
-}
-
 fn output_assignments(
     assignments: &OutputAssignments,
     name_to_index: &mut IndexMap<SmolStr, usize>,
-    name_to_info: &mut IndexMap<SmolStr, TextureInfo>,
+    name_to_info: &mut IndexMap<SmolStr, crate::shader::model::TextureInfo>,
 ) -> [crate::shader::model::OutputAssignment; 6] {
     // Each output channel may have a different input sampler and channel.
     [0, 1, 2, 3, 4, 5].map(|i| {
@@ -368,7 +348,7 @@ fn output_assignments(
 fn sampler_assignment(
     a: &OutputAssignment,
     name_to_index: &mut IndexMap<SmolStr, usize>,
-    name_to_info: &mut IndexMap<SmolStr, TextureInfo>,
+    name_to_info: &mut IndexMap<SmolStr, crate::shader::model::TextureInfo>,
     layer_index: usize,
 ) -> crate::shader::model::SamplerAssignment {
     let (x, y, z, w) = layer_channel_assignments(a, layer_index);
@@ -417,7 +397,7 @@ fn layer_channel_assignments(
 fn texture_channel(
     assignment: Option<&ChannelAssignment>,
     name_to_index: &mut IndexMap<SmolStr, usize>,
-    name_to_info: &mut IndexMap<SmolStr, TextureInfo>,
+    name_to_info: &mut IndexMap<SmolStr, crate::shader::model::TextureInfo>,
     channel: char,
 ) -> Option<(i32, u32)> {
     if let Some(ChannelAssignment::Texture(texture)) = assignment {
@@ -459,8 +439,8 @@ fn texture_channel(
 
         name_to_info.insert(
             name.clone(),
-            TextureInfo {
-                transforms: texcoord_transforms.unwrap_or((Vec4::X, Vec4::Y)),
+            crate::shader::model::TextureInfo {
+                is_bc4_single_channel: 0,
                 texcoord_index: texcoord_name
                     .as_ref()
                     .and_then(|s| texcoord_index(s))
@@ -469,6 +449,7 @@ fn texture_channel(
                 parallax_channel_indices: uvec2(pc_x, pc_y),
                 parallax_default_values: vec2(p_default_x, p_default_y),
                 parallax_ratio,
+                transform: texcoord_transforms.unwrap_or((Vec4::X, Vec4::Y)).into(),
             },
         );
 
@@ -486,7 +467,7 @@ fn texture_channel(
     }
 }
 
-fn texcoord_index(name: &str) -> Option<usize> {
+fn texcoord_index(name: &str) -> Option<u32> {
     // vTex1 -> 1
     name.strip_prefix("vTex")?.parse().ok()
 }

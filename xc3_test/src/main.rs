@@ -369,13 +369,18 @@ fn check_maybe_xbc1<T, F>(
     for<'a> T: BinRead<Args<'a> = ()>,
     F: Fn(T, &Path, &[u8], bool),
 {
-    // TODO: Still check read/write for xbc1 data?
     match data {
         MaybeXbc1::Uncompressed(data) => check_file(data, path, original_bytes, check_read_write),
-        MaybeXbc1::Xbc1(xbc1) => match xbc1.extract() {
-            Ok(data) => check_file(data, path, &xbc1.decompress().unwrap(), check_read_write),
-            Err(e) => println!("Error extracting from {path:?}: {e}"),
-        },
+        MaybeXbc1::Xbc1(xbc1) => {
+            if check_read_write && !write_le_bytes_equals(&xbc1, original_bytes) {
+                println!("Xbc1 read/write not 1:1 for {path:?}");
+            }
+
+            match xbc1.extract() {
+                Ok(data) => check_file(data, path, &xbc1.decompress().unwrap(), check_read_write),
+                Err(e) => println!("Error extracting from {path:?}: {e}"),
+            }
+        }
     }
 }
 

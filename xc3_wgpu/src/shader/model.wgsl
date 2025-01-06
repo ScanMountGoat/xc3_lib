@@ -726,7 +726,6 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     // The layout of G-Buffer textures is fixed but assignments are not.
     // Each material in game can have a unique shader program.
     // Check the G-Buffer assignment database to simulate having unique shaders.
-    // TODO: How to properly handle missing assignments?
     let assignments = per_material.assignments;
 
     // Defaults incorporate constants, parameters, and default values.

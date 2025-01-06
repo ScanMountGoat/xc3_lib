@@ -263,7 +263,6 @@ fn toon_grad_v(etc_z: f32) -> f32 {
 }
 
 // Each material type is "masked" using depth function equals.
-// TODO: How to share code between these?
 @fragment
 fn fs_main(in: VertexOutput) -> FragmentOutput {
     var out: FragmentOutput;
