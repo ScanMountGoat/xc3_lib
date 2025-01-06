@@ -647,7 +647,10 @@ where
 
 // TODO: Find a way to derive this?
 impl<T> Xc3Write for StreamEntry<T> {
-    type Offsets<'a> = () where T: 'a;
+    type Offsets<'a>
+        = ()
+    where
+        T: 'a;
 
     fn xc3_write<W: std::io::Write + Seek>(
         &self,

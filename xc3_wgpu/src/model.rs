@@ -78,7 +78,6 @@ impl Models {
     ) -> Self {
         // In practice, weights are only used for wimdo files with one Models and one Model.
         // TODO: How to enforce this assumption?
-        // TODO: Avoid clone.
         // Reindex to match the ordering defined in the current skeleton.
         let weights = buffers.first().and_then(|b| b.weights.as_ref());
         let bone_names: Option<Vec<_>> = skeleton
@@ -113,7 +112,6 @@ impl Models {
             is_instanced_static,
         );
 
-        // TODO: Avoid clone?
         let models = models
             .models
             .iter()

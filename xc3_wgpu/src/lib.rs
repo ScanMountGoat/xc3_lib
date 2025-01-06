@@ -5,7 +5,7 @@
 //! with Xenoblade 1 DE receiving the least testing.
 //!
 //! # Getting Started
-//! The first step is to initialize an [Xc3Renderer].
+//! The first step is to initialize an [Renderer].
 //! This only needs to be done once since the renderer can be updated using methods
 //! as screen size and parameters change.
 //! The initial size should match the current window dimensions.
@@ -13,7 +13,7 @@
 //! Models and maps are all loaded from the same [xc3_model] types.
 //! The shader database is optional but will improve rendering accuracy.
 //!
-//! In each frame, render the [ModelGroup] using [Xc3Renderer::render_models].
+//! In each frame, render the [ModelGroup] using [Renderer::render_models].
 //!
 //! ```rust no_run
 //! use xc3_wgpu::{MonolibShaderTextures, Renderer};
@@ -37,7 +37,7 @@
 //! ```
 //!
 //! # Animation
-//! Skeletal animations should use [Models::update_bone_transforms] and
+//! Skeletal animations should use [ModelGroup::update_bone_transforms] and
 //! the [Animation](xc3_model::animation::Animation) type from [xc3_model].
 
 mod animation;
@@ -54,7 +54,6 @@ mod skeleton;
 mod texture;
 
 pub use collision::{load_collisions, Collision};
-pub use material::Material;
 pub use model::{load_map, load_model, Mesh, Model, ModelBuffers, ModelGroup, Models};
 pub use monolib::MonolibShaderTextures;
 pub use renderer::{CameraData, RenderMode, Renderer};
@@ -162,7 +161,7 @@ impl QueueBufferExt for wgpu::Queue {
 }
 
 /// A trait for mapping unique items to an index.
-pub trait IndexMapExt<T> {
+trait IndexMapExt<T> {
     fn entry_index(&mut self, key: T) -> usize;
 }
 

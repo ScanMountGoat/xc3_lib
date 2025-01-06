@@ -288,7 +288,11 @@ xc3_write_impl!(i8, i16, i32, i64, u8, u16, u32, u64, f32, f64);
 
 // TODO: macro for handling larger tuples?
 impl<A: Xc3Write, B: Xc3Write> Xc3Write for (A, B) {
-    type Offsets<'a> = (A::Offsets<'a>, B::Offsets<'a>) where A: 'a, B: 'a;
+    type Offsets<'a>
+        = (A::Offsets<'a>, B::Offsets<'a>)
+    where
+        A: 'a,
+        B: 'a;
 
     fn xc3_write<W: Write + Seek>(
         &self,
@@ -337,7 +341,8 @@ where
 }
 
 impl<T: Xc3Write> Xc3Write for Box<T> {
-    type Offsets<'a> = T::Offsets<'a>
+    type Offsets<'a>
+        = T::Offsets<'a>
     where
         Self: 'a;
 
@@ -450,7 +455,8 @@ impl<T> Xc3Write for Option<T>
 where
     T: Xc3Write,
 {
-    type Offsets<'a> = Option<T::Offsets<'a>>
+    type Offsets<'a>
+        = Option<T::Offsets<'a>>
     where
         Self: 'a;
 

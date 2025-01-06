@@ -3,7 +3,6 @@ pub fn create_sampler(device: &wgpu::Device, sampler: &xc3_model::Sampler) -> wg
 }
 
 fn sampler_descriptor(sampler: &xc3_model::Sampler) -> wgpu::SamplerDescriptor<'static> {
-    // TODO: lod bias?
     wgpu::SamplerDescriptor {
         label: None,
         address_mode_u: address_mode(sampler.address_mode_u),

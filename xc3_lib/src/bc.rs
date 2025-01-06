@@ -116,7 +116,10 @@ where
     T: Xc3Write + 'static,
     for<'a> T: BinRead<Args<'a> = ()>,
 {
-    type Offsets<'a> = BcListNOffsets<'a, T, N> where T: 'a;
+    type Offsets<'a>
+        = BcListNOffsets<'a, T, N>
+    where
+        T: 'a;
 
     fn xc3_write<W: std::io::Write + std::io::Seek>(
         &self,
@@ -211,7 +214,10 @@ impl<T> Xc3Write for BcListCount<T>
 where
     T: Xc3Write + 'static,
 {
-    type Offsets<'a> = BcListCountOffsets<'a, T> where T: 'a;
+    type Offsets<'a>
+        = BcListCountOffsets<'a, T>
+    where
+        T: 'a;
 
     fn xc3_write<W: std::io::Write + std::io::Seek>(
         &self,

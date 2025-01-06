@@ -21,7 +21,7 @@ use crate::{
 // TODO: Don't make this public outside the crate?
 // TODO: Store material parameter values.
 #[derive(Debug)]
-pub struct Material {
+pub(crate) struct Material {
     pub name: String,
     pub bind_group2: crate::shader::model::bind_groups::BindGroup2,
 
