@@ -244,7 +244,7 @@ where
     parse_vec(reader, endian, args, offset as u64, count as usize)
 }
 
-impl<'a> Xc3WriteOffsets for LaftOffsets<'a> {
+impl Xc3WriteOffsets for LaftOffsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(

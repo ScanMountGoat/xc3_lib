@@ -582,7 +582,7 @@ fn buffer_info_count(vertex_buffers: &[VertexBufferDescriptor]) -> usize {
         .count()
 }
 
-impl<'a> Xc3WriteOffsets for VertexDataOffsets<'a> {
+impl Xc3WriteOffsets for VertexDataOffsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(

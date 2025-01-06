@@ -378,7 +378,7 @@ impl ModelGroup {
                 if let Some(morph_buffers) = &vertex_buffer.morph_buffers {
                     morph_buffers.bind_group0.set(compute_pass);
                     let [size_x, _, _] = crate::shader::morph::compute::MAIN_WORKGROUP_SIZE;
-                    let x = div_round_up(vertex_buffer.vertex_count, size_x);
+                    let x = vertex_buffer.vertex_count.div_ceil(size_x);
                     compute_pass.dispatch_workgroups(x, 1, 1);
                 }
             }
@@ -445,10 +445,6 @@ impl ModelGroup {
             }
         }
     }
-}
-
-const fn div_round_up(x: u32, d: u32) -> u32 {
-    (x + d - 1) / d
 }
 
 impl Mesh {

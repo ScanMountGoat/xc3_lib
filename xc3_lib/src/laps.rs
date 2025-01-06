@@ -72,7 +72,7 @@ pub struct Unk3 {
     pub unk9: u32,
 }
 
-impl<'a> Xc3WriteOffsets for LapsOffsets<'a> {
+impl Xc3WriteOffsets for LapsOffsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(

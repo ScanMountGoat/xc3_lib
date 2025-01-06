@@ -293,7 +293,7 @@ pub struct DynamicsUnk3Item {
     pub unk5: i32,
 }
 
-impl<'a> Xc3WriteOffsets for DynamicsOffsets<'a> {
+impl Xc3WriteOffsets for DynamicsOffsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -331,7 +331,7 @@ impl<'a> Xc3WriteOffsets for DynamicsOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for DynamicsInnerOffsets<'a> {
+impl Xc3WriteOffsets for DynamicsInnerOffsets<'_> {
     type Args = Rc<RefCell<StringSection>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -353,7 +353,7 @@ impl<'a> Xc3WriteOffsets for DynamicsInnerOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for DynamicsInner1Offsets<'a> {
+impl Xc3WriteOffsets for DynamicsInner1Offsets<'_> {
     type Args = Rc<RefCell<StringSection>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -370,7 +370,7 @@ impl<'a> Xc3WriteOffsets for DynamicsInner1Offsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for DynamicsInner2Offsets<'a> {
+impl Xc3WriteOffsets for DynamicsInner2Offsets<'_> {
     type Args = Rc<RefCell<StringSection>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -389,7 +389,7 @@ impl<'a> Xc3WriteOffsets for DynamicsInner2Offsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for DynamicsUnk1Offsets<'a> {
+impl Xc3WriteOffsets for DynamicsUnk1Offsets<'_> {
     type Args = Rc<RefCell<StringSection>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -410,7 +410,7 @@ impl<'a> Xc3WriteOffsets for DynamicsUnk1Offsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for SphereOffsets<'a> {
+impl Xc3WriteOffsets for SphereOffsets<'_> {
     type Args = Rc<RefCell<StringSection>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -427,7 +427,7 @@ impl<'a> Xc3WriteOffsets for SphereOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for CapsuleOffsets<'a> {
+impl Xc3WriteOffsets for CapsuleOffsets<'_> {
     type Args = Rc<RefCell<StringSection>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -444,7 +444,7 @@ impl<'a> Xc3WriteOffsets for CapsuleOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for PlaneOffsets<'a> {
+impl Xc3WriteOffsets for PlaneOffsets<'_> {
     type Args = Rc<RefCell<StringSection>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -461,7 +461,7 @@ impl<'a> Xc3WriteOffsets for PlaneOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for DynamicsUnk2Offsets<'a> {
+impl Xc3WriteOffsets for DynamicsUnk2Offsets<'_> {
     type Args = Rc<RefCell<StringSection>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -478,7 +478,7 @@ impl<'a> Xc3WriteOffsets for DynamicsUnk2Offsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for DynamicsUnk2ItemOffsets<'a> {
+impl Xc3WriteOffsets for DynamicsUnk2ItemOffsets<'_> {
     type Args = Rc<RefCell<StringSection>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -504,7 +504,7 @@ impl<'a> Xc3WriteOffsets for DynamicsUnk2ItemOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for DynamicsUnk2ItemUnk1Offsets<'a> {
+impl Xc3WriteOffsets for DynamicsUnk2ItemUnk1Offsets<'_> {
     type Args = Rc<RefCell<StringSection>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -521,7 +521,7 @@ impl<'a> Xc3WriteOffsets for DynamicsUnk2ItemUnk1Offsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for StickOffsets<'a> {
+impl Xc3WriteOffsets for StickOffsets<'_> {
     type Args = Rc<RefCell<StringSection>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -537,7 +537,7 @@ impl<'a> Xc3WriteOffsets for StickOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for SpringOffsets<'a> {
+impl Xc3WriteOffsets for SpringOffsets<'_> {
     type Args = Rc<RefCell<StringSection>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -553,7 +553,7 @@ impl<'a> Xc3WriteOffsets for SpringOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for DynamicsUnk2LegacyOffsets<'a> {
+impl Xc3WriteOffsets for DynamicsUnk2LegacyOffsets<'_> {
     type Args = Rc<RefCell<StringSection>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -570,7 +570,7 @@ impl<'a> Xc3WriteOffsets for DynamicsUnk2LegacyOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for DynamicsUnk2ItemLegacyOffsets<'a> {
+impl Xc3WriteOffsets for DynamicsUnk2ItemLegacyOffsets<'_> {
     type Args = Rc<RefCell<StringSection>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -596,7 +596,7 @@ impl<'a> Xc3WriteOffsets for DynamicsUnk2ItemLegacyOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for DynamicsUnk2ItemUnk1LegacyOffsets<'a> {
+impl Xc3WriteOffsets for DynamicsUnk2ItemUnk1LegacyOffsets<'_> {
     type Args = Rc<RefCell<StringSection>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -613,7 +613,7 @@ impl<'a> Xc3WriteOffsets for DynamicsUnk2ItemUnk1LegacyOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for StickLegacyOffsets<'a> {
+impl Xc3WriteOffsets for StickLegacyOffsets<'_> {
     type Args = Rc<RefCell<StringSection>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -629,7 +629,7 @@ impl<'a> Xc3WriteOffsets for StickLegacyOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for DynamicsUnk3Offsets<'a> {
+impl Xc3WriteOffsets for DynamicsUnk3Offsets<'_> {
     type Args = Rc<RefCell<StringSection>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -645,7 +645,7 @@ impl<'a> Xc3WriteOffsets for DynamicsUnk3Offsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for DynamicsUnk3ItemOffsets<'a> {
+impl Xc3WriteOffsets for DynamicsUnk3ItemOffsets<'_> {
     type Args = Rc<RefCell<StringSection>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(

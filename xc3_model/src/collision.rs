@@ -67,7 +67,7 @@ pub fn load_collisions<P: AsRef<Path>>(
                 .skip(start as usize)
                 .take(count as usize)
             {
-                let start = idcm.groups[group.group_index as usize].start_index as u32;
+                let start = idcm.groups[group.group_index as usize].start_index;
 
                 // Convert to triangle lists with the correct winding order.
                 for i in 0..group.faces.vertex_indices.len().saturating_sub(2) {

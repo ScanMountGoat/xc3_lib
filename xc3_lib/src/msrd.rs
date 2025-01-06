@@ -402,7 +402,7 @@ where
 
 xc3_write_binwrite_impl!(StreamEntry, StreamFlags, StreamingFlagsLegacy);
 
-impl<'a> Xc3WriteOffsets for MsrdOffsets<'a> {
+impl Xc3WriteOffsets for MsrdOffsets<'_> {
     type Args = ();
 
     fn write_offsets<W: Write + Seek>(
@@ -422,7 +422,7 @@ impl<'a> Xc3WriteOffsets for MsrdOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for TextureResourcesOffsets<'a> {
+impl Xc3WriteOffsets for TextureResourcesOffsets<'_> {
     type Args = ();
 
     fn write_offsets<W: Write + Seek>(

@@ -124,7 +124,7 @@ pub struct Offset<'a, P, T> {
     phantom: PhantomData<P>,
 }
 
-impl<'a, P, T: Xc3Write> std::fmt::Debug for Offset<'a, P, T> {
+impl<P, T: Xc3Write> std::fmt::Debug for Offset<'_, P, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Don't print the actual data to avoid excessive output.
         f.debug_struct("Offset")
@@ -197,7 +197,7 @@ impl<'a, P, T> Offset<'a, P, T> {
     }
 }
 
-impl<'a, P, T> Offset<'a, P, T>
+impl<P, T> Offset<'_, P, T>
 where
     T: Xc3Write,
     P: TryFrom<u64> + Xc3Write,

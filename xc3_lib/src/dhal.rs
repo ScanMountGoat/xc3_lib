@@ -654,7 +654,7 @@ impl Unk4KeyValueSection {
     }
 }
 
-impl<'a> Xc3WriteOffsets for DhalOffsets<'a> {
+impl Xc3WriteOffsets for DhalOffsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
@@ -692,7 +692,7 @@ impl<'a> Xc3WriteOffsets for DhalOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for Unk4Offsets<'a> {
+impl Xc3WriteOffsets for Unk4Offsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(

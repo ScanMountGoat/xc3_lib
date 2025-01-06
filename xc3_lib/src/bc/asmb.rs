@@ -212,7 +212,7 @@ pub struct StateTransitionV2 {
 }
 
 // TODO: Is there a cleaner way to defer and sort strings?
-impl<'a> Xc3WriteOffsets for AsmbInnerV1Offsets<'a> {
+impl Xc3WriteOffsets for AsmbInnerV1Offsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(

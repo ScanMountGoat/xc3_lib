@@ -59,7 +59,7 @@ pub struct Unk4Item {
     pub count: u32,
 }
 
-impl<'a> Xc3WriteOffsets for BehOffsets<'a> {
+impl Xc3WriteOffsets for BehOffsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(

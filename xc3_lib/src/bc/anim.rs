@@ -608,7 +608,7 @@ pub struct SubTrack {
 
 xc3_write_binwrite_impl!(AnimationType, BlendMode, PlayMode, SpaceMode);
 
-impl<'a> Xc3WriteOffsets for AnimOffsets<'a> {
+impl Xc3WriteOffsets for AnimOffsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -719,7 +719,7 @@ impl<'a> Xc3WriteOffsets for AnimOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for ExtraTrackDataOffsets<'a> {
+impl Xc3WriteOffsets for ExtraTrackDataOffsets<'_> {
     type Args = Rc<RefCell<StringSection>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -746,7 +746,7 @@ impl<'a> Xc3WriteOffsets for ExtraTrackDataOffsets<'a> {
 }
 
 // TODO: Add a skip(condition) attribute to derive this.
-impl<'a> Xc3WriteOffsets for AnimationBindingInner1Offsets<'a> {
+impl Xc3WriteOffsets for AnimationBindingInner1Offsets<'_> {
     type Args = Rc<RefCell<StringSection>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -765,7 +765,7 @@ impl<'a> Xc3WriteOffsets for AnimationBindingInner1Offsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for AnimationBindingInner2Offsets<'a> {
+impl Xc3WriteOffsets for AnimationBindingInner2Offsets<'_> {
     type Args = Rc<RefCell<StringSection>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -808,7 +808,7 @@ impl<'a> Xc3WriteOffsets for AnimationBindingInner2Offsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for AnimationBindingInner3Offsets<'a> {
+impl Xc3WriteOffsets for AnimationBindingInner3Offsets<'_> {
     type Args = Rc<RefCell<StringSection>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -835,7 +835,7 @@ impl<'a> Xc3WriteOffsets for AnimationBindingInner3Offsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for AnimationBindingInner4Offsets<'a> {
+impl Xc3WriteOffsets for AnimationBindingInner4Offsets<'_> {
     type Args = Rc<RefCell<StringSection>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -862,7 +862,7 @@ impl<'a> Xc3WriteOffsets for AnimationBindingInner4Offsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for ExtraTrackAnimationBindingOffsets<'a> {
+impl Xc3WriteOffsets for ExtraTrackAnimationBindingOffsets<'_> {
     type Args = Rc<RefCell<StringSection>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -883,7 +883,7 @@ impl<'a> Xc3WriteOffsets for ExtraTrackAnimationBindingOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for ExtraTrackAnimationOffsets<'a> {
+impl Xc3WriteOffsets for ExtraTrackAnimationOffsets<'_> {
     type Args = Rc<RefCell<StringSection>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -903,7 +903,7 @@ impl<'a> Xc3WriteOffsets for ExtraTrackAnimationOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for PackedCubicExtraDataOffsets<'a> {
+impl Xc3WriteOffsets for PackedCubicExtraDataOffsets<'_> {
     type Args = Rc<RefCell<StringSection>>;
 
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
@@ -931,7 +931,7 @@ impl<'a> Xc3WriteOffsets for PackedCubicExtraDataOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for UncompressedExtraDataOffsets<'a> {
+impl Xc3WriteOffsets for UncompressedExtraDataOffsets<'_> {
     type Args = Rc<RefCell<StringSection>>;
 
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
@@ -959,7 +959,7 @@ impl<'a> Xc3WriteOffsets for UncompressedExtraDataOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for CubicExtraDataOffsets<'a> {
+impl Xc3WriteOffsets for CubicExtraDataOffsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(

@@ -265,7 +265,7 @@ pub struct Unk19 {
     pub unk3: u32,
 }
 
-impl<'a> Xc3WriteOffsets for IdcmOffsets<'a> {
+impl Xc3WriteOffsets for IdcmOffsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(

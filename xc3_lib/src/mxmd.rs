@@ -1988,7 +1988,7 @@ xc3_write_binwrite_impl!(
     BoneFlags
 );
 
-impl<'a> Xc3WriteOffsets for SkinningOffsets<'a> {
+impl Xc3WriteOffsets for SkinningOffsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -2031,7 +2031,7 @@ impl<'a> Xc3WriteOffsets for SkinningOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for ModelUnk1Offsets<'a> {
+impl Xc3WriteOffsets for ModelUnk1Offsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -2072,7 +2072,7 @@ impl<'a> Xc3WriteOffsets for ModelUnk1Offsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for LodDataOffsets<'a> {
+impl Xc3WriteOffsets for LodDataOffsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -2094,7 +2094,7 @@ impl<'a> Xc3WriteOffsets for LodDataOffsets<'a> {
 }
 
 // TODO: Add derive attribute for skipping empty vecs?
-impl<'a> Xc3WriteOffsets for ModelsOffsets<'a> {
+impl Xc3WriteOffsets for ModelsOffsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -2143,7 +2143,7 @@ impl<'a> Xc3WriteOffsets for ModelsOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for TechniqueOffsets<'a> {
+impl Xc3WriteOffsets for TechniqueOffsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -2175,7 +2175,7 @@ impl<'a> Xc3WriteOffsets for TechniqueOffsets<'a> {
 }
 
 // TODO: Add derive attribute for skipping empty vecs?
-impl<'a> Xc3WriteOffsets for MaterialsOffsets<'a> {
+impl Xc3WriteOffsets for MaterialsOffsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -2237,7 +2237,7 @@ impl<'a> Xc3WriteOffsets for MaterialsOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for MxmdOffsets<'a> {
+impl Xc3WriteOffsets for MxmdOffsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -2282,7 +2282,7 @@ impl<'a> Xc3WriteOffsets for MxmdOffsets<'a> {
 }
 
 // TODO: Add derive attribute for skipping empty vecs?
-impl<'a> Xc3WriteOffsets for Unk1Offsets<'a> {
+impl Xc3WriteOffsets for Unk1Offsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -2308,7 +2308,7 @@ impl<'a> Xc3WriteOffsets for Unk1Offsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for ModelUnk3ItemOffsets<'a> {
+impl Xc3WriteOffsets for ModelUnk3ItemOffsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
@@ -2328,7 +2328,7 @@ impl<'a> Xc3WriteOffsets for ModelUnk3ItemOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for FurShellsOffsets<'a> {
+impl Xc3WriteOffsets for FurShellsOffsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
@@ -2348,7 +2348,7 @@ impl<'a> Xc3WriteOffsets for FurShellsOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for PackedTexturesOffsets<'a> {
+impl Xc3WriteOffsets for PackedTexturesOffsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
@@ -2380,7 +2380,7 @@ impl<'a> Xc3WriteOffsets for PackedTexturesOffsets<'a> {
     }
 }
 
-impl<'a, U> Xc3WriteOffsets for PackedExternalTexturesOffsets<'a, U>
+impl<U> Xc3WriteOffsets for PackedExternalTexturesOffsets<'_, U>
 where
     U: Xc3Write + 'static,
     for<'b> U: BinRead<Args<'b> = ()>,
@@ -2412,7 +2412,7 @@ where
     }
 }
 
-impl<'a> Xc3WriteOffsets for SkeletonUnk5Offsets<'a> {
+impl Xc3WriteOffsets for SkeletonUnk5Offsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -2441,7 +2441,7 @@ impl<'a> Xc3WriteOffsets for SkeletonUnk5Offsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for Unk8Offsets<'a> {
+impl Xc3WriteOffsets for Unk8Offsets<'_> {
     type Args = ();
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
         &self,

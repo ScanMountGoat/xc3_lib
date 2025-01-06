@@ -29,8 +29,6 @@ pub(crate) struct Material {
     // We only store a key here to allow caching.
     pub pipeline_key: PipelineKey,
 
-    pub texture_count: usize,
-
     pub fur_shell_instance_count: Option<u32>,
 }
 
@@ -238,7 +236,6 @@ pub fn materials(
                 name: material.name.clone(),
                 bind_group2,
                 pipeline_key,
-                texture_count: material.textures.len(),
                 fur_shell_instance_count: material.fur_params.as_ref().map(|p| p.instance_count),
             }
         })

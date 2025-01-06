@@ -286,7 +286,7 @@ pub struct Unk13Unk1Unk6 {
 }
 
 // TODO: identical to dhal?
-impl<'a> Xc3WriteOffsets for LagpOffsets<'a> {
+impl Xc3WriteOffsets for LagpOffsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
@@ -318,7 +318,7 @@ impl<'a> Xc3WriteOffsets for LagpOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for Unk13Offsets<'a> {
+impl Xc3WriteOffsets for Unk13Offsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
@@ -365,7 +365,7 @@ impl<'a> Xc3WriteOffsets for Unk13Offsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for Unk13Unk1Unk3Unk2Offsets<'a> {
+impl Xc3WriteOffsets for Unk13Unk1Unk3Unk2Offsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
@@ -386,7 +386,7 @@ impl<'a> Xc3WriteOffsets for Unk13Unk1Unk3Unk2Offsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for Unk13Unk1Unk4Offsets<'a> {
+impl Xc3WriteOffsets for Unk13Unk1Unk4Offsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(

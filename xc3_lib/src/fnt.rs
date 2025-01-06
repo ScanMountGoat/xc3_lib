@@ -112,7 +112,7 @@ impl XcxFont {
     }
 }
 
-impl<'a> Xc3WriteOffsets for FntOffsets<'a> {
+impl Xc3WriteOffsets for FntOffsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(

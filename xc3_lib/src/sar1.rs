@@ -215,7 +215,7 @@ pub struct CvsbItem {
     pub unk5: u32,
 }
 
-impl<'a> Xc3WriteOffsets for ChClInnerOffsets<'a> {
+impl Xc3WriteOffsets for ChClInnerOffsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -255,7 +255,7 @@ impl<'a> Xc3WriteOffsets for ChClInnerOffsets<'a> {
     }
 }
 
-impl<'a> Xc3WriteOffsets for Sar1Offsets<'a> {
+impl Xc3WriteOffsets for Sar1Offsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(

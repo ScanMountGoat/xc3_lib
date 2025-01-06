@@ -572,7 +572,7 @@ pub fn vertex_fragment_binaries(
         .collect()
 }
 
-impl<'a> Xc3WriteOffsets for SpchOffsets<'a> {
+impl Xc3WriteOffsets for SpchOffsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(

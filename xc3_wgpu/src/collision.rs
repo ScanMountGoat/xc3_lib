@@ -39,7 +39,7 @@ pub fn load_collisions(
         };
         let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("collision instance buffer"),
-            contents: bytemuck::cast_slice(&instance_transforms),
+            contents: bytemuck::cast_slice(instance_transforms),
             usage: wgpu::BufferUsages::VERTEX,
         });
 

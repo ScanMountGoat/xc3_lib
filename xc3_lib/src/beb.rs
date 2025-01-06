@@ -21,7 +21,7 @@ pub struct Beb {
     pub xbc1_offsets: Vec<Offset32<Xbc1>>,
 }
 
-impl<'a> Xc3WriteOffsets for BebOffsets<'a> {
+impl Xc3WriteOffsets for BebOffsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(

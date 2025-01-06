@@ -24,7 +24,6 @@ use crate::{
 ///
 /// If no edits were made to this model, the resulting files will attempt
 /// to recreate the originals used to initialize this model as closely as possible.
-
 impl ModelRoot {
     pub fn to_mxmd_model(
         &self,

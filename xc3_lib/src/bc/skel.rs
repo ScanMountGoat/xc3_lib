@@ -308,7 +308,7 @@ pub struct SkeletonUnk13 {
     pub unk2: BcList<i16>,
 }
 
-impl<'a> Xc3WriteOffsets for SkeletonOffsets<'a> {
+impl Xc3WriteOffsets for SkeletonOffsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
@@ -430,7 +430,7 @@ fn weird_skel_alignment<W: std::io::Write + std::io::Seek>(
     Ok(())
 }
 
-impl<'a> Xc3WriteOffsets for SkeletonExtraUnk3Offsets<'a> {
+impl Xc3WriteOffsets for SkeletonExtraUnk3Offsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
