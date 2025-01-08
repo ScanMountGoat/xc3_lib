@@ -68,9 +68,19 @@ const GBUFFER_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unor
 const GBUFFER_NORMAL_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgb10a2Unorm;
 const DEPTH_STENCIL_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth24PlusStencil8;
 
-/// The features required by the renderer.
+/// The features required by [Renderer].
 pub const FEATURES: wgpu::Features =
     wgpu::Features::TEXTURE_COMPRESSION_BC.union(wgpu::Features::POLYGON_MODE_LINE);
+
+/// Modified limits required by [Renderer].
+pub const LIMITS: wgpu::Limits = wgpu::Limits {
+    max_texture_dimension_1d: 8192,
+    max_texture_dimension_2d: 8192,
+    max_texture_dimension_3d: 2048,
+    max_color_attachment_bytes_per_sample: 48,
+    max_uniform_buffer_binding_size: 64 << 10, // (64 KiB)
+    ..wgpu::Limits::downlevel_defaults()
+};
 
 trait DeviceBufferExt {
     fn create_uniform_buffer<T: ShaderType + WriteInto + ShaderSize>(

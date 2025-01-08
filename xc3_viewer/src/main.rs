@@ -65,7 +65,7 @@ struct InputState {
 
 impl<'a> State<'a> {
     async fn new(window: &'a Window, cli: &Cli) -> anyhow::Result<Self> {
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
         });
@@ -85,10 +85,7 @@ impl<'a> State<'a> {
                 &wgpu::DeviceDescriptor {
                     label: None,
                     required_features: xc3_wgpu::FEATURES,
-                    required_limits: wgpu::Limits {
-                        max_color_attachment_bytes_per_sample: 48,
-                        ..Default::default()
-                    },
+                    required_limits: xc3_wgpu::LIMITS,
                     memory_hints: wgpu::MemoryHints::default(),
                 },
                 None,

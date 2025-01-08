@@ -52,7 +52,7 @@ fn main() {
         .init()
         .unwrap();
 
-    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+    let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
         backends: wgpu::Backends::all(),
         ..Default::default()
     });
@@ -68,10 +68,7 @@ fn main() {
         &wgpu::DeviceDescriptor {
             label: None,
             required_features: xc3_wgpu::FEATURES,
-            required_limits: wgpu::Limits {
-                max_color_attachment_bytes_per_sample: 48,
-                ..Default::default()
-            },
+            required_limits: xc3_wgpu::LIMITS,
             memory_hints: wgpu::MemoryHints::default(),
         },
         None,
@@ -282,15 +279,15 @@ fn save_screenshot(
     output_path: std::path::PathBuf,
 ) {
     encoder.copy_texture_to_buffer(
-        wgpu::ImageCopyTexture {
+        wgpu::TexelCopyTextureInfo {
             aspect: wgpu::TextureAspect::All,
             texture: output,
             mip_level: 0,
             origin: wgpu::Origin3d::ZERO,
         },
-        wgpu::ImageCopyBuffer {
+        wgpu::TexelCopyBufferInfo {
             buffer: output_buffer,
-            layout: wgpu::ImageDataLayout {
+            layout: wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(WIDTH * 4),
                 rows_per_image: Some(HEIGHT),

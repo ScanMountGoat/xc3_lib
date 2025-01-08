@@ -4,7 +4,7 @@ resolver = "2"
 
 [workspace.dependencies]
 glam = "0.29.1"
-wgpu = "22.0.0"
+wgpu = { git = "https://github.com/gfx-rs/wgpu", rev = "4124fbf" }
 log = "0.4.22"
 image_dds = { version = "0.6.1", default-features = false }
 indexmap = "2.1.0"
