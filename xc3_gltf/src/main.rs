@@ -11,7 +11,7 @@ use xc3_model::{
     MapRoot, ModelRoot,
 };
 
-/// Convert wimdo and wismhd models to glTF or glb for
+/// Convert wimdo, pmcdo, camdo, or wismhd models to glTF or glb for
 /// Xenoblade X, Xenoblade 1 DE, Xenoblade 2, and Xenoblade 3.
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
