@@ -71,14 +71,16 @@ impl BoneRenderer {
         bone_transforms: &'a wgpu::Buffer,
         bone_count: u32,
     ) {
-        render_pass.set_pipeline(&self.pipeline);
+        if bone_count > 0 {
+            render_pass.set_pipeline(&self.pipeline);
 
-        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        render_pass.set_vertex_buffer(1, bone_transforms.slice(..));
+            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, bone_transforms.slice(..));
 
-        crate::shader::bone::set_bind_groups(render_pass, &self.bind_group0);
+            crate::shader::bone::set_bind_groups(render_pass, &self.bind_group0);
 
-        render_pass.draw(0..6, 0..bone_count);
+            render_pass.draw(0..6, 0..bone_count);
+        }
     }
 }
 
