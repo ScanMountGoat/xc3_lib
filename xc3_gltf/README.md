@@ -8,7 +8,7 @@ Convert `.wimdo`, `.wismhd`, or `.camdo` files to `.gltf` or `.glb`. Exporting a
 
 The shader database parameter is optional but highly recommended since the fallback texture assignments do not support channel packing of temp textures. The database parameter will default to `xc_combined.bin` in the executable directory if not specified.
 
-Windows users can simply drag and drop a supported input files onto the executable to export as `.glb` with defaults for remaining arguments.  
+The output will default to the first input file with the extension changed to `.glb`. This enables Windows users to simply drag and drop supported input files onto the executable to export as `.glb` with defaults for remaining arguments.
 
 `xc3_gltf --help`  
 `xc3_gltf "Xeno 2 Dump/map/ma02a.wismhd" --output map.gltf --database xc2.bin`  
