@@ -34,7 +34,6 @@ The output will default to the first input file with the extension changed to `.
 glTF is designed for compatibility, so the imported files will never perfectly recreate the Xenoblade specific data like materials and shaders. Dedicated importing plugins for a specific application or game engine will always be able to outperform formats like glTF in terms of speed and accuracy. Exported files have the following limitations:
 
 * texcoord scale does not apply to normal and occlusion textures due to a limitation in the glTF crate
-* materials do not include specular color or emissive maps
+* materials do not include specular color
 * materials do not contain all textures referenced in game (use xc3_tex to extract all unmodified textures)
-* materials do not support global textures like detail normal maps or Xenoblade 3's eyepatch textures
 * materials do not support blending between multiple color or normal maps
