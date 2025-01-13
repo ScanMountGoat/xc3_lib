@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## unreleased
+### Changed
+* Changed xc3_gltf to support multiple input files and multiple animation files.
+
 ### Fixed
 * Fixed a potential crash in xc3_viewer when drawing empty skeletons with the `--bones` option.
 * Fixed an issue where wimdo models would not load the `.chr` or `.arc` file with the full base skeleton.

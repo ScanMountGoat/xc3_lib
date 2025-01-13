@@ -8,12 +8,14 @@ Convert `.wimdo`, `.wismhd`, or `.camdo` files to `.gltf` or `.glb`. Exporting a
 
 The shader database parameter is optional but highly recommended since the fallback texture assignments do not support channel packing of temp textures. The database parameter will default to `xc_combined.bin` in the executable directory if not specified.
 
+Windows users can simply drag and drop a supported input files onto the executable to export as `.glb` with defaults for remaining arguments.  
+
 `xc3_gltf --help`  
-`xc3_gltf "Xeno 2 Dump/map/ma02a.wismhd" map.gltf --database xc2.bin`  
-`xc3_gltf "Xeno 2 Dump/model/np/np000301.wimdo" bana.gltf --database xc2.bin --anim "Xeno 2 Dump/model/np/np000301.mot"`    
-`xc3_gltf "Xeno 3 Dump/chr/ch/ch01027000.wimdo" mio.gltf --database xc3.bin`  
-`xc3_gltf "Xeno 3 Dump/chr/ch/ch01027000.wimdo" mio.glb --database xc3.bin`  
-`xc3_gltf "Xeno X Dump/chr_np/np/np009001.camdo" tatsu.gltf --database xcx.bin`    
+`xc3_gltf "Xeno 2 Dump/map/ma02a.wismhd" --output map.gltf --database xc2.bin`  
+`xc3_gltf "Xeno 2 Dump/model/np/np000301.wimdo" --output bana.gltf --database xc2.bin --anim "Xeno 2 Dump/model/np/np000301.mot"`    
+`xc3_gltf "Xeno 3 Dump/chr/ch/ch01027000.wimdo" --output mio.gltf --database xc3.bin`  
+`xc3_gltf "Xeno 3 Dump/chr/ch/ch01027000.wimdo" --output mio.glb --database xc3.bin --anim "Xeno 3 Dump/chr/ch/ch01027000_event.mot --anim "Xeno 3 Dump/chr/ch/ch01027000_field.mot"`  
+`xc3_gltf "Xeno X Dump/chr_np/np/np009001.camdo" --output tatsu.gltf --database xcx.bin`    
 
 ## Features
 * position, normal, tangent, texture coordinate, and vertex color attributes
