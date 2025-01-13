@@ -162,6 +162,11 @@ fn main() {
     let cli = Cli::parse();
     let root = Path::new(&cli.root_folder);
 
+    simple_logger::SimpleLogger::new()
+        .with_level(log::LevelFilter::Error)
+        .init()
+        .unwrap();
+
     let start = std::time::Instant::now();
 
     // Check parsing and conversions for various file types.

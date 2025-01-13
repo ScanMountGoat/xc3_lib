@@ -530,24 +530,36 @@ pub fn load_model<P: AsRef<Path>>(
     ModelRoot::from_mxmd_model(&mxmd, chr, &streaming_data, shader_database)
 }
 
-fn load_chr(wimdo_path: &Path, model_name: String) -> Option<Sar1> {
+fn load_chr(wimdo: &Path, model_name: String) -> Option<Sar1> {
     // TODO: Does every wimdo have a chr file?
     // TODO: Does something control the chr name used?
-    // TODO: This won't load the base skeleton chr for xc3.
-    Sar1::from_file(wimdo_path.with_extension("chr"))
+    // Try to find the base skeleton file first if it exists.
+    // This avoids loading incomplete skeletons specific to each model.
+    // XC1: pc010101.wimdo -> pc010000.chr.
+    // XC3: ch01012013.wimdo -> ch01012000.chr.
+    let base_name = base_chr_name(&model_name);
+    Sar1::from_file(wimdo.with_file_name(&base_name).with_extension("chr"))
         .ok()
-        .or_else(|| Sar1::from_file(wimdo_path.with_extension("arc")).ok())
+        .or_else(|| Sar1::from_file(wimdo.with_file_name(&base_name).with_extension("arc")).ok())
+        .or_else(|| Sar1::from_file(wimdo.with_extension("chr")).ok())
+        .or_else(|| Sar1::from_file(wimdo.with_extension("arc")).ok())
         .or_else(|| {
             // Keep trying with more 0's at the end to match in game naming conventions.
-            // XC1: pc010101.wimdo -> pc010000.chr.
-            // XC3: ch01012013.wimdo -> ch01012010.chr.
+            // This usually only requires one additional 0.
+            // XC3: ch01056013.wimdo -> ch01056010.chr.
             (0..model_name.len()).find_map(|i| {
                 let mut chr_name = model_name.clone();
                 chr_name.replace_range(chr_name.len() - i.., &"0".repeat(i));
-                let chr_path = wimdo_path.with_file_name(chr_name).with_extension("chr");
+                let chr_path = wimdo.with_file_name(chr_name).with_extension("chr");
                 Sar1::from_file(chr_path).ok()
             })
         })
+}
+
+fn base_chr_name(model_name: &str) -> String {
+    let mut chr_name = model_name.to_string();
+    chr_name.replace_range(chr_name.len() - 3.., "000");
+    chr_name
 }
 
 // TODO: separate legacy module with its own error type?
@@ -582,9 +594,7 @@ pub fn load_model_legacy<P: AsRef<Path>>(
         .transpose()?;
 
     let model_name = model_name(camdo_path);
-    let hkt_path = camdo_path
-        .with_file_name(model_name.clone() + "_rig")
-        .with_extension("hkt");
+    let hkt_path = camdo_path.with_file_name(format!("{model_name}_rig.hkt"));
     let hkt = Hkt::from_file(hkt_path).ok();
 
     ModelRoot::from_mxmd_model_legacy(&mxmd, casmt, hkt.as_ref(), shader_database)
