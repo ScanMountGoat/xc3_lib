@@ -905,8 +905,7 @@ fn create_skeleton(
 // TODO: Move this to xc3_shader?
 fn model_name(model_path: &Path) -> String {
     model_path
-        .with_extension("")
-        .file_name()
+        .file_stem()
         .unwrap_or_default()
         .to_string_lossy()
         .to_string()

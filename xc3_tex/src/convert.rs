@@ -426,13 +426,11 @@ fn image_index(path: &Path, input: &str) -> Option<usize> {
     // Allow optional chars after the index like a texture name.
     // "mnu417_cont01.88.dds" -> 88
     // "model.7.BL000101_BODY_NRM.dds" -> 7
-    let path = path.with_extension("");
-    let file_name = path.file_name()?.to_str()?;
+    let file_name = path.file_stem()?.to_str()?;
     let (file_name, rhs) = file_name.split_once('.')?;
     let (index, _) = rhs.split_once('.').unwrap_or((rhs, ""));
 
-    let input_file_name = Path::new(input).with_extension("");
-    let input_file_name = input_file_name.file_name()?.to_str()?;
+    let input_file_name = Path::new(input).file_stem()?.to_str()?;
     if file_name == input_file_name {
         index.parse().ok()
     } else {

@@ -362,8 +362,7 @@ fn dissassemble_shader(binary_path: &Path, binary: &[u8], gfd_tool: &str) {
 }
 
 fn shader_output_folder(output_folder: &str, path: &Path) -> std::path::PathBuf {
-    // Use the name as a folder like "ch01011010.wismt" -> "ch01011010/".
-    let name = path.with_extension("");
-    let name = name.file_name().unwrap();
+    // Use the name as a folder like "ch01011010.wismt" -> "output/ch01011010/".
+    let name = path.file_stem().unwrap();
     Path::new(output_folder).join(name)
 }
