@@ -6,7 +6,7 @@ glTF is an open interchange format designed for efficiently transmitting and loa
 ## Usage
 Convert `.wimdo`, `.wismhd`, or `.camdo` files to `.gltf` or `.glb`. Exporting as `.gltf` will create a `.gltf`, `.bin`, and multiple `.png` files. File names will start with the name chosen for the output glTF file. Exporting as `.glb` will embed all data into a single `.glb` file. 
 
-The shader database parameter is optional but highly recommended since the fallback texture assignments do not support channel packing of temp textures. The database parameter will default to `xc_combined.bin` in the executable directory if not specified.
+The shader database parameter is optional but highly recommended since the fallback texture assignments only support basic color and normal maps. The database parameter will default to `xc_combined.bin` in the executable directory if not specified.
 
 The output will default to the first input file with the extension changed to `.glb`. This enables Windows users to simply drag and drop supported input files onto the executable to export as `.glb` with defaults for remaining arguments.
 
