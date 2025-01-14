@@ -2,9 +2,10 @@ use glam::{Mat4, Vec2, Vec3, Vec4};
 use indexmap::IndexMap;
 use log::warn;
 use xc3_lib::{
-    msrd::Msrd,
-    mxmd::{AlphaTable, LodData, LodGroup, LodItem, Mxmd, VertexAttribute},
-    vertex::DataType,
+    mibl::Mibl,
+    msrd::{streaming::ExtractedTexture, Msrd},
+    mxmd::{AlphaTable, LodData, LodGroup, LodItem, Mxmd, TextureUsage, VertexAttribute},
+    vertex::{DataType, VertexData},
 };
 
 use crate::{
@@ -16,7 +17,6 @@ use crate::{
 // TODO: Not possible to make files compatible with all game versions?
 // TODO: Will it be possible to do full imports in the future?
 // TODO: Include chr to support skeleton edits?
-// TODO: How to properly test this?
 /// Apply the values from this model onto the original `mxmd` and `msrd`.
 ///
 /// Some of the original values will be retained due to exporting limitations.
@@ -32,7 +32,28 @@ impl ModelRoot {
     ) -> Result<(Mxmd, Msrd), CreateModelError> {
         // TODO: Does this need to even extract vertex/textures?
         let (_, spch, _) = msrd.extract_files(None)?;
+        let (mut new_mxmd, vertex, textures) = self.to_mxmd_model_files(mxmd)?;
 
+        let use_chr_textures = mxmd
+            .streaming
+            .as_ref()
+            .map(|s| s.inner.has_chr_textures())
+            .unwrap_or_default();
+        let new_msrd =
+            Msrd::from_extracted_files(&vertex, &spch, &textures, use_chr_textures).unwrap();
+
+        // The mxmd and msrd streaming header need to match exactly.
+        new_mxmd.streaming = Some(new_msrd.streaming.clone());
+
+        Ok((new_mxmd, new_msrd))
+    }
+
+    /// Similar to [Self::to_mxmd_model] but does not compress the new data or update streaming information.
+    pub fn to_mxmd_model_files(
+        &self,
+        mxmd: &Mxmd,
+    ) -> Result<(Mxmd, VertexData, Vec<ExtractedTexture<Mibl, TextureUsage>>), CreateModelError>
+    {
         let textures: Vec<_> = self
             .image_textures
             .iter()
@@ -206,17 +227,10 @@ impl ModelRoot {
             .reduce(|[ax, ay, az], [bx, by, bz]| [ax.max(bx), ay.max(by), az.max(bz)])
             .unwrap_or_default();
 
-        let use_chr_textures = mxmd
-            .streaming
-            .as_ref()
-            .map(|s| s.inner.has_chr_textures())
-            .unwrap_or_default();
+        // This should be updated later.
+        new_mxmd.streaming = None;
 
-        let new_msrd =
-            Msrd::from_extracted_files(&new_vertex, &spch, &textures, use_chr_textures).unwrap();
-        new_mxmd.streaming = Some(new_msrd.streaming.clone());
-
-        Ok((new_mxmd, new_msrd))
+        Ok((new_mxmd, new_vertex, textures))
     }
 
     fn apply_materials(&self, mxmd: &mut Mxmd) {
@@ -225,10 +239,12 @@ impl ModelRoot {
         mxmd.materials.work_values.clear();
         mxmd.materials.shader_vars.clear();
 
-        // TODO: Don't assume callbacks are used?
-        let callbacks = mxmd.materials.callbacks.as_mut().unwrap();
-        callbacks.work_callbacks.clear();
-        callbacks.material_indices = (0..self.models.materials.len() as u16).collect();
+        // Don't assume callbacks are used.
+        let mut callbacks = mxmd.materials.callbacks.as_mut();
+        if let Some(callbacks) = callbacks.as_mut() {
+            callbacks.work_callbacks.clear();
+            callbacks.material_indices = (0..self.models.materials.len() as u16).collect();
+        }
 
         let mut fur_params = Vec::new();
         let mut fur_param_indices = Vec::new();
@@ -270,7 +286,10 @@ impl ModelRoot {
                 shader_var_count: m.shader_vars.len() as u32,
                 techniques: vec![technique],
                 unk5: 0,
-                callback_start_index: callbacks.work_callbacks.len() as u16,
+                callback_start_index: callbacks
+                    .as_ref()
+                    .map(|c| c.work_callbacks.len() as u16)
+                    .unwrap_or_default(),
                 callback_count: m.work_callbacks.len() as u16,
                 m_unks2: [0, 0, m.m_unks2_2],
                 alpha_test_texture_index: m
@@ -292,9 +311,11 @@ impl ModelRoot {
 
             mxmd.materials.work_values.extend_from_slice(&m.work_values);
             mxmd.materials.shader_vars.extend_from_slice(&m.shader_vars);
-            callbacks
-                .work_callbacks
-                .extend_from_slice(&m.work_callbacks);
+            if let Some(callbacks) = callbacks.as_mut() {
+                callbacks
+                    .work_callbacks
+                    .extend_from_slice(&m.work_callbacks);
+            }
 
             if let Some(params) = &m.fur_params {
                 // Each material uses its own params in practice.

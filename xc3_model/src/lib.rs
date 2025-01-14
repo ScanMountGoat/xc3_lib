@@ -47,7 +47,7 @@ use thiserror::Error;
 use vertex::ModelBuffers;
 use xc3_lib::{
     apmd::Apmd,
-    bc::Bc,
+    bc::{skel::Skel, Bc},
     error::DecompressStreamError,
     hkt::Hkt,
     mibl::Mibl,
@@ -522,22 +522,36 @@ pub fn load_model<P: AsRef<Path>>(
     } else {
         wimdo_path.with_extension("wismt")
     };
-    let streaming_data = StreamingData::new(&mxmd, &wismt_path, is_pc, chr_tex_folder.as_deref())?;
+    let streaming_data =
+        StreamingData::from_files(&mxmd, &wismt_path, is_pc, chr_tex_folder.as_deref())?;
 
     let model_name = model_name(wimdo_path);
-    let chr = load_chr(wimdo_path, model_name);
+    let skel = load_skel(wimdo_path, &model_name);
 
-    ModelRoot::from_mxmd_model(&mxmd, chr, &streaming_data, shader_database)
+    ModelRoot::from_mxmd_model(&mxmd, skel, &streaming_data, shader_database)
 }
 
-fn load_chr(wimdo: &Path, model_name: String) -> Option<Sar1> {
+pub fn load_skel(wimdo: &Path, model_name: &str) -> Option<xc3_lib::bc::skel::Skel> {
+    let chr = load_chr(wimdo, model_name)?;
+    chr.entries
+        .iter()
+        .find_map(|e| match e.read_data::<xc3_lib::bc::Bc>() {
+            Ok(bc) => match bc.data {
+                xc3_lib::bc::BcData::Skel(skel) => Some(skel),
+                _ => None,
+            },
+            _ => None,
+        })
+}
+
+fn load_chr(wimdo: &Path, model_name: &str) -> Option<Sar1> {
     // TODO: Does every wimdo have a chr file?
     // TODO: Does something control the chr name used?
     // Try to find the base skeleton file first if it exists.
     // This avoids loading incomplete skeletons specific to each model.
     // XC1: pc010101.wimdo -> pc010000.chr.
     // XC3: ch01012013.wimdo -> ch01012000.chr.
-    let base_name = base_chr_name(&model_name);
+    let base_name = base_chr_name(model_name);
     Sar1::from_file(wimdo.with_file_name(&base_name).with_extension("chr"))
         .ok()
         .or_else(|| Sar1::from_file(wimdo.with_file_name(&base_name).with_extension("arc")).ok())
@@ -548,7 +562,7 @@ fn load_chr(wimdo: &Path, model_name: String) -> Option<Sar1> {
             // This usually only requires one additional 0.
             // XC3: ch01056013.wimdo -> ch01056010.chr.
             (0..model_name.len()).find_map(|i| {
-                let mut chr_name = model_name.clone();
+                let mut chr_name = model_name.to_string();
                 chr_name.replace_range(chr_name.len() - i.., &"0".repeat(i));
                 let chr_path = wimdo.with_file_name(chr_name).with_extension("chr");
                 Sar1::from_file(chr_path).ok()
@@ -604,17 +618,17 @@ impl ModelRoot {
     /// Load models from parsed file data for Xenoblade 1 DE, Xenoblade 2, or Xenoblade 3.
     pub fn from_mxmd_model(
         mxmd: &Mxmd,
-        chr: Option<Sar1>,
+        skel: Option<Skel>,
         streaming_data: &StreamingData<'_>,
         shader_database: Option<&ShaderDatabase>,
     ) -> Result<Self, LoadModelError> {
-        if mxmd.models.skinning.is_some() && chr.is_none() {
-            error!("Failed to load .arc or .chr skeleton for model with vertex skinning.");
+        if mxmd.models.skinning.is_some() && skel.is_none() {
+            error!("Failed to load .arc or .skel skeleton for model with vertex skinning.");
         }
 
         // TODO: Store the skeleton with the root since this is the only place we actually make one?
         // TODO: Some sort of error if maps have any skinning set?
-        let skeleton = create_skeleton(chr.as_ref(), mxmd.models.skinning.as_ref());
+        let skeleton = create_skeleton(skel.as_ref(), mxmd.models.skinning.as_ref());
 
         let buffers =
             ModelBuffers::from_vertex_data(&streaming_data.vertex, mxmd.models.skinning.as_ref())
@@ -719,7 +733,7 @@ pub struct StreamingData<'a> {
 }
 
 impl<'a> StreamingData<'a> {
-    pub fn new(
+    pub fn from_files(
         mxmd: &'a Mxmd,
         wismt_path: &Path,
         is_pc: bool,
@@ -893,23 +907,12 @@ fn create_samplers(materials: &Materials) -> Vec<Sampler> {
 }
 
 fn create_skeleton(
-    chr: Option<&Sar1>,
+    skel: Option<&Skel>,
     skinning: Option<&xc3_lib::mxmd::Skinning>,
 ) -> Option<Skeleton> {
     // Merge both skeletons since the bone lists may be different.
     // TODO: Create a skeleton even without the chr?
-    let skel = chr?
-        .entries
-        .iter()
-        .find_map(|e| match e.read_data::<xc3_lib::bc::Bc>() {
-            Ok(bc) => match bc.data {
-                xc3_lib::bc::BcData::Skel(skel) => Some(skel),
-                _ => None,
-            },
-            _ => None,
-        })?;
-
-    Some(Skeleton::from_skeleton(&skel.skeleton, skinning?))
+    Some(Skeleton::from_skeleton(&skel?.skeleton, skinning?))
 }
 
 // TODO: Move this to xc3_shader?

@@ -34,7 +34,7 @@ use xc3_lib::{
     spch::Spch,
     xbc1::{MaybeXbc1, Xbc1},
 };
-use xc3_model::monolib::ShaderTextures;
+use xc3_model::{load_skel, monolib::ShaderTextures, ModelRoot};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 // TODO: Avoid redundant loads for wimdo and wismhd
@@ -1107,13 +1107,10 @@ fn check_all_wimdo_model<P: AsRef<Path>>(root: P, check_read_write: bool) {
             let path = entry.as_ref().unwrap().path();
 
             // Test reimporting models without any changes.
+            // Avoid compressing or decompressing data more than once for performance.
             match Mxmd::from_file(path) {
                 Ok(mxmd) => {
-                    let msrd = mxmd
-                        .streaming
-                        .as_ref()
-                        .and_then(|_| Msrd::from_file(path.with_extension("wismt")).ok());
-                    let streaming_data = xc3_model::StreamingData::new(
+                    let streaming_data = xc3_model::StreamingData::from_files(
                         &mxmd,
                         &path.with_extension("wismt"),
                         false,
@@ -1121,16 +1118,13 @@ fn check_all_wimdo_model<P: AsRef<Path>>(root: P, check_read_write: bool) {
                     )
                     .unwrap();
 
-                    match xc3_model::load_model(path, None) {
+                    let model_name = path.file_stem().unwrap_or_default().to_string_lossy();
+                    let skel = load_skel(path, &model_name);
+
+                    match ModelRoot::from_mxmd_model(&mxmd, skel, &streaming_data, None) {
                         Ok(root) => {
-                            // TODO: Create a function that loads files from wimdo path?
-                            // TODO: Should this take the msrd or streaming?
-                            // TODO: Is it worth being able to test this without compression?
                             if check_read_write {
-                                // TODO: Should to_mxmd_model make the msrd optional?
-                                if let Some(msrd) = msrd {
-                                    check_model(root, &mxmd, &msrd, &streaming_data.vertex, path);
-                                }
+                                check_model(root, &mxmd, &streaming_data.vertex, path);
                             }
                         }
                         Err(e) => println!("Error loading {path:?}: {e}"),
@@ -1144,22 +1138,14 @@ fn check_all_wimdo_model<P: AsRef<Path>>(root: P, check_read_write: bool) {
 fn check_model(
     root: xc3_model::ModelRoot,
     mxmd: &Mxmd,
-    msrd: &Msrd,
     vertex: &xc3_lib::vertex::VertexData,
     path: &Path,
 ) {
-    let (new_mxmd, new_msrd) = root.to_mxmd_model(mxmd, msrd).unwrap();
-    match new_msrd.extract_files(None) {
-        Ok((new_vertex, _, _)) => {
-            if new_vertex.buffer != vertex.buffer {
-                println!("VertexData buffer not 1:1 for {path:?}");
-            } else if &new_vertex != vertex {
-                println!("VertexData not 1:1 for {path:?}");
-            }
-        }
-        Err(e) => {
-            println!("Error extracting new msrd for {path:?}: {e}")
-        }
+    let (new_mxmd, new_vertex, _) = root.to_mxmd_model_files(mxmd).unwrap();
+    if new_vertex.buffer != vertex.buffer {
+        println!("VertexData buffer not 1:1 for {path:?}");
+    } else if &new_vertex != vertex {
+        println!("VertexData not 1:1 for {path:?}");
     }
 
     // TODO: How many of these fields should be preserved?
