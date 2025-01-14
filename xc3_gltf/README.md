@@ -11,11 +11,18 @@ The shader database parameter is optional but highly recommended since the fallb
 The output will default to the first input file with the extension changed to `.glb`. This enables Windows users to simply drag and drop supported input files onto the executable to export as `.glb` with defaults for remaining arguments.
 
 `xc3_gltf --help`  
-`xc3_gltf "Xeno 2 Dump/map/ma02a.wismhd" --output map.gltf --database xc2.bin`  
-`xc3_gltf "Xeno 2 Dump/model/np/np000301.wimdo" --output bana.gltf --database xc2.bin --anim "Xeno 2 Dump/model/np/np000301.mot"`    
-`xc3_gltf "Xeno 3 Dump/chr/ch/ch01027000.wimdo" --output mio.gltf --database xc3.bin`  
-`xc3_gltf "Xeno 3 Dump/chr/ch/ch01027000.wimdo" --output mio.glb --database xc3.bin --anim "Xeno 3 Dump/chr/ch/ch01027000_event.mot --anim "Xeno 3 Dump/chr/ch/ch01027000_field.mot"`  
-`xc3_gltf "Xeno X Dump/chr_np/np/np009001.camdo" --output tatsu.gltf --database xcx.bin`    
+`xc3_gltf map/ma02a.wismhd --output map.gltf --database xc2.bin`  
+`xc3_gltf model/np/np000301.wimdo --output bana.gltf --database xc2.bin --anim model/np/np000301.mot`    
+`xc3_gltf chr/ch/ch01027000.wimdo --output mio.gltf --database xc3.bin`  
+`xc3_gltf chr_np/np/np009001.camdo --output tatsu.gltf --database xcx.bin`  
+
+Load multiple animations by specifying `--anim` for each animation file.  
+`xc3_gltf chr/ch/ch01027000.wimdo --output mio.glb --database xc3.bin --anim chr/ch/ch01027000_event.mot --anim chr/ch/ch01027000_field.mot`  
+
+Loading multiple model files will create a combined skeleton with all bones. Animations will apply to the combined skeleton.  
+`xc3_gltf chr/pc/pc070109.wimdo chr/pc/pc070205.wimdo chr/pc/pc070204.wimdo chr/pc/pc070203.wimdo chr/pc/pc070202.wimdo chr/pc/pc070201.wimdo --output melia_de.glb --database xc1.bin --anim chr/pc/mp070000.mot`
+
+`xc3_gltf chr_pc/pc221115.camdo chr_pc/pc221111.camdo chr_pc/pc221112.camdo chr_pc/pc221113.camdo chr_pc/pc221114.camdo chr_fc/fc282010.camdo chr_fc/fc281010.camdo --output elma.glb --database xcx.bin`
 
 ## Features
 * position, normal, tangent, texture coordinate, and vertex color attributes

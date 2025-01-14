@@ -291,7 +291,7 @@ impl GltfData {
                 0,
                 0,
                 skin_index,
-                root.skeleton.as_ref(),
+                combined_skeleton.as_ref(),
                 flip_images_uvs,
             )?;
             root_children.push(gltf::json::Index::new(models_node_index));

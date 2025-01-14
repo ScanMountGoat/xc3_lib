@@ -183,7 +183,10 @@ fn create_material(
                 extras: Default::default(),
             }
         }),
-        emissive_texture: emissive_index.map(|i| texture_info(i, &emissive_key)),
+        emissive_texture: emissive_index.map(|i| {
+            let texture_index = add_texture(textures, &emissive_key, i, sampler_base_index);
+            texture_info(texture_index, &emissive_key)
+        }),
         alpha_mode: if material.alpha_test.is_some() {
             Valid(gltf::json::material::AlphaMode::Mask)
         } else {
