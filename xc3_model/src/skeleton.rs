@@ -174,6 +174,33 @@ impl Skeleton {
     }
 }
 
+/// Merge all bones in `skeletons` into a single [Skeleton].
+pub fn merge_skeletons(skeletons: &[Skeleton]) -> Option<Skeleton> {
+    let (base, skeletons) = skeletons.split_first()?;
+    let mut combined = base.clone();
+
+    // Merge each bone instead of finding the skeleton with more bones.
+    // This is necessary since model skinning can define additional bones.
+    for skeleton in skeletons {
+        for bone in &skeleton.bones {
+            if !combined.bones.iter().any(|b| b.name == bone.name) {
+                // Assume bones appear after their parents.
+                // TODO: Do this in two passes to avoid this assumption?
+                let parent_index = bone
+                    .parent_index
+                    .and_then(|i| skeleton.bones.get(i))
+                    .and_then(|p| combined.bones.iter().position(|b| b.name == p.name));
+                combined.bones.push(Bone {
+                    parent_index,
+                    ..bone.clone()
+                });
+            }
+        }
+    }
+
+    Some(combined)
+}
+
 fn infer_transform(
     skinning: &xc3_lib::mxmd::Skinning,
     bone_index: usize,
@@ -224,7 +251,99 @@ fn bone_transform(b: &xc3_lib::bc::Transform) -> Mat4 {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     // TODO: Test global/world transforms and inverse bind transforms
+
     #[test]
-    fn test() {}
+    fn merge_skeletons_empty() {
+        assert!(merge_skeletons(&[]).is_none());
+    }
+
+    #[test]
+    fn merge_single_skeletons() {
+        assert_eq!(
+            Some(Skeleton {
+                bones: vec![
+                    Bone {
+                        name: "a".to_string(),
+                        transform: Mat4::IDENTITY,
+                        parent_index: None
+                    },
+                    Bone {
+                        name: "b".to_string(),
+                        transform: Mat4::IDENTITY * 2.0,
+                        parent_index: Some(0)
+                    },
+                ]
+            }),
+            merge_skeletons(&[Skeleton {
+                bones: vec![
+                    Bone {
+                        name: "a".to_string(),
+                        transform: Mat4::IDENTITY,
+                        parent_index: None
+                    },
+                    Bone {
+                        name: "b".to_string(),
+                        transform: Mat4::IDENTITY * 2.0,
+                        parent_index: Some(0)
+                    }
+                ]
+            }])
+        );
+    }
+
+    #[test]
+    fn merge_two_skeletons() {
+        assert_eq!(
+            Some(Skeleton {
+                bones: vec![
+                    Bone {
+                        name: "a".to_string(),
+                        transform: Mat4::IDENTITY,
+                        parent_index: None
+                    },
+                    Bone {
+                        name: "b".to_string(),
+                        transform: Mat4::IDENTITY * 2.0,
+                        parent_index: None
+                    },
+                    Bone {
+                        name: "c".to_string(),
+                        transform: Mat4::IDENTITY * 3.0,
+                        parent_index: Some(1)
+                    }
+                ]
+            }),
+            merge_skeletons(&[
+                Skeleton {
+                    bones: vec![Bone {
+                        name: "a".to_string(),
+                        transform: Mat4::IDENTITY,
+                        parent_index: None
+                    }]
+                },
+                Skeleton {
+                    bones: vec![
+                        Bone {
+                            name: "b".to_string(),
+                            transform: Mat4::IDENTITY * 2.0,
+                            parent_index: None
+                        },
+                        Bone {
+                            name: "a".to_string(),
+                            transform: Mat4::IDENTITY * -1.0,
+                            parent_index: None
+                        },
+                        Bone {
+                            name: "c".to_string(),
+                            transform: Mat4::IDENTITY * 3.0,
+                            parent_index: Some(0)
+                        }
+                    ]
+                }
+            ])
+        );
+    }
 }

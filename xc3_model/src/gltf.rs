@@ -31,7 +31,9 @@
 //! ```
 use std::{borrow::Cow, collections::BTreeMap, io::BufWriter, path::Path};
 
-use crate::{animation::Animation, monolib::ShaderTextures, MapRoot, ModelRoot};
+use crate::{
+    animation::Animation, monolib::ShaderTextures, skeleton::merge_skeletons, MapRoot, ModelRoot,
+};
 use animation::add_animations;
 use glam::Mat4;
 use gltf::json::validation::Checked::Valid;
@@ -256,17 +258,24 @@ impl GltfData {
             ..Default::default()
         };
 
-        for (root_index, root) in roots.iter().enumerate() {
-            // TODO: Also include models skinning?
-            let (root_bone_index, skin_index) = create_skin(
-                root.skeleton.as_ref(),
-                &mut data.nodes,
-                &mut data.skins,
-                &mut data.buffers,
-                model_name,
-            )
-            .unzip();
+        let skeletons: Vec<_> = roots.iter().filter_map(|r| r.skeleton.clone()).collect();
+        let combined_skeleton = merge_skeletons(&skeletons);
 
+        let (root_bone_index, skin_index) = create_skin(
+            combined_skeleton.as_ref(),
+            &mut data.nodes,
+            &mut data.skins,
+            &mut data.buffers,
+            model_name,
+        )
+        .unzip();
+
+        let mut root_children = Vec::new();
+        if let Some(i) = root_bone_index {
+            root_children.push(gltf::json::Index::new(i));
+        }
+
+        for (root_index, root) in roots.iter().enumerate() {
             // TODO: Avoid clone?
             let group_buffers = &[root.buffers.clone()];
 
@@ -285,28 +294,20 @@ impl GltfData {
                 root.skeleton.as_ref(),
                 flip_images_uvs,
             )?;
+            root_children.push(gltf::json::Index::new(models_node_index));
+        }
 
-            let root_children = match root_bone_index {
-                Some(i) => vec![
-                    gltf::json::Index::new(i),
-                    gltf::json::Index::new(models_node_index),
-                ],
-                None => vec![gltf::json::Index::new(models_node_index)],
-            };
+        let root_node_index = data.add_node(gltf::json::Node {
+            children: Some(root_children),
+            name: Some(model_name.to_string()),
+            ..default_node()
+        });
+        data.scene_nodes
+            .push(gltf::json::Index::new(root_node_index));
 
-            let root_node_index = data.add_node(gltf::json::Node {
-                children: Some(root_children),
-                name: Some(format!("{model_name}.root{root_index}")),
-                ..default_node()
-            });
-            data.scene_nodes
-                .push(gltf::json::Index::new(root_node_index));
-
-            // TODO: Should animations always apply to all roots?
-            if let Some(root_bone_index) = root_bone_index {
-                if let Some(skeleton) = &root.skeleton {
-                    add_animations(&mut data, animations, skeleton, root_bone_index)?;
-                }
+        if let Some(root_bone_index) = root_bone_index {
+            if let Some(skeleton) = &combined_skeleton {
+                add_animations(&mut data, animations, skeleton, root_bone_index)?;
             }
         }
 
@@ -383,6 +384,9 @@ impl GltfFile {
     /// usually match the file name for [save](GltfFile::save) without the `.gltf` extension.
     ///
     /// `flip_image_uvs` should only be set to `true` for Xenoblade X models.
+    ///
+    /// Skeletons from all `roots` will be merged into a single skeleton with all bones.
+    /// Each animation in `animations` will apply to this combined skeleton.
     pub fn from_model(
         model_name: &str,
         roots: &[ModelRoot],
@@ -666,7 +670,6 @@ fn add_models(
 
                 // Instancing is applied at the model level.
                 // Instance meshes instead so each node has only one parent.
-                // TODO: Use None instead of a single instance transform?
                 for instance in &model.instances {
                     let child_index = data.add_node(gltf::json::Node {
                         matrix: if *instance == Mat4::IDENTITY {
