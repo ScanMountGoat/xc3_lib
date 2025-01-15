@@ -1,5 +1,5 @@
 //! Utilities for working with animation data.
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Bound::*;
 
 use glam::{vec3, vec4, Mat4, Quat, Vec3, Vec4, Vec4Swizzles};
@@ -66,6 +66,15 @@ pub struct MorphTracks {
     pub track_values: Vec<f32>,
 }
 
+#[derive(Debug, PartialEq, Clone)]
+pub struct FCurves {
+    // TODO: also store keyframes?
+    // TODO: methods to return values per channel to work efficiently in Blender?
+    pub translation: BTreeMap<String, Vec<Vec3>>,
+    pub rotation: BTreeMap<String, Vec<Quat>>,
+    pub scale: BTreeMap<String, Vec<Vec3>>,
+}
+
 impl Animation {
     // TODO: Error type instead of ignoring invalid data?
     // TODO: better logging for invalid data
@@ -126,7 +135,7 @@ impl Animation {
     /// See [Skeleton::model_space_transforms] for the transforms without animations applied.
     pub fn model_space_transforms(&self, skeleton: &Skeleton, frame: f32) -> Vec<Mat4> {
         // TODO: Is it worth precomputing this?
-        let hash_to_index: HashMap<_, _> = skeleton
+        let hash_to_index: BTreeMap<_, _> = skeleton
             .bones
             .iter()
             .enumerate()
@@ -295,6 +304,94 @@ impl Animation {
         }
         weights
     }
+
+    // TODO: add unit tests.
+    /// Calculate animation values relative to the bone's parent and "rest pose" or "bind pose".
+    /// This currently hardcodes bone and axes conversions to match the values in Blender's bone panel.
+    pub fn fcurves(&self, skeleton: &Skeleton) -> FCurves {
+        // Hard code these matrices for better precision.
+        // rotate x -90 degrees
+        let y_up_to_z_up = Mat4::from_cols_array_2d(&[
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, -1.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]);
+
+        // rotate z -90 degrees.
+        let x_major_to_y_major = Mat4::from_cols_array_2d(&[
+            [0.0, -1.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]);
+
+        // TODO: configurable bone and skeleton axes conversions?
+        let blender_bind_transforms: Vec<_> = skeleton
+            .model_space_transforms()
+            .iter()
+            .map(|t| y_up_to_z_up * *t * x_major_to_y_major)
+            .collect();
+
+        let animated_bone_names = animated_bone_names(self, skeleton);
+
+        let mut translation_points = BTreeMap::new();
+        let mut rotation_points = BTreeMap::new();
+        let mut scale_points = BTreeMap::new();
+
+        for frame in 0..self.frame_count {
+            let transforms = self.local_space_transforms(skeleton, frame as f32);
+
+            let mut blender_transforms = blender_bind_transforms.clone();
+
+            for i in 0..blender_transforms.len() {
+                let bone = &skeleton.bones[i];
+                if animated_bone_names.contains(bone.name.as_str()) {
+                    let matrix = transforms[i];
+                    if let Some(parent_index) = bone.parent_index {
+                        let blender_transform = blender_transform(matrix);
+                        blender_transforms[i] =
+                            blender_transforms[parent_index] * blender_transform;
+                    } else {
+                        blender_transforms[i] = y_up_to_z_up * matrix * x_major_to_y_major;
+                    }
+
+                    // Find the transform relative to the parent and "rest pose" or "bind pose".
+                    // This matches the UI values used in Blender for posing bones.
+                    // TODO: Add tests for calculating this.
+                    let basis_transform = if let Some(parent_index) = bone.parent_index {
+                        let rest_local = blender_bind_transforms[parent_index].inverse()
+                            * blender_bind_transforms[i];
+                        let local =
+                            blender_transforms[parent_index].inverse() * blender_transforms[i];
+                        rest_local.inverse() * local
+                    } else {
+                        blender_transforms[i] * blender_bind_transforms[i].inverse()
+                    };
+
+                    let (s, r, t) = basis_transform.to_scale_rotation_translation();
+                    insert_fcurve_point(&mut translation_points, &bone.name, t);
+                    insert_fcurve_point(&mut rotation_points, &bone.name, r);
+                    insert_fcurve_point(&mut scale_points, &bone.name, s);
+                }
+            }
+        }
+
+        FCurves {
+            translation: translation_points,
+            rotation: rotation_points,
+            scale: scale_points,
+        }
+    }
+}
+
+fn insert_fcurve_point<T: Copy>(points: &mut BTreeMap<String, Vec<T>>, name: &str, t: T) {
+    points
+        .entry(name.to_string())
+        .and_modify(|f| {
+            f.push(t);
+        })
+        .or_insert(vec![t]);
 }
 
 fn frame_next_frame_factor(frame: f32, frame_count: u32) -> (usize, usize, f32) {
@@ -733,11 +830,49 @@ fn apply_transform(target: Mat4, source: Mat4, blend_mode: BlendMode) -> Mat4 {
     }
 }
 
+fn animated_bone_names<'a>(animation: &'a Animation, skeleton: &'a Skeleton) -> BTreeSet<&'a str> {
+    let hash_to_name: BTreeMap<u32, &str> = skeleton
+        .bones
+        .iter()
+        .map(|b| (murmur3(b.name.as_bytes()), b.name.as_str()))
+        .collect();
+
+    // TODO: Skip invalid bone indices or hashes?
+    animation
+        .tracks
+        .iter()
+        .map(|t| match &t.bone_index {
+            BoneIndex::Index(i) => skeleton
+                .bones
+                .get(*i)
+                .map(|b| b.name.as_str())
+                .unwrap_or_default(),
+            BoneIndex::Hash(hash) => hash_to_name.get(hash).copied().unwrap_or_default(),
+            BoneIndex::Name(n) => n,
+        })
+        .collect()
+}
+
+fn blender_transform(m: Mat4) -> Mat4 {
+    // In game, the bone's x-axis points from parent to child.
+    // In Blender, the bone's y-axis points from parent to child.
+    // https://en.wikipedia.org/wiki/Matrix_similarity
+    // Perform the transformation m in Xenoblade's basis and convert back to Blender.
+    let p = Mat4::from_cols_array_2d(&[
+        [0.0, -1.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 0.0],
+        [0.0, 0.0, 0.0, 1.0],
+    ])
+    .transpose();
+    p * m * p.inverse()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use crate::Bone;
+
+    use super::*;
 
     macro_rules! assert_matrix_relative_eq {
         ($a:expr, $b:expr) => {
