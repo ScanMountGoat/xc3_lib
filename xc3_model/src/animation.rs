@@ -305,32 +305,21 @@ impl Animation {
         weights
     }
 
-    // TODO: add unit tests.
     /// Calculate animation values relative to the bone's parent and "rest pose" or "bind pose".
-    /// This currently hardcodes bone and axes conversions to match the values in Blender's bone panel.
-    pub fn fcurves(&self, skeleton: &Skeleton) -> FCurves {
-        // Hard code these matrices for better precision.
-        // rotate x -90 degrees
-        let y_up_to_z_up = Mat4::from_cols_array_2d(&[
-            [1.0, 0.0, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [0.0, -1.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0, 1.0],
-        ]);
-
-        // rotate z -90 degrees.
-        let x_major_to_y_major = Mat4::from_cols_array_2d(&[
-            [0.0, -1.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [0.0, 0.0, 0.0, 1.0],
-        ]);
-
-        // TODO: configurable bone and skeleton axes conversions?
+    ///
+    /// If `use_blender_coordinates` is `true`, the resulting values will match Blender's conventions.
+    /// Bones will point along the y-axis instead of the x-axis and with z-axis for up instead of the y-axis.
+    pub fn fcurves(&self, skeleton: &Skeleton, use_blender_coordinates: bool) -> FCurves {
         let blender_bind_transforms: Vec<_> = skeleton
             .model_space_transforms()
-            .iter()
-            .map(|t| y_up_to_z_up * *t * x_major_to_y_major)
+            .into_iter()
+            .map(|t| {
+                if use_blender_coordinates {
+                    xenoblade_to_blender(t)
+                } else {
+                    t
+                }
+            })
             .collect();
 
         let animated_bone_names = animated_bone_names(self, skeleton);
@@ -353,7 +342,11 @@ impl Animation {
                         blender_transforms[i] =
                             blender_transforms[parent_index] * blender_transform;
                     } else {
-                        blender_transforms[i] = y_up_to_z_up * matrix * x_major_to_y_major;
+                        blender_transforms[i] = if use_blender_coordinates {
+                            xenoblade_to_blender(matrix)
+                        } else {
+                            matrix
+                        };
                     }
 
                     // Find the transform relative to the parent and "rest pose" or "bind pose".
@@ -383,6 +376,27 @@ impl Animation {
             scale: scale_points,
         }
     }
+}
+
+fn xenoblade_to_blender(m: Mat4) -> Mat4 {
+    // Hard code these matrices for better precision.
+    // rotate x -90 degrees
+    let y_up_to_z_up = Mat4::from_cols_array_2d(&[
+        [1.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 0.0],
+        [0.0, -1.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0, 1.0],
+    ]);
+
+    // rotate z -90 degrees.
+    let x_major_to_y_major = Mat4::from_cols_array_2d(&[
+        [0.0, -1.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 0.0],
+        [0.0, 0.0, 0.0, 1.0],
+    ]);
+
+    y_up_to_z_up * m * x_major_to_y_major
 }
 
 fn insert_fcurve_point<T: Copy>(points: &mut BTreeMap<String, Vec<T>>, name: &str, t: T) {
@@ -837,18 +851,13 @@ fn animated_bone_names<'a>(animation: &'a Animation, skeleton: &'a Skeleton) -> 
         .map(|b| (murmur3(b.name.as_bytes()), b.name.as_str()))
         .collect();
 
-    // TODO: Skip invalid bone indices or hashes?
     animation
         .tracks
         .iter()
-        .map(|t| match &t.bone_index {
-            BoneIndex::Index(i) => skeleton
-                .bones
-                .get(*i)
-                .map(|b| b.name.as_str())
-                .unwrap_or_default(),
-            BoneIndex::Hash(hash) => hash_to_name.get(hash).copied().unwrap_or_default(),
-            BoneIndex::Name(n) => n,
+        .filter_map(|t| match &t.bone_index {
+            BoneIndex::Index(i) => skeleton.bones.get(*i).map(|b| b.name.as_str()),
+            BoneIndex::Hash(hash) => hash_to_name.get(hash).copied(),
+            BoneIndex::Name(n) => Some(n.as_str()),
         })
         .collect()
 }
@@ -870,6 +879,8 @@ fn blender_transform(m: Mat4) -> Mat4 {
 
 #[cfg(test)]
 mod tests {
+    use glam::quat;
+
     use crate::Bone;
 
     use super::*;
@@ -1322,6 +1333,164 @@ mod tests {
                 [9.0, 18.0, 27.0, 1.0],
             ]),
             transforms[1]
+        );
+    }
+
+    #[test]
+    fn fcurves_xenoblade() {
+        // Crate a keyframe with a constant value.
+        let keyframe = |x, y, z, w| {
+            (
+                0.0.into(),
+                Keyframe {
+                    x_coeffs: vec4(0.0, 0.0, 0.0, x),
+                    y_coeffs: vec4(0.0, 0.0, 0.0, y),
+                    z_coeffs: vec4(0.0, 0.0, 0.0, z),
+                    w_coeffs: vec4(0.0, 0.0, 0.0, w),
+                },
+            )
+        };
+
+        // Model space animations update the model space transforms directly.
+        let animation = Animation {
+            name: String::new(),
+            space_mode: SpaceMode::Model,
+            play_mode: PlayMode::Single,
+            blend_mode: BlendMode::Blend,
+            frames_per_second: 30.0,
+            frame_count: 1,
+            tracks: vec![
+                Track {
+                    translation_keyframes: [keyframe(1.0, 2.0, 3.0, 0.0)].into(),
+                    rotation_keyframes: [keyframe(1.0, 0.0, 0.0, 0.0)].into(),
+                    scale_keyframes: [keyframe(1.0, 1.0, 1.0, 0.0)].into(),
+                    bone_index: BoneIndex::Name("a".to_string()),
+                },
+                Track {
+                    translation_keyframes: [keyframe(10.0, 20.0, 30.0, 0.0)].into(),
+                    rotation_keyframes: [keyframe(0.0, 1.0, 0.0, 0.0)].into(),
+                    scale_keyframes: [keyframe(1.0, 1.0, 1.0, 0.0)].into(),
+                    bone_index: BoneIndex::Index(1),
+                },
+            ],
+            morph_tracks: None,
+            root_translation: Some(vec![vec3(0.25, 0.5, 0.75)]),
+        };
+
+        let skeleton = Skeleton {
+            bones: vec![
+                Bone {
+                    name: "a".to_string(),
+                    transform: Mat4::IDENTITY,
+                    parent_index: None,
+                },
+                Bone {
+                    name: "b".to_string(),
+                    transform: Mat4::IDENTITY,
+                    parent_index: Some(0),
+                },
+            ],
+        };
+
+        let fcurves = animation.fcurves(&skeleton, false);
+        assert_eq!(
+            FCurves {
+                translation: [
+                    ("a".to_string(), vec![vec3(1.25, 2.5, 3.75)]),
+                    ("b".to_string(), vec![vec3(17.5, 8.75, -26.25)])
+                ]
+                .into(),
+                rotation: [
+                    ("a".to_string(), vec![quat(1.0, 0.0, 0.0, 0.0)]),
+                    ("b".to_string(), vec![quat(0.0, 0.0, 1.0, 0.0)])
+                ]
+                .into(),
+                scale: [
+                    ("a".to_string(), vec![vec3(1.0, 1.0, 1.0)]),
+                    ("b".to_string(), vec![vec3(1.0, 1.0, 1.0)])
+                ]
+                .into()
+            },
+            fcurves
+        );
+    }
+
+    #[test]
+    fn fcurves_blender() {
+        // Crate a keyframe with a constant value.
+        let keyframe = |x, y, z, w| {
+            (
+                0.0.into(),
+                Keyframe {
+                    x_coeffs: vec4(0.0, 0.0, 0.0, x),
+                    y_coeffs: vec4(0.0, 0.0, 0.0, y),
+                    z_coeffs: vec4(0.0, 0.0, 0.0, z),
+                    w_coeffs: vec4(0.0, 0.0, 0.0, w),
+                },
+            )
+        };
+
+        // Model space animations update the model space transforms directly.
+        let animation = Animation {
+            name: String::new(),
+            space_mode: SpaceMode::Model,
+            play_mode: PlayMode::Single,
+            blend_mode: BlendMode::Blend,
+            frames_per_second: 30.0,
+            frame_count: 1,
+            tracks: vec![
+                Track {
+                    translation_keyframes: [keyframe(1.0, 2.0, 3.0, 0.0)].into(),
+                    rotation_keyframes: [keyframe(1.0, 0.0, 0.0, 0.0)].into(),
+                    scale_keyframes: [keyframe(1.0, 1.0, 1.0, 0.0)].into(),
+                    bone_index: BoneIndex::Name("a".to_string()),
+                },
+                Track {
+                    translation_keyframes: [keyframe(10.0, 20.0, 30.0, 0.0)].into(),
+                    rotation_keyframes: [keyframe(0.0, 1.0, 0.0, 0.0)].into(),
+                    scale_keyframes: [keyframe(1.0, 1.0, 1.0, 0.0)].into(),
+                    bone_index: BoneIndex::Index(1),
+                },
+            ],
+            morph_tracks: None,
+            root_translation: Some(vec![vec3(0.25, 0.5, 0.75)]),
+        };
+
+        let skeleton = Skeleton {
+            bones: vec![
+                Bone {
+                    name: "a".to_string(),
+                    transform: Mat4::IDENTITY,
+                    parent_index: None,
+                },
+                Bone {
+                    name: "b".to_string(),
+                    transform: Mat4::IDENTITY,
+                    parent_index: Some(0),
+                },
+            ],
+        };
+
+        let fcurves = animation.fcurves(&skeleton, true);
+        assert_eq!(
+            FCurves {
+                translation: [
+                    ("a".to_string(), vec![vec3(1.25, -3.75, 2.5)]),
+                    ("b".to_string(), vec![vec3(17.5, 8.75, -26.25)])
+                ]
+                .into(),
+                rotation: [
+                    ("a".to_string(), vec![quat(1.0, 0.0, 0.0, 0.0)]),
+                    ("b".to_string(), vec![quat(0.0, 0.0, 1.0, 0.0)])
+                ]
+                .into(),
+                scale: [
+                    ("a".to_string(), vec![vec3(1.0, 1.0, 1.0)]),
+                    ("b".to_string(), vec![vec3(1.0, 1.0, 1.0)])
+                ]
+                .into()
+            },
+            fcurves
         );
     }
 }
