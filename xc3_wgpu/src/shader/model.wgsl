@@ -145,7 +145,7 @@ struct PerMaterial {
     // texture index, channel, index, 0, 0
     alpha_test_texture: vec4<i32>,
 
-    // Assume shaders access textures at most once with one info per texture.
+    // Assume shaders access textures at most once to allow one info per texture.
     texture_info: array<TextureInfo, 10>,
 
     fur_params: FurShellParams,
@@ -376,15 +376,15 @@ fn vs_main_instanced_static(in0: VertexInput0, in1: VertexInput1, instance: Inst
     return out;
 }
 
-fn assign_texture(a: OutputAssignment, vert: VertexOutput) -> vec4<f32> {
-    let x = assign_channel(a.samplers1.sampler_indices.x, a.samplers1.channel_indices.x, a.attributes1.channel_indices.x, vert, a.default_value.x);
-    let y = assign_channel(a.samplers1.sampler_indices.y, a.samplers1.channel_indices.y, a.attributes1.channel_indices.y, vert, a.default_value.y);
-    let z = assign_channel(a.samplers1.sampler_indices.z, a.samplers1.channel_indices.z, a.attributes1.channel_indices.z, vert, a.default_value.z);
-    let w = assign_channel(a.samplers1.sampler_indices.w, a.samplers1.channel_indices.w, a.attributes1.channel_indices.w, vert, a.default_value.w);
+fn assign_texture(samplers: array<vec4<f32>, 10>, a: OutputAssignment, vert: VertexOutput) -> vec4<f32> {
+    let x = assign_channel(samplers, a.samplers1.sampler_indices.x, a.samplers1.channel_indices.x, a.attributes1.channel_indices.x, vert, a.default_value.x);
+    let y = assign_channel(samplers, a.samplers1.sampler_indices.y, a.samplers1.channel_indices.y, a.attributes1.channel_indices.y, vert, a.default_value.y);
+    let z = assign_channel(samplers, a.samplers1.sampler_indices.z, a.samplers1.channel_indices.z, a.attributes1.channel_indices.z, vert, a.default_value.z);
+    let w = assign_channel(samplers, a.samplers1.sampler_indices.w, a.samplers1.channel_indices.w, a.attributes1.channel_indices.w, vert, a.default_value.w);
     return vec4(x, y, z, w);
 }
 
-fn assign_texture_layer(o: OutputAssignment, layer_index: u32, vert: VertexOutput, vcolor: vec4<f32>, default_value: vec4<f32>) -> vec4<f32> {
+fn assign_texture_layer(samplers: array<vec4<f32>, 10>, o: OutputAssignment, layer_index: u32, vert: VertexOutput, vcolor: vec4<f32>, default_value: vec4<f32>) -> vec4<f32> {
     var s = o.samplers1;
     var a = o.attributes1;
     switch (layer_index) {
@@ -410,27 +410,22 @@ fn assign_texture_layer(o: OutputAssignment, layer_index: u32, vert: VertexOutpu
         }
     }
 
-    let x = assign_channel(s.sampler_indices.x, s.channel_indices.x, a.channel_indices.x, vert, default_value.x);
-    let y = assign_channel(s.sampler_indices.y, s.channel_indices.y, a.channel_indices.y, vert, default_value.y);
-    let z = assign_channel(s.sampler_indices.z, s.channel_indices.z, a.channel_indices.z, vert, default_value.z);
-    let w = assign_channel(s.sampler_indices.w, s.channel_indices.w, a.channel_indices.w, vert, default_value.w);
+    let x = assign_channel(samplers, s.sampler_indices.x, s.channel_indices.x, a.channel_indices.x, vert, default_value.x);
+    let y = assign_channel(samplers, s.sampler_indices.y, s.channel_indices.y, a.channel_indices.y, vert, default_value.y);
+    let z = assign_channel(samplers, s.sampler_indices.z, s.channel_indices.z, a.channel_indices.z, vert, default_value.z);
+    let w = assign_channel(samplers, s.sampler_indices.w, s.channel_indices.w, a.channel_indices.w, vert, default_value.w);
     return vec4(x, y, z, w);
 }
 
-fn assign_channel(sampler_index: i32, channel_index: u32, attribute_channel_index: i32, vert: VertexOutput, default_value: f32) -> f32 {
+fn assign_channel(samplers: array<vec4<f32>, 10>, sampler_index: i32, channel_index: u32, attribute_channel_index: i32, vert: VertexOutput, default_value: f32) -> f32 {
     if attribute_channel_index >= 0 {
         return vert.vertex_color[attribute_channel_index];
     }
 
-    if sampler_index < 0 {
-        return default_value;
-    }
-
-    let uvs = select_uv(vert, sampler_index);
-    return assign_channel_inner(sampler_index, channel_index, uvs, default_value);
+    return assign_channel_inner(samplers, sampler_index, channel_index, default_value);
 }
 
-fn assign_channel_inner(sampler_index: i32, channel_index: u32, uvs: vec2<f32>, default_value: f32) -> f32 {
+fn assign_channel_inner(samplers: array<vec4<f32>, 10>, sampler_index: i32, channel_index: u32, default_value: f32) -> f32 {
     // Workaround for BC4 swizzle mask of RRR1.
     var channel = channel_index;
     if sampler_index >= 0 {
@@ -439,8 +434,26 @@ fn assign_channel_inner(sampler_index: i32, channel_index: u32, uvs: vec2<f32>, 
         }
     }
 
+    if sampler_index >= 0 && sampler_index < 10 {
+        var samplers2 = samplers;
+        return samplers2[sampler_index][channel];
+    } else {
+        return default_value;
+    }
+}
+
+fn assign_sampler_channel(sampler_index: i32, channel_index: u32, uvs: vec2<f32>, default_value: f32) -> f32 {
+    // Workaround for BC4 swizzle mask of RRR1.
+    var channel = channel_index;
+    if sampler_index >= 0 {
+        if per_material.texture_info[sampler_index].is_bc4_single_channel == 1u {
+            channel = 0u;
+        }
+    }
+
+    // TODO: This slows down compilation on DX12.
     switch (sampler_index) {
-        case 0: {
+       case 0: {
             return textureSample(s0, s0_sampler, uvs)[channel];
         }
         case 1: {
@@ -558,12 +571,11 @@ fn transform_uv(uv: vec2<f32>, matrix: array<vec4<f32>, 2>) -> vec2<f32> {
     return vec2(dot(v, matrix[0]), dot(v, matrix[1]));
 }
 
-fn select_uv(vert: VertexOutput, index: i32) -> vec2<f32> {
+fn select_uv(vert: VertexOutput, uv_attributes: array<vec2<f32>, 9>, index: i32) -> vec2<f32> {
     let info = per_material.texture_info[index];
 
-    var uvs = select_uv_inner(vert, index);
-
-    uvs = transform_uv(uvs, info.transform);
+    var uv_attributes2 = uv_attributes;
+    var uvs = transform_uv(uv_attributes2[info.texcoord_index], info.transform);
 
     let parallax_s_x = info.parallax_sampler_indices.x;
     let parallax_s_y = info.parallax_sampler_indices.y;
@@ -572,11 +584,11 @@ fn select_uv(vert: VertexOutput, index: i32) -> vec2<f32> {
         // TODO: How similar is this to traditional parallax mapping with a height map?
         // Use inner functions since recursion is not allowed.
         // This assumes the mask texture itself has only basic UVs.
-        let mask_a_uvs = select_uv_inner(vert, parallax_s_x);
-        let mask_a = assign_channel_inner(parallax_s_x, info.parallax_channel_indices.x, mask_a_uvs, info.parallax_default_values.x);
+        let mask_a_uvs = uv_attributes2[per_material.texture_info[parallax_s_x].texcoord_index];
+        let mask_a = assign_sampler_channel(parallax_s_x, info.parallax_channel_indices.x, mask_a_uvs, info.parallax_default_values.x);
 
-        let mask_b_uvs = select_uv_inner(vert, parallax_s_y);
-        let mask_b = assign_channel_inner(parallax_s_y, info.parallax_channel_indices.y, mask_b_uvs, info.parallax_default_values.y);
+        let mask_b_uvs = uv_attributes2[per_material.texture_info[parallax_s_y].texcoord_index];
+        let mask_b = assign_sampler_channel(parallax_s_y, info.parallax_channel_indices.y, mask_b_uvs, info.parallax_default_values.y);
 
         let bitangent = cross(vert.normal.xyz, vert.tangent.xyz) * vert.tangent.w;
         let offset = vert.normal.x * vert.tangent.xy - vert.normal.x * bitangent.xy;
@@ -585,43 +597,6 @@ fn select_uv(vert: VertexOutput, index: i32) -> vec2<f32> {
     }
 
     return uvs;
-}
-
-fn select_uv_inner(vert: VertexOutput, index: i32) -> vec2<f32> {
-    let info = per_material.texture_info[index];
-
-    switch (info.texcoord_index) {
-        case 0u: {
-            return vert.tex01.xy;
-        }
-        case 1u: {
-            return vert.tex01.zw;
-        }
-        case 2u: {
-            return vert.tex23.xy;
-        }
-        case 3u: {
-            return vert.tex23.zw;
-        }
-        case 4u: {
-            return vert.tex45.xy;
-        }
-        case 5u: {
-            return vert.tex45.zw;
-        }
-        case 6u: {
-            return vert.tex67.xy;
-        }
-        case 7u: {
-            return vert.tex67.zw;
-        }
-        case 8u: {
-            return vert.tex8.xy;
-        }
-        default: {
-            return vert.tex01.xy;
-        }
-    }
 }
 
 fn overlay_blend(a: f32, b: f32) -> f32 {
@@ -667,7 +642,7 @@ fn blend_layer(a: vec4<f32>, b: vec4<f32>, ratio: vec4<f32>, n_dot_v: f32, mode:
     return result;
 }
 
-fn blend_texture_layer(current: vec4<f32>, assignments: OutputAssignment, vert: VertexOutput, layer_index: u32, n_dot_v: f32) -> vec4<f32> {
+fn blend_texture_layer(current: vec4<f32>, samplers: array<vec4<f32>, 10>, assignments: OutputAssignment, vert: VertexOutput, layer_index: u32, n_dot_v: f32) -> vec4<f32> {
     var layers: TextureLayers;
     var attribute_channel_indices = vec4(-1);
     switch (layer_index) {
@@ -696,14 +671,14 @@ fn blend_texture_layer(current: vec4<f32>, assignments: OutputAssignment, vert: 
         let is_fresnel = layers.is_fresnel[i] != 0u;
 
         if blend_mode != -1 {
-            ratio[i] = assign_channel(sampler_index, channel_index, -1, vert, default_weight);
+            ratio[i] = assign_channel(samplers, sampler_index, channel_index, -1, vert, default_weight);
             if is_fresnel {
                 // Adapted from xeno3/chr/ch/ch11021013.pcsmt, shd00016, getPixelCalcFresnel.
                 ratio[i] = pow(1.0 - n_dot_v, ratio[i] * 5.0);
             }
         }
     }
-    let b = assign_texture_layer(assignments, layer_index, vert, vert.vertex_color, layers.value);
+    let b = assign_texture_layer(samplers, assignments, layer_index, vert, vert.vertex_color, layers.value);
 
     return blend_layer(current, b, ratio, n_dot_v, layers.blend_mode);
 }
@@ -714,11 +689,39 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
 
     let bitangent = cross(vertex_normal, tangent) * in.tangent.w;
 
+    // Avoid switch statements on texcoord index that compile slowly with DX12.
+    let uvs = array<vec2<f32>, 9>(
+        in.tex01.xy,
+        in.tex01.zw,
+        in.tex23.xy,
+        in.tex23.zw,
+        in.tex45.xy,
+        in.tex45.zw,
+        in.tex67.xy,
+        in.tex67.zw,
+        in.tex8.xy,
+    );
+
+    // Assume one access per texture and compute values ahead of time.
+    // This avoids deeply nested texture lookups that compile slowly with DX12.
+    let samplers = array<vec4<f32>, 10>(
+        textureSample(s0, s0_sampler, select_uv(in, uvs, 0)),
+        textureSample(s1, s1_sampler, select_uv(in, uvs, 1)),
+        textureSample(s2, s2_sampler, select_uv(in, uvs, 2)),
+        textureSample(s3, s3_sampler, select_uv(in, uvs, 3)),
+        textureSample(s4, s4_sampler, select_uv(in, uvs, 4)),
+        textureSample(s5, s5_sampler, select_uv(in, uvs, 5)),
+        textureSample(s6, s6_sampler, select_uv(in, uvs, 6)),
+        textureSample(s7, s7_sampler, select_uv(in, uvs, 7)),
+        textureSample(s8, s8_sampler, select_uv(in, uvs, 8)),
+        textureSample(s9, s9_sampler, select_uv(in, uvs, 9)),
+    );
+
     // An index of -1 disables alpha testing.
     let alpha_texture = per_material.alpha_test_texture.x;
     let alpha_texture_channel = u32(per_material.alpha_test_texture.y);
     // Workaround for not being able to use a non constant index.
-    if assign_channel(alpha_texture, alpha_texture_channel, -1, in, 1.0) < 0.5 {
+    if assign_channel(samplers, alpha_texture, alpha_texture_channel, -1, in, 1.0) < 0.5 {
         // TODO: incorrect reference alpha for comparison?
         discard;
     }
@@ -730,12 +733,12 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
 
     // Defaults incorporate constants, parameters, and default values.
     // Assume each G-Buffer texture and channel always has the same usage.
-    let g_color = assign_texture(assignments[0], in);
-    let g_etc_buffer = assign_texture(assignments[1], in);
-    let g_normal = assign_texture(assignments[2], in);
-    let g_velocity = assign_texture(assignments[3], in);
-    let g_depth = assign_texture(assignments[4], in);
-    let g_lgt_color = assign_texture(assignments[5], in);
+    let g_color = assign_texture(samplers, assignments[0], in);
+    let g_etc_buffer = assign_texture(samplers, assignments[1], in);
+    let g_normal = assign_texture(samplers, assignments[2], in);
+    let g_velocity = assign_texture(samplers, assignments[3], in);
+    let g_depth = assign_texture(samplers, assignments[4], in);
+    let g_lgt_color = assign_texture(samplers, assignments[5], in);
 
     // Not all materials and shaders use normal mapping.
     // TODO: Is this a good way to check for this?
@@ -747,7 +750,7 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
         // This avoids needing to define N before layering normal maps.
         var normal_map = create_normal_map(g_normal.xy);
         for (var i = 0u; i < 4u; i++) {
-            normal_map = blend_texture_layer(vec4(normal_map, 0.0), assignments[2], in, i, 1.0).xyz;
+            normal_map = blend_texture_layer(vec4(normal_map, 0.0), samplers, assignments[2], in, i, 1.0).xyz;
             // Ensure that z blending does not affect normals.
             ao = normal_map.z;
             normal_map.z = normal_z(normal_map.x, normal_map.y);
@@ -763,13 +766,13 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     // Blend color layers.
     var color = g_color.rgb;
     for (var i = 0u; i < 4u; i++) {
-        color = blend_texture_layer(vec4(color, 1.0), assignments[0], in, i, n_dot_v).rgb;
+        color = blend_texture_layer(vec4(color, 1.0), samplers, assignments[0], in, i, n_dot_v).rgb;
     }
 
     // Blend parameter layers.
     var etc_buffer = g_etc_buffer;
     for (var i = 0u; i < 4u; i++) {
-        etc_buffer = blend_texture_layer(etc_buffer, assignments[1], in, i, n_dot_v);
+        etc_buffer = blend_texture_layer(etc_buffer, samplers, assignments[1], in, i, n_dot_v);
     }
 
     // TODO: How to detect if vertex color is actually color?
