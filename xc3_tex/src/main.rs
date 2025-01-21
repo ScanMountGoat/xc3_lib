@@ -8,7 +8,7 @@ use clap::{builder::PossibleValuesParser, Parser, Subcommand};
 use convert::{
     batch_convert_files, create_wismt_single_tex, extract_wilay_to_folder, extract_wimdo_to_folder,
     read_wismt_single_tex, update_wifnt, update_wilay_from_folder, update_wimdo_from_folder, File,
-    Wilay,
+    SaveImageExt, Wilay,
 };
 use image_dds::{ddsfile::Dds, image, ImageFormat, Quality};
 use strum::IntoEnumIterator;
@@ -260,7 +260,7 @@ fn main() -> anyhow::Result<()> {
                         // Assume other formats are image formats for now.
                         input_file
                             .to_image()?
-                            .save(&output)
+                            .save_image(&output)
                             .with_context(|| format!("failed to save image to {output:?}"))?;
                     }
                 }

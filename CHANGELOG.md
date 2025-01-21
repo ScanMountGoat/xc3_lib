@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Fixed a potential crash in xc3_viewer when drawing empty skeletons with the `--bones` option.
 * Fixed an issue where wimdo models would not load the `.chr` or `.arc` file with the full base skeleton.
 * Fixed an issue where glTF export would generate an invalid emissive texture reference in some cases.
+* Fixed an issue where JPEG export would not work with xc3_tex.
 
 ## 0.16.0 - 2025-01-03
 ### Added

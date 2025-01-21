@@ -2,7 +2,11 @@ use std::{io::Cursor, path::Path};
 
 use anyhow::{anyhow, Context};
 use binrw::BinRead;
-use image_dds::{ddsfile::Dds, image::RgbaImage, ImageFormat, Mipmaps, Quality, Surface};
+use image_dds::{
+    ddsfile::Dds,
+    image::{DynamicImage, RgbaImage},
+    ImageFormat, Mipmaps, Quality, Surface,
+};
 use rayon::prelude::*;
 use xc3_lib::{
     bmn::Bmn,
@@ -474,8 +478,7 @@ fn extract_wilay_images_to_folder(
         let path = output_folder
             .join(file_name)
             .with_extension(format!("{i}.{ext}"));
-        let image = image_dds::image_from_dds(&dds, 0).unwrap();
-        image.save(path)?;
+        dds.save_image(path)?;
     }
 
     for (i, jpeg) in jpeg_textures.iter().enumerate() {
@@ -488,10 +491,10 @@ fn extract_wilay_images_to_folder(
         } else {
             // The output is not JPEG, so we need to decode first.
             let image = image_dds::image::load_from_memory_with_format(
-                &jpeg,
+                jpeg,
                 image_dds::image::ImageFormat::Jpeg,
             )?;
-            image.to_rgba8().save(path)?;
+            image.to_rgba8().save_image(path)?;
         }
     }
 
@@ -780,12 +783,17 @@ fn extract_and_save_dds(path: &Path, file: File) -> anyhow::Result<()> {
 }
 
 fn extract_and_save_image(path: &Path, file: File, ext: &str) -> anyhow::Result<()> {
-    // TODO: JPEG requires RGB instead of RGBA data?
     match file {
-        File::Mibl(mibl) => mibl.to_dds()?.save(path.with_extension(ext))?,
-        File::Mtxt(mtxt) => mtxt.to_dds()?.save(path.with_extension(ext))?,
-        File::Dds(dds) => dds.save(path.with_extension(ext))?,
-        File::Image(image) => image.save(path.with_extension(ext))?,
+        File::Mibl(mibl) => {
+            mibl.save_image(path.with_extension(ext))?;
+        }
+        File::Mtxt(mtxt) => {
+            mtxt.save_image(path.with_extension(ext))?;
+        }
+        File::Dds(dds) => {
+            dds.save_image(path.with_extension(ext))?;
+        }
+        File::Image(image) => image.save_image(path.with_extension(ext))?,
         File::Wilay(wilay) => {
             extract_wilay_images_to_folder(*wilay, path, path.parent().unwrap(), ext)?;
         }
@@ -799,14 +807,10 @@ fn extract_and_save_image(path: &Path, file: File, ext: &str) -> anyhow::Result<
             extract_bmn_images_to_folder(bmn, path, path.parent().unwrap(), ext)?;
         }
         File::Wifnt(laft) => {
-            let dds = laft_mibl(&laft)?.to_dds()?;
-            let image = image_dds::image_from_dds(&dds, 0)?;
-            image.save(path.with_extension(ext))?;
+            laft_mibl(&laft)?.save_image(path.with_extension(ext))?;
         }
         File::XcxFnt(fnt) => {
-            let dds = fnt.texture.to_dds()?;
-            let image = image_dds::image_from_dds(&dds, 0)?;
-            image.save(path.with_extension(ext))?;
+            fnt.texture.save_image(path.with_extension(ext))?;
         }
     }
     Ok(())
@@ -831,12 +835,13 @@ fn save_named_dds(
     output_folder: &Path,
     file_name: &std::ffi::OsStr,
 ) -> Result<(), anyhow::Error> {
-    Ok(for (i, (name, dds)) in textures.iter().enumerate() {
+    for (i, (name, dds)) in textures.iter().enumerate() {
         let path = output_folder
             .join(file_name)
             .with_extension(format!("{i}.{name}.dds"));
         dds.save(path)?;
-    })
+    }
+    Ok(())
 }
 
 fn save_named_dds_images(
@@ -845,13 +850,13 @@ fn save_named_dds_images(
     file_name: &std::ffi::OsStr,
     ext: &str,
 ) -> Result<(), anyhow::Error> {
-    Ok(for (i, (name, dds)) in textures.iter().enumerate() {
+    for (i, (name, dds)) in textures.iter().enumerate() {
         let path = output_folder
             .join(file_name)
             .with_extension(format!("{i}.{name}.{ext}"));
-        let image = image_dds::image_from_dds(&dds, 0).unwrap();
-        image.save(path)?;
-    })
+        dds.save_image(path)?;
+    }
+    Ok(())
 }
 
 fn save_unnamed_dds(
@@ -859,12 +864,13 @@ fn save_unnamed_dds(
     output_folder: &Path,
     file_name: &std::ffi::OsStr,
 ) -> Result<(), anyhow::Error> {
-    Ok(for (i, dds) in dds_textures.iter().enumerate() {
+    for (i, dds) in dds_textures.iter().enumerate() {
         let path = output_folder
             .join(file_name)
             .with_extension(format!("{i}.dds"));
         dds.save(path)?;
-    })
+    }
+    Ok(())
 }
 
 fn save_unnamed_dds_images(
@@ -873,13 +879,13 @@ fn save_unnamed_dds_images(
     file_name: &std::ffi::OsStr,
     ext: &str,
 ) -> Result<(), anyhow::Error> {
-    Ok(for (i, dds) in textures.iter().enumerate() {
+    for (i, dds) in textures.iter().enumerate() {
         let path = output_folder
             .join(file_name)
             .with_extension(format!("{i}.{ext}"));
-        let image = image_dds::image_from_dds(&dds, 0).unwrap();
-        image.save(path)?;
-    })
+        dds.save_image(path)?;
+    }
+    Ok(())
 }
 
 fn clone_dds(dds: &Dds) -> Dds {
@@ -887,6 +893,37 @@ fn clone_dds(dds: &Dds) -> Dds {
         header: dds.header.clone(),
         header10: dds.header10.clone(),
         data: dds.data.clone(),
+    }
+}
+
+pub trait SaveImageExt {
+    fn save_image<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()>;
+}
+
+impl SaveImageExt for Dds {
+    fn save_image<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
+        image_dds::image_from_dds(self, 0)?.save_image(path)
+    }
+}
+
+impl SaveImageExt for Mibl {
+    fn save_image<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
+        self.to_dds()?.save_image(path)
+    }
+}
+
+impl SaveImageExt for Mtxt {
+    fn save_image<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
+        self.to_dds()?.save_image(path)
+    }
+}
+
+impl SaveImageExt for RgbaImage {
+    fn save_image<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
+        // Workaround for JPEG export not being supported for rgba images.
+        self.save(&path)
+            .or_else(|_| DynamicImage::from(self.clone()).to_rgb8().save(path))
+            .map_err(Into::into)
     }
 }
 
