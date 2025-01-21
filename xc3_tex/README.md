@@ -15,7 +15,7 @@ See the help text for a full list of commands and supported formats.
 ## Batch Conversion
 xc3_tex can efficiently extract textures from supported files in a folder recursively using the batch-convert command. This can be used to convert all menu images and fonts to PNG.
 
-`xc3_tex menu "*.{wilay, wifnt}" png`
+`xc3_tex menu "*.{wilay, wifnt}" png`  
 `xc3_tex menu "*.{bmn, catex, fnt}" png`
 
 ### DDS Conversion
