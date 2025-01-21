@@ -26,7 +26,7 @@ File data starts as an unstructured array of bytes in one or more binary files. 
 ### Errors and Invalid Input
 xc3_lib and xc3_model are as strict as possible and use a "parse, don't validate" approach. An overly strict implementation that rejects in game files will be easily detected using xc3_test. Allowing invalid or unrecognized input may still load in game but creates additional edge cases for tooling to support. Rejected input believed to be valid needs to be reviewed manually to determine if any code changes are necessary.
 
-Rendering and conversion operations don't need to be as strict since most major errors are caught in xc3_lib and xc3_model. Rendering in skips or applies defaults for invalid data to allow rendering to continue. A partially rendered model is easier to debug than a blank viewport. Conversion utilities skip files that do not convert properly. Non fatal errors or warnings are reported to the user with print or log statements.
+Rendering and conversion operations don't need to be as strict since most major errors are caught in xc3_lib and xc3_model. Rendering skips or applies defaults for invalid data to allow rendering to continue. A partially rendered model is easier to debug than a blank viewport. Conversion utilities skip files that do not convert properly. Non fatal errors or warnings are reported to the user with print or log statements.
 
 ## Projects
 ### xc3_gltf
