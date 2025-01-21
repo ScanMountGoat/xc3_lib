@@ -23,6 +23,11 @@ File data starts as an unstructured array of bytes in one or more binary files. 
 2. Decompress, decode, and convert models and textures to a standardized format (xc3_model).
 3. Convert the xc3_model data to the gltf format and textures to PNG (xc3_model).
 
+## Errors and Invalid Input
+xc3_lib and xc3_model are as strict as possible and use a "parse, don't validate" approach. An overly strict implementation that rejects in game files will be easily detected using xc3_test. Allowing invalid or unrecognized input may still load in game but creates additional edge cases for tooling to support. Rejected input believed to be valid needs to be reviewed manually to determine if any code changes are necessary.
+
+Rendering and conversion operations don't need to be as strict since most major errors are caught in xc3_lib and xc3_model. Rendering in skips or applies defaults for invalid data to allow rendering to continue. A partially rendered model is easier to debug than a blank viewport. Conversion utilities skip files that do not convert properly. Non fatal errors or warnings are reported to the user with print or log statements.
+
 ## Projects
 ### xc3_gltf
 A command line tool for converting models and maps from Xenoblade 1 DE, Xenoblade 2, and Xenoblade 3 to glTF. This project is a thin wrapper over the conversion capabilities provided by xc3_model. Sharing the xc3_model format between glTF and xc3_wgpu reduces duplicate code code and ensures the conversion code receives more testing. The project provides an alternative to dedicated importer addons and also handles using the xc3_shader database to automatically repack image texture channels. glTF is designed as an interchange format, so there are some limitations in terms of what the output file can support. Using xc3_model directly or xc3_model_py provides consumers with more control at the cost of increased complexity.
