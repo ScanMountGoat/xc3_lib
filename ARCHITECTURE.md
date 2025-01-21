@@ -42,10 +42,9 @@ Operations like deswizzling and decompression are implemented as functions that 
 Unlike xc3_model, xc3_lib does not make any attempt to be easy to integrate with other languages. Taking advantage of Rust's type system and code generation enables more idiomatic and robust code.
 
 ### xc3_model
-xc3_model converts the game specific binary file data into a standardized format that is easier to read, edit, and convert. 
-Just as xc3_lib abstracts away the details of a file's binary representation, xc3_model abstracts away the details of how that data might be represented. The higher level representations in xc3_model also allow consuming code to use the same code for all the various characters, objects, and maps in game. For example, xc3_model uses a collection of `ImageData` stored at the root level of a model hierarchy to encompass all the many ways that `Mibl` data can be packed and stored across different files.
+xc3_model provides an abstraction over xc3_lib that is easier to read, edit, and convert. The representations in xc3_model also allows consuming code to use the same code for different model types and format versions. For example, xc3_model uses a collection of `ImageData` stored at the root level of a model hierarchy to encompass all the many ways that `Mibl` data can be packed and stored across different files.
 
-Just as xc3_lib types attempts to fully represent the binary data on disk, xc3_model types attempts to fully represent the data in the corresponding xc3_lib types. This allows for simplified testing by asserting that data is the same after roundtripping between xc3_lib and xc3_model. In practice, some files may not be exactly identical after the conversion due to simplifying assumptions or to enable better cross game compatibility. The goal is for the resulting xc3_lib types to be functionally equivalent in game even if the underlying file data changes slightly. 
+xc3_model types attempts to fully represent the data in the corresponding xc3_lib types. This enables simple roundtrip tests between xc3_lib and xc3_model data. In practice, some files may not be exactly identical after the conversion due to simplifying assumptions or to enable better cross game compatibility. The goal is for the resulting xc3_lib types to be functionally equivalent in game even if the underlying file data changes slightly. 
 
 Most applications and libraries should depend on xc3_model instead of xc3_lib. The simpler API should also experience fewer breaking changes due to its high level nature compared to xc3_lib. xc3_model is also designed to be easier to make bindings to other languages with a focus on simple types like structs with named fields, lists, and C-style enums. This allows projects like [xc3_model_py](https://github.com/ScanMountGoat/xc3_model_py) to have a nearly identical API. The simpler API of xc3_model compared to xc3_lib means that the Python bindings can have minimal overhead and similar performance to the original Rust code.
 
@@ -74,7 +73,7 @@ Shaders are written in WGSL for best compatibility with wgpu/WebGPU. Most of the
 A CLI program for testing the entire loading and rendering code from xc3_lib, xc3_model, and xc3_wgpu. xc3_wgpu_batch renders directly to textures to create PNG files, so  no window is ever constructed. This makes it easy to identify major rendering errors or models that fail to load properly. Changes to the file formats themselves should use xc3_test since xc3_test runs faster and gives more detailed feedback on errors compared to xc3_wgpu_batch.
 
 ### xc3_write
-Defines the two pass writing system for handling writing of binary files and offset calculation. See [Offsets](https://github.com/ScanMountGoat/xc3_lib/blob/main/Offsets.md) for a high level overview.
+The two pass writing system for handling writing of binary files and offset calculation. See [Offsets](https://github.com/ScanMountGoat/xc3_lib/blob/main/Offsets.md) for a high level overview and pseudocode.
 
 ### xc3_write_derive
 A procedural macro for generating code for xc3_write at compile time.
