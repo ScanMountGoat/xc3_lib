@@ -12,3 +12,5 @@ strum = "0.26.1"
 anyhow = "1.0"
 log.workspace = true
 simple_logger.workspace = true
+globwalk.workspace = true
+rayon.workspace = true

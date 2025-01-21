@@ -26,7 +26,7 @@ pub struct Fnt {
     // Assume the texture is the last item in the file.
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32), align(4096))]
-    pub textures: Mtxt,
+    pub texture: Mtxt,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -125,7 +125,7 @@ impl Xc3WriteOffsets for FntOffsets<'_> {
     ) -> xc3_write::Xc3Result<()> {
         self.font
             .write_full(writer, base_offset, data_ptr, endian, ())?;
-        self.textures
+        self.texture
             .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         let file_size = writer.stream_position()?;

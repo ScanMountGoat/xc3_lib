@@ -1,9 +1,12 @@
-use std::{path::PathBuf, str::FromStr};
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 use anyhow::Context;
 use clap::{builder::PossibleValuesParser, Parser, Subcommand};
 use convert::{
-    create_wismt_single_tex, extract_wilay_to_folder, extract_wimdo_to_folder,
+    batch_convert_files, create_wismt_single_tex, extract_wilay_to_folder, extract_wimdo_to_folder,
     read_wismt_single_tex, update_wifnt, update_wilay_from_folder, update_wimdo_from_folder, File,
     Wilay,
 };
@@ -99,6 +102,18 @@ enum Commands {
         /// The output file. Defaults to the same as the input when not specified.
         output: Option<String>,
     },
+    /// Recursively convert all files in a folder.
+    BatchConvert {
+        /// The root folder to search recursively for images.
+        input_folder: String,
+        /// The glob pattern for the input folder like "*.wilay" or "*.{witex, witx}".
+        pattern: String,
+        /// The output file extension like "dds".
+        /// Most uncompressed image formats like png, tiff, or jpeg are also supported.
+        /// This also selects the file format used for saving.
+        /// Defaults to "png" if not specified.
+        ext: Option<String>,
+    },
 }
 
 mod convert;
@@ -113,6 +128,7 @@ fn main() -> anyhow::Result<()> {
 
     let start = std::time::Instant::now();
 
+    // TODO: Count successes and failures?
     if let Some(cmd) = cli.subcommand {
         match cmd {
             Commands::EditWilay {
@@ -149,6 +165,14 @@ fn main() -> anyhow::Result<()> {
                 update_wifnt(&input, &input_image, output.as_ref().unwrap_or(&input))?;
                 println!("Converted 1 file in {:?}", start.elapsed());
             }
+            Commands::BatchConvert {
+                input_folder,
+                pattern,
+                ext,
+            } => {
+                let count = batch_convert_files(&input_folder, &pattern, ext.as_deref())?;
+                println!("Converted {count} file(s) in {:?}", start.elapsed());
+            }
         }
     } else if let Some(args) = cli.args {
         let input = PathBuf::from(&args.input);
@@ -167,81 +191,87 @@ fn main() -> anyhow::Result<()> {
                 _ => input.with_extension("dds"),
             });
 
-        if let File::Wilay(wilay) = input_file {
-            // Wilay contains multiple images that need to be saved.
-            std::fs::create_dir_all(&output)
-                .with_context(|| format!("failed to create output directory {output:?}"))?;
+        match input_file {
+            File::Wilay(wilay) => {
+                // Wilay contains multiple images that need to be saved.
+                std::fs::create_dir_all(&output)
+                    .with_context(|| format!("failed to create output directory {output:?}"))?;
 
-            let count = extract_wilay_to_folder(*wilay, &input, &output)?;
-            println!("Converted {count} file(s) in {:?}", start.elapsed());
-        } else if let File::Wimdo(wimdo) = input_file {
-            // wimdo and wismt contain multiple images that need to be saved.
-            std::fs::create_dir_all(&output)
-                .with_context(|| format!("failed to create output directory {output:?}"))?;
-
-            let count = extract_wimdo_to_folder(*wimdo, &input, &output)?;
-            println!("Converted {count} file(s) in {:?}", start.elapsed());
-        } else if let File::Camdo(camdo) = input_file {
-            // camdo and casmt contain multiple images that need to be saved.
-            std::fs::create_dir_all(&output)
-                .with_context(|| format!("failed to create output directory {output:?}"))?;
-
-            let count = extract_camdo_to_folder(*camdo, &input, &output)?;
-            println!("Converted {count} file(s) in {:?}", start.elapsed());
-        } else if let File::Bmn(bmn) = input_file {
-            // bmn contain multiple images that need to be saved.
-            std::fs::create_dir_all(&output)
-                .with_context(|| format!("failed to create output directory {output:?}"))?;
-
-            let count = extract_bmn_to_folder(bmn, &input, &output)?;
-            println!("Converted {count} file(s) in {:?}", start.elapsed());
-        } else {
-            if let Some(parent) = output.parent() {
-                std::fs::create_dir_all(parent)
-                    .with_context(|| format!("failed to create output directory {parent:?}"))?;
+                let count = extract_wilay_to_folder(*wilay, &input, &output)?;
+                println!("Converted {count} file(s) in {:?}", start.elapsed());
             }
+            File::Wimdo(wimdo) => {
+                // wimdo and wismt contain multiple images that need to be saved.
+                std::fs::create_dir_all(&output)
+                    .with_context(|| format!("failed to create output directory {output:?}"))?;
 
-            // All other formats save to single files.
-            let format = args.format.map(|f| ImageFormat::from_str(&f)).transpose()?;
-            let quality = args.quality.map(|f| Quality::from_str(&f)).transpose()?;
-            let mipmaps = !args.no_mipmaps;
-            let cube = args.cube;
-            let depth = args.depth;
-
-            match output.extension().unwrap().to_str().unwrap() {
-                "dds" => {
-                    input_file
-                        .to_dds(format, quality, mipmaps, cube, depth)?
-                        .save(&output)
-                        .with_context(|| format!("failed to save DDS to {output:?}"))?;
-                }
-                "witex" | "witx" => {
-                    input_file
-                        .to_mibl(format, quality, mipmaps)?
-                        .save(&output)?;
-                }
-                "wismt" => {
-                    // TODO: Also create base level?
-                    let mibl = input_file.to_mibl(format, quality, mipmaps)?;
-                    let xbc1 = create_wismt_single_tex(&mibl)?;
-                    xbc1.save(&output)?;
-                }
-                // TODO: Resave xenoblade x textures?
-                _ => {
-                    // Assume other formats are image formats for now.
-                    input_file
-                        .to_image()?
-                        .save(&output)
-                        .with_context(|| format!("failed to save image to {output:?}"))?;
-                }
+                let count = extract_wimdo_to_folder(*wimdo, &input, &output)?;
+                println!("Converted {count} file(s) in {:?}", start.elapsed());
             }
-            println!("Converted 1 file in {:?}", start.elapsed());
+            File::Camdo(camdo) => {
+                // camdo and casmt contain multiple images that need to be saved.
+                std::fs::create_dir_all(&output)
+                    .with_context(|| format!("failed to create output directory {output:?}"))?;
+
+                let count = extract_camdo_to_folder(*camdo, &input, &output)?;
+                println!("Converted {count} file(s) in {:?}", start.elapsed());
+            }
+            File::Bmn(bmn) => {
+                // bmn contain multiple images that need to be saved.
+                std::fs::create_dir_all(&output)
+                    .with_context(|| format!("failed to create output directory {output:?}"))?;
+
+                let count = extract_bmn_to_folder(bmn, &input, &output)?;
+                println!("Converted {count} file(s) in {:?}", start.elapsed());
+            }
+            _ => {
+                if let Some(parent) = output.parent() {
+                    std::fs::create_dir_all(parent)
+                        .with_context(|| format!("failed to create output directory {parent:?}"))?;
+                }
+
+                // All other formats save to single files.
+                let format = args.format.map(|f| ImageFormat::from_str(&f)).transpose()?;
+                let quality = args.quality.map(|f| Quality::from_str(&f)).transpose()?;
+                let mipmaps = !args.no_mipmaps;
+                let cube = args.cube;
+                let depth = args.depth;
+
+                match output.extension().unwrap().to_str().unwrap() {
+                    "dds" => {
+                        input_file
+                            .to_dds(format, quality, mipmaps, cube, depth)?
+                            .save(&output)
+                            .with_context(|| format!("failed to save DDS to {output:?}"))?;
+                    }
+                    "witex" | "witx" => {
+                        input_file
+                            .to_mibl(format, quality, mipmaps)?
+                            .save(&output)?;
+                    }
+                    "wismt" => {
+                        // TODO: Also create base level?
+                        let mibl = input_file.to_mibl(format, quality, mipmaps)?;
+                        let xbc1 = create_wismt_single_tex(&mibl)?;
+                        xbc1.save(&output)?;
+                    }
+                    // TODO: Resave xenoblade x textures?
+                    _ => {
+                        // Assume other formats are image formats for now.
+                        input_file
+                            .to_image()?
+                            .save(&output)
+                            .with_context(|| format!("failed to save image to {output:?}"))?;
+                    }
+                }
+                println!("Converted 1 file in {:?}", start.elapsed());
+            }
         }
     }
     Ok(())
 }
 
-fn load_input_file(input: &PathBuf) -> anyhow::Result<File> {
+fn load_input_file(input: &Path) -> anyhow::Result<File> {
     match input.extension().unwrap().to_str().unwrap() {
         "witex" | "witx" => Mibl::from_file(input)
             .with_context(|| format!("{input:?} is not a valid .witex file"))

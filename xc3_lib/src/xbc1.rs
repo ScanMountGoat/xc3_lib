@@ -170,7 +170,7 @@ impl Xc3Write for Xbc1 {
 
 /// Helper type for reading data that may be compressed in an [Xbc1] archive.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(BinRead)]
+#[derive(Debug, BinRead, Clone)]
 pub enum MaybeXbc1<T>
 where
     for<'a> T: BinRead<Args<'a> = ()>,

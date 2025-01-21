@@ -3,6 +3,7 @@ use std::{io::Cursor, path::Path};
 use anyhow::{anyhow, Context};
 use binrw::BinRead;
 use image_dds::{ddsfile::Dds, image::RgbaImage, ImageFormat, Mipmaps, Quality, Surface};
+use rayon::prelude::*;
 use xc3_lib::{
     bmn::Bmn,
     dds::DdsExt,
@@ -21,6 +22,8 @@ use xc3_lib::{
     xbc1::{CompressionType, MaybeXbc1, Xbc1},
 };
 
+use crate::load_input_file;
+
 // TODO: Support apmd?
 pub enum File {
     Mibl(Mibl),
@@ -36,10 +39,12 @@ pub enum File {
 }
 
 // TODO: Move this to xc3_lib?
-#[derive(BinRead)]
+#[derive(Debug, BinRead, Clone)]
 pub enum Wilay {
     Dhal(Dhal),
     Lagp(Lagp),
+    // LAPS wilay have no images but shouldn't produce read errors.
+    #[allow(dead_code)]
     Laps(Laps),
 }
 
@@ -63,7 +68,7 @@ impl File {
                 .to_dds()
                 .with_context(|| "failed to convert Laft to DDS"),
             File::XcxFnt(fnt) => fnt
-                .textures
+                .texture
                 .to_dds()
                 .with_context(|| "failed to convert Fnt to DDS"),
             File::Dds(dds) => {
@@ -83,11 +88,7 @@ impl File {
                         )?
                         .to_dds()
                         .with_context(|| "failed to convert surface to DDS"),
-                    None => Ok(Dds {
-                        header: dds.header.clone(),
-                        header10: dds.header10.clone(),
-                        data: dds.data.clone(),
-                    }),
+                    None => Ok(clone_dds(dds)),
                 }
             }
             File::Image(image) => {
@@ -149,7 +150,7 @@ impl File {
             File::Mtxt(mtxt) => Mibl::from_surface(mtxt.to_surface()?)
                 .with_context(|| "failed to convert Mtxt to Mibl"),
             File::Wifnt(laft) => laft_mibl(laft),
-            File::XcxFnt(fnt) => Mibl::from_surface(fnt.textures.to_surface()?)
+            File::XcxFnt(fnt) => Mibl::from_surface(fnt.texture.to_surface()?)
                 .with_context(|| "failed to convert Fnt to Mibl"),
             File::Dds(dds) => Mibl::from_dds(dds).with_context(|| "failed to create Mibl from DDS"),
             File::Image(image) => {
@@ -191,7 +192,7 @@ impl File {
                 .with_context(|| "failed to decode Mtxt image"),
             File::Wifnt(laft) => image_dds::image_from_dds(&laft_mibl(laft)?.to_dds()?, 0)
                 .with_context(|| "failed to decode Laft image"),
-            File::XcxFnt(fnt) => image_dds::image_from_dds(&fnt.textures.to_dds()?, 0)
+            File::XcxFnt(fnt) => image_dds::image_from_dds(&fnt.texture.to_dds()?, 0)
                 .with_context(|| "failed to decode Fnt image"),
             File::Dds(dds) => {
                 image_dds::image_from_dds(dds, 0).with_context(|| "failed to decode DDS")
@@ -443,75 +444,100 @@ pub fn extract_wilay_to_folder(
     input: &Path,
     output_folder: &Path,
 ) -> anyhow::Result<usize> {
-    // LAPS wilay have no images to extract.
     let file_name = input.file_name().unwrap();
-    let mut count = 0;
+
+    let (dds_textures, jpeg_textures) = extract_wilay_textures(wilay)?;
+
+    save_unnamed_dds(&dds_textures, output_folder, file_name)?;
+
+    for (i, jpeg) in jpeg_textures.iter().enumerate() {
+        let path = output_folder
+            .join(file_name)
+            .with_extension(format!("{i}.jpeg"));
+        std::fs::write(path, jpeg)?;
+    }
+
+    Ok(dds_textures.len() + jpeg_textures.len())
+}
+
+fn extract_wilay_images_to_folder(
+    wilay: MaybeXbc1<Wilay>,
+    input: &Path,
+    output_folder: &Path,
+    ext: &str,
+) -> anyhow::Result<usize> {
+    let file_name = input.file_name().unwrap();
+
+    let (dds_textures, jpeg_textures) = extract_wilay_textures(wilay)?;
+
+    for (i, dds) in dds_textures.iter().enumerate() {
+        let path = output_folder
+            .join(file_name)
+            .with_extension(format!("{i}.{ext}"));
+        let image = image_dds::image_from_dds(&dds, 0).unwrap();
+        image.save(path)?;
+    }
+
+    for (i, jpeg) in jpeg_textures.iter().enumerate() {
+        let path = output_folder
+            .join(file_name)
+            .with_extension(format!("{i}.{ext}"));
+        if matches!(ext.to_lowercase().as_str(), "jpeg" | "jpg") {
+            // Avoid introducing additional error by decoding and encoding.
+            std::fs::write(path, jpeg)?;
+        } else {
+            // The output is not JPEG, so we need to decode first.
+            let image = image_dds::image::load_from_memory_with_format(
+                &jpeg,
+                image_dds::image::ImageFormat::Jpeg,
+            )?;
+            image.to_rgba8().save(path)?;
+        }
+    }
+
+    Ok(dds_textures.len() + jpeg_textures.len())
+}
+
+fn extract_wilay_textures(wilay: MaybeXbc1<Wilay>) -> anyhow::Result<(Vec<Dds>, Vec<Vec<u8>>)> {
+    let wilay = match wilay {
+        MaybeXbc1::Uncompressed(wilay) => wilay,
+        MaybeXbc1::Xbc1(xbc1) => xbc1.extract()?,
+    };
+
+    // LAPS wilay have no images to extract.
     match wilay {
-        MaybeXbc1::Uncompressed(wilay) => match wilay {
-            Wilay::Dhal(dhal) => extract_dhal(dhal, output_folder, file_name, &mut count)?,
-            Wilay::Lagp(lagp) => extract_lagp(lagp, output_folder, file_name, &mut count)?,
-            Wilay::Laps(_) => (),
-        },
-        MaybeXbc1::Xbc1(xbc1) => {
-            let wilay: Wilay = xbc1.extract()?;
-            match wilay {
-                Wilay::Dhal(dhal) => extract_dhal(dhal, output_folder, file_name, &mut count)?,
-                Wilay::Lagp(lagp) => extract_lagp(lagp, output_folder, file_name, &mut count)?,
-                Wilay::Laps(_) => (),
-            }
-        }
+        Wilay::Dhal(dhal) => extract_dhal_dds_jpeg(dhal),
+        Wilay::Lagp(lagp) => Ok((extract_lagp_textures(lagp)?, Vec::new())),
+        Wilay::Laps(_) => Ok((Vec::new(), Vec::new())),
     }
-
-    Ok(count)
 }
 
-fn extract_lagp(
-    lagp: Lagp,
-    output_folder: &Path,
-    file_name: &std::ffi::OsStr,
-    count: &mut usize,
-) -> anyhow::Result<()> {
+fn extract_lagp_textures(lagp: Lagp) -> anyhow::Result<Vec<Dds>> {
+    let mut result = Vec::new();
     if let Some(textures) = lagp.textures {
-        for (i, texture) in textures.textures.iter().enumerate() {
+        for texture in textures.textures {
             let dds = Mibl::from_bytes(&texture.mibl_data)?.to_dds()?;
-            let path = output_folder
-                .join(file_name)
-                .with_extension(format!("{i}.dds"));
-            dds.save(path)?;
+            result.push(dds)
         }
-
-        *count += textures.textures.len();
     }
-    Ok(())
+    Ok(result)
 }
 
-fn extract_dhal(
-    dhal: Dhal,
-    output_folder: &Path,
-    file_name: &std::ffi::OsStr,
-    count: &mut usize,
-) -> anyhow::Result<()> {
+fn extract_dhal_dds_jpeg(dhal: Dhal) -> anyhow::Result<(Vec<Dds>, Vec<Vec<u8>>)> {
+    let mut dds_textures = Vec::new();
     if let Some(textures) = dhal.textures {
-        for (i, texture) in textures.textures.iter().enumerate() {
+        for texture in textures.textures {
             let dds = Mibl::from_bytes(&texture.mibl_data)?.to_dds()?;
-            let path = output_folder
-                .join(file_name)
-                .with_extension(format!("{i}.dds"));
-            dds.save(path)?;
+            dds_textures.push(dds);
         }
-        *count += textures.textures.len();
     }
+    let mut jpeg_textures = Vec::new();
     if let Some(textures) = dhal.uncompressed_textures {
-        for (i, texture) in textures.textures.iter().enumerate() {
-            let path = output_folder
-                .join(file_name)
-                .with_extension(format!("{i}.jpeg"));
-            std::fs::write(path, &texture.jpeg_data)?;
+        for texture in textures.textures {
+            jpeg_textures.push(texture.jpeg_data);
         }
-
-        *count += textures.textures.len();
     }
-    Ok(())
+    Ok((dds_textures, jpeg_textures))
 }
 
 pub fn extract_wimdo_to_folder(
@@ -519,8 +545,25 @@ pub fn extract_wimdo_to_folder(
     input: &Path,
     output_folder: &Path,
 ) -> anyhow::Result<usize> {
+    let textures = extract_wimdo_textures(mxmd, input)?;
     let file_name = input.file_name().unwrap();
+    save_named_dds(&textures, output_folder, file_name)?;
+    Ok(textures.len())
+}
 
+fn extract_wimdo_images_to_folder(
+    mxmd: Mxmd,
+    input: &Path,
+    output_folder: &Path,
+    ext: &str,
+) -> anyhow::Result<usize> {
+    let textures = extract_wimdo_textures(mxmd, input)?;
+    let file_name = input.file_name().unwrap();
+    save_named_dds_images(&textures, output_folder, file_name, ext)?;
+    Ok(textures.len())
+}
+
+fn extract_wimdo_textures(mxmd: Mxmd, input: &Path) -> anyhow::Result<Vec<(String, Dds)>> {
     // TODO: chr/tex/nx folder as parameter?
     let chr_tex_nx = chr_tex_nx_folder(input);
     if has_chr_textures(&mxmd) && chr_tex_nx.is_none() {
@@ -530,40 +573,54 @@ pub fn extract_wimdo_to_folder(
     }
 
     // Assume streaming textures override packed textures if present.
+    let mut result = Vec::new();
     if mxmd.streaming.is_some() {
         let msrd = Msrd::from_file(input.with_extension("wismt"))?;
         let (_, _, textures) = msrd.extract_files(chr_tex_nx.as_deref())?;
 
-        for (i, texture) in textures.iter().enumerate() {
+        for texture in textures {
             let dds = texture.mibl_final().to_dds()?;
-            let path = output_folder
-                .join(file_name)
-                .with_extension(format!("{i}.{}.dds", texture.name));
-            dds.save(path)?;
+            result.push((texture.name, dds));
         }
-        Ok(textures.len())
+        Ok(result)
     } else if let Some(textures) = mxmd.packed_textures {
-        for (i, texture) in textures.textures.iter().enumerate() {
+        for texture in textures.textures {
             let mibl = Mibl::from_bytes(&texture.mibl_data)?;
             let dds = mibl.to_dds()?;
-            let path = output_folder
-                .join(file_name)
-                .with_extension(format!("{i}.{}.dds", texture.name));
-            dds.save(path)?;
+            result.push((texture.name, dds));
         }
-        Ok(textures.textures.len())
+        Ok(result)
     } else {
-        Ok(0)
+        Ok(Vec::new())
     }
 }
 
-// TODO: Avoid duplicating this logic with xc3_model?
 pub fn extract_camdo_to_folder(
     mxmd: MxmdLegacy,
     input: &Path,
     output_folder: &Path,
 ) -> anyhow::Result<usize> {
+    let textures = extract_camdo_textures(mxmd, input)?;
     let file_name = input.file_name().unwrap();
+    save_named_dds(&textures, output_folder, file_name)?;
+    Ok(textures.len())
+}
+
+pub fn extract_camdo_images_to_folder(
+    mxmd: MxmdLegacy,
+    input: &Path,
+    output_folder: &Path,
+    ext: &str,
+) -> anyhow::Result<usize> {
+    let textures = extract_camdo_textures(mxmd, input)?;
+    let file_name = input.file_name().unwrap();
+    save_named_dds_images(&textures, output_folder, file_name, ext)?;
+    Ok(textures.len())
+}
+
+// TODO: Avoid duplicating this logic with xc3_model?
+fn extract_camdo_textures(mxmd: MxmdLegacy, input: &Path) -> anyhow::Result<Vec<(String, Dds)>> {
+    let mut result = Vec::new();
 
     // Assume streaming textures override packed textures if present.
     if let Some(streaming) = mxmd.streaming {
@@ -578,27 +635,20 @@ pub fn extract_camdo_to_folder(
             .inner
             .extract_textures(low_data, high_data, |bytes| Mtxt::from_bytes(bytes))?;
 
-        for (i, texture) in textures.iter().enumerate() {
+        for texture in textures {
             let dds = texture.mtxt_final().to_dds()?;
-
-            let path = output_folder
-                .join(file_name)
-                .with_extension(format!("{i}.{}.dds", texture.name));
-            dds.save(path)?;
+            result.push((texture.name, dds));
         }
-        Ok(textures.len())
+        Ok(result)
     } else if let Some(textures) = mxmd.packed_textures {
-        for (i, texture) in textures.textures.iter().enumerate() {
+        for texture in textures.textures {
             let mtxt = Mtxt::from_bytes(&texture.mtxt_data)?;
             let dds = mtxt.to_dds()?;
-            let path = output_folder
-                .join(file_name)
-                .with_extension(format!("{i}.{}.dds", texture.name));
-            dds.save(path)?;
+            result.push((texture.name, dds));
         }
-        Ok(textures.textures.len())
+        Ok(result)
     } else {
-        Ok(0)
+        Ok(Vec::new())
     }
 }
 
@@ -607,23 +657,36 @@ pub fn extract_bmn_to_folder(
     input: &Path,
     output_folder: &Path,
 ) -> anyhow::Result<usize> {
+    let textures = extract_bmn_textures(bmn)?;
     let file_name = input.file_name().unwrap();
+    save_unnamed_dds(&textures, output_folder, file_name)?;
+    Ok(textures.len())
+}
 
-    let mut count = 0;
+pub fn extract_bmn_images_to_folder(
+    bmn: Bmn,
+    input: &Path,
+    output_folder: &Path,
+    ext: &str,
+) -> anyhow::Result<usize> {
+    let textures = extract_bmn_textures(bmn)?;
+    let file_name = input.file_name().unwrap();
+    save_unnamed_dds_images(&textures, output_folder, file_name, ext)?;
+    Ok(textures.len())
+}
+
+fn extract_bmn_textures(bmn: Bmn) -> anyhow::Result<Vec<Dds>> {
+    let mut result = Vec::new();
     if let Some(unk16) = bmn.unk16 {
-        for (i, texture) in unk16.textures.iter().enumerate() {
+        for texture in unk16.textures {
             if !texture.mtxt_data.is_empty() {
                 let dds = Mtxt::from_bytes(&texture.mtxt_data)?.to_dds()?;
-                let path = output_folder
-                    .join(file_name)
-                    .with_extension(format!("{i}.dds"));
-                dds.save(path)?;
-                count += 1;
+                result.push(dds);
             }
         }
     }
 
-    Ok(count)
+    Ok(result)
 }
 
 pub fn update_wifnt(input: &str, input_image: &str, output: &str) -> anyhow::Result<()> {
@@ -658,6 +721,97 @@ pub fn create_wismt_single_tex(mibl: &Mibl) -> anyhow::Result<Xbc1> {
     Xbc1::new("middle.witx".to_string(), mibl, CompressionType::Zlib).map_err(Into::into)
 }
 
+pub fn batch_convert_files(
+    input_folder: &str,
+    pattern: &str,
+    ext: Option<&str>,
+) -> anyhow::Result<usize> {
+    // TODO: properly count converted files.
+    let ext = ext.unwrap_or("png");
+    Ok(
+        globwalk::GlobWalkerBuilder::from_patterns(input_folder, &[pattern])
+            .build()
+            .unwrap()
+            .par_bridge()
+            .map(|entry| {
+                // TODO: Avoid unwrap?
+                let path = entry.as_ref().unwrap().path();
+                let file = load_input_file(path).unwrap();
+                match ext.to_lowercase().as_str() {
+                    "dds" => {
+                        extract_and_save_dds(path, file).unwrap();
+                    }
+                    _ => {
+                        extract_and_save_image(path, file, ext).unwrap();
+                    }
+                }
+
+                1
+            })
+            .sum(),
+    )
+}
+
+fn extract_and_save_dds(path: &Path, file: File) -> anyhow::Result<()> {
+    match file {
+        File::Mibl(mibl) => mibl.to_dds()?.save(path.with_extension("dds"))?,
+        File::Mtxt(mtxt) => mtxt.to_dds()?.save(path.with_extension("dds"))?,
+        File::Dds(dds) => dds.save(path.with_extension("dds"))?,
+        File::Image(_) => Err(anyhow::anyhow!("cannot convert image to DDS"))?,
+        File::Wilay(wilay) => {
+            // TODO: don't extract wilay JPEG?
+            extract_wilay_to_folder(*wilay, path, path.parent().unwrap())?;
+        }
+        File::Wimdo(mxmd) => {
+            extract_wimdo_to_folder(*mxmd, path, path.parent().unwrap())?;
+        }
+        File::Camdo(mxmd) => {
+            extract_camdo_to_folder(*mxmd, path, path.parent().unwrap())?;
+        }
+        File::Bmn(bmn) => {
+            extract_bmn_to_folder(bmn, path, path.parent().unwrap())?;
+        }
+        File::Wifnt(laft) => laft_mibl(&laft)?
+            .to_dds()?
+            .save(path.with_extension("dds"))?,
+        File::XcxFnt(fnt) => fnt.texture.to_dds()?.save(path.with_extension("dds"))?,
+    }
+    Ok(())
+}
+
+fn extract_and_save_image(path: &Path, file: File, ext: &str) -> anyhow::Result<()> {
+    // TODO: JPEG requires RGB instead of RGBA data?
+    match file {
+        File::Mibl(mibl) => mibl.to_dds()?.save(path.with_extension(ext))?,
+        File::Mtxt(mtxt) => mtxt.to_dds()?.save(path.with_extension(ext))?,
+        File::Dds(dds) => dds.save(path.with_extension(ext))?,
+        File::Image(image) => image.save(path.with_extension(ext))?,
+        File::Wilay(wilay) => {
+            extract_wilay_images_to_folder(*wilay, path, path.parent().unwrap(), ext)?;
+        }
+        File::Wimdo(mxmd) => {
+            extract_wimdo_images_to_folder(*mxmd, path, path.parent().unwrap(), ext)?;
+        }
+        File::Camdo(mxmd) => {
+            extract_camdo_images_to_folder(*mxmd, path, path.parent().unwrap(), ext)?;
+        }
+        File::Bmn(bmn) => {
+            extract_bmn_images_to_folder(bmn, path, path.parent().unwrap(), ext)?;
+        }
+        File::Wifnt(laft) => {
+            let dds = laft_mibl(&laft)?.to_dds()?;
+            let image = image_dds::image_from_dds(&dds, 0)?;
+            image.save(path.with_extension(ext))?;
+        }
+        File::XcxFnt(fnt) => {
+            let dds = fnt.texture.to_dds()?;
+            let image = image_dds::image_from_dds(&dds, 0)?;
+            image.save(path.with_extension(ext))?;
+        }
+    }
+    Ok(())
+}
+
 fn laft_mibl(laft: &MaybeXbc1<Laft>) -> anyhow::Result<Mibl> {
     match laft {
         MaybeXbc1::Uncompressed(laft) => laft
@@ -669,6 +823,70 @@ fn laft_mibl(laft: &MaybeXbc1<Laft>) -> anyhow::Result<Mibl> {
             .texture
             .clone()
             .ok_or(anyhow!("no texture in wifnt file")),
+    }
+}
+
+fn save_named_dds(
+    textures: &[(String, Dds)],
+    output_folder: &Path,
+    file_name: &std::ffi::OsStr,
+) -> Result<(), anyhow::Error> {
+    Ok(for (i, (name, dds)) in textures.iter().enumerate() {
+        let path = output_folder
+            .join(file_name)
+            .with_extension(format!("{i}.{name}.dds"));
+        dds.save(path)?;
+    })
+}
+
+fn save_named_dds_images(
+    textures: &[(String, Dds)],
+    output_folder: &Path,
+    file_name: &std::ffi::OsStr,
+    ext: &str,
+) -> Result<(), anyhow::Error> {
+    Ok(for (i, (name, dds)) in textures.iter().enumerate() {
+        let path = output_folder
+            .join(file_name)
+            .with_extension(format!("{i}.{name}.{ext}"));
+        let image = image_dds::image_from_dds(&dds, 0).unwrap();
+        image.save(path)?;
+    })
+}
+
+fn save_unnamed_dds(
+    dds_textures: &[Dds],
+    output_folder: &Path,
+    file_name: &std::ffi::OsStr,
+) -> Result<(), anyhow::Error> {
+    Ok(for (i, dds) in dds_textures.iter().enumerate() {
+        let path = output_folder
+            .join(file_name)
+            .with_extension(format!("{i}.dds"));
+        dds.save(path)?;
+    })
+}
+
+fn save_unnamed_dds_images(
+    textures: &[Dds],
+    output_folder: &Path,
+    file_name: &std::ffi::OsStr,
+    ext: &str,
+) -> Result<(), anyhow::Error> {
+    Ok(for (i, dds) in textures.iter().enumerate() {
+        let path = output_folder
+            .join(file_name)
+            .with_extension(format!("{i}.{ext}"));
+        let image = image_dds::image_from_dds(&dds, 0).unwrap();
+        image.save(path)?;
+    })
+}
+
+fn clone_dds(dds: &Dds) -> Dds {
+    Dds {
+        header: dds.header.clone(),
+        header10: dds.header10.clone(),
+        data: dds.data.clone(),
     }
 }
 
