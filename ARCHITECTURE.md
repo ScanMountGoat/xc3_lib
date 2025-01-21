@@ -23,7 +23,7 @@ File data starts as an unstructured array of bytes in one or more binary files. 
 2. Decompress, decode, and convert models and textures to a standardized format (xc3_model).
 3. Convert the xc3_model data to the gltf format and textures to PNG (xc3_model).
 
-## Errors and Invalid Input
+### Errors and Invalid Input
 xc3_lib and xc3_model are as strict as possible and use a "parse, don't validate" approach. An overly strict implementation that rejects in game files will be easily detected using xc3_test. Allowing invalid or unrecognized input may still load in game but creates additional edge cases for tooling to support. Rejected input believed to be valid needs to be reviewed manually to determine if any code changes are necessary.
 
 Rendering and conversion operations don't need to be as strict since most major errors are caught in xc3_lib and xc3_model. Rendering in skips or applies defaults for invalid data to allow rendering to continue. A partially rendered model is easier to debug than a blank viewport. Conversion utilities skip files that do not convert properly. Non fatal errors or warnings are reported to the user with print or log statements.
@@ -55,7 +55,7 @@ A library and command line tool for working with the game's compiled shader prog
 Other projects like xc3_model, xc3_wgpu, and xc3_viewer use the generated shader database to determine how to assign textures in a material. This includes which textures to assign to a particular output like normals or albedo as well as how to unpack and pack the texture color channels. The shader database is usually an optional argument since not all applications require assigned textures. The actual database types are stored in xc3_model to separate the CLI tool and its dependencies. The database format is not stable, so consuming code should use xc3_model as a library to parse the database files. 
 
 ### xc3_test
-A command line tool for testing parsing and conversion code for all files in an extracted dump. This allows files of a given type to be checked efficiently in parallel and avoids needing to commit game files to source control. The main goal is to ensure that all files in the game dump of a given format parse without any errors. More specific tests are usually better suited as unit tests in the associated projects.
+A command line tool for testing parsing and conversion code for all files in an extracted dump. This allows files of a given type to be checked efficiently in parallel and avoids needing to commit game files to source control. The main goal is to ensure that all files in the game dump of a given format load and convert without any errors. More specific tests are usually better suited as unit tests in the associated projects.
 
 ### xc3_tex
 A command line tool for converting texture files to and from DDS or image formats like PNG, TIFF, or JPEG. DDS works well as an intermediate format, so the code just calls the appropriate conversion functions and handles command line parameters.
