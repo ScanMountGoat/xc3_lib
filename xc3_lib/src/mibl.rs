@@ -245,29 +245,49 @@ impl Mibl {
         )
     }
 
-    /// Add the swizzled `base_mip_level` with the existing mipmaps.
+    // TODO: Tests for this.
+    /// Similar to [Self::to_surface] but adds the swizzled `base_mip_level` with the existing mipmaps.
     /// The base mip should have twice current width and height.
-    pub fn with_base_mip(&self, base_mip_level: &[u8]) -> Self {
-        // TODO: Will this always have the appropriate mipmap alignment?
+    pub fn to_surface_with_base_mip(
+        &self,
+        base_mip_level: &[u8],
+    ) -> Result<Surface<Vec<u8>>, SwizzleError> {
+        let mid = self.to_surface()?;
+
+        let width = mid.width.saturating_mul(2);
+        let height = mid.height.saturating_mul(2);
+
+        // Combine deswizzled data so we don't have to worry about alignment.
         // TODO: How does this work for 3D or array layers?
         // TODO: validate dimensions.
-        let mut image_data = base_mip_level.to_vec();
-        image_data.extend_from_slice(&self.image_data);
-
-        let image_size = image_data.len().next_multiple_of(4096) as u32;
+        let mut data = tegra_swizzle::surface::deswizzle_surface(
+            width,
+            height,
+            self.footer.depth,
+            base_mip_level,
+            self.footer.image_format.block_dim(),
+            None,
+            self.footer.image_format.bytes_per_pixel(),
+            1,
+            if self.footer.view_dimension == ViewDimension::Cube {
+                6
+            } else {
+                1
+            },
+        )?;
+        data.extend_from_slice(&mid.data);
 
         // TODO: Error if invalid dimensions?
         // TODO: Mipmaps shouldn't be more than 32 for 32-bit dimensions.
-        Self {
-            image_data,
-            footer: MiblFooter {
-                image_size,
-                width: self.footer.width.saturating_mul(2),
-                height: self.footer.height.saturating_mul(2),
-                mipmap_count: self.footer.mipmap_count.saturating_add(1),
-                ..self.footer
-            },
-        }
+        Ok(Surface {
+            width,
+            height,
+            depth: mid.depth,
+            layers: mid.layers,
+            mipmaps: mid.mipmaps.saturating_add(1),
+            image_format: mid.image_format,
+            data,
+        })
     }
 
     // TODO: Tests for this?

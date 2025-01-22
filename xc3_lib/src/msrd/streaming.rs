@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use image_dds::ddsfile::Dds;
+use image_dds::{ddsfile::Dds, Surface};
 use rayon::prelude::*;
 use thiserror::Error;
 use xc3_write::Xc3Result;
@@ -64,19 +64,99 @@ impl ExtractedTexture<Dds, TextureUsage> {
 }
 
 impl ExtractedTexture<Mibl, TextureUsage> {
-    /// Returns the highest possible quality [Mibl] after trying low, high, or high + base mip level.
+    /// Returns the highest possible quality deswizzled data after trying low, high, or high + base mip level.
     /// Only high + base mip level returns [Cow::Owned].
-    pub fn mibl_final(&self) -> Cow<'_, Mibl> {
+    pub fn surface_final(
+        &self,
+    ) -> Result<image_dds::Surface<Vec<u8>>, tegra_swizzle::SwizzleError> {
         self.high
             .as_ref()
             .map(|h| {
                 h.base_mip
                     .as_ref()
-                    .map(|base| Cow::Owned(h.mid.with_base_mip(base)))
-                    .unwrap_or(Cow::Borrowed(&h.mid))
+                    .map(|base| h.mid.to_surface_with_base_mip(base))
+                    .unwrap_or_else(|| h.mid.to_surface())
             })
-            .unwrap_or(Cow::Borrowed(&self.low))
+            .unwrap_or_else(|| self.low.to_surface())
     }
+
+    /// Split a full resolution `mibl` into a low texture, medium texture, and base mipmap.
+    pub fn from_mibl(
+        mibl: &Mibl,
+        name: String,
+        usage: TextureUsage,
+    ) -> ExtractedTexture<Mibl, TextureUsage> {
+        let low = low_texture(mibl);
+        let (mid, base_mip) = mibl.split_base_mip();
+
+        ExtractedTexture {
+            name,
+            usage,
+            low,
+            high: Some(HighTexture {
+                mid,
+                base_mip: Some(base_mip),
+            }),
+        }
+    }
+}
+
+fn low_texture(mibl: &Mibl) -> Mibl {
+    // The low texture is only visible briefly before data is streamed in.
+    // Find a balance between blurry distance rendering and increased file sizes.
+    // 32x32 is the highest resolution typically found for in game low textures.
+    let surface = mibl.to_surface().unwrap();
+    create_desired_mip(surface.as_ref(), 32)
+        .or_else(|| create_desired_mip(surface.as_ref(), 4))
+        .unwrap_or_else(|| {
+            // Resizing and decoding and encoding the full texture is expensive.
+            // We can cheat and just use the first GOB (512 bytes) of compressed image data.
+            let mut low_image_data = mibl
+                .image_data
+                .get(..512)
+                .unwrap_or(&mibl.image_data)
+                .to_vec();
+            low_image_data.resize(512, 0);
+
+            Mibl {
+                image_data: low_image_data,
+                footer: crate::mibl::MiblFooter {
+                    image_size: 4096,
+                    unk: 0x1000,
+                    width: 4,
+                    height: 4,
+                    depth: 1,
+                    view_dimension: crate::mibl::ViewDimension::D2,
+                    image_format: mibl.footer.image_format,
+                    mipmap_count: 1,
+                    version: 10001,
+                },
+            }
+        })
+}
+
+fn create_desired_mip(surface: Surface<&[u8]>, desired_dimension: u32) -> Option<Mibl> {
+    for mip in (0..surface.mipmaps).rev() {
+        if let Some(data) = surface.get(0, 0, mip) {
+            let width = image_dds::mip_dimension(surface.width, mip);
+            let height = image_dds::mip_dimension(surface.height, mip);
+            if width >= desired_dimension || height >= desired_dimension {
+                // TODO: use remaining mimpmaps if available.
+                // TODO: add surface.get_mipmaps(i..) to image_dds?
+                return Mibl::from_surface(Surface {
+                    width,
+                    height,
+                    depth: 1,
+                    layers: 1,
+                    mipmaps: 1,
+                    image_format: surface.image_format,
+                    data,
+                })
+                .ok();
+            }
+        }
+    }
+    None
 }
 
 impl ExtractedTexture<Mtxt, crate::mxmd::legacy::TextureUsage> {

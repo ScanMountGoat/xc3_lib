@@ -18,7 +18,7 @@ use xc3_lib::{
     laps::Laps,
     mibl::Mibl,
     msrd::{
-        streaming::{chr_tex_nx_folder, ExtractedTexture, HighTexture},
+        streaming::{chr_tex_nx_folder, ExtractedTexture},
         Msrd,
     },
     mtxt::Mtxt,
@@ -388,20 +388,14 @@ pub fn update_wimdo_from_folder(
     textures = mibls
         .into_iter()
         .map(|(i, mibl)| {
-            let (mid, base_mip) = mibl.split_base_mip();
-
-            ExtractedTexture {
-                name: textures.get(i).map(|t| t.name.clone()).unwrap_or_default(),
-                usage: textures
+            ExtractedTexture::from_mibl(
+                &mibl,
+                textures.get(i).map(|t| t.name.clone()).unwrap_or_default(),
+                textures
                     .get(i)
                     .map(|t| t.usage)
                     .unwrap_or(xc3_lib::mxmd::TextureUsage::Col),
-                low: mid.clone(),
-                high: Some(HighTexture {
-                    mid,
-                    base_mip: Some(base_mip),
-                }),
-            }
+            )
         })
         .collect();
 
@@ -582,7 +576,7 @@ fn extract_wimdo_textures(mxmd: Mxmd, input: &Path) -> anyhow::Result<Vec<(Strin
         let (_, _, textures) = msrd.extract_files(chr_tex_nx.as_deref())?;
 
         for texture in textures {
-            let dds = texture.mibl_final().to_dds()?;
+            let dds = texture.surface_final()?.to_dds()?;
             result.push((texture.name, dds));
         }
         Ok(result)

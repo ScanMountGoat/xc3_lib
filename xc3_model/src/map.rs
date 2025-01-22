@@ -1,6 +1,7 @@
 use std::{io::Cursor, path::Path};
 
 use glam::{Mat4, Vec3};
+use image_dds::Surface;
 use indexmap::IndexMap;
 use log::error;
 use rayon::prelude::*;
@@ -127,8 +128,8 @@ impl MapRoot {
 // TODO: Is there a better way of doing this?
 // Lazy loading for the image textures.
 struct TextureCache {
-    low_textures: Vec<Vec<(TextureUsage, Mibl)>>,
-    high_textures: Vec<Mibl>,
+    low_textures: Vec<Vec<(TextureUsage, Surface<Vec<u8>>)>>,
+    high_textures: Vec<Surface<Vec<u8>>>,
     // Use a map that preserves insertion order to get consistent ordering.
     texture_to_image_texture_index: IndexMap<TextureKey, usize>,
 }
@@ -151,7 +152,12 @@ impl TextureCache {
                 textures
                     .textures
                     .iter()
-                    .map(|t| Ok((t.usage, Mibl::from_bytes(&t.mibl_data)?)))
+                    .map(|t| {
+                        Ok((
+                            t.usage,
+                            Mibl::from_bytes(&t.mibl_data)?.to_surface().unwrap(),
+                        ))
+                    })
                     .collect::<Result<Vec<_>, LoadMapError>>()
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -166,9 +172,10 @@ impl TextureCache {
                 if texture.base_mip.decompressed_size > 0 {
                     let base_mip_level = texture.base_mip.decompress(&mut wismda, compressed)?;
 
-                    Ok(mibl_m.with_base_mip(&base_mip_level))
+                    // TODO: Avoid unwrap.
+                    Ok(mibl_m.to_surface_with_base_mip(&base_mip_level).unwrap())
                 } else {
-                    Ok(mibl_m)
+                    Ok(mibl_m.to_surface().unwrap())
                 }
             })
             .collect::<Result<Vec<_>, LoadMapError>>()?;
@@ -212,15 +219,18 @@ impl TextureCache {
         })
     }
 
-    fn get_low_texture(&self, key: &TextureKey) -> Option<&(TextureUsage, Mibl)> {
+    fn get_low_texture(&self, key: &TextureKey) -> Option<(TextureUsage, Surface<&[u8]>)> {
         let entry_index = key.low_textures_entry_index?;
         let index = key.low_texture_index?;
-        self.low_textures.get(entry_index)?.get(index)
+        self.low_textures
+            .get(entry_index)?
+            .get(index)
+            .map(|(u, t)| (*u, t.as_ref()))
     }
 
-    fn get_high_texture(&self, key: &TextureKey) -> Option<&Mibl> {
+    fn get_high_texture(&self, key: &TextureKey) -> Option<Surface<&[u8]>> {
         let index = key.texture_index?;
-        self.high_textures.get(index)
+        self.high_textures.get(index).map(|t| t.as_ref())
     }
 
     fn image_textures(&self) -> Result<Vec<ImageTexture>, CreateImageTextureError> {
@@ -229,13 +239,14 @@ impl TextureCache {
             .map(|(texture, _)| {
                 let low = self.get_low_texture(texture);
 
-                if let Some(mibl) = self.get_high_texture(texture).or(low.map(|low| &low.1)) {
-                    ImageTexture::from_mibl(mibl, None, low.map(|l| l.0)).map_err(Into::into)
+                if let Some(surface) = self.get_high_texture(texture).or(low.map(|low| low.1)) {
+                    ImageTexture::from_surface(surface, None, low.map(|l| l.0)).map_err(Into::into)
                 } else {
                     // TODO: Create a default instead to avoid potential panic.
                     error!("No mibl for {texture:?}");
-                    let (usage, mibl) = &self.low_textures[0][0];
-                    ImageTexture::from_mibl(mibl, None, Some(*usage)).map_err(Into::into)
+                    let (usage, surface) = &self.low_textures[0][0];
+                    ImageTexture::from_surface(surface.as_ref(), None, Some(*usage))
+                        .map_err(Into::into)
                 }
             })
             .collect()
