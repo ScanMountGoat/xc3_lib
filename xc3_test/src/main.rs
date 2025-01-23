@@ -1,6 +1,6 @@
 use std::{
     io::{BufReader, Cursor},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use approx::RelativeEq;
@@ -336,8 +336,7 @@ fn main() {
 }
 
 fn check_all_mibl<P: AsRef<Path>>(root: P, check_read_write: bool) {
-    // Only XC3 has a dedicated tex directory.
-    // TODO: Test joining the medium and low textures?
+    // Only Xenoblade 3 has a dedicated tex directory with shared textures.
     let folder = root.as_ref().join("chr").join("tex").join("nx");
     if folder.exists() {
         globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.wismt", "!h/**"])
@@ -347,6 +346,21 @@ fn check_all_mibl<P: AsRef<Path>>(root: P, check_read_write: bool) {
             .for_each(|entry| {
                 let path = entry.as_ref().unwrap().path();
                 let (original_bytes, mibl) = read_wismt_single_tex(path);
+
+                if let Some(base_mip_path) = base_mip_path(path) {
+                    if let Ok(base_mip) = Xbc1::from_file(base_mip_path) {
+                        // Test joining and splitting base mip levels.
+                        let base_mip = base_mip.decompress().unwrap();
+                        let combined = mibl.to_surface_with_base_mip(&base_mip).unwrap();
+                        let combined_mibl = Mibl::from_surface(combined).unwrap();
+
+                        let (new_mibl, new_base_mip) = combined_mibl.split_base_mip();
+                        if new_base_mip != base_mip || new_mibl != mibl {
+                            println!("Join/split Mibl not 1:1 for {path:?}");
+                        }
+                    }
+                }
+
                 check_mibl(mibl, path, &original_bytes, check_read_write);
             });
     }
@@ -362,6 +376,11 @@ fn check_all_mibl<P: AsRef<Path>>(root: P, check_read_write: bool) {
             let mibl = Mibl::from_file(path).unwrap();
             check_mibl(mibl, path, &original_bytes, check_read_write);
         });
+}
+
+fn base_mip_path(path: &Path) -> Option<PathBuf> {
+    // chr/tex/nx/m/file.wismt -> chr/tex/nx/h/file.wismt
+    Some(path.parent()?.parent()?.join("h").join(path.file_name()?))
 }
 
 fn check_maybe_xbc1<T, F>(
@@ -561,10 +580,7 @@ fn check_mibl(mibl: Mibl, path: &Path, original_bytes: &[u8], check_read_write: 
 
 fn read_wismt_single_tex(path: &Path) -> (Vec<u8>, Mibl) {
     let xbc1 = Xbc1::from_file(path).unwrap();
-
     let decompressed = xbc1.decompress().unwrap();
-
-    // TODO: Test merging.
     let mibl_m = Mibl::from_bytes(&decompressed).unwrap();
     (decompressed, mibl_m)
 }
@@ -1155,7 +1171,6 @@ fn check_model(
     if new_mxmd.models.models != mxmd.models.models {
         println!("Model list not 1:1 for {path:?}");
     }
-    // TODO: threshold to test transforms?
     if let Some(skinning) = &mxmd.models.skinning {
         if let Some(new_skinning) = &new_mxmd.models.skinning {
             if new_skinning.bones != skinning.bones {

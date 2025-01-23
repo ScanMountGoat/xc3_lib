@@ -245,7 +245,6 @@ impl Mibl {
         )
     }
 
-    // TODO: Tests for this.
     /// Similar to [Self::to_surface] but adds the swizzled `base_mip_level` with the existing mipmaps.
     /// The base mip should have twice current width and height.
     pub fn to_surface_with_base_mip(
@@ -290,7 +289,6 @@ impl Mibl {
         })
     }
 
-    // TODO: Tests for this?
     /// Split the texture into a texture with half resolution and a separate base mip level.
     /// The inverse operation of [Self::with_base_mip].
     pub fn split_base_mip(&self) -> (Self, Vec<u8>) {
