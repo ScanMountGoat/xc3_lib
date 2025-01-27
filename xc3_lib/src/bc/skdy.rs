@@ -171,12 +171,12 @@ pub struct DynamicsUnk2ItemUnk1 {
     // DN_
     #[br(parse_with = parse_string_ptr64)]
     #[xc3(offset(u64))]
-    pub name1: String,
+    pub name: String,
 
     // DJ_
     #[br(parse_with = parse_string_ptr64)]
     #[xc3(offset(u64))]
-    pub name2: String,
+    pub bone_name: String,
 
     pub unk1: [f32; 7],
     pub unk2: u32,
@@ -515,8 +515,8 @@ impl Xc3WriteOffsets for DynamicsUnk2ItemUnk1Offsets<'_> {
         _endian: xc3_write::Endian,
         args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
-        args.borrow_mut().insert_offset(&self.name1);
-        args.borrow_mut().insert_offset(&self.name2);
+        args.borrow_mut().insert_offset(&self.name);
+        args.borrow_mut().insert_offset(&self.bone_name);
         Ok(())
     }
 }
