@@ -146,11 +146,7 @@ impl Animation {
         let mut animated_transforms = vec![None; skeleton.bones.len()];
 
         for track in &self.tracks {
-            if let Some(bone_index) = match &track.bone_index {
-                BoneIndex::Index(i) => Some(*i),
-                BoneIndex::Hash(hash) => hash_to_index.get(hash).copied(),
-                BoneIndex::Name(name) => skeleton.bones.iter().position(|b| &b.name == name),
-            } {
+            if let Some(bone_index) = track_bone_index(track, skeleton, &hash_to_index) {
                 if let Some(transform) = track.sample_transform(frame, self.frame_count) {
                     if bone_index < skeleton.bones.len() {
                         animated_transforms[bone_index] = Some(apply_transform(
@@ -179,43 +175,36 @@ impl Animation {
         // Assume parents appear before their children.
         // TODO: Does this code correctly handle all cases?
         let mut anim_model_space = rest_pose_model_space.clone();
-        match self.space_mode {
-            SpaceMode::Local => {
-                for i in 0..anim_model_space.len() {
-                    match animated_transforms[i] {
-                        Some(transform) => {
+
+        for i in 0..anim_model_space.len() {
+            match animated_transforms[i] {
+                Some(transform) => {
+                    anim_model_space[i] = match self.space_mode {
+                        SpaceMode::Local => {
                             // Local space is relative to the parent bone.
                             if let Some(parent) = skeleton.bones[i].parent_index {
-                                anim_model_space[i] = anim_model_space[parent] * transform;
+                                anim_model_space[parent] * transform
                             } else {
-                                anim_model_space[i] = transform;
+                                transform
                             }
                         }
-                        None => {
-                            if let Some(parent) = skeleton.bones[i].parent_index {
-                                anim_model_space[i] =
-                                    anim_model_space[parent] * skeleton.bones[i].transform;
-                            }
+                        SpaceMode::Model => {
+                            // Model space is relative to the model root.
+                            // This is faster to compute but rarely used by animation files.
+                            transform
                         }
+                    }
+                }
+                None => {
+                    if let Some(parent) = skeleton.bones[i].parent_index {
+                        anim_model_space[i] =
+                            anim_model_space[parent] * skeleton.bones[i].transform;
                     }
                 }
             }
-            SpaceMode::Model => {
-                for i in 0..anim_model_space.len() {
-                    // Model space is relative to the model root.
-                    // This is faster to compute but rarely used by animation files.
-                    match animated_transforms[i] {
-                        Some(transform) => {
-                            anim_model_space[i] = transform;
-                        }
-                        None => {
-                            if let Some(parent) = skeleton.bones[i].parent_index {
-                                anim_model_space[i] =
-                                    anim_model_space[parent] * skeleton.bones[i].transform;
-                            }
-                        }
-                    }
-                }
+
+            if let Some(parent) = skeleton.bones[i].parent_index {
+                constrain_original_distance(&mut anim_model_space, i, parent);
             }
         }
 
@@ -378,6 +367,36 @@ impl Animation {
     }
 }
 
+fn constrain_original_distance(transforms: &mut [Mat4], i: usize, parent: usize) {
+    // Preserve the distance from the translation relative to the parent.
+    // This means scale does not affect bone distances.
+    let transform = transforms[parent].inverse() * transforms[i];
+    let original_distance = transform.col(3).xyz().length();
+
+    let parent_pos = transforms[parent].col(3).xyz();
+    let pos = transforms[i].col(3).xyz();
+    let distance = pos.distance(parent_pos);
+
+    if distance > 0.0 && distance != original_distance {
+        // Interpolate along the line to the parent.
+        let factor = original_distance / distance;
+        let translation = transforms[i].col_mut(3);
+        *translation = parent_pos.lerp(pos, factor).extend(1.0);
+    }
+}
+
+fn track_bone_index(
+    track: &Track,
+    skeleton: &Skeleton,
+    hash_to_index: &BTreeMap<u32, usize>,
+) -> Option<usize> {
+    match &track.bone_index {
+        BoneIndex::Index(i) => Some(*i),
+        BoneIndex::Hash(hash) => hash_to_index.get(hash).copied(),
+        BoneIndex::Name(name) => skeleton.bones.iter().position(|b| &b.name == name),
+    }
+}
+
 fn xenoblade_to_blender(m: Mat4) -> Mat4 {
     // Hard code these matrices for better precision.
     // rotate x -90 degrees
@@ -485,7 +504,7 @@ fn anim_tracks(anim: &xc3_lib::bc::anim::Anim) -> Vec<Track> {
                         }
                     }
 
-                    let bone_index = track_bone_index(*i as usize, bone_names, hashes);
+                    let bone_index = bone_index(*i as usize, bone_names, hashes);
 
                     Track {
                         translation_keyframes,
@@ -548,7 +567,7 @@ fn anim_tracks(anim: &xc3_lib::bc::anim::Anim) -> Vec<Track> {
                                 );
                             }
 
-                            let bone_index = track_bone_index(i, bone_names, hashes);
+                            let bone_index = bone_index(i, bone_names, hashes);
 
                             Some(Track {
                                 translation_keyframes,
@@ -596,7 +615,7 @@ fn anim_tracks(anim: &xc3_lib::bc::anim::Anim) -> Vec<Track> {
                         &cubic.vectors,
                     );
 
-                    let bone_index = track_bone_index(*i as usize, bone_names, hashes);
+                    let bone_index = bone_index(*i as usize, bone_names, hashes);
 
                     Track {
                         translation_keyframes,
@@ -668,7 +687,7 @@ fn root_translation(anim: &xc3_lib::bc::anim::Anim) -> Option<Vec<Vec3>> {
     })
 }
 
-fn track_bone_index(
+fn bone_index(
     i: usize,
     bone_names: Option<&Vec<xc3_lib::bc::StringOffset>>,
     hashes: Option<&Vec<u32>>,
@@ -789,6 +808,7 @@ impl Track {
         let t = self.sample_translation(frame, frame_count)?;
         let r = self.sample_rotation(frame, frame_count)?;
         let s = self.sample_scale(frame, frame_count)?;
+
         Some(Mat4::from_translation(t) * Mat4::from_quat(r) * Mat4::from_scale(s))
     }
 }
@@ -1024,6 +1044,8 @@ mod tests {
             .is_empty());
     }
 
+    // TODO: Function for constant keyframe.
+
     // TODO: test additive blending.
     #[test]
     fn model_space_transforms_local_blend() {
@@ -1099,6 +1121,141 @@ mod tests {
                 [2.0, 4.0, 6.0, 1.0],
             ]),
             transforms[1]
+        );
+    }
+
+    #[test]
+    fn model_space_transforms_local_blend_constrain_scale() {
+        // Crate a keyframe with a constant value.
+        let keyframe = |x, y, z, w| {
+            (
+                0.0.into(),
+                Keyframe {
+                    x_coeffs: vec4(0.0, 0.0, 0.0, x),
+                    y_coeffs: vec4(0.0, 0.0, 0.0, y),
+                    z_coeffs: vec4(0.0, 0.0, 0.0, z),
+                    w_coeffs: vec4(0.0, 0.0, 0.0, w),
+                },
+            )
+        };
+
+        // Test that the original bone distance is preserved even when scaling.
+        let animation = Animation {
+            name: String::new(),
+            space_mode: SpaceMode::Local,
+            play_mode: PlayMode::Single,
+            blend_mode: BlendMode::Blend,
+            frames_per_second: 30.0,
+            frame_count: 1,
+            tracks: vec![
+                Track {
+                    translation_keyframes: [keyframe(1.0, 2.0, 3.0, 0.0)].into(),
+                    rotation_keyframes: [keyframe(0.0, 0.0, 0.0, 1.0)].into(),
+                    scale_keyframes: [keyframe(1.5, 1.5, 1.5, 0.0)].into(),
+                    bone_index: BoneIndex::Name("a_L".to_string()),
+                },
+                Track {
+                    translation_keyframes: [keyframe(1.0, 2.0, 3.0, 0.0)].into(),
+                    rotation_keyframes: [keyframe(0.0, 0.0, 0.0, 1.0)].into(),
+                    scale_keyframes: [keyframe(1.5, 1.5, 1.5, 0.0)].into(),
+                    bone_index: BoneIndex::Name("b_L".to_string()),
+                },
+                Track {
+                    translation_keyframes: [keyframe(1.0, 2.0, 3.0, 0.0)].into(),
+                    rotation_keyframes: [keyframe(0.0, 0.0, 0.0, 1.0)].into(),
+                    scale_keyframes: [keyframe(0.75, 0.75, 0.75, 0.0)].into(),
+                    bone_index: BoneIndex::Name("a_R".to_string()),
+                },
+                Track {
+                    translation_keyframes: [keyframe(1.0, 2.0, 3.0, 0.0)].into(),
+                    rotation_keyframes: [keyframe(0.0, 0.0, 0.0, 1.0)].into(),
+                    scale_keyframes: [keyframe(0.5, 0.5, 0.5, 0.0)].into(),
+                    bone_index: BoneIndex::Name("b_R".to_string()),
+                },
+            ],
+            morph_tracks: None,
+            root_translation: None,
+        };
+
+        let skeleton = Skeleton {
+            bones: vec![
+                Bone {
+                    name: "root".to_string(),
+                    transform: Mat4::IDENTITY,
+                    parent_index: None,
+                },
+                Bone {
+                    name: "a_L".to_string(),
+                    transform: Mat4::IDENTITY,
+                    parent_index: Some(0),
+                },
+                Bone {
+                    name: "b_L".to_string(),
+                    transform: Mat4::IDENTITY,
+                    parent_index: Some(1),
+                },
+                Bone {
+                    name: "a_R".to_string(),
+                    transform: Mat4::IDENTITY,
+                    parent_index: Some(0),
+                },
+                Bone {
+                    name: "b_R".to_string(),
+                    transform: Mat4::IDENTITY,
+                    parent_index: Some(3),
+                },
+            ],
+        };
+
+        // Scaling bones preserves the relative distance with the parent.
+        // This was tested visually in Xenoblade 2 with bl000101.wimdo.
+        // The behavior seems to be the same for Xenoblade 1 DE and Xenoblade 3.
+        let transforms = animation.model_space_transforms(&skeleton, 0.0);
+        assert_eq!(5, transforms.len());
+        assert_matrix_relative_eq!(
+            Mat4::from_cols_array_2d(&[
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ]),
+            transforms[0]
+        );
+        assert_matrix_relative_eq!(
+            Mat4::from_cols_array_2d(&[
+                [1.5, 0.0, 0.0, 0.0],
+                [0.0, 1.5, 0.0, 0.0],
+                [0.0, 0.0, 1.5, 0.0],
+                [1.0, 2.0, 3.0, 1.0],
+            ]),
+            transforms[1]
+        );
+        assert_matrix_relative_eq!(
+            Mat4::from_cols_array_2d(&[
+                [2.25, 0.0, 0.0, 0.0],
+                [0.0, 2.25, 0.0, 0.0],
+                [0.0, 0.0, 2.25, 0.0],
+                [2.0, 4.0, 6.0, 1.0],
+            ]),
+            transforms[2]
+        );
+        assert_matrix_relative_eq!(
+            Mat4::from_cols_array_2d(&[
+                [0.75, 0.0, 0.0, 0.0],
+                [0.0, 0.75, 0.0, 0.0],
+                [0.0, 0.0, 0.75, 0.0],
+                [1.0, 2.0, 3.0, 1.0],
+            ]),
+            transforms[3]
+        );
+        assert_matrix_relative_eq!(
+            Mat4::from_cols_array_2d(&[
+                [0.375, 0.0, 0.0, 0.0],
+                [0.0, 0.375, 0.0, 0.0],
+                [0.0, 0.0, 0.375, 0.0],
+                [2.0, 4.0, 6.0, 1.0],
+            ]),
+            transforms[4]
         );
     }
 
