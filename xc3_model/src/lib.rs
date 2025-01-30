@@ -67,6 +67,7 @@ use material::{Material, Texture};
 pub use sampler::{AddressMode, FilterMode, Sampler};
 pub use skeleton::{Bone, Skeleton};
 pub use texture::{ExtractedTextures, ImageFormat, ImageTexture, ViewDimension};
+pub use transform::Transform;
 pub use xc3_lib::mxmd::{MeshRenderFlags2, MeshRenderPass};
 
 #[cfg(feature = "gltf")]
@@ -83,6 +84,7 @@ pub mod shader_database;
 mod skeleton;
 pub mod skinning;
 mod texture;
+mod transform;
 pub mod vertex;
 
 // TODO: Document why these are different.
@@ -943,6 +945,12 @@ fn arbitrary_vec3(u: &mut arbitrary::Unstructured) -> arbitrary::Result<glam::Ve
 }
 
 #[cfg(feature = "arbitrary")]
+fn arbitrary_quat(u: &mut arbitrary::Unstructured) -> arbitrary::Result<glam::Quat> {
+    let array: [f32; 4] = u.arbitrary()?;
+    Ok(glam::Quat::from_array(array))
+}
+
+#[cfg(feature = "arbitrary")]
 fn arbitrary_vec3s(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Vec<glam::Vec3>> {
     let len = u.arbitrary_len::<[f32; 3]>()?;
     let mut elements = Vec::with_capacity(len);
@@ -964,12 +972,6 @@ fn arbitrary_vec4s(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Vec<gla
         elements.push(element);
     }
     Ok(elements)
-}
-
-#[cfg(feature = "arbitrary")]
-fn arbitrary_mat4(u: &mut arbitrary::Unstructured) -> arbitrary::Result<glam::Mat4> {
-    let array: [f32; 16] = u.arbitrary()?;
-    Ok(glam::Mat4::from_cols_array(&array))
 }
 
 #[cfg(feature = "arbitrary")]

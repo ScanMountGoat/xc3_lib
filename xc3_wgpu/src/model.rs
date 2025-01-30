@@ -406,8 +406,11 @@ impl ModelGroup {
                 },
             );
 
-            let bone_transforms = animation
-                .model_space_transforms(skeleton, animation.current_frame(current_time_seconds));
+            let bone_transforms: Vec<_> = animation
+                .model_space_transforms(skeleton, animation.current_frame(current_time_seconds))
+                .into_iter()
+                .map(|t| t.to_matrix())
+                .collect();
             // TODO: Add an ext method to lib.rs?
             queue.write_buffer(
                 &self.bone_animated_transforms,
@@ -556,9 +559,14 @@ fn create_model_group(
     let (per_group, per_group_buffer) = per_group_bind_group(device, skeleton);
 
     // TODO: Create helper ext method in lib.rs?
-    let bone_transforms = skeleton
+    let bone_transforms: Vec<_> = skeleton
         .as_ref()
-        .map(|s| s.model_space_transforms())
+        .map(|s| {
+            s.model_space_transforms()
+                .into_iter()
+                .map(|t| t.to_matrix())
+                .collect()
+        })
         .unwrap_or_default();
     let bone_count = skeleton.as_ref().map(|s| s.bones.len()).unwrap_or_default();
 

@@ -8,7 +8,7 @@ use ordered_float::OrderedFloat;
 pub use xc3_lib::bc::anim::{BlendMode, PlayMode, SpaceMode};
 pub use xc3_lib::hash::murmur3;
 
-use crate::Skeleton;
+use crate::{Skeleton, Transform};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Animation {
@@ -121,8 +121,8 @@ impl Animation {
 
         let mut animated_transforms = vec![Mat4::IDENTITY; skeleton.bones.len()];
         for i in (0..skeleton.bones.len()).take(animated_transforms.len()) {
-            let inverse_bind = bind_transforms[i].inverse();
-            animated_transforms[i] = anim_transforms[i] * inverse_bind;
+            let inverse_bind = bind_transforms[i].to_matrix().inverse();
+            animated_transforms[i] = anim_transforms[i].to_matrix() * inverse_bind;
         }
 
         animated_transforms
@@ -133,7 +133,7 @@ impl Animation {
     /// This also applies any extra translations to the root bone if present.
     ///
     /// See [Skeleton::model_space_transforms] for the transforms without animations applied.
-    pub fn model_space_transforms(&self, skeleton: &Skeleton, frame: f32) -> Vec<Mat4> {
+    pub fn model_space_transforms(&self, skeleton: &Skeleton, frame: f32) -> Vec<Transform> {
         // TODO: Is it worth precomputing this?
         let hash_to_index: BTreeMap<_, _> = skeleton
             .bones
@@ -202,16 +202,12 @@ impl Animation {
                     }
                 }
             }
-
-            if let Some(parent) = skeleton.bones[i].parent_index {
-                constrain_original_distance(&mut anim_model_space, i, parent);
-            }
         }
 
         anim_model_space
     }
 
-    fn apply_root_motion(&self, animated_transforms: &mut [Option<Mat4>], frame: f32) {
+    fn apply_root_motion(&self, animated_transforms: &mut [Option<Transform>], frame: f32) {
         if let Some(translations) = &self.root_translation {
             let (current, next, factor) = frame_next_frame_factor(frame, self.frame_count);
             let current_translation = translations.get(current).copied().unwrap_or(Vec3::ZERO);
@@ -222,9 +218,14 @@ impl Animation {
             if let Some(root) = animated_transforms.first_mut() {
                 match root {
                     Some(transform) => {
-                        *transform = Mat4::from_translation(translation) * *transform
+                        transform.translation += translation;
                     }
-                    None => *root = Some(Mat4::from_translation(translation)),
+                    None => {
+                        *root = Some(Transform {
+                            translation,
+                            ..Transform::IDENTITY
+                        })
+                    }
                 }
             }
         }
@@ -237,8 +238,8 @@ impl Animation {
             .iter()
             .zip(skeleton.bones.iter())
             .map(|(transform, bone)| match bone.parent_index {
-                Some(p) => transforms[p].inverse() * *transform,
-                None => *transform,
+                Some(p) => transforms[p].to_matrix().inverse() * transform.to_matrix(),
+                None => transform.to_matrix(),
             })
             .collect()
     }
@@ -304,9 +305,9 @@ impl Animation {
             .into_iter()
             .map(|t| {
                 if use_blender_coordinates {
-                    xenoblade_to_blender(t)
+                    xenoblade_to_blender(t.to_matrix())
                 } else {
-                    t
+                    t.to_matrix()
                 }
             })
             .collect();
@@ -364,24 +365,6 @@ impl Animation {
             rotation: rotation_points,
             scale: scale_points,
         }
-    }
-}
-
-fn constrain_original_distance(transforms: &mut [Mat4], i: usize, parent: usize) {
-    // Preserve the distance from the translation relative to the parent.
-    // This means scale does not affect bone distances.
-    let transform = transforms[parent].inverse() * transforms[i];
-    let original_distance = transform.col(3).xyz().length();
-
-    let parent_pos = transforms[parent].col(3).xyz();
-    let pos = transforms[i].col(3).xyz();
-    let distance = pos.distance(parent_pos);
-
-    if distance > 0.0 && distance != original_distance {
-        // Interpolate along the line to the parent.
-        let factor = original_distance / distance;
-        let translation = transforms[i].col_mut(3);
-        *translation = parent_pos.lerp(pos, factor).extend(1.0);
     }
 }
 
@@ -804,12 +787,16 @@ impl Track {
 
     /// Sample and combine transformation matrices for scale -> rotation -> translation (TRS).
     /// Returns `None` if the animation is empty.
-    pub fn sample_transform(&self, frame: f32, frame_count: u32) -> Option<Mat4> {
-        let t = self.sample_translation(frame, frame_count)?;
-        let r = self.sample_rotation(frame, frame_count)?;
-        let s = self.sample_scale(frame, frame_count)?;
+    pub fn sample_transform(&self, frame: f32, frame_count: u32) -> Option<Transform> {
+        let translation = self.sample_translation(frame, frame_count)?;
+        let rotation = self.sample_rotation(frame, frame_count)?;
+        let scale = self.sample_scale(frame, frame_count)?;
 
-        Some(Mat4::from_translation(t) * Mat4::from_quat(r) * Mat4::from_scale(s))
+        Some(Transform {
+            translation,
+            rotation,
+            scale,
+        })
     }
 }
 
@@ -856,7 +843,7 @@ fn interpolate_cubic(coeffs: Vec4, x: f32) -> f32 {
     coeffs.x * (x * x * x) + coeffs.y * (x * x) + coeffs.z * x + coeffs.w
 }
 
-fn apply_transform(target: Mat4, source: Mat4, blend_mode: BlendMode) -> Mat4 {
+fn apply_transform(target: Transform, source: Transform, blend_mode: BlendMode) -> Transform {
     // TODO: Is this the correct way to implement additive blending?
     match blend_mode {
         BlendMode::Blend => source,
@@ -1044,24 +1031,22 @@ mod tests {
             .is_empty());
     }
 
-    // TODO: Function for constant keyframe.
+    fn keyframe(x: f32, y: f32, z: f32, w: f32) -> (OrderedFloat<f32>, Keyframe) {
+        // Crate a keyframe with a constant value.
+        (
+            0.0.into(),
+            Keyframe {
+                x_coeffs: vec4(0.0, 0.0, 0.0, x),
+                y_coeffs: vec4(0.0, 0.0, 0.0, y),
+                z_coeffs: vec4(0.0, 0.0, 0.0, z),
+                w_coeffs: vec4(0.0, 0.0, 0.0, w),
+            },
+        )
+    }
 
     // TODO: test additive blending.
     #[test]
     fn model_space_transforms_local_blend() {
-        // Crate a keyframe with a constant value.
-        let keyframe = |x, y, z, w| {
-            (
-                0.0.into(),
-                Keyframe {
-                    x_coeffs: vec4(0.0, 0.0, 0.0, x),
-                    y_coeffs: vec4(0.0, 0.0, 0.0, y),
-                    z_coeffs: vec4(0.0, 0.0, 0.0, z),
-                    w_coeffs: vec4(0.0, 0.0, 0.0, w),
-                },
-            )
-        };
-
         let animation = Animation {
             name: String::new(),
             space_mode: SpaceMode::Local,
@@ -1091,12 +1076,12 @@ mod tests {
             bones: vec![
                 Bone {
                     name: "a".to_string(),
-                    transform: Mat4::IDENTITY,
+                    transform: Transform::IDENTITY,
                     parent_index: None,
                 },
                 Bone {
                     name: "b".to_string(),
-                    transform: Mat4::IDENTITY,
+                    transform: Transform::IDENTITY,
                     parent_index: Some(0),
                 },
             ],
@@ -1111,7 +1096,7 @@ mod tests {
                 [0.0, 0.0, 1.0, 0.0],
                 [1.0, 2.0, 3.0, 1.0],
             ]),
-            transforms[0]
+            transforms[0].to_matrix()
         );
         assert_matrix_relative_eq!(
             Mat4::from_cols_array_2d(&[
@@ -1120,25 +1105,12 @@ mod tests {
                 [0.0, 0.0, 1.0, 0.0],
                 [2.0, 4.0, 6.0, 1.0],
             ]),
-            transforms[1]
+            transforms[1].to_matrix()
         );
     }
 
     #[test]
     fn model_space_transforms_local_blend_constrain_scale() {
-        // Crate a keyframe with a constant value.
-        let keyframe = |x, y, z, w| {
-            (
-                0.0.into(),
-                Keyframe {
-                    x_coeffs: vec4(0.0, 0.0, 0.0, x),
-                    y_coeffs: vec4(0.0, 0.0, 0.0, y),
-                    z_coeffs: vec4(0.0, 0.0, 0.0, z),
-                    w_coeffs: vec4(0.0, 0.0, 0.0, w),
-                },
-            )
-        };
-
         // Test that the original bone distance is preserved even when scaling.
         let animation = Animation {
             name: String::new(),
@@ -1181,27 +1153,27 @@ mod tests {
             bones: vec![
                 Bone {
                     name: "root".to_string(),
-                    transform: Mat4::IDENTITY,
+                    transform: Transform::IDENTITY,
                     parent_index: None,
                 },
                 Bone {
                     name: "a_L".to_string(),
-                    transform: Mat4::IDENTITY,
+                    transform: Transform::IDENTITY,
                     parent_index: Some(0),
                 },
                 Bone {
                     name: "b_L".to_string(),
-                    transform: Mat4::IDENTITY,
+                    transform: Transform::IDENTITY,
                     parent_index: Some(1),
                 },
                 Bone {
                     name: "a_R".to_string(),
-                    transform: Mat4::IDENTITY,
+                    transform: Transform::IDENTITY,
                     parent_index: Some(0),
                 },
                 Bone {
                     name: "b_R".to_string(),
-                    transform: Mat4::IDENTITY,
+                    transform: Transform::IDENTITY,
                     parent_index: Some(3),
                 },
             ],
@@ -1219,7 +1191,7 @@ mod tests {
                 [0.0, 0.0, 1.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ]),
-            transforms[0]
+            transforms[0].to_matrix()
         );
         assert_matrix_relative_eq!(
             Mat4::from_cols_array_2d(&[
@@ -1228,7 +1200,7 @@ mod tests {
                 [0.0, 0.0, 1.5, 0.0],
                 [1.0, 2.0, 3.0, 1.0],
             ]),
-            transforms[1]
+            transforms[1].to_matrix()
         );
         assert_matrix_relative_eq!(
             Mat4::from_cols_array_2d(&[
@@ -1237,7 +1209,7 @@ mod tests {
                 [0.0, 0.0, 2.25, 0.0],
                 [2.0, 4.0, 6.0, 1.0],
             ]),
-            transforms[2]
+            transforms[2].to_matrix()
         );
         assert_matrix_relative_eq!(
             Mat4::from_cols_array_2d(&[
@@ -1246,7 +1218,7 @@ mod tests {
                 [0.0, 0.0, 0.75, 0.0],
                 [1.0, 2.0, 3.0, 1.0],
             ]),
-            transforms[3]
+            transforms[3].to_matrix()
         );
         assert_matrix_relative_eq!(
             Mat4::from_cols_array_2d(&[
@@ -1255,25 +1227,12 @@ mod tests {
                 [0.0, 0.0, 0.375, 0.0],
                 [2.0, 4.0, 6.0, 1.0],
             ]),
-            transforms[4]
+            transforms[4].to_matrix()
         );
     }
 
     #[test]
     fn model_space_transforms_model_blend() {
-        // Crate a keyframe with a constant value.
-        let keyframe = |x, y, z, w| {
-            (
-                0.0.into(),
-                Keyframe {
-                    x_coeffs: vec4(0.0, 0.0, 0.0, x),
-                    y_coeffs: vec4(0.0, 0.0, 0.0, y),
-                    z_coeffs: vec4(0.0, 0.0, 0.0, z),
-                    w_coeffs: vec4(0.0, 0.0, 0.0, w),
-                },
-            )
-        };
-
         // Model space animations update the model space transforms directly.
         let animation = Animation {
             name: String::new(),
@@ -1304,12 +1263,12 @@ mod tests {
             bones: vec![
                 Bone {
                     name: "a".to_string(),
-                    transform: Mat4::IDENTITY,
+                    transform: Transform::IDENTITY,
                     parent_index: None,
                 },
                 Bone {
                     name: "b".to_string(),
-                    transform: Mat4::IDENTITY,
+                    transform: Transform::IDENTITY,
                     parent_index: Some(0),
                 },
             ],
@@ -1324,7 +1283,7 @@ mod tests {
                 [0.0, 0.0, 1.0, 0.0],
                 [1.0, 2.0, 3.0, 1.0],
             ]),
-            transforms[0]
+            transforms[0].to_matrix()
         );
         assert_matrix_relative_eq!(
             Mat4::from_cols_array_2d(&[
@@ -1333,25 +1292,12 @@ mod tests {
                 [0.0, 0.0, 1.0, 0.0],
                 [10.0, 20.0, 30.0, 1.0],
             ]),
-            transforms[1]
+            transforms[1].to_matrix()
         );
     }
 
     #[test]
     fn model_space_transforms_model_root_motion_blend() {
-        // Crate a keyframe with a constant value.
-        let keyframe = |x, y, z, w| {
-            (
-                0.0.into(),
-                Keyframe {
-                    x_coeffs: vec4(0.0, 0.0, 0.0, x),
-                    y_coeffs: vec4(0.0, 0.0, 0.0, y),
-                    z_coeffs: vec4(0.0, 0.0, 0.0, z),
-                    w_coeffs: vec4(0.0, 0.0, 0.0, w),
-                },
-            )
-        };
-
         // Model space animations update the model space transforms directly.
         let animation = Animation {
             name: String::new(),
@@ -1382,12 +1328,12 @@ mod tests {
             bones: vec![
                 Bone {
                     name: "a".to_string(),
-                    transform: Mat4::IDENTITY,
+                    transform: Transform::IDENTITY,
                     parent_index: None,
                 },
                 Bone {
                     name: "b".to_string(),
-                    transform: Mat4::IDENTITY,
+                    transform: Transform::IDENTITY,
                     parent_index: Some(0),
                 },
             ],
@@ -1402,7 +1348,7 @@ mod tests {
                 [0.0, 0.0, 1.0, 0.0],
                 [1.25, 2.5, 3.75, 1.0],
             ]),
-            transforms[0]
+            transforms[0].to_matrix()
         );
         assert_matrix_relative_eq!(
             Mat4::from_cols_array_2d(&[
@@ -1411,25 +1357,12 @@ mod tests {
                 [0.0, 0.0, 1.0, 0.0],
                 [10.0, 20.0, 30.0, 1.0],
             ]),
-            transforms[1]
+            transforms[1].to_matrix()
         );
     }
 
     #[test]
     fn local_space_transforms_model_blend() {
-        // Crate a keyframe with a constant value.
-        let keyframe = |x, y, z, w| {
-            (
-                0.0.into(),
-                Keyframe {
-                    x_coeffs: vec4(0.0, 0.0, 0.0, x),
-                    y_coeffs: vec4(0.0, 0.0, 0.0, y),
-                    z_coeffs: vec4(0.0, 0.0, 0.0, z),
-                    w_coeffs: vec4(0.0, 0.0, 0.0, w),
-                },
-            )
-        };
-
         // Model space animations update the model space transforms directly.
         let animation = Animation {
             name: String::new(),
@@ -1460,12 +1393,12 @@ mod tests {
             bones: vec![
                 Bone {
                     name: "a".to_string(),
-                    transform: Mat4::IDENTITY,
+                    transform: Transform::IDENTITY,
                     parent_index: None,
                 },
                 Bone {
                     name: "b".to_string(),
-                    transform: Mat4::IDENTITY,
+                    transform: Transform::IDENTITY,
                     parent_index: Some(0),
                 },
             ],
@@ -1495,19 +1428,6 @@ mod tests {
 
     #[test]
     fn fcurves_xenoblade() {
-        // Crate a keyframe with a constant value.
-        let keyframe = |x, y, z, w| {
-            (
-                0.0.into(),
-                Keyframe {
-                    x_coeffs: vec4(0.0, 0.0, 0.0, x),
-                    y_coeffs: vec4(0.0, 0.0, 0.0, y),
-                    z_coeffs: vec4(0.0, 0.0, 0.0, z),
-                    w_coeffs: vec4(0.0, 0.0, 0.0, w),
-                },
-            )
-        };
-
         // Model space animations update the model space transforms directly.
         let animation = Animation {
             name: String::new(),
@@ -1538,12 +1458,12 @@ mod tests {
             bones: vec![
                 Bone {
                     name: "a".to_string(),
-                    transform: Mat4::IDENTITY,
+                    transform: Transform::IDENTITY,
                     parent_index: None,
                 },
                 Bone {
                     name: "b".to_string(),
-                    transform: Mat4::IDENTITY,
+                    transform: Transform::IDENTITY,
                     parent_index: Some(0),
                 },
             ],
@@ -1617,12 +1537,12 @@ mod tests {
             bones: vec![
                 Bone {
                     name: "a".to_string(),
-                    transform: Mat4::IDENTITY,
+                    transform: Transform::IDENTITY,
                     parent_index: None,
                 },
                 Bone {
                     name: "b".to_string(),
-                    transform: Mat4::IDENTITY,
+                    transform: Transform::IDENTITY,
                     parent_index: Some(0),
                 },
             ],

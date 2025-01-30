@@ -200,7 +200,7 @@ impl ModelRoot {
                     .map(|bone| {
                         if let Some(index) = skeleton.bones.iter().position(|b| b.name == bone.name)
                         {
-                            transforms[index].inverse().to_cols_array_2d()
+                            transforms[index].to_matrix().inverse().to_cols_array_2d()
                         } else {
                             warn!("Setting identity inverse bind transform for skinning bone {:?} not in skeleton.", &bone.name);
                             Mat4::IDENTITY.to_cols_array_2d()

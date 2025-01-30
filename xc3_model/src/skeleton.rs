@@ -2,8 +2,7 @@ use glam::{vec3, Mat4, Quat};
 use log::warn;
 use xc3_lib::hkt::Hkt;
 
-#[cfg(feature = "arbitrary")]
-use crate::arbitrary_mat4;
+use crate::Transform;
 
 /// See [Skeleton](xc3_lib::bc::skel::Skeleton) and [Skinning](xc3_lib::mxmd::Skinning).
 // TODO: Assume bones appear after their parents?
@@ -20,10 +19,8 @@ pub struct Skeleton {
 pub struct Bone {
     /// The name used by some animations to identify this bone.
     pub name: String,
-    // TODO: leave this as TRS?
     /// The local transform of the bone relative to its parent.
-    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_mat4))]
-    pub transform: Mat4,
+    pub transform: Transform,
     /// The index of the parent [Bone] in [bones](struct.Skeleton.html#structfield.bones)
     /// or `None` if this is a root bone.
     pub parent_index: Option<usize>,
@@ -64,7 +61,7 @@ impl Skeleton {
 
                 bones.push(Bone {
                     name: bone.name.clone(),
-                    transform,
+                    transform: Transform::from_matrix(transform),
                     parent_index: None,
                 });
             }
@@ -138,17 +135,15 @@ impl Skeleton {
                 .zip(hkt.transforms.iter())
                 .map(|((name, parent_index), transform)| Bone {
                     name: name.name.clone(),
-                    transform: Mat4::from_translation(
-                        [
+                    transform: Transform {
+                        translation: vec3(
                             transform.translation[0],
                             transform.translation[1],
                             transform.translation[2],
-                        ]
-                        .into(),
-                    ) * Mat4::from_quat(Quat::from_array(transform.rotation_quaternion))
-                        * Mat4::from_scale(
-                            [transform.scale[0], transform.scale[1], transform.scale[2]].into(),
                         ),
+                        rotation: Quat::from_array(transform.rotation_quaternion),
+                        scale: vec3(transform.scale[0], transform.scale[1], transform.scale[2]),
+                    },
                     parent_index: (*parent_index).try_into().ok(),
                 })
                 .collect(),
@@ -160,7 +155,7 @@ impl Skeleton {
     ///
     /// This is also known as the bone's "rest pose" or "bind pose".
     /// For inverse bind matrices, simply invert the model space transforms.
-    pub fn model_space_transforms(&self) -> Vec<Mat4> {
+    pub fn model_space_transforms(&self) -> Vec<Transform> {
         let mut final_transforms: Vec<_> = self.bones.iter().map(|b| b.transform).collect();
 
         // TODO: Don't assume bones appear after their parents.
@@ -237,16 +232,17 @@ fn update_bone(
     let parent_index = bones.iter().position(|b| &b.name == parent_name);
 
     if let Some(bone) = bones.iter_mut().find(|b| &b.name == bone_name) {
-        bone.transform = transform;
+        bone.transform = Transform::from_matrix(transform);
         bone.parent_index = parent_index;
     }
 }
 
-// TODO: Test the order of transforms.
-fn bone_transform(b: &xc3_lib::bc::Transform) -> Mat4 {
-    Mat4::from_translation(vec3(b.translation[0], b.translation[1], b.translation[2]))
-        * Mat4::from_quat(Quat::from_array(b.rotation_quaternion))
-        * Mat4::from_scale(vec3(b.scale[0], b.scale[1], b.scale[2]))
+fn bone_transform(b: &xc3_lib::bc::Transform) -> Transform {
+    Transform {
+        translation: vec3(b.translation[0], b.translation[1], b.translation[2]),
+        rotation: Quat::from_array(b.rotation_quaternion),
+        scale: vec3(b.scale[0], b.scale[1], b.scale[2]),
+    }
 }
 
 #[cfg(test)]
@@ -267,12 +263,15 @@ mod tests {
                 bones: vec![
                     Bone {
                         name: "a".to_string(),
-                        transform: Mat4::IDENTITY,
+                        transform: Transform::IDENTITY,
                         parent_index: None
                     },
                     Bone {
                         name: "b".to_string(),
-                        transform: Mat4::IDENTITY * 2.0,
+                        transform: Transform {
+                            scale: vec3(2.0, 2.0, 2.0),
+                            ..Transform::IDENTITY
+                        },
                         parent_index: Some(0)
                     },
                 ]
@@ -281,12 +280,15 @@ mod tests {
                 bones: vec![
                     Bone {
                         name: "a".to_string(),
-                        transform: Mat4::IDENTITY,
+                        transform: Transform::IDENTITY,
                         parent_index: None
                     },
                     Bone {
                         name: "b".to_string(),
-                        transform: Mat4::IDENTITY * 2.0,
+                        transform: Transform {
+                            scale: vec3(2.0, 2.0, 2.0),
+                            ..Transform::IDENTITY
+                        },
                         parent_index: Some(0)
                     }
                 ]
@@ -301,17 +303,23 @@ mod tests {
                 bones: vec![
                     Bone {
                         name: "a".to_string(),
-                        transform: Mat4::IDENTITY,
+                        transform: Transform::IDENTITY,
                         parent_index: None
                     },
                     Bone {
                         name: "b".to_string(),
-                        transform: Mat4::IDENTITY * 2.0,
+                        transform: Transform {
+                            scale: vec3(2.0, 2.0, 2.0),
+                            ..Transform::IDENTITY
+                        },
                         parent_index: None
                     },
                     Bone {
                         name: "c".to_string(),
-                        transform: Mat4::IDENTITY * 3.0,
+                        transform: Transform {
+                            scale: vec3(3.0, 3.0, 3.0),
+                            ..Transform::IDENTITY
+                        },
                         parent_index: Some(1)
                     }
                 ]
@@ -320,7 +328,7 @@ mod tests {
                 Skeleton {
                     bones: vec![Bone {
                         name: "a".to_string(),
-                        transform: Mat4::IDENTITY,
+                        transform: Transform::IDENTITY,
                         parent_index: None
                     }]
                 },
@@ -328,17 +336,26 @@ mod tests {
                     bones: vec![
                         Bone {
                             name: "b".to_string(),
-                            transform: Mat4::IDENTITY * 2.0,
+                            transform: Transform {
+                                scale: vec3(2.0, 2.0, 2.0),
+                                ..Transform::IDENTITY
+                            },
                             parent_index: None
                         },
                         Bone {
                             name: "a".to_string(),
-                            transform: Mat4::IDENTITY * -1.0,
+                            transform: Transform {
+                                scale: vec3(-1.0, -1.0, -1.0),
+                                ..Transform::IDENTITY
+                            },
                             parent_index: None
                         },
                         Bone {
                             name: "c".to_string(),
-                            transform: Mat4::IDENTITY * 3.0,
+                            transform: Transform {
+                                scale: vec3(3.0, 3.0, 3.0),
+                                ..Transform::IDENTITY
+                            },
                             parent_index: Some(0)
                         }
                     ]

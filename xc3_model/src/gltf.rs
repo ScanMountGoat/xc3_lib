@@ -33,6 +33,7 @@ use std::{borrow::Cow, collections::BTreeMap, io::BufWriter, path::Path};
 
 use crate::{
     animation::Animation, monolib::ShaderTextures, skeleton::merge_skeletons, MapRoot, ModelRoot,
+    Transform,
 };
 use animation::add_animations;
 use glam::Mat4;
@@ -753,12 +754,13 @@ fn create_skin(
             let children = find_children(skeleton, i, bone_start_index);
 
             // Use TRS in case the bone node is the target of animation channels.
-            let (translation, rotation, scale) = if bone.transform != Mat4::IDENTITY {
-                let (s, r, t) = bone.transform.to_scale_rotation_translation();
+            let (translation, rotation, scale) = if bone.transform != Transform::IDENTITY {
                 (
-                    Some(t.to_array()),
-                    Some(gltf::json::scene::UnitQuaternion(r.to_array())),
-                    Some(s.to_array()),
+                    Some(bone.transform.translation.to_array()),
+                    Some(gltf::json::scene::UnitQuaternion(
+                        bone.transform.rotation.to_array(),
+                    )),
+                    Some(bone.transform.scale.to_array()),
                 )
             } else {
                 (None, None, None)
@@ -783,7 +785,7 @@ fn create_skin(
         let inverse_bind_matrices: Vec<_> = skeleton
             .model_space_transforms()
             .iter()
-            .map(|t| t.inverse())
+            .map(|t| t.to_matrix().inverse())
             .collect();
 
         let accessor_index = buffers
