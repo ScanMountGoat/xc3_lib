@@ -134,6 +134,52 @@ impl Animation {
     ///
     /// See [Skeleton::model_space_transforms] for the transforms without animations applied.
     pub fn model_space_transforms(&self, skeleton: &Skeleton, frame: f32) -> Vec<Transform> {
+        let mut animated_transforms = self.animated_transforms(skeleton, frame);
+        self.apply_root_motion(&mut animated_transforms, frame);
+
+        let mut anim_model_space = skeleton.model_space_transforms();
+        self.apply_animation_transforms(&mut anim_model_space, skeleton, &animated_transforms);
+
+        anim_model_space
+    }
+
+    fn apply_animation_transforms(
+        &self,
+        anim_model_space: &mut [Transform],
+        skeleton: &Skeleton,
+        animated_transforms: &[Option<Transform>],
+    ) {
+        // Assume parents appear before their children.
+        for i in 0..anim_model_space.len() {
+            match animated_transforms[i] {
+                Some(transform) => {
+                    anim_model_space[i] = match self.space_mode {
+                        SpaceMode::Local => {
+                            // Local space is relative to the parent bone.
+                            if let Some(parent) = skeleton.bones[i].parent_index {
+                                anim_model_space[parent] * transform
+                            } else {
+                                transform
+                            }
+                        }
+                        SpaceMode::Model => {
+                            // Model space is relative to the model root.
+                            // This is faster to compute but rarely used by animation files.
+                            transform
+                        }
+                    }
+                }
+                None => {
+                    if let Some(parent) = skeleton.bones[i].parent_index {
+                        anim_model_space[i] =
+                            anim_model_space[parent] * skeleton.bones[i].transform;
+                    }
+                }
+            }
+        }
+    }
+
+    fn animated_transforms(&self, skeleton: &Skeleton, frame: f32) -> Vec<Option<Transform>> {
         // TODO: Is it worth precomputing this?
         let hash_to_index: BTreeMap<_, _> = skeleton
             .bones
@@ -167,44 +213,7 @@ impl Animation {
                 error!("No matching bone for {:?}", track.bone_index);
             }
         }
-
-        self.apply_root_motion(&mut animated_transforms, frame);
-
-        let rest_pose_model_space = skeleton.model_space_transforms();
-
-        // Assume parents appear before their children.
-        // TODO: Does this code correctly handle all cases?
-        let mut anim_model_space = rest_pose_model_space.clone();
-
-        for i in 0..anim_model_space.len() {
-            match animated_transforms[i] {
-                Some(transform) => {
-                    anim_model_space[i] = match self.space_mode {
-                        SpaceMode::Local => {
-                            // Local space is relative to the parent bone.
-                            if let Some(parent) = skeleton.bones[i].parent_index {
-                                anim_model_space[parent] * transform
-                            } else {
-                                transform
-                            }
-                        }
-                        SpaceMode::Model => {
-                            // Model space is relative to the model root.
-                            // This is faster to compute but rarely used by animation files.
-                            transform
-                        }
-                    }
-                }
-                None => {
-                    if let Some(parent) = skeleton.bones[i].parent_index {
-                        anim_model_space[i] =
-                            anim_model_space[parent] * skeleton.bones[i].transform;
-                    }
-                }
-            }
-        }
-
-        anim_model_space
+        animated_transforms
     }
 
     fn apply_root_motion(&self, animated_transforms: &mut [Option<Transform>], frame: f32) {

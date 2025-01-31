@@ -154,7 +154,7 @@ impl Skeleton {
     /// by recursively applying the parent transform.
     ///
     /// This is also known as the bone's "rest pose" or "bind pose".
-    /// For inverse bind matrices, simply invert the model space transforms.
+    /// For inverse bind matrices, convert the transforms to a matrix and invert.
     pub fn model_space_transforms(&self) -> Vec<Transform> {
         let mut final_transforms: Vec<_> = self.bones.iter().map(|b| b.transform).collect();
 
