@@ -14,6 +14,8 @@ use std::ops::Deref;
 // Writing will typically only fail from io errors on the writer anyway.
 pub type Xc3Result<T> = Result<T, std::io::Error>;
 
+pub mod strings;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Endian {
     Little,

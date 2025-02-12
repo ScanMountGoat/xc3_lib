@@ -1,7 +1,5 @@
 //! Animation and skeleton data in `.anm` or `.motstm_data` files or [Sar1](crate::sar1::Sar1) archives.
-use std::collections::BTreeMap;
-
-use crate::{align, parse_offset64_count32, parse_ptr64, parse_string_ptr64};
+use crate::{parse_offset64_count32, parse_ptr64, parse_string_ptr64};
 use binrw::{args, binread, BinRead};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
@@ -269,56 +267,5 @@ where
             }
             BcListCountOffsets::NullOffsetCount => Ok(()),
         }
-    }
-}
-
-#[doc(hidden)]
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Clone, Default)]
-pub struct StringSection {
-    // Unique strings are stored in alphabetical order.
-    name_to_offsets: BTreeMap<String, Vec<u64>>,
-}
-
-impl StringSection {
-    fn insert_offset(&mut self, offset: &xc3_write::Offset<'_, u64, String>) {
-        self.name_to_offsets
-            .entry(offset.data.clone())
-            .or_default()
-            .push(offset.position);
-    }
-
-    fn write<W: std::io::Write + std::io::Seek>(
-        &self,
-        writer: &mut W,
-        data_ptr: &mut u64,
-        alignment: u64,
-        endian: xc3_write::Endian,
-    ) -> xc3_write::Xc3Result<()> {
-        // Write the string data.
-        // TODO: Cleaner way to handle alignment?
-        let mut name_to_position = BTreeMap::new();
-        writer.seek(std::io::SeekFrom::Start(*data_ptr))?;
-        align(writer, *data_ptr, alignment, 0xff)?;
-
-        for name in self.name_to_offsets.keys() {
-            let offset = writer.stream_position()?;
-            writer.write_all(name.as_bytes())?;
-            writer.write_all(&[0u8])?;
-            name_to_position.insert(name, offset);
-        }
-        *data_ptr = (*data_ptr).max(writer.stream_position()?);
-
-        // Update offsets.
-        for (name, offsets) in &self.name_to_offsets {
-            for offset in offsets {
-                let position = name_to_position[name];
-                // Assume all string pointers are 8 bytes.
-                writer.seek(std::io::SeekFrom::Start(*offset))?;
-                position.xc3_write(writer, endian)?;
-            }
-        }
-
-        Ok(())
     }
 }

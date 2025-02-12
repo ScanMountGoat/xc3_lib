@@ -1,8 +1,8 @@
 use crate::{align, parse_offset64_count32, parse_opt_ptr64, parse_ptr64, parse_string_ptr64};
 use binrw::{binread, BinRead};
-use xc3_write::{Xc3Write, Xc3WriteOffsets};
+use xc3_write::{strings::StringSectionUniqueSorted, Xc3Write, Xc3WriteOffsets};
 
-use super::{BcList, StringOffset, StringSection, Transform};
+use super::{BcList, StringOffset, Transform};
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
@@ -320,7 +320,7 @@ impl Xc3WriteOffsets for SkeletonOffsets<'_> {
         _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         // The names are stored in a single section.
-        let mut string_section = StringSection::default();
+        let mut string_section = StringSectionUniqueSorted::default();
         string_section.insert_offset(&self.root_bone_name);
 
         // Different order than field order.

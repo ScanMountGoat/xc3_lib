@@ -10,6 +10,7 @@ edition = "2021"
 
 [dependencies]
 xc3_write_derive = { version = "0.17.0", path = "../xc3_write_derive" }
+indexmap.workspace = true
 
 [dev-dependencies]
 hexlit = "0.5.5"

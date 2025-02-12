@@ -1,8 +1,8 @@
 use crate::{parse_ptr64, parse_string_opt_ptr64, parse_string_ptr64};
 use binrw::BinRead;
-use xc3_write::{Xc3Write, Xc3WriteOffsets};
+use xc3_write::{strings::StringSectionUniqueSorted, Xc3Write, Xc3WriteOffsets};
 
-use super::{BcList, BcOffset, StringOffset, StringSection};
+use super::{BcList, BcOffset, StringOffset};
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
@@ -223,7 +223,7 @@ impl Xc3WriteOffsets for AsmbInnerV1Offsets<'_> {
         endian: xc3_write::Endian,
         _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
-        let mut string_section = StringSection::default();
+        let mut string_section = StringSectionUniqueSorted::default();
 
         // Different order than field order.
         let folders = self

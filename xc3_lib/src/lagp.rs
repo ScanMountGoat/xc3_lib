@@ -9,14 +9,12 @@
 //! | Xenoblade Chronicles 2 |  | |
 //! | Xenoblade Chronicles 3 | 10003 | `menu/image/*.wilay` |
 use crate::{
-    align,
     dhal::{Textures, Unk1, Unk2, Unk3, Unk4, Unk5, Unk6},
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
     parse_string_ptr32,
 };
 use binrw::{args, binread, BinRead, NullString};
-use indexmap::IndexMap;
-use xc3_write::{Xc3Write, Xc3WriteOffsets};
+use xc3_write::{strings::StringSectionUnique, Xc3Write, Xc3WriteOffsets};
 
 // TODO: How much of this is shared with LAHD?
 #[binread]
@@ -333,7 +331,7 @@ impl Xc3WriteOffsets for Unk13Offsets<'_> {
 
         // Some strings are grouped at the end.
         // Strings should use insertion order instead of alphabetical.
-        let mut string_section = StringSection::default();
+        let mut string_section = StringSectionUnique::default();
 
         let unk1 = self.unk1.write(writer, base_offset, data_ptr, endian)?;
         for u in &unk1.0 {
@@ -433,58 +431,6 @@ impl Xc3Write for UnkString {
         let size = end - start;
         let aligned_size = size.next_multiple_of(4);
         vec![0u8; (aligned_size - size) as usize].xc3_write(writer, endian)?;
-        Ok(())
-    }
-}
-
-// TODO: Create a shared type that handles pointer width and sorting.
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Default)]
-struct StringSection {
-    name_to_offsets: IndexMap<String, Vec<u64>>,
-}
-
-impl StringSection {
-    fn insert_offset(&mut self, offset: &xc3_write::Offset<'_, u32, String>) {
-        self.name_to_offsets
-            .entry(offset.data.clone())
-            .or_default()
-            .push(offset.position);
-    }
-
-    fn write<W: std::io::Write + std::io::Seek>(
-        &self,
-        writer: &mut W,
-        base_offset: u64,
-        data_ptr: &mut u64,
-        alignment: u64,
-        endian: xc3_write::Endian,
-    ) -> xc3_write::Xc3Result<()> {
-        // Write the string data.
-        // TODO: Cleaner way to handle alignment?
-        let mut name_to_position = IndexMap::new();
-        writer.seek(std::io::SeekFrom::Start(*data_ptr))?;
-        align(writer, *data_ptr, alignment, 0xff)?;
-
-        for name in self.name_to_offsets.keys() {
-            let offset = writer.stream_position()?;
-            writer.write_all(name.as_bytes())?;
-            writer.write_all(&[0u8])?;
-            name_to_position.insert(name, offset);
-        }
-        *data_ptr = (*data_ptr).max(writer.stream_position()?);
-
-        // Update offsets.
-        for (name, offsets) in &self.name_to_offsets {
-            for offset in offsets {
-                let position = name_to_position[name];
-                // Assume all string pointers are 4 bytes.
-                writer.seek(std::io::SeekFrom::Start(*offset))?;
-                let final_offset = position - base_offset;
-                (final_offset as u32).xc3_write(writer, endian)?;
-            }
-        }
-
         Ok(())
     }
 }

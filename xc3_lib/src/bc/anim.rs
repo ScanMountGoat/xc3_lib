@@ -5,9 +5,9 @@ use crate::{
     xc3_write_binwrite_impl,
 };
 use binrw::{binread, BinRead, BinWrite};
-use xc3_write::{Xc3Write, Xc3WriteOffsets};
+use xc3_write::{strings::StringSectionUniqueSorted, Xc3Write, Xc3WriteOffsets};
 
-use super::{BcList, BcList2, BcList8, BcListCount, StringOffset, StringSection, Transform};
+use super::{BcList, BcList2, BcList8, BcListCount, StringOffset, Transform};
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
@@ -654,7 +654,7 @@ impl Xc3WriteOffsets for AnimOffsets<'_> {
             .write_offsets(writer, base_offset, data_ptr, endian, ())?;
 
         // The names are stored in a single section for XC1 and XC3.
-        let string_section = Rc::new(RefCell::new(StringSection::default()));
+        let string_section = Rc::new(RefCell::new(StringSectionUniqueSorted::default()));
 
         match &binding.inner {
             AnimationBindingInnerOffsets::Unk1(unk1) => {
@@ -720,7 +720,7 @@ impl Xc3WriteOffsets for AnimOffsets<'_> {
 }
 
 impl Xc3WriteOffsets for ExtraTrackDataOffsets<'_> {
-    type Args = Rc<RefCell<StringSection>>;
+    type Args = Rc<RefCell<StringSectionUniqueSorted>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
@@ -747,7 +747,7 @@ impl Xc3WriteOffsets for ExtraTrackDataOffsets<'_> {
 
 // TODO: Add a skip(condition) attribute to derive this.
 impl Xc3WriteOffsets for AnimationBindingInner1Offsets<'_> {
-    type Args = Rc<RefCell<StringSection>>;
+    type Args = Rc<RefCell<StringSectionUniqueSorted>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
@@ -766,7 +766,7 @@ impl Xc3WriteOffsets for AnimationBindingInner1Offsets<'_> {
 }
 
 impl Xc3WriteOffsets for AnimationBindingInner2Offsets<'_> {
-    type Args = Rc<RefCell<StringSection>>;
+    type Args = Rc<RefCell<StringSectionUniqueSorted>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
@@ -809,7 +809,7 @@ impl Xc3WriteOffsets for AnimationBindingInner2Offsets<'_> {
 }
 
 impl Xc3WriteOffsets for AnimationBindingInner3Offsets<'_> {
-    type Args = Rc<RefCell<StringSection>>;
+    type Args = Rc<RefCell<StringSectionUniqueSorted>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
@@ -836,7 +836,7 @@ impl Xc3WriteOffsets for AnimationBindingInner3Offsets<'_> {
 }
 
 impl Xc3WriteOffsets for AnimationBindingInner4Offsets<'_> {
-    type Args = Rc<RefCell<StringSection>>;
+    type Args = Rc<RefCell<StringSectionUniqueSorted>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
@@ -863,7 +863,7 @@ impl Xc3WriteOffsets for AnimationBindingInner4Offsets<'_> {
 }
 
 impl Xc3WriteOffsets for ExtraTrackAnimationBindingOffsets<'_> {
-    type Args = Rc<RefCell<StringSection>>;
+    type Args = Rc<RefCell<StringSectionUniqueSorted>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
@@ -884,7 +884,7 @@ impl Xc3WriteOffsets for ExtraTrackAnimationBindingOffsets<'_> {
 }
 
 impl Xc3WriteOffsets for ExtraTrackAnimationOffsets<'_> {
-    type Args = Rc<RefCell<StringSection>>;
+    type Args = Rc<RefCell<StringSectionUniqueSorted>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
@@ -904,7 +904,7 @@ impl Xc3WriteOffsets for ExtraTrackAnimationOffsets<'_> {
 }
 
 impl Xc3WriteOffsets for PackedCubicExtraDataOffsets<'_> {
-    type Args = Rc<RefCell<StringSection>>;
+    type Args = Rc<RefCell<StringSectionUniqueSorted>>;
 
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
         &self,
@@ -932,7 +932,7 @@ impl Xc3WriteOffsets for PackedCubicExtraDataOffsets<'_> {
 }
 
 impl Xc3WriteOffsets for UncompressedExtraDataOffsets<'_> {
-    type Args = Rc<RefCell<StringSection>>;
+    type Args = Rc<RefCell<StringSectionUniqueSorted>>;
 
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
         &self,

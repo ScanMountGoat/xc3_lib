@@ -2,9 +2,9 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::{parse_ptr64, parse_string_ptr64};
 use binrw::{binread, BinRead};
-use xc3_write::{Xc3Write, Xc3WriteOffsets};
+use xc3_write::{strings::StringSectionUniqueSorted, Xc3Write, Xc3WriteOffsets};
 
-use super::{BcList, BcList2, BcListN, StringSection};
+use super::{BcList, BcList2, BcListN};
 
 // TODO: skeleton dynamics?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -304,7 +304,7 @@ impl Xc3WriteOffsets for DynamicsOffsets<'_> {
         endian: xc3_write::Endian,
         _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
-        let string_section = Rc::new(RefCell::new(StringSection::default()));
+        let string_section = Rc::new(RefCell::new(StringSectionUniqueSorted::default()));
 
         if !self.unk1.0.data.is_empty() {
             self.unk1
@@ -332,7 +332,7 @@ impl Xc3WriteOffsets for DynamicsOffsets<'_> {
 }
 
 impl Xc3WriteOffsets for DynamicsInnerOffsets<'_> {
-    type Args = Rc<RefCell<StringSection>>;
+    type Args = Rc<RefCell<StringSectionUniqueSorted>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
@@ -354,7 +354,7 @@ impl Xc3WriteOffsets for DynamicsInnerOffsets<'_> {
 }
 
 impl Xc3WriteOffsets for DynamicsInner1Offsets<'_> {
-    type Args = Rc<RefCell<StringSection>>;
+    type Args = Rc<RefCell<StringSectionUniqueSorted>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
@@ -371,7 +371,7 @@ impl Xc3WriteOffsets for DynamicsInner1Offsets<'_> {
 }
 
 impl Xc3WriteOffsets for DynamicsInner2Offsets<'_> {
-    type Args = Rc<RefCell<StringSection>>;
+    type Args = Rc<RefCell<StringSectionUniqueSorted>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
@@ -390,7 +390,7 @@ impl Xc3WriteOffsets for DynamicsInner2Offsets<'_> {
 }
 
 impl Xc3WriteOffsets for DynamicsUnk1Offsets<'_> {
-    type Args = Rc<RefCell<StringSection>>;
+    type Args = Rc<RefCell<StringSectionUniqueSorted>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
@@ -411,7 +411,7 @@ impl Xc3WriteOffsets for DynamicsUnk1Offsets<'_> {
 }
 
 impl Xc3WriteOffsets for SphereOffsets<'_> {
-    type Args = Rc<RefCell<StringSection>>;
+    type Args = Rc<RefCell<StringSectionUniqueSorted>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
@@ -428,7 +428,7 @@ impl Xc3WriteOffsets for SphereOffsets<'_> {
 }
 
 impl Xc3WriteOffsets for CapsuleOffsets<'_> {
-    type Args = Rc<RefCell<StringSection>>;
+    type Args = Rc<RefCell<StringSectionUniqueSorted>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
@@ -445,7 +445,7 @@ impl Xc3WriteOffsets for CapsuleOffsets<'_> {
 }
 
 impl Xc3WriteOffsets for PlaneOffsets<'_> {
-    type Args = Rc<RefCell<StringSection>>;
+    type Args = Rc<RefCell<StringSectionUniqueSorted>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
@@ -462,7 +462,7 @@ impl Xc3WriteOffsets for PlaneOffsets<'_> {
 }
 
 impl Xc3WriteOffsets for DynamicsUnk2Offsets<'_> {
-    type Args = Rc<RefCell<StringSection>>;
+    type Args = Rc<RefCell<StringSectionUniqueSorted>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
@@ -479,7 +479,7 @@ impl Xc3WriteOffsets for DynamicsUnk2Offsets<'_> {
 }
 
 impl Xc3WriteOffsets for DynamicsUnk2ItemOffsets<'_> {
-    type Args = Rc<RefCell<StringSection>>;
+    type Args = Rc<RefCell<StringSectionUniqueSorted>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
@@ -505,7 +505,7 @@ impl Xc3WriteOffsets for DynamicsUnk2ItemOffsets<'_> {
 }
 
 impl Xc3WriteOffsets for DynamicsUnk2ItemUnk1Offsets<'_> {
-    type Args = Rc<RefCell<StringSection>>;
+    type Args = Rc<RefCell<StringSectionUniqueSorted>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
@@ -522,7 +522,7 @@ impl Xc3WriteOffsets for DynamicsUnk2ItemUnk1Offsets<'_> {
 }
 
 impl Xc3WriteOffsets for StickOffsets<'_> {
-    type Args = Rc<RefCell<StringSection>>;
+    type Args = Rc<RefCell<StringSectionUniqueSorted>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
@@ -538,7 +538,7 @@ impl Xc3WriteOffsets for StickOffsets<'_> {
 }
 
 impl Xc3WriteOffsets for SpringOffsets<'_> {
-    type Args = Rc<RefCell<StringSection>>;
+    type Args = Rc<RefCell<StringSectionUniqueSorted>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
@@ -554,7 +554,7 @@ impl Xc3WriteOffsets for SpringOffsets<'_> {
 }
 
 impl Xc3WriteOffsets for DynamicsUnk2LegacyOffsets<'_> {
-    type Args = Rc<RefCell<StringSection>>;
+    type Args = Rc<RefCell<StringSectionUniqueSorted>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
@@ -571,7 +571,7 @@ impl Xc3WriteOffsets for DynamicsUnk2LegacyOffsets<'_> {
 }
 
 impl Xc3WriteOffsets for DynamicsUnk2ItemLegacyOffsets<'_> {
-    type Args = Rc<RefCell<StringSection>>;
+    type Args = Rc<RefCell<StringSectionUniqueSorted>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
@@ -597,7 +597,7 @@ impl Xc3WriteOffsets for DynamicsUnk2ItemLegacyOffsets<'_> {
 }
 
 impl Xc3WriteOffsets for DynamicsUnk2ItemUnk1LegacyOffsets<'_> {
-    type Args = Rc<RefCell<StringSection>>;
+    type Args = Rc<RefCell<StringSectionUniqueSorted>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
@@ -614,7 +614,7 @@ impl Xc3WriteOffsets for DynamicsUnk2ItemUnk1LegacyOffsets<'_> {
 }
 
 impl Xc3WriteOffsets for StickLegacyOffsets<'_> {
-    type Args = Rc<RefCell<StringSection>>;
+    type Args = Rc<RefCell<StringSectionUniqueSorted>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
@@ -630,7 +630,7 @@ impl Xc3WriteOffsets for StickLegacyOffsets<'_> {
 }
 
 impl Xc3WriteOffsets for DynamicsUnk3Offsets<'_> {
-    type Args = Rc<RefCell<StringSection>>;
+    type Args = Rc<RefCell<StringSectionUniqueSorted>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
@@ -646,7 +646,7 @@ impl Xc3WriteOffsets for DynamicsUnk3Offsets<'_> {
 }
 
 impl Xc3WriteOffsets for DynamicsUnk3ItemOffsets<'_> {
-    type Args = Rc<RefCell<StringSection>>;
+    type Args = Rc<RefCell<StringSectionUniqueSorted>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
