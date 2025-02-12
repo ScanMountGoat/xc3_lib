@@ -465,14 +465,14 @@ fn update_window_title(window: &Window, model_names: &str, anims: &[Animation], 
     if let Some(anim) = anims.get(anim_index) {
         window.set_title(&format!(
             "{} - {} - {}",
-            concat!("xc3_wgpu ", env!("CARGO_PKG_VERSION")),
+            concat!("xc3_viewer ", env!("CARGO_PKG_VERSION")),
             model_names,
             anim.name
         ));
     } else {
         window.set_title(&format!(
             "{} - {}",
-            concat!("xc3_wgpu ", env!("CARGO_PKG_VERSION")),
+            concat!("xc3_viewer ", env!("CARGO_PKG_VERSION")),
             model_names,
         ));
     }
