@@ -2,7 +2,10 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::{parse_ptr64, parse_string_ptr64};
 use binrw::{binread, BinRead};
-use xc3_write::{strings::StringSectionUniqueSorted, Xc3Write, Xc3WriteOffsets};
+use xc3_write::{
+    strings::{StringSectionUniqueSorted, WriteOptions},
+    Xc3Write, Xc3WriteOffsets,
+};
 
 use super::{BcList, BcList2, BcListN};
 
@@ -325,7 +328,17 @@ impl Xc3WriteOffsets for DynamicsOffsets<'_> {
             string_section.clone(),
         )?;
 
-        string_section.borrow().write(writer, data_ptr, 8, endian)?;
+        string_section.borrow().write(
+            writer,
+            data_ptr,
+            &WriteOptions {
+                start_alignment: 8,
+                start_padding_byte: 0xff,
+                string_alignment: 1,
+                string_padding_byte: 0,
+            },
+            endian,
+        )?;
 
         Ok(())
     }
@@ -421,8 +434,8 @@ impl Xc3WriteOffsets for SphereOffsets<'_> {
         _endian: xc3_write::Endian,
         args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
-        args.borrow_mut().insert_offset(&self.name);
-        args.borrow_mut().insert_offset(&self.bone_name);
+        args.borrow_mut().insert_offset64(&self.name);
+        args.borrow_mut().insert_offset64(&self.bone_name);
         Ok(())
     }
 }
@@ -438,8 +451,8 @@ impl Xc3WriteOffsets for CapsuleOffsets<'_> {
         _endian: xc3_write::Endian,
         args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
-        args.borrow_mut().insert_offset(&self.name);
-        args.borrow_mut().insert_offset(&self.bone_name);
+        args.borrow_mut().insert_offset64(&self.name);
+        args.borrow_mut().insert_offset64(&self.bone_name);
         Ok(())
     }
 }
@@ -455,8 +468,8 @@ impl Xc3WriteOffsets for PlaneOffsets<'_> {
         _endian: xc3_write::Endian,
         args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
-        args.borrow_mut().insert_offset(&self.name);
-        args.borrow_mut().insert_offset(&self.bone_name);
+        args.borrow_mut().insert_offset64(&self.name);
+        args.borrow_mut().insert_offset64(&self.bone_name);
         Ok(())
     }
 }
@@ -489,7 +502,7 @@ impl Xc3WriteOffsets for DynamicsUnk2ItemOffsets<'_> {
         endian: xc3_write::Endian,
         args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
-        args.borrow_mut().insert_offset(&self.name);
+        args.borrow_mut().insert_offset64(&self.name);
         self.unk1
             .write_offsets(writer, base_offset, data_ptr, endian, args.clone())?;
         self.unk2
@@ -515,8 +528,8 @@ impl Xc3WriteOffsets for DynamicsUnk2ItemUnk1Offsets<'_> {
         _endian: xc3_write::Endian,
         args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
-        args.borrow_mut().insert_offset(&self.name);
-        args.borrow_mut().insert_offset(&self.bone_name);
+        args.borrow_mut().insert_offset64(&self.name);
+        args.borrow_mut().insert_offset64(&self.bone_name);
         Ok(())
     }
 }
@@ -532,7 +545,7 @@ impl Xc3WriteOffsets for StickOffsets<'_> {
         _endian: xc3_write::Endian,
         args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
-        args.borrow_mut().insert_offset(&self.name);
+        args.borrow_mut().insert_offset64(&self.name);
         Ok(())
     }
 }
@@ -548,7 +561,7 @@ impl Xc3WriteOffsets for SpringOffsets<'_> {
         _endian: xc3_write::Endian,
         args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
-        args.borrow_mut().insert_offset(&self.name);
+        args.borrow_mut().insert_offset64(&self.name);
         Ok(())
     }
 }
@@ -581,7 +594,7 @@ impl Xc3WriteOffsets for DynamicsUnk2ItemLegacyOffsets<'_> {
         endian: xc3_write::Endian,
         args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
-        args.borrow_mut().insert_offset(&self.name);
+        args.borrow_mut().insert_offset64(&self.name);
         self.unk1
             .write_offsets(writer, base_offset, data_ptr, endian, args.clone())?;
         self.unk2
@@ -607,8 +620,8 @@ impl Xc3WriteOffsets for DynamicsUnk2ItemUnk1LegacyOffsets<'_> {
         _endian: xc3_write::Endian,
         args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
-        args.borrow_mut().insert_offset(&self.name1);
-        args.borrow_mut().insert_offset(&self.name2);
+        args.borrow_mut().insert_offset64(&self.name1);
+        args.borrow_mut().insert_offset64(&self.name2);
         Ok(())
     }
 }
@@ -624,7 +637,7 @@ impl Xc3WriteOffsets for StickLegacyOffsets<'_> {
         _endian: xc3_write::Endian,
         args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
-        args.borrow_mut().insert_offset(&self.name);
+        args.borrow_mut().insert_offset64(&self.name);
         Ok(())
     }
 }
@@ -656,9 +669,9 @@ impl Xc3WriteOffsets for DynamicsUnk3ItemOffsets<'_> {
         _endian: xc3_write::Endian,
         args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
-        args.borrow_mut().insert_offset(&self.name);
-        args.borrow_mut().insert_offset(&self.name2);
-        args.borrow_mut().insert_offset(&self.name3);
+        args.borrow_mut().insert_offset64(&self.name);
+        args.borrow_mut().insert_offset64(&self.name2);
+        args.borrow_mut().insert_offset64(&self.name3);
         Ok(())
     }
 }

@@ -14,7 +14,10 @@ use crate::{
     parse_string_ptr32,
 };
 use binrw::{args, binread, BinRead, NullString};
-use xc3_write::{strings::StringSectionUnique, Xc3Write, Xc3WriteOffsets};
+use xc3_write::{
+    strings::{StringSectionUnique, WriteOptions},
+    Xc3Write, Xc3WriteOffsets,
+};
 
 // TODO: How much of this is shared with LAHD?
 #[binread]
@@ -341,12 +344,12 @@ impl Xc3WriteOffsets for Unk13Offsets<'_> {
                 .write_full(writer, base_offset, data_ptr, endian, ())?;
             u.unk4
                 .write_full(writer, base_offset, data_ptr, endian, ())?;
-            string_section.insert_offset(&u.unk7);
+            string_section.insert_offset32(&u.unk7);
             if let Some(unk5) = u.unk5.write(writer, base_offset, data_ptr, endian)? {
                 let base_offset = unk5.base_offset;
                 let items = unk5.items.write(writer, base_offset, data_ptr, endian)?;
                 for item in items.0 {
-                    string_section.insert_offset(&item.unk1);
+                    string_section.insert_offset32(&item.unk1);
                 }
             }
             u.unk3
@@ -358,7 +361,13 @@ impl Xc3WriteOffsets for Unk13Offsets<'_> {
         self.unk3
             .write_full(writer, base_offset, data_ptr, endian, ())?;
 
-        string_section.write(writer, base_offset, data_ptr, 1, endian)?;
+        string_section.write(
+            writer,
+            base_offset,
+            data_ptr,
+            &WriteOptions::default(),
+            endian,
+        )?;
         Ok(())
     }
 }

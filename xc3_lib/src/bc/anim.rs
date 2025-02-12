@@ -5,7 +5,10 @@ use crate::{
     xc3_write_binwrite_impl,
 };
 use binrw::{binread, BinRead, BinWrite};
-use xc3_write::{strings::StringSectionUniqueSorted, Xc3Write, Xc3WriteOffsets};
+use xc3_write::{
+    strings::{StringSectionUniqueSorted, WriteOptions},
+    Xc3Write, Xc3WriteOffsets,
+};
 
 use super::{BcList, BcList2, BcList8, BcListCount, StringOffset, Transform};
 
@@ -698,22 +701,32 @@ impl Xc3WriteOffsets for AnimOffsets<'_> {
         string_section
             .borrow_mut()
             .deref_mut()
-            .insert_offset(&animation.name);
+            .insert_offset64(&animation.name);
         if let Some(notifies) = &notifies {
             for n in &notifies.0 {
                 string_section
                     .borrow_mut()
                     .deref_mut()
-                    .insert_offset(&n.unk3);
+                    .insert_offset64(&n.unk3);
                 string_section
                     .borrow_mut()
                     .deref_mut()
-                    .insert_offset(&n.unk4);
+                    .insert_offset64(&n.unk4);
             }
         }
 
         // The names are the last item before the addresses.
-        string_section.borrow().write(writer, data_ptr, 8, endian)?;
+        string_section.borrow().write(
+            writer,
+            data_ptr,
+            &WriteOptions {
+                start_alignment: 8,
+                start_padding_byte: 0xff,
+                string_alignment: 1,
+                string_padding_byte: 0,
+            },
+            endian,
+        )?;
 
         Ok(())
     }
@@ -781,7 +794,7 @@ impl Xc3WriteOffsets for AnimationBindingInner2Offsets<'_> {
             .0
             .write(writer, base_offset, data_ptr, endian)?;
         for bone_name in &bone_names.0 {
-            args.borrow_mut().insert_offset(&bone_name.name);
+            args.borrow_mut().insert_offset64(&bone_name.name);
         }
 
         if !self.extra_track_bindings.data.is_empty() {
@@ -797,7 +810,7 @@ impl Xc3WriteOffsets for AnimationBindingInner2Offsets<'_> {
                     extra
                         .data
                         .write_offsets(writer, base_offset, data_ptr, endian, ())?;
-                    args.borrow_mut().insert_offset(&extra.name);
+                    args.borrow_mut().insert_offset64(&extra.name);
                 }
 
                 item.track_indices
@@ -825,7 +838,7 @@ impl Xc3WriteOffsets for AnimationBindingInner3Offsets<'_> {
                 .0
                 .write(writer, base_offset, data_ptr, endian)?;
             for bone_name in &bone_names.0 {
-                args.borrow_mut().insert_offset(&bone_name.name);
+                args.borrow_mut().insert_offset64(&bone_name.name);
             }
         }
 
@@ -852,7 +865,7 @@ impl Xc3WriteOffsets for AnimationBindingInner4Offsets<'_> {
                 .0
                 .write(writer, base_offset, data_ptr, endian)?;
             for bone_name in &bone_names.0 {
-                args.borrow_mut().insert_offset(&bone_name.name);
+                args.borrow_mut().insert_offset64(&bone_name.name);
             }
         }
 
@@ -897,7 +910,7 @@ impl Xc3WriteOffsets for ExtraTrackAnimationOffsets<'_> {
         self.data
             .write_offsets(writer, base_offset, data_ptr, endian, ())?;
 
-        args.borrow_mut().insert_offset(&self.name);
+        args.borrow_mut().insert_offset64(&self.name);
 
         Ok(())
     }

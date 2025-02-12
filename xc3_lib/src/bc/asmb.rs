@@ -1,6 +1,9 @@
 use crate::{parse_ptr64, parse_string_opt_ptr64, parse_string_ptr64};
 use binrw::BinRead;
-use xc3_write::{strings::StringSectionUniqueSorted, Xc3Write, Xc3WriteOffsets};
+use xc3_write::{
+    strings::{StringSectionUniqueSorted, WriteOptions},
+    Xc3Write, Xc3WriteOffsets,
+};
 
 use super::{BcList, BcOffset, StringOffset};
 
@@ -231,36 +234,36 @@ impl Xc3WriteOffsets for AsmbInnerV1Offsets<'_> {
             .0
             .write(writer, base_offset, data_ptr, endian)?;
         for f in folders.0 {
-            string_section.insert_offset(&f.name);
+            string_section.insert_offset64(&f.name);
         }
 
         let unk5 = self.unk5.0.write(writer, base_offset, data_ptr, endian)?;
         for u in unk5.0 {
-            string_section.insert_offset(&u.name);
+            string_section.insert_offset64(&u.name);
         }
 
         let unk6 = self.unk6.0.write(writer, base_offset, data_ptr, endian)?;
         for u in unk6.0 {
-            string_section.insert_offset(&u.file_name);
+            string_section.insert_offset64(&u.file_name);
         }
 
         // TODO: find a better way to handle nested data.
         let unk4 = self.unk4.0.write(writer, base_offset, data_ptr, endian)?;
         for u in unk4.0 {
             let u = u.value.write(writer, base_offset, data_ptr, endian)?;
-            string_section.insert_offset(&u.name);
+            string_section.insert_offset64(&u.name);
 
             let children = u.children.0.write(writer, base_offset, data_ptr, endian)?;
             for c in children.0 {
                 let c = c.value.write(writer, base_offset, data_ptr, endian)?;
-                string_section.insert_offset(&c.name);
+                string_section.insert_offset64(&c.name);
             }
         }
 
         let unk8 = self.unk8.0.write(writer, base_offset, data_ptr, endian)?;
         for u in unk8.0 {
-            string_section.insert_offset(&u.key);
-            string_section.insert_offset(&u.value);
+            string_section.insert_offset64(&u.key);
+            string_section.insert_offset64(&u.value);
         }
 
         // TODO: How to handle an optional string?
@@ -269,7 +272,17 @@ impl Xc3WriteOffsets for AsmbInnerV1Offsets<'_> {
         // }
 
         // The names are the last item before the addresses.
-        string_section.write(writer, data_ptr, 8, endian)?;
+        string_section.write(
+            writer,
+            data_ptr,
+            &WriteOptions {
+                start_alignment: 8,
+                start_padding_byte: 0xff,
+                string_alignment: 1,
+                string_padding_byte: 0,
+            },
+            endian,
+        )?;
 
         Ok(())
     }

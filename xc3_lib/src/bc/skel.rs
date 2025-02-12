@@ -1,6 +1,9 @@
 use crate::{align, parse_offset64_count32, parse_opt_ptr64, parse_ptr64, parse_string_ptr64};
 use binrw::{binread, BinRead};
-use xc3_write::{strings::StringSectionUniqueSorted, Xc3Write, Xc3WriteOffsets};
+use xc3_write::{
+    strings::{StringSectionUniqueSorted, WriteOptions},
+    Xc3Write, Xc3WriteOffsets,
+};
 
 use super::{BcList, StringOffset, Transform};
 
@@ -321,7 +324,7 @@ impl Xc3WriteOffsets for SkeletonOffsets<'_> {
     ) -> xc3_write::Xc3Result<()> {
         // The names are stored in a single section.
         let mut string_section = StringSectionUniqueSorted::default();
-        string_section.insert_offset(&self.root_bone_name);
+        string_section.insert_offset64(&self.root_bone_name);
 
         // Different order than field order.
         if !self.unk1.0.data.is_empty() {
@@ -333,7 +336,7 @@ impl Xc3WriteOffsets for SkeletonOffsets<'_> {
 
         let names = self.names.0.write(writer, base_offset, data_ptr, endian)?;
         for name in names.0 {
-            string_section.insert_offset(&name.name);
+            string_section.insert_offset64(&name.name);
         }
 
         self.parent_indices
@@ -344,12 +347,12 @@ impl Xc3WriteOffsets for SkeletonOffsets<'_> {
                 .extra_track_slots
                 .write(writer, base_offset, data_ptr, endian)?;
             for slot in slots.0 {
-                string_section.insert_offset(&slot.unk1);
+                string_section.insert_offset64(&slot.unk1);
 
                 if !slot.unk2.0.data.is_empty() {
                     let names = slot.unk2.0.write(writer, base_offset, data_ptr, endian)?;
                     for name in names.0 {
-                        string_section.insert_offset(&name.name);
+                        string_section.insert_offset64(&name.name);
                     }
                 }
 
@@ -371,7 +374,7 @@ impl Xc3WriteOffsets for SkeletonOffsets<'_> {
         if !self.mt_names.data.is_empty() {
             let names = self.mt_names.write(writer, base_offset, data_ptr, endian)?;
             for name in names.0 {
-                string_section.insert_offset(&name.name);
+                string_section.insert_offset64(&name.name);
             }
         }
         if !self.mt_transforms.data.is_empty() {
@@ -393,13 +396,23 @@ impl Xc3WriteOffsets for SkeletonOffsets<'_> {
             .write_offsets(writer, base_offset, data_ptr, endian, ())?;
 
         // The names are the last item before the addresses.
-        let alignment = match self.extra {
+        let start_alignment = match self.extra {
             SkeletonExtraOffsets::Unk0 => 4,
             SkeletonExtraOffsets::Unk1(_) => 8,
             SkeletonExtraOffsets::Unk2(_) => 8,
             SkeletonExtraOffsets::Unk3(_) => 8,
         };
-        string_section.write(writer, data_ptr, alignment, endian)?;
+        string_section.write(
+            writer,
+            data_ptr,
+            &WriteOptions {
+                start_alignment,
+                start_padding_byte: 0xff,
+                string_alignment: 1,
+                string_padding_byte: 0,
+            },
+            endian,
+        )?;
 
         Ok(())
     }
