@@ -16,10 +16,8 @@ jobs:
     - name: Build
       run: cargo build --release
     - name: Create Release Zip
-      run: |
-        cd target/release
-        zip xc3_lib_linux_x64.zip xc3_gltf xc3_shader xc3_tex xc3_viewer xc3_wgpu_batch
-        cd ../..
+      working-directory: target/release
+      run: zip xc3_lib_linux_x64.zip xc3_gltf xc3_shader xc3_tex xc3_viewer xc3_wgpu_batch
     - name: Upload Zip
       uses: actions/upload-artifact@v4
       with:
@@ -40,10 +38,8 @@ jobs:
     - name: Build
       run: cargo build --release
     - name: Create Release Zip
-      run: |
-        cd target/release
-        Compress-Archive -path xc3_gltf.exe, xc3_shader.exe, xc3_tex.exe, xc3_viewer.exe, xc3_wgpu_batch.exe -destinationPath xc3_lib_win_x64.zip
-        cd ../..
+      working-directory: target/release
+      run: Compress-Archive -path xc3_gltf.exe, xc3_shader.exe, xc3_tex.exe, xc3_viewer.exe, xc3_wgpu_batch.exe -destinationPath xc3_lib_win_x64.zip
     - name: Upload Zip
       uses: actions/upload-artifact@v4
       with:
@@ -76,19 +72,16 @@ jobs:
     - name: Build
       run: cargo build --release --target ${{matrix.target}}
     - name: Sign Binaries
+      working-directory: target/${{matrix.target}}/release
       run: |
-        cd target/${{matrix.target}}/release
         codesign -s - xc3_gltf
         codesign -s - xc3_shader
         codesign -s - xc3_tex
         codesign -s - xc3_viewer
         codesign -s - xc3_wgpu_batch
-        cd ../../..
     - name: Create Release Zip
-      run: |
-        cd target/${{matrix.target}}/release
-        zip xc3_lib_macos_${{matrix.desc}}.zip xc3_gltf xc3_shader xc3_tex xc3_viewer xc3_wgpu_batch
-        cd ../../..
+      working-directory: target/${{matrix.target}}/release
+      run: zip xc3_lib_macos_${{matrix.desc}}.zip xc3_gltf xc3_shader xc3_tex xc3_viewer xc3_wgpu_batch
     - name: Upload Zip
       uses: actions/upload-artifact@v4
       with:
