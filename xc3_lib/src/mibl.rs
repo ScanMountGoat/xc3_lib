@@ -23,7 +23,7 @@
 //! | Xenoblade Chronicles 1 DE | `monolib/shader/*.{witex,witx}` |
 //! | Xenoblade Chronicles 2 | `monolib/shader/*.{witex,witx}` |
 //! | Xenoblade Chronicles 3 | `chr/tex/nx/{h,m}/*.wismt`, `monolib/shader/*.{witex,witx}` |
-use std::io::SeekFrom;
+use std::{borrow::Cow, io::SeekFrom};
 
 use binrw::{binrw, BinRead, BinWrite};
 use image_dds::{ddsfile::Dds, Surface};
@@ -95,7 +95,7 @@ pub enum ImageFormat {
     R8Unorm = 1,
     R8G8B8A8Unorm = 37,
     R16G16B16A16Float = 41,
-    R4G4B4A4Unorm = 57, // TODO: try using this format in xc3 in renderdoc to check channels?
+    R4G4B4A4Unorm = 57,
     BC1Unorm = 66,
     BC2Unorm = 67,
     BC3Unorm = 68,
@@ -274,6 +274,12 @@ impl Mibl {
                 1
             },
         )?;
+
+        if self.footer.image_format == ImageFormat::R4G4B4A4Unorm {
+            // image_dds only supports bgra4.
+            swap_red_blue_unorm4(&mut data);
+        }
+
         data.extend_from_slice(&mid.data);
 
         // TODO: Error if invalid dimensions?
@@ -313,6 +319,11 @@ impl Mibl {
 
     /// Deswizzles all layers and mipmaps to a compatible surface for easier conversions.
     pub fn to_surface(&self) -> Result<Surface<Vec<u8>>, SwizzleError> {
+        let mut data = self.deswizzled_image_data()?;
+        if self.footer.image_format == ImageFormat::R4G4B4A4Unorm {
+            // image_dds only supports bgra4.
+            swap_red_blue_unorm4(&mut data);
+        }
         Ok(Surface {
             width: self.footer.width,
             height: self.footer.height,
@@ -324,7 +335,7 @@ impl Mibl {
             },
             mipmaps: self.footer.mipmap_count,
             image_format: self.footer.image_format.into(),
-            data: self.deswizzled_image_data()?,
+            data,
         })
     }
 
@@ -343,11 +354,20 @@ impl Mibl {
         } = surface;
         let image_format = ImageFormat::try_from(image_format)?;
 
+        let data = if image_format == ImageFormat::R4G4B4A4Unorm {
+            // image_dds only supports bgra4.
+            let mut data = data.as_ref().to_vec();
+            swap_red_blue_unorm4(&mut data);
+            Cow::Owned(data)
+        } else {
+            Cow::Borrowed(data.as_ref())
+        };
+
         let image_data = tegra_swizzle::surface::swizzle_surface(
             width,
             height,
             depth,
-            data.as_ref(),
+            &data,
             image_format.block_dim(),
             None,
             image_format.bytes_per_pixel(),
@@ -435,7 +455,7 @@ impl From<ImageFormat> for image_dds::ImageFormat {
             ImageFormat::R8Unorm => image_dds::ImageFormat::R8Unorm,
             ImageFormat::R8G8B8A8Unorm => image_dds::ImageFormat::Rgba8Unorm,
             ImageFormat::R16G16B16A16Float => image_dds::ImageFormat::Rgba16Float,
-            ImageFormat::R4G4B4A4Unorm => image_dds::ImageFormat::Bgra4Unorm,
+            ImageFormat::R4G4B4A4Unorm => image_dds::ImageFormat::Bgra4Unorm, // requires channel swap
             ImageFormat::BC1Unorm => image_dds::ImageFormat::BC1RgbaUnorm,
             ImageFormat::BC2Unorm => image_dds::ImageFormat::BC2RgbaUnorm,
             ImageFormat::BC3Unorm => image_dds::ImageFormat::BC3RgbaUnorm,
@@ -468,4 +488,14 @@ impl TryFrom<image_dds::ImageFormat> for ImageFormat {
             _ => Err(CreateMiblError::UnsupportedImageFormat(value)),
         }
     }
+}
+
+fn swap_red_blue_unorm4(data: &mut [u8]) {
+    data.chunks_exact_mut(2).for_each(|c| {
+        // Swap 4-bit red and blue channels.
+        let r = c[1] & 0xF;
+        let b = c[0] & 0xF;
+        c[0] = c[0] & 0xF0 | r;
+        c[1] = c[1] & 0xF0 | b;
+    });
 }

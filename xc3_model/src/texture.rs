@@ -195,13 +195,13 @@ impl ImageTexture {
         Mibl::from_surface(self.to_surface())
     }
 
-    pub(crate) fn extracted_texture(image: &ImageTexture) -> ExtractedTexture<Mibl, TextureUsage> {
+    pub(crate) fn to_extracted_texture(&self) -> ExtractedTexture<Mibl, TextureUsage> {
         // TODO: Avoid unwrap.
-        let mibl = image.to_mibl().unwrap();
+        let mibl = self.to_mibl().unwrap();
         ExtractedTexture::from_mibl(
             &mibl,
-            image.name.clone().unwrap_or_default(),
-            image.usage.unwrap_or(TextureUsage::Col),
+            self.name.clone().unwrap_or_default(),
+            self.usage.unwrap_or(TextureUsage::Col),
         )
     }
 }

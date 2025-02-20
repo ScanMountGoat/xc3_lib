@@ -57,7 +57,7 @@ impl ModelRoot {
         let textures: Vec<_> = self
             .image_textures
             .iter()
-            .map(ImageTexture::extracted_texture)
+            .map(ImageTexture::to_extracted_texture)
             .collect();
 
         let mut buffers = self.buffers.clone();
