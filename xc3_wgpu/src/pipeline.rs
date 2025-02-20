@@ -46,9 +46,9 @@ impl PipelineKey {
         // TODO: Test remaining values.
         match self.flags.stencil_value {
             xc3_model::material::StencilValue::Unk0 => 10,
-            xc3_model::material::StencilValue::Unk1 => 0,
+            xc3_model::material::StencilValue::Unk1 => 11,
             xc3_model::material::StencilValue::Unk4 => 14,
-            xc3_model::material::StencilValue::Unk5 => 0,
+            xc3_model::material::StencilValue::Unk5 => 15,
             xc3_model::material::StencilValue::Unk8 => 0,
             xc3_model::material::StencilValue::Unk9 => 0,
             xc3_model::material::StencilValue::Unk12 => 0,
