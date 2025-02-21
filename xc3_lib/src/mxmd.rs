@@ -773,12 +773,16 @@ pub struct Models {
 
     pub unk_field2: u32,
 
-    // TODO: only for 10111?
-    // TODO: offset for 10112?
-    // #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    // #[xc3(offset_count(u32, u32))]
-    // pub model_unk9: Vec<ModelUnk9>,
-    pub model_unk9: [u32; 2],
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: base_offset})]
+    #[xc3(offset(u32))]
+    pub model_unk9: Option<ModelUnk9>,
+
+    // TODO: Completely different type for version 10111?
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub model_unk12: Option<ModelUnk12>,
+
     // TODO: What controls the up to 44 optional bytes?
     // TODO: How to estimate models offset from these fields?
     // offset 160
@@ -1259,21 +1263,36 @@ pub struct ModelUnk8 {
     pub unks: [u32; 2],
 }
 
-#[binread]
+// TODO: doesn't work for xc1?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-#[br(stream = r)]
-#[xc3(base_offset)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
 pub struct ModelUnk9 {
-    #[br(temp, try_calc = r.stream_position())]
-    base_offset: u64,
+    pub unk1: u32, // TODO: flags?
 
-    #[br(parse_with = parse_count32_offset32, args { offset: base_offset, inner: base_offset })]
-    #[xc3(count_offset(u32, u32))]
-    pub items: Vec<ModelUnk9Item>,
+    // TODO: These offsets are relative to the start of the struct for xc1?
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub items: Vec<ModelUnk9Buffer>,
+
+    #[br(parse_with = parse_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: model_unk9_buffer_length(&items) } })]
+    #[xc3(offset(u32))]
+    pub buffer: Vec<u8>,
+
+    // TODO: Some sort of optional count?
+    pub unk2: u32,
 
     // TODO: padding?
     pub unk: [u32; 4],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct ModelUnk9Buffer {
+    // TODO: items are 48 byte structs of f32 and i16 in buffer?
+    pub offset: u32,
+    pub count: u32,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -1283,20 +1302,6 @@ pub struct ModelUnk10 {
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
     pub unk1: Vec<u32>,
-}
-
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-#[br(import_raw(base_offset: u64))]
-pub struct ModelUnk9Item {
-    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
-    pub name: String,
-
-    pub unk1: u32,
-    pub unk2: u32,
-    pub unk3: u32,
-    pub unk4: u32,
 }
 
 #[binread]
@@ -1318,6 +1323,40 @@ pub struct ModelUnk11 {
 
     // TODO: padding?
     pub unks: [u32; 4],
+}
+
+#[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(stream = r)]
+#[xc3(base_offset)]
+pub struct ModelUnk12 {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub items: Vec<ModelUnk12Item>,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub indices: Vec<u32>,
+
+    pub unk2: u32,
+
+    // TODO: array of 10 u16?
+
+    // TODO: padding?
+    pub unk: [u32; 4],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct ModelUnk12Item {
+    pub unk1: [f32; 4],
+    pub unk2: [f32; 4],
+    pub unk3: [f32; 4],
+    pub unk4: [f32; 4],
 }
 
 // TODO: Some sort of float animation for eyes, morphs, etc?
@@ -2132,9 +2171,13 @@ impl Xc3WriteOffsets for ModelsOffsets<'_> {
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.model_unk1
             .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.model_unk12
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.alpha_table
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.model_unk3
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.model_unk9
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.extra
             .write_offsets(writer, base_offset, data_ptr, endian, ())?;
@@ -2491,5 +2534,14 @@ fn count_bounds(bones: &[Bone]) -> usize {
             }
         })
         .max()
+        .unwrap_or_default()
+}
+
+fn model_unk9_buffer_length(buffers: &[ModelUnk9Buffer]) -> usize {
+    // TODO: Is it safe to assume the item size?
+    buffers
+        .iter()
+        .max_by_key(|b| b.offset)
+        .map(|b| b.offset as usize + b.count as usize * 48)
         .unwrap_or_default()
 }
