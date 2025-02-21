@@ -309,7 +309,7 @@ impl Animation {
     /// If `use_blender_coordinates` is `true`, the resulting values will match Blender's conventions.
     /// Bones will point along the y-axis instead of the x-axis and with z-axis for up instead of the y-axis.
     pub fn fcurves(&self, skeleton: &Skeleton, use_blender_coordinates: bool) -> FCurves {
-        let blender_bind_transforms: Vec<_> = skeleton
+        let bind_transforms: Vec<_> = skeleton
             .model_space_transforms()
             .into_iter()
             .map(|t| {
@@ -330,18 +330,21 @@ impl Animation {
         for frame in 0..self.frame_count {
             let transforms = self.local_space_transforms(skeleton, frame as f32);
 
-            let mut blender_transforms = blender_bind_transforms.clone();
+            let mut animated_transforms = bind_transforms.clone();
 
-            for i in 0..blender_transforms.len() {
+            for i in 0..animated_transforms.len() {
                 let bone = &skeleton.bones[i];
                 if animated_bone_names.contains(bone.name.as_str()) {
                     let matrix = transforms[i];
                     if let Some(parent_index) = bone.parent_index {
-                        let blender_transform = blender_transform(matrix);
-                        blender_transforms[i] =
-                            blender_transforms[parent_index] * blender_transform;
+                        let transform = if use_blender_coordinates {
+                            blender_transform(matrix)
+                        } else {
+                            matrix
+                        };
+                        animated_transforms[i] = animated_transforms[parent_index] * transform;
                     } else {
-                        blender_transforms[i] = if use_blender_coordinates {
+                        animated_transforms[i] = if use_blender_coordinates {
                             xenoblade_to_blender(matrix)
                         } else {
                             matrix
@@ -352,13 +355,14 @@ impl Animation {
                     // This matches the UI values used in Blender for posing bones.
                     // TODO: Add tests for calculating this.
                     let basis_transform = if let Some(parent_index) = bone.parent_index {
-                        let rest_local = blender_bind_transforms[parent_index].inverse()
-                            * blender_bind_transforms[i];
+                        let rest_local =
+                            bind_transforms[parent_index].inverse() * bind_transforms[i];
                         let local =
-                            blender_transforms[parent_index].inverse() * blender_transforms[i];
+                            animated_transforms[parent_index].inverse() * animated_transforms[i];
                         rest_local.inverse() * local
                     } else {
-                        blender_transforms[i] * blender_bind_transforms[i].inverse()
+                        // Equivalent to above with parent transform set to identity.
+                        bind_transforms[i].inverse() * animated_transforms[i]
                     };
 
                     let (s, r, t) = basis_transform.to_scale_rotation_translation();
@@ -1483,7 +1487,7 @@ mod tests {
             FCurves {
                 translation: [
                     ("a".to_string(), vec![vec3(1.25, 2.5, 3.75)]),
-                    ("b".to_string(), vec![vec3(17.5, 8.75, -26.25)])
+                    ("b".to_string(), vec![vec3(8.75, -17.5, -26.25)])
                 ]
                 .into(),
                 rotation: [
@@ -1561,12 +1565,12 @@ mod tests {
         assert_eq!(
             FCurves {
                 translation: [
-                    ("a".to_string(), vec![vec3(1.25, -3.75, 2.5)]),
+                    ("a".to_string(), vec![vec3(-2.5, 1.25, 3.75)]),
                     ("b".to_string(), vec![vec3(17.5, 8.75, -26.25)])
                 ]
                 .into(),
                 rotation: [
-                    ("a".to_string(), vec![quat(1.0, 0.0, 0.0, 0.0)]),
+                    ("a".to_string(), vec![quat(0.0, 1.0, 0.0, 0.0)]),
                     ("b".to_string(), vec![quat(0.0, 0.0, 1.0, 0.0)])
                 ]
                 .into(),
