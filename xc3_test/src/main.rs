@@ -1,5 +1,5 @@
 use std::{
-    io::{BufReader, Cursor},
+    io::Cursor,
     path::{Path, PathBuf},
 };
 
@@ -367,7 +367,7 @@ where
                 T::check_file(data, path, original_bytes, check_read_write)
             }
             MaybeXbc1::Xbc1(xbc1) => {
-                if check_read_write && !write_le_bytes_equals(&xbc1, original_bytes) {
+                if check_read_write && xbc1.to_bytes().unwrap() != original_bytes {
                     println!("Xbc1 read/write not 1:1 for {path:?}");
                 }
 
@@ -388,7 +388,7 @@ impl CheckFile for Msrd {
         let chr_tex_nx = chr_tex_nx_folder(path);
         let (vertex, spch, textures) = self.extract_files(chr_tex_nx.as_deref()).unwrap();
 
-        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+        if check_read_write && self.to_bytes().unwrap() != original_bytes {
             println!("Msrd read/write not 1:1 for {path:?}");
         }
 
@@ -419,7 +419,7 @@ impl CheckFile for Msrd {
 
 impl CheckFile for xc3_lib::vertex::VertexData {
     fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+        if check_read_write && self.to_bytes().unwrap() != original_bytes {
             println!("VertexData read/write not 1:1 for {path:?}");
         }
 
@@ -436,8 +436,7 @@ impl CheckFile for xc3_lib::vertex::VertexData {
 impl CheckFile for Msmd {
     fn check_file(self, path: &Path, _original_bytes: &[u8], check_read_write: bool) {
         // Parse all the data from the .wismda
-        let mut reader =
-            BufReader::new(std::fs::File::open(path.with_extension("wismda")).unwrap());
+        let mut reader = Cursor::new(std::fs::read(path.with_extension("wismda")).unwrap());
 
         let compressed = self.wismda_info.compressed_length != self.wismda_info.decompressed_length;
 
@@ -541,7 +540,7 @@ fn check_mibl(mibl: Mibl, path: &Path, original_bytes: &[u8], check_read_write: 
         println!("Mibl/DDS conversion not 1:1 for {path:?}");
     }
 
-    if check_read_write && !write_le_bytes_equals(&mibl, original_bytes) {
+    if check_read_write && mibl.to_bytes().unwrap() != original_bytes {
         println!("Mibl read/write not 1:1 for {path:?}");
     }
 }
@@ -587,7 +586,7 @@ fn check_dhal(dhal: Dhal, path: &Path, original_bytes: &[u8], check_read_write: 
         }
     }
 
-    if check_read_write && !write_le_bytes_equals(&dhal, original_bytes) {
+    if check_read_write && dhal.to_bytes().unwrap() != original_bytes {
         println!("Dhal read/write not 1:1 for {path:?}");
     }
 }
@@ -600,13 +599,13 @@ fn check_lagp(lagp: Lagp, path: &Path, original_bytes: &[u8], check_read_write: 
         }
     }
 
-    if check_read_write && !write_le_bytes_equals(&lagp, original_bytes) {
+    if check_read_write && lagp.to_bytes().unwrap() != original_bytes {
         println!("Lagp read/write not 1:1 for {path:?}");
     }
 }
 
 fn check_laps(laps: Laps, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    if check_read_write && !write_le_bytes_equals(&laps, original_bytes) {
+    if check_read_write && laps.to_bytes().unwrap() != original_bytes {
         println!("Laps read/write not 1:1 for {path:?}");
     }
 }
@@ -641,7 +640,7 @@ impl CheckFile for Wimdo {
                     }
                 }
 
-                if check_read_write && !write_le_bytes_equals(&apmd, original_bytes) {
+                if check_read_write && apmd.to_bytes().unwrap() != original_bytes {
                     println!("Apmd read/write not 1:1 for {path:?}");
                 }
             }
@@ -655,7 +654,7 @@ impl CheckFile for Mxmd {
             println!("Inconsistent ModelsFlags for {path:?}");
         }
 
-        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+        if check_read_write && self.to_bytes().unwrap() != original_bytes {
             println!("Mxmd read/write not 1:1 for {path:?}");
         }
 
@@ -702,7 +701,7 @@ impl CheckFile for Spch {
             }
         }
 
-        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+        if check_read_write && self.to_bytes().unwrap() != original_bytes {
             println!("Spch read/write not 1:1 for {path:?}");
         }
     }
@@ -710,7 +709,7 @@ impl CheckFile for Spch {
 
 impl CheckFile for Ltpc {
     fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+        if check_read_write && self.to_bytes().unwrap() != original_bytes {
             println!("Ltpc read/write not 1:1 for {path:?}");
         }
     }
@@ -737,7 +736,7 @@ impl CheckFile for Sar1 {
             match reader.read_le() {
                 Ok(data) => match data {
                     Sar1EntryData::Bc(bc) => {
-                        if check_read_write && !write_le_bytes_equals(&bc, &entry.entry_data) {
+                        if check_read_write && bc.to_bytes().unwrap() != entry.entry_data {
                             println!("Bc read/write not 1:1 for {:?} in {path:?}", entry.name);
                         }
                         bc.check_file(path, &[], false);
@@ -753,7 +752,7 @@ impl CheckFile for Sar1 {
                         }
                     }
                     Sar1EntryData::Eva(eva) => {
-                        if check_read_write && !write_le_bytes_equals(&eva, original_bytes) {
+                        if check_read_write && eva.to_bytes().unwrap() != original_bytes {
                             println!("Eva read/write not 1:1 for {:?} in {path:?}", entry.name);
                         }
                     }
@@ -762,7 +761,7 @@ impl CheckFile for Sar1 {
             }
         }
 
-        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+        if check_read_write && self.to_bytes().unwrap() != original_bytes {
             println!("Sar1 read/write not 1:1 for {path:?}");
         }
     }
@@ -770,7 +769,7 @@ impl CheckFile for Sar1 {
 
 impl CheckFile for Bc {
     fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+        if check_read_write && self.to_bytes().unwrap() != original_bytes {
             println!("Bc read/write not 1:1 for {path:?}");
         }
 
@@ -814,7 +813,7 @@ impl CheckFile for Bc {
 
 impl CheckFile for Eva {
     fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+        if check_read_write && self.to_bytes().unwrap() != original_bytes {
             println!("Eva read/write not 1:1 for {path:?}");
         }
     }
@@ -822,7 +821,7 @@ impl CheckFile for Eva {
 
 impl CheckFile for Beb {
     fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+        if check_read_write && self.to_bytes().unwrap() != original_bytes {
             println!("Beb read/write not 1:1 for {path:?}");
         }
 
@@ -855,7 +854,7 @@ impl CheckFile for Beb {
 
 impl CheckFile for Beh {
     fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+        if check_read_write && self.to_bytes().unwrap() != original_bytes {
             println!("Beh read/write not 1:1 for {path:?}");
         }
     }
@@ -863,7 +862,7 @@ impl CheckFile for Beh {
 
 impl CheckFile for Efb0 {
     fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+        if check_read_write && self.to_bytes().unwrap() != original_bytes {
             println!("efb0 read/write not 1:1 for {path:?}");
         }
     }
@@ -871,7 +870,7 @@ impl CheckFile for Efb0 {
 
 impl CheckFile for Idcm {
     fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+        if check_read_write && self.to_bytes().unwrap() != original_bytes {
             println!("Idcm read/write not 1:1 for {path:?}");
         }
     }
@@ -970,7 +969,7 @@ impl CheckFile for Laft {
             check_mibl(texture, path, &[], false);
         }
 
-        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+        if check_read_write && self.to_bytes().unwrap() != original_bytes {
             println!("Laft read/write not 1:1 for {path:?}");
         }
     }
@@ -978,7 +977,7 @@ impl CheckFile for Laft {
 
 impl CheckFile for Last {
     fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+        if check_read_write && self.to_bytes().unwrap() != original_bytes {
             println!("Last read/write not 1:1 for {path:?}");
         }
     }

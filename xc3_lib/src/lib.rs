@@ -417,23 +417,21 @@ where
 }
 
 fn log_offset<T, R: Read + Seek>(reader: &mut R) -> std::io::Result<()> {
-    let offset = reader.stream_position()?;
+    fn inner<R: Read + Seek>(reader: &mut R, name: &str) -> std::io::Result<()> {
+        let offset = reader.stream_position()?;
 
-    // Bit trick for largest power of two factor.
-    // We can assume a page is the strictest alignment requirement.
-    let align = if offset > 0 {
-        (1 << offset.trailing_zeros()).min(4096)
-    } else {
-        1
-    };
+        // Bit trick for largest power of two factor.
+        // We can assume a page is the strictest alignment requirement.
+        let align = if offset > 0 {
+            (1 << offset.trailing_zeros()).min(4096)
+        } else {
+            1
+        };
 
-    trace!(
-        "{} at {} aligned to {}",
-        std::any::type_name::<T>(),
-        offset,
-        align
-    );
-    Ok(())
+        trace!("{} at {} aligned to {}", name, offset, align);
+        Ok(())
+    }
+    inner(reader, std::any::type_name::<T>())
 }
 
 fn parse_string_ptr32<R: Read + Seek>(
@@ -546,6 +544,13 @@ macro_rules! file_write_impl {
                     let mut writer = BufWriter::new(std::fs::File::create(path)?);
                     self.write_options(&mut writer, $endian, ()).map_err(std::io::Error::other)
                 }
+
+                /// Write the result of [Self::write] to a byte buffer.
+                pub fn to_bytes(&self) -> xc3_write::Xc3Result<Vec<u8>> {
+                    let mut writer = Cursor::new(Vec::new());
+                    self.write(&mut writer)?;
+                    Ok(writer.into_inner())
+                }
             }
         )*
     };
@@ -566,6 +571,13 @@ macro_rules! file_write_full_impl {
                 pub fn save<P: AsRef<Path>>(&self, path: P) -> xc3_write::Xc3Result<()> {
                     let mut writer = BufWriter::new(std::fs::File::create(path)?);
                     self.write(&mut writer)
+                }
+
+                /// Write the result of [Self::write] to a byte buffer.
+                pub fn to_bytes(&self) -> xc3_write::Xc3Result<Vec<u8>> {
+                    let mut writer = Cursor::new(Vec::new());
+                    self.write(&mut writer)?;
+                    Ok(writer.into_inner())
                 }
             }
         )*

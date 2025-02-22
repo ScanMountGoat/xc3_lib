@@ -60,24 +60,19 @@ pub enum EntryData {
 
 impl Entry {
     pub fn from_entry_data(data: EntryData) -> xc3_write::Xc3Result<Self> {
-        // TODO: Create a to_bytes method?
         // TODO: Finish write support and test in xc3_test?
-        let mut writer = Cursor::new(Vec::new());
-        let entry_type = match data {
-            EntryData::Mxmd(v) => {
-                v.write(&mut writer)?;
-                EntryType::Mxmd
-            }
-            EntryData::Dmis => EntryType::Dmis,
-            EntryData::Dlgt(_) => EntryType::Dlgt,
-            EntryData::Gibl(_) => EntryType::Gibl,
-            EntryData::Nerd(_) => EntryType::Nerd,
-            EntryData::Dlgt2(_) => EntryType::Dlgt2,
+        let (entry_type, entry_data) = match data {
+            EntryData::Mxmd(v) => (EntryType::Mxmd, v.to_bytes()?),
+            EntryData::Dmis => (EntryType::Dmis, Vec::new()),
+            EntryData::Dlgt(_) => (EntryType::Dlgt, Vec::new()),
+            EntryData::Gibl(_) => (EntryType::Gibl, Vec::new()),
+            EntryData::Nerd(_) => (EntryType::Nerd, Vec::new()),
+            EntryData::Dlgt2(_) => (EntryType::Dlgt2, Vec::new()),
         };
 
         Ok(Self {
             entry_type,
-            entry_data: writer.into_inner(),
+            entry_data,
         })
     }
 

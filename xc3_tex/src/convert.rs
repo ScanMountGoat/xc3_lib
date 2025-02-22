@@ -1,4 +1,4 @@
-use std::{io::Cursor, path::Path};
+use std::path::Path;
 
 use anyhow::{anyhow, Context};
 use binrw::BinRead;
@@ -299,14 +299,10 @@ fn replace_wilay_mibl(
         let path = entry?.path();
         if path.extension().and_then(|e| e.to_str()) == Some("dds") {
             if let Some(i) = image_index(&path, input) {
-                // TODO: Add a to_bytes helper?
                 let dds = Dds::from_file(&path)
                     .with_context(|| format!("{path:?} is not a valid DDS file"))?;
                 let mibl = Mibl::from_dds(&dds).with_context(|| "failed to convert DDS to Mibl")?;
-                let mut writer = Cursor::new(Vec::new());
-                mibl.write(&mut writer)?;
-
-                textures.textures[i].mibl_data = writer.into_inner();
+                textures.textures[i].mibl_data = mibl.to_bytes()?;
 
                 count += 1;
             }
