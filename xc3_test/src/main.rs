@@ -177,121 +177,90 @@ fn main() {
 
     if cli.wimdo || cli.all {
         println!("Checking Mxmd and Apmd files ...");
-        check_all(
-            root,
-            &["*.wimdo", "*.pcmdo"],
-            check_wimdo,
-            Endian::Little,
-            cli.rw,
-        );
+        check_all::<Wimdo>(root, &["*.wimdo", "*.pcmdo"], Endian::Little, cli.rw);
     }
 
     if cli.msrd || cli.all {
         // Skip the .wismt textures in the XC3 tex folder.
         println!("Checking Msrd files ...");
-        check_all(
-            root,
-            &["*.wismt", "!**/tex/**"],
-            check_msrd,
-            Endian::Little,
-            cli.rw,
-        );
+        check_all::<Msrd>(root, &["*.wismt", "!**/tex/**"], Endian::Little, cli.rw);
     }
 
     if cli.msmd || cli.all {
         println!("Checking Msmd files ...");
-        check_all(root, &["*.wismhd"], check_msmd, Endian::Little, cli.rw);
+        check_all::<Msmd>(root, &["*.wismhd"], Endian::Little, cli.rw);
     }
 
     if cli.sar1 || cli.all {
         println!("Checking Sar1 files ...");
-        check_all(
-            root,
-            &["*.arc", "*.chr", "*.mot"],
-            check_sar1_data,
-            Endian::Little,
-            cli.rw,
-        );
+        check_all::<MaybeXbc1<Sar1>>(root, &["*.arc", "*.chr", "*.mot"], Endian::Little, cli.rw);
     }
 
     if cli.spch || cli.all {
         println!("Checking Spch files ...");
-        check_all(root, &["*.wishp"], check_spch, Endian::Little, cli.rw);
+        check_all::<Spch>(root, &["*.wishp"], Endian::Little, cli.rw);
     }
 
     if cli.wilay || cli.all {
         println!("Checking Dhal and Lagp files ...");
-        check_all(root, &["*.wilay"], check_wilay_data, Endian::Little, cli.rw);
+        check_all::<MaybeXbc1<Wilay>>(root, &["*.wilay"], Endian::Little, cli.rw);
     }
 
     if cli.ltpc || cli.all {
         println!("Checking Ltpc files ...");
-        check_all(root, &["*.wiltp"], check_ltpc, Endian::Little, cli.rw);
+        check_all::<Ltpc>(root, &["*.wiltp"], Endian::Little, cli.rw);
     }
 
     if cli.bc || cli.all {
         println!("Checking Bc files ...");
-        check_all(
-            root,
-            &["*.anm", "*.motstm_data"],
-            check_bc,
-            Endian::Little,
-            cli.rw,
-        );
+        check_all::<Bc>(root, &["*.anm", "*.motstm_data"], Endian::Little, cli.rw);
     }
 
     if cli.eva || cli.all {
         println!("Checking Eva files ...");
-        check_all(root, &["*.eva"], check_eva, Endian::Little, cli.rw);
+        check_all::<Eva>(root, &["*.eva"], Endian::Little, cli.rw);
     }
 
     if cli.beb || cli.all {
         println!("Checking Beb files ...");
-        check_all(root, &["*.beb"], check_beb, Endian::Little, cli.rw);
+        check_all::<Beb>(root, &["*.beb"], Endian::Little, cli.rw);
     }
 
     if cli.beh || cli.all {
         println!("Checking Beh files ...");
-        check_all(root, &["*.beh"], check_beh, Endian::Little, cli.rw);
+        check_all::<Beh>(root, &["*.beh"], Endian::Little, cli.rw);
     }
 
     if cli.efb0 || cli.all {
         println!("Checking Efb0 files ...");
-        check_all(root, &["*.wiefb"], check_efb0, Endian::Little, cli.rw);
+        check_all::<Efb0>(root, &["*.wiefb"], Endian::Little, cli.rw);
     }
 
     if cli.fnt || cli.all {
         println!("Checking fnt files ...");
-        check_all(root, &["*.fnt"], check_fnt, Endian::Big, cli.rw);
+        check_all::<Fnt>(root, &["*.fnt"], Endian::Big, cli.rw);
     }
 
     if cli.idcm || cli.all {
         println!("Checking Idcm files ...");
-        check_all(
-            root,
-            &["*.idcm", "*.wiidcm"],
-            check_idcm,
-            Endian::Little,
-            cli.rw,
-        );
+        check_all::<Idcm>(root, &["*.idcm", "*.wiidcm"], Endian::Little, cli.rw);
     }
 
     if cli.laft || cli.all {
         println!("Checking Laft files ...");
-        check_all(root, &["*.wifnt"], check_laft_data, Endian::Little, cli.rw);
+        check_all::<MaybeXbc1<Laft>>(root, &["*.wifnt"], Endian::Little, cli.rw);
     }
 
     if cli.last || cli.all {
         println!("Checking Last files ...");
-        check_all(root, &["*.wisty"], check_last_data, Endian::Little, cli.rw);
+        check_all::<MaybeXbc1<Last>>(root, &["*.wisty"], Endian::Little, cli.rw);
     }
 
     if cli.mtxt || cli.all {
         println!("Checking Mtxt files ...");
-        check_all(
+        check_all::<Mtxt>(
             root,
             &["*.catex", "*.calut", "*.caavp"],
-            check_mtxt,
             Endian::Big,
             cli.rw,
         );
@@ -299,17 +268,17 @@ fn main() {
 
     if cli.camdo || cli.all {
         println!("Checking Mxmd files ...");
-        check_all(root, &["*.camdo"], check_mxmd_legacy, Endian::Big, cli.rw);
+        check_all::<MxmdLegacy>(root, &["*.camdo"], Endian::Big, cli.rw);
     }
 
     if cli.bmn || cli.all {
         println!("Checking Bmn files ...");
-        check_all(root, &["*.bmn"], check_bmn, Endian::Big, cli.rw);
+        check_all::<Bmn>(root, &["*.bmn"], Endian::Big, cli.rw);
     }
 
     if cli.mths || cli.all {
         println!("Checking Mths files ...");
-        check_all(root, &["*.cashd"], check_mths, Endian::Big, cli.rw);
+        check_all::<Mths>(root, &["*.cashd"], Endian::Big, cli.rw);
     }
 
     if cli.gltf || cli.all {
@@ -335,9 +304,13 @@ fn main() {
     println!("Finished in {:?}", start.elapsed());
 }
 
-fn check_all_mibl<P: AsRef<Path>>(root: P, check_read_write: bool) {
+trait CheckFile {
+    fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool);
+}
+
+fn check_all_mibl(root: &Path, check_read_write: bool) {
     // Only Xenoblade 3 has a dedicated tex directory with shared textures.
-    let folder = root.as_ref().join("chr").join("tex").join("nx");
+    let folder = root.join("chr").join("tex").join("nx");
     if folder.exists() {
         globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.wismt", "!h/**"])
             .build()
@@ -365,7 +338,7 @@ fn check_all_mibl<P: AsRef<Path>>(root: P, check_read_write: bool) {
             });
     }
 
-    let folder = root.as_ref().join("monolib").join("shader");
+    let folder = root.join("monolib").join("shader");
     globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.{witex,witx}"])
         .build()
         .unwrap()
@@ -383,183 +356,178 @@ fn base_mip_path(path: &Path) -> Option<PathBuf> {
     Some(path.parent()?.parent()?.join("h").join(path.file_name()?))
 }
 
-fn check_maybe_xbc1<T, F>(
-    data: MaybeXbc1<T>,
-    path: &Path,
-    check_read_write: bool,
-    original_bytes: &[u8],
-    check_file: F,
-) where
+impl<T> CheckFile for MaybeXbc1<T>
+where
+    T: CheckFile,
     for<'a> T: BinRead<Args<'a> = ()>,
-    F: Fn(T, &Path, &[u8], bool),
 {
-    match data {
-        MaybeXbc1::Uncompressed(data) => check_file(data, path, original_bytes, check_read_write),
-        MaybeXbc1::Xbc1(xbc1) => {
-            if check_read_write && !write_le_bytes_equals(&xbc1, original_bytes) {
-                println!("Xbc1 read/write not 1:1 for {path:?}");
+    fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+        match self {
+            MaybeXbc1::Uncompressed(data) => {
+                T::check_file(data, path, original_bytes, check_read_write)
             }
+            MaybeXbc1::Xbc1(xbc1) => {
+                if check_read_write && !write_le_bytes_equals(&xbc1, original_bytes) {
+                    println!("Xbc1 read/write not 1:1 for {path:?}");
+                }
 
-            match xbc1.extract() {
-                Ok(data) => check_file(data, path, &xbc1.decompress().unwrap(), check_read_write),
-                Err(e) => println!("Error extracting from {path:?}: {e}"),
-            }
-        }
-    }
-}
-
-fn check_sar1_data(
-    data: MaybeXbc1<Sar1>,
-    path: &Path,
-    original_bytes: &[u8],
-    check_read_write: bool,
-) {
-    check_maybe_xbc1(data, path, check_read_write, original_bytes, check_sar1);
-}
-
-fn check_msrd(msrd: Msrd, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    // TODO: check stream flags?
-    let chr_tex_nx = chr_tex_nx_folder(path);
-    let (vertex, spch, textures) = msrd.extract_files(chr_tex_nx.as_deref()).unwrap();
-
-    if check_read_write && !write_le_bytes_equals(&msrd, original_bytes) {
-        println!("Msrd read/write not 1:1 for {path:?}");
-    }
-
-    match &msrd.streaming.inner {
-        xc3_lib::msrd::StreamingInner::StreamingLegacy(_) => todo!(),
-        xc3_lib::msrd::StreamingInner::Streaming(data) => {
-            // Check embedded data.
-            let vertex_bytes = data
-                .decompress_stream_entry(0, data.vertex_data_entry_index, &msrd.data)
-                .unwrap();
-            check_vertex_data(vertex, path, &vertex_bytes, check_read_write);
-
-            let spch_bytes = data
-                .decompress_stream_entry(0, data.shader_entry_index, &msrd.data)
-                .unwrap();
-            check_spch(spch, path, &spch_bytes, check_read_write);
-        }
-    }
-
-    for texture in textures {
-        check_mibl(texture.low, path, &[], false);
-        if let Some(high) = texture.high {
-            check_mibl(high.mid, path, &[], false);
-        }
-    }
-}
-
-fn check_vertex_data(
-    vertex_data: xc3_lib::vertex::VertexData,
-    path: &Path,
-    original_bytes: &[u8],
-    check_read_write: bool,
-) {
-    if check_read_write && !write_le_bytes_equals(&vertex_data, original_bytes) {
-        println!("VertexData read/write not 1:1 for {path:?}");
-    }
-
-    for buffer in vertex_data.vertex_buffers {
-        for a in buffer.attributes {
-            if a.data_type.size_in_bytes() != a.data_size as usize {
-                println!("Unexpected size {} for {:?}", a.data_size, a.data_type);
-            }
-        }
-    }
-}
-
-fn check_msmd(msmd: Msmd, path: &Path, _original_bytes: &[u8], check_read_write: bool) {
-    // Parse all the data from the .wismda
-    let mut reader = BufReader::new(std::fs::File::open(path.with_extension("wismda")).unwrap());
-
-    let compressed = msmd.wismda_info.compressed_length != msmd.wismda_info.decompressed_length;
-
-    for (i, model) in msmd.map_models.iter().enumerate() {
-        match model.entry.extract(&mut reader, compressed) {
-            Ok(model) => {
-                check_spch(model.spch, path, &[], false);
-            }
-            Err(e) => println!("Error extracting map model {i} in {path:?}: {e}"),
-        }
-    }
-
-    for (i, model) in msmd.prop_models.iter().enumerate() {
-        match model.entry.extract(&mut reader, compressed) {
-            Ok(model) => {
-                check_spch(model.spch, path, &[], false);
-            }
-            Err(e) => println!("Error extracting prop model {i} in {path:?}: {e}"),
-        }
-    }
-
-    for (i, model) in msmd.env_models.iter().enumerate() {
-        match model.entry.extract(&mut reader, compressed) {
-            Ok(model) => {
-                for texture in model.textures.textures {
-                    let mibl = Mibl::from_bytes(&texture.mibl_data).unwrap();
-                    check_mibl(mibl, path, &texture.mibl_data, check_read_write);
+                match xbc1.extract() {
+                    Ok(data) => {
+                        T::check_file(data, path, &xbc1.decompress().unwrap(), check_read_write)
+                    }
+                    Err(e) => println!("Error extracting from {path:?}: {e}"),
                 }
             }
-            Err(e) => println!("Error extracting env model {i} in {path:?}: {e}"),
         }
     }
+}
 
-    for (i, entry) in msmd.prop_vertex_data.iter().enumerate() {
-        match entry.extract(&mut reader, compressed) {
-            Ok(vertex_data) => {
-                let original_bytes = entry.decompress(&mut reader, compressed).unwrap();
-                check_vertex_data(vertex_data, path, &original_bytes, check_read_write);
+impl CheckFile for Msrd {
+    fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+        // TODO: check stream flags?
+        let chr_tex_nx = chr_tex_nx_folder(path);
+        let (vertex, spch, textures) = self.extract_files(chr_tex_nx.as_deref()).unwrap();
+
+        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+            println!("Msrd read/write not 1:1 for {path:?}");
+        }
+
+        match &self.streaming.inner {
+            xc3_lib::msrd::StreamingInner::StreamingLegacy(_) => todo!(),
+            xc3_lib::msrd::StreamingInner::Streaming(data) => {
+                // Check embedded data.
+                let vertex_bytes = data
+                    .decompress_stream_entry(0, data.vertex_data_entry_index, &self.data)
+                    .unwrap();
+                vertex.check_file(path, &vertex_bytes, check_read_write);
+
+                let spch_bytes = data
+                    .decompress_stream_entry(0, data.shader_entry_index, &self.data)
+                    .unwrap();
+                spch.check_file(path, &spch_bytes, check_read_write);
             }
-            Err(e) => println!("Error extracting prop VertexData {i} in {path:?}: {e}"),
+        }
+
+        for texture in textures {
+            check_mibl(texture.low, path, &[], false);
+            if let Some(high) = texture.high {
+                check_mibl(high.mid, path, &[], false);
+            }
         }
     }
+}
 
-    for (i, model) in msmd.foliage_models.iter().enumerate() {
-        match model.entry.extract(&mut reader, compressed) {
-            Ok(model) => {
-                check_vertex_data(model.vertex_data, path, &[], false);
-                for texture in model.textures.textures {
-                    let mibl = Mibl::from_bytes(&texture.mibl_data).unwrap();
-                    check_mibl(mibl, path, &texture.mibl_data, check_read_write);
+impl CheckFile for xc3_lib::vertex::VertexData {
+    fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+            println!("VertexData read/write not 1:1 for {path:?}");
+        }
+
+        for buffer in self.vertex_buffers {
+            for a in buffer.attributes {
+                if a.data_type.size_in_bytes() != a.data_size as usize {
+                    println!("Unexpected size {} for {:?}", a.data_size, a.data_type);
                 }
             }
-            Err(e) => println!("Error extracting foliage model {i} in {path:?}: {e}"),
         }
     }
+}
 
-    for entry in msmd.prop_positions {
-        entry.extract(&mut reader, compressed).unwrap();
-    }
+impl CheckFile for Msmd {
+    fn check_file(self, path: &Path, _original_bytes: &[u8], check_read_write: bool) {
+        // Parse all the data from the .wismda
+        let mut reader =
+            BufReader::new(std::fs::File::open(path.with_extension("wismda")).unwrap());
 
-    for entry in msmd.low_textures {
-        let entry = entry.extract(&mut reader, compressed).unwrap();
-        for texture in entry.textures {
-            Mibl::from_bytes(&texture.mibl_data).unwrap();
-        }
-    }
+        let compressed = self.wismda_info.compressed_length != self.wismda_info.decompressed_length;
 
-    for (i, model) in msmd.low_models.iter().enumerate() {
-        match model.entry.extract(&mut reader, compressed) {
-            Ok(model) => {
-                check_vertex_data(model.vertex_data, path, &[], false);
-                check_spch(model.spch, path, &[], false);
+        for (i, model) in self.map_models.iter().enumerate() {
+            match model.entry.extract(&mut reader, compressed) {
+                Ok(model) => {
+                    model.spch.check_file(path, &[], false);
+                }
+                Err(e) => println!("Error extracting map model {i} in {path:?}: {e}"),
             }
-            Err(e) => println!("Error extracting low model {i} in {path:?}: {e}"),
         }
-    }
 
-    for entry in msmd.unk_foliage_data {
-        entry.extract(&mut reader, compressed).unwrap();
-    }
-
-    for (i, entry) in msmd.map_vertex_data.iter().enumerate() {
-        match entry.extract(&mut reader, compressed) {
-            Ok(vertex_data) => {
-                let original_bytes = entry.decompress(&mut reader, compressed).unwrap();
-                check_vertex_data(vertex_data, path, &original_bytes, check_read_write);
+        for (i, model) in self.prop_models.iter().enumerate() {
+            match model.entry.extract(&mut reader, compressed) {
+                Ok(model) => {
+                    model.spch.check_file(path, &[], false);
+                }
+                Err(e) => println!("Error extracting prop model {i} in {path:?}: {e}"),
             }
-            Err(e) => println!("Error extracting map VertexData {i} in {path:?}: {e}"),
+        }
+
+        for (i, model) in self.env_models.iter().enumerate() {
+            match model.entry.extract(&mut reader, compressed) {
+                Ok(model) => {
+                    for texture in model.textures.textures {
+                        let mibl = Mibl::from_bytes(&texture.mibl_data).unwrap();
+                        check_mibl(mibl, path, &texture.mibl_data, check_read_write);
+                    }
+                }
+                Err(e) => println!("Error extracting env model {i} in {path:?}: {e}"),
+            }
+        }
+
+        for (i, entry) in self.prop_vertex_data.iter().enumerate() {
+            match entry.extract(&mut reader, compressed) {
+                Ok(vertex_data) => {
+                    let original_bytes = entry.decompress(&mut reader, compressed).unwrap();
+
+                    vertex_data.check_file(path, &original_bytes, check_read_write);
+                }
+                Err(e) => println!("Error extracting prop VertexData {i} in {path:?}: {e}"),
+            }
+        }
+
+        for (i, model) in self.foliage_models.iter().enumerate() {
+            match model.entry.extract(&mut reader, compressed) {
+                Ok(model) => {
+                    model.vertex_data.check_file(path, &[], false);
+                    for texture in model.textures.textures {
+                        let mibl = Mibl::from_bytes(&texture.mibl_data).unwrap();
+                        check_mibl(mibl, path, &texture.mibl_data, check_read_write);
+                    }
+                }
+                Err(e) => println!("Error extracting foliage model {i} in {path:?}: {e}"),
+            }
+        }
+
+        for entry in self.prop_positions {
+            entry.extract(&mut reader, compressed).unwrap();
+        }
+
+        for entry in self.low_textures {
+            let entry = entry.extract(&mut reader, compressed).unwrap();
+            for texture in entry.textures {
+                Mibl::from_bytes(&texture.mibl_data).unwrap();
+            }
+        }
+
+        for (i, model) in self.low_models.iter().enumerate() {
+            match model.entry.extract(&mut reader, compressed) {
+                Ok(model) => {
+                    model.vertex_data.check_file(path, &[], false);
+                    model.spch.check_file(path, &[], false);
+                }
+                Err(e) => println!("Error extracting low model {i} in {path:?}: {e}"),
+            }
+        }
+
+        for entry in self.unk_foliage_data {
+            entry.extract(&mut reader, compressed).unwrap();
+        }
+
+        for (i, entry) in self.map_vertex_data.iter().enumerate() {
+            match entry.extract(&mut reader, compressed) {
+                Ok(vertex_data) => {
+                    let original_bytes = entry.decompress(&mut reader, compressed).unwrap();
+                    vertex_data.check_file(path, &original_bytes, check_read_write);
+                }
+                Err(e) => println!("Error extracting map VertexData {i} in {path:?}: {e}"),
+            }
         }
     }
 }
@@ -592,20 +560,13 @@ enum Wilay {
     Laps(Laps),
 }
 
-fn check_wilay_data(
-    data: MaybeXbc1<Wilay>,
-    path: &Path,
-    original_bytes: &[u8],
-    check_read_write: bool,
-) {
-    check_maybe_xbc1(data, path, check_read_write, original_bytes, check_wilay);
-}
-
-fn check_wilay(data: Wilay, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    match data {
-        Wilay::Dhal(dhal) => check_dhal(dhal, path, original_bytes, check_read_write),
-        Wilay::Lagp(lagp) => check_lagp(lagp, path, original_bytes, check_read_write),
-        Wilay::Laps(laps) => check_laps(laps, path, original_bytes, check_read_write),
+impl CheckFile for Wilay {
+    fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+        match self {
+            Wilay::Dhal(dhal) => check_dhal(dhal, path, original_bytes, check_read_write),
+            Wilay::Lagp(lagp) => check_lagp(lagp, path, original_bytes, check_read_write),
+            Wilay::Laps(laps) => check_laps(laps, path, original_bytes, check_read_write),
+        }
     }
 }
 
@@ -656,55 +617,59 @@ enum Wimdo {
     Apmd(Apmd),
 }
 
-fn check_wimdo(data: Wimdo, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    match data {
-        Wimdo::Mxmd(mxmd) => {
-            check_mxmd(*mxmd, path, original_bytes, check_read_write);
-        }
-        Wimdo::Apmd(apmd) => {
-            for entry in &apmd.entries {
-                // TODO: check inner data.
-                match entry.read_data() {
-                    Ok(data) => match data {
-                        xc3_lib::apmd::EntryData::Mxmd(mxmd) => {
-                            check_mxmd(*mxmd, path, &entry.entry_data, check_read_write)
-                        }
-                        xc3_lib::apmd::EntryData::Dmis => (),
-                        xc3_lib::apmd::EntryData::Dlgt(_) => (),
-                        xc3_lib::apmd::EntryData::Gibl(_) => (),
-                        xc3_lib::apmd::EntryData::Nerd(_) => (),
-                        xc3_lib::apmd::EntryData::Dlgt2(_) => (),
-                    },
-                    Err(e) => println!("Error reading entry in {path:?}: {e}"),
-                }
+impl CheckFile for Wimdo {
+    fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+        match self {
+            Wimdo::Mxmd(mxmd) => {
+                mxmd.check_file(path, original_bytes, check_read_write);
             }
+            Wimdo::Apmd(apmd) => {
+                for entry in &apmd.entries {
+                    // TODO: check inner data.
+                    match entry.read_data() {
+                        Ok(data) => match data {
+                            xc3_lib::apmd::EntryData::Mxmd(mxmd) => {
+                                mxmd.check_file(path, &entry.entry_data, check_read_write)
+                            }
+                            xc3_lib::apmd::EntryData::Dmis => (),
+                            xc3_lib::apmd::EntryData::Dlgt(_) => (),
+                            xc3_lib::apmd::EntryData::Gibl(_) => (),
+                            xc3_lib::apmd::EntryData::Nerd(_) => (),
+                            xc3_lib::apmd::EntryData::Dlgt2(_) => (),
+                        },
+                        Err(e) => println!("Error reading entry in {path:?}: {e}"),
+                    }
+                }
 
-            if check_read_write && !write_le_bytes_equals(&apmd, original_bytes) {
-                println!("Apmd read/write not 1:1 for {path:?}");
+                if check_read_write && !write_le_bytes_equals(&apmd, original_bytes) {
+                    println!("Apmd read/write not 1:1 for {path:?}");
+                }
             }
         }
     }
 }
 
-fn check_mxmd(mxmd: Mxmd, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    if !is_valid_models_flags(&mxmd) {
-        println!("Inconsistent ModelsFlags for {path:?}");
-    }
+impl CheckFile for Mxmd {
+    fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+        if !is_valid_models_flags(&self) {
+            println!("Inconsistent ModelsFlags for {path:?}");
+        }
 
-    if check_read_write && !write_le_bytes_equals(&mxmd, original_bytes) {
-        println!("Mxmd read/write not 1:1 for {path:?}");
-    }
+        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+            println!("Mxmd read/write not 1:1 for {path:?}");
+        }
 
-    if let Some(spch) = mxmd.spch {
-        // TODO: Check read/write for inner data?
-        check_spch(spch, path, &[], false);
-    }
+        if let Some(spch) = self.spch {
+            // TODO: Check read/write for inner data?
+            spch.check_file(path, &[], false);
+        }
 
-    if let Some(packed_textures) = &mxmd.packed_textures {
-        for texture in &packed_textures.textures {
-            match Mibl::from_bytes(&texture.mibl_data) {
-                Ok(mibl) => check_mibl(mibl, path, &texture.mibl_data, check_read_write),
-                Err(e) => println!("Error reading Mibl in {path:?}: {e}"),
+        if let Some(packed_textures) = &self.packed_textures {
+            for texture in &packed_textures.textures {
+                match Mibl::from_bytes(&texture.mibl_data) {
+                    Ok(mibl) => check_mibl(mibl, path, &texture.mibl_data, check_read_write),
+                    Err(e) => println!("Error reading Mibl in {path:?}: {e}"),
+                }
             }
         }
     }
@@ -725,25 +690,29 @@ fn is_valid_models_flags(mxmd: &Mxmd) -> bool {
     }
 }
 
-fn check_spch(spch: Spch, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    for (i, slct_offset) in spch.slct_offsets.iter().enumerate() {
-        match slct_offset.read_slct(&spch.slct_section) {
-            Ok(_) => {
-                // TODO: Check that the extracted binary sizes add up to the total size.
-                // TODO: check constant buffer size.
+impl CheckFile for Spch {
+    fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+        for (i, slct_offset) in self.slct_offsets.iter().enumerate() {
+            match slct_offset.read_slct(&self.slct_section) {
+                Ok(_) => {
+                    // TODO: Check that the extracted binary sizes add up to the total size.
+                    // TODO: check constant buffer size.
+                }
+                Err(e) => println!("Error reading Slct {i} for {path:?}: {e}"),
             }
-            Err(e) => println!("Error reading Slct {i} for {path:?}: {e}"),
         }
-    }
 
-    if check_read_write && !write_le_bytes_equals(&spch, original_bytes) {
-        println!("Spch read/write not 1:1 for {path:?}");
+        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+            println!("Spch read/write not 1:1 for {path:?}");
+        }
     }
 }
 
-fn check_ltpc(ltpc: Ltpc, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    if check_read_write && !write_le_bytes_equals(&ltpc, original_bytes) {
-        println!("Ltpc read/write not 1:1 for {path:?}");
+impl CheckFile for Ltpc {
+    fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+            println!("Ltpc read/write not 1:1 for {path:?}");
+        }
     }
 }
 
@@ -756,277 +725,279 @@ enum Sar1EntryData {
     Eva(Eva),
 }
 
-fn check_sar1(sar1: Sar1, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    for entry in &sar1.entries {
-        if xc3_lib::hash::hash_str_crc(&entry.name) != entry.name_hash {
-            println!("Incorrect hash for {:?}", entry.name);
+impl CheckFile for Sar1 {
+    fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+        for entry in &self.entries {
+            if xc3_lib::hash::hash_str_crc(&entry.name) != entry.name_hash {
+                println!("Incorrect hash for {:?}", entry.name);
+            }
+
+            // Check read/write for the inner data.
+            let mut reader = Cursor::new(&entry.entry_data);
+            match reader.read_le() {
+                Ok(data) => match data {
+                    Sar1EntryData::Bc(bc) => {
+                        if check_read_write && !write_le_bytes_equals(&bc, &entry.entry_data) {
+                            println!("Bc read/write not 1:1 for {:?} in {path:?}", entry.name);
+                        }
+                        bc.check_file(path, &[], false);
+                    }
+                    Sar1EntryData::ChCl(chcl) => {
+                        if check_read_write && !write_le_bytes_equals(&chcl, original_bytes) {
+                            println!("ChCl read/write not 1:1 for {:?} in {path:?}", entry.name);
+                        }
+                    }
+                    Sar1EntryData::Csvb(csvb) => {
+                        if check_read_write && !write_le_bytes_equals(&csvb, original_bytes) {
+                            println!("Csvb read/write not 1:1 for {:?} in {path:?}", entry.name);
+                        }
+                    }
+                    Sar1EntryData::Eva(eva) => {
+                        if check_read_write && !write_le_bytes_equals(&eva, original_bytes) {
+                            println!("Eva read/write not 1:1 for {:?} in {path:?}", entry.name);
+                        }
+                    }
+                },
+                Err(e) => println!("Error reading {:?} in {path:?}: {e}", entry.name),
+            }
         }
 
-        // Check read/write for the inner data.
-        let mut reader = Cursor::new(&entry.entry_data);
-        match reader.read_le() {
-            Ok(data) => match data {
-                Sar1EntryData::Bc(bc) => {
-                    if check_read_write && !write_le_bytes_equals(&bc, &entry.entry_data) {
-                        println!("Bc read/write not 1:1 for {:?} in {path:?}", entry.name);
-                    }
-                    check_bc(*bc, path, &[], false);
-                }
-                Sar1EntryData::ChCl(chcl) => {
-                    if check_read_write && !write_le_bytes_equals(&chcl, original_bytes) {
-                        println!("ChCl read/write not 1:1 for {:?} in {path:?}", entry.name);
-                    }
-                }
-                Sar1EntryData::Csvb(csvb) => {
-                    if check_read_write && !write_le_bytes_equals(&csvb, original_bytes) {
-                        println!("Csvb read/write not 1:1 for {:?} in {path:?}", entry.name);
-                    }
-                }
-                Sar1EntryData::Eva(eva) => {
-                    if check_read_write && !write_le_bytes_equals(&eva, original_bytes) {
-                        println!("Eva read/write not 1:1 for {:?} in {path:?}", entry.name);
-                    }
-                }
-            },
-            Err(e) => println!("Error reading {:?} in {path:?}: {e}", entry.name),
+        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+            println!("Sar1 read/write not 1:1 for {path:?}");
         }
-    }
-
-    if check_read_write && !write_le_bytes_equals(&sar1, original_bytes) {
-        println!("Sar1 read/write not 1:1 for {path:?}");
     }
 }
 
-fn check_bc(bc: Bc, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    if check_read_write && !write_le_bytes_equals(&bc, original_bytes) {
-        println!("Bc read/write not 1:1 for {path:?}");
-    }
+impl CheckFile for Bc {
+    fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+            println!("Bc read/write not 1:1 for {path:?}");
+        }
 
-    match bc.data {
-        xc3_lib::bc::BcData::Skdy(_) => (),
-        xc3_lib::bc::BcData::Anim(_) => (),
-        xc3_lib::bc::BcData::Skel(_) => (),
-        xc3_lib::bc::BcData::Asmb(asmb) => match asmb.inner {
-            xc3_lib::bc::asmb::AsmbInner::V1(_) => (),
-            xc3_lib::bc::asmb::AsmbInner::V2(v2) => {
-                for entry in v2.unk2.elements {
-                    for e1 in entry.unk1.elements {
-                        if xc3_lib::hash::murmur3(e1.value.name.as_bytes()) != e1.value.name_hash {
-                            println!("Incorrect hash for {:?}", e1.value.name);
+        match self.data {
+            xc3_lib::bc::BcData::Skdy(_) => (),
+            xc3_lib::bc::BcData::Anim(_) => (),
+            xc3_lib::bc::BcData::Skel(_) => (),
+            xc3_lib::bc::BcData::Asmb(asmb) => match asmb.inner {
+                xc3_lib::bc::asmb::AsmbInner::V1(_) => (),
+                xc3_lib::bc::asmb::AsmbInner::V2(v2) => {
+                    for entry in v2.unk2.elements {
+                        for e1 in entry.unk1.elements {
+                            if xc3_lib::hash::murmur3(e1.value.name.as_bytes())
+                                != e1.value.name_hash
+                            {
+                                println!("Incorrect hash for {:?}", e1.value.name);
+                            }
+
+                            for e8 in e1.value.children.elements {
+                                if xc3_lib::hash::murmur3(e8.value.name2.as_bytes())
+                                    != e8.value.name2_hash
+                                {
+                                    println!("Incorrect hash for {:?}", e8.value.name2);
+                                }
+                            }
                         }
 
-                        for e8 in e1.value.children.elements {
-                            if xc3_lib::hash::murmur3(e8.value.name2.as_bytes())
-                                != e8.value.name2_hash
+                        for e2 in entry.unk2.elements {
+                            if xc3_lib::hash::murmur3(e2.value.name2.as_bytes())
+                                != e2.value.name2_hash
                             {
-                                println!("Incorrect hash for {:?}", e8.value.name2);
+                                println!("Incorrect hash for {:?}", e2.value.name2);
                             }
                         }
                     }
-
-                    for e2 in entry.unk2.elements {
-                        if xc3_lib::hash::murmur3(e2.value.name2.as_bytes()) != e2.value.name2_hash
-                        {
-                            println!("Incorrect hash for {:?}", e2.value.name2);
-                        }
-                    }
                 }
-            }
-        },
+            },
+        }
     }
 }
 
-fn check_eva(eva: Eva, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    if check_read_write && !write_le_bytes_equals(&eva, original_bytes) {
-        println!("Eva read/write not 1:1 for {path:?}");
+impl CheckFile for Eva {
+    fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+            println!("Eva read/write not 1:1 for {path:?}");
+        }
     }
 }
 
-fn check_beb(beb: Beb, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    if check_read_write && !write_le_bytes_equals(&beb, original_bytes) {
-        println!("Beb read/write not 1:1 for {path:?}");
-    }
+impl CheckFile for Beb {
+    fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+            println!("Beb read/write not 1:1 for {path:?}");
+        }
 
-    for (i, offset) in beb.xbc1_offsets.iter().enumerate() {
-        match offset.value.decompress() {
-            Ok(bytes) => match BebData::read_le(&mut Cursor::new(&bytes)) {
-                Ok(data) => {
-                    for (offset, size) in data.offsets.iter().zip(&data.lengths) {
-                        // Skip the 4 floats at the start of each entry.
-                        let start = *offset as usize + 16;
-                        let entry_bytes = &bytes[start..start + *size as usize];
-                        // TODO: detect item type?
-                        if entry_bytes.get(..4) == Some(b"BC\x00\x00") {
-                            match Bc::from_bytes(entry_bytes) {
-                                Ok(bc) => check_bc(bc, path, entry_bytes, check_read_write),
-                                Err(e) => {
-                                    println!("Error reading BC in archive {i} in {path:?}: {e}")
+        for (i, offset) in self.xbc1_offsets.iter().enumerate() {
+            match offset.value.decompress() {
+                Ok(bytes) => match BebData::read_le(&mut Cursor::new(&bytes)) {
+                    Ok(data) => {
+                        for (offset, size) in data.offsets.iter().zip(&data.lengths) {
+                            // Skip the 4 floats at the start of each entry.
+                            let start = *offset as usize + 16;
+                            let entry_bytes = &bytes[start..start + *size as usize];
+                            // TODO: detect item type?
+                            if entry_bytes.get(..4) == Some(b"BC\x00\x00") {
+                                match Bc::from_bytes(entry_bytes) {
+                                    Ok(bc) => bc.check_file(path, entry_bytes, check_read_write),
+                                    Err(e) => {
+                                        println!("Error reading BC in archive {i} in {path:?}: {e}")
+                                    }
                                 }
                             }
                         }
                     }
-                }
-                Err(e) => println!("Error reading data in archive {i} in {path:?}: {e}"),
-            },
-            Err(e) => println!("Error decompressing archive {i} in {path:?}: {e}"),
-        }
-    }
-}
-
-fn check_beh(beh: Beh, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    if check_read_write && !write_le_bytes_equals(&beh, original_bytes) {
-        println!("Beh read/write not 1:1 for {path:?}");
-    }
-}
-
-fn check_efb0(efb0: Efb0, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    if check_read_write && !write_le_bytes_equals(&efb0, original_bytes) {
-        println!("efb0 read/write not 1:1 for {path:?}");
-    }
-}
-
-fn check_idcm(idcm: Idcm, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    if check_read_write && !write_le_bytes_equals(&idcm, original_bytes) {
-        println!("Idcm read/write not 1:1 for {path:?}");
-    }
-}
-
-fn check_mxmd_legacy(
-    mxmd: MxmdLegacy,
-    path: &Path,
-    _original_bytes: &[u8],
-    check_read_write: bool,
-) {
-    if let Some(textures) = mxmd.packed_textures {
-        for texture in textures.textures {
-            match Mtxt::from_bytes(&texture.mtxt_data) {
-                Ok(mtxt) => check_mtxt(mtxt, path, &texture.mtxt_data, check_read_write),
-                Err(e) => println!("Error reading Mtxt in {path:?}: {e}"),
-            }
-        }
-    }
-
-    for shader in mxmd.shaders.shaders {
-        match Mths::from_bytes(&shader.mths_data) {
-            Ok(mths) => {
-                check_mths(mths, path, &shader.mths_data, check_read_write);
-            }
-            Err(e) => println!("Error reading Mths in {path:?}: {e}"),
-        }
-    }
-
-    // TODO: check read/write for camdo?
-    // TODO: Also test loading casmt data?
-
-    for buffer in mxmd.vertex.vertex_buffers {
-        for a in buffer.attributes {
-            if a.data_type.size_in_bytes() != a.data_size as usize {
-                println!("Unexpected size {} for {:?}", a.data_size, a.data_type);
+                    Err(e) => println!("Error reading data in archive {i} in {path:?}: {e}"),
+                },
+                Err(e) => println!("Error decompressing archive {i} in {path:?}: {e}"),
             }
         }
     }
 }
 
-fn check_mths(mths: Mths, path: &Path, _original_bytes: &[u8], _check_read_write: bool) {
-    if let Err(e) = mths.vertex_shader() {
-        println!("Error reading vertex shader in {path:?}: {e}")
-    }
-    if let Err(e) = mths.fragment_shader() {
-        println!("Error reading fragment shader in {path:?}: {e}")
-    }
-}
-
-fn check_mtxt(mtxt: Mtxt, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    if check_read_write {
-        let mut writer = Cursor::new(Vec::new());
-        mtxt.write(&mut writer).unwrap();
-        if writer.into_inner() != original_bytes {
-            println!("Mtxt read/write not 1:1 for {path:?}");
+impl CheckFile for Beh {
+    fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+            println!("Beh read/write not 1:1 for {path:?}");
         }
-        // TODO: Check read/write for dds?
-    }
-    if let Err(e) = mtxt.deswizzled_image_data() {
-        println!(
-            "Error deswizzling surface for {path:?}: {e}\n{:#?}",
-            mtxt.footer
-        );
     }
 }
 
-fn check_bmn(bmn: Bmn, path: &Path, _original_bytes: &[u8], check_read_write: bool) {
-    if let Some(unk16) = bmn.unk16 {
-        for texture in unk16.textures {
-            if !texture.mtxt_data.is_empty() {
+impl CheckFile for Efb0 {
+    fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+            println!("efb0 read/write not 1:1 for {path:?}");
+        }
+    }
+}
+
+impl CheckFile for Idcm {
+    fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+            println!("Idcm read/write not 1:1 for {path:?}");
+        }
+    }
+}
+
+impl CheckFile for MxmdLegacy {
+    fn check_file(self, path: &Path, _original_bytes: &[u8], check_read_write: bool) {
+        if let Some(textures) = self.packed_textures {
+            for texture in textures.textures {
                 match Mtxt::from_bytes(&texture.mtxt_data) {
-                    Ok(mtxt) => check_mtxt(mtxt, path, &texture.mtxt_data, check_read_write),
+                    Ok(mtxt) => mtxt.check_file(path, &texture.mtxt_data, check_read_write),
                     Err(e) => println!("Error reading Mtxt in {path:?}: {e}"),
                 }
             }
         }
+
+        for shader in self.shaders.shaders {
+            match Mths::from_bytes(&shader.mths_data) {
+                Ok(mths) => {
+                    mths.check_file(path, &shader.mths_data, check_read_write);
+                }
+                Err(e) => println!("Error reading Mths in {path:?}: {e}"),
+            }
+        }
+
+        // TODO: check read/write for camdo?
+        // TODO: Also test loading casmt data?
+
+        for buffer in self.vertex.vertex_buffers {
+            for a in buffer.attributes {
+                if a.data_type.size_in_bytes() != a.data_size as usize {
+                    println!("Unexpected size {} for {:?}", a.data_size, a.data_type);
+                }
+            }
+        }
     }
 }
 
-fn check_laft_data(
-    data: MaybeXbc1<Laft>,
-    path: &Path,
-    original_bytes: &[u8],
-    check_read_write: bool,
-) {
-    check_maybe_xbc1(data, path, check_read_write, original_bytes, check_laft);
-}
-
-fn check_laft(laft: Laft, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    if !laft.mappings.len().is_power_of_two() {
-        println!("Laft: mappings len not power of 2 for {path:?}");
-    }
-    let read_glyphs = (0..u16::MAX)
-        .filter(|&code| laft.get_glyph(code).is_some_and(|g| g.1.codepoint == code))
-        .count();
-    if read_glyphs != laft.font_info.len() {
-        println!("Laft: found unreachable glyphs in {path:?}");
-    }
-    if let Some(texture) = laft.texture.clone() {
-        check_mibl(texture, path, &[], false);
-    }
-
-    if check_read_write && !write_le_bytes_equals(&laft, original_bytes) {
-        println!("Laft read/write not 1:1 for {path:?}");
+impl CheckFile for Mths {
+    fn check_file(self, path: &Path, _original_bytes: &[u8], _check_read_write: bool) {
+        if let Err(e) = self.vertex_shader() {
+            println!("Error reading vertex shader in {path:?}: {e}")
+        }
+        if let Err(e) = self.fragment_shader() {
+            println!("Error reading fragment shader in {path:?}: {e}")
+        }
     }
 }
 
-fn check_last_data(
-    data: MaybeXbc1<Last>,
-    path: &Path,
-    original_bytes: &[u8],
-    check_read_write: bool,
-) {
-    check_maybe_xbc1(data, path, check_read_write, original_bytes, check_last);
-}
-
-fn check_last(last: Last, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    if check_read_write && !write_le_bytes_equals(&last, original_bytes) {
-        println!("Last read/write not 1:1 for {path:?}");
+impl CheckFile for Mtxt {
+    fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+        if check_read_write {
+            let mut writer = Cursor::new(Vec::new());
+            self.write(&mut writer).unwrap();
+            if writer.into_inner() != original_bytes {
+                println!("Mtxt read/write not 1:1 for {path:?}");
+            }
+            // TODO: Check read/write for dds?
+        }
+        if let Err(e) = self.deswizzled_image_data() {
+            println!(
+                "Error deswizzling surface for {path:?}: {e}\n{:#?}",
+                self.footer
+            );
+        }
     }
 }
 
-fn check_fnt(fnt: Fnt, path: &Path, original_bytes: &[u8], check_read_write: bool) {
-    if fnt.font.get_glyph_by_utf16(0x2a).is_none() {
-        println!("{path:?} has no \"*\" character registered! The game will crash on unsupported characters.");
-    }
-    if check_read_write && !write_be_bytes_equals(&fnt, original_bytes) {
-        println!("Fnt read/write not 1:1 for {path:?}");
+impl CheckFile for Bmn {
+    fn check_file(self, path: &Path, _original_bytes: &[u8], check_read_write: bool) {
+        if let Some(unk16) = self.unk16 {
+            for texture in unk16.textures {
+                if !texture.mtxt_data.is_empty() {
+                    match Mtxt::from_bytes(&texture.mtxt_data) {
+                        Ok(mtxt) => mtxt.check_file(path, &texture.mtxt_data, check_read_write),
+                        Err(e) => println!("Error reading Mtxt in {path:?}: {e}"),
+                    }
+                }
+            }
+        }
     }
 }
 
-fn check_all<P, T, F>(
-    root: P,
-    patterns: &[&str],
-    check_file: F,
-    endian: Endian,
-    check_read_write: bool,
-) where
-    P: AsRef<Path>,
-    F: Fn(T, &Path, &[u8], bool) + Sync,
+impl CheckFile for Laft {
+    fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+        if !self.mappings.len().is_power_of_two() {
+            println!("Laft: mappings len not power of 2 for {path:?}");
+        }
+        let read_glyphs = (0..u16::MAX)
+            .filter(|&code| self.get_glyph(code).is_some_and(|g| g.1.codepoint == code))
+            .count();
+        if read_glyphs != self.font_info.len() {
+            println!("Laft: found unreachable glyphs in {path:?}");
+        }
+        if let Some(texture) = self.texture.clone() {
+            check_mibl(texture, path, &[], false);
+        }
+
+        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+            println!("Laft read/write not 1:1 for {path:?}");
+        }
+    }
+}
+
+impl CheckFile for Last {
+    fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+            println!("Last read/write not 1:1 for {path:?}");
+        }
+    }
+}
+
+impl CheckFile for Fnt {
+    fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+        if self.font.get_glyph_by_utf16(0x2a).is_none() {
+            println!("{path:?} has no \"*\" character registered! The game will crash on unsupported characters.");
+        }
+        if check_read_write && !write_be_bytes_equals(&self, original_bytes) {
+            println!("Fnt read/write not 1:1 for {path:?}");
+        }
+    }
+}
+
+fn check_all<T>(root: &Path, patterns: &[&str], endian: Endian, check_read_write: bool)
+where
+    T: CheckFile,
     for<'a> T: BinRead<Args<'a> = ()>,
 {
     globwalk::GlobWalkerBuilder::from_patterns(root, patterns)
@@ -1038,17 +1009,17 @@ fn check_all<P, T, F>(
             let original_bytes = std::fs::read(path).unwrap();
             let mut reader = Cursor::new(&original_bytes);
             match reader.read_type(endian) {
-                Ok(file) => check_file(file, path, &original_bytes, check_read_write),
+                Ok(file) => T::check_file(file, path, &original_bytes, check_read_write),
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }
         });
 }
 
-fn check_all_gltf<P: AsRef<Path>>(root: P) {
+fn check_all_gltf(root: &Path) {
     // Assume root is the dump root path.
-    let shader_textures = ShaderTextures::from_folder(root.as_ref().join("monolib/shader"));
+    let shader_textures = ShaderTextures::from_folder(root.join("monolib/shader"));
 
-    globwalk::GlobWalkerBuilder::from_patterns(root.as_ref(), &["*.{wimdo}"])
+    globwalk::GlobWalkerBuilder::from_patterns(root, &["*.{wimdo}"])
         .build()
         .unwrap()
         .par_bridge()
@@ -1070,7 +1041,7 @@ fn check_all_gltf<P: AsRef<Path>>(root: P) {
             }
         });
 
-    globwalk::GlobWalkerBuilder::from_patterns(root.as_ref(), &["*.{camdo}"])
+    globwalk::GlobWalkerBuilder::from_patterns(root, &["*.{camdo}"])
         .build()
         .unwrap()
         .par_bridge()
@@ -1093,7 +1064,7 @@ fn check_all_gltf<P: AsRef<Path>>(root: P) {
         });
 
     // Process files sequentially since gltf processing is already highly threaded.
-    globwalk::GlobWalkerBuilder::from_patterns(root.as_ref(), &["*.{wismhd}"])
+    globwalk::GlobWalkerBuilder::from_patterns(root, &["*.{wismhd}"])
         .build()
         .unwrap()
         .for_each(|entry| {
@@ -1114,8 +1085,8 @@ fn check_all_gltf<P: AsRef<Path>>(root: P) {
         });
 }
 
-fn check_all_wimdo_model<P: AsRef<Path>>(root: P, check_read_write: bool) {
-    globwalk::GlobWalkerBuilder::from_patterns(root.as_ref(), &["*.{wimdo}"])
+fn check_all_wimdo_model(root: &Path, check_read_write: bool) {
+    globwalk::GlobWalkerBuilder::from_patterns(root, &["*.{wimdo}"])
         .build()
         .unwrap()
         .par_bridge()
@@ -1206,8 +1177,8 @@ fn check_model(
     }
 }
 
-fn check_all_animations<P: AsRef<Path>>(root: P, _check_read_write: bool) {
-    globwalk::GlobWalkerBuilder::from_patterns(root.as_ref(), &["*.{mot, anm, motstm_data}"])
+fn check_all_animations(root: &Path, _check_read_write: bool) {
+    globwalk::GlobWalkerBuilder::from_patterns(root, &["*.{mot, anm, motstm_data}"])
         .build()
         .unwrap()
         .par_bridge()
@@ -1221,8 +1192,8 @@ fn check_all_animations<P: AsRef<Path>>(root: P, _check_read_write: bool) {
         });
 }
 
-fn check_all_collisions<P: AsRef<Path>>(root: P, _check_read_write: bool) {
-    globwalk::GlobWalkerBuilder::from_patterns(root.as_ref(), &["*.{wiidcm, idcm}"])
+fn check_all_collisions(root: &Path, _check_read_write: bool) {
+    globwalk::GlobWalkerBuilder::from_patterns(root, &["*.{wiidcm, idcm}"])
         .build()
         .unwrap()
         .par_bridge()
