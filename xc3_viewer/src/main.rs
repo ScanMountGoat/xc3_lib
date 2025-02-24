@@ -240,11 +240,19 @@ impl<'a> State<'a> {
             .collect::<Vec<_>>()
             .join(" ");
 
+        let start = std::time::Instant::now();
         let animations = match &cli.anim {
             Some(p) => load_animations(p)
                 .with_context(|| format!("{p:?} is not a valid animation file"))?,
             None => Vec::new(),
         };
+        if !animations.is_empty() {
+            info!(
+                "Load {} animations: {:?}",
+                animations.len(),
+                start.elapsed()
+            );
+        }
         let animation_index = cli.anim_index.unwrap_or_default();
         update_window_title(window, &file_names, &animations, animation_index);
 
