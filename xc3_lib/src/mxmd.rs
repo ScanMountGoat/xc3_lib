@@ -1263,13 +1263,57 @@ pub struct ModelUnk8 {
     pub unks: [u32; 2],
 }
 
-// TODO: doesn't work for xc1?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct ModelUnk9 {
-    pub unk1: u32, // TODO: flags?
+    // TODO: flags?
+    // xc1: 1, 2, 3, 4, 5
+    // xc3: 10000
+    pub unk1: u32,
 
+    #[br(args { unk1, base_offset})]
+    pub inner: ModelUnk9Inner,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import { unk1: u32, base_offset: u64 })]
+pub enum ModelUnk9Inner {
+    // TODO: Safe to assume that this covers other cases?
+    #[br(pre_assert(unk1 != 10000))]
+    Unk0(ModelUnk9InnerUnk0),
+
+    #[br(pre_assert(unk1 == 10000))]
+    Unk1(#[br(args_raw(base_offset))] ModelUnk9InnerUnk1),
+}
+
+#[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, Xc3Write, PartialEq, Clone)]
+#[br(stream = r)]
+#[xc3(base_offset)]
+pub struct ModelUnk9InnerUnk0 {
+    // Subtract the unk1 size.
+    #[br(temp, try_calc = r.stream_position().map(|p| p - 4))]
+    base_offset: u64,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub items1: Vec<(u16, u16)>,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub items2: Vec<(u16, u16)>,
+
+    // TODO: padding?
+    pub unk: [u32; 4],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct ModelUnk9InnerUnk1 {
     // TODO: These offsets are relative to the start of the struct for xc1?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
@@ -1284,7 +1328,7 @@ pub struct ModelUnk9 {
     pub unk2: u32,
 
     // TODO: padding?
-    pub unk: [u32; 4],
+    pub unk: [u32; 3],
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -1345,9 +1389,7 @@ pub struct ModelUnk12 {
     pub unk2: u32,
 
     // TODO: array of 10 u16?
-
-    // TODO: padding?
-    pub unk: [u32; 4],
+    pub unk: [u16; 22],
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -1374,7 +1416,7 @@ pub struct ModelUnk1 {
     // TODO: same count as track indices for xc2 extra animation for morph targets?
     #[br(parse_with = parse_offset32_count32)]
     #[br(args { offset: base_offset, inner: base_offset })]
-    #[xc3(offset_count(u32, u32), align(16))]
+    #[xc3(offset_count(u32, u32), align(4))]
     pub items1: Vec<ModelUnk1Item1>,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
@@ -1485,7 +1527,7 @@ pub struct LodData {
 
     // TODO: Count related to number of mesh lod values?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset_count(u32, u32), align(8))]
+    #[xc3(offset_count(u32, u32), align(16))]
     pub items: Vec<LodItem>,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
@@ -2171,9 +2213,9 @@ impl Xc3WriteOffsets for ModelsOffsets<'_> {
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.model_unk1
             .write_full(writer, base_offset, data_ptr, endian, ())?;
-        self.model_unk12
-            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.alpha_table
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.model_unk12
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.model_unk3
             .write_full(writer, base_offset, data_ptr, endian, ())?;
@@ -2502,6 +2544,31 @@ impl Xc3WriteOffsets for Unk8Offsets<'_> {
         for u in unk2.0 {
             u.name
                 .write_full(writer, base_offset, data_ptr, endian, ())?;
+        }
+        Ok(())
+    }
+}
+
+impl Xc3WriteOffsets for ModelUnk9InnerUnk0Offsets<'_> {
+    type Args = ();
+
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        _base_offset: u64,
+        data_ptr: &mut u64,
+        endian: xc3_write::Endian,
+        args: Self::Args,
+    ) -> xc3_write::Xc3Result<()> {
+        // Subtract the unk1 size.
+        let base_offset = self.base_offset.saturating_sub(4);
+        if !self.items1.data.is_empty() {
+            self.items1
+                .write_full(writer, base_offset, data_ptr, endian, args)?;
+        }
+        if !self.items2.data.is_empty() {
+            self.items2
+                .write_full(writer, base_offset, data_ptr, endian, args)?;
         }
         Ok(())
     }
