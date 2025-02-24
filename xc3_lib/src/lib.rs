@@ -44,7 +44,7 @@ use std::{
 
 use binrw::{
     file_ptr::FilePtrArgs, BinRead, BinReaderExt, BinResult, BinWrite, Endian, FilePtr32,
-    NullString, VecArgs,
+    NullString,
 };
 use log::trace;
 use thiserror::Error;
@@ -314,7 +314,7 @@ where
     if offset == 0 {
         Ok(Vec::new())
     } else {
-        crate::parse_vec(reader, endian, args, offset as u64, count as usize)
+        parse_vec(reader, endian, args, offset as u64, count as usize)
     }
 }
 
@@ -334,7 +334,7 @@ where
     if offset == 0 {
         Ok(Vec::new())
     } else {
-        crate::parse_vec(reader, endian, args, offset as u64, count as usize)
+        parse_vec(reader, endian, args, offset as u64, count as usize)
     }
 }
 
@@ -402,14 +402,14 @@ where
     reader.seek(SeekFrom::Start(offset + args.offset))?;
     log_offset::<T, _>(reader)?;
 
-    let values = Vec::<T>::read_options(
-        reader,
-        endian,
-        VecArgs {
-            count,
-            inner: args.inner,
-        },
-    )?;
+    // binrw::helpers::count_with is technically faster but compiles much slower.
+    // The runtime performance difference isn't significant for most files.
+    // TODO: add a special function for optimized Vec<u8> reading.
+    let mut values = Vec::new();
+    for _ in 0..count {
+        let value = T::read_options(reader, endian, args.inner.clone())?;
+        values.push(value);
+    }
 
     reader.seek(SeekFrom::Start(saved_pos))?;
 
