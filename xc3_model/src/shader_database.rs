@@ -36,6 +36,7 @@ pub struct ShaderDatabase(io::ShaderDatabaseIndexed);
 
 impl ShaderDatabase {
     /// Load the database data from `path`.
+    #[tracing::instrument(skip_all)]
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, LoadShaderDatabaseError> {
         // Avoid converting the indexed database to improve load times.
         // Most uses cases will only need data for a single model or map.

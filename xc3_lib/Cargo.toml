@@ -21,6 +21,7 @@ tegra_swizzle = "0.4.0"
 wiiu_swizzle = "0.3.0"
 bilge = "0.2.0"
 log.workspace = true
+tracing.workspace = true
 murmur3 = "0.5.2"
 lzf = "1.0.0"
 arbitrary = { version = "1.0", features = ["derive"], optional = true }

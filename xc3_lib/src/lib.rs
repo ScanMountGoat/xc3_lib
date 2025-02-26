@@ -377,7 +377,7 @@ where
     let saved_pos = reader.stream_position()?;
 
     reader.seek(SeekFrom::Start(offset + args.offset))?;
-    log_offset::<T, _>(reader)?;
+    log_offset::<T>(offset + args.offset);
 
     let value = T::read_options(reader, endian, args.inner)?;
     reader.seek(SeekFrom::Start(saved_pos))?;
@@ -400,7 +400,7 @@ where
     let saved_pos = reader.stream_position()?;
 
     reader.seek(SeekFrom::Start(offset + args.offset))?;
-    log_offset::<T, _>(reader)?;
+    log_offset::<T>(offset + args.offset);
 
     // binrw::helpers::count_with is technically faster but compiles much slower.
     // The runtime performance difference isn't significant for most files.
@@ -416,10 +416,8 @@ where
     Ok(values)
 }
 
-fn log_offset<T, R: Read + Seek>(reader: &mut R) -> std::io::Result<()> {
-    fn inner<R: Read + Seek>(reader: &mut R, name: &str) -> std::io::Result<()> {
-        let offset = reader.stream_position()?;
-
+fn log_offset<T>(offset: u64) {
+    fn inner(offset: u64, name: &str) {
         // Bit trick for largest power of two factor.
         // We can assume a page is the strictest alignment requirement.
         let align = if offset > 0 {
@@ -429,9 +427,8 @@ fn log_offset<T, R: Read + Seek>(reader: &mut R) -> std::io::Result<()> {
         };
 
         trace!("{} at {} aligned to {}", name, offset, align);
-        Ok(())
     }
-    inner(reader, std::any::type_name::<T>())
+    inner(offset, std::any::type_name::<T>());
 }
 
 fn parse_string_ptr32<R: Read + Seek>(
@@ -630,6 +627,7 @@ macro_rules! file_read_impl {
                 }
 
                 /// Read from `path` using a fully buffered reader for performance.
+                #[tracing::instrument(skip_all)]
                 pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, ReadFileError> {
                     let path = path.as_ref();
                     read_file(path, $endian).map_err(|e| ReadFileError {
@@ -639,6 +637,7 @@ macro_rules! file_read_impl {
                 }
 
                 /// Read from `bytes` using a fully buffered reader for performance.
+                #[tracing::instrument(skip_all)]
                 pub fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> binrw::BinResult<Self> {
                     Self::read(&mut Cursor::new(bytes))
                 }

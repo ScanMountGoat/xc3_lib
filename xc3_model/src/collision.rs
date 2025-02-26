@@ -39,6 +39,7 @@ pub enum LoadCollisionsError {
 /// # Ok(())
 /// # }
 /// ```
+#[tracing::instrument(skip_all)]
 pub fn load_collisions<P: AsRef<Path>>(
     idcm_path: P,
 ) -> Result<CollisionMeshes, LoadCollisionsError> {

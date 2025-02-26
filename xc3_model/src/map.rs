@@ -60,6 +60,7 @@ pub enum LoadMapError {
 /// # Ok(())
 /// # }
 /// ```
+#[tracing::instrument(skip_all)]
 pub fn load_map<P: AsRef<Path>>(
     wismhd_path: P,
     shader_database: Option<&ShaderDatabase>,

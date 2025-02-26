@@ -13,7 +13,7 @@ xc3_model = { path = "../xc3_model" }
 log.workspace = true
 simple_logger.workspace = true
 clap = { workspace = true, features = ["derive"] }
-tracing = "0.1.0"
+tracing.workspace = true
 tracing-subscriber = { version = "0.3.0", optional = true }
 tracing-tracy = { version = "0.10.4", optional = true }
 anyhow = "1.0"

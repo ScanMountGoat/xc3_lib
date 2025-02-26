@@ -556,18 +556,16 @@ struct Cli {
 }
 
 fn main() -> anyhow::Result<()> {
-    // TODO: Can these both be active at once?
+    // TODO: Use tracing instead of log or convert log to tracing events?
     // Ignore most logs to avoid flooding the console.
-    #[cfg(not(feature = "tracing"))]
-    {
-        simple_logger::SimpleLogger::new()
-            .with_level(log::LevelFilter::Info)
-            .with_module_level("wgpu", log::LevelFilter::Warn)
-            .with_module_level("naga", log::LevelFilter::Warn)
-            .init()
-            .unwrap();
-    }
+    simple_logger::SimpleLogger::new()
+        .with_level(log::LevelFilter::Info)
+        .with_module_level("wgpu", log::LevelFilter::Warn)
+        .with_module_level("naga", log::LevelFilter::Warn)
+        .init()
+        .unwrap();
 
+    // TODO: layer to print log messages?
     #[cfg(feature = "tracing")]
     tracing::subscriber::set_global_default(
         tracing_subscriber::registry().with(tracing_tracy::TracyLayer::new()),

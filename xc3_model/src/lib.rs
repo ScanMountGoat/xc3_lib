@@ -508,6 +508,7 @@ pub enum CreateModelError {
 /// # Ok(())
 /// # }
 /// ```
+#[tracing::instrument(skip_all)]
 pub fn load_model<P: AsRef<Path>>(
     wimdo_path: P,
     shader_database: Option<&ShaderDatabase>,
@@ -594,6 +595,7 @@ fn base_chr_name(model_name: &str) -> String {
 /// # Ok(())
 /// # }
 /// ```
+#[tracing::instrument(skip_all)]
 pub fn load_model_legacy<P: AsRef<Path>>(
     camdo_path: P,
     shader_database: Option<&ShaderDatabase>,
@@ -856,6 +858,7 @@ enum AnimFile {
 /// # Ok(())
 /// # }
 /// ```
+#[tracing::instrument(skip_all)]
 pub fn load_animations<P: AsRef<Path>>(
     anim_path: P,
 ) -> Result<Vec<Animation>, DecompressStreamError> {
