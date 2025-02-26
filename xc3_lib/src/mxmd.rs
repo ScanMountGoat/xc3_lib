@@ -68,7 +68,7 @@ pub struct Mxmd {
     /// Streaming information for the .wismt file or [None] if no .wismt file.
     /// Identical to the same field in the corresponding [Msrd](crate::msrd::Msrd).
     #[br(parse_with = parse_opt_ptr32)]
-    #[xc3(offset(u32))]
+    #[xc3(offset(u32), align(4))]
     pub streaming: Option<Streaming>,
 
     pub unk6: u32,
@@ -110,7 +110,7 @@ pub struct Materials {
     // TODO: Materials have offsets into these arrays for parameter values?
     // material body has a uniform at shader offset 64 but offset 48 in this floats buffer
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset_count(u32, u32), align(4))]
+    #[xc3(offset_count(u32, u32), align(16))]
     pub work_values: Vec<f32>,
 
     // TODO: final number counts up from 0?
@@ -768,7 +768,7 @@ pub struct Models {
     // TODO: not always aligned to 16?
     // TODO: Only null for stage models?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset(u32), align(8))]
+    #[xc3(offset(u32), align(4))]
     pub alpha_table: Option<AlphaTable>,
 
     pub unk_field2: u32,
@@ -1763,8 +1763,12 @@ pub struct Skinning {
     pub as_bone_data: Option<SkinningAsBoneData>,
 
     // TODO: Optional padding for xc3?
+    // TODO: This doesn't always have correct padding?
+    #[br(if(bones_offset == 52))]
+    pub unk1: Option<[u32; 2]>,
+
     #[br(if(bones_offset == 60))]
-    pub unk: Option<[u32; 4]>,
+    pub unk2: Option<[u32; 4]>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -1855,7 +1859,7 @@ pub struct UnkBones {
 
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: bones.len() }})]
-    #[xc3(offset(u32))]
+    #[xc3(offset(u32), align(16))]
     pub unk_offset: Vec<[[f32; 4]; 4]>,
     // TODO: no padding?
 }
