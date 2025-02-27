@@ -1,4 +1,4 @@
-use glam::{Mat4, Vec2, Vec3, Vec4};
+use glam::Mat4;
 use indexmap::IndexMap;
 use log::warn;
 use xc3_lib::{
@@ -369,6 +369,133 @@ impl ModelRoot {
     }
 }
 
+// TODO: validate this in xc3_model on load?
+fn match_technique_attributes(
+    buffer: &mut crate::vertex::VertexBuffer,
+    technique_attributes: &[VertexAttribute],
+) {
+    // TODO: Morph targets always require positions, normals, and tangents.
+    // TODO: Update positions to use the existing positions?
+
+    // Make sure the buffer attributes match the vertex shader's input attributes.
+    // TODO: Is there a better way to match the shader order?
+    // TODO: Do we ever need to add buffer1 attributes?
+    let count = buffer.vertex_count();
+    buffer.attributes = technique_attributes
+        .iter()
+        .filter(|a| a.buffer_index == 0)
+        .map(|a| match_attribute(a.data_type, buffer, count))
+        .collect();
+}
+
+macro_rules! attribute {
+    ($buffer:ident, $count: expr, $variant:path $(, $fallback_variant:path)*) => {
+        $buffer
+            .attributes
+            .iter()
+            .find_map(|a| {
+                if matches!(a, $variant(_)) {
+                    Some(a.clone())
+                } else {
+                    None
+                }
+            })
+            $(
+                .or_else(|| {
+                    $buffer
+                        .attributes
+                        .iter()
+                        .find_map(|a| {
+                            if matches!(a, $fallback_variant(_)) {
+                                Some(a.clone())
+                            } else {
+                                None
+                            }
+                    })
+                })
+            )*
+            .unwrap_or_else(|| {
+                log::warn!(
+                    "Assigning default values for missing required attribute {}",
+                    stringify!($variant)
+                );
+                $variant(vec![Default::default(); $count])
+            })
+    };
+}
+
+fn match_attribute(
+    data_type: xc3_lib::vertex::DataType,
+    buffer: &crate::vertex::VertexBuffer,
+    count: usize,
+) -> AttributeData {
+    // Find the corresponding attribute or fill in a default value.
+    // Try attributes with matching usage in order for data like normals.
+    match data_type {
+        DataType::Position => attribute!(buffer, count, AttributeData::Position),
+        DataType::SkinWeights2 => attribute!(buffer, count, AttributeData::SkinWeights),
+        DataType::BoneIndices2 => attribute!(buffer, count, AttributeData::BoneIndices2),
+        DataType::WeightIndex => attribute!(buffer, count, AttributeData::WeightIndex),
+        DataType::WeightIndex2 => attribute!(buffer, count, AttributeData::WeightIndex2),
+        DataType::TexCoord0 => attribute!(buffer, count, AttributeData::TexCoord0),
+        DataType::TexCoord1 => attribute!(buffer, count, AttributeData::TexCoord1),
+        DataType::TexCoord2 => attribute!(buffer, count, AttributeData::TexCoord2),
+        DataType::TexCoord3 => attribute!(buffer, count, AttributeData::TexCoord3),
+        DataType::TexCoord4 => attribute!(buffer, count, AttributeData::TexCoord4),
+        DataType::TexCoord5 => attribute!(buffer, count, AttributeData::TexCoord5),
+        DataType::TexCoord6 => attribute!(buffer, count, AttributeData::TexCoord6),
+        DataType::TexCoord7 => attribute!(buffer, count, AttributeData::TexCoord7),
+        DataType::TexCoord8 => attribute!(buffer, count, AttributeData::TexCoord8),
+        DataType::Blend => attribute!(buffer, count, AttributeData::Blend),
+        DataType::Unk15 => attribute!(buffer, count, AttributeData::Unk15),
+        DataType::Unk16 => attribute!(buffer, count, AttributeData::Unk16),
+        DataType::VertexColor => attribute!(buffer, count, AttributeData::VertexColor),
+        DataType::Unk18 => attribute!(buffer, count, AttributeData::Unk18),
+        DataType::Unk24 => attribute!(buffer, count, AttributeData::Unk24),
+        DataType::Unk25 => attribute!(buffer, count, AttributeData::Unk25),
+        DataType::Unk26 => attribute!(buffer, count, AttributeData::Unk26),
+        DataType::Normal => {
+            attribute!(
+                buffer,
+                count,
+                AttributeData::Normal,
+                AttributeData::Normal2,
+                AttributeData::Normal3
+            )
+        }
+        DataType::Tangent => attribute!(buffer, count, AttributeData::Tangent),
+        DataType::Unk30 => attribute!(buffer, count, AttributeData::Unk30),
+        DataType::Unk31 => attribute!(buffer, count, AttributeData::Unk31),
+        DataType::Normal2 => {
+            attribute!(
+                buffer,
+                count,
+                AttributeData::Normal2,
+                AttributeData::Normal,
+                AttributeData::Normal3
+            )
+        }
+        DataType::ValInf => attribute!(buffer, count, AttributeData::ValInf),
+        DataType::Normal3 => {
+            attribute!(
+                buffer,
+                count,
+                AttributeData::Normal3,
+                AttributeData::Normal,
+                AttributeData::Normal2
+            )
+        }
+        DataType::VertexColor3 => attribute!(buffer, count, AttributeData::VertexColor3),
+        DataType::Position2 => attribute!(buffer, count, AttributeData::Position2),
+        DataType::Normal4 => attribute!(buffer, count, AttributeData::Normal4),
+        DataType::OldPosition => attribute!(buffer, count, AttributeData::OldPosition),
+        DataType::Tangent2 => attribute!(buffer, count, AttributeData::Tangent2),
+        DataType::SkinWeights => attribute!(buffer, count, AttributeData::SkinWeights),
+        DataType::BoneIndices => attribute!(buffer, count, AttributeData::BoneIndices),
+        DataType::Flow => attribute!(buffer, count, AttributeData::Flow),
+    }
+}
+
 fn apply_skinning(
     new_skinning: &mut xc3_lib::mxmd::Skinning,
     skinning: &crate::skinning::Skinning,
@@ -433,94 +560,5 @@ fn apply_skinning(
     }
     if !constraints.is_empty() {
         new_skinning.constraints = Some(constraints);
-    }
-}
-
-// TODO: validate this in xc3_model on load?
-fn match_technique_attributes(
-    buffer: &mut crate::vertex::VertexBuffer,
-    technique_attributes: &[VertexAttribute],
-) {
-    // TODO: Morph targets always require positions, normals, and tangents.
-    // TODO: Update positions to use the existing positions?
-
-    // Make sure the buffer attributes match the vertex shader's input attributes.
-    // TODO: Is there a better way to match the shader order?
-    // TODO: Do we ever need to add buffer1 attributes?
-    let count = buffer.vertex_count();
-    buffer.attributes = technique_attributes
-        .iter()
-        .filter(|a| a.buffer_index == 0)
-        .map(|a| match_attribute(a.data_type, buffer, count))
-        .collect();
-}
-
-macro_rules! attribute {
-    ($buffer:ident, $variant:path, $default:expr, $count: expr) => {
-        $buffer
-            .attributes
-            .iter()
-            .find_map(|a| {
-                if matches!(a, $variant(_)) {
-                    Some(a.clone())
-                } else {
-                    None
-                }
-            })
-            .unwrap_or_else(|| {
-                log::warn!(
-                    "Assigning default values for missing required attribute {}",
-                    stringify!($variant)
-                );
-                $variant(vec![$default; $count])
-            })
-    };
-}
-
-fn match_attribute(
-    data_type: xc3_lib::vertex::DataType,
-    buffer: &crate::vertex::VertexBuffer,
-    count: usize,
-) -> AttributeData {
-    // Find the corresponding attribute or fill in a default value.
-    // TODO: Can some of these attributes use alternates like normal2 for normal?
-    match data_type {
-        DataType::Position => attribute!(buffer, AttributeData::Position, Vec3::ZERO, count),
-        DataType::SkinWeights2 => attribute!(buffer, AttributeData::SkinWeights, Vec4::ZERO, count),
-        DataType::BoneIndices2 => attribute!(buffer, AttributeData::BoneIndices2, [0; 4], count),
-        DataType::WeightIndex => attribute!(buffer, AttributeData::WeightIndex, [0; 2], count),
-        DataType::WeightIndex2 => attribute!(buffer, AttributeData::WeightIndex2, [0; 2], count),
-        DataType::TexCoord0 => attribute!(buffer, AttributeData::TexCoord0, Vec2::ZERO, count),
-        DataType::TexCoord1 => attribute!(buffer, AttributeData::TexCoord1, Vec2::ZERO, count),
-        DataType::TexCoord2 => attribute!(buffer, AttributeData::TexCoord2, Vec2::ZERO, count),
-        DataType::TexCoord3 => attribute!(buffer, AttributeData::TexCoord3, Vec2::ZERO, count),
-        DataType::TexCoord4 => attribute!(buffer, AttributeData::TexCoord4, Vec2::ZERO, count),
-        DataType::TexCoord5 => attribute!(buffer, AttributeData::TexCoord5, Vec2::ZERO, count),
-        DataType::TexCoord6 => attribute!(buffer, AttributeData::TexCoord6, Vec2::ZERO, count),
-        DataType::TexCoord7 => attribute!(buffer, AttributeData::TexCoord7, Vec2::ZERO, count),
-        DataType::TexCoord8 => attribute!(buffer, AttributeData::TexCoord8, Vec2::ZERO, count),
-        DataType::Blend => attribute!(buffer, AttributeData::Blend, Vec4::ZERO, count),
-        DataType::Unk15 => attribute!(buffer, AttributeData::Unk15, Vec3::ZERO, count),
-        DataType::Unk16 => attribute!(buffer, AttributeData::Unk16, [0; 2], count),
-        DataType::VertexColor => attribute!(buffer, AttributeData::VertexColor, Vec4::ZERO, count),
-        DataType::Unk18 => attribute!(buffer, AttributeData::Unk18, Vec3::ZERO, count),
-        DataType::Unk24 => todo!(),
-        DataType::Unk25 => todo!(),
-        DataType::Unk26 => todo!(),
-        DataType::Normal => attribute!(buffer, AttributeData::Normal, Vec4::ZERO, count),
-        DataType::Tangent => attribute!(buffer, AttributeData::Tangent, Vec4::ZERO, count),
-        DataType::Unk30 => todo!(),
-        DataType::Unk31 => attribute!(buffer, AttributeData::Unk31, Vec4::ZERO, count),
-        DataType::Normal2 => attribute!(buffer, AttributeData::Normal2, Vec4::ZERO, count),
-        DataType::ValInf => attribute!(buffer, AttributeData::ValInf, Vec4::ZERO, count),
-        DataType::Normal3 => todo!(),
-        DataType::VertexColor3 => todo!(),
-        DataType::Position2 => attribute!(buffer, AttributeData::Position2, Vec3::ZERO, count),
-        DataType::Normal4 => attribute!(buffer, AttributeData::Normal4, Vec4::ZERO, count),
-        DataType::OldPosition => attribute!(buffer, AttributeData::OldPosition, Vec3::ZERO, count),
-        DataType::Tangent2 => attribute!(buffer, AttributeData::Tangent2, Vec4::ZERO, count),
-        DataType::SkinWeights => attribute!(buffer, AttributeData::SkinWeights, Vec4::ZERO, count),
-        DataType::BoneIndices => attribute!(buffer, AttributeData::BoneIndices, [0; 4], count),
-        DataType::Flow => todo!(),
     }
 }
