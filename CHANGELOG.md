@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Changed `xc3_model::skeleton` and `xc3_model::animation` to use a new `Transform` type to match in game scaling behavior. Use `Transform::to_matrix` and `Transform::from_matrix` for compatibility with `glam::Mat4`.
 * Improved accuracy of wimdo file rebuilding.
 * Changed xc3_model wimdo export to find equivalent attribute data for shader attributes like normals if no exact match exists.
+* Updated provided shader database files to include Xenoblade 3 update models.
 
 ### Fixed
 * Fixed an issue where animations would not correctly apply bone scale.
