@@ -28,7 +28,7 @@ pub struct ShaderMetadata {
     pub storage_buffers: Vec<Buffer>,
     pub samplers: Vec<Sampler>,
     /// Input attributes.
-    pub attributes: Vec<Attribute>,
+    pub vertex_attributes: Vec<Attribute>,
     // TODO: Store this as flattened floats?
     pub constants: Option<[[f32; 4]; 16]>,
 }
@@ -112,7 +112,7 @@ impl ShaderMetadata {
                         .collect()
                 })
                 .unwrap_or_default(),
-            attributes: nvsd
+            vertex_attributes: nvsd
                 .attributes
                 .iter()
                 .map(|a| Attribute {
@@ -127,14 +127,22 @@ impl ShaderMetadata {
     /// Annotate the GLSL output of the Ryujinx.ShaderTools decompiler.
     ///
     /// Other decompilers or handwritten GLSL files may not work as reliably due to naming differences.
-    pub fn annotate_glsl(&self, glsl: &str, buffer_prefix: &str) -> Result<String, Box<dyn Error>> {
+    pub fn annotate_glsl(
+        &self,
+        glsl: &str,
+        buffer_prefix: &str,
+        is_vertex: bool,
+    ) -> Result<String, Box<dyn Error>> {
         let mut replacements = HashMap::new();
         let mut struct_fields = HashMap::new();
         let mut constant_values = HashMap::new();
 
-        for attribute in &self.attributes {
-            let attribute_name = format!("in_attr{}", attribute.location);
-            replacements.insert(attribute_name, attribute.name.clone());
+        // The attributes used between stages do not have labels.
+        if is_vertex {
+            for attribute in &self.vertex_attributes {
+                let attribute_name = format!("in_attr{}", attribute.location);
+                replacements.insert(attribute_name, attribute.name.clone());
+            }
         }
 
         annotate_samplers(&mut replacements, self);
@@ -354,7 +362,7 @@ pub fn annotate_fragment(
     constants: Option<&[[f32; 4]; 16]>,
 ) -> Result<String, Box<dyn Error>> {
     let metadata = ShaderMetadata::from_nvsd(nvsd, constants);
-    metadata.annotate_glsl(glsl, "fp")
+    metadata.annotate_glsl(glsl, "fp", false)
 }
 
 #[cfg(feature = "xc3")]
@@ -364,7 +372,7 @@ pub fn annotate_vertex(
     constants: Option<&[[f32; 4]; 16]>,
 ) -> Result<String, Box<dyn Error>> {
     let metadata = ShaderMetadata::from_nvsd(nvsd, constants);
-    metadata.annotate_glsl(glsl, "vp")
+    metadata.annotate_glsl(glsl, "vp", true)
 }
 
 fn annotate_samplers(replacements: &mut HashMap<String, String>, metadata: &ShaderMetadata) {
@@ -907,6 +915,13 @@ mod tests {
             layout (binding = 5) uniform sampler2D fp_t_tcb_8;
             layout (binding = 6) uniform sampler2D fp_t_tcb_12;
 
+            layout (location = 0) in vec4 in_attr0;
+            layout (location = 1) in vec4 in_attr1;
+            layout (location = 2) in vec4 in_attr2;
+            layout (location = 3) in vec4 in_attr3;
+            layout (location = 4) in vec4 in_attr4;
+            layout (location = 5) in vec4 in_attr5;
+
             void main() {
                 temp_677 = temp_659 + fp_c1.data[1].x;
                 out_attr0.x = fp_c4.data[2].x;
@@ -971,6 +986,12 @@ mod tests {
                 layout(binding = 4) uniform sampler2D gTResidentTex04;
                 layout(binding = 5) uniform sampler2D s0;
                 layout(binding = 6) uniform sampler2D gTSpEffNoise1;
+                layout(location = 0) in vec4 in_attr0;
+                layout(location = 1) in vec4 in_attr1;
+                layout(location = 2) in vec4 in_attr2;
+                layout(location = 3) in vec4 in_attr3;
+                layout(location = 4) in vec4 in_attr4;
+                layout(location = 5) in vec4 in_attr5;
                 void main() {
                     temp_677 = temp_659 + 7.;
                     out_attr0.x = U_Mate.gWrkFl4[0].x;

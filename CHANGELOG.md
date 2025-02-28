@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Fixed an issue where animations would not correctly apply bone scale.
 * Fixed an issue where `R4G4B4A4Unorm` texture data would load and save with swapped channels.
 * Fixed an issue where `xc3_model::animation::Animation::fcurves` would calculate incorrect values for root bones.
+* Fixed an issue where the `decompile-shaders` command for xc3_shader would incorrectly annotate fragment input attributes.
 
 ## 0.17.0 - 2025-01-28
 ### 
