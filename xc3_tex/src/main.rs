@@ -46,7 +46,7 @@ struct ConvertArgs {
     // TODO: how to make this required?
     input: String,
     /// The output file or the output folder when the input is a wimdo or wilay.
-    /// All of the supported input formats also work as output formats.
+    /// All of the supported input formats also work as output formats except for wismt.
     output: Option<String>,
     /// The compression format when saving as a file like dds or witex
     #[arg(long, value_parser = PossibleValuesParser::new(ImageFormat::iter().map(|f| f.to_string())))]
@@ -250,10 +250,7 @@ fn main() -> anyhow::Result<()> {
                             .save(&output)?;
                     }
                     "wismt" => {
-                        // TODO: Also create base level?
-                        let mibl = input_file.to_mibl(format, quality, mipmaps)?;
-                        let xbc1 = create_wismt_single_tex(&mibl)?;
-                        xbc1.save(&output)?;
+                        anyhow::bail!("Creating .wismt files is not supported. Edit an existing model's textures with the edit-wimdo command.");
                     }
                     // TODO: Resave xenoblade x textures?
                     _ => {
