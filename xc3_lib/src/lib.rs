@@ -626,6 +626,7 @@ macro_rules! file_read_impl {
                     reader.read_type($endian).map_err(Into::into)
                 }
 
+                // TODO: set target to include the type name?
                 /// Read from `path` using a fully buffered reader for performance.
                 #[tracing::instrument(skip_all)]
                 pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, ReadFileError> {
@@ -653,7 +654,7 @@ where
     P: AsRef<Path>,
 {
     let mut reader = Cursor::new(std::fs::read(path)?);
-    reader.read_type(endian).map_err(Into::into)
+    reader.read_type(endian)
 }
 
 file_read_impl!(

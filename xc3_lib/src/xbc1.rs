@@ -184,13 +184,13 @@ where
     for<'a> T: BinRead<Args<'a> = ()>,
 {
     pub fn read<R: Read + Seek>(reader: &mut R) -> binrw::BinResult<Self> {
-        reader.read_le().map_err(Into::into)
+        reader.read_le()
     }
 
     /// Read from `path` using a fully buffered reader for performance.
     pub fn from_file<P: AsRef<Path>>(path: P) -> binrw::BinResult<Self> {
         let mut reader = Cursor::new(std::fs::read(path)?);
-        reader.read_le().map_err(Into::into)
+        reader.read_le()
     }
 
     /// Read from `bytes` using a fully buffered reader for performance.

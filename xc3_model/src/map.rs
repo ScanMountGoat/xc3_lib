@@ -247,7 +247,6 @@ impl TextureCache {
                     error!("No mibl for {texture:?}");
                     let (usage, surface) = &self.low_textures[0][0];
                     ImageTexture::from_surface(surface.as_ref(), None, Some(*usage))
-                        .map_err(Into::into)
                 }
             })
             .collect()

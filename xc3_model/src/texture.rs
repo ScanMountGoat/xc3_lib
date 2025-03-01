@@ -251,7 +251,6 @@ pub fn load_textures(
                     Some(texture.name.clone()),
                     Some(texture.usage),
                 )
-                .map_err(Into::into)
             })
             .collect(),
         ExtractedTextures::Pc(textures) => textures
