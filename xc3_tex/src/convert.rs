@@ -40,6 +40,7 @@ pub enum File {
     Bmn(Bmn),
     Wifnt(MaybeXbc1<Laft>),
     XcxFnt(Fnt),
+    Caavp(Vec<Mtxt>),
 }
 
 // TODO: Move this to xc3_lib?
@@ -139,6 +140,9 @@ impl File {
             File::Bmn(_) => Err(anyhow::anyhow!(
                 "bmn textures must be saved to an output folder instead of a single image"
             )),
+            File::Caavp(_) => Err(anyhow::anyhow!(
+                "bmn textures must be saved to an output folder instead of a single image"
+            )),
         }
     }
 
@@ -185,6 +189,9 @@ impl File {
             File::Bmn(_) => Err(anyhow::anyhow!(
                 "bmn textures must be saved to an output folder instead of a single image"
             )),
+            File::Caavp(_) => Err(anyhow::anyhow!(
+                "caavp textures must be saved to an output folder instead of a single image"
+            )),
         }
     }
 
@@ -213,6 +220,9 @@ impl File {
             )),
             File::Bmn(_) => Err(anyhow::anyhow!(
                 "bmn textures must be saved to an output folder instead of a single image"
+            )),
+            File::Caavp(_) => Err(anyhow::anyhow!(
+                "caavp textures must be saved to an output folder instead of a single image"
             )),
         }
     }
@@ -682,6 +692,34 @@ fn extract_bmn_textures(bmn: Bmn) -> anyhow::Result<Vec<Dds>> {
     Ok(result)
 }
 
+fn extract_caavp_to_folder(mtxts: Vec<Mtxt>, input: &Path) -> Result<(), anyhow::Error> {
+    let file_name = input.file_name().unwrap();
+    let output_folder = input.parent().unwrap();
+    let dds_textures = extract_caavp_textures(mtxts)?;
+    save_unnamed_dds(&dds_textures, output_folder, file_name)?;
+    Ok(())
+}
+
+fn extract_caavp_textures(mtxts: Vec<Mtxt>) -> Result<Vec<Dds>, anyhow::Error> {
+    let dds_textures = mtxts
+        .iter()
+        .map(|t| t.to_dds())
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(dds_textures)
+}
+
+fn extract_caavp_images_to_folder(
+    mtxts: Vec<Mtxt>,
+    input: &Path,
+    output_folder: &Path,
+    ext: &str,
+) -> Result<(), anyhow::Error> {
+    let textures = extract_caavp_textures(mtxts)?;
+    let file_name = input.file_name().unwrap();
+    save_unnamed_dds_images(&textures, output_folder, file_name, ext)?;
+    Ok(())
+}
+
 pub fn update_wifnt(input: &str, input_image: &str, output: &str) -> anyhow::Result<()> {
     let mut laft = MaybeXbc1::<Laft>::from_file(input)?;
 
@@ -702,16 +740,6 @@ pub fn update_wifnt(input: &str, input_image: &str, output: &str) -> anyhow::Res
     }
 
     Ok(())
-}
-
-// TODO: Move this to xc3_lib?
-pub fn read_wismt_single_tex<P: AsRef<Path>>(path: P) -> anyhow::Result<Mibl> {
-    Xbc1::from_file(path)?.extract().map_err(Into::into)
-}
-
-pub fn create_wismt_single_tex(mibl: &Mibl) -> anyhow::Result<Xbc1> {
-    // TODO: Set the name properly.
-    Xbc1::new("middle.witx".to_string(), mibl, CompressionType::Zlib).map_err(Into::into)
 }
 
 pub fn batch_convert_files(
@@ -768,6 +796,9 @@ fn extract_and_save_dds(path: &Path, file: File) -> anyhow::Result<()> {
             .to_dds()?
             .save(path.with_extension("dds"))?,
         File::XcxFnt(fnt) => fnt.texture.to_dds()?.save(path.with_extension("dds"))?,
+        File::Caavp(mtxts) => {
+            extract_caavp_to_folder(mtxts, path)?;
+        }
     }
     Ok(())
 }
@@ -801,6 +832,9 @@ fn extract_and_save_image(path: &Path, file: File, ext: &str) -> anyhow::Result<
         }
         File::XcxFnt(fnt) => {
             fnt.texture.save_image(path.with_extension(ext))?;
+        }
+        File::Caavp(mtxts) => {
+            extract_caavp_images_to_folder(mtxts, path, path.parent().unwrap(), ext)?;
         }
     }
     Ok(())

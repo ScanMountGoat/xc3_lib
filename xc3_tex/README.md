@@ -15,7 +15,7 @@ See the help text for a full list of commands and supported formats.
 xc3_tex can efficiently extract textures from supported files in a folder recursively using the batch-convert command. This can be used to convert all menu images and fonts to PNG.
 
 `xc3_tex batch-convert menu "*.{wilay, wifnt}" png`  
-`xc3_tex batch-convert menu "*.{bmn, catex, fnt}" png`
+`xc3_tex batch-convert menu "*.{bmn, catex, caavp, fnt}" png`
 
 ### DDS Conversion
 xc3_tex also provides the ability to convert DDS files to and from uncompressed formats like PNG or TIFF. This is helpful on platforms like Linux and MacOS since many popular texture conversion tools are Windows only.
@@ -44,7 +44,7 @@ Most Xenoblade 3 models store higher resolution textures in the `chr/tex/nx` fol
 `xc3_tex input/chr/ch/ch01011013.wimdo image_folder`  
 `xc3_tex edit-wimdo ch01011013.wimdo image_folder output/chr/ch/ch01011013.wimdo input/chr/tex/nx`  
 
-### Camdo/Casmt Texture Replacement
+### Camdo/Casmt Textures
 Export the DDS images by dragging and dropping the `.camdo` file onto the executable or by running the terminal command. Note that Xenoblade X textures will appear flipped vertically from the expected orientation. This is how texture data is stored, and models have a matching UV layout. Tools like xc3_gltf or xenoblade_blender can flip the textures since they don't attempt to preserve the original texture data. Replacing textures in `.camdo` models is not currently supported.
 
 ### Wifnt Texture Replacement

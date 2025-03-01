@@ -6,9 +6,8 @@ use std::{
 use anyhow::Context;
 use clap::{builder::PossibleValuesParser, Parser, Subcommand};
 use convert::{
-    batch_convert_files, create_wismt_single_tex, extract_wilay_to_folder, extract_wimdo_to_folder,
-    read_wismt_single_tex, update_wifnt, update_wilay_from_folder, update_wimdo_from_folder, File,
-    SaveImageExt, Wilay,
+    batch_convert_files, extract_wilay_to_folder, extract_wimdo_to_folder, update_wifnt,
+    update_wilay_from_folder, update_wimdo_from_folder, File, SaveImageExt, Wilay,
 };
 use image_dds::{ddsfile::Dds, image, ImageFormat, Quality};
 use strum::IntoEnumIterator;
@@ -276,9 +275,6 @@ fn load_input_file(input: &Path) -> anyhow::Result<File> {
         "dds" => Dds::from_file(input)
             .with_context(|| format!("{input:?} is not a valid .dds file"))
             .map(File::Dds),
-        "wismt" => read_wismt_single_tex(input)
-            .with_context(|| format!("{input:?} is not a valid .wismt file"))
-            .map(File::Mibl),
         "wilay" => Ok(File::Wilay(Box::new(
             MaybeXbc1::<Wilay>::from_file(input)
                 .with_context(|| format!("{input:?} is not a valid .wilay file"))?,
@@ -291,7 +287,7 @@ fn load_input_file(input: &Path) -> anyhow::Result<File> {
             .with_context(|| format!("{input:?} is not a valid .camdo file"))
             .map(Box::new)
             .map(File::Camdo),
-        "catex" | "calut" | "caavp" => Mtxt::from_file(input)
+        "catex" | "calut" => Mtxt::from_file(input)
             .with_context(|| format!("{input:?} is not a valid .catex file"))
             .map(File::Mtxt),
         "bmn" => Bmn::from_file(input)
@@ -303,6 +299,21 @@ fn load_input_file(input: &Path) -> anyhow::Result<File> {
         "fnt" => Fnt::from_file(input)
             .with_context(|| format!("{input:?} is not a valid .fnt file"))
             .map(File::XcxFnt),
+        "caavp" => {
+            // caavp files have multiple embedded mtxt files.
+            // TODO: Move this logic to xc3_lib?
+            let bytes = std::fs::read(input)?;
+            let mut mtxts = Vec::new();
+            let mut start = 0;
+            for i in (0..bytes.len()).step_by(4) {
+                if matches!(bytes.get(i..i + 4), Some(b"MTXT")) {
+                    let mtxt = Mtxt::from_bytes(&bytes[start..i + 4])?;
+                    mtxts.push(mtxt);
+                    start = i + 4;
+                }
+            }
+            Ok(File::Caavp(mtxts))
+        }
         _ => {
             // Assume other formats are image formats.
             let image = image::open(input)
