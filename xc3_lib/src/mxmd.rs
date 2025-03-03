@@ -747,12 +747,8 @@ pub struct Models {
     #[xc3(offset(u32), align(16))]
     pub morph_controllers: Option<MorphControllers>,
 
-    #[br(temp, restore_position)]
-    offsets: [u32; 4],
-
     // TODO: Also morph related but for animations?
-    #[br(parse_with = parse_opt_ptr32)]
-    #[br(args { offset: base_offset, inner: base_offset as u32 + offsets[3]})]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(16))]
     pub model_unk1: Option<ModelUnk1>,
 
@@ -762,7 +758,7 @@ pub struct Models {
 
     // TODO: not always aligned to 16?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset(u32), align(16))]
+    #[xc3(offset(u32), align(8))]
     pub lod_data: Option<LodData>,
 
     // TODO: not always aligned to 16?
@@ -1406,7 +1402,6 @@ pub struct ModelUnk12Item {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
-#[br(import_raw(next_offset: u32))]
 #[xc3(base_offset)]
 pub struct ModelUnk1 {
     #[br(temp, try_calc = r.stream_position())]
@@ -1442,16 +1437,15 @@ pub struct ModelUnk1 {
     // TODO: not present for xc2?
     // TODO: Is this the correct check?
     #[br(if(unk4 != 0 || unk5 != 0))]
-    #[br(args { base_offset, next_offset })]
+    #[br(args_raw(base_offset))]
     pub extra: Option<ModelUnk1Extra>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-#[br(import { base_offset: u64, next_offset: u32 })]
+#[br(import_raw(base_offset: u64))]
 pub struct ModelUnk1Extra {
-    #[br(parse_with = parse_opt_ptr32)]
-    #[br(args { offset: base_offset, inner: next_offset })]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub unk_inner: Option<ModelUnk1Inner>,
 
@@ -1464,7 +1458,6 @@ pub struct ModelUnk1Extra {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
-#[br(import_raw(next_offset: u32))]
 #[xc3(base_offset)]
 pub struct ModelUnk1Inner {
     #[br(temp, try_calc = r.stream_position())]
@@ -1476,14 +1469,11 @@ pub struct ModelUnk1Inner {
     #[xc3(offset_count(u32, u32))]
     pub items1: Vec<(u16, u16)>,
 
-    // TODO: Is there a better way to infer this count?
-    #[br(temp, restore_position)]
-    offset: u32,
-    // TODO: 0..N arranged in a different order?
+    // TODO: 0..N-1 arranged in a different order?
     #[br(parse_with = parse_ptr32)]
     #[br(args {
         offset: base_offset,
-        inner: args! { count: (next_offset - (base_offset as u32 + offset)) as usize / 2 }
+        inner: args! { count: items1.iter().map(|(i, _)| *i as usize).max().unwrap_or_default() }
     })]
     #[xc3(offset(u32))]
     pub items2: Vec<u16>,
@@ -1941,7 +1931,7 @@ pub struct AsBoneData {
 
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: bones.len() }})]
-    #[xc3(offset(u32))]
+    #[xc3(offset(u32), align(16))]
     pub transforms: Vec<AsBoneTransform>,
 
     pub unk3: u32,
@@ -2217,9 +2207,9 @@ impl Xc3WriteOffsets for ModelsOffsets<'_> {
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.model_unk1
             .write_full(writer, base_offset, data_ptr, endian, ())?;
-        self.alpha_table
-            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.model_unk12
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.alpha_table
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.model_unk3
             .write_full(writer, base_offset, data_ptr, endian, ())?;
