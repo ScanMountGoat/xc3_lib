@@ -83,6 +83,9 @@ pub mod vertex;
 pub mod wipac;
 pub mod xbc1;
 
+// TODO: Optional feature flag for offset logging.
+pub mod offset;
+
 struct Ptr<P> {
     phantom: PhantomData<P>,
 }
@@ -359,6 +362,7 @@ where
         });
     }
 
+    // TODO: Use parse_ptr here instead?
     parse_vec(reader, endian, args, offset, count as usize)
 }
 
@@ -377,9 +381,17 @@ where
     let saved_pos = reader.stream_position()?;
 
     reader.seek(SeekFrom::Start(offset + args.offset))?;
-    log_offset::<T>(offset + args.offset);
 
+    log_offset::<T>(offset + args.offset);
+    let start = reader.stream_position()?;
     let value = T::read_options(reader, endian, args.inner)?;
+    let end = reader.stream_position()?;
+
+    offset::OFFSET_LOGGER
+        .lock()
+        .unwrap()
+        .log_range(start, end, std::any::type_name::<T>());
+
     reader.seek(SeekFrom::Start(saved_pos))?;
 
     Ok(value)
@@ -405,10 +417,21 @@ where
     // binrw::helpers::count_with is technically faster but compiles much slower.
     // The runtime performance difference isn't significant for most files.
     // TODO: add a special function for optimized Vec<u8> reading.
+    let start = reader.stream_position()?;
     let mut values = Vec::new();
     for _ in 0..count {
         let value = T::read_options(reader, endian, args.inner.clone())?;
         values.push(value);
+    }
+    let end = reader.stream_position()?;
+
+    // TODO: Log empty range instead of skipping?
+    if count > 0 {
+        offset::OFFSET_LOGGER.lock().unwrap().log_range(
+            start,
+            end,
+            std::any::type_name::<Vec<T>>(),
+        );
     }
 
     reader.seek(SeekFrom::Start(saved_pos))?;
@@ -416,6 +439,7 @@ where
     Ok(values)
 }
 
+// TODO: Move this to offset logging?
 fn log_offset<T>(offset: u64) {
     fn inner(offset: u64, name: &str) {
         // Bit trick for largest power of two factor.
