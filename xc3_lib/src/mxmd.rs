@@ -161,7 +161,8 @@ pub struct Materials {
     pub unks4: [u32; 3],
 
     #[br(if(material_offset >= 112))]
-    pub unks5: Option<u32>,
+    #[br(args_raw(base_offset))]
+    pub unk5: Option<MaterialUnk5>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -678,6 +679,32 @@ pub struct Texture {
     pub sampler_index: u16,
     pub unk2: u16, // TODO: sometimes 1?
     pub unk3: u16,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct MaterialUnk5 {
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub unk1: Option<MaterialUnk5Inner>,
+}
+
+#[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(stream = r)]
+#[xc3(base_offset)]
+pub struct MaterialUnk5Inner {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    pub unk1: u32,
+
+    // TODO: item type?
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub unk2: Vec<[f32; 6]>,
 }
 
 // xc1: 160, 164, 168 bytes
@@ -1249,8 +1276,9 @@ pub struct ModelUnk8 {
     // TODO: What type is this?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub unk1: Vec<[u32; 5]>,
+    pub unk1: Vec<[u32; 2]>,
 
+    // TODO: What type is this?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
     pub unk2: Vec<[f32; 4]>,
@@ -1473,7 +1501,7 @@ pub struct ModelUnk1Inner {
     #[br(parse_with = parse_ptr32)]
     #[br(args {
         offset: base_offset,
-        inner: args! { count: items1.iter().map(|(i, _)| *i as usize).max().unwrap_or_default() }
+        inner: args! { count: items1.iter().map(|(i, j)| (*i + *j) as usize).max().unwrap_or_default() }
     })]
     #[xc3(offset(u32))]
     pub items2: Vec<u16>,
@@ -1929,6 +1957,7 @@ pub struct AsBoneData {
     #[xc3(offset_count(u32, u32))]
     pub values: Vec<AsBoneValue>,
 
+    // TODO: Not bone count for ch01022012.wimdo?
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: bones.len() }})]
     #[xc3(offset(u32), align(16))]
@@ -1937,6 +1966,7 @@ pub struct AsBoneData {
     pub unk3: u32,
 
     // TODO: padding?
+    // TODO: only 4 bytes for ch01022012.wimdo?
     pub unk: [u32; 2],
 }
 
@@ -2302,6 +2332,8 @@ impl Xc3WriteOffsets for MaterialsOffsets<'_> {
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.samplers
             .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.unk5
+            .write_offsets(writer, base_offset, data_ptr, endian, ())?;
         self.techniques
             .write_full(writer, base_offset, data_ptr, endian, ())?;
 
