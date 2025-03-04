@@ -15,3 +15,5 @@ glam = { workspace = true, features = ["approx"] }
 approx.workspace = true
 log.workspace = true
 simple_logger.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

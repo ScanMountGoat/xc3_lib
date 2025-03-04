@@ -1,6 +1,7 @@
 use std::{
     io::Cursor,
     path::{Path, PathBuf},
+    sync::{Arc, Mutex},
 };
 
 use approx::RelativeEq;
@@ -8,6 +9,7 @@ use binrw::{BinRead, BinReaderExt, Endian};
 use clap::Parser;
 use glam::Mat4;
 use rayon::prelude::*;
+use tracing_subscriber::layer::SubscriberExt;
 use xc3_lib::{
     apmd::Apmd,
     bc::Bc,
@@ -922,6 +924,7 @@ impl CheckFile for Mths {
 
 impl CheckFile for Mtxt {
     fn check_file(self, path: &Path, original_bytes: &[u8], check_read_write: bool) {
+        // TODO: Multiple mtxt for caavp files.
         if check_read_write {
             let mut writer = Cursor::new(Vec::new());
             self.write(&mut writer).unwrap();
@@ -1007,9 +1010,22 @@ where
             let path = entry.as_ref().unwrap().path();
             let original_bytes = std::fs::read(path).unwrap();
             let mut reader = Cursor::new(&original_bytes);
-            match reader.read_type(endian) {
+
+            // Log offsets for just this type on this thread.
+            let ranges = Arc::new(Mutex::new(Vec::new()));
+            let subscriber =
+                tracing_subscriber::registry().with(xc3_lib::offset::OffsetLayer(ranges.clone()));
+
+            let result = tracing::subscriber::with_default(subscriber, || reader.read_type(endian));
+            match result {
                 Ok(file) => T::check_file(file, path, &original_bytes, check_read_write),
                 Err(e) => println!("Error reading {path:?}: {e}"),
+            }
+
+            let ranges = ranges.lock().unwrap();
+            let errors = xc3_lib::offset::validate_ranges(&ranges, &original_bytes);
+            if !errors.is_empty() {
+                println!("{path:?}\n{errors:#?}");
             }
         });
 }
