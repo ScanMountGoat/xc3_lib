@@ -66,7 +66,8 @@ pub struct VertexData {
     base_offset: u64,
 
     // TODO: Sometimes 80 and sometimes 84?
-    #[br(parse_with = parse_offset32_count32, args { offset: base_offset, inner: base_offset })]
+    #[br(parse_with = parse_offset32_count32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(offset_count(u32, u32))]
     pub vertex_buffers: Vec<VertexBufferDescriptor>,
 
@@ -89,7 +90,8 @@ pub struct VertexData {
     #[xc3(offset_count(u32, u32))]
     pub outline_buffers: Vec<OutlineBufferDescriptor>,
 
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(offset(u32))]
     pub vertex_morphs: Option<VertexMorphs>,
 
@@ -109,7 +111,8 @@ pub struct VertexData {
     #[xc3(offset(u32))]
     pub unk_data: Option<UnkData>,
 
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(offset(u32))]
     pub weights: Option<Weights>,
 
@@ -283,12 +286,14 @@ pub enum IndexFormat {
 /// Vertex animation data often called "vertex morphs", "shape keys", or "blend shapes".
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
 pub struct VertexMorphs {
     #[br(parse_with = parse_count32_offset32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(count_offset(u32, u32))]
     pub descriptors: Vec<MorphDescriptor>,
 
-    #[br(parse_with = parse_count32_offset32)]
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
     pub targets: Vec<MorphTarget>,
 
@@ -303,12 +308,13 @@ pub struct VertexMorphs {
 /// the length of [param_indices](#structfield.param_indices).
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
 pub struct MorphDescriptor {
     pub vertex_buffer_index: u32,
     pub target_start_index: u32,
 
     /// Indices into [controllers](../mxmd/struct.MorphControllers.html#structfield.controllers).
-    #[br(parse_with = parse_count32_offset32)]
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
     pub param_indices: Vec<u16>,
 
@@ -351,9 +357,10 @@ pub struct MorphTargetFlags {
 /// based on a mesh's level of detail (LOD) and [RenderPassType](crate::mxmd::RenderPassType).
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
 pub struct Weights {
     /// Selected based on the associated [WeightLod] for a [Mesh](crate::mxmd::Mesh).
-    #[br(parse_with = parse_count32_offset32)]
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
     pub groups: Vec<WeightGroup>,
 
@@ -362,7 +369,7 @@ pub struct Weights {
     pub vertex_buffer_index: u16,
 
     /// Selected based on the LOD of the [Mesh](crate::mxmd::Mesh).
-    #[br(parse_with = parse_count16_offset32)]
+    #[br(parse_with = parse_count16_offset32, offset = base_offset)]
     #[xc3(count_offset(u16, u32))]
     pub weight_lods: Vec<WeightLod>,
 
