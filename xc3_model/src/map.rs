@@ -241,7 +241,7 @@ impl TextureCache {
                 let low = self.get_low_texture(texture);
 
                 if let Some(surface) = self.get_high_texture(texture).or(low.map(|low| low.1)) {
-                    ImageTexture::from_surface(surface, None, low.map(|l| l.0)).map_err(Into::into)
+                    ImageTexture::from_surface(surface, None, low.map(|l| l.0))
                 } else {
                     // TODO: Create a default instead to avoid potential panic.
                     error!("No mibl for {texture:?}");

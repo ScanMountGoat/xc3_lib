@@ -120,7 +120,7 @@ impl ImageTexture {
         texture: &PackedTexture,
     ) -> Result<Self, CreateImageTextureError> {
         let mibl = Mibl::from_bytes(&texture.mibl_data)?;
-        Self::from_mibl(&mibl, Some(texture.name.clone()), Some(texture.usage)).map_err(Into::into)
+        Self::from_mibl(&mibl, Some(texture.name.clone()), Some(texture.usage))
     }
 
     /// Decode the first mip level for all depth slices and array layers to RGBA8.
