@@ -387,8 +387,11 @@ where
     let value = T::read_options(reader, endian, args.inner)?;
     let end = reader.stream_position()?;
 
-    let type_name = std::any::type_name::<T>();
-    trace!(start, end, type_name);
+    // Skip empty ranges usually from empty vecs.
+    if start != end {
+        let type_name = std::any::type_name::<T>();
+        trace!(start, end, type_name);
+    }
 
     reader.seek(SeekFrom::Start(saved_pos))?;
 

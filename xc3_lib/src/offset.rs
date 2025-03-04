@@ -45,6 +45,7 @@ pub fn validate_ranges<'a>(
     let mut errors = Vec::new();
 
     // TODO: Detect gaps between header and first offset?
+    // TODO: How to handle empty ranges?
     for i in 0..ranges.len().saturating_sub(1) {
         let current = ranges[i].clone();
         let next = ranges[i + 1].clone();
