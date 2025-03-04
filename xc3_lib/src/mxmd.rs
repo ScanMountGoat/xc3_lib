@@ -128,11 +128,17 @@ pub struct Materials {
     pub unk4: u32,
 
     /// Info for each of the shaders in the associated [Spch](crate::spch::Spch).
-    #[br(parse_with = parse_offset32_count32, args { offset: base_offset, inner: base_offset })]
+    #[br(parse_with = parse_offset32_count32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(offset_count(u32, u32))]
     pub techniques: Vec<Technique>,
 
-    pub unks1: [u32; 2],
+    pub unks1: u32,
+
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset(u32))]
+    pub unk6: Option<MaterialUnk6>,
 
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
@@ -211,8 +217,15 @@ pub struct Technique {
     // first global param index?
     pub unk13: u16, // unk11 + unk12?
 
+    pub unk14: u32,
+
+    // TODO: type?
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk15: Vec<[u32; 5]>,
+
     // TODO: padding?
-    pub padding: [u32; 5],
+    pub padding: [u32; 2],
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -269,7 +282,7 @@ pub enum ParamType {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct MaterialCallbacks {
     // TODO: affects material parameter assignment?
@@ -282,8 +295,13 @@ pub struct MaterialCallbacks {
     #[xc3(offset_count(u32, u32))]
     pub material_indices: Vec<u16>,
 
+    // TODO: [index, ???]
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk1: Vec<[u32; 2]>,
+
     // TODO: padding?
-    pub unk: [u32; 8],
+    pub unk: [u32; 6],
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -705,6 +723,59 @@ pub struct MaterialUnk5Inner {
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
     pub unk2: Vec<[f32; 6]>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct MaterialUnk6 {
+    #[br(parse_with = parse_count32_offset32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(count_offset(u32, u32))]
+    pub unk2: Vec<MaterialUnk6Item>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct MaterialUnk6Item {
+    // TODO: Print all possible values for these.
+    pub unk1: u32,
+    pub unk2: u32,
+    pub unk3: u32,
+    pub unk4: u32,
+
+    #[br(parse_with = parse_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { base_offset, has_inner: unk3 != 0 } })]
+    #[xc3(offset(u32))]
+    pub unk5: MaterialUnk6ItemUnk5,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import { base_offset: u64, has_inner: bool })]
+pub struct MaterialUnk6ItemUnk5 {
+    pub unk1: u32,
+
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub unk2: Vec<[f32; 3]>,
+
+    // TODO: What actually disables this?
+    #[br(if(has_inner), args_raw(base_offset))]
+    pub unk3: Option<MaterialUnk6ItemUnk5Inner>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct MaterialUnk6ItemUnk5Inner {
+    // TODO: Not always present
+    pub unk3: u32,
+
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub unk4: Vec<[f32; 3]>,
 }
 
 // xc1: 160, 164, 168 bytes
@@ -2274,9 +2345,14 @@ impl Xc3WriteOffsets for TechniqueOffsets<'_> {
         self.uniform_blocks
             .write_full(writer, base_offset, data_ptr, endian, ())?;
 
-        // TODO: Why is there a variable amount of padding?
         self.parameters
             .write_full(writer, base_offset, data_ptr, endian, ())?;
+
+        self.unk15
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+
+        // TODO: Why is there a variable amount of padding?
+        // TODO: This isn't always accurate?
         *data_ptr += self.parameters.data.len() as u64 * 16;
 
         Ok(())
@@ -2332,8 +2408,11 @@ impl Xc3WriteOffsets for MaterialsOffsets<'_> {
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.samplers
             .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.unk6
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk5
             .write_offsets(writer, base_offset, data_ptr, endian, ())?;
+
         self.techniques
             .write_full(writer, base_offset, data_ptr, endian, ())?;
 
@@ -2596,6 +2675,27 @@ impl Xc3WriteOffsets for ModelUnk9InnerUnk0Offsets<'_> {
             self.items2
                 .write_full(writer, base_offset, data_ptr, endian, args)?;
         }
+        Ok(())
+    }
+}
+
+impl Xc3WriteOffsets for MaterialCallbacksOffsets<'_> {
+    type Args = ();
+    fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+        endian: xc3_write::Endian,
+        _args: Self::Args,
+    ) -> xc3_write::Xc3Result<()> {
+        // Different order than field order.
+        self.work_callbacks
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.unk1
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.material_indices
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         Ok(())
     }
 }

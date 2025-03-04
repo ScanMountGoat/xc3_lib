@@ -8,8 +8,8 @@ use tracing_subscriber::Layer;
 pub struct OffsetRange {
     pub start: u64,
     pub end: u64,
-    pub type_name: String,
     pub parent_type_names: Vec<String>,
+    pub type_name: String,
 }
 
 /// Unexpected cases while checking offset ranges that usually indicate some sort of error.
