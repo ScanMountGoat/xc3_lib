@@ -47,7 +47,7 @@ use binrw::{
     NullString,
 };
 use thiserror::Error;
-use tracing::trace;
+use tracing::{trace, trace_span};
 use xc3_write::{write_full, Xc3Write, Xc3WriteOffsets};
 
 pub mod apmd;
@@ -77,14 +77,12 @@ pub mod msrd;
 pub mod mths;
 pub mod mtxt;
 pub mod mxmd;
+pub mod offset;
 pub mod sar1;
 pub mod spch;
 pub mod vertex;
 pub mod wipac;
 pub mod xbc1;
-
-// TODO: Optional feature flag for offset logging.
-pub mod offset;
 
 struct Ptr<P> {
     phantom: PhantomData<P>,
@@ -382,16 +380,19 @@ where
 
     reader.seek(SeekFrom::Start(offset + args.offset))?;
 
-    log_offset::<T>(offset + args.offset);
+    let type_name = std::any::type_name::<T>();
+    let span = trace_span!("parse_ptr", type_name).entered();
+
     let start = reader.stream_position()?;
     let value = T::read_options(reader, endian, args.inner)?;
     let end = reader.stream_position()?;
 
     // Skip empty ranges usually from empty vecs.
     if start != end {
-        let type_name = std::any::type_name::<T>();
         trace!(start, end, type_name);
     }
+
+    span.exit();
 
     reader.seek(SeekFrom::Start(saved_pos))?;
 
@@ -413,7 +414,9 @@ where
     let saved_pos = reader.stream_position()?;
 
     reader.seek(SeekFrom::Start(offset + args.offset))?;
-    log_offset::<T>(offset + args.offset);
+
+    let type_name = std::any::type_name::<Vec<T>>();
+    let span = trace_span!("parse_vec", type_name).entered();
 
     // binrw::helpers::count_with is technically faster but compiles much slower.
     // The runtime performance difference isn't significant for most files.
@@ -426,31 +429,15 @@ where
     }
     let end = reader.stream_position()?;
 
-    // TODO: Log empty range instead of skipping?
     if count > 0 {
-        let type_name = std::any::type_name::<Vec<T>>();
         trace!(start, end, type_name);
     }
+
+    span.exit();
 
     reader.seek(SeekFrom::Start(saved_pos))?;
 
     Ok(values)
-}
-
-// TODO: Move this to offset logging?
-fn log_offset<T>(offset: u64) {
-    fn inner(offset: u64, name: &str) {
-        // Bit trick for largest power of two factor.
-        // We can assume a page is the strictest alignment requirement.
-        let align = if offset > 0 {
-            (1 << offset.trailing_zeros()).min(4096)
-        } else {
-            1
-        };
-
-        trace!("{} at {} aligned to {}", name, offset, align);
-    }
-    inner(offset, std::any::type_name::<T>());
 }
 
 fn parse_string_ptr32<R: Read + Seek>(
@@ -648,7 +635,6 @@ macro_rules! file_read_impl {
                     reader.read_type($endian).map_err(Into::into)
                 }
 
-                // TODO: set target to include the type name?
                 /// Read from `path` using a fully buffered reader for performance.
                 #[tracing::instrument(skip_all)]
                 pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, ReadFileError> {

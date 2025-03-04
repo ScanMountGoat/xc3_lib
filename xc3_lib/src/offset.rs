@@ -9,6 +9,7 @@ pub struct OffsetRange {
     pub start: u64,
     pub end: u64,
     pub type_name: String,
+    pub parent_type_names: Vec<String>,
 }
 
 /// Unexpected cases while checking offset ranges that usually indicate some sort of error.
@@ -109,27 +110,80 @@ impl tracing::field::Visit for OffsetRangeVisitor {
     fn record_debug(&mut self, _field: &tracing::field::Field, _value: &dyn std::fmt::Debug) {}
 }
 
+#[derive(Debug, Default)]
+struct TypeNameVisitor {
+    type_name: Option<String>,
+}
+
+impl tracing::field::Visit for TypeNameVisitor {
+    fn record_f64(&mut self, _field: &tracing::field::Field, _value: f64) {}
+
+    fn record_i64(&mut self, _field: &tracing::field::Field, _value: i64) {}
+
+    fn record_u64(&mut self, _field: &tracing::field::Field, _value: u64) {}
+
+    fn record_bool(&mut self, _field: &tracing::field::Field, _value: bool) {}
+
+    fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
+        if field.name() == "type_name" {
+            self.type_name = Some(value.to_string());
+        }
+    }
+
+    fn record_error(
+        &mut self,
+        _field: &tracing::field::Field,
+        _value: &(dyn std::error::Error + 'static),
+    ) {
+    }
+
+    fn record_debug(&mut self, _field: &tracing::field::Field, _value: &dyn std::fmt::Debug) {}
+}
+
+struct TypeName(String);
+
 impl<S> Layer<S> for OffsetLayer
 where
     S: tracing::Subscriber,
+    S: for<'a> tracing_subscriber::registry::LookupSpan<'a>,
 {
-    fn on_event(
-        &self,
-        event: &tracing::Event<'_>,
-        _ctx: tracing_subscriber::layer::Context<'_, S>,
-    ) {
+    fn on_event(&self, event: &tracing::Event<'_>, ctx: tracing_subscriber::layer::Context<'_, S>) {
         let mut visitor = OffsetRangeVisitor::default();
         event.record(&mut visitor);
         if let Some(start) = visitor.start {
             if let Some(end) = visitor.end {
                 if let Some(type_name) = visitor.type_name {
+                    let mut parent_type_names = Vec::new();
+
+                    let scope = ctx.event_scope(event).unwrap();
+                    for span in scope.from_root() {
+                        if let Some(TypeName(n)) = span.extensions().get() {
+                            parent_type_names.push(n.clone());
+                        }
+                    }
+
                     self.0.lock().unwrap().push(OffsetRange {
                         start,
                         end,
                         type_name,
+                        parent_type_names,
                     });
                 }
             }
+        }
+    }
+
+    fn on_new_span(
+        &self,
+        attrs: &tracing::span::Attributes<'_>,
+        id: &tracing::span::Id,
+        ctx: tracing_subscriber::layer::Context<'_, S>,
+    ) {
+        let mut visitor = TypeNameVisitor::default();
+        attrs.values().record(&mut visitor);
+
+        if let Some(n) = visitor.type_name {
+            ctx.span(id).unwrap().extensions_mut().insert(TypeName(n));
         }
     }
 }
@@ -150,16 +204,19 @@ mod tests {
                 start: 0,
                 end: 4,
                 type_name: "a".to_string(),
+                parent_type_names: Vec::new(),
             },
             OffsetRange {
                 start: 8,
                 end: 12,
                 type_name: "b".to_string(),
+                parent_type_names: Vec::new(),
             },
             OffsetRange {
                 start: 12,
                 end: 16,
                 type_name: "c".to_string(),
+                parent_type_names: Vec::new(),
             },
         ];
         let bytes = [1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1];
@@ -173,16 +230,19 @@ mod tests {
                 start: 0,
                 end: 4,
                 type_name: "a".to_string(),
+                parent_type_names: Vec::new(),
             },
             OffsetRange {
                 start: 3,
                 end: 5,
                 type_name: "b".to_string(),
+                parent_type_names: Vec::new(),
             },
             OffsetRange {
                 start: 8,
                 end: 12,
                 type_name: "c".to_string(),
+                parent_type_names: Vec::new(),
             },
         ];
         let bytes = [1, 1, 1, 2, 2, 3, 3, 3, 1, 1, 1, 1];
@@ -192,24 +252,28 @@ mod tests {
                     current: OffsetRange {
                         start: 0,
                         end: 4,
-                        type_name: "a".to_string()
+                        type_name: "a".to_string(),
+                        parent_type_names: Vec::new(),
                     },
                     next: OffsetRange {
                         start: 3,
                         end: 5,
-                        type_name: "b".to_string()
+                        type_name: "b".to_string(),
+                        parent_type_names: Vec::new(),
                     },
                 },
                 OffsetValidationError::GapWithNonPaddingBytes {
                     before: OffsetRange {
                         start: 3,
                         end: 5,
-                        type_name: "b".to_string()
+                        type_name: "b".to_string(),
+                        parent_type_names: Vec::new(),
                     },
                     after: OffsetRange {
                         start: 8,
                         end: 12,
-                        type_name: "c".to_string()
+                        type_name: "c".to_string(),
+                        parent_type_names: Vec::new(),
                     },
                     gap_bytes: &[3, 3, 3]
                 }
