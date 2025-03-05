@@ -11,8 +11,8 @@
 use std::{collections::HashMap, io::SeekFrom};
 
 use crate::{
-    parse_offset32_count32, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
-    xc3_write_binwrite_impl,
+    parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
+    parse_string_ptr32, xc3_write_binwrite_impl,
 };
 use binrw::{args, binread, BinRead, BinWrite, NullString};
 use indexmap::IndexMap;
@@ -283,12 +283,10 @@ pub struct Unk4 {
     #[xc3(offset(u32))]
     pub unk5: Option<Vec<Unk4Unk5>>, // items?
 
-    pub unk6: u32, // 0 or 1?
-
-    // TODO: Another offset actually points to this?
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset(u32), align(64))]
-    pub unk7: Option<[[f32; 4]; 8]>,
+    // TODO: Not all values are floats?
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32), align(64))]
+    pub unk6: Vec<[[f32; 4]; 8]>,
 
     // TODO: Is this the right check?
     #[br(if(version > 10001))]
@@ -725,7 +723,7 @@ impl Xc3WriteOffsets for Unk4Offsets<'_> {
 
         self.extra
             .write_offsets(writer, base_offset, data_ptr, endian, ())?;
-        self.unk7
+        self.unk6
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk4
             .write_full(writer, base_offset, data_ptr, endian, ())?;
