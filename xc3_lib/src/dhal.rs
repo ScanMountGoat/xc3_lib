@@ -214,21 +214,28 @@ pub struct Unk3 {
     pub unk: [u32; 4],
 }
 
+#[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Unk3Unk1 {
     pub unk1: (u16, u16),
 
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    // TODO: Find a better way of expressing this count.
+    #[br(temp, restore_position)]
+    temp: [u16; 12],
+
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: temp[11] as usize * 2 } })]
     #[xc3(offset(u32))]
-    pub unk2: Option<[u32; 3]>,
+    pub unk2: Option<Vec<u16>>,
 
     pub unk3: u32,
     pub unk4: u32,
     pub unk5: u32,
     pub unk6: u32,
-    pub unk7: (u16, u16),
+    pub unk7: u16,
+    pub count: u16, // TODO: count for unk2 above?
 }
 
 #[binread]
@@ -251,7 +258,8 @@ pub struct Unk4 {
     #[xc3(offset_count(u32, u32), align(2))]
     pub unk2: Vec<Unk4Unk2>,
 
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: unk2.iter().map(|u| u.unk_index).max().unwrap_or_default() })]
     #[xc3(offset(u32))]
     pub unk4: Option<Unk4Unk4>,
 
@@ -277,6 +285,7 @@ pub struct Unk4 {
 
     pub unk6: u32, // 0 or 1?
 
+    // TODO: Another offset actually points to this?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(64))]
     pub unk7: Option<[[f32; 4]; 8]>,
@@ -293,6 +302,7 @@ pub struct Unk4 {
     // TODO: Find a cleaner way of preserving data.
     #[br(seek_before = SeekFrom::Start(base_offset + unk2.len() as u64 * 64 + unk2_offset as u64))]
     #[br(count = unk4_buffer_size(&unk2, unk2.len() * 64 + unk2_offset as usize))]
+    #[br(restore_position)]
     #[xc3(save_position(false))]
     pub buffer: Vec<u8>,
 }
@@ -346,10 +356,10 @@ pub enum Unk4Unk5ValueType {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Unk4Extra {
-    // TODO: might be smaller due to alignment of other fields?
+    // TODO: type?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    pub unk1: Option<[u32; 37]>,
+    pub unk1: Option<[u32; 4]>,
 
     // TODO: padding?
     pub unk: u32,
@@ -388,17 +398,17 @@ pub struct Unk4Unk2 {
     pub unk15: u32,
     pub unk16: u32,
     pub unk17: u16,
-    pub unk18: u16,
+    pub unk_index: u16, // TODO: index into Unk4Unk4?
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
+#[br(import_raw(count: u16))]
 pub struct Unk4Unk4 {
-    pub unk1: u32,
-    // TODO: ascending order?
-    pub unk2: [u32; 31], // TODO: count?
+    #[br(count = count)]
+    pub unk2: Vec<(u16, u16)>,
 }
 
 #[binread]
