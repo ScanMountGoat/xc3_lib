@@ -80,10 +80,6 @@ struct OffsetRangeVisitor {
 }
 
 impl tracing::field::Visit for OffsetRangeVisitor {
-    fn record_f64(&mut self, _field: &tracing::field::Field, _value: f64) {}
-
-    fn record_i64(&mut self, _field: &tracing::field::Field, _value: i64) {}
-
     fn record_u64(&mut self, field: &tracing::field::Field, value: u64) {
         if field.name() == "start" {
             self.start = Some(value);
@@ -92,19 +88,10 @@ impl tracing::field::Visit for OffsetRangeVisitor {
         }
     }
 
-    fn record_bool(&mut self, _field: &tracing::field::Field, _value: bool) {}
-
     fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
         if field.name() == "type_name" {
             self.type_name = Some(value.to_string());
         }
-    }
-
-    fn record_error(
-        &mut self,
-        _field: &tracing::field::Field,
-        _value: &(dyn std::error::Error + 'static),
-    ) {
     }
 
     fn record_debug(&mut self, _field: &tracing::field::Field, _value: &dyn std::fmt::Debug) {}
@@ -116,25 +103,10 @@ struct TypeNameVisitor {
 }
 
 impl tracing::field::Visit for TypeNameVisitor {
-    fn record_f64(&mut self, _field: &tracing::field::Field, _value: f64) {}
-
-    fn record_i64(&mut self, _field: &tracing::field::Field, _value: i64) {}
-
-    fn record_u64(&mut self, _field: &tracing::field::Field, _value: u64) {}
-
-    fn record_bool(&mut self, _field: &tracing::field::Field, _value: bool) {}
-
     fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
         if field.name() == "type_name" {
             self.type_name = Some(value.to_string());
         }
-    }
-
-    fn record_error(
-        &mut self,
-        _field: &tracing::field::Field,
-        _value: &(dyn std::error::Error + 'static),
-    ) {
     }
 
     fn record_debug(&mut self, _field: &tracing::field::Field, _value: &dyn std::fmt::Debug) {}
