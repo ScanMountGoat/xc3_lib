@@ -431,6 +431,22 @@ impl MiblFooter {
         )
     }
 
+    pub(crate) fn deswizzled_surface_size(&self) -> usize {
+        tegra_swizzle::surface::deswizzled_surface_size(
+            self.width,
+            self.height,
+            self.depth,
+            self.image_format.block_dim(),
+            self.image_format.bytes_per_pixel(),
+            self.mipmap_count,
+            if self.view_dimension == ViewDimension::Cube {
+                6
+            } else {
+                1
+            },
+        )
+    }
+
     fn swizzled_base_mip_size(&self) -> usize {
         tegra_swizzle::surface::swizzled_surface_size(
             self.width,

@@ -86,17 +86,30 @@ impl ExtractedTexture<Mibl, TextureUsage> {
         name: String,
         usage: TextureUsage,
     ) -> ExtractedTexture<Mibl, TextureUsage> {
-        let low = low_texture(mibl);
-        let (mid, base_mip) = mibl.split_base_mip();
+        // Avoid broken mipmaps in game when loading the high texture for small base resolutions.
+        // The cutoff seems to be a base resolution of 32x32 BC7 or 64x64 BC1.
+        // In game textures don't even use high textures for these sizes.
+        // TODO: Is there a better way to decide to split mipmaps?
+        if mibl.footer.deswizzled_surface_size() > 4096 {
+            let low = low_texture(mibl);
+            let (mid, base_mip) = mibl.split_base_mip();
 
-        ExtractedTexture {
-            name,
-            usage,
-            low,
-            high: Some(HighTexture {
-                mid,
-                base_mip: Some(base_mip),
-            }),
+            ExtractedTexture {
+                name,
+                usage,
+                low,
+                high: Some(HighTexture {
+                    mid,
+                    base_mip: Some(base_mip),
+                }),
+            }
+        } else {
+            ExtractedTexture {
+                name,
+                usage,
+                low: mibl.clone(),
+                high: None,
+            }
         }
     }
 }
