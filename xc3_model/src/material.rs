@@ -132,7 +132,7 @@ pub(crate) fn create_materials(
                                     .unwrap_or_default()
                             })
                             .unwrap_or(texture.texture_index as usize),
-                        sampler_index: texture.sampler_index as usize,
+                        sampler_index: texture.sampler_index2 as usize,
                     }
                 })
                 .collect();

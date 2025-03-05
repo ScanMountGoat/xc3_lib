@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Fixed an issue where `xc3_model::animation::Animation::fcurves` would calculate incorrect values for root bones.
 * Fixed an issue where the `decompile-shaders` command for xc3_shader would incorrectly annotate fragment input attributes.
 * Fixed an issue where Xenoblade X `.caavp` files would incorrectly extract only a single texture with xc3_tex.
+* Fixed an issue where the texture sampler index would not load and save correctly for wimdo models in some cases.
 
 ### Removed
 * Removed the ability to create .wismt texture archives from xc3_tex. Editing the wismt texture archives in the `chr/tex/nx` folder in Xenoblade 3 was very error prone since modified shared textures may not match information in wimdo streaming headers. Use the edit-wimdo command instead.

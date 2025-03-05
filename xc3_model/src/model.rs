@@ -269,11 +269,14 @@ impl ModelRoot {
                 textures: m
                     .textures
                     .iter()
-                    .map(|t| xc3_lib::mxmd::Texture {
-                        texture_index: t.image_texture_index as u16,
-                        sampler_index: t.sampler_index as u16,
-                        unk2: 0,
-                        unk3: 0,
+                    .map(|t| {
+                        // TODO: How should the second sampler be set?
+                        xc3_lib::mxmd::Texture {
+                            texture_index: t.image_texture_index as u16,
+                            sampler_index: t.sampler_index as u16,
+                            sampler_index2: t.sampler_index as u16,
+                            unk3: 0,
+                        }
                     })
                     .collect(),
                 state_flags: m.state_flags,
