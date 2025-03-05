@@ -158,7 +158,10 @@ where
                     let scope = ctx.event_scope(event).unwrap();
                     for span in scope.from_root() {
                         if let Some(TypeName(n)) = span.extensions().get() {
-                            parent_type_names.push(n.clone());
+                            // TODO: Is there a better way to not include the current span?
+                            if n != &type_name {
+                                parent_type_names.push(n.clone());
+                            }
                         }
                     }
 

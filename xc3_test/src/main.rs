@@ -32,6 +32,7 @@ use xc3_lib::{
     mths::Mths,
     mtxt::Mtxt,
     mxmd::{legacy::MxmdLegacy, Mxmd},
+    offset::{OffsetLayer, OffsetValidationError},
     sar1::{ChCl, Csvb, Sar1},
     spch::Spch,
     xbc1::{MaybeXbc1, Xbc1},
@@ -1013,8 +1014,7 @@ where
 
             // Log offsets for just this type on this thread.
             let ranges = Arc::new(Mutex::new(Vec::new()));
-            let subscriber =
-                tracing_subscriber::registry().with(xc3_lib::offset::OffsetLayer(ranges.clone()));
+            let subscriber = tracing_subscriber::registry().with(OffsetLayer(ranges.clone()));
 
             let result = tracing::subscriber::with_default(subscriber, || reader.read_type(endian));
             match result {
@@ -1022,10 +1022,19 @@ where
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }
 
+            // There may be many validation errors, so only print a summary.
             let ranges = ranges.lock().unwrap();
             let errors = xc3_lib::offset::validate_ranges(&ranges, &original_bytes);
             if !errors.is_empty() {
-                println!("{path:?}\n{errors:#?}");
+                let mut gap_count = 0;
+                let mut overlap_count = 0;
+                for e in errors {
+                    match e {
+                        OffsetValidationError::OverlappingRange { .. } => overlap_count += 1,
+                        OffsetValidationError::GapWithNonPaddingBytes { .. } => gap_count += 1,
+                    }
+                }
+                println!("GapWithNonPaddingBytes: {gap_count}, OverlappingRange: {overlap_count}, {path:?}");
             }
         });
 }
