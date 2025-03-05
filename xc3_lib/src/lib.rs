@@ -299,26 +299,6 @@ where
 }
 
 // TODO: Better name than unchecked?
-fn parse_offset32_count32_unchecked<T, R, Args>(
-    reader: &mut R,
-    endian: binrw::Endian,
-    args: binrw::file_ptr::FilePtrArgs<Args>,
-) -> binrw::BinResult<Vec<T>>
-where
-    for<'a> T: BinRead<Args<'a> = Args> + 'static,
-    R: std::io::Read + std::io::Seek,
-    Args: Clone,
-{
-    let offset = u32::read_options(reader, endian, ())?;
-    let count = u32::read_options(reader, endian, ())?;
-
-    if offset == 0 {
-        Ok(Vec::new())
-    } else {
-        parse_vec(reader, endian, args, offset as u64, count as usize)
-    }
-}
-
 fn parse_count32_offset32_unchecked<T, R, Args>(
     reader: &mut R,
     endian: binrw::Endian,

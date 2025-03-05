@@ -2,13 +2,13 @@ use std::io::SeekFrom;
 
 use crate::{
     msrd::StreamingDataLegacyInner, parse_count32_offset32, parse_count32_offset32_unchecked,
-    parse_offset32_count32, parse_offset32_count32_unchecked, parse_opt_ptr32, parse_ptr32,
-    parse_string_ptr32, vertex::VertexAttribute, xc3_write_binwrite_impl, StringOffset32,
+    parse_offset32_count32, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
+    vertex::VertexAttribute, xc3_write_binwrite_impl, StringOffset32,
 };
-use binrw::{binread, BinRead, BinWrite};
+use binrw::{args, binread, BinRead, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
-use super::{MaterialFlags, SamplerFlags, StateFlags};
+use super::{MaterialFlags, ModelUnk3, SamplerFlags, StateFlags};
 
 // TODO: How much code can be shared with non legacy types?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -74,9 +74,16 @@ pub struct Models {
     #[br(parse_with = parse_offset32_count32)]
     #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(offset_count(u32, u32))]
-    pub skins: Vec<Skinning>,
+    pub skins: Vec<SkinningIndices>,
 
-    pub unk1: [u32; 9],
+    pub unk1: [u32; 3],
+
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub unk_bones: Option<UnkBones>,
+
+    pub unk1_2: [u32; 5],
+
     pub unk2: u32,
 
     // TODO: Will this work for writing?
@@ -88,12 +95,16 @@ pub struct Models {
     #[xc3(offset_count(u32, u32))]
     pub bones: Vec<Bone>,
 
-    // TODO: Why does this sometimes have a null offset but nonzero count?
-    #[br(parse_with = parse_offset32_count32_unchecked, offset = base_offset)]
-    #[xc3(offset_count(u32, u32))]
-    pub floats: Vec<f32>,
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: bones.len() } })]
+    #[xc3(offset(u32))]
+    pub floats: Option<Vec<f32>>,
 
-    pub unk3: u32,
+    pub unk4: u32,
+
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub unk3: Option<ModelUnk3>,
 
     // TODO: Will this work for writing?
     #[br(temp, restore_position)]
@@ -174,10 +185,36 @@ pub struct Mesh {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
-pub struct Skinning {
+pub struct SkinningIndices {
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
     pub indices: Vec<u16>,
+}
+
+#[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, Xc3Write, PartialEq, Clone)]
+#[br(stream = r)]
+#[xc3(base_offset)]
+pub struct UnkBones {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = parse_count32_offset32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(count_offset(u32, u32))]
+    pub bones: Vec<UnkBone>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct UnkBone {
+    pub unk1: [f32; 3],
+
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub name: String,
 }
 
 #[binread]
@@ -376,11 +413,11 @@ pub struct MaterialsUnk2 {
 pub struct MaterialsUnk3 {
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
-    pub unk1: Vec<(u16, u16)>,
+    pub unk1: Vec<[u16; 4]>,
 
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
-    pub unk2: Vec<(u16, u16)>,
+    pub unk2: Vec<[u16; 2]>,
 
     // TODO: one for each material?
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
