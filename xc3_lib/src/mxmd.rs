@@ -734,50 +734,32 @@ pub struct MaterialUnk6 {
     #[br(parse_with = parse_count32_offset32)]
     #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(count_offset(u32, u32))]
-    pub unk2: Vec<MaterialUnk6Item>,
+    pub items: Vec<MaterialUnk6Item>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct MaterialUnk6Item {
-    // TODO: Print all possible values for these.
     pub unk1: u32,
-    pub unk2: u32,
+    pub material_index: u32,
     pub unk3: u32,
-    pub unk4: u32,
 
-    #[br(parse_with = parse_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { base_offset, has_inner: unk3 != 0 } })]
-    #[xc3(offset(u32))]
-    pub unk5: MaterialUnk6ItemUnk5,
-}
-
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-#[br(import { base_offset: u64, has_inner: bool })]
-pub struct MaterialUnk6ItemUnk5 {
-    pub unk1: u32,
-
-    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[br(parse_with = parse_count32_offset32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(count_offset(u32, u32))]
-    pub unk2: Vec<[f32; 3]>,
-
-    // TODO: What actually disables this?
-    #[br(if(has_inner), args_raw(base_offset))]
-    pub unk3: Option<MaterialUnk6ItemUnk5Inner>,
+    pub unk4: Vec<MaterialUnk6ItemUnk4>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
-pub struct MaterialUnk6ItemUnk5Inner {
-    // TODO: Not always present
-    pub unk3: u32,
+pub struct MaterialUnk6ItemUnk4 {
+    pub unk1: u32,
 
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
-    pub unk4: Vec<[f32; 3]>,
+    pub unk2: Vec<[f32; 3]>,
 }
 
 // xc1: 160, 164, 168 bytes
