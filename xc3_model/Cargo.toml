@@ -18,10 +18,10 @@ image_dds = { workspace = true, default-features = true }
 rayon.workspace = true
 log.workspace = true
 tracing.workspace = true
-ordered-float = "4.1.1"
+ordered-float = "5.0.0"
 serde_json = { version = "1.0", optional = true }
 indexmap = { workspace = true, features = ["rayon"] }
-thiserror = "1.0"
+thiserror.workspace = true
 arbitrary = { version = "1.0", features = ["derive"], optional = true }
 smol_str.workspace = true
 varint-rs = "=2.2.0"

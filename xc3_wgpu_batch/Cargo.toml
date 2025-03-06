@@ -8,7 +8,7 @@ xc3_wgpu = { path = "../xc3_wgpu" }
 xc3_model = { path = "../xc3_model" }
 wgpu.workspace = true
 futures = "0.3.27"
-futures-intrusive = "0.4.0"
+futures-intrusive = "0.5.0"
 globwalk.workspace = true
 log.workspace = true
 simple_logger.workspace = true
