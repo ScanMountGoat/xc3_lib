@@ -296,7 +296,7 @@ impl Mibl {
     }
 
     /// Split the texture into a texture with half resolution and a separate base mip level.
-    /// The inverse operation of [Self::with_base_mip].
+    /// The inverse operation of [Self::to_surface_with_base_mip].
     pub fn split_base_mip(&self) -> (Self, Vec<u8>) {
         // TODO: Does this correctly handle alignment?
         let base_mip_size = self.footer.swizzled_base_mip_size();
