@@ -9,7 +9,7 @@ image_dds = { workspace = true, default-features = true, features = ["strum"] }
 clap = { workspace = true, features = ["derive", "string"] }
 binrw.workspace = true
 strum = "0.26.1"
-anyhow = "1.0"
+anyhow.workspace = true
 log.workspace = true
 simple_logger.workspace = true
 globwalk.workspace = true

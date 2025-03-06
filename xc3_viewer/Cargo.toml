@@ -16,7 +16,7 @@ clap = { workspace = true, features = ["derive"] }
 tracing.workspace = true
 tracing-subscriber = { workspace = true, optional = true }
 tracing-tracy = { version = "0.10.4", optional = true }
-anyhow = "1.0"
+anyhow.workspace = true
 
 [features]
 tracing = ["tracing-subscriber", "tracing-tracy"]

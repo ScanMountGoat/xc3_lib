@@ -76,7 +76,7 @@ fn main() {
     .unwrap();
 
     // Assume the path is the game root folder.
-    let monolib_shader = MonolibShaderTextures::from_file(
+    let monolib_shader = &MonolibShaderTextures::from_file(
         &device,
         &queue,
         Path::new(&cli.root_folder).join("monolib/shader"),
@@ -113,7 +113,7 @@ fn main() {
         WIDTH,
         HEIGHT,
         texture_desc.format,
-        &monolib_shader,
+        monolib_shader,
     );
 
     // Initialize the camera transform.
@@ -143,81 +143,111 @@ fn main() {
             let model_path = path.to_string_lossy().to_string();
 
             // TODO: Fix files that don't load.
-            let paths = [
-                // XC1
-                "pc062700.wimdo",
-                "ma0000.wismhd",
-                // XC2
-                "tg_ui_hitpoint.wimdo",
-            ];
-            if paths.iter().any(|p| model_path.ends_with(p)) {
-                return;
-            }
-
             println!("{:?}", model_path);
-            let groups = match cli.extension {
-                FileExtension::Wimdo | FileExtension::Pcmdo => {
-                    let root = xc3_model::load_model(model_path, database.as_ref()).unwrap();
-                    frame_model_bounds(&queue, &root, &mut renderer);
-                    xc3_wgpu::load_model(&device, &queue, &[root], &monolib_shader)
-                }
-                FileExtension::Wismhd => {
-                    let roots = xc3_model::load_map(model_path, database.as_ref()).unwrap();
-                    frame_map_bounds(&queue, &roots, &mut renderer);
-                    xc3_wgpu::load_map(&device, &queue, &roots, &monolib_shader)
-                }
-                FileExtension::Camdo => {
-                    let root = xc3_model::load_model_legacy(model_path, database.as_ref()).unwrap();
-                    frame_model_bounds(&queue, &root, &mut renderer);
-                    xc3_wgpu::load_model(&device, &queue, &[root], &monolib_shader)
-                }
-            };
 
-            if cli.anim {
-                // Search for paths with non empty anims using in game naming conventions.
-                // TODO: Better heuristics based on all game versions.
-                let possible_anim_paths = [
-                    path.with_extension("mot"),
-                    path.with_extension("_obj.mot"),
-                    path.with_extension("_field.mot"),
-                ];
-                possible_anim_paths
-                    .iter()
-                    .find(|p| apply_anim(&queue, &groups, p));
-            }
-
-            let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Render Encoder"),
-            });
-
-            renderer.render_models(&output_view, &mut encoder, &groups, &[], false, cli.bones);
-
-            let output_path = path.with_extension("png");
-            save_screenshot(
+            let groups = load_groups(
                 &device,
                 &queue,
-                encoder,
-                &output,
-                &output_buffer,
-                size,
-                output_path,
+                &model_path,
+                cli.extension,
+                &mut renderer,
+                monolib_shader,
+                database.as_ref(),
             );
 
-            // Clean up resources.
-            queue.submit(std::iter::empty());
-            device.poll(wgpu::Maintain::Wait);
+            match groups {
+                Ok(groups) => {
+                    if cli.anim {
+                        // Search for paths with non empty anims using in game naming conventions.
+                        // TODO: Better heuristics based on all game versions.
+                        let possible_anim_paths = [
+                            path.with_extension("mot"),
+                            path.with_extension("_obj.mot"),
+                            path.with_extension("_field.mot"),
+                        ];
+                        possible_anim_paths
+                            .iter()
+                            .find(|p| apply_anim(&queue, &groups, p));
+                    }
+
+                    let mut encoder =
+                        device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                            label: Some("Render Encoder"),
+                        });
+
+                    renderer.render_models(
+                        &output_view,
+                        &mut encoder,
+                        &groups,
+                        &[],
+                        false,
+                        cli.bones,
+                    );
+
+                    let output_path = path.with_extension("png");
+                    save_screenshot(
+                        &device,
+                        &queue,
+                        encoder,
+                        &output,
+                        &output_buffer,
+                        size,
+                        output_path,
+                    );
+
+                    // Clean up resources.
+                    queue.submit(std::iter::empty());
+                    device.poll(wgpu::Maintain::Wait);
+                }
+                Err(e) => println!("Error loading {model_path:?}: {e:?}"),
+            }
         });
 }
 
-fn apply_anim(queue: &wgpu::Queue, groups: &[xc3_wgpu::ModelGroup], path: &Path) -> bool {
-    let animations = load_animations(path).unwrap();
-    if let Some(animation) = animations.first() {
-        for group in groups {
-            group.update_bone_transforms(queue, animation, 0.0);
+fn load_groups(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    model_path: &str,
+    ext: FileExtension,
+    renderer: &mut Renderer,
+    monolib_shader: &MonolibShaderTextures,
+    database: Option<&ShaderDatabase>,
+) -> anyhow::Result<Vec<xc3_wgpu::ModelGroup>> {
+    match ext {
+        FileExtension::Wimdo | FileExtension::Pcmdo => {
+            let root = xc3_model::load_model(model_path, database)?;
+            frame_model_bounds(queue, &root, renderer);
+            Ok(xc3_wgpu::load_model(device, queue, &[root], monolib_shader))
         }
-        true
-    } else {
-        false
+        FileExtension::Wismhd => {
+            let roots = xc3_model::load_map(model_path, database)?;
+            frame_map_bounds(queue, &roots, renderer);
+            Ok(xc3_wgpu::load_map(device, queue, &roots, monolib_shader))
+        }
+        FileExtension::Camdo => {
+            let root = xc3_model::load_model_legacy(model_path, database)?;
+            frame_model_bounds(queue, &root, renderer);
+            Ok(xc3_wgpu::load_model(device, queue, &[root], monolib_shader))
+        }
+    }
+}
+
+fn apply_anim(queue: &wgpu::Queue, groups: &[xc3_wgpu::ModelGroup], path: &Path) -> bool {
+    match load_animations(path) {
+        Ok(animations) => {
+            if let Some(animation) = animations.first() {
+                for group in groups {
+                    group.update_bone_transforms(queue, animation, 0.0);
+                }
+                true
+            } else {
+                false
+            }
+        }
+        Err(e) => {
+            println!("Error loading animations from {path:?}: {e:?}");
+            false
+        }
     }
 }
 

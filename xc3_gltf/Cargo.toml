@@ -6,6 +6,6 @@ edition = "2021"
 [dependencies]
 xc3_model = { path = "../xc3_model", features = ["gltf"] }
 clap = { workspace = true, features = ["derive"] }
-anyhow = "1.0"
+anyhow.workspace = true
 log.workspace = true
 simple_logger.workspace = true
