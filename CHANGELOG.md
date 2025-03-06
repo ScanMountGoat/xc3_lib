@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## unreleased
+## 0.18.0 - 2025-03-06
 ### Changed
 * Changed `xc3_model::skeleton` and `xc3_model::animation` to use a new `Transform` type to match in game scaling behavior. Use `Transform::to_matrix` and `Transform::from_matrix` for compatibility with `glam::Mat4`.
 * Improved accuracy of wimdo file rebuilding.
@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Fixed an issue where small textures would load invalid mipmap data in game after exporting with xc3_model or xc3_tex in some cases.
 
 ### Removed
-* Removed the ability to create .wismt texture archives from xc3_tex. Editing the wismt texture archives in the `chr/tex/nx` folder in Xenoblade 3 was very error prone since modified shared textures may not match information in wimdo streaming headers. Use the edit-wimdo command instead.
+* Removed the ability to create `.wismt` texture archives from xc3_tex. Editing the wismt texture archives in the `chr/tex/nx` folder in Xenoblade 3 was very error prone since modified shared textures may not match information in wimdo streaming headers. Use the edit-wimdo command instead.
 
 ## 0.17.0 - 2025-01-28
 ### 
