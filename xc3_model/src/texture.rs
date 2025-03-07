@@ -128,7 +128,7 @@ impl ImageTexture {
         // Only decode the mip we actually use to improve performance.
         self.to_surface()
             .decode_layers_mipmaps_rgba8(0..self.layers(), 0..1)?
-            .to_image(0)
+            .into_image()
     }
 
     /// Return the number of array layers in this surface.
