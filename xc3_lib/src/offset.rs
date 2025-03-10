@@ -12,6 +12,18 @@ pub struct OffsetRange {
     pub type_name: String,
 }
 
+impl OffsetRange {
+    /// The largest power of two alignment for the starting position.
+    pub fn alignment(&self) -> u64 {
+        // Bit trick for largest power of two factor.
+        if self.start > 0 {
+            1 << self.start.trailing_zeros()
+        } else {
+            1
+        }
+    }
+}
+
 /// Unexpected cases while checking offset ranges that usually indicate some sort of error.
 #[derive(Debug, PartialEq, Eq)]
 pub enum OffsetValidationError<'a> {
@@ -166,6 +178,40 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn range_start_alignment() {
+        assert_eq!(
+            1,
+            OffsetRange {
+                start: 0,
+                end: 0,
+                parent_type_names: Vec::new(),
+                type_name: String::new()
+            }
+            .alignment()
+        );
+        assert_eq!(
+            64,
+            OffsetRange {
+                start: 448,
+                end: 0,
+                parent_type_names: Vec::new(),
+                type_name: String::new()
+            }
+            .alignment()
+        );
+        assert_eq!(
+            8192,
+            OffsetRange {
+                start: 8192,
+                end: 0,
+                parent_type_names: Vec::new(),
+                type_name: String::new()
+            }
+            .alignment()
+        );
+    }
 
     #[test]
     fn validate_ranges_empty() {
