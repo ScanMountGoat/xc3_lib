@@ -127,7 +127,12 @@ pub struct Models {
     #[xc3(count_offset(u32, u32))]
     pub unk7: Vec<[[[f32; 4]; 4]; 2]>,
 
-    pub unk8: [u32; 3],
+    pub unk8: [u32; 2],
+
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset(u32))]
+    pub unk10: Option<Unk10>,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
@@ -283,6 +288,28 @@ pub struct Unk9Item {
     pub unk9: u32,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct Unk10 {
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk1: Vec<u64>,
+
+    // TODO: type?
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk2: Vec<u64>,
+
+    // TODO: type?
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk3: Vec<[f32; 7]>,
+
+    // TODO: padding?
+    pub unks: [u32; 2],
+}
+
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
@@ -313,7 +340,10 @@ pub struct Materials {
     #[xc3(offset(u32))]
     pub callbacks: Option<MaterialCallbacks>,
 
-    pub unks1_3: u32,
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset(u32))]
+    pub unks1_3: Option<MaterialsUnk5>,
 
     #[br(parse_with = parse_offset32_count32, args { offset: base_offset, inner: base_offset })]
     #[xc3(offset_count(u32, u32))]
@@ -338,7 +368,10 @@ pub struct Materials {
     #[xc3(offset(u32))]
     pub unks1_2_4: Option<MaterialsUnk4>,
 
-    pub unks1_2_5: u32,
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset(u32))]
+    pub unks1_2_5: Option<MaterialsUnk6>,
 
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset })]
@@ -515,6 +548,30 @@ pub struct MaterialsUnk4 {
     pub unk: [u32; 4],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+#[xc3(base_offset)]
+pub struct MaterialsUnk5 {
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub unk1: Vec<u32>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+#[xc3(base_offset)]
+pub struct MaterialsUnk6 {
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub unk1: u64,
+
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub unk2: Vec<[f32; 4]>,
+}
+
 // TODO: compare with decompiled shader data.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
@@ -528,7 +585,9 @@ pub struct Technique {
     #[xc3(offset_count(u32, u32))]
     pub unk2: Vec<[u16; 4]>,
 
-    pub unk3: u32,
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub unk3: Option<u32>,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
@@ -573,8 +632,11 @@ pub struct Unk1 {
     #[xc3(count_offset(u32, u32))]
     pub unk4: Vec<[f32; 4]>,
 
-    // TODO: padding?
-    pub unk: [u32; 4],
+    pub unk5: [u32; 2],
+
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub unk6: Vec<u32>,
 }
 
 #[binread]
