@@ -517,6 +517,29 @@ where
     Ptr::<u64>::parse_opt(reader, endian, args)
 }
 
+fn parse_offset<T, R, Args>(
+    reader: &mut R,
+    endian: binrw::Endian,
+    args: FilePtrArgs<Args>,
+) -> BinResult<T>
+where
+    for<'a> T: BinRead<Args<'a> = Args> + 'static,
+    R: std::io::Read + std::io::Seek,
+    Args: Clone,
+{
+    // Equivalent to br(seek_before = offset, restore_position).
+    // Using a custom parsing function allows for better offset logging.
+    parse_ptr(
+        args.offset,
+        reader,
+        endian,
+        FilePtrArgs {
+            offset: 0,
+            inner: args.inner,
+        },
+    )
+}
+
 macro_rules! file_write_impl {
     ($endian:path, $($type_name:path),*) => {
         $(

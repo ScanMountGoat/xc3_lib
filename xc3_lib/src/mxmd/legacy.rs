@@ -1,8 +1,6 @@
-use std::io::SeekFrom;
-
 use crate::{
     msrd::StreamingDataLegacyInner, parse_count32_offset32, parse_count32_offset32_unchecked,
-    parse_offset32_count32, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
+    parse_offset, parse_offset32_count32, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
     vertex::VertexAttribute, xc3_write_binwrite_impl, StringOffset32,
 };
 use binrw::{args, binread, BinRead, BinWrite};
@@ -29,7 +27,9 @@ pub struct MxmdLegacy {
     #[xc3(offset(u32))]
     pub materials: Materials,
 
-    pub unk1: u32,
+    #[br(parse_with = parse_opt_ptr32)]
+    #[xc3(offset(u32))]
+    pub unk1: Option<Unk1>,
 
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]
@@ -96,7 +96,7 @@ pub struct Models {
     pub bones: Vec<Bone>,
 
     #[br(parse_with = parse_opt_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: bones.len() } })]
+    #[br(args { offset: base_offset, inner: args! { count: unk_float_count(&skins) } })]
     #[xc3(offset(u32))]
     pub floats: Option<Vec<f32>>,
 
@@ -114,6 +114,27 @@ pub struct Models {
     #[br(args { offset: base_offset, inner: base_offset + bone_names_offset as u64 })]
     #[xc3(offset_count(u32, u32))]
     pub bone_names: Vec<StringOffset32>,
+
+    pub unk5: u32,
+
+    #[br(parse_with = parse_offset32_count32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(count_offset(u32, u32))]
+    pub unk6: Vec<Unk6>,
+
+    // TODO: transforms?
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub unk7: Vec<[[[f32; 4]; 4]; 2]>,
+
+    pub unk8: [u32; 3],
+
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub unk9: Option<Unk9>,
+
+    // TODO: padding?
+    pub unks: [u32; 3],
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -215,6 +236,51 @@ pub struct UnkBone {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub name: String,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct Unk6 {
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub name1: String,
+
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub name2: String,
+
+    pub unk1: u32, // TODO: count?
+    pub unk2: u32, // TODO: offset into transforms?
+}
+
+#[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, Xc3Write, PartialEq, Clone)]
+#[br(stream = r)]
+#[xc3(base_offset)]
+pub struct Unk9 {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub items: Vec<Unk9Item>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct Unk9Item {
+    pub unk1: u32,
+    pub unk2: u32,
+    pub unk3: f32,
+    pub unk4: f32,
+    pub unk5: f32,
+    pub unk6: f32,
+    // TODO: padding?
+    pub unk7: u32,
+    pub unk8: u32,
+    pub unk9: u32,
 }
 
 #[binread]
@@ -487,6 +553,35 @@ pub struct Technique {
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
+pub struct Unk1 {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub unk1: Vec<u32>,
+
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub unk2: Vec<[u32; 3]>,
+
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub unk3: Vec<[u32; 4]>,
+
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub unk4: Vec<[f32; 4]>,
+
+    // TODO: padding?
+    pub unk: [u32; 4],
+}
+
+#[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, Xc3Write, PartialEq, Clone)]
+#[br(stream = r)]
+#[xc3(base_offset)]
 pub struct VertexData {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
@@ -524,10 +619,12 @@ pub struct VertexBufferDescriptor {
 
     pub unk1: u32,
 
-    // TODO: Find a better way to handle this.
-    #[br(seek_before = SeekFrom::Start(base_offset + data_offset as u64))]
-    #[br(restore_position)]
-    #[br(count = vertex_count * vertex_size)]
+    // TODO: Find a better way to handle buffer data?
+    #[br(parse_with = parse_offset)]
+    #[br(args {
+        offset: base_offset + data_offset as u64,
+        inner: args! { count: (vertex_count * vertex_size) as usize }
+    })]
     pub data: Vec<u8>,
 }
 
@@ -540,10 +637,12 @@ pub struct IndexBufferDescriptor {
     pub unk1: u16, // TODO: primitive type?
     pub unk2: u16, // TODO: index format?
 
-    // TODO: Find a better way to handle this.
-    #[br(seek_before = SeekFrom::Start(base_offset + data_offset as u64))]
-    #[br(restore_position)]
-    #[br(count = index_count * 2)]
+    // TODO: Find a better way to handle buffer data?
+    #[br(parse_with = parse_offset)]
+    #[br(args {
+        offset: base_offset + data_offset as u64,
+        inner: args! { count: (index_count * 2) as usize }
+    })]
     pub data: Vec<u8>,
 }
 
@@ -672,3 +771,11 @@ pub struct Shader {
 }
 
 xc3_write_binwrite_impl!(TextureUsage, UnkPassType);
+
+fn unk_float_count(skins: &[SkinningIndices]) -> usize {
+    skins
+        .iter()
+        .flat_map(|s| s.indices.iter().map(|i| i + 1))
+        .max()
+        .unwrap_or_default() as usize
+}

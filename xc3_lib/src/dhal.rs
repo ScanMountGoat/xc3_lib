@@ -8,10 +8,10 @@
 //! | Xenoblade Chronicles 1 DE | 10001, 10003 | `menu/image/*.wilay` |
 //! | Xenoblade Chronicles 2 | 10001 | `menu/image/*.wilay` |
 //! | Xenoblade Chronicles 3 | 10003 | `menu/image/*.wilay` |
-use std::{collections::HashMap, io::SeekFrom};
+use std::collections::HashMap;
 
 use crate::{
-    parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
+    parse_count32_offset32, parse_offset, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
     parse_string_ptr32, xc3_write_binwrite_impl,
 };
 use binrw::{args, binread, BinRead, BinWrite, NullString};
@@ -298,9 +298,11 @@ pub struct Unk4 {
     pub unk: Option<[u32; 3]>,
 
     // TODO: Find a cleaner way of preserving data.
-    #[br(seek_before = SeekFrom::Start(base_offset + unk2.len() as u64 * 64 + unk2_offset as u64))]
-    #[br(count = unk4_buffer_size(&unk2, unk2.len() * 64 + unk2_offset as usize))]
-    #[br(restore_position)]
+    #[br(parse_with = parse_offset)]
+    #[br(args {
+        offset: base_offset + unk2.len() as u64 * 64 + unk2_offset as u64,
+        inner: args! { count:unk4_buffer_size(&unk2, unk2.len() * 64 + unk2_offset as usize)}
+    })]
     #[xc3(save_position(false))]
     pub buffer: Vec<u8>,
 }
