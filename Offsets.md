@@ -16,7 +16,7 @@ The main challenge with writing is to ensure that writing an unmodified file res
 Producing a binary identical output file requires not only calculating a valid layout but also the correct ordering for the data items. The reading code visits each field in order recursively. The writing code keeps incrementing the location for the next write and must visit data items in increasing order by absolute offset. This ordering is currently defined manually in many cases due to different layout conventions for different formats. For example, matching the ordering of items in a file may require writing fields in reverse order or writing an inner name offset after all other items have been written.
 
 ## Write Functions
-Writing is split into two main functions that define two passes. The `write` function defines the first pass that writes the data and placeholder offset values. This function also calculates an objects size. Size is assumed to be the difference in the write position before and after writing for simplicity. The return value stores the position of offset values as well as the data they point to for later.
+Writing is split into two main functions that define two passes. The `write` function defines the first pass that writes the data and placeholder offset values. This function also calculates an objects size. Size is assumed to be the difference in the write position before and after writing for simplicity. Data pointed to by an offset can't be written immediately and is instead stored in the return value to write later in the second pass. The return data tracks the position and pointed to data for each offset.
 
 ```python
 # This function and FieldOffsets can be automatically generated for each type.
