@@ -400,7 +400,7 @@ where
 
     // binrw::helpers::count_with is technically faster but compiles much slower.
     // The runtime performance difference isn't significant for most files.
-    // TODO: add a special function for optimized Vec<u8> reading.
+    // TODO: replace with Vec<T>::read_options with next binrw release.
     let start = reader.stream_position()?;
     let mut values = Vec::new();
     for _ in 0..count {
