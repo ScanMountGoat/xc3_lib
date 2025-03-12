@@ -1,5 +1,5 @@
 use glam::{vec3, Mat4, Quat};
-use log::warn;
+use log::{error, warn};
 use xc3_lib::hkt::Hkt;
 
 use crate::Transform;
@@ -49,20 +49,35 @@ impl Skeleton {
             })
             .collect();
 
+        // Add additional MT_ bones.
+        for ((name, transform), parent) in skeleton
+            .mt_names
+            .iter()
+            .zip(skeleton.mt_transforms.iter())
+            .zip(skeleton.mt_parent_indices.iter())
+        {
+            bones.push(Bone {
+                name: name.name.clone(),
+                transform: bone_transform(transform),
+                parent_index: (*parent).try_into().ok(),
+            });
+        }
+
         // Add defaults for any missing bones.
+        let root_bone_index = bones.iter().position(|b| b.parent_index.is_none());
         for (i, bone) in skinning.bones.iter().enumerate() {
             if !bones.iter().any(|b| b.name == bone.name) {
-                // Some bones have no parents but still need transforms.
                 let transform = skinning
                     .inverse_bind_transforms
                     .get(i)
                     .map(|transform| Mat4::from_cols_array_2d(transform).inverse())
                     .unwrap_or(Mat4::IDENTITY);
 
+                // Some bones have no explicitly defined parents.
                 bones.push(Bone {
                     name: bone.name.clone(),
                     transform: Transform::from_matrix(transform),
-                    parent_index: None,
+                    parent_index: root_bone_index,
                 });
             }
         }
@@ -117,9 +132,16 @@ impl Skeleton {
         for (i, bone) in bones.iter().enumerate() {
             if let Some(p) = bone.parent_index {
                 if i < p {
-                    warn!("Bone {i} appears before parent {p} and will not animate properly")
+                    warn!("Bone {i} appears before parent {p} and will not animate properly.")
                 }
             }
+        }
+
+        // The way skeleton creation is defined above should only produce a single root.
+        // A single root improves compatibility with other programs.
+        let root_bone_count = bones.iter().filter(|b| b.parent_index.is_none()).count();
+        if root_bone_count > 1 {
+            error!("Skeleton contains {root_bone_count} root bones.")
         }
 
         Self { bones }

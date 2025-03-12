@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## unreleased
+### Changed
+* Changed skeleton creation to only produce a single root bone for improved compatibility.
+
+### Fixed
+* Fixed an issue where skeleton creation would not include MT_ bones.
+
 ## 0.18.0 - 2025-03-06
 ### Changed
 * Changed `xc3_model::skeleton` and `xc3_model::animation` to use a new `Transform` type to match in game scaling behavior. Use `Transform::to_matrix` and `Transform::from_matrix` for compatibility with `glam::Mat4`.

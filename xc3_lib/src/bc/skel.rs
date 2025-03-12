@@ -59,7 +59,7 @@ pub struct Skeleton {
     // MT_ or mount bones?
     #[br(parse_with = parse_offset64_count32)]
     #[xc3(offset_count(u64, u32), align(8, 0xff))]
-    pub mt_indices: Vec<i16>,
+    pub mt_parent_indices: Vec<i16>,
     pub unk5: i32, // -1
 
     #[br(parse_with = parse_offset64_count32)]
@@ -367,8 +367,8 @@ impl Xc3WriteOffsets for SkeletonOffsets<'_> {
             }
         }
 
-        if !self.mt_indices.data.is_empty() {
-            self.mt_indices
+        if !self.mt_parent_indices.data.is_empty() {
+            self.mt_parent_indices
                 .write_full(writer, base_offset, data_ptr, endian, ())?;
         }
         if !self.mt_names.data.is_empty() {
@@ -383,7 +383,7 @@ impl Xc3WriteOffsets for SkeletonOffsets<'_> {
         }
 
         // TODO: Only padded if MT data is not present?
-        if self.mt_indices.data.is_empty() {
+        if self.mt_parent_indices.data.is_empty() {
             weird_skel_alignment(writer, data_ptr, endian)?;
         }
 
