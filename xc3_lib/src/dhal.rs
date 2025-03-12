@@ -27,6 +27,7 @@ use xc3_write::{Xc3Write, Xc3WriteOffsets};
 #[xc3(magic(b"LAHD"))]
 pub struct Dhal {
     // TODO: enum?
+    #[xc3(save_position(true))]
     pub version: u32,
 
     // TODO: changes remaining fields?
@@ -676,13 +677,16 @@ impl Xc3WriteOffsets for DhalOffsets<'_> {
         _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         // Different order than field order.
+        // Different versions have different layouts.
         self.unk1
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk3
             .write_full(writer, base_offset, data_ptr, endian, ())?;
+        if *self.version.data <= 10001 {
+            self.unk7
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
+        }
         self.unk4
-            .write_full(writer, base_offset, data_ptr, endian, ())?;
-        self.unk7
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk9
             .write_full(writer, base_offset, data_ptr, endian, ())?;
@@ -690,6 +694,10 @@ impl Xc3WriteOffsets for DhalOffsets<'_> {
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk6
             .write_full(writer, base_offset, data_ptr, endian, ())?;
+        if *self.version.data > 10001 {
+            self.unk7
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
+        }
         self.unk8
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk2

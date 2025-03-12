@@ -60,8 +60,8 @@ impl FieldOptions {
                     } else if meta.path.is_ident("save_position") {
                         // #[xc3(save_position(true))]
                         // #[xc3(save_position(false))]
-                        let skip = parse_bool(&meta)?;
-                        field_type = Some(FieldType::SavePosition(skip));
+                        let should_write = parse_bool(&meta)?;
+                        field_type = Some(FieldType::SavePosition(should_write));
                     } else if meta.path.is_ident("offset_size") {
                         // #[xc3(offset_size(u32, u32))]
                         let (offset, size) = parse_two_idents(&meta)?;
