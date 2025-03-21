@@ -217,7 +217,7 @@ pub(crate) fn create_materials(
 pub(crate) fn create_materials_samplers_legacy(
     materials: &xc3_lib::mxmd::legacy::Materials,
     texture_indices: &[u16],
-    shaders: &xc3_lib::mxmd::legacy::Shaders,
+    shaders: Option<&xc3_lib::mxmd::legacy::Shaders>,
     shader_database: Option<&ShaderDatabase>,
 ) -> (Vec<Material>, Vec<Sampler>) {
     let mut samplers = Vec::new();
@@ -341,12 +341,12 @@ fn get_shader(
 
 fn get_shader_legacy(
     material: &xc3_lib::mxmd::legacy::Material,
-    shaders: &xc3_lib::mxmd::legacy::Shaders,
+    shaders: Option<&xc3_lib::mxmd::legacy::Shaders>,
     shader_database: Option<&ShaderDatabase>,
 ) -> Option<ShaderProgram> {
     // TODO: Some alpha materials have two techniques?
     let program_index = material.techniques.last()?.technique_index as usize;
-    let shader = shaders.shaders.get(program_index)?;
+    let shader = shaders?.shaders.get(program_index)?;
     let mths = xc3_lib::mths::Mths::from_bytes(&shader.mths_data).ok()?;
     let hash = ProgramHash::from_mths(&mths);
     let program = shader_database?.shader_program(hash)?;

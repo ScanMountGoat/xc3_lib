@@ -221,20 +221,14 @@ fn mtxt_image_format(image_format: xc3_lib::mtxt::SurfaceFormat) -> ImageFormat 
 fn mtxt_usage(usage: xc3_lib::mxmd::legacy::TextureUsage) -> Option<TextureUsage> {
     // TODO: Create a separate enum instead of exposing the xc3_lib types?
     match usage {
-        xc3_lib::mxmd::legacy::TextureUsage::Spm => None,
         xc3_lib::mxmd::legacy::TextureUsage::Nrm => Some(TextureUsage::Nrm),
         xc3_lib::mxmd::legacy::TextureUsage::Unk32 => Some(TextureUsage::Col),
-        xc3_lib::mxmd::legacy::TextureUsage::Unk34 => None,
         xc3_lib::mxmd::legacy::TextureUsage::Unk48 => Some(TextureUsage::Col),
         xc3_lib::mxmd::legacy::TextureUsage::Col => Some(TextureUsage::Col),
         xc3_lib::mxmd::legacy::TextureUsage::Unk96 => Some(TextureUsage::Col),
-        xc3_lib::mxmd::legacy::TextureUsage::Unk112 => None,
-        xc3_lib::mxmd::legacy::TextureUsage::Spm2 => None,
         xc3_lib::mxmd::legacy::TextureUsage::Nrm2 => Some(TextureUsage::Nrm),
-        xc3_lib::mxmd::legacy::TextureUsage::Unk544 => None,
-        xc3_lib::mxmd::legacy::TextureUsage::Unk1056 => None,
-        xc3_lib::mxmd::legacy::TextureUsage::Unk1120 => None,
         xc3_lib::mxmd::legacy::TextureUsage::Cube => None,
+        _ => None,
     }
 }
 

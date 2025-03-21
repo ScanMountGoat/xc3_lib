@@ -4,6 +4,8 @@ use std::{io::Cursor, path::Path};
 use image_dds::ddsfile::Dds;
 use thiserror::Error;
 
+use crate::FromBytes;
+
 pub trait DdsExt: Sized {
     type Error;
 
@@ -41,4 +43,11 @@ pub enum CreateDdsError {
 
     #[error("error creating DDS")]
     Dds(#[from] image_dds::CreateDdsError),
+}
+
+impl FromBytes for Dds {
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> binrw::BinResult<Self> {
+        // TODO: Avoid unwrap by creating another error type?
+        Ok(<Dds as DdsExt>::from_bytes(bytes).unwrap())
+    }
 }

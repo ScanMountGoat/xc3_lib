@@ -16,9 +16,10 @@ use crate::{
     mtxt::Mtxt,
     mxmd::TextureUsage,
     spch::Spch,
+    spco::Spco,
     vertex::VertexData,
     xbc1::{CompressionType, CreateXbc1Error},
-    ReadFileError,
+    FromBytes, ReadFileError,
 };
 
 use super::*;
@@ -287,6 +288,23 @@ impl Msrd {
         }
     }
 
+    pub fn extract_files_legacy2(
+        &self,
+        chr_cmntex: Option<&Path>,
+    ) -> Result<
+        (
+            crate::mxmd::legacy::VertexData,
+            Spco,
+            Vec<ExtractedTexture<Mibl, TextureUsage>>,
+        ),
+        ExtractFilesError,
+    > {
+        match &self.streaming.inner {
+            StreamingInner::StreamingLegacy(_) => Err(ExtractFilesError::LegacyStream),
+            StreamingInner::Streaming(data) => data.extract_files(&self.data, chr_cmntex),
+        }
+    }
+
     // TODO: Create a dedicated error type for this?
     /// Pack and compress the files into new archive data.
     ///
@@ -352,23 +370,6 @@ impl Msrd {
     }
 }
 
-trait Texture: Sized {
-    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> binrw::BinResult<Self>;
-}
-
-impl Texture for Mibl {
-    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> binrw::BinResult<Self> {
-        Mibl::from_bytes(bytes)
-    }
-}
-
-impl Texture for Dds {
-    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> binrw::BinResult<Self> {
-        // TODO: Avoid unwrap by creating another error type?
-        Ok(<Dds as DdsExt>::from_bytes(bytes).unwrap())
-    }
-}
-
 impl StreamingData {
     fn get_stream(&self, index: usize) -> Result<&Stream, DecompressStreamError> {
         self.streams
@@ -405,11 +406,11 @@ impl StreamingData {
         get_bytes(bytes, entry.offset, Some(entry.size))
     }
 
-    fn extract_files<T: Texture>(
+    fn extract_files<V: FromBytes, S: FromBytes, T: FromBytes>(
         &self,
         data: &[u8],
         chr_tex_nx: Option<&Path>,
-    ) -> Result<(VertexData, Spch, Vec<ExtractedTexture<T, TextureUsage>>), ExtractFilesError> {
+    ) -> Result<(V, S, Vec<ExtractedTexture<T, TextureUsage>>), ExtractFilesError> {
         let stream0 = self.get_stream(0)?;
         let first_xbc1_offset = stream0.xbc1_offset;
 
@@ -420,15 +421,17 @@ impl StreamingData {
             .map_err(DecompressStreamError::from)?
             .decompress()?;
 
+        std::fs::write("stream0.bin", &stream0).unwrap();
+
         let vertex_bytes = self
             .entry_bytes(self.vertex_data_entry_index, &stream0)
             .map_err(DecompressStreamError::Io)?;
-        let vertex = VertexData::from_bytes(vertex_bytes).map_err(DecompressStreamError::from)?;
+        let vertex = V::from_bytes(vertex_bytes).map_err(DecompressStreamError::from)?;
 
-        let spch_bytes = self
+        let shader_bytes = self
             .entry_bytes(self.shader_entry_index, &stream0)
             .map_err(DecompressStreamError::Io)?;
-        let spch = Spch::from_bytes(spch_bytes).map_err(DecompressStreamError::from)?;
+        let spch = S::from_bytes(shader_bytes).map_err(DecompressStreamError::from)?;
 
         // TODO: is this always in the first stream?
         let low_texture_bytes = self
@@ -439,7 +442,7 @@ impl StreamingData {
         Ok((vertex, spch, textures))
     }
 
-    fn extract_low_textures<T: Texture>(
+    fn extract_low_textures<T: FromBytes>(
         &self,
         low_texture_data: &[u8],
     ) -> Result<Vec<ExtractedTexture<T, TextureUsage>>, DecompressStreamError> {
@@ -461,11 +464,11 @@ impl StreamingData {
         }
     }
 
-    fn extract_textures<T: Texture, P: AsRef<Path>>(
+    fn extract_textures<T: FromBytes, P: AsRef<Path>>(
         &self,
         data: &[u8],
         low_texture_data: &[u8],
-        chr_tex_nx: Option<P>,
+        tex_folder: Option<P>,
     ) -> Result<Vec<ExtractedTexture<T, TextureUsage>>, ExtractFilesError> {
         // Start with no high res textures or base mip levels.
         let mut textures = self.extract_low_textures(low_texture_data)?;
@@ -511,8 +514,8 @@ impl StreamingData {
         }
 
         if let Some(chr_textures) = &self.texture_resources.chr_textures {
-            if let Some(chr_tex_nx) = chr_tex_nx {
-                let chr_tex_nx = chr_tex_nx.as_ref();
+            if let Some(tex_folder) = tex_folder {
+                let tex_folder = tex_folder.as_ref();
 
                 for (i, chr_tex) in self
                     .texture_resources
@@ -520,14 +523,27 @@ impl StreamingData {
                     .iter()
                     .zip(chr_textures.chr_textures.iter())
                 {
-                    // TODO: Is the name always the hash in lowercase hex?
-                    let name = format!("{:08x}", chr_tex.hash);
+                    let hash = format!("{:08x}", chr_tex.hash);
 
-                    let m_path = chr_tex_nx.join("m").join(&name).with_extension("wismt");
-                    let mid = read_chr_tex_m_texture(&m_path)?;
+                    let (mid, base_mip) = if tex_folder.join("m").exists()
+                        && tex_folder.join("h").exists()
+                    {
+                        // XC3: chr/tex/nx/m/abcdefgh.wismt, chr/tex/nx/h/abcdefgh.wismt
+                        let m_path = tex_folder.join("m").join(format!("{hash}.wismt"));
+                        let mid = read_chr_tex_m_texture(&m_path)?;
 
-                    let h_path = chr_tex_nx.join("h").join(&name).with_extension("wismt");
-                    let base_mip = read_chr_tex_h_texture(&h_path)?;
+                        let h_path = tex_folder.join("h").join(format!("{hash}.wismt"));
+                        let base_mip = read_chr_tex_h_texture(&h_path)?;
+                        (mid, base_mip)
+                    } else {
+                        // XCX DE: chr/cmntex/abcdefgh_m.wismt, chr/cmntex/abcdefgh_h.wismt
+                        let m_path = tex_folder.join(&hash[0..2]).join(format!("{hash}_m.wismt"));
+                        let mid = read_chr_tex_m_texture(&m_path)?;
+
+                        let h_path = tex_folder.join(&hash[0..2]).join(format!("{hash}_h.wismt"));
+                        let base_mip = read_chr_tex_h_texture(&h_path)?;
+                        (mid, base_mip)
+                    };
 
                     textures[*i as usize].high = Some(HighTexture {
                         mid,
@@ -546,7 +562,7 @@ fn read_chr_tex_h_texture(h_path: &Path) -> Result<Vec<u8>, ExtractFilesError> {
     Ok(base_mip)
 }
 
-fn read_chr_tex_m_texture<T: Texture>(m_path: &Path) -> Result<T, ExtractFilesError> {
+fn read_chr_tex_m_texture<T: FromBytes>(m_path: &Path) -> Result<T, ExtractFilesError> {
     let xbc1 = Xbc1::from_file(m_path)?;
     let bytes = xbc1.decompress()?;
     let mid = T::from_bytes(bytes).map_err(|e| {
@@ -940,6 +956,19 @@ pub fn chr_tex_nx_folder<P: AsRef<Path>>(input: P) -> Option<PathBuf> {
     }
 }
 
+/// Get the path for "chr/cmntex/" from a file or `None` if not present.
+pub fn chr_cmntex_folder<P: AsRef<Path>>(input: P) -> Option<PathBuf> {
+    // "chr/en/file.wismt" -> "chr/cmntex"
+    let parent = input.as_ref().parent()?.parent()?;
+
+    if parent.file_name().and_then(|f| f.to_str()) == Some("chr") {
+        Some(parent.join("cmntex"))
+    } else {
+        // Not an xcx de chr model or not in the right folder.
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -955,6 +984,19 @@ mod tests {
         assert_eq!(
             None,
             chr_tex_nx_folder("xeno2/extracted/model/bl/bl000101.wimdo")
+        );
+    }
+
+    #[test]
+    fn chr_cmntex_folders() {
+        assert_eq!(None, chr_cmntex_folder(""));
+        assert_eq!(
+            Some("xcxde/extracted/chr/cmntex".into()),
+            chr_cmntex_folder("xcxde/extracted/chr/pc/pc221115.wimdo")
+        );
+        assert_eq!(
+            Some("xcxde/extracted/chr/cmntex".into()),
+            chr_cmntex_folder("xcxde/extracted/chr/en/en010201.wimdo")
         );
     }
 }

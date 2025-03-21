@@ -30,7 +30,7 @@ impl Skeleton {
     // TODO: Test this?
     pub fn from_skeleton(
         skeleton: &xc3_lib::bc::skel::Skeleton,
-        skinning: &xc3_lib::mxmd::Skinning,
+        skinning: Option<&xc3_lib::mxmd::Skinning>,
     ) -> Self {
         // Start with the chr skeleton since it has parenting information.
         // The chr bones also tend to appear after their parents.
@@ -64,67 +64,69 @@ impl Skeleton {
         }
 
         // Add defaults for any missing bones.
-        let root_bone_index = bones.iter().position(|b| b.parent_index.is_none());
-        for (i, bone) in skinning.bones.iter().enumerate() {
-            if !bones.iter().any(|b| b.name == bone.name) {
-                let transform = skinning
-                    .inverse_bind_transforms
-                    .get(i)
-                    .map(|transform| Mat4::from_cols_array_2d(transform).inverse())
-                    .unwrap_or(Mat4::IDENTITY);
+        if let Some(skinning) = skinning {
+            let root_bone_index = bones.iter().position(|b| b.name == skeleton.root_bone_name);
+            for (i, bone) in skinning.bones.iter().enumerate() {
+                if !bones.iter().any(|b| b.name == bone.name) {
+                    let transform = skinning
+                        .inverse_bind_transforms
+                        .get(i)
+                        .map(|transform| Mat4::from_cols_array_2d(transform).inverse())
+                        .unwrap_or(Mat4::IDENTITY);
 
-                // Some bones have no explicitly defined parents.
-                bones.push(Bone {
-                    name: bone.name.clone(),
-                    transform: Transform::from_matrix(transform),
-                    parent_index: root_bone_index,
-                });
+                    // Some bones have no explicitly defined parents.
+                    bones.push(Bone {
+                        name: bone.name.clone(),
+                        transform: Transform::from_matrix(transform),
+                        parent_index: root_bone_index,
+                    });
+                }
             }
-        }
 
-        // Add parenting and transform information for additional bones.
-        if let Some(as_bone_data) = skinning
-            .as_bone_data
-            .as_ref()
-            .and_then(|d| d.as_bone_data.as_ref())
-        {
-            for as_bone in &as_bone_data.bones {
-                // TODO: Why is using the translation and rotation not always accurate?
-                // TODO: Is there a flag or value that affects the rotation?
-                let transform = infer_transform(
-                    skinning,
-                    as_bone.bone_index as usize,
-                    as_bone.parent_index as usize,
-                );
-                update_bone(
-                    &mut bones,
-                    skinning,
-                    as_bone.bone_index,
-                    as_bone.parent_index,
-                    transform,
-                );
+            // Add parenting and transform information for additional bones.
+            if let Some(as_bone_data) = skinning
+                .as_bone_data
+                .as_ref()
+                .and_then(|d| d.as_bone_data.as_ref())
+            {
+                for as_bone in &as_bone_data.bones {
+                    // TODO: Why is using the translation and rotation not always accurate?
+                    // TODO: Is there a flag or value that affects the rotation?
+                    let transform = infer_transform(
+                        skinning,
+                        as_bone.bone_index as usize,
+                        as_bone.parent_index as usize,
+                    );
+                    update_bone(
+                        &mut bones,
+                        skinning,
+                        as_bone.bone_index,
+                        as_bone.parent_index,
+                        transform,
+                    );
+                }
             }
-        }
 
-        if let Some(unk4) = skinning
-            .unk_offset4
-            .as_ref()
-            .and_then(|u| u.unk_offset4.as_ref())
-        {
-            for unk_bone in &unk4.bones {
-                let transform = infer_transform(
-                    skinning,
-                    unk_bone.bone_index as usize,
-                    unk_bone.parent_index as usize,
-                );
+            if let Some(unk4) = skinning
+                .unk_offset4
+                .as_ref()
+                .and_then(|u| u.unk_offset4.as_ref())
+            {
+                for unk_bone in &unk4.bones {
+                    let transform = infer_transform(
+                        skinning,
+                        unk_bone.bone_index as usize,
+                        unk_bone.parent_index as usize,
+                    );
 
-                update_bone(
-                    &mut bones,
-                    skinning,
-                    unk_bone.bone_index,
-                    unk_bone.parent_index,
-                    transform,
-                );
+                    update_bone(
+                        &mut bones,
+                        skinning,
+                        unk_bone.bone_index,
+                        unk_bone.parent_index,
+                        transform,
+                    );
+                }
             }
         }
 

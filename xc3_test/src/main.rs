@@ -31,7 +31,7 @@ use xc3_lib::{
     msrd::{streaming::chr_tex_nx_folder, Msrd},
     mths::Mths,
     mtxt::Mtxt,
-    mxmd::{legacy::MxmdLegacy, Mxmd},
+    mxmd::{legacy::MxmdLegacy, legacy2::MxmdLegacy2, Mxmd},
     offset::{OffsetLayer, OffsetRange, OffsetValidationError},
     sar1::{ChCl, Csvb, Sar1},
     spch::Spch,
@@ -152,6 +152,10 @@ struct Cli {
     #[arg(long)]
     collision: bool,
 
+    /// Process DMXM files from .wimdo
+    #[arg(long)]
+    wimdo2: bool,
+
     /// Check that read/write is 1:1 for all files and embedded files.
     #[arg(long)]
     rw: bool,
@@ -269,6 +273,7 @@ fn main() {
         );
     }
 
+    // Xenoblade X.
     if cli.camdo || cli.all {
         println!("Checking Mxmd files ...");
         check_all::<MxmdLegacy>(root, &["*.camdo"], Endian::Big, cli.rw);
@@ -282,6 +287,13 @@ fn main() {
     if cli.mths || cli.all {
         println!("Checking Mths files ...");
         check_all::<Mths>(root, &["*.cashd"], Endian::Big, cli.rw);
+    }
+
+    // Xenoblade X DE.
+    // TODO: Come up with better names or handle in mxmd itself.
+    if cli.wimdo2 || cli.all {
+        println!("Checking Mxmd files ...");
+        check_all::<MxmdLegacy2>(root, &["*.wimdo"], Endian::Little, cli.rw);
     }
 
     if cli.gltf || cli.all {
@@ -834,6 +846,17 @@ impl CheckFile for Spch {
         if check_read_write && self.to_bytes().unwrap() != original_bytes {
             println!("Spch read/write not 1:1 for {path:?}");
         }
+    }
+}
+
+impl CheckFile for MxmdLegacy2 {
+    fn check_file(
+        self,
+        path: &Path,
+        original_bytes: &[u8],
+        original_ranges: &[OffsetRange],
+        check_read_write: bool,
+    ) {
     }
 }
 

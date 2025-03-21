@@ -95,6 +95,9 @@ pub enum SkeletonExtra {
 
     #[br(pre_assert(size == 240))]
     Unk3(SkeletonExtraUnk3),
+
+    // TODO: extra variant?
+    Unk,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))] // TODO: Fix writing.
@@ -401,6 +404,7 @@ impl Xc3WriteOffsets for SkeletonOffsets<'_> {
             SkeletonExtraOffsets::Unk1(_) => 8,
             SkeletonExtraOffsets::Unk2(_) => 8,
             SkeletonExtraOffsets::Unk3(_) => 8,
+            SkeletonExtraOffsets::Unk => todo!(),
         };
         string_section.write(
             writer,

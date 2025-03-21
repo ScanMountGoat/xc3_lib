@@ -939,10 +939,11 @@ impl ModelBuffers {
     pub fn from_vertex_data_legacy(
         vertex_data: &xc3_lib::mxmd::legacy::VertexData,
         models: &xc3_lib::mxmd::legacy::Models,
+        endian: Endian,
     ) -> BinResult<Self> {
-        let vertex_buffers = read_vertex_buffers_legacy(vertex_data)?;
+        let vertex_buffers = read_vertex_buffers_legacy(vertex_data, endian)?;
 
-        let index_buffers = read_index_buffers_legacy(vertex_data)?;
+        let index_buffers = read_index_buffers_legacy(vertex_data, endian)?;
 
         // TODO: don't duplicate the weights buffers?
         let weights = weights_legacy(&vertex_buffers, models, vertex_data.weight_buffer_indices);
@@ -1329,6 +1330,7 @@ fn write_morph_blend_target(
 
 fn read_index_buffers_legacy(
     vertex_data: &xc3_lib::mxmd::legacy::VertexData,
+    endian: Endian,
 ) -> BinResult<Vec<IndexBuffer>> {
     // Each buffer already has the data at the appropriate offset.
     let data_offset = 0;
@@ -1347,7 +1349,7 @@ fn read_index_buffers_legacy(
                     unk4: 0,
                 },
                 &descriptor.data,
-                Endian::Big,
+                endian,
             )
         })
         .collect()
@@ -1355,6 +1357,7 @@ fn read_index_buffers_legacy(
 
 fn read_vertex_buffers_legacy(
     vertex_data: &xc3_lib::mxmd::legacy::VertexData,
+    endian: Endian,
 ) -> BinResult<Vec<VertexBuffer>> {
     // Each buffer already has the data at the appropriate offset.
     let data_offset = 0;
@@ -1370,7 +1373,7 @@ fn read_vertex_buffers_legacy(
                     descriptor.vertex_size,
                     &descriptor.attributes,
                     &descriptor.data,
-                    Endian::Big,
+                    endian,
                 )?,
                 morph_blend_target: Vec::new(),
                 morph_targets: Vec::new(),

@@ -60,6 +60,7 @@ impl PipelineKey {
             xc3_model::material::StencilValue::Unk49 => 0,
             xc3_model::material::StencilValue::Unk97 => 0,
             xc3_model::material::StencilValue::Unk105 => 0,
+            xc3_lib::mxmd::StencilValue::Unk128 => 0,
         }
     }
 }
@@ -236,6 +237,9 @@ fn stencil_state(mode: xc3_model::material::StencilMode) -> wgpu::StencilState {
             xc3_model::material::StencilMode::Unk6 => 0x4,
             xc3_model::material::StencilMode::Unk7 => 0xff,
             xc3_model::material::StencilMode::Unk8 => 0xff,
+            xc3_lib::mxmd::StencilMode::Unk9 => 0xff,
+            xc3_lib::mxmd::StencilMode::Unk12 => 0xff,
+            xc3_lib::mxmd::StencilMode::Unk13 => 0xff,
         },
         write_mask: match mode {
             xc3_model::material::StencilMode::Unk0 => 0xff,
@@ -244,6 +248,9 @@ fn stencil_state(mode: xc3_model::material::StencilMode) -> wgpu::StencilState {
             xc3_model::material::StencilMode::Unk6 => 0x4b,
             xc3_model::material::StencilMode::Unk7 => 0xff,
             xc3_model::material::StencilMode::Unk8 => 0xff,
+            xc3_lib::mxmd::StencilMode::Unk9 => 0xff,
+            xc3_lib::mxmd::StencilMode::Unk12 => 0xff,
+            xc3_lib::mxmd::StencilMode::Unk13 => 0xff,
         },
     }
 }
@@ -256,6 +263,9 @@ fn stencil_compare(mode: xc3_model::material::StencilMode) -> wgpu::CompareFunct
         xc3_model::material::StencilMode::Unk6 => wgpu::CompareFunction::Equal,
         xc3_model::material::StencilMode::Unk7 => wgpu::CompareFunction::Always,
         xc3_model::material::StencilMode::Unk8 => wgpu::CompareFunction::Always,
+        xc3_lib::mxmd::StencilMode::Unk9 => wgpu::CompareFunction::Always,
+        xc3_lib::mxmd::StencilMode::Unk12 => wgpu::CompareFunction::Always,
+        xc3_lib::mxmd::StencilMode::Unk13 => wgpu::CompareFunction::Always,
     }
 }
 

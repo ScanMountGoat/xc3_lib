@@ -22,6 +22,7 @@ use binrw::{args, binread, BinRead, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 pub mod legacy;
+pub mod legacy2;
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
@@ -623,6 +624,7 @@ pub enum StencilValue {
     Unk49 = 49,
     Unk97 = 97,
     Unk105 = 105,
+    Unk128 = 128, // TODO: xcx de only?
 }
 
 // TODO: Does this flag actually disable stencil?
@@ -631,12 +633,15 @@ pub enum StencilValue {
 #[brw(repr(u8))]
 pub enum StencilMode {
     // func, write mask, comp mask, ref value
-    Unk0 = 0, // completely disabled?
-    Unk1 = 1, // always, ff, ff, 0a
-    Unk2 = 2, // equals, 0a, 0a, 0a
-    Unk6 = 6, // equals, 4b, 04, 0a
-    Unk7 = 7, // always, 0e, 04, 0a
-    Unk8 = 8, // nequal, 02, 02, 02
+    Unk0 = 0,   // completely disabled?
+    Unk1 = 1,   // always, ff, ff, 0a
+    Unk2 = 2,   // equals, 0a, 0a, 0a
+    Unk6 = 6,   // equals, 4b, 04, 0a
+    Unk7 = 7,   // always, 0e, 04, 0a
+    Unk8 = 8,   // nequal, 02, 02, 02
+    Unk9 = 9,   // TODO: xcx de only?
+    Unk12 = 12, // TODO: xcx de only?
+    Unk13 = 13, // TODO: xcx de only?
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -1764,6 +1769,17 @@ pub enum TextureUsage {
     Unk10 = 807534592,
     VolTex = 811597824,
     Unk16 = 811728896,
+
+    // TODO: separate enum for XCX DE only?
+    Unk22 = 6291456,
+    Unk23 = 5242880,
+    Unk24 = 69206016,
+    Unk25 = 7340032,
+    Unk26 = 3145728,
+    Unk27 = 73400320,
+    Unk28 = 35651584,
+    Unk29 = 34734080,
+    Unk30 = 34603008,
 }
 
 // xc1: 40 bytes

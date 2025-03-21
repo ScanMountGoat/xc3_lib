@@ -27,15 +27,10 @@
 //! # }
 //! ```
 
-use std::{
-    borrow::Cow,
-    hash::Hash,
-    io::Cursor,
-    path::{Path, PathBuf},
-};
+use std::{borrow::Cow, hash::Hash, io::Cursor, path::Path};
 
 use animation::Animation;
-use binrw::{BinRead, BinReaderExt};
+use binrw::{BinRead, BinReaderExt, Endian};
 use glam::{Mat4, Vec3};
 use indexmap::IndexMap;
 use log::error;
@@ -52,10 +47,10 @@ use xc3_lib::{
     hkt::Hkt,
     mibl::Mibl,
     msrd::{
-        streaming::{chr_tex_nx_folder, ExtractedTexture},
+        streaming::{chr_cmntex_folder, chr_tex_nx_folder, ExtractedTexture},
         Msrd,
     },
-    mxmd::{legacy::MxmdLegacy, AlphaTable, Materials, Mxmd},
+    mxmd::{legacy::MxmdLegacy, legacy2::MxmdLegacy2, AlphaTable, Materials, Mxmd},
     sar1::Sar1,
     xbc1::MaybeXbc1,
     ReadFileError,
@@ -265,7 +260,7 @@ impl Models {
     pub fn from_models_legacy(
         models: &xc3_lib::mxmd::legacy::Models,
         materials: &xc3_lib::mxmd::legacy::Materials,
-        shaders: &xc3_lib::mxmd::legacy::Shaders,
+        shaders: Option<&xc3_lib::mxmd::legacy::Shaders>,
         shader_database: Option<&ShaderDatabase>,
         texture_indices: &[u16],
     ) -> Self {
@@ -396,12 +391,8 @@ impl Model {
 
 #[derive(Debug, Error)]
 pub enum LoadModelError {
-    #[error("error reading wimdo file from {path:?}")]
-    Wimdo {
-        path: PathBuf,
-        #[source]
-        source: binrw::Error,
-    },
+    #[error("error reading wimdo file")]
+    Wimdo(#[source] ReadFileError),
 
     #[error("error extracting texture from wimdo file")]
     WimdoPackedTexture {
@@ -618,6 +609,32 @@ pub fn load_model_legacy<P: AsRef<Path>>(
     ModelRoot::from_mxmd_model_legacy(&mxmd, casmt, hkt.as_ref(), shader_database)
 }
 
+// TODO: docs, better name, and error type
+#[tracing::instrument(skip_all)]
+pub fn load_model_legacy2<P: AsRef<Path>>(
+    wimdo_path: P,
+    shader_database: Option<&ShaderDatabase>,
+) -> Result<ModelRoot, LoadModelError> {
+    let wimdo_path = wimdo_path.as_ref();
+    let chr_cmntex = chr_cmntex_folder(wimdo_path);
+
+    // TODO: Shared textures
+    let mxmd = MxmdLegacy2::from_file(wimdo_path).map_err(LoadModelError::Wimdo)?;
+    let wismt_path = wimdo_path.with_extension("wismt");
+
+    // TODO: Handle case where streaming is None.
+    let msrd = Msrd::from_file(wismt_path).map_err(LoadModelError::Wismt)?;
+
+    let model_name = model_name(wimdo_path);
+    let skel_path = wimdo_path.with_file_name(model_name + "_rig.skl");
+    let skel = Bc::from_file(skel_path).ok().and_then(|bc| match bc.data {
+        xc3_lib::bc::BcData::Skel(skel) => Some(skel),
+        _ => None,
+    });
+
+    ModelRoot::from_mxmd_model_legacy2(&mxmd, &msrd, skel, chr_cmntex.as_deref(), shader_database)
+}
+
 impl ModelRoot {
     /// Load models from parsed file data for Xenoblade 1 DE, Xenoblade 2, or Xenoblade 3.
     pub fn from_mxmd_model(
@@ -665,18 +682,54 @@ impl ModelRoot {
     ) -> Result<Self, LoadModelLegacyError> {
         let skeleton = hkt.map(Skeleton::from_legacy_skeleton);
 
-        let buffers = ModelBuffers::from_vertex_data_legacy(&mxmd.vertex, &mxmd.models)
-            .map_err(LoadModelLegacyError::VertexData)?;
+        let buffers =
+            ModelBuffers::from_vertex_data_legacy(&mxmd.vertex, &mxmd.models, Endian::Big)
+                .map_err(LoadModelLegacyError::VertexData)?;
 
         let (texture_indices, image_textures) = load_textures_legacy(mxmd, casmt)?;
 
         let models = Models::from_models_legacy(
             &mxmd.models,
             &mxmd.materials,
-            &mxmd.shaders,
+            Some(&mxmd.shaders),
             shader_database,
             &texture_indices,
         );
+
+        Ok(Self {
+            models,
+            buffers,
+            image_textures,
+            skeleton,
+        })
+    }
+
+    // TODO: docs and better name.
+    pub fn from_mxmd_model_legacy2(
+        mxmd: &MxmdLegacy2,
+        msrd: &Msrd,
+        skel: Option<Skel>,
+        chr_cmntex: Option<&Path>,
+        shader_database: Option<&ShaderDatabase>,
+    ) -> Result<Self, LoadModelError> {
+        let (vertex, spco, textures) = msrd.extract_files_legacy2(chr_cmntex)?;
+
+        let buffers = ModelBuffers::from_vertex_data_legacy(&vertex, &mxmd.models, Endian::Little)
+            .map_err(LoadModelError::VertexData)?;
+
+        let image_textures = load_textures(&ExtractedTextures::Switch(textures))?;
+        let texture_indices: Vec<_> = (0..image_textures.len() as u16).collect();
+
+        // TODO: Create special loading function instead of making shaders optional.
+        let models = Models::from_models_legacy(
+            &mxmd.models,
+            &mxmd.materials,
+            None,
+            shader_database,
+            &texture_indices,
+        );
+
+        let skeleton = create_skeleton(skel.as_ref(), None);
 
         Ok(Self {
             models,
@@ -695,15 +748,17 @@ enum Wimdo {
 }
 
 fn load_wimdo(wimdo_path: &Path) -> Result<Mxmd, LoadModelError> {
-    let mut reader = Cursor::new(
-        std::fs::read(wimdo_path).map_err(|e| LoadModelError::Wimdo {
+    let mut reader = Cursor::new(std::fs::read(wimdo_path).map_err(|e| {
+        LoadModelError::Wimdo(ReadFileError {
             path: wimdo_path.to_owned(),
             source: e.into(),
-        })?,
-    );
-    let wimdo: Wimdo = reader.read_le().map_err(|e| LoadModelError::Wimdo {
-        path: wimdo_path.to_owned(),
-        source: e,
+        })
+    })?);
+    let wimdo: Wimdo = reader.read_le().map_err(|e| {
+        LoadModelError::Wimdo(ReadFileError {
+            path: wimdo_path.to_owned(),
+            source: e,
+        })
     })?;
     match wimdo {
         Wimdo::Mxmd(mxmd) => Ok(*mxmd),
@@ -718,9 +773,11 @@ fn load_wimdo(wimdo_path: &Path) -> Result<Mxmd, LoadModelError> {
                 }
             })
             .map_or(Err(LoadModelError::MissingApmdMxmdEntry), |r| {
-                r.map_err(|e| LoadModelError::Wimdo {
-                    path: wimdo_path.to_owned(),
-                    source: e,
+                r.map_err(|e| {
+                    LoadModelError::Wimdo(ReadFileError {
+                        path: wimdo_path.to_owned(),
+                        source: e,
+                    })
                 })
             }),
     }
@@ -917,7 +974,7 @@ fn create_skeleton(
 ) -> Option<Skeleton> {
     // Merge both skeletons since the bone lists may be different.
     // TODO: Create a skeleton even without the chr?
-    Some(Skeleton::from_skeleton(&skel?.skeleton, skinning?))
+    Some(Skeleton::from_skeleton(&skel?.skeleton, skinning))
 }
 
 // TODO: Move this to xc3_shader?

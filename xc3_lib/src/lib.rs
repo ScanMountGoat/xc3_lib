@@ -80,6 +80,7 @@ pub mod mxmd;
 pub mod offset;
 pub mod sar1;
 pub mod spch;
+pub mod spco;
 pub mod vertex;
 pub mod wipac;
 pub mod xbc1;
@@ -628,6 +629,23 @@ pub struct ReadFileError {
     pub source: binrw::Error,
 }
 
+trait FromBytes: Sized {
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> binrw::BinResult<Self>;
+}
+
+impl FromBytes for mxmd::legacy::VertexData {
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> binrw::BinResult<Self> {
+        // TODO: little endian for XCX DE and big endian for XCX
+        Self::read_le(&mut Cursor::new(bytes))
+    }
+}
+
+impl FromBytes for spco::Spco {
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> binrw::BinResult<Self> {
+        Self::read_le(&mut Cursor::new(bytes))
+    }
+}
+
 // TODO: Dedicated error types?
 // TODO: Specify big or little endian for some formats?
 macro_rules! file_read_impl {
@@ -651,6 +669,12 @@ macro_rules! file_read_impl {
                 /// Read from `bytes` using a fully buffered reader for performance.
                 #[tracing::instrument(skip_all)]
                 pub fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> binrw::BinResult<Self> {
+                    Self::read(&mut Cursor::new(bytes))
+                }
+            }
+
+            impl FromBytes for $type_name {
+                fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> binrw::BinResult<Self> {
                     Self::read(&mut Cursor::new(bytes))
                 }
             }
@@ -692,7 +716,8 @@ file_read_impl!(
     datasheet::DataSheet,
     wipac::Wipac,
     laft::Laft,
-    last::Last
+    last::Last,
+    mxmd::legacy2::MxmdLegacy2
 );
 
 file_read_impl!(
