@@ -174,7 +174,11 @@ impl From<Option<char>> for Channel {
             Some('z') => Self::Z,
             Some('w') => Self::W,
             None => Self::None,
-            _ => panic!("unable to convert {value:?} to channel"),
+            _ => {
+                // TODO: Why does this happen for xcx de?
+                println!("unable to convert {value:?} to channel");
+                Self::None
+            }
         }
     }
 }

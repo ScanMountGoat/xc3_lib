@@ -214,12 +214,15 @@ pub(crate) fn create_materials(
         .collect()
 }
 
-pub(crate) fn create_materials_samplers_legacy(
+pub(crate) fn create_materials_samplers_legacy<S>(
     materials: &xc3_lib::mxmd::legacy::Materials,
     texture_indices: &[u16],
-    shaders: Option<&xc3_lib::mxmd::legacy::Shaders>,
+    shaders: Option<&S>,
     shader_database: Option<&ShaderDatabase>,
-) -> (Vec<Material>, Vec<Sampler>) {
+) -> (Vec<Material>, Vec<Sampler>)
+where
+    S: GetProgramHash,
+{
     let mut samplers = Vec::new();
 
     let materials = materials
@@ -318,7 +321,6 @@ pub(crate) fn create_materials_samplers_legacy(
     (materials, samplers)
 }
 
-// TODO: pass in shader data and database.
 fn get_shader(
     material: &xc3_lib::mxmd::Material,
     spch: &xc3_lib::spch::Spch,
@@ -332,27 +334,25 @@ fn get_shader(
         .read_slct(&spch.slct_section)
         .ok()?;
     let binaries = spch.program_data_vertex_fragment_binaries(&slct);
-
     let (p, v, f) = binaries.first()?;
     let hash = ProgramHash::from_spch_program(p, v, f);
 
     shader_database?.shader_program(hash)
 }
 
-fn get_shader_legacy(
+fn get_shader_legacy<S: GetProgramHash>(
     material: &xc3_lib::mxmd::legacy::Material,
-    shaders: Option<&xc3_lib::mxmd::legacy::Shaders>,
+    shaders: Option<&S>,
     shader_database: Option<&ShaderDatabase>,
 ) -> Option<ShaderProgram> {
     // TODO: Some alpha materials have two techniques?
     let program_index = material.techniques.last()?.technique_index as usize;
-    let shader = shaders?.shaders.get(program_index)?;
-    let mths = xc3_lib::mths::Mths::from_bytes(&shader.mths_data).ok()?;
-    let hash = ProgramHash::from_mths(&mths);
+
+    let hash = shaders?.get_program_hash(program_index)?;
     let program = shader_database?.shader_program(hash)?;
 
-    // The texture outputs are different in Xenoblade X compared to Switch.
-    // We handle this here to avoid needing to regenerate the database for updates.
+    // The texture outputs are different in Xenoblade X and Xenoblade X DE.
+    // We handle this here to avoid needing to modify the database itself.
     // G-Buffer Textures:
     // 0: lighting (ao * ???, alpha is specular brdf?)
     // 1: color (alpha is emission?)
@@ -392,6 +392,31 @@ fn get_shader_legacy(
         output_dependencies,
         outline_width: None,
     })
+}
+
+pub trait GetProgramHash {
+    fn get_program_hash(&self, program_index: usize) -> Option<ProgramHash>;
+}
+
+impl GetProgramHash for xc3_lib::spch::Spch {
+    fn get_program_hash(&self, program_index: usize) -> Option<ProgramHash> {
+        let slct = self
+            .slct_offsets
+            .get(program_index)?
+            .read_slct(&self.slct_section)
+            .ok()?;
+        let binaries = self.program_data_vertex_fragment_binaries(&slct);
+        let (p, v, f) = binaries.first()?;
+        Some(ProgramHash::from_spch_program(p, v, f))
+    }
+}
+
+impl GetProgramHash for xc3_lib::mxmd::legacy::Shaders {
+    fn get_program_hash(&self, program_index: usize) -> Option<ProgramHash> {
+        let shader = self.shaders.get(program_index)?;
+        let mths = xc3_lib::mths::Mths::from_bytes(&shader.mths_data).ok()?;
+        Some(ProgramHash::from_mths(&mths))
+    }
 }
 
 fn get_technique<'a>(
@@ -930,15 +955,19 @@ fn texture_assignment(
                 mask_a,
                 mask_b,
                 ratio,
-            }) => Some(TexCoordParallax {
-                mask_a: Box::new(
-                    ChannelAssignment::from_dependency(mask_a, parameters, 'x').unwrap(),
-                ),
-                mask_b: Box::new(
-                    ChannelAssignment::from_dependency(mask_b, parameters, 'x').unwrap(),
-                ),
-                ratio: parameters.get_dependency(ratio).unwrap_or_default(),
-            }),
+            }) => {
+                let mask_a = ChannelAssignment::from_dependency(mask_a, parameters, 'x');
+                let mask_b = ChannelAssignment::from_dependency(mask_b, parameters, 'x');
+                // TODO: Why are these sometimes none for xcx de?
+                match (mask_a, mask_b) {
+                    (Some(mask_a), Some(mask_b)) => Some(TexCoordParallax {
+                        mask_a: Box::new(mask_a),
+                        mask_b: Box::new(mask_b),
+                        ratio: parameters.get_dependency(ratio).unwrap_or_default(),
+                    }),
+                    _ => None,
+                }
+            }
             _ => None,
         },
     }

@@ -303,6 +303,7 @@ impl Msrd {
         ),
         ExtractFilesError,
     > {
+        // TODO: This can be SPCH or SPCO?
         match &self.streaming.inner {
             StreamingInner::StreamingLegacy(_) => Err(ExtractFilesError::LegacyStream),
             StreamingInner::Streaming(data) => data.extract_files(&self.data, chr_folder),

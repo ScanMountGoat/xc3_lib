@@ -34,7 +34,7 @@ use binrw::{BinRead, BinReaderExt, Endian};
 use glam::{Mat4, Vec3};
 use indexmap::IndexMap;
 use log::error;
-use material::{create_materials, create_materials_samplers_legacy};
+use material::{create_materials, create_materials_samplers_legacy, GetProgramHash};
 use shader_database::ShaderDatabase;
 use skinning::{create_skinning, Skinning};
 use texture::{load_textures, load_textures_legacy};
@@ -257,13 +257,16 @@ impl Models {
         }
     }
 
-    pub fn from_models_legacy(
+    pub fn from_models_legacy<S>(
         models: &xc3_lib::mxmd::legacy::Models,
         materials: &xc3_lib::mxmd::legacy::Materials,
-        shaders: Option<&xc3_lib::mxmd::legacy::Shaders>,
+        shaders: Option<&S>,
         shader_database: Option<&ShaderDatabase>,
         texture_indices: &[u16],
-    ) -> Self {
+    ) -> Self
+    where
+        S: GetProgramHash,
+    {
         let (materials, samplers) =
             create_materials_samplers_legacy(materials, texture_indices, shaders, shader_database);
         Self {
@@ -679,14 +682,13 @@ impl ModelRoot {
                 };
 
                 let image_textures = load_textures(&streaming_data.textures)?;
-                // TODO: Can these be remapped like with xcx?
+                // TODO: Can xcx de texture indices be remapped like with xcx?
                 let texture_indices: Vec<_> = (0..image_textures.len() as u16).collect();
 
-                // TODO: Create special loading function instead of making shaders optional.
                 let models = Models::from_models_legacy(
                     &mxmd.models,
                     &mxmd.materials,
-                    None,
+                    Some(streaming_data.spch.as_ref()),
                     shader_database,
                     &texture_indices,
                 );

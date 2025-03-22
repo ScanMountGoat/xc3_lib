@@ -566,10 +566,10 @@ pub struct MaterialsUnk6 {
     #[br(parse_with = parse_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub unk1: u64,
-    // TODO: Different for xcx de?
-    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
-    #[xc3(count_offset(u32, u32))]
-    pub unk2: Vec<[f32; 4]>,
+    // TODO: offset_count with 20 byte items for xcx de?
+    // #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    // #[xc3(count_offset(u32, u32))]
+    // pub unk2: Vec<[f32; 4]>,
 }
 
 // TODO: compare with decompiled shader data.
