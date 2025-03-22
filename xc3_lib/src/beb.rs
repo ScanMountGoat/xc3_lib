@@ -2,11 +2,11 @@
 //!
 //! # File Paths
 //!
-//! | Game | Versions | File Patterns |
-//! | --- | --- | --- |
-//! | Xenoblade Chronicles 1 DE | |  |
-//! | Xenoblade Chronicles 2 |  | |
-//! | Xenoblade Chronicles 3 |  | `event/**/*.beb` |
+//! | Game | File Patterns |
+//! | --- | --- |
+//! | Xenoblade Chronicles 1 DE |  |
+//! | Xenoblade Chronicles 2 |  |
+//! | Xenoblade Chronicles 3 |  `event/**/*.beb` |
 use crate::{xbc1::Xbc1, Offset32};
 use binrw::BinRead;
 use xc3_write::{Xc3Write, Xc3WriteOffsets};

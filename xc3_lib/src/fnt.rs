@@ -4,18 +4,17 @@
 //!
 //! | Game | Versions | File Patterns |
 //! | --- | --- | --- |
-//! | Xenoblade Chronicles X | | `menu/font/**/*.fnt` |
+//! | Xenoblade Chronicles X | 2 | `menu/font/**/*.fnt` |
 use crate::{mtxt::Mtxt, parse_ptr32};
 use binrw::BinRead;
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
-const VERSION: u32 = 2;
-
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct Fnt {
-    #[br(assert(version == VERSION))]
+    #[br(assert(version == 2))]
     version: u32,
+
     #[xc3(shared_offset)]
     file_size: u32,
 

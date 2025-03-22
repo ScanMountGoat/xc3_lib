@@ -2,12 +2,9 @@
 //!
 //! # File Paths
 //!
-//! | Game | Versions | File Patterns |
-//! | --- | --- | --- |
+//! | Game | File Patterns |
+//! | --- | --- |
 //! | Xenoblade Chronicles X | `**/*.hkt` |
-//! | Xenoblade Chronicles 1 DE | |  |
-//! | Xenoblade Chronicles 2 |  |  |
-//! | Xenoblade Chronicles 3 |  |  |
 use binrw::{BinRead, NullString};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 

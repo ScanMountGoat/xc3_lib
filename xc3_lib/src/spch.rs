@@ -6,6 +6,7 @@
 //! | Xenoblade Chronicles 1 DE | `monolib/shader/*.wishp` |
 //! | Xenoblade Chronicles 2 | `monolib/shader/*.wishp` |
 //! | Xenoblade Chronicles 3 | `monolib/shader/*.wishp` |
+//! | Xenoblade Chronicles X DE | `monolib/shader/*.wishp` |
 use std::io::{Cursor, Read, Seek, SeekFrom};
 
 use crate::{

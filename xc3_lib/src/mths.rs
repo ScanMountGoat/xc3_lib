@@ -4,9 +4,6 @@
 //! | Game | File Patterns |
 //! | --- | --- |
 //! | Xenoblade Chronicles X | `monolib/shader/*.cashd` |
-//! | Xenoblade Chronicles 1 DE |  |
-//! | Xenoblade Chronicles 2 |  |
-//! | Xenoblade Chronicles 3 |  |
 use std::io::Cursor;
 
 use binrw::{helpers::until_eof, BinRead, BinResult, BinWrite};

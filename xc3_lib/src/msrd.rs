@@ -31,6 +31,7 @@
 //! | Xenoblade Chronicles 1 DE | `chr/{en,np,obj,pc,wp}/*.wismt` |
 //! | Xenoblade Chronicles 2 | `model/{bl,en,np,oj,pc,we,wp}/*.wismt` |
 //! | Xenoblade Chronicles 3 | `chr/{bt,ch,en,oj,wp}/*.wismt`, `map/*.wismt` |
+//! | Xenoblade Chronicles X DE | `chr/{dl,en,fc,mb,np,oj,pc,un,wd,wdb,we,ws}/*.wismt` |
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 
 use crate::{

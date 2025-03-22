@@ -1,3 +1,4 @@
+//! Legacy types for Xenoblade Chronicles X.
 use crate::{
     msrd::StreamingDataLegacyInner, parse_count32_offset32, parse_count32_offset32_unchecked,
     parse_offset, parse_offset32_count32, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,

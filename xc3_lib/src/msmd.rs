@@ -1,11 +1,12 @@
 //! `.wismhd` files for map data that points to data in a corresponding `.wismda` files
 //!
 //! # File Paths
-//! | Game | File Patterns |
-//! | --- | --- |
-//! | Xenoblade Chronicles 1 DE | `map/*.wismhd` |
-//! | Xenoblade Chronicles 2 | `map/*.wismhd` |
-//! | Xenoblade Chronicles 3 | `map/*.wismhd` |
+//! | Game | Version | File Patterns |
+//! | --- | --- | --- |
+//! | Xenoblade Chronicles 1 DE | 10112 | `map/*.wismhd` |
+//! | Xenoblade Chronicles 2 | 10112 |  `map/*.wismhd` |
+//! | Xenoblade Chronicles 3 | 10112 |  `map/*.wismhd` |
+//! | Xenoblade Chronicles X DE | 10011 | `map/*.wismhd` |
 use std::{
     io::{Cursor, Read, Seek, SeekFrom},
     marker::PhantomData,

@@ -1,3 +1,4 @@
+//! Legacy types for Xenoblade Chronicles X DE.
 use binrw::BinRead;
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 

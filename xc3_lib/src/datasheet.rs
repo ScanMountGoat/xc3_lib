@@ -2,11 +2,11 @@
 //!
 //! # File Paths
 //!
-//! | Game | Versions | File Patterns |
+//! | Game  | File Patterns |
 //! | --- | --- | --- |
-//! | Xenoblade Chronicles 1 DE | |  |
-//! | Xenoblade Chronicles 2 |  | |
-//! | Xenoblade Chronicles 3 |  | `datasheet/*.bin` |
+//! | Xenoblade Chronicles 1 DE |   |
+//! | Xenoblade Chronicles 2 |  |
+//! | Xenoblade Chronicles 3 | `datasheet/*.bin` |
 use bilge::prelude::*;
 use binrw::{BinRead, BinWrite, NullString};
 use std::io::{Read, Seek};
