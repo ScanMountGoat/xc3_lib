@@ -220,7 +220,7 @@ fn main() {
 
     if cli.bc || cli.all {
         println!("Checking Bc files ...");
-        check_all::<Bc>(root, &["*.anm", "*.motstm_data"], Endian::Little, cli.rw);
+        check_all::<MaybeXbc1<Bc>>(root, &["*.anm", "*.motstm_data"], Endian::Little, cli.rw);
     }
 
     if cli.eva || cli.all {

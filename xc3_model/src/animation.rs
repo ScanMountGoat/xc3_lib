@@ -652,6 +652,7 @@ fn morph_tracks(anim: &xc3_lib::bc::anim::Anim) -> Option<MorphTracks> {
         xc3_lib::bc::anim::AnimationBindingInner::Unk2(_) => None,
         xc3_lib::bc::anim::AnimationBindingInner::Unk3(_) => None,
         xc3_lib::bc::anim::AnimationBindingInner::Unk4(_) => None,
+        xc3_lib::bc::anim::AnimationBindingInner::Unk5(_) => None,
     }
 }
 
@@ -668,6 +669,10 @@ fn names_hashes(
             extra_track_hashes(&inner.extra_track_data),
         ),
         xc3_lib::bc::anim::AnimationBindingInner::Unk4(inner) => (
+            Some(&inner.bone_names.elements),
+            extra_track_hashes(&inner.extra_track_data),
+        ),
+        xc3_lib::bc::anim::AnimationBindingInner::Unk5(inner) => (
             Some(&inner.bone_names.elements),
             extra_track_hashes(&inner.extra_track_data),
         ),

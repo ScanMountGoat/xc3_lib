@@ -975,12 +975,6 @@ fn streaming_data<'a>(
         })
 }
 
-#[derive(BinRead)]
-enum AnimFile {
-    Sar1(MaybeXbc1<Sar1>),
-    Bc(Box<Bc>),
-}
-
 /// Load all animations from a `.anm`, `.mot`, or `.motstm_data` file.
 ///
 /// # Examples
@@ -1004,38 +998,44 @@ enum AnimFile {
 pub fn load_animations<P: AsRef<Path>>(
     anim_path: P,
 ) -> Result<Vec<Animation>, DecompressStreamError> {
-    let mut reader = Cursor::new(std::fs::read(anim_path)?);
-    let anim_file: AnimFile = reader.read_le()?;
-
-    let mut animations = Vec::new();
-
     // Most animations are in sar1 archives.
     // Xenoblade 1 DE compresses the sar1 archive.
     // Some animations are in standalone BC files.
+    // Some Xenoblade X DE animations are in xcb1 archives.
+    let anim_file = <MaybeXbc1<AnimFile>>::from_file(anim_path)?;
+
+    let mut animations = Vec::new();
     match anim_file {
-        AnimFile::Sar1(sar1) => match sar1 {
-            MaybeXbc1::Uncompressed(sar1) => {
-                for entry in &sar1.entries {
-                    if let Ok(bc) = entry.read_data() {
-                        add_bc_animations(&mut animations, bc);
-                    }
-                }
+        MaybeXbc1::Uncompressed(anim) => add_anim_file(&mut animations, anim),
+        MaybeXbc1::Xbc1(xbc1) => {
+            if let Ok(anim) = xbc1.extract() {
+                add_anim_file(&mut animations, anim);
             }
-            MaybeXbc1::Xbc1(xbc1) => {
-                let sar1: Sar1 = xbc1.extract()?;
-                for entry in &sar1.entries {
-                    if let Ok(bc) = entry.read_data() {
-                        add_bc_animations(&mut animations, bc);
-                    }
-                }
-            }
-        },
-        AnimFile::Bc(bc) => {
-            add_bc_animations(&mut animations, *bc);
         }
     }
 
     Ok(animations)
+}
+
+#[derive(BinRead)]
+enum AnimFile {
+    Sar1(Sar1),
+    Bc(Bc),
+}
+
+fn add_anim_file(animations: &mut Vec<Animation>, anim: AnimFile) {
+    match anim {
+        AnimFile::Sar1(sar1) => {
+            for entry in &sar1.entries {
+                if let Ok(bc) = entry.read_data() {
+                    add_bc_animations(animations, bc);
+                }
+            }
+        }
+        AnimFile::Bc(bc) => {
+            add_bc_animations(animations, bc);
+        }
+    }
 }
 
 fn add_bc_animations(animations: &mut Vec<Animation>, bc: Bc) {

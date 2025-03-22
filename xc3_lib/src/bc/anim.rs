@@ -73,6 +73,10 @@ pub enum AnimationBindingInner {
 
     #[br(pre_assert(size == 128))]
     Unk4(#[br(args_raw(animation_type))] AnimationBindingInner4),
+
+    // XCX DE has 136 bytes
+    #[br(pre_assert(size == 136))]
+    Unk5(#[br(args_raw(animation_type))] AnimationBindingInner5),
 }
 
 // 60 total bytes for xc2
@@ -171,6 +175,24 @@ pub struct AnimationBindingInner4 {
     pub extra_track_data: ExtraTrackData,
 
     pub unk1: u64,
+}
+
+// 136 total bytes for xcx de
+// TODO: Is it worth making a whole separate type for this?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
+#[br(import_raw(animation_type: AnimationType))]
+pub struct AnimationBindingInner5 {
+    /// An alternative bone name list for
+    /// [bone_track_indices](struct.AnimationBinding.html#structfield.bone_track_indices).
+    pub bone_names: BcList8<StringOffset>,
+
+    #[br(args_raw(animation_type))]
+    pub extra_track_data: ExtraTrackData,
+
+    pub unk1: u32,
+    pub unk2: i32,
+    pub unk3: u64,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -696,6 +718,15 @@ impl Xc3WriteOffsets for AnimOffsets<'_> {
                     string_section.clone(),
                 )?;
             }
+            AnimationBindingInnerOffsets::Unk5(unk5) => {
+                unk5.write_offsets(
+                    writer,
+                    base_offset,
+                    data_ptr,
+                    endian,
+                    string_section.clone(),
+                )?;
+            }
         }
 
         string_section
@@ -849,6 +880,33 @@ impl Xc3WriteOffsets for AnimationBindingInner3Offsets<'_> {
 }
 
 impl Xc3WriteOffsets for AnimationBindingInner4Offsets<'_> {
+    type Args = Rc<RefCell<StringSectionUniqueSorted>>;
+
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+        endian: xc3_write::Endian,
+        args: Self::Args,
+    ) -> xc3_write::Xc3Result<()> {
+        if !self.bone_names.0.data.is_empty() {
+            let bone_names = self
+                .bone_names
+                .0
+                .write(writer, base_offset, data_ptr, endian)?;
+            for bone_name in &bone_names.0 {
+                args.borrow_mut().insert_offset64(&bone_name.name);
+            }
+        }
+
+        self.extra_track_data
+            .write_offsets(writer, base_offset, data_ptr, endian, args)?;
+        Ok(())
+    }
+}
+
+impl Xc3WriteOffsets for AnimationBindingInner5Offsets<'_> {
     type Args = Rc<RefCell<StringSectionUniqueSorted>>;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
