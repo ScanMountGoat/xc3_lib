@@ -421,8 +421,6 @@ impl StreamingData {
             .map_err(DecompressStreamError::from)?
             .decompress()?;
 
-        std::fs::write("stream0.bin", &stream0).unwrap();
-
         let vertex_bytes = self
             .entry_bytes(self.vertex_data_entry_index, &stream0)
             .map_err(DecompressStreamError::Io)?;
