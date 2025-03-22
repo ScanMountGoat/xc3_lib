@@ -90,7 +90,7 @@ enum Commands {
         /// The "chr/tex/nx" texture folder for the input's external wismt textures.
         /// Required for most Xenoblade 3 models if the folder
         /// cannot be inferred from the input path.
-        chr_tex_nx: Option<String>,
+        chr_folder: Option<String>,
     },
     /// Replace the Mibl in a .wifnt file.
     EditWifnt {
@@ -146,13 +146,13 @@ fn main() -> anyhow::Result<()> {
                 input,
                 input_folder,
                 output,
-                chr_tex_nx,
+                chr_folder,
             } => {
                 let count = update_wimdo_from_folder(
                     &input,
                     &input_folder,
                     output.as_ref().unwrap_or(&input),
-                    chr_tex_nx,
+                    chr_folder,
                 )?;
                 println!("Converted {count} file(s) in {:?}", start.elapsed());
             }

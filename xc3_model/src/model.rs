@@ -4,7 +4,7 @@ use log::warn;
 use xc3_lib::{
     mibl::Mibl,
     msrd::{streaming::ExtractedTexture, Msrd},
-    mxmd::{AlphaTable, LodData, LodGroup, LodItem, Mxmd, TextureUsage, VertexAttribute},
+    mxmd::{AlphaTable, LodData, LodGroup, LodItem, MxmdV112, TextureUsage, VertexAttribute},
     vertex::{DataType, VertexData},
 };
 
@@ -27,9 +27,9 @@ use crate::{
 impl ModelRoot {
     pub fn to_mxmd_model(
         &self,
-        mxmd: &Mxmd,
+        mxmd: &MxmdV112,
         msrd: &Msrd,
-    ) -> Result<(Mxmd, Msrd), CreateModelError> {
+    ) -> Result<(MxmdV112, Msrd), CreateModelError> {
         // TODO: Does this need to even extract vertex/textures?
         let (_, spch, _) = msrd.extract_files(None)?;
         let (mut new_mxmd, vertex, textures) = self.to_mxmd_model_files(mxmd)?;
@@ -51,9 +51,15 @@ impl ModelRoot {
     /// Similar to [Self::to_mxmd_model] but does not compress the new data or update streaming information.
     pub fn to_mxmd_model_files(
         &self,
-        mxmd: &Mxmd,
-    ) -> Result<(Mxmd, VertexData, Vec<ExtractedTexture<Mibl, TextureUsage>>), CreateModelError>
-    {
+        mxmd: &MxmdV112,
+    ) -> Result<
+        (
+            MxmdV112,
+            VertexData,
+            Vec<ExtractedTexture<Mibl, TextureUsage>>,
+        ),
+        CreateModelError,
+    > {
         let textures: Vec<_> = self
             .image_textures
             .iter()
@@ -233,7 +239,7 @@ impl ModelRoot {
         Ok((new_mxmd, new_vertex, textures))
     }
 
-    fn apply_materials(&self, mxmd: &mut Mxmd) {
+    fn apply_materials(&self, mxmd: &mut MxmdV112) {
         // Recreate start indices and counts by assuming value ranges don't overlap.
         mxmd.materials.materials.clear();
         mxmd.materials.work_values.clear();
@@ -340,7 +346,7 @@ impl ModelRoot {
         };
     }
 
-    fn match_technique_attributes(&self, buffers: &mut ModelBuffers, mxmd: &Mxmd) {
+    fn match_technique_attributes(&self, buffers: &mut ModelBuffers, mxmd: &MxmdV112) {
         let attribute_count =
             |attrs: &[VertexAttribute]| attrs.iter().filter(|a| a.buffer_index == 0).count();
 

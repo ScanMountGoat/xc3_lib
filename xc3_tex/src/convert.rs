@@ -18,7 +18,7 @@ use xc3_lib::{
     laps::Laps,
     mibl::Mibl,
     msrd::{
-        streaming::{chr_tex_nx_folder, ExtractedTexture},
+        streaming::{chr_folder, ExtractedTexture},
         Msrd,
     },
     mtxt::Mtxt,
@@ -347,7 +347,7 @@ pub fn update_wimdo_from_folder(
     input: &str,
     input_folder: &str,
     output: &str,
-    chr_tex_nx: Option<String>,
+    chr: Option<String>,
 ) -> anyhow::Result<usize> {
     let input_path = Path::new(input);
     let output_path = Path::new(output);
@@ -359,8 +359,8 @@ pub fn update_wimdo_from_folder(
 
     let uses_chr = has_chr_textures(&mxmd);
 
-    let chr_tex_nx_input = chr_tex_nx_folder(input_path).or(chr_tex_nx.map(Into::into));
-    if uses_chr && chr_tex_nx_input.is_none() {
+    let chr_folder = chr_folder(input_path).or(chr.map(Into::into));
+    if uses_chr && chr_folder.is_none() {
         panic!(
             "chr/tex/nx folder required by wimdo and wismt but cannot be inferred from input path"
         );
@@ -368,7 +368,7 @@ pub fn update_wimdo_from_folder(
 
     // We need to repack the entire wismt even though we only modify textures.
     let msrd = Msrd::from_file(input_path.with_extension("wismt"))?;
-    let (vertex, spch, mut textures) = msrd.extract_files(chr_tex_nx_input.as_deref())?;
+    let (vertex, spch, mut textures) = msrd.extract_files(chr_folder.as_deref())?;
 
     // Replace all textures to support adding or deleting textures.
     let mut mibls: Vec<_> = std::fs::read_dir(input_folder)?
@@ -408,7 +408,12 @@ pub fn update_wimdo_from_folder(
     // Save files to disk.
     let new_msrd = Msrd::from_extracted_files(&vertex, &spch, &textures, uses_chr)?;
 
-    mxmd.streaming = Some(new_msrd.streaming.clone());
+    match &mut mxmd.inner {
+        xc3_lib::mxmd::MxmdInner::V112(mxmd) => {
+            mxmd.streaming = Some(new_msrd.streaming.clone());
+        }
+        xc3_lib::mxmd::MxmdInner::V40(_mxmd) => todo!(),
+    }
     mxmd.save(output_path)?;
     new_msrd.save(output_path.with_extension("wismt"))?;
 
@@ -416,10 +421,13 @@ pub fn update_wimdo_from_folder(
 }
 
 fn has_chr_textures(mxmd: &Mxmd) -> bool {
-    // Some Xenoblade 3 models still require empty chr/tex/nx data even if disabled by flags.
-    // Check the offset instead of flags to be safe.
-    // TODO: Why does this not return true for all xc3 files?
-    if let Some(streaming) = &mxmd.streaming {
+    if let Some(streaming) = match &mxmd.inner {
+        xc3_lib::mxmd::MxmdInner::V112(mxmd) => &mxmd.streaming,
+        xc3_lib::mxmd::MxmdInner::V40(mxmd) => &mxmd.streaming,
+    } {
+        // Some Xenoblade 3 models still require empty chr/tex/nx data even if disabled by flags.
+        // Check the offset instead of flags to be safe.
+        // TODO: Does this also work for Xenoblade X DE?
         streaming.inner.has_chr_textures()
     } else {
         false
@@ -567,34 +575,37 @@ fn extract_wimdo_images_to_folder(
 }
 
 fn extract_wimdo_textures(mxmd: Mxmd, input: &Path) -> anyhow::Result<Vec<(String, Dds)>> {
-    // TODO: chr/tex/nx folder as parameter?
-    let chr_tex_nx = chr_tex_nx_folder(input);
-    if has_chr_textures(&mxmd) && chr_tex_nx.is_none() {
-        panic!(
-            "chr/tex/nx folder required by wimdo and wismt but cannot be inferred from input path"
-        );
+    // TODO: chr/ folder as parameter?
+    let chr_folder = chr_folder(input);
+    if has_chr_textures(&mxmd) && chr_folder.is_none() {
+        panic!("chr/ folder required by wimdo and wismt but cannot be inferred from input path");
     }
 
     // Assume streaming textures override packed textures if present.
     let mut result = Vec::new();
-    if mxmd.streaming.is_some() {
-        let msrd = Msrd::from_file(input.with_extension("wismt"))?;
-        let (_, _, textures) = msrd.extract_files(chr_tex_nx.as_deref())?;
+    match mxmd.inner {
+        xc3_lib::mxmd::MxmdInner::V112(mxmd) => {
+            if mxmd.streaming.is_some() {
+                let msrd = Msrd::from_file(input.with_extension("wismt"))?;
+                let (_, _, textures) = msrd.extract_files(chr_folder.as_deref())?;
 
-        for texture in textures {
-            let dds = texture.surface_final()?.to_dds()?;
-            result.push((texture.name, dds));
+                for texture in textures {
+                    let dds = texture.surface_final()?.to_dds()?;
+                    result.push((texture.name, dds));
+                }
+                Ok(result)
+            } else if let Some(textures) = mxmd.packed_textures {
+                for texture in textures.textures {
+                    let mibl = Mibl::from_bytes(&texture.mibl_data)?;
+                    let dds = mibl.to_dds()?;
+                    result.push((texture.name, dds));
+                }
+                Ok(result)
+            } else {
+                Ok(Vec::new())
+            }
         }
-        Ok(result)
-    } else if let Some(textures) = mxmd.packed_textures {
-        for texture in textures.textures {
-            let mibl = Mibl::from_bytes(&texture.mibl_data)?;
-            let dds = mibl.to_dds()?;
-            result.push((texture.name, dds));
-        }
-        Ok(result)
-    } else {
-        Ok(Vec::new())
+        xc3_lib::mxmd::MxmdInner::V40(_mxmd) => todo!(),
     }
 }
 

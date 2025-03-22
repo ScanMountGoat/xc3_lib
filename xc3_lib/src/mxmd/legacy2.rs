@@ -1,13 +1,7 @@
-use crate::{
-    msrd::{Streaming, StreamingDataLegacyInner},
-    parse_count32_offset32, parse_count32_offset32_unchecked, parse_offset, parse_offset32_count32,
-    parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
-    spco::Spco,
-    vertex::VertexAttribute,
-    xc3_write_binwrite_impl, StringOffset32,
-};
-use binrw::{args, binread, BinRead, BinWrite};
+use binrw::BinRead;
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
+
+use crate::{msrd::Streaming, parse_opt_ptr32, parse_ptr32, spco::Spco};
 
 use super::{
     legacy::{Materials, Models, VertexData},
@@ -16,15 +10,10 @@ use super::{
 
 // TODO: How much code can be shared with modern switch formats?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
-#[br(magic(b"DMXM"))]
-#[xc3(magic(b"DMXM"))]
-pub struct MxmdLegacy2 {
-    #[br(assert(version == 10040))]
-    pub version: u32,
-
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct MxmdV40 {
     // TODO: This type is different for legacy.
-    /// A collection of [Model] and associated data.
+    /// A collection of [Model](super::legacy::Model) and associated data.
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]
     pub models: Models,

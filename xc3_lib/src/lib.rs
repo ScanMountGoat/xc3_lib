@@ -717,7 +717,7 @@ file_read_impl!(
     wipac::Wipac,
     laft::Laft,
     last::Last,
-    mxmd::legacy2::MxmdLegacy2
+    mxmd::legacy2::MxmdV40
 );
 
 file_read_impl!(

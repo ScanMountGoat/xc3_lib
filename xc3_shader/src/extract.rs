@@ -31,11 +31,16 @@ pub fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Op
 
             // Shaders can be embedded in the wimdo or wismt file.
             match Mxmd::from_file(path) {
-                Ok(mxmd) => {
-                    if let Some(spch) = mxmd.spch {
-                        extract_shaders(&spch, &output_folder, shader_tools, false);
+                Ok(mxmd) => match mxmd.inner {
+                    xc3_lib::mxmd::MxmdInner::V112(mxmd) => {
+                        if let Some(spch) = mxmd.spch {
+                            extract_shaders(&spch, &output_folder, shader_tools, false);
+                        }
                     }
-                }
+                    xc3_lib::mxmd::MxmdInner::V40(_mxmd) => {
+                        todo!()
+                    }
+                },
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }
 

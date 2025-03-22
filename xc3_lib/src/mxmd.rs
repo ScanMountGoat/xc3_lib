@@ -19,24 +19,43 @@ use crate::{
 };
 use bilge::prelude::*;
 use binrw::{args, binread, BinRead, BinWrite};
+use legacy2::MxmdV40;
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 pub mod legacy;
 pub mod legacy2;
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(magic(b"DMXM"))]
 #[xc3(magic(b"DMXM"))]
 pub struct Mxmd {
-    // TODO: 10111 for xc2 has different fields
-    #[br(assert(version == 10111 || version == 10112))]
+    // TODO: Calculate version when writing.
     pub version: u32,
 
+    #[br(args_raw(version))]
+    pub inner: MxmdInner,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(version: u32))]
+pub enum MxmdInner {
+    #[br(pre_assert(version == 10040))]
+    V40(MxmdV40),
+
+    // TODO: 10111 for xc2 has different fields
+    #[br(pre_assert(version == 10112))]
+    V112(MxmdV112),
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
+pub struct MxmdV112 {
     // TODO: only aligned to 16 for 10112?
     // TODO: support expressions for alignment?
     /// A collection of [Model] and associated data.
-    #[br(parse_with = parse_ptr32, args { inner: version })]
+    #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32), align(16))]
     pub models: Models,
 
@@ -2427,7 +2446,7 @@ impl Xc3WriteOffsets for MaterialsOffsets<'_> {
     }
 }
 
-impl Xc3WriteOffsets for MxmdOffsets<'_> {
+impl Xc3WriteOffsets for MxmdV112Offsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(

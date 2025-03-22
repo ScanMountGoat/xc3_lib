@@ -142,7 +142,6 @@ fn main() {
             let path = entry.as_ref().unwrap().path();
             let model_path = path.to_string_lossy().to_string();
 
-            // TODO: Fix files that don't load.
             println!("{:?}", model_path);
 
             let groups = load_groups(

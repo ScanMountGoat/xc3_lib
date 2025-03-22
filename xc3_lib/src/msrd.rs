@@ -34,7 +34,6 @@
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 
 use crate::{
-    dds::DdsExt,
     get_bytes,
     mxmd::{PackedExternalTexture, PackedExternalTextures, TextureUsage},
     parse_count32_offset32, parse_opt_ptr32, parse_ptr32,
@@ -233,7 +232,8 @@ pub struct TextureResources {
     /// Always `0`.
     pub unk1: u32,
 
-    /// Only used for Xenoblade 3.
+    /// Only used for Xenoblade 3 and Xenoblade X DE.
+    ///
     /// Xenoblade 3 models that don't have `chr/tex/nx` textures
     /// should still set this to `Some` with an empty texture list.
     /// Other game versions should set this to `None`.
@@ -256,7 +256,9 @@ pub struct ChrTexTextures {
     pub unk: [u32; 2],
 }
 
-/// A texture file in `xeno3/chr/tex/nx/m` with a base mipmap in `xeno3/chr/tex/nx/h`.
+/// A shared texture file with base and remaining mipmaps in separate [Xbc1] archives.
+/// `xeno3/chr/tex/nx/m/hash.wismt` with a base mipmap in `xeno3/chr/tex/nx/h/hash.wismt` or
+/// `xenoxde/chr/cmntex/hash_m.wismt` with a base mipmap in `xenoxde/chr/cmntex/hash_h.wismt`.
 ///
 /// The texture [Mibl](crate::mibl) and base mip bytes both use [Xbc1] archives.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]

@@ -28,10 +28,10 @@ use xc3_lib::{
     ltpc::Ltpc,
     mibl::Mibl,
     msmd::Msmd,
-    msrd::{streaming::chr_tex_nx_folder, Msrd},
+    msrd::{streaming::chr_folder, Msrd},
     mths::Mths,
     mtxt::Mtxt,
-    mxmd::{legacy::MxmdLegacy, legacy2::MxmdLegacy2, Mxmd},
+    mxmd::{legacy::MxmdLegacy, Mxmd, MxmdV112},
     offset::{OffsetLayer, OffsetRange, OffsetValidationError},
     sar1::{ChCl, Csvb, Sar1},
     spch::Spch,
@@ -289,13 +289,6 @@ fn main() {
         check_all::<Mths>(root, &["*.cashd"], Endian::Big, cli.rw);
     }
 
-    // Xenoblade X DE.
-    // TODO: Come up with better names or handle in mxmd itself.
-    if cli.wimdo2 || cli.all {
-        println!("Checking Mxmd files ...");
-        check_all::<MxmdLegacy2>(root, &["*.wimdo"], Endian::Little, cli.rw);
-    }
-
     if cli.gltf || cli.all {
         println!("Checking glTF export ...");
         check_all_gltf(root);
@@ -426,8 +419,8 @@ impl CheckFile for Msrd {
         check_read_write: bool,
     ) {
         // TODO: check stream flags?
-        let chr_tex_nx = chr_tex_nx_folder(path);
-        let (vertex, spch, textures) = self.extract_files(chr_tex_nx.as_deref()).unwrap();
+        let chr_folder = chr_folder(path);
+        let (vertex, spch, textures) = self.extract_files(chr_folder.as_deref()).unwrap();
 
         if check_read_write && self.to_bytes().unwrap() != original_bytes {
             println!("Msrd read/write not 1:1 for {path:?}");
@@ -779,10 +772,6 @@ impl CheckFile for Mxmd {
         original_ranges: &[OffsetRange],
         check_read_write: bool,
     ) {
-        if !is_valid_models_flags(&self) {
-            println!("Inconsistent ModelsFlags for {path:?}");
-        }
-
         if check_read_write {
             let bytes = self.to_bytes().unwrap();
             if bytes != original_bytes {
@@ -794,23 +783,34 @@ impl CheckFile for Mxmd {
             }
         }
 
-        if let Some(spch) = self.spch {
-            // TODO: Check read/write for inner data?
-            spch.check_file(path, &[], &[], false);
-        }
+        match self.inner {
+            xc3_lib::mxmd::MxmdInner::V112(mxmd) => {
+                if !is_valid_models_flags(&mxmd) {
+                    println!("Inconsistent ModelsFlags for {path:?}");
+                }
 
-        if let Some(packed_textures) = &self.packed_textures {
-            for texture in &packed_textures.textures {
-                match Mibl::from_bytes(&texture.mibl_data) {
-                    Ok(mibl) => mibl.check_file(path, &texture.mibl_data, &[], check_read_write),
-                    Err(e) => println!("Error reading Mibl in {path:?}: {e}"),
+                if let Some(spch) = mxmd.spch {
+                    // TODO: Check read/write for inner data?
+                    spch.check_file(path, &[], &[], false);
+                }
+
+                if let Some(packed_textures) = &mxmd.packed_textures {
+                    for texture in &packed_textures.textures {
+                        match Mibl::from_bytes(&texture.mibl_data) {
+                            Ok(mibl) => {
+                                mibl.check_file(path, &texture.mibl_data, &[], check_read_write)
+                            }
+                            Err(e) => println!("Error reading Mibl in {path:?}: {e}"),
+                        }
+                    }
                 }
             }
+            xc3_lib::mxmd::MxmdInner::V40(_mxmd) => {}
         }
     }
 }
 
-fn is_valid_models_flags(mxmd: &Mxmd) -> bool {
+fn is_valid_models_flags(mxmd: &MxmdV112) -> bool {
     // Check that flags are consistent with nullability of offsets.
     if let Some(flags) = mxmd.models.models_flags {
         flags.has_model_unk8() == mxmd.models.model_unk8.is_some()
@@ -846,17 +846,6 @@ impl CheckFile for Spch {
         if check_read_write && self.to_bytes().unwrap() != original_bytes {
             println!("Spch read/write not 1:1 for {path:?}");
         }
-    }
-}
-
-impl CheckFile for MxmdLegacy2 {
-    fn check_file(
-        self,
-        path: &Path,
-        original_bytes: &[u8],
-        original_ranges: &[OffsetRange],
-        check_read_write: bool,
-    ) {
     }
 }
 
@@ -1374,7 +1363,20 @@ fn check_all_wimdo_model(root: &Path, check_read_write: bool) {
                     match ModelRoot::from_mxmd_model(&mxmd, skel, &streaming_data, None) {
                         Ok(root) => {
                             if check_read_write {
-                                check_model(root, &mxmd, &streaming_data.vertex, path);
+                                match &mxmd.inner {
+                                    xc3_lib::mxmd::MxmdInner::V112(mxmd) => {
+                                        match &streaming_data.vertex {
+                                            xc3_model::VertexData::Modern(v) => {
+                                                check_model(root, mxmd, v, path)
+                                            }
+                                            xc3_model::VertexData::Legacy(_) => {
+                                                // TODO: This case shouldn't happen.
+                                                todo!()
+                                            }
+                                        }
+                                    }
+                                    xc3_lib::mxmd::MxmdInner::V40(_mxmd) => (),
+                                }
                             }
                         }
                         Err(e) => println!("Error loading {path:?}: {e}"),
@@ -1387,7 +1389,7 @@ fn check_all_wimdo_model(root: &Path, check_read_write: bool) {
 
 fn check_model(
     root: xc3_model::ModelRoot,
-    mxmd: &Mxmd,
+    mxmd: &MxmdV112,
     vertex: &xc3_lib::vertex::VertexData,
     path: &Path,
 ) {

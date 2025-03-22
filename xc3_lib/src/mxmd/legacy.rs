@@ -10,7 +10,7 @@ use super::{MaterialFlags, ModelUnk3, SamplerFlags, StateFlags};
 
 // TODO: How much code can be shared with non legacy types?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(magic(b"MXMD"))]
 #[xc3(magic(b"MXMD"))]
 pub struct MxmdLegacy {
@@ -56,7 +56,7 @@ pub struct MxmdLegacy {
 
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Models {
@@ -219,7 +219,7 @@ pub struct SkinningIndices {
 
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct UnkBones {
@@ -244,7 +244,7 @@ pub struct UnkBone {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Unk6 {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
@@ -261,7 +261,7 @@ pub struct Unk6 {
 
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Unk9 {
@@ -289,7 +289,7 @@ pub struct Unk9Item {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Unk10 {
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
@@ -312,7 +312,7 @@ pub struct Unk10 {
 
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Materials {
@@ -567,14 +567,14 @@ pub struct MaterialsUnk6 {
     #[xc3(offset(u32))]
     pub unk1: u64,
     // TODO: Different for xcx de?
-    // #[br(parse_with = parse_count32_offset32, offset = base_offset)]
-    // #[xc3(count_offset(u32, u32))]
-    // pub unk2: Vec<[f32; 4]>,
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub unk2: Vec<[f32; 4]>,
 }
 
 // TODO: compare with decompiled shader data.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Technique {
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
@@ -609,7 +609,7 @@ pub struct Technique {
 
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Unk1 {
@@ -641,7 +641,7 @@ pub struct Unk1 {
 
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct VertexData {
@@ -711,7 +711,7 @@ pub struct IndexBufferDescriptor {
 /// A collection of [Mtxt](crate::mtxt::Mtxt) textures embedded in the current file.
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct PackedTextures {
@@ -781,7 +781,7 @@ pub enum TextureUsage {
 // TODO: Nearly identical to legacy wimdo but not compressed?
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Streaming {
@@ -802,7 +802,7 @@ pub struct Streaming {
 
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Shaders {

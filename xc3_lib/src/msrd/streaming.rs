@@ -180,7 +180,7 @@ impl ExtractedTexture<Mtxt, crate::mxmd::legacy::TextureUsage> {
     }
 }
 
-/// `chr/tex/nx` stream files for a single texture.
+/// Stream files for a single [ChrTexTexture].
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct ChrTextureStreams {
@@ -194,8 +194,8 @@ pub struct ChrTextureStreams {
 
 impl ChrTextureStreams {
     /// Save the texture streams to `chr/tex/nx/m` and `chr/tex/nx/h`.
-    pub fn save<P: AsRef<Path>>(&self, chr_tex_nx: P) -> Xc3Result<()> {
-        let folder = chr_tex_nx.as_ref();
+    pub fn save_xc3<P: AsRef<Path>>(&self, chr_folder: P) -> Xc3Result<()> {
+        let folder = chr_folder.as_ref();
         self.mid
             .save(folder.join("m").join(format!("{:x}.wismt", self.hash)))?;
         self.base_mip
@@ -262,18 +262,18 @@ pub fn pack_chr_textures(
 impl Msrd {
     /// Extract all embedded files for a `wismt` file.
     ///
-    /// For Xenoblade 3 models, specify the path for the `chr/tex/nx` folder
+    /// For Xenoblade 3 models, specify the path for the `chr` folder
     /// to properly extract higher resolution textures.
-    /// If the path is part of the Xenoblade 3 dump, see [chr_tex_nx_folder].
+    /// If the path is part of the Xenoblade 3 dump, use [chr_folder].
     pub fn extract_files(
         &self,
-        chr_tex_nx: Option<&Path>,
+        chr_folder: Option<&Path>,
     ) -> Result<(VertexData, Spch, Vec<ExtractedTexture<Mibl, TextureUsage>>), ExtractFilesError>
     {
         // TODO: Return just textures for legacy data?
         match &self.streaming.inner {
             StreamingInner::StreamingLegacy(_) => Err(ExtractFilesError::LegacyStream),
-            StreamingInner::Streaming(data) => data.extract_files(&self.data, chr_tex_nx),
+            StreamingInner::Streaming(data) => data.extract_files(&self.data, chr_folder),
         }
     }
 
@@ -288,9 +288,13 @@ impl Msrd {
         }
     }
 
-    pub fn extract_files_legacy2(
+    /// Extract all embedded files for a Xenoblade X DE `wismt` file.
+    ///
+    /// Specify the path for the `chr` folder to properly extract higher resolution textures.
+    /// If the path is part of the Xenoblade X DE dump, use [chr_folder].
+    pub fn extract_files_legacy(
         &self,
-        chr_cmntex: Option<&Path>,
+        chr_folder: Option<&Path>,
     ) -> Result<
         (
             crate::mxmd::legacy::VertexData,
@@ -301,7 +305,7 @@ impl Msrd {
     > {
         match &self.streaming.inner {
             StreamingInner::StreamingLegacy(_) => Err(ExtractFilesError::LegacyStream),
-            StreamingInner::Streaming(data) => data.extract_files(&self.data, chr_cmntex),
+            StreamingInner::Streaming(data) => data.extract_files(&self.data, chr_folder),
         }
     }
 
@@ -309,7 +313,7 @@ impl Msrd {
     /// Pack and compress the files into new archive data.
     ///
     /// The final [Msrd] will embed high resolution textures
-    /// and not reference any textures in the `chr/tex/nx` folder
+    /// and not reference any shared textures in the `chr` folder
     /// to avoid modifying textures files shared with other models.
     ///
     /// Set `use_chr_textures` to `true` for Xenoblade 3 models
@@ -323,8 +327,8 @@ impl Msrd {
     /// use xc3_lib::msrd::Msrd;
     ///
     /// let msrd = Msrd::from_file("ch01011013.wismt")?;
-    /// let chr_tex_nx = Some(std::path::Path::new("chr/tex/nx"));
-    /// let (mut vertex, mut spch, mut textures) = msrd.extract_files(chr_tex_nx)?;
+    /// let chr_folder = Some(std::path::Path::new("chr"));
+    /// let (mut vertex, mut spch, mut textures) = msrd.extract_files(chr_folder)?;
     ///
     /// // modify any of the embedded data
     ///
@@ -409,7 +413,7 @@ impl StreamingData {
     fn extract_files<V: FromBytes, S: FromBytes, T: FromBytes>(
         &self,
         data: &[u8],
-        chr_tex_nx: Option<&Path>,
+        chr_folder: Option<&Path>,
     ) -> Result<(V, S, Vec<ExtractedTexture<T, TextureUsage>>), ExtractFilesError> {
         let stream0 = self.get_stream(0)?;
         let first_xbc1_offset = stream0.xbc1_offset;
@@ -435,7 +439,7 @@ impl StreamingData {
         let low_texture_bytes = self
             .entry_bytes(self.low_textures_entry_index, &stream0)
             .map_err(DecompressStreamError::Io)?;
-        let textures = self.extract_textures(data, low_texture_bytes, chr_tex_nx)?;
+        let textures = self.extract_textures(data, low_texture_bytes, chr_folder)?;
 
         Ok((vertex, spch, textures))
     }
@@ -513,7 +517,7 @@ impl StreamingData {
 
         if let Some(chr_textures) = &self.texture_resources.chr_textures {
             if let Some(tex_folder) = tex_folder {
-                let tex_folder = tex_folder.as_ref();
+                let chr_folder = tex_folder.as_ref();
 
                 for (i, chr_tex) in self
                     .texture_resources
@@ -523,25 +527,26 @@ impl StreamingData {
                 {
                     let hash = format!("{:08x}", chr_tex.hash);
 
-                    let (mid, base_mip) = if tex_folder.join("m").exists()
-                        && tex_folder.join("h").exists()
-                    {
-                        // XC3: chr/tex/nx/m/abcdefgh.wismt, chr/tex/nx/h/abcdefgh.wismt
-                        let m_path = tex_folder.join("m").join(format!("{hash}.wismt"));
-                        let mid = read_chr_tex_m_texture(&m_path)?;
+                    let chr_tex = chr_folder.join("tex").join("nx");
+                    let (mid, base_mip) =
+                        if chr_tex.join("m").exists() && chr_tex.join("h").exists() {
+                            // XC3: chr/tex/nx/m/abcdefgh.wismt, chr/tex/nx/h/abcdefgh.wismt
+                            let m_path = chr_tex.join("m").join(format!("{hash}.wismt"));
+                            let mid = read_chr_tex_m_texture(&m_path)?;
 
-                        let h_path = tex_folder.join("h").join(format!("{hash}.wismt"));
-                        let base_mip = read_chr_tex_h_texture(&h_path)?;
-                        (mid, base_mip)
-                    } else {
-                        // XCX DE: chr/cmntex/abcdefgh_m.wismt, chr/cmntex/abcdefgh_h.wismt
-                        let m_path = tex_folder.join(&hash[0..2]).join(format!("{hash}_m.wismt"));
-                        let mid = read_chr_tex_m_texture(&m_path)?;
+                            let h_path = chr_tex.join("h").join(format!("{hash}.wismt"));
+                            let base_mip = read_chr_tex_h_texture(&h_path)?;
+                            (mid, base_mip)
+                        } else {
+                            // XCX DE: chr/cmntex/abcdefgh_m.wismt, chr/cmntex/abcdefgh_h.wismt
+                            let cmn_tex = chr_folder.join("cmntex");
+                            let m_path = cmn_tex.join(&hash[0..2]).join(format!("{hash}_m.wismt"));
+                            let mid = read_chr_tex_m_texture(&m_path)?;
 
-                        let h_path = tex_folder.join(&hash[0..2]).join(format!("{hash}_h.wismt"));
-                        let base_mip = read_chr_tex_h_texture(&h_path)?;
-                        (mid, base_mip)
-                    };
+                            let h_path = cmn_tex.join(&hash[0..2]).join(format!("{hash}_h.wismt"));
+                            let base_mip = read_chr_tex_h_texture(&h_path)?;
+                            (mid, base_mip)
+                        };
 
                     textures[*i as usize].high = Some(HighTexture {
                         mid,
@@ -941,17 +946,19 @@ where
     }
 }
 
-/// Get the path for "chr/tex/nx" from a file or `None` if not present.
-pub fn chr_tex_nx_folder<P: AsRef<Path>>(input: P) -> Option<PathBuf> {
-    // "chr/en/file.wismt" -> "chr/tex/nx"
-    let parent = input.as_ref().parent()?.parent()?;
-
-    if parent.file_name().and_then(|f| f.to_str()) == Some("chr") {
-        Some(parent.join("tex").join("nx"))
-    } else {
-        // Not an xc3 chr model or not in the right folder.
-        None
+/// Get the path for "chr/" from a file or `None` if not present.
+pub fn chr_folder<P: AsRef<Path>>(input: P) -> Option<PathBuf> {
+    let mut path = input.as_ref();
+    while let Some(parent) = path.parent() {
+        if parent.file_name().and_then(|f| f.to_str()) == Some("chr") {
+            return Some(parent.to_path_buf());
+        } else {
+            // Not an xc3 chr model or not in the right folder.
+            path = parent;
+        }
     }
+
+    None
 }
 
 /// Get the path for "chr/cmntex/" from a file or `None` if not present.
@@ -972,29 +979,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn chr_tex_nx_folders() {
-        assert_eq!(None, chr_tex_nx_folder(""));
-        assert_eq!(Some("chr/tex/nx".into()), chr_tex_nx_folder("chr/tex/nx"));
+    fn chr_folders() {
+        assert_eq!(None, chr_folder(""));
+        assert_eq!(Some("chr".into()), chr_folder("chr/tex/nx"));
         assert_eq!(
-            Some("xeno3/extracted/chr/tex/nx".into()),
-            chr_tex_nx_folder("xeno3/extracted/chr/ch/ch01011013.wimdo")
+            Some("xeno3/extracted/chr".into()),
+            chr_folder("xeno3/extracted/chr/ch/ch01011013.wimdo")
+        );
+        assert_eq!(None, chr_folder("xeno2/extracted/model/bl/bl000101.wimdo"));
+        assert_eq!(None, chr_folder(""));
+        assert_eq!(
+            Some("xcxde/extracted/chr".into()),
+            chr_folder("xcxde/extracted/chr/pc/pc221115.wimdo")
         );
         assert_eq!(
-            None,
-            chr_tex_nx_folder("xeno2/extracted/model/bl/bl000101.wimdo")
-        );
-    }
-
-    #[test]
-    fn chr_cmntex_folders() {
-        assert_eq!(None, chr_cmntex_folder(""));
-        assert_eq!(
-            Some("xcxde/extracted/chr/cmntex".into()),
-            chr_cmntex_folder("xcxde/extracted/chr/pc/pc221115.wimdo")
-        );
-        assert_eq!(
-            Some("xcxde/extracted/chr/cmntex".into()),
-            chr_cmntex_folder("xcxde/extracted/chr/en/en010201.wimdo")
+            Some("xcxde/extracted/chr".into()),
+            chr_folder("xcxde/extracted/chr/en/en010201.wimdo")
         );
     }
 }

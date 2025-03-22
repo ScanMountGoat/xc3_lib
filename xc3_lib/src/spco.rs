@@ -1,17 +1,12 @@
-use std::io::{Cursor, Read, Seek, SeekFrom};
-
-use crate::{
-    get_bytes, parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
-    parse_string_ptr32, spch::Spch, xc3_write_binwrite_impl, StringOffset32,
-};
-use binrw::{args, binread, BinRead, BinReaderExt, BinResult, BinWrite};
+use crate::{parse_count32_offset32, parse_ptr32, spch::Spch};
+use binrw::{binread, BinRead};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 // TODO: Add example code for extracting shaders.
 /// .wishp, embedded in .wismt and .wimdo
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(magic(b"OCPS"))]
 #[xc3(magic(b"OCPS"))]
 #[br(stream = r)]
