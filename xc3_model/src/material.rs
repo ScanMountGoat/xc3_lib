@@ -326,17 +326,9 @@ fn get_shader(
     spch: &xc3_lib::spch::Spch,
     shader_database: Option<&ShaderDatabase>,
 ) -> Option<ShaderProgram> {
+    // TODO: How to handle multiple techniques?
     let program_index = material.techniques.first()?.technique_index as usize;
-
-    let slct = spch
-        .slct_offsets
-        .get(program_index)?
-        .read_slct(&spch.slct_section)
-        .ok()?;
-    let binaries = spch.program_data_vertex_fragment_binaries(&slct);
-    let (p, v, f) = binaries.first()?;
-    let hash = ProgramHash::from_spch_program(p, v, f);
-
+    let hash = spch.get_program_hash(program_index)?;
     shader_database?.shader_program(hash)
 }
 
@@ -345,9 +337,8 @@ fn get_shader_legacy<S: GetProgramHash>(
     shaders: Option<&S>,
     shader_database: Option<&ShaderDatabase>,
 ) -> Option<ShaderProgram> {
-    // TODO: Some alpha materials have two techniques?
+    // TODO: How to handle multiple techniques?
     let program_index = material.techniques.last()?.technique_index as usize;
-
     let hash = shaders?.get_program_hash(program_index)?;
     let program = shader_database?.shader_program(hash)?;
 

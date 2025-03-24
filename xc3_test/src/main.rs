@@ -40,7 +40,6 @@ use xc3_lib::{
 use xc3_model::{load_skel, monolib::ShaderTextures, ModelRoot};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
-// TODO: Avoid redundant loads for wimdo and wismhd
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]
@@ -1349,7 +1348,7 @@ fn check_all_wimdo_model(root: &Path, check_read_write: bool) {
             // Avoid compressing or decompressing data more than once for performance.
             match Mxmd::from_file(path) {
                 Ok(mxmd) => {
-                    let streaming_data = xc3_model::StreamingData::from_files(
+                    let streaming_data = xc3_model::model::import::StreamingData::from_files(
                         &mxmd,
                         &path.with_extension("wismt"),
                         false,
@@ -1366,10 +1365,10 @@ fn check_all_wimdo_model(root: &Path, check_read_write: bool) {
                                 match &mxmd.inner {
                                     xc3_lib::mxmd::MxmdInner::V112(mxmd) => {
                                         match &streaming_data.vertex {
-                                            xc3_model::VertexData::Modern(v) => {
+                                            xc3_model::model::import::VertexData::Modern(v) => {
                                                 check_model(root, mxmd, v, path)
                                             }
-                                            xc3_model::VertexData::Legacy(_) => {
+                                            xc3_model::model::import::VertexData::Legacy(_) => {
                                                 // TODO: This case shouldn't happen.
                                                 todo!()
                                             }

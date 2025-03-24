@@ -6,7 +6,7 @@ use indexmap::IndexMap;
 use log::error;
 use rayon::prelude::*;
 use xc3_lib::{
-    error::{DecompressStreamError, ReadFileError},
+    error::DecompressStreamError,
     map::{FoliageMaterials, PropInstance, PropLod, PropPositions},
     mibl::Mibl,
     msmd::{ChannelType, MapParts, Msmd, StreamEntry},
@@ -14,9 +14,9 @@ use xc3_lib::{
 };
 
 use crate::{
-    create_materials, create_samplers,
+    create_materials,
     error::{CreateImageTextureError, LoadMapError},
-    lod_data,
+    model::import::{create_samplers, lod_data},
     shader_database::ShaderDatabase,
     skinning::create_skinning,
     texture::ImageTexture,

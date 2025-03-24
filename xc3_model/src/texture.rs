@@ -1,3 +1,4 @@
+use binrw::BinResult;
 use image_dds::{ddsfile::Dds, error::CreateImageError, CreateDdsError, Surface};
 use xc3_lib::{
     error::CreateMiblError,
@@ -286,6 +287,22 @@ pub fn load_textures_legacy(
     }
 
     Ok((low_texture_indices, image_textures))
+}
+
+pub fn load_packed_textures(
+    packed_textures: Option<&xc3_lib::mxmd::PackedTextures>,
+) -> BinResult<Vec<ExtractedTexture<Mibl, xc3_lib::mxmd::TextureUsage>>> {
+    match packed_textures {
+        Some(textures) => textures
+            .textures
+            .iter()
+            .map(|t| {
+                let mibl = Mibl::from_bytes(&t.mibl_data)?;
+                Ok(ExtractedTexture::from_mibl(&mibl, t.name.clone(), t.usage))
+            })
+            .collect(),
+        None => Ok(Vec::new()),
+    }
 }
 
 #[cfg(feature = "arbitrary")]
