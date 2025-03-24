@@ -61,7 +61,7 @@ pub fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Op
                             match Msrd::from_file(path.with_extension("wismt")) {
                                 Ok(msrd) => {
                                     if let Ok((_, spco, _)) = msrd.extract_files_legacy(None) {
-                                        if let Some(spch) = spco.items.first().map(|s| &s.spch) {
+                                        if let Some(spch) = spco.spch() {
                                             extract_shaders(
                                                 spch,
                                                 &output_folder,

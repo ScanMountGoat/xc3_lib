@@ -61,9 +61,9 @@ impl<'a> ModelFilesV40<'a> {
                 xc3_lib::msrd::StreamingInner::Streaming(_) => {
                     let msrd = Msrd::from_file(wismt_path).map_err(LoadModelError::Wismt)?;
                     // TODO: Does xcx de have pc files?
-                    let (vertex, spco, textures) = msrd.extract_files_legacy(chr_folder)?;
-                    // TODO: avoid index panic.
-                    let spch = spco.items[0].spch.clone();
+                    let (vertex, shaders, textures) = msrd.extract_files_legacy(chr_folder)?;
+                    // TODO: avoid unwrap
+                    let spch = shaders.spch().unwrap().clone();
 
                     <Result<_, LoadModelError>>::Ok((
                         Cow::Owned(vertex),

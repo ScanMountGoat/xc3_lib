@@ -246,6 +246,27 @@ pub fn pack_chr_textures(
     ))
 }
 
+#[derive(Debug, BinRead)]
+pub enum SpcoShaders {
+    Spch(Spch),
+    Spco(Spco),
+}
+
+impl SpcoShaders {
+    pub fn spch(&self) -> Option<&Spch> {
+        match self {
+            SpcoShaders::Spch(spch) => Some(spch),
+            SpcoShaders::Spco(spco) => spco.items.first().map(|i| &i.spch),
+        }
+    }
+}
+
+impl FromBytes for SpcoShaders {
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> binrw::BinResult<Self> {
+        Self::read_le(&mut Cursor::new(bytes))
+    }
+}
+
 impl Msrd {
     /// Extract all embedded files for a `wismt` file.
     ///
@@ -287,12 +308,11 @@ impl Msrd {
     ) -> Result<
         (
             crate::mxmd::legacy::VertexData,
-            Spco,
+            SpcoShaders,
             Vec<ExtractedTexture<Mibl, TextureUsage>>,
         ),
         ExtractStreamFilesError,
     > {
-        // TODO: This can be SPCH or SPCO?
         match &self.streaming.inner {
             StreamingInner::StreamingLegacy(_) => Err(ExtractStreamFilesError::LegacyStream),
             StreamingInner::Streaming(data) => data.extract_files(&self.data, chr_folder),
