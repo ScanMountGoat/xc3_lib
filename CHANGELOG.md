@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 * Changed skeleton creation to only produce a single root bone for improved compatibility.
 * Moved `xc3_write::write_full` to the `xc3_write::WriteFull` trait with a blanket impl covering the previous functionality.
+* Changed `xc3_lib::xbc1::Xbc1::decompress` to not validate the hash to greatly improve performance. Use `xc3_lib::xbc1::Xbc1::decompress_check_hash` to preserve the old functionality.
 
 ### Fixed
 * Fixed an issue where skeleton creation would not include MT_ bones.

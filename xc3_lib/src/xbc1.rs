@@ -110,8 +110,10 @@ impl Xbc1 {
         })
     }
 
-    /// Decompresses the data in [compressed_stream](#strutfield.compressed_stream)
-    /// using the appropriate algorithm.
+    /// Decompresses the data in [compressed_stream](#strutfield.compressed_stream).
+    ///
+    /// Unlike [Self::decompress_check_hash], this skips a slow hashing check
+    /// for the decompressed data.
     pub fn decompress(&self) -> Result<Vec<u8>, DecompressStreamError> {
         let decompressed = match self.compression_type {
             CompressionType::Uncompressed => Ok(self.compressed_stream.clone()),
@@ -125,6 +127,13 @@ impl Xbc1 {
             CompressionType::Zstd => zstd::stream::decode_all(Cursor::new(&self.compressed_stream))
                 .map_err(DecompressStreamError::from),
         }?;
+        Ok(decompressed)
+    }
+
+    /// Similar to [Self::decompress] but returns an error
+    /// if the hash of the decompressed data does not match.
+    pub fn decompress_check_hash(&self) -> Result<Vec<u8>, DecompressStreamError> {
+        let decompressed = self.decompress()?;
         let decompressed_hash = hash_crc(&decompressed);
         if decompressed_hash != self.decompressed_hash {
             return Err(DecompressStreamError::Checksum(decompressed));
@@ -132,7 +141,7 @@ impl Xbc1 {
         Ok(decompressed)
     }
 
-    /// Decompress and read the data by assuming ZLIB compression.
+    /// Decompress and parse the decompressed data.
     pub fn extract<T>(&self) -> Result<T, DecompressStreamError>
     where
         for<'a> T: BinRead<Args<'a> = ()>,
