@@ -246,7 +246,7 @@ pub fn pack_chr_textures(
     ))
 }
 
-#[derive(Debug, BinRead)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub enum SpcoShaders {
     Spch(Spch),
     Spco(Spco),
@@ -353,8 +353,31 @@ impl Msrd {
         textures: &[ExtractedTexture<Mibl, TextureUsage>],
         use_chr_textures: bool,
     ) -> Result<Self, CreateXbc1Error> {
+        Self::from_extracted_files_inner(vertex, spch, textures, use_chr_textures)
+    }
+
+    /// The Xenoblade X DE equivalent of [Self::from_extracted_files] for [Self::extract_files_legacy].
+    pub fn from_extracted_files_legacy(
+        vertex: &crate::mxmd::legacy::VertexData,
+        shaders: &SpcoShaders,
+        textures: &[ExtractedTexture<Mibl, TextureUsage>],
+        use_chr_textures: bool,
+    ) -> Result<Self, CreateXbc1Error> {
+        Self::from_extracted_files_inner(vertex, shaders, textures, use_chr_textures)
+    }
+
+    fn from_extracted_files_inner<V, S>(
+        vertex: &V,
+        shader: &S,
+        textures: &[ExtractedTexture<Mibl, TextureUsage>],
+        use_chr_textures: bool,
+    ) -> Result<Self, CreateXbc1Error>
+    where
+        V: WriteFull<Args = ()>,
+        S: WriteFull<Args = ()>,
+    {
         // TODO: This should actually be checking if the game is xenoblade 3.
-        let (mut streaming, data) = pack_files(vertex, spch, textures, use_chr_textures)?;
+        let (mut streaming, data) = pack_files(vertex, shader, textures, use_chr_textures)?;
 
         // HACK: We won't know the first xbc1 offset until writing the header.
         let mut writer = Cursor::new(Vec::new());
@@ -580,18 +603,22 @@ fn read_chr_tex_m_texture<T: FromBytes>(m_path: &Path) -> Result<T, ExtractStrea
     Ok(mid)
 }
 
-fn pack_files(
-    vertex: &VertexData,
-    spch: &Spch,
+fn pack_files<V, S>(
+    vertex: &V,
+    shader: &S,
     textures: &[ExtractedTexture<Mibl, TextureUsage>],
     use_chr_textures: bool,
-) -> Result<(StreamingData, Vec<u8>), CreateXbc1Error> {
+) -> Result<(StreamingData, Vec<u8>), CreateXbc1Error>
+where
+    V: WriteFull<Args = ()>,
+    S: WriteFull<Args = ()>,
+{
     let Streams {
         stream_entries,
         streams,
         low_textures,
         data,
-    } = create_streams(vertex, spch, textures)?;
+    } = create_streams(vertex, shader, textures)?;
 
     let vertex_data_entry_index = stream_entry_index(&stream_entries, EntryType::Vertex);
     let shader_entry_index = stream_entry_index(&stream_entries, EntryType::Shader);
@@ -670,16 +697,21 @@ struct Streams {
     data: Vec<u8>,
 }
 
-fn create_streams(
-    vertex: &VertexData,
-    spch: &Spch,
+fn create_streams<V, S>(
+    vertex: &V,
+    shader: &S,
     textures: &[ExtractedTexture<Mibl, TextureUsage>],
-) -> Result<Streams, CreateXbc1Error> {
+) -> Result<Streams, CreateXbc1Error>
+where
+    V: WriteFull<Args = ()>,
+    S: WriteFull<Args = ()>,
+{
     // Entries are in ascending order by offset and stream.
     // Data order is Vertex, Shader, LowTextures, Textures.
     let mut stream_entries = Vec::new();
 
-    let (low_textures, stream0_data) = write_stream0(&mut stream_entries, vertex, spch, textures)?;
+    let (low_textures, stream0_data) =
+        write_stream0(&mut stream_entries, vertex, shader, textures)?;
 
     // Always write high resolution textures to wismt for compatibility.
     // This works across all switch games and doesn't interfere with chr/tex/nx textures.
@@ -737,16 +769,20 @@ fn create_streams(
     })
 }
 
-fn write_stream0(
+fn write_stream0<V, S>(
     stream_entries: &mut Vec<StreamEntry>,
-    vertex: &VertexData,
-    spch: &Spch,
+    vertex: &V,
+    shader: &S,
     textures: &[ExtractedTexture<Mibl, TextureUsage>],
-) -> Result<(Vec<PackedExternalTexture<TextureUsage>>, Vec<u8>), CreateXbc1Error> {
+) -> Result<(Vec<PackedExternalTexture<TextureUsage>>, Vec<u8>), CreateXbc1Error>
+where
+    V: WriteFull<Args = ()>,
+    S: WriteFull<Args = ()>,
+{
     // Data in streams is tightly packed.
     let mut writer = Cursor::new(Vec::new());
     stream_entries.push(write_stream_data(&mut writer, vertex, EntryType::Vertex)?);
-    stream_entries.push(write_stream_data(&mut writer, spch, EntryType::Shader)?);
+    stream_entries.push(write_stream_data(&mut writer, shader, EntryType::Shader)?);
 
     let (entry, low_textures) = write_low_textures(&mut writer, textures)?;
     stream_entries.push(entry);

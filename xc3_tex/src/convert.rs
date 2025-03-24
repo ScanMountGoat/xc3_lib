@@ -366,10 +366,6 @@ pub fn update_wimdo_from_folder(
         );
     }
 
-    // We need to repack the entire wismt even though we only modify textures.
-    let msrd = Msrd::from_file(input_path.with_extension("wismt"))?;
-    let (vertex, spch, mut textures) = msrd.extract_files(chr_folder.as_deref())?;
-
     // Replace all textures to support adding or deleting textures.
     let mut mibls: Vec<_> = std::fs::read_dir(input_folder)?
         .filter_map(|e| {
@@ -390,8 +386,44 @@ pub fn update_wimdo_from_folder(
         }
     }
 
+    let count = mibls.len();
+
+    // We need to repack the entire wismt even though we only modify textures.
+    // This ensures the streaming header accounts for potential stream data changes.
+    match &mut mxmd.inner {
+        xc3_lib::mxmd::MxmdInner::V112(inner) => {
+            let msrd = Msrd::from_file(input_path.with_extension("wismt"))?;
+            let (vertex, spch, mut textures) = msrd.extract_files(chr_folder.as_deref())?;
+            replace_textures(mibls, &mut textures);
+
+            let new_msrd = Msrd::from_extracted_files(&vertex, &spch, &textures, uses_chr)?;
+            inner.streaming = Some(new_msrd.streaming.clone());
+
+            mxmd.save(output_path)?;
+            new_msrd.save(output_path.with_extension("wismt"))?;
+        }
+        xc3_lib::mxmd::MxmdInner::V40(inner) => {
+            let msrd = Msrd::from_file(input_path.with_extension("wismt"))?;
+            let (vertex, spch, mut textures) = msrd.extract_files_legacy(chr_folder.as_deref())?;
+            replace_textures(mibls, &mut textures);
+
+            let new_msrd = Msrd::from_extracted_files_legacy(&vertex, &spch, &textures, uses_chr)?;
+            inner.streaming = Some(new_msrd.streaming.clone());
+
+            mxmd.save(output_path)?;
+            new_msrd.save(output_path.with_extension("wismt"))?;
+        }
+    }
+
+    Ok(count)
+}
+
+fn replace_textures(
+    mibls: Vec<(usize, Mibl)>,
+    textures: &mut Vec<ExtractedTexture<Mibl, xc3_lib::mxmd::TextureUsage>>,
+) {
     // TODO: Also extract the name.
-    textures = mibls
+    *textures = mibls
         .into_iter()
         .map(|(i, mibl)| {
             ExtractedTexture::from_mibl(
@@ -404,23 +436,6 @@ pub fn update_wimdo_from_folder(
             )
         })
         .collect();
-
-    // Save files to disk.
-    let new_msrd = Msrd::from_extracted_files(&vertex, &spch, &textures, uses_chr)?;
-
-    match &mut mxmd.inner {
-        xc3_lib::mxmd::MxmdInner::V112(mxmd) => {
-            mxmd.streaming = Some(new_msrd.streaming.clone());
-        }
-        xc3_lib::mxmd::MxmdInner::V40(mxmd) => {
-            // TODO: rebuild v40 msrd and mxmd.
-            todo!()
-        }
-    }
-    mxmd.save(output_path)?;
-    new_msrd.save(output_path.with_extension("wismt"))?;
-
-    Ok(textures.len())
 }
 
 fn has_chr_textures(mxmd: &Mxmd) -> bool {
