@@ -47,7 +47,7 @@ use binrw::{
     NullString,
 };
 use tracing::{trace, trace_span};
-use xc3_write::{write_full, Xc3Write, Xc3WriteOffsets};
+use xc3_write::{WriteFull, Xc3Write, Xc3WriteOffsets};
 
 pub mod apmd;
 pub mod bc;
@@ -573,7 +573,7 @@ macro_rules! file_write_full_impl {
         $(
             impl $type_name {
                 pub fn write<W: Write + Seek>(&self, writer: &mut W) -> xc3_write::Xc3Result<()> {
-                    write_full(self, writer, 0, &mut 0, $endian, ()).map_err(Into::into)
+                    self.write_full(writer, 0, &mut 0, $endian, ()).map_err(Into::into)
                 }
 
                 /// Write to `path` using a buffered writer for better performance.

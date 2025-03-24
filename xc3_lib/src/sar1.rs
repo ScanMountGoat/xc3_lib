@@ -15,7 +15,7 @@ use crate::{
     parse_opt_offset32_inner_count32, parse_ptr32, parse_string_ptr32,
 };
 use binrw::{BinRead, BinReaderExt, BinResult, NullString};
-use xc3_write::{write_full, Xc3Write, Xc3WriteOffsets};
+use xc3_write::{WriteFull, Xc3Write, Xc3WriteOffsets};
 
 /// A simple archive containing named entries.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -62,11 +62,10 @@ impl Entry {
     /// Write the bytes from `data` to a new [Entry].
     pub fn new<T>(name: String, data: &T) -> xc3_write::Xc3Result<Self>
     where
-        T: Xc3Write + 'static,
-        for<'a> T::Offsets<'a>: Xc3WriteOffsets<Args = ()>,
+        T: WriteFull<Args = ()>,
     {
         let mut writer = Cursor::new(Vec::new());
-        write_full(data, &mut writer, 0, &mut 0, xc3_write::Endian::Little, ())?;
+        data.write_full(&mut writer, 0, &mut 0, xc3_write::Endian::Little, ())?;
 
         Ok(Self::from_entry_data(name, writer.into_inner()))
     }

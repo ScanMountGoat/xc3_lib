@@ -5,7 +5,7 @@ use std::{
 
 use image_dds::{ddsfile::Dds, Surface};
 use rayon::prelude::*;
-use xc3_write::Xc3Result;
+use xc3_write::{WriteFull, Xc3Result};
 
 use crate::{
     align,
@@ -359,14 +359,7 @@ impl Msrd {
         // HACK: We won't know the first xbc1 offset until writing the header.
         let mut writer = Cursor::new(Vec::new());
         let mut data_ptr = 0;
-        write_full(
-            &streaming,
-            &mut writer,
-            0,
-            &mut data_ptr,
-            xc3_write::Endian::Little,
-            (),
-        )?;
+        streaming.write_full(&mut writer, 0, &mut data_ptr, xc3_write::Endian::Little, ())?;
         // Add the streaming tag and msrd header size.
         let first_xbc1_offset = (data_ptr + 4).next_multiple_of(Xbc1::ALIGNMENT) as u32 + 16;
 
@@ -801,17 +794,16 @@ fn write_base_mip_streams<'a>(
     base_mips
 }
 
-fn write_stream_data<'a, T>(
+fn write_stream_data<T>(
     writer: &mut Cursor<Vec<u8>>,
-    data: &'a T,
+    data: &T,
     item_type: EntryType,
 ) -> Xc3Result<StreamEntry>
 where
-    T: Xc3Write + 'static,
-    T::Offsets<'a>: Xc3WriteOffsets<Args = ()>,
+    T: WriteFull<Args = ()>,
 {
     let offset = writer.stream_position()?;
-    write_full(data, writer, 0, &mut 0, xc3_write::Endian::Little, ())?;
+    data.write_full(writer, 0, &mut 0, xc3_write::Endian::Little, ())?;
 
     // Stream data is aligned to 4096 bytes.
     align(writer, writer.position(), 4096, 0)?;

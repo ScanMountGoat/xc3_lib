@@ -210,8 +210,8 @@ impl ModelRoot {
             .map_err(LoadModelError::VertexData)?;
 
         let models = Models::from_models(
-            &files.models,
-            &files.materials,
+            files.models,
+            files.materials,
             files.texture_indices.as_deref(),
             &files.spch,
             shader_database,
@@ -241,7 +241,7 @@ impl ModelRoot {
         let skeleton = create_skeleton(skel.as_ref(), None);
 
         let buffers =
-            ModelBuffers::from_vertex_data_legacy(&files.vertex, &files.models, Endian::Little)
+            ModelBuffers::from_vertex_data_legacy(&files.vertex, files.models, Endian::Little)
                 .map_err(LoadModelError::VertexData)?;
 
         let image_textures = load_textures(&files.textures)?;
@@ -249,8 +249,8 @@ impl ModelRoot {
         let texture_indices: Vec<_> = (0..image_textures.len() as u16).collect();
 
         let models = Models::from_models_legacy(
-            &files.models,
-            &files.materials,
+            files.models,
+            files.materials,
             Some(files.spch.as_ref()),
             shader_database,
             &texture_indices,

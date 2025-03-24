@@ -16,7 +16,7 @@ use binrw::{BinRead, BinReaderExt, BinWrite, NullString};
 use flate2::{bufread::ZlibEncoder, Compression};
 use zune_inflate::{DeflateDecoder, DeflateOptions};
 
-use xc3_write::{write_full, Xc3Write, Xc3WriteOffsets};
+use xc3_write::{WriteFull, Xc3Write};
 
 use crate::{
     error::{CreateXbc1Error, DecompressStreamError},
@@ -67,17 +67,16 @@ pub enum CompressionType {
 impl Xbc1 {
     /// Write and compress `data`.
     /// Use [CompressionType::Zlib] for best compatibility.
-    pub fn new<'a, T>(
+    pub fn new<T>(
         name: String,
-        data: &'a T,
+        data: &T,
         compression_type: CompressionType,
     ) -> Result<Self, CreateXbc1Error>
     where
-        T: Xc3Write + 'static,
-        T::Offsets<'a>: Xc3WriteOffsets<Args = ()>,
+        T: WriteFull<Args = ()>,
     {
         let mut writer = Cursor::new(Vec::new());
-        write_full(data, &mut writer, 0, &mut 0, xc3_write::Endian::Little, ())?;
+        data.write_full(&mut writer, 0, &mut 0, xc3_write::Endian::Little, ())?;
         let decompressed = writer.into_inner();
 
         Self::from_decompressed(name, &decompressed, compression_type)

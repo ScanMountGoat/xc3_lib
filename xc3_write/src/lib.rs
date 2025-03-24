@@ -1,9 +1,4 @@
 //! A binary writing and layout implementation using separate write and layout passes.
-//!
-//! An object's size is defined as the difference between the writer position
-//! before and after the first pass and does not need to be user defined.
-//! Custom implementations of [Xc3Write] should ensure the write head points after the data
-//! when the function returns to ensure correct size calculations.
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
@@ -31,6 +26,11 @@ pub trait Xc3Write {
 
     /// Write all fields and placeholder offsets.
     /// This should almost always be derived for non primitive types.
+    ///
+    /// An object's size is defined as the difference between the writer position
+    /// before and after the first pass and does not need to be user defined.
+    /// Custom implementations of [Xc3Write] should ensure the write head points after the data
+    /// when the function returns to ensure correct size calculations.
     fn xc3_write<W: Write + Seek>(
         &self,
         writer: &mut W,
@@ -69,31 +69,52 @@ pub trait Xc3WriteOffsets {
     ) -> Xc3Result<()>;
 }
 
-/// A complete write uses a two pass approach to handle offsets.
+/// A complete writing combining [Xc3Write] and [Xc3WriteOffsets].
 ///
-/// We can fully write any type that can fully write its offset values.
-/// This includes types with an offset type of () like primitive types.
-pub fn write_full<'a, T, W, A>(
-    value: &'a T,
-    writer: &mut W,
-    base_offset: u64,
-    data_ptr: &mut u64,
-    endian: Endian,
-    offset_args: A,
-) -> Xc3Result<()>
-where
-    W: Write + Seek,
-    T: Xc3Write + 'static,
-    T::Offsets<'a>: Xc3WriteOffsets<Args = A>,
-{
-    // Ensure all items are written before their pointed to data.
-    let offsets = value.xc3_write(writer, endian)?;
-    *data_ptr = (*data_ptr).max(writer.stream_position()?);
+/// Most types should rely on the blanket impl.
+/// For types without offsets, simply set [Xc3WriteOffsets::Args] to the unit type `()`.
+pub trait WriteFull {
+    /// The type for [Xc3WriteOffsets::Args].
+    type Args;
 
-    offsets.write_offsets(writer, base_offset, data_ptr, endian, offset_args)?;
-    // Account for padding or alignment added after writing.
-    *data_ptr = (*data_ptr).max(writer.stream_position()?);
-    Ok(())
+    /// A complete write uses a two pass approach to handle offsets.
+    ///
+    /// We can fully write any type that can fully write its offset values.
+    /// This includes types with an offset type of () like primitive types.
+    fn write_full<W: Write + Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+        endian: Endian,
+        offset_args: Self::Args,
+    ) -> Xc3Result<()>;
+}
+
+impl<T, A> WriteFull for T
+where
+    T: Xc3Write,
+    for<'a> T::Offsets<'a>: Xc3WriteOffsets<Args = A>,
+{
+    type Args = A;
+
+    fn write_full<W: Write + Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+        endian: Endian,
+        offset_args: Self::Args,
+    ) -> Xc3Result<()> {
+        // Ensure all items are written before their pointed to data.
+        let offsets = self.xc3_write(writer, endian)?;
+        *data_ptr = (*data_ptr).max(writer.stream_position()?);
+
+        offsets.write_offsets(writer, base_offset, data_ptr, endian, offset_args)?;
+        // Account for padding or alignment added after writing.
+        *data_ptr = (*data_ptr).max(writer.stream_position()?);
+        Ok(())
+    }
 }
 
 // Support importing both the trait and derive macro at once.
@@ -228,10 +249,9 @@ where
     }
 }
 
-impl<'a, P, T, A> Offset<'a, P, T>
+impl<P, T> Offset<'_, P, T>
 where
-    T: Xc3Write + 'static,
-    T::Offsets<'a>: Xc3WriteOffsets<Args = A>,
+    T: Xc3Write + WriteFull,
     P: TryFrom<u64> + Xc3Write,
     <P as TryFrom<u64>>::Error: std::fmt::Debug,
 {
@@ -241,7 +261,7 @@ where
         base_offset: u64,
         data_ptr: &mut u64,
         endian: Endian,
-        args: A,
+        args: T::Args,
     ) -> Xc3Result<()> {
         // Always skip null offsets but not always empty vecs.
         if let Some(should_write) = self.data.should_write() {
@@ -253,7 +273,8 @@ where
                 should_write,
                 endian,
             )?;
-            write_full(self.data, writer, base_offset, data_ptr, endian, args)?;
+            self.data
+                .write_full(writer, base_offset, data_ptr, endian, args)?;
         }
         Ok(())
     }

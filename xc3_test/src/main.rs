@@ -43,7 +43,7 @@ use xc3_model::{
     monolib::ShaderTextures,
     ModelRoot,
 };
-use xc3_write::{Xc3Write, Xc3WriteOffsets};
+use xc3_write::WriteFull;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -1478,21 +1478,23 @@ fn check_all_collisions(root: &Path, _check_read_write: bool) {
 
 fn write_le_bytes_equals<T>(value: &T, original_bytes: &[u8]) -> bool
 where
-    T: Xc3Write + 'static,
-    for<'a> T::Offsets<'a>: Xc3WriteOffsets<Args = ()>,
+    T: WriteFull<Args = ()>,
 {
     let mut writer = Cursor::new(Vec::new());
-    xc3_write::write_full(value, &mut writer, 0, &mut 0, xc3_write::Endian::Little, ()).unwrap();
+    value
+        .write_full(&mut writer, 0, &mut 0, xc3_write::Endian::Little, ())
+        .unwrap();
     writer.into_inner() == original_bytes
 }
 
 fn write_be_bytes_equals<T>(value: &T, original_bytes: &[u8]) -> bool
 where
-    T: Xc3Write + 'static,
-    for<'a> T::Offsets<'a>: Xc3WriteOffsets<Args = ()>,
+    T: WriteFull<Args = ()>,
 {
     let mut writer = Cursor::new(Vec::new());
-    xc3_write::write_full(value, &mut writer, 0, &mut 0, xc3_write::Endian::Big, ()).unwrap();
+    value
+        .write_full(&mut writer, 0, &mut 0, xc3_write::Endian::Big, ())
+        .unwrap();
     writer.into_inner() == original_bytes
 }
 

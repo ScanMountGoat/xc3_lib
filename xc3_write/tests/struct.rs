@@ -1,7 +1,7 @@
 use std::io::Cursor;
 
 use hexlit::hex;
-use xc3_write::{assert_hex_eq, Endian, Xc3Write, Xc3WriteOffsets};
+use xc3_write::{assert_hex_eq, Endian, WriteFull, Xc3Write, Xc3WriteOffsets};
 
 #[derive(Xc3Write, Xc3WriteOffsets)]
 #[xc3(align_after(20))]
@@ -25,7 +25,9 @@ fn write_struct_no_offsets() {
     };
 
     let mut writer = Cursor::new(Vec::new());
-    xc3_write::write_full(&value, &mut writer, 0, &mut 0, Endian::Little, ()).unwrap();
+    value
+        .write_full(&mut writer, 0, &mut 0, Endian::Little, ())
+        .unwrap();
 
     assert_hex_eq!(
         hex!(01000000 02ffff61 626300 0000803f 0000000000),

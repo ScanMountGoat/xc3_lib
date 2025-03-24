@@ -1,7 +1,7 @@
 //! Animation and skeleton data in `.anm` or `.motstm_data` files or [Sar1](crate::sar1::Sar1) archives.
 use crate::{parse_offset64_count32, parse_ptr64, parse_string_ptr64};
 use binrw::{args, binread, BinRead};
-use xc3_write::{Xc3Write, Xc3WriteOffsets};
+use xc3_write::{WriteFull, Xc3Write, Xc3WriteOffsets};
 
 use anim::Anim;
 use asmb::Asmb;
@@ -137,11 +137,11 @@ where
 impl<'a, T, const N: u64> Xc3WriteOffsets for BcListNOffsets<'a, T, N>
 where
     T: Xc3Write + 'static,
-    for<'b> T: BinRead<Args<'b> = ()>,
     <T as Xc3Write>::Offsets<'a>: Xc3WriteOffsets,
     <<T as Xc3Write>::Offsets<'a> as Xc3WriteOffsets>::Args: Clone,
+    Vec<T>: WriteFull,
 {
-    type Args = <<T as Xc3Write>::Offsets<'a> as Xc3WriteOffsets>::Args;
+    type Args = <Vec<T> as WriteFull>::Args;
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
         &self,
@@ -246,6 +246,7 @@ impl<'a, T> Xc3WriteOffsets for BcListCountOffsets<'a, T>
 where
     T: Xc3Write + 'static,
     T::Offsets<'a>: Xc3WriteOffsets<Args = ()>,
+    Vec<T>: WriteFull<Args = ()>,
 {
     type Args = ();
 
