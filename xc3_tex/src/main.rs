@@ -24,7 +24,7 @@ use xc3_lib::{
 
 use crate::convert::{extract_bmn_to_folder, extract_camdo_to_folder};
 
-/// Convert texture files for Xenoblade X, Xenoblade 1 DE, Xenoblade 2, and Xenoblade 3.
+/// Convert texture files for Xenoblade X, Xenoblade 1 DE, Xenoblade 2, Xenoblade 3, and Xenoblade X DE.
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]

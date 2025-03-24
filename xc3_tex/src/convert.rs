@@ -412,7 +412,10 @@ pub fn update_wimdo_from_folder(
         xc3_lib::mxmd::MxmdInner::V112(mxmd) => {
             mxmd.streaming = Some(new_msrd.streaming.clone());
         }
-        xc3_lib::mxmd::MxmdInner::V40(_mxmd) => todo!(),
+        xc3_lib::mxmd::MxmdInner::V40(mxmd) => {
+            // TODO: rebuild v40 msrd and mxmd.
+            todo!()
+        }
     }
     mxmd.save(output_path)?;
     new_msrd.save(output_path.with_extension("wismt"))?;
@@ -605,7 +608,27 @@ fn extract_wimdo_textures(mxmd: Mxmd, input: &Path) -> anyhow::Result<Vec<(Strin
                 Ok(Vec::new())
             }
         }
-        xc3_lib::mxmd::MxmdInner::V40(_mxmd) => todo!(),
+        xc3_lib::mxmd::MxmdInner::V40(mxmd) => {
+            if mxmd.streaming.is_some() {
+                let msrd = Msrd::from_file(input.with_extension("wismt"))?;
+                let (_, _, textures) = msrd.extract_files_legacy(chr_folder.as_deref())?;
+
+                for texture in textures {
+                    let dds = texture.surface_final()?.to_dds()?;
+                    result.push((texture.name, dds));
+                }
+                Ok(result)
+            } else if let Some(textures) = mxmd.packed_textures {
+                for texture in textures.textures {
+                    let mibl = Mibl::from_bytes(&texture.mibl_data)?;
+                    let dds = mibl.to_dds()?;
+                    result.push((texture.name, dds));
+                }
+                Ok(result)
+            } else {
+                Ok(Vec::new())
+            }
+        }
     }
 }
 
