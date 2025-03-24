@@ -37,7 +37,12 @@ use xc3_lib::{
     spch::Spch,
     xbc1::{MaybeXbc1, Xbc1},
 };
-use xc3_model::{load_skel, monolib::ShaderTextures, ModelRoot};
+use xc3_model::{
+    load_skel,
+    model::import::{ModelFilesV112, ModelFilesV40},
+    monolib::ShaderTextures,
+    ModelRoot,
+};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 #[derive(Parser)]
@@ -1343,50 +1348,50 @@ fn check_all_wimdo_model(root: &Path, check_read_write: bool) {
         .par_bridge()
         .for_each(|entry| {
             let path = entry.as_ref().unwrap().path();
+            let wismt_path = path.with_extension("wismt");
+            let chr = chr_folder(path);
+
+            let model_name = path.file_stem().unwrap_or_default().to_string_lossy();
+            let skel = load_skel(path, &model_name);
 
             // Test reimporting models without any changes.
             // Avoid compressing or decompressing data more than once for performance.
             match Mxmd::from_file(path) {
-                Ok(mxmd) => {
-                    let streaming_data = xc3_model::model::import::StreamingData::from_files(
-                        &mxmd,
-                        &path.with_extension("wismt"),
-                        false,
-                        None,
-                    )
-                    .unwrap();
-
-                    let model_name = path.file_stem().unwrap_or_default().to_string_lossy();
-                    let skel = load_skel(path, &model_name);
-
-                    match ModelRoot::from_mxmd_model(&mxmd, skel, &streaming_data, None) {
-                        Ok(root) => {
-                            if check_read_write {
-                                match &mxmd.inner {
-                                    xc3_lib::mxmd::MxmdInner::V112(mxmd) => {
-                                        match &streaming_data.vertex {
-                                            xc3_model::model::import::VertexData::Modern(v) => {
-                                                check_model(root, mxmd, v, path)
-                                            }
-                                            xc3_model::model::import::VertexData::Legacy(_) => {
-                                                // TODO: This case shouldn't happen.
-                                                todo!()
-                                            }
-                                        }
+                Ok(mxmd) => match mxmd.inner {
+                    xc3_lib::mxmd::MxmdInner::V40(mxmd) => {
+                        match ModelFilesV40::from_files(&mxmd, &wismt_path, chr.as_deref()) {
+                            Ok(files) => {
+                                match ModelRoot::from_mxmd_v40(&files, skel, None) {
+                                    Ok(_root) => {
+                                        // TODO: test v40 model rebuilding.
                                     }
-                                    xc3_lib::mxmd::MxmdInner::V40(_mxmd) => (),
+                                    Err(e) => println!("Error loading {path:?}: {e}"),
                                 }
                             }
+                            Err(e) => println!("Error loading files from {path:?}: {e}"),
                         }
-                        Err(e) => println!("Error loading {path:?}: {e}"),
                     }
-                }
+                    xc3_lib::mxmd::MxmdInner::V112(mxmd) => {
+                        match ModelFilesV112::from_files(&mxmd, &wismt_path, chr.as_deref(), false)
+                        {
+                            Ok(files) => match ModelRoot::from_mxmd_v112(&files, skel, None) {
+                                Ok(root) => {
+                                    if check_read_write {
+                                        check_model_export(root, &mxmd, &files.vertex, path);
+                                    }
+                                }
+                                Err(e) => println!("Error loading {path:?}: {e}"),
+                            },
+                            Err(e) => println!("Error loading files from {path:?}: {e}"),
+                        }
+                    }
+                },
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }
         });
 }
 
-fn check_model(
+fn check_model_export(
     root: xc3_model::ModelRoot,
     mxmd: &MxmdV112,
     vertex: &xc3_lib::vertex::VertexData,

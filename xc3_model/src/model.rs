@@ -1,2 +1,2 @@
 mod export;
-pub mod import; // TODO: make this private
+pub mod import;

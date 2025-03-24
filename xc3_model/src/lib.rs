@@ -35,7 +35,7 @@ use error::{LoadModelError, LoadModelLegacyError};
 use glam::{Mat4, Vec3};
 use indexmap::IndexMap;
 use material::{create_materials, create_materials_samplers_legacy};
-use model::import::StreamingData;
+use model::import::{ModelFilesV112, ModelFilesV40};
 use shader_database::ShaderDatabase;
 use skinning::Skinning;
 use vertex::ModelBuffers;
@@ -279,7 +279,7 @@ pub fn load_model<P: AsRef<Path>>(
     let wimdo_path = wimdo_path.as_ref();
 
     let mxmd = load_wimdo(wimdo_path)?;
-    let chr_folder = chr_folder(wimdo_path);
+    let chr = chr_folder(wimdo_path);
 
     // Desktop PC models aren't used in game but are straightforward to support.
     let is_pc = wimdo_path.extension().and_then(|e| e.to_str()) == Some("pcmdo");
@@ -289,14 +289,19 @@ pub fn load_model<P: AsRef<Path>>(
         wimdo_path.with_extension("wismt")
     };
 
-    // TODO: match on mxmd version here only once?
-    let streaming_data =
-        StreamingData::from_files(&mxmd, &wismt_path, is_pc, chr_folder.as_deref())?;
-
     let model_name = model_name(wimdo_path);
     let skel = load_skel(wimdo_path, &model_name);
 
-    ModelRoot::from_mxmd_model(&mxmd, skel, &streaming_data, shader_database)
+    match mxmd.inner {
+        xc3_lib::mxmd::MxmdInner::V40(mxmd) => {
+            let files = ModelFilesV40::from_files(&mxmd, &wismt_path, chr.as_deref())?;
+            ModelRoot::from_mxmd_v40(&files, skel, shader_database)
+        }
+        xc3_lib::mxmd::MxmdInner::V112(mxmd) => {
+            let files = ModelFilesV112::from_files(&mxmd, &wismt_path, chr.as_deref(), is_pc)?;
+            ModelRoot::from_mxmd_v112(&files, skel, shader_database)
+        }
+    }
 }
 
 pub fn load_skel(wimdo: &Path, model_name: &str) -> Option<xc3_lib::bc::skel::Skel> {
