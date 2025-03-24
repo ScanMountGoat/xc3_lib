@@ -28,12 +28,11 @@ use std::{borrow::Cow, io::SeekFrom};
 use binrw::{binrw, BinRead, BinWrite};
 use image_dds::{ddsfile::Dds, Surface};
 use tegra_swizzle::surface::BlockDim;
-use thiserror::Error;
 use xc3_write::Xc3Write;
 
 pub use tegra_swizzle::SwizzleError;
 
-use crate::xc3_write_binwrite_impl;
+use crate::{error::CreateMiblError, xc3_write_binwrite_impl};
 
 /// A swizzled image texture surface.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -200,18 +199,6 @@ impl BinWrite for Mibl {
 }
 
 xc3_write_binwrite_impl!(Mibl);
-
-#[derive(Debug, Error)]
-pub enum CreateMiblError {
-    #[error("error swizzling surface")]
-    SwizzleError(#[from] tegra_swizzle::SwizzleError),
-
-    #[error("error creating surface from DDS")]
-    DdsError(#[from] image_dds::error::SurfaceError),
-
-    #[error("image format {0:?} is not supported by Mibl")]
-    UnsupportedImageFormat(image_dds::ImageFormat),
-}
 
 impl Mibl {
     /// Deswizzles all layers and mipmaps to a standard row-major memory layout.

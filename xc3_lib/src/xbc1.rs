@@ -14,12 +14,14 @@ use std::{
 
 use binrw::{BinRead, BinReaderExt, BinWrite, NullString};
 use flate2::{bufread::ZlibEncoder, Compression};
-use thiserror::Error;
 use zune_inflate::{DeflateDecoder, DeflateOptions};
 
 use xc3_write::{write_full, Xc3Write, Xc3WriteOffsets};
 
-use crate::{error::DecompressStreamError, hash::hash_crc};
+use crate::{
+    error::{CreateXbc1Error, DecompressStreamError},
+    hash::hash_crc,
+};
 
 /// A compressed container for a single file or stream.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -60,12 +62,6 @@ pub enum CompressionType {
     Zlib = 1,
     /// Zstandard compression used for Xenoblade 3's .ard file archive.
     Zstd = 3,
-}
-
-#[derive(Debug, Error)]
-pub enum CreateXbc1Error {
-    #[error("error reading or writing data")]
-    Io(#[from] std::io::Error),
 }
 
 impl Xbc1 {

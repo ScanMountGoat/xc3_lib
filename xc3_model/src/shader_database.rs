@@ -14,21 +14,10 @@ use std::{collections::BTreeMap, path::Path};
 use indexmap::IndexMap;
 use ordered_float::OrderedFloat;
 use smol_str::SmolStr;
-use thiserror::Error;
+
+use crate::error::{LoadShaderDatabaseError, SaveShaderDatabaseError};
 
 mod io;
-
-#[derive(Debug, Error)]
-pub enum LoadShaderDatabaseError {
-    #[error("error reading shader file")]
-    Io(#[from] binrw::Error),
-}
-
-#[derive(Debug, Error)]
-pub enum SaveShaderDatabaseError {
-    #[error("error writing shader file")]
-    Io(#[from] binrw::Error),
-}
 
 /// Metadata for the assigned shaders for all models and maps in a game dump.
 #[derive(Debug, PartialEq, Clone)]

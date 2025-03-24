@@ -32,14 +32,16 @@
 use std::{borrow::Cow, collections::BTreeMap, io::BufWriter, path::Path};
 
 use crate::{
-    animation::Animation, monolib::ShaderTextures, skeleton::merge_skeletons, MapRoot, ModelRoot,
-    Transform,
+    animation::Animation,
+    error::{CreateGltfError, SaveGltfError},
+    monolib::ShaderTextures,
+    skeleton::merge_skeletons,
+    MapRoot, ModelRoot, Transform,
 };
 use animation::add_animations;
 use glam::Mat4;
 use gltf::json::validation::Checked::Valid;
 use rayon::prelude::*;
-use thiserror::Error;
 
 use self::{
     buffer::{BufferKey, Buffers, WeightGroupKey},
@@ -51,22 +53,6 @@ mod animation;
 mod buffer;
 mod material;
 mod texture;
-
-// TODO: Add more error variants.
-#[derive(Debug, Error)]
-pub enum CreateGltfError {
-    #[error("error writing buffers")]
-    Binrw(#[from] binrw::Error),
-}
-
-#[derive(Debug, Error)]
-pub enum SaveGltfError {
-    #[error("error writing files")]
-    Io(#[from] std::io::Error),
-
-    #[error("error serializing JSON file")]
-    Json(#[from] serde_json::Error),
-}
 
 /// glTF JSON, binary, and image data for a model or map.
 #[derive(Debug)]

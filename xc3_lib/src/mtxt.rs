@@ -9,12 +9,11 @@ use std::io::SeekFrom;
 
 use binrw::{binrw, BinRead, BinWrite};
 use image_dds::{ddsfile::Dds, Surface};
-use thiserror::Error;
 use xc3_write::Xc3Write;
 
 pub use wiiu_swizzle::SwizzleError;
 
-use crate::xc3_write_binwrite_impl;
+use crate::{error::CreateMtxtError, xc3_write_binwrite_impl};
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinWrite, PartialEq, Eq, Clone)]
@@ -110,18 +109,6 @@ pub enum TileMode {
     D1TiledThin1 = 2,
     D2TiledThin1 = 4,
     D2TiledThick = 7,
-}
-
-#[derive(Debug, Error)]
-pub enum CreateMtxtError {
-    #[error("error swizzling surface")]
-    SwizzleError(#[from] tegra_swizzle::SwizzleError),
-
-    #[error("error creating surface from DDS")]
-    DdsError(#[from] image_dds::error::SurfaceError),
-
-    #[error("image format {0:?} is not supported by Mibl")]
-    UnsupportedImageFormat(image_dds::ImageFormat),
 }
 
 impl BinRead for Mtxt {

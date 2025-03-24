@@ -1,8 +1,7 @@
 use image_dds::{ddsfile::Dds, error::CreateImageError, CreateDdsError, Surface};
-use log::error;
-use thiserror::Error;
 use xc3_lib::{
-    mibl::{CreateMiblError, Mibl},
+    error::CreateMiblError,
+    mibl::Mibl,
     msrd::streaming::ExtractedTexture,
     mtxt::Mtxt,
     mxmd::{legacy::MxmdLegacy, PackedTexture},
@@ -11,7 +10,7 @@ use xc3_lib::{
 pub use xc3_lib::mibl::{ImageFormat, ViewDimension};
 pub use xc3_lib::mxmd::TextureUsage;
 
-use crate::get_bytes;
+use crate::{error::CreateImageTextureError, get_bytes};
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug)]
@@ -21,27 +20,6 @@ pub enum ExtractedTextures {
         #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_dds_textures))]
         Vec<ExtractedTexture<Dds, TextureUsage>>,
     ),
-}
-
-#[derive(Debug, Error)]
-pub enum CreateImageTextureError {
-    #[error("error deswizzling surface")]
-    SwizzleMibl(#[from] xc3_lib::mibl::SwizzleError),
-
-    #[error("error deswizzling surface")]
-    SwizzleMtxt(#[from] xc3_lib::mtxt::SwizzleError),
-
-    #[error("error reading data")]
-    Binrw(#[from] binrw::Error),
-
-    #[error("error decompressing stream")]
-    Stream(#[from] xc3_lib::error::DecompressStreamError),
-
-    #[error("error converting image surface")]
-    Surface(#[from] image_dds::error::SurfaceError),
-
-    #[error("error converting Mibl texture")]
-    Mibl(#[from] xc3_lib::mibl::CreateMiblError),
 }
 
 /// A non swizzled version of an [Mibl] or [Mtxt] texture.

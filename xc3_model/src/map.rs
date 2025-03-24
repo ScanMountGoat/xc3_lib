@@ -5,41 +5,23 @@ use image_dds::Surface;
 use indexmap::IndexMap;
 use log::error;
 use rayon::prelude::*;
-use thiserror::Error;
 use xc3_lib::{
-    error::DecompressStreamError,
+    error::{DecompressStreamError, ReadFileError},
     map::{FoliageMaterials, PropInstance, PropLod, PropPositions},
     mibl::Mibl,
     msmd::{ChannelType, MapParts, Msmd, StreamEntry},
     mxmd::{RenderPassType, StateFlags, TextureUsage},
-    ReadFileError,
 };
 
 use crate::{
-    create_materials, create_samplers, lod_data,
+    create_materials, create_samplers,
+    error::{CreateImageTextureError, LoadMapError},
+    lod_data,
     shader_database::ShaderDatabase,
     skinning::create_skinning,
-    texture::{self, CreateImageTextureError, ImageTexture},
+    texture::ImageTexture,
     IndexMapExt, MapRoot, Material, Model, ModelBuffers, ModelGroup, Models, Texture,
 };
-
-#[derive(Debug, Error)]
-pub enum LoadMapError {
-    #[error("error reading data")]
-    Io(#[from] std::io::Error),
-
-    #[error("error reading wismhd file")]
-    Wismhd(#[source] ReadFileError),
-
-    #[error("error reading data")]
-    Binrw(#[from] binrw::Error),
-
-    #[error("error loading image texture")]
-    Image(#[from] texture::CreateImageTextureError),
-
-    #[error("error decompressing stream")]
-    Stream(#[from] xc3_lib::error::DecompressStreamError),
-}
 
 /// Load a map from a `.wismhd` file.
 /// The corresponding `.wismda` should be in the same directory.

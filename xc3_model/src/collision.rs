@@ -1,8 +1,9 @@
 use std::path::Path;
 
 use glam::{Mat4, Vec4};
-use thiserror::Error;
-use xc3_lib::{idcm::Idcm, ReadFileError};
+use xc3_lib::idcm::Idcm;
+
+use crate::error::LoadCollisionsError;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct CollisionMeshes {
@@ -20,12 +21,6 @@ pub struct CollisionMesh {
 
     /// Triangle list vertex indices.
     pub indices: Vec<u32>,
-}
-
-#[derive(Debug, Error)]
-pub enum LoadCollisionsError {
-    #[error("error reading idcm streaming file")]
-    Idcm(#[from] ReadFileError),
 }
 
 /// Load all collisions from a `.wiidcm` or `.idcm` file.

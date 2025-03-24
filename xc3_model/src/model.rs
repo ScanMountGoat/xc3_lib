@@ -9,9 +9,10 @@ use xc3_lib::{
 };
 
 use crate::{
+    error::CreateModelError,
     skinning::BoneConstraintType,
     vertex::{AttributeData, ModelBuffers},
-    CreateModelError, ImageTexture, IndexMapExt, ModelRoot,
+    ImageTexture, IndexMapExt, ModelRoot,
 };
 
 // TODO: Not possible to make files compatible with all game versions?

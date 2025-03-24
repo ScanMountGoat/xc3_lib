@@ -5,12 +5,11 @@ use std::{
 
 use image_dds::{ddsfile::Dds, Surface};
 use rayon::prelude::*;
-use thiserror::Error;
 use xc3_write::Xc3Result;
 
 use crate::{
     align,
-    error::DecompressStreamError,
+    error::{CreateXbc1Error, DecompressStreamError, ExtractStreamFilesError, ReadFileError},
     get_bytes,
     mibl::Mibl,
     mtxt::Mtxt,
@@ -18,23 +17,11 @@ use crate::{
     spch::Spch,
     spco::Spco,
     vertex::VertexData,
-    xbc1::{CompressionType, CreateXbc1Error},
-    FromBytes, ReadFileError,
+    xbc1::CompressionType,
+    FromBytes,
 };
 
 use super::*;
-
-#[derive(Debug, Error)]
-pub enum ExtractFilesError {
-    #[error("error decompressing stream")]
-    Stream(#[from] DecompressStreamError),
-
-    #[error("error reading chr/tex texture")]
-    ChrTexTexture(#[from] ReadFileError),
-
-    #[error("legacy streams do not contain all necessary data")]
-    LegacyStream,
-}
 
 // TODO: Add a function to create an extractedtexture from a surface?
 /// All the mip levels and metadata for an [Mibl] (Switch) or [Dds] (PC) texture.
@@ -268,11 +255,13 @@ impl Msrd {
     pub fn extract_files(
         &self,
         chr_folder: Option<&Path>,
-    ) -> Result<(VertexData, Spch, Vec<ExtractedTexture<Mibl, TextureUsage>>), ExtractFilesError>
-    {
+    ) -> Result<
+        (VertexData, Spch, Vec<ExtractedTexture<Mibl, TextureUsage>>),
+        ExtractStreamFilesError,
+    > {
         // TODO: Return just textures for legacy data?
         match &self.streaming.inner {
-            StreamingInner::StreamingLegacy(_) => Err(ExtractFilesError::LegacyStream),
+            StreamingInner::StreamingLegacy(_) => Err(ExtractStreamFilesError::LegacyStream),
             StreamingInner::Streaming(data) => data.extract_files(&self.data, chr_folder),
         }
     }
@@ -280,10 +269,10 @@ impl Msrd {
     /// Extract all embedded files for a `pcsmt` file.
     pub fn extract_files_pc(
         &self,
-    ) -> Result<(VertexData, Spch, Vec<ExtractedTexture<Dds, TextureUsage>>), ExtractFilesError>
+    ) -> Result<(VertexData, Spch, Vec<ExtractedTexture<Dds, TextureUsage>>), ExtractStreamFilesError>
     {
         match &self.streaming.inner {
-            StreamingInner::StreamingLegacy(_) => Err(ExtractFilesError::LegacyStream),
+            StreamingInner::StreamingLegacy(_) => Err(ExtractStreamFilesError::LegacyStream),
             StreamingInner::Streaming(data) => data.extract_files(&self.data, None),
         }
     }
@@ -301,11 +290,11 @@ impl Msrd {
             Spco,
             Vec<ExtractedTexture<Mibl, TextureUsage>>,
         ),
-        ExtractFilesError,
+        ExtractStreamFilesError,
     > {
         // TODO: This can be SPCH or SPCO?
         match &self.streaming.inner {
-            StreamingInner::StreamingLegacy(_) => Err(ExtractFilesError::LegacyStream),
+            StreamingInner::StreamingLegacy(_) => Err(ExtractStreamFilesError::LegacyStream),
             StreamingInner::Streaming(data) => data.extract_files(&self.data, chr_folder),
         }
     }
@@ -415,7 +404,7 @@ impl StreamingData {
         &self,
         data: &[u8],
         chr_folder: Option<&Path>,
-    ) -> Result<(V, S, Vec<ExtractedTexture<T, TextureUsage>>), ExtractFilesError> {
+    ) -> Result<(V, S, Vec<ExtractedTexture<T, TextureUsage>>), ExtractStreamFilesError> {
         let stream0 = self.get_stream(0)?;
         let first_xbc1_offset = stream0.xbc1_offset;
 
@@ -472,7 +461,7 @@ impl StreamingData {
         data: &[u8],
         low_texture_data: &[u8],
         tex_folder: Option<P>,
-    ) -> Result<Vec<ExtractedTexture<T, TextureUsage>>, ExtractFilesError> {
+    ) -> Result<Vec<ExtractedTexture<T, TextureUsage>>, ExtractStreamFilesError> {
         // Start with no high res textures or base mip levels.
         let mut textures = self.extract_low_textures(low_texture_data)?;
 
@@ -561,16 +550,16 @@ impl StreamingData {
     }
 }
 
-fn read_chr_tex_h_texture(h_path: &Path) -> Result<Vec<u8>, ExtractFilesError> {
+fn read_chr_tex_h_texture(h_path: &Path) -> Result<Vec<u8>, ExtractStreamFilesError> {
     let base_mip = Xbc1::from_file(h_path)?.decompress()?;
     Ok(base_mip)
 }
 
-fn read_chr_tex_m_texture<T: FromBytes>(m_path: &Path) -> Result<T, ExtractFilesError> {
+fn read_chr_tex_m_texture<T: FromBytes>(m_path: &Path) -> Result<T, ExtractStreamFilesError> {
     let xbc1 = Xbc1::from_file(m_path)?;
     let bytes = xbc1.decompress()?;
     let mid = T::from_bytes(bytes).map_err(|e| {
-        ExtractFilesError::ChrTexTexture(ReadFileError {
+        ExtractStreamFilesError::ChrTexTexture(ReadFileError {
             path: m_path.to_owned(),
             source: e,
         })

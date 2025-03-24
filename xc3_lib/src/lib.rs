@@ -39,14 +39,13 @@
 use std::{
     io::{BufWriter, Cursor, Read, Seek, SeekFrom, Write},
     marker::PhantomData,
-    path::{Path, PathBuf},
+    path::Path,
 };
 
 use binrw::{
     file_ptr::FilePtrArgs, BinRead, BinReaderExt, BinResult, BinWrite, Endian, FilePtr32,
     NullString,
 };
-use thiserror::Error;
 use tracing::{trace, trace_span};
 use xc3_write::{write_full, Xc3Write, Xc3WriteOffsets};
 
@@ -621,14 +620,6 @@ file_write_full_impl!(
 
 file_write_full_impl!(xc3_write::Endian::Big, fnt::Fnt);
 
-#[derive(Debug, Error)]
-#[error("error reading {path:?}")]
-pub struct ReadFileError {
-    pub path: PathBuf,
-    #[source]
-    pub source: binrw::Error,
-}
-
 trait FromBytes: Sized {
     fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> binrw::BinResult<Self>;
 }
@@ -658,9 +649,9 @@ macro_rules! file_read_impl {
 
                 /// Read from `path` using a fully buffered reader for performance.
                 #[tracing::instrument(skip_all)]
-                pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, ReadFileError> {
+                pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, crate::error::ReadFileError> {
                     let path = path.as_ref();
-                    read_file(path, $endian).map_err(|e| ReadFileError {
+                    read_file(path, $endian).map_err(|e| crate::error::ReadFileError {
                         path: path.to_owned(),
                         source: e,
                     })

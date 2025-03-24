@@ -31,6 +31,7 @@ use std::{borrow::Cow, hash::Hash, io::Cursor, path::Path};
 
 use animation::Animation;
 use binrw::{BinRead, BinReaderExt, Endian};
+use error::{LoadModelError, LoadModelLegacyError};
 use glam::{Mat4, Vec3};
 use indexmap::IndexMap;
 use log::error;
@@ -38,12 +39,11 @@ use material::{create_materials, create_materials_samplers_legacy, GetProgramHas
 use shader_database::ShaderDatabase;
 use skinning::{create_skinning, Skinning};
 use texture::{load_textures, load_textures_legacy};
-use thiserror::Error;
 use vertex::ModelBuffers;
 use xc3_lib::{
     apmd::Apmd,
     bc::{skel::Skel, Bc},
-    error::DecompressStreamError,
+    error::{DecompressStreamError, ReadFileError},
     hkt::Hkt,
     mibl::Mibl,
     msrd::{
@@ -53,11 +53,10 @@ use xc3_lib::{
     mxmd::{legacy::MxmdLegacy, AlphaTable, Materials, Mxmd},
     sar1::Sar1,
     xbc1::MaybeXbc1,
-    ReadFileError,
 };
 
 pub use collision::load_collisions;
-pub use map::{load_map, LoadMapError};
+pub use map::load_map;
 use material::{Material, Texture};
 pub use sampler::{AddressMode, FilterMode, Sampler};
 pub use skeleton::{Bone, Skeleton};
@@ -70,6 +69,7 @@ pub mod gltf;
 
 pub mod animation;
 pub mod collision;
+pub mod error;
 mod map;
 pub mod material;
 mod model;
@@ -390,66 +390,6 @@ impl Model {
             bounding_radius: model.bounding_radius,
         }
     }
-}
-
-#[derive(Debug, Error)]
-pub enum LoadModelError {
-    #[error("error reading wimdo file")]
-    Wimdo(#[source] ReadFileError),
-
-    #[error("error extracting texture from wimdo file")]
-    WimdoPackedTexture {
-        #[source]
-        source: binrw::Error,
-    },
-
-    #[error("error reading vertex data")]
-    VertexData(binrw::Error),
-
-    #[error("failed to find Mxmd in Apmd file")]
-    MissingApmdMxmdEntry,
-
-    #[error("expected packed wimdo vertex data but found none")]
-    MissingMxmdVertexData,
-
-    #[error("expected packed wimdo shader data but found none")]
-    MissingMxmdShaderData,
-
-    #[error("error loading image texture")]
-    Image(#[from] texture::CreateImageTextureError),
-
-    #[error("error decompressing stream")]
-    Stream(#[from] xc3_lib::error::DecompressStreamError),
-
-    #[error("error extracting stream data")]
-    ExtractFiles(#[from] xc3_lib::msrd::streaming::ExtractFilesError),
-
-    #[error("error reading legacy wismt streaming file")]
-    WismtLegacy(#[source] ReadFileError),
-
-    #[error("error reading wismt streaming file")]
-    Wismt(#[source] ReadFileError),
-}
-
-#[derive(Debug, Error)]
-pub enum LoadModelLegacyError {
-    #[error("error reading camdo file")]
-    Camdo(#[source] ReadFileError),
-
-    #[error("error reading vertex data")]
-    VertexData(binrw::Error),
-
-    #[error("error loading image texture")]
-    Image(#[from] texture::CreateImageTextureError),
-
-    #[error("error reading casmt streaming file")]
-    Casmt(#[source] std::io::Error),
-}
-
-#[derive(Debug, Error)]
-pub enum CreateModelError {
-    #[error("error extracting stream data")]
-    ExtractFiles(#[from] xc3_lib::msrd::streaming::ExtractFilesError),
 }
 
 // TODO: Take an iterator for wimdo paths and merge to support xc1?
