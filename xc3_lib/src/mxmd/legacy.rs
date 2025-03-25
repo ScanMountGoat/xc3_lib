@@ -355,6 +355,9 @@ pub struct Unk9 {
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
     pub items: Vec<Unk9Item>,
+
+    // TODO: padding?
+    pub unks: [u32; 4],
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -396,7 +399,7 @@ pub struct Unk10 {
 
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Materials {
@@ -405,7 +408,7 @@ pub struct Materials {
 
     #[br(parse_with = parse_offset32_count32)]
     #[br(args { offset: base_offset, inner: base_offset })]
-    #[xc3(offset_count(u32, u32), align(4))]
+    #[xc3(offset_count(u32, u32), align(8))]
     pub materials: Vec<Material>,
 
     pub unk1_1: u32,
@@ -461,9 +464,9 @@ pub struct Materials {
     pub unks1_2_4: Option<MaterialsUnk4>,
 
     #[br(parse_with = parse_opt_ptr32)]
-    #[br(args { 
-        offset: base_offset, 
-        inner: args! { base_offset, count: materials.len() } 
+    #[br(args {
+        offset: base_offset,
+        inner: args! { base_offset, count: materials.len() }
     })]
     #[xc3(offset(u32))]
     pub unks1_2_5: Option<MaterialsUnk6>,
@@ -603,7 +606,6 @@ pub struct MaterialsUnk2 {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
-#[xc3(base_offset)]
 pub struct MaterialsUnk3 {
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
@@ -711,7 +713,7 @@ pub struct MaterialsUnk7ItemUnk4 {
 // TODO: compare with decompiled shader data.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[binread]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Technique {
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
@@ -719,7 +721,7 @@ pub struct Technique {
     pub attributes: Vec<super::VertexAttribute>,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset_count(u32, u32))]
+    #[xc3(offset_count(u32, u32), align(16))]
     pub unk2: Vec<[u16; 4]>,
 
     // offset1, offset2, count1, count2
@@ -740,7 +742,7 @@ pub struct Technique {
     pub unk4_count: u32,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset_count(u32, u32))]
+    #[xc3(offset_count(u32, u32), align(16))]
     pub unk7: Vec<[u16; 4]>,
 
     pub unk8: (u16, u16),
@@ -1024,20 +1026,25 @@ impl Xc3WriteOffsets for ModelsOffsets<'_> {
                 .write_full(writer, bone_name_base, data_ptr, endian, ())?;
         }
 
+        let unk6 = self.unk6.write(writer, base_offset, data_ptr, endian)?;
+        self.unk7
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        for u in unk6.0 {
+            u.write_offsets(writer, base_offset, data_ptr, endian, ())?;
+        }
+
+        // TODO: handle this in a special type.
+        let bone_name_base = data_ptr.next_multiple_of(4);
         let bones = self.bones.write(writer, base_offset, data_ptr, endian)?;
         for b in bones.0 {
             b.name
-                .write_full(writer, base_offset, data_ptr, endian, ())?;
+                .write_full(writer, bone_name_base, data_ptr, endian, ())?;
         }
 
         // TODO: Where do these go?
         self.unk_bones
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk3
-            .write_full(writer, base_offset, data_ptr, endian, ())?;
-        self.unk6
-            .write_full(writer, base_offset, data_ptr, endian, ())?;
-        self.unk7
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk10
             .write_full(writer, base_offset, data_ptr, endian, ())?;
@@ -1046,6 +1053,66 @@ impl Xc3WriteOffsets for ModelsOffsets<'_> {
         self.extra
             .write_offsets(writer, base_offset, data_ptr, endian, ())?;
 
+        Ok(())
+    }
+}
+
+impl Xc3WriteOffsets for MaterialsOffsets<'_> {
+    type Args = ();
+
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        _base_offset: u64,
+        data_ptr: &mut u64,
+        endian: xc3_write::Endian,
+        _args: Self::Args,
+    ) -> xc3_write::Xc3Result<()> {
+        let base_offset = self.base_offset;
+
+        let materials = self
+            .materials
+            .write(writer, base_offset, data_ptr, endian)?;
+
+        self.work_values
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.shader_vars
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.callbacks
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+
+        for m in &materials.0 {
+            m.techniques
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
+        }
+        for m in &materials.0 {
+            m.textures
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
+        }
+
+        self.alpha_test_textures
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.unk3
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.unks1_2_3
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+
+        self.techniques
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+
+        self.unks1_3
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.unk7
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.unks1_2_4
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.unks1_2_5
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+
+        for m in materials.0 {
+            m.name
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
+        }
         Ok(())
     }
 }
@@ -1065,6 +1132,32 @@ impl Xc3WriteOffsets for MaterialsUnk6Offsets<'_> {
         self.unk2
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk1
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        Ok(())
+    }
+}
+
+impl Xc3WriteOffsets for TechniqueOffsets<'_> {
+    type Args = ();
+
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+        endian: xc3_write::Endian,
+        _args: Self::Args,
+    ) -> xc3_write::Xc3Result<()> {
+        // Different order than field order.
+        self.attributes
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.unk3
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.unk4
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.unk2
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.unk7
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         Ok(())
     }
