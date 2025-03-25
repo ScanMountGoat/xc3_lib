@@ -33,7 +33,7 @@ pub struct SpcoItem {
     pub unk1: u32,
 
     #[br(parse_with = parse_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
+    #[xc3(offset(u32), align(4096))]
     pub spch: Spch,
 
     // TODO: offset?

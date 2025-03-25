@@ -1,4 +1,6 @@
 //! Legacy types for Xenoblade Chronicles X.
+use std::io::SeekFrom;
+
 use crate::{
     msrd::StreamingDataLegacyInner, parse_count32_offset32, parse_count32_offset32_unchecked,
     parse_offset, parse_offset32_count32, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
@@ -57,7 +59,7 @@ pub struct MxmdLegacy {
 
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct Models {
@@ -120,12 +122,12 @@ pub struct Models {
 
     #[br(parse_with = parse_offset32_count32)]
     #[br(args { offset: base_offset, inner: base_offset })]
-    #[xc3(count_offset(u32, u32))]
+    #[xc3(offset_count(u32, u32))]
     pub unk6: Vec<Unk6>,
 
     // TODO: transforms?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(count_offset(u32, u32))]
+    #[xc3(offset_count(u32, u32))]
     pub unk7: Vec<[[[f32; 4]; 4]; 2]>,
 
     pub unk8: [u32; 2],
@@ -148,7 +150,9 @@ pub struct Models {
 #[br(import_raw(base_offset: u64))]
 pub struct Bone {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
     pub name: String,
+
     /// The index in [bones](struct.Models.html#structfield.bones) of the parent bone.
     pub parent_index: i32,
     pub descendants_start_index: i32,
@@ -560,17 +564,18 @@ pub struct MaterialsUnk5 {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 #[xc3(base_offset)]
 pub struct MaterialsUnk6 {
     #[br(parse_with = parse_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    pub unk1: u64,
-    // TODO: offset_count with 20 byte items for xcx de?
-    // #[br(parse_with = parse_count32_offset32, offset = base_offset)]
-    // #[xc3(count_offset(u32, u32))]
-    // pub unk2: Vec<[f32; 4]>,
+    pub unk1: [u32; 6],
+
+    // TODO: offset_count with 16 byte items for xcx?
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk2: Vec<[f32; 5]>,
 }
 
 // TODO: compare with decompiled shader data.
@@ -642,7 +647,7 @@ pub struct Unk1 {
 
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct VertexData {
@@ -688,6 +693,7 @@ pub struct VertexBufferDescriptor {
         offset: base_offset + data_offset as u64,
         inner: args! { count: (vertex_count * vertex_size) as usize }
     })]
+    #[xc3(save_position(false))]
     pub data: Vec<u8>,
 }
 
@@ -706,6 +712,7 @@ pub struct IndexBufferDescriptor {
         offset: base_offset + data_offset as u64,
         inner: args! { count: (index_count * 2) as usize }
     })]
+    #[xc3(save_position(false))]
     pub data: Vec<u8>,
 }
 
@@ -841,4 +848,113 @@ fn unk_float_count(skins: &[SkinningIndices]) -> usize {
         .flat_map(|s| s.indices.iter().map(|i| i + 1))
         .max()
         .unwrap_or_default() as usize
+}
+
+impl Xc3WriteOffsets for ModelsOffsets<'_> {
+    type Args = ();
+
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        _base_offset: u64,
+        data_ptr: &mut u64,
+        endian: xc3_write::Endian,
+        _args: Self::Args,
+    ) -> xc3_write::Xc3Result<()> {
+        let base_offset = self.base_offset;
+        self.models
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.skins
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.floats
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+
+        // TODO: handle this in a special type.
+        let bone_name_base = *data_ptr;
+        let bone_names = self
+            .bone_names
+            .write(writer, base_offset, data_ptr, endian)?;
+        for n in bone_names.0 {
+            n.name
+                .write_full(writer, bone_name_base, data_ptr, endian, ())?;
+        }
+
+        let bones = self.bones.write(writer, base_offset, data_ptr, endian)?;
+        for b in bones.0 {
+            b.name
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
+        }
+
+        // TODO: Where do these go?
+        self.unk_bones
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.unk3
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.unk6
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.unk7
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.unk10
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.unk9
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+
+        Ok(())
+    }
+}
+
+impl Xc3WriteOffsets for MaterialsUnk6Offsets<'_> {
+    type Args = ();
+
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+        endian: xc3_write::Endian,
+        _args: Self::Args,
+    ) -> xc3_write::Xc3Result<()> {
+        // Different order than field order.
+        self.unk2
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.unk1
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        Ok(())
+    }
+}
+
+impl Xc3WriteOffsets for VertexDataOffsets<'_> {
+    type Args = ();
+
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        _base_offset: u64,
+        data_ptr: &mut u64,
+        endian: xc3_write::Endian,
+        _args: Self::Args,
+    ) -> xc3_write::Xc3Result<()> {
+        let base_offset = self.base_offset;
+        let vertex_buffers = self
+            .vertex_buffers
+            .write(writer, base_offset, data_ptr, endian)?;
+        let index_buffers = self
+            .index_buffers
+            .write(writer, base_offset, data_ptr, endian)?;
+        for b in &vertex_buffers.0 {
+            b.attributes
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
+        }
+
+        // TODO: Store a shared buffer section and don't assume offset ordering?
+        writer.seek(SeekFrom::Start(base_offset + 4096))?;
+        for b in vertex_buffers.0 {
+            writer.write_all(&b.data.data)?;
+        }
+        for b in index_buffers.0 {
+            writer.write_all(&b.data.data)?;
+        }
+        *data_ptr = writer.stream_position()?;
+        Ok(())
+    }
 }
