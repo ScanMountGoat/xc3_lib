@@ -795,15 +795,12 @@ pub struct MaterialUnk6ItemUnk4 {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
-#[br(import_raw(version: u32))]
 #[xc3(base_offset)]
 pub struct Models {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    // TODO: Default value for version arg to make maps work properly?
-    #[br(if(version != 10111))]
-    pub models_flags: Option<ModelsFlags>,
+    pub models_flags: ModelsFlags,
 
     /// The maximum of all the [max_xyz](struct.Model.html#structfield.max_xyz) in [models](#structfield.models).
     pub max_xyz: [f32; 3],
@@ -886,13 +883,12 @@ pub struct Models {
     #[xc3(offset(u32))]
     pub model_unk12: Option<ModelUnk12>,
 
+    // offset 160
     // TODO: What controls the up to 44 optional bytes?
     // TODO: How to estimate models offset from these fields?
-    // offset 160
     // TODO: Investigate extra data for legacy mxmd files.
     #[br(args { size: models_offset, base_offset})]
-    #[br(if(version > 10111))]
-    pub extra: Option<ModelsExtraData>,
+    pub extra: ModelsExtraData,
 }
 
 // Use an enum since even the largest size can have all offsets as null.
