@@ -74,6 +74,7 @@ impl Xc3WriteOffsets for MxmdV40Offsets<'_> {
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk1
             .write_full(writer, base_offset, data_ptr, endian, ())?;
+        // TODO: sometimes aligned to 16 like with msrd?
         Ok(())
     }
 }
