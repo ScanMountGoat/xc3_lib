@@ -9,7 +9,6 @@ use super::{
     PackedTextures,
 };
 
-// TODO: How much code can be shared with modern switch formats?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct MxmdV40 {

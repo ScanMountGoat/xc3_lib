@@ -2,16 +2,15 @@
 use std::io::SeekFrom;
 
 use crate::{
-    msrd::StreamingDataLegacyInner, parse_count32_offset32, parse_count32_offset32_unchecked,
-    parse_offset, parse_offset32_count32, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
-    vertex::VertexAttribute, xc3_write_binwrite_impl, StringOffset32,
+    msrd::StreamingDataLegacyInner, parse_count32_offset32, parse_offset, parse_offset32_count32,
+    parse_opt_ptr32, parse_ptr32, parse_string_ptr32, vertex::VertexAttribute,
+    xc3_write_binwrite_impl, StringOffset32,
 };
 use binrw::{args, binread, BinRead, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 use super::{MaterialFlags, ModelUnk3, SamplerFlags, StateFlags};
 
-// TODO: How much code can be shared with non legacy types?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(magic(b"MXMD"))]
@@ -20,7 +19,6 @@ pub struct MxmdLegacy {
     #[br(assert(version == 10040))]
     pub version: u32,
 
-    // TODO: This type is different for legacy.
     /// A collection of [Model] and associated data.
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]
@@ -68,6 +66,9 @@ pub struct Models {
 
     pub max_xyz: [f32; 3],
     pub min_xyz: [f32; 3],
+
+    #[br(temp, restore_position)]
+    models_offset: u32,
 
     #[br(parse_with = parse_offset32_count32)]
     #[br(args { offset: base_offset, inner: base_offset })]
@@ -141,8 +142,86 @@ pub struct Models {
     #[xc3(offset(u32))]
     pub unk9: Option<Unk9>,
 
+    pub unks: [u32; 2],
+
+    #[br(args { base_offset, size: models_offset })]
+    pub extra: ModelsExtra,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import { base_offset:u64, size: u32 })]
+pub enum ModelsExtra {
+    // XCX has 152 total bytes.
+    #[br(pre_assert(size == 152))]
+    Unk0,
+
+    // XCX can also have 156 total bytes.
+    #[br(pre_assert(size == 156))]
+    Unk1(ModelsExtraUnk1),
+
+    // XCX DE has 172 total bytes.
+    #[br(pre_assert(size == 172))]
+    Unk2(#[br(args_raw(base_offset))] ModelsExtraUnk2),
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct ModelsExtraUnk1 {
     // TODO: padding?
-    pub unks: [u32; 3],
+    pub unk: u32,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct ModelsExtraUnk2 {
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub unk1: Option<ModelsExtraUnk1Inner>,
+
+    // TODO: padding?
+    pub unks: [u32; 4],
+}
+
+#[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(stream = r)]
+#[xc3(base_offset)]
+pub struct ModelsExtraUnk1Inner {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    pub unk1: u32,
+
+    #[br(parse_with = parse_ptr32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset(u32))]
+    pub unk2: ModelsExtraUnk1InnerUnk2,
+
+    // TODO: padding?
+    pub unks: [u32; 4],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct ModelsExtraUnk1InnerUnk2 {
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk1: Vec<[f32; 20]>,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk2: Vec<[f32; 14]>,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32), align(16))]
+    pub unk3: Vec<[[[f32; 4]; 4]; 12]>,
+
+    // TODO: padding?
+    pub unks: [u32; 2],
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -354,19 +433,27 @@ pub struct Materials {
     #[xc3(offset_count(u32, u32))]
     pub techniques: Vec<Technique>,
 
-    pub unks1_1: [u32; 2],
+    pub unks1_1: u32,
 
-    // TODO: Is this always implied to have count 1?
-    #[br(parse_with = parse_count32_offset32_unchecked, offset = base_offset)]
-    #[xc3(count_offset(u32, u32))]
-    pub alpha_test_textures: Vec<AlphaTestTexture>,
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset(u32))]
+    pub unk7: Option<MaterialsUnk7>,
+
+    pub unk8: u32,
+
+    // TODO: Is this the correct way to determine count?
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: alpha_texture_count(&materials) }})]
+    #[xc3(offset(u32))]
+    pub alpha_test_textures: Option<Vec<AlphaTestTexture>>,
 
     pub unks1_2_1: u32,
     pub unks1_2_2: u32,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    pub unks1_2_3: Option<[u32; 8]>,
+    pub unks1_2_3: Option<[f32; 8]>,
 
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset })]
@@ -374,7 +461,10 @@ pub struct Materials {
     pub unks1_2_4: Option<MaterialsUnk4>,
 
     #[br(parse_with = parse_opt_ptr32)]
-    #[br(args { offset: base_offset, inner: base_offset })]
+    #[br(args { 
+        offset: base_offset, 
+        inner: args! { base_offset, count: materials.len() } 
+    })]
     #[xc3(offset(u32))]
     pub unks1_2_5: Option<MaterialsUnk6>,
 
@@ -544,7 +634,6 @@ pub struct MaterialsUnk3Unk3 {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
-#[xc3(base_offset)]
 pub struct MaterialsUnk4 {
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
@@ -556,7 +645,6 @@ pub struct MaterialsUnk4 {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
-#[xc3(base_offset)]
 pub struct MaterialsUnk5 {
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
@@ -565,22 +653,65 @@ pub struct MaterialsUnk5 {
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
-#[br(import_raw(base_offset: u64))]
-#[xc3(base_offset)]
+#[br(import { base_offset: u64, count: usize })]
 pub struct MaterialsUnk6 {
-    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    // TODO: assigns items to each material?
+    #[br(parse_with = parse_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count } })]
     #[xc3(offset(u32))]
-    pub unk1: [u32; 6],
+    pub unk1: Vec<u16>,
 
-    // TODO: offset_count with 16 byte items for xcx?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub unk2: Vec<[f32; 5]>,
+    pub unk2: Vec<MaterialsUnk6Unk2>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct MaterialsUnk6Unk2 {
+    pub unk1: u32,
+    pub unk2: [f32; 4],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct MaterialsUnk7 {
+    #[br(parse_with = parse_count32_offset32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(count_offset(u32, u32))]
+    pub items: Vec<MaterialsUnk7Item>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct MaterialsUnk7Item {
+    pub unk1: u32,
+    pub unk2: u32,
+    pub unk3: u32,
+
+    #[br(parse_with = parse_count32_offset32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(count_offset(u32, u32))]
+    pub unk4: Vec<MaterialsUnk7ItemUnk4>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct MaterialsUnk7ItemUnk4 {
+    pub unk1: u32,
+
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub unk2: Vec<[f32; 3]>,
 }
 
 // TODO: compare with decompiled shader data.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[binread]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Technique {
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
@@ -591,16 +722,22 @@ pub struct Technique {
     #[xc3(offset_count(u32, u32))]
     pub unk2: Vec<[u16; 4]>,
 
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
-    #[xc3(offset(u32))]
-    pub unk3: Option<u32>,
+    // offset1, offset2, count1, count2
+    #[br(temp, restore_position)]
+    offsets_counts: [u32; 4],
 
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: offsets_counts[2] as usize }})]
     #[xc3(offset(u32))]
-    pub unk4: Option<u32>,
+    pub unk3: Option<Vec<u16>>,
 
-    pub unk5: u32,
-    pub unk6: u32,
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: offsets_counts[3] as usize }})]
+    #[xc3(offset(u32))]
+    pub unk4: Option<Vec<u16>>,
+
+    pub unk3_count: u32,
+    pub unk4_count: u32,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
@@ -850,6 +987,14 @@ fn unk_float_count(skins: &[SkinningIndices]) -> usize {
         .unwrap_or_default() as usize
 }
 
+fn alpha_texture_count(materials: &[Material]) -> usize {
+    materials
+        .iter()
+        .map(|m| m.alpha_test_texture_index as usize + 1)
+        .max()
+        .unwrap_or_default()
+}
+
 impl Xc3WriteOffsets for ModelsOffsets<'_> {
     type Args = ();
 
@@ -898,6 +1043,8 @@ impl Xc3WriteOffsets for ModelsOffsets<'_> {
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk9
             .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.extra
+            .write_offsets(writer, base_offset, data_ptr, endian, ())?;
 
         Ok(())
     }

@@ -447,7 +447,6 @@ fn find_alpha_test_texture(
     }
 }
 
-// TODO: Share code with above?
 fn find_alpha_test_texture_legacy(
     materials: &xc3_lib::mxmd::legacy::Materials,
     material: &xc3_lib::mxmd::legacy::Material,
@@ -456,6 +455,7 @@ fn find_alpha_test_texture_legacy(
     // TODO: investigate how this works in game.
     let alpha_texture = materials
         .alpha_test_textures
+        .as_ref()?
         .get(material.alpha_test_texture_index as usize)?;
     if material.flags.alpha_mask() {
         // TODO: Do some materials require separate textures in a separate pass?
