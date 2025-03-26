@@ -142,7 +142,6 @@ pub fn materials(
             let per_material = device.create_uniform_buffer(
                 "PerMaterial",
                 &[crate::shader::model::PerMaterial {
-                    mat_color: material.color.into(),
                     assignments,
                     texture_info,
                     alpha_test_texture: {

@@ -77,9 +77,19 @@ pub struct TextureAlphaTest {
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct MaterialParameters {
     // Assume each param type is used at most once.
-    pub tex_matrix: Option<Vec<[f32; 8]>>, // TODO: mat2x4?
+    /// [xc3_lib::mxmd::ParamType::MaterialColor]
+    pub material_color: [f32; 4],
+
+    /// [xc3_lib::mxmd::ParamType::TexMatrix]
+    pub tex_matrix: Option<Vec<[f32; 4]>>, // TODO: mat2x4?
+
+    /// [xc3_lib::mxmd::ParamType::WorkFloat4]
     pub work_float4: Option<Vec<[f32; 4]>>,
+
+    /// [xc3_lib::mxmd::ParamType::WorkColor]
     pub work_color: Option<Vec<[f32; 4]>>,
+
+    /// Skin color param for some Xenoblade X DE models like L.
     pub ava_skin: Option<[f32; 4]>,
 }
 
@@ -88,13 +98,26 @@ impl MaterialParameters {
         // TODO: How to handle the case where the input has no channels?
         let c = "xyzw".find(p.channel?).unwrap();
         let index = p.index.unwrap_or_default();
-        match (p.name.as_str(), p.field.as_str()) {
-            ("U_Mate", "gWrkFl4") => Some(self.work_float4.as_ref()?.get(index)?[c]),
-            ("U_Mate", "gWrkCol") => Some(self.work_color.as_ref()?.get(index)?[c]),
+        let value = match (p.name.as_str(), p.field.as_str()) {
+            ("U_Mate", "gMatCol") => self.material_color.get(c),
+            ("U_Mate", "gWrkFl4") => self.work_float4.as_ref()?.get(index)?.get(c),
+            ("U_Mate", "gWrkCol") => self.work_color.as_ref()?.get(index)?.get(c),
+            ("U_Mate", "gTexMat") => self.tex_matrix.as_ref()?.get(index)?.get(c),
             // Xenoblade X DE
-            ("U_CHR", "gAvaSkin") => Some(self.ava_skin.as_ref()?[c]),
+            ("U_CHR", "gAvaSkin") => self.ava_skin.as_ref()?.get(c),
             _ => None,
+        };
+        if value.is_none() {
+            warn!(
+                "Unable to assign parameter {}.{}{}{}",
+                p.name,
+                p.field,
+                p.index.map(|i| format!("[{i}]")).unwrap_or_default(),
+                p.channel.map(|c| format!(".{c}")).unwrap_or_default()
+            );
         }
+
+        value.copied()
     }
 }
 
@@ -506,6 +529,7 @@ fn assign_parameters(
     let work_values = apply_callbacks(work_values, callbacks);
 
     let mut parameters = MaterialParameters {
+        material_color: material.color,
         tex_matrix: None,
         work_float4: None,
         work_color: None,
@@ -596,6 +620,7 @@ fn assign_parameters_legacy(
     _work_values: &[f32],
 ) -> Option<MaterialParameters> {
     let parameters = MaterialParameters {
+        material_color: material.color,
         tex_matrix: None,
         work_float4: None,
         work_color: None,

@@ -136,8 +136,6 @@ struct TextureLayers {
 }
 
 struct PerMaterial {
-    mat_color: vec4<f32>,
-
     // Shader database information.
     assignments: array<OutputAssignment, 6>,
 
@@ -776,16 +774,12 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
         etc_buffer = blend_texture_layer(etc_buffer, samplers, assignments[1], in, i, n_dot_v);
     }
 
-    // TODO: How to detect if vertex color is actually color?
-
     // The ordering here is the order of per material fragment shader outputs.
     // The input order for the deferred lighting pass is slightly different.
     // TODO: alpha?
-    // TODO: Is it ok to always apply gMatCol like this?
-    // TODO: Detect multiply by vertex color and gMatCol.
-    // TODO: Just detect if gMatCol is part of the technique parameters?
+    // TODO: Detect multiply by vertex color.
     var out: FragmentOutput;
-    out.g_color = vec4(color, g_color.a * in.vertex_color.a) * per_material.mat_color;
+    out.g_color = vec4(color, g_color.a * in.vertex_color.a);
     out.g_etc_buffer = mrt_etc_buffer(etc_buffer, normal);
     out.g_normal = mrt_normal(normal, ao);
     out.g_velocity = g_velocity;
@@ -814,8 +808,8 @@ fn fs_outline(in: VertexOutput) -> FragmentOutput {
         discard;
     }
 
-    // TODO: Detect multiply by vertex color and gMatCol.
+    // TODO: Detect multiply by vertex color.
     var output = fragment_output(in);
-    output.g_color = vec4(in.vertex_color.rgb * per_material.mat_color.rgb, 0.0);
+    output.g_color = vec4(in.vertex_color.rgb, 0.0);
     return output;
 }

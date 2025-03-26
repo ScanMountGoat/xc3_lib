@@ -95,7 +95,11 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
 
             // Avoid storing redundant information with dependencies.
             if let [layer0] = &layers[..] {
-                dependencies.sort_by_key(|d| d != &layer0.value);
+                if dependencies.is_empty() {
+                    dependencies = vec![layer0.value.clone()];
+                } else {
+                    dependencies.sort_by_key(|d| d != &layer0.value);
+                }
                 layers = Vec::new();
             }
 
@@ -272,7 +276,7 @@ fn find_color_or_param_layers(
             Some('z') => &mat_cols[2],
             _ => &mat_cols[0],
         };
-        current_col = node_expr(&frag.nodes, mat_col)?;
+        current_col = assign_x_recursive(&frag.nodes, mat_col);
     }
 
     let layers = find_layers(&frag.nodes, current_col, dependencies);
@@ -287,10 +291,16 @@ fn sampler_index(sampler_name: &str) -> Option<usize> {
 
 fn calc_monochrome<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<([&'a Expr; 3], &'a Expr)> {
     // calcMonochrome in pcmdo fragment shaders for XC1 and XC3.
-    // TODO: Check weight values for XC1 (0.3, 0.59, 0.11) or XC3 (0.01, 0.01, 0.01)?
     let (_mat_col, monochrome, monochrome_ratio) = mix_a_b_ratio(nodes, expr)?;
     let monochrome = node_expr(nodes, monochrome)?;
-    let (mat_col, _monochrome_weights) = dot3_a_b(nodes, monochrome)?;
+    let (a, b) = dot3_a_b(nodes, monochrome)?;
+
+    // TODO: Check weight values for XC1 (0.3, 0.59, 0.11) or XC3 (0.01, 0.01, 0.01)?
+    let mat_col = match (a, b) {
+        ([Expr::Float(_), Expr::Float(_), Expr::Float(_)], mat_col) => Some(mat_col),
+        (mat_col, [Expr::Float(_), Expr::Float(_), Expr::Float(_)]) => Some(mat_col),
+        _ => None,
+    }?;
     Some((mat_col, monochrome_ratio))
 }
 
@@ -2064,6 +2074,28 @@ mod tests {
                 ],
             }),
             shader.output_dependencies[&SmolStr::from("o0.x")].dependencies[0]
+        );
+    }
+
+    #[test]
+    fn shader_from_fragment_mio_ribbon() {
+        // xeno3/chr/ch/ch01027000, "phong4", shd0044.frag
+        let glsl = include_str!("data/xc3/ch01027000.44.frag");
+
+        // Detect handling of gMatCol.
+        let fragment = TranslationUnit::parse(glsl).unwrap();
+        let shader = shader_from_glsl(None, &fragment);
+        assert_eq!(
+            OutputDependencies {
+                dependencies: vec![Dependency::Buffer(BufferDependency {
+                    name: "U_Mate".into(),
+                    field: "gMatCol".into(),
+                    index: None,
+                    channel: Some('x'),
+                })],
+                layers: Vec::new()
+            },
+            shader.output_dependencies[&SmolStr::from("o0.x")]
         );
     }
 
