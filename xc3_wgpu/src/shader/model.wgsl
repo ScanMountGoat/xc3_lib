@@ -601,6 +601,7 @@ fn select_uv(vert: VertexOutput, uv_attributes: array<vec2<f32>, 9>, index: i32)
 
 fn overlay_blend(a: f32, b: f32) -> f32 {
     // Trick to avoid a conditional branch from xenox/chr_fc/fc281011.camdo.
+    // This is also used for Xenoblade X DE.
     let is_a_gt_half = clamp((a - 0.5) * 1000.0, 0.0, 1.0);
     let screen = 1.0 - 2.0 * (1.0 - a) * (1.0 - b);
     let multiply = 2.0 * a * b;

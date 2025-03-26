@@ -80,6 +80,7 @@ pub struct MaterialParameters {
     pub tex_matrix: Option<Vec<[f32; 8]>>, // TODO: mat2x4?
     pub work_float4: Option<Vec<[f32; 4]>>,
     pub work_color: Option<Vec<[f32; 4]>>,
+    pub ava_skin: Option<[f32; 4]>,
 }
 
 impl MaterialParameters {
@@ -90,6 +91,8 @@ impl MaterialParameters {
         match (p.name.as_str(), p.field.as_str()) {
             ("U_Mate", "gWrkFl4") => Some(self.work_float4.as_ref()?.get(index)?[c]),
             ("U_Mate", "gWrkCol") => Some(self.work_color.as_ref()?.get(index)?[c]),
+            // Xenoblade X DE
+            ("U_CHR", "gAvaSkin") => Some(self.ava_skin.as_ref()?[c]),
             _ => None,
         }
     }
@@ -248,6 +251,10 @@ where
 
             let alpha_test = find_alpha_test_texture_legacy(materials, m);
 
+            // TODO: Error for invalid parameters?
+            let parameters =
+                assign_parameters_legacy(materials, m, &work_values).unwrap_or_default();
+
             Material {
                 name: m.name.clone(),
                 flags: MaterialFlags::from(0u32),
@@ -295,11 +302,7 @@ where
                     Some(xc3_lib::mxmd::legacy::UnkPassType::Unk8) => RenderPassType::Unk0,
                     None => RenderPassType::Unk0,
                 },
-                parameters: MaterialParameters {
-                    tex_matrix: None,
-                    work_float4: None,
-                    work_color: None,
-                },
+                parameters,
                 work_values,
                 shader_vars: materials
                     .shader_vars
@@ -419,6 +422,15 @@ fn get_technique<'a>(
     techniques.get(index)
 }
 
+fn get_technique_legacy<'a>(
+    material: &xc3_lib::mxmd::legacy::Material,
+    techniques: &'a [xc3_lib::mxmd::legacy::Technique],
+) -> Option<&'a xc3_lib::mxmd::legacy::Technique> {
+    // TODO: Don't assume a single technique?
+    let index = material.techniques.first()?.technique_index as usize;
+    techniques.get(index)
+}
+
 fn find_alpha_test_texture(
     materials: &xc3_lib::mxmd::Materials,
     material: &xc3_lib::mxmd::Material,
@@ -497,6 +509,7 @@ fn assign_parameters(
         tex_matrix: None,
         work_float4: None,
         work_color: None,
+        ava_skin: None,
     };
 
     if let Some(technique) = get_technique(material, &materials.techniques) {
@@ -575,6 +588,25 @@ fn read_param<const N: usize>(
                 .collect()
         })
         .unwrap_or_default()
+}
+
+fn assign_parameters_legacy(
+    materials: &xc3_lib::mxmd::legacy::Materials,
+    material: &xc3_lib::mxmd::legacy::Material,
+    _work_values: &[f32],
+) -> Option<MaterialParameters> {
+    let parameters = MaterialParameters {
+        tex_matrix: None,
+        work_float4: None,
+        work_color: None,
+        ava_skin: materials.unks1_2_3.map(|v| [v[0], v[1], v[2], v[3]]),
+    };
+
+    if let Some(_technique) = get_technique_legacy(material, &materials.techniques) {
+        // TODO: parameters
+    }
+
+    Some(parameters)
 }
 
 // TODO: Add a mat_id method that checks o1.w and returns an enum?

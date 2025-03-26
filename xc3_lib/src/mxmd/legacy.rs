@@ -457,6 +457,7 @@ pub struct Materials {
     pub unks1_2_1: u32,
     pub unks1_2_2: u32,
 
+    // TODO: is this always the overlay color parameter?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub unks1_2_3: Option<[f32; 8]>,
@@ -1223,10 +1224,10 @@ impl Xc3WriteOffsets for VertexDataOffsets<'_> {
         // TODO: Store a shared buffer section and don't assume offset ordering?
         writer.seek(SeekFrom::Start(base_offset + 4096))?;
         for b in vertex_buffers.0 {
-            writer.write_all(&b.data.data)?;
+            writer.write_all(b.data.data)?;
         }
         for b in index_buffers.0 {
-            writer.write_all(&b.data.data)?;
+            writer.write_all(b.data.data)?;
         }
         *data_ptr = writer.stream_position()?;
         Ok(())
