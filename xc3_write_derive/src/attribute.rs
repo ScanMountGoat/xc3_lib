@@ -1,10 +1,11 @@
 use proc_macro2::{Ident, TokenStream};
-use syn::{parenthesized, Attribute, LitBool, LitInt, Token};
+use syn::{parenthesized, Attribute, LitInt, Token};
 
 pub struct FieldOptions {
     pub field_type: Option<FieldType>,
     pub align: Option<Padding>,
     pub pad_size_to: Option<Padding>,
+    pub skip: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -15,7 +16,7 @@ pub struct Padding {
 
 // TODO: Separate count field similar to #[bw(calc(...))]?
 pub enum FieldType {
-    SavePosition(bool),
+    SavePosition,
     SharedOffset,
     Offset(Ident),
     // TODO: use a single attribute that takes an ident or a tokenstream?
@@ -27,6 +28,7 @@ pub enum FieldType {
 
 impl FieldOptions {
     pub fn from_attrs(attrs: &[Attribute]) -> Self {
+        let mut skip = false;
         let mut field_type = None;
         let mut align = None;
         let mut pad_size_to = None;
@@ -58,10 +60,8 @@ impl FieldOptions {
                         // #[xc3(shared_offset)]
                         field_type = Some(FieldType::SharedOffset);
                     } else if meta.path.is_ident("save_position") {
-                        // #[xc3(save_position(true))]
-                        // #[xc3(save_position(false))]
-                        let should_write = parse_bool(&meta)?;
-                        field_type = Some(FieldType::SavePosition(should_write));
+                        // #[xc3(save_position)]
+                        field_type = Some(FieldType::SavePosition);
                     } else if meta.path.is_ident("offset_size") {
                         // #[xc3(offset_size(u32, u32))]
                         let (offset, size) = parse_two_idents(&meta)?;
@@ -70,6 +70,9 @@ impl FieldOptions {
                         // #[xc3(offset_inner_count(u32, self.field.list1.len() as u32))]
                         let (offset, count) = parse_ident_tokens(&meta)?;
                         field_type = Some(FieldType::OffsetInnerCount(offset, count));
+                    } else if meta.path.is_ident("skip") {
+                        // #[xc3(skip)]
+                        skip = true
                     }
                     Ok(())
                 });
@@ -80,6 +83,7 @@ impl FieldOptions {
             field_type,
             align,
             pad_size_to,
+            skip,
         }
     }
 }
@@ -89,13 +93,6 @@ fn parse_u64(meta: &syn::meta::ParseNestedMeta<'_>) -> Result<u64, syn::Error> {
     parenthesized!(content in meta.input);
     let lit: LitInt = content.parse().unwrap();
     lit.base10_parse()
-}
-
-fn parse_bool(meta: &syn::meta::ParseNestedMeta<'_>) -> Result<bool, syn::Error> {
-    let content;
-    parenthesized!(content in meta.input);
-    let lit: LitBool = content.parse().unwrap();
-    Ok(lit.value)
 }
 
 fn parse_padding(meta: &syn::meta::ParseNestedMeta<'_>) -> Result<Padding, syn::Error> {

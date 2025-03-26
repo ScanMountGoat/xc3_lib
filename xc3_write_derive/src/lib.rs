@@ -370,7 +370,7 @@ fn parse_named_fields(fields: &FieldsNamed) -> Vec<FieldData> {
         // Check if we need to write the count.
         // Use a null offset as a placeholder.
         // TODO: Reduce repeated code?
-        let offset_field = match options.field_type {
+        let mut offset_field = match &options.field_type {
             Some(FieldType::Offset(offset_ty)) => {
                 FieldData::offset(name, options.align, &offset_ty, ty)
             }
@@ -409,9 +409,9 @@ fn parse_named_fields(fields: &FieldsNamed) -> Vec<FieldData> {
                 // The pointer type is the type of the field itself.
                 FieldData::shared_offset(name, options.align, ty)
             }
-            Some(FieldType::SavePosition(should_write)) => {
+            Some(FieldType::SavePosition) => {
                 // Store the information for later shared offsets.
-                FieldData::field_position(name, ty, should_write)
+                FieldData::field_position(name, ty, !options.skip)
             }
             Some(FieldType::OffsetSize(offset_ty, size_ty)) => {
                 let write_offset = write_dummy_offset(name, options.align, &offset_ty);
@@ -472,6 +472,11 @@ fn parse_named_fields(fields: &FieldsNamed) -> Vec<FieldData> {
                 }
             }
         };
+        // Save position already checks for the skip attribute.
+        if !matches!(options.field_type, Some(FieldType::SavePosition)) && options.skip {
+            offset_field.write_impl = quote!();
+        }
+
         offset_fields.push(offset_field);
     }
 

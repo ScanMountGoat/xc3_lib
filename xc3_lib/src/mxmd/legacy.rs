@@ -836,7 +836,7 @@ pub struct VertexBufferDescriptor {
         offset: base_offset + data_offset as u64,
         inner: args! { count: (vertex_count * vertex_size) as usize }
     })]
-    #[xc3(save_position(false))]
+    #[xc3(save_position, skip)]
     pub data: Vec<u8>,
 }
 
@@ -855,7 +855,7 @@ pub struct IndexBufferDescriptor {
         offset: base_offset + data_offset as u64,
         inner: args! { count: (index_count * 2) as usize }
     })]
-    #[xc3(save_position(false))]
+    #[xc3(save_position, skip)]
     pub data: Vec<u8>,
 }
 

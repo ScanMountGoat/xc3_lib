@@ -27,7 +27,7 @@ use xc3_write::{Xc3Write, Xc3WriteOffsets};
 #[xc3(magic(b"LAHD"))]
 pub struct Dhal {
     // TODO: enum?
-    #[xc3(save_position(true))]
+    #[xc3(save_position)]
     pub version: u32,
 
     // TODO: changes remaining fields?
@@ -304,7 +304,7 @@ pub struct Unk4 {
         offset: base_offset + unk2.len() as u64 * 64 + unk2_offset as u64,
         inner: args! { count:unk4_buffer_size(&unk2, unk2.len() * 64 + unk2_offset as usize)}
     })]
-    #[xc3(save_position(false))]
+    #[xc3(save_position, skip)]
     pub buffer: Vec<u8>,
 }
 
