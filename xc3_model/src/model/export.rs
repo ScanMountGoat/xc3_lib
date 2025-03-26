@@ -15,16 +15,13 @@ use crate::{
     ImageTexture, IndexMapExt, ModelRoot,
 };
 
-// TODO: Not possible to make files compatible with all game versions?
-// TODO: Will it be possible to do full imports in the future?
-// TODO: Include chr to support skeleton edits?
 /// Apply the values from this model onto the original `mxmd` and `msrd`.
 ///
 /// Some of the original values will be retained due to exporting limitations.
 /// For best results, use the [Mxmd] and [Msrd] used to initialize this model.
 ///
 /// If no edits were made to this model, the resulting files will attempt
-/// to recreate the originals used to initialize this model as closely as possible.
+/// to recreate the original data used to initialize this model as closely as possible.
 impl ModelRoot {
     pub fn to_mxmd_model(
         &self,
