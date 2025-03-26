@@ -77,18 +77,20 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
 
             let mut layers = Vec::new();
 
-            if i == 0 {
-                layers =
-                    find_color_layers(frag, &dependent_lines, &dependencies).unwrap_or_default();
-            } else if i == 1 {
-                layers =
-                    find_param_layers(frag, &dependent_lines, &dependencies).unwrap_or_default();
-            } else if i == 2 && "xy".contains(c) {
-                layers =
-                    find_normal_layers(frag, &dependent_lines, &dependencies).unwrap_or_default();
-            } else if i == 2 && c == 'z' {
-                layers =
-                    find_param_layers(frag, &dependent_lines, &dependencies).unwrap_or_default();
+            // Xenoblade X DE uses different outputs than other games.
+            // Detect color or params to handle different outputs and channels.
+            if i == 0 || i == 1 {
+                layers = find_color_or_param_layers(frag, &dependent_lines, &dependencies)
+                    .unwrap_or_default();
+            } else if i == 2 {
+                if c == 'x' || c == 'y' {
+                    // The normals use XY for output index 2 for all games.
+                    layers = find_normal_layers(frag, &dependent_lines, &dependencies)
+                        .unwrap_or_default();
+                } else if c == 'z' {
+                    layers = find_color_or_param_layers(frag, &dependent_lines, &dependencies)
+                        .unwrap_or_default();
+                }
             }
 
             // Avoid storing redundant information with dependencies.
@@ -235,7 +237,7 @@ fn shader_from_latte_asm(
     }
 }
 
-fn find_color_layers(
+fn find_color_or_param_layers(
     frag: &Graph,
     dependent_lines: &[usize],
     dependencies: &[Dependency],
@@ -331,21 +333,6 @@ fn find_normal_layers(
     Some(layers)
 }
 
-fn find_param_layers(
-    frag: &Graph,
-    dependent_lines: &[usize],
-    dependencies: &[Dependency],
-) -> Option<Vec<TextureLayer>> {
-    let last_node_index = *dependent_lines.last()?;
-    let last_node = frag.nodes.get(last_node_index)?;
-
-    let current = assign_x_recursive(&frag.nodes, &last_node.input);
-
-    let layers = find_layers(&frag.nodes, current, dependencies);
-
-    Some(layers)
-}
-
 fn find_layers(nodes: &[Node], current: &Expr, dependencies: &[Dependency]) -> Vec<TextureLayer> {
     let mut layers = Vec::new();
 
@@ -353,6 +340,7 @@ fn find_layers(nodes: &[Node], current: &Expr, dependencies: &[Dependency]) -> V
 
     // Detect the layers and blend mode from most to least specific.
     while let Some((layer_a, layer_b, ratio, blend_mode)) = blend_add_normal(nodes, current)
+        .or_else(|| blend_overlay_ratio(nodes, current))
         .or_else(|| blend_overlay(nodes, current))
         .or_else(|| blend_over(nodes, current))
         .or_else(|| blend_ratio(nodes, current))
@@ -533,7 +521,7 @@ fn blend_mul<'a>(
     }
 }
 
-static BLEND_OVERLAY: LazyLock<Graph> = LazyLock::new(|| {
+static BLEND_OVERLAY_XC2: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
         void main() {
             two_a = 2.0 * a;
@@ -554,17 +542,50 @@ static BLEND_OVERLAY: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn blend_overlay<'a>(
+fn blend_overlay_ratio<'a>(
     nodes: &'a [Node],
     expr: &'a Expr,
 ) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
-    // Some XC2 models use overlay blending for metalness.
     // Overlay combines multiply and screen blend modes.
-    let result = query_nodes(expr, nodes, &BLEND_OVERLAY.nodes)?;
+    // Some XC2 models use overlay blending for metalness.
+    let result = query_nodes(expr, nodes, &BLEND_OVERLAY_XC2.nodes)?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     let ratio = result.get("ratio")?;
     Some((a, b, ratio, LayerBlendMode::Overlay))
+}
+
+static BLEND_OVERLAY_XCX_DE: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            neg_b = 0.0 - b; 
+            one_minus_b = neg_b + 1.0;
+            two_b = b * 2.0;
+            multiply = two_b * a;
+            temp_181 = a + -0.5;
+            temp_182 = 0.0 - one_minus_b;
+            temp_183 = fma(a, temp_182, one_minus_b);
+            temp_189 = temp_181 * 1000.0;
+            is_a_gt_half = clamp(temp_189, 0.0, 1.0);
+            temp_193 = 0.0 - multiply;
+            temp_194 = fma(temp_183, -2.0, temp_193);
+            temp_208 = fma(is_a_gt_half, temp_194, is_a_gt_half);
+            result = multiply + temp_208;
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+fn blend_overlay<'a>(
+    nodes: &'a [Node],
+    expr: &'a Expr,
+) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
+    // Overlay combines multiply and screen blend modes.
+    // Some XCX DE models use overlay for face coloring.
+    let result = query_nodes(expr, nodes, &BLEND_OVERLAY_XCX_DE.nodes)?;
+    let a = result.get("a")?;
+    let b = result.get("b")?;
+    Some((a, b, &Expr::Float(1.0), LayerBlendMode::Overlay))
 }
 
 static RATIO_DEPENDENCY: LazyLock<Graph> = LazyLock::new(|| {
@@ -3099,8 +3120,8 @@ mod tests {
     }
 
     #[test]
-    fn shader_from_latte_asm_pc221115_frag_0() {
-        // Elma's legs (visible on title screen).
+    fn shader_from_latte_asm_elma_leg() {
+        // xenox/chr_pc/pc221115.camdo, "leg_mat", shd0000.frag
         let asm = include_str!("data/xcx/pc221115.0.frag.txt");
 
         // TODO: Make this easier to test by taking metadata directly?
@@ -3485,6 +3506,210 @@ mod tests {
                 outline_width: None
             },
             shader
+        );
+    }
+
+    #[test]
+    fn shader_from_fragment_l_face() {
+        // xenoxde/chr/fc/fc181020, "facemat", shd0008.frag
+        let vert_glsl = include_str!("data/xcxde/fc181020.8.vert");
+        let frag_glsl = include_str!("data/xcxde/fc181020.8.frag");
+
+        // Check for overlay blending to make the face blue.
+        let vertex = TranslationUnit::parse(vert_glsl).unwrap();
+        let fragment = TranslationUnit::parse(frag_glsl).unwrap();
+        let shader = shader_from_glsl(Some(&vertex), &fragment);
+        assert_eq!(
+            OutputDependencies {
+                dependencies: vec![Dependency::Texture(TextureDependency {
+                    name: "s0".into(),
+                    channel: Some('x'),
+                    texcoords: vec![
+                        TexCoord {
+                            name: "vTex0".into(),
+                            channel: Some('x'),
+                            params: None,
+                        },
+                        TexCoord {
+                            name: "vTex0".into(),
+                            channel: Some('y'),
+                            params: None,
+                        },
+                    ],
+                })],
+                layers: vec![
+                    TextureLayer {
+                        value: Dependency::Texture(TextureDependency {
+                            name: "s0".into(),
+                            channel: Some('x'),
+                            texcoords: vec![
+                                TexCoord {
+                                    name: "vTex0".into(),
+                                    channel: Some('x'),
+                                    params: None,
+                                },
+                                TexCoord {
+                                    name: "vTex0".into(),
+                                    channel: Some('y'),
+                                    params: None,
+                                },
+                            ],
+                        }),
+                        ratio: None,
+                        blend_mode: LayerBlendMode::Mix,
+                        is_fresnel: false,
+                    },
+                    TextureLayer {
+                        value: Dependency::Buffer(BufferDependency {
+                            name: "U_CHR".into(),
+                            field: "gAvaSkin".into(),
+                            index: None,
+                            channel: Some('x'),
+                        }),
+                        ratio: Some(Dependency::Constant(1.0.into())),
+                        blend_mode: LayerBlendMode::Overlay,
+                        is_fresnel: false,
+                    },
+                    TextureLayer {
+                        value: Dependency::Attribute(AttributeDependency {
+                            name: "vColor".into(),
+                            channel: Some('x'),
+                        }),
+                        ratio: Some(Dependency::Constant(1.0.into())),
+                        blend_mode: LayerBlendMode::MixRatio,
+                        is_fresnel: false,
+                    },
+                ],
+            },
+            shader.output_dependencies[&SmolStr::from("o1.x")]
+        );
+        assert_eq!(
+            OutputDependencies {
+                dependencies: vec![Dependency::Texture(TextureDependency {
+                    name: "s0".into(),
+                    channel: Some('y'),
+                    texcoords: vec![
+                        TexCoord {
+                            name: "vTex0".into(),
+                            channel: Some('x'),
+                            params: None,
+                        },
+                        TexCoord {
+                            name: "vTex0".into(),
+                            channel: Some('y'),
+                            params: None,
+                        },
+                    ],
+                })],
+                layers: vec![
+                    TextureLayer {
+                        value: Dependency::Texture(TextureDependency {
+                            name: "s0".into(),
+                            channel: Some('y'),
+                            texcoords: vec![
+                                TexCoord {
+                                    name: "vTex0".into(),
+                                    channel: Some('x'),
+                                    params: None,
+                                },
+                                TexCoord {
+                                    name: "vTex0".into(),
+                                    channel: Some('y'),
+                                    params: None,
+                                },
+                            ],
+                        }),
+                        ratio: None,
+                        blend_mode: LayerBlendMode::Mix,
+                        is_fresnel: false,
+                    },
+                    TextureLayer {
+                        value: Dependency::Buffer(BufferDependency {
+                            name: "U_CHR".into(),
+                            field: "gAvaSkin".into(),
+                            index: None,
+                            channel: Some('y'),
+                        }),
+                        ratio: Some(Dependency::Constant(1.0.into())),
+                        blend_mode: LayerBlendMode::Overlay,
+                        is_fresnel: false,
+                    },
+                    TextureLayer {
+                        value: Dependency::Attribute(AttributeDependency {
+                            name: "vColor".into(),
+                            channel: Some('y'),
+                        }),
+                        ratio: Some(Dependency::Constant(1.0.into())),
+                        blend_mode: LayerBlendMode::MixRatio,
+                        is_fresnel: false,
+                    },
+                ],
+            },
+            shader.output_dependencies[&SmolStr::from("o1.y")]
+        );
+        assert_eq!(
+            OutputDependencies {
+                dependencies: vec![Dependency::Texture(TextureDependency {
+                    name: "s0".into(),
+                    channel: Some('z'),
+                    texcoords: vec![
+                        TexCoord {
+                            name: "vTex0".into(),
+                            channel: Some('x'),
+                            params: None,
+                        },
+                        TexCoord {
+                            name: "vTex0".into(),
+                            channel: Some('y'),
+                            params: None,
+                        },
+                    ],
+                })],
+                layers: vec![
+                    TextureLayer {
+                        value: Dependency::Texture(TextureDependency {
+                            name: "s0".into(),
+                            channel: Some('z'),
+                            texcoords: vec![
+                                TexCoord {
+                                    name: "vTex0".into(),
+                                    channel: Some('x'),
+                                    params: None,
+                                },
+                                TexCoord {
+                                    name: "vTex0".into(),
+                                    channel: Some('y'),
+                                    params: None,
+                                },
+                            ],
+                        }),
+                        ratio: None,
+                        blend_mode: LayerBlendMode::Mix,
+                        is_fresnel: false,
+                    },
+                    TextureLayer {
+                        value: Dependency::Buffer(BufferDependency {
+                            name: "U_CHR".into(),
+                            field: "gAvaSkin".into(),
+                            index: None,
+                            channel: Some('z'),
+                        }),
+                        ratio: Some(Dependency::Constant(1.0.into())),
+                        blend_mode: LayerBlendMode::Overlay,
+                        is_fresnel: false,
+                    },
+                    TextureLayer {
+                        value: Dependency::Attribute(AttributeDependency {
+                            name: "vColor".into(),
+                            channel: Some('z'),
+                        }),
+                        ratio: Some(Dependency::Constant(1.0.into())),
+                        blend_mode: LayerBlendMode::MixRatio,
+                        is_fresnel: false,
+                    },
+                ],
+            },
+            shader.output_dependencies[&SmolStr::from("o1.z")]
         );
     }
 }
