@@ -4,7 +4,7 @@ use log::warn;
 use xc3_lib::{
     mibl::Mibl,
     msrd::{streaming::ExtractedTexture, Msrd},
-    mxmd::{AlphaTable, LodData, LodGroup, LodItem, MxmdV112, TextureUsage, VertexAttribute},
+    mxmd::{AlphaTable, LodData, LodGroup, LodItem, Mxmd, MxmdV112, TextureUsage, VertexAttribute},
     vertex::{DataType, VertexData},
 };
 
@@ -25,25 +25,37 @@ use crate::{
 impl ModelRoot {
     pub fn to_mxmd_model(
         &self,
-        mxmd: &MxmdV112,
+        mxmd: &Mxmd,
         msrd: &Msrd,
-    ) -> Result<(MxmdV112, Msrd), CreateModelError> {
-        // TODO: Does this need to even extract vertex/textures?
-        let (_, spch, _) = msrd.extract_files(None)?;
-        let (mut new_mxmd, vertex, textures) = self.to_mxmd_model_files(mxmd)?;
+    ) -> Result<(Mxmd, Msrd), CreateModelError> {
+        match &mxmd.inner {
+            xc3_lib::mxmd::MxmdInner::V40(_) => Err(CreateModelError::UnsupportedVersion {
+                version: mxmd.version,
+            }),
+            xc3_lib::mxmd::MxmdInner::V112(inner) => {
+                // TODO: Does this need to even extract vertex/textures?
+                let (_, spch, _) = msrd.extract_files(None)?;
+                let (mut new_mxmd, vertex, textures) = self.to_mxmd_model_files(inner)?;
 
-        let use_chr_textures = mxmd
-            .streaming
-            .as_ref()
-            .map(|s| s.inner.has_chr_textures())
-            .unwrap_or_default();
-        let new_msrd =
-            Msrd::from_extracted_files(&vertex, &spch, &textures, use_chr_textures).unwrap();
+                let use_chr_textures = inner
+                    .streaming
+                    .as_ref()
+                    .map(|s| s.inner.has_chr_textures())
+                    .unwrap_or_default();
+                let new_msrd =
+                    Msrd::from_extracted_files(&vertex, &spch, &textures, use_chr_textures)
+                        .unwrap();
 
-        // The mxmd and msrd streaming header need to match exactly.
-        new_mxmd.streaming = Some(new_msrd.streaming.clone());
+                // The mxmd and msrd streaming header need to match exactly.
+                new_mxmd.streaming = Some(new_msrd.streaming.clone());
 
-        Ok((new_mxmd, new_msrd))
+                let new_mxmd = Mxmd {
+                    version: mxmd.version,
+                    inner: xc3_lib::mxmd::MxmdInner::V112(new_mxmd),
+                };
+                Ok((new_mxmd, new_msrd))
+            }
+        }
     }
 
     /// Similar to [Self::to_mxmd_model] but does not compress the new data or update streaming information.

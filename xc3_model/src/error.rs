@@ -59,6 +59,9 @@ pub enum LoadModelLegacyError {
 pub enum CreateModelError {
     #[error("error extracting stream data")]
     ExtractFiles(#[from] ExtractStreamFilesError),
+
+    #[error("creating a version {version} model is not supported")]
+    UnsupportedVersion { version: u32 },
 }
 
 #[derive(Debug, Error)]
