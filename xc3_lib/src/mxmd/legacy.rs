@@ -715,8 +715,8 @@ pub struct MaterialsUnk7ItemUnk4 {
 }
 
 // TODO: compare with decompiled shader data.
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Technique {

@@ -21,8 +21,14 @@ members = ["."]
 debug = 1
 
 [[bin]]
-name = "from_mxmd_model"
-path = "fuzz_targets/from_mxmd_model.rs"
+name = "from_mxmd_v112"
+path = "fuzz_targets/from_mxmd_v112.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "from_mxmd_v40"
+path = "fuzz_targets/from_mxmd_v40.rs"
 test = false
 doc = false
 

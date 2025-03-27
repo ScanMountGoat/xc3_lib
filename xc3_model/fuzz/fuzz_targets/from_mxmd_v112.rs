@@ -4,8 +4,8 @@ use libfuzzer_sys::fuzz_target;
 
 #[derive(Debug, arbitrary::Arbitrary)]
 struct Input {
-    mxmd: xc3_lib::mxmd::Mxmd,
-    skel: Option<xc3_lib::bc::Skel>,
+    mxmd: xc3_lib::mxmd::MxmdV112,
+    skel: Option<xc3_lib::bc::skel::Skel>,
     vertex: xc3_lib::vertex::VertexData,
     spch: xc3_lib::spch::Spch,
     textures: xc3_model::ExtractedTextures,
@@ -13,7 +13,7 @@ struct Input {
 }
 
 fuzz_target!(|input: Input| {
-    let files = xc3_model::import::ModelFilesV112 {
+    let files = xc3_model::model::import::ModelFilesV112 {
         models: &input.mxmd.models,
         materials: &input.mxmd.materials,
         vertex: std::borrow::Cow::Owned(input.vertex),
