@@ -1,5 +1,5 @@
 # xc3_wgpu_batch
-A simple model and map batch renderer for Xenoblade X, Xenoblade 1 DE, Xenoblade 2, and Xenoblade 3.
+A simple model and map batch renderer for Xenoblade Chronicles X, Xenoblade Chronicles 1 Definitive Edition, Xenoblade Chronicles 2, Xenoblade Chronicles 3, and Xenoblade Chronicles X Definitive Edition.
 
 xc3_wgpu_batch renders `.camdo`, `.pcmdo`, `.wimdo` or `.wismhd` files to PNG in the given folder recursively.
 This tests the libraries end-to-end from binary parsing in xc3_lib all the way to final pixels on screen from xc3_wgpu.

@@ -4,9 +4,9 @@
 //!
 //! | Game | Versions | File Patterns |
 //! | --- | --- | --- |
-//! | Xenoblade Chronicles 1 DE | |  |
-//! | Xenoblade Chronicles 2 |  |  |
-//! | Xenoblade Chronicles 3 |  | `monolib/shader/filterlut.wiltp` |
+//! | Xenoblade 1 DE | |  |
+//! | Xenoblade 2 |  |  |
+//! | Xenoblade 3 |  | `monolib/shader/filterlut.wiltp` |
 use binrw::BinRead;
 
 use crate::{parse_count32_offset32, parse_offset32_count32};

@@ -5,9 +5,9 @@
 //!
 //! | Game | Versions | File Patterns |
 //! | --- | --- | --- |
-//! | Xenoblade Chronicles 1 DE | 10001, 10003 | `menu/image/*.wilay` |
-//! | Xenoblade Chronicles 2 | 10001 | `menu/image/*.wilay` |
-//! | Xenoblade Chronicles 3 | 10003 | `menu/image/*.wilay` |
+//! | Xenoblade 1 DE | 10001, 10003 | `menu/image/*.wilay` |
+//! | Xenoblade 2 | 10001 | `menu/image/*.wilay` |
+//! | Xenoblade 3 | 10003 | `menu/image/*.wilay` |
 use std::collections::HashMap;
 
 use crate::{

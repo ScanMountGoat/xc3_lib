@@ -12,7 +12,7 @@ use xc3_model::{
 };
 
 /// Convert wimdo, pmcdo, camdo, or wismhd models to glTF or glb for
-/// Xenoblade X, Xenoblade 1 DE, Xenoblade 2, and Xenoblade 3.
+/// Xenoblade X, Xenoblade 1 DE, Xenoblade 2, Xenoblade 3, and Xenoblade X DE.
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]

@@ -4,7 +4,7 @@
 //!
 //! | Game | File Patterns |
 //! | --- | --- |
-//! | Xenoblade Chronicles X | `**/*.hkt` |
+//! | Xenoblade X | `**/*.hkt` |
 use binrw::{BinRead, NullString};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 

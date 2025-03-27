@@ -5,9 +5,9 @@
 //!
 //! | Game | Versions | File Patterns |
 //! | --- | --- | --- |
-//! | Xenoblade Chronicles 1 DE | 10002, 10003 | `menu/image/*.wilay` |
-//! | Xenoblade Chronicles 2 |  | |
-//! | Xenoblade Chronicles 3 | 10003 | `menu/image/*.wilay` |
+//! | Xenoblade 1 DE | 10002, 10003 | `menu/image/*.wilay` |
+//! | Xenoblade 2 |  | |
+//! | Xenoblade 3 | 10003 | `menu/image/*.wilay` |
 use crate::{
     dhal::{Textures, Unk1, Unk2, Unk3, Unk4, Unk5, Unk6},
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,

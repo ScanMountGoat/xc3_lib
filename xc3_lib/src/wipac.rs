@@ -4,9 +4,9 @@
 //!
 //! | Game | Versions | File Patterns |
 //! | --- | --- | --- |
-//! | Xenoblade Chronicles 1 DE | |  |
-//! | Xenoblade Chronicles 2 |  |  |
-//! | Xenoblade Chronicles 3 |  | `effect/**/*.wipac`  |
+//! | Xenoblade 1 DE | |  |
+//! | Xenoblade 2 |  |  |
+//! | Xenoblade 3 |  | `effect/**/*.wipac`  |
 use crate::{parse_ptr32, xc3_write_binwrite_impl, Offset32};
 use binrw::{binread, BinRead, BinWrite, NullString};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};

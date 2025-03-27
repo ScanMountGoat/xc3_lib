@@ -3,7 +3,7 @@
 //! # File Paths
 //! | Game | File Patterns |
 //! | --- | --- |
-//! | Xenoblade Chronicles X | `monolib/shader/*.cashd` |
+//! | Xenoblade X | `monolib/shader/*.cashd` |
 use std::io::Cursor;
 
 use binrw::{helpers::until_eof, BinRead, BinResult, BinWrite};

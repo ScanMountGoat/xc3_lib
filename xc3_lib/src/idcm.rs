@@ -3,9 +3,9 @@
 //! # File Paths
 //! | Game | Versions | File Patterns |
 //! | --- | --- | --- |
-//! | Xenoblade Chronicles 1 DE | 10003 | `map/*.wiidcm` |
-//! | Xenoblade Chronicles 2 | 10003 | `map/*.wiidcm` |
-//! | Xenoblade Chronicles 3 | 10003 | `map/*.idcm` |
+//! | Xenoblade 1 DE | 10003 | `map/*.wiidcm` |
+//! | Xenoblade 2 | 10003 | `map/*.wiidcm` |
+//! | Xenoblade 3 | 10003 | `map/*.idcm` |
 use crate::{
     parse_offset32_count32, parse_offset32_inner_count32, parse_offset32_inner_count8, parse_ptr32,
     parse_string_ptr32, StringOffset32,

@@ -11,12 +11,12 @@ const WIDTH: u32 = 1024;
 const HEIGHT: u32 = 1024;
 const FOV_Y: f32 = 0.5;
 
+/// Model and map batch renderer for Xenoblade X, Xenoblade 1 DE, Xenoblade 2, Xenoblade 3, and Xenoblade X DE.
 #[derive(Parser)]
 #[command(author, version, about)]
 #[command(propagate_version = true)]
 struct Cli {
     /// The game dump root folder containing the "monolib" folder.
-    /// Supports Xenoblade X, Xenoblade 1 DE, Xenoblade 2 and Xenoblade 3.
     root_folder: String,
 
     /// The file extension to load.

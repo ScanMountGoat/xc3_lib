@@ -4,9 +4,9 @@
 //!
 //! | Game  | File Patterns |
 //! | --- | --- | --- |
-//! | Xenoblade Chronicles 1 DE |   |
-//! | Xenoblade Chronicles 2 |  |
-//! | Xenoblade Chronicles 3 | `datasheet/*.bin` |
+//! | Xenoblade 1 DE |   |
+//! | Xenoblade 2 |  |
+//! | Xenoblade 3 | `datasheet/*.bin` |
 use bilge::prelude::*;
 use binrw::{BinRead, BinWrite, NullString};
 use std::io::{Read, Seek};

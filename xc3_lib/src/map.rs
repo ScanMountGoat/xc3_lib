@@ -9,10 +9,10 @@
 //! # File Paths
 //! | Game | File Patterns |
 //! | --- | --- |
-//! | Xenoblade Chronicles 1 DE | `map/*.wismda` |
-//! | Xenoblade Chronicles 2 | `map/*.wismda` |
-//! | Xenoblade Chronicles 3 | `map/*.wismda` |
-//! | Xenoblade Chronicles X DE | `map/*.wismda` |
+//! | Xenoblade 1 DE | `map/*.wismda` |
+//! | Xenoblade 2 | `map/*.wismda` |
+//! | Xenoblade 3 | `map/*.wismda` |
+//! | Xenoblade X DE | `map/*.wismda` |
 use bilge::prelude::*;
 use binrw::{binread, BinRead, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};

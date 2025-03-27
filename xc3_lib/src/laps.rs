@@ -4,9 +4,9 @@
 //!
 //! | Game | Versions | File Patterns |
 //! | --- | --- | --- |
-//! | Xenoblade Chronicles 1 DE | |  |
-//! | Xenoblade Chronicles 2 | 10001  | `menu/image/*.wilay` |
-//! | Xenoblade Chronicles 3 |  |  |
+//! | Xenoblade 1 DE | |  |
+//! | Xenoblade 2 | 10001  | `menu/image/*.wilay` |
+//! | Xenoblade 3 |  |  |
 use crate::{parse_offset32_count32, parse_string_ptr32};
 use binrw::BinRead;
 use xc3_write::{Xc3Write, Xc3WriteOffsets};

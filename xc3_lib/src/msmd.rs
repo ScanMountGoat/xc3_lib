@@ -3,10 +3,10 @@
 //! # File Paths
 //! | Game | Version | File Patterns |
 //! | --- | --- | --- |
-//! | Xenoblade Chronicles 1 DE | 10112 | `map/*.wismhd` |
-//! | Xenoblade Chronicles 2 | 10112 |  `map/*.wismhd` |
-//! | Xenoblade Chronicles 3 | 10112 |  `map/*.wismhd` |
-//! | Xenoblade Chronicles X DE | 10011 | `map/*.wismhd` |
+//! | Xenoblade 1 DE | 10112 | `map/*.wismhd` |
+//! | Xenoblade 2 | 10112 |  `map/*.wismhd` |
+//! | Xenoblade 3 | 10112 |  `map/*.wismhd` |
+//! | Xenoblade X DE | 10011 | `map/*.wismhd` |
 use std::{
     io::{Cursor, Read, Seek, SeekFrom},
     marker::PhantomData,

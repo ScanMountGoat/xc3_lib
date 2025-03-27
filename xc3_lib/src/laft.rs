@@ -5,9 +5,9 @@
 //!
 //! | Game | Versions | File Patterns |
 //! | --- | --- | --- |
-//! | Xenoblade Chronicles 1 DE | 10001, 10003 | `menu/font/*.wifnt` |
-//! | Xenoblade Chronicles 2 | 10001 | `menu/font/*.wifnt` |
-//! | Xenoblade Chronicles 3 | 10003 | `menu/font/*.wifnt` |
+//! | Xenoblade 1 DE | 10001, 10003 | `menu/font/*.wifnt` |
+//! | Xenoblade 2 | 10001 | `menu/font/*.wifnt` |
+//! | Xenoblade 3 | 10003 | `menu/font/*.wifnt` |
 use std::io::{Cursor, SeekFrom};
 
 use crate::mibl::Mibl;

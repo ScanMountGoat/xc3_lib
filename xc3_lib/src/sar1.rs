@@ -5,9 +5,9 @@
 //!
 //! | Game | File Patterns |
 //! | --- | --- |
-//! | Xenoblade Chronicles 1 DE | `chr/{en,np,obj,pc,wp}/*.{chr,mot}` |
-//! | Xenoblade Chronicles 2 | `event/mot/{bl,en,np,oj,pc,we,wp}/*.mot`, `model/{bl,en,np,oj,pc,we,wp}/*.{arc,mot}` |
-//! | Xenoblade Chronicles 3 | `chr/{bt,ch,en,oj,wp}/*.{chr,mot}` |
+//! | Xenoblade 1 DE | `chr/{en,np,obj,pc,wp}/*.{chr,mot}` |
+//! | Xenoblade 2 | `event/mot/{bl,en,np,oj,pc,we,wp}/*.mot`, `model/{bl,en,np,oj,pc,we,wp}/*.{arc,mot}` |
+//! | Xenoblade 3 | `chr/{bt,ch,en,oj,wp}/*.{chr,mot}` |
 use std::io::Cursor;
 
 use crate::{

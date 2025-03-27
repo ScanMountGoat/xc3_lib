@@ -4,7 +4,7 @@
 //!
 //! | Game | Versions | File Patterns |
 //! | --- | --- | --- |
-//! | Xenoblade Chronicles X | | `menu/**/*.bmn` |
+//! | Xenoblade X | | `menu/**/*.bmn` |
 use crate::{parse_offset32_count32, parse_opt_ptr32};
 use binrw::{binread, BinRead};
 

@@ -1,14 +1,20 @@
 //! Streamed model resources like shaders, geometry, or textures in `.wismt` files.
 //!
-//! # Overview
 //! [Msrd] files holds streaming data that is loaded by the game as needed.
 //! This means that errors in `.wismt` files may appear later than errors in `.wimdo` files.
-//! The [Mxmd](crate::mxmd::Mxmd) also stores a copy of the streaming data to know how to load it.
-//! This must match the [Msrd] exactly for data to load properly.
+//! The [Mxmd](crate::mxmd::Mxmd) stores a matching copy of the streaming header.
 //! Some legacy files do not use [Msrd], so the [Mxmd](crate::mxmd::Mxmd) streaming is the only
 //! way to determine how to read the `.wismt` file.
 //!
 //! For editing streaming data, see [Msrd::extract_files] and [Msrd::from_extracted_files].
+//!
+//! # File Paths
+//! | Game | File Patterns |
+//! | --- | --- |
+//! | Xenoblade 1 DE | `chr/{en,np,obj,pc,wp}/*.wismt` |
+//! | Xenoblade 2 | `model/{bl,en,np,oj,pc,we,wp}/*.wismt` |
+//! | Xenoblade 3 | `chr/{bt,ch,en,oj,wp}/*.wismt`, `map/*.wismt` |
+//! | Xenoblade X DE | `chr/{dl,en,fc,mb,np,oj,pc,un,wd,wdb,we,ws}/*.wismt` |
 //!
 //! # Streams Layout
 //! All 3 games store exactly the same data despite some differences in how the data is organized.
@@ -24,14 +30,6 @@
 //! in `chr/tex/nx/m` and base mip levels in `chr/tex/nx/h`.
 //! The [ChrTexTexture] describes the [Xbc1] archives
 //! and functions as both the [Stream] and [StreamEntry].
-//!
-//! # File Paths
-//! | Game | File Patterns |
-//! | --- | --- |
-//! | Xenoblade Chronicles 1 DE | `chr/{en,np,obj,pc,wp}/*.wismt` |
-//! | Xenoblade Chronicles 2 | `model/{bl,en,np,oj,pc,we,wp}/*.wismt` |
-//! | Xenoblade Chronicles 3 | `chr/{bt,ch,en,oj,wp}/*.wismt`, `map/*.wismt` |
-//! | Xenoblade Chronicles X DE | `chr/{dl,en,fc,mb,np,oj,pc,un,wd,wdb,we,ws}/*.wismt` |
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 
 use crate::{

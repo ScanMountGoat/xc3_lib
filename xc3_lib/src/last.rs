@@ -5,9 +5,9 @@
 //!
 //! | Game | Versions | File Patterns |
 //! | --- | --- | --- |
-//! | Xenoblade Chronicles 1 DE | 10001 | `menu/font/*.wisty` |
-//! | Xenoblade Chronicles 2 | 10001 | `menu/font/*.wisty` |
-//! | Xenoblade Chronicles 3 | 10001 | `menu/font/*.wisty` |
+//! | Xenoblade 1 DE | 10001 | `menu/font/*.wisty` |
+//! | Xenoblade 2 | 10001 | `menu/font/*.wisty` |
+//! | Xenoblade 3 | 10001 | `menu/font/*.wisty` |
 
 use crate::{
     parse_offset32_count32, parse_string_opt_ptr32, parse_string_ptr32, xc3_write_binwrite_impl,

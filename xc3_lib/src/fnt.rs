@@ -4,7 +4,7 @@
 //!
 //! | Game | Versions | File Patterns |
 //! | --- | --- | --- |
-//! | Xenoblade Chronicles X | 2 | `menu/font/**/*.fnt` |
+//! | Xenoblade X | 2 | `menu/font/**/*.fnt` |
 use crate::{mtxt::Mtxt, parse_ptr32};
 use binrw::BinRead;
 use xc3_write::{Xc3Write, Xc3WriteOffsets};

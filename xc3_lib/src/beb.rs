@@ -4,9 +4,9 @@
 //!
 //! | Game | File Patterns |
 //! | --- | --- |
-//! | Xenoblade Chronicles 1 DE |  |
-//! | Xenoblade Chronicles 2 |  |
-//! | Xenoblade Chronicles 3 |  `event/**/*.beb` |
+//! | Xenoblade 1 DE |  |
+//! | Xenoblade 2 |  |
+//! | Xenoblade 3 |  `event/**/*.beb` |
 use crate::{xbc1::Xbc1, Offset32};
 use binrw::BinRead;
 use xc3_write::{Xc3Write, Xc3WriteOffsets};

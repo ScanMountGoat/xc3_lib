@@ -4,7 +4,7 @@
 //!
 //! | Game | Versions | File Patterns |
 //! | --- | --- | --- |
-//! | Xenoblade Chronicles X | 10001, 10002 | `chrfc_tex/*.catex`, `chrfc_eye/*.catex`, `menu/tex/*.catex`, `menu/tex/avatar/*.caavp`, `monolib/shader/*.{calut, catex}` |
+//! | Xenoblade X | 10001, 10002 | `chrfc_tex/*.catex`, `chrfc_eye/*.catex`, `menu/tex/*.catex`, `menu/tex/avatar/*.caavp`, `monolib/shader/*.{calut, catex}` |
 use std::io::SeekFrom;
 
 use binrw::{binrw, BinRead, BinWrite};
