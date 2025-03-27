@@ -1062,11 +1062,15 @@ fn per_mesh_bind_group(
         },
     );
 
-    // TODO: How to correctly handle a missing skeleton or weights?
-    let skin_weights = weights.and_then(|w| {
-        let skin_weights = w.weight_buffer(mesh.flags2.into())?;
-        bone_names.map(|names| skin_weights.reindex_bones(names.to_vec()))
-    });
+    // Use the existing weights if the skeleton bone names are missing.
+    // This avoids confusing or redundant errors messages for a missing skeleton.
+    let skin_weights = weights
+        .and_then(|w| w.weight_buffer(mesh.flags2.into()))
+        .map(|w| {
+            bone_names
+                .map(|names| w.reindex_bones(names.to_vec()))
+                .unwrap_or(w)
+        });
 
     let skin_weight_count = skin_weights
         .as_ref()
