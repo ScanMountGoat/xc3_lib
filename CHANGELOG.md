@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## unreleased
 ### Added
+* Added support for wimdo models from Xenoblade X DE.
 * Added support for xbc1 compressed `BC` animations to `xc3_model::load_animations`. 
 
 ### Changed
