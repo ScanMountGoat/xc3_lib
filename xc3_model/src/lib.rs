@@ -321,11 +321,16 @@ pub fn load_skel(wimdo: &Path, model_name: &str) -> Option<xc3_lib::bc::skel::Sk
         .or_else(|| {
             // TODO: Only try this for xcx de models (v40).
             // Xenoblade X DE uses a file for just the skeleton.
-            let skel_path = wimdo.with_file_name(format!("{model_name}_rig.skl"));
-            Bc::from_file(skel_path).ok().and_then(|bc| match bc.data {
-                xc3_lib::bc::BcData::Skel(skel) => Some(skel),
-                _ => None,
-            })
+            Bc::from_file(wimdo.with_file_name(format!("{model_name}_rig.skl")))
+                .ok()
+                .or_else(|| {
+                    let model_name = model_name.trim_end_matches("_us").trim_end_matches("_eu");
+                    Bc::from_file(wimdo.with_file_name(format!("{model_name}_rig.skl"))).ok()
+                })
+                .and_then(|bc| match bc.data {
+                    xc3_lib::bc::BcData::Skel(skel) => Some(skel),
+                    _ => None,
+                })
         })
 }
 
