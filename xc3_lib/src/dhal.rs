@@ -8,6 +8,7 @@
 //! | Xenoblade 1 DE | 10001, 10003 | `menu/image/*.wilay` |
 //! | Xenoblade 2 | 10001 | `menu/image/*.wilay` |
 //! | Xenoblade 3 | 10003 | `menu/image/*.wilay` |
+//! | Xenoblade X DE | 10003 | `ui/image/*.wilay` |
 use std::collections::HashMap;
 
 use crate::{
@@ -175,7 +176,7 @@ pub struct Unk2 {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Unk2Unk1 {
-    // TODO: array of [u32; 5]?
+    // TODO: array of (f32, f32, i32)?
     pub data_offset: u32,
     pub count: u32,
     pub unk: u32,
@@ -251,16 +252,14 @@ pub struct Unk4 {
 
     pub unk1: u32, // 0
 
-    #[br(temp, restore_position)]
-    unk2_offset: u32,
-
+    // TODO: Describes buffer?
     #[br(parse_with = parse_offset32_count32)]
     #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(offset_count(u32, u32), align(2))]
     pub unk2: Vec<Unk4Unk2>,
 
     #[br(parse_with = parse_opt_ptr32)]
-    #[br(args { offset: base_offset, inner: unk2.iter().map(|u| u.unk_index).max().unwrap_or_default() })]
+    #[br(args { offset: base_offset, inner: unk2.iter().map(|u| u.unk_index + 1).max().unwrap_or_default() })]
     #[xc3(offset(u32))]
     pub unk4: Option<Unk4Unk4>,
 
@@ -301,8 +300,8 @@ pub struct Unk4 {
     // TODO: Find a cleaner way of preserving data.
     #[br(parse_with = parse_offset)]
     #[br(args {
-        offset: base_offset + unk2.len() as u64 * 64 + unk2_offset as u64,
-        inner: args! { count:unk4_buffer_size(&unk2, unk2.len() * 64 + unk2_offset as usize)}
+        offset: base_offset + unk4_buffer_offset(&unk2),
+        inner: args! { count: unk4_buffer_size(&unk2)}
     })]
     #[xc3(save_position, skip)]
     pub buffer: Vec<u8>,
@@ -366,24 +365,20 @@ pub struct Unk4Extra {
     pub unk: u32,
 }
 
-// TODO: Missing data?
-// 64 bytes?
-// TODO: Fix lengths for array fields.
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(_base_offset: u64))]
 pub struct Unk4Unk2 {
-    // TODO: count offset for u32?
+    // TODO: count for u32?
     pub unk1: u32,
+
+    // TODO: u32?
     pub unk2: u32,
 
     // TODO: floats?
     pub unk3: u32,
 
-    // TODO: count depends on unk1 length?
-    // TODO: Why is unk5 only present sometimes?
-    // TODO: Better way to check than finding the next non null offset?
     pub unk4: u32,
     pub unk5: u32,
     pub unk6: u32,
@@ -494,25 +489,49 @@ pub struct Unk8 {
 }
 
 // TODO: pointers to strings?
+#[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Unk8Item {
     pub unk1: u32,
-    pub unk2: u32,
+    pub unk2: u32, // TODO: type or flags?
     pub index: u32,
+
+    #[br(temp, restore_position)]
+    offset_counts: [u32; 3],
 
     // TODO: string or ints + string?
     #[br(parse_with = parse_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: if unk2 == 0 { 8 } else { 16} }})]
-    #[xc3(offset(u32), align(2))]
-    pub data: Vec<u8>,
-    pub unk5: u32, // TODO: data type?
+    #[br(args { offset: base_offset, inner: args! { unk5: offset_counts[1], unk2 } })]
+    #[xc3(offset(u32))]
+    pub item: Unk8ItemInner,
 
+    // TODO: number of u32?
+    pub unk5: u32,
+
+    // TODO: total size?
     pub unk6: u32,
-    pub unk7: u32,
+
+    pub unk7: f32,
+
     // TODO: padding?
     pub unk: [u32; 4],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import { unk5: u32, unk2: u32 })]
+pub struct Unk8ItemInner {
+    #[br(count = unk5)]
+    pub unk1: Vec<u32>,
+
+    #[br(if(unk2 == 65536))]
+    pub unk2: Option<(u16, u16)>,
+
+    // TODO: string?
+    #[br(map(|s: NullString| s.to_string()))]
+    pub unk3: String,
 }
 
 #[binread]
@@ -756,7 +775,7 @@ fn unk2_buffer_size(unk1: &[Unk2Unk1], unk2: &[Unk2Unk2]) -> usize {
     // Assume data starts from 0.
     // TODO: extra padding bytes?
     // TODO: Some items overlap?
-    let unk1_size = unk1.iter().map(|u| u.count as usize * 20).sum::<usize>();
+    let unk1_size = unk1.iter().map(|u| u.count as usize * 12).sum::<usize>();
     let unk2_size = unk2
         .iter()
         .map(|u| u.data_offset as usize + u.count as usize * 2)
@@ -765,15 +784,36 @@ fn unk2_buffer_size(unk1: &[Unk2Unk1], unk2: &[Unk2Unk2]) -> usize {
     unk1_size.max(unk2_size)
 }
 
-fn unk4_buffer_size(unk2: &[Unk4Unk2], base_offset: usize) -> usize {
-    // TODO: These items have offsets into the buffer?
-    // Assume data starts from 0.
+fn unk4_buffer_offset(unk2: &[Unk4Unk2]) -> u64 {
+    // TODO: These items have offsets into the buffer relative to base struct start?
+    unk2.iter()
+        .flat_map(|u| {
+            [
+                u.unk2, u.unk3, u.unk4, u.unk5, u.unk6, u.unk7, u.unk8, u.unk9, u.unk10,
+            ]
+        })
+        .filter(|u| *u != 0)
+        .min()
+        .unwrap_or_default() as u64
+}
+
+fn unk4_buffer_size(unk2: &[Unk4Unk2]) -> usize {
+    // Add what appears to be a count for byte indices.
     let max_offset = unk2
         .iter()
-        .flat_map(|u| [u.unk2, u.unk3, u.unk4, u.unk7, u.unk8])
+        .map(|u| {
+            u.unk1
+                + [
+                    u.unk2, u.unk3, u.unk4, u.unk5, u.unk6, u.unk7, u.unk8, u.unk9, u.unk10,
+                ]
+                .into_iter()
+                .max()
+                .unwrap_or_default()
+        })
         .max()
         .unwrap_or_default();
-    // Add what appears to be a count for bytes.
-    let offset = max_offset + unk2.last().map(|u| u.unk1).unwrap_or_default();
-    (offset as usize).saturating_sub(base_offset)
+
+    // Assume data starts from offset 0.
+    let base_offset = unk4_buffer_offset(unk2);
+    (max_offset as usize).saturating_sub(base_offset as usize)
 }

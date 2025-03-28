@@ -8,6 +8,7 @@
 //! | Xenoblade 1 DE | 10002, 10003 | `menu/image/*.wilay` |
 //! | Xenoblade 2 |  | |
 //! | Xenoblade 3 | 10003 | `menu/image/*.wilay` |
+//! | Xenoblade X DE | 10003 | `ui/image/*.wilay` |
 use crate::{
     dhal::{Textures, Unk1, Unk2, Unk3, Unk4, Unk5, Unk6},
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
@@ -104,8 +105,9 @@ pub struct Unk13 {
     #[xc3(offset(u32), align(1))]
     pub unk2: Option<Vec<i32>>,
 
+    // TODO: can be string or vec<u16>?
     #[br(parse_with = parse_opt_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: unk1.len() }})]
+    #[br(args { offset: base_offset, inner: args! { count: 0 }})]
     #[xc3(offset(u32), align(1))]
     pub unk3: Option<Vec<u16>>,
 
@@ -124,9 +126,9 @@ pub struct Unk13Unk1 {
     offsets: [u32; 3],
 
     #[br(parse_with = parse_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: (offsets[2] - offsets[0]) as usize / 4 }})]
+    #[br(args { offset: base_offset, inner: args! { count: (offsets[2] - offsets[0]) as usize / 2 }})]
     #[xc3(offset(u32), align(1))]
-    pub unk2: Vec<u32>,
+    pub unk2: Vec<i16>,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(1))]
@@ -170,6 +172,7 @@ pub struct Unk13Unk1Unk3 {
     pub unk: [u32; 12],
 }
 
+// TODO: data is similar to Unk8ItemInner but with offsets?
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
@@ -217,7 +220,7 @@ pub struct Unk13Unk1Unk4 {
 
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32), align(1))]
-    pub unk1: Vec<[u32; 3]>, // [???, ???, index]
+    pub unk1: Vec<Unk13Unk1Unk4Unk1>,
 
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32), align(1))]
@@ -233,6 +236,15 @@ pub struct Unk13Unk1Unk4 {
 
     // TODO: padding?
     pub unk: [u32; 8],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct Unk13Unk1Unk4Unk1 {
+    pub unk1: u32,
+    pub unk2: u16, // TODO: index?
+    pub unk3: u16, // TODO: index?
+    pub unk4: u32, // TODO: index?
 }
 
 #[binread]
