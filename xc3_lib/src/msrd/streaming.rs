@@ -436,7 +436,7 @@ impl StreamingData {
         get_bytes(bytes, entry.offset, Some(entry.size))
     }
 
-    fn extract_files<V: FromBytes, S: FromBytes, T: FromBytes>(
+    fn extract_files<V: FromBytes, S: FromBytes, T: FromBytes + Send>(
         &self,
         data: &[u8],
         chr_folder: Option<&Path>,
@@ -492,7 +492,7 @@ impl StreamingData {
         }
     }
 
-    fn extract_textures<T: FromBytes, P: AsRef<Path>>(
+    fn extract_textures<T: FromBytes + Send, P: AsRef<Path>>(
         &self,
         data: &[u8],
         low_texture_data: &[u8],
@@ -501,6 +501,8 @@ impl StreamingData {
         // Start with no high res textures or base mip levels.
         let mut textures = self.extract_low_textures(low_texture_data)?;
 
+        // There is only a single index list mapping high textures to textures.
+        // Assume models have stream entries or chr textures but not both.
         if self.textures_stream_entry_count > 0 {
             // The high resolution textures are packed into a single stream.
             let first_xbc1_offset = self.get_stream(0)?.xbc1_offset;
@@ -510,52 +512,54 @@ impl StreamingData {
                 .map_err(DecompressStreamError::from)?
                 .decompress()?;
 
-            // TODO: Par iter?
             let start = self.textures_stream_entry_start_index as usize;
             let count = self.textures_stream_entry_count as usize;
-            for (i, entry) in self
-                .texture_resources
-                .texture_indices
-                .iter()
-                .zip(&self.stream_entries[start..start + count])
+            let high_textures = self.stream_entries[start..start + count]
+                .par_iter()
+                .map(|entry| {
+                    let bytes = get_bytes(&stream, entry.offset, Some(entry.size))
+                        .map_err(DecompressStreamError::Io)?;
+                    let mid = T::from_bytes(bytes).map_err(DecompressStreamError::from)?;
+
+                    // Indices start from 1 for the base mip level.
+                    // Base mip levels are stored in their own streams.
+                    let base_mip_stream_index =
+                        entry.texture_base_mip_stream_index.saturating_sub(1);
+                    let base_mip = if base_mip_stream_index != 0 {
+                        Some(
+                            self.get_stream(base_mip_stream_index as usize)?
+                                .read_xbc1(data, first_xbc1_offset)
+                                .map_err(DecompressStreamError::from)?
+                                .decompress()?,
+                        )
+                    } else {
+                        None
+                    };
+
+                    Ok(HighTexture { mid, base_mip })
+                })
+                .collect::<Result<Vec<_>, ExtractStreamFilesError>>()?;
+
+            for (high, i) in high_textures
+                .into_iter()
+                .zip(&self.texture_resources.texture_indices)
             {
-                let bytes = get_bytes(&stream, entry.offset, Some(entry.size))
-                    .map_err(DecompressStreamError::Io)?;
-                let mid = T::from_bytes(bytes).map_err(DecompressStreamError::from)?;
-
-                // Indices start from 1 for the base mip level.
-                // Base mip levels are stored in their own streams.
-                let base_mip_stream_index = entry.texture_base_mip_stream_index.saturating_sub(1);
-                let base_mip = if base_mip_stream_index != 0 {
-                    Some(
-                        self.get_stream(base_mip_stream_index as usize)?
-                            .read_xbc1(data, first_xbc1_offset)
-                            .map_err(DecompressStreamError::from)?
-                            .decompress()?,
-                    )
-                } else {
-                    None
-                };
-
-                textures[*i as usize].high = Some(HighTexture { mid, base_mip });
+                textures[*i as usize].high = Some(high);
             }
-        }
-
-        if let Some(chr_textures) = &self.texture_resources.chr_textures {
+        } else if let Some(chr_textures) = &self.texture_resources.chr_textures {
             if let Some(tex_folder) = tex_folder {
                 let chr_folder = tex_folder.as_ref();
 
-                for (i, chr_tex) in self
-                    .texture_resources
-                    .texture_indices
-                    .iter()
-                    .zip(chr_textures.chr_textures.iter())
-                {
-                    let hash = format!("{:08x}", chr_tex.hash);
+                let high_textures = chr_textures
+                    .chr_textures
+                    .par_iter()
+                    .map(|chr_tex| {
+                        let hash = format!("{:08x}", chr_tex.hash);
 
-                    let chr_tex = chr_folder.join("tex").join("nx");
-                    let (mid, base_mip) =
-                        if chr_tex.join("m").exists() && chr_tex.join("h").exists() {
+                        let chr_tex = chr_folder.join("tex").join("nx");
+                        let (mid, base_mip) = if chr_tex.join("m").exists()
+                            && chr_tex.join("h").exists()
+                        {
                             // XC3: chr/tex/nx/m/abcdefgh.wismt, chr/tex/nx/h/abcdefgh.wismt
                             let m_path = chr_tex.join("m").join(format!("{hash}.wismt"));
                             let mid = read_chr_tex_m_texture(&m_path)?;
@@ -574,10 +578,18 @@ impl StreamingData {
                             (mid, base_mip)
                         };
 
-                    textures[*i as usize].high = Some(HighTexture {
-                        mid,
-                        base_mip: Some(base_mip),
-                    });
+                        Ok(HighTexture {
+                            mid,
+                            base_mip: Some(base_mip),
+                        })
+                    })
+                    .collect::<Result<Vec<_>, ExtractStreamFilesError>>()?;
+
+                for (high, i) in high_textures
+                    .into_iter()
+                    .zip(&self.texture_resources.texture_indices)
+                {
+                    textures[*i as usize].high = Some(high);
                 }
             }
         }
