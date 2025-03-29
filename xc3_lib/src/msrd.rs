@@ -35,12 +35,12 @@ use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 use crate::{
     get_bytes,
     mxmd::{PackedExternalTexture, PackedExternalTextures, TextureUsage},
-    parse_count32_offset32, parse_opt_ptr32, parse_ptr32,
+    parse_count32_offset32, parse_opt_ptr32, parse_ptr32, until_eof,
     xbc1::Xbc1,
     xc3_write_binwrite_impl,
 };
 use bilge::prelude::*;
-use binrw::{args, binread, helpers::until_eof, BinRead, BinResult, BinWrite};
+use binrw::{args, binread, BinRead, BinResult, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 /// Utilities for extracting and rebuilding streaming data.

@@ -535,6 +535,16 @@ where
     )
 }
 
+fn until_eof<R>(reader: &mut R, _endian: binrw::Endian, _args: ()) -> BinResult<Vec<u8>>
+where
+    R: std::io::Read + std::io::Seek,
+{
+    // Faster than binrw::helpers::until_eof.
+    let mut bytes = Vec::new();
+    reader.read_to_end(&mut bytes)?;
+    Ok(bytes)
+}
+
 macro_rules! file_write_impl {
     ($endian:path, $($type_name:path),*) => {
         $(

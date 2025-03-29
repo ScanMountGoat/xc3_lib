@@ -6,10 +6,10 @@
 //! | Xenoblade X | `monolib/shader/*.cashd` |
 use std::io::Cursor;
 
-use binrw::{helpers::until_eof, BinRead, BinResult, BinWrite};
+use binrw::{BinRead, BinResult, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
-use crate::{parse_count32_offset32_unchecked, parse_string_ptr32_unchecked};
+use crate::{parse_count32_offset32_unchecked, parse_string_ptr32_unchecked, until_eof};
 
 const HEADER_SIZE: u32 = 48;
 
