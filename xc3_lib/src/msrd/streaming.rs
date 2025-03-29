@@ -999,19 +999,6 @@ pub fn chr_folder<P: AsRef<Path>>(input: P) -> Option<PathBuf> {
     None
 }
 
-/// Get the path for "chr/cmntex/" from a file or `None` if not present.
-pub fn chr_cmntex_folder<P: AsRef<Path>>(input: P) -> Option<PathBuf> {
-    // "chr/en/file.wismt" -> "chr/cmntex"
-    let parent = input.as_ref().parent()?.parent()?;
-
-    if parent.file_name().and_then(|f| f.to_str()) == Some("chr") {
-        Some(parent.join("cmntex"))
-    } else {
-        // Not an xcx de chr model or not in the right folder.
-        None
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
