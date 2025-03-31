@@ -50,6 +50,7 @@ mod pipeline;
 mod renderer;
 mod sampler;
 mod shader;
+mod shadergen;
 mod skeleton;
 mod texture;
 

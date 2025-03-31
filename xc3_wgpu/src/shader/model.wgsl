@@ -90,10 +90,7 @@ var s9_sampler: sampler;
 
 // TODO: alpha test sampler
 
-// TODO: How to handle multiple inputs for each output channel?
 // Texture and channel input for each output channel.
-// TODO: Better way to store multiple layers?
-// TODO: More than 3 layers?
 // TODO: store texture channel or float for layer weights
 struct SamplerAssignment {
     sampler_indices: vec4<i32>,
@@ -108,33 +105,9 @@ struct AttributeAssignment {
 }
 
 struct OutputAssignment {
-    samplers1: SamplerAssignment,
-    // wimdo and wismhd models use up to 4 additional layers.
-    samplers2: SamplerAssignment,
-    samplers3: SamplerAssignment,
-    samplers4: SamplerAssignment,
-    samplers5: SamplerAssignment,
-    layer2: TextureLayers,
-    layer3: TextureLayers,
-    layer4: TextureLayers,
-    layer5: TextureLayers,
-    attributes1: AttributeAssignment,
-    attributes2: AttributeAssignment,
-    attributes3: AttributeAssignment,
-    attributes4: AttributeAssignment,
-    attributes5: AttributeAssignment,
+    samplers: SamplerAssignment,
+    attributes: AttributeAssignment,
     default_value: vec4<f32>
-}
-
-struct TextureLayers {
-    // Layer blending for xyzw channels.
-    sampler_indices: vec4<i32>,
-    channel_indices: vec4<u32>,
-    default_weights: vec4<f32>,
-    value: vec4<f32>,
-    blend_mode: vec4<i32>,
-    is_fresnel: vec4<u32>,
-
 }
 
 struct PerMaterial {
@@ -379,43 +352,10 @@ fn vs_main_instanced_static(in0: VertexInput0, in1: VertexInput1, instance: Inst
 }
 
 fn assign_texture(samplers: array<vec4<f32>, 10>, a: OutputAssignment, vert: VertexOutput) -> vec4<f32> {
-    let x = assign_channel(samplers, a.samplers1.sampler_indices.x, a.samplers1.channel_indices.x, a.attributes1.channel_indices.x, vert, a.default_value.x);
-    let y = assign_channel(samplers, a.samplers1.sampler_indices.y, a.samplers1.channel_indices.y, a.attributes1.channel_indices.y, vert, a.default_value.y);
-    let z = assign_channel(samplers, a.samplers1.sampler_indices.z, a.samplers1.channel_indices.z, a.attributes1.channel_indices.z, vert, a.default_value.z);
-    let w = assign_channel(samplers, a.samplers1.sampler_indices.w, a.samplers1.channel_indices.w, a.attributes1.channel_indices.w, vert, a.default_value.w);
-    return vec4(x, y, z, w);
-}
-
-fn assign_texture_layer(samplers: array<vec4<f32>, 10>, o: OutputAssignment, layer_index: u32, vert: VertexOutput, vcolor: vec4<f32>, default_value: vec4<f32>) -> vec4<f32> {
-    var s = o.samplers1;
-    var a = o.attributes1;
-    switch (layer_index) {
-        case 0u: {
-            s = o.samplers2;
-            a = o.attributes2;
-        }
-        case 1u: {
-            s = o.samplers3;
-            a = o.attributes3;
-        }
-        case 2u: {
-            s = o.samplers4;
-            a = o.attributes4;
-        }
-        case 3u: {
-            s = o.samplers5;
-            a = o.attributes5;
-        }
-        default: {
-            s = o.samplers1;
-            a = o.attributes1;
-        }
-    }
-
-    let x = assign_channel(samplers, s.sampler_indices.x, s.channel_indices.x, a.channel_indices.x, vert, default_value.x);
-    let y = assign_channel(samplers, s.sampler_indices.y, s.channel_indices.y, a.channel_indices.y, vert, default_value.y);
-    let z = assign_channel(samplers, s.sampler_indices.z, s.channel_indices.z, a.channel_indices.z, vert, default_value.z);
-    let w = assign_channel(samplers, s.sampler_indices.w, s.channel_indices.w, a.channel_indices.w, vert, default_value.w);
+    let x = assign_channel(samplers, a.samplers.sampler_indices.x, a.samplers.channel_indices.x, a.attributes.channel_indices.x, vert, a.default_value.x);
+    let y = assign_channel(samplers, a.samplers.sampler_indices.y, a.samplers.channel_indices.y, a.attributes.channel_indices.y, vert, a.default_value.y);
+    let z = assign_channel(samplers, a.samplers.sampler_indices.z, a.samplers.channel_indices.z, a.attributes.channel_indices.z, vert, a.default_value.z);
+    let w = assign_channel(samplers, a.samplers.sampler_indices.w, a.samplers.channel_indices.w, a.attributes.channel_indices.w, vert, a.default_value.w);
     return vec4(x, y, z, w);
 }
 
@@ -560,7 +500,7 @@ fn mrt_normal(normal: vec3<f32>, ao: f32) -> vec4<f32> {
 fn mrt_etc_buffer(g_etc_buffer: vec4<f32>, view_normal: vec3<f32>) -> vec4<f32> {
     var out = g_etc_buffer;
     // Antialiasing isn't necessary for parameters or constants.
-    if per_material.assignments[1].samplers1.sampler_indices.y != -1 {
+    if per_material.assignments[1].samplers.sampler_indices.y != -1 {
         out.y = geometric_specular_aa(g_etc_buffer.y, view_normal);
     }
     return out;
@@ -610,80 +550,9 @@ fn overlay_blend(a: f32, b: f32) -> f32 {
     return screen * is_a_gt_half + multiply * (1.0 - is_a_gt_half);
 }
 
-fn blend_layer(a: vec4<f32>, b: vec4<f32>, ratio: vec4<f32>, n_dot_v: f32, mode: vec4<i32>) -> vec4<f32> {
-    // Color layers typically have the same blend mode for all channels.
-    // Blend each channel individually to properly blend params.
-    var result = a;
-    for (var i = 0u; i < 4u; i++) {
-        switch (mode[i]) {
-            case 0: {
-                result[i] = mix(a[i], b[i], ratio[i]);
-            }
-            case 1: {
-                result[i] = mix(a[i], a[i] * b[i], ratio[i]);
-            }
-            case 2: {
-                result[i] = a[i] + b[i] * ratio[i];
-            }
-            case 3: {
-                // Ensure that z blending does not affect normals.
-                let a_normal = vec3(a.xy, normal_z(a.x, a.y));
-                let b_normal = create_normal_map(b.xy);
-                // Assume this mode applies to all relevant channels.
-                let blended = add_normal_maps(a_normal, b_normal, ratio[i]);
-                result.x = blended.x;
-                result.y = blended.y;
-            }
-            case 4: {
-                result[i] = mix(a[i], overlay_blend(a[i], b[i]), ratio[i]);
-            }
-            default: {
-                result[i] = a[i];
-            }
-        }
-    }
-    return result;
-}
-
-fn blend_texture_layer(current: vec4<f32>, samplers: array<vec4<f32>, 10>, assignments: OutputAssignment, vert: VertexOutput, layer_index: u32, n_dot_v: f32) -> vec4<f32> {
-    var layers: TextureLayers;
-    var attribute_channel_indices = vec4(-1);
-    switch (layer_index) {
-        case 0u: {
-            layers = assignments.layer2;
-        }
-        case 1u: {
-            layers = assignments.layer3;
-        }
-        case 2u: {
-            layers = assignments.layer4;
-        }
-        case 3u: {
-            layers = assignments.layer5;
-        }
-        default: {
-        }
-    }
-
-    var ratio = vec4(0.0);
-    for (var i = 0; i < 4; i++) {
-        let blend_mode = layers.blend_mode[i];
-        let sampler_index = layers.sampler_indices[i];
-        let channel_index = layers.channel_indices[i];
-        var default_weight = layers.default_weights[i];
-        let is_fresnel = layers.is_fresnel[i] != 0u;
-
-        if blend_mode != -1 {
-            ratio[i] = assign_channel(samplers, sampler_index, channel_index, -1, vert, default_weight);
-            if is_fresnel {
-                // Adapted from xeno3/chr/ch/ch11021013.pcsmt, shd00016, getPixelCalcFresnel.
-                ratio[i] = pow(1.0 - n_dot_v, ratio[i] * 5.0);
-            }
-        }
-    }
-    let b = assign_texture_layer(samplers, assignments, layer_index, vert, vert.vertex_color, layers.value);
-
-    return blend_layer(current, b, ratio, n_dot_v, layers.blend_mode);
+fn fresnel_ratio(ratio: f32, n_dot_v: f32) -> f32 {
+    // Adapted from xeno3/chr/ch/ch11021013.pcsmt, shd00016, getPixelCalcFresnel.
+    return pow(1.0 - n_dot_v, ratio * 5.0);
 }
 
 fn fragment_output(in: VertexOutput) -> FragmentOutput {
@@ -747,43 +616,36 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     // TODO: Is this a good way to check for this?
     var normal = vertex_normal;
     var ao = g_normal.z;
-    if assignments[2].samplers1.sampler_indices.x != -1 && assignments[2].samplers1.sampler_indices.y != -1 {
 
-        // Normal layers never use fresnel blending, so just use a default for dot(N, V).
-        // This avoids needing to define N before layering normal maps.
+    // Normal layers never use fresnel blending, so just use a default for dot(N, V).
+    // This avoids needing to define N before layering normal maps.
+    var n_dot_v = 1.0;
+
+    // TODO: generate this code and see if it fixes FPS issues
+    if assignments[2].samplers.sampler_indices.x != -1 && assignments[2].samplers.sampler_indices.y != -1 {
+
         var normal_map = create_normal_map(g_normal.xy);
-        for (var i = 0u; i < 4u; i++) {
-            normal_map = blend_texture_layer(vec4(normal_map, 0.0), samplers, assignments[2], in, i, 1.0).xyz;
-            // Ensure that z blending does not affect normals.
-            ao = normal_map.z;
-            normal_map.z = normal_z(normal_map.x, normal_map.y);
-        }
+        // BLEND_NORMAL_LAYERS_GENERATED
 
         normal = apply_normal_map(normal_map, tangent, bitangent, vertex_normal);
+        ao = normal_map.z;
     }
 
     // Normals are in view space, so the view vector is simple.
     let view = vec3(0.0, 0.0, 1.0);
-    let n_dot_v = max(dot(view, normal), 0.0);
+    n_dot_v = max(dot(view, normal), 0.0);
 
-    // Blend color layers.
-    var color = g_color.rgb;
-    for (var i = 0u; i < 4u; i++) {
-        color = blend_texture_layer(vec4(color, 1.0), samplers, assignments[0], in, i, n_dot_v).rgb;
-    }
+    var color = g_color.rgba;
+    // BLEND_COLOR_LAYERS_GENERATED
 
-    // Blend parameter layers.
     var etc_buffer = g_etc_buffer;
-    for (var i = 0u; i < 4u; i++) {
-        etc_buffer = blend_texture_layer(etc_buffer, samplers, assignments[1], in, i, n_dot_v);
-    }
+    // BLEND_ETC_LAYERS_GENERATED
 
     // The ordering here is the order of per material fragment shader outputs.
     // The input order for the deferred lighting pass is slightly different.
-    // TODO: alpha?
-    // TODO: Detect multiply by vertex color.
+    // TODO: proper alpha handling?
     var out: FragmentOutput;
-    out.g_color = vec4(color, g_color.a * in.vertex_color.a);
+    out.g_color = color;
     out.g_etc_buffer = mrt_etc_buffer(etc_buffer, normal);
     out.g_normal = mrt_normal(normal, ao);
     out.g_velocity = g_velocity;

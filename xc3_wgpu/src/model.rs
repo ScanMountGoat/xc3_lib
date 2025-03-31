@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use glam::{uvec4, vec4, Mat4, UVec4, Vec3, Vec4};
 use log::{error, info};
@@ -10,7 +10,7 @@ use crate::{
     animation::animated_skinning_transforms,
     culling::is_within_frustum,
     material::{materials, Material},
-    pipeline::{ModelPipelineData, Output5Type, PipelineKey},
+    pipeline::{model_pipeline, ModelPipelineData, Output5Type, PipelineKey},
     sampler::create_sampler,
     shader,
     texture::create_texture,
@@ -70,8 +70,7 @@ impl Models {
         models: &xc3_model::Models,
         buffers: &[xc3_model::vertex::ModelBuffers],
         skeleton: Option<&xc3_model::Skeleton>,
-        pipelines: &mut HashMap<PipelineKey, wgpu::RenderPipeline>,
-        pipeline_data: &ModelPipelineData,
+        pipelines: &mut HashSet<PipelineKey>,
         textures: &[wgpu::Texture],
         image_textures: &[ImageTexture],
         monolib_shader: &MonolibShaderTextures,
@@ -103,7 +102,6 @@ impl Models {
             device,
             queue,
             pipelines,
-            pipeline_data,
             &models.materials,
             textures,
             &samplers,
@@ -582,7 +580,7 @@ fn create_model_group(
         .map(|buffers| ModelBuffers::from_buffers(device, buffers))
         .collect();
 
-    let mut pipelines = HashMap::new();
+    let mut pipeline_keys = HashSet::new();
 
     let models = group
         .models
@@ -594,14 +592,31 @@ fn create_model_group(
                 models,
                 &group.buffers,
                 skeleton,
-                &mut pipelines,
-                pipeline_data,
+                &mut pipeline_keys,
                 textures,
                 image_textures,
                 monolib_shader,
             )
         })
         .collect();
+
+    let start = std::time::Instant::now();
+
+    // Pipeline creation is slow and benefits from parallelism.
+    // Repeat compiles will be much faster for drivers implementing pipeline caching.
+    let pipelines: HashMap<_, _> = pipeline_keys
+        .into_par_iter()
+        .map(|key| {
+            let pipeline = model_pipeline(device, pipeline_data, &key);
+            (key, pipeline)
+        })
+        .collect();
+
+    info!(
+        "Created {} pipelines in {:?}",
+        pipelines.len(),
+        start.elapsed()
+    );
 
     ModelGroup {
         models,

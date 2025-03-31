@@ -1,19 +1,17 @@
-use std::collections::HashMap;
+use std::collections::HashSet;
 
 use glam::{ivec2, ivec4, uvec2, uvec4, vec2, vec3, vec4, IVec4, UVec2, Vec2, Vec3, Vec4};
 use indexmap::IndexMap;
 use log::{error, warn};
 use smol_str::SmolStr;
 use xc3_model::{
-    material::{
-        ChannelAssignment, LayerChannelAssignment, OutputAssignment, OutputAssignments,
-        TextureAssignment,
-    },
+    material::{ChannelAssignment, OutputAssignment, OutputAssignments, TextureAssignment},
     ImageTexture, IndexMapExt,
 };
 
 use crate::{
-    pipeline::{model_pipeline, ModelPipelineData, Output5Type, PipelineKey},
+    pipeline::{Output5Type, PipelineKey},
+    shadergen::generate_layering_code,
     texture::create_default_black_texture,
     DeviceBufferExt, MonolibShaderTextures,
 };
@@ -35,8 +33,7 @@ pub(crate) struct Material {
 pub fn materials(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-    pipelines: &mut HashMap<PipelineKey, wgpu::RenderPipeline>,
-    pipeline_data: &ModelPipelineData,
+    pipelines: &mut HashSet<PipelineKey>,
     materials: &[xc3_model::material::Material],
     textures: &[wgpu::Texture],
     samplers: &[wgpu::Sampler],
@@ -209,6 +206,12 @@ pub fn materials(
                 Output5Type::Specular
             };
 
+            // TODO: Generate data for layering from output assignments.
+            // TODO: Generate pipelines in parallel.
+            let output_layers_wgsl = material_assignments
+                .assignments
+                .map(|a| generate_layering_code(&a, &name_to_index));
+
             // TODO: How to make sure the pipeline outputs match the render pass?
             // Each material only goes in exactly one pass?
             // TODO: Is it redundant to also store the unk type?
@@ -219,10 +222,9 @@ pub fn materials(
                 is_outline: material.name.ends_with("_outline"),
                 output5_type,
                 is_instanced_static,
+                output_layers_wgsl,
             };
-            pipelines
-                .entry(pipeline_key)
-                .or_insert_with(|| model_pipeline(device, pipeline_data, &pipeline_key));
+            pipelines.insert(pipeline_key.clone());
 
             Material {
                 name: material.name.clone(),
@@ -236,86 +238,6 @@ pub fn materials(
     materials
 }
 
-fn texture_layers(
-    assignment: &OutputAssignment,
-    name_to_index: &mut IndexMap<SmolStr, usize>,
-    name_to_info: &mut IndexMap<SmolStr, crate::shader::model::TextureInfo>,
-    layer_index: usize,
-) -> crate::shader::model::TextureLayers {
-    let (s0, c0, w0, b0, value0, f0) = layer_indices(
-        &assignment.x_layers,
-        name_to_index,
-        name_to_info,
-        layer_index,
-    );
-    let (s1, c1, w1, b1, value1, f1) = layer_indices(
-        &assignment.y_layers,
-        name_to_index,
-        name_to_info,
-        layer_index,
-    );
-    let (s2, c2, w2, b2, value2, f2) = layer_indices(
-        &assignment.z_layers,
-        name_to_index,
-        name_to_info,
-        layer_index,
-    );
-    let (s3, c3, w3, b3, value3, f3) = layer_indices(
-        &assignment.w_layers,
-        name_to_index,
-        name_to_info,
-        layer_index,
-    );
-
-    crate::shader::model::TextureLayers {
-        sampler_indices: ivec4(s0, s1, s2, s3),
-        channel_indices: uvec4(c0, c1, c2, c3),
-        default_weights: vec4(w0, w1, w2, w3),
-        value: vec4(value0, value1, value2, value3),
-        blend_mode: ivec4(b0, b1, b2, b3),
-        is_fresnel: uvec4(f0, f1, f2, f3),
-    }
-}
-
-fn layer_indices(
-    layers: &[LayerChannelAssignment],
-    name_to_index: &mut IndexMap<SmolStr, usize>,
-    name_to_info: &mut IndexMap<SmolStr, crate::shader::model::TextureInfo>,
-    layer: usize,
-) -> (i32, u32, f32, i32, f32, u32) {
-    let layer = layers.get(layer);
-
-    let (s, c) = layer
-        .and_then(|l| texture_channel(l.weight.as_ref(), name_to_index, name_to_info, 'x'))
-        .unwrap_or((-1, 0));
-
-    // TODO: Handle other dependency variants.
-    let w = layer
-        .and_then(|l| match &l.weight {
-            Some(ChannelAssignment::Value(f)) => Some(*f),
-            _ => None,
-        })
-        .unwrap_or_default();
-
-    let blend = layer
-        .map(|l| match l.blend_mode {
-            xc3_model::shader_database::LayerBlendMode::Mix => 0,
-            xc3_model::shader_database::LayerBlendMode::MixRatio => 1,
-            xc3_model::shader_database::LayerBlendMode::Add => 2,
-            xc3_model::shader_database::LayerBlendMode::AddNormal => 3,
-            xc3_model::shader_database::LayerBlendMode::Overlay => 4,
-        })
-        .unwrap_or(-1);
-
-    let value = layer
-        .and_then(|l| value_channel_assignment(l.value.as_ref()))
-        .unwrap_or_default();
-
-    let is_fresnel = layer.map(|l| l.is_fresnel as u32).unwrap_or_default();
-
-    (s, c, w, blend, value, is_fresnel)
-}
-
 fn output_assignments(
     assignments: &OutputAssignments,
     name_to_index: &mut IndexMap<SmolStr, usize>,
@@ -326,20 +248,8 @@ fn output_assignments(
         let assignment = &assignments.assignments[i];
 
         crate::shader::model::OutputAssignment {
-            samplers1: sampler_assignment(assignment, name_to_index, name_to_info, 0),
-            samplers2: sampler_assignment(assignment, name_to_index, name_to_info, 1),
-            samplers3: sampler_assignment(assignment, name_to_index, name_to_info, 2),
-            samplers4: sampler_assignment(assignment, name_to_index, name_to_info, 3),
-            samplers5: sampler_assignment(assignment, name_to_index, name_to_info, 4),
-            layer2: texture_layers(assignment, name_to_index, name_to_info, 0),
-            layer3: texture_layers(assignment, name_to_index, name_to_info, 1),
-            layer4: texture_layers(assignment, name_to_index, name_to_info, 2),
-            layer5: texture_layers(assignment, name_to_index, name_to_info, 3),
-            attributes1: attribute_assignment(assignment, 0),
-            attributes2: attribute_assignment(assignment, 1),
-            attributes3: attribute_assignment(assignment, 2),
-            attributes4: attribute_assignment(assignment, 3),
-            attributes5: attribute_assignment(assignment, 4),
+            samplers: sampler_assignment(assignment, name_to_index, name_to_info, 0),
+            attributes: attribute_assignment(assignment, 0),
             default_value: output_default(assignment, i),
         }
     })

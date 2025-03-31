@@ -1,30 +1,32 @@
 use xc3_model::material::{BlendMode, ColorWriteMode, CullMode, RenderPassType, StateFlags};
 
-use crate::{DEPTH_STENCIL_FORMAT, GBUFFER_COLOR_FORMAT, GBUFFER_NORMAL_FORMAT};
+use crate::{
+    shadergen::create_model_shader, DEPTH_STENCIL_FORMAT, GBUFFER_COLOR_FORMAT,
+    GBUFFER_NORMAL_FORMAT,
+};
 
 #[derive(Debug)]
 pub struct ModelPipelineData {
-    module: wgpu::ShaderModule,
     layout: wgpu::PipelineLayout,
 }
 
 impl ModelPipelineData {
     pub fn new(device: &wgpu::Device) -> Self {
-        let module = crate::shader::model::create_shader_module(device);
         let layout = crate::shader::model::create_pipeline_layout(device);
-        Self { module, layout }
+        Self { layout }
     }
 }
 
 // TODO: This also needs to take into account mesh flags?
 /// The non shared components of a pipeline for use with pipeline caching.
-#[derive(Debug, Hash, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq)]
 pub struct PipelineKey {
     pub pass_type: RenderPassType,
     pub flags: StateFlags,
     pub is_outline: bool,
     pub output5_type: Output5Type,
     pub is_instanced_static: bool,
+    pub output_layers_wgsl: [String; 6],
 }
 
 #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq)]
@@ -182,12 +184,18 @@ fn model_pipeline_inner<const M: usize, const N: usize>(
     fragment_entry: crate::shader::model::FragmentEntry<N>,
     key: &PipelineKey,
 ) -> wgpu::RenderPipeline {
+    let source = create_model_shader(&key.output_layers_wgsl);
+    let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: None,
+        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Owned(source)),
+    });
+
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Model Pipeline"),
         layout: Some(&data.layout),
-        vertex: crate::shader::model::vertex_state(&data.module, &vertex_entry),
+        vertex: crate::shader::model::vertex_state(&module, &vertex_entry),
         fragment: Some(crate::shader::model::fragment_state(
-            &data.module,
+            &module,
             &fragment_entry,
         )),
         primitive: wgpu::PrimitiveState {
