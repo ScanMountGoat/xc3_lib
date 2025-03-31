@@ -195,11 +195,15 @@ pub struct Materials {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct AlphaTestTexture {
-    // TODO: (_, 0, 1) has alpha testing?
-    // TODO: Test different param values?
+    /// Index into [textures](struct.Material.html#structfield.textures) for the texture
+    /// to compare with [alpha_test_ref](struct.Material.html#structfield.alpha_test_ref).
     pub texture_index: u16,
-    pub unk1: u16,
-    pub unk2: u32,
+    /// Index into [samplers](struct.Materials.html#structfield.samplers).
+    pub sampler_index: u16,
+
+    // TODO: Test this in game.
+    pub unk2: u16, // 1, 3, 4, 5
+    pub unk3: u16, // 0, 1
 }
 
 /// `ml::MdsMatTechnique` in the Xenoblade 2 binary.
@@ -459,8 +463,8 @@ pub struct Material {
     /// Color multiplier value assigned to the `gMatCol` shader uniform.
     pub color: [f32; 4],
 
-    // TODO: final byte controls reference?
-    pub alpha_test_ref: [u8; 4],
+    // TODO: remapped from range [0.0, 1.0] to [0.01, 0.99] for uniform buffer?
+    pub alpha_test_ref: f32,
 
     // TODO: materials with zero textures?
     /// Defines the shader's sampler bindings in order for s0, s1, s2, ...
@@ -502,8 +506,13 @@ pub struct Material {
 
     /// Index into [alpha_test_textures](struct.Materials.html#structfield.alpha_test_textures).
     pub alpha_test_texture_index: u16,
-    // TODO: [???, gbuffer flags?, ...]
-    pub m_unks3: [u16; 8],
+
+    pub m_unk3: u16,
+
+    // TODO: does this determine the layout of the gbuffer outputs?
+    pub gbuffer_flags: u16, // 0, 1, 2, 3, 4, 5, 6, ...
+
+    pub m_unk4: [u16; 6],
 }
 
 #[bitsize(32)]
@@ -555,8 +564,8 @@ pub struct MaterialRenderFlags {
     pub specular: bool, // TODO: specular for out_attr5?
     pub unk13: bool,    // TODO: true for core crystals?
     pub unk14: bool,    // TODO: true for core crystals?
-    pub unk15: bool,
-    pub unk16: bool, // false for characters
+    pub unk15: bool,    // TODO: true for _speff_trans?
+    pub unk16: bool,    // false for characters
     pub unk17: bool,
     pub unk18: bool,
     pub unk19: bool,
@@ -564,7 +573,12 @@ pub struct MaterialRenderFlags {
     /// Used exclusively for speff_ope materials for Xenoblade 3.
     // TODO: what does this toggle?
     pub speff_ope: bool,
-    pub unk: u11,
+    pub unk22: bool,
+    pub unk23: bool,
+    pub unk24: bool,
+    pub unk25: bool,
+    pub unk26: bool,
+    pub unk: u6,
 }
 
 /// Flags controlling pipeline state for rasterizer and fragment state.

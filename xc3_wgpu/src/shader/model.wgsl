@@ -88,6 +88,8 @@ var s8_sampler: sampler;
 @group(2) @binding(19)
 var s9_sampler: sampler;
 
+// TODO: alpha test sampler
+
 // TODO: How to handle multiple inputs for each output channel?
 // Texture and channel input for each output channel.
 // TODO: Better way to store multiple layers?
@@ -149,7 +151,9 @@ struct PerMaterial {
     fur_params: FurShellParams,
 
     // Assume outline width is always set via a parameter or constant.
-    outline_width: f32
+    outline_width: f32,
+
+    alpha_test_ref: f32
 }
 
 struct TextureInfo {
@@ -717,15 +721,15 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     );
 
     // An index of -1 disables alpha testing.
+    // TODO: Separate sampler for alpha testing.
     let alpha_texture = per_material.alpha_test_texture.x;
     let alpha_texture_channel = u32(per_material.alpha_test_texture.y);
     // Workaround for not being able to use a non constant index.
-    if assign_channel(samplers, alpha_texture, alpha_texture_channel, -1, in, 1.0) < 0.5 {
-        // TODO: incorrect reference alpha for comparison?
+    if assign_channel(samplers, alpha_texture, alpha_texture_channel, -1, in, 1.0) <= per_material.alpha_test_ref {
         discard;
     }
 
-    // The layout of G-Buffer textures is fixed but assignments are not.
+    // The layout of G-Buffer textures is mostly fixed but assignments are not.
     // Each material in game can have a unique shader program.
     // Check the G-Buffer assignment database to simulate having unique shaders.
     let assignments = per_material.assignments;

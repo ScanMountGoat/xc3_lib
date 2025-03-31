@@ -35,7 +35,7 @@ pub struct Material {
     pub work_callbacks: Vec<WorkCallback>,
 
     // TODO: final byte controls reference?
-    pub alpha_test_ref: [u8; 4],
+    pub alpha_test_ref: f32,
 
     // TODO: group indices for animations?
     pub m_unks1_1: u32,
@@ -57,7 +57,7 @@ pub struct Material {
     pub parameters: MaterialParameters,
 
     pub m_unks2_2: u16,
-    pub m_unks3_1: u16,
+    pub gbuffer_flags: u16,
 
     pub fur_params: Option<FurShellParams>,
 }
@@ -68,6 +68,8 @@ pub struct Material {
 pub struct TextureAlphaTest {
     /// The texture in [textures](struct.Material.html#structfield.textures) used for alpha testing.
     pub texture_index: usize,
+    /// The index of the [Sampler] in [samplers](struct.ModelGroup.html#structfield.samplers).
+    pub sampler_index: usize,
     /// The RGBA channel to sample for the comparison.
     pub channel_index: usize,
 }
@@ -233,7 +235,7 @@ pub(crate) fn create_materials(
                 m_unks1_3: material.m_unks1_3,
                 m_unks1_4: material.m_unks1_4,
                 m_unks2_2: material.m_unks2[2],
-                m_unks3_1: material.m_unks3[1],
+                gbuffer_flags: material.gbuffer_flags,
                 fur_params,
             }
         })
@@ -272,7 +274,7 @@ where
             let shader_var_start = m.shader_var_start_index as usize;
             let shader_var_end = shader_var_start + m.shader_var_count as usize;
 
-            let alpha_test = find_alpha_test_texture_legacy(materials, m);
+            let alpha_test = find_alpha_test_texture_legacy(materials, m, &mut samplers);
 
             // TODO: Error for invalid parameters?
             let parameters =
@@ -289,26 +291,17 @@ where
                     .iter()
                     .map(|t| {
                         // Texture indices are remapped by some models like chr_np/np025301.camdo.
-                        // Legacy samplers aren't indexed, so create indices here.
-                        let sampler = Sampler::from(t.sampler);
                         Texture {
                             image_texture_index: texture_indices
                                 .iter()
                                 .position(|i| *i == t.texture_index)
                                 .unwrap_or_default(),
-                            sampler_index: samplers
-                                .iter()
-                                .position(|s| s == &sampler)
-                                .unwrap_or_else(|| {
-                                    let index = samplers.len();
-                                    samplers.push(sampler);
-                                    index
-                                }),
+                            sampler_index: get_sampler_index(&mut samplers, t.sampler_flags),
                         }
                     })
                     .collect(),
                 alpha_test,
-                alpha_test_ref: [0; 4],
+                alpha_test_ref: 0.5,
                 shader: get_shader_legacy(m, shaders, shader_database),
                 technique_index: m
                     .techniques
@@ -338,13 +331,26 @@ where
                 m_unks1_3: 0,
                 m_unks1_4: 0,
                 m_unks2_2: 0,
-                m_unks3_1: 0,
+                gbuffer_flags: 0,
                 fur_params: None,
             }
         })
         .collect();
 
     (materials, samplers)
+}
+
+fn get_sampler_index(samplers: &mut Vec<Sampler>, flags: xc3_lib::mxmd::SamplerFlags) -> usize {
+    // Legacy samplers aren't indexed, so create indices here.
+    let sampler = Sampler::from(flags);
+    samplers
+        .iter()
+        .position(|s| s == &sampler)
+        .unwrap_or_else(|| {
+            let index = samplers.len();
+            samplers.push(sampler);
+            index
+        })
 }
 
 fn get_shader(
@@ -475,6 +481,7 @@ fn find_alpha_test_texture(
 
         Some(TextureAlphaTest {
             texture_index,
+            sampler_index: alpha_texture.sampler_index as usize,
             channel_index,
         })
     } else {
@@ -485,6 +492,7 @@ fn find_alpha_test_texture(
 fn find_alpha_test_texture_legacy(
     materials: &xc3_lib::mxmd::legacy::Materials,
     material: &xc3_lib::mxmd::legacy::Material,
+    samplers: &mut Vec<Sampler>,
 ) -> Option<TextureAlphaTest> {
     // Find the texture used for alpha testing in the shader.
     // TODO: investigate how this works in game.
@@ -504,6 +512,7 @@ fn find_alpha_test_texture_legacy(
 
         Some(TextureAlphaTest {
             texture_index,
+            sampler_index: get_sampler_index(samplers, alpha_texture.sampler_flags),
             channel_index,
         })
     } else {

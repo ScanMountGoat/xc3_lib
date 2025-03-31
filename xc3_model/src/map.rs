@@ -706,7 +706,7 @@ fn foliage_materials(materials: &FoliageMaterials) -> Vec<Material> {
                 textures,
                 alpha_test: None,
                 shader,
-                alpha_test_ref: [0; 4],
+                alpha_test_ref: 0.5,
                 technique_index: 0,
                 pass_type: RenderPassType::Unk0,
                 parameters: Default::default(),
@@ -718,7 +718,7 @@ fn foliage_materials(materials: &FoliageMaterials) -> Vec<Material> {
                 m_unks1_3: 0,
                 m_unks1_4: 0,
                 m_unks2_2: 0,
-                m_unks3_1: 0,
+                gbuffer_flags: 0,
                 fur_params: None,
             }
         })

@@ -507,12 +507,12 @@ pub struct MaterialCallbacks {
     pub unk: [u32; 6],
 }
 
-// TODO: same as xc2?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct AlphaTestTexture {
+    /// Index into [textures](struct.Material.html#structfield.textures).
     pub texture_index: u16,
-    pub unk1: u16,
+    pub sampler_flags: SamplerFlags,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -584,7 +584,7 @@ pub enum UnkPassType {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Texture {
     pub texture_index: u16,
-    pub sampler: SamplerFlags,
+    pub sampler_flags: SamplerFlags,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]

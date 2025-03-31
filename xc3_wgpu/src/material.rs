@@ -157,6 +157,7 @@ pub fn materials(
                     },
                     outline_width,
                     fur_params,
+                    alpha_test_ref: material.alpha_test_ref,
                 }],
             );
 
@@ -194,13 +195,13 @@ pub fn materials(
             // Toon and hair materials seem to always use specular.
             // TODO: Is there a more reliable way to check this?
             // TODO: Is any frag shader with 7 outputs using specular?
-            // TODO: melia queen has 6 outputs but uses specular?
             // TODO: Something in the wimdo matches up with shader outputs?
             // TODO: unk12-14 in material render flags?
             let output5_type = if material_assignments.mat_id().is_some() {
                 if material.render_flags.specular() {
                     Output5Type::Specular
                 } else {
+                    // TODO: This case isn't always accurate.
                     Output5Type::Emission
                 }
             } else {

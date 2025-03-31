@@ -324,7 +324,9 @@ impl ModelRoot {
                             .position(|t| t.texture_index == alpha_image_index)
                     })
                     .unwrap_or_default() as u16,
-                m_unks3: [0, m.m_unks3_1, 0, 0, 0, 0, 0, 0],
+                m_unk3: 0,
+                gbuffer_flags: m.gbuffer_flags,
+                m_unk4: [0; 6],
             };
             mxmd.materials.materials.push(new_material);
 
