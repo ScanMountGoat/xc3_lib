@@ -372,14 +372,14 @@ fn parse_named_fields(fields: &FieldsNamed) -> Vec<FieldData> {
         // TODO: Reduce repeated code?
         let mut offset_field = match &options.field_type {
             Some(FieldType::Offset(offset_ty)) => {
-                FieldData::offset(name, options.align, &offset_ty, ty)
+                FieldData::offset(name, options.align, offset_ty, ty)
             }
             Some(FieldType::CountOffset(count_ty, offset_ty)) => {
-                let write_offset = write_dummy_offset(name, options.align, &offset_ty);
+                let write_offset = write_dummy_offset(name, options.align, offset_ty);
 
                 FieldData {
                     name: name.clone(),
-                    offset_field: offset_field(name, &offset_ty, ty),
+                    offset_field: offset_field(name, offset_ty, ty),
                     write_impl: quote! {
                         (self.#name.len() as #count_ty).xc3_write(writer, endian)?;
                         #write_offset
@@ -390,11 +390,11 @@ fn parse_named_fields(fields: &FieldsNamed) -> Vec<FieldData> {
                 }
             }
             Some(FieldType::OffsetCount(offset_ty, count_ty)) => {
-                let write_offset = write_dummy_offset(name, options.align, &offset_ty);
+                let write_offset = write_dummy_offset(name, options.align, offset_ty);
 
                 FieldData {
                     name: name.clone(),
-                    offset_field: offset_field(name, &offset_ty, ty),
+                    offset_field: offset_field(name, offset_ty, ty),
                     write_impl: quote! {
                         #write_offset
                         (self.#name.len() as #count_ty).xc3_write(writer, endian)?;
@@ -414,10 +414,10 @@ fn parse_named_fields(fields: &FieldsNamed) -> Vec<FieldData> {
                 FieldData::field_position(name, ty, !options.skip)
             }
             Some(FieldType::OffsetSize(offset_ty, size_ty)) => {
-                let write_offset = write_dummy_offset(name, options.align, &offset_ty);
+                let write_offset = write_dummy_offset(name, options.align, offset_ty);
                 FieldData {
                     name: name.clone(),
-                    offset_field: offset_field(name, &offset_ty, ty),
+                    offset_field: offset_field(name, offset_ty, ty),
                     write_impl: quote! {
                         #write_offset
                         {
@@ -433,11 +433,11 @@ fn parse_named_fields(fields: &FieldsNamed) -> Vec<FieldData> {
                 }
             }
             Some(FieldType::OffsetInnerCount(offset_ty, count_expr)) => {
-                let write_offset = write_dummy_offset(name, options.align, &offset_ty);
+                let write_offset = write_dummy_offset(name, options.align, offset_ty);
 
                 FieldData {
                     name: name.clone(),
-                    offset_field: offset_field(name, &offset_ty, ty),
+                    offset_field: offset_field(name, offset_ty, ty),
                     write_impl: quote! {
                         #write_offset
                         (#count_expr).xc3_write(writer, endian)?;
