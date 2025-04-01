@@ -92,17 +92,9 @@ var s9_sampler: sampler;
 var alpha_test_sampler: sampler;
 
 // Texture and channel input for each output channel.
-// TODO: store texture channel or float for layer weights
 struct SamplerAssignment {
     sampler_indices: vec4<i32>,
     channel_indices: vec4<u32>,
-}
-
-// TODO: Support attributes other than vColor.
-// Attribute and channel input for each output channel.
-struct AttributeAssignment {
-    // TODO: proper attribute selection similar to textures?
-    channel_indices: vec4<i32>
 }
 
 struct OutputAssignment {
@@ -295,7 +287,6 @@ fn outline_width(vertex_color: vec4<f32>, param: f32, view_z: f32, normal: vec3<
     return f_line_width;
 }
 
-// TODO: separate shader for instancing stage models?
 @vertex
 fn vs_main(in0: VertexInput0, in1: VertexInput1, @builtin(instance_index) instance_index: u32) -> VertexOutput {
     return vertex_output(in0, in1, instance_index, false);
@@ -425,8 +416,6 @@ fn transform_uv(uv: vec2<f32>, transform_u: vec4<f32>, transform_v: vec4<f32>) -
 
 fn uv_parallax(vert: VertexOutput, mask_a: f32, mask_b: f32, ratio: f32) -> vec2<f32> {
     // TODO: How similar is this to traditional parallax mapping with a height map?
-    // Use inner functions since recursion is not allowed.
-    // This assumes the mask texture itself has only basic UVs.
     let bitangent = cross(vert.normal.xyz, vert.tangent.xyz) * vert.tangent.w;
     let offset = vert.normal.x * vert.tangent.xy - vert.normal.x * bitangent.xy;
 
@@ -542,7 +531,6 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
 
     // The ordering here is the order of per material fragment shader outputs.
     // The input order for the deferred lighting pass is slightly different.
-    // TODO: proper alpha handling?
     var out: FragmentOutput;
     out.g_color = color;
     out.g_etc_buffer = mrt_etc_buffer(etc_buffer, normal);
