@@ -127,12 +127,7 @@ struct PerMaterial {
 }
 
 struct TextureInfo {
-    texcoord_index: u32,
     is_bc4_single_channel: u32,
-    parallax_sampler_indices: vec2<i32>,
-    parallax_channel_indices: vec2<u32>,
-    parallax_default_values: vec2<f32>,
-    parallax_ratio: f32,
     transform: array<vec4<f32>, 2>,
 }
 
@@ -348,53 +343,6 @@ fn vs_main_instanced_static(in0: VertexInput0, in1: VertexInput1, instance: Inst
     return out;
 }
 
-fn assign_sampler_channel(sampler_index: i32, channel_index: u32, uvs: vec2<f32>, default_value: f32) -> f32 {
-    // Workaround for BC4 swizzle mask of RRR1.
-    var channel = channel_index;
-    if sampler_index >= 0 {
-        if per_material.texture_info[sampler_index].is_bc4_single_channel == 1u {
-            channel = 0u;
-        }
-    }
-
-    // TODO: This slows down compilation on DX12.
-    switch (sampler_index) {
-       case 0: {
-            return textureSample(s0, s0_sampler, uvs)[channel];
-        }
-        case 1: {
-            return textureSample(s1, s1_sampler, uvs)[channel];
-        }
-        case 2: {
-            return textureSample(s2, s2_sampler, uvs)[channel];
-        }
-        case 3: {
-            return textureSample(s3, s3_sampler, uvs)[channel];
-        }
-        case 4: {
-            return textureSample(s4, s4_sampler, uvs)[channel];
-        }
-        case 5: {
-            return textureSample(s5, s5_sampler, uvs)[channel];
-        }
-        case 6: {
-            return textureSample(s6, s6_sampler, uvs)[channel];
-        }
-        case 7: {
-            return textureSample(s7, s7_sampler, uvs)[channel];
-        }
-        case 8: {
-            return textureSample(s8, s8_sampler, uvs)[channel];
-        }
-        case 9: {
-            return textureSample(s9, s9_sampler, uvs)[channel];
-        }
-        default: {
-            return default_value;
-        }
-    }
-}
-
 // Adapted from xeno3/chr/ch/ch11021013.pcsmt, shd00028, getCalcNormalMap,
 fn apply_normal_map(normal_map: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
     // Normal mapping is a change of basis using the TBN vectors.
@@ -477,32 +425,14 @@ fn transform_uv(uv: vec2<f32>, matrix: array<vec4<f32>, 2>) -> vec2<f32> {
     return vec2(dot(v, matrix[0]), dot(v, matrix[1]));
 }
 
-fn select_uv(vert: VertexOutput, uv_attributes: array<vec2<f32>, 9>, index: i32) -> vec2<f32> {
-    let info = per_material.texture_info[index];
+fn uv_parallax(vert: VertexOutput, mask_a: f32, mask_b: f32, ratio: f32) -> vec2<f32> {
+    // TODO: How similar is this to traditional parallax mapping with a height map?
+    // Use inner functions since recursion is not allowed.
+    // This assumes the mask texture itself has only basic UVs.
+    let bitangent = cross(vert.normal.xyz, vert.tangent.xyz) * vert.tangent.w;
+    let offset = vert.normal.x * vert.tangent.xy - vert.normal.x * bitangent.xy;
 
-    var uv_attributes2 = uv_attributes;
-    var uvs = transform_uv(uv_attributes2[info.texcoord_index], info.transform);
-
-    let parallax_s_x = info.parallax_sampler_indices.x;
-    let parallax_s_y = info.parallax_sampler_indices.y;
-    // Assume at least one value is a texture mask.
-    if parallax_s_x != -1 || parallax_s_y != -1 {
-        // TODO: How similar is this to traditional parallax mapping with a height map?
-        // Use inner functions since recursion is not allowed.
-        // This assumes the mask texture itself has only basic UVs.
-        let mask_a_uvs = uv_attributes2[per_material.texture_info[parallax_s_x].texcoord_index];
-        let mask_a = assign_sampler_channel(parallax_s_x, info.parallax_channel_indices.x, mask_a_uvs, info.parallax_default_values.x);
-
-        let mask_b_uvs = uv_attributes2[per_material.texture_info[parallax_s_y].texcoord_index];
-        let mask_b = assign_sampler_channel(parallax_s_y, info.parallax_channel_indices.y, mask_b_uvs, info.parallax_default_values.y);
-
-        let bitangent = cross(vert.normal.xyz, vert.tangent.xyz) * vert.tangent.w;
-        let offset = vert.normal.x * vert.tangent.xy - vert.normal.x * bitangent.xy;
-
-        uvs += mix(mask_a, mask_b, info.parallax_ratio) * 0.7 * offset;
-    }
-
-    return uvs;
+    return mix(mask_a, mask_b, ratio) * 0.7 * offset;
 }
 
 fn overlay_blend(a: f32, b: f32) -> f32 {
@@ -525,30 +455,40 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
 
     let bitangent = cross(vertex_normal, tangent) * in.tangent.w;
 
-    // Avoid switch statements on texcoord index that compile slowly with DX12.
-    let uvs = array<vec2<f32>, 9>(
-        in.tex01.xy,
-        in.tex01.zw,
-        in.tex23.xy,
-        in.tex23.zw,
-        in.tex45.xy,
-        in.tex45.zw,
-        in.tex67.xy,
-        in.tex67.zw,
-        in.tex8.xy,
-    );
+    let tex0 = in.tex01.xy;
+    let tex1 = in.tex01.zw;
+    let tex2 = in.tex23.xy;
+    let tex3 = in.tex23.zw;
+    let tex4 = in.tex45.xy;
+    let tex5 = in.tex45.zw;
+    let tex6 = in.tex67.xy;
+    let tex7 = in.tex67.zw;
+    let tex8 = in.tex8.xy;
+
+    var uv0 = tex0;
+    var uv1 = tex0;
+    var uv2 = tex0;
+    var uv3 = tex0;
+    var uv4 = tex0;
+    var uv5 = tex0;
+    var uv6 = tex0;
+    var uv7 = tex0;
+    var uv8 = tex0;
+    var uv9 = tex0;
+
+    // UVS_GENERATED
 
     // Assume one access per texture and compute values ahead of time.
-    let s0_color = textureSample(s0, s0_sampler, select_uv(in, uvs, 0));
-    let s1_color = textureSample(s1, s1_sampler, select_uv(in, uvs, 1));
-    let s2_color = textureSample(s2, s2_sampler, select_uv(in, uvs, 2));
-    let s3_color = textureSample(s3, s3_sampler, select_uv(in, uvs, 3));
-    let s4_color = textureSample(s4, s4_sampler, select_uv(in, uvs, 4));
-    let s5_color = textureSample(s5, s5_sampler, select_uv(in, uvs, 5));
-    let s6_color = textureSample(s6, s6_sampler, select_uv(in, uvs, 6));
-    let s7_color = textureSample(s7, s7_sampler, select_uv(in, uvs, 7));
-    let s8_color = textureSample(s8, s8_sampler, select_uv(in, uvs, 8));
-    let s9_color = textureSample(s9, s9_sampler, select_uv(in, uvs, 9));
+    let s0_color = textureSample(s0, s0_sampler, uv0);
+    let s1_color = textureSample(s1, s1_sampler, uv1);
+    let s2_color = textureSample(s2, s2_sampler, uv2);
+    let s3_color = textureSample(s3, s3_sampler, uv3);
+    let s4_color = textureSample(s4, s4_sampler, uv4);
+    let s5_color = textureSample(s5, s5_sampler, uv5);
+    let s6_color = textureSample(s6, s6_sampler, uv6);
+    let s7_color = textureSample(s7, s7_sampler, uv7);
+    let s8_color = textureSample(s8, s8_sampler, uv8);
+    let s9_color = textureSample(s9, s9_sampler, uv9);
 
     // ALPHA_TEST_DISCARD_GENERATED
 

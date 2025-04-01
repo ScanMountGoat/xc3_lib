@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use glam::{ivec2, ivec4, uvec2, uvec4, vec2, vec3, vec4, UVec2, Vec2, Vec3, Vec4};
+use glam::{ivec4, uvec4, vec3, vec4, Vec3, Vec4};
 use indexmap::IndexMap;
 use log::{error, warn};
 use smol_str::SmolStr;
@@ -72,16 +72,18 @@ pub fn materials(
                 name_to_index.entry_index(format!("s{}", a.texture_index).into());
             }
 
+            let mut name_to_uv_wgsl = IndexMap::new();
+
             let output_assignments_wgsl = material_assignments
                 .assignments
                 .iter()
-                .map(|a| generate_assignment_wgsl(&a, &mut name_to_index))
+                .map(|a| generate_assignment_wgsl(a, &mut name_to_index, &mut name_to_uv_wgsl))
                 .collect();
 
             let output_layers_wgsl = material_assignments
                 .assignments
                 .iter()
-                .map(|a| generate_layering_wgsl(&a, &mut name_to_index))
+                .map(|a| generate_layering_wgsl(a, &mut name_to_index, &mut name_to_uv_wgsl))
                 .collect();
 
             // Generate empty code if alpha testing is disabled.
@@ -91,18 +93,15 @@ pub fn materials(
                 .map(|a| generate_alpha_test_wgsl(a, &mut name_to_index))
                 .unwrap_or_default();
 
+            let uvs_wgsl = name_to_uv_wgsl.values().cloned().collect();
+
             let mut texture_views: [Option<_>; 10] = std::array::from_fn(|_| None);
 
             // TODO: Is it ok to switch on the texcoord for each channel lookup?
             // TODO: can a texture be used with more than one scale?
             // TODO: Include this logic with xc3_model?
             let mut texture_info = [crate::shader::model::TextureInfo {
-                texcoord_index: 0,
                 is_bc4_single_channel: 0,
-                parallax_sampler_indices: ivec2(-1, -1),
-                parallax_channel_indices: UVec2::ZERO,
-                parallax_default_values: Vec2::ZERO,
-                parallax_ratio: 0.0,
                 transform: [Vec4::X, Vec4::Y],
             }; 10];
 
@@ -227,6 +226,7 @@ pub fn materials(
                 output_assignments_wgsl,
                 output_layers_wgsl,
                 alpha_test_wgsl,
+                uvs_wgsl,
             };
             pipelines.insert(pipeline_key.clone());
 
@@ -317,51 +317,14 @@ fn texture_channel(
         let TextureAssignment {
             name,
             channels,
-            texcoord_name,
             texcoord_transforms,
-            parallax,
+            ..
         } = texture;
-
-        let (ps_x, ps_y, pc_x, pc_y, p_default_x, p_default_y, parallax_ratio) =
-            if let Some(parallax) = parallax {
-                let (s_x, c_x) =
-                    texture_channel(Some(&parallax.mask_a), name_to_index, name_to_info, 'x')
-                        .unzip();
-
-                let (s_y, c_y) =
-                    texture_channel(Some(&parallax.mask_b), name_to_index, name_to_info, 'x')
-                        .unzip();
-
-                let default_x =
-                    value_channel_assignment(Some(&parallax.mask_a)).unwrap_or_default();
-                let default_y =
-                    value_channel_assignment(Some(&parallax.mask_b)).unwrap_or_default();
-
-                (
-                    s_x.unwrap_or(-1),
-                    s_y.unwrap_or(-1),
-                    c_x.unwrap_or_default(),
-                    c_y.unwrap_or_default(),
-                    default_x,
-                    default_y,
-                    parallax.ratio,
-                )
-            } else {
-                (-1, -1, 0, 0, 0.0, 0.0, 0.0)
-            };
 
         name_to_info.insert(
             name.clone(),
             crate::shader::model::TextureInfo {
                 is_bc4_single_channel: 0,
-                texcoord_index: texcoord_name
-                    .as_ref()
-                    .and_then(|s| texcoord_index(s))
-                    .unwrap_or_default(),
-                parallax_sampler_indices: ivec2(ps_x, ps_y),
-                parallax_channel_indices: uvec2(pc_x, pc_y),
-                parallax_default_values: vec2(p_default_x, p_default_y),
-                parallax_ratio,
                 transform: texcoord_transforms.unwrap_or((Vec4::X, Vec4::Y)).into(),
             },
         );
@@ -378,11 +341,6 @@ fn texture_channel(
     } else {
         None
     }
-}
-
-fn texcoord_index(name: &str) -> Option<u32> {
-    // vTex1 -> 1
-    name.strip_prefix("vTex")?.parse().ok()
 }
 
 fn create_bit_info(

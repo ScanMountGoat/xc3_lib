@@ -5,7 +5,10 @@ use indoc::writedoc;
 use log::error;
 use smol_str::SmolStr;
 use xc3_model::{
-    material::{ChannelAssignment, LayerChannelAssignment, OutputAssignment, TextureAlphaTest},
+    material::{
+        ChannelAssignment, LayerChannelAssignment, OutputAssignment, TexCoordParallax,
+        TextureAlphaTest, TextureAssignment,
+    },
     shader_database::LayerBlendMode,
     IndexMapExt,
 };
@@ -42,19 +45,59 @@ pub fn create_model_shader(key: &PipelineKey) -> String {
         source = source.replace(from, &to.replace(OUT_VAR, var));
     }
 
+    source = source.replace("// UVS_GENERATED", &key.uvs_wgsl.join("\n"));
+
     source = source.replace("// ALPHA_TEST_DISCARD_GENERATED", &key.alpha_test_wgsl);
+
     source
+}
+
+pub fn generate_uv_wgsl(
+    texture: &TextureAssignment,
+    name_to_index: &mut IndexMap<SmolStr, usize>,
+) -> String {
+    // TODO: Select sampler for alpha testing.
+    let mut wgsl = String::new();
+
+    let i = name_to_index.entry_index(texture.name.clone());
+
+    let index = texture
+        .texcoord_name
+        .as_deref()
+        .and_then(texcoord_index)
+        .unwrap_or_default();
+
+    let parallax = texture
+        .parallax
+        .as_ref()
+        .and_then(|p| parallax_wgsl(name_to_index, p));
+
+    writeln!(
+        &mut wgsl,
+        "uv{i} = transform_uv(tex{index}, per_material.texture_info[{i}].transform);"
+    )
+    .unwrap();
+    if let Some(parallax) = parallax {
+        writeln!(&mut wgsl, "uv{i} += {parallax};").unwrap();
+    }
+
+    wgsl
+}
+
+fn texcoord_index(name: &str) -> Option<u32> {
+    // vTex1 -> 1
+    name.strip_prefix("vTex")?.parse().ok()
 }
 
 pub fn generate_alpha_test_wgsl(
     alpha_test: &TextureAlphaTest,
-    name_to_index: &IndexMap<SmolStr, usize>,
+    name_to_index: &mut IndexMap<SmolStr, usize>,
 ) -> String {
     // TODO: Select sampler for alpha testing.
     let mut wgsl = String::new();
 
     let name: SmolStr = format!("s{}", alpha_test.texture_index).into();
-    let i = name_to_index[&name];
+    let i = name_to_index.entry_index(name);
     let c = ['x', 'y', 'z', 'w'][alpha_test.channel_index];
 
     writedoc!(
@@ -73,18 +116,27 @@ pub fn generate_alpha_test_wgsl(
 pub fn generate_assignment_wgsl(
     assignments: &OutputAssignment,
     name_to_index: &mut IndexMap<SmolStr, usize>,
+    name_to_uv_wgsl: &mut IndexMap<SmolStr, String>,
 ) -> String {
     let mut wgsl = String::new();
-    if let Some(value) = channel_assignment_wgsl(name_to_index, assignments.x.as_ref()) {
+    if let Some(value) =
+        channel_assignment_wgsl(name_to_index, name_to_uv_wgsl, assignments.x.as_ref())
+    {
         writeln!(&mut wgsl, "{OUT_VAR}.x = {value};").unwrap();
     }
-    if let Some(value) = channel_assignment_wgsl(name_to_index, assignments.y.as_ref()) {
+    if let Some(value) =
+        channel_assignment_wgsl(name_to_index, name_to_uv_wgsl, assignments.y.as_ref())
+    {
         writeln!(&mut wgsl, "{OUT_VAR}.y = {value};").unwrap();
     }
-    if let Some(value) = channel_assignment_wgsl(name_to_index, assignments.z.as_ref()) {
+    if let Some(value) =
+        channel_assignment_wgsl(name_to_index, name_to_uv_wgsl, assignments.z.as_ref())
+    {
         writeln!(&mut wgsl, "{OUT_VAR}.z = {value};").unwrap();
     }
-    if let Some(value) = channel_assignment_wgsl(name_to_index, assignments.w.as_ref()) {
+    if let Some(value) =
+        channel_assignment_wgsl(name_to_index, name_to_uv_wgsl, assignments.w.as_ref())
+    {
         writeln!(&mut wgsl, "{OUT_VAR}.w = {value};").unwrap();
     }
     wgsl
@@ -93,37 +145,65 @@ pub fn generate_assignment_wgsl(
 pub fn generate_layering_wgsl(
     assignments: &OutputAssignment,
     name_to_index: &mut IndexMap<SmolStr, usize>,
+    name_to_uv_wgsl: &mut IndexMap<SmolStr, String>,
 ) -> String {
     let mut wgsl = String::new();
-    write_layers(&mut wgsl, name_to_index, &assignments.x_layers, 'x');
-    write_layers(&mut wgsl, name_to_index, &assignments.y_layers, 'y');
-    write_layers(&mut wgsl, name_to_index, &assignments.z_layers, 'z');
-    write_layers(&mut wgsl, name_to_index, &assignments.w_layers, 'w');
+    write_layers(
+        &mut wgsl,
+        name_to_index,
+        name_to_uv_wgsl,
+        &assignments.x_layers,
+        'x',
+    );
+    write_layers(
+        &mut wgsl,
+        name_to_index,
+        name_to_uv_wgsl,
+        &assignments.y_layers,
+        'y',
+    );
+    write_layers(
+        &mut wgsl,
+        name_to_index,
+        name_to_uv_wgsl,
+        &assignments.z_layers,
+        'z',
+    );
+    write_layers(
+        &mut wgsl,
+        name_to_index,
+        name_to_uv_wgsl,
+        &assignments.w_layers,
+        'w',
+    );
     wgsl
 }
 
 fn write_layers(
     wgsl: &mut String,
     name_to_index: &mut IndexMap<SmolStr, usize>,
+    name_to_uv_wgsl: &mut IndexMap<SmolStr, String>,
+
     layers: &[LayerChannelAssignment],
     c: char,
 ) {
     for layer in layers {
         // TODO: How to handle missing values?
         // TODO: function to reduce nesting?
-        write_layer(wgsl, name_to_index, layer, c);
+        write_layer(wgsl, name_to_index, name_to_uv_wgsl, layer, c);
     }
 }
 
 fn write_layer(
     wgsl: &mut String,
     name_to_index: &mut IndexMap<SmolStr, usize>,
+    name_to_uv_wgsl: &mut IndexMap<SmolStr, String>,
     layer: &LayerChannelAssignment,
     c: char,
 ) -> Option<()> {
-    let b = channel_assignment_wgsl(name_to_index, layer.value.as_ref())?;
+    let b = channel_assignment_wgsl(name_to_index, name_to_uv_wgsl, layer.value.as_ref())?;
 
-    let mut ratio = channel_assignment_wgsl(name_to_index, layer.weight.as_ref())?;
+    let mut ratio = channel_assignment_wgsl(name_to_index, name_to_uv_wgsl, layer.weight.as_ref())?;
     if layer.is_fresnel {
         ratio = format!("fresnel_ratio({ratio}, n_dot_v)");
     }
@@ -174,13 +254,76 @@ fn write_layer(
 
 fn channel_assignment_wgsl(
     name_to_index: &mut IndexMap<SmolStr, usize>,
+    name_to_uv_wgsl: &mut IndexMap<SmolStr, String>,
     value: Option<&ChannelAssignment>,
 ) -> Option<String> {
     match value? {
         ChannelAssignment::Texture(t) => {
             let i = name_to_index.entry_index(t.name.clone());
+
+            let uvs = generate_uv_wgsl(t, name_to_index);
+            name_to_uv_wgsl.insert(t.name.clone(), uvs);
+
             if i < 10 {
                 Some(format!("s{i}_color.{}", t.channels))
+            } else {
+                error!("Sampler index {i} exceeds supported max of 10");
+                None
+            }
+        }
+        ChannelAssignment::Attribute {
+            name,
+            channel_index,
+        } => {
+            // TODO: Support attributes other than vertex color.
+            // TODO: log errors
+            let name = match name.as_str() {
+                "vColor" => Some("in.vertex_color"),
+                _ => None,
+            }?;
+            Some(format!("{name}.{}", ['x', 'y', 'z', 'w'][*channel_index]))
+        }
+        ChannelAssignment::Value(f) => Some(format!("{f:?}")),
+    }
+}
+
+fn parallax_wgsl(
+    name_to_index: &mut IndexMap<SmolStr, usize>,
+    parallax: &TexCoordParallax,
+) -> Option<String> {
+    let mask_a = channel_assignment_wgsl_parallax(name_to_index, Some(&parallax.mask_a))?;
+    let mask_b = channel_assignment_wgsl_parallax(name_to_index, Some(&parallax.mask_b))?;
+    let ratio = format!("{:?}", parallax.ratio);
+
+    Some(format!("uv_parallax(in, {mask_a}, {mask_b}, {ratio})"))
+}
+
+fn channel_assignment_wgsl_parallax(
+    name_to_index: &mut IndexMap<SmolStr, usize>,
+    value: Option<&ChannelAssignment>,
+) -> Option<String> {
+    match value? {
+        ChannelAssignment::Texture(t) => {
+            let i = name_to_index.entry_index(t.name.clone());
+
+            // Parallax masks affect UVs, which may themselves depend on textures.
+            // Assume the masks themselves have no parallax to avoid recursion.
+            // TODO: Assume textures are accessed once and adjust the order of assignment instead?
+            let index = t
+                .texcoord_name
+                .as_deref()
+                .and_then(texcoord_index)
+                .unwrap_or_default();
+            let uvs = format!("transform_uv(tex{index}, per_material.texture_info[{i}].transform)");
+            if t.parallax.is_some() {
+                error!("Unexpected recursion when processing texture coordinate parallax");
+            }
+
+            if i < 10 {
+                Some(format!(
+                    "textureSample(s{i}, s{i}_sampler, {uvs}).{}",
+                    t.channels
+                ))
             } else {
                 error!("Sampler index {i} exceeds supported max of 10");
                 None
