@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use glam::{ivec4, uvec4, vec3, vec4, Vec3, Vec4};
+use glam::{ivec4, uvec4, vec3, vec4, UVec4, Vec3, Vec4};
 use indexmap::IndexMap;
 use log::{error, warn};
 use smol_str::SmolStr;
@@ -93,7 +93,8 @@ pub fn materials(
                 .map(|a| generate_alpha_test_wgsl(a, &mut name_to_index))
                 .unwrap_or_default();
 
-            let uvs_wgsl = name_to_uv_wgsl.values().cloned().collect();
+            let mut uvs_wgsl: Vec<_> = name_to_uv_wgsl.values().cloned().collect();
+            uvs_wgsl.sort();
 
             let mut texture_views: [Option<_>; 10] = std::array::from_fn(|_| None);
 
@@ -101,8 +102,7 @@ pub fn materials(
             // TODO: can a texture be used with more than one scale?
             // TODO: Include this logic with xc3_model?
             let mut texture_info = [crate::shader::model::TextureInfo {
-                is_bc4_single_channel: 0,
-                transform: [Vec4::X, Vec4::Y],
+                is_bc4_single_channel: UVec4::ZERO,
             }; 10];
 
             // Find the scale parameters for any textures assigned above.
@@ -122,7 +122,7 @@ pub fn materials(
                         texture_views[*i] = Some(texture.create_view(&Default::default()));
                         // TODO: Better way of doing this?
                         if texture.format() == wgpu::TextureFormat::Bc4RUnorm {
-                            texture_info[*i].is_bc4_single_channel = 1;
+                            texture_info[*i].is_bc4_single_channel = UVec4::splat(1);
                         }
                     }
                 } else {
@@ -166,9 +166,8 @@ pub fn materials(
             );
 
             // Bind all available textures and samplers.
-            // Texture selection happens within the shader itself.
-            // This simulates having a unique shader for each material.
-            // Reducing unique pipelines greatly improves loading times and enables compiled bindings.
+            // Texture selection happens within generated shader code.
+            // Any unused shader code will likely be removed during shader compilation.
             let bind_group2 = crate::shader::model::bind_groups::BindGroup2::from_bindings(
                 device,
                 crate::shader::model::bind_groups::BindGroupLayout2 {
@@ -192,6 +191,12 @@ pub fn materials(
                     s7_sampler: material_sampler(material, samplers, 7).unwrap_or(&default_sampler),
                     s8_sampler: material_sampler(material, samplers, 8).unwrap_or(&default_sampler),
                     s9_sampler: material_sampler(material, samplers, 9).unwrap_or(&default_sampler),
+                    alpha_test_sampler: material
+                        .alpha_test
+                        .as_ref()
+                        .map(|a| a.sampler_index)
+                        .and_then(|i| samplers.get(i))
+                        .unwrap_or(&default_sampler),
                     per_material: per_material.as_entire_buffer_binding(),
                 },
             );
@@ -314,18 +319,12 @@ fn texture_channel(
     channel: char,
 ) -> Option<(i32, u32)> {
     if let Some(ChannelAssignment::Texture(texture)) = assignment {
-        let TextureAssignment {
-            name,
-            channels,
-            texcoord_transforms,
-            ..
-        } = texture;
+        let TextureAssignment { name, channels, .. } = texture;
 
         name_to_info.insert(
             name.clone(),
             crate::shader::model::TextureInfo {
-                is_bc4_single_channel: 0,
-                transform: texcoord_transforms.unwrap_or((Vec4::X, Vec4::Y)).into(),
+                is_bc4_single_channel: UVec4::ZERO,
             },
         );
 

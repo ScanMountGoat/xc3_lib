@@ -58,8 +58,6 @@ var s8: texture_2d<f32>;
 @group(2) @binding(9)
 var s9: texture_2d<f32>;
 
-// TODO: Use Samplers shared across all materials.
-// TODO: Highest sampler count across all materials?
 @group(2) @binding(10)
 var s0_sampler: sampler;
 
@@ -90,7 +88,8 @@ var s8_sampler: sampler;
 @group(2) @binding(19)
 var s9_sampler: sampler;
 
-// TODO: alpha test sampler
+@group(2) @binding(20)
+var alpha_test_sampler: sampler;
 
 // Texture and channel input for each output channel.
 // TODO: store texture channel or float for layer weights
@@ -127,8 +126,7 @@ struct PerMaterial {
 }
 
 struct TextureInfo {
-    is_bc4_single_channel: u32,
-    transform: array<vec4<f32>, 2>,
+    is_bc4_single_channel: vec4<u32>,
 }
 
 struct FurShellParams {
@@ -138,7 +136,7 @@ struct FurShellParams {
     alpha: f32
 }
 
-@group(2) @binding(20)
+@group(2) @binding(21)
 var<uniform> per_material: PerMaterial;
 
 // PerMesh values.
@@ -420,9 +418,9 @@ fn mrt_etc_buffer(g_etc_buffer: vec4<f32>, view_normal: vec3<f32>) -> vec4<f32> 
 
 // Adapted from xeno3/chr/ch/ch11021013.pcsmt, shd00028, getTextureMatrix.
 // Scale parameters are converted to "matrices" for consistency.
-fn transform_uv(uv: vec2<f32>, matrix: array<vec4<f32>, 2>) -> vec2<f32> {
+fn transform_uv(uv: vec2<f32>, transform_u: vec4<f32>, transform_v: vec4<f32>) -> vec2<f32> {
     let v = vec4(uv, 0.0, 1.0);
-    return vec2(dot(v, matrix[0]), dot(v, matrix[1]));
+    return vec2(dot(v, transform_u), dot(v, transform_v));
 }
 
 fn uv_parallax(vert: VertexOutput, mask_a: f32, mask_b: f32, ratio: f32) -> vec2<f32> {
@@ -489,6 +487,9 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     let s7_color = textureSample(s7, s7_sampler, uv7);
     let s8_color = textureSample(s8, s8_sampler, uv8);
     let s9_color = textureSample(s9, s9_sampler, uv9);
+
+    // Required for reachability analysis to include this sampler.
+    let _unused = textureSample(s0, alpha_test_sampler, uv0);
 
     // ALPHA_TEST_DISCARD_GENERATED
 

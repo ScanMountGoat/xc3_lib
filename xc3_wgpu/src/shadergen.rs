@@ -1,7 +1,7 @@
 use std::fmt::Write;
 
 use indexmap::IndexMap;
-use indoc::writedoc;
+use indoc::{formatdoc, writedoc};
 use log::error;
 use smol_str::SmolStr;
 use xc3_model::{
@@ -52,7 +52,7 @@ pub fn create_model_shader(key: &PipelineKey) -> String {
     source
 }
 
-pub fn generate_uv_wgsl(
+fn generate_uv_wgsl(
     texture: &TextureAssignment,
     name_to_index: &mut IndexMap<SmolStr, usize>,
 ) -> String {
@@ -61,27 +61,35 @@ pub fn generate_uv_wgsl(
 
     let i = name_to_index.entry_index(texture.name.clone());
 
+    let parallax = texture
+        .parallax
+        .as_ref()
+        .and_then(|p| parallax_wgsl(name_to_index, p));
+
+    let uv = transformed_uv_wgsl(texture);
+    writeln!(&mut wgsl, "uv{i} = {uv};").unwrap();
+
+    if let Some(parallax) = parallax {
+        writeln!(&mut wgsl, "uv{i} += {parallax};").unwrap();
+    }
+
+    wgsl
+}
+
+fn transformed_uv_wgsl(texture: &TextureAssignment) -> String {
     let index = texture
         .texcoord_name
         .as_deref()
         .and_then(texcoord_index)
         .unwrap_or_default();
 
-    let parallax = texture
-        .parallax
-        .as_ref()
-        .and_then(|p| parallax_wgsl(name_to_index, p));
-
-    writeln!(
-        &mut wgsl,
-        "uv{i} = transform_uv(tex{index}, per_material.texture_info[{i}].transform);"
-    )
-    .unwrap();
-    if let Some(parallax) = parallax {
-        writeln!(&mut wgsl, "uv{i} += {parallax};").unwrap();
+    if let Some((u, v)) = texture.texcoord_transforms {
+        let u = format!("vec4({}, {}, {}, {})", u[0], u[1], u[2], u[3]);
+        let v = format!("vec4({}, {}, {}, {})", v[0], v[1], v[2], v[3]);
+        format!("transform_uv(tex{index}, {u}, {v})")
+    } else {
+        format!("tex{index}")
     }
-
-    wgsl
 }
 
 fn texcoord_index(name: &str) -> Option<u32> {
@@ -93,24 +101,21 @@ pub fn generate_alpha_test_wgsl(
     alpha_test: &TextureAlphaTest,
     name_to_index: &mut IndexMap<SmolStr, usize>,
 ) -> String {
-    // TODO: Select sampler for alpha testing.
-    let mut wgsl = String::new();
-
     let name: SmolStr = format!("s{}", alpha_test.texture_index).into();
-    let i = name_to_index.entry_index(name);
-    let c = ['x', 'y', 'z', 'w'][alpha_test.channel_index];
+    let i = name_to_index.entry_index(name.clone());
 
-    writedoc!(
-        &mut wgsl,
-        "
-        if s{i}_color.{c} <= per_material.alpha_test_ref {{
-            discard;
-        }}
-        "
-    )
-    .unwrap();
+    if i < 10 {
+        let c = ['x', 'y', 'z', 'w'][alpha_test.channel_index];
 
-    wgsl
+        formatdoc! {"
+            if textureSample(s{i}, alpha_test_sampler, uv{i}).{c} <= per_material.alpha_test_ref {{
+                discard;
+            }}
+        "}
+    } else {
+        error!("Sampler index {i} exceeds supported max of 10");
+        String::new()
+    }
 }
 
 pub fn generate_assignment_wgsl(
@@ -261,10 +266,10 @@ fn channel_assignment_wgsl(
         ChannelAssignment::Texture(t) => {
             let i = name_to_index.entry_index(t.name.clone());
 
-            let uvs = generate_uv_wgsl(t, name_to_index);
-            name_to_uv_wgsl.insert(t.name.clone(), uvs);
-
             if i < 10 {
+                let uvs = generate_uv_wgsl(t, name_to_index);
+                name_to_uv_wgsl.insert(t.name.clone(), uvs);
+
                 Some(format!("s{i}_color.{}", t.channels))
             } else {
                 error!("Sampler index {i} exceeds supported max of 10");
@@ -308,18 +313,14 @@ fn channel_assignment_wgsl_parallax(
 
             // Parallax masks affect UVs, which may themselves depend on textures.
             // Assume the masks themselves have no parallax to avoid recursion.
-            // TODO: Assume textures are accessed once and adjust the order of assignment instead?
-            let index = t
-                .texcoord_name
-                .as_deref()
-                .and_then(texcoord_index)
-                .unwrap_or_default();
-            let uvs = format!("transform_uv(tex{index}, per_material.texture_info[{i}].transform)");
+            // TODO: Assume textures are accessed once and adjust the order of assignment instead?X
             if t.parallax.is_some() {
                 error!("Unexpected recursion when processing texture coordinate parallax");
             }
 
             if i < 10 {
+                let uvs = transformed_uv_wgsl(t);
+
                 Some(format!(
                     "textureSample(s{i}, s{i}_sampler, {uvs}).{}",
                     t.channels
