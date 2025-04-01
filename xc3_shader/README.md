@@ -16,6 +16,7 @@ xc3_shader disassemble-legacy-shaders "Wii U Dump" "Shader Dump" gfd-tool.exe
 xc3_shader shader-database "Shader Dump" shader_database.bin
 xc3_shader glsl-dependencies shader.glsl out.glsl out_attr0.x
 xc3_shader latte-dependencies shader.txt out.glsl PIX0.x
+xc3_shader latte-glsl shader.txt out.glsl
 xc3_shader merge-databases combined.bin xc1.bin xc3.bin xc3.bin xcx.bin
 ```
 

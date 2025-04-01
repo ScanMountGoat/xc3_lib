@@ -3,6 +3,7 @@ use clap::{Parser, Subcommand};
 use xc3_model::shader_database::ShaderDatabase;
 use xc3_shader::dependencies::latte_dependencies;
 use xc3_shader::extract::{extract_and_decompile_shaders, extract_and_disassemble_shaders};
+use xc3_shader::graph::Graph;
 use xc3_shader::shader_database::{create_shader_database, create_shader_database_legacy};
 
 use xc3_shader::graph::glsl::glsl_dependencies;
@@ -75,6 +76,13 @@ enum Commands {
         /// The name of the variable to analyze.
         var: String,
     },
+    /// Convert Wii U Latte shader assembly to GLSL.
+    LatteGlsl {
+        /// The input Latte ASM file.
+        input: String,
+        /// The output GLSL file.
+        output: String,
+    },
 }
 
 fn main() {
@@ -135,6 +143,11 @@ fn main() {
             {
                 merged.save(output_file).unwrap();
             }
+        }
+        Commands::LatteGlsl { input, output } => {
+            let asm = std::fs::read_to_string(input).unwrap();
+            let graph = Graph::from_latte_asm(&asm);
+            std::fs::write(output, graph.to_glsl()).unwrap();
         }
     }
 
