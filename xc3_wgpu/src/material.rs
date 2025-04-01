@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use glam::{ivec2, ivec4, uvec2, uvec4, vec2, vec3, vec4, IVec4, UVec2, Vec2, Vec3, Vec4};
+use glam::{ivec2, ivec4, uvec2, uvec4, vec2, vec3, vec4, UVec2, Vec2, Vec3, Vec4};
 use indexmap::IndexMap;
 use log::{error, warn};
 use smol_str::SmolStr;
@@ -11,7 +11,7 @@ use xc3_model::{
 
 use crate::{
     pipeline::{Output5Type, PipelineKey},
-    shadergen::generate_layering_code,
+    shadergen::{generate_alpha_test_wgsl, generate_assignment_wgsl, generate_layering_wgsl},
     texture::create_default_black_texture,
     DeviceBufferExt, MonolibShaderTextures,
 };
@@ -71,6 +71,25 @@ pub fn materials(
             if let Some(a) = &material.alpha_test {
                 name_to_index.entry_index(format!("s{}", a.texture_index).into());
             }
+
+            let output_assignments_wgsl = material_assignments
+                .assignments
+                .iter()
+                .map(|a| generate_assignment_wgsl(&a, &mut name_to_index))
+                .collect();
+
+            let output_layers_wgsl = material_assignments
+                .assignments
+                .iter()
+                .map(|a| generate_layering_wgsl(&a, &mut name_to_index))
+                .collect();
+
+            // Generate empty code if alpha testing is disabled.
+            let alpha_test_wgsl = material
+                .alpha_test
+                .as_ref()
+                .map(|a| generate_alpha_test_wgsl(a, &mut name_to_index))
+                .unwrap_or_default();
 
             let mut texture_views: [Option<_>; 10] = std::array::from_fn(|_| None);
 
@@ -141,17 +160,6 @@ pub fn materials(
                 &[crate::shader::model::PerMaterial {
                     assignments,
                     texture_info,
-                    alpha_test_texture: {
-                        let (texture_index, channel_index) = material
-                            .alpha_test
-                            .as_ref()
-                            .map(|a| {
-                                let name: SmolStr = format!("s{}", a.texture_index).into();
-                                (name_to_index[&name] as i32, a.channel_index as i32)
-                            })
-                            .unwrap_or((-1, 3));
-                        IVec4::new(texture_index, channel_index, 0, 0)
-                    },
                     outline_width,
                     fur_params,
                     alpha_test_ref: material.alpha_test_ref,
@@ -206,12 +214,6 @@ pub fn materials(
                 Output5Type::Specular
             };
 
-            // TODO: Generate data for layering from output assignments.
-            // TODO: Generate pipelines in parallel.
-            let output_layers_wgsl = material_assignments
-                .assignments
-                .map(|a| generate_layering_code(&a, &name_to_index));
-
             // TODO: How to make sure the pipeline outputs match the render pass?
             // Each material only goes in exactly one pass?
             // TODO: Is it redundant to also store the unk type?
@@ -222,7 +224,9 @@ pub fn materials(
                 is_outline: material.name.ends_with("_outline"),
                 output5_type,
                 is_instanced_static,
+                output_assignments_wgsl,
                 output_layers_wgsl,
+                alpha_test_wgsl,
             };
             pipelines.insert(pipeline_key.clone());
 
@@ -249,7 +253,6 @@ fn output_assignments(
 
         crate::shader::model::OutputAssignment {
             samplers: sampler_assignment(assignment, name_to_index, name_to_info, 0),
-            attributes: attribute_assignment(assignment, 0),
             default_value: output_default(assignment, i),
         }
     })
@@ -380,39 +383,6 @@ fn texture_channel(
 fn texcoord_index(name: &str) -> Option<u32> {
     // vTex1 -> 1
     name.strip_prefix("vTex")?.parse().ok()
-}
-
-fn attribute_assignment(
-    a: &OutputAssignment,
-    layer_index: usize,
-) -> crate::shader::model::AttributeAssignment {
-    let (x, y, z, w) = layer_channel_assignments(a, layer_index);
-
-    let c0 = attribute_channel_assignment(x).unwrap_or(-1);
-    let c1 = attribute_channel_assignment(y).unwrap_or(-1);
-    let c2 = attribute_channel_assignment(z).unwrap_or(-1);
-    let c3 = attribute_channel_assignment(w).unwrap_or(-1);
-
-    crate::shader::model::AttributeAssignment {
-        channel_indices: ivec4(c0, c1, c2, c3),
-    }
-}
-
-fn attribute_channel_assignment(assignment: Option<&ChannelAssignment>) -> Option<i32> {
-    if let Some(ChannelAssignment::Attribute {
-        name,
-        channel_index,
-    }) = assignment
-    {
-        // TODO: Support attributes other than vColor.
-        if name == "vColor" {
-            Some(*channel_index as i32)
-        } else {
-            None
-        }
-    } else {
-        None
-    }
 }
 
 fn create_bit_info(

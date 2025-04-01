@@ -26,7 +26,9 @@ pub struct PipelineKey {
     pub is_outline: bool,
     pub output5_type: Output5Type,
     pub is_instanced_static: bool,
-    pub output_layers_wgsl: [String; 6],
+    pub output_assignments_wgsl: Vec<String>,
+    pub output_layers_wgsl: Vec<String>,
+    pub alpha_test_wgsl: String,
 }
 
 #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq)]
@@ -184,7 +186,7 @@ fn model_pipeline_inner<const M: usize, const N: usize>(
     fragment_entry: crate::shader::model::FragmentEntry<N>,
     key: &PipelineKey,
 ) -> wgpu::RenderPipeline {
-    let source = create_model_shader(&key.output_layers_wgsl);
+    let source = create_model_shader(&key);
     let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: None,
         source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Owned(source)),

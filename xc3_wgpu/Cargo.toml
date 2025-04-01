@@ -20,6 +20,7 @@ log.workspace = true
 tracing.workspace = true
 indexmap.workspace = true
 smol_str.workspace = true
+indoc.workspace = true
 
 [build-dependencies]
 wgsl_to_wgpu = "0.13.0"

@@ -58,6 +58,8 @@ var s8: texture_2d<f32>;
 @group(2) @binding(9)
 var s9: texture_2d<f32>;
 
+// TODO: Use Samplers shared across all materials.
+// TODO: Highest sampler count across all materials?
 @group(2) @binding(10)
 var s0_sampler: sampler;
 
@@ -106,17 +108,12 @@ struct AttributeAssignment {
 
 struct OutputAssignment {
     samplers: SamplerAssignment,
-    attributes: AttributeAssignment,
     default_value: vec4<f32>
 }
 
 struct PerMaterial {
     // Shader database information.
     assignments: array<OutputAssignment, 6>,
-
-    // TODO: Split into separate fields since this uses encase.
-    // texture index, channel, index, 0, 0
-    alpha_test_texture: vec4<i32>,
 
     // Assume shaders access textures at most once to allow one info per texture.
     texture_info: array<TextureInfo, 10>,
@@ -351,39 +348,6 @@ fn vs_main_instanced_static(in0: VertexInput0, in1: VertexInput1, instance: Inst
     return out;
 }
 
-fn assign_texture(samplers: array<vec4<f32>, 10>, a: OutputAssignment, vert: VertexOutput) -> vec4<f32> {
-    let x = assign_channel(samplers, a.samplers.sampler_indices.x, a.samplers.channel_indices.x, a.attributes.channel_indices.x, vert, a.default_value.x);
-    let y = assign_channel(samplers, a.samplers.sampler_indices.y, a.samplers.channel_indices.y, a.attributes.channel_indices.y, vert, a.default_value.y);
-    let z = assign_channel(samplers, a.samplers.sampler_indices.z, a.samplers.channel_indices.z, a.attributes.channel_indices.z, vert, a.default_value.z);
-    let w = assign_channel(samplers, a.samplers.sampler_indices.w, a.samplers.channel_indices.w, a.attributes.channel_indices.w, vert, a.default_value.w);
-    return vec4(x, y, z, w);
-}
-
-fn assign_channel(samplers: array<vec4<f32>, 10>, sampler_index: i32, channel_index: u32, attribute_channel_index: i32, vert: VertexOutput, default_value: f32) -> f32 {
-    if attribute_channel_index >= 0 {
-        return vert.vertex_color[attribute_channel_index];
-    }
-
-    return assign_channel_inner(samplers, sampler_index, channel_index, default_value);
-}
-
-fn assign_channel_inner(samplers: array<vec4<f32>, 10>, sampler_index: i32, channel_index: u32, default_value: f32) -> f32 {
-    // Workaround for BC4 swizzle mask of RRR1.
-    var channel = channel_index;
-    if sampler_index >= 0 {
-        if per_material.texture_info[sampler_index].is_bc4_single_channel == 1u {
-            channel = 0u;
-        }
-    }
-
-    if sampler_index >= 0 && sampler_index < 10 {
-        var samplers2 = samplers;
-        return samplers2[sampler_index][channel];
-    } else {
-        return default_value;
-    }
-}
-
 fn assign_sampler_channel(sampler_index: i32, channel_index: u32, uvs: vec2<f32>, default_value: f32) -> f32 {
     // Workaround for BC4 swizzle mask of RRR1.
     var channel = channel_index;
@@ -575,45 +539,39 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     );
 
     // Assume one access per texture and compute values ahead of time.
-    // This avoids deeply nested texture lookups that compile slowly with DX12.
-    let samplers = array<vec4<f32>, 10>(
-        textureSample(s0, s0_sampler, select_uv(in, uvs, 0)),
-        textureSample(s1, s1_sampler, select_uv(in, uvs, 1)),
-        textureSample(s2, s2_sampler, select_uv(in, uvs, 2)),
-        textureSample(s3, s3_sampler, select_uv(in, uvs, 3)),
-        textureSample(s4, s4_sampler, select_uv(in, uvs, 4)),
-        textureSample(s5, s5_sampler, select_uv(in, uvs, 5)),
-        textureSample(s6, s6_sampler, select_uv(in, uvs, 6)),
-        textureSample(s7, s7_sampler, select_uv(in, uvs, 7)),
-        textureSample(s8, s8_sampler, select_uv(in, uvs, 8)),
-        textureSample(s9, s9_sampler, select_uv(in, uvs, 9)),
-    );
+    let s0_color = textureSample(s0, s0_sampler, select_uv(in, uvs, 0));
+    let s1_color = textureSample(s1, s1_sampler, select_uv(in, uvs, 1));
+    let s2_color = textureSample(s2, s2_sampler, select_uv(in, uvs, 2));
+    let s3_color = textureSample(s3, s3_sampler, select_uv(in, uvs, 3));
+    let s4_color = textureSample(s4, s4_sampler, select_uv(in, uvs, 4));
+    let s5_color = textureSample(s5, s5_sampler, select_uv(in, uvs, 5));
+    let s6_color = textureSample(s6, s6_sampler, select_uv(in, uvs, 6));
+    let s7_color = textureSample(s7, s7_sampler, select_uv(in, uvs, 7));
+    let s8_color = textureSample(s8, s8_sampler, select_uv(in, uvs, 8));
+    let s9_color = textureSample(s9, s9_sampler, select_uv(in, uvs, 9));
 
-    // An index of -1 disables alpha testing.
-    // TODO: Separate sampler for alpha testing.
-    let alpha_texture = per_material.alpha_test_texture.x;
-    let alpha_texture_channel = u32(per_material.alpha_test_texture.y);
-    // Workaround for not being able to use a non constant index.
-    if assign_channel(samplers, alpha_texture, alpha_texture_channel, -1, in, 1.0) <= per_material.alpha_test_ref {
-        discard;
-    }
+    // ALPHA_TEST_DISCARD_GENERATED
 
     // The layout of G-Buffer textures is mostly fixed but assignments are not.
     // Each material in game can have a unique shader program.
     // Check the G-Buffer assignment database to simulate having unique shaders.
     let assignments = per_material.assignments;
 
-    // Defaults incorporate constants, parameters, and default values.
     // Assume each G-Buffer texture and channel always has the same usage.
-    let g_color = assign_texture(samplers, assignments[0], in);
-    let g_etc_buffer = assign_texture(samplers, assignments[1], in);
-    let g_normal = assign_texture(samplers, assignments[2], in);
-    let g_velocity = assign_texture(samplers, assignments[3], in);
-    let g_depth = assign_texture(samplers, assignments[4], in);
-    let g_lgt_color = assign_texture(samplers, assignments[5], in);
+    var g_color = assignments[0].default_value;
+    var g_etc_buffer = assignments[1].default_value;
+    var g_normal = assignments[2].default_value;
+    var g_velocity = assignments[3].default_value;
+    var g_depth = assignments[4].default_value;
+    var g_lgt_color = assignments[5].default_value;
 
-    // Not all materials and shaders use normal mapping.
-    // TODO: Is this a good way to check for this?
+    // ASSIGN_G_COLOR_GENERATED
+    // ASSIGN_G_ETC_BUFFER_GENERATED
+    // ASSIGN_G_NORMAL_GENERATED
+    // ASSIGN_G_VELOCITY_GENERATED
+    // ASSIGN_G_DEPTH_GENERATED
+    // ASSIGN_G_LGT_COLOR_GENERATED
+
     var normal = vertex_normal;
     var ao = g_normal.z;
 
@@ -621,9 +579,9 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     // This avoids needing to define N before layering normal maps.
     var n_dot_v = 1.0;
 
-    // TODO: generate this code and see if it fixes FPS issues
+    // Not all materials and shaders use normal mapping.
+    // TODO: Is this a good way to check for this?
     if assignments[2].samplers.sampler_indices.x != -1 && assignments[2].samplers.sampler_indices.y != -1 {
-
         var normal_map = create_normal_map(g_normal.xy);
         // BLEND_NORMAL_LAYERS_GENERATED
 
