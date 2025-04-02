@@ -33,6 +33,14 @@ struct Cli {
     /// Draw axes for each bone in the skeleton.
     #[arg(long)]
     bones: bool,
+
+    /// Override for the graphics backend.
+    #[arg(
+        long,
+        value_parser = clap::builder::PossibleValuesParser::new(
+        ["dx12", "vulkan", "metal"]
+    ))]
+    backend: Option<String>,
 }
 
 #[derive(Copy, PartialEq, Clone, Eq, ValueEnum)]
@@ -52,8 +60,17 @@ fn main() {
         .init()
         .unwrap();
 
+    let backends = match &cli.backend {
+        Some(backend) => match backend.to_lowercase().as_str() {
+            "dx12" => wgpu::Backends::DX12,
+            "vulkan" => wgpu::Backends::VULKAN,
+            "metal" => wgpu::Backends::METAL,
+            _ => wgpu::Backends::all(),
+        },
+        None => wgpu::Backends::all(),
+    };
     let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-        backends: wgpu::Backends::all(),
+        backends,
         ..Default::default()
     });
 

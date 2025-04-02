@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added support for wimdo models from Xenoblade X DE.
 * Added support for xbc1 compressed `BC` animations to `xc3_model::load_animations`.
 * Added `latte-glsl` command to xc3_shader to convert Wii U shader assembly to lines of GLSL code.
+* Added `--backend` CLI arg to xc3_viewer and xc3_wgpu_batch to force `dx12`, `vulkan`, or `metal`. This may resolve compatibility issues on some systems like `--backend dx12` on some older Windows devices.
 
 ### Changed
 * Changed skeleton creation to only produce a single root bone for improved compatibility.

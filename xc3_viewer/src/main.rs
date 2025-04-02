@@ -65,8 +65,17 @@ struct InputState {
 
 impl<'a> State<'a> {
     async fn new(window: &'a Window, cli: &Cli) -> anyhow::Result<Self> {
+        let backends = match &cli.backend {
+            Some(backend) => match backend.to_lowercase().as_str() {
+                "dx12" => wgpu::Backends::DX12,
+                "vulkan" => wgpu::Backends::VULKAN,
+                "metal" => wgpu::Backends::METAL,
+                _ => wgpu::Backends::all(),
+            },
+            None => wgpu::Backends::all(),
+        };
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::all(),
+            backends,
             ..Default::default()
         });
         let surface = instance.create_surface(window).unwrap();
@@ -557,6 +566,13 @@ struct Cli {
     /// Draw model bounding boxes.
     #[arg(long)]
     bounds: bool,
+    /// Override for the graphics backend.
+    #[arg(
+        long,
+        value_parser = clap::builder::PossibleValuesParser::new(
+        ["dx12", "vulkan", "metal"]
+    ))]
+    backend: Option<String>,
 }
 
 fn main() -> anyhow::Result<()> {
