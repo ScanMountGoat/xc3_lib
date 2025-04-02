@@ -18,7 +18,7 @@ use binrw::{binread, BinRead, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 use crate::{
-    mxmd::{Materials, Models, PackedTextures},
+    mxmd::{Materials, ModelsV112, PackedTextures},
     parse_count32_offset32, parse_offset32_count32, parse_ptr32, parse_string_ptr32,
     spch::Spch,
     vertex::VertexData,
@@ -36,7 +36,7 @@ pub struct PropModelData {
     /// Each model has a corresponding element in [vertex_data_indices](#structfield.vertex_data_indices).
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]
-    pub models: Models,
+    pub models: ModelsV112,
 
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]
@@ -204,7 +204,7 @@ pub struct MapModelData {
 
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]
-    pub models: Models,
+    pub models: ModelsV112,
 
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]
@@ -304,7 +304,7 @@ pub struct MapModelGroup {
 pub struct EnvModelData {
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]
-    pub models: Models,
+    pub models: ModelsV112,
 
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]
@@ -337,7 +337,7 @@ pub struct EnvModelData {
 pub struct FoliageModelData {
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]
-    pub models: Models,
+    pub models: ModelsV112,
 
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]
@@ -452,7 +452,7 @@ pub struct MapLowModelData {
 
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]
-    pub models: Models,
+    pub models: ModelsV112,
 
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]

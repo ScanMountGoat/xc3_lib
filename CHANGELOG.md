@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 * Fixed an issue where skeleton creation would not include MT_ bones.
 * Fixed an issue where MTHS data would not parse correctly and produce shader database material assignments.
+* Fixed an issue where models missing vertex skinning data or skeleton data would not render properly in xc3_viewer or xc3_wgpu_batch.
 
 ## 0.18.0 - 2025-03-06
 ### Changed

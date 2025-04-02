@@ -554,7 +554,12 @@ fn create_model_group(
     skeleton: Option<&xc3_model::Skeleton>,
     monolib_shader: &MonolibShaderTextures,
 ) -> ModelGroup {
-    let (per_group, per_group_buffer) = per_group_bind_group(device, skeleton);
+    // Disable vertex skinning if the model does not have bones or weights.
+    let enable_skinning = matches!(skeleton, Some(skeleton) if !skeleton.bones.is_empty())
+        && group.models.iter().any(|g| g.skinning.is_some())
+        && group.buffers.iter().any(|b| b.weights.is_some());
+
+    let (per_group, per_group_buffer) = per_group_bind_group(device, enable_skinning);
 
     // TODO: Create helper ext method in lib.rs?
     let bone_transforms: Vec<_> = skeleton
@@ -1022,17 +1027,12 @@ where
 
 fn per_group_bind_group(
     device: &wgpu::Device,
-    skeleton: Option<&xc3_model::Skeleton>,
+    enable_skinning: bool,
 ) -> (shader::model::bind_groups::BindGroup1, wgpu::Buffer) {
     let buffer = device.create_uniform_buffer(
         "per group buffer",
         &crate::shader::model::PerGroup {
-            enable_skinning: uvec4(
-                matches!(skeleton, Some(skeleton) if !skeleton.bones.is_empty()) as u32,
-                0,
-                0,
-                0,
-            ),
+            enable_skinning: uvec4(enable_skinning as u32, 0, 0, 0),
             animated_transforms: [Mat4::IDENTITY; 256],
             animated_transforms_inv_transpose: [Mat4::IDENTITY; 256],
         },
