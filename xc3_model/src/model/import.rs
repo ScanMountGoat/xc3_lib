@@ -34,8 +34,18 @@ pub struct ModelFilesV40<'a> {
 }
 
 #[derive(Debug)]
+pub struct ModelFilesV111<'a> {
+    pub models: &'a xc3_lib::mxmd::ModelsV111,
+    pub materials: &'a xc3_lib::mxmd::Materials,
+    pub vertex: Cow<'a, xc3_lib::vertex::VertexData>,
+    pub spch: Cow<'a, xc3_lib::spch::Spch>,
+    pub textures: ExtractedTextures,
+    pub texture_indices: Option<Vec<u16>>,
+}
+
+#[derive(Debug)]
 pub struct ModelFilesV112<'a> {
-    pub models: &'a xc3_lib::mxmd::Models,
+    pub models: &'a xc3_lib::mxmd::ModelsV112,
     pub materials: &'a xc3_lib::mxmd::Materials,
     pub vertex: Cow<'a, xc3_lib::vertex::VertexData>,
     pub spch: Cow<'a, xc3_lib::spch::Spch>,
@@ -98,6 +108,97 @@ impl<'a> ModelFilesV40<'a> {
             vertex,
             spch,
             textures,
+        })
+    }
+}
+
+impl<'a> ModelFilesV111<'a> {
+    pub fn from_files(
+        mxmd: &'a xc3_lib::mxmd::MxmdV111,
+        wismt_path: &Path,
+        chr_folder: Option<&Path>,
+        is_pc: bool,
+    ) -> Result<ModelFilesV111<'a>, LoadModelError> {
+        // Handle the different ways to store the streaming data.
+        let (vertex, spch, textures, texture_indices) = mxmd
+            .streaming
+            .as_ref()
+            .map(|streaming| match &streaming.inner {
+                xc3_lib::msrd::StreamingInner::StreamingLegacy(legacy) => {
+                    let data = std::fs::read(wismt_path).map_err(|e| {
+                        LoadModelError::WismtLegacy(ReadFileError {
+                            path: wismt_path.to_owned(),
+                            source: e.into(),
+                        })
+                    })?;
+
+                    let (texture_indices, textures) = legacy.extract_textures(&data)?;
+
+                    <Result<_, LoadModelError>>::Ok((
+                        Cow::Borrowed(
+                            mxmd.vertex_data
+                                .as_ref()
+                                .ok_or(LoadModelError::MissingMxmdVertexData)?,
+                        ),
+                        Cow::Borrowed(
+                            mxmd.spch
+                                .as_ref()
+                                .ok_or(LoadModelError::MissingMxmdShaderData)?,
+                        ),
+                        ExtractedTextures::Switch(textures),
+                        Some(texture_indices),
+                    ))
+                }
+                xc3_lib::msrd::StreamingInner::Streaming(_) => {
+                    let msrd = Msrd::from_file(wismt_path).map_err(LoadModelError::Wismt)?;
+                    if is_pc {
+                        let (vertex, spch, textures) = msrd.extract_files_pc()?;
+
+                        Ok((
+                            Cow::Owned(vertex),
+                            Cow::Owned(spch),
+                            ExtractedTextures::Pc(textures),
+                            None,
+                        ))
+                    } else {
+                        let (vertex, spch, textures) = msrd.extract_files(chr_folder)?;
+
+                        Ok((
+                            Cow::Owned(vertex),
+                            Cow::Owned(spch),
+                            ExtractedTextures::Switch(textures),
+                            None,
+                        ))
+                    }
+                }
+            })
+            .unwrap_or_else(|| {
+                let textures = load_packed_textures(mxmd.packed_textures.as_ref())
+                    .map_err(|e| LoadModelError::WimdoPackedTexture { source: e })?;
+
+                Ok((
+                    Cow::Borrowed(
+                        mxmd.vertex_data
+                            .as_ref()
+                            .ok_or(LoadModelError::MissingMxmdVertexData)?,
+                    ),
+                    Cow::Borrowed(
+                        mxmd.spch
+                            .as_ref()
+                            .ok_or(LoadModelError::MissingMxmdShaderData)?,
+                    ),
+                    ExtractedTextures::Switch(textures),
+                    None,
+                ))
+            })?;
+
+        Ok(ModelFilesV111 {
+            models: &mxmd.models,
+            materials: &mxmd.materials,
+            vertex,
+            spch,
+            textures,
+            texture_indices,
         })
     }
 }
@@ -209,7 +310,7 @@ impl ModelRoot {
         let buffers = ModelBuffers::from_vertex_data(&files.vertex, files.models.skinning.as_ref())
             .map_err(LoadModelError::VertexData)?;
 
-        let models = Models::from_models(
+        let models = Models::from_models_v112(
             files.models,
             files.materials,
             files.texture_indices.as_deref(),
@@ -264,6 +365,39 @@ impl ModelRoot {
         })
     }
 
+    /// Load models from parsed file data from legacy models used for Xenoblade 2.
+    pub fn from_mxmd_v111(
+        files: &ModelFilesV111,
+        skel: Option<Skel>,
+        shader_database: Option<&ShaderDatabase>,
+    ) -> Result<Self, LoadModelError> {
+        if files.models.skinning.is_some() && skel.is_none() {
+            error!("Failed to load skeleton for model with vertex skinning.");
+        }
+
+        let skeleton = create_skeleton(skel.as_ref(), files.models.skinning.as_ref());
+
+        let buffers = ModelBuffers::from_vertex_data(&files.vertex, files.models.skinning.as_ref())
+            .map_err(LoadModelError::VertexData)?;
+
+        let models = Models::from_models_v111(
+            files.models,
+            files.materials,
+            files.texture_indices.as_deref(),
+            &files.spch,
+            shader_database,
+        );
+
+        let image_textures = load_textures(&files.textures)?;
+
+        Ok(Self {
+            models,
+            buffers,
+            image_textures,
+            skeleton,
+        })
+    }
+
     /// Load models from legacy parsed file data for Xenoblade X.
     pub fn from_mxmd_model_legacy(
         mxmd: &MxmdLegacy,
@@ -297,8 +431,8 @@ impl ModelRoot {
 }
 
 impl Models {
-    pub fn from_models(
-        models: &xc3_lib::mxmd::Models,
+    pub fn from_models_v112(
+        models: &xc3_lib::mxmd::ModelsV112,
         materials: &xc3_lib::mxmd::Materials,
         texture_indices: Option<&[u16]>,
         spch: &xc3_lib::spch::Spch,
@@ -309,7 +443,12 @@ impl Models {
                 .models
                 .iter()
                 .map(|model| {
-                    Model::from_model(model, vec![Mat4::IDENTITY], 0, models.alpha_table.as_ref())
+                    Model::from_model_v112(
+                        model,
+                        vec![Mat4::IDENTITY],
+                        0,
+                        models.alpha_table.as_ref(),
+                    )
                 })
                 .collect(),
             materials: create_materials(materials, texture_indices, spch, shader_database),
@@ -326,6 +465,30 @@ impl Models {
                 .as_ref()
                 .map(|u| u.items1.iter().map(|i| i.name.clone()).collect())
                 .unwrap_or_default(),
+            min_xyz: models.min_xyz.into(),
+            max_xyz: models.max_xyz.into(),
+        }
+    }
+
+    pub fn from_models_v111(
+        models: &xc3_lib::mxmd::ModelsV111,
+        materials: &xc3_lib::mxmd::Materials,
+        texture_indices: Option<&[u16]>,
+        spch: &xc3_lib::spch::Spch,
+        shader_database: Option<&ShaderDatabase>,
+    ) -> Self {
+        Self {
+            models: models
+                .models
+                .iter()
+                .map(|model| Model::from_model_v111(model, vec![Mat4::IDENTITY], 0, None))
+                .collect(),
+            materials: create_materials(materials, texture_indices, spch, shader_database),
+            samplers: create_samplers(materials),
+            skinning: models.skinning.as_ref().map(create_skinning),
+            lod_data: None,
+            morph_controller_names: Vec::new(),
+            animation_morph_names: Vec::new(),
             min_xyz: models.min_xyz.into(),
             max_xyz: models.max_xyz.into(),
         }
@@ -380,8 +543,63 @@ pub fn lod_data(data: &xc3_lib::mxmd::LodData) -> LodData {
 }
 
 impl Model {
-    pub fn from_model(
-        model: &xc3_lib::mxmd::Model,
+    pub fn from_model_v112(
+        model: &xc3_lib::mxmd::ModelV112,
+        instances: Vec<Mat4>,
+        model_buffers_index: usize,
+        alpha_table: Option<&AlphaTable>,
+    ) -> Self {
+        let meshes = model
+            .meshes
+            .iter()
+            .map(|mesh| {
+                // TODO: Is there also a flag that disables the ext mesh?
+                let ext_mesh_index = if let Some(a) = alpha_table {
+                    // This uses 1-based indexing so 0 is disabled.
+                    if matches!(a.items.get(mesh.alpha_table_index as usize), Some((0, _))) {
+                        None
+                    } else {
+                        Some(mesh.ext_mesh_index as usize)
+                    }
+                } else {
+                    Some(mesh.ext_mesh_index as usize)
+                };
+
+                // TODO: This should also be None for xc1 and xc2?
+                let base_mesh_index = mesh.base_mesh_index.try_into().ok();
+
+                let lod_item_index = if mesh.lod_item_index > 0 {
+                    Some(mesh.lod_item_index as usize - 1)
+                } else {
+                    None
+                };
+
+                Mesh {
+                    flags1: mesh.flags1,
+                    flags2: mesh.flags2,
+                    vertex_buffer_index: mesh.vertex_buffer_index as usize,
+                    index_buffer_index: mesh.index_buffer_index as usize,
+                    index_buffer_index2: mesh.index_buffer_index2 as usize,
+                    material_index: mesh.material_index as usize,
+                    ext_mesh_index,
+                    lod_item_index,
+                    base_mesh_index,
+                }
+            })
+            .collect();
+
+        Self {
+            meshes,
+            instances,
+            model_buffers_index,
+            max_xyz: model.max_xyz.into(),
+            min_xyz: model.min_xyz.into(),
+            bounding_radius: model.bounding_radius,
+        }
+    }
+
+    pub fn from_model_v111(
+        model: &xc3_lib::mxmd::ModelV111,
         instances: Vec<Mat4>,
         model_buffers_index: usize,
         alpha_table: Option<&AlphaTable>,

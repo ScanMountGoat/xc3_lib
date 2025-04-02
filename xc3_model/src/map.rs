@@ -411,7 +411,7 @@ fn load_prop_model_group(
     {
         // Avoid loading unused prop models.
         if !instances.is_empty() {
-            let group = Model::from_model(
+            let group = Model::from_model_v112(
                 model,
                 instances,
                 *vertex_data_index as usize,
@@ -556,7 +556,7 @@ fn load_map_model_group(
                 .get(*group_index as usize)
                 .map(|group| {
                     let vertex_data_index = group.vertex_data_index as usize;
-                    Model::from_model(
+                    Model::from_model_v112(
                         model,
                         vec![Mat4::IDENTITY],
                         vertex_data_index,
@@ -601,7 +601,7 @@ fn load_env_model(
 
     Ok(MapRoot {
         groups: vec![ModelGroup {
-            models: vec![Models::from_models(
+            models: vec![Models::from_models_v112(
                 &model_data.models,
                 &model_data.materials,
                 None,
@@ -639,7 +639,7 @@ fn load_foliage_model(
         .models
         .iter()
         .map(|model| {
-            Model::from_model(
+            Model::from_model_v112(
                 model,
                 vec![Mat4::IDENTITY],
                 0,

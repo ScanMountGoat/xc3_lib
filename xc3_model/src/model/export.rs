@@ -32,6 +32,9 @@ impl ModelRoot {
             xc3_lib::mxmd::MxmdInner::V40(_) => Err(CreateModelError::UnsupportedVersion {
                 version: mxmd.version,
             }),
+            xc3_lib::mxmd::MxmdInner::V111(_) => Err(CreateModelError::UnsupportedVersion {
+                version: mxmd.version,
+            }),
             xc3_lib::mxmd::MxmdInner::V112(inner) => {
                 // TODO: Does this need to even extract vertex/textures?
                 let (_, spch, _) = msrd.extract_files(None)?;
@@ -102,7 +105,7 @@ impl ModelRoot {
             .models
             .models
             .iter()
-            .map(|model| xc3_lib::mxmd::Model {
+            .map(|model| xc3_lib::mxmd::ModelV112 {
                 meshes: model
                     .meshes
                     .iter()
@@ -122,7 +125,7 @@ impl ModelRoot {
                             .map(|i| i as i32)
                             .unwrap_or(default_base_mesh_index);
 
-                        xc3_lib::mxmd::Mesh {
+                        xc3_lib::mxmd::MeshV112 {
                             flags1: m.flags1,
                             flags2: m.flags2,
                             vertex_buffer_index: m.vertex_buffer_index as u16,

@@ -32,21 +32,6 @@ pub fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Op
             // Shaders can be embedded in the wimdo or wismt file.
             match Mxmd::from_file(path) {
                 Ok(mxmd) => match mxmd.inner {
-                    xc3_lib::mxmd::MxmdInner::V112(mxmd) => {
-                        if let Some(spch) = mxmd.spch {
-                            extract_shaders(&spch, &output_folder, shader_tools, false);
-                        }
-
-                        if mxmd.streaming.is_some() {
-                            match Msrd::from_file(path.with_extension("wismt")) {
-                                Ok(msrd) => {
-                                    let (_, spch, _) = msrd.extract_files(None).unwrap();
-                                    extract_shaders(&spch, &output_folder, shader_tools, false);
-                                }
-                                Err(e) => println!("Error reading {path:?}: {e}"),
-                            }
-                        }
-                    }
                     xc3_lib::mxmd::MxmdInner::V40(mxmd) => {
                         // TODO: Which spch should be used?
                         if let Some(spch) = mxmd
@@ -70,6 +55,36 @@ pub fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Op
                                             );
                                         }
                                     }
+                                }
+                                Err(e) => println!("Error reading {path:?}: {e}"),
+                            }
+                        }
+                    }
+                    xc3_lib::mxmd::MxmdInner::V111(mxmd) => {
+                        if let Some(spch) = mxmd.spch {
+                            extract_shaders(&spch, &output_folder, shader_tools, false);
+                        }
+
+                        if mxmd.streaming.is_some() {
+                            match Msrd::from_file(path.with_extension("wismt")) {
+                                Ok(msrd) => {
+                                    let (_, spch, _) = msrd.extract_files(None).unwrap();
+                                    extract_shaders(&spch, &output_folder, shader_tools, false);
+                                }
+                                Err(e) => println!("Error reading {path:?}: {e}"),
+                            }
+                        }
+                    }
+                    xc3_lib::mxmd::MxmdInner::V112(mxmd) => {
+                        if let Some(spch) = mxmd.spch {
+                            extract_shaders(&spch, &output_folder, shader_tools, false);
+                        }
+
+                        if mxmd.streaming.is_some() {
+                            match Msrd::from_file(path.with_extension("wismt")) {
+                                Ok(msrd) => {
+                                    let (_, spch, _) = msrd.extract_files(None).unwrap();
+                                    extract_shaders(&spch, &output_folder, shader_tools, false);
                                 }
                                 Err(e) => println!("Error reading {path:?}: {e}"),
                             }

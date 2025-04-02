@@ -196,18 +196,22 @@ impl<'a> State<'a> {
 
         let start = std::time::Instant::now();
 
-        groups.extend(xc3_wgpu::load_model(
-            &device,
-            &queue,
-            &model_roots,
-            &monolib_shader,
-        ));
-        groups.extend(xc3_wgpu::load_map(
-            &device,
-            &queue,
-            &map_roots,
-            &monolib_shader,
-        ));
+        if !model_roots.is_empty() {
+            groups.extend(xc3_wgpu::load_model(
+                &device,
+                &queue,
+                &model_roots,
+                &monolib_shader,
+            ));
+        }
+        if !map_roots.is_empty() {
+            groups.extend(xc3_wgpu::load_map(
+                &device,
+                &queue,
+                &map_roots,
+                &monolib_shader,
+            ));
+        }
 
         let mesh_count: usize = groups
             .iter()

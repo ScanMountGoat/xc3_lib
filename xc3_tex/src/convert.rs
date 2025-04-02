@@ -391,6 +391,9 @@ pub fn update_wimdo_from_folder(
     // We need to repack the entire wismt even though we only modify textures.
     // This ensures the streaming header accounts for potential stream data changes.
     match &mut mxmd.inner {
+        xc3_lib::mxmd::MxmdInner::V111(inner) => {
+            anyhow::bail!("Editing version 10111 legacy wimdo models is not supported")
+        }
         xc3_lib::mxmd::MxmdInner::V112(inner) => {
             let msrd = Msrd::from_file(input_path.with_extension("wismt"))?;
             let (vertex, spch, mut textures) = msrd.extract_files(chr_folder.as_deref())?;
@@ -440,6 +443,7 @@ fn replace_textures(
 
 fn has_chr_textures(mxmd: &Mxmd) -> bool {
     if let Some(streaming) = match &mxmd.inner {
+        xc3_lib::mxmd::MxmdInner::V111(mxmd) => &mxmd.streaming,
         xc3_lib::mxmd::MxmdInner::V112(mxmd) => &mxmd.streaming,
         xc3_lib::mxmd::MxmdInner::V40(mxmd) => &mxmd.streaming,
     } {
@@ -602,7 +606,28 @@ fn extract_wimdo_textures(mxmd: Mxmd, input: &Path) -> anyhow::Result<Vec<(Strin
     // Assume streaming textures override packed textures if present.
     let mut result = Vec::new();
     match mxmd.inner {
-        xc3_lib::mxmd::MxmdInner::V112(mxmd) => {
+        xc3_lib::mxmd::MxmdInner::V40(mxmd) => {
+            if mxmd.streaming.is_some() {
+                let msrd = Msrd::from_file(input.with_extension("wismt"))?;
+                let (_, _, textures) = msrd.extract_files_legacy(chr_folder.as_deref())?;
+
+                for texture in textures {
+                    let dds = texture.surface_final()?.to_dds()?;
+                    result.push((texture.name, dds));
+                }
+                Ok(result)
+            } else if let Some(textures) = mxmd.packed_textures {
+                for texture in textures.textures {
+                    let mibl = Mibl::from_bytes(&texture.mibl_data)?;
+                    let dds = mibl.to_dds()?;
+                    result.push((texture.name, dds));
+                }
+                Ok(result)
+            } else {
+                Ok(Vec::new())
+            }
+        }
+        xc3_lib::mxmd::MxmdInner::V111(mxmd) => {
             if mxmd.streaming.is_some() {
                 let msrd = Msrd::from_file(input.with_extension("wismt"))?;
                 let (_, _, textures) = msrd.extract_files(chr_folder.as_deref())?;
@@ -623,10 +648,10 @@ fn extract_wimdo_textures(mxmd: Mxmd, input: &Path) -> anyhow::Result<Vec<(Strin
                 Ok(Vec::new())
             }
         }
-        xc3_lib::mxmd::MxmdInner::V40(mxmd) => {
+        xc3_lib::mxmd::MxmdInner::V112(mxmd) => {
             if mxmd.streaming.is_some() {
                 let msrd = Msrd::from_file(input.with_extension("wismt"))?;
-                let (_, _, textures) = msrd.extract_files_legacy(chr_folder.as_deref())?;
+                let (_, _, textures) = msrd.extract_files(chr_folder.as_deref())?;
 
                 for texture in textures {
                     let dds = texture.surface_final()?.to_dds()?;

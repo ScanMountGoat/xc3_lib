@@ -45,20 +45,73 @@ pub enum MxmdInner {
     #[br(pre_assert(version == 10040))]
     V40(MxmdV40),
 
-    // TODO: 10111 for xc2 has different fields
+    #[br(pre_assert(version == 10111))]
+    V111(MxmdV111),
+
     #[br(pre_assert(version == 10112))]
     V112(MxmdV112),
+}
+
+// TODO: Test this against xc2 files.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct MxmdV111 {
+    /// A collection of [Model] and associated data.
+    #[br(parse_with = parse_ptr32)]
+    #[xc3(offset(u32))]
+    pub models: ModelsV111,
+
+    /// A collection of [Material] and associated data.
+    #[br(parse_with = parse_ptr32)]
+    #[xc3(offset(u32))]
+    pub materials: Materials,
+
+    #[br(parse_with = parse_opt_ptr32)]
+    #[xc3(offset(u32))]
+    pub unk1: Option<Unk1>,
+
+    // TODO: This type is slightly different than for mxmd 112
+    /// Embedded vertex data for .wimdo only models with no .wismt.
+    #[br(parse_with = parse_opt_ptr32)]
+    #[xc3(offset(u32))]
+    pub vertex_data: Option<VertexData>,
+
+    /// Embedded shader data for .wimdo only models with no .wismt.
+    #[br(parse_with = parse_opt_ptr32)]
+    #[xc3(offset(u32))]
+    pub spch: Option<Spch>,
+
+    /// Textures included within this file.
+    #[br(parse_with = parse_opt_ptr32)]
+    #[xc3(offset(u32))]
+    pub packed_textures: Option<PackedTextures>,
+
+    pub unk5: u32,
+
+    /// Streaming information for the .wismt file or [None] if no .wismt file.
+    /// Identical to the same field in the corresponding [Msrd](crate::msrd::Msrd).
+    #[br(parse_with = parse_opt_ptr32)]
+    #[xc3(offset(u32), align(4))]
+    pub streaming: Option<Streaming>,
+
+    pub unk6: u32,
+    pub unk7: u32,
+
+    #[br(parse_with = parse_opt_ptr32)]
+    #[xc3(offset(u32), align(16))]
+    pub unk8: Option<Unk8>,
+
+    // TODO: padding?
+    pub unk: [u32; 6],
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct MxmdV112 {
-    // TODO: only aligned to 16 for 10112?
-    // TODO: support expressions for alignment?
     /// A collection of [Model] and associated data.
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32), align(16))]
-    pub models: Models,
+    pub models: ModelsV112,
 
     /// A collection of [Material] and associated data.
     #[br(parse_with = parse_ptr32)]
@@ -810,7 +863,7 @@ pub struct MaterialUnk6ItemUnk4 {
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
-pub struct Models {
+pub struct ModelsV112 {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
@@ -826,7 +879,7 @@ pub struct Models {
 
     #[br(parse_with = parse_offset32_count32, args { offset: base_offset, inner: base_offset })]
     #[xc3(offset_count(u32, u32))]
-    pub models: Vec<Model>,
+    pub models: Vec<ModelV112>,
 
     pub unk2: u32,
 
@@ -903,6 +956,77 @@ pub struct Models {
     // TODO: Investigate extra data for legacy mxmd files.
     #[br(args { size: models_offset, base_offset})]
     pub extra: ModelsExtraData,
+}
+
+#[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(stream = r)]
+#[xc3(base_offset)]
+pub struct ModelsV111 {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    /// The maximum of all the [max_xyz](struct.Model.html#structfield.max_xyz) in [models](#structfield.models).
+    pub max_xyz: [f32; 3],
+    /// The minimum of all the [min_xyz](struct.Model.html#structfield.min_xyz) in [models](#structfield.models).
+    pub min_xyz: [f32; 3],
+
+    #[br(parse_with = parse_offset32_count32, args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset_count(u32, u32))]
+    pub models: Vec<ModelV111>,
+
+    pub unk2: u32,
+
+    pub model_unk16: u32,
+
+    pub model_unk11: u32,
+
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub skinning: Option<Skinning>,
+
+    pub unks3_1: [u32; 12],
+
+    // offset 100
+    pub ext_meshes: [u32; 2],
+
+    // TODO: always 0?
+    // TODO: offset for 10111?
+    pub unks3_2: [u32; 2],
+
+    pub model_unk8: u32,
+
+    pub unk3_3: u32,
+
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub model_unk7: Option<ModelUnk7>,
+
+    // offset 128
+    pub morph_controllers: u32,
+
+    pub model_unk1: u32,
+
+    pub model_unk12: u32,
+
+    pub lod_data: u32,
+
+    pub alpha_table: u32,
+
+    pub unk_field2: u32,
+
+    pub model_unk9: u32,
+
+    // TODO: Completely different type than 10112?
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub model_unk3: Option<ModelUnk3>,
+
+    // offset 160
+    pub model_unk13: u32,
+    pub model_unk14: u32,
+    pub model_unk15: u32,
 }
 
 // Use an enum since even the largest size can have all offsets as null.
@@ -1004,10 +1128,37 @@ pub struct ModelsExtraDataUnk5 {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
-pub struct Model {
+pub struct ModelV111 {
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub meshes: Vec<Mesh>,
+    pub meshes: Vec<MeshV111>,
+
+    // TODO: flags?
+    pub unk1: u32, // 0, 64, 320
+
+    // TODO: Slightly larger than a volume containing all vertex buffers?
+    /// The minimum XYZ coordinates of the bounding volume.
+    pub max_xyz: [f32; 3],
+    /// The maximum XYZ coordinates of the bounding volume.
+    pub min_xyz: [f32; 3],
+    // TODO: how to calculate this?
+    pub bounding_radius: f32,
+    pub unks1: [u32; 3],  // always 0?
+    pub unk2: (u16, u16), // TODO: rendering related?
+    // TODO: padding?
+    pub unks: [u32; 3],
+}
+
+/// A collection of meshes where each [Mesh] represents one draw call.
+///
+/// Each [Model] has an associated [VertexData] containing vertex and index buffers.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct ModelV112 {
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub meshes: Vec<MeshV112>,
 
     // TODO: flags?
     pub unk1: u32, // 0, 64, 320
@@ -1029,7 +1180,46 @@ pub struct Model {
 /// Flags and resources associated with a single draw call.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct Mesh {
+pub struct MeshV111 {
+    pub flags1: u32,
+    pub flags2: MeshRenderFlags2,
+    /// Index into [vertex_buffers](../vertex/struct.VertexData.html#structfield.vertex_buffers)
+    /// for the associated [VertexData].
+    pub vertex_buffer_index: u16,
+    /// Index into [index_buffers](../vertex/struct.VertexData.html#structfield.index_buffers)
+    /// for the associated [VertexData].
+    pub index_buffer_index: u16,
+    /// Index into [index_buffers](../vertex/struct.VertexData.html#structfield.index_buffers)
+    /// for the associated [VertexData] for the depth only draw call used for shadow rendering.
+    /// Custom models can use the same value as [index_buffer_index](#structfield.index_buffer_index).
+    pub index_buffer_index2: u16,
+    /// Index into [materials](struct.Materials.html#structfield.materials).
+    pub material_index: u16,
+    pub unk2: u32, // 0
+    pub unk3: u16, // 0
+    /// Index into [ext_meshes](struct.Models.html#structfield.ext_meshes).
+    // TODO: enabled via a flag?
+    pub ext_mesh_index: u16,
+    pub unk4: u32, // 0
+    pub unk5: u16, // TODO: used mostly for outline meshes?
+    /// 1-based index into [items](struct.LodData.html#structfield.items).
+    pub lod_item_index: u8,
+    pub unk_mesh_index2: u8, // 1 to 20?
+    /// Index into [items](struct.AlphaTable.html#structfield.items).
+    pub alpha_table_index: u16,
+    pub unk6: u16, // TODO: used mostly for outline meshes?
+    // TODO: -1 for xc3 for "base" meshes and always 0 for xc1 and xc2
+    // TODO: index for parent or base mesh for speff materials?
+    pub base_mesh_index: i32,
+    pub unk8: u32, // 0, 1
+    pub unk9: u32, // 0
+    pub unk10: [u32; 4],
+}
+
+/// Flags and resources associated with a single draw call.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct MeshV112 {
     pub flags1: u32, // TODO: possible bits that are set, check outline, speff, etc
     pub flags2: MeshRenderFlags2,
     /// Index into [vertex_buffers](../vertex/struct.VertexData.html#structfield.vertex_buffers)
@@ -2300,7 +2490,7 @@ impl Xc3WriteOffsets for LodDataOffsets<'_> {
 }
 
 // TODO: Add derive attribute for skipping empty vecs?
-impl Xc3WriteOffsets for ModelsOffsets<'_> {
+impl Xc3WriteOffsets for ModelsV112Offsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(

@@ -39,7 +39,7 @@ use xc3_lib::{
 };
 use xc3_model::{
     load_skel,
-    model::import::{ModelFilesV112, ModelFilesV40},
+    model::import::{ModelFilesV111, ModelFilesV112, ModelFilesV40},
     monolib::ShaderTextures,
     ModelRoot,
 };
@@ -788,6 +788,8 @@ impl CheckFile for Mxmd {
         }
 
         match self.inner {
+            xc3_lib::mxmd::MxmdInner::V40(_mxmd) => {}
+            xc3_lib::mxmd::MxmdInner::V111(_mxmd) => {}
             xc3_lib::mxmd::MxmdInner::V112(mxmd) => {
                 if !is_valid_models_flags(&mxmd) {
                     println!("Inconsistent ModelsFlags for {path:?}");
@@ -809,7 +811,6 @@ impl CheckFile for Mxmd {
                     }
                 }
             }
-            xc3_lib::mxmd::MxmdInner::V40(_mxmd) => {}
         }
     }
 }
@@ -1365,6 +1366,18 @@ fn check_all_wimdo_model(root: &Path, check_read_write: bool) {
                                     Err(e) => println!("Error loading {path:?}: {e}"),
                                 }
                             }
+                            Err(e) => println!("Error loading files from {path:?}: {e}"),
+                        }
+                    }
+                    xc3_lib::mxmd::MxmdInner::V111(mxmd) => {
+                        match ModelFilesV111::from_files(&mxmd, &wismt_path, chr.as_deref(), false)
+                        {
+                            Ok(files) => match ModelRoot::from_mxmd_v111(&files, skel, None) {
+                                Ok(_root) => {
+                                    // v111 is rarely used and not worth rebuilding with xc3_model.
+                                }
+                                Err(e) => println!("Error loading {path:?}: {e}"),
+                            },
                             Err(e) => println!("Error loading files from {path:?}: {e}"),
                         }
                     }
