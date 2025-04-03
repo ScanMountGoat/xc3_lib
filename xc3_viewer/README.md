@@ -16,6 +16,8 @@ Maps can be rendered together with their collision data.
 
 Select the [G-Buffer texture](https://scanmountgoat.github.io/xenoblade-rendering-research/gbuffer) to view using the keys 1-6 and 0 for the shaded view. Isolate a color channel for modes other than 0 using the RGBA or XYZW keys. Changing the selected texture also resets the color channels. The current animation can be changed using the `,` and `.` keys. Restart animation playback using spacebar.
 
+The graphics API can be changed using the `--backend` argument. See `xc3_viewer --help` for details. This mostly applies to Windows users that may have better compatibility using `--backend dx12` instead of the default backend selection.
+
 | Key | Name | Channels |
 | --- | --- | --- |
 | 0 | Shaded | *lighting and shading with no channel selection* |
