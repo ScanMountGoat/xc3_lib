@@ -1,5 +1,5 @@
 # xc3_tex
-A command line tool for converting and replacing texture files for Xenoblade X, Xenoblade 1 DE, Xenoblade 2, and Xenoblade 3.
+A command line tool for converting and replacing texture files for Xenoblade Chronicles X, Xenoblade Chronicles 1 Definitive Edition, Xenoblade Chronicles 2, Xenoblade Chronicles 3, and Xenoblade Chronicles X Definitive Edition.
 
 xc3_tex supports converting proprietary in game texture formats to and from a variety of common formats like DDS or PNG. Using DDS is strongly recommended since it can preserve all the original texture array layers, depth slices, and mipmaps.
 
