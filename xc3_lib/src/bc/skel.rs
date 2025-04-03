@@ -80,7 +80,8 @@ pub struct Skeleton {
 
 // TODO: Make this an option instead?
 
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))] // Up to 80 bytes of optional data for XC3.
+// Up to 80 bytes of optional data for XC3.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(size: u64))]
 pub enum SkeletonExtra {

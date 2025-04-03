@@ -391,7 +391,7 @@ pub fn update_wimdo_from_folder(
     // We need to repack the entire wismt even though we only modify textures.
     // This ensures the streaming header accounts for potential stream data changes.
     match &mut mxmd.inner {
-        xc3_lib::mxmd::MxmdInner::V111(inner) => {
+        xc3_lib::mxmd::MxmdInner::V111(_) => {
             anyhow::bail!("Editing version 10111 legacy wimdo models is not supported")
         }
         xc3_lib::mxmd::MxmdInner::V112(inner) => {
