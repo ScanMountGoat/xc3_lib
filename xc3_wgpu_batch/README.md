@@ -14,3 +14,5 @@ The shader database parameter is optional but highly recommended since the fallb
 `xc3_wgpu_batch "Xeno 1 Dump" wismhd xc1.bin`  
 `xc3_wgpu_batch "Xeno 2 Dump" wimdo xc2.bin`  
 `xc3_wgpu_batch "Xeno 3 Dump/chr/ch/ch" wimdo xc3.bin --anim`  
+
+The graphics API can be changed using the `--backend` argument. See `xc3_viewer --help` for details. This mostly applies to Windows users that may have better compatibility using `--backend dx12` instead of the default backend selection.
