@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use glam::{ivec4, uvec4, vec3, vec4, UVec4, Vec3, Vec4};
+use glam::{ivec4, uvec4, vec3, vec4, Vec3, Vec4};
 use indexmap::IndexMap;
 use log::{error, warn};
 use smol_str::SmolStr;
@@ -62,10 +62,8 @@ pub fn materials(
                 .map(|i| (format!("s{i}").into(), i))
                 .collect();
 
-            let mut name_to_info = IndexMap::new();
             let material_assignments = material.output_assignments(image_textures);
-            let assignments =
-                output_assignments(&material_assignments, &mut name_to_index, &mut name_to_info);
+            let assignments = output_assignments(&material_assignments, &mut name_to_index);
 
             // Alpha textures might not be used in normal shaders.
             if let Some(a) = &material.alpha_test {
@@ -96,34 +94,13 @@ pub fn materials(
             let mut uvs_wgsl: Vec<_> = name_to_uv_wgsl.values().cloned().collect();
             uvs_wgsl.sort();
 
+            // TODO: Some materials need more than 10 textures.
             let mut texture_views: [Option<_>; 10] = std::array::from_fn(|_| None);
-
-            // TODO: Is it ok to switch on the texcoord for each channel lookup?
-            // TODO: can a texture be used with more than one scale?
-            // TODO: Include this logic with xc3_model?
-            let mut texture_info = [crate::shader::model::TextureInfo {
-                is_bc4_single_channel: UVec4::ZERO,
-            }; 10];
-
-            // Find the scale parameters for any textures assigned above.
-            // TODO: Is there a more efficient way of doing this?
-            // TODO: xc1 needs more than 10 textures?
-            for (name, i) in &name_to_info {
-                if let Some(index) = name_to_index.get(name.as_str()) {
-                    if let Some(info) = texture_info.get_mut(*index) {
-                        *info = *i;
-                    }
-                }
-            }
 
             for (name, i) in &name_to_index {
                 if let Some(texture) = assign_texture(material, textures, monolib_shader, name) {
                     if *i < texture_views.len() {
                         texture_views[*i] = Some(texture.create_view(&Default::default()));
-                        // TODO: Better way of doing this?
-                        if texture.format() == wgpu::TextureFormat::Bc4RUnorm {
-                            texture_info[*i].is_bc4_single_channel = UVec4::splat(1);
-                        }
                     }
                 } else {
                     warn!("Missing texture for {name:?}. Assigning default black texture.");
@@ -158,7 +135,6 @@ pub fn materials(
                 "PerMaterial",
                 &[crate::shader::model::PerMaterial {
                     assignments,
-                    texture_info,
                     outline_width,
                     fur_params,
                     alpha_test_ref: material.alpha_test_ref,
@@ -250,14 +226,13 @@ pub fn materials(
 fn output_assignments(
     assignments: &OutputAssignments,
     name_to_index: &mut IndexMap<SmolStr, usize>,
-    name_to_info: &mut IndexMap<SmolStr, crate::shader::model::TextureInfo>,
 ) -> [crate::shader::model::OutputAssignment; 6] {
     // Each output channel may have a different input sampler and channel.
     [0, 1, 2, 3, 4, 5].map(|i| {
         let assignment = &assignments.assignments[i];
 
         crate::shader::model::OutputAssignment {
-            samplers: sampler_assignment(assignment, name_to_index, name_to_info, 0),
+            samplers: sampler_assignment(assignment, name_to_index, 0),
             default_value: output_default(assignment, i),
         }
     })
@@ -266,15 +241,14 @@ fn output_assignments(
 fn sampler_assignment(
     a: &OutputAssignment,
     name_to_index: &mut IndexMap<SmolStr, usize>,
-    name_to_info: &mut IndexMap<SmolStr, crate::shader::model::TextureInfo>,
     layer_index: usize,
 ) -> crate::shader::model::SamplerAssignment {
     let (x, y, z, w) = layer_channel_assignments(a, layer_index);
 
-    let (s0, c0) = texture_channel(x, name_to_index, name_to_info, 'x').unwrap_or((-1, 0));
-    let (s1, c1) = texture_channel(y, name_to_index, name_to_info, 'y').unwrap_or((-1, 1));
-    let (s2, c2) = texture_channel(z, name_to_index, name_to_info, 'z').unwrap_or((-1, 2));
-    let (s3, c3) = texture_channel(w, name_to_index, name_to_info, 'w').unwrap_or((-1, 3));
+    let (s0, c0) = texture_channel(x, name_to_index, 'x').unwrap_or((-1, 0));
+    let (s1, c1) = texture_channel(y, name_to_index, 'y').unwrap_or((-1, 1));
+    let (s2, c2) = texture_channel(z, name_to_index, 'z').unwrap_or((-1, 2));
+    let (s3, c3) = texture_channel(w, name_to_index, 'w').unwrap_or((-1, 3));
 
     crate::shader::model::SamplerAssignment {
         sampler_indices: ivec4(s0, s1, s2, s3),
@@ -315,18 +289,10 @@ fn layer_channel_assignments(
 fn texture_channel(
     assignment: Option<&ChannelAssignment>,
     name_to_index: &mut IndexMap<SmolStr, usize>,
-    name_to_info: &mut IndexMap<SmolStr, crate::shader::model::TextureInfo>,
     channel: char,
 ) -> Option<(i32, u32)> {
     if let Some(ChannelAssignment::Texture(texture)) = assignment {
         let TextureAssignment { name, channels, .. } = texture;
-
-        name_to_info.insert(
-            name.clone(),
-            crate::shader::model::TextureInfo {
-                is_bc4_single_channel: UVec4::ZERO,
-            },
-        );
 
         // TODO: how to handle empty input channels?
         let channel_index = if channels.contains(channel) || channels.is_empty() {

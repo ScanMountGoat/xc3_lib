@@ -106,19 +106,12 @@ struct PerMaterial {
     // Shader database information.
     assignments: array<OutputAssignment, 6>,
 
-    // Assume shaders access textures at most once to allow one info per texture.
-    texture_info: array<TextureInfo, 10>,
-
     fur_params: FurShellParams,
 
     // Assume outline width is always set via a parameter or constant.
     outline_width: f32,
 
     alpha_test_ref: f32
-}
-
-struct TextureInfo {
-    is_bc4_single_channel: vec4<u32>,
 }
 
 struct FurShellParams {

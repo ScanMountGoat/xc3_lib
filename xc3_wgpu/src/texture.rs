@@ -123,7 +123,7 @@ fn texture_format(format: ImageFormat) -> Option<wgpu::TextureFormat> {
         ImageFormat::BC1Unorm => Some(wgpu::TextureFormat::Bc1RgbaUnorm),
         ImageFormat::BC2Unorm => Some(wgpu::TextureFormat::Bc2RgbaUnorm),
         ImageFormat::BC3Unorm => Some(wgpu::TextureFormat::Bc3RgbaUnorm),
-        ImageFormat::BC4Unorm => Some(wgpu::TextureFormat::Bc4RUnorm),
+        ImageFormat::BC4Unorm => None, // Force RGBA decoding to emulate .rrr1 channel swizzle
         ImageFormat::BC5Unorm => Some(wgpu::TextureFormat::Bc5RgUnorm),
         ImageFormat::BC7Unorm => Some(wgpu::TextureFormat::Bc7RgbaUnorm),
         ImageFormat::BC6UFloat => Some(wgpu::TextureFormat::Bc6hRgbUfloat),
