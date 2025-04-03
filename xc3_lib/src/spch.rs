@@ -500,10 +500,11 @@ impl Spch {
         Option<ShaderBinary>,
         Option<ShaderBinary>,
     )> {
+        // TODO: Handle nvsp from .pcmdo models?
         let nvsds: Vec<_> = slct
             .programs
             .iter()
-            .map(|p| p.read_nvsd().unwrap())
+            .filter_map(|p| p.read_nvsd().ok())
             .collect();
 
         let binaries = vertex_fragment_binaries(
