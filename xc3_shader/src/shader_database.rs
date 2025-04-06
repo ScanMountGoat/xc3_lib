@@ -1166,6 +1166,31 @@ mod tests {
         TextureDependency,
     };
 
+    fn tex(
+        name: &str,
+        channel: char,
+        tex_coord_name: &str,
+        tex_coord_u: char,
+        tex_coord_v: char,
+    ) -> Dependency {
+        Dependency::Texture(TextureDependency {
+            name: name.into(),
+            channel: Some(channel),
+            texcoords: vec![
+                TexCoord {
+                    name: tex_coord_name.into(),
+                    channel: Some(tex_coord_u),
+                    params: None,
+                },
+                TexCoord {
+                    name: tex_coord_name.into(),
+                    channel: Some(tex_coord_v),
+                    params: None,
+                },
+            ],
+        })
+    }
+
     #[test]
     fn find_attribute_locations_outputs() {
         let glsl = indoc! {"
@@ -1217,22 +1242,7 @@ mod tests {
 
         assert_eq!(
             OutputDependencies {
-                dependencies: vec![Dependency::Texture(TextureDependency {
-                    name: "s4".into(),
-                    channel: Some('y'),
-                    texcoords: vec![
-                        TexCoord {
-                            name: "vTex0".into(),
-                            channel: Some('x'),
-                            params: None,
-                        },
-                        TexCoord {
-                            name: "vTex0".into(),
-                            channel: Some('y'),
-                            params: None,
-                        },
-                    ]
-                })],
+                dependencies: vec![tex("s4", 'y', "vTex0", 'x', 'y')],
                 layers: Vec::new()
             },
             shader.output_dependencies[&SmolStr::from("o1.x")]
@@ -1384,40 +1394,10 @@ mod tests {
         // Check that the color texture is multiplied by vertex color.
         assert_eq!(
             OutputDependencies {
-                dependencies: vec![Dependency::Texture(TextureDependency {
-                    name: "s0".into(),
-                    channel: Some('x'),
-                    texcoords: vec![
-                        TexCoord {
-                            name: "in_attr2".into(),
-                            channel: Some('x'),
-                            params: None,
-                        },
-                        TexCoord {
-                            name: "in_attr2".into(),
-                            channel: Some('y'),
-                            params: None,
-                        },
-                    ]
-                })],
+                dependencies: vec![tex("s0", 'x', "in_attr2", 'x', 'y')],
                 layers: vec![
                     OutputLayer {
-                        value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                            name: "s0".into(),
-                            channel: Some('x'),
-                            texcoords: vec![
-                                TexCoord {
-                                    name: "in_attr2".into(),
-                                    channel: Some('x'),
-                                    params: None,
-                                },
-                                TexCoord {
-                                    name: "in_attr2".into(),
-                                    channel: Some('y'),
-                                    params: None,
-                                },
-                            ],
-                        })),
+                        value: OutputLayerValue::Value(tex("s0", 'x', "in_attr2", 'x', 'y')),
                         ratio: None,
                         blend_mode: LayerBlendMode::Mix,
                         is_fresnel: false,
@@ -1453,43 +1433,19 @@ mod tests {
         assert_eq!(
             vec![
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "s0".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr3".into(),
-                                channel: Some('x'),
-                                params: None
-                            },
-                            TexCoord {
-                                name: "in_attr3".into(),
-                                channel: Some('y'),
-                                params: None
-                            }
-                        ]
-                    })),
+                    value: OutputLayerValue::Value(tex("s0", 'x', "in_attr3", 'x', 'y')),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
                 },
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "gTResidentTex04".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('x'),
-                                params: None
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('y'),
-                                params: None
-                            }
-                        ]
-                    })),
+                    value: OutputLayerValue::Value(tex(
+                        "gTResidentTex04",
+                        'x',
+                        "in_attr4",
+                        'x',
+                        'y'
+                    )),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
@@ -1500,43 +1456,19 @@ mod tests {
         assert_eq!(
             vec![
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "s0".into(),
-                        channel: Some('y'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr3".into(),
-                                channel: Some('x'),
-                                params: None
-                            },
-                            TexCoord {
-                                name: "in_attr3".into(),
-                                channel: Some('y'),
-                                params: None
-                            }
-                        ]
-                    })),
+                    value: OutputLayerValue::Value(tex("s0", 'y', "in_attr3", 'x', 'y')),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
                 },
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "gTResidentTex04".into(),
-                        channel: Some('y'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('x'),
-                                params: None
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('y'),
-                                params: None
-                            }
-                        ]
-                    })),
+                    value: OutputLayerValue::Value(tex(
+                        "gTResidentTex04",
+                        'y',
+                        "in_attr4",
+                        'x',
+                        'y'
+                    )),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
@@ -1547,43 +1479,19 @@ mod tests {
         assert_eq!(
             vec![
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "s0".into(),
-                        channel: Some('z'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr3".into(),
-                                channel: Some('x'),
-                                params: None
-                            },
-                            TexCoord {
-                                name: "in_attr3".into(),
-                                channel: Some('y'),
-                                params: None
-                            }
-                        ]
-                    })),
+                    value: OutputLayerValue::Value(tex("s0", 'z', "in_attr3", 'x', 'y')),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
                 },
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "gTResidentTex04".into(),
-                        channel: Some('z'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('x'),
-                                params: None
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('y'),
-                                params: None
-                            }
-                        ]
-                    })),
+                    value: OutputLayerValue::Value(tex(
+                        "gTResidentTex04",
+                        'z',
+                        "in_attr4",
+                        'x',
+                        'y'
+                    )),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
@@ -1594,43 +1502,19 @@ mod tests {
         assert_eq!(
             vec![
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "s2".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr3".into(),
-                                channel: Some('x'),
-                                params: None
-                            },
-                            TexCoord {
-                                name: "in_attr3".into(),
-                                channel: Some('y'),
-                                params: None
-                            }
-                        ]
-                    })),
+                    value: OutputLayerValue::Value(tex("s2", 'x', "in_attr3", 'x', 'y')),
                     ratio: None,
                     blend_mode: LayerBlendMode::Add,
                     is_fresnel: false
                 },
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "gTResidentTex09".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr3".into(),
-                                channel: Some('z'),
-                                params: None
-                            },
-                            TexCoord {
-                                name: "in_attr3".into(),
-                                channel: Some('w'),
-                                params: None
-                            }
-                        ]
-                    })),
+                    value: OutputLayerValue::Value(tex(
+                        "gTResidentTex09",
+                        'x',
+                        "in_attr3",
+                        'z',
+                        'w'
+                    )),
                     ratio: Some(Dependency::Buffer(BufferDependency {
                         name: "U_Mate".into(),
                         field: "gWrkFl4".into(),
@@ -1669,22 +1553,7 @@ mod tests {
         assert_eq!(
             vec![
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "s0".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('x'),
-                                params: None
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('y'),
-                                params: None
-                            }
-                        ]
-                    })),
+                    value: OutputLayerValue::Value(tex("s0", 'x', "in_attr4", 'x', 'y')),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
@@ -1706,22 +1575,13 @@ mod tests {
                     is_fresnel: true
                 },
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "gTResidentTex04".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr5".into(),
-                                channel: Some('z'),
-                                params: None
-                            },
-                            TexCoord {
-                                name: "in_attr5".into(),
-                                channel: Some('w'),
-                                params: None
-                            }
-                        ]
-                    })),
+                    value: OutputLayerValue::Value(tex(
+                        "gTResidentTex04",
+                        'x',
+                        "in_attr5",
+                        'z',
+                        'w'
+                    )),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
@@ -1744,142 +1604,28 @@ mod tests {
         assert_eq!(
             OutputDependencies {
                 dependencies: vec![
-                    Dependency::Texture(TextureDependency {
-                        name: "gTResidentTex09".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('z'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('w'),
-                                params: None,
-                            },
-                        ],
-                    }),
-                    Dependency::Texture(TextureDependency {
-                        name: "gTResidentTex09".into(),
-                        channel: Some('y'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('z'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('w'),
-                                params: None,
-                            },
-                        ],
-                    }),
-                    Dependency::Texture(TextureDependency {
-                        name: "s2".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('x'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('y'),
-                                params: None,
-                            },
-                        ],
-                    }),
-                    Dependency::Texture(TextureDependency {
-                        name: "s2".into(),
-                        channel: Some('y'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('x'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('y'),
-                                params: None,
-                            },
-                        ],
-                    }),
-                    Dependency::Texture(TextureDependency {
-                        name: "s3".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr5".into(),
-                                channel: Some('x'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr5".into(),
-                                channel: Some('y'),
-                                params: None,
-                            },
-                        ],
-                    }),
-                    Dependency::Texture(TextureDependency {
-                        name: "s3".into(),
-                        channel: Some('y'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr5".into(),
-                                channel: Some('x'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr5".into(),
-                                channel: Some('y'),
-                                params: None,
-                            },
-                        ],
-                    }),
+                    tex("gTResidentTex09", 'x', "in_attr4", 'z', 'w'),
+                    tex("gTResidentTex09", 'y', "in_attr4", 'z', 'w'),
+                    tex("s2", 'x', "in_attr4", 'x', 'y'),
+                    tex("s2", 'y', "in_attr4", 'x', 'y'),
+                    tex("s3", 'x', "in_attr5", 'x', 'y'),
+                    tex("s3", 'y', "in_attr5", 'x', 'y'),
                 ],
                 layers: vec![
                     OutputLayer {
-                        value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                            name: "s2".into(),
-                            channel: Some('x'),
-                            texcoords: vec![
-                                TexCoord {
-                                    name: "in_attr4".into(),
-                                    channel: Some('x'),
-                                    params: None
-                                },
-                                TexCoord {
-                                    name: "in_attr4".into(),
-                                    channel: Some('y'),
-                                    params: None
-                                }
-                            ]
-                        })),
+                        value: OutputLayerValue::Value(tex("s2", 'x', "in_attr4", 'x', 'y')),
                         ratio: None,
                         blend_mode: LayerBlendMode::Add,
                         is_fresnel: false
                     },
                     OutputLayer {
-                        value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                            name: "gTResidentTex09".into(),
-                            channel: Some('x'),
-                            texcoords: vec![
-                                TexCoord {
-                                    name: "in_attr4".into(),
-                                    channel: Some('z'),
-                                    params: None
-                                },
-                                TexCoord {
-                                    name: "in_attr4".into(),
-                                    channel: Some('w'),
-                                    params: None
-                                }
-                            ]
-                        })),
+                        value: OutputLayerValue::Value(tex(
+                            "gTResidentTex09",
+                            'x',
+                            "in_attr4",
+                            'z',
+                            'w'
+                        )),
                         ratio: Some(Dependency::Buffer(BufferDependency {
                             name: "U_Mate".into(),
                             field: "gWrkFl4".into(),
@@ -1890,22 +1636,7 @@ mod tests {
                         is_fresnel: false
                     },
                     OutputLayer {
-                        value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                            name: "s3".into(),
-                            channel: Some('x'),
-                            texcoords: vec![
-                                TexCoord {
-                                    name: "in_attr5".into(),
-                                    channel: Some('x'),
-                                    params: None
-                                },
-                                TexCoord {
-                                    name: "in_attr5".into(),
-                                    channel: Some('y'),
-                                    params: None
-                                }
-                            ]
-                        })),
+                        value: OutputLayerValue::Value(tex("s3", 'x', "in_attr5", 'x', 'y')),
                         ratio: Some(Dependency::Buffer(BufferDependency {
                             name: "U_Mate".into(),
                             field: "gWrkFl4".into(),
@@ -1932,22 +1663,7 @@ mod tests {
         assert_eq!(
             vec![
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "s0".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('x'),
-                                params: None
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('y'),
-                                params: None
-                            }
-                        ]
-                    })),
+                    value: OutputLayerValue::Value(tex("s0", 'x', "in_attr4", 'x', 'y')),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
@@ -1969,22 +1685,13 @@ mod tests {
                     is_fresnel: true
                 },
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "gTResidentTex04".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('z'),
-                                params: None
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('w'),
-                                params: None
-                            }
-                        ]
-                    })),
+                    value: OutputLayerValue::Value(tex(
+                        "gTResidentTex04",
+                        'x',
+                        "in_attr4",
+                        'z',
+                        'w'
+                    )),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
@@ -2069,22 +1776,7 @@ mod tests {
                                 index: Some(0),
                                 channel: Some('x'),
                             }),
-                            mask_b: Dependency::Texture(TextureDependency {
-                                name: "s2".into(),
-                                channel: Some('z'),
-                                texcoords: vec![
-                                    TexCoord {
-                                        name: "in_attr3".into(),
-                                        channel: Some('x'),
-                                        params: None,
-                                    },
-                                    TexCoord {
-                                        name: "in_attr3".into(),
-                                        channel: Some('y'),
-                                        params: None,
-                                    },
-                                ],
-                            }),
+                            mask_b: tex("s2", 'z', "in_attr3", 'x', 'y'),
                             ratio: BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gWrkFl4".into(),
@@ -2103,22 +1795,7 @@ mod tests {
                                 index: Some(0),
                                 channel: Some('x'),
                             }),
-                            mask_b: Dependency::Texture(TextureDependency {
-                                name: "s2".into(),
-                                channel: Some('z'),
-                                texcoords: vec![
-                                    TexCoord {
-                                        name: "in_attr3".into(),
-                                        channel: Some('x'),
-                                        params: None,
-                                    },
-                                    TexCoord {
-                                        name: "in_attr3".into(),
-                                        channel: Some('y'),
-                                        params: None,
-                                    },
-                                ],
-                            }),
+                            mask_b: tex("s2", 'z', "in_attr3", 'x', 'y'),
                             ratio: BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gWrkFl4".into(),
@@ -2168,22 +1845,7 @@ mod tests {
             .is_empty());
         assert_eq!(
             OutputDependencies {
-                dependencies: vec![Dependency::Texture(TextureDependency {
-                    name: "s8".into(),
-                    channel: Some('x'),
-                    texcoords: vec![
-                        TexCoord {
-                            name: "in_attr3".into(),
-                            channel: Some('x'),
-                            params: None,
-                        },
-                        TexCoord {
-                            name: "in_attr3".into(),
-                            channel: Some('y'),
-                            params: None,
-                        },
-                    ],
-                })],
+                dependencies: vec![tex("s8", 'x', "in_attr3", 'x', 'y')],
                 layers: Vec::new()
             },
             shader.output_dependencies[&SmolStr::from("o1.y")]
@@ -2191,59 +1853,14 @@ mod tests {
         assert_eq!(
             vec![
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "s6".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr3".into(),
-                                channel: Some('x'),
-                                params: None
-                            },
-                            TexCoord {
-                                name: "in_attr3".into(),
-                                channel: Some('y'),
-                                params: None
-                            }
-                        ]
-                    })),
+                    value: OutputLayerValue::Value(tex("s6", 'x', "in_attr3", 'x', 'y')),
                     ratio: None,
                     blend_mode: LayerBlendMode::Add,
                     is_fresnel: false
                 },
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "s7".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr3".into(),
-                                channel: Some('z'),
-                                params: None
-                            },
-                            TexCoord {
-                                name: "in_attr3".into(),
-                                channel: Some('w'),
-                                params: None
-                            }
-                        ]
-                    })),
-                    ratio: Some(Dependency::Texture(TextureDependency {
-                        name: "s1".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr3".into(),
-                                channel: Some('x'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr3".into(),
-                                channel: Some('y'),
-                                params: None,
-                            },
-                        ],
-                    })),
+                    value: OutputLayerValue::Value(tex("s7", 'x', "in_attr3", 'z', 'w')),
+                    ratio: Some(tex("s1", 'x', "in_attr3", 'x', 'y')),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
                 }
@@ -2253,59 +1870,14 @@ mod tests {
         assert_eq!(
             vec![
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "s6".into(),
-                        channel: Some('y'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr3".into(),
-                                channel: Some('x'),
-                                params: None
-                            },
-                            TexCoord {
-                                name: "in_attr3".into(),
-                                channel: Some('y'),
-                                params: None
-                            }
-                        ]
-                    })),
+                    value: OutputLayerValue::Value(tex("s6", 'y', "in_attr3", 'x', 'y')),
                     ratio: None,
                     blend_mode: LayerBlendMode::Add,
                     is_fresnel: false
                 },
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "s7".into(),
-                        channel: Some('y'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr3".into(),
-                                channel: Some('z'),
-                                params: None
-                            },
-                            TexCoord {
-                                name: "in_attr3".into(),
-                                channel: Some('w'),
-                                params: None
-                            }
-                        ]
-                    })),
-                    ratio: Some(Dependency::Texture(TextureDependency {
-                        name: "s1".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr3".into(),
-                                channel: Some('x'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr3".into(),
-                                channel: Some('y'),
-                                params: None,
-                            },
-                        ],
-                    })),
+                    value: OutputLayerValue::Value(tex("s7", 'y', "in_attr3", 'z', 'w')),
+                    ratio: Some(tex("s1", 'x', "in_attr3", 'x', 'y')),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
                 }
@@ -2325,79 +1897,31 @@ mod tests {
         assert_eq!(
             vec![
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "s0".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('x'),
-                                params: None
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('y'),
-                                params: None
-                            }
-                        ]
-                    })),
+                    value: OutputLayerValue::Value(tex("s0", 'x', "in_attr4", 'x', 'y')),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
                 },
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "gTResidentTex03".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('x'),
-                                params: None
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('x'),
-                                params: None
-                            }
-                        ]
-                    })),
-                    ratio: Some(Dependency::Texture(TextureDependency {
-                        name: "s1".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('x'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('y'),
-                                params: None,
-                            },
-                        ],
-                    })),
+                    value: OutputLayerValue::Value(tex(
+                        "gTResidentTex03",
+                        'x',
+                        "in_attr4",
+                        'x',
+                        'x'
+                    )),
+                    ratio: Some(tex("s1", 'x', "in_attr4", 'x', 'y')),
                     blend_mode: LayerBlendMode::Add,
                     is_fresnel: false
                 },
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "gTResidentTex04".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr5".into(),
-                                channel: Some('x'),
-                                params: None
-                            },
-                            TexCoord {
-                                name: "in_attr5".into(),
-                                channel: Some('y'),
-                                params: None
-                            }
-                        ]
-                    })),
+                    value: OutputLayerValue::Value(tex(
+                        "gTResidentTex04",
+                        'x',
+                        "in_attr5",
+                        'x',
+                        'y'
+                    )),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
@@ -2408,22 +1932,7 @@ mod tests {
 
         assert_eq!(
             OutputDependencies {
-                dependencies: vec![Dependency::Texture(TextureDependency {
-                    name: "s3".into(),
-                    channel: Some('x'),
-                    texcoords: vec![
-                        TexCoord {
-                            name: "in_attr4".into(),
-                            channel: Some('x'),
-                            params: None,
-                        },
-                        TexCoord {
-                            name: "in_attr4".into(),
-                            channel: Some('y'),
-                            params: None,
-                        },
-                    ],
-                })],
+                dependencies: vec![tex("s3", 'x', "in_attr4", 'x', 'y')],
                 layers: Vec::new()
             },
             shader.output_dependencies[&SmolStr::from("o1.y")]
@@ -2431,43 +1940,19 @@ mod tests {
         assert_eq!(
             vec![
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "s2".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('x'),
-                                params: None
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('y'),
-                                params: None
-                            }
-                        ]
-                    })),
+                    value: OutputLayerValue::Value(tex("s2", 'x', "in_attr4", 'x', 'y')),
                     ratio: None,
                     blend_mode: LayerBlendMode::Add,
                     is_fresnel: false
                 },
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "gTResidentTex09".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('z'),
-                                params: None
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('w'),
-                                params: None
-                            }
-                        ]
-                    })),
+                    value: OutputLayerValue::Value(tex(
+                        "gTResidentTex09",
+                        'x',
+                        "in_attr4",
+                        'z',
+                        'w'
+                    )),
                     ratio: Some(Dependency::Buffer(BufferDependency {
                         name: "U_Mate".into(),
                         field: "gWrkFl4".into(),
@@ -2493,226 +1978,31 @@ mod tests {
         assert_eq!(
             OutputDependencies {
                 dependencies: vec![
-                    Dependency::Texture(TextureDependency {
-                        name: "s2".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('x'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('y'),
-                                params: None,
-                            },
-                        ],
-                    }),
-                    Dependency::Texture(TextureDependency {
-                        name: "s2".into(),
-                        channel: Some('y'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('x'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('y'),
-                                params: None,
-                            },
-                        ],
-                    }),
-                    Dependency::Texture(TextureDependency {
-                        name: "s3".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('z'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('w'),
-                                params: None,
-                            },
-                        ],
-                    }),
-                    Dependency::Texture(TextureDependency {
-                        name: "s3".into(),
-                        channel: Some('y'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('z'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('w'),
-                                params: None,
-                            },
-                        ],
-                    }),
-                    Dependency::Texture(TextureDependency {
-                        name: "s4".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('x'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('y'),
-                                params: None,
-                            },
-                        ],
-                    }),
-                    Dependency::Texture(TextureDependency {
-                        name: "s5".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr5".into(),
-                                channel: Some('x'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr5".into(),
-                                channel: Some('y'),
-                                params: None,
-                            },
-                        ],
-                    }),
-                    Dependency::Texture(TextureDependency {
-                        name: "s5".into(),
-                        channel: Some('y'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr5".into(),
-                                channel: Some('x'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr5".into(),
-                                channel: Some('y'),
-                                params: None,
-                            },
-                        ],
-                    }),
-                    Dependency::Texture(TextureDependency {
-                        name: "s6".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('x'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('y'),
-                                params: None,
-                            },
-                        ],
-                    }),
+                    tex("s2", 'x', "in_attr4", 'x', 'y'),
+                    tex("s2", 'y', "in_attr4", 'x', 'y'),
+                    tex("s3", 'x', "in_attr4", 'z', 'w'),
+                    tex("s3", 'y', "in_attr4", 'z', 'w'),
+                    tex("s4", 'x', "in_attr4", 'x', 'y'),
+                    tex("s5", 'x', "in_attr5", 'x', 'y'),
+                    tex("s5", 'y', "in_attr5", 'x', 'y'),
+                    tex("s6", 'x', "in_attr4", 'x', 'y'),
                 ],
                 layers: vec![
                     OutputLayer {
-                        value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                            name: "s2".into(),
-                            channel: Some('x'),
-                            texcoords: vec![
-                                TexCoord {
-                                    name: "in_attr4".into(),
-                                    channel: Some('x'),
-                                    params: None,
-                                },
-                                TexCoord {
-                                    name: "in_attr4".into(),
-                                    channel: Some('y'),
-                                    params: None,
-                                },
-                            ],
-                        })),
+                        value: OutputLayerValue::Value(tex("s2", 'x', "in_attr4", 'x', 'y')),
                         ratio: None,
                         blend_mode: LayerBlendMode::Add,
                         is_fresnel: false,
                     },
                     OutputLayer {
-                        value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                            name: "s3".into(),
-                            channel: Some('x'),
-                            texcoords: vec![
-                                TexCoord {
-                                    name: "in_attr4".into(),
-                                    channel: Some('z'),
-                                    params: None,
-                                },
-                                TexCoord {
-                                    name: "in_attr4".into(),
-                                    channel: Some('w'),
-                                    params: None,
-                                },
-                            ],
-                        })),
-                        ratio: Some(Dependency::Texture(TextureDependency {
-                            name: "s4".into(),
-                            channel: Some('x'),
-                            texcoords: vec![
-                                TexCoord {
-                                    name: "in_attr4".into(),
-                                    channel: Some('x'),
-                                    params: None,
-                                },
-                                TexCoord {
-                                    name: "in_attr4".into(),
-                                    channel: Some('y'),
-                                    params: None,
-                                },
-                            ],
-                        })),
+                        value: OutputLayerValue::Value(tex("s3", 'x', "in_attr4", 'z', 'w')),
+                        ratio: Some(tex("s4", 'x', "in_attr4", 'x', 'y')),
                         blend_mode: LayerBlendMode::AddNormal,
                         is_fresnel: false,
                     },
                     OutputLayer {
-                        value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                            name: "s5".into(),
-                            channel: Some('x'),
-                            texcoords: vec![
-                                TexCoord {
-                                    name: "in_attr5".into(),
-                                    channel: Some('x'),
-                                    params: None,
-                                },
-                                TexCoord {
-                                    name: "in_attr5".into(),
-                                    channel: Some('y'),
-                                    params: None,
-                                },
-                            ],
-                        })),
-                        ratio: Some(Dependency::Texture(TextureDependency {
-                            name: "s6".into(),
-                            channel: Some('x'),
-                            texcoords: vec![
-                                TexCoord {
-                                    name: "in_attr4".into(),
-                                    channel: Some('x'),
-                                    params: None,
-                                },
-                                TexCoord {
-                                    name: "in_attr4".into(),
-                                    channel: Some('y'),
-                                    params: None,
-                                },
-                            ],
-                        })),
+                        value: OutputLayerValue::Value(tex("s5", 'x', "in_attr5", 'x', 'y')),
+                        ratio: Some(tex("s6", 'x', "in_attr4", 'x', 'y')),
                         blend_mode: LayerBlendMode::AddNormal,
                         is_fresnel: false,
                     },
@@ -2733,64 +2023,19 @@ mod tests {
         assert_eq!(
             vec![
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "s0".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('x'),
-                                params: None
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('y'),
-                                params: None
-                            }
-                        ]
-                    })),
+                    value: OutputLayerValue::Value(tex("s0", 'x', "in_attr4", 'x', 'y')),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
                 },
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "s1".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('x'),
-                                params: None
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('y'),
-                                params: None
-                            }
-                        ]
-                    })),
+                    value: OutputLayerValue::Value(tex("s1", 'x', "in_attr4", 'x', 'y')),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
                 },
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "s3".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('z'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('w'),
-                                params: None,
-                            },
-                        ],
-                    })),
+                    value: OutputLayerValue::Value(tex("s3", 'x', "in_attr4", 'z', 'w')),
                     ratio: Some(Dependency::Texture(TextureDependency {
                         name: "s4".into(),
                         channel: Some('x'),
@@ -2842,43 +2087,13 @@ mod tests {
         assert_eq!(
             vec![
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "s2".into(),
-                        channel: Some('y'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('x'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('y'),
-                                params: None,
-                            },
-                        ],
-                    })),
+                    value: OutputLayerValue::Value(tex("s2", 'y', "in_attr4", 'x', 'y')),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false,
                 },
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "s4".into(),
-                        channel: Some('y'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('z'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('w'),
-                                params: None,
-                            },
-                        ],
-                    })),
+                    value: OutputLayerValue::Value(tex("s4", 'y', "in_attr4", 'z', 'w')),
                     ratio: Some(Dependency::Texture(TextureDependency {
                         name: "s5".into(),
                         channel: Some('x'),
@@ -2914,22 +2129,7 @@ mod tests {
         assert_eq!(
             vec![
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "s2".into(),
-                        channel: Some('z'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('x'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('y'),
-                                params: None,
-                            },
-                        ],
-                    })),
+                    value: OutputLayerValue::Value(tex("s2", 'z', "in_attr4", 'x', 'y')),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false,
@@ -3114,22 +2314,7 @@ mod tests {
         assert_eq!(
             vec![
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "s0".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('x'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('y'),
-                                params: None,
-                            },
-                        ],
-                    })),
+                    value: OutputLayerValue::Value(tex("s0", 'x', "in_attr4", 'x', 'y')),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false,
@@ -3146,22 +2331,13 @@ mod tests {
                     is_fresnel: false,
                 },
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "gTResidentTex11".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('x'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('x'),
-                                params: None,
-                            },
-                        ],
-                    })),
+                    value: OutputLayerValue::Value(tex(
+                        "gTResidentTex11",
+                        'x',
+                        "in_attr4",
+                        'x',
+                        'x'
+                    )),
                     ratio: Some(Dependency::Texture(TextureDependency {
                         name: "s1".into(),
                         channel: Some('x'),
@@ -3182,22 +2358,13 @@ mod tests {
                     is_fresnel: false,
                 },
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "gTResidentTex04".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('z'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('w'),
-                                params: None,
-                            },
-                        ],
-                    })),
+                    value: OutputLayerValue::Value(tex(
+                        "gTResidentTex04",
+                        'x',
+                        "in_attr4",
+                        'z',
+                        'w'
+                    )),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false,
@@ -3627,22 +2794,7 @@ mod tests {
                 })],
                 layers: vec![
                     OutputLayer {
-                        value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                            name: "s0".into(),
-                            channel: Some('x'),
-                            texcoords: vec![
-                                TexCoord {
-                                    name: "vTex0".into(),
-                                    channel: Some('x'),
-                                    params: None,
-                                },
-                                TexCoord {
-                                    name: "vTex0".into(),
-                                    channel: Some('y'),
-                                    params: None,
-                                },
-                            ],
-                        })),
+                        value: OutputLayerValue::Value(tex("s0", 'x', "vTex0", 'x', 'y')),
                         ratio: None,
                         blend_mode: LayerBlendMode::Mix,
                         is_fresnel: false,
@@ -3693,22 +2845,7 @@ mod tests {
                 })],
                 layers: vec![
                     OutputLayer {
-                        value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                            name: "s0".into(),
-                            channel: Some('y'),
-                            texcoords: vec![
-                                TexCoord {
-                                    name: "vTex0".into(),
-                                    channel: Some('x'),
-                                    params: None,
-                                },
-                                TexCoord {
-                                    name: "vTex0".into(),
-                                    channel: Some('y'),
-                                    params: None,
-                                },
-                            ],
-                        })),
+                        value: OutputLayerValue::Value(tex("s0", 'y', "vTex0", 'x', 'y')),
                         ratio: None,
                         blend_mode: LayerBlendMode::Mix,
                         is_fresnel: false,
@@ -3741,40 +2878,10 @@ mod tests {
         );
         assert_eq!(
             OutputDependencies {
-                dependencies: vec![Dependency::Texture(TextureDependency {
-                    name: "s0".into(),
-                    channel: Some('z'),
-                    texcoords: vec![
-                        TexCoord {
-                            name: "vTex0".into(),
-                            channel: Some('x'),
-                            params: None,
-                        },
-                        TexCoord {
-                            name: "vTex0".into(),
-                            channel: Some('y'),
-                            params: None,
-                        },
-                    ],
-                })],
+                dependencies: vec![tex("s0", 'z', "vTex0", 'x', 'y')],
                 layers: vec![
                     OutputLayer {
-                        value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                            name: "s0".into(),
-                            channel: Some('z'),
-                            texcoords: vec![
-                                TexCoord {
-                                    name: "vTex0".into(),
-                                    channel: Some('x'),
-                                    params: None,
-                                },
-                                TexCoord {
-                                    name: "vTex0".into(),
-                                    channel: Some('y'),
-                                    params: None,
-                                },
-                            ],
-                        })),
+                        value: OutputLayerValue::Value(tex("s0", 'z', "vTex0", 'x', 'y')),
                         ratio: None,
                         blend_mode: LayerBlendMode::Mix,
                         is_fresnel: false,
@@ -3812,28 +2919,13 @@ mod tests {
         // xenoxde/chr/fc/fc281010, "eye_re", shd0002.frag
         let frag_glsl = include_str!("data/xcxde/fc281010.2.frag");
 
-        // Check for overlay blending to make the face blue.
+        // Check reflection layers for the iris.
         let fragment = TranslationUnit::parse(frag_glsl).unwrap();
         let shader = shader_from_glsl(None, &fragment);
         assert_eq!(
             vec![
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "gIBL".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr0".into(),
-                                channel: Some('x'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr0".into(),
-                                channel: Some('x'),
-                                params: None,
-                            },
-                        ],
-                    })),
+                    value: OutputLayerValue::Value(tex("gIBL", 'x', "in_attr0", 'x', 'x')),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false,
@@ -3876,22 +2968,7 @@ mod tests {
                                 blend_mode: LayerBlendMode::MixRatio,
                                 is_fresnel: false,
                             }]),
-                            ratio: Some(Dependency::Texture(TextureDependency {
-                                name: "texShadow".into(),
-                                channel: Some('x'),
-                                texcoords: vec![
-                                    TexCoord {
-                                        name: "in_attr6".into(),
-                                        channel: Some('w'),
-                                        params: None,
-                                    },
-                                    TexCoord {
-                                        name: "in_attr6".into(),
-                                        channel: Some('w'),
-                                        params: None,
-                                    },
-                                ],
-                            })),
+                            ratio: Some(tex("texShadow", 'x', "in_attr6", 'w', 'w')),
                             blend_mode: LayerBlendMode::Add,
                             is_fresnel: false,
                         },
@@ -3909,24 +2986,7 @@ mod tests {
                 OutputLayer {
                     value: OutputLayerValue::Layers(vec![
                         OutputLayer {
-                            value: OutputLayerValue::Value(Dependency::Texture(
-                                TextureDependency {
-                                    name: "s0".into(),
-                                    channel: Some('x'),
-                                    texcoords: vec![
-                                        TexCoord {
-                                            name: "in_attr3".into(),
-                                            channel: Some('y'),
-                                            params: None,
-                                        },
-                                        TexCoord {
-                                            name: "in_attr3".into(),
-                                            channel: Some('y'),
-                                            params: None,
-                                        },
-                                    ],
-                                }
-                            )),
+                            value: OutputLayerValue::Value(tex("s0", 'x', "in_attr3", 'y', 'y')),
                             ratio: None,
                             blend_mode: LayerBlendMode::Mix,
                             is_fresnel: false,
@@ -3961,24 +3021,7 @@ mod tests {
                 OutputLayer {
                     value: OutputLayerValue::Layers(vec![
                         OutputLayer {
-                            value: OutputLayerValue::Value(Dependency::Texture(
-                                TextureDependency {
-                                    name: "gIBL".into(),
-                                    channel: Some('w'),
-                                    texcoords: vec![
-                                        TexCoord {
-                                            name: "in_attr0".into(),
-                                            channel: Some('x'),
-                                            params: None,
-                                        },
-                                        TexCoord {
-                                            name: "in_attr0".into(),
-                                            channel: Some('x'),
-                                            params: None,
-                                        },
-                                    ],
-                                }
-                            )),
+                            value: OutputLayerValue::Value(tex("gIBL", 'w', "in_attr0", 'x', 'x')),
                             ratio: None,
                             blend_mode: LayerBlendMode::Mix,
                             is_fresnel: false,
@@ -3996,22 +3039,7 @@ mod tests {
                         },
                         OutputLayer {
                             value: OutputLayerValue::Layers(Vec::new()),
-                            ratio: Some(Dependency::Texture(TextureDependency {
-                                name: "s1".into(),
-                                channel: Some('y'),
-                                texcoords: vec![
-                                    TexCoord {
-                                        name: "in_attr0".into(),
-                                        channel: Some('x'),
-                                        params: None,
-                                    },
-                                    TexCoord {
-                                        name: "in_attr0".into(),
-                                        channel: Some('x'),
-                                        params: None,
-                                    },
-                                ],
-                            })),
+                            ratio: Some(tex("s1", 'y', "in_attr0", 'x', 'x')),
                             blend_mode: LayerBlendMode::Add,
                             is_fresnel: false,
                         },
