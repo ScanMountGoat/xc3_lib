@@ -112,10 +112,11 @@ pub struct ShaderProgram {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct OutputDependencies {
+    // TODO: This is redundant with layers.
     /// All of the possible dependencies that may affect the output.
     pub dependencies: Vec<Dependency>,
     /// Layering information if this output blends multiple texture dependencies.
-    pub layers: Vec<TextureLayer>,
+    pub layers: Vec<OutputLayer>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -192,10 +193,13 @@ pub enum LayerBlendMode {
     MixRatio,
     /// `a + b * ratio`
     Add,
+    // TODO: add mul blend mode
     /// Normal blend mode similar to "Reoriented Normal Mapping" (RNM).
     AddNormal,
     /// `mix(a, overlay(a, b), ratio)`.
     Overlay,
+    /// `pow(a, b)`
+    Power,
 }
 
 impl Default for LayerBlendMode {
@@ -206,11 +210,18 @@ impl Default for LayerBlendMode {
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct TextureLayer {
-    pub value: Dependency,
+pub struct OutputLayer {
+    pub value: OutputLayerValue,
     pub ratio: Option<Dependency>,
     pub blend_mode: LayerBlendMode,
     pub is_fresnel: bool,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum OutputLayerValue {
+    Value(Dependency),
+    Layers(Vec<OutputLayer>),
 }
 
 impl ShaderProgram {

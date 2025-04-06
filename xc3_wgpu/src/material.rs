@@ -1,11 +1,10 @@
 use std::collections::HashSet;
 
-use glam::{ivec4, uvec4, vec3, vec4, Vec3, Vec4};
+use glam::{uvec4, vec3, vec4, Vec3, Vec4};
 use indexmap::IndexMap;
 use log::{error, warn};
-use smol_str::SmolStr;
 use xc3_model::{
-    material::{ChannelAssignment, OutputAssignment, OutputAssignments, TextureAssignment},
+    material::{ChannelAssignment, OutputAssignment, OutputAssignments},
     ImageTexture, IndexMapExt,
 };
 
@@ -58,12 +57,12 @@ pub fn materials(
         .map(|material| {
             // Assign material textures by index to make GPU debugging easier.
             // TODO: Match the ordering in the actual in game shader using technique?
-            let mut name_to_index = (0..material.textures.len())
+            let mut name_to_index: IndexMap<_, _> = (0..material.textures.len())
                 .map(|i| (format!("s{i}").into(), i))
                 .collect();
 
             let material_assignments = material.output_assignments(image_textures);
-            let assignments = output_assignments(&material_assignments, &mut name_to_index);
+            let assignments = output_assignments(&material_assignments);
 
             // Alpha textures might not be used in normal shaders.
             if let Some(a) = &material.alpha_test {
@@ -78,7 +77,7 @@ pub fn materials(
                 .map(|a| generate_assignment_wgsl(a, &mut name_to_index, &mut name_to_uv_wgsl))
                 .collect();
 
-            let output_layers_wgsl = material_assignments
+            let output_layers_wgsl: Vec<_> = material_assignments
                 .assignments
                 .iter()
                 .map(|a| generate_layering_wgsl(a, &mut name_to_index, &mut name_to_uv_wgsl))
@@ -225,87 +224,21 @@ pub fn materials(
 
 fn output_assignments(
     assignments: &OutputAssignments,
-    name_to_index: &mut IndexMap<SmolStr, usize>,
 ) -> [crate::shader::model::OutputAssignment; 6] {
     // Each output channel may have a different input sampler and channel.
     [0, 1, 2, 3, 4, 5].map(|i| {
         let assignment = &assignments.assignments[i];
 
         crate::shader::model::OutputAssignment {
-            samplers: sampler_assignment(assignment, name_to_index, 0),
+            has_channels: uvec4(
+                assignment.x.is_some() as u32,
+                assignment.y.is_some() as u32,
+                assignment.z.is_some() as u32,
+                assignment.w.is_some() as u32,
+            ),
             default_value: output_default(assignment, i),
         }
     })
-}
-
-fn sampler_assignment(
-    a: &OutputAssignment,
-    name_to_index: &mut IndexMap<SmolStr, usize>,
-    layer_index: usize,
-) -> crate::shader::model::SamplerAssignment {
-    let (x, y, z, w) = layer_channel_assignments(a, layer_index);
-
-    let (s0, c0) = texture_channel(x, name_to_index, 'x').unwrap_or((-1, 0));
-    let (s1, c1) = texture_channel(y, name_to_index, 'y').unwrap_or((-1, 1));
-    let (s2, c2) = texture_channel(z, name_to_index, 'z').unwrap_or((-1, 2));
-    let (s3, c3) = texture_channel(w, name_to_index, 'w').unwrap_or((-1, 3));
-
-    crate::shader::model::SamplerAssignment {
-        sampler_indices: ivec4(s0, s1, s2, s3),
-        channel_indices: uvec4(c0, c1, c2, c3),
-    }
-}
-
-fn layer_channel_assignments(
-    a: &OutputAssignment,
-    layer_index: usize,
-) -> (
-    Option<&ChannelAssignment>,
-    Option<&ChannelAssignment>,
-    Option<&ChannelAssignment>,
-    Option<&ChannelAssignment>,
-) {
-    let (x, y, z, w) = if layer_index == 0 {
-        (a.x.as_ref(), a.y.as_ref(), a.z.as_ref(), a.w.as_ref())
-    } else {
-        (
-            a.x_layers
-                .get(layer_index - 1)
-                .and_then(|l| l.value.as_ref()),
-            a.y_layers
-                .get(layer_index - 1)
-                .and_then(|l| l.value.as_ref()),
-            a.z_layers
-                .get(layer_index - 1)
-                .and_then(|l| l.value.as_ref()),
-            a.w_layers
-                .get(layer_index - 1)
-                .and_then(|l| l.value.as_ref()),
-        )
-    };
-    (x, y, z, w)
-}
-
-fn texture_channel(
-    assignment: Option<&ChannelAssignment>,
-    name_to_index: &mut IndexMap<SmolStr, usize>,
-    channel: char,
-) -> Option<(i32, u32)> {
-    if let Some(ChannelAssignment::Texture(texture)) = assignment {
-        let TextureAssignment { name, channels, .. } = texture;
-
-        // TODO: how to handle empty input channels?
-        let channel_index = if channels.contains(channel) || channels.is_empty() {
-            "xyzw".find(channel).unwrap()
-        } else {
-            "xyzw".find(channels.chars().next().unwrap()).unwrap()
-        };
-        // TODO: Should this ever return -1?
-        let index = name_to_index.entry_index(name.clone());
-        Some((index as i32, channel_index as u32))
-    } else {
-        None
-    }
 }
 
 fn create_bit_info(

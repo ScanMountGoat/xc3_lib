@@ -10,8 +10,8 @@ pub use xc3_lib::mxmd::{
 
 use crate::{
     shader_database::{
-        BufferDependency, Dependency, LayerBlendMode, ProgramHash, ShaderDatabase, ShaderProgram,
-        TexCoordParams, TextureDependency, TextureLayer,
+        BufferDependency, Dependency, LayerBlendMode, OutputLayer, OutputLayerValue, ProgramHash,
+        ShaderDatabase, ShaderProgram, TexCoordParams, TextureDependency,
     },
     ImageTexture, Sampler,
 };
@@ -382,7 +382,7 @@ fn get_shader_legacy<S: GetProgramHash>(
     // 2: normal (only xy)
     // 3: specular (alpha is spec?)
     // 4: depth (alpha is glossiness)
-    let output_dependencies = if program.output_dependencies.len() > 4 {
+    let output_dependencies = if program.output_dependencies.len() > 1 {
         program
             .output_dependencies
             .iter()
@@ -690,12 +690,18 @@ pub struct OutputAssignment {
 #[derive(Debug, Clone, PartialEq)]
 pub struct LayerChannelAssignment {
     /// The layer value to blend with the previous layer.
-    pub value: Option<ChannelAssignment>,
+    pub value: LayerChannelAssignmentValue,
     /// The factor or blend weight for this layer.
     pub weight: Option<ChannelAssignment>,
     /// The blending operation for this layer.
     pub blend_mode: LayerBlendMode,
     pub is_fresnel: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum LayerChannelAssignmentValue {
+    Value(Option<ChannelAssignment>),
+    Layers(Vec<LayerChannelAssignment>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -894,26 +900,45 @@ fn texture_layers(
         .map(|d| d.layers.as_slice())
         .unwrap_or_default();
 
+    // TODO: Don't skip base layer?
     // Skip the base layer in the first element.
     layers
         .iter()
         .skip(1)
-        .map(|l| {
-            // TODO: Is it worth detecting layers for each channel individually?
-            // TODO: Is it safe to assume assigned channels are always xyzw?
-            let value = ChannelAssignment::from_dependency(&l.value, parameters, channel);
-
-            LayerChannelAssignment {
-                value,
-                weight: l
-                    .ratio
-                    .as_ref()
-                    .and_then(|r| ChannelAssignment::from_dependency(r, parameters, 'x')),
-                blend_mode: l.blend_mode,
-                is_fresnel: l.is_fresnel,
-            }
-        })
+        .map(|l| layer_channel_assignment(parameters, channel, l))
         .collect()
+}
+
+fn layer_channel_assignment(
+    parameters: &MaterialParameters,
+    channel: char,
+    l: &OutputLayer,
+) -> LayerChannelAssignment {
+    // TODO: Is it worth detecting layers for each channel individually?
+    // TODO: Is it safe to assume assigned channels are always xyzw?
+    let value = match &l.value {
+        crate::shader_database::OutputLayerValue::Value(d) => LayerChannelAssignmentValue::Value(
+            ChannelAssignment::from_dependency(d, parameters, channel),
+        ),
+        crate::shader_database::OutputLayerValue::Layers(layers) => {
+            LayerChannelAssignmentValue::Layers(
+                layers
+                    .iter()
+                    .map(|l| layer_channel_assignment(parameters, channel, l))
+                    .collect(),
+            )
+        }
+    };
+
+    LayerChannelAssignment {
+        value,
+        weight: l
+            .ratio
+            .as_ref()
+            .and_then(|r| ChannelAssignment::from_dependency(r, parameters, 'x')),
+        blend_mode: l.blend_mode,
+        is_fresnel: l.is_fresnel,
+    }
 }
 
 fn channel_assignment(
@@ -1055,9 +1080,9 @@ fn sampler_name(d: &Dependency) -> Option<&SmolStr> {
     }
 }
 
-fn layer_name(l: &TextureLayer) -> Option<&SmolStr> {
+fn layer_name(l: &OutputLayer) -> Option<&SmolStr> {
     match &l.value {
-        Dependency::Texture(t) => Some(&t.name),
+        OutputLayerValue::Value(Dependency::Texture(t)) => Some(&t.name),
         _ => None,
     }
 }
