@@ -25,6 +25,7 @@ use xc3_model::shader_database::{
 use crate::{
     dependencies::{
         attribute_dependencies, buffer_dependency, input_dependencies, texcoord_params,
+        texture_dependency,
     },
     extract::nvsd_glsl_name,
     graph::{
@@ -59,36 +60,20 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
             let mut dependencies =
                 input_dependencies(frag, frag_attributes, &assignments, &dependent_lines);
 
-            if let (Some(vert), Some(vert_attributes)) = (&vert, &vert_attributes) {
-                // Add texture parameters used for the corresponding vertex output.
-                // Most shaders apply UV transforms in the vertex shader.
-                // This will be used later for texture layers.
-                apply_vertex_tex_coord_params(
-                    vert,
-                    vert_attributes,
-                    frag_attributes,
-                    &mut dependencies,
-                );
-
-                for d in &mut dependencies {
-                    apply_attribute_names(vert, vert_attributes, frag_attributes, d);
-                }
-            }
-
             let mut layers = Vec::new();
 
             // Xenoblade X DE uses different outputs than other games.
             // Detect color or params to handle different outputs and channels.
             if i == 0 || i == 1 {
-                layers = find_color_or_param_layers(frag, &dependent_lines, &dependencies)
+                layers = find_color_or_param_layers(frag, frag_attributes, &dependent_lines)
                     .unwrap_or_default();
             } else if i == 2 {
                 if c == 'x' || c == 'y' {
                     // The normals use XY for output index 2 for all games.
-                    layers = find_normal_layers(frag, &dependent_lines, &dependencies)
+                    layers = find_normal_layers(frag, frag_attributes, &dependent_lines)
                         .unwrap_or_default();
                 } else if c == 'z' {
-                    layers = find_color_or_param_layers(frag, &dependent_lines, &dependencies)
+                    layers = find_color_or_param_layers(frag, frag_attributes, &dependent_lines)
                         .unwrap_or_default();
                 }
             }
@@ -100,8 +85,22 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
                 }
             }
 
-            // TODO: Is there a better way of doing this?
             if let (Some(vert), Some(vert_attributes)) = (&vert, &vert_attributes) {
+                // Add texture parameters used for the corresponding vertex output.
+                // Most shaders apply UV transforms in the vertex shader.
+                // This will be used later for texture layers.
+                for d in &mut dependencies {
+                    apply_vertex_uv_params(vert, vert_attributes, frag_attributes, d);
+                }
+
+                for layer in &mut layers {
+                    apply_layer_vertex_uv_params(layer, vert, vert_attributes, frag_attributes);
+                }
+
+                // Names are only present for vertex input attributes.
+                for d in &mut dependencies {
+                    apply_attribute_names(vert, vert_attributes, frag_attributes, d);
+                }
                 for layer in &mut layers {
                     apply_layer_attribute_names(layer, vert, vert_attributes, frag_attributes);
                 }
@@ -187,8 +186,6 @@ fn shader_from_latte_asm(
     let frag_attributes = &Attributes::default();
 
     // TODO: Fix vertex parsing errors.
-    // let vert = &Graph::from_latte_asm(vertex);
-    // let vert_attributes = &Attributes::default();
 
     // TODO: What is the largest number of outputs?
     let output_dependencies = (0..=5)
@@ -202,16 +199,7 @@ fn shader_from_latte_asm(
                 let mut dependencies =
                     input_dependencies(frag, frag_attributes, &assignments, &dependent_lines);
 
-                // Add texture parameters used for the corresponding vertex output.
-                // Most shaders apply UV transforms in the vertex shader.
-                // apply_vertex_texcoord_params(
-                //     vert,
-                //     vert_attributes,
-                //     frag_attributes,
-                //     &mut dependencies,
-                // );
-
-                // apply_attribute_names(vert, vert_attributes, frag_attributes, &mut dependencies);
+                // TODO: Add texture parameters used for the corresponding vertex output.
 
                 // Apply annotations from the shader metadata.
                 // We don't annotate the assembly itself to avoid parsing errors.
@@ -253,8 +241,8 @@ fn shader_from_latte_asm(
 
 fn find_color_or_param_layers(
     frag: &Graph,
+    frag_attributes: &Attributes,
     dependent_lines: &[usize],
-    dependencies: &[Dependency],
 ) -> Option<Vec<OutputLayer>> {
     let last_node_index = *dependent_lines.last()?;
     let last_node = frag.nodes.get(last_node_index)?;
@@ -293,7 +281,7 @@ fn find_color_or_param_layers(
         current = new_current;
     }
 
-    let layers = find_layers(&frag.nodes, current, dependencies);
+    let layers = find_layers(current, frag, frag_attributes);
 
     Some(layers)
 }
@@ -320,8 +308,8 @@ fn calc_monochrome<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<([&'a Expr; 
 
 fn find_normal_layers(
     frag: &Graph,
+    frag_attributes: &Attributes,
     dependent_lines: &[usize],
-    dependencies: &[Dependency],
 ) -> Option<Vec<OutputLayer>> {
     let last_node_index = *dependent_lines.last()?;
     let last_node = frag.nodes.get(last_node_index)?;
@@ -339,7 +327,7 @@ fn find_normal_layers(
     let nom_work = calc_normal_map(frag, &view_normal.input)?;
     let nom_work = node_expr(&frag.nodes, nom_work[0])?;
 
-    let mut layers = find_layers(&frag.nodes, nom_work, dependencies);
+    let mut layers = find_layers(nom_work, frag, frag_attributes);
 
     // TODO: Modify the query instead to find the appropriate channel?
     // Assume that normal inputs are always XY for now.
@@ -358,37 +346,37 @@ fn find_normal_layers(
     Some(layers)
 }
 
-fn find_layers(nodes: &[Node], current: &Expr, dependencies: &[Dependency]) -> Vec<OutputLayer> {
+fn find_layers(current: &Expr, graph: &Graph, attributes: &Attributes) -> Vec<OutputLayer> {
     let mut layers = Vec::new();
 
     let mut current = current;
 
     // Detect the layers and blend mode from most to least specific.
-    while let Some((layer_a, layer_b, ratio, blend_mode)) = blend_add_normal(nodes, current)
-        .or_else(|| blend_overlay_ratio(nodes, current))
-        .or_else(|| blend_overlay(nodes, current))
-        .or_else(|| blend_over(nodes, current))
-        .or_else(|| blend_ratio(nodes, current))
-        .or_else(|| blend_mul(nodes, current, dependencies))
+    while let Some((layer_a, layer_b, ratio, blend_mode)) = blend_add_normal(&graph.nodes, current)
+        .or_else(|| blend_overlay_ratio(&graph.nodes, current))
+        .or_else(|| blend_overlay(&graph.nodes, current))
+        .or_else(|| blend_over(&graph.nodes, current))
+        .or_else(|| blend_ratio(&graph.nodes, current))
+        .or_else(|| blend_mul(current, graph, attributes))
         .or_else(|| blend_add_ratio(current))
-        .or_else(|| blend_sub(nodes, current))
-        .or_else(|| blend_add(nodes, current, dependencies))
-        .or_else(|| blend_pow(nodes, current))
+        .or_else(|| blend_sub(&graph.nodes, current))
+        .or_else(|| blend_add(current, graph, attributes))
+        .or_else(|| blend_pow(&graph.nodes, current))
     {
-        let (fresnel_ratio, ratio) = ratio_dependency(ratio, nodes, dependencies);
-        if let Some(value) = extract_layer_value(nodes, layer_b, dependencies) {
+        let (fresnel_ratio, ratio) = ratio_dependency(ratio, graph, attributes);
+        if let Some(value) = extract_layer_value(layer_b, graph, attributes) {
             layers.push(OutputLayer {
                 value: OutputLayerValue::Value(value),
                 ratio,
                 blend_mode,
                 is_fresnel: fresnel_ratio,
             });
-            current = assign_x_recursive(nodes, layer_a);
+            current = assign_x_recursive(&graph.nodes, layer_a);
         } else {
             // There are ambiguous cases like a*b or a+b.
             // TODO: Find a more accurate method than checking b for layers.
-            let layer_b = assign_x_recursive(nodes, layer_b);
-            let b_layers = find_layers(nodes, layer_b, dependencies);
+            let layer_b = assign_x_recursive(&graph.nodes, layer_b);
+            let b_layers = find_layers(layer_b, graph, attributes);
 
             // Assign a dummy value to keep working through layers.
             // TODO: log error if empty?
@@ -399,12 +387,12 @@ fn find_layers(nodes: &[Node], current: &Expr, dependencies: &[Dependency]) -> V
                 is_fresnel: fresnel_ratio,
             });
 
-            current = assign_x_recursive(nodes, layer_a);
+            current = assign_x_recursive(&graph.nodes, layer_a);
         }
     }
 
     // Detect the base layer.
-    if let Some(value) = extract_layer_value(nodes, current, dependencies) {
+    if let Some(value) = extract_layer_value(current, graph, attributes) {
         layers.push(OutputLayer {
             value: OutputLayerValue::Value(value),
             ratio: None,
@@ -418,22 +406,18 @@ fn find_layers(nodes: &[Node], current: &Expr, dependencies: &[Dependency]) -> V
     layers
 }
 
-fn extract_layer_value(
-    nodes: &[Node],
-    layer: &Expr,
-    dependencies: &[Dependency],
-) -> Option<Dependency> {
-    let mut layer = assign_x_recursive(nodes, layer);
-    if let Some(new_layer) = normal_map_fma(nodes, layer) {
+fn extract_layer_value(layer: &Expr, graph: &Graph, attributes: &Attributes) -> Option<Dependency> {
+    let mut layer = assign_x_recursive(&graph.nodes, layer);
+    if let Some(new_layer) = normal_map_fma(&graph.nodes, layer) {
         layer = new_layer;
     }
 
     // TODO: Is it worth storing information about component max?
-    if let Some(new_layer) = component_max_xyz(nodes, layer) {
+    if let Some(new_layer) = component_max_xyz(&graph.nodes, layer) {
         layer = new_layer;
     }
 
-    layer_value(layer, dependencies)
+    layer_value(layer, graph, attributes)
 }
 
 static BLEND_OVER: LazyLock<Graph> = LazyLock::new(|| {
@@ -492,19 +476,19 @@ static BLEND_ADD: LazyLock<Graph> =
     LazyLock::new(|| Graph::parse_glsl("void main() { result = a + b; }").unwrap());
 
 fn blend_add<'a>(
-    nodes: &'a [Node],
     expr: &'a Expr,
-    dependencies: &[Dependency],
+    graph: &'a Graph,
+    attributes: &Attributes,
 ) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
     // Some layers are simply added together like for xeno3/chr/chr/ch05042101.wimdo "hat_toon".
-    let result = query_nodes(expr, nodes, &BLEND_ADD.nodes)?;
+    let result = query_nodes(expr, &graph.nodes, &BLEND_ADD.nodes)?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     // The ordering is ambiguous since a+b == b+a.
     // Assume the base layer is not a global texture.
     if let (Some(Dependency::Texture(t1)), Some(Dependency::Texture(t2))) = (
-        layer_value(assign_x_recursive(nodes, a), dependencies),
-        layer_value(assign_x_recursive(nodes, b), dependencies),
+        layer_value(assign_x_recursive(&graph.nodes, a), graph, attributes),
+        layer_value(assign_x_recursive(&graph.nodes, b), graph, attributes),
     ) {
         if sampler_index(&t1.name).unwrap_or(usize::MAX)
             > sampler_index(&t2.name).unwrap_or(usize::MAX)
@@ -540,17 +524,17 @@ static BLEND_MUL: LazyLock<Graph> =
     LazyLock::new(|| Graph::parse_glsl("void main() { result = a * b; }").unwrap());
 
 fn blend_mul<'a>(
-    nodes: &'a [Node],
     expr: &'a Expr,
-    dependencies: &[Dependency],
+    graph: &'a Graph,
+    attributes: &Attributes,
 ) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
     // Some layers are simply multiplied together.
-    let result = query_nodes(expr, nodes, &BLEND_MUL.nodes)?;
+    let result = query_nodes(expr, &graph.nodes, &BLEND_MUL.nodes)?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     // TODO: The ordering is ambiguous since a*b == b*a.
-    let a_value = layer_value(assign_x_recursive(nodes, a), dependencies);
-    let b_value = layer_value(assign_x_recursive(nodes, b), dependencies);
+    let a_value = layer_value(assign_x_recursive(&graph.nodes, a), graph, attributes);
+    let b_value = layer_value(assign_x_recursive(&graph.nodes, b), graph, attributes);
     if !matches!(a_value, Some(Dependency::Texture(_)))
         && matches!(b_value, Some(Dependency::Texture(_)))
     {
@@ -640,22 +624,22 @@ static RATIO_DEPENDENCY: LazyLock<Graph> = LazyLock::new(|| {
 
 fn ratio_dependency(
     ratio: &Expr,
-    nodes: &[Node],
-    dependencies: &[Dependency],
+    graph: &Graph,
+    attributes: &Attributes,
 ) -> (bool, Option<Dependency>) {
     // Reduce any assignment chains for what's likely a parameter or texture assignment.
-    let mut ratio = assign_x_recursive(nodes, ratio);
+    let mut ratio = assign_x_recursive(&graph.nodes, ratio);
 
     let mut is_fresnel = false;
 
     // Extract the ratio from getPixelCalcFresnel in pcmdo shaders if present.
-    let result = query_nodes(ratio, nodes, &RATIO_DEPENDENCY.nodes);
+    let result = query_nodes(ratio, &graph.nodes, &RATIO_DEPENDENCY.nodes);
     if let Some(new_ratio) = result.as_ref().and_then(|r| r.get("ratio")) {
         ratio = new_ratio;
         is_fresnel = true;
     }
 
-    (is_fresnel, dependency_cached_texture(ratio, dependencies))
+    (is_fresnel, dependency_expr(ratio, graph, attributes))
 }
 
 static BLEND_POW: LazyLock<Graph> = LazyLock::new(|| {
@@ -697,47 +681,22 @@ fn blend_pow<'a>(
     Some((a, b, &Expr::Float(1.0), LayerBlendMode::Power))
 }
 
-fn dependency_cached_texture(ratio: &Expr, dependencies: &[Dependency]) -> Option<Dependency> {
-    buffer_dependency(ratio)
-        .map(Dependency::Buffer)
-        .or_else(|| match ratio {
-            Expr::Func {
-                name,
-                args,
-                channel,
-            } => {
-                if name.starts_with("texture") {
-                    if let Some(Expr::Global { name, .. }) = args.first() {
-                        // Texture dependencies have already been found recursively.
-                        // Use existing dependencies to include texcoord params.
-                        dependencies
-                            .iter()
-                            .find(|d| {
-                                if let Dependency::Texture(t) = d {
-                                    t.name == name && (channel.is_none() || *channel == t.channel)
-                                } else {
-                                    false
-                                }
-                            })
-                            .cloned()
-                    } else {
-                        // TODO: How to handle this case?
-                        None
-                    }
-                } else {
-                    None
-                }
-            }
-            // TODO: Why does handling other constants break base layer detection?
-            Expr::Float(1.0) => Some(Dependency::Constant(1.0.into())),
-            Expr::Float(-1.0) => Some(Dependency::Constant((-1.0).into())),
-            // TODO: Find dependencies recursively?
-            _ => None,
-        })
+fn dependency_expr(e: &Expr, graph: &Graph, attributes: &Attributes) -> Option<Dependency> {
+    texture_dependency(e, graph, attributes).or_else(|| {
+        buffer_dependency(e)
+            .map(Dependency::Buffer)
+            .or_else(|| match e {
+                // TODO: Why does handling other constants break base layer detection?
+                Expr::Float(1.0) => Some(Dependency::Constant(1.0.into())),
+                Expr::Float(-1.0) => Some(Dependency::Constant((-1.0).into())),
+                // TODO: Find dependencies recursively?
+                _ => None,
+            })
+    })
 }
 
-fn layer_value(input: &Expr, dependencies: &[Dependency]) -> Option<Dependency> {
-    dependency_cached_texture(input, dependencies)
+fn layer_value(input: &Expr, graph: &Graph, attributes: &Attributes) -> Option<Dependency> {
+    dependency_expr(input, graph, attributes)
         .or_else(|| buffer_dependency(input).map(Dependency::Buffer))
         .or_else(|| {
             // TODO: Also check if this matches a vertex input name?
@@ -863,52 +822,65 @@ fn geometric_specular_aa<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Ex
     result.get("glossiness").copied()
 }
 
-fn apply_vertex_tex_coord_params(
+fn apply_vertex_uv_params(
     vertex: &Graph,
     vertex_attributes: &Attributes,
     fragment_attributes: &Attributes,
-    dependencies: &mut [Dependency],
+    dependency: &mut Dependency,
 ) {
-    for dependency in dependencies {
-        if let Dependency::Texture(texture) = dependency {
-            for texcoord in &mut texture.texcoords {
-                // Convert a fragment input like "in_attr4" to its vertex output like "vTex0".
-                if let Some(fragment_location) = fragment_attributes
-                    .input_locations
-                    .get_by_left(texcoord.name.as_str())
+    if let Dependency::Texture(texture) = dependency {
+        for texcoord in &mut texture.texcoords {
+            // Convert a fragment input like "in_attr4" to its vertex output like "vTex0".
+            if let Some(fragment_location) = fragment_attributes
+                .input_locations
+                .get_by_left(texcoord.name.as_str())
+            {
+                if let Some(vertex_output_name) = vertex_attributes
+                    .output_locations
+                    .get_by_right(fragment_location)
                 {
-                    if let Some(vertex_output_name) = vertex_attributes
-                        .output_locations
-                        .get_by_right(fragment_location)
-                    {
-                        // Preserve the channel ordering here.
-                        // Find any additional scale parameters.
-                        if let Some(node) = vertex.nodes.iter().rfind(|n| {
-                            &n.output.name == vertex_output_name
-                                && n.output.channel == texcoord.channel
-                        }) {
-                            // Detect common cases for transforming UV coordinates.
-                            if let Some(new_texcoord) =
-                                texcoord_params(vertex, &node.input, vertex_attributes)
-                            {
-                                *texcoord = new_texcoord;
-                            }
-                        }
-
-                        // Also fix channels since the zw output may just be scaled vTex0.xy.
-                        if let Some((actual_name, actual_channel)) =
-                            find_texcoord_input_name_channel(
-                                vertex,
-                                texcoord,
-                                vertex_output_name,
-                                vertex_attributes,
-                            )
+                    // Preserve the channel ordering here.
+                    // Find any additional scale parameters.
+                    if let Some(node) = vertex.nodes.iter().rfind(|n| {
+                        &n.output.name == vertex_output_name && n.output.channel == texcoord.channel
+                    }) {
+                        // Detect common cases for transforming UV coordinates.
+                        if let Some(new_texcoord) =
+                            texcoord_params(vertex, &node.input, vertex_attributes)
                         {
-                            texcoord.name = actual_name.into();
-                            texcoord.channel = actual_channel;
+                            *texcoord = new_texcoord;
                         }
                     }
+
+                    // Also fix channels since the zw output may just be scaled vTex0.xy.
+                    if let Some((actual_name, actual_channel)) = find_texcoord_input_name_channel(
+                        vertex,
+                        texcoord,
+                        vertex_output_name,
+                        vertex_attributes,
+                    ) {
+                        texcoord.name = actual_name.into();
+                        texcoord.channel = actual_channel;
+                    }
                 }
+            }
+        }
+    }
+}
+
+fn apply_layer_vertex_uv_params(
+    layer: &mut OutputLayer,
+    vertex: &Graph,
+    vertex_attributes: &Attributes,
+    fragment_attributes: &Attributes,
+) {
+    match &mut layer.value {
+        OutputLayerValue::Value(d) => {
+            apply_vertex_uv_params(vertex, vertex_attributes, fragment_attributes, d)
+        }
+        OutputLayerValue::Layers(layers) => {
+            for layer in layers {
+                apply_layer_vertex_uv_params(layer, vertex, vertex_attributes, fragment_attributes);
             }
         }
     }
@@ -1713,40 +1685,7 @@ mod tests {
         );
         assert_eq!(
             OutputDependencies {
-                dependencies: vec![
-                    Dependency::Texture(TextureDependency {
-                        name: "s2".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('x'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('y'),
-                                params: None,
-                            },
-                        ],
-                    }),
-                    Dependency::Texture(TextureDependency {
-                        name: "s2".into(),
-                        channel: Some('y'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('x'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('y'),
-                                params: None,
-                            },
-                        ],
-                    }),
-                ],
+                dependencies: vec![tex("s2", 'x', "in_attr4", 'x', 'y')],
                 layers: Vec::new()
             },
             shader.output_dependencies[&SmolStr::from("o2.x")]
@@ -2036,22 +1975,7 @@ mod tests {
                 },
                 OutputLayer {
                     value: OutputLayerValue::Value(tex("s3", 'x', "in_attr4", 'z', 'w')),
-                    ratio: Some(Dependency::Texture(TextureDependency {
-                        name: "s4".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('z'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('w'),
-                                params: None,
-                            },
-                        ],
-                    })),
+                    ratio: Some(tex("s4", 'x', "in_attr4", 'z', 'w')),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false,
                 },
@@ -2094,22 +2018,7 @@ mod tests {
                 },
                 OutputLayer {
                     value: OutputLayerValue::Value(tex("s4", 'y', "in_attr4", 'z', 'w')),
-                    ratio: Some(Dependency::Texture(TextureDependency {
-                        name: "s5".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('x'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('y'),
-                                params: None,
-                            },
-                        ],
-                    })),
+                    ratio: Some(tex("s5", 'x', "in_attr4", 'x', 'y')),
                     blend_mode: LayerBlendMode::Overlay,
                     is_fresnel: false,
                 },
@@ -2169,12 +2078,132 @@ mod tests {
         // xeno2/model/np/np000101, "_body_far_Fur", shd0009.frag
         let glsl = include_str!("data/xc2/np000101.9.frag");
 
-        // TODO: Is it worth detecting fur layering code?
         let fragment = TranslationUnit::parse(glsl).unwrap();
         let shader = shader_from_glsl(None, &fragment);
-        assert!(shader.output_dependencies[&SmolStr::from("o0.x")]
-            .layers
-            .is_empty());
+        assert_eq!(
+            vec![
+                OutputLayer {
+                    value: OutputLayerValue::Value(tex("texAO", 'z', "in_attr6", 'w', 'w')),
+                    ratio: None,
+                    blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: false,
+                },
+                OutputLayer {
+                    value: OutputLayerValue::Layers(vec![OutputLayer {
+                        value: OutputLayerValue::Layers(vec![
+                            OutputLayer {
+                                value: OutputLayerValue::Value(tex(
+                                    "texLgt", 'x', "in_attr6", 'w', 'w'
+                                )),
+                                ratio: None,
+                                blend_mode: LayerBlendMode::Mix,
+                                is_fresnel: false,
+                            },
+                            OutputLayer {
+                                value: OutputLayerValue::Layers(vec![
+                                    OutputLayer {
+                                        value: OutputLayerValue::Value(tex(
+                                            "texShadow",
+                                            'z',
+                                            "in_attr6",
+                                            'w',
+                                            'w'
+                                        )),
+                                        ratio: None,
+                                        blend_mode: LayerBlendMode::Mix,
+                                        is_fresnel: false,
+                                    },
+                                    OutputLayer {
+                                        value: OutputLayerValue::Value(tex(
+                                            "texShadow",
+                                            'z',
+                                            "in_attr6",
+                                            'w',
+                                            'w',
+                                        )),
+                                        ratio: None,
+                                        blend_mode: LayerBlendMode::Add,
+                                        is_fresnel: false,
+                                    },
+                                    OutputLayer {
+                                        value: OutputLayerValue::Value(Dependency::Buffer(
+                                            BufferDependency {
+                                                name: "U_Toon2".into(),
+                                                field: "gToonParam".into(),
+                                                index: Some(0),
+                                                channel: Some('y'),
+                                            }
+                                        )),
+                                        ratio: Some(Dependency::Constant(1.0.into())),
+                                        blend_mode: LayerBlendMode::Add,
+                                        is_fresnel: false,
+                                    },
+                                    OutputLayer {
+                                        value: OutputLayerValue::Value(Dependency::Buffer(
+                                            BufferDependency {
+                                                name: "U_LGT".into(),
+                                                field: "gLgtPreCol".into(),
+                                                index: Some(0),
+                                                channel: Some('x'),
+                                            }
+                                        )),
+                                        ratio: Some(Dependency::Constant(1.0.into())),
+                                        blend_mode: LayerBlendMode::MixRatio,
+                                        is_fresnel: false,
+                                    },
+                                ]),
+                                ratio: Some(Dependency::Buffer(BufferDependency {
+                                    name: "U_Toon2".into(),
+                                    field: "gToonParam".into(),
+                                    index: Some(0),
+                                    channel: Some('z'),
+                                })),
+                                blend_mode: LayerBlendMode::Add,
+                                is_fresnel: false,
+                            },
+                            OutputLayer {
+                                value: OutputLayerValue::Value(Dependency::Attribute(
+                                    AttributeDependency {
+                                        name: "in_attr2".into(),
+                                        channel: Some('x'),
+                                    },
+                                )),
+                                ratio: Some(Dependency::Constant(1.0.into())),
+                                blend_mode: LayerBlendMode::Add,
+                                is_fresnel: false,
+                            },
+                            OutputLayer {
+                                value: OutputLayerValue::Layers(vec![OutputLayer {
+                                    value: OutputLayerValue::Layers(vec![]),
+                                    ratio: Some(Dependency::Constant(1.0.into())),
+                                    blend_mode: LayerBlendMode::MixRatio,
+                                    is_fresnel: false,
+                                }]),
+                                ratio: Some(Dependency::Constant(1.0.into())),
+                                blend_mode: LayerBlendMode::MixRatio,
+                                is_fresnel: false,
+                            },
+                        ]),
+                        ratio: Some(Dependency::Constant(1.0.into())),
+                        blend_mode: LayerBlendMode::MixRatio,
+                        is_fresnel: false,
+                    }]),
+                    ratio: Some(Dependency::Constant(1.0.into())),
+                    blend_mode: LayerBlendMode::MixRatio,
+                    is_fresnel: false,
+                },
+                OutputLayer {
+                    value: OutputLayerValue::Value(Dependency::Attribute(AttributeDependency {
+                        name: "in_attr5".into(),
+                        channel: Some('w'),
+                    })),
+                    ratio: None,
+                    blend_mode: LayerBlendMode::Add,
+                    is_fresnel: false,
+                },
+            ],
+            shader.output_dependencies[&SmolStr::from("o0.x")].layers
+        );
     }
 
     #[test]
@@ -2186,98 +2215,65 @@ mod tests {
         let fragment = TranslationUnit::parse(glsl).unwrap();
         let shader = shader_from_glsl(None, &fragment);
         assert_eq!(
-            vec![
-                Dependency::Texture(TextureDependency {
-                    name: "s0".into(),
-                    channel: Some('x'),
-                    texcoords: vec![
-                        TexCoord {
-                            name: "in_attr4".into(),
-                            channel: Some('x'),
-                            params: Some(TexCoordParams::Parallax {
-                                mask_a: Dependency::Texture(TextureDependency {
-                                    name: "s1".into(),
-                                    channel: Some('x'),
-                                    texcoords: vec![
-                                        TexCoord {
-                                            name: "in_attr4".into(),
-                                            channel: Some('x'),
-                                            params: None,
-                                        },
-                                        TexCoord {
-                                            name: "in_attr4".into(),
-                                            channel: Some('y'),
-                                            params: None,
-                                        },
-                                    ],
-                                }),
-                                mask_b: Dependency::Buffer(BufferDependency {
-                                    name: "U_Mate".into(),
-                                    field: "gWrkFl4".into(),
-                                    index: Some(0),
-                                    channel: Some('y'),
-                                }),
-                                ratio: BufferDependency {
-                                    name: "U_Mate".into(),
-                                    field: "gWrkFl4".into(),
-                                    index: Some(0),
-                                    channel: Some('w'),
-                                },
+            vec![Dependency::Texture(TextureDependency {
+                name: "s0".into(),
+                channel: Some('x'),
+                texcoords: vec![
+                    TexCoord {
+                        name: "in_attr4".into(),
+                        channel: Some('x'),
+                        params: Some(TexCoordParams::Parallax {
+                            mask_a: Dependency::Texture(TextureDependency {
+                                name: "s1".into(),
+                                channel: Some('x'),
+                                texcoords: vec![
+                                    TexCoord {
+                                        name: "in_attr4".into(),
+                                        channel: Some('x'),
+                                        params: None,
+                                    },
+                                    TexCoord {
+                                        name: "in_attr4".into(),
+                                        channel: Some('y'),
+                                        params: None,
+                                    },
+                                ],
                             }),
-                        },
-                        TexCoord {
-                            name: "in_attr4".into(),
-                            channel: Some('y'),
-                            params: Some(TexCoordParams::Parallax {
-                                mask_a: Dependency::Texture(TextureDependency {
-                                    name: "s1".into(),
-                                    channel: Some('x'),
-                                    texcoords: vec![
-                                        TexCoord {
-                                            name: "in_attr4".into(),
-                                            channel: Some('x'),
-                                            params: None,
-                                        },
-                                        TexCoord {
-                                            name: "in_attr4".into(),
-                                            channel: Some('y'),
-                                            params: None,
-                                        },
-                                    ],
-                                }),
-                                mask_b: Dependency::Buffer(BufferDependency {
-                                    name: "U_Mate".into(),
-                                    field: "gWrkFl4".into(),
-                                    index: Some(0),
-                                    channel: Some('y'),
-                                }),
-                                ratio: BufferDependency {
-                                    name: "U_Mate".into(),
-                                    field: "gWrkFl4".into(),
-                                    index: Some(0),
-                                    channel: Some('w'),
-                                },
+                            mask_b: Dependency::Buffer(BufferDependency {
+                                name: "U_Mate".into(),
+                                field: "gWrkFl4".into(),
+                                index: Some(0),
+                                channel: Some('y'),
                             }),
-                        },
-                    ],
-                }),
-                Dependency::Texture(TextureDependency {
-                    name: "s1".into(),
-                    channel: Some('x'),
-                    texcoords: vec![
-                        TexCoord {
-                            name: "in_attr4".into(),
-                            channel: Some('x'),
-                            params: None,
-                        },
-                        TexCoord {
-                            name: "in_attr4".into(),
-                            channel: Some('y'),
-                            params: None,
-                        },
-                    ],
-                }),
-            ],
+                            ratio: BufferDependency {
+                                name: "U_Mate".into(),
+                                field: "gWrkFl4".into(),
+                                index: Some(0),
+                                channel: Some('w'),
+                            },
+                        }),
+                    },
+                    TexCoord {
+                        name: "in_attr4".into(),
+                        channel: Some('y'),
+                        params: Some(TexCoordParams::Parallax {
+                            mask_a: tex("s1", 'x', "in_attr4", 'x', 'y'),
+                            mask_b: Dependency::Buffer(BufferDependency {
+                                name: "U_Mate".into(),
+                                field: "gWrkFl4".into(),
+                                index: Some(0),
+                                channel: Some('y'),
+                            }),
+                            ratio: BufferDependency {
+                                name: "U_Mate".into(),
+                                field: "gWrkFl4".into(),
+                                index: Some(0),
+                                channel: Some('w'),
+                            },
+                        }),
+                    },
+                ],
+            }),],
             shader.output_dependencies[&SmolStr::from("o0.x")].dependencies
         );
     }
@@ -2338,22 +2334,7 @@ mod tests {
                         'x',
                         'x'
                     )),
-                    ratio: Some(Dependency::Texture(TextureDependency {
-                        name: "s1".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('x'),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "in_attr4".into(),
-                                channel: Some('y'),
-                                params: None,
-                            },
-                        ],
-                    })),
+                    ratio: Some(tex("s1", 'x', "in_attr4", 'x', 'y')),
                     blend_mode: LayerBlendMode::Add,
                     is_fresnel: false,
                 },
@@ -2776,22 +2757,7 @@ mod tests {
         let shader = shader_from_glsl(Some(&vertex), &fragment);
         assert_eq!(
             OutputDependencies {
-                dependencies: vec![Dependency::Texture(TextureDependency {
-                    name: "s0".into(),
-                    channel: Some('x'),
-                    texcoords: vec![
-                        TexCoord {
-                            name: "vTex0".into(),
-                            channel: Some('x'),
-                            params: None,
-                        },
-                        TexCoord {
-                            name: "vTex0".into(),
-                            channel: Some('y'),
-                            params: None,
-                        },
-                    ],
-                })],
+                dependencies: vec![tex("s0", 'x', "vTex0", 'x', 'y')],
                 layers: vec![
                     OutputLayer {
                         value: OutputLayerValue::Value(tex("s0", 'x', "vTex0", 'x', 'y')),
@@ -2827,22 +2793,7 @@ mod tests {
         );
         assert_eq!(
             OutputDependencies {
-                dependencies: vec![Dependency::Texture(TextureDependency {
-                    name: "s0".into(),
-                    channel: Some('y'),
-                    texcoords: vec![
-                        TexCoord {
-                            name: "vTex0".into(),
-                            channel: Some('x'),
-                            params: None,
-                        },
-                        TexCoord {
-                            name: "vTex0".into(),
-                            channel: Some('y'),
-                            params: None,
-                        },
-                    ],
-                })],
+                dependencies: vec![tex("s0", 'y', "vTex0", 'x', 'y')],
                 layers: vec![
                     OutputLayer {
                         value: OutputLayerValue::Value(tex("s0", 'y', "vTex0", 'x', 'y')),
