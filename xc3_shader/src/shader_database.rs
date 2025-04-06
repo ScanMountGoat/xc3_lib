@@ -39,8 +39,8 @@ use crate::{
 };
 
 fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit) -> ShaderProgram {
-    let frag = &Graph::from_glsl(fragment);
-    let frag_attributes = &find_attribute_locations(fragment);
+    let frag = Graph::from_glsl(fragment);
+    let frag_attributes = find_attribute_locations(fragment);
 
     let vertex = vertex.map(|v| (Graph::from_glsl(v), find_attribute_locations(v)));
     let (vert, vert_attributes) = vertex.unzip();
@@ -58,22 +58,22 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
             let dependent_lines = frag.dependencies_recursive(&name, Some(c), None);
 
             let mut dependencies =
-                input_dependencies(frag, frag_attributes, &assignments, &dependent_lines);
+                input_dependencies(&frag, &frag_attributes, &assignments, &dependent_lines);
 
             let mut layers = Vec::new();
 
             // Xenoblade X DE uses different outputs than other games.
             // Detect color or params to handle different outputs and channels.
             if i == 0 || i == 1 {
-                layers = find_color_or_param_layers(frag, frag_attributes, &dependent_lines)
+                layers = find_color_or_param_layers(&frag, &frag_attributes, &dependent_lines)
                     .unwrap_or_default();
             } else if i == 2 {
                 if c == 'x' || c == 'y' {
                     // The normals use XY for output index 2 for all games.
-                    layers = find_normal_layers(frag, frag_attributes, &dependent_lines)
+                    layers = find_normal_layers(&frag, &frag_attributes, &dependent_lines)
                         .unwrap_or_default();
                 } else if c == 'z' {
-                    layers = find_color_or_param_layers(frag, frag_attributes, &dependent_lines)
+                    layers = find_color_or_param_layers(&frag, &frag_attributes, &dependent_lines)
                         .unwrap_or_default();
                 }
             }
@@ -86,24 +86,13 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
             }
 
             if let (Some(vert), Some(vert_attributes)) = (&vert, &vert_attributes) {
-                // Add texture parameters used for the corresponding vertex output.
-                // Most shaders apply UV transforms in the vertex shader.
-                // This will be used later for texture layers.
-                for d in &mut dependencies {
-                    apply_vertex_uv_params(vert, vert_attributes, frag_attributes, d);
-                }
-
-                for layer in &mut layers {
-                    apply_layer_vertex_uv_params(layer, vert, vert_attributes, frag_attributes);
-                }
-
-                // Names are only present for vertex input attributes.
-                for d in &mut dependencies {
-                    apply_attribute_names(vert, vert_attributes, frag_attributes, d);
-                }
-                for layer in &mut layers {
-                    apply_layer_attribute_names(layer, vert, vert_attributes, frag_attributes);
-                }
+                apply_attributes(
+                    &mut dependencies,
+                    &mut layers,
+                    vert,
+                    vert_attributes,
+                    &frag_attributes,
+                );
             }
 
             if !dependencies.is_empty() {
@@ -124,6 +113,33 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
         // IndexMap gives consistent ordering for attribute names.
         output_dependencies,
         outline_width,
+    }
+}
+
+fn apply_attributes(
+    dependencies: &mut Vec<Dependency>,
+    layers: &mut Vec<OutputLayer>,
+    vert: &Graph,
+    vert_attributes: &Attributes,
+    frag_attributes: &Attributes,
+) {
+    // Add texture parameters used for the corresponding vertex output.
+    // Most shaders apply UV transforms in the vertex shader.
+    // This will be used later for texture layers.
+    for d in dependencies {
+        apply_vertex_uv_params(vert, vert_attributes, frag_attributes, d);
+    }
+
+    for layer in layers {
+        apply_layer_vertex_uv_params(layer, vert, vert_attributes, frag_attributes);
+    }
+
+    // Names are only present for vertex input attributes.
+    for d in dependencies {
+        apply_attribute_names(vert, vert_attributes, frag_attributes, d);
+    }
+    for layer in layers {
+        apply_layer_attribute_names(layer, vert, vert_attributes, frag_attributes);
     }
 }
 
@@ -883,6 +899,9 @@ fn apply_layer_vertex_uv_params(
                 apply_layer_vertex_uv_params(layer, vertex, vertex_attributes, fragment_attributes);
             }
         }
+    }
+    if let Some(ratio) = &mut layer.ratio {
+        apply_vertex_uv_params(vertex, vertex_attributes, fragment_attributes, ratio);
     }
 }
 
@@ -1952,30 +1971,32 @@ mod tests {
     }
 
     #[test]
-    fn shader_from_fragment_pneuma_chest() {
+    fn shader_from_vertex_fragment_pneuma_chest() {
         // xeno2/model/bl/bl000301, "tights_TS", shd0021.frag
-        let glsl = include_str!("data/xc2/bl000301.21.frag");
+        let vert_glsl = include_str!("data/xc2/bl000301.21.vert");
+        let frag_glsl = include_str!("data/xc2/bl000301.21.frag");
 
         // Test detecting the "PNEUMA" color layer.
-        let fragment = TranslationUnit::parse(glsl).unwrap();
-        let shader = shader_from_glsl(None, &fragment);
+        let vertex = TranslationUnit::parse(vert_glsl).unwrap();
+        let fragment = TranslationUnit::parse(frag_glsl).unwrap();
+        let shader = shader_from_glsl(Some(&vertex), &fragment);
         assert_eq!(
             vec![
                 OutputLayer {
-                    value: OutputLayerValue::Value(tex("s0", 'x', "in_attr4", 'x', 'y')),
+                    value: OutputLayerValue::Value(tex("s0", 'x', "vTex0", 'x', 'y')),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
                 },
                 OutputLayer {
-                    value: OutputLayerValue::Value(tex("s1", 'x', "in_attr4", 'x', 'y')),
+                    value: OutputLayerValue::Value(tex("s1", 'x', "vTex0", 'x', 'y')),
                     ratio: None,
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
                 },
                 OutputLayer {
-                    value: OutputLayerValue::Value(tex("s3", 'x', "in_attr4", 'z', 'w')),
-                    ratio: Some(tex("s4", 'x', "in_attr4", 'z', 'w')),
+                    value: OutputLayerValue::Value(tex("s3", 'x', "vTex1", 'x', 'y')),
+                    ratio: Some(tex("s4", 'x', "vTex1", 'x', 'y')),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false,
                 },
