@@ -374,6 +374,11 @@ fn get_shader_legacy<S: GetProgramHash>(
     let hash = shaders?.get_program_hash(program_index)?;
     let program = shader_database?.shader_program(hash)?;
 
+    let is_single_output = program
+        .output_dependencies
+        .keys()
+        .all(|k| matches!(k.as_str(), "o0.x" | "o0.y" | "o0.z" | "o0.w"));
+
     // The texture outputs are different in Xenoblade X and Xenoblade X DE.
     // We handle this here to avoid needing to modify the database itself.
     // G-Buffer Textures:
@@ -382,7 +387,7 @@ fn get_shader_legacy<S: GetProgramHash>(
     // 2: normal (only xy)
     // 3: specular (alpha is spec?)
     // 4: depth (alpha is glossiness)
-    let output_dependencies = if program.output_dependencies.len() > 1 {
+    let output_dependencies = if !is_single_output {
         program
             .output_dependencies
             .iter()
