@@ -254,7 +254,7 @@ fn write_layer(
             writeln!(wgsl, "{var} = {var} + {b} * {ratio};").unwrap();
         }
         LayerBlendMode::AddNormal => {
-            let (var, _) = var.split_once('.').unwrap_or((&var, ""));
+            let (var, _) = var.split_once('.').unwrap_or((var, ""));
             let (b, _) = b.split_once('.').unwrap_or((&b, ""));
 
             // Assume this mode applies to all relevant channels.
