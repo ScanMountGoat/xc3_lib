@@ -6,8 +6,8 @@ use log::error;
 use smol_str::SmolStr;
 use xc3_model::{
     material::{
-        ChannelAssignment, LayerChannelAssignment, OutputAssignment, TexCoordParallax,
-        TextureAlphaTest, TextureAssignment,
+        ChannelAssignment, LayerChannelAssignment, LayerChannelAssignmentValue, OutputAssignment,
+        TexCoordParallax, TextureAlphaTest, TextureAssignment,
     },
     shader_database::LayerBlendMode,
     IndexMapExt,
@@ -188,14 +188,19 @@ fn write_layers(
     wgsl: &mut String,
     name_to_index: &mut IndexMap<SmolStr, usize>,
     name_to_uv_wgsl: &mut IndexMap<SmolStr, String>,
-
     layers: &[LayerChannelAssignment],
     c: char,
 ) {
+    // TODO: properly handle variable assignments.
     for layer in layers {
         // TODO: How to handle missing values?
-        // TODO: function to reduce nesting?
-        write_layer(wgsl, name_to_index, name_to_uv_wgsl, layer, c);
+        write_layer(
+            wgsl,
+            name_to_index,
+            name_to_uv_wgsl,
+            layer,
+            &format!("{OUT_VAR}.{c}"),
+        );
     }
 }
 
@@ -204,9 +209,34 @@ fn write_layer(
     name_to_index: &mut IndexMap<SmolStr, usize>,
     name_to_uv_wgsl: &mut IndexMap<SmolStr, String>,
     layer: &LayerChannelAssignment,
-    c: char,
-) -> Option<()> {
-    let b = channel_assignment_wgsl(name_to_index, name_to_uv_wgsl, layer.value.as_ref())?;
+    var: &str,
+) -> Option<String> {
+    let b = match &layer.value {
+        LayerChannelAssignmentValue::Value(value) => {
+            channel_assignment_wgsl(name_to_index, name_to_uv_wgsl, value.as_ref())
+        }
+        LayerChannelAssignmentValue::Layers(layers) => {
+            // Layers can be defined recursively.
+            let mut output = None;
+            for (i, layer) in layers.iter().enumerate() {
+                let layer_var = format!("{}_{i}", var.replace('.', "_"));
+                let mut layer_wgsl = String::new();
+                if let Some(new_output) = write_layer(
+                    &mut layer_wgsl,
+                    name_to_index,
+                    name_to_uv_wgsl,
+                    layer,
+                    &layer_var,
+                ) {
+                    writeln!(wgsl, "var {layer_var} = 0.0;").unwrap();
+                    writeln!(wgsl, "{layer_wgsl}").unwrap();
+                    output = Some(new_output);
+                }
+            }
+            // Get the final assigned value.
+            output
+        }
+    }?;
 
     let mut ratio = channel_assignment_wgsl(name_to_index, name_to_uv_wgsl, layer.weight.as_ref())?;
     if layer.is_fresnel {
@@ -215,19 +245,16 @@ fn write_layer(
 
     match layer.blend_mode {
         LayerBlendMode::Mix => {
-            writeln!(wgsl, "{OUT_VAR}.{c} = mix({OUT_VAR}.{c}, {b}, {ratio});").unwrap();
+            writeln!(wgsl, "{var} = mix({var}, {b}, {ratio});").unwrap();
         }
         LayerBlendMode::MixRatio => {
-            writeln!(
-                wgsl,
-                "{OUT_VAR}.{c} = mix({OUT_VAR}.{c}, {OUT_VAR}.{c} * {b}, {ratio});"
-            )
-            .unwrap();
+            writeln!(wgsl, "{var} = mix({var}, {var} * {b}, {ratio});").unwrap();
         }
         LayerBlendMode::Add => {
-            writeln!(wgsl, "{OUT_VAR}.{c} = {OUT_VAR}.{c} + {b} * {ratio};").unwrap();
+            writeln!(wgsl, "{var} = {var} + {b} * {ratio};").unwrap();
         }
         LayerBlendMode::AddNormal => {
+            let (var, _) = var.split_once('.').unwrap_or((&var, ""));
             let (b, _) = b.split_once('.').unwrap_or((&b, ""));
 
             // Assume this mode applies to all relevant channels.
@@ -236,11 +263,11 @@ fn write_layer(
                 wgsl,
                 "
                 {{
-                    let a_nrm = vec3({OUT_VAR}.xy, normal_z({OUT_VAR}.x, {OUT_VAR}.y));
+                    let a_nrm = vec3({var}.xy, normal_z({var}.x, {var}.y));
                     let b_nrm = create_normal_map({b}.xy);
                     let result = add_normal_maps(a_nrm, b_nrm, {ratio});
-                    {OUT_VAR}.x = result.x;
-                    {OUT_VAR}.y = result.y;
+                    {var}.x = result.x;
+                    {var}.y = result.y;
                 }}
                 "
             )
@@ -249,12 +276,16 @@ fn write_layer(
         LayerBlendMode::Overlay => {
             writeln!(
                 wgsl,
-                "{OUT_VAR}.{c} = mix({OUT_VAR}.{c}, overlay_blend({OUT_VAR}.{c}, {b}), {ratio});"
+                "{var} = mix({var}, overlay_blend({var}, {b}), {ratio});"
             )
             .unwrap();
         }
+        LayerBlendMode::Power => {
+            writeln!(wgsl, "{var} = pow({var}, {b});").unwrap();
+        }
     };
-    Some(())
+
+    Some(var.to_string())
 }
 
 fn channel_assignment_wgsl(

@@ -91,14 +91,8 @@ var s9_sampler: sampler;
 @group(2) @binding(20)
 var alpha_test_sampler: sampler;
 
-// Texture and channel input for each output channel.
-struct SamplerAssignment {
-    sampler_indices: vec4<i32>,
-    channel_indices: vec4<u32>,
-}
-
 struct OutputAssignment {
-    samplers: SamplerAssignment,
+    has_channels: vec4<u32>,
     default_value: vec4<f32>
 }
 
@@ -394,7 +388,7 @@ fn mrt_normal(normal: vec3<f32>, ao: f32) -> vec4<f32> {
 fn mrt_etc_buffer(g_etc_buffer: vec4<f32>, view_normal: vec3<f32>) -> vec4<f32> {
     var out = g_etc_buffer;
     // Antialiasing isn't necessary for parameters or constants.
-    if per_material.assignments[1].samplers.sampler_indices.y != -1 {
+    if per_material.assignments[1].has_channels.y != 0u {
         out.y = geometric_specular_aa(g_etc_buffer.y, view_normal);
     }
     return out;
@@ -503,8 +497,7 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     var n_dot_v = 1.0;
 
     // Not all materials and shaders use normal mapping.
-    // TODO: Is this a good way to check for this?
-    if assignments[2].samplers.sampler_indices.x != -1 && assignments[2].samplers.sampler_indices.y != -1 {
+    if assignments[2].has_channels.x != 0u || assignments[2].has_channels.y != 0u {
         var normal_map = create_normal_map(g_normal.xy);
         // BLEND_NORMAL_LAYERS_GENERATED
 

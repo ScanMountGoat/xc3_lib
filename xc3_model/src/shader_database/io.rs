@@ -8,7 +8,8 @@ use varint_rs::{VarintReader, VarintWriter};
 
 use super::{
     AttributeDependency, BufferDependency, Dependency, LayerBlendMode, OutputDependencies,
-    ProgramHash, ShaderProgram, TexCoord, TexCoordParams, TextureDependency, TextureLayer,
+    OutputLayer, OutputLayerValue, ProgramHash, ShaderProgram, TexCoord, TexCoordParams,
+    TextureDependency,
 };
 
 // Create a separate optimized representation for on disk.
@@ -18,8 +19,8 @@ use super::{
 pub struct ShaderDatabaseIndexed {
     // File version numbers should be updated with each release.
     // This improves the error when parsing an incompatible version.
-    #[br(assert(major_version == 2))]
-    #[bw(calc = 2)]
+    #[br(assert(major_version == 3))]
+    #[bw(calc = 3)]
     major_version: u16,
     #[bw(calc = 0)]
     _minor_version: u16,
@@ -99,15 +100,28 @@ struct OutputDependenciesIndexed {
 
     #[br(parse_with = parse_count)]
     #[bw(write_with = write_count)]
-    layers: Vec<TextureLayerIndexed>,
+    layers: Vec<OutputLayerIndexed>,
 }
 
 #[derive(Debug, PartialEq, Clone, BinRead, BinWrite)]
-struct TextureLayerIndexed {
-    value: VarInt,
+struct OutputLayerIndexed {
+    value: OutputLayerValueIndexed,
     ratio: OptVarInt,
     blend_mode: LayerBlendModeIndexed,
     is_fresnel: u8,
+}
+
+#[derive(Debug, PartialEq, Clone, BinRead, BinWrite)]
+enum OutputLayerValueIndexed {
+    #[brw(magic(0u8))]
+    Value(VarInt),
+
+    #[brw(magic(1u8))]
+    Layers(
+        #[br(parse_with = parse_count)]
+        #[bw(write_with = write_count)]
+        Vec<OutputLayerIndexed>,
+    ),
 }
 
 #[derive(Debug, PartialEq, Clone, Copy, BinRead, BinWrite)]
@@ -118,6 +132,7 @@ pub enum LayerBlendModeIndexed {
     Add = 2,
     AddNormal = 3,
     Overlay = 4,
+    Power = 5,
 }
 
 impl From<LayerBlendMode> for LayerBlendModeIndexed {
@@ -128,6 +143,7 @@ impl From<LayerBlendMode> for LayerBlendModeIndexed {
             LayerBlendMode::Add => Self::Add,
             LayerBlendMode::AddNormal => Self::AddNormal,
             LayerBlendMode::Overlay => Self::Overlay,
+            LayerBlendMode::Power => Self::Power,
         }
     }
 }
@@ -140,6 +156,7 @@ impl From<LayerBlendModeIndexed> for LayerBlendMode {
             LayerBlendModeIndexed::Add => Self::Add,
             LayerBlendModeIndexed::AddNormal => Self::AddNormal,
             LayerBlendModeIndexed::Overlay => Self::Overlay,
+            LayerBlendModeIndexed::Power => Self::Power,
         }
     }
 }
@@ -347,22 +364,12 @@ impl ShaderDatabaseIndexed {
                             layers: dependencies
                                 .layers
                                 .into_iter()
-                                .map(|l| TextureLayerIndexed {
-                                    value: self.add_dependency(
-                                        l.value,
+                                .map(|l| {
+                                    self.add_output_layer_indexed(
+                                        l,
                                         dependency_to_index,
                                         buffer_dependency_to_index,
-                                    ),
-                                    ratio: OptVarInt(l.ratio.map(|r| {
-                                        self.add_dependency(
-                                            r,
-                                            dependency_to_index,
-                                            buffer_dependency_to_index,
-                                        )
-                                        .0
-                                    })),
-                                    blend_mode: l.blend_mode.into(),
-                                    is_fresnel: l.is_fresnel.into(),
+                                    )
                                 })
                                 .collect(),
                         },
@@ -370,6 +377,54 @@ impl ShaderDatabaseIndexed {
                 })
                 .collect(),
             outline_width: OptVarInt(p.outline_width.map(|d| dependency_to_index.entry_index(d))),
+        }
+    }
+
+    fn add_output_layer_indexed(
+        &mut self,
+        l: OutputLayer,
+        dependency_to_index: &mut IndexMap<Dependency, usize>,
+        buffer_dependency_to_index: &mut IndexMap<BufferDependency, usize>,
+    ) -> OutputLayerIndexed {
+        OutputLayerIndexed {
+            value: self.add_output_layer_value_indexed(
+                dependency_to_index,
+                buffer_dependency_to_index,
+                l.value,
+            ),
+            ratio: OptVarInt(l.ratio.map(|r| {
+                self.add_dependency(r, dependency_to_index, buffer_dependency_to_index)
+                    .0
+            })),
+            blend_mode: l.blend_mode.into(),
+            is_fresnel: l.is_fresnel.into(),
+        }
+    }
+
+    fn add_output_layer_value_indexed(
+        &mut self,
+        dependency_to_index: &mut IndexMap<Dependency, usize>,
+        buffer_dependency_to_index: &mut IndexMap<BufferDependency, usize>,
+        value: OutputLayerValue,
+    ) -> OutputLayerValueIndexed {
+        match value {
+            OutputLayerValue::Value(d) => OutputLayerValueIndexed::Value(self.add_dependency(
+                d,
+                dependency_to_index,
+                buffer_dependency_to_index,
+            )),
+            OutputLayerValue::Layers(layers) => OutputLayerValueIndexed::Layers(
+                layers
+                    .into_iter()
+                    .map(|l| {
+                        self.add_output_layer_indexed(
+                            l,
+                            dependency_to_index,
+                            buffer_dependency_to_index,
+                        )
+                    })
+                    .collect(),
+            ),
         }
     }
 
@@ -451,15 +506,7 @@ impl ShaderDatabaseIndexed {
                             layers: output_dependencies
                                 .layers
                                 .iter()
-                                .map(|l| TextureLayer {
-                                    value: self.dependency_from_indexed(l.value),
-                                    ratio: l
-                                        .ratio
-                                        .0
-                                        .map(|i| self.dependency_from_indexed(VarInt(i))),
-                                    blend_mode: l.blend_mode.into(),
-                                    is_fresnel: l.is_fresnel != 0,
-                                })
+                                .map(|l| self.output_layer_from_indexed(l))
                                 .collect(),
                         },
                     )
@@ -469,6 +516,25 @@ impl ShaderDatabaseIndexed {
                 .outline_width
                 .0
                 .map(|i| self.dependency_from_indexed(VarInt(i))),
+        }
+    }
+
+    fn output_layer_from_indexed(&self, l: &OutputLayerIndexed) -> OutputLayer {
+        OutputLayer {
+            value: match &l.value {
+                OutputLayerValueIndexed::Value(d) => {
+                    OutputLayerValue::Value(self.dependency_from_indexed(*d))
+                }
+                OutputLayerValueIndexed::Layers(layers) => OutputLayerValue::Layers(
+                    layers
+                        .iter()
+                        .map(|l| self.output_layer_from_indexed(l))
+                        .collect(),
+                ),
+            },
+            ratio: l.ratio.0.map(|i| self.dependency_from_indexed(VarInt(i))),
+            blend_mode: l.blend_mode.into(),
+            is_fresnel: l.is_fresnel != 0,
         }
     }
 
