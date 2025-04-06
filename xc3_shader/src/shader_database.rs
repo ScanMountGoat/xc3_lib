@@ -117,28 +117,25 @@ fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit
 }
 
 fn apply_attributes(
-    dependencies: &mut Vec<Dependency>,
-    layers: &mut Vec<OutputLayer>,
+    dependencies: &mut [Dependency],
+    layers: &mut [OutputLayer],
     vert: &Graph,
     vert_attributes: &Attributes,
     frag_attributes: &Attributes,
 ) {
-    // Add texture parameters used for the corresponding vertex output.
-    // Most shaders apply UV transforms in the vertex shader.
-    // This will be used later for texture layers.
     for d in dependencies {
+        // Add texture parameters used for the corresponding vertex output.
+        // Most shaders apply UV transforms in the vertex shader.
+        // This will be used later for texture layers.
         apply_vertex_uv_params(vert, vert_attributes, frag_attributes, d);
-    }
 
-    for layer in layers {
-        apply_layer_vertex_uv_params(layer, vert, vert_attributes, frag_attributes);
-    }
-
-    // Names are only present for vertex input attributes.
-    for d in dependencies {
+        // Names are only present for vertex input attributes.
         apply_attribute_names(vert, vert_attributes, frag_attributes, d);
     }
+
+    // Process layer dependencies recursively.
     for layer in layers {
+        apply_layer_vertex_uv_params(layer, vert, vert_attributes, frag_attributes);
         apply_layer_attribute_names(layer, vert, vert_attributes, frag_attributes);
     }
 }
