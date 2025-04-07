@@ -1190,6 +1190,22 @@ mod tests {
         })
     }
 
+    fn buf(name: &str, field: &str, index: Option<usize>, channel: char) -> Dependency {
+        Dependency::Buffer(BufferDependency {
+            name: name.into(),
+            field: field.into(),
+            index,
+            channel: Some(channel),
+        })
+    }
+
+    fn attr(name: &str, channel: char) -> Dependency {
+        Dependency::Attribute(AttributeDependency {
+            name: name.into(),
+            channel: Some(channel),
+        })
+    }
+
     #[test]
     fn find_attribute_locations_outputs() {
         let glsl = indoc! {"
@@ -1248,24 +1264,14 @@ mod tests {
         );
         assert_eq!(
             OutputDependencies {
-                dependencies: vec![Dependency::Buffer(BufferDependency {
-                    name: "U_Mate".into(),
-                    field: "gWrkFl4".into(),
-                    index: Some(2),
-                    channel: Some('x'),
-                })],
+                dependencies: vec![buf("U_Mate", "gWrkFl4", Some(2), 'x')],
                 layers: Vec::new()
             },
             shader.output_dependencies[&SmolStr::from("o1.y")]
         );
         assert_eq!(
             OutputDependencies {
-                dependencies: vec![Dependency::Buffer(BufferDependency {
-                    name: "U_Mate".into(),
-                    field: "gWrkFl4".into(),
-                    index: Some(1),
-                    channel: Some('y'),
-                })],
+                dependencies: vec![buf("U_Mate", "gWrkFl4", Some(1), 'y')],
                 layers: Vec::new()
             },
             shader.output_dependencies[&SmolStr::from("o1.z")]
@@ -1402,12 +1408,7 @@ mod tests {
                         is_fresnel: false,
                     },
                     OutputLayer {
-                        value: OutputLayerValue::Value(Dependency::Attribute(
-                            AttributeDependency {
-                                name: "in_attr3".into(),
-                                channel: Some('x'),
-                            }
-                        )),
+                        value: OutputLayerValue::Value(attr("in_attr3", 'x')),
                         ratio: Some(Dependency::Constant(1.0.into())),
                         blend_mode: LayerBlendMode::MixRatio,
                         is_fresnel: false,
@@ -1514,12 +1515,7 @@ mod tests {
                         'z',
                         'w'
                     )),
-                    ratio: Some(Dependency::Buffer(BufferDependency {
-                        name: "U_Mate".into(),
-                        field: "gWrkFl4".into(),
-                        index: Some(1),
-                        channel: Some('z')
-                    })),
+                    ratio: Some(buf("U_Mate", "gWrkFl4", Some(1), 'z')),
                     blend_mode: LayerBlendMode::AddNormal,
                     is_fresnel: false
                 }
@@ -1529,12 +1525,7 @@ mod tests {
 
         assert_eq!(
             OutputDependencies {
-                dependencies: vec![Dependency::Buffer(BufferDependency {
-                    name: "U_Mate".into(),
-                    field: "gWrkFl4".into(),
-                    index: Some(2),
-                    channel: Some('y')
-                })],
+                dependencies: vec![buf("U_Mate", "gWrkFl4", Some(2), 'y')],
                 layers: Vec::new()
             },
             shader.output_dependencies[&SmolStr::from("o1.y")]
@@ -1558,18 +1549,8 @@ mod tests {
                     is_fresnel: false
                 },
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Buffer(BufferDependency {
-                        name: "U_Mate".into(),
-                        field: "gWrkCol".into(),
-                        index: Some(1),
-                        channel: Some('x'),
-                    })),
-                    ratio: Some(Dependency::Buffer(BufferDependency {
-                        name: "U_Mate".into(),
-                        field: "gWrkFl4".into(),
-                        index: Some(1),
-                        channel: Some('z'),
-                    })),
+                    value: OutputLayerValue::Value(buf("U_Mate", "gWrkCol", Some(1), 'x')),
+                    ratio: Some(buf("U_Mate", "gWrkFl4", Some(1), 'z')),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: true
                 },
@@ -1590,12 +1571,7 @@ mod tests {
         );
         assert_eq!(
             OutputDependencies {
-                dependencies: vec![Dependency::Buffer(BufferDependency {
-                    name: "U_Mate".into(),
-                    field: "gWrkFl4".into(),
-                    index: Some(3),
-                    channel: Some('y')
-                })],
+                dependencies: vec![buf("U_Mate", "gWrkFl4", Some(3), 'y')],
                 layers: Vec::new()
             },
             shader.output_dependencies[&SmolStr::from("o1.y")]
@@ -1625,23 +1601,13 @@ mod tests {
                             'z',
                             'w'
                         )),
-                        ratio: Some(Dependency::Buffer(BufferDependency {
-                            name: "U_Mate".into(),
-                            field: "gWrkFl4".into(),
-                            index: Some(2),
-                            channel: Some('y')
-                        })),
+                        ratio: Some(buf("U_Mate", "gWrkFl4", Some(2), 'y')),
                         blend_mode: LayerBlendMode::AddNormal,
                         is_fresnel: false
                     },
                     OutputLayer {
                         value: OutputLayerValue::Value(tex("s3", 'x', "in_attr5", 'x', 'y')),
-                        ratio: Some(Dependency::Buffer(BufferDependency {
-                            name: "U_Mate".into(),
-                            field: "gWrkFl4".into(),
-                            index: Some(2),
-                            channel: Some('z')
-                        })),
+                        ratio: Some(buf("U_Mate", "gWrkFl4", Some(2), 'z')),
                         blend_mode: LayerBlendMode::AddNormal,
                         is_fresnel: false
                     },
@@ -1668,18 +1634,8 @@ mod tests {
                     is_fresnel: false
                 },
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Buffer(BufferDependency {
-                        name: "U_Mate".into(),
-                        field: "gWrkCol".into(),
-                        index: Some(1),
-                        channel: Some('x'),
-                    })),
-                    ratio: Some(Dependency::Buffer(BufferDependency {
-                        name: "U_Mate".into(),
-                        field: "gWrkFl4".into(),
-                        index: Some(0),
-                        channel: Some('z'),
-                    })),
+                    value: OutputLayerValue::Value(buf("U_Mate", "gWrkCol", Some(1), 'x')),
+                    ratio: Some(buf("U_Mate", "gWrkFl4", Some(0), 'z')),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: true
                 },
@@ -1700,12 +1656,7 @@ mod tests {
         );
         assert_eq!(
             OutputDependencies {
-                dependencies: vec![Dependency::Buffer(BufferDependency {
-                    name: "U_Mate".into(),
-                    field: "gWrkFl4".into(),
-                    index: Some(1),
-                    channel: Some('w')
-                })],
+                dependencies: vec![buf("U_Mate", "gWrkFl4", Some(1), 'w')],
                 layers: Vec::new()
             },
             shader.output_dependencies[&SmolStr::from("o1.y")]
@@ -1736,12 +1687,7 @@ mod tests {
                         name: "in_attr3".into(),
                         channel: Some('x'),
                         params: Some(TexCoordParams::Parallax {
-                            mask_a: Dependency::Buffer(BufferDependency {
-                                name: "U_Mate".into(),
-                                field: "gWrkFl4".into(),
-                                index: Some(0),
-                                channel: Some('x'),
-                            }),
+                            mask_a: buf("U_Mate", "gWrkFl4", Some(0), 'x'),
                             mask_b: tex("s2", 'z', "in_attr3", 'x', 'y'),
                             ratio: BufferDependency {
                                 name: "U_Mate".into(),
@@ -1755,12 +1701,7 @@ mod tests {
                         name: "in_attr3".into(),
                         channel: Some('y'),
                         params: Some(TexCoordParams::Parallax {
-                            mask_a: Dependency::Buffer(BufferDependency {
-                                name: "U_Mate".into(),
-                                field: "gWrkFl4".into(),
-                                index: Some(0),
-                                channel: Some('x'),
-                            }),
+                            mask_a: buf("U_Mate", "gWrkFl4", Some(0), 'x'),
                             mask_b: tex("s2", 'z', "in_attr3", 'x', 'y'),
                             ratio: BufferDependency {
                                 name: "U_Mate".into(),
@@ -1786,12 +1727,7 @@ mod tests {
         let shader = shader_from_glsl(None, &fragment);
         assert_eq!(
             OutputDependencies {
-                dependencies: vec![Dependency::Buffer(BufferDependency {
-                    name: "U_Mate".into(),
-                    field: "gMatCol".into(),
-                    index: None,
-                    channel: Some('x'),
-                })],
+                dependencies: vec![buf("U_Mate", "gMatCol", None, 'x')],
                 layers: Vec::new()
             },
             shader.output_dependencies[&SmolStr::from("o0.x")]
@@ -1919,12 +1855,7 @@ mod tests {
                         'z',
                         'w'
                     )),
-                    ratio: Some(Dependency::Buffer(BufferDependency {
-                        name: "U_Mate".into(),
-                        field: "gWrkFl4".into(),
-                        index: Some(2),
-                        channel: Some('x')
-                    })),
+                    ratio: Some(buf("U_Mate", "gWrkFl4", Some(2), 'x')),
                     blend_mode: LayerBlendMode::AddNormal,
                     is_fresnel: false
                 }
@@ -2009,18 +1940,8 @@ mod tests {
                     is_fresnel: false,
                 },
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Buffer(BufferDependency {
-                        name: "U_Mate".into(),
-                        field: "gWrkCol".into(),
-                        index: None,
-                        channel: Some('x'),
-                    })),
-                    ratio: Some(Dependency::Buffer(BufferDependency {
-                        name: "U_Mate".into(),
-                        field: "gWrkFl4".into(),
-                        index: Some(0),
-                        channel: Some('y'),
-                    })),
+                    value: OutputLayerValue::Value(buf("U_Mate", "gWrkCol", None, 'x')),
+                    ratio: Some(buf("U_Mate", "gWrkFl4", Some(0), 'y')),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: true,
                 },
@@ -2073,26 +1994,13 @@ mod tests {
                     is_fresnel: false,
                 },
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Buffer(BufferDependency {
-                        name: "U_Mate".into(),
-                        field: "gWrkFl4".into(),
-                        index: Some(0),
-                        channel: Some('z'),
-                    })),
-                    ratio: Some(Dependency::Buffer(BufferDependency {
-                        name: "U_Mate".into(),
-                        field: "gWrkFl4".into(),
-                        index: Some(1),
-                        channel: Some('z'),
-                    })),
+                    value: OutputLayerValue::Value(buf("U_Mate", "gWrkFl4", Some(0), 'z')),
+                    ratio: Some(buf("U_Mate", "gWrkFl4", Some(1), 'z')),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false,
                 },
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Attribute(AttributeDependency {
-                        name: "in_attr5".into(),
-                        channel: Some('y'),
-                    })),
+                    value: OutputLayerValue::Value(attr("in_attr5", 'y')),
                     ratio: Some(Dependency::Constant(1.0.into())),
                     blend_mode: LayerBlendMode::MixRatio,
                     is_fresnel: false,
@@ -2120,12 +2028,12 @@ mod tests {
                 OutputLayer {
                     value: OutputLayerValue::Layers(vec![
                         OutputLayer {
-                            value: OutputLayerValue::Value(Dependency::Buffer(BufferDependency {
-                                name: "U_LGT".into(),
-                                field: "gLgtPreDir".into(),
-                                index: Some(0),
-                                channel: Some('w'),
-                            })),
+                            value: OutputLayerValue::Value(buf(
+                                "U_LGT",
+                                "gLgtPreDir",
+                                Some(0),
+                                'w'
+                            )),
                             ratio: Some(Dependency::Constant(1.0.into())),
                             blend_mode: LayerBlendMode::MixRatio,
                             is_fresnel: false,
@@ -2173,48 +2081,34 @@ mod tests {
                                             is_fresnel: false,
                                         },
                                         OutputLayer {
-                                            value: OutputLayerValue::Value(Dependency::Buffer(
-                                                BufferDependency {
-                                                    name: "U_Toon2".into(),
-                                                    field: "gToonParam".into(),
-                                                    index: Some(0),
-                                                    channel: Some('y'),
-                                                }
+                                            value: OutputLayerValue::Value(buf(
+                                                "U_Toon2",
+                                                "gToonParam",
+                                                Some(0),
+                                                'y'
                                             )),
                                             ratio: Some(Dependency::Constant(1.0.into())),
                                             blend_mode: LayerBlendMode::Add,
                                             is_fresnel: false,
                                         },
                                         OutputLayer {
-                                            value: OutputLayerValue::Value(Dependency::Buffer(
-                                                BufferDependency {
-                                                    name: "U_LGT".into(),
-                                                    field: "gLgtPreCol".into(),
-                                                    index: Some(0),
-                                                    channel: Some('x'),
-                                                }
+                                            value: OutputLayerValue::Value(buf(
+                                                "U_LGT",
+                                                "gLgtPreCol",
+                                                Some(0),
+                                                'x'
                                             )),
                                             ratio: Some(Dependency::Constant(1.0.into())),
                                             blend_mode: LayerBlendMode::MixRatio,
                                             is_fresnel: false,
                                         },
                                     ]),
-                                    ratio: Some(Dependency::Buffer(BufferDependency {
-                                        name: "U_Toon2".into(),
-                                        field: "gToonParam".into(),
-                                        index: Some(0),
-                                        channel: Some('z'),
-                                    })),
+                                    ratio: Some(buf("U_Toon2", "gToonParam", Some(0), 'z')),
                                     blend_mode: LayerBlendMode::Add,
                                     is_fresnel: false,
                                 },
                                 OutputLayer {
-                                    value: OutputLayerValue::Value(Dependency::Attribute(
-                                        AttributeDependency {
-                                            name: "in_attr2".into(),
-                                            channel: Some('x'),
-                                        },
-                                    )),
+                                    value: OutputLayerValue::Value(attr("in_attr2", 'x')),
                                     ratio: Some(Dependency::Constant(1.0.into())),
                                     blend_mode: LayerBlendMode::Add,
                                     is_fresnel: false,
@@ -2241,10 +2135,7 @@ mod tests {
                     is_fresnel: false,
                 },
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Attribute(AttributeDependency {
-                        name: "in_attr5".into(),
-                        channel: Some('w'),
-                    })),
+                    value: OutputLayerValue::Value(attr("in_attr5", 'w')),
                     ratio: None,
                     blend_mode: LayerBlendMode::Add,
                     is_fresnel: false,
@@ -2287,12 +2178,7 @@ mod tests {
                                     },
                                 ],
                             }),
-                            mask_b: Dependency::Buffer(BufferDependency {
-                                name: "U_Mate".into(),
-                                field: "gWrkFl4".into(),
-                                index: Some(0),
-                                channel: Some('y'),
-                            }),
+                            mask_b: buf("U_Mate", "gWrkFl4", Some(0), 'y'),
                             ratio: BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gWrkFl4".into(),
@@ -2306,12 +2192,7 @@ mod tests {
                         channel: Some('y'),
                         params: Some(TexCoordParams::Parallax {
                             mask_a: tex("s1", 'x', "in_attr4", 'x', 'y'),
-                            mask_b: Dependency::Buffer(BufferDependency {
-                                name: "U_Mate".into(),
-                                field: "gWrkFl4".into(),
-                                index: Some(0),
-                                channel: Some('y'),
-                            }),
+                            mask_b: buf("U_Mate", "gWrkFl4", Some(0), 'y'),
                             ratio: BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gWrkFl4".into(),
@@ -2337,12 +2218,7 @@ mod tests {
         let fragment = TranslationUnit::parse(frag_glsl).unwrap();
         let shader = shader_from_glsl(Some(&vertex), &fragment);
         assert_eq!(
-            Some(Dependency::Buffer(BufferDependency {
-                name: "U_Mate".into(),
-                field: "gWrkFl4".into(),
-                index: Some(0),
-                channel: Some('z'),
-            })),
+            Some(buf("U_Mate", "gWrkFl4", Some(0), 'z')),
             shader.outline_width
         );
     }
@@ -2364,12 +2240,7 @@ mod tests {
                     is_fresnel: false,
                 },
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Buffer(BufferDependency {
-                        name: "U_Mate".into(),
-                        field: "gWrkCol".into(),
-                        index: Some(1),
-                        channel: Some('x'),
-                    })),
+                    value: OutputLayerValue::Value(buf("U_Mate", "gWrkCol", Some(1), 'x')),
                     ratio: Some(Dependency::Constant((-1.0).into())),
                     blend_mode: LayerBlendMode::Add,
                     is_fresnel: false,
@@ -2765,12 +2636,7 @@ mod tests {
                     (
                         "o3.w".into(),
                         OutputDependencies {
-                            dependencies: vec![Dependency::Buffer(BufferDependency {
-                                name: "KC0".into(),
-                                field: "".into(),
-                                index: Some(1),
-                                channel: Some('x'),
-                            })],
+                            dependencies: vec![buf("KC0", "", Some(1), 'x')],
                             layers: Vec::new()
                         },
                     ),
@@ -2814,23 +2680,13 @@ mod tests {
                         is_fresnel: false,
                     },
                     OutputLayer {
-                        value: OutputLayerValue::Value(Dependency::Buffer(BufferDependency {
-                            name: "U_CHR".into(),
-                            field: "gAvaSkin".into(),
-                            index: None,
-                            channel: Some('x'),
-                        })),
+                        value: OutputLayerValue::Value(buf("U_CHR", "gAvaSkin", None, 'x')),
                         ratio: Some(Dependency::Constant(1.0.into())),
                         blend_mode: LayerBlendMode::Overlay,
                         is_fresnel: false,
                     },
                     OutputLayer {
-                        value: OutputLayerValue::Value(Dependency::Attribute(
-                            AttributeDependency {
-                                name: "vColor".into(),
-                                channel: Some('x'),
-                            }
-                        )),
+                        value: OutputLayerValue::Value(attr("vColor", 'x')),
                         ratio: Some(Dependency::Constant(1.0.into())),
                         blend_mode: LayerBlendMode::MixRatio,
                         is_fresnel: false,
@@ -2850,23 +2706,13 @@ mod tests {
                         is_fresnel: false,
                     },
                     OutputLayer {
-                        value: OutputLayerValue::Value(Dependency::Buffer(BufferDependency {
-                            name: "U_CHR".into(),
-                            field: "gAvaSkin".into(),
-                            index: None,
-                            channel: Some('y'),
-                        })),
+                        value: OutputLayerValue::Value(buf("U_CHR", "gAvaSkin", None, 'y')),
                         ratio: Some(Dependency::Constant(1.0.into())),
                         blend_mode: LayerBlendMode::Overlay,
                         is_fresnel: false,
                     },
                     OutputLayer {
-                        value: OutputLayerValue::Value(Dependency::Attribute(
-                            AttributeDependency {
-                                name: "vColor".into(),
-                                channel: Some('y'),
-                            }
-                        )),
+                        value: OutputLayerValue::Value(attr("vColor", 'y')),
                         ratio: Some(Dependency::Constant(1.0.into())),
                         blend_mode: LayerBlendMode::MixRatio,
                         is_fresnel: false,
@@ -2886,23 +2732,13 @@ mod tests {
                         is_fresnel: false,
                     },
                     OutputLayer {
-                        value: OutputLayerValue::Value(Dependency::Buffer(BufferDependency {
-                            name: "U_CHR".into(),
-                            field: "gAvaSkin".into(),
-                            index: None,
-                            channel: Some('z'),
-                        })),
+                        value: OutputLayerValue::Value(buf("U_CHR", "gAvaSkin", None, 'z')),
                         ratio: Some(Dependency::Constant(1.0.into())),
                         blend_mode: LayerBlendMode::Overlay,
                         is_fresnel: false,
                     },
                     OutputLayer {
-                        value: OutputLayerValue::Value(Dependency::Attribute(
-                            AttributeDependency {
-                                name: "vColor".into(),
-                                channel: Some('z'),
-                            }
-                        )),
+                        value: OutputLayerValue::Value(attr("vColor", 'z')),
                         ratio: Some(Dependency::Constant(1.0.into())),
                         blend_mode: LayerBlendMode::MixRatio,
                         is_fresnel: false,
@@ -2930,12 +2766,7 @@ mod tests {
                     is_fresnel: false,
                 },
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Buffer(BufferDependency {
-                        name: "U_Mate".into(),
-                        field: "gMatAmb".into(),
-                        index: None,
-                        channel: Some('x'),
-                    })),
+                    value: OutputLayerValue::Value(buf("U_Mate", "gMatAmb", None, 'x')),
                     ratio: Some(Dependency::Constant(1.0.into())),
                     blend_mode: LayerBlendMode::MixRatio,
                     is_fresnel: false,
@@ -2943,25 +2774,23 @@ mod tests {
                 OutputLayer {
                     value: OutputLayerValue::Layers(vec![
                         OutputLayer {
-                            value: OutputLayerValue::Value(Dependency::Buffer(BufferDependency {
-                                name: "U_Static".into(),
-                                field: "gLgtPreCol".into(),
-                                index: Some(1),
-                                channel: Some('x'),
-                            })),
+                            value: OutputLayerValue::Value(buf(
+                                "U_Static",
+                                "gLgtPreCol",
+                                Some(1),
+                                'x'
+                            )),
                             ratio: Some(Dependency::Constant(1.0.into())),
                             blend_mode: LayerBlendMode::MixRatio,
                             is_fresnel: false,
                         },
                         OutputLayer {
                             value: OutputLayerValue::Layers(vec![OutputLayer {
-                                value: OutputLayerValue::Value(Dependency::Buffer(
-                                    BufferDependency {
-                                        name: "U_Static".into(),
-                                        field: "gLgtPreCol".into(),
-                                        index: Some(0),
-                                        channel: Some('x'),
-                                    }
+                                value: OutputLayerValue::Value(buf(
+                                    "U_Static",
+                                    "gLgtPreCol",
+                                    Some(0),
+                                    'x'
                                 )),
                                 ratio: Some(Dependency::Constant(1.0.into())),
                                 blend_mode: LayerBlendMode::MixRatio,
@@ -3005,13 +2834,8 @@ mod tests {
                                             is_fresnel: false,
                                         },
                                         OutputLayer {
-                                            value: OutputLayerValue::Value(Dependency::Buffer(
-                                                BufferDependency {
-                                                    name: "U_Mate".into(),
-                                                    field: "gMatAmb".into(),
-                                                    index: None,
-                                                    channel: Some('x'),
-                                                }
+                                            value: OutputLayerValue::Value(buf(
+                                                "U_Mate", "gMatAmb", None, 'x'
                                             )),
                                             ratio: Some(Dependency::Constant(1.0.into())),
                                             blend_mode: LayerBlendMode::MixRatio,
@@ -3059,12 +2883,7 @@ mod tests {
                                     is_fresnel: false,
                                 },
                                 OutputLayer {
-                                    value: OutputLayerValue::Value(Dependency::Attribute(
-                                        AttributeDependency {
-                                            name: "in_attr5".into(),
-                                            channel: Some('x')
-                                        }
-                                    )),
+                                    value: OutputLayerValue::Value(attr("in_attr5", 'x')),
                                     ratio: Some(Dependency::Constant(1.0.into())),
                                     blend_mode: LayerBlendMode::MixRatio,
                                     is_fresnel: false,
@@ -3075,12 +2894,7 @@ mod tests {
                             is_fresnel: false,
                         },
                         OutputLayer {
-                            value: OutputLayerValue::Value(Dependency::Buffer(BufferDependency {
-                                name: "U_Static".into(),
-                                field: "gCDep".into(),
-                                index: None,
-                                channel: Some('w'),
-                            })),
+                            value: OutputLayerValue::Value(buf("U_Static", "gCDep", None, 'w')),
                             ratio: Some(Dependency::Constant(1.0.into())),
                             blend_mode: LayerBlendMode::Power,
                             is_fresnel: false,
@@ -3099,12 +2913,7 @@ mod tests {
                             is_fresnel: false,
                         },
                         OutputLayer {
-                            value: OutputLayerValue::Value(Dependency::Buffer(BufferDependency {
-                                name: "U_Mate".into(),
-                                field: "gMatAmb".into(),
-                                index: None,
-                                channel: Some('w'),
-                            })),
+                            value: OutputLayerValue::Value(buf("U_Mate", "gMatAmb", None, 'w')),
                             ratio: Some(Dependency::Constant(1.0.into())),
                             blend_mode: LayerBlendMode::MixRatio,
                             is_fresnel: false,
@@ -3120,13 +2929,11 @@ mod tests {
                                     is_fresnel: false,
                                 },
                                 OutputLayer {
-                                    value: OutputLayerValue::Value(Dependency::Buffer(
-                                        BufferDependency {
-                                            name: "U_Static".into(),
-                                            field: "gLgtPreSpe".into(),
-                                            index: Some(0),
-                                            channel: Some('x'),
-                                        }
+                                    value: OutputLayerValue::Value(buf(
+                                        "U_Static",
+                                        "gLgtPreSpe",
+                                        Some(0),
+                                        'x'
                                     )),
                                     ratio: Some(Dependency::Constant(1.0.into())),
                                     blend_mode: LayerBlendMode::Min,
@@ -3146,24 +2953,13 @@ mod tests {
                             is_fresnel: false,
                         },
                     ]),
-                    ratio: Some(Dependency::Buffer(BufferDependency {
-                        name: "U_Mate".into(),
-                        field: "gMatSpec".into(),
-                        index: None,
-                        channel: Some('x'),
-                    })),
+                    ratio: Some(buf("U_Mate", "gMatSpec", None, 'x')),
                     blend_mode: LayerBlendMode::Add,
                     is_fresnel: false,
                 },
                 OutputLayer {
-                    value: OutputLayerValue::Value(Dependency::Attribute(AttributeDependency {
-                        name: "in_attr7".into(),
-                        channel: Some('x'),
-                    })),
-                    ratio: Some(Dependency::Attribute(AttributeDependency {
-                        name: "in_attr7".into(),
-                        channel: Some('w')
-                    })),
+                    value: OutputLayerValue::Value(attr("in_attr7", 'x')),
+                    ratio: Some(attr("in_attr7", 'w')),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false,
                 },
