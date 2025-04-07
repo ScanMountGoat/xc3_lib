@@ -2162,22 +2162,7 @@ mod tests {
                         name: "in_attr4".into(),
                         channel: Some('x'),
                         params: Some(TexCoordParams::Parallax {
-                            mask_a: Dependency::Texture(TextureDependency {
-                                name: "s1".into(),
-                                channel: Some('x'),
-                                texcoords: vec![
-                                    TexCoord {
-                                        name: "in_attr4".into(),
-                                        channel: Some('x'),
-                                        params: None,
-                                    },
-                                    TexCoord {
-                                        name: "in_attr4".into(),
-                                        channel: Some('y'),
-                                        params: None,
-                                    },
-                                ],
-                            }),
+                            mask_a: tex("s1", 'x', "in_attr4", 'x', 'y'),
                             mask_b: buf("U_Mate", "gWrkFl4", Some(0), 'y'),
                             ratio: BufferDependency {
                                 name: "U_Mate".into(),
@@ -2202,7 +2187,7 @@ mod tests {
                         }),
                     },
                 ],
-            }),],
+            })],
             shader.output_dependencies[&SmolStr::from("o0.x")].dependencies
         );
     }
@@ -2278,6 +2263,14 @@ mod tests {
     fn shader_from_latte_asm_elma_leg() {
         // xenox/chr_pc/pc221115.camdo, "leg_mat", shd0000.frag
         let asm = include_str!("data/xcx/pc221115.0.frag.txt");
+
+        let tex = |n: &str, c| {
+            Dependency::Texture(TextureDependency {
+                name: n.into(),
+                channel: Some(c),
+                texcoords: Vec::new(),
+            })
+        };
 
         // TODO: Make this easier to test by taking metadata directly?
         let fragment_shader = xc3_lib::mths::FragmentShader {
@@ -2355,26 +2348,10 @@ mod tests {
                         "o0.x".into(),
                         OutputDependencies {
                             dependencies: vec![
-                                Dependency::Texture(TextureDependency {
-                                    name: "s2".into(),
-                                    channel: Some('x'),
-                                    texcoords: Vec::new(),
-                                }),
-                                Dependency::Texture(TextureDependency {
-                                    name: "s2".into(),
-                                    channel: Some('y'),
-                                    texcoords: Vec::new(),
-                                }),
-                                Dependency::Texture(TextureDependency {
-                                    name: "s1".into(),
-                                    channel: Some('y'),
-                                    texcoords: Vec::new(),
-                                }),
-                                Dependency::Texture(TextureDependency {
-                                    name: "gIBL".into(),
-                                    channel: Some('x'),
-                                    texcoords: Vec::new(),
-                                }),
+                                tex("s2", 'x'),
+                                tex("s2", 'y'),
+                                tex("s1", 'y'),
+                                tex("gIBL", 'x'),
                             ],
                             layers: Vec::new()
                         },
@@ -2383,26 +2360,10 @@ mod tests {
                         "o0.y".into(),
                         OutputDependencies {
                             dependencies: vec![
-                                Dependency::Texture(TextureDependency {
-                                    name: "s2".into(),
-                                    channel: Some('x'),
-                                    texcoords: Vec::new(),
-                                }),
-                                Dependency::Texture(TextureDependency {
-                                    name: "s2".into(),
-                                    channel: Some('y'),
-                                    texcoords: Vec::new(),
-                                }),
-                                Dependency::Texture(TextureDependency {
-                                    name: "s1".into(),
-                                    channel: Some('y'),
-                                    texcoords: Vec::new(),
-                                }),
-                                Dependency::Texture(TextureDependency {
-                                    name: "gIBL".into(),
-                                    channel: Some('y'),
-                                    texcoords: Vec::new(),
-                                }),
+                                tex("s2", 'x'),
+                                tex("s2", 'y'),
+                                tex("s1", 'y'),
+                                tex("gIBL", 'y'),
                             ],
                             layers: Vec::new()
                         },
@@ -2411,26 +2372,10 @@ mod tests {
                         "o0.z".into(),
                         OutputDependencies {
                             dependencies: vec![
-                                Dependency::Texture(TextureDependency {
-                                    name: "s2".into(),
-                                    channel: Some('x'),
-                                    texcoords: Vec::new(),
-                                }),
-                                Dependency::Texture(TextureDependency {
-                                    name: "s2".into(),
-                                    channel: Some('y'),
-                                    texcoords: Vec::new(),
-                                }),
-                                Dependency::Texture(TextureDependency {
-                                    name: "s1".into(),
-                                    channel: Some('y'),
-                                    texcoords: Vec::new(),
-                                }),
-                                Dependency::Texture(TextureDependency {
-                                    name: "gIBL".into(),
-                                    channel: Some('z'),
-                                    texcoords: Vec::new(),
-                                }),
+                                tex("s2", 'x'),
+                                tex("s2", 'y'),
+                                tex("s1", 'y'),
+                                tex("gIBL", 'z'),
                             ],
                             layers: Vec::new()
                         },
@@ -2438,23 +2383,7 @@ mod tests {
                     (
                         "o0.w".into(),
                         OutputDependencies {
-                            dependencies: vec![
-                                Dependency::Texture(TextureDependency {
-                                    name: "s2".into(),
-                                    channel: Some('x'),
-                                    texcoords: Vec::new(),
-                                }),
-                                Dependency::Texture(TextureDependency {
-                                    name: "s2".into(),
-                                    channel: Some('y'),
-                                    texcoords: Vec::new(),
-                                }),
-                                Dependency::Texture(TextureDependency {
-                                    name: "gIBL".into(),
-                                    channel: Some('w'),
-                                    texcoords: Vec::new(),
-                                }),
-                            ],
+                            dependencies: vec![tex("s2", 'x'), tex("s2", 'y'), tex("gIBL", 'w')],
                             layers: Vec::new()
                         },
                     ),
@@ -2462,31 +2391,11 @@ mod tests {
                         "o1.x".into(),
                         OutputDependencies {
                             dependencies: vec![
-                                Dependency::Texture(TextureDependency {
-                                    name: "s2".into(),
-                                    channel: Some('x'),
-                                    texcoords: Vec::new(),
-                                }),
-                                Dependency::Texture(TextureDependency {
-                                    name: "s2".into(),
-                                    channel: Some('y'),
-                                    texcoords: Vec::new(),
-                                }),
-                                Dependency::Texture(TextureDependency {
-                                    name: "s1".into(),
-                                    channel: Some('x'),
-                                    texcoords: Vec::new(),
-                                }),
-                                Dependency::Texture(TextureDependency {
-                                    name: "s0".into(),
-                                    channel: Some('x'),
-                                    texcoords: Vec::new(),
-                                }),
-                                Dependency::Texture(TextureDependency {
-                                    name: "texRef".into(),
-                                    channel: Some('x'),
-                                    texcoords: Vec::new(),
-                                }),
+                                tex("s2", 'x'),
+                                tex("s2", 'y'),
+                                tex("s1", 'x'),
+                                tex("s0", 'x'),
+                                tex("texRef", 'x'),
                             ],
                             layers: Vec::new()
                         },
@@ -2495,31 +2404,11 @@ mod tests {
                         "o1.y".into(),
                         OutputDependencies {
                             dependencies: vec![
-                                Dependency::Texture(TextureDependency {
-                                    name: "s2".into(),
-                                    channel: Some('x'),
-                                    texcoords: Vec::new(),
-                                }),
-                                Dependency::Texture(TextureDependency {
-                                    name: "s2".into(),
-                                    channel: Some('y'),
-                                    texcoords: Vec::new(),
-                                }),
-                                Dependency::Texture(TextureDependency {
-                                    name: "s1".into(),
-                                    channel: Some('x'),
-                                    texcoords: Vec::new(),
-                                }),
-                                Dependency::Texture(TextureDependency {
-                                    name: "s0".into(),
-                                    channel: Some('y'),
-                                    texcoords: Vec::new(),
-                                }),
-                                Dependency::Texture(TextureDependency {
-                                    name: "texRef".into(),
-                                    channel: Some('y'),
-                                    texcoords: Vec::new(),
-                                }),
+                                tex("s2", 'x'),
+                                tex("s2", 'y'),
+                                tex("s1", 'x'),
+                                tex("s0", 'y'),
+                                tex("texRef", 'y'),
                             ],
                             layers: Vec::new()
                         },
@@ -2528,31 +2417,11 @@ mod tests {
                         "o1.z".into(),
                         OutputDependencies {
                             dependencies: vec![
-                                Dependency::Texture(TextureDependency {
-                                    name: "s2".into(),
-                                    channel: Some('x'),
-                                    texcoords: Vec::new(),
-                                }),
-                                Dependency::Texture(TextureDependency {
-                                    name: "s2".into(),
-                                    channel: Some('y'),
-                                    texcoords: Vec::new(),
-                                }),
-                                Dependency::Texture(TextureDependency {
-                                    name: "s1".into(),
-                                    channel: Some('x'),
-                                    texcoords: Vec::new(),
-                                }),
-                                Dependency::Texture(TextureDependency {
-                                    name: "s0".into(),
-                                    channel: Some('z'),
-                                    texcoords: Vec::new(),
-                                }),
-                                Dependency::Texture(TextureDependency {
-                                    name: "texRef".into(),
-                                    channel: Some('z'),
-                                    texcoords: Vec::new(),
-                                }),
+                                tex("s2", 'x'),
+                                tex("s2", 'y'),
+                                tex("s1", 'x'),
+                                tex("s0", 'z'),
+                                tex("texRef", 'z'),
                             ],
                             layers: Vec::new()
                         },
@@ -2567,69 +2436,35 @@ mod tests {
                     (
                         "o2.x".into(),
                         OutputDependencies {
-                            dependencies: vec![
-                                Dependency::Texture(TextureDependency {
-                                    name: "s2".into(),
-                                    channel: Some('x'),
-                                    texcoords: Vec::new(),
-                                }),
-                                Dependency::Texture(TextureDependency {
-                                    name: "s2".into(),
-                                    channel: Some('y'),
-                                    texcoords: Vec::new(),
-                                }),
-                            ],
+                            dependencies: vec![tex("s2", 'x'), tex("s2", 'y')],
                             layers: Vec::new()
                         },
                     ),
                     (
                         "o2.y".into(),
                         OutputDependencies {
-                            dependencies: vec![
-                                Dependency::Texture(TextureDependency {
-                                    name: "s2".into(),
-                                    channel: Some('x'),
-                                    texcoords: Vec::new(),
-                                }),
-                                Dependency::Texture(TextureDependency {
-                                    name: "s2".into(),
-                                    channel: Some('y'),
-                                    texcoords: Vec::new(),
-                                }),
-                            ],
+                            dependencies: vec![tex("s2", 'x'), tex("s2", 'y')],
                             layers: Vec::new()
                         },
                     ),
                     (
                         "o3.x".into(),
                         OutputDependencies {
-                            dependencies: vec![Dependency::Texture(TextureDependency {
-                                name: "s3".into(),
-                                channel: Some('x'),
-                                texcoords: Vec::new(),
-                            })],
+                            dependencies: vec![tex("s3", 'x')],
                             layers: Vec::new()
                         },
                     ),
                     (
                         "o3.y".into(),
                         OutputDependencies {
-                            dependencies: vec![Dependency::Texture(TextureDependency {
-                                name: "s3".into(),
-                                channel: Some('y'),
-                                texcoords: Vec::new(),
-                            })],
+                            dependencies: vec![tex("s3", 'y')],
                             layers: Vec::new()
                         },
                     ),
                     (
                         "o3.z".into(),
                         OutputDependencies {
-                            dependencies: vec![Dependency::Texture(TextureDependency {
-                                name: "s3".into(),
-                                channel: Some('z'),
-                                texcoords: Vec::new(),
-                            })],
+                            dependencies: vec![tex("s3", 'z')],
                             layers: Vec::new()
                         },
                     ),
@@ -2643,11 +2478,7 @@ mod tests {
                     (
                         "o4.w".into(),
                         OutputDependencies {
-                            dependencies: vec![Dependency::Texture(TextureDependency {
-                                name: "s1".into(),
-                                channel: Some('z'),
-                                texcoords: Vec::new(),
-                            })],
+                            dependencies: vec![tex("s1", 'z')],
                             layers: Vec::new()
                         },
                     )
