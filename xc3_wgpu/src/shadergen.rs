@@ -199,13 +199,7 @@ pub fn generate_normal_layering_wgsl(
 
         // Assume add normals always blend xy vectors.
         if x_layer.blend_mode == LayerBlendMode::AddNormal {
-            let value = layer_wgsl(
-                name_to_index,
-                name_to_uv_wgsl,
-                x_layer,
-                &OUT_VAR,
-                Some("xy"),
-            );
+            let value = layer_wgsl(name_to_index, name_to_uv_wgsl, x_layer, OUT_VAR, Some("xy"));
             writeln!(wgsl, "{OUT_VAR}.x = {value}.x;").unwrap();
             writeln!(wgsl, "{OUT_VAR}.y = {value}.y;").unwrap();
         } else {
