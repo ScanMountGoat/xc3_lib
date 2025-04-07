@@ -199,27 +199,32 @@ pub fn generate_normal_layering_wgsl(
 
         // Assume add normals always blend xy vectors.
         if x_layer.blend_mode == LayerBlendMode::AddNormal {
-            let value = layer_wgsl(name_to_index, name_to_uv_wgsl, x_layer, OUT_VAR, Some("xy"));
-            writeln!(wgsl, "{OUT_VAR}.x = {value}.x;").unwrap();
-            writeln!(wgsl, "{OUT_VAR}.y = {value}.y;").unwrap();
+            if let Some(value) =
+                layer_wgsl(name_to_index, name_to_uv_wgsl, x_layer, OUT_VAR, Some("xy"))
+            {
+                writeln!(wgsl, "{OUT_VAR}.x = {value}.x;").unwrap();
+                writeln!(wgsl, "{OUT_VAR}.y = {value}.y;").unwrap();
+            }
         } else {
-            let value = layer_wgsl(
+            if let Some(value) = layer_wgsl(
                 name_to_index,
                 name_to_uv_wgsl,
                 x_layer,
                 &format!("{OUT_VAR}.x"),
                 None,
-            );
-            writeln!(wgsl, "{OUT_VAR}.x = {value};").unwrap();
+            ) {
+                writeln!(wgsl, "{OUT_VAR}.x = {value};").unwrap();
+            }
 
-            let value = layer_wgsl(
+            if let Some(value) = layer_wgsl(
                 name_to_index,
                 name_to_uv_wgsl,
                 y_layer,
                 &format!("{OUT_VAR}.y"),
                 None,
-            );
-            writeln!(wgsl, "{OUT_VAR}.y = {value};").unwrap();
+            ) {
+                writeln!(wgsl, "{OUT_VAR}.y = {value};").unwrap();
+            }
         }
     }
 
@@ -248,14 +253,15 @@ fn write_layers(
     c: char,
 ) {
     for layer in layers {
-        let value = layer_wgsl(
+        if let Some(value) = layer_wgsl(
             name_to_index,
             name_to_uv_wgsl,
             layer,
             &format!("{OUT_VAR}.{c}"),
             None,
-        );
-        writeln!(wgsl, "{OUT_VAR}.{c} = {value};").unwrap();
+        ) {
+            writeln!(wgsl, "{OUT_VAR}.{c} = {value};").unwrap();
+        }
     }
 }
 
@@ -265,7 +271,7 @@ fn layer_wgsl(
     layer: &LayerChannelAssignment,
     var: &str,
     channel_override: Option<&str>,
-) -> String {
+) -> Option<String> {
     // TODO: Skip missing values instead of using a default?
     let b = layer_value_wgsl(
         name_to_index,
@@ -273,76 +279,71 @@ fn layer_wgsl(
         &layer.value,
         var,
         channel_override,
-    );
+    )?;
 
-    match b {
-        Some(b) => {
-            let mut var = var.to_string();
-            let mut b = b;
-            if let Some(channels) = channel_override {
-                var = format!("{}.{channels}", trim_channels(&var));
-                b = format!("{}.{channels}", trim_channels(&b));
-            }
+    let mut var = var.to_string();
+    let mut b = b;
+    if let Some(channels) = channel_override {
+        var = format!("{}.{channels}", trim_channels(&var));
+        b = format!("{}.{channels}", trim_channels(&b));
+    }
 
-            // TODO: How to initialize the variable for this?
-            let mut ratio =
-                layer_value_wgsl(name_to_index, name_to_uv_wgsl, &layer.weight, "0.0", None)
-                    .unwrap_or_else(|| "0.0".to_string());
+    let mut ratio = layer_value_wgsl(name_to_index, name_to_uv_wgsl, &layer.weight, "0.0", None)?;
+    if layer.is_fresnel {
+        ratio = format!("fresnel_ratio({ratio}, n_dot_v)");
+    }
 
-            if layer.is_fresnel {
-                ratio = format!("fresnel_ratio({ratio}, n_dot_v)");
-            }
+    if ratio == "0.0" {
+        return Some(var);
+    }
 
-            // TODO: handle ratio of 0.0?
-            match layer.blend_mode {
-                LayerBlendMode::Mix => {
-                    if ratio == "1.0" {
-                        b
-                    } else {
-                        format!("mix({var}, {b}, {ratio})")
-                    }
-                }
-                LayerBlendMode::MixRatio => {
-                    if ratio == "1.0" {
-                        format!("({var} * {b})")
-                    } else {
-                        format!("mix({var}, {var} * {b}, {ratio})")
-                    }
-                }
-                LayerBlendMode::Add => {
-                    if ratio == "1.0" {
-                        format!("({var} + {b})")
-                    } else {
-                        format!("{var} + {b} * {ratio}")
-                    }
-                }
-                LayerBlendMode::AddNormal => {
-                    // Assume this mode applies to both x and y.
-                    // Ensure that z blending does not affect normals.
-                    let a_nrm = format!("vec3({var}.xy, normal_z({var}.x, {var}.y))");
-                    let b_nrm = format!("create_normal_map({b}.xy)");
-                    format!("add_normal_maps({a_nrm}, {b_nrm}, {ratio})")
-                }
-                LayerBlendMode::Overlay => {
-                    if ratio == "1.0" {
-                        format!("overlay_blend({var}, {b})")
-                    } else {
-                        format!("mix({var}, overlay_blend({var}, {b}), {ratio})")
-                    }
-                }
-                LayerBlendMode::Power => {
-                    if ratio == "1.0" {
-                        format!("pow({var}, {b})")
-                    } else {
-                        format!("mix({var}, pow({var}, {b}), {ratio})")
-                    }
-                }
-                LayerBlendMode::Min => format!("min({var}, {b})"),
-                LayerBlendMode::Max => format!("max({var}, {b})"),
+    let result = match layer.blend_mode {
+        LayerBlendMode::Mix => {
+            if ratio == "1.0" {
+                b
+            } else {
+                format!("mix({var}, {b}, {ratio})")
             }
         }
-        None => var.to_string(),
-    }
+        LayerBlendMode::MixRatio => {
+            if ratio == "1.0" {
+                format!("({var} * {b})")
+            } else {
+                format!("mix({var}, {var} * {b}, {ratio})")
+            }
+        }
+        LayerBlendMode::Add => {
+            if ratio == "1.0" {
+                format!("({var} + {b})")
+            } else {
+                format!("{var} + {b} * {ratio}")
+            }
+        }
+        LayerBlendMode::AddNormal => {
+            // Assume this mode applies to both x and y.
+            // Ensure that z blending does not affect normals.
+            let a_nrm = format!("vec3({var}.xy, normal_z({var}.x, {var}.y))");
+            let b_nrm = format!("create_normal_map({b}.xy)");
+            format!("add_normal_maps({a_nrm}, {b_nrm}, {ratio})")
+        }
+        LayerBlendMode::Overlay => {
+            if ratio == "1.0" {
+                format!("overlay_blend({var}, {b})")
+            } else {
+                format!("mix({var}, overlay_blend({var}, {b}), {ratio})")
+            }
+        }
+        LayerBlendMode::Power => {
+            if ratio == "1.0" {
+                format!("pow({var}, {b})")
+            } else {
+                format!("mix({var}, pow({var}, {b}), {ratio})")
+            }
+        }
+        LayerBlendMode::Min => format!("min({var}, {b})"),
+        LayerBlendMode::Max => format!("max({var}, {b})"),
+    };
+    Some(result)
 }
 
 fn layer_value_wgsl(
@@ -360,13 +361,15 @@ fn layer_value_wgsl(
             // Get the final assigned value after applying all layers recursively.
             let mut output = var.to_string();
             for layer in layers {
-                output = layer_wgsl(
+                if let Some(new_output) = layer_wgsl(
                     name_to_index,
                     name_to_uv_wgsl,
                     layer,
                     &output,
                     channel_override,
-                );
+                ) {
+                    output = new_output;
+                }
             }
             Some(output)
         }
