@@ -133,6 +133,8 @@ pub enum LayerBlendModeIndexed {
     AddNormal = 3,
     Overlay = 4,
     Power = 5,
+    Min = 6,
+    Max = 7,
 }
 
 impl From<LayerBlendMode> for LayerBlendModeIndexed {
@@ -144,6 +146,8 @@ impl From<LayerBlendMode> for LayerBlendModeIndexed {
             LayerBlendMode::AddNormal => Self::AddNormal,
             LayerBlendMode::Overlay => Self::Overlay,
             LayerBlendMode::Power => Self::Power,
+            LayerBlendMode::Min => Self::Min,
+            LayerBlendMode::Max => Self::Max,
         }
     }
 }
@@ -157,6 +161,8 @@ impl From<LayerBlendModeIndexed> for LayerBlendMode {
             LayerBlendModeIndexed::AddNormal => Self::AddNormal,
             LayerBlendModeIndexed::Overlay => Self::Overlay,
             LayerBlendModeIndexed::Power => Self::Power,
+            LayerBlendModeIndexed::Min => Self::Min,
+            LayerBlendModeIndexed::Max => Self::Max,
         }
     }
 }

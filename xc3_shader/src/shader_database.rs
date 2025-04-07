@@ -375,6 +375,8 @@ fn find_layers(current: &Expr, graph: &Graph, attributes: &Attributes) -> Vec<Ou
         .or_else(|| blend_sub(&graph.nodes, current))
         .or_else(|| blend_add(current, graph, attributes))
         .or_else(|| blend_pow(&graph.nodes, current))
+        .or_else(|| blend_min(&graph.nodes, current))
+        .or_else(|| blend_max(&graph.nodes, current))
     {
         let (fresnel_ratio, ratio) = ratio_dependency(ratio, graph, attributes);
         if let Some(value) = extract_layer_value(layer_b, graph, attributes) {
@@ -430,7 +432,7 @@ fn extract_layer_value(layer: &Expr, graph: &Graph, attributes: &Attributes) -> 
         layer = new_layer;
     }
 
-    layer_value(layer, graph, attributes)
+    dependency_expr(layer, graph, attributes)
 }
 
 static BLEND_OVER: LazyLock<Graph> = LazyLock::new(|| {
@@ -500,8 +502,8 @@ fn blend_add<'a>(
     // The ordering is ambiguous since a+b == b+a.
     // Assume the base layer is not a global texture.
     if let (Some(Dependency::Texture(t1)), Some(Dependency::Texture(t2))) = (
-        layer_value(assign_x_recursive(&graph.nodes, a), graph, attributes),
-        layer_value(assign_x_recursive(&graph.nodes, b), graph, attributes),
+        dependency_expr(assign_x_recursive(&graph.nodes, a), graph, attributes),
+        dependency_expr(assign_x_recursive(&graph.nodes, b), graph, attributes),
     ) {
         if sampler_index(&t1.name).unwrap_or(usize::MAX)
             > sampler_index(&t2.name).unwrap_or(usize::MAX)
@@ -546,8 +548,8 @@ fn blend_mul<'a>(
     let a = result.get("a")?;
     let b = result.get("b")?;
     // TODO: The ordering is ambiguous since a*b == b*a.
-    let a_value = layer_value(assign_x_recursive(&graph.nodes, a), graph, attributes);
-    let b_value = layer_value(assign_x_recursive(&graph.nodes, b), graph, attributes);
+    let a_value = dependency_expr(assign_x_recursive(&graph.nodes, a), graph, attributes);
+    let b_value = dependency_expr(assign_x_recursive(&graph.nodes, b), graph, attributes);
     if !matches!(a_value, Some(Dependency::Texture(_)))
         && matches!(b_value, Some(Dependency::Texture(_)))
     {
@@ -668,30 +670,42 @@ static BLEND_POW: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-static BLEND_POW2: LazyLock<Graph> = LazyLock::new(|| {
-    // Equivalent to pow(a, b)
-    let query = indoc! {"
-        void main() {
-            a = max(0.0, a);
-            a = abs(a);
-            a = log2(a);
-            a = a * b;
-            a = exp2(a);
-        }
-    "};
-    Graph::parse_glsl(query).unwrap()
-});
-
 fn blend_pow<'a>(
     nodes: &'a [Node],
     expr: &'a Expr,
 ) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
-    // Start with the more specific query.
-    let result = query_nodes(expr, nodes, &BLEND_POW2.nodes)
-        .or_else(|| query_nodes(expr, nodes, &BLEND_POW.nodes))?;
+    let result = query_nodes(expr, nodes, &BLEND_POW.nodes)?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     Some((a, b, &Expr::Float(1.0), LayerBlendMode::Power))
+}
+
+static BLEND_MAX: LazyLock<Graph> =
+    LazyLock::new(|| Graph::parse_glsl("void main() { result = max(a, b); }").unwrap());
+
+fn blend_max<'a>(
+    nodes: &'a [Node],
+    expr: &'a Expr,
+) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
+    let result = query_nodes(expr, nodes, &BLEND_MAX.nodes)?;
+    let a = result.get("a")?;
+    let b = result.get("b")?;
+    // TODO: blend mode for min/max
+    Some((a, b, &Expr::Float(1.0), LayerBlendMode::Max))
+}
+
+static BLEND_MIN: LazyLock<Graph> =
+    LazyLock::new(|| Graph::parse_glsl("void main() { result = min(a, b); }").unwrap());
+
+fn blend_min<'a>(
+    nodes: &'a [Node],
+    expr: &'a Expr,
+) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
+    let result = query_nodes(expr, nodes, &BLEND_MIN.nodes)?;
+    let a = result.get("a")?;
+    let b = result.get("b")?;
+    // TODO: blend mode for min/max
+    Some((a, b, &Expr::Float(1.0), LayerBlendMode::Min))
 }
 
 fn dependency_expr(e: &Expr, graph: &Graph, attributes: &Attributes) -> Option<Dependency> {
@@ -699,29 +713,17 @@ fn dependency_expr(e: &Expr, graph: &Graph, attributes: &Attributes) -> Option<D
         buffer_dependency(e)
             .map(Dependency::Buffer)
             .or_else(|| match e {
-                // TODO: Why does handling other constants break base layer detection?
-                Expr::Float(1.0) => Some(Dependency::Constant(1.0.into())),
-                Expr::Float(-1.0) => Some(Dependency::Constant((-1.0).into())),
-                // TODO: Find dependencies recursively?
+                Expr::Float(f) => Some(Dependency::Constant((*f).into())),
+                Expr::Global { name, channel } => {
+                    // TODO: Also check if this matches a vertex input name?
+                    Some(Dependency::Attribute(AttributeDependency {
+                        name: name.into(),
+                        channel: *channel,
+                    }))
+                }
                 _ => None,
             })
     })
-}
-
-fn layer_value(input: &Expr, graph: &Graph, attributes: &Attributes) -> Option<Dependency> {
-    dependency_expr(input, graph, attributes)
-        .or_else(|| buffer_dependency(input).map(Dependency::Buffer))
-        .or_else(|| {
-            // TODO: Also check if this matches a vertex input name?
-            if let Expr::Global { name, channel } = input {
-                Some(Dependency::Attribute(AttributeDependency {
-                    name: name.into(),
-                    channel: *channel,
-                }))
-            } else {
-                None
-            }
-        })
 }
 
 static BLEND_ADD_NORMAL: LazyLock<Graph> = LazyLock::new(|| {
@@ -1491,7 +1493,7 @@ mod tests {
             vec![
                 OutputLayer {
                     value: OutputLayerValue::Value(tex("s2", 'x', "in_attr3", 'x', 'y')),
-                    ratio: None,
+                    ratio: Some(Dependency::Constant(2.0.into())),
                     blend_mode: LayerBlendMode::Add,
                     is_fresnel: false
                 },
@@ -1602,7 +1604,7 @@ mod tests {
                 layers: vec![
                     OutputLayer {
                         value: OutputLayerValue::Value(tex("s2", 'x', "in_attr4", 'x', 'y')),
-                        ratio: None,
+                        ratio: Some(Dependency::Constant(2.0.into())),
                         blend_mode: LayerBlendMode::Add,
                         is_fresnel: false
                     },
@@ -1809,7 +1811,7 @@ mod tests {
             vec![
                 OutputLayer {
                     value: OutputLayerValue::Value(tex("s6", 'x', "in_attr3", 'x', 'y')),
-                    ratio: None,
+                    ratio: Some(Dependency::Constant(2.0.into())),
                     blend_mode: LayerBlendMode::Add,
                     is_fresnel: false
                 },
@@ -1826,7 +1828,7 @@ mod tests {
             vec![
                 OutputLayer {
                     value: OutputLayerValue::Value(tex("s6", 'y', "in_attr3", 'x', 'y')),
-                    ratio: None,
+                    ratio: Some(Dependency::Constant(2.0.into())),
                     blend_mode: LayerBlendMode::Add,
                     is_fresnel: false
                 },
@@ -1896,7 +1898,7 @@ mod tests {
             vec![
                 OutputLayer {
                     value: OutputLayerValue::Value(tex("s2", 'x', "in_attr4", 'x', 'y')),
-                    ratio: None,
+                    ratio: Some(Dependency::Constant(2.0.into())),
                     blend_mode: LayerBlendMode::Add,
                     is_fresnel: false
                 },
@@ -1945,7 +1947,7 @@ mod tests {
                 layers: vec![
                     OutputLayer {
                         value: OutputLayerValue::Value(tex("s2", 'x', "in_attr4", 'x', 'y')),
-                        ratio: None,
+                        ratio: Some(Dependency::Constant(2.0.into())),
                         blend_mode: LayerBlendMode::Add,
                         is_fresnel: false,
                     },
@@ -2107,105 +2109,124 @@ mod tests {
                     is_fresnel: false,
                 },
                 OutputLayer {
-                    value: OutputLayerValue::Layers(vec![OutputLayer {
-                        value: OutputLayerValue::Layers(vec![
-                            OutputLayer {
-                                value: OutputLayerValue::Value(tex(
-                                    "texLgt", 'x', "in_attr6", 'w', 'w'
-                                )),
-                                ratio: None,
-                                blend_mode: LayerBlendMode::Mix,
-                                is_fresnel: false,
-                            },
-                            OutputLayer {
-                                value: OutputLayerValue::Layers(vec![
-                                    OutputLayer {
-                                        value: OutputLayerValue::Value(tex(
-                                            "texShadow",
-                                            'z',
-                                            "in_attr6",
-                                            'w',
-                                            'w'
-                                        )),
-                                        ratio: None,
-                                        blend_mode: LayerBlendMode::Mix,
-                                        is_fresnel: false,
-                                    },
-                                    OutputLayer {
-                                        value: OutputLayerValue::Value(tex(
-                                            "texShadow",
-                                            'z',
-                                            "in_attr6",
-                                            'w',
-                                            'w',
-                                        )),
-                                        ratio: None,
-                                        blend_mode: LayerBlendMode::Add,
-                                        is_fresnel: false,
-                                    },
-                                    OutputLayer {
-                                        value: OutputLayerValue::Value(Dependency::Buffer(
-                                            BufferDependency {
-                                                name: "U_Toon2".into(),
-                                                field: "gToonParam".into(),
-                                                index: Some(0),
-                                                channel: Some('y'),
-                                            }
-                                        )),
-                                        ratio: Some(Dependency::Constant(1.0.into())),
-                                        blend_mode: LayerBlendMode::Add,
-                                        is_fresnel: false,
-                                    },
-                                    OutputLayer {
-                                        value: OutputLayerValue::Value(Dependency::Buffer(
-                                            BufferDependency {
-                                                name: "U_LGT".into(),
-                                                field: "gLgtPreCol".into(),
-                                                index: Some(0),
-                                                channel: Some('x'),
-                                            }
-                                        )),
+                    value: OutputLayerValue::Layers(vec![
+                        OutputLayer {
+                            value: OutputLayerValue::Value(Dependency::Buffer(BufferDependency {
+                                name: "U_LGT".into(),
+                                field: "gLgtPreDir".into(),
+                                index: Some(0),
+                                channel: Some('w'),
+                            })),
+                            ratio: Some(Dependency::Constant(1.0.into())),
+                            blend_mode: LayerBlendMode::MixRatio,
+                            is_fresnel: false,
+                        },
+                        OutputLayer {
+                            value: OutputLayerValue::Value(Dependency::Constant(1.0.into())),
+                            ratio: Some(Dependency::Constant(1.0.into())),
+                            blend_mode: LayerBlendMode::Min,
+                            is_fresnel: false,
+                        },
+                        OutputLayer {
+                            value: OutputLayerValue::Layers(vec![
+                                OutputLayer {
+                                    value: OutputLayerValue::Value(tex(
+                                        "texLgt", 'x', "in_attr6", 'w', 'w'
+                                    )),
+                                    ratio: None,
+                                    blend_mode: LayerBlendMode::Mix,
+                                    is_fresnel: false,
+                                },
+                                OutputLayer {
+                                    value: OutputLayerValue::Layers(vec![
+                                        OutputLayer {
+                                            value: OutputLayerValue::Value(tex(
+                                                "texShadow",
+                                                'z',
+                                                "in_attr6",
+                                                'w',
+                                                'w'
+                                            )),
+                                            ratio: None,
+                                            blend_mode: LayerBlendMode::Mix,
+                                            is_fresnel: false,
+                                        },
+                                        OutputLayer {
+                                            value: OutputLayerValue::Value(tex(
+                                                "texShadow",
+                                                'z',
+                                                "in_attr6",
+                                                'w',
+                                                'w',
+                                            )),
+                                            ratio: None,
+                                            blend_mode: LayerBlendMode::Add,
+                                            is_fresnel: false,
+                                        },
+                                        OutputLayer {
+                                            value: OutputLayerValue::Value(Dependency::Buffer(
+                                                BufferDependency {
+                                                    name: "U_Toon2".into(),
+                                                    field: "gToonParam".into(),
+                                                    index: Some(0),
+                                                    channel: Some('y'),
+                                                }
+                                            )),
+                                            ratio: Some(Dependency::Constant(1.0.into())),
+                                            blend_mode: LayerBlendMode::Add,
+                                            is_fresnel: false,
+                                        },
+                                        OutputLayer {
+                                            value: OutputLayerValue::Value(Dependency::Buffer(
+                                                BufferDependency {
+                                                    name: "U_LGT".into(),
+                                                    field: "gLgtPreCol".into(),
+                                                    index: Some(0),
+                                                    channel: Some('x'),
+                                                }
+                                            )),
+                                            ratio: Some(Dependency::Constant(1.0.into())),
+                                            blend_mode: LayerBlendMode::MixRatio,
+                                            is_fresnel: false,
+                                        },
+                                    ]),
+                                    ratio: Some(Dependency::Buffer(BufferDependency {
+                                        name: "U_Toon2".into(),
+                                        field: "gToonParam".into(),
+                                        index: Some(0),
+                                        channel: Some('z'),
+                                    })),
+                                    blend_mode: LayerBlendMode::Add,
+                                    is_fresnel: false,
+                                },
+                                OutputLayer {
+                                    value: OutputLayerValue::Value(Dependency::Attribute(
+                                        AttributeDependency {
+                                            name: "in_attr2".into(),
+                                            channel: Some('x'),
+                                        },
+                                    )),
+                                    ratio: Some(Dependency::Constant(1.0.into())),
+                                    blend_mode: LayerBlendMode::Add,
+                                    is_fresnel: false,
+                                },
+                                OutputLayer {
+                                    value: OutputLayerValue::Layers(vec![OutputLayer {
+                                        value: OutputLayerValue::Layers(vec![]),
                                         ratio: Some(Dependency::Constant(1.0.into())),
                                         blend_mode: LayerBlendMode::MixRatio,
                                         is_fresnel: false,
-                                    },
-                                ]),
-                                ratio: Some(Dependency::Buffer(BufferDependency {
-                                    name: "U_Toon2".into(),
-                                    field: "gToonParam".into(),
-                                    index: Some(0),
-                                    channel: Some('z'),
-                                })),
-                                blend_mode: LayerBlendMode::Add,
-                                is_fresnel: false,
-                            },
-                            OutputLayer {
-                                value: OutputLayerValue::Value(Dependency::Attribute(
-                                    AttributeDependency {
-                                        name: "in_attr2".into(),
-                                        channel: Some('x'),
-                                    },
-                                )),
-                                ratio: Some(Dependency::Constant(1.0.into())),
-                                blend_mode: LayerBlendMode::Add,
-                                is_fresnel: false,
-                            },
-                            OutputLayer {
-                                value: OutputLayerValue::Layers(vec![OutputLayer {
-                                    value: OutputLayerValue::Layers(vec![]),
+                                    }]),
                                     ratio: Some(Dependency::Constant(1.0.into())),
                                     blend_mode: LayerBlendMode::MixRatio,
                                     is_fresnel: false,
-                                }]),
-                                ratio: Some(Dependency::Constant(1.0.into())),
-                                blend_mode: LayerBlendMode::MixRatio,
-                                is_fresnel: false,
-                            },
-                        ]),
-                        ratio: Some(Dependency::Constant(1.0.into())),
-                        blend_mode: LayerBlendMode::MixRatio,
-                        is_fresnel: false,
-                    }]),
+                                },
+                            ]),
+                            ratio: Some(Dependency::Constant(1.0.into())),
+                            blend_mode: LayerBlendMode::MixRatio,
+                            is_fresnel: false,
+                        }
+                    ]),
                     ratio: Some(Dependency::Constant(1.0.into())),
                     blend_mode: LayerBlendMode::MixRatio,
                     is_fresnel: false,
@@ -2947,28 +2968,101 @@ mod tests {
                     is_fresnel: false,
                 },
                 OutputLayer {
-                    value: OutputLayerValue::Layers(Vec::new()),
-                    ratio: None,
+                    value: OutputLayerValue::Layers(vec![
+                        OutputLayer {
+                            value: OutputLayerValue::Value(Dependency::Constant(0.0.into())),
+                            ratio: None,
+                            blend_mode: LayerBlendMode::Mix,
+                            is_fresnel: false,
+                        },
+                        OutputLayer {
+                            value: OutputLayerValue::Layers(vec![
+                                OutputLayer {
+                                    value: OutputLayerValue::Value(tex(
+                                        "texLgt", 'x', "in_attr6", 'w', 'w'
+                                    )),
+                                    ratio: None,
+                                    blend_mode: LayerBlendMode::Mix,
+                                    is_fresnel: false,
+                                },
+                                OutputLayer {
+                                    value: OutputLayerValue::Layers(vec![
+                                        OutputLayer {
+                                            value: OutputLayerValue::Value(tex(
+                                                "gIBL", 'x', "in_attr0", 'x', 'x'
+                                            )),
+                                            ratio: None,
+                                            blend_mode: LayerBlendMode::Mix,
+                                            is_fresnel: false,
+                                        },
+                                        OutputLayer {
+                                            value: OutputLayerValue::Value(Dependency::Buffer(
+                                                BufferDependency {
+                                                    name: "U_Mate".into(),
+                                                    field: "gMatAmb".into(),
+                                                    index: None,
+                                                    channel: Some('x'),
+                                                }
+                                            )),
+                                            ratio: Some(Dependency::Constant(1.0.into())),
+                                            blend_mode: LayerBlendMode::MixRatio,
+                                            is_fresnel: false,
+                                        },
+                                    ]),
+                                    ratio: None,
+                                    blend_mode: LayerBlendMode::Add,
+                                    is_fresnel: false,
+                                },
+                                OutputLayer {
+                                    value: OutputLayerValue::Value(Dependency::Constant(
+                                        10.0.into()
+                                    )),
+                                    ratio: Some(Dependency::Constant(1.0.into())),
+                                    blend_mode: LayerBlendMode::Min,
+                                    is_fresnel: false,
+                                },
+                            ]),
+                            ratio: Some(Dependency::Constant(1.0.into())),
+                            blend_mode: LayerBlendMode::Max,
+                            is_fresnel: false,
+                        },
+                    ]),
+                    ratio: Some(Dependency::Constant(2.0.into())),
                     blend_mode: LayerBlendMode::Add,
                     is_fresnel: false,
                 },
                 OutputLayer {
                     value: OutputLayerValue::Layers(vec![
                         OutputLayer {
-                            value: OutputLayerValue::Value(tex("s0", 'x', "in_attr3", 'y', 'y')),
+                            value: OutputLayerValue::Value(Dependency::Constant(0.0.into())),
                             ratio: None,
                             blend_mode: LayerBlendMode::Mix,
                             is_fresnel: false,
                         },
                         OutputLayer {
-                            value: OutputLayerValue::Value(Dependency::Attribute(
-                                AttributeDependency {
-                                    name: "in_attr5".into(),
-                                    channel: Some('x'),
-                                }
-                            )),
+                            value: OutputLayerValue::Layers(vec![
+                                OutputLayer {
+                                    value: OutputLayerValue::Value(tex(
+                                        "s0", 'x', "in_attr3", 'y', 'y'
+                                    )),
+                                    ratio: None,
+                                    blend_mode: LayerBlendMode::Mix,
+                                    is_fresnel: false,
+                                },
+                                OutputLayer {
+                                    value: OutputLayerValue::Value(Dependency::Attribute(
+                                        AttributeDependency {
+                                            name: "in_attr5".into(),
+                                            channel: Some('x')
+                                        }
+                                    )),
+                                    ratio: Some(Dependency::Constant(1.0.into())),
+                                    blend_mode: LayerBlendMode::MixRatio,
+                                    is_fresnel: false,
+                                },
+                            ]),
                             ratio: Some(Dependency::Constant(1.0.into())),
-                            blend_mode: LayerBlendMode::MixRatio,
+                            blend_mode: LayerBlendMode::Max,
                             is_fresnel: false,
                         },
                         OutputLayer {
@@ -3007,7 +3101,37 @@ mod tests {
                             is_fresnel: false,
                         },
                         OutputLayer {
-                            value: OutputLayerValue::Layers(Vec::new()),
+                            value: OutputLayerValue::Layers(vec![
+                                OutputLayer {
+                                    value: OutputLayerValue::Value(Dependency::Constant(
+                                        100.0.into()
+                                    )),
+                                    ratio: None,
+                                    blend_mode: LayerBlendMode::Mix,
+                                    is_fresnel: false,
+                                },
+                                OutputLayer {
+                                    value: OutputLayerValue::Value(Dependency::Buffer(
+                                        BufferDependency {
+                                            name: "U_Static".into(),
+                                            field: "gLgtPreSpe".into(),
+                                            index: Some(0),
+                                            channel: Some('x'),
+                                        }
+                                    )),
+                                    ratio: Some(Dependency::Constant(1.0.into())),
+                                    blend_mode: LayerBlendMode::Min,
+                                    is_fresnel: false,
+                                },
+                                OutputLayer {
+                                    value: OutputLayerValue::Value(Dependency::Constant(
+                                        0.4.into()
+                                    )),
+                                    ratio: Some(Dependency::Constant(1.0.into())),
+                                    blend_mode: LayerBlendMode::Max,
+                                    is_fresnel: false,
+                                },
+                            ]),
                             ratio: Some(tex("s1", 'y', "in_attr0", 'x', 'x')),
                             blend_mode: LayerBlendMode::Add,
                             is_fresnel: false,
@@ -3027,7 +3151,10 @@ mod tests {
                         name: "in_attr7".into(),
                         channel: Some('x'),
                     })),
-                    ratio: None,
+                    ratio: Some(Dependency::Attribute(AttributeDependency {
+                        name: "in_attr7".into(),
+                        channel: Some('w')
+                    })),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false,
                 },

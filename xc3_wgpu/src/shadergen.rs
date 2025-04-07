@@ -42,6 +42,7 @@ pub fn create_model_shader(key: &PipelineKey) -> String {
     .iter()
     .zip(&key.output_layers_wgsl)
     {
+        // TODO: This causes slow compiles and very complex shaders?
         source = source.replace(from, &to.replace(OUT_VAR, var));
     }
 
@@ -219,7 +220,7 @@ fn layer_wgsl(
             let mut output = var.to_string();
             for layer in layers {
                 if layer.weight.is_some() {
-                    let layer_var = format!("({output})");
+                    let layer_var = format!("{output}");
                     output = layer_wgsl(name_to_index, name_to_uv_wgsl, layer, &layer_var);
                 }
             }
@@ -244,33 +245,46 @@ fn layer_wgsl(
         }
         LayerBlendMode::MixRatio => {
             if ratio == "1.0" {
-                format!("{var} * {b}")
+                format!("({var} * {b})")
             } else {
                 format!("mix({var}, {var} * {b}, {ratio})")
             }
         }
         LayerBlendMode::Add => {
             if ratio == "1.0" {
-                format!("{var} + {b}")
+                format!("({var} + {b})")
             } else {
                 format!("{var} + {b} * {ratio}")
             }
         }
         LayerBlendMode::AddNormal => {
-            let (var, c) = var.split_once('.').unwrap_or((var, ""));
-            let (b, _) = b.split_once('.').unwrap_or((&b, ""));
+            // TODO: This doesn't work.
+            // let (var, c) = if var.ends_with(".x") {
+            //     (var.trim_end_matches(".x"), "x")
+            // } else if var.ends_with(".y") {
+            //     (var.trim_end_matches(".y"), "y")
+            // } else if var.ends_with(".z") {
+            //     (var.trim_end_matches(".z"), "z")
+            // } else if var.ends_with(".w") {
+            //     (var.trim_end_matches(".w"), "w")
+            // } else {
+            //     (var, "")
+            // };
+            // let b = b.trim_end_matches(".x").trim_end_matches(".y").trim_end_matches(".z").trim_end_matches(".w");
 
-            let c = if !c.is_empty() {
-                format!(".{c}")
-            } else {
-                String::new()
-            };
+            // let c = if !c.is_empty() {
+            // format!(".{c}")
+            // } else {
+            // String::new()
+            // };
 
             // TODO: Assume this mode applies to x and y?
             // Ensure that z blending does not affect normals.
-            let a_nrm = format!("vec3({var}.xy, normal_z({var}.x, {var}.y))");
-            let b_nrm = format!("create_normal_map({b}.xy)");
-            format!("add_normal_maps({a_nrm}, {b_nrm}, {ratio}){c}")
+            // let a_nrm = format!("vec3({var}.xy, normal_z({var}.x, {var}.y))");
+            // let b_nrm = format!("create_normal_map({b}.xy)");
+            // format!("add_normal_maps({a_nrm}, {b_nrm}, {ratio}){c}")
+            // format!("{var}{c}")
+            var.to_string()
         }
         LayerBlendMode::Overlay => {
             if ratio == "1.0" {
@@ -286,6 +300,8 @@ fn layer_wgsl(
                 format!("mix({var}, pow({var}, {b}), {ratio})")
             }
         }
+        LayerBlendMode::Min => format!("min({var}, {b})"),
+        LayerBlendMode::Max => format!("max({var}, {b})"),
     }
 }
 
