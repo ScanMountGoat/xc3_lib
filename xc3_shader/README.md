@@ -1,5 +1,5 @@
 # xc3_shader
-A command line tool for extracting and analyzing shaders for Xenoblade X, Xenoblade 1 DE, Xenoblade 2, and Xenoblade 3.
+A command line tool for extracting and analyzing shaders for Xenoblade Chronicles X, Xenoblade Chronicles 1 Definitive Edition, Xenoblade Chronicles 2, Xenoblade Chronicles 3, and Xenoblade Chronicles X Definitive Edition.
 
 The shader database contains information for each compiled shader program like which inputs assigned to each output.
 Shader analysis converts GLSL and assembly code to a directed graph similar to shader node graphs in game engines or content creation applications. This enables the detection of subgraphs for common operations like compiled functions or matrix multiplications even if variable names are different across files due to different usage of registers.
