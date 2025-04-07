@@ -1,15 +1,15 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use glam::{uvec4, vec4, Mat4, UVec4, Vec3, Vec4};
 use log::{error, info};
 use rayon::prelude::*;
 use wgpu::util::DeviceExt;
-use xc3_model::{vertex::AttributeData, ImageTexture, LodData, MeshRenderFlags2, MeshRenderPass};
+use xc3_model::{vertex::AttributeData, ImageTexture, MeshRenderFlags2, MeshRenderPass};
 
 use crate::{
     animation::animated_skinning_transforms,
     culling::is_within_frustum,
-    material::{materials, Material},
+    material::{create_material, Material},
     pipeline::{model_pipeline, ModelPipelineData, Output5Type, PipelineKey},
     sampler::create_sampler,
     shader,
@@ -53,11 +53,10 @@ impl ModelBuffers {
 // TODO: aabb tree for culling?
 pub struct Models {
     pub models: Vec<Model>,
-    materials: Vec<Material>,
+    index_to_materials: BTreeMap<usize, Material>,
     bounds: Bounds,
 
     // TODO: skinning?
-    lod_data: Option<LodData>,
     morph_controller_names: Vec<String>,
     animation_morph_names: Vec<String>,
 }
@@ -83,7 +82,6 @@ impl Models {
             .as_ref()
             .map(|s| s.bones.iter().map(|b| b.name.clone()).collect());
 
-        let lod_data = models.lod_data.clone();
         let morph_controller_names = models.morph_controller_names.clone();
         let animation_morph_names = models.animation_morph_names.clone();
 
@@ -98,17 +96,7 @@ impl Models {
         // TODO: Should instances be empty for character models instead of length 1?
         let is_instanced_static = models.models.iter().any(|m| m.instances.len() > 1);
 
-        let materials = materials(
-            device,
-            queue,
-            pipelines,
-            &models.materials,
-            textures,
-            &samplers,
-            image_textures,
-            monolib_shader,
-            is_instanced_static,
-        );
+        let mut index_to_materials = BTreeMap::new();
 
         let models = models
             .models
@@ -116,11 +104,20 @@ impl Models {
             .map(|model| {
                 create_model(
                     device,
+                    queue,
                     model,
+                    models,
                     buffers,
-                    &materials,
                     weights,
                     bone_names.as_deref(),
+                    &models.materials,
+                    &mut index_to_materials,
+                    image_textures,
+                    monolib_shader,
+                    pipelines,
+                    textures,
+                    &samplers,
+                    is_instanced_static,
                 )
             })
             .collect();
@@ -128,8 +125,7 @@ impl Models {
         // TODO: Store the samplers?
         Self {
             models,
-            materials,
-            lod_data,
+            index_to_materials,
             morph_controller_names,
             animation_morph_names,
             bounds,
@@ -148,7 +144,6 @@ pub struct Mesh {
     index_buffer_index: usize,
     material_index: usize,
     flags2: MeshRenderFlags2,
-    lod: Option<usize>,
     per_mesh: crate::shader::model::bind_groups::BindGroup3,
 }
 
@@ -245,7 +240,7 @@ impl ModelGroup {
             // TODO: cull aabb with instance transforms.
             for model in models.models.iter() {
                 for mesh in &model.meshes {
-                    let material = &models.materials[mesh.material_index];
+                    let material = &models.index_to_materials[&mesh.material_index];
 
                     // TODO: Is there a flag that controls this?
                     let is_outline = material.name.contains("outline");
@@ -255,8 +250,6 @@ impl ModelGroup {
                     // TODO: How to handle transparency?
                     // Only check the output5 type if needed.
                     if (write_to_all_outputs == material.pipeline_key.write_to_all_outputs())
-                        && !material.name.contains("_speff_")
-                        && mesh.should_render_lod(models)
                         && mesh.flags2.render_pass() == pass_id
                         && output5_type
                             .map(|ty| material.pipeline_key.output5_type == ty)
@@ -448,14 +441,12 @@ impl ModelGroup {
     }
 }
 
-impl Mesh {
-    fn should_render_lod(&self, models: &Models) -> bool {
-        models
-            .lod_data
-            .as_ref()
-            .map(|d| d.is_base_lod(self.lod))
-            .unwrap_or(true)
-    }
+fn should_render_lod(lod: Option<usize>, models: &xc3_model::Models) -> bool {
+    models
+        .lod_data
+        .as_ref()
+        .map(|d| d.is_base_lod(lod))
+        .unwrap_or(true)
 }
 
 #[tracing::instrument(skip_all)]
@@ -660,31 +651,60 @@ fn model_index_buffers(
 #[tracing::instrument(skip_all)]
 fn create_model(
     device: &wgpu::Device,
+    queue: &wgpu::Queue,
     model: &xc3_model::Model,
+    models: &xc3_model::Models,
     buffers: &[xc3_model::vertex::ModelBuffers],
-    materials: &[Material],
     weights: Option<&xc3_model::skinning::Weights>,
     bone_names: Option<&[String]>,
+    materials: &[xc3_model::material::Material],
+    index_to_material: &mut BTreeMap<usize, Material>,
+    image_textures: &[ImageTexture],
+    monolib_shader: &MonolibShaderTextures,
+    pipelines: &mut HashSet<PipelineKey>,
+    textures: &[wgpu::Texture],
+    samplers: &[wgpu::Sampler],
+    is_instanced_static: bool,
 ) -> Model {
     let model_buffers = &buffers[model.model_buffers_index];
 
     let meshes = model
         .meshes
         .iter()
-        .map(|mesh| Mesh {
-            vertex_buffer_index: mesh.vertex_buffer_index,
-            index_buffer_index: mesh.index_buffer_index,
-            material_index: mesh.material_index,
-            lod: mesh.lod_item_index,
-            flags2: mesh.flags2,
-            per_mesh: per_mesh_bind_group(
-                device,
-                model_buffers,
-                mesh,
-                &materials[mesh.material_index],
-                weights,
-                bone_names,
-            ),
+        .filter(|m| {
+            should_render_lod(m.lod_item_index, models)
+                && !materials[m.material_index].name.contains("_speff_")
+        })
+        .map(|mesh| {
+            // Lazy load materials to compile fewer pipelines.
+            let material = index_to_material
+                .entry(mesh.material_index)
+                .or_insert(create_material(
+                    device,
+                    queue,
+                    pipelines,
+                    &materials[mesh.material_index],
+                    textures,
+                    samplers,
+                    image_textures,
+                    monolib_shader,
+                    is_instanced_static,
+                ));
+
+            Mesh {
+                vertex_buffer_index: mesh.vertex_buffer_index,
+                index_buffer_index: mesh.index_buffer_index,
+                material_index: mesh.material_index,
+                flags2: mesh.flags2,
+                per_mesh: per_mesh_bind_group(
+                    device,
+                    model_buffers,
+                    mesh,
+                    material,
+                    weights,
+                    bone_names,
+                ),
+            }
         })
         .collect();
 

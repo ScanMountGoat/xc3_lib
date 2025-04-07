@@ -32,17 +32,17 @@ pub(crate) struct Material {
 
 #[allow(clippy::too_many_arguments)]
 #[tracing::instrument(skip_all)]
-pub fn materials(
+pub fn create_material(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     pipelines: &mut HashSet<PipelineKey>,
-    materials: &[xc3_model::material::Material],
+    material: &xc3_model::material::Material,
     textures: &[wgpu::Texture],
     samplers: &[wgpu::Sampler],
     image_textures: &[ImageTexture],
     monolib_shader: &MonolibShaderTextures,
     is_instanced_static: bool,
-) -> Vec<Material> {
+) -> Material {
     // TODO: Is there a better way to handle missing textures?
     let default_black = create_default_black_texture(device, queue)
         .create_view(&wgpu::TextureViewDescriptor::default());
@@ -55,181 +55,182 @@ pub fn materials(
         ..Default::default()
     });
 
-    let materials = materials
+    // Assign material textures by index to make GPU debugging easier.
+    // TODO: Match the ordering in the actual in game shader using technique?
+    let mut name_to_index: IndexMap<_, _> = (0..material.textures.len())
+        .map(|i| (format!("s{i}").into(), i))
+        .collect();
+
+    let material_assignments = material.output_assignments(image_textures);
+    let assignments = output_assignments(&material_assignments);
+
+    // Alpha textures might not be used in normal shaders.
+    if let Some(a) = &material.alpha_test {
+        name_to_index.entry_index(format!("s{}", a.texture_index).into());
+    }
+
+    let mut name_to_uv_wgsl = IndexMap::new();
+
+    let output_assignments_wgsl = material_assignments
+        .assignments
         .iter()
-        .map(|material| {
-            // Assign material textures by index to make GPU debugging easier.
-            // TODO: Match the ordering in the actual in game shader using technique?
-            let mut name_to_index: IndexMap<_, _> = (0..material.textures.len())
-                .map(|i| (format!("s{i}").into(), i))
-                .collect();
+        .map(|a| generate_assignment_wgsl(a, &mut name_to_index, &mut name_to_uv_wgsl))
+        .collect();
 
-            let material_assignments = material.output_assignments(image_textures);
-            let assignments = output_assignments(&material_assignments);
-
-            // Alpha textures might not be used in normal shaders.
-            if let Some(a) = &material.alpha_test {
-                name_to_index.entry_index(format!("s{}", a.texture_index).into());
-            }
-
-            let mut name_to_uv_wgsl = IndexMap::new();
-
-            let output_assignments_wgsl = material_assignments
-                .assignments
-                .iter()
-                .map(|a| generate_assignment_wgsl(a, &mut name_to_index, &mut name_to_uv_wgsl))
-                .collect();
-
-            let output_layers_wgsl: Vec<_> = material_assignments
-                .assignments
-                .iter()
-                .enumerate()
-                .map(|(i, a)| {
-                    if i == 2 {
-                        generate_normal_layering_wgsl(a, &mut name_to_index, &mut name_to_uv_wgsl)
-                    } else {
-                        generate_layering_wgsl(a, &mut name_to_index, &mut name_to_uv_wgsl)
-                    }
-                })
-                .collect();
-
-            // Generate empty code if alpha testing is disabled.
-            let alpha_test_wgsl = material
-                .alpha_test
-                .as_ref()
-                .map(|a| generate_alpha_test_wgsl(a, &mut name_to_index))
-                .unwrap_or_default();
-
-            let mut uvs_wgsl: Vec<_> = name_to_uv_wgsl.values().cloned().collect();
-            uvs_wgsl.sort();
-
-            // TODO: Some materials need more than 10 textures.
-            let mut texture_views: [Option<_>; 10] = std::array::from_fn(|_| None);
-
-            for (name, i) in &name_to_index {
-                if let Some(texture) = assign_texture(material, textures, monolib_shader, name) {
-                    if *i < texture_views.len() {
-                        texture_views[*i] = Some(texture.create_view(&Default::default()));
-                    }
-                } else {
-                    warn!("Missing texture for {name:?}. Assigning default black texture.");
-                }
-            }
-
-            // Use similar calculated parameter values as in game vertex shaders.
-            let fur_params = material
-                .fur_params
-                .as_ref()
-                .map(|p| crate::shader::model::FurShellParams {
-                    xyz_offset: vec3(0.0, p.y_offset * p.shell_width, 0.0),
-                    instance_count: p.instance_count as f32,
-                    shell_width: 1.0 / (p.instance_count as f32) * p.shell_width,
-                    alpha: (1.0 - p.alpha) / p.instance_count as f32,
-                })
-                .unwrap_or(crate::shader::model::FurShellParams {
-                    xyz_offset: Vec3::ZERO,
-                    instance_count: 0.0,
-                    shell_width: 0.0,
-                    alpha: 0.0,
-                });
-
-            // TODO: What is a good default outline width?
-            let outline_width =
-                value_channel_assignment(material_assignments.outline_width.as_ref())
-                    .unwrap_or(0.005);
-
-            // TODO: This is normally done using a depth prepass.
-            // TODO: Is it ok to combine the prepass alpha in the main pass like this?
-            let per_material = device.create_uniform_buffer(
-                "PerMaterial",
-                &[crate::shader::model::PerMaterial {
-                    assignments,
-                    outline_width,
-                    fur_params,
-                    alpha_test_ref: material.alpha_test_ref,
-                }],
-            );
-
-            // Bind all available textures and samplers.
-            // Texture selection happens within generated shader code.
-            // Any unused shader code will likely be removed during shader compilation.
-            let bind_group2 = crate::shader::model::bind_groups::BindGroup2::from_bindings(
-                device,
-                crate::shader::model::bind_groups::BindGroupLayout2 {
-                    s0: texture_views[0].as_ref().unwrap_or(&default_black),
-                    s1: texture_views[1].as_ref().unwrap_or(&default_black),
-                    s2: texture_views[2].as_ref().unwrap_or(&default_black),
-                    s3: texture_views[3].as_ref().unwrap_or(&default_black),
-                    s4: texture_views[4].as_ref().unwrap_or(&default_black),
-                    s5: texture_views[5].as_ref().unwrap_or(&default_black),
-                    s6: texture_views[6].as_ref().unwrap_or(&default_black),
-                    s7: texture_views[7].as_ref().unwrap_or(&default_black),
-                    s8: texture_views[8].as_ref().unwrap_or(&default_black),
-                    s9: texture_views[9].as_ref().unwrap_or(&default_black),
-                    s0_sampler: material_sampler(material, samplers, 0).unwrap_or(&default_sampler),
-                    s1_sampler: material_sampler(material, samplers, 1).unwrap_or(&default_sampler),
-                    s2_sampler: material_sampler(material, samplers, 2).unwrap_or(&default_sampler),
-                    s3_sampler: material_sampler(material, samplers, 3).unwrap_or(&default_sampler),
-                    s4_sampler: material_sampler(material, samplers, 4).unwrap_or(&default_sampler),
-                    s5_sampler: material_sampler(material, samplers, 5).unwrap_or(&default_sampler),
-                    s6_sampler: material_sampler(material, samplers, 6).unwrap_or(&default_sampler),
-                    s7_sampler: material_sampler(material, samplers, 7).unwrap_or(&default_sampler),
-                    s8_sampler: material_sampler(material, samplers, 8).unwrap_or(&default_sampler),
-                    s9_sampler: material_sampler(material, samplers, 9).unwrap_or(&default_sampler),
-                    alpha_test_sampler: material
-                        .alpha_test
-                        .as_ref()
-                        .map(|a| a.sampler_index)
-                        .and_then(|i| samplers.get(i))
-                        .unwrap_or(&default_sampler),
-                    per_material: per_material.as_entire_buffer_binding(),
-                },
-            );
-
-            // Toon and hair materials seem to always use specular.
-            // TODO: Is there a more reliable way to check this?
-            // TODO: Is any frag shader with 7 outputs using specular?
-            // TODO: Something in the wimdo matches up with shader outputs?
-            // TODO: unk12-14 in material render flags?
-            let output5_type = if material_assignments.mat_id().is_some() {
-                if material.render_flags.specular() {
-                    Output5Type::Specular
-                } else {
-                    // TODO: This case isn't always accurate.
-                    Output5Type::Emission
-                }
+    let start = std::time::Instant::now();
+    let output_layers_wgsl: Vec<_> = material_assignments
+        .assignments
+        .iter()
+        .enumerate()
+        .map(|(i, a)| {
+            if i == 2 {
+                generate_normal_layering_wgsl(a, &mut name_to_index, &mut name_to_uv_wgsl)
             } else {
-                // TODO: Set better defaults for xcx models?
-                Output5Type::Specular
-            };
-
-            // TODO: How to make sure the pipeline outputs match the render pass?
-            // Each material only goes in exactly one pass?
-            // TODO: Is it redundant to also store the unk type?
-            // TODO: Find a more accurate way to detect outline shaders.
-            let pipeline_key = PipelineKey {
-                pass_type: material.pass_type,
-                flags: material.state_flags,
-                is_outline: material.name.ends_with("_outline"),
-                output5_type,
-                is_instanced_static,
-                output_assignments_wgsl,
-                output_layers_wgsl,
-                alpha_test_wgsl,
-                uvs_wgsl,
-            };
-            pipelines.insert(pipeline_key.clone());
-
-            Material {
-                name: material.name.clone(),
-                bind_group2,
-                pipeline_key,
-                fur_shell_instance_count: material.fur_params.as_ref().map(|p| p.instance_count),
+                generate_layering_wgsl(a, &mut name_to_index, &mut name_to_uv_wgsl)
             }
         })
         .collect();
+    println!("{:?}: {:?}", &material.name, start.elapsed());
 
-    materials
+    // Generate empty code if alpha testing is disabled.
+    let alpha_test_wgsl = material
+        .alpha_test
+        .as_ref()
+        .map(|a| generate_alpha_test_wgsl(a, &mut name_to_index))
+        .unwrap_or_default();
+
+    let mut uvs_wgsl: Vec<_> = name_to_uv_wgsl.values().cloned().collect();
+    uvs_wgsl.sort();
+
+    // TODO: Some materials need more than 10 textures.
+    let mut texture_views: [Option<_>; 10] = std::array::from_fn(|_| None);
+
+    for (name, i) in &name_to_index {
+        if let Some(texture) = assign_texture(material, textures, monolib_shader, name) {
+            if *i < texture_views.len() {
+                texture_views[*i] = Some(texture.create_view(&Default::default()));
+            }
+        } else {
+            warn!("Missing texture for {name:?}. Assigning default black texture.");
+        }
+    }
+
+    if material.name == "eye_re" || material.name == "ho_BL_TS2" {
+        // dbg!(&name_to_index);
+        // dbg!(material.shader.as_ref().map(|s| &s.output_dependencies));
+        // dbg!(&material_assignments.assignments[0].x_layers);
+        println!("{}", output_layers_wgsl[0]);
+    }
+
+    // Use similar calculated parameter values as in game vertex shaders.
+    let fur_params = material
+        .fur_params
+        .as_ref()
+        .map(|p| crate::shader::model::FurShellParams {
+            xyz_offset: vec3(0.0, p.y_offset * p.shell_width, 0.0),
+            instance_count: p.instance_count as f32,
+            shell_width: 1.0 / (p.instance_count as f32) * p.shell_width,
+            alpha: (1.0 - p.alpha) / p.instance_count as f32,
+        })
+        .unwrap_or(crate::shader::model::FurShellParams {
+            xyz_offset: Vec3::ZERO,
+            instance_count: 0.0,
+            shell_width: 0.0,
+            alpha: 0.0,
+        });
+
+    // TODO: What is a good default outline width?
+    let outline_width =
+        value_channel_assignment(material_assignments.outline_width.as_ref()).unwrap_or(0.005);
+
+    // TODO: This is normally done using a depth prepass.
+    // TODO: Is it ok to combine the prepass alpha in the main pass like this?
+    let per_material = device.create_uniform_buffer(
+        "PerMaterial",
+        &[crate::shader::model::PerMaterial {
+            assignments,
+            outline_width,
+            fur_params,
+            alpha_test_ref: material.alpha_test_ref,
+        }],
+    );
+
+    // Bind all available textures and samplers.
+    // Texture selection happens within generated shader code.
+    // Any unused shader code will likely be removed during shader compilation.
+    let bind_group2 = crate::shader::model::bind_groups::BindGroup2::from_bindings(
+        device,
+        crate::shader::model::bind_groups::BindGroupLayout2 {
+            s0: texture_views[0].as_ref().unwrap_or(&default_black),
+            s1: texture_views[1].as_ref().unwrap_or(&default_black),
+            s2: texture_views[2].as_ref().unwrap_or(&default_black),
+            s3: texture_views[3].as_ref().unwrap_or(&default_black),
+            s4: texture_views[4].as_ref().unwrap_or(&default_black),
+            s5: texture_views[5].as_ref().unwrap_or(&default_black),
+            s6: texture_views[6].as_ref().unwrap_or(&default_black),
+            s7: texture_views[7].as_ref().unwrap_or(&default_black),
+            s8: texture_views[8].as_ref().unwrap_or(&default_black),
+            s9: texture_views[9].as_ref().unwrap_or(&default_black),
+            s0_sampler: material_sampler(material, samplers, 0).unwrap_or(&default_sampler),
+            s1_sampler: material_sampler(material, samplers, 1).unwrap_or(&default_sampler),
+            s2_sampler: material_sampler(material, samplers, 2).unwrap_or(&default_sampler),
+            s3_sampler: material_sampler(material, samplers, 3).unwrap_or(&default_sampler),
+            s4_sampler: material_sampler(material, samplers, 4).unwrap_or(&default_sampler),
+            s5_sampler: material_sampler(material, samplers, 5).unwrap_or(&default_sampler),
+            s6_sampler: material_sampler(material, samplers, 6).unwrap_or(&default_sampler),
+            s7_sampler: material_sampler(material, samplers, 7).unwrap_or(&default_sampler),
+            s8_sampler: material_sampler(material, samplers, 8).unwrap_or(&default_sampler),
+            s9_sampler: material_sampler(material, samplers, 9).unwrap_or(&default_sampler),
+            alpha_test_sampler: material
+                .alpha_test
+                .as_ref()
+                .map(|a| a.sampler_index)
+                .and_then(|i| samplers.get(i))
+                .unwrap_or(&default_sampler),
+            per_material: per_material.as_entire_buffer_binding(),
+        },
+    );
+
+    // Toon and hair materials seem to always use specular.
+    // TODO: Is there a more reliable way to check this?
+    // TODO: Is any frag shader with 7 outputs using specular?
+    // TODO: Something in the wimdo matches up with shader outputs?
+    // TODO: unk12-14 in material render flags?
+    let output5_type = if material_assignments.mat_id().is_some() {
+        if material.render_flags.specular() {
+            Output5Type::Specular
+        } else {
+            // TODO: This case isn't always accurate.
+            Output5Type::Emission
+        }
+    } else {
+        // TODO: Set better defaults for xcx models?
+        Output5Type::Specular
+    };
+
+    // TODO: How to make sure the pipeline outputs match the render pass?
+    // Each material only goes in exactly one pass?
+    // TODO: Is it redundant to also store the unk type?
+    // TODO: Find a more accurate way to detect outline shaders.
+    let pipeline_key = PipelineKey {
+        pass_type: material.pass_type,
+        flags: material.state_flags,
+        is_outline: material.name.ends_with("_outline"),
+        output5_type,
+        is_instanced_static,
+        output_assignments_wgsl,
+        output_layers_wgsl,
+        alpha_test_wgsl,
+        uvs_wgsl,
+    };
+    pipelines.insert(pipeline_key.clone());
+
+    Material {
+        name: material.name.clone(),
+        bind_group2,
+        pipeline_key,
+        fur_shell_instance_count: material.fur_params.as_ref().map(|p| p.instance_count),
+    }
 }
 
 fn output_assignments(
