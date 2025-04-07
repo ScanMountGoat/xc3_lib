@@ -200,6 +200,10 @@ pub enum LayerBlendMode {
     Overlay,
     /// `pow(a, b)`
     Power,
+    /// `min(a, b)`
+    Min,
+    /// `max(a, b)`
+    Max,
 }
 
 impl Default for LayerBlendMode {
