@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     io::Cursor,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
@@ -41,6 +42,7 @@ use xc3_model::{
     load_skel,
     model::import::{ModelFilesV111, ModelFilesV112, ModelFilesV40},
     monolib::ShaderTextures,
+    shader_database::ShaderDatabase,
     ModelRoot,
 };
 use xc3_write::WriteFull;
@@ -163,6 +165,10 @@ struct Cli {
     /// Check that read/write is 1:1 for all files and embedded files.
     #[arg(long)]
     rw: bool,
+
+    /// Load a shader database from a .bin file
+    #[arg(long)]
+    database: Option<String>,
 }
 
 fn main() {
@@ -300,7 +306,7 @@ fn main() {
 
     if cli.wimdo_model || cli.all {
         println!("Checking wimdo model conversions ...");
-        check_all_wimdo_model(root, cli.rw);
+        check_all_wimdo_model(root, cli.rw, cli.database);
     }
 
     if cli.animation || cli.all {
@@ -1339,7 +1345,9 @@ fn check_all_gltf(root: &Path) {
         });
 }
 
-fn check_all_wimdo_model(root: &Path, check_read_write: bool) {
+fn check_all_wimdo_model(root: &Path, check_read_write: bool, database: Option<String>) {
+    let database = database.map(|p| ShaderDatabase::from_file(p).unwrap());
+
     globwalk::GlobWalkerBuilder::from_patterns(root, &["*.{wimdo}"])
         .build()
         .unwrap()
@@ -1359,8 +1367,10 @@ fn check_all_wimdo_model(root: &Path, check_read_write: bool) {
                     xc3_lib::mxmd::MxmdInner::V40(mxmd) => {
                         match ModelFilesV40::from_files(&mxmd, &wismt_path, chr.as_deref()) {
                             Ok(files) => {
-                                match ModelRoot::from_mxmd_v40(&files, skel, None) {
-                                    Ok(_root) => {
+                                match ModelRoot::from_mxmd_v40(&files, skel, database.as_ref()) {
+                                    Ok(root) => {
+                                        check_shader_dependencies(&root, path);
+
                                         // TODO: test v40 model rebuilding.
                                     }
                                     Err(e) => println!("Error loading {path:?}: {e}"),
@@ -1384,14 +1394,18 @@ fn check_all_wimdo_model(root: &Path, check_read_write: bool) {
                     xc3_lib::mxmd::MxmdInner::V112(mxmd) => {
                         match ModelFilesV112::from_files(&mxmd, &wismt_path, chr.as_deref(), false)
                         {
-                            Ok(files) => match ModelRoot::from_mxmd_v112(&files, skel, None) {
-                                Ok(root) => {
-                                    if check_read_write {
-                                        check_model_export(root, &mxmd, &files.vertex, path);
+                            Ok(files) => {
+                                match ModelRoot::from_mxmd_v112(&files, skel, database.as_ref()) {
+                                    Ok(root) => {
+                                        check_shader_dependencies(&root, path);
+
+                                        if check_read_write {
+                                            check_model_export(root, &mxmd, &files.vertex, path);
+                                        }
                                     }
+                                    Err(e) => println!("Error loading {path:?}: {e}"),
                                 }
-                                Err(e) => println!("Error loading {path:?}: {e}"),
-                            },
+                            }
                             Err(e) => println!("Error loading files from {path:?}: {e}"),
                         }
                     }
@@ -1399,6 +1413,71 @@ fn check_all_wimdo_model(root: &Path, check_read_write: bool) {
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }
         });
+}
+
+fn check_shader_dependencies(root: &ModelRoot, path: &Path) {
+    for m in &root.models.materials {
+        if let Some(shader) = &m.shader {
+            for (k, v) in &shader.output_dependencies {
+                let mut layer_dependencies = HashSet::new();
+                for l in &v.layers {
+                    add_dependencies(&mut layer_dependencies, l);
+                }
+
+                let mut missing = HashSet::new();
+                for d in &v.dependencies {
+                    if !layer_dependencies.contains(d) {
+                        missing.insert(d.clone());
+                    }
+                }
+                if !missing.is_empty() && v.layers.len() > 1 {
+                    let strings: Vec<_> = missing
+                        .into_iter()
+                        .map(|d| match d {
+                            xc3_model::shader_database::Dependency::Constant(f) => f.to_string(),
+                            xc3_model::shader_database::Dependency::Buffer(b) => format!(
+                                "{}.{}{}{}",
+                                &b.name,
+                                &b.field,
+                                &b.index.map(|i| format!("[{i}]")).unwrap_or_default(),
+                                b.channel.map(|c| format!(".{c}")).unwrap_or_default()
+                            ),
+                            xc3_model::shader_database::Dependency::Texture(t) => format!(
+                                "{}{}",
+                                &t.name,
+                                t.channel.map(|c| format!(".{c}")).unwrap_or_default()
+                            ),
+                            xc3_model::shader_database::Dependency::Attribute(a) => format!(
+                                "{}{}",
+                                &a.name,
+                                a.channel.map(|c| format!(".{c}")).unwrap_or_default()
+                            ),
+                        })
+                        .collect();
+                    println!("{k}: {strings:?}, {:?}, {path:?}", &m.name);
+                }
+            }
+        }
+    }
+}
+
+fn add_dependencies(
+    dependencies: &mut HashSet<xc3_model::shader_database::Dependency>,
+    l: &xc3_model::shader_database::OutputLayer,
+) {
+    if let Some(r) = &l.ratio {
+        dependencies.insert(r.clone());
+    }
+    match &l.value {
+        xc3_model::shader_database::OutputLayerValue::Value(d) => {
+            dependencies.insert(d.clone());
+        }
+        xc3_model::shader_database::OutputLayerValue::Layers(layers) => {
+            for l in layers {
+                add_dependencies(dependencies, l);
+            }
+        }
+    }
 }
 
 fn check_model_export(
