@@ -10,7 +10,10 @@ use xc3_model::{
 
 use crate::{
     pipeline::{Output5Type, PipelineKey},
-    shadergen::{generate_alpha_test_wgsl, generate_assignment_wgsl, generate_layering_wgsl},
+    shadergen::{
+        generate_alpha_test_wgsl, generate_assignment_wgsl, generate_layering_wgsl,
+        generate_normal_layering_wgsl,
+    },
     texture::create_default_black_texture,
     DeviceBufferExt, MonolibShaderTextures,
 };
@@ -80,7 +83,14 @@ pub fn materials(
             let output_layers_wgsl: Vec<_> = material_assignments
                 .assignments
                 .iter()
-                .map(|a| generate_layering_wgsl(a, &mut name_to_index, &mut name_to_uv_wgsl))
+                .enumerate()
+                .map(|(i, a)| {
+                    if i == 2 {
+                        generate_normal_layering_wgsl(a, &mut name_to_index, &mut name_to_uv_wgsl)
+                    } else {
+                        generate_layering_wgsl(a, &mut name_to_index, &mut name_to_uv_wgsl)
+                    }
+                })
                 .collect();
 
             // Generate empty code if alpha testing is disabled.
